@@ -1223,7 +1223,7 @@ describe('SheetsAppsScriptHandler', () => {
         expect.any(Object)
       );
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('metricsFilter='),
+        expect.stringContaining('metricsFilter.deploymentId=deployment-456'),
         expect.any(Object)
       );
     });
@@ -1379,9 +1379,7 @@ describe('SheetsAppsScriptHandler', () => {
         },
         text: vi
           .fn()
-          .mockResolvedValue(
-            JSON.stringify({ error: { message: 'Rate Limit Exceeded' } })
-          ),
+          .mockResolvedValue(JSON.stringify({ error: { message: 'Rate Limit Exceeded' } })),
       });
 
       const result = await handler.handle({

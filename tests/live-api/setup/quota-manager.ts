@@ -121,8 +121,10 @@ export class QuotaManager {
     this.totalWrites += writes;
 
     // Check if we've exceeded limits
-    if (this.readCount > this.config.maxReadsPerMinute ||
-        this.writeCount > this.config.maxWritesPerMinute) {
+    if (
+      this.readCount > this.config.maxReadsPerMinute ||
+      this.writeCount > this.config.maxWritesPerMinute
+    ) {
       this.quotaViolations++;
       this.isThrottled = true;
       this.throttleMultiplier = Math.min(this.throttleMultiplier * 1.5, 5.0);
@@ -150,7 +152,7 @@ export class QuotaManager {
     // At 90% usage, multiply by 4
     if (maxPercentage > 50) {
       const pressure = (maxPercentage - 50) / 50; // 0 to 1 as we go from 50% to 100%
-      const scaleFactor = 1 + (pressure * 3); // 1 to 4
+      const scaleFactor = 1 + pressure * 3; // 1 to 4
       delay *= scaleFactor;
     }
 
@@ -188,9 +190,7 @@ export class QuotaManager {
       this.config.maxWritesPerMinute * (1 - bufferRatio) - this.writeCount
     );
 
-    const hasQuota =
-      estimate.reads <= availableReads &&
-      estimate.writes <= availableWrites;
+    const hasQuota = estimate.reads <= availableReads && estimate.writes <= availableWrites;
 
     let recommendedDelayMs = 0;
     let warning: string | undefined;
@@ -200,20 +200,14 @@ export class QuotaManager {
       if (estimate.reads > availableReads) {
         const readsNeeded = estimate.reads - availableReads;
         const readsPerSecond = this.config.maxReadsPerMinute / 60;
-        recommendedDelayMs = Math.max(
-          recommendedDelayMs,
-          (readsNeeded / readsPerSecond) * 1000
-        );
+        recommendedDelayMs = Math.max(recommendedDelayMs, (readsNeeded / readsPerSecond) * 1000);
         warning = `Need ${readsNeeded} more read quota (have ${availableReads})`;
       }
 
       if (estimate.writes > availableWrites) {
         const writesNeeded = estimate.writes - availableWrites;
         const writesPerSecond = this.config.maxWritesPerMinute / 60;
-        recommendedDelayMs = Math.max(
-          recommendedDelayMs,
-          (writesNeeded / writesPerSecond) * 1000
-        );
+        recommendedDelayMs = Math.max(recommendedDelayMs, (writesNeeded / writesPerSecond) * 1000);
         warning = warning
           ? `${warning}; need ${writesNeeded} more write quota`
           : `Need ${writesNeeded} more write quota (have ${availableWrites})`;

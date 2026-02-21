@@ -1,5 +1,3 @@
-
-
 # Request Replay System
 
 **Purpose**: Debug and analyze failed MCP operations by replaying recorded requests with timing preservation and response comparison.
@@ -231,7 +229,9 @@ if (result.success && result.diff) {
 
 // Replay batch
 const batchResult = await engine.replayBatch([1, 2, 3], '10x', (result, index, total) => {
-  console.log(`[${index}/${total}] Request ${result.requestId} - ${result.success ? 'OK' : 'FAIL'}`);
+  console.log(
+    `[${index}/${total}] Request ${result.requestId} - ${result.success ? 'OK' : 'FAIL'}`
+  );
 });
 ```
 
@@ -274,7 +274,7 @@ app.use(async (req, res, next) => {
   const originalSend = res.send;
   let responseBody: any;
 
-  res.send = function(data) {
+  res.send = function (data) {
     responseBody = data;
     return originalSend.call(this, data);
   };

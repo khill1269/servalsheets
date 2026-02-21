@@ -112,6 +112,8 @@ test-replay.jsonl
 /run-*-tests.sh
 /*-test-results*.txt
 /*-test-results*.json
+/test-output*.txt
+/*.txt
 
 # Documentation - Auto-generated (TypeDoc)
 docs/generated/

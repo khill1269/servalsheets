@@ -38,6 +38,7 @@ tags: [tutorial, handler, tool, development]
 We'll create a new `sheets_export` tool that exports spreadsheets in various formats (CSV, PDF, XLSX).
 
 **New tool will have:**
+
 - 3 actions: `export_as_csv`, `export_as_pdf`, `export_as_xlsx`
 - Type-safe Zod schema
 - Handler with Google Drive API integration
@@ -93,7 +94,7 @@ export const SheetsExportInputSchema = z.discriminatedUnion('action', [
     /** Optional sheet name (exports all if omitted) */
     sheetName: z.string().optional().describe('Specific sheet to export'),
     /** Include header row */
-    includeHeaders: z.boolean().optional().default(true)
+    includeHeaders: z.boolean().optional().default(true),
   }),
 
   // Action 2: Export as PDF
@@ -105,7 +106,7 @@ export const SheetsExportInputSchema = z.discriminatedUnion('action', [
     /** Optional sheet name (exports all if omitted) */
     sheetName: z.string().optional().describe('Specific sheet to export'),
     /** PDF orientation */
-    orientation: z.enum(['portrait', 'landscape']).optional().default('portrait')
+    orientation: z.enum(['portrait', 'landscape']).optional().default('portrait'),
   }),
 
   // Action 3: Export as XLSX
@@ -115,8 +116,8 @@ export const SheetsExportInputSchema = z.discriminatedUnion('action', [
     /** Spreadsheet ID to export */
     spreadsheetId: z.string().describe('Google Sheets spreadsheet ID'),
     /** Include formatting */
-    includeFormatting: z.boolean().optional().default(true)
-  })
+    includeFormatting: z.boolean().optional().default(true),
+  }),
 ]);
 
 /**
@@ -135,15 +136,15 @@ export const SheetsExportOutputSchema = z.object({
       /** MIME type */
       mimeType: z.string(),
       /** Export format */
-      format: ExportFormatSchema
+      format: ExportFormatSchema,
     }),
     // Error response
     z.object({
       success: z.literal(false),
       error: z.string(),
-      code: z.string()
-    })
-  ])
+      code: z.string(),
+    }),
+  ]),
 });
 
 // Infer TypeScript types
@@ -160,6 +161,7 @@ type ExportAsXlsxInput = Extract<SheetsExportInput, { action: 'export_as_xlsx' }
 ### Schema Best Practices
 
 ✅ **Do:**
+
 - Use `z.discriminatedUnion('action', [...])` for actions
 - Add JSDoc comments with `/** */`
 - Use `.describe()` for field descriptions
@@ -167,6 +169,7 @@ type ExportAsXlsxInput = Extract<SheetsExportInput, { action: 'export_as_xlsx' }
 - Export types with `z.infer<typeof Schema>`
 
 ❌ **Don't:**
+
 - Use manual TypeScript interfaces
 - Forget the `action` discriminator
 - Mix validation logic into schemas
@@ -237,7 +240,7 @@ export class ExportHandler extends BaseHandler<SheetsExportInput, SheetsExportOu
 
     // Verify spreadsheet exists
     const spreadsheet = await this.context.googleClient.sheets.spreadsheets.get({
-      spreadsheetId
+      spreadsheetId,
     });
 
     if (!spreadsheet.data) {
@@ -250,7 +253,7 @@ export class ExportHandler extends BaseHandler<SheetsExportInput, SheetsExportOu
     // If specific sheet requested, add gid parameter
     let finalUrl = exportUrl;
     if (sheetName) {
-      const sheet = spreadsheet.data.sheets?.find(s => s.properties?.title === sheetName);
+      const sheet = spreadsheet.data.sheets?.find((s) => s.properties?.title === sheetName);
       if (!sheet) {
         throw createNotFoundError('Sheet not found', { spreadsheetId, sheetName });
       }
@@ -264,10 +267,10 @@ export class ExportHandler extends BaseHandler<SheetsExportInput, SheetsExportOu
         success: true,
         action: 'export_as_csv',
         downloadUrl: finalUrl,
-        fileSize: 0,  // Would be calculated from actual download
+        fileSize: 0, // Would be calculated from actual download
         mimeType: 'text/csv',
-        format: 'csv'
-      }
+        format: 'csv',
+      },
     };
   }
 
@@ -281,7 +284,7 @@ export class ExportHandler extends BaseHandler<SheetsExportInput, SheetsExportOu
 
     // Verify spreadsheet exists
     const spreadsheet = await this.context.googleClient.sheets.spreadsheets.get({
-      spreadsheetId
+      spreadsheetId,
     });
 
     if (!spreadsheet.data) {
@@ -293,7 +296,7 @@ export class ExportHandler extends BaseHandler<SheetsExportInput, SheetsExportOu
 
     // Add sheet-specific parameters if needed
     if (sheetName) {
-      const sheet = spreadsheet.data.sheets?.find(s => s.properties?.title === sheetName);
+      const sheet = spreadsheet.data.sheets?.find((s) => s.properties?.title === sheetName);
       if (!sheet) {
         throw createNotFoundError('Sheet not found', { spreadsheetId, sheetName });
       }
@@ -307,8 +310,8 @@ export class ExportHandler extends BaseHandler<SheetsExportInput, SheetsExportOu
         downloadUrl: exportUrl,
         fileSize: 0,
         mimeType: 'application/pdf',
-        format: 'pdf'
-      }
+        format: 'pdf',
+      },
     };
   }
 
@@ -322,7 +325,7 @@ export class ExportHandler extends BaseHandler<SheetsExportInput, SheetsExportOu
 
     // Verify spreadsheet exists
     const spreadsheet = await this.context.googleClient.sheets.spreadsheets.get({
-      spreadsheetId
+      spreadsheetId,
     });
 
     if (!spreadsheet.data) {
@@ -339,8 +342,8 @@ export class ExportHandler extends BaseHandler<SheetsExportInput, SheetsExportOu
         downloadUrl: exportUrl,
         fileSize: 0,
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        format: 'xlsx'
-      }
+        format: 'xlsx',
+      },
     };
   }
 }
@@ -349,6 +352,7 @@ export class ExportHandler extends BaseHandler<SheetsExportInput, SheetsExportOu
 ### Handler Best Practices
 
 ✅ **Do:**
+
 - Extend `BaseHandler<Input, Output>`
 - Use `unwrapRequest()` for envelope handling
 - Switch on `action` field
@@ -357,6 +361,7 @@ export class ExportHandler extends BaseHandler<SheetsExportInput, SheetsExportOu
 - Add JSDoc comments
 
 ❌ **Don't:**
+
 - Call `buildToolResponse()` (tool layer does this)
 - Return MCP format directly
 - Skip error handling
@@ -372,10 +377,7 @@ Add your tool to the MCP registry.
 
 ```typescript
 // src/mcp/registration/tool-definitions.ts
-import {
-  SheetsExportInputSchema,
-  SheetsExportOutputSchema
-} from '../schemas/export.js';
+import { SheetsExportInputSchema, SheetsExportOutputSchema } from '../schemas/export.js';
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   // ... existing tools ...
@@ -398,9 +400,9 @@ Supports custom export options like orientation, headers, and formatting.
     annotations: {
       readOnly: false,
       requiresAuth: true,
-      idempotent: true
-    }
-  }
+      idempotent: true,
+    },
+  },
 ];
 ```
 
@@ -432,6 +434,7 @@ npm run schema:commit
 ```
 
 This automatically:
+
 1. Runs `gen:metadata`
 2. Verifies with `check:drift`
 3. Runs `typecheck`
@@ -439,6 +442,7 @@ This automatically:
 5. Stages changed files with `git add`
 
 **Output:**
+
 ```
 📊 Analyzing 23 schema files...
   📝 export.ts → 3 actions [export_as_csv, export_as_pdf, export_as_xlsx]
@@ -485,16 +489,16 @@ describe('ExportHandler', () => {
       googleClient: {
         sheets: {
           spreadsheets: {
-            get: vi.fn()
-          }
-        }
+            get: vi.fn(),
+          },
+        },
       },
       logger: {
         debug: vi.fn(),
         info: vi.fn(),
         warn: vi.fn(),
-        error: vi.fn()
-      }
+        error: vi.fn(),
+      },
     } as any;
 
     handler = new ExportHandler(mockContext);
@@ -507,15 +511,15 @@ describe('ExportHandler', () => {
         request: {
           action: 'export_as_csv',
           spreadsheetId: 'test-123',
-          includeHeaders: true
-        }
+          includeHeaders: true,
+        },
       };
 
       mockContext.googleClient.sheets.spreadsheets.get.mockResolvedValue({
         data: {
           spreadsheetId: 'test-123',
-          sheets: [{ properties: { title: 'Sheet1', sheetId: 0 } }]
-        }
+          sheets: [{ properties: { title: 'Sheet1', sheetId: 0 } }],
+        },
       });
 
       // Act
@@ -536,8 +540,8 @@ describe('ExportHandler', () => {
           action: 'export_as_csv',
           spreadsheetId: 'test-123',
           sheetName: 'Sheet2',
-          includeHeaders: true
-        }
+          includeHeaders: true,
+        },
       };
 
       mockContext.googleClient.sheets.spreadsheets.get.mockResolvedValue({
@@ -545,9 +549,9 @@ describe('ExportHandler', () => {
           spreadsheetId: 'test-123',
           sheets: [
             { properties: { title: 'Sheet1', sheetId: 0 } },
-            { properties: { title: 'Sheet2', sheetId: 1 } }
-          ]
-        }
+            { properties: { title: 'Sheet2', sheetId: 1 } },
+          ],
+        },
       });
 
       // Act
@@ -564,12 +568,12 @@ describe('ExportHandler', () => {
         request: {
           action: 'export_as_csv',
           spreadsheetId: 'invalid',
-          includeHeaders: true
-        }
+          includeHeaders: true,
+        },
       };
 
       mockContext.googleClient.sheets.spreadsheets.get.mockResolvedValue({
-        data: null
+        data: null,
       });
 
       // Act & Assert
@@ -584,15 +588,15 @@ describe('ExportHandler', () => {
         request: {
           action: 'export_as_pdf',
           spreadsheetId: 'test-123',
-          orientation: 'portrait'
-        }
+          orientation: 'portrait',
+        },
       };
 
       mockContext.googleClient.sheets.spreadsheets.get.mockResolvedValue({
         data: {
           spreadsheetId: 'test-123',
-          sheets: [{ properties: { title: 'Sheet1', sheetId: 0 } }]
-        }
+          sheets: [{ properties: { title: 'Sheet1', sheetId: 0 } }],
+        },
       });
 
       // Act
@@ -611,15 +615,15 @@ describe('ExportHandler', () => {
         request: {
           action: 'export_as_pdf',
           spreadsheetId: 'test-123',
-          orientation: 'landscape'
-        }
+          orientation: 'landscape',
+        },
       };
 
       mockContext.googleClient.sheets.spreadsheets.get.mockResolvedValue({
         data: {
           spreadsheetId: 'test-123',
-          sheets: [{ properties: { title: 'Sheet1', sheetId: 0 } }]
-        }
+          sheets: [{ properties: { title: 'Sheet1', sheetId: 0 } }],
+        },
       });
 
       // Act
@@ -637,15 +641,15 @@ describe('ExportHandler', () => {
         request: {
           action: 'export_as_xlsx',
           spreadsheetId: 'test-123',
-          includeFormatting: true
-        }
+          includeFormatting: true,
+        },
       };
 
       mockContext.googleClient.sheets.spreadsheets.get.mockResolvedValue({
         data: {
           spreadsheetId: 'test-123',
-          sheets: [{ properties: { title: 'Sheet1', sheetId: 0 } }]
-        }
+          sheets: [{ properties: { title: 'Sheet1', sheetId: 0 } }],
+        },
       });
 
       // Act
@@ -654,7 +658,9 @@ describe('ExportHandler', () => {
       // Assert
       expect(result.response.success).toBe(true);
       expect(result.response.format).toBe('xlsx');
-      expect(result.response.mimeType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      expect(result.response.mimeType).toBe(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
     });
   });
 
@@ -664,8 +670,8 @@ describe('ExportHandler', () => {
       const input = {
         request: {
           action: 'invalid_action',
-          spreadsheetId: 'test-123'
-        }
+          spreadsheetId: 'test-123',
+        },
       } as any;
 
       // Act & Assert
@@ -701,6 +707,7 @@ npm run verify
 ```
 
 **Expected:**
+
 ```
 ✅ Drift check passed
 ✅ No placeholders found
@@ -793,6 +800,7 @@ Created:
 ```
 
 **Fix:**
+
 ```bash
 npm run schema:commit
 ```

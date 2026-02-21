@@ -425,17 +425,23 @@ describe('API Contracts - Enum Stability', () => {
 });
 
 describe('API Contracts - Response Structure Stability', () => {
-  const SuccessResponseSchema = z.object({
-    success: z.literal(true),
-  }).passthrough();
+  const SuccessResponseSchema = z
+    .object({
+      success: z.literal(true),
+    })
+    .passthrough();
 
-  const ErrorResponseSchema = z.object({
-    success: z.literal(false),
-    error: z.object({
-      code: z.string(),
-      message: z.string(),
-    }).passthrough(),
-  }).passthrough();
+  const ErrorResponseSchema = z
+    .object({
+      success: z.literal(false),
+      error: z
+        .object({
+          code: z.string(),
+          message: z.string(),
+        })
+        .passthrough(),
+    })
+    .passthrough();
 
   it('success response has success: true', () => {
     const response = { success: true, data: {} };
@@ -454,12 +460,14 @@ describe('API Contracts - Response Structure Stability', () => {
   });
 
   it('mutation metadata has consistent structure', () => {
-    const MutationSchema = z.object({
-      cellsAffected: z.number().optional(),
-      revertSnapshotId: z.string().optional(),
-      operationId: z.string().optional(),
-      timestamp: z.string().optional(),
-    }).passthrough();
+    const MutationSchema = z
+      .object({
+        cellsAffected: z.number().optional(),
+        revertSnapshotId: z.string().optional(),
+        operationId: z.string().optional(),
+        timestamp: z.string().optional(),
+      })
+      .passthrough();
 
     const mutation = {
       cellsAffected: 100,
@@ -472,11 +480,13 @@ describe('API Contracts - Response Structure Stability', () => {
   });
 
   it('pagination metadata has consistent structure', () => {
-    const PaginationSchema = z.object({
-      hasMore: z.boolean(),
-      nextCursor: z.string().optional(),
-      totalCount: z.number().optional(),
-    }).passthrough();
+    const PaginationSchema = z
+      .object({
+        hasMore: z.boolean(),
+        nextCursor: z.string().optional(),
+        totalCount: z.number().optional(),
+      })
+      .passthrough();
 
     const pagination = {
       hasMore: true,

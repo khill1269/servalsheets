@@ -58,7 +58,7 @@ export class TestHandler {
       const report = await orchestrator.runFullAnalysis([testFilePath]);
 
       expect(report.agentReports).toHaveLength(7);
-      expect(report.agentReports.map(r => r.agentName)).toEqual([
+      expect(report.agentReports.map((r) => r.agentName)).toEqual([
         'PatternRecognition',
         'CodeQuality',
         'TypeSafety',
@@ -77,8 +77,8 @@ export class TestHandler {
       const report = await orchestrator.runFullAnalysis([testFilePath]);
 
       expect(report.agentReports).toHaveLength(5);
-      expect(report.agentReports.map(r => r.agentName)).not.toContain('Testing');
-      expect(report.agentReports.map(r => r.agentName)).not.toContain('DocumentationValidator');
+      expect(report.agentReports.map((r) => r.agentName)).not.toContain('Testing');
+      expect(report.agentReports.map((r) => r.agentName)).not.toContain('DocumentationValidator');
     });
 
     it('should run agents in parallel', async () => {
@@ -101,12 +101,12 @@ export class TestHandler {
       const report = await orchestrator.runFullAnalysis([testFilePath]);
 
       // TypeSafety agent should flag 'any' types
-      const typeSafetyAgent = report.agentReports.find(r => r.agentName === 'TypeSafety');
+      const typeSafetyAgent = report.agentReports.find((r) => r.agentName === 'TypeSafety');
       expect(typeSafetyAgent).toBeDefined();
-      expect(typeSafetyAgent!.dimensionReports.some(d => d.issueCount > 0)).toBe(true);
+      expect(typeSafetyAgent!.dimensionReports.some((d) => d.issueCount > 0)).toBe(true);
 
       // CodeQuality agent should flag high complexity
-      const qualityAgent = report.agentReports.find(r => r.agentName === 'CodeQuality');
+      const qualityAgent = report.agentReports.find((r) => r.agentName === 'CodeQuality');
       expect(qualityAgent).toBeDefined();
     });
 
@@ -143,7 +143,7 @@ export class TestHandler {
       const report = await orchestrator.runFullAnalysis([testFile]);
 
       // Should mark test file type assertions as false positives
-      const falsePositives = report.validatedFindings.filter(f => f.isFalsePositive);
+      const falsePositives = report.validatedFindings.filter((f) => f.isFalsePositive);
       expect(falsePositives.length).toBeGreaterThan(0);
 
       fs.unlinkSync(testFile);
@@ -155,9 +155,9 @@ export class TestHandler {
       const report = await orchestrator.runFullAnalysis([testFilePath]);
 
       // Check confidence distribution
-      const highConfidence = report.validatedFindings.filter(f => f.confidence === 'high');
-      const mediumConfidence = report.validatedFindings.filter(f => f.confidence === 'medium');
-      const lowConfidence = report.validatedFindings.filter(f => f.confidence === 'low');
+      const highConfidence = report.validatedFindings.filter((f) => f.confidence === 'high');
+      const mediumConfidence = report.validatedFindings.filter((f) => f.confidence === 'medium');
+      const lowConfidence = report.validatedFindings.filter((f) => f.confidence === 'low');
 
       // High confidence should have 2+ validators
       for (const finding of highConfidence) {
@@ -216,7 +216,7 @@ export class TestHandler {
 
       // Security should win conflicts
       for (const conflict of report.resolvedConflicts) {
-        if (conflict.issues.some(i => i.dimension.includes('security'))) {
+        if (conflict.issues.some((i) => i.dimension.includes('security'))) {
           expect(['Security', 'TypeSafety']).toContain(conflict.winner);
         }
       }
@@ -232,20 +232,22 @@ export class TestHandler {
       // Conflicting findings should be filtered out
       if (report.resolvedConflicts.length > 0) {
         const conflictIssueIds = new Set(
-          report.resolvedConflicts.flatMap(c =>
-            c.issues.map(i => `${i.file}:${i.line}:${i.dimension}`)
+          report.resolvedConflicts.flatMap((c) =>
+            c.issues.map((i) => `${i.file}:${i.line}:${i.dimension}`)
           )
         );
 
         const finalIssueIds = new Set(
-          report.validatedFindings.map(f => `${f.issue.file}:${f.issue.line}:${f.issue.dimension}`)
+          report.validatedFindings.map(
+            (f) => `${f.issue.file}:${f.issue.line}:${f.issue.dimension}`
+          )
         );
 
         // Winner issues should be in final findings
         for (const conflict of report.resolvedConflicts) {
-          const winnerIssue = conflict.issues.find(i =>
+          const winnerIssue = conflict.issues.find((i) =>
             report.validatedFindings.some(
-              f => f.issue === i && f.validatedBy[0] === conflict.winner
+              (f) => f.issue === i && f.validatedBy[0] === conflict.winner
             )
           );
           // Winner should be present (or all filtered if false positive)
@@ -264,7 +266,7 @@ export class TestHandler {
 
       // Auto-fixable issues should be marked in findings
       const autoFixableFindings = report.validatedFindings.filter(
-        f => f.issue.autoFixable && !f.isFalsePositive
+        (f) => f.issue.autoFixable && !f.isFalsePositive
       );
 
       expect(autoFixableFindings.length).toBe(report.summary.autoFixable);
@@ -298,7 +300,7 @@ export class TestHandler {
       // Low confidence issues should not be fixed
       for (const fix of report.autoFixesApplied) {
         const finding = report.validatedFindings.find(
-          f => f.issue.file === fix.file && f.issue.dimension === fix.issueType
+          (f) => f.issue.file === fix.file && f.issue.dimension === fix.issueType
         );
 
         if (finding) {
@@ -345,14 +347,14 @@ export class TestHandler {
       expect(summary).toHaveProperty('autoFixed');
 
       // Verify counts match findings
-      const validFindings = report.validatedFindings.filter(f => !f.isFalsePositive);
+      const validFindings = report.validatedFindings.filter((f) => !f.isFalsePositive);
 
       expect(summary.totalIssues).toBe(validFindings.length);
       expect(summary.criticalIssues).toBe(
-        validFindings.filter(f => f.issue.severity === 'critical').length
+        validFindings.filter((f) => f.issue.severity === 'critical').length
       );
       expect(summary.highIssues).toBe(
-        validFindings.filter(f => f.issue.severity === 'high').length
+        validFindings.filter((f) => f.issue.severity === 'high').length
       );
     });
 
@@ -365,12 +367,12 @@ export class TestHandler {
 
       // Should recommend auto-fix if auto-fixable issues exist
       if (report.summary.autoFixable > 0) {
-        expect(report.recommendations.some(r => r.includes('auto-fix'))).toBe(true);
+        expect(report.recommendations.some((r) => r.includes('auto-fix'))).toBe(true);
       }
 
       // Should warn about critical issues
       if (report.summary.criticalIssues > 0) {
-        expect(report.recommendations.some(r => r.includes('critical'))).toBe(true);
+        expect(report.recommendations.some((r) => r.includes('critical'))).toBe(true);
       }
     });
   });

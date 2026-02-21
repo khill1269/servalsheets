@@ -274,7 +274,7 @@ create_issue \
     "UX" \
     "Phase-1" \
     "5" \
-    "Intent mapping with aliases for 298 actions. Users must know exact action names currently." \
+    "Intent mapping with aliases for 305 actions. Users must know exact action names currently." \
     "Create src/services/intent-classifier.ts (~400 lines)" \
     "5 min → 30 sec action discovery, 70% natural language query accuracy"
 

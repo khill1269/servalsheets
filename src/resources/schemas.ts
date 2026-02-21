@@ -10,7 +10,7 @@
  * @module resources/schemas
  */
 
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { type McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { TOOL_DEFINITIONS } from '../mcp/registration/tool-definitions.js';
 import { zodSchemaToJsonSchema } from '../utils/schema-compat.js';
 import { logger } from '../utils/logger.js';
@@ -61,6 +61,7 @@ export function getToolSchema(toolName: string): string | null {
     title: toolName,
     description: tool.description,
     inputSchema: jsonSchema,
+    outputSchema: tool.outputSchema ? zodSchemaToJsonSchema(tool.outputSchema) : undefined,
     annotations: tool.annotations,
   };
 
@@ -124,7 +125,7 @@ export async function readSchemaResource(
   }
 
   // Extract tool name from URI
-  const match = uri.match(/^schema:\/\/tools\/([a-z_]+)$/);
+  const match = uri.match(/^schema:\/\/tools\/([a-z0-9_]+)$/);
   if (!match) {
     throw createInvalidResourceUriError(uri, 'schema://tools/{toolName}');
   }
@@ -178,16 +179,28 @@ export function registerSchemaResources(server: McpServer): void {
     );
 
     // Register resource template for individual tool schemas
-    // Uses URI template syntax supported by MCP 2025-11-25
+    // Uses ResourceTemplate so the SDK resolves {toolName} dynamically
+    const schemaTemplate = new ResourceTemplate('schema://tools/{toolName}', {
+      list: undefined,
+      complete: {
+        toolName: () => TOOL_DEFINITIONS.map((t) => t.name),
+      },
+    });
+
     server.registerResource(
       'Tool Schema',
-      'schema://tools/{toolName}',
+      schemaTemplate,
       {
         description:
           'Full JSON Schema for a specific tool. Includes all actions, parameters, and validation rules.',
         mimeType: 'application/json',
       },
-      async (uri) => readSchemaResource(typeof uri === 'string' ? uri : String(uri))
+      async (uri, variables) => {
+        const toolName = Array.isArray(variables['toolName'])
+          ? variables['toolName'][0]
+          : variables['toolName'];
+        return readSchemaResource(`schema://tools/${toolName}`);
+      }
     );
 
     logger.info('Schema resources registered', {

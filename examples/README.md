@@ -22,11 +22,13 @@ Choose JavaScript for quick prototyping, or TypeScript for production applicatio
 ## Prerequisites
 
 ### 1. Node.js 22+
+
 ```bash
 node --version  # Should be v22.0.0 or higher
 ```
 
 ### 2. Install ServalSheets
+
 ```bash
 npm install servalsheets
 ```
@@ -36,6 +38,7 @@ npm install servalsheets
 You need Google Sheets API credentials. Choose one method:
 
 #### Option A: Service Account (Recommended for automation)
+
 1. Go to [Google Cloud Console](https://console.cloud.google.com)
 2. Create or select a project
 3. Enable Google Sheets API
@@ -47,6 +50,7 @@ You need Google Sheets API credentials. Choose one method:
    ```
 
 #### Option B: OAuth Access Token (For user accounts)
+
 1. Get an OAuth access token from Google OAuth 2.0 playground
 2. Set environment variable:
    ```bash
@@ -58,6 +62,7 @@ See [QUICKSTART_CREDENTIALS.md](../docs/guides/QUICKSTART_CREDENTIALS.md) for de
 ### 4. Prepare a Test Spreadsheet
 
 Create a Google Spreadsheet and note its ID from the URL:
+
 ```
 https://docs.google.com/spreadsheets/d/[SPREADSHEET_ID]/edit
                                       ^^^^^^^^^^^^^^^^^^^
@@ -82,6 +87,7 @@ node examples/01-basic-read-write.js
 TypeScript examples require compilation first:
 
 #### Option 1: Use tsx (Recommended)
+
 ```bash
 # Install tsx globally
 npm install -g tsx
@@ -91,6 +97,7 @@ tsx examples/01-basic-read-write.ts
 ```
 
 #### Option 2: Compile with TypeScript
+
 ```bash
 # Install TypeScript
 npm install -g typescript
@@ -101,6 +108,7 @@ node examples/01-basic-read-write.js
 ```
 
 ### Basic Read/Write
+
 ```bash
 # JavaScript
 node examples/01-basic-read-write.js
@@ -108,7 +116,9 @@ node examples/01-basic-read-write.js
 # TypeScript
 tsx examples/01-basic-read-write.ts
 ```
+
 Demonstrates:
+
 - Reading cell values
 - Writing data to cells
 - Error handling
@@ -116,6 +126,7 @@ Demonstrates:
 - Full type safety (TypeScript)
 
 ### Semantic Ranges
+
 ```bash
 # JavaScript
 node examples/02-semantic-ranges.js
@@ -123,7 +134,9 @@ node examples/02-semantic-ranges.js
 # TypeScript
 tsx examples/02-semantic-ranges.ts
 ```
+
 Demonstrates:
+
 - Header-based queries ("Revenue" column)
 - Named range resolution
 - Semantic vs A1 notation
@@ -131,6 +144,7 @@ Demonstrates:
 - Type-safe column resolution (TypeScript)
 
 ### Safety Rails
+
 ```bash
 # JavaScript
 node examples/03-safety-rails.js
@@ -138,7 +152,9 @@ node examples/03-safety-rails.js
 # TypeScript
 tsx examples/03-safety-rails.ts
 ```
+
 Demonstrates:
+
 - Dry-run mode (preview changes)
 - Effect scope limits
 - Expected state validation
@@ -146,6 +162,7 @@ Demonstrates:
 - Type-safe state management (TypeScript)
 
 ### Batch Operations
+
 ```bash
 # JavaScript
 node examples/04-batch-operations.js
@@ -153,7 +170,9 @@ node examples/04-batch-operations.js
 # TypeScript
 tsx examples/04-batch-operations.ts
 ```
+
 Demonstrates:
+
 - Batch reading (multiple ranges)
 - Batch writing (atomic updates)
 - Performance best practices
@@ -161,6 +180,7 @@ Demonstrates:
 - Type-safe batch transformations (TypeScript)
 
 ### OAuth Setup
+
 ```bash
 # JavaScript
 node examples/05-oauth-setup.js
@@ -168,7 +188,9 @@ node examples/05-oauth-setup.js
 # TypeScript
 tsx examples/05-oauth-setup.ts
 ```
+
 Demonstrates:
+
 - OAuth 2.0 authentication flow
 - Token management
 - Refresh token handling
@@ -178,6 +200,7 @@ Demonstrates:
 ## Expected Output
 
 Each example includes detailed console output showing:
+
 - What operation is being performed
 - Request parameters
 - Response data
@@ -185,6 +208,7 @@ Each example includes detailed console output showing:
 - Timing information
 
 Example output:
+
 ```
 === ServalSheets: Basic Read/Write Example ===
 
@@ -206,6 +230,7 @@ Time taken: 2.3s
 ### Using Your Spreadsheet
 
 Edit the spreadsheet ID in each example:
+
 ```javascript
 const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
 ```
@@ -213,6 +238,7 @@ const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
 ### Adjusting for Your Data
 
 Examples use placeholder sheet names like "Sales", "Data", etc. Update these to match your actual sheet names:
+
 ```javascript
 const SHEET_NAME = 'YourSheetName';
 ```
@@ -220,18 +246,22 @@ const SHEET_NAME = 'YourSheetName';
 ## Troubleshooting
 
 ### "Permission denied"
+
 - Ensure the spreadsheet is shared with your service account email
 - Or ensure your OAuth token has correct scopes
 
 ### "Sheet not found"
+
 - Verify the sheet name matches exactly (case-sensitive)
 - Check the spreadsheet ID is correct
 
 ### "Invalid credentials"
+
 - Check `GOOGLE_APPLICATION_CREDENTIALS` path is correct
 - Ensure the JSON file is valid and readable
 
 ### "Module not found"
+
 - Run `npm install servalsheets` in your project directory
 - Ensure Node.js version is 22+
 
@@ -249,11 +279,13 @@ After running these examples:
 These examples show library usage. To use ServalSheets with Claude Desktop:
 
 1. Install globally:
+
    ```bash
    npm install -g servalsheets
    ```
 
 2. Configure Claude Desktop (see [CLAUDE_DESKTOP_SETUP.md](../CLAUDE_DESKTOP_SETUP.md)):
+
    ```json
    {
      "mcpServers": {
@@ -281,6 +313,7 @@ These examples show library usage. To use ServalSheets with Claude Desktop:
 ## Support
 
 Having issues? Check:
+
 - [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) for common problems
 - [GitHub Issues](https://github.com/khill1269/servalsheets/issues) for bug reports
 - [SECURITY.md](../SECURITY.md) for security concerns

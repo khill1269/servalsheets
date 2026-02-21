@@ -13,7 +13,10 @@ import { TemplatesHandler } from '../../../src/handlers/templates.js';
 import { CollaborateHandler } from '../../../src/handlers/collaborate.js';
 import type { HandlerContext } from '../../../src/handlers/base.js';
 import { IncrementalScopeRequiredError } from '../../../src/security/incremental-scope.js';
-import { DEFAULT_SCOPES, ELEVATED_SCOPES as FULL_SCOPES } from '../../../src/services/google-api.js';
+import {
+  DEFAULT_SCOPES,
+  ELEVATED_SCOPES as FULL_SCOPES,
+} from '../../../src/services/google-api.js';
 import { shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 
 // Skip all tests if not running against real API

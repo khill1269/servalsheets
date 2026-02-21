@@ -8,6 +8,7 @@
 ## Implementation Patterns Learned
 
 ### TDD Workflow (Standard)
+
 ```typescript
 // 1. Write failing test FIRST
 describe('CacheInvalidationGraph', () => {
@@ -24,12 +25,14 @@ describe('CacheInvalidationGraph', () => {
 ```
 
 ### Minimal Change Principle
+
 - **≤3 src/ files** per fix (unless schema changes require more)
 - **≤52 lines** for simple features
 - **Reuse existing code** (parseA1Range, rangesOverlap from request-merger)
 - **No refactoring** during bug fixes
 
 ### Type Safety Patterns
+
 ```typescript
 // ✅ Good: Explicit return types
 async trackRead(spreadsheetId: string, range: string): Promise<void>
@@ -46,16 +49,19 @@ function trackRead(data: any): any
 ## Common Test Failures & Solutions
 
 ### Issue 1: Missing Method Implementation
+
 **Pattern:** Test calls `graph.trackRead()` but method doesn't exist
 **Solution:** Add method to class, not wrapper
 **File:** The actual service class (e.g., `cache-invalidation-graph.ts`)
 
 ### Issue 2: Mock Response Missing Metadata
+
 **Pattern:** Test expects `durationMs` but mock returns 0
 **Solution:** Update mock to return complete response structure
 **Example:** `composite.streaming.test.ts:287`
 
 ### Issue 3: Async/Await Issues
+
 **Pattern:** Method returns Promise but not awaited in test
 **Solution:** Add `await` or use `.resolves` matcher
 
@@ -64,6 +70,7 @@ function trackRead(data: any): any
 ## Known Integration Test Failures (2026-02-17)
 
 ### Phase 2 Integration Tests (6 failures)
+
 **File:** `tests/integration/phase-2-integration.test.ts`
 
 1. **Line 190:** `graph.trackRead is not a function`
@@ -87,6 +94,7 @@ function trackRead(data: any): any
    - **Status:** NOT IN CRITICAL PATH (metrics issue)
 
 ### Streaming Tests (2 failures)
+
 **File:** `tests/handlers/composite.streaming.test.ts`
 
 1. **Line 287:** `durationMs` returns 0 (expected > 0)
@@ -100,6 +108,7 @@ function trackRead(data: any): any
 ## Implementation Strategy for Phase 2 Fixes
 
 ### Priority 1: CacheInvalidationGraph (BLOCKING)
+
 ```typescript
 // Location: src/services/cache-invalidation-graph.ts
 // Add after line 53
@@ -133,18 +142,20 @@ invalidateWrite(spreadsheetId: string, writeRange: string): string[] {
 ```
 
 ### Priority 2: Streaming Test Mocks (MEDIUM)
+
 ```typescript
 // Location: tests/handlers/composite.streaming.test.ts:280
 // Update mock response
 const mockResponse = {
   spreadsheetId: 'test-id',
-  durationMs: 1234,        // ← ADD THIS
-  bytesProcessed: 5678,    // ← ADD THIS
-  rowsProcessed: 100
+  durationMs: 1234, // ← ADD THIS
+  bytesProcessed: 5678, // ← ADD THIS
+  rowsProcessed: 100,
 };
 ```
 
 ### Priority 3: Non-Critical Optimizations (LOW)
+
 - Prefetch predictor (Phase +1)
 - Request merging activation (Phase +1)
 - Metrics baseline initialization (Phase +1)
@@ -154,6 +165,7 @@ const mockResponse = {
 ## Best Practices (From Experience)
 
 ### ✅ DO:
+
 - Write test first (TDD)
 - Run `npm run test:fast` after changes
 - Use existing utility functions (parseA1Range, rangesOverlap)
@@ -161,6 +173,7 @@ const mockResponse = {
 - Verify with `npm run gates:g0` before commit
 
 ### ❌ DON'T:
+
 - Refactor while fixing bugs
 - Add features not requested
 - Skip type annotations
@@ -172,6 +185,7 @@ const mockResponse = {
 ## File Change Checklist
 
 Before implementing any fix:
+
 - [ ] Read test file to understand expected API
 - [ ] Read implementation file to see current state
 - [ ] Check for existing utilities to reuse
@@ -186,6 +200,7 @@ Before implementing any fix:
 ## Cost Optimization Learned
 
 **Efficient implementation:**
+
 - Research first (Haiku, $0.50, 3min) - Find patterns
 - Implement second (Sonnet, $2.50, 10min) - Write code
 - Validate third (Haiku, $0.20, 2min) - Run gates
@@ -193,6 +208,7 @@ Before implementing any fix:
 **Total:** $3.20, ~15min per feature
 
 **Inefficient implementation:**
+
 - Implement without research (Sonnet, $10, 30min) - Trial and error
 - Fix mistakes (Sonnet, $5, 15min)
 - Validate (Haiku, $0.20, 2min)
@@ -204,6 +220,7 @@ Before implementing any fix:
 ## Quick Reference
 
 **Run tests:**
+
 ```bash
 npm run test:fast                    # Unit + contracts (8s)
 npm test tests/integration/          # Integration tests
@@ -211,12 +228,14 @@ npm test tests/handlers/composite.*  # Specific test file
 ```
 
 **Check implementation:**
+
 ```bash
 grep -n "trackRead" src/services/cache-invalidation-graph.ts
 wc -l src/services/cache-invalidation-graph.ts
 ```
 
 **Verify changes:**
+
 ```bash
 npm run gates:g0    # Baseline (20s)
 npm run verify      # Full verification (3min)

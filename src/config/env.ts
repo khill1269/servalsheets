@@ -197,13 +197,15 @@ const EnvSchema = z.object({
   // Disabled by default for compatibility; enable explicitly for production optimization
   DEFER_RESOURCE_DISCOVERY: z.coerce.boolean().default(false),
 
+  // Incremental consent (SaaS deployments)
+  INCREMENTAL_CONSENT_ENABLED: z.coerce.boolean().default(false),
+
   // Enterprise feature flags (all opt-in, default OFF)
   ENABLE_RBAC: z.coerce.boolean().default(false),
   ENABLE_AUDIT_LOGGING: z.coerce.boolean().default(false),
   ENABLE_TENANT_ISOLATION: z.coerce.boolean().default(false),
   ENABLE_IDEMPOTENCY: z.coerce.boolean().default(false),
   ENABLE_COST_TRACKING: z.coerce.boolean().default(false),
-
 
   // Predictive Prefetching (80% latency reduction on sequential operations)
   // Intelligently prefetches data based on access patterns (adjacent ranges, predicted next access)

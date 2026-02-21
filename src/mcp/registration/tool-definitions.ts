@@ -372,7 +372,7 @@ function getAllowedToolNames(): readonly string[] {
  * Filtered tool definitions based on SERVAL_TOOL_MODE and lazy loading
  *
  * Use this instead of TOOL_DEFINITIONS for registration.
- * - 'full': All 21 tools (~41K tokens)
+ * - 'full': All 22 tools (~41K tokens)
  * - 'standard': 12 tools (~25K tokens)
  * - 'lite': 8 tools (~15K tokens)
  *

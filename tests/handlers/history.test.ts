@@ -64,13 +64,8 @@ vi.mock('../../src/services/history-service.js', () => {
   let mockService: HistoryService | null = null;
 
   return {
-    getHistoryService: vi.fn(() => {
-      if (!mockService) {
-        mockService = createMockHistoryService();
-      }
-      return mockService;
-    }),
-    setHistoryService: vi.fn((service: HistoryService) => {
+    getHistoryService: vi.fn(() => mockService),
+    setHistoryService: vi.fn((service: HistoryService | null) => {
       mockService = service;
     }),
   };
@@ -415,7 +410,7 @@ describe('HistoryHandler', () => {
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
         expect(result.response.error.code).toBe('NOT_FOUND');
-        expect(result.response.error.message).toContain('Operation not found');
+        expect(result.response.error.message).toMatch(/Operation.*not found/i);
       }
       expect(mockSnapshotService.restore).not.toHaveBeenCalled();
     });
@@ -437,7 +432,7 @@ describe('HistoryHandler', () => {
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
         expect(result.response.error.code).toBe('NOT_FOUND');
-        expect(result.response.error.message).toContain('Snapshot not found');
+        expect(result.response.error.message).toMatch(/Snapshot.*not found/i);
       }
       expect(mockSnapshotService.restore).not.toHaveBeenCalled();
     });
@@ -526,7 +521,7 @@ describe('HistoryHandler', () => {
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
         expect(result.response.error.code).toBe('NOT_FOUND');
-        expect(result.response.error.message).toContain('Operation not found');
+        expect(result.response.error.message).toMatch(/Operation.*not found/i);
       }
     });
   });
@@ -578,7 +573,7 @@ describe('HistoryHandler', () => {
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
         expect(result.response.error.code).toBe('NOT_FOUND');
-        expect(result.response.error.message).toContain('Operation not found');
+        expect(result.response.error.message).toMatch(/Operation.*not found/i);
         expect(result.response.error.message).toContain('nonexistent');
       }
     });
@@ -599,7 +594,7 @@ describe('HistoryHandler', () => {
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
         expect(result.response.error.code).toBe('NOT_FOUND');
-        expect(result.response.error.message).toContain('Snapshot not found');
+        expect(result.response.error.message).toMatch(/Snapshot.*not found/i);
       }
     });
 

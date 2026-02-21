@@ -117,10 +117,13 @@ function getFreshnessStatus(file: string): 'fresh' | 'aging' | 'stale' | 'critic
 
 function getTopContributors(): Array<{ name: string; commits: number }> {
   try {
-    const output = execSync('git log --format="%an" -- docs/ | sort | uniq -c | sort -rn | head -10', {
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'ignore'],
-    });
+    const output = execSync(
+      'git log --format="%an" -- docs/ | sort | uniq -c | sort -rn | head -10',
+      {
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'ignore'],
+      }
+    );
 
     return output
       .trim()
@@ -266,7 +269,9 @@ function generateDashboard(metrics: Metrics): string {
   lines.push('');
   lines.push('# Documentation Metrics Dashboard');
   lines.push('');
-  lines.push(`> **Last Updated:** ${timestamp} | **Auto-generated** - Run \`npm run docs:metrics\` to refresh`);
+  lines.push(
+    `> **Last Updated:** ${timestamp} | **Auto-generated** - Run \`npm run docs:metrics\` to refresh`
+  );
   lines.push('');
 
   // Overview
@@ -297,18 +302,32 @@ function generateDashboard(metrics: Metrics): string {
   lines.push('');
 
   // Freshness
-  const healthScore = (((metrics.total.files - metrics.freshness.stale - metrics.freshness.critical) / metrics.total.files) * 100).toFixed(1);
+  const healthScore = (
+    ((metrics.total.files - metrics.freshness.stale - metrics.freshness.critical) /
+      metrics.total.files) *
+    100
+  ).toFixed(1);
 
   lines.push('## 🕒 Freshness');
   lines.push('');
   lines.push('| Status | Count | Percentage |');
   lines.push('|--------|-------|------------|');
-  lines.push(`| ✅ Fresh (< 3 mo) | ${metrics.freshness.fresh} | ${((metrics.freshness.fresh / metrics.total.files) * 100).toFixed(1)}% |`);
-  lines.push(`| ⏰ Aging (3-6 mo) | ${metrics.freshness.aging} | ${((metrics.freshness.aging / metrics.total.files) * 100).toFixed(1)}% |`);
-  lines.push(`| ⚠️ Stale (6-12 mo) | ${metrics.freshness.stale} | ${((metrics.freshness.stale / metrics.total.files) * 100).toFixed(1)}% |`);
-  lines.push(`| 🚨 Critical (> 12 mo) | ${metrics.freshness.critical} | ${((metrics.freshness.critical / metrics.total.files) * 100).toFixed(1)}% |`);
+  lines.push(
+    `| ✅ Fresh (< 3 mo) | ${metrics.freshness.fresh} | ${((metrics.freshness.fresh / metrics.total.files) * 100).toFixed(1)}% |`
+  );
+  lines.push(
+    `| ⏰ Aging (3-6 mo) | ${metrics.freshness.aging} | ${((metrics.freshness.aging / metrics.total.files) * 100).toFixed(1)}% |`
+  );
+  lines.push(
+    `| ⚠️ Stale (6-12 mo) | ${metrics.freshness.stale} | ${((metrics.freshness.stale / metrics.total.files) * 100).toFixed(1)}% |`
+  );
+  lines.push(
+    `| 🚨 Critical (> 12 mo) | ${metrics.freshness.critical} | ${((metrics.freshness.critical / metrics.total.files) * 100).toFixed(1)}% |`
+  );
   lines.push('');
-  lines.push(`**Documentation Health Score:** ${healthScore}% ${parseFloat(healthScore) >= 80 ? '✅' : parseFloat(healthScore) >= 60 ? '⚠️' : '🚨'}`);
+  lines.push(
+    `**Documentation Health Score:** ${healthScore}% ${parseFloat(healthScore) >= 80 ? '✅' : parseFloat(healthScore) >= 60 ? '⚠️' : '🚨'}`
+  );
   lines.push('');
 
   // By Category
@@ -317,8 +336,9 @@ function generateDashboard(metrics: Metrics): string {
   lines.push('| Category | Files | Total Words | Avg Words/Doc |');
   lines.push('|----------|-------|-------------|---------------|');
 
-  const sortedCategories = Array.from(metrics.byCategory.entries())
-    .sort(([, a], [, b]) => b.files - a.files);
+  const sortedCategories = Array.from(metrics.byCategory.entries()).sort(
+    ([, a], [, b]) => b.files - a.files
+  );
 
   for (const [category, data] of sortedCategories) {
     const avg = Math.round(data.words / data.files);
@@ -397,7 +417,9 @@ async function main() {
   console.log(`\nKey Stats:`);
   console.log(`  • ${metrics.total.files} documents`);
   console.log(`  • ${metrics.total.words.toLocaleString()} total words`);
-  console.log(`  • ${((metrics.quality.withFrontmatter / metrics.total.files) * 100).toFixed(1)}% with frontmatter`);
+  console.log(
+    `  • ${((metrics.quality.withFrontmatter / metrics.total.files) * 100).toFixed(1)}% with frontmatter`
+  );
   console.log(`  • ${metrics.freshness.fresh} fresh, ${metrics.freshness.critical} critical`);
 }
 

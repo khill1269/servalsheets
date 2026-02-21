@@ -112,14 +112,9 @@ export class ServalSheetsOperator {
     logger.info('Starting ServalSheets Operator');
 
     // Create informer for ServalSheetsServer resources
-    const listFn = () =>
-      this.customApi.listClusterCustomObject(GROUP, VERSION, PLURAL);
+    const listFn = () => this.customApi.listClusterCustomObject(GROUP, VERSION, PLURAL);
 
-    this.informer = k8s.makeInformer(
-      this.kc,
-      `/apis/${GROUP}/${VERSION}/${PLURAL}`,
-      listFn
-    );
+    this.informer = k8s.makeInformer(this.kc, `/apis/${GROUP}/${VERSION}/${PLURAL}`, listFn);
 
     // Handle add events
     this.informer.on('add', async (obj: k8s.KubernetesObject) => {

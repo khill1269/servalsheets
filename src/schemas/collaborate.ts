@@ -245,7 +245,13 @@ export const SheetsCollaborateInputSchema = z.object({
         .int()
         .min(0)
         .optional()
-        .describe('Starting index for pagination (comment_list only)'),
+        .describe('DEPRECATED: Use commentPageToken instead. This field is ignored.'),
+      commentPageToken: z
+        .string()
+        .optional()
+        .describe(
+          'Opaque page token from previous comment_list response nextPageToken (comment_list only)'
+        ),
       maxResults: z
         .number()
         .int()

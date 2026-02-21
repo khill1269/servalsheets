@@ -408,11 +408,15 @@ Always return valid JSON in the exact format requested.`;
         },
       });
     } catch (error) {
+      logger.error('Chart suggestion failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return this.error({
         code: 'INTERNAL_ERROR',
-        message: `Chart suggestion failed: ${error instanceof Error ? error.message : String(error)}`,
+        message:
+          'Chart suggestion failed. The AI analysis service may be temporarily unavailable. Please try again.',
         retryable: true,
-        suggestedFix: 'Please try again. If the issue persists, contact support',
+        suggestedFix: 'Please try again. If the issue persists, check LLM_API_KEY configuration',
       });
     }
   }
@@ -473,7 +477,7 @@ Always return valid JSON in the exact format requested.`;
         updateEmbeddedObjectPosition: {
           objectId: input.chartId,
           newPosition: position,
-          fields: '*',
+          fields: 'overlayPosition',
         },
       });
     }
@@ -640,7 +644,7 @@ Always return valid JSON in the exact format requested.`;
             updateEmbeddedObjectPosition: {
               objectId: input.chartId,
               newPosition: position,
-              fields: '*',
+              fields: 'overlayPosition',
             },
           },
         ],
@@ -669,7 +673,7 @@ Always return valid JSON in the exact format requested.`;
                   heightPixels: input.height,
                 },
               },
-              fields: '*',
+              fields: 'overlayPosition',
             },
           },
         ],

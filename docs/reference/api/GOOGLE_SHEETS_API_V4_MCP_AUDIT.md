@@ -274,7 +274,7 @@ tags: [api, mcp, sheets]
 
 ```typescript
 capabilities: {
-  tools: { enabled: true },          // ✅ 22 tools, 299 actions
+  tools: { enabled: true },          // ✅ 22 tools, 305 actions
   resources: { enabled: true },      // ✅ URI templates + knowledge
   prompts: { enabled: true },        // ✅ 6 guided workflows
   completions: { enabled: true },    // ✅ Argument autocompletion
@@ -298,7 +298,7 @@ capabilities: {
 
 ## Part 5: ServalSheets Tool Summary
 
-### 5.1 Tools by Category (22 tools, 299 actions)
+### 5.1 Tools by Category (22 tools, 305 actions)
 
 | Tool                 | Actions | Google API         | Category                         |
 | -------------------- | ------- | ------------------ | -------------------------------- |
@@ -326,7 +326,7 @@ capabilities: {
 | Sheets API v4 | 50+ batchUpdate types | 140+ mapped actions  | **~95%**  |
 | Values API    | 10 methods            | 7 actions (+ batch)  | **100%**  |
 | Drive API v3  | 14 endpoints used     | 28 actions           | **100%**  |
-| **Total**     | 74+ API operations    | 299 actions          | **>100%** |
+| **Total**     | 74+ API operations    | 305 actions          | **>100%** |
 
 ---
 
@@ -419,8 +419,8 @@ src/core/request-builder.ts (1544 lines)
    - Pattern: Add `?? undefined` for null coalescing
 
 2. **Update Documentation**
-   - CLAUDE.md shows 22 tools/299 actions
-   - Actual: 22 tools/299 actions
+   - CLAUDE.md shows 22 tools/305 actions
+   - Actual: 22 tools/305 actions
 
 ### 8.2 Future Enhancements (Optional)
 

@@ -30,35 +30,37 @@ export default {
   permissions: ['sheets.read', 'sheets.write'],
 
   // Define tools
-  tools: [{
-    name: 'my_tool',
-    description: 'Does something useful',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        spreadsheetId: { type: 'string' },
-        message: { type: 'string' }
+  tools: [
+    {
+      name: 'my_tool',
+      description: 'Does something useful',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          spreadsheetId: { type: 'string' },
+          message: { type: 'string' },
+        },
+        required: ['spreadsheetId'],
       },
-      required: ['spreadsheetId']
+
+      async handler(params, context) {
+        // Access granted APIs via context
+        const data = await context.sheets.get(params.spreadsheetId, 'A1:B10');
+
+        context.logger.info('Processing data', { rows: data.values.length });
+
+        return {
+          success: true,
+          message: `Processed ${data.values.length} rows`,
+        };
+      },
     },
-
-    async handler(params, context) {
-      // Access granted APIs via context
-      const data = await context.sheets.get(params.spreadsheetId, 'A1:B10');
-
-      context.logger.info('Processing data', { rows: data.values.length });
-
-      return {
-        success: true,
-        message: `Processed ${data.values.length} rows`
-      };
-    }
-  }],
+  ],
 
   // Lifecycle hooks
   async onLoad(context) {
     context.logger.info('Plugin loaded');
-  }
+  },
 };
 ```
 
@@ -72,18 +74,17 @@ const runtime = new PluginRuntime({
   memoryLimitMB: 50,
   cpuLimitMs: 2000,
   enableHotReload: true,
-  apiQuota: { requestsPerMinute: 60 }
+  apiQuota: { requestsPerMinute: 60 },
 });
 
 // Load plugin
 const plugin = await runtime.loadPlugin('./plugins/my-plugin.js');
 
 // Execute tool
-const result = await runtime.executeToolHandler(
-  'my-plugin',
-  'my_tool',
-  { spreadsheetId: '123', message: 'Hello' }
-);
+const result = await runtime.executeToolHandler('my-plugin', 'my_tool', {
+  spreadsheetId: '123',
+  message: 'Hello',
+});
 ```
 
 ## Plugin Structure
@@ -92,9 +93,9 @@ const result = await runtime.executeToolHandler(
 
 ```typescript
 {
-  name: string;        // Unique identifier (kebab-case)
-  version: string;     // Semver (e.g., "1.0.0")
-  author: string;      // Author name
+  name: string; // Unique identifier (kebab-case)
+  version: string; // Semver (e.g., "1.0.0")
+  author: string; // Author name
 }
 ```
 
@@ -116,20 +117,21 @@ const result = await runtime.executeToolHandler(
 
 Plugins must explicitly request permissions:
 
-| Permission | Description |
-|------------|-------------|
-| `sheets.read` | Read data from spreadsheets |
-| `sheets.write` | Modify spreadsheet data |
-| `sheets.create` | Create new spreadsheets |
-| `drive.read` | Read Drive files |
-| `drive.write` | Modify Drive files |
-| `network.fetch` | Make HTTP requests |
-| `storage.read` | Read plugin storage |
-| `storage.write` | Write plugin storage |
+| Permission      | Description                 |
+| --------------- | --------------------------- |
+| `sheets.read`   | Read data from spreadsheets |
+| `sheets.write`  | Modify spreadsheet data     |
+| `sheets.create` | Create new spreadsheets     |
+| `drive.read`    | Read Drive files            |
+| `drive.write`   | Modify Drive files          |
+| `network.fetch` | Make HTTP requests          |
+| `storage.read`  | Read plugin storage         |
+| `storage.write` | Write plugin storage        |
 
 Example:
+
 ```javascript
-permissions: ['sheets.read', 'sheets.write', 'storage.read']
+permissions: ['sheets.read', 'sheets.write', 'storage.read'];
 ```
 
 ## Plugin Context API
@@ -137,6 +139,7 @@ permissions: ['sheets.read', 'sheets.write', 'storage.read']
 The `context` object provides APIs based on granted permissions:
 
 ### Logger
+
 ```javascript
 context.logger.info('Message', { data: 'value' });
 context.logger.warn('Warning');
@@ -144,6 +147,7 @@ context.logger.error('Error', { error });
 ```
 
 ### Sheets API (if granted)
+
 ```javascript
 // Read range
 const data = await context.sheets.get(spreadsheetId, 'A1:B10');
@@ -160,6 +164,7 @@ await context.sheets.batchUpdate(spreadsheetId, requests);
 ```
 
 ### Drive API (if granted)
+
 ```javascript
 // Get file
 const file = await context.drive.get(fileId);
@@ -178,6 +183,7 @@ await context.drive.delete(fileId);
 ```
 
 ### Storage API (always available)
+
 ```javascript
 // Store plugin data
 await context.storage.set('key', { data: 'value' });
@@ -196,6 +202,7 @@ await context.storage.clear();
 ```
 
 ### Fetch API (if granted)
+
 ```javascript
 const response = await context.fetch('https://api.example.com/data');
 const json = await response.json();
@@ -206,6 +213,7 @@ const json = await response.json();
 ### Sandbox Restrictions
 
 Plugins cannot access:
+
 - Node.js modules (`require`, `import`)
 - File system (`fs`, `path`)
 - Child processes (`child_process`)
@@ -216,22 +224,25 @@ Plugins cannot access:
 ### Resource Limits
 
 Default limits per plugin:
+
 - **Memory**: 50MB
 - **CPU Time**: 2000ms per execution
 - **API Quota**: 60 requests/minute
 
 Configure limits:
+
 ```typescript
 const runtime = new PluginRuntime({
-  memoryLimitMB: 100,    // 100MB
-  cpuLimitMs: 5000,      // 5 seconds
-  apiQuota: { requestsPerMinute: 120 }
+  memoryLimitMB: 100, // 100MB
+  cpuLimitMs: 5000, // 5 seconds
+  apiQuota: { requestsPerMinute: 120 },
 });
 ```
 
 ### Code Validation
 
 The sandbox automatically blocks:
+
 - `eval()` usage
 - `Function` constructor
 - Dynamic `import()`
@@ -243,6 +254,7 @@ The sandbox automatically blocks:
 ### onLoad
 
 Called when plugin is loaded:
+
 ```javascript
 async onLoad(context) {
   // Initialize plugin state
@@ -254,6 +266,7 @@ async onLoad(context) {
 ### onUnload
 
 Called when plugin is unloaded:
+
 ```javascript
 async onUnload() {
   // Cleanup resources
@@ -264,6 +277,7 @@ async onUnload() {
 ### onConfigUpdate
 
 Called when plugin configuration changes:
+
 ```javascript
 async onConfigUpdate(config) {
   // React to config changes
@@ -278,7 +292,7 @@ Enable automatic reloading when plugin files change:
 ```typescript
 const runtime = new PluginRuntime({
   pluginDir: './plugins',
-  enableHotReload: true
+  enableHotReload: true,
 });
 
 // Plugin will automatically reload on file changes
@@ -288,10 +302,11 @@ const runtime = new PluginRuntime({
 ### Debouncing
 
 Hot-reload debounces rapid changes (100ms default):
+
 ```typescript
 const hotReload = new HotReloadManager({
   pluginDir: './plugins',
-  debounceMs: 200  // Wait 200ms before reloading
+  debounceMs: 200, // Wait 200ms before reloading
 });
 ```
 
@@ -300,43 +315,52 @@ const hotReload = new HotReloadManager({
 ### Resources
 
 Expose static or dynamic content:
-```javascript
-resources: [{
-  uri: 'plugin://my-plugin/templates',
-  name: 'Templates',
-  description: 'Available templates',
-  mimeType: 'application/json',
 
-  async provider(uri) {
-    return {
-      uri,
-      mimeType: 'application/json',
-      text: JSON.stringify(templates)
-    };
-  }
-}]
+```javascript
+resources: [
+  {
+    uri: 'plugin://my-plugin/templates',
+    name: 'Templates',
+    description: 'Available templates',
+    mimeType: 'application/json',
+
+    async provider(uri) {
+      return {
+        uri,
+        mimeType: 'application/json',
+        text: JSON.stringify(templates),
+      };
+    },
+  },
+];
 ```
 
 ### Prompts
 
 Provide AI prompt templates:
-```javascript
-prompts: [{
-  name: 'analyze_data',
-  description: 'Analyze spreadsheet data',
 
-  async generator(args) {
-    return {
-      messages: [{
-        role: 'system',
-        content: 'You are a data analyst...'
-      }, {
-        role: 'user',
-        content: `Analyze this data: ${args.data}`
-      }]
-    };
-  }
-}]
+```javascript
+prompts: [
+  {
+    name: 'analyze_data',
+    description: 'Analyze spreadsheet data',
+
+    async generator(args) {
+      return {
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a data analyst...',
+          },
+          {
+            role: 'user',
+            content: `Analyze this data: ${args.data}`,
+          },
+        ],
+      };
+    },
+  },
+];
 ```
 
 ## Example Plugins
@@ -351,6 +375,7 @@ See `examples/plugins/` for complete examples:
 ### Manifest Format
 
 For marketplace distribution, use `plugin.json`:
+
 ```json
 {
   "name": "my-plugin",
@@ -370,6 +395,7 @@ For marketplace distribution, use `plugin.json`:
 ### Installation
 
 Users can install from:
+
 1. **Local file**: `runtime.loadPlugin('./my-plugin.js')`
 2. **URL**: `runtime.loadPlugin('https://example.com/plugin.js')`
 3. **Marketplace**: `runtime.installFromMarketplace('my-plugin@1.0.0')`
@@ -379,6 +405,7 @@ Users can install from:
 ### 1. Error Handling
 
 Always wrap operations in try-catch:
+
 ```javascript
 async handler(params, context) {
   try {
@@ -394,6 +421,7 @@ async handler(params, context) {
 ### 2. Input Validation
 
 Validate all input parameters:
+
 ```javascript
 inputSchema: {
   type: 'object',
@@ -414,16 +442,18 @@ inputSchema: {
 ### 3. Logging
 
 Use structured logging:
+
 ```javascript
 context.logger.info('Processing started', {
   spreadsheetId: params.spreadsheetId,
-  rowCount: data.length
+  rowCount: data.length,
 });
 ```
 
 ### 4. Storage
 
 Use plugin storage for state:
+
 ```javascript
 // Track usage
 const count = (await context.storage.get('execCount')) || 0;
@@ -433,6 +463,7 @@ await context.storage.set('execCount', count + 1);
 ### 5. Quota Management
 
 Be mindful of API quotas:
+
 ```javascript
 // Batch operations when possible
 const ranges = ['A1:A10', 'B1:B10', 'C1:C10'];
@@ -444,6 +475,7 @@ const results = await context.sheets.batchGet(spreadsheetId, ranges);
 ### Plugin Won't Load
 
 Check:
+
 - Required fields present (`name`, `version`, `author`)
 - Valid semver version
 - No syntax errors in code
@@ -452,25 +484,28 @@ Check:
 ### Permission Denied Errors
 
 Ensure plugin requests necessary permissions:
+
 ```javascript
-permissions: ['sheets.read']  // Add missing permission
+permissions: ['sheets.read']; // Add missing permission
 ```
 
 ### Timeout Errors
 
 Increase CPU limit or optimize code:
+
 ```typescript
 const runtime = new PluginRuntime({
-  cpuLimitMs: 5000  // Increase from default 2000ms
+  cpuLimitMs: 5000, // Increase from default 2000ms
 });
 ```
 
 ### Memory Errors
 
 Reduce data processing or increase limit:
+
 ```typescript
 const runtime = new PluginRuntime({
-  memoryLimitMB: 100  // Increase from default 50MB
+  memoryLimitMB: 100, // Increase from default 50MB
 });
 ```
 
@@ -497,6 +532,7 @@ See TypeScript definitions in `src/plugins/types.ts` for complete API reference.
 ## Future Enhancements
 
 Planned features:
+
 - Plugin marketplace UI
 - Automatic updates with user approval
 - Plugin dependency resolution

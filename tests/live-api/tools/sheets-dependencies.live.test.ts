@@ -3,7 +3,7 @@
  *
  * Tests formula dependency analysis with real Google Sheets data.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet for all tests.
  */
 
@@ -277,7 +277,10 @@ describe.skipIf(!runLiveTests)('sheets_dependencies Live API Tests', () => {
         requestBody: { values: [['100', '=X1*2', '=Y1+10']] },
       });
 
-      const dependencies = [{ from: 'X1', to: 'Y1' }, { from: 'Y1', to: 'Z1' }];
+      const dependencies = [
+        { from: 'X1', to: 'Y1' },
+        { from: 'Y1', to: 'Z1' },
+      ];
       const dotGraph = `digraph Dependencies { ${dependencies.map((d) => `"${d.from}" -> "${d.to}";`).join(' ')} }`;
 
       expect(dotGraph).toContain('digraph');
@@ -294,7 +297,13 @@ describe.skipIf(!runLiveTests)('sheets_dependencies Live API Tests', () => {
           spreadsheetId: testSpreadsheet.id,
           range: 'TestData!Y1:Z3',
           valueInputOption: 'USER_ENTERED',
-          requestBody: { values: [['100', '=Y1*2'], ['200', '=Y2*2'], ['=SUM(Y1:Y2)', '=SUM(Z1:Z2)']] },
+          requestBody: {
+            values: [
+              ['100', '=Y1*2'],
+              ['200', '=Y2*2'],
+              ['=SUM(Y1:Y2)', '=SUM(Z1:Z2)'],
+            ],
+          },
         })
       );
 

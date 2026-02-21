@@ -9,7 +9,6 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getTraceAggregator } from './services/trace-aggregator.js';
 import { logger } from './utils/logger.js';
-import type { RequestTrace } from './services/trace-aggregator.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

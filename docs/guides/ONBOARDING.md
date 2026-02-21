@@ -39,13 +39,15 @@ tags: [onboarding, setup, getting-started, architecture]
 ServalSheets is a **production-grade MCP (Model Context Protocol) server** that provides AI assistants like Claude with powerful Google Sheets capabilities.
 
 **Key Stats:**
-- 22 tools with 299 actions
+
+- 22 tools with 305 actions
 - 1,700+ tests (100% critical path coverage)
 - TypeScript strict mode
 - MCP 2025-11-25 protocol compliant
 - ~50,000 lines of code
 
 **What makes it special:**
+
 - ✅ Safety rails (confirmation gates, undo/redo, transactions)
 - ✅ Production-ready (circuit breakers, rate limiting, auto-retry)
 - ✅ Enterprise features (multi-tenant, RBAC, audit logging)
@@ -94,6 +96,7 @@ npm run verify
 ```
 
 **Expected output:**
+
 ```
 ✅ Drift check passed
 ✅ No placeholders found
@@ -207,14 +210,14 @@ export const SheetsDataInputSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('read_range'),
     spreadsheetId: z.string(),
-    range: z.string()
+    range: z.string(),
   }),
   z.object({
     action: z.literal('write_range'),
     spreadsheetId: z.string(),
     range: z.string(),
-    values: z.array(z.array(z.string()))
-  })
+    values: z.array(z.array(z.string())),
+  }),
 ]);
 
 // Infer TypeScript type from schema
@@ -222,6 +225,7 @@ export type SheetsDataInput = z.infer<typeof SheetsDataInputSchema>;
 ```
 
 **Why schema-first?**
+
 - Single source of truth
 - Compile-time type safety
 - Runtime validation
@@ -246,6 +250,7 @@ switch (input.action) {
 ```
 
 **Benefits:**
+
 - TypeScript narrows types automatically
 - Impossible to forget handling an action
 - Clear action-to-handler mapping
@@ -333,7 +338,7 @@ export class DataHandler extends BaseHandler<DataInput, DataOutput> {
     // 4. Call instrumented Google API
     const result = await this.context.googleClient.sheets.spreadsheets.values.get({
       spreadsheetId: params.spreadsheetId,
-      range: params.range
+      range: params.range,
     });
 
     // 5. Return structured response (NOT MCP format)
@@ -341,14 +346,15 @@ export class DataHandler extends BaseHandler<DataInput, DataOutput> {
       response: {
         success: true,
         action: 'read_range',
-        values: result.data.values || []
-      }
+        values: result.data.values || [],
+      },
     };
   }
 }
 ```
 
 **Key points:**
+
 - Handlers extend `BaseHandler`
 - Handlers return `{ response: { success, data } }` (NOT MCP format)
 - MCP formatting happens in `tool-handlers.ts`
@@ -629,6 +635,7 @@ npm test -- --reporter=verbose
 **Cause:** Permission issues with global npm.
 
 **Fix:**
+
 ```bash
 # Option 1: Use nvm (recommended)
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
@@ -647,6 +654,7 @@ source ~/.bashrc
 **Cause:** Node or npm version too old.
 
 **Fix:**
+
 ```bash
 # Verify versions
 node --version  # Must be >= 20.0.0
@@ -662,6 +670,7 @@ nvm use 20
 **Cause:** Stale build artifacts.
 
 **Fix:**
+
 ```bash
 npm run clean
 npm install
@@ -674,6 +683,7 @@ npm test
 **Cause:** VS Code using wrong TypeScript version.
 
 **Fix:**
+
 1. Open Command Palette (`Cmd+Shift+P`)
 2. Run "TypeScript: Select TypeScript Version"
 3. Choose "Use Workspace Version"

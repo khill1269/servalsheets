@@ -79,17 +79,17 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   },
   sheets_quality: {
     title: 'Quality Assurance',
-    readOnlyHint: true, // Analysis and validation are read-only
+    readOnlyHint: false, // resolve_conflict is a write operation
     destructiveHint: false,
     idempotentHint: true,
-    openWorldHint: false, // Local processing
+    openWorldHint: true, // resolve_conflict makes Google API calls
   },
   sheets_history: {
     title: 'Operation History',
-    readOnlyHint: true, // Read history only
+    readOnlyHint: false, // undo/redo/revert_to are write operations
     destructiveHint: false,
     idempotentHint: true,
-    openWorldHint: false, // Local history
+    openWorldHint: true, // undo/redo call Google Sheets API
   },
   // MCP-Native Tools
   sheets_confirm: {
@@ -103,7 +103,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     title: 'Ultimate Data Analysis',
     readOnlyHint: true, // Reads data + sampling only
     destructiveHint: false, // Analysis only; no destructive actions
-    idempotentHint: true, // No side effects (results may vary)
+    idempotentHint: false, // Results may vary (sampling, AI analysis)
     openWorldHint: true, // MCP Sampling + Google API
   },
   sheets_fix: {

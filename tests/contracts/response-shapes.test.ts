@@ -14,49 +14,61 @@ import { z } from 'zod';
  */
 
 // Base response structure
-const BaseResponseSchema = z.object({
-  success: z.boolean(),
-}).passthrough();
+const BaseResponseSchema = z
+  .object({
+    success: z.boolean(),
+  })
+  .passthrough();
 
 // Success response with data
-const SuccessResponseSchema = z.object({
-  success: z.literal(true),
-}).passthrough();
+const SuccessResponseSchema = z
+  .object({
+    success: z.literal(true),
+  })
+  .passthrough();
 
 // Error schema
-const ErrorSchema = z.object({
-  code: z.string(),
-  message: z.string(),
-  category: z.string().optional(),
-  severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
-  retryable: z.boolean().optional(),
-  retryAfterMs: z.number().optional(),
-  resolution: z.string().optional(),
-  resolutionSteps: z.array(z.string()).optional(),
-  suggestedTools: z.array(z.string()).optional(),
-  details: z.record(z.string(), z.unknown()).optional(),
-}).passthrough();
+const ErrorSchema = z
+  .object({
+    code: z.string(),
+    message: z.string(),
+    category: z.string().optional(),
+    severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+    retryable: z.boolean().optional(),
+    retryAfterMs: z.number().optional(),
+    resolution: z.string().optional(),
+    resolutionSteps: z.array(z.string()).optional(),
+    suggestedTools: z.array(z.string()).optional(),
+    details: z.record(z.string(), z.unknown()).optional(),
+  })
+  .passthrough();
 
 // Error response structure
-const ErrorResponseSchema = z.object({
-  success: z.literal(false),
-  error: ErrorSchema,
-}).passthrough();
+const ErrorResponseSchema = z
+  .object({
+    success: z.literal(false),
+    error: ErrorSchema,
+  })
+  .passthrough();
 
 // Mutation metadata (for write operations)
-const MutationMetadataSchema = z.object({
-  cellsAffected: z.number().optional(),
-  revertSnapshotId: z.string().optional(),
-  operationId: z.string().optional(),
-  timestamp: z.string().optional(),
-}).passthrough();
+const MutationMetadataSchema = z
+  .object({
+    cellsAffected: z.number().optional(),
+    revertSnapshotId: z.string().optional(),
+    operationId: z.string().optional(),
+    timestamp: z.string().optional(),
+  })
+  .passthrough();
 
 // Pagination metadata
-const PaginationSchema = z.object({
-  hasMore: z.boolean(),
-  nextCursor: z.string().optional(),
-  totalCount: z.number().optional(),
-}).passthrough();
+const PaginationSchema = z
+  .object({
+    hasMore: z.boolean(),
+    nextCursor: z.string().optional(),
+    totalCount: z.number().optional(),
+  })
+  .passthrough();
 
 /**
  * Tool-specific response schemas
@@ -64,145 +76,202 @@ const PaginationSchema = z.object({
  */
 
 // sheets_data read response
-const DataReadResponseSchema = z.object({
-  success: z.literal(true),
-  values: z.array(z.array(z.unknown())).optional(),
-  range: z.string().optional(),
-  majorDimension: z.enum(['ROWS', 'COLUMNS']).optional(),
-  metadata: z.object({
-    rowCount: z.number(),
-    columnCount: z.number(),
-  }).passthrough().optional(),
-}).passthrough();
+const DataReadResponseSchema = z
+  .object({
+    success: z.literal(true),
+    values: z.array(z.array(z.unknown())).optional(),
+    range: z.string().optional(),
+    majorDimension: z.enum(['ROWS', 'COLUMNS']).optional(),
+    metadata: z
+      .object({
+        rowCount: z.number(),
+        columnCount: z.number(),
+      })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
 
 // sheets_data write response
-const DataWriteResponseSchema = z.object({
-  success: z.literal(true),
-  updatedRange: z.string().optional(),
-  updatedRows: z.number().optional(),
-  updatedColumns: z.number().optional(),
-  updatedCells: z.number().optional(),
-  mutation: MutationMetadataSchema.optional(),
-}).passthrough();
+const DataWriteResponseSchema = z
+  .object({
+    success: z.literal(true),
+    updatedRange: z.string().optional(),
+    updatedRows: z.number().optional(),
+    updatedColumns: z.number().optional(),
+    updatedCells: z.number().optional(),
+    mutation: MutationMetadataSchema.optional(),
+  })
+  .passthrough();
 
 // sheets_data batch_read response
-const DataBatchReadResponseSchema = z.object({
-  success: z.literal(true),
-  valueRanges: z.array(z.object({
-    range: z.string(),
-    majorDimension: z.enum(['ROWS', 'COLUMNS']).optional(),
-    values: z.array(z.array(z.unknown())).optional(),
-  }).passthrough()),
-  pagination: PaginationSchema.optional(),
-}).passthrough();
+const DataBatchReadResponseSchema = z
+  .object({
+    success: z.literal(true),
+    valueRanges: z.array(
+      z
+        .object({
+          range: z.string(),
+          majorDimension: z.enum(['ROWS', 'COLUMNS']).optional(),
+          values: z.array(z.array(z.unknown())).optional(),
+        })
+        .passthrough()
+    ),
+    pagination: PaginationSchema.optional(),
+  })
+  .passthrough();
 
 // sheets_core get response
-const CoreGetResponseSchema = z.object({
-  success: z.literal(true),
-  spreadsheet: z.object({
-    spreadsheetId: z.string(),
-    title: z.string(),
-    locale: z.string().optional(),
-    timeZone: z.string().optional(),
-    url: z.string().optional(),
-  }).passthrough(),
-  sheets: z.array(z.object({
-    sheetId: z.number(),
-    title: z.string(),
-    index: z.number().optional(),
-    sheetType: z.string().optional(),
-    rowCount: z.number().optional(),
-    columnCount: z.number().optional(),
-    frozenRowCount: z.number().optional(),
-    frozenColumnCount: z.number().optional(),
-  }).passthrough()).optional(),
-}).passthrough();
+const CoreGetResponseSchema = z
+  .object({
+    success: z.literal(true),
+    spreadsheet: z
+      .object({
+        spreadsheetId: z.string(),
+        title: z.string(),
+        locale: z.string().optional(),
+        timeZone: z.string().optional(),
+        url: z.string().optional(),
+      })
+      .passthrough(),
+    sheets: z
+      .array(
+        z
+          .object({
+            sheetId: z.number(),
+            title: z.string(),
+            index: z.number().optional(),
+            sheetType: z.string().optional(),
+            rowCount: z.number().optional(),
+            columnCount: z.number().optional(),
+            frozenRowCount: z.number().optional(),
+            frozenColumnCount: z.number().optional(),
+          })
+          .passthrough()
+      )
+      .optional(),
+  })
+  .passthrough();
 
 // sheets_core create response
-const CoreCreateResponseSchema = z.object({
-  success: z.literal(true),
-  spreadsheet: z.object({
-    spreadsheetId: z.string(),
-    title: z.string(),
-    url: z.string(),
-  }).passthrough(),
-}).passthrough();
+const CoreCreateResponseSchema = z
+  .object({
+    success: z.literal(true),
+    spreadsheet: z
+      .object({
+        spreadsheetId: z.string(),
+        title: z.string(),
+        url: z.string(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
 
 // sheets_core add_sheet response
-const CoreAddSheetResponseSchema = z.object({
-  success: z.literal(true),
-  sheet: z.object({
-    sheetId: z.number(),
-    title: z.string(),
-    index: z.number().optional(),
-  }).passthrough(),
-}).passthrough();
+const CoreAddSheetResponseSchema = z
+  .object({
+    success: z.literal(true),
+    sheet: z
+      .object({
+        sheetId: z.number(),
+        title: z.string(),
+        index: z.number().optional(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
 
 // sheets_format response
-const FormatResponseSchema = z.object({
-  success: z.literal(true),
-  mutation: MutationMetadataSchema.optional(),
-  appliedFormat: z.record(z.string(), z.unknown()).optional(),
-}).passthrough();
+const FormatResponseSchema = z
+  .object({
+    success: z.literal(true),
+    mutation: MutationMetadataSchema.optional(),
+    appliedFormat: z.record(z.string(), z.unknown()).optional(),
+  })
+  .passthrough();
 
 // sheets_dimensions response
-const DimensionsResponseSchema = z.object({
-  success: z.literal(true),
-  mutation: MutationMetadataSchema.optional(),
-  dimension: z.enum(['ROWS', 'COLUMNS']).optional(),
-  affectedRange: z.object({
-    startIndex: z.number(),
-    endIndex: z.number(),
-  }).passthrough().optional(),
-}).passthrough();
+const DimensionsResponseSchema = z
+  .object({
+    success: z.literal(true),
+    mutation: MutationMetadataSchema.optional(),
+    dimension: z.enum(['ROWS', 'COLUMNS']).optional(),
+    affectedRange: z
+      .object({
+        startIndex: z.number(),
+        endIndex: z.number(),
+      })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
 
 // sheets_collaborate share_list response
-const CollaborateShareListResponseSchema = z.object({
-  success: z.literal(true),
-  permissions: z.array(z.object({
-    id: z.string(),
-    type: z.enum(['user', 'group', 'domain', 'anyone']),
-    role: z.enum(['owner', 'organizer', 'fileOrganizer', 'writer', 'commenter', 'reader']),
-    emailAddress: z.string().optional(),
-    displayName: z.string().optional(),
-  }).passthrough()),
-}).passthrough();
+const CollaborateShareListResponseSchema = z
+  .object({
+    success: z.literal(true),
+    permissions: z.array(
+      z
+        .object({
+          id: z.string(),
+          type: z.enum(['user', 'group', 'domain', 'anyone']),
+          role: z.enum(['owner', 'organizer', 'fileOrganizer', 'writer', 'commenter', 'reader']),
+          emailAddress: z.string().optional(),
+          displayName: z.string().optional(),
+        })
+        .passthrough()
+    ),
+  })
+  .passthrough();
 
 // sheets_analyze response
-const AnalyzeResponseSchema = z.object({
-  success: z.literal(true),
-  analysis: z.object({
-    summary: z.string().optional(),
-    dataTypes: z.record(z.string(), z.string()).optional(),
-    statistics: z.record(z.string(), z.unknown()).optional(),
-    patterns: z.array(z.unknown()).optional(),
-    recommendations: z.array(z.string()).optional(),
-  }).passthrough().optional(),
-}).passthrough();
+const AnalyzeResponseSchema = z
+  .object({
+    success: z.literal(true),
+    analysis: z
+      .object({
+        summary: z.string().optional(),
+        dataTypes: z.record(z.string(), z.string()).optional(),
+        statistics: z.record(z.string(), z.unknown()).optional(),
+        patterns: z.array(z.unknown()).optional(),
+        recommendations: z.array(z.string()).optional(),
+      })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
 
 // sheets_history list response
-const HistoryListResponseSchema = z.object({
-  success: z.literal(true),
-  operations: z.array(z.object({
-    operationId: z.string(),
-    timestamp: z.string(),
-    tool: z.string(),
-    action: z.string(),
-    description: z.string().optional(),
-    cellsAffected: z.number().optional(),
-    canRevert: z.boolean().optional(),
-  }).passthrough()),
-  pagination: PaginationSchema.optional(),
-}).passthrough();
+const HistoryListResponseSchema = z
+  .object({
+    success: z.literal(true),
+    operations: z.array(
+      z
+        .object({
+          operationId: z.string(),
+          timestamp: z.string(),
+          tool: z.string(),
+          action: z.string(),
+          description: z.string().optional(),
+          cellsAffected: z.number().optional(),
+          canRevert: z.boolean().optional(),
+        })
+        .passthrough()
+    ),
+    pagination: PaginationSchema.optional(),
+  })
+  .passthrough();
 
 // sheets_auth status response
-const AuthStatusResponseSchema = z.object({
-  success: z.literal(true),
-  authenticated: z.boolean(),
-  email: z.string().optional(),
-  scopes: z.array(z.string()).optional(),
-  expiresAt: z.string().optional(),
-}).passthrough();
+const AuthStatusResponseSchema = z
+  .object({
+    success: z.literal(true),
+    authenticated: z.boolean(),
+    email: z.string().optional(),
+    scopes: z.array(z.string()).optional(),
+    expiresAt: z.string().optional(),
+  })
+  .passthrough();
 
 describe('Response Shape Contracts', () => {
   describe('Base Response Structure', () => {
@@ -484,12 +553,8 @@ describe('Response Shape Contracts', () => {
             columnCount: 10,
             emptyRows: 5,
           },
-          patterns: [
-            { type: 'trend', column: 'B', direction: 'increasing' },
-          ],
-          recommendations: [
-            'Consider adding data validation to column C',
-          ],
+          patterns: [{ type: 'trend', column: 'B', direction: 'increasing' }],
+          recommendations: ['Consider adding data validation to column C'],
         },
       };
       expect(AnalyzeResponseSchema.safeParse(response).success).toBe(true);

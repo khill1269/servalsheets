@@ -24,7 +24,8 @@ const rootDir = join(__dirname, '..');
 // Configuration
 const THRESHOLD_PERCENT = Number.parseFloat(process.env['BENCHMARK_THRESHOLD'] ?? '10');
 const HISTORY_DIR = join(rootDir, 'benchmarks', 'history');
-const BASELINE_FILE = process.env['BENCHMARK_BASELINE'] ?? join(rootDir, 'benchmarks', 'baseline.json');
+const BASELINE_FILE =
+  process.env['BENCHMARK_BASELINE'] ?? join(rootDir, 'benchmarks', 'baseline.json');
 const BENCHMARK_OUTPUT = join(rootDir, 'benchmarks', 'latest.json');
 
 // Ensure directories exist
@@ -144,7 +145,9 @@ function compareResults(current, baseline) {
 
     // Compare latency metrics (if available)
     if (currentMetrics.avgLatency !== null && baselineMetrics.avgLatency !== null) {
-      const change = ((currentMetrics.avgLatency - baselineMetrics.avgLatency) / baselineMetrics.avgLatency) * 100;
+      const change =
+        ((currentMetrics.avgLatency - baselineMetrics.avgLatency) / baselineMetrics.avgLatency) *
+        100;
 
       if (change > THRESHOLD_PERCENT) {
         regressions.push({
@@ -168,7 +171,9 @@ function compareResults(current, baseline) {
 
     // Compare p95 latency
     if (currentMetrics.p95Latency !== null && baselineMetrics.p95Latency !== null) {
-      const change = ((currentMetrics.p95Latency - baselineMetrics.p95Latency) / baselineMetrics.p95Latency) * 100;
+      const change =
+        ((currentMetrics.p95Latency - baselineMetrics.p95Latency) / baselineMetrics.p95Latency) *
+        100;
 
       if (change > THRESHOLD_PERCENT) {
         regressions.push({
@@ -183,7 +188,8 @@ function compareResults(current, baseline) {
 
     // Compare total time (for concurrent requests)
     if (currentMetrics.totalTime !== null && baselineMetrics.totalTime !== null) {
-      const change = ((currentMetrics.totalTime - baselineMetrics.totalTime) / baselineMetrics.totalTime) * 100;
+      const change =
+        ((currentMetrics.totalTime - baselineMetrics.totalTime) / baselineMetrics.totalTime) * 100;
 
       if (change > THRESHOLD_PERCENT) {
         regressions.push({
@@ -247,7 +253,7 @@ function generateReport(current, baseline, comparison) {
 
   // History summary
   const historyCount = existsSync(HISTORY_DIR)
-    ? readdirSync(HISTORY_DIR).filter(f => f.endsWith('.json')).length
+    ? readdirSync(HISTORY_DIR).filter((f) => f.endsWith('.json')).length
     : 0;
   console.log(`📈 Benchmark history: ${historyCount} runs tracked`);
   console.log('='.repeat(70) + '\n');
@@ -283,7 +289,6 @@ try {
   }
 
   console.log('✅ Benchmark tracking complete\n');
-
 } catch (error) {
   console.error('❌ Benchmark tracking failed:', error.message);
   process.exit(1);

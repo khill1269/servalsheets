@@ -120,6 +120,7 @@ npm run test:security -- tenant-isolation
 ```
 
 Key test coverage:
+
 - ✅ Zero data leakage between tenants
 - ✅ API key validation and revocation
 - ✅ Spreadsheet access control
@@ -192,10 +193,7 @@ import { TenantStorage, TenantMetadata } from './services/tenant-context.js';
 
 class PostgresTenantStorage implements TenantStorage {
   async get(tenantId: string): Promise<TenantMetadata | null> {
-    const result = await db.query(
-      'SELECT * FROM tenants WHERE tenant_id = $1',
-      [tenantId]
-    );
+    const result = await db.query('SELECT * FROM tenants WHERE tenant_id = $1', [tenantId]);
     return result.rows[0] || null;
   }
 
@@ -231,9 +229,9 @@ const service = new TenantContextService(storage);
 
 ```typescript
 await tenantContextService.createTenant('Tenant Name', {
-  maxApiCallsPerHour: 10000,     // Hourly API call limit
-  maxConcurrentRequests: 50,     // Concurrent request limit
-  maxSpreadsheets: 100,          // Max spreadsheets per tenant
+  maxApiCallsPerHour: 10000, // Hourly API call limit
+  maxConcurrentRequests: 50, // Concurrent request limit
+  maxSpreadsheets: 100, // Max spreadsheets per tenant
 });
 ```
 
@@ -288,11 +286,11 @@ await quotaManager.setQuotaLimits('tenant-123', {
 
 Actions are automatically classified by operation type:
 
-| Operation Type | Actions | Examples |
-|----------------|---------|----------|
-| **Read** | Data retrieval, read-only operations | `read_range`, `get_sheet`, `list_sheets`, `get_metadata` |
-| **Write** | Data modification operations | `write_range`, `update_cells`, `append_row`, `clear_range` |
-| **Admin** | Structural changes, admin operations | `create_spreadsheet`, `delete_sheet`, `copy_sheet`, `add_sheet` |
+| Operation Type | Actions                              | Examples                                                        |
+| -------------- | ------------------------------------ | --------------------------------------------------------------- |
+| **Read**       | Data retrieval, read-only operations | `read_range`, `get_sheet`, `list_sheets`, `get_metadata`        |
+| **Write**      | Data modification operations         | `write_range`, `update_cells`, `append_row`, `clear_range`      |
+| **Admin**      | Structural changes, admin operations | `create_spreadsheet`, `delete_sheet`, `copy_sheet`, `add_sheet` |
 
 ### Quota Enforcement Workflow
 
@@ -430,9 +428,9 @@ const costTracker = new CostTracker(redis);
 
 // Define pricing per operation type
 await costTracker.setPricing({
-  read: 0.001,   // $0.001 per read operation
-  write: 0.005,  // $0.005 per write operation
-  admin: 0.010,  // $0.010 per admin operation
+  read: 0.001, // $0.001 per read operation
+  write: 0.005, // $0.005 per write operation
+  admin: 0.01, // $0.010 per admin operation
 });
 
 // Track costs automatically with usage
@@ -543,8 +541,8 @@ async function generateInvoice(tenantId: string, month: string) {
       },
     ],
     subtotal: plan.monthlyPrice + costs.total,
-    tax: (plan.monthlyPrice + costs.total) * 0.10, // 10% tax
-    total: (plan.monthlyPrice + costs.total) * 1.10,
+    tax: (plan.monthlyPrice + costs.total) * 0.1, // 10% tax
+    total: (plan.monthlyPrice + costs.total) * 1.1,
     currency: 'USD',
     dueDate: new Date(`${month}-28`),
   };
@@ -647,14 +645,14 @@ spec:
         - namespaceSelector: {}
       ports:
         - protocol: TCP
-          port: 443  # Google Sheets API
+          port: 443 # Google Sheets API
     - to:
         - namespaceSelector:
             matchLabels:
               name: kube-system
       ports:
         - protocol: UDP
-          port: 53  # DNS
+          port: 53 # DNS
 ```
 
 ### Resource Quotas
@@ -670,21 +668,21 @@ metadata:
 spec:
   hard:
     # Compute resources
-    requests.cpu: "4"
+    requests.cpu: '4'
     requests.memory: 8Gi
-    limits.cpu: "8"
+    limits.cpu: '8'
     limits.memory: 16Gi
 
     # Storage
-    persistentvolumeclaims: "5"
+    persistentvolumeclaims: '5'
     requests.storage: 100Gi
 
     # Object counts
-    count/deployments.apps: "5"
-    count/services: "5"
-    count/configmaps: "10"
-    count/secrets: "10"
-    count/pods: "20"
+    count/deployments.apps: '5'
+    count/services: '5'
+    count/configmaps: '10'
+    count/secrets: '10'
+    count/pods: '20'
 ```
 
 ### Database Isolation
@@ -724,10 +722,7 @@ class TenantEncryption {
     const iv = randomBytes(16);
 
     const cipher = createCipheriv('aes-256-gcm', key, iv);
-    const encrypted = Buffer.concat([
-      cipher.update(data, 'utf8'),
-      cipher.final(),
-    ]);
+    const encrypted = Buffer.concat([cipher.update(data, 'utf8'), cipher.final()]);
     const authTag = cipher.getAuthTag();
 
     // Return: iv + authTag + encrypted data (all base64 encoded)
@@ -745,10 +740,7 @@ class TenantEncryption {
     const decipher = createDecipheriv('aes-256-gcm', key, iv);
     decipher.setAuthTag(authTag);
 
-    return Buffer.concat([
-      decipher.update(encrypted),
-      decipher.final(),
-    ]).toString('utf8');
+    return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
   }
 
   private async getTenantKey(tenantId: string): Promise<Buffer> {
@@ -983,15 +975,15 @@ kind: Tenant
 metadata:
   name: acme-corp
 spec:
-  displayName: "Acme Corp"
+  displayName: 'Acme Corp'
   plan: professional
 
   resources:
     requests:
-      cpu: "2"
+      cpu: '2'
       memory: 4Gi
     limits:
-      cpu: "4"
+      cpu: '4'
       memory: 8Gi
 
   quotas:
@@ -1012,6 +1004,7 @@ spec:
 ```
 
 The operator automatically creates:
+
 - Kubernetes namespace (`tenant-acme-corp`)
 - ResourceQuota
 - NetworkPolicy
@@ -1085,11 +1078,14 @@ app.use('/api', async (req, res, next) => {
       status,
     });
 
-    tenantRequestDuration.observe({
-      tenant_id: tenantContext.tenantId,
-      tool: req.params.tool,
-      action: req.body.action,
-    }, duration);
+    tenantRequestDuration.observe(
+      {
+        tenant_id: tenantContext.tenantId,
+        tool: req.params.tool,
+        action: req.body.action,
+      },
+      duration
+    );
 
     if (status === 'error') {
       tenantErrorsTotal.inc({
@@ -1111,11 +1107,14 @@ setInterval(async () => {
 
     for (const operation of ['read', 'write', 'admin']) {
       for (const window of ['hourly', 'daily', 'monthly']) {
-        tenantQuotaUsage.set({
-          tenant_id: tenant.tenantId,
-          operation,
-          window,
-        }, stats.current[operation][window]);
+        tenantQuotaUsage.set(
+          {
+            tenant_id: tenant.tenantId,
+            operation,
+            window,
+          },
+          stats.current[operation][window]
+        );
       }
     }
   }
@@ -1176,18 +1175,14 @@ async function calculateTenantHealth(tenantId: string): Promise<TenantHealthScor
 
   // Calculate individual factor scores
   const uptime = await calculateUptime(tenantId); // 0-100
-  const errorRate = 100 - (await calculateErrorRate(tenantId) * 100); // 0-100
+  const errorRate = 100 - (await calculateErrorRate(tenantId)) * 100; // 0-100
   const quotaUsage = 100 - Math.max(...Object.values(stats.percentUsed.read)); // 0-100
   const billingStatus = tenant.billingInfo?.plan ? 100 : 50; // 0-100
   const apiUsage = stats.current.read.daily > 0 ? 100 : 0; // 0-100
 
   // Weighted average
   const overall = Math.round(
-    (uptime * 0.3) +
-    (errorRate * 0.3) +
-    (quotaUsage * 0.2) +
-    (billingStatus * 0.1) +
-    (apiUsage * 0.1)
+    uptime * 0.3 + errorRate * 0.3 + quotaUsage * 0.2 + billingStatus * 0.1 + apiUsage * 0.1
   );
 
   // Determine status
@@ -1363,11 +1358,13 @@ const quotaExhaustion = new Counter({
 **Symptom:** 401 Unauthorized response
 
 **Causes:**
+
 1. API key not included in Authorization header
 2. API key revoked or tenant deleted
 3. Tenant suspended
 
 **Solution:**
+
 ```bash
 # Verify API key format
 echo $SERVALSHEETS_API_KEY | grep -E '^sk_[A-Za-z0-9_-]{43}$'
@@ -1382,16 +1379,15 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" \
 **Symptom:** 403 Forbidden response
 
 **Causes:**
+
 1. Spreadsheet belongs to different tenant
 2. Spreadsheet access not granted to tenant
 
 **Solution:**
+
 ```typescript
 // Verify spreadsheet ownership
-const hasAccess = await tenantContextService.validateSpreadsheetAccess(
-  tenantId,
-  spreadsheetId
-);
+const hasAccess = await tenantContextService.validateSpreadsheetAccess(tenantId, spreadsheetId);
 ```
 
 ### Issue: Quota Exceeded
@@ -1399,10 +1395,12 @@ const hasAccess = await tenantContextService.validateSpreadsheetAccess(
 **Symptom:** 429 Too Many Requests
 
 **Causes:**
+
 1. Hourly API call limit reached
 2. Concurrent request limit reached
 
 **Solution:**
+
 ```typescript
 // Check quota status
 const context = await tenantContextService.extractTenantContext(apiKey);
@@ -1451,10 +1449,12 @@ await tenantContextService.updateTenant(tenantId, {
 Creates new tenant with unique ID and API key.
 
 **Parameters:**
+
 - `name` (string) - Tenant name
 - `settings` (object, optional) - Tenant settings
 
 **Returns:**
+
 - `metadata` (TenantMetadata) - Tenant metadata
 - `apiKey` (string) - API key for authentication
 
@@ -1463,9 +1463,11 @@ Creates new tenant with unique ID and API key.
 Extracts tenant context from API key.
 
 **Parameters:**
+
 - `apiKey` (string) - API key from Authorization header
 
 **Returns:**
+
 - `TenantContext | null` - Tenant context or null if invalid
 
 #### `updateTenant(tenantId, updates)`
@@ -1473,10 +1475,12 @@ Extracts tenant context from API key.
 Updates tenant metadata.
 
 **Parameters:**
+
 - `tenantId` (string) - Tenant UUID
 - `updates` (object) - Partial tenant metadata updates
 
 **Returns:**
+
 - `TenantMetadata` - Updated tenant metadata
 
 #### `deleteTenant(tenantId)`
@@ -1484,9 +1488,11 @@ Updates tenant metadata.
 Soft deletes tenant (marks as deleted, revokes API keys).
 
 **Parameters:**
+
 - `tenantId` (string) - Tenant UUID
 
 **Returns:**
+
 - `void`
 
 #### `rotateApiKey(tenantId)`
@@ -1494,9 +1500,11 @@ Soft deletes tenant (marks as deleted, revokes API keys).
 Rotates API key for tenant (revokes old key).
 
 **Parameters:**
+
 - `tenantId` (string) - Tenant UUID
 
 **Returns:**
+
 - `string` - New API key
 
 #### `validateSpreadsheetAccess(tenantId, spreadsheetId)`
@@ -1504,10 +1512,12 @@ Rotates API key for tenant (revokes old key).
 Validates tenant has access to spreadsheet.
 
 **Parameters:**
+
 - `tenantId` (string) - Tenant UUID
 - `spreadsheetId` (string) - Google Sheets spreadsheet ID
 
 **Returns:**
+
 - `boolean` - True if tenant has access
 
 ### Middleware
@@ -1517,11 +1527,13 @@ Validates tenant has access to spreadsheet.
 Express middleware for tenant authentication and isolation.
 
 **Usage:**
+
 ```typescript
 app.use('/api', tenantIsolationMiddleware());
 ```
 
 **Behavior:**
+
 - Extracts API key from Authorization header
 - Validates API key and tenant status
 - Attaches tenant context to request
@@ -1532,11 +1544,13 @@ app.use('/api', tenantIsolationMiddleware());
 Express middleware for spreadsheet access validation.
 
 **Usage:**
+
 ```typescript
 app.use('/api/tools', validateSpreadsheetAccess());
 ```
 
 **Behavior:**
+
 - Extracts spreadsheet ID from request
 - Validates tenant has access to spreadsheet
 - Returns 403 if access denied
@@ -1592,7 +1606,7 @@ class ServalSheetsClient {
     const response = await fetch(`${this.baseUrl}/api/tools/sheets_data`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
+        Authorization: `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

@@ -563,7 +563,12 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       requestBody.sheets = sheetsConfig;
     }
 
-    const response = await this.sheetsApi.spreadsheets.create({ requestBody });
+    const response = await this.sheetsApi.spreadsheets.create({
+      requestBody,
+      // Field mask reduces response payload by ~80% - only return fields we actually use
+      fields:
+        'spreadsheetId,spreadsheetUrl,properties(title,locale,timeZone),sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount),hidden))',
+    });
 
     const data = response.data;
     const sheets: SheetInfo[] = (data.sheets ?? []).map((s: sheets_v4.Schema$Sheet) => ({
@@ -719,9 +724,11 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       });
     }
 
-    await this.sheetsApi.spreadsheets.batchUpdate({
+    const batchResponse = await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
+      fields: 'updatedSpreadsheet(spreadsheetId,properties,spreadsheetUrl)',
       requestBody: {
+        includeSpreadsheetInResponse: true,
         requests: [
           {
             updateSpreadsheetProperties: {
@@ -733,14 +740,10 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       },
     });
 
-    // Fetch updated properties
-    const updated = await this.sheetsApi.spreadsheets.get({
-      spreadsheetId: input.spreadsheetId,
-      fields: 'spreadsheetId,properties,spreadsheetUrl',
-    });
+    const updated = batchResponse.data.updatedSpreadsheet;
 
     // Validate response data
-    if (!updated.data.spreadsheetId) {
+    if (!updated?.spreadsheetId) {
       return this.error({
         code: 'INTERNAL_ERROR',
         message: 'Sheets API returned incomplete data after update',
@@ -753,11 +756,11 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
 
     return this.success('update_properties', {
       spreadsheet: {
-        spreadsheetId: updated.data.spreadsheetId,
-        title: updated.data.properties?.title ?? '',
-        url: updated.data.spreadsheetUrl ?? undefined,
-        locale: updated.data.properties?.locale ?? undefined,
-        timeZone: updated.data.properties?.timeZone ?? undefined,
+        spreadsheetId: updated.spreadsheetId,
+        title: updated.properties?.title ?? '',
+        url: updated.spreadsheetUrl ?? undefined,
+        locale: updated.properties?.locale ?? undefined,
+        timeZone: updated.properties?.timeZone ?? undefined,
       },
     });
   }
@@ -843,9 +846,10 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
     const startTime = Date.now();
 
     // Phase 1.2: Sheet-level pagination support
+    // Default to 5 sheets per page (reduced from 10) to prevent timeout on large workbooks
     const paginationState = this.decodeSheetPaginationCursor(input.cursor) || {
       sheetIndex: 0,
-      maxSheets: input.maxSheets ?? 10,
+      maxSheets: input.maxSheets ?? 5,
     };
 
     // First, get all sheet metadata (lightweight operation)
@@ -1272,7 +1276,11 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
     const nestedProps = inputAny['properties'] as Record<string, unknown> | undefined;
 
     // Normalize: extract from nested properties if present (using bracket notation for index signature)
-    const title = input.title ?? (nestedProps?.['title'] as string | undefined);
+    // Support newTitle as alias for title (common user expectation)
+    const title =
+      input.title ??
+      ((input as Record<string, unknown>)['newTitle'] as string | undefined) ??
+      (nestedProps?.['title'] as string | undefined);
     const index = input.index ?? (nestedProps?.['index'] as number | undefined);
     const hidden = input.hidden ?? (nestedProps?.['hidden'] as boolean | undefined);
     const tabColor = input.tabColor ?? (nestedProps?.['tabColor'] as typeof input.tabColor);
@@ -1365,9 +1373,11 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       });
     }
 
-    await this.sheetsApi.spreadsheets.batchUpdate({
+    const batchResponse = await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
+      fields: 'updatedSpreadsheet(sheets(properties))',
       requestBody: {
+        includeSpreadsheetInResponse: true,
         requests: [
           {
             updateSheetProperties: {
@@ -1379,13 +1389,9 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       },
     });
 
-    // Fetch updated sheet info
-    const updated = await this.sheetsApi.spreadsheets.get({
-      spreadsheetId: input.spreadsheetId,
-      fields: 'sheets.properties',
-    });
-
-    const sheetData = updated.data.sheets?.find((s) => s.properties?.sheetId === resolvedSheetId);
+    const sheetData = batchResponse.data.updatedSpreadsheet?.sheets?.find(
+      (s) => s.properties?.sheetId === resolvedSheetId
+    );
     if (!sheetData?.properties) {
       return this.error(
         createNotFoundError({

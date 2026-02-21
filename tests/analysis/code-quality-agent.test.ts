@@ -55,7 +55,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const complexityReport = reports.find(r => r.dimension === 'cyclomaticComplexity');
+    const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     expect(complexityReport).toBeDefined();
     expect(complexityReport?.status).toBe('pass');
@@ -73,7 +73,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const complexityReport = reports.find(r => r.dimension === 'cyclomaticComplexity');
+    const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     expect(complexityReport?.metrics?.maxComplexity).toBe(2);
     expect(complexityReport?.status).toBe('pass');
@@ -92,7 +92,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const complexityReport = reports.find(r => r.dimension === 'cyclomaticComplexity');
+    const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     expect(complexityReport?.metrics?.maxComplexity).toBe(3);
   });
@@ -108,7 +108,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const complexityReport = reports.find(r => r.dimension === 'cyclomaticComplexity');
+    const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     // 1 (base) + 1 (if) + 1 (&&) + 1 (||) = 4
     expect(complexityReport?.metrics?.maxComplexity).toBe(4);
@@ -122,7 +122,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const complexityReport = reports.find(r => r.dimension === 'cyclomaticComplexity');
+    const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     // 1 (base) + 1 (first ?) + 1 (second ?) = 3
     expect(complexityReport?.metrics?.maxComplexity).toBe(3);
@@ -144,7 +144,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const complexityReport = reports.find(r => r.dimension === 'cyclomaticComplexity');
+    const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     // 1 (base) + 1 (for) + 1 (while) + 1 (do-while) = 4
     expect(complexityReport?.metrics?.maxComplexity).toBe(4);
@@ -167,7 +167,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const complexityReport = reports.find(r => r.dimension === 'cyclomaticComplexity');
+    const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     // 1 (base) + 3 (cases, default not counted separately) = 4
     expect(complexityReport?.metrics?.maxComplexity).toBe(4);
@@ -185,7 +185,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const complexityReport = reports.find(r => r.dimension === 'cyclomaticComplexity');
+    const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     // 1 (base) + 1 (catch) = 2
     expect(complexityReport?.metrics?.maxComplexity).toBe(2);
@@ -220,7 +220,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const complexityReport = reports.find(r => r.dimension === 'cyclomaticComplexity');
+    const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     expect(complexityReport?.status).toBe('warning');
     expect(complexityReport?.issueCount).toBeGreaterThan(0);
@@ -277,7 +277,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const complexityReport = reports.find(r => r.dimension === 'cyclomaticComplexity');
+    const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     expect(complexityReport?.status).toBe('fail');
     expect(complexityReport?.metrics?.maxComplexity).toBeGreaterThan(20);
@@ -294,7 +294,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const complexityReport = reports.find(r => r.dimension === 'cyclomaticComplexity');
+    const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     expect(complexityReport?.metrics?.functionCount).toBe(3);
     expect(complexityReport?.metrics?.avgComplexity).toBeGreaterThan(0);
@@ -310,7 +310,7 @@ describe('CodeQualityAgent - File Size', () => {
     const code = 'function small() { return 42; }\n'.repeat(100);
 
     const reports = await analyzeCode(code);
-    const fileSizeReport = reports.find(r => r.dimension === 'fileSize');
+    const fileSizeReport = reports.find((r) => r.dimension === 'fileSize');
 
     expect(fileSizeReport?.status).toBe('pass');
     expect(fileSizeReport?.issueCount).toBe(0);
@@ -320,7 +320,7 @@ describe('CodeQualityAgent - File Size', () => {
     const code = 'function medium() { return 42; }\n'.repeat(600);
 
     const reports = await analyzeCode(code);
-    const fileSizeReport = reports.find(r => r.dimension === 'fileSize');
+    const fileSizeReport = reports.find((r) => r.dimension === 'fileSize');
 
     expect(fileSizeReport?.status).toBe('warning');
     expect(fileSizeReport?.issueCount).toBe(1);
@@ -331,7 +331,7 @@ describe('CodeQualityAgent - File Size', () => {
     const code = 'function large() { return 42; }\n'.repeat(1100);
 
     const reports = await analyzeCode(code);
-    const fileSizeReport = reports.find(r => r.dimension === 'fileSize');
+    const fileSizeReport = reports.find((r) => r.dimension === 'fileSize');
 
     expect(fileSizeReport?.status).toBe('fail');
     expect(fileSizeReport?.issueCount).toBe(1);
@@ -345,7 +345,7 @@ describe('CodeQualityAgent - File Size', () => {
       fileSize: { warning: 200, critical: 400 },
     });
 
-    const fileSizeReport = reports.find(r => r.dimension === 'fileSize');
+    const fileSizeReport = reports.find((r) => r.dimension === 'fileSize');
 
     expect(fileSizeReport?.status).toBe('warning');
     expect(fileSizeReport?.issueCount).toBe(1);
@@ -367,7 +367,7 @@ describe('CodeQualityAgent - Function Length', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const lengthReport = reports.find(r => r.dimension === 'functionLength');
+    const lengthReport = reports.find((r) => r.dimension === 'functionLength');
 
     expect(lengthReport?.status).toBe('pass');
     expect(lengthReport?.issueCount).toBe(0);
@@ -386,7 +386,7 @@ describe('CodeQualityAgent - Function Length', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const lengthReport = reports.find(r => r.dimension === 'functionLength');
+    const lengthReport = reports.find((r) => r.dimension === 'functionLength');
 
     expect(lengthReport?.status).toBe('warning');
     expect(lengthReport?.issueCount).toBe(1);
@@ -408,7 +408,7 @@ describe('CodeQualityAgent - Function Length', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const lengthReport = reports.find(r => r.dimension === 'functionLength');
+    const lengthReport = reports.find((r) => r.dimension === 'functionLength');
 
     expect(lengthReport?.metrics?.functionCount).toBe(3);
     expect(lengthReport?.metrics?.avgLength).toBeGreaterThan(0);
@@ -431,7 +431,7 @@ describe('CodeQualityAgent - Function Length', () => {
       functionLength: { warning: 10 },
     });
 
-    const lengthReport = reports.find(r => r.dimension === 'functionLength');
+    const lengthReport = reports.find((r) => r.dimension === 'functionLength');
 
     expect(lengthReport?.issueCount).toBeGreaterThan(0);
   });
@@ -452,7 +452,7 @@ describe('CodeQualityAgent - Nesting Depth', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const depthReport = reports.find(r => r.dimension === 'nestingDepth');
+    const depthReport = reports.find((r) => r.dimension === 'nestingDepth');
 
     expect(depthReport?.status).toBe('pass');
     expect(depthReport?.issueCount).toBe(0);
@@ -469,7 +469,7 @@ describe('CodeQualityAgent - Nesting Depth', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const depthReport = reports.find(r => r.dimension === 'nestingDepth');
+    const depthReport = reports.find((r) => r.dimension === 'nestingDepth');
 
     expect(depthReport?.status).toBe('pass');
   });
@@ -489,7 +489,7 @@ describe('CodeQualityAgent - Nesting Depth', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const depthReport = reports.find(r => r.dimension === 'nestingDepth');
+    const depthReport = reports.find((r) => r.dimension === 'nestingDepth');
 
     // Actual depth includes function body block, so it may be > 5
     // Just verify it detected nesting
@@ -518,7 +518,7 @@ describe('CodeQualityAgent - Nesting Depth', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const depthReport = reports.find(r => r.dimension === 'nestingDepth');
+    const depthReport = reports.find((r) => r.dimension === 'nestingDepth');
 
     expect(depthReport?.status).toBe('warning');
     expect(depthReport?.issueCount).toBeGreaterThan(0);
@@ -541,7 +541,7 @@ describe('CodeQualityAgent - Nesting Depth', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const depthReport = reports.find(r => r.dimension === 'nestingDepth');
+    const depthReport = reports.find((r) => r.dimension === 'nestingDepth');
 
     expect(depthReport?.metrics?.maxDepth).toBeGreaterThan(0);
   });
@@ -559,7 +559,7 @@ describe('CodeQualityAgent - Code Duplication', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const dupReport = reports.find(r => r.dimension === 'codeDuplication');
+    const dupReport = reports.find((r) => r.dimension === 'codeDuplication');
 
     expect(dupReport?.status).toBe('pass');
     expect(dupReport?.issueCount).toBe(0);
@@ -595,7 +595,7 @@ describe('CodeQualityAgent - Code Duplication', () => {
     const sf2 = createSourceFile(code2);
     const reports = await agent.analyze('file2.ts', sf2, context);
 
-    const dupReport = reports.find(r => r.dimension === 'codeDuplication');
+    const dupReport = reports.find((r) => r.dimension === 'codeDuplication');
 
     // Should detect high similarity
     expect(dupReport).toBeDefined();
@@ -617,7 +617,7 @@ describe('CodeQualityAgent - Code Duplication', () => {
     const sf2 = createSourceFile(code2);
     const reports = await agent.analyze('file2.ts', sf2, context);
 
-    const dupReport = reports.find(r => r.dimension === 'codeDuplication');
+    const dupReport = reports.find((r) => r.dimension === 'codeDuplication');
 
     // Should pass because blocks are too small
     expect(dupReport?.status).toBe('pass');
@@ -647,7 +647,7 @@ describe('CodeQualityAgent - Code Duplication', () => {
     const sf2 = createSourceFile(code2);
     const reports = await agent.analyze('file2.ts', sf2, context);
 
-    const dupReport = reports.find(r => r.dimension === 'codeDuplication');
+    const dupReport = reports.find((r) => r.dimension === 'codeDuplication');
 
     // Should pass because similarity is below 95%
     expect(dupReport?.status).toBe('pass');
@@ -674,7 +674,7 @@ describe('CodeQualityAgent - Integration', () => {
     const reports = await analyzeCode(code);
 
     expect(reports).toHaveLength(5);
-    expect(reports.map(r => r.dimension)).toEqual([
+    expect(reports.map((r) => r.dimension)).toEqual([
       'cyclomaticComplexity',
       'fileSize',
       'functionLength',
@@ -712,7 +712,7 @@ describe('CodeQualityAgent - Integration', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const complexityReport = reports.find(r => r.dimension === 'cyclomaticComplexity');
+    const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     expect(complexityReport?.metrics?.functionCount).toBe(1);
     expect(complexityReport?.metrics?.maxComplexity).toBeGreaterThan(1);
@@ -735,7 +735,7 @@ describe('CodeQualityAgent - Integration', () => {
     `;
 
     const reports = await analyzeCode(code);
-    const complexityReport = reports.find(r => r.dimension === 'cyclomaticComplexity');
+    const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     expect(complexityReport?.metrics?.functionCount).toBe(2);
   });
@@ -763,9 +763,7 @@ describe('CodeQualityAgent - Integration', () => {
     const reports = await analyzeCode(code);
 
     // Should have issues with suggestions
-    const issuesWithSuggestions = reports.flatMap(r =>
-      r.issues.filter(i => i.suggestion)
-    );
+    const issuesWithSuggestions = reports.flatMap((r) => r.issues.filter((i) => i.suggestion));
 
     expect(issuesWithSuggestions.length).toBeGreaterThan(0);
 

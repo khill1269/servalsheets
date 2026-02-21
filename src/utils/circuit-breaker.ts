@@ -11,7 +11,10 @@
  */
 
 import { logger } from './logger.js';
-import { recordCircuitBreakerTransition, updateCircuitBreakerMetric } from '../observability/metrics.js';
+import {
+  recordCircuitBreakerTransition,
+  updateCircuitBreakerMetric,
+} from '../observability/metrics.js';
 
 export type CircuitState = 'closed' | 'open' | 'half_open';
 
@@ -265,7 +268,8 @@ export class CircuitBreaker {
       // Add 0-30% random jitter to prevent thundering herd on recovery
       const jitter = Math.random() * this.config.timeout * 0.3;
       this.nextAttemptTime = Date.now() + this.config.timeout + jitter;
-      this.failureCount = 0; // Reset for next half-open attempt
+    } else if (newState === 'half_open') {
+      this.failureCount = 0; // Reset for the trial request
     } else if (newState === 'closed') {
       this.successCount = 0;
       this.failureCount = 0;

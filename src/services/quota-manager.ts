@@ -307,9 +307,7 @@ export class QuotaManager {
           hourly: limits.write.hourly
             ? Math.round((writeUsage.hourly / limits.write.hourly) * 100)
             : 0,
-          daily: limits.write.daily
-            ? Math.round((writeUsage.daily / limits.write.daily) * 100)
-            : 0,
+          daily: limits.write.daily ? Math.round((writeUsage.daily / limits.write.daily) * 100) : 0,
           monthly: limits.write.monthly
             ? Math.round((writeUsage.monthly / limits.write.monthly) * 100)
             : 0,
@@ -318,9 +316,7 @@ export class QuotaManager {
           hourly: limits.admin.hourly
             ? Math.round((adminUsage.hourly / limits.admin.hourly) * 100)
             : 0,
-          daily: limits.admin.daily
-            ? Math.round((adminUsage.daily / limits.admin.daily) * 100)
-            : 0,
+          daily: limits.admin.daily ? Math.round((adminUsage.daily / limits.admin.daily) * 100) : 0,
           monthly: limits.admin.monthly
             ? Math.round((adminUsage.monthly / limits.admin.monthly) * 100)
             : 0,
@@ -362,8 +358,7 @@ export class QuotaManager {
     try {
       const now = Date.now();
       const operations: OperationType[] = ['read', 'write', 'admin'];
-      const windows: QuotaWindow[] =
-        period === 'all' ? ['hourly', 'daily', 'monthly'] : [period];
+      const windows: QuotaWindow[] = period === 'all' ? ['hourly', 'daily', 'monthly'] : [period];
 
       const keys: string[] = [];
       for (const operation of operations) {

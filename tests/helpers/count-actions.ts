@@ -15,13 +15,8 @@
  * const total = calculateTotalActions(TOOL_ACTIONS);
  * expect(ACTION_COUNT).toBe(total); // Dynamic validation
  */
-export function calculateTotalActions(
-  toolActions: Record<string, string[]>,
-): number {
-  return Object.values(toolActions).reduce(
-    (sum, actions) => sum + actions.length,
-    0,
-  );
+export function calculateTotalActions(toolActions: Record<string, string[]>): number {
+  return Object.values(toolActions).reduce((sum, actions) => sum + actions.length, 0);
 }
 
 /**
@@ -37,7 +32,7 @@ export function calculateTotalActions(
  */
 export function calculateToolActionCount(
   toolActions: Record<string, string[]>,
-  toolName: string,
+  toolName: string
 ): number {
   return toolActions[toolName]?.length ?? 0;
 }
@@ -56,7 +51,7 @@ export function calculateToolActionCount(
 export function validateToolActionCount(
   toolActions: Record<string, string[]>,
   toolName: string,
-  expectedCount: number,
+  expectedCount: number
 ): boolean {
   const actualCount = calculateToolActionCount(toolActions, toolName);
   return actualCount === expectedCount;
@@ -72,8 +67,6 @@ export function validateToolActionCount(
  * const tools = getToolNames(TOOL_ACTIONS);
  * expect(tools).toContain('sheets_core');
  */
-export function getToolNames(
-  toolActions: Record<string, string[]>,
-): string[] {
+export function getToolNames(toolActions: Record<string, string[]>): string[] {
   return Object.keys(toolActions).sort();
 }

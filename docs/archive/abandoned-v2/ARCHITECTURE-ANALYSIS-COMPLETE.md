@@ -2,7 +2,7 @@
 title: ServalSheets v2.0 - Complete Architecture Analysis
 category: archived
 last_updated: 2026-01-31
-description: "> Analysis Date: January 13, 2026"
+description: '> Analysis Date: January 13, 2026'
 tags: [sheets]
 ---
 
@@ -19,16 +19,16 @@ ServalSheets v2.0 is a **production-grade MCP server** for Google Sheets with a 
 
 ### Key Metrics
 
-| Metric | V2 Implementation | Full Codebase |
-|--------|-------------------|---------------|
-| Total TypeScript Files | ~180 files | 6,446 files |
-| V2 Handler Code | 9,484 lines | - |
-| V2 Schema Code | 3,584 lines | - |
-| V2 Server + Migration | 1,262 lines | - |
-| **V2 Total** | **14,330 lines** | **~98,500 lines** |
-| Test Coverage | 755 lines | - |
-| Tools | 11 | - |
-| Actions | 171 | - |
+| Metric                 | V2 Implementation | Full Codebase     |
+| ---------------------- | ----------------- | ----------------- |
+| Total TypeScript Files | ~180 files        | 6,446 files       |
+| V2 Handler Code        | 9,484 lines       | -                 |
+| V2 Schema Code         | 3,584 lines       | -                 |
+| V2 Server + Migration  | 1,262 lines       | -                 |
+| **V2 Total**           | **14,330 lines**  | **~98,500 lines** |
+| Test Coverage          | 755 lines         | -                 |
+| Tools                  | 11                | -                 |
+| Actions                | 171               | -                 |
 
 ---
 
@@ -104,41 +104,41 @@ ServalSheets v2.0 is a **production-grade MCP server** for Google Sheets with a 
 
 **Purpose:** Core CRUD operations for cell values
 
-| Action | Description | API Method |
-|--------|-------------|------------|
-| `read` | Read values from range | values.get |
-| `write` | Write values to range | values.update |
-| `append` | Append rows to sheet | values.append |
-| `clear` | Clear range values | values.clear |
-| `batch_read` | Read multiple ranges | values.batchGet |
-| `batch_write` | Write multiple ranges | values.batchUpdate |
-| `find` | Search for values | values.get + filter |
-| `replace` | Find and replace | values.get + update |
-| `move` | Move data range | batchUpdate |
-| `copy` | Copy data range | batchUpdate |
-| `get_metadata` | Get spreadsheet info | spreadsheets.get |
-| `list_spreadsheets` | List user's sheets | drive.files.list |
-| `create_spreadsheet` | Create new spreadsheet | spreadsheets.create |
-| `duplicate_spreadsheet` | Copy entire spreadsheet | drive.files.copy |
-| `get_formulas` | Read formula values | values.get(FORMULA) |
-| `set_formulas` | Write formulas | values.update |
-| `auto_fill` | Auto-fill range | batchUpdate |
-| `transpose` | Transpose data | read + write |
-| `fill_down` | Fill down values | batchUpdate |
-| `fill_right` | Fill right values | batchUpdate |
-| `insert_checkbox` | Insert checkboxes | batchUpdate |
-| `insert_image` | Insert image in cell | batchUpdate |
-| `insert_link` | Insert hyperlink | values.update |
-| `get_notes` | Get cell notes | spreadsheets.get |
-| `set_notes` | Set cell notes | batchUpdate |
-| `clear_notes` | Clear cell notes | batchUpdate |
+| Action                  | Description             | API Method          |
+| ----------------------- | ----------------------- | ------------------- |
+| `read`                  | Read values from range  | values.get          |
+| `write`                 | Write values to range   | values.update       |
+| `append`                | Append rows to sheet    | values.append       |
+| `clear`                 | Clear range values      | values.clear        |
+| `batch_read`            | Read multiple ranges    | values.batchGet     |
+| `batch_write`           | Write multiple ranges   | values.batchUpdate  |
+| `find`                  | Search for values       | values.get + filter |
+| `replace`               | Find and replace        | values.get + update |
+| `move`                  | Move data range         | batchUpdate         |
+| `copy`                  | Copy data range         | batchUpdate         |
+| `get_metadata`          | Get spreadsheet info    | spreadsheets.get    |
+| `list_spreadsheets`     | List user's sheets      | drive.files.list    |
+| `create_spreadsheet`    | Create new spreadsheet  | spreadsheets.create |
+| `duplicate_spreadsheet` | Copy entire spreadsheet | drive.files.copy    |
+| `get_formulas`          | Read formula values     | values.get(FORMULA) |
+| `set_formulas`          | Write formulas          | values.update       |
+| `auto_fill`             | Auto-fill range         | batchUpdate         |
+| `transpose`             | Transpose data          | read + write        |
+| `fill_down`             | Fill down values        | batchUpdate         |
+| `fill_right`            | Fill right values       | batchUpdate         |
+| `insert_checkbox`       | Insert checkboxes       | batchUpdate         |
+| `insert_image`          | Insert image in cell    | batchUpdate         |
+| `insert_link`           | Insert hyperlink        | values.update       |
+| `get_notes`             | Get cell notes          | spreadsheets.get    |
+| `set_notes`             | Set cell notes          | batchUpdate         |
+| `clear_notes`           | Clear cell notes        | batchUpdate         |
 
 **Key Implementation Pattern:**
 
 ```typescript
 private async read(input): Promise<SheetsDataOutput> {
   const { spreadsheetId, range, valueRenderOption, dateTimeRenderOption } = input;
-  
+
   const response = await this.context.sheetsApi.spreadsheets.values.get({
     spreadsheetId: this.extractId(spreadsheetId),
     range,
@@ -161,12 +161,12 @@ private async read(input): Promise<SheetsDataOutput> {
 
 **Purpose:** Cell formatting, conditional formatting, data validation
 
-| Category | Actions |
-|----------|---------|
-| Formatting (9) | set_format, set_background, set_text_format, set_number_format, set_alignment, set_borders, clear_format, apply_preset, auto_fit |
-| Conditional (4) | add_conditional, update_conditional, delete_conditional, list_conditionals |
-| Validation (3) | add_validation, clear_validation, list_validations |
-| Alternating (2) | add_alternating, remove_alternating |
+| Category        | Actions                                                                                                                          |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Formatting (9)  | set_format, set_background, set_text_format, set_number_format, set_alignment, set_borders, clear_format, apply_preset, auto_fit |
+| Conditional (4) | add_conditional, update_conditional, delete_conditional, list_conditionals                                                       |
+| Validation (3)  | add_validation, clear_validation, list_validations                                                                               |
+| Alternating (2) | add_alternating, remove_alternating                                                                                              |
 
 **Preset Formats Available:**
 
@@ -188,11 +188,11 @@ private async read(input): Promise<SheetsDataOutput> {
 
 **Purpose:** Sheet management, dimensions, organization
 
-| Category | Actions |
-|----------|---------|
-| Sheet Management (9) | add_sheet, delete_sheet, duplicate_sheet, rename_sheet, hide_sheet, show_sheet, move_sheet, list_sheets, copy_to |
-| Dimensions (12) | insert_rows, insert_columns, delete_rows, delete_columns, resize, auto_resize, freeze, unfreeze, group, ungroup, hide_dimension, show_dimension |
-| Organization (6) | add_named_range, delete_named_range, list_named_ranges, add_protection, remove_protection, list_protections |
+| Category             | Actions                                                                                                                                         |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sheet Management (9) | add_sheet, delete_sheet, duplicate_sheet, rename_sheet, hide_sheet, show_sheet, move_sheet, list_sheets, copy_to                                |
+| Dimensions (12)      | insert_rows, insert_columns, delete_rows, delete_columns, resize, auto_resize, freeze, unfreeze, group, ungroup, hide_dimension, show_dimension |
+| Organization (6)     | add_named_range, delete_named_range, list_named_ranges, add_protection, remove_protection, list_protections                                     |
 
 ---
 
@@ -200,13 +200,13 @@ private async read(input): Promise<SheetsDataOutput> {
 
 **Purpose:** Charts, pivot tables, filters, slicers
 
-| Category | Actions |
-|----------|---------|
-| Charts (6) | create_chart, update_chart, delete_chart, list_charts, move_chart, export_chart |
-| Pivots (5) | create_pivot, update_pivot, delete_pivot, refresh_pivot, list_pivots |
-| Filters (4) | set_filter, clear_filter, update_filter, sort_range |
-| Filter Views (4) | create_filter_view, update_filter_view, delete_filter_view, list_filter_views |
-| Slicers (2) | create_slicer, update_slicer |
+| Category         | Actions                                                                         |
+| ---------------- | ------------------------------------------------------------------------------- |
+| Charts (6)       | create_chart, update_chart, delete_chart, list_charts, move_chart, export_chart |
+| Pivots (5)       | create_pivot, update_pivot, delete_pivot, refresh_pivot, list_pivots            |
+| Filters (4)      | set_filter, clear_filter, update_filter, sort_range                             |
+| Filter Views (4) | create_filter_view, update_filter_view, delete_filter_view, list_filter_views   |
+| Slicers (2)      | create_slicer, update_slicer                                                    |
 
 **Supported Chart Types:**
 
@@ -220,12 +220,12 @@ private async read(input): Promise<SheetsDataOutput> {
 
 **Purpose:** Comprehensive spreadsheet analysis and statistics
 
-| Category | Actions |
-|----------|---------|
-| Overview (3) | **comprehensive**, statistics, data_quality |
-| Profiling (4) | profile_sheet, detect_data_type, infer_schema, get_summary |
-| Formulas (4) | analyze_formulas, find_formula_errors, get_dependencies, get_precedents |
-| Patterns (4) | detect_patterns, find_outliers, detect_trends, analyze_distribution |
+| Category      | Actions                                                                 |
+| ------------- | ----------------------------------------------------------------------- |
+| Overview (3)  | **comprehensive**, statistics, data_quality                             |
+| Profiling (4) | profile_sheet, detect_data_type, infer_schema, get_summary              |
+| Formulas (4)  | analyze_formulas, find_formula_errors, get_dependencies, get_precedents |
+| Patterns (4)  | detect_patterns, find_outliers, detect_trends, analyze_distribution     |
 
 **Comprehensive Analysis Returns:**
 
@@ -241,10 +241,10 @@ private async read(input): Promise<SheetsDataOutput> {
 
 **Purpose:** Bulk operations, imports, data migration
 
-| Category | Actions |
-|----------|---------|
-| Fixes (4) | preview_fixes, apply_fixes, fix_formulas, fix_formatting |
-| Import (2) | import_csv, import_json |
+| Category            | Actions                                                                          |
+| ------------------- | -------------------------------------------------------------------------------- |
+| Fixes (4)           | preview_fixes, apply_fixes, fix_formulas, fix_formatting                         |
+| Import (2)          | import_csv, import_json                                                          |
 | Bulk Operations (6) | smart_append, bulk_update, deduplicate, bulk_format, bulk_validate, migrate_data |
 
 **Smart Features:**
@@ -259,10 +259,10 @@ private async read(input): Promise<SheetsDataOutput> {
 
 **Purpose:** Permissions and comments (via Drive API)
 
-| Category | Actions |
-|----------|---------|
+| Category        | Actions                                                                                                                             |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Permissions (8) | share, update_permission, remove_permission, list_permissions, get_permission, transfer_ownership, set_link_sharing, get_share_link |
-| Comments (8) | add_comment, update_comment, delete_comment, list_comments, get_comment, resolve_comment, reopen_comment, add_reply |
+| Comments (8)    | add_comment, update_comment, delete_comment, list_comments, get_comment, resolve_comment, reopen_comment, add_reply                 |
 
 **Permission Roles:** reader, writer, commenter, owner
 
@@ -272,11 +272,11 @@ private async read(input): Promise<SheetsDataOutput> {
 
 **Purpose:** Version control, snapshots, undo/redo
 
-| Category | Actions |
-|----------|---------|
-| Revisions (3) | list_revisions, get_revision, restore_revision |
-| Snapshots (4) | create_snapshot, list_snapshots, restore_snapshot, compare_versions |
-| Operations (5) | list_operations, get_operation, undo, redo, revert_to |
+| Category       | Actions                                                             |
+| -------------- | ------------------------------------------------------------------- |
+| Revisions (3)  | list_revisions, get_revision, restore_revision                      |
+| Snapshots (4)  | create_snapshot, list_snapshots, restore_snapshot, compare_versions |
+| Operations (5) | list_operations, get_operation, undo, redo, revert_to               |
 
 **Snapshot Flow:**
 
@@ -292,12 +292,12 @@ compare_versions → Diff two snapshots → Report changes
 
 **Purpose:** Transactions, validation, conflict detection
 
-| Category | Actions |
-|----------|---------|
-| Transactions (6) | begin, queue, commit, rollback, status, list_transactions |
-| Validation (1) | validate |
-| Conflict Detection (2) | check_conflicts, resolve_conflict |
-| Impact Analysis (3) | analyze_impact, preview, estimate_quota |
+| Category               | Actions                                                   |
+| ---------------------- | --------------------------------------------------------- |
+| Transactions (6)       | begin, queue, commit, rollback, status, list_transactions |
+| Validation (1)         | validate                                                  |
+| Conflict Detection (2) | check_conflicts, resolve_conflict                         |
+| Impact Analysis (3)    | analyze_impact, preview, estimate_quota                   |
 
 **Transaction Flow:**
 
@@ -314,11 +314,11 @@ rollback(transactionId)  → Restore from snapshot
 
 **Purpose:** Session management, preferences, confirmations
 
-| Category | Actions |
-|----------|---------|
-| Session (4) | set_active, get_context, find_reference, update_preferences |
-| Confirmation (3) | request_confirm, get_confirmation, cancel_pending |
-| Stats (1) | get_stats |
+| Category         | Actions                                                     |
+| ---------------- | ----------------------------------------------------------- |
+| Session (4)      | set_active, get_context, find_reference, update_preferences |
+| Confirmation (3) | request_confirm, get_confirmation, cancel_pending           |
+| Stats (1)        | get_stats                                                   |
 
 **Session State:**
 
@@ -382,31 +382,33 @@ export type SheetsDataInput = z.infer<typeof SheetsDataInputSchema>;
 ```typescript
 // schemas-v2/shared.ts (447 lines)
 
-export const SafetyOptionsSchema = z.object({
-  dryRun: z.boolean().optional().describe('Preview changes without executing'),
-  createSnapshot: z.boolean().optional().describe('Create backup before write'),
-  requireConfirmation: z.boolean().optional().describe('Require user confirmation'),
-  transactionId: z.string().optional().describe('Associate with transaction'),
-}).optional();
+export const SafetyOptionsSchema = z
+  .object({
+    dryRun: z.boolean().optional().describe('Preview changes without executing'),
+    createSnapshot: z.boolean().optional().describe('Create backup before write'),
+    requireConfirmation: z.boolean().optional().describe('Require user confirmation'),
+    transactionId: z.string().optional().describe('Associate with transaction'),
+  })
+  .optional();
 ```
 
 ### Schema Statistics
 
-| Schema File | Lines | Actions |
-|-------------|-------|---------|
-| data.ts | 381 | 26 |
-| style.ts | 299 | 18 |
-| structure.ts | 362 | 27 |
-| visualize.ts | 331 | 21 |
-| analyze.ts | 342 | 15 |
-| automate.ts | 280 | 12 |
-| share.ts | 234 | 16 |
-| history.ts | 222 | 12 |
-| safety.ts | 290 | 12 |
-| context.ts | 179 | 8 |
-| shared.ts | 447 | - |
-| index.ts | 217 | - |
-| **Total** | **3,584** | **167** |
+| Schema File  | Lines     | Actions |
+| ------------ | --------- | ------- |
+| data.ts      | 381       | 26      |
+| style.ts     | 299       | 18      |
+| structure.ts | 362       | 27      |
+| visualize.ts | 331       | 21      |
+| analyze.ts   | 342       | 15      |
+| automate.ts  | 280       | 12      |
+| share.ts     | 234       | 16      |
+| history.ts   | 222       | 12      |
+| safety.ts    | 290       | 12      |
+| context.ts   | 179       | 8       |
+| shared.ts    | 447       | -       |
+| index.ts     | 217       | -       |
+| **Total**    | **3,584** | **167** |
 
 ---
 
@@ -419,35 +421,35 @@ Maps all 48 v1 tools to v2 equivalents:
 ```typescript
 export const V1_TO_V2_MAPPING: Record<string, V1ToV2Mapping> = {
   // Data operations
-  'sheets_read_values': { tool: 'sheets_data', action: 'read' },
-  'sheets_write_values': { tool: 'sheets_data', action: 'write' },
-  'sheets_append_values': { tool: 'sheets_data', action: 'append' },
-  'sheets_batch_read': { tool: 'sheets_data', action: 'batch_read' },
-  
+  sheets_read_values: { tool: 'sheets_data', action: 'read' },
+  sheets_write_values: { tool: 'sheets_data', action: 'write' },
+  sheets_append_values: { tool: 'sheets_data', action: 'append' },
+  sheets_batch_read: { tool: 'sheets_data', action: 'batch_read' },
+
   // Style operations
-  'sheets_format_cells': { tool: 'sheets_style', action: 'set_format' },
-  'sheets_set_borders': { tool: 'sheets_style', action: 'set_borders' },
-  
+  sheets_format_cells: { tool: 'sheets_style', action: 'set_format' },
+  sheets_set_borders: { tool: 'sheets_style', action: 'set_borders' },
+
   // Structure operations
-  'sheets_create_sheet': { tool: 'sheets_structure', action: 'add_sheet' },
-  'sheets_delete_sheet': { 
-    tool: 'sheets_structure', 
+  sheets_create_sheet: { tool: 'sheets_structure', action: 'add_sheet' },
+  sheets_delete_sheet: {
+    tool: 'sheets_structure',
     action: 'delete_sheet',
     deprecated: true,
-    deprecationMessage: 'Use sheets_structure.delete_sheet instead'
+    deprecationMessage: 'Use sheets_structure.delete_sheet instead',
   },
-  
+
   // ... 40 more mappings
 };
 ```
 
 ### Compatibility Server Modes
 
-| Mode | Description |
-|------|-------------|
-| `v2-only` | Only v2 tools available |
-| `v1-and-v2` | Full compatibility, both versions |
-| `v1-deprecated` | V1 tools marked deprecated |
+| Mode            | Description                       |
+| --------------- | --------------------------------- |
+| `v2-only`       | Only v2 tools available           |
+| `v1-and-v2`     | Full compatibility, both versions |
+| `v1-deprecated` | V1 tools marked deprecated        |
 
 ---
 
@@ -488,18 +490,18 @@ interface Transaction {
 
 ## API Dependencies by Handler
 
-| Handler | Sheets API | Drive API | Services |
-|---------|-----------|-----------|----------|
-| SheetsDataHandler | Heavy | List, copy | SnapshotService |
-| SheetsStyleHandler | Heavy | - | - |
-| SheetsStructureHandler | Heavy | - | SnapshotService |
-| SheetsVisualizeHandler | Heavy | - | - |
-| SheetsAnalyzeHandler | Heavy | - | - |
-| SheetsAutomateHandler | Heavy | - | SnapshotService |
-| SheetsShareHandler | Minimal | Heavy | - |
-| SheetsHistoryHandler | Medium | Revisions | SnapshotService |
-| SheetsSafetyHandler | Medium | - | SnapshotService |
-| SheetsContextHandler | Minimal | - | SessionState |
+| Handler                | Sheets API | Drive API  | Services        |
+| ---------------------- | ---------- | ---------- | --------------- |
+| SheetsDataHandler      | Heavy      | List, copy | SnapshotService |
+| SheetsStyleHandler     | Heavy      | -          | -               |
+| SheetsStructureHandler | Heavy      | -          | SnapshotService |
+| SheetsVisualizeHandler | Heavy      | -          | -               |
+| SheetsAnalyzeHandler   | Heavy      | -          | -               |
+| SheetsAutomateHandler  | Heavy      | -          | SnapshotService |
+| SheetsShareHandler     | Minimal    | Heavy      | -               |
+| SheetsHistoryHandler   | Medium     | Revisions  | SnapshotService |
+| SheetsSafetyHandler    | Medium     | -          | SnapshotService |
+| SheetsContextHandler   | Minimal    | -          | SessionState    |
 
 ---
 
@@ -530,15 +532,15 @@ export class SheetsXxxHandler {
     if (input.safety?.dryRun) {
       return this.dryRunResponse(/* preview */);
     }
-    
+
     // Create snapshot if requested
     if (input.safety?.createSnapshot) {
       await this.context.snapshotService?.create(input.spreadsheetId);
     }
-    
+
     // Execute API call
     const response = await this.context.sheetsApi.spreadsheets...
-    
+
     return {
       success: true,
       action: 'action1',
@@ -559,15 +561,15 @@ export class SheetsXxxHandler {
 
 ### Helper Methods (Common Across Handlers)
 
-| Method | Purpose |
-|--------|---------|
-| `extractId()` | Extract spreadsheet ID from URL or ID |
-| `parseRange()` | Convert A1 notation to GridRange |
-| `parseColor()` | Convert hex color to RGB object |
-| `letterToColumn()` | Convert column letter to index |
-| `columnToLetter()` | Convert column index to letter |
-| `buildTextFormat()` | Build TextFormat object |
-| `buildCellFormat()` | Build CellFormat object |
+| Method              | Purpose                               |
+| ------------------- | ------------------------------------- |
+| `extractId()`       | Extract spreadsheet ID from URL or ID |
+| `parseRange()`      | Convert A1 notation to GridRange      |
+| `parseColor()`      | Convert hex color to RGB object       |
+| `letterToColumn()`  | Convert column letter to index        |
+| `columnToLetter()`  | Convert column index to letter        |
+| `buildTextFormat()` | Build TextFormat object               |
+| `buildCellFormat()` | Build CellFormat object               |
 
 ---
 
@@ -581,16 +583,16 @@ describe('SheetsDataHandler', () => {
     it('should read values from a range');
     it('should extract spreadsheet ID from URL');
   });
-  
+
   describe('write action', () => {
     it('should write values to a range');
     it('should create snapshot when safety option is set');
   });
-  
+
   describe('batch_read action', () => {
     it('should read multiple ranges');
   });
-  
+
   describe('error handling', () => {
     it('should return error for unknown action');
   });
@@ -612,12 +614,12 @@ describe('SheetsDataHandler', () => {
 
 ### Issues
 
-| Issue | Severity | Impact |
-|-------|----------|--------|
-| sheets_auth handler missing | Medium | Auth handled at server level only |
-| In-memory state | Medium | State lost on restart |
-| Limited test coverage | Medium | ~5% handler coverage |
-| Action count discrepancy | Low | Docs show 167-171 |
+| Issue                       | Severity | Impact                            |
+| --------------------------- | -------- | --------------------------------- |
+| sheets_auth handler missing | Medium   | Auth handled at server level only |
+| In-memory state             | Medium   | State lost on restart             |
+| Limited test coverage       | Medium   | ~5% handler coverage              |
+| Action count discrepancy    | Low      | Docs show 167-171                 |
 
 ### Production Recommendations
 
@@ -660,14 +662,14 @@ describe('SheetsDataHandler', () => {
 
 ## Wiring Verification Checklist
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| schemas-v2/index.ts exports all schemas | ✅ | 10 tool schemas + shared |
-| handlers-v2/index.ts creates all handlers | ✅ | HandlerFactory routes all |
-| tool-definitions.ts lists all 11 tools | ✅ | MCP tool definitions |
-| server-v2.ts validates all inputs | ✅ | schemaValidators map |
-| server-compat.ts handles v1+v2 | ✅ | Migration layer wired |
-| migration-v1-to-v2.ts maps all 48 tools | ✅ | Full v1 coverage |
+| Component                                 | Status | Notes                     |
+| ----------------------------------------- | ------ | ------------------------- |
+| schemas-v2/index.ts exports all schemas   | ✅     | 10 tool schemas + shared  |
+| handlers-v2/index.ts creates all handlers | ✅     | HandlerFactory routes all |
+| tool-definitions.ts lists all 11 tools    | ✅     | MCP tool definitions      |
+| server-v2.ts validates all inputs         | ✅     | schemaValidators map      |
+| server-compat.ts handles v1+v2            | ✅     | Migration layer wired     |
+| migration-v1-to-v2.ts maps all 48 tools   | ✅     | Full v1 coverage          |
 
 ---
 

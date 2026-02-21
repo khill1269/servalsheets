@@ -78,13 +78,13 @@ else
     sed -i '' '/^\/\/ Last updated:/,/^\/\/   sheets_dependencies: 7$/c\
 // Last updated: '"$(date +%Y-%m-%d)"'\
 // See ACTION_COUNTS in annotations.ts for per-tool breakdown\
-// Sum: 293 actions across 21 tools
+// Sum: 305 actions across 22 tools
 ' "$SCHEMAS_FILE"
   else
     sed -i '/^\/\/ Last updated:/,/^\/\/   sheets_dependencies: 7$/c\
 // Last updated: '"$(date +%Y-%m-%d)"'\
 // See ACTION_COUNTS in annotations.ts for per-tool breakdown\
-// Sum: 293 actions across 21 tools
+// Sum: 305 actions across 22 tools
 ' "$SCHEMAS_FILE"
   fi
   echo "  ✅ Fixed: $SCHEMAS_FILE"

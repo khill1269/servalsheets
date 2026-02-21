@@ -104,7 +104,9 @@ async function getGoogleAuth(): Promise<AuthClient> {
     return oauth2Client;
   }
 
-  throw new Error('No credentials found. Set GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_ACCESS_TOKEN');
+  throw new Error(
+    'No credentials found. Set GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_ACCESS_TOKEN'
+  );
 }
 
 // ============================================================================
@@ -137,7 +139,7 @@ async function findColumnByHeader(
 
     // Step 2: Find exact match (case-insensitive)
     let columnIndex = headers.findIndex(
-      h => h && h.toString().toLowerCase() === headerName.toLowerCase()
+      (h) => h && h.toString().toLowerCase() === headerName.toLowerCase()
     );
 
     let matchType: 'exact' | 'fuzzy' = 'exact';
@@ -155,17 +157,19 @@ async function findColumnByHeader(
       });
 
       // Get best match
-      const bestMatch = matches.reduce((best, curr) =>
-        curr.score > best.score ? curr : best
-      );
+      const bestMatch = matches.reduce((best, curr) => (curr.score > best.score ? curr : best));
 
       if (bestMatch.score > 0.7) {
         columnIndex = bestMatch.index;
         matchType = 'fuzzy';
         confidence = bestMatch.score;
-        console.log(`  ⚠ Used fuzzy match: "${headers[columnIndex]}" (${(confidence * 100).toFixed(0)}% confidence)`);
+        console.log(
+          `  ⚠ Used fuzzy match: "${headers[columnIndex]}" (${(confidence * 100).toFixed(0)}% confidence)`
+        );
       } else {
-        throw new Error(`Header "${headerName}" not found (best match: ${(bestMatch.score * 100).toFixed(0)}% confidence)`);
+        throw new Error(
+          `Header "${headerName}" not found (best match: ${(bestMatch.score * 100).toFixed(0)}% confidence)`
+        );
       }
     }
 
@@ -283,7 +287,7 @@ async function readMultipleByHeaders(
       values,
       resolution: {
         method: 'semantic_multi_header',
-        columns: columns.map(c => ({
+        columns: columns.map((c) => ({
           headerName: c.headerValue,
           columnLetter: c.columnLetter,
           columnIndex: c.columnIndex,
@@ -382,8 +386,8 @@ function levenshteinDistance(str1: string, str2: string): number {
       } else {
         matrix[i][j] = Math.min(
           matrix[i - 1][j - 1] + 1, // substitution
-          matrix[i][j - 1] + 1,     // insertion
-          matrix[i - 1][j] + 1      // deletion
+          matrix[i][j - 1] + 1, // insertion
+          matrix[i - 1][j] + 1 // deletion
         );
       }
     }
@@ -424,12 +428,12 @@ async function setupDemoData(
 
   const demoData: (string | number)[][] = [
     ['Customer Name', 'Order Date', 'Total Revenue', 'Items Sold', 'Region'],
-    ['Alice Johnson', '2025-01-01', 1250.00, 15, 'West'],
-    ['Bob Smith', '2025-01-02', 890.50, 12, 'East'],
+    ['Alice Johnson', '2025-01-01', 1250.0, 15, 'West'],
+    ['Bob Smith', '2025-01-02', 890.5, 12, 'East'],
     ['Carol White', '2025-01-03', 2150.75, 28, 'West'],
     ['David Brown', '2025-01-04', 675.25, 8, 'Central'],
-    ['Eve Davis', '2025-01-05', 1580.00, 20, 'East'],
-    ['Frank Wilson', '2025-01-06', 925.50, 11, 'West'],
+    ['Eve Davis', '2025-01-05', 1580.0, 20, 'East'],
+    ['Frank Wilson', '2025-01-06', 925.5, 11, 'West'],
     ['Grace Lee', '2025-01-07', 1340.25, 17, 'Central'],
   ];
 
@@ -461,7 +465,7 @@ async function main(): Promise<void> {
     // Initialize
     console.log('\n[SETUP] Initializing Google Sheets API...');
     const auth = await getGoogleAuth();
-    const sheets = google.sheets({ version: "v4", auth: auth as any });
+    const sheets = google.sheets({ version: 'v4', auth: auth as any });
     console.log('✓ API initialized');
 
     // Create demo data
@@ -535,7 +539,8 @@ async function main(): Promise<void> {
       range: a1Range,
     });
     console.log(`✓ A1 notation read ${a1Response.data.values?.length || 0} values`);
-    console.log('  Result matches semantic query:',
+    console.log(
+      '  Result matches semantic query:',
       JSON.stringify(a1Response.data.values) === JSON.stringify(revenueData.values) ? '✓' : '✗'
     );
 
@@ -563,7 +568,6 @@ async function main(): Promise<void> {
     console.log('  4. Use A1 notation when performance is critical');
     console.log('  5. Use semantic queries when data structure may change');
     console.log('  6. TypeScript ensures type safety for all resolution metadata');
-
   } catch (error) {
     console.error('\n=== Example Failed ===');
     const message = error instanceof Error ? error.message : String(error);

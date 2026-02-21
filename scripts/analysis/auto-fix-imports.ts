@@ -76,9 +76,9 @@ function needsReordering(imports: ImportStatement[]): boolean {
 
 function reorderImports(imports: ImportStatement[]): string {
   // Group by type
-  const external = imports.filter(i => i.type === 'external');
-  const internal = imports.filter(i => i.type === 'internal');
-  const types = imports.filter(i => i.type === 'type');
+  const external = imports.filter((i) => i.type === 'external');
+  const internal = imports.filter((i) => i.type === 'internal');
+  const types = imports.filter((i) => i.type === 'type');
 
   // Sort within groups (alphabetically by module specifier)
   const sortByModule = (a: ImportStatement, b: ImportStatement) => {
@@ -95,15 +95,15 @@ function reorderImports(imports: ImportStatement[]): string {
   const sections: string[] = [];
 
   if (external.length > 0) {
-    sections.push(external.map(i => i.text).join('\n'));
+    sections.push(external.map((i) => i.text).join('\n'));
   }
 
   if (internal.length > 0) {
-    sections.push(internal.map(i => i.text).join('\n'));
+    sections.push(internal.map((i) => i.text).join('\n'));
   }
 
   if (types.length > 0) {
-    sections.push(types.map(i => i.text).join('\n'));
+    sections.push(types.map((i) => i.text).join('\n'));
   }
 
   return sections.join('\n\n');

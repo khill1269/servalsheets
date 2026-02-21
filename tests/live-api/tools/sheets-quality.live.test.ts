@@ -3,7 +3,7 @@
  *
  * Tests quality assurance operations with real Google Sheets data.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet for all tests.
  */
 
@@ -39,7 +39,13 @@ describe.skipIf(!runLiveTests)('sheets_quality Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!A1:B3',
         valueInputOption: 'RAW',
-        requestBody: { values: [['Amount', 'Status'], ['100', 'valid'], ['-50', 'negative']] },
+        requestBody: {
+          values: [
+            ['Amount', 'Status'],
+            ['100', 'valid'],
+            ['-50', 'negative'],
+          ],
+        },
       });
 
       const numericValue = 100;
@@ -75,7 +81,12 @@ describe.skipIf(!runLiveTests)('sheets_quality Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!D1:E2',
         valueInputOption: 'RAW',
-        requestBody: { values: [['Key', 'Value'], ['item1', '100']] },
+        requestBody: {
+          values: [
+            ['Key', 'Value'],
+            ['item1', '100'],
+          ],
+        },
       });
 
       const response = await client.sheets.spreadsheets.values.get({
@@ -123,7 +134,9 @@ describe.skipIf(!runLiveTests)('sheets_quality Live API Tests', () => {
 
       expect(localValue).toBe('LocalValue'); // keep_local
       expect(remoteValue).toBe('RemoteValue'); // keep_remote
-      expect(`${localValue}+${remoteValue}`).toBe('Local+Remote'.replace('Local', localValue).replace('Remote', remoteValue)); // merge
+      expect(`${localValue}+${remoteValue}`).toBe(
+        'Local+Remote'.replace('Local', localValue).replace('Remote', remoteValue)
+      ); // merge
     });
 
     it('should write resolved value to spreadsheet', async () => {
@@ -149,7 +162,11 @@ describe.skipIf(!runLiveTests)('sheets_quality Live API Tests', () => {
         range: 'TestData!H1:J3',
         valueInputOption: 'USER_ENTERED',
         requestBody: {
-          values: [['Value1', 'Value2', 'Sum'], ['10', '20', '=H2+I2'], ['30', '40', '=H3+I3']],
+          values: [
+            ['Value1', 'Value2', 'Sum'],
+            ['10', '20', '=H2+I2'],
+            ['30', '40', '=H3+I3'],
+          ],
         },
       });
 
@@ -186,7 +203,9 @@ describe.skipIf(!runLiveTests)('sheets_quality Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: `${sheetName}!A1:C5`,
         valueInputOption: 'RAW',
-        requestBody: { values: Array.from({ length: 5 }, (_, i) => [`A${i + 1}`, `B${i + 1}`, `C${i + 1}`]) },
+        requestBody: {
+          values: Array.from({ length: 5 }, (_, i) => [`A${i + 1}`, `B${i + 1}`, `C${i + 1}`]),
+        },
       });
 
       expect('high').toBe('high'); // High-impact operation

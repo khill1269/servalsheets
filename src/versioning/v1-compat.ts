@@ -41,7 +41,9 @@ export function transformRequestV1ToV2(request: Record<string, unknown>): Record
   }
 }
 
-export function transformResponseV2ToV1(response: Record<string, unknown>): Record<string, unknown> {
+export function transformResponseV2ToV1(
+  response: Record<string, unknown>
+): Record<string, unknown> {
   const transformed = { ...response };
   if ('errorCode' in transformed) {
     const { errorCode: _, ...rest } = transformed;
@@ -72,9 +74,7 @@ export class V1CompatibilityLayer {
     const warnings: string[] = [];
     if (action in ACTION_MAPPINGS_V1_TO_V2) {
       const v2Action = ACTION_MAPPINGS_V1_TO_V2[action];
-      warnings.push(
-        `Action '${action}' is deprecated in v1. Use '${v2Action}' in v2.`
-      );
+      warnings.push(`Action '${action}' is deprecated in v1. Use '${v2Action}' in v2.`);
     }
     return warnings;
   }

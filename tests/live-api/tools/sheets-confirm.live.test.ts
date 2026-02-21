@@ -3,7 +3,7 @@
  *
  * Tests confirmation workflows with real Google Sheets data.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet for all tests.
  *
  * Note: sheets_confirm uses MCP Elicitation (SEP-1036) for user interaction.
@@ -42,8 +42,22 @@ describe.skipIf(!runLiveTests)('sheets_confirm Live API Tests', () => {
         title: 'Update Sales Data',
         description: `Update sales data in spreadsheet ${testSpreadsheet.id}`,
         steps: [
-          { stepNumber: 1, description: 'Read current data', tool: 'sheets_data', action: 'read', risk: 'low' as const, isDestructive: false },
-          { stepNumber: 2, description: 'Write new values', tool: 'sheets_data', action: 'write', risk: 'medium' as const, isDestructive: true },
+          {
+            stepNumber: 1,
+            description: 'Read current data',
+            tool: 'sheets_data',
+            action: 'read',
+            risk: 'low' as const,
+            isDestructive: false,
+          },
+          {
+            stepNumber: 2,
+            description: 'Write new values',
+            tool: 'sheets_data',
+            action: 'write',
+            risk: 'medium' as const,
+            isDestructive: true,
+          },
         ],
         willCreateSnapshot: true,
       };
@@ -52,8 +66,13 @@ describe.skipIf(!runLiveTests)('sheets_confirm Live API Tests', () => {
     });
 
     it('should calculate total API calls from plan', () => {
-      const plan = { steps: [{ estimatedApiCalls: 2 }, { estimatedApiCalls: 3 }, { estimatedApiCalls: 1 }] };
-      const totalApiCalls = plan.steps.reduce((sum, step) => sum + (step.estimatedApiCalls || 0), 0);
+      const plan = {
+        steps: [{ estimatedApiCalls: 2 }, { estimatedApiCalls: 3 }, { estimatedApiCalls: 1 }],
+      };
+      const totalApiCalls = plan.steps.reduce(
+        (sum, step) => sum + (step.estimatedApiCalls || 0),
+        0
+      );
       expect(totalApiCalls).toBe(6);
     });
 
@@ -63,12 +82,24 @@ describe.skipIf(!runLiveTests)('sheets_confirm Live API Tests', () => {
         range: 'TestData!A1:C10',
         valueInputOption: 'RAW',
         requestBody: {
-          values: Array.from({ length: 10 }, (_, i) => [`Row${i + 1}`, `Data${i + 1}`, `Value${i + 1}`]),
+          values: Array.from({ length: 10 }, (_, i) => [
+            `Row${i + 1}`,
+            `Data${i + 1}`,
+            `Value${i + 1}`,
+          ]),
         },
       });
 
       const plan = {
-        steps: [{ stepNumber: 1, description: 'Delete data', risk: 'critical' as const, isDestructive: true, canUndo: false }],
+        steps: [
+          {
+            stepNumber: 1,
+            description: 'Delete data',
+            risk: 'critical' as const,
+            isDestructive: true,
+            canUndo: false,
+          },
+        ],
       };
       const highRiskSteps = plan.steps.filter((s) => s.risk === 'critical' || s.risk === 'high');
       expect(highRiskSteps.length).toBe(1);
@@ -81,7 +112,10 @@ describe.skipIf(!runLiveTests)('sheets_confirm Live API Tests', () => {
       });
       const title = response.data.properties?.title;
       expect(title).toBeDefined();
-      const confirmationContext = { spreadsheetTitle: title, warningMessage: `This will modify spreadsheet "${title}"` };
+      const confirmationContext = {
+        spreadsheetTitle: title,
+        warningMessage: `This will modify spreadsheet "${title}"`,
+      };
       expect(confirmationContext.warningMessage).toContain(title);
     });
   });
@@ -99,7 +133,11 @@ describe.skipIf(!runLiveTests)('sheets_confirm Live API Tests', () => {
         wizardId: `wizard_${Date.now()}`,
         title: 'Create Sales Spreadsheet',
         steps: [
-          { stepId: 'basic_info', title: 'Basic Information', fields: [{ name: 'title', type: 'text', required: true }] },
+          {
+            stepId: 'basic_info',
+            title: 'Basic Information',
+            fields: [{ name: 'title', type: 'text', required: true }],
+          },
           { stepId: 'columns', title: 'Column Setup', dependsOn: 'basic_info' },
           { stepId: 'formatting', title: 'Formatting Options', dependsOn: 'columns' },
         ],
@@ -128,10 +166,17 @@ describe.skipIf(!runLiveTests)('sheets_confirm Live API Tests', () => {
 
   describe('wizard_step action', () => {
     it('should validate field values for wizard step', () => {
-      const step = { fields: [{ name: 'title', required: true }, { name: 'rowCount', required: true }] };
+      const step = {
+        fields: [
+          { name: 'title', required: true },
+          { name: 'rowCount', required: true },
+        ],
+      };
       const values = { title: 'My Spreadsheet', rowCount: 100 };
       const requiredFields = step.fields.filter((f) => f.required).map((f) => f.name);
-      const missingFields = requiredFields.filter((name) => values[name as keyof typeof values] === undefined);
+      const missingFields = requiredFields.filter(
+        (name) => values[name as keyof typeof values] === undefined
+      );
       expect(missingFields.length).toBe(0);
     });
 
@@ -154,7 +199,11 @@ describe.skipIf(!runLiveTests)('sheets_confirm Live API Tests', () => {
         ],
       };
       if (wizardValues.freezeHeader) {
-        executionPlan.steps.push({ tool: 'sheets_dimensions', action: 'freeze', params: { rows: 1 } });
+        executionPlan.steps.push({
+          tool: 'sheets_dimensions',
+          action: 'freeze',
+          params: { rows: 1 },
+        });
       }
       expect(executionPlan.steps.length).toBe(3);
     });
@@ -191,7 +240,12 @@ describe.skipIf(!runLiveTests)('sheets_confirm Live API Tests', () => {
         range: `TestData!E1:H${rowCount}`,
         valueInputOption: 'RAW',
         requestBody: {
-          values: Array.from({ length: rowCount }, (_, i) => [`Row${i + 1}`, Math.random() * 1000, new Date().toISOString(), 'Active']),
+          values: Array.from({ length: rowCount }, (_, i) => [
+            `Row${i + 1}`,
+            Math.random() * 1000,
+            new Date().toISOString(),
+            'Active',
+          ]),
         },
       });
 
@@ -209,7 +263,10 @@ describe.skipIf(!runLiveTests)('sheets_confirm Live API Tests', () => {
     it('should track confirmation-related API calls', async () => {
       client.resetMetrics();
       await client.trackOperation('get', 'GET', () =>
-        client.sheets.spreadsheets.get({ spreadsheetId: testSpreadsheet.id, fields: 'properties.title' })
+        client.sheets.spreadsheets.get({
+          spreadsheetId: testSpreadsheet.id,
+          fields: 'properties.title',
+        })
       );
       const stats = client.getStats();
       expect(stats.totalRequests).toBeGreaterThanOrEqual(1);

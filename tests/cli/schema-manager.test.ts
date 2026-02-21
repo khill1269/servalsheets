@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, rmSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { SchemaManagerCli, type Command, type CliOptions } from '../../src/cli/schema-manager.js';
 import type { DiscoverySchema } from '../../src/services/discovery-client.js';
 import { resetDiscoveryApiClient } from '../../src/services/discovery-client.js';
@@ -11,7 +13,7 @@ global.fetch = vi.fn();
 
 describe('SchemaManagerCli', () => {
   let cli: SchemaManagerCli;
-  const testCacheDir = '.test-discovery-cache';
+  let testRootDir: string;
 
   const mockSheetsSchema: DiscoverySchema = {
     id: 'sheets:v4',
@@ -45,7 +47,10 @@ describe('SchemaManagerCli', () => {
   beforeEach(() => {
     // Enable Discovery API for tests
     process.env.DISCOVERY_API_ENABLED = 'true';
+    testRootDir = mkdtempSync(join(tmpdir(), 'servalsheets-schema-manager-test-'));
+    process.env.SERVALSHEETS_SCHEMA_CACHE_DIR = join(testRootDir, '.discovery-cache');
 
+    resetSchemaCache();
     cli = new SchemaManagerCli();
     vi.clearAllMocks();
 
@@ -56,16 +61,14 @@ describe('SchemaManagerCli', () => {
 
   afterEach(() => {
     try {
-      if (existsSync(testCacheDir)) {
-        rmSync(testCacheDir, { recursive: true, force: true });
-      }
-      if (existsSync('.discovery-cache')) {
-        rmSync('.discovery-cache', { recursive: true, force: true });
+      if (testRootDir && existsSync(testRootDir)) {
+        rmSync(testRootDir, { recursive: true, force: true });
       }
     } catch {
       // EPERM in sandboxed environments — safe to ignore
     }
     delete process.env.DISCOVERY_API_ENABLED;
+    delete process.env.SERVALSHEETS_SCHEMA_CACHE_DIR;
     resetDiscoveryApiClient();
     resetSchemaCache();
     resetSchemaValidator();

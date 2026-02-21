@@ -253,11 +253,7 @@ describe('Restart Policy', () => {
 
     it('should handle concurrent writes gracefully', async () => {
       // Record multiple attempts in quick succession
-      await Promise.all([
-        recordStartupAttempt(),
-        recordStartupAttempt(),
-        recordStartupAttempt(),
-      ]);
+      await Promise.all([recordStartupAttempt(), recordStartupAttempt(), recordStartupAttempt()]);
 
       const state = await getRestartState();
       // Should have at least 1 failure recorded (concurrent writes may overwrite)

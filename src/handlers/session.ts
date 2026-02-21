@@ -7,7 +7,11 @@
  */
 
 import type { SheetsSessionInput, SheetsSessionOutput } from '../schemas/session.js';
-import { getSessionContext, type SpreadsheetContext } from '../services/session-context.js';
+import {
+  getSessionContext,
+  type SpreadsheetContext,
+  type UserPreferences,
+} from '../services/session-context.js';
 import { getHistoryService } from '../services/history-service.js';
 import { unwrapRequest } from './base.js';
 import { ValidationError } from '../core/errors.js';
@@ -238,20 +242,27 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
 
       case 'update_preferences': {
         const { confirmationLevel, dryRunDefault, snapshotDefault } = req;
-        const updates: Record<string, unknown> = {};
+        const updates: Partial<UserPreferences> = {};
 
         if (confirmationLevel) {
-          updates['confirmationLevel'] = confirmationLevel;
+          const validLevels: UserPreferences['confirmationLevel'][] = [
+            'always',
+            'destructive',
+            'never',
+          ];
+          if (validLevels.includes(confirmationLevel as UserPreferences['confirmationLevel'])) {
+            updates.confirmationLevel = confirmationLevel as UserPreferences['confirmationLevel'];
+          }
         }
         if (dryRunDefault !== undefined || snapshotDefault !== undefined) {
-          updates['defaultSafety'] = {
+          updates.defaultSafety = {
             dryRun: dryRunDefault ?? session.getPreferences().defaultSafety.dryRun,
             createSnapshot:
               snapshotDefault ?? session.getPreferences().defaultSafety.createSnapshot,
           };
         }
 
-        session.updatePreferences(updates as never);
+        session.updatePreferences(updates);
 
         return {
           response: {

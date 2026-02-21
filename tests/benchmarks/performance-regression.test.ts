@@ -26,9 +26,9 @@ import { createMockSheetsApi, createMockContext } from '../helpers/google-api-mo
 const THRESHOLDS = {
   // Schema validation should be fast
   schemaValidation: {
-    simple: 5,      // Simple inputs
-    complex: 15,    // Complex nested inputs
-    batch: 50,      // Batch operations
+    simple: 5, // Simple inputs
+    complex: 15, // Complex nested inputs
+    batch: 50, // Batch operations
   },
   // Mock handler execution (no real API calls)
   handlerExecution: {
@@ -39,15 +39,17 @@ const THRESHOLDS = {
   // Note: Large data validation (1000x26 arrays) requires more memory
   // 10 iterations of 1000x26 Zod validation can use ~25MB heap
   memory: {
-    schemaValidation: 30 * 1024 * 1024,  // 30MB for large validations
-    handlerExecution: 5 * 1024 * 1024,   // 5MB
+    schemaValidation: 30 * 1024 * 1024, // 30MB for large validations
+    handlerExecution: 5 * 1024 * 1024, // 5MB
   },
 };
 
 /**
  * Measure execution time of an async function
  */
-async function measureTime<T>(fn: () => Promise<T> | T): Promise<{ result: T; durationMs: number }> {
+async function measureTime<T>(
+  fn: () => Promise<T> | T
+): Promise<{ result: T; durationMs: number }> {
   const start = performance.now();
   const result = await fn();
   const durationMs = performance.now() - start;
@@ -130,7 +132,9 @@ describe('Performance Regression Tests', () => {
         const stats = await benchmark(() => SheetsCoreInputSchema.safeParse(input));
 
         expect(stats.p95).toBeLessThan(THRESHOLDS.schemaValidation.simple);
-        console.log(`sheets_core get validation: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`);
+        console.log(
+          `sheets_core get validation: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`
+        );
       });
 
       it('sheets_data read validation should be fast', async () => {
@@ -145,7 +149,9 @@ describe('Performance Regression Tests', () => {
         const stats = await benchmark(() => SheetsDataInputSchema.safeParse(input));
 
         expect(stats.p95).toBeLessThan(THRESHOLDS.schemaValidation.simple);
-        console.log(`sheets_data read validation: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`);
+        console.log(
+          `sheets_data read validation: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`
+        );
       });
     });
 
@@ -168,7 +174,9 @@ describe('Performance Regression Tests', () => {
         const stats = await benchmark(() => SheetsDataInputSchema.safeParse(input), 50);
 
         expect(stats.p95).toBeLessThan(THRESHOLDS.schemaValidation.complex);
-        console.log(`sheets_data write (100x20) validation: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`);
+        console.log(
+          `sheets_data write (100x20) validation: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`
+        );
       });
 
       it('sheets_visualize chart_create should be acceptable', async () => {
@@ -198,7 +206,9 @@ describe('Performance Regression Tests', () => {
         const stats = await benchmark(() => SheetsVisualizeInputSchema.safeParse(input));
 
         expect(stats.p95).toBeLessThan(THRESHOLDS.schemaValidation.complex);
-        console.log(`sheets_visualize chart_create validation: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`);
+        console.log(
+          `sheets_visualize chart_create validation: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`
+        );
       });
 
       it('sheets_format with nested format options should be acceptable', async () => {
@@ -227,7 +237,9 @@ describe('Performance Regression Tests', () => {
         const stats = await benchmark(() => SheetsFormatInputSchema.safeParse(input));
 
         expect(stats.p95).toBeLessThan(THRESHOLDS.schemaValidation.complex);
-        console.log(`sheets_format set_format validation: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`);
+        console.log(
+          `sheets_format set_format validation: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`
+        );
       });
     });
 
@@ -235,7 +247,7 @@ describe('Performance Regression Tests', () => {
       it('sheets_data batch_read with many ranges should be acceptable', async () => {
         const ranges = Array(50)
           .fill(null)
-          .map((_, i) => ({ a1: `Sheet${i % 5 + 1}!A${i * 10 + 1}:Z${(i + 1) * 10}` }));
+          .map((_, i) => ({ a1: `Sheet${(i % 5) + 1}!A${i * 10 + 1}:Z${(i + 1) * 10}` }));
 
         const input = {
           request: {
@@ -248,7 +260,9 @@ describe('Performance Regression Tests', () => {
         const stats = await benchmark(() => SheetsDataInputSchema.safeParse(input), 50);
 
         expect(stats.p95).toBeLessThan(THRESHOLDS.schemaValidation.batch);
-        console.log(`sheets_data batch_read (50 ranges) validation: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`);
+        console.log(
+          `sheets_data batch_read (50 ranges) validation: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`
+        );
       });
 
       it('sheets_data batch_write with many data entries should be acceptable', async () => {
@@ -273,7 +287,9 @@ describe('Performance Regression Tests', () => {
         const stats = await benchmark(() => SheetsDataInputSchema.safeParse(input), 50);
 
         expect(stats.p95).toBeLessThan(THRESHOLDS.schemaValidation.batch);
-        console.log(`sheets_data batch_write (20 entries) validation: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`);
+        console.log(
+          `sheets_data batch_write (20 entries) validation: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`
+        );
       });
     });
   });
@@ -321,7 +337,9 @@ describe('Performance Regression Tests', () => {
       );
 
       expect(stats.p95).toBeLessThan(THRESHOLDS.handlerExecution.simple);
-      console.log(`Mock spreadsheets.get: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`);
+      console.log(
+        `Mock spreadsheets.get: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`
+      );
     });
 
     it('spreadsheets.values.get mock should respond quickly', async () => {
@@ -335,7 +353,9 @@ describe('Performance Regression Tests', () => {
       );
 
       expect(stats.p95).toBeLessThan(THRESHOLDS.handlerExecution.simple);
-      console.log(`Mock values.get: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`);
+      console.log(
+        `Mock values.get: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`
+      );
     });
 
     it('spreadsheets.batchUpdate mock should respond quickly', async () => {
@@ -353,7 +373,9 @@ describe('Performance Regression Tests', () => {
       );
 
       expect(stats.p95).toBeLessThan(THRESHOLDS.handlerExecution.simple);
-      console.log(`Mock batchUpdate: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`);
+      console.log(
+        `Mock batchUpdate: p95=${stats.p95.toFixed(2)}ms, mean=${stats.mean.toFixed(2)}ms`
+      );
     });
   });
 
@@ -378,7 +400,9 @@ describe('Performance Regression Tests', () => {
       const throughput = (iterations / duration) * 1000;
 
       expect(throughput).toBeGreaterThan(1000); // At least 1000 validations/second
-      console.log(`Validation throughput: ${throughput.toFixed(0)} ops/sec (${(duration / iterations).toFixed(3)}ms/op)`);
+      console.log(
+        `Validation throughput: ${throughput.toFixed(0)} ops/sec (${(duration / iterations).toFixed(3)}ms/op)`
+      );
     });
 
     it('should handle concurrent validations efficiently', async () => {
@@ -429,7 +453,7 @@ describe('Performance Regression Tests', () => {
               formatComplex: { p95ms: 5 },
             },
           },
-          regressionThreshold: 0.10,
+          regressionThreshold: 0.1,
         };
       }
     });
@@ -446,8 +470,10 @@ describe('Performance Regression Tests', () => {
       expect(stats.p95).toBeLessThan(threshold);
 
       if (stats.p95 > baseline) {
-        const regressionPct = ((stats.p95 - baseline) / baseline * 100).toFixed(1);
-        console.warn(`⚠️  Performance regression: ${regressionPct}% slower (${stats.p95.toFixed(2)}ms vs ${baseline}ms baseline)`);
+        const regressionPct = (((stats.p95 - baseline) / baseline) * 100).toFixed(1);
+        console.warn(
+          `⚠️  Performance regression: ${regressionPct}% slower (${stats.p95.toFixed(2)}ms vs ${baseline}ms baseline)`
+        );
       }
     });
 
@@ -467,8 +493,10 @@ describe('Performance Regression Tests', () => {
       expect(stats.p95).toBeLessThan(threshold);
 
       if (stats.p95 > baseline) {
-        const regressionPct = ((stats.p95 - baseline) / baseline * 100).toFixed(1);
-        console.warn(`⚠️  Performance regression: ${regressionPct}% slower (${stats.p95.toFixed(2)}ms vs ${baseline}ms baseline)`);
+        const regressionPct = (((stats.p95 - baseline) / baseline) * 100).toFixed(1);
+        console.warn(
+          `⚠️  Performance regression: ${regressionPct}% slower (${stats.p95.toFixed(2)}ms vs ${baseline}ms baseline)`
+        );
       }
     });
 
@@ -491,8 +519,10 @@ describe('Performance Regression Tests', () => {
       expect(stats.p95).toBeLessThan(threshold);
 
       if (stats.p95 > baseline) {
-        const regressionPct = ((stats.p95 - baseline) / baseline * 100).toFixed(1);
-        console.warn(`⚠️  Performance regression: ${regressionPct}% slower (${stats.p95.toFixed(2)}ms vs ${baseline}ms baseline)`);
+        const regressionPct = (((stats.p95 - baseline) / baseline) * 100).toFixed(1);
+        console.warn(
+          `⚠️  Performance regression: ${regressionPct}% slower (${stats.p95.toFixed(2)}ms vs ${baseline}ms baseline)`
+        );
       }
     });
 
@@ -517,8 +547,10 @@ describe('Performance Regression Tests', () => {
       expect(stats.p95).toBeLessThan(threshold);
 
       if (stats.p95 > baseline) {
-        const regressionPct = ((stats.p95 - baseline) / baseline * 100).toFixed(1);
-        console.warn(`⚠️  Performance regression: ${regressionPct}% slower (${stats.p95.toFixed(2)}ms vs ${baseline}ms baseline)`);
+        const regressionPct = (((stats.p95 - baseline) / baseline) * 100).toFixed(1);
+        console.warn(
+          `⚠️  Performance regression: ${regressionPct}% slower (${stats.p95.toFixed(2)}ms vs ${baseline}ms baseline)`
+        );
       }
     });
   });

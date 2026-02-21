@@ -10,7 +10,10 @@ interface FilterBarProps {
 export default function FilterBar({ filters, onChange }: FilterBarProps) {
   const [localFilters, setLocalFilters] = useState<TraceSearchFilters>(filters);
 
-  const handleChange = (key: keyof TraceSearchFilters, value: string | number | boolean | undefined) => {
+  const handleChange = (
+    key: keyof TraceSearchFilters,
+    value: string | number | boolean | undefined
+  ) => {
     const newFilters = { ...localFilters, [key]: value };
     setLocalFilters(newFilters);
   };
@@ -86,18 +89,12 @@ export default function FilterBar({ filters, onChange }: FilterBarProps) {
         <label>Status</label>
         <select
           value={
-            localFilters.success === undefined
-              ? 'all'
-              : localFilters.success
-                ? 'success'
-                : 'error'
+            localFilters.success === undefined ? 'all' : localFilters.success ? 'success' : 'error'
           }
           onChange={(e) =>
             handleChange(
               'success',
-              e.target.value === 'all'
-                ? undefined
-                : e.target.value === 'success'
+              e.target.value === 'all' ? undefined : e.target.value === 'success'
             )
           }
         >

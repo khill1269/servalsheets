@@ -1,7 +1,7 @@
 /**
  * ServalSheets - Apps Script Handler
  *
- * Handles sheets_appsscript tool (14 actions):
+ * Handles sheets_appsscript tool (18 actions):
  * - create: Create new Apps Script project
  * - get: Get project metadata
  * - get_content: Get script files and code
@@ -16,6 +16,10 @@
  * - run: Execute script function
  * - list_processes: Get execution logs
  * - get_metrics: Get usage metrics
+ * - create_trigger: Create time/event trigger
+ * - list_triggers: List all triggers
+ * - delete_trigger: Delete a trigger
+ * - update_trigger: Update trigger settings
  *
  * APIs Used:
  * - Google Apps Script API (script.googleapis.com)
@@ -29,6 +33,7 @@ import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import { AuthenticationError, ServiceError } from '../core/errors.js';
 import type { Intent } from '../core/intent.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
+import { executeWithRetry } from '../utils/retry.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import type {
@@ -50,6 +55,10 @@ import type {
   AppsScriptRunInput,
   AppsScriptListProcessesInput,
   AppsScriptGetMetricsInput,
+  AppsScriptCreateTriggerInput,
+  AppsScriptListTriggersInput,
+  AppsScriptDeleteTriggerInput,
+  AppsScriptUpdateTriggerInput,
 } from '../schemas/index.js';
 import { logger } from '../utils/logger.js';
 
@@ -60,11 +69,16 @@ const APPS_SCRIPT_API_BASE = 'https://script.googleapis.com/v1';
  * Timeout constants per Google Apps Script API documentation
  * @see https://developers.google.com/apps-script/api/how-tos/execute
  *
- * - SCRIPT_RUN_TIMEOUT: 380 seconds (6 min max execution + overhead)
- * - SCRIPT_ADMIN_TIMEOUT: 30 seconds (for metadata operations)
+ * Execution limits (Google docs):
+ *   - Consumer accounts:  6 minutes  (360 seconds)
+ *   - Workspace accounts: 30 minutes (1800 seconds)
+ *
+ * SCRIPT_RUN_TIMEOUT is the HTTP request timeout — must be >= script execution limit.
+ * Using the Workspace limit (30 min + 60 s buffer) so long-running Workspace scripts
+ * are not cut off prematurely. Consumer scripts complete well within this window.
  */
-const SCRIPT_RUN_TIMEOUT_MS = 380_000; // 380 seconds (6 min + buffer)
-const SCRIPT_ADMIN_TIMEOUT_MS = 30_000; // 30 seconds (default)
+const SCRIPT_RUN_TIMEOUT_MS = 1_860_000; // 31 minutes (30 min Workspace limit + 60 s buffer)
+const SCRIPT_ADMIN_TIMEOUT_MS = 30_000; // 30 seconds (metadata operations)
 
 export class SheetsAppsScriptHandler extends BaseHandler<
   SheetsAppsScriptInput,
@@ -164,6 +178,18 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         case 'get_metrics':
           response = await this.handleGetMetrics(req as AppsScriptGetMetricsInput);
           break;
+        case 'create_trigger':
+          response = await this.handleCreateTrigger(req as AppsScriptCreateTriggerInput);
+          break;
+        case 'list_triggers':
+          response = await this.handleListTriggers(req as AppsScriptListTriggersInput);
+          break;
+        case 'delete_trigger':
+          response = await this.handleDeleteTrigger(req as AppsScriptDeleteTriggerInput);
+          break;
+        case 'update_trigger':
+          response = await this.handleUpdateTrigger(req as AppsScriptUpdateTriggerInput);
+          break;
         default:
           response = this.error({
             code: 'INVALID_PARAMS',
@@ -247,30 +273,66 @@ export class SheetsAppsScriptHandler extends BaseHandler<
 
     logger.debug(`Apps Script API ${method} ${path} (timeout: ${timeoutMs}ms)`);
 
-    // Wrap API call with circuit breaker (P2-4)
-    return await this.circuitBreaker.execute(async () => {
-      try {
-        const response = await fetch(url, options);
-        clearTimeout(timeoutId);
+    // Wrap API call with retry + circuit breaker
+    // Only retry network-level transport errors (not API-level ServiceErrors like 429/403
+    // which are surfaced to the client with their original error codes)
+    const RETRYABLE_NETWORK_CODES = new Set([
+      'ETIMEDOUT',
+      'ECONNRESET',
+      'ECONNREFUSED',
+      'EAI_AGAIN',
+      'ENOTFOUND',
+      'ENETUNREACH',
+      'ECONNABORTED',
+      'ERR_HTTP2_GOAWAY_SESSION',
+      'ERR_HTTP2_SESSION_ERROR',
+      'ERR_HTTP2_STREAM_CANCEL',
+    ]);
 
-        return await this.handleApiResponse<T>(response, path);
-      } catch (error) {
-        clearTimeout(timeoutId);
+    return await executeWithRetry(
+      async (signal) => {
+        return await this.circuitBreaker.execute(async () => {
+          // Merge retry signal with our manual timeout signal
+          const fetchController = new AbortController();
+          signal.addEventListener('abort', () => fetchController.abort(signal.reason));
 
-        // Handle timeout
-        if (error instanceof Error && error.name === 'AbortError') {
-          throw new ServiceError(
-            `Apps Script API request timed out after ${timeoutMs}ms`,
-            'DEADLINE_EXCEEDED',
-            'AppsScript',
-            true,
-            { method, path, timeoutMs }
-          );
-        }
+          try {
+            const fetchOptions: RequestInit = { ...options, signal: fetchController.signal };
+            const response = await fetch(url, fetchOptions);
+            clearTimeout(timeoutId);
 
-        throw error;
+            return await this.handleApiResponse<T>(response, path);
+          } catch (error) {
+            clearTimeout(timeoutId);
+
+            // Handle timeout/abort
+            if (error instanceof Error && error.name === 'AbortError') {
+              throw new ServiceError(
+                `Apps Script API request timed out after ${timeoutMs}ms`,
+                'DEADLINE_EXCEEDED',
+                'AppsScript',
+                true,
+                { method, path, timeoutMs }
+              );
+            }
+
+            throw error;
+          }
+        });
+      },
+      {
+        timeoutMs,
+        retryable: (error) => {
+          // Don't retry API-level ServiceErrors — circuit breaker handles those
+          if (error instanceof ServiceError) return false;
+          const code =
+            typeof (error as { code?: unknown }).code === 'string'
+              ? (error as { code: string }).code
+              : '';
+          return RETRYABLE_NETWORK_CODES.has(code);
+        },
       }
-    });
+    );
   }
 
   private async handleApiResponse<T>(response: Response, path: string): Promise<T> {
@@ -667,6 +729,12 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     const webAppEntry = result.entryPoints?.find((e) => e.entryPointType === 'WEB_APP');
     const webAppUrl = webAppEntry?.webApp?.url;
 
+    // Warn if ignored params were provided
+    const ignoredParams: string[] = [];
+    if ((req as { deploymentType?: string }).deploymentType) ignoredParams.push('deploymentType');
+    if ((req as { access?: string }).access) ignoredParams.push('access');
+    if ((req as { executeAs?: string }).executeAs) ignoredParams.push('executeAs');
+
     return this.success('deploy', {
       deployment: {
         deploymentId: result.deploymentId,
@@ -676,6 +744,9 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         updateTime: result.updateTime ?? undefined,
       },
       webAppUrl: webAppUrl ?? undefined,
+      ...(ignoredParams.length > 0 && {
+        warning: `The following parameters are not supported by the Deployments API and were ignored: ${ignoredParams.join(', ')}. To configure these settings, update appsscript.json via the update_content action before deploying.`,
+      }),
     });
   }
 
@@ -797,6 +868,34 @@ export class SheetsAppsScriptHandler extends BaseHandler<
 
   private async handleRun(req: AppsScriptRunInput): Promise<AppsScriptResponse> {
     logger.info(`Running function ${req.functionName} in: ${req.scriptId}`);
+
+    // Safety gate: dryRun returns early without executing
+    const safety = (
+      req as typeof req & { safety?: { dryRun?: boolean; requireConfirmation?: boolean } }
+    ).safety;
+    if (safety?.dryRun) {
+      return this.success('run', {
+        dryRun: true,
+        message: `[DRY RUN] Would execute function '${req.functionName}' in script ${req.scriptId}. No changes made.`,
+      });
+    }
+
+    // Safety gate: requireConfirmation asks user before executing
+    if (safety?.requireConfirmation) {
+      const confirmed = await this.confirmOperation(
+        `Execute Apps Script function '${req.functionName}'`,
+        `Script ID: ${req.scriptId}. This will run code with side effects.`,
+        { isDestructive: true, operationType: 'apps_script_run' },
+        { skipIfElicitationUnavailable: false }
+      );
+      if (!confirmed) {
+        return this.error({
+          code: 'OPERATION_CANCELLED',
+          message: 'Execution cancelled by user.',
+          retryable: false,
+        });
+      }
+    }
 
     // Pre-flight token check: Refresh if expiring within 360 seconds (6 minutes)
     // This prevents mid-execution auth failures for long-running scripts
@@ -1047,8 +1146,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       params.push(`metricsGranularity=${req.granularity}`);
     }
     if (req.deploymentId) {
-      const filter = JSON.stringify({ deploymentId: req.deploymentId });
-      params.push(`metricsFilter=${encodeURIComponent(filter)}`);
+      params.push(`metricsFilter.deploymentId=${encodeURIComponent(req.deploymentId)}`);
     }
     if (params.length > 0) path += `?${params.join('&')}`;
 
@@ -1059,6 +1157,141 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         activeUsers: result.activeUsers ?? undefined,
         totalExecutions: result.totalExecutions ?? undefined,
         failedExecutions: result.failedExecutions ?? undefined,
+      },
+    });
+  }
+
+  // ============================================================================
+  // Trigger Management (4 actions)
+  // ============================================================================
+
+  /**
+   * Create a time-driven or event-driven trigger.
+   * Uses the Apps Script API triggers endpoint.
+   */
+  private async handleCreateTrigger(
+    req: AppsScriptCreateTriggerInput
+  ): Promise<AppsScriptResponse> {
+    const triggerConfig: Record<string, unknown> = {
+      functionName: req.functionName,
+    };
+
+    if (req.triggerType === 'CLOCK') {
+      // Time-driven trigger
+      const timeTrigger: Record<string, unknown> = {};
+      if (req.everyMinutes) {
+        timeTrigger['everyMinutes'] = req.everyMinutes;
+      }
+      if (req.atHour !== undefined) {
+        timeTrigger['atHour'] = req.atHour;
+      }
+      if (req.weekDay) {
+        timeTrigger['weekDay'] = req.weekDay;
+      }
+      triggerConfig['timeDriven'] = timeTrigger;
+    } else {
+      // Event-driven trigger (ON_OPEN, ON_EDIT, etc.)
+      triggerConfig['eventType'] = req.triggerType;
+    }
+
+    const result = await this.apiRequest<Record<string, unknown>>(
+      'POST',
+      `/projects/${encodeURIComponent(req.scriptId)}/triggers`,
+      triggerConfig
+    );
+
+    return this.success('create_trigger', {
+      trigger: {
+        triggerId: result['triggerId'] ?? result['trigger_id'],
+        functionName: req.functionName,
+        triggerType: req.triggerType,
+        createTime: result['createTime'],
+      },
+    });
+  }
+
+  /**
+   * List all triggers for a script project.
+   */
+  private async handleListTriggers(req: AppsScriptListTriggersInput): Promise<AppsScriptResponse> {
+    let path = `/projects/${encodeURIComponent(req.scriptId)}/triggers`;
+    const params: string[] = [];
+    if (req.pageSize) params.push(`pageSize=${req.pageSize}`);
+    if (req.pageToken) params.push(`pageToken=${encodeURIComponent(req.pageToken)}`);
+    if (params.length > 0) path += `?${params.join('&')}`;
+
+    const result = await this.apiRequest<{ triggers?: unknown[]; nextPageToken?: string }>(
+      'GET',
+      path
+    );
+
+    return this.success('list_triggers', {
+      triggers: result.triggers ?? [],
+      nextPageToken: result.nextPageToken,
+      count: (result.triggers ?? []).length,
+    });
+  }
+
+  /**
+   * Delete a specific trigger by ID.
+   */
+  private async handleDeleteTrigger(
+    req: AppsScriptDeleteTriggerInput
+  ): Promise<AppsScriptResponse> {
+    await this.apiRequest<Record<string, unknown>>(
+      'DELETE',
+      `/projects/${encodeURIComponent(req.scriptId)}/triggers/${encodeURIComponent(req.triggerId)}`
+    );
+
+    return this.success('delete_trigger', {
+      deleted: true,
+      triggerId: req.triggerId,
+    });
+  }
+
+  /**
+   * Update a trigger by deleting and recreating it.
+   * Apps Script API doesn't support PATCH on triggers, so we delete + create.
+   */
+  private async handleUpdateTrigger(
+    req: AppsScriptUpdateTriggerInput
+  ): Promise<AppsScriptResponse> {
+    // First, get the existing trigger to preserve its settings
+    const existing = await this.apiRequest<Record<string, unknown>>(
+      'GET',
+      `/projects/${encodeURIComponent(req.scriptId)}/triggers/${encodeURIComponent(req.triggerId)}`
+    );
+
+    // Delete old trigger
+    await this.apiRequest<Record<string, unknown>>(
+      'DELETE',
+      `/projects/${encodeURIComponent(req.scriptId)}/triggers/${encodeURIComponent(req.triggerId)}`
+    );
+
+    // Recreate with updated settings
+    const newConfig: Record<string, unknown> = {
+      functionName: req.functionName ?? existing['functionName'] ?? 'unknownFunction',
+    };
+
+    if (req.everyMinutes) {
+      newConfig['timeDriven'] = { everyMinutes: req.everyMinutes };
+    } else if (existing['timeDriven']) {
+      newConfig['timeDriven'] = existing['timeDriven'];
+    } else if (existing['eventType']) {
+      newConfig['eventType'] = existing['eventType'];
+    }
+
+    const result = await this.apiRequest<Record<string, unknown>>(
+      'POST',
+      `/projects/${encodeURIComponent(req.scriptId)}/triggers`,
+      newConfig
+    );
+
+    return this.success('update_trigger', {
+      trigger: {
+        oldTriggerId: req.triggerId,
+        newTriggerId: result['triggerId'] ?? result['trigger_id'],
+        functionName: newConfig['functionName'],
       },
     });
   }

@@ -4,17 +4,14 @@
  * Tests transaction operations (begin, queue, commit, rollback, status, list)
  * against the real Google API.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet for all tests.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { LiveApiClient } from '../setup/live-api-client.js';
 import { TestSpreadsheetManager, TestSpreadsheet } from '../setup/test-spreadsheet-manager.js';
-import {
-  loadTestCredentials,
-  shouldRunIntegrationTests,
-} from '../../helpers/credential-loader.js';
+import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 
 const runLiveTests = shouldRunIntegrationTests();
 
@@ -31,7 +28,7 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
     }
     client = new LiveApiClient(credentials, { trackMetrics: true });
     manager = new TestSpreadsheetManager(client);
-    
+
     // Create ONE spreadsheet for all tests
     testSpreadsheet = await manager.createTestSpreadsheet('transaction');
     const meta = await client.sheets.spreadsheets.get({
@@ -51,9 +48,27 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
         requestBody: {
           valueInputOption: 'RAW',
           data: [
-            { range: 'TestData!A1:B2', values: [['Name', 'Value'], ['Test1', '100']] },
-            { range: 'TestData!A5:B6', values: [['Category', 'Amount'], ['Sales', '500']] },
-            { range: 'TestData!D1:E2', values: [['ID', 'Status'], ['001', 'Active']] },
+            {
+              range: 'TestData!A1:B2',
+              values: [
+                ['Name', 'Value'],
+                ['Test1', '100'],
+              ],
+            },
+            {
+              range: 'TestData!A5:B6',
+              values: [
+                ['Category', 'Amount'],
+                ['Sales', '500'],
+              ],
+            },
+            {
+              range: 'TestData!D1:E2',
+              values: [
+                ['ID', 'Status'],
+                ['001', 'Active'],
+              ],
+            },
           ],
         },
       });
@@ -70,22 +85,42 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
           requests: [
             {
               repeatCell: {
-                range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 1 },
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 0,
+                  endColumnIndex: 1,
+                },
                 cell: { userEnteredFormat: { textFormat: { bold: true } } },
                 fields: 'userEnteredFormat.textFormat.bold',
               },
             },
             {
               repeatCell: {
-                range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 1, endColumnIndex: 2 },
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 1,
+                  endColumnIndex: 2,
+                },
                 cell: { userEnteredFormat: { textFormat: { italic: true } } },
                 fields: 'userEnteredFormat.textFormat.italic',
               },
             },
             {
               repeatCell: {
-                range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 2, endColumnIndex: 3 },
-                cell: { userEnteredFormat: { backgroundColor: { red: 0.9, green: 0.9, blue: 0.5 } } },
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 2,
+                  endColumnIndex: 3,
+                },
+                cell: {
+                  userEnteredFormat: { backgroundColor: { red: 0.9, green: 0.9, blue: 0.5 } },
+                },
                 fields: 'userEnteredFormat.backgroundColor',
               },
             },
@@ -110,11 +145,16 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addSheet: {
-              properties: { title: `TransactionTestSheet_${Date.now()}`, gridProperties: { rowCount: 100, columnCount: 10 } },
+          requests: [
+            {
+              addSheet: {
+                properties: {
+                  title: `TransactionTestSheet_${Date.now()}`,
+                  gridProperties: { rowCount: 100, columnCount: 10 },
+                },
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -141,14 +181,22 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addNamedRange: {
-              namedRange: {
-                name: `TransactionData_${Date.now()}`,
-                range: { sheetId: newSheetId, startRowIndex: 0, endRowIndex: 3, startColumnIndex: 0, endColumnIndex: 3 },
+          requests: [
+            {
+              addNamedRange: {
+                namedRange: {
+                  name: `TransactionData_${Date.now()}`,
+                  range: {
+                    sheetId: newSheetId,
+                    startRowIndex: 0,
+                    endRowIndex: 3,
+                    startColumnIndex: 0,
+                    endColumnIndex: 3,
+                  },
+                },
               },
             },
-          }],
+          ],
         },
       });
 
@@ -169,7 +217,12 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!G1:H2',
         valueInputOption: 'RAW',
-        requestBody: { values: [['Original', 'Data'], ['Row2', 'Values']] },
+        requestBody: {
+          values: [
+            ['Original', 'Data'],
+            ['Row2', 'Values'],
+          ],
+        },
       });
 
       const initialRead = await client.sheets.spreadsheets.values.get({
@@ -183,7 +236,12 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!G1:H2',
         valueInputOption: 'RAW',
-        requestBody: { values: [['Modified', 'Content'], ['Changed', 'Values']] },
+        requestBody: {
+          values: [
+            ['Modified', 'Content'],
+            ['Changed', 'Values'],
+          ],
+        },
       });
 
       // Verify changes were made
@@ -276,7 +334,12 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
         range: 'TestData!K2:K5',
       });
 
-      expect(verifyRead.data.values).toEqual([['complete'], ['complete'], ['complete'], ['complete']]);
+      expect(verifyRead.data.values).toEqual([
+        ['complete'],
+        ['complete'],
+        ['complete'],
+        ['complete'],
+      ]);
     });
   });
 
@@ -288,8 +351,16 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
           requests: [
-            { insertDimension: { range: { sheetId, dimension: 'ROWS', startIndex: 50, endIndex: 51 } } },
-            { insertDimension: { range: { sheetId, dimension: 'COLUMNS', startIndex: 20, endIndex: 21 } } },
+            {
+              insertDimension: {
+                range: { sheetId, dimension: 'ROWS', startIndex: 50, endIndex: 51 },
+              },
+            },
+            {
+              insertDimension: {
+                range: { sheetId, dimension: 'COLUMNS', startIndex: 20, endIndex: 21 },
+              },
+            },
           ],
         },
       });
@@ -326,7 +397,12 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!S1:T2',
         valueInputOption: 'RAW',
-        requestBody: { values: [['Name', 'Value'], ['Test', '100']] },
+        requestBody: {
+          values: [
+            ['Name', 'Value'],
+            ['Test', '100'],
+          ],
+        },
       });
 
       // Test batch read with multiple valid ranges
@@ -346,14 +422,22 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
         client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [{
-              addNamedRange: {
-                namedRange: {
-                  name: '123InvalidName',
-                  range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 1 },
+            requests: [
+              {
+                addNamedRange: {
+                  namedRange: {
+                    name: '123InvalidName',
+                    range: {
+                      sheetId,
+                      startRowIndex: 0,
+                      endRowIndex: 1,
+                      startColumnIndex: 0,
+                      endColumnIndex: 1,
+                    },
+                  },
                 },
               },
-            }],
+            ],
           },
         })
       ).rejects.toThrow();
@@ -391,8 +475,19 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
           requests: [
             {
               repeatCell: {
-                range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 20, endColumnIndex: 24 },
-                cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.2, green: 0.4, blue: 0.8 } } },
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 20,
+                  endColumnIndex: 24,
+                },
+                cell: {
+                  userEnteredFormat: {
+                    textFormat: { bold: true },
+                    backgroundColor: { red: 0.2, green: 0.4, blue: 0.8 },
+                  },
+                },
                 fields: 'userEnteredFormat(textFormat.bold,backgroundColor)',
               },
             },
@@ -454,13 +549,21 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
         client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [{
-              repeatCell: {
-                range: { sheetId, startRowIndex: 199, endRowIndex: 200, startColumnIndex: 0, endColumnIndex: 2 },
-                cell: { userEnteredFormat: { textFormat: { bold: true } } },
-                fields: 'userEnteredFormat.textFormat.bold',
+            requests: [
+              {
+                repeatCell: {
+                  range: {
+                    sheetId,
+                    startRowIndex: 199,
+                    endRowIndex: 200,
+                    startColumnIndex: 0,
+                    endColumnIndex: 2,
+                  },
+                  cell: { userEnteredFormat: { textFormat: { bold: true } } },
+                  fields: 'userEnteredFormat.textFormat.bold',
+                },
               },
-            }],
+            ],
           },
         })
       );

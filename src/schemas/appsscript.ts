@@ -15,7 +15,12 @@
  */
 
 import { z } from 'zod';
-import { ErrorDetailSchema, ResponseMetaSchema, type ToolAnnotations } from './shared.js';
+import {
+  ErrorDetailSchema,
+  ResponseMetaSchema,
+  SafetyOptionsSchema,
+  type ToolAnnotations,
+} from './shared.js';
 
 // ============================================================================
 // Common Schemas
@@ -40,7 +45,7 @@ const ScriptFileSchema = z.object({
   type: z
     .enum(['SERVER_JS', 'HTML', 'JSON'])
     .describe('File type: SERVER_JS (code), HTML (template), JSON (manifest)'),
-  source: z.string().describe('File source code content'),
+  source: z.string().max(204800).describe('File source code content (max 200KB)'),
   lastModifyUser: z
     .object({
       email: z.string().optional(),
@@ -195,7 +200,11 @@ const GetContentActionSchema = z.object({
 const UpdateContentActionSchema = z.object({
   action: z.literal('update_content').describe('Update script project files (replaces all files)'),
   scriptId: ScriptIdSchema,
-  files: z.array(ScriptFileSchema).min(1).describe('Complete set of files for the project'),
+  files: z
+    .array(ScriptFileSchema)
+    .min(1)
+    .max(50)
+    .describe('Complete set of files for the project (max 50)'),
   verbosity: VerbositySchema,
 });
 
@@ -249,23 +258,20 @@ const DeployActionSchema = z.object({
   deploymentType: z
     .enum(['WEB_APP', 'EXECUTION_API'])
     .optional()
-    .default('EXECUTION_API')
     .describe(
-      'Deployment type (WEB_APP, EXECUTION_API). Note: Must be set in manifest (appsscript.json) via update_content action before deploying - the Deployments API reads this from the manifest.'
+      'IGNORED BY API — Must be configured in appsscript.json manifest via update_content before deploying. The Deployments API reads deployment type from the manifest, not this parameter.'
     ),
   access: z
     .enum(['MYSELF', 'DOMAIN', 'ANYONE', 'ANYONE_ANONYMOUS'])
     .optional()
-    .default('MYSELF')
     .describe(
-      'Who can access: MYSELF, DOMAIN (Workspace), ANYONE (Google account), ANYONE_ANONYMOUS. Note: Must be configured in manifest (appsscript.json) via update_content action before deploying - the Deployments API reads this from the manifest.'
+      'IGNORED BY API — Must be configured in appsscript.json manifest via update_content before deploying. The Deployments API reads access settings from the manifest, not this parameter.'
     ),
   executeAs: z
     .enum(['USER_ACCESSING', 'USER_DEPLOYING'])
     .optional()
-    .default('USER_DEPLOYING')
     .describe(
-      'Execute as: USER_ACCESSING (end user) or USER_DEPLOYING (you). Note: Must be configured in manifest (appsscript.json) via update_content action before deploying - the Deployments API reads this from the manifest.'
+      'IGNORED BY API — Must be configured in appsscript.json manifest via update_content before deploying. The Deployments API reads executeAs from the manifest, not this parameter.'
     ),
   verbosity: VerbositySchema,
 });
@@ -306,7 +312,12 @@ const UndeployActionSchema = z.object({
 const RunActionSchema = z.object({
   action: z.literal('run').describe('Execute a function in an Apps Script project'),
   scriptId: ScriptIdSchema,
-  functionName: z.string().min(1).describe('Name of function to execute'),
+  functionName: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-zA-Z_$][a-zA-Z0-9_$]*$/, 'Must be a valid JavaScript identifier')
+    .describe('Name of function to execute'),
   parameters: z
     .array(
       z.union([
@@ -327,6 +338,9 @@ const RunActionSchema = z.object({
     .optional()
     .default(false)
     .describe('Run most recently saved version (owner only) vs deployed version'),
+  safety: SafetyOptionsSchema.optional().describe(
+    'Safety options — use dryRun:true to validate without executing; requireConfirmation:true to require explicit user approval before running'
+  ),
   verbosity: VerbositySchema,
 });
 
@@ -375,6 +389,86 @@ const GetMetricsActionSchema = z.object({
 });
 
 // ============================================================================
+// Trigger Management Schemas (4 new actions)
+// ============================================================================
+
+const CreateTriggerActionSchema = z.object({
+  action: z
+    .literal('create_trigger')
+    .describe('Create a time-driven or event-driven trigger for a script function'),
+  scriptId: ScriptIdSchema,
+  functionName: z
+    .string()
+    .min(1)
+    .describe('Function to trigger (must exist in the script project)'),
+  triggerType: z
+    .enum(['CLOCK', 'ON_OPEN', 'ON_EDIT', 'ON_FORM_SUBMIT', 'ON_CHANGE'])
+    .describe(
+      'Trigger type: CLOCK (time-based), ON_OPEN, ON_EDIT, ON_FORM_SUBMIT, ON_CHANGE (event-based)'
+    ),
+  everyMinutes: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(1440)
+    .optional()
+    .describe('For CLOCK triggers: interval in minutes (1, 5, 10, 15, 30, 60, 360, 720, 1440)'),
+  atHour: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(23)
+    .optional()
+    .describe('For daily CLOCK triggers: hour to run (0-23, UTC)'),
+  weekDay: z
+    .enum(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'])
+    .optional()
+    .describe('For weekly CLOCK triggers: day of the week'),
+  verbosity: VerbositySchema,
+});
+
+const ListTriggersActionSchema = z.object({
+  action: z.literal('list_triggers').describe('List all triggers for a script project'),
+  scriptId: ScriptIdSchema,
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .optional()
+    .default(50)
+    .describe('Max triggers to return'),
+  pageToken: z.string().optional().describe('Page token for pagination'),
+  verbosity: VerbositySchema,
+});
+
+const DeleteTriggerActionSchema = z.object({
+  action: z.literal('delete_trigger').describe('Delete a specific trigger by ID'),
+  scriptId: ScriptIdSchema,
+  triggerId: z.string().min(1).describe('Trigger ID to delete (from list_triggers)'),
+  verbosity: VerbositySchema,
+});
+
+const UpdateTriggerActionSchema = z.object({
+  action: z
+    .literal('update_trigger')
+    .describe(
+      'Update a trigger — deletes the old trigger and creates a new one with updated settings'
+    ),
+  scriptId: ScriptIdSchema,
+  triggerId: z.string().min(1).describe('Existing trigger ID to replace'),
+  functionName: z.string().min(1).optional().describe('New function name (if changing)'),
+  everyMinutes: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(1440)
+    .optional()
+    .describe('New interval for CLOCK triggers'),
+  verbosity: VerbositySchema,
+});
+
+// ============================================================================
 // Input Schema (discriminated union wrapped in request)
 // ============================================================================
 
@@ -397,6 +491,11 @@ const AppsScriptRequestSchema = z.discriminatedUnion('action', [
   RunActionSchema,
   ListProcessesActionSchema,
   GetMetricsActionSchema,
+  // Trigger Management
+  CreateTriggerActionSchema,
+  ListTriggersActionSchema,
+  DeleteTriggerActionSchema,
+  UpdateTriggerActionSchema,
 ]);
 
 export const SheetsAppsScriptInputSchema = z.object({
@@ -528,4 +627,16 @@ export type AppsScriptListProcessesInput = SheetsAppsScriptInput['request'] & {
 };
 export type AppsScriptGetMetricsInput = SheetsAppsScriptInput['request'] & {
   action: 'get_metrics';
+};
+export type AppsScriptCreateTriggerInput = SheetsAppsScriptInput['request'] & {
+  action: 'create_trigger';
+};
+export type AppsScriptListTriggersInput = SheetsAppsScriptInput['request'] & {
+  action: 'list_triggers';
+};
+export type AppsScriptDeleteTriggerInput = SheetsAppsScriptInput['request'] & {
+  action: 'delete_trigger';
+};
+export type AppsScriptUpdateTriggerInput = SheetsAppsScriptInput['request'] & {
+  action: 'update_trigger';
 };

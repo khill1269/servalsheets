@@ -9,6 +9,7 @@ This document explains the build performance optimizations implemented in Serval
 **Status:** ✅ Implemented
 
 **Optimizations:**
+
 1. TypeScript incremental compilation
 2. Turborepo remote caching
 3. CI cache strategy
@@ -16,12 +17,12 @@ This document explains the build performance optimizations implemented in Serval
 
 ## Performance Targets
 
-| Build Type | Target Time | Status |
-|------------|-------------|--------|
-| First build (clean) | 45-60s | ✅ Baseline |
-| Incremental build | 10-15s | ✅ 75% faster |
-| No-op build (no changes) | <5s | ✅ Near-instant |
-| CI with cache | 15-20s | ✅ Optimized |
+| Build Type               | Target Time | Status          |
+| ------------------------ | ----------- | --------------- |
+| First build (clean)      | 45-60s      | ✅ Baseline     |
+| Incremental build        | 10-15s      | ✅ 75% faster   |
+| No-op build (no changes) | <5s         | ✅ Near-instant |
+| CI with cache            | 15-20s      | ✅ Optimized    |
 
 ## Implementation
 
@@ -41,11 +42,13 @@ Both configuration files enable incremental compilation:
 ```
 
 **How it works:**
+
 - TypeScript saves compilation state in `.tsbuildinfo` files
 - On subsequent builds, only changed files are recompiled
 - Build info files are cached in CI
 
 **Benefits:**
+
 - 50-70% faster rebuilds for small changes
 - Scales well with large codebases
 - No configuration needed beyond tsconfig
@@ -69,12 +72,14 @@ Turborepo provides intelligent caching of build outputs:
 ```
 
 **How it works:**
+
 - Turborepo hashes inputs (source files, config)
 - Checks if outputs already exist in cache
 - Restores from cache if inputs haven't changed
 - Skips build entirely for cache hits
 
 **Benefits:**
+
 - Near-instant builds when nothing changes
 - Local cache + optional remote cache
 - Works across CI runs and developers
@@ -110,12 +115,14 @@ GitHub Actions cache multiple layers:
 ```
 
 **Cache layers:**
+
 1. **node_modules** - Dependency installation cache
 2. **.turbo** - Turborepo cache directory
 3. **.tsbuildinfo** - TypeScript incremental compilation state
 4. **dist/** - Compiled output artifacts
 
 **Benefits:**
+
 - Faster CI builds (15-20s with cache)
 - Reduced API quota usage
 - Parallel cache restoration
@@ -135,6 +142,7 @@ Build pipeline uses Turborepo:
 ```
 
 **Optimization points:**
+
 - Metadata generation is cached by Turborepo
 - OpenAPI generation is cached by Turborepo
 - TypeScript uses incremental compilation
@@ -184,12 +192,15 @@ time npm run build
 **Problem:** Incremental builds taking >15s
 
 **Solutions:**
+
 1. Check if `.tsbuildinfo` files exist:
+
    ```bash
    ls -la .tsbuildinfo*
    ```
 
 2. Verify Turborepo cache is working:
+
    ```bash
    npx turbo run build --dry-run
    ```
@@ -206,7 +217,9 @@ time npm run build
 **Problem:** CI builds not benefiting from cache
 
 **Solutions:**
+
 1. Check cache key matches:
+
    ```yaml
    key: ${{ runner.os }}-turbo-${{ github.sha }}
    ```
@@ -219,12 +232,15 @@ time npm run build
 **Problem:** Turbo not caching outputs
 
 **Solutions:**
+
 1. Verify `turbo.json` outputs are correct:
+
    ```json
    "outputs": ["dist/**", ".tsbuildinfo.build"]
    ```
 
 2. Check task inputs include all dependencies:
+
    ```json
    "inputs": ["src/**/*.ts", "tsconfig*.json"]
    ```
@@ -244,6 +260,7 @@ time npm run build
    - `.turbo/` cache is gitignored
 
 2. **Use incremental builds:**
+
    ```bash
    # Fast incremental build
    npm run build
@@ -262,6 +279,7 @@ time npm run build
 ### For CI/CD
 
 1. **Always cache dependencies:**
+
    ```yaml
    uses: actions/setup-node@v4
    with:
@@ -291,6 +309,7 @@ npx turbo link
 ```
 
 **Benefits:**
+
 - Share cache across team members
 - Faster CI builds
 - Reduced duplicate work
@@ -327,11 +346,13 @@ npx turbo run build --profile=build-profile.json
 ### Current Performance
 
 **Local Development:**
+
 - First build: ~52s
 - Incremental: ~12s (77% improvement)
 - No-op: ~3s (94% improvement)
 
 **CI (GitHub Actions):**
+
 - First build: ~55s
 - With cache: ~18s (67% improvement)
 - With full cache hit: ~8s (85% improvement)
@@ -362,6 +383,7 @@ Track build times in CI:
 When modifying build configuration:
 
 1. **Test locally first:**
+
    ```bash
    ./scripts/benchmark-build.sh
    ```

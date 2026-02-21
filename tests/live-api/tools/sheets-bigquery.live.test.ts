@@ -3,7 +3,7 @@
  *
  * Tests BigQuery Connected Sheets integration with real Google Sheets data.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet for all tests.
  *
  * Note: Most BigQuery operations require BigQuery API enabled and appropriate permissions.
@@ -43,7 +43,10 @@ describe.skipIf(!runLiveTests)('sheets_bigquery Live API Tests', () => {
     });
 
     it('should validate query-based connection', () => {
-      const spec = { projectId: 'my-gcp-project', query: 'SELECT * FROM `project.dataset.table` LIMIT 1000' };
+      const spec = {
+        projectId: 'my-gcp-project',
+        query: 'SELECT * FROM `project.dataset.table` LIMIT 1000',
+      };
       expect(spec.query).toContain('SELECT');
     });
 
@@ -78,7 +81,11 @@ describe.skipIf(!runLiveTests)('sheets_bigquery Live API Tests', () => {
     });
 
     it('should validate query parameters', () => {
-      const queryConfig = { projectId: 'my-project', query: 'SELECT * FROM table', maxResults: 10000 };
+      const queryConfig = {
+        projectId: 'my-project',
+        query: 'SELECT * FROM table',
+        maxResults: 10000,
+      };
       expect(queryConfig.maxResults).toBeLessThanOrEqual(100000);
     });
   });
@@ -130,7 +137,16 @@ describe.skipIf(!runLiveTests)('sheets_bigquery Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{ addSheet: { properties: { title: sheetName, gridProperties: { rowCount: 10000, columnCount: 26 } } } }],
+          requests: [
+            {
+              addSheet: {
+                properties: {
+                  title: sheetName,
+                  gridProperties: { rowCount: 10000, columnCount: 26 },
+                },
+              },
+            },
+          ],
         },
       });
       expect(response.status).toBe(200);
@@ -142,7 +158,9 @@ describe.skipIf(!runLiveTests)('sheets_bigquery Live API Tests', () => {
     it('should understand data source response structure', () => {
       const dataSource = {
         dataSourceId: 'ds_123456',
-        spec: { bigQuery: { projectId: 'my-project', querySpec: { rawQuery: 'SELECT * FROM table' } } },
+        spec: {
+          bigQuery: { projectId: 'my-project', querySpec: { rawQuery: 'SELECT * FROM table' } },
+        },
       };
       expect(dataSource.dataSourceId).toBeDefined();
       expect(dataSource.spec.bigQuery).toBeDefined();

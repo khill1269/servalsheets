@@ -10,6 +10,7 @@
 ## When to Use Agent Teams
 
 ### ✅ Use Agent Teams When:
+
 - Complex features requiring coordination (multi-file changes)
 - Parallel work on independent subtasks
 - Need peer-to-peer communication
@@ -17,6 +18,7 @@
 - Multiple domain experts needed
 
 ### ❌ Use Subagents Instead When:
+
 - Simple features (< 20 min)
 - Sequential workflow is fine
 - No peer communication needed
@@ -61,6 +63,7 @@ TeamCreate("feature-streaming")
 ```
 
 **Team Config:**
+
 ```json
 {
   "name": "feature-streaming",
@@ -210,6 +213,7 @@ TaskUpdate({
 ### Automatic Notifications
 
 Teammates send notifications automatically:
+
 - **Task claimed:** "I'm starting on Task #1"
 - **Task completed:** "Task #1 complete, findings attached"
 - **Going idle:** "Waiting for assignment" (after each turn)
@@ -310,14 +314,14 @@ TeamDelete()
 
 ## Cost Breakdown
 
-| Agent | Model | Duration | Cost |
-|-------|-------|----------|------|
-| Team Lead | Sonnet | 40min | $5 |
-| Researcher | Haiku | 5min | $0.50 |
-| Implementer | Sonnet | 15min | $8 |
-| Tester | Sonnet | 12min | $6 |
-| Validator | Haiku | 3min | $0.30 |
-| **TOTAL** | - | **40min** | **$19.80** |
+| Agent       | Model  | Duration  | Cost       |
+| ----------- | ------ | --------- | ---------- |
+| Team Lead   | Sonnet | 40min     | $5         |
+| Researcher  | Haiku  | 5min      | $0.50      |
+| Implementer | Sonnet | 15min     | $8         |
+| Tester      | Sonnet | 12min     | $6         |
+| Validator   | Haiku  | 3min      | $0.30      |
+| **TOTAL**   | -      | **40min** | **$19.80** |
 
 **Note:** Team overhead ≈ 7x standard sessions due to coordination
 
@@ -340,18 +344,22 @@ TeamDelete()
 ## Common Issues & Solutions
 
 ### Issue: Teammate Idle, Not Claiming Tasks
+
 **Cause:** Task not assigned (owner = undefined)
 **Solution:** Use TaskUpdate to assign owner: "teammate-name"
 
 ### Issue: Task Blocked Indefinitely
+
 **Cause:** Dependency task failed or stuck
 **Solution:** Remove blocker: TaskUpdate({ taskId, blockedBy: [] })
 
 ### Issue: Teammates Not Communicating
+
 **Cause:** Wrong recipient name (use name, not agentId)
 **Solution:** Read team config to get correct names
 
 ### Issue: Team Cost Exceeds $35
+
 **Cause:** Tasks too large, teammates idle
 **Solution:** Size tasks appropriately (5-15 minutes each)
 

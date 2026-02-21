@@ -23,7 +23,7 @@ describe('ServalSheets v4', () => {
 
     it('should have reasonable number of actions', () => {
       expect(ACTION_COUNT).toBeGreaterThanOrEqual(200);
-      expect(ACTION_COUNT).toBeLessThanOrEqual(300);
+      expect(ACTION_COUNT).toBeLessThanOrEqual(400);
       expect(Number.isInteger(ACTION_COUNT)).toBe(true);
     });
   });

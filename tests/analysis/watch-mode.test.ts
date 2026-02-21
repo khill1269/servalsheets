@@ -93,7 +93,7 @@ describe('WatchMode', () => {
       watcher['handleFileChange'](testFile, 'changed');
 
       // Wait for debounce
-      await new Promise(resolve => setTimeout(resolve, 150));
+      await new Promise((resolve) => setTimeout(resolve, 150));
 
       // Should only analyze once
       expect(analysisCount).toBeLessThanOrEqual(1);
@@ -113,7 +113,7 @@ describe('WatchMode', () => {
       expect(analysisTriggered).toBe(false);
 
       // Should trigger after debounce time
-      await new Promise(resolve => setTimeout(resolve, 60));
+      await new Promise((resolve) => setTimeout(resolve, 60));
       expect(analysisTriggered).toBe(true);
     });
   });
@@ -129,7 +129,7 @@ describe('WatchMode', () => {
 
       watcher['handleFileChange'](testFile, 'added');
 
-      await new Promise(resolve => setTimeout(resolve, 60));
+      await new Promise((resolve) => setTimeout(resolve, 60));
       expect(detectedChange).toBe(true);
     });
 
@@ -143,7 +143,7 @@ describe('WatchMode', () => {
 
       watcher['handleFileChange'](testFile, 'changed');
 
-      await new Promise(resolve => setTimeout(resolve, 60));
+      await new Promise((resolve) => setTimeout(resolve, 60));
       expect(detectedChange).toBe(true);
     });
 
@@ -158,7 +158,7 @@ describe('WatchMode', () => {
       const jsFile = path.join(testDir, 'test.js');
       watcher['handleFileChange'](jsFile, 'changed');
 
-      await new Promise(resolve => setTimeout(resolve, 60));
+      await new Promise((resolve) => setTimeout(resolve, 60));
       expect(analysisTriggered).toBe(false);
     });
   });
@@ -172,7 +172,7 @@ describe('WatchMode', () => {
 
       watcher['handleFileChange'](testFile, 'changed');
 
-      await new Promise(resolve => setTimeout(resolve, 60));
+      await new Promise((resolve) => setTimeout(resolve, 60));
 
       // Should be in queue
       expect(watcher['analysisQueue']).toContain(testFile);
@@ -185,13 +185,13 @@ describe('WatchMode', () => {
 
       // Add same file multiple times
       watcher['handleFileChange'](testFile, 'changed');
-      await new Promise(resolve => setTimeout(resolve, 60));
+      await new Promise((resolve) => setTimeout(resolve, 60));
 
       watcher['handleFileChange'](testFile, 'changed');
-      await new Promise(resolve => setTimeout(resolve, 60));
+      await new Promise((resolve) => setTimeout(resolve, 60));
 
       // Should only appear once in queue
-      const count = watcher['analysisQueue'].filter(f => f === testFile).length;
+      const count = watcher['analysisQueue'].filter((f) => f === testFile).length;
       expect(count).toBe(1);
     });
 
@@ -201,7 +201,7 @@ describe('WatchMode', () => {
       const processedFiles: string[] = [];
       watcher['analyzeFile'] = vi.fn(async (file: string) => {
         processedFiles.push(file);
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
       });
 
       // Queue multiple files
@@ -212,7 +212,7 @@ describe('WatchMode', () => {
       fs.writeFileSync(file2, 'export const b = 2;');
 
       watcher['handleFileChange'](file1, 'changed');
-      await new Promise(resolve => setTimeout(resolve, 60));
+      await new Promise((resolve) => setTimeout(resolve, 60));
 
       watcher['isAnalyzing'] = true;
       watcher['analysisQueue'].push(file2);
@@ -221,7 +221,7 @@ describe('WatchMode', () => {
       // Trigger queue processing
       watcher['handleFileChange'](file1, 'changed');
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Both files should be processed
       expect(processedFiles.length).toBeGreaterThanOrEqual(1);
@@ -232,9 +232,7 @@ describe('WatchMode', () => {
     it('should track total analyses', async () => {
       const watcher = new WatchMode({ debounceMs: 50 });
 
-      const originalAnalyze = watcher['orchestrator'].runFullAnalysis.bind(
-        watcher['orchestrator']
-      );
+      const originalAnalyze = watcher['orchestrator'].runFullAnalysis.bind(watcher['orchestrator']);
       watcher['orchestrator'].runFullAnalysis = vi.fn(async () => {
         return originalAnalyze([testFile]);
       });
@@ -283,7 +281,7 @@ describe('WatchMode', () => {
 
       await watcher['analyzeFile'](testFile, 'changed');
 
-      const output = consoleLog.mock.calls.map(call => call.join(' ')).join('\n');
+      const output = consoleLog.mock.calls.map((call) => call.join(' ')).join('\n');
 
       expect(output).toContain('Agents');
 
@@ -297,7 +295,7 @@ describe('WatchMode', () => {
 
       await watcher['analyzeFile'](testFile, 'changed');
 
-      const output = consoleLog.mock.calls.map(call => call.join(' ')).join('\n');
+      const output = consoleLog.mock.calls.map((call) => call.join(' ')).join('\n');
 
       // Should show issues or "No issues found"
       expect(output).toMatch(/Issues|No issues found/);

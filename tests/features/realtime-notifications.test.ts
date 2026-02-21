@@ -13,15 +13,16 @@ import { resourceNotifications } from '../../src/resources/notifications.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 // Mock McpServer
-const createMockServer = (): McpServer => ({
-  sendResourceListChanged: vi.fn(),
-  // Add other required McpServer methods as stubs
-  setLoggingLevel: vi.fn(),
-  request: vi.fn(),
-  notification: vi.fn(),
-  connect: vi.fn(),
-  close: vi.fn(),
-} as unknown as McpServer);
+const createMockServer = (): McpServer =>
+  ({
+    sendResourceListChanged: vi.fn(),
+    // Add other required McpServer methods as stubs
+    setLoggingLevel: vi.fn(),
+    request: vi.fn(),
+    notification: vi.fn(),
+    connect: vi.fn(),
+    close: vi.fn(),
+  }) as unknown as McpServer;
 
 describe('Feature 1: Real-Time Notifications', () => {
   let mockServer: McpServer;

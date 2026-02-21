@@ -15,6 +15,7 @@ import { existsSync } from 'fs';
 import { join, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { VERSION } from '../version.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -150,6 +151,20 @@ const KNOWLEDGE_DESCRIPTIONS: Record<string, string> = {
     'When to use sheets_confirm. Thresholds for destructive operations, data volume limits, confirmation patterns.',
   'formula-antipatterns':
     'Common formula mistakes to avoid. Volatile functions, circular references, performance killers.',
+
+  // New knowledge files (2026-02-19)
+  'formulas/lambda-advanced':
+    'Use when generating or debugging LAMBDA, LET, MAP, REDUCE, SCAN, BYROW, BYCOL, MAKEARRAY formulas. Shows function patterns, named function examples, and 50K row performance limit.',
+  'api/query-function':
+    'CRITICAL: Read before using QUERY or GQL. Complete syntax (SELECT/WHERE/GROUP BY/PIVOT/LABEL). Gotchas: month() is 0-based, no HAVING clause, date literal syntax, case-sensitive strings.',
+  'api/importrange':
+    'Use before or when using IMPORTRANGE. Covers interactive permission grant (cannot be automated), 30-min cache, 20K row limit, 50 cross-ref limit, and cross-sheet query patterns.',
+  'api/slicers-tables':
+    'Use when creating slicers or Tables API objects. Shows exact JSON shapes, columnProperties (NOT tableColumns), DROPDOWN validation requirement, and slicer-chart linkage via range overlap.',
+  'formulas/array-formulas-legacy':
+    'Use when working with ARRAYFORMULA, REGEXMATCH, REGEXEXTRACT, FILTER, SORT, UNIQUE, XLOOKUP. Shows legacy array patterns and when to use modern alternatives (MAP/SCAN).',
+  'api/bigquery-connected-sheets':
+    'Use for BigQuery integration. Covers export_to_bigquery, query patterns, schema auto-detection, cost optimization, and BigQuery↔Sheets data type mappings.',
 
   // Masterclass Knowledge
   'masterclass/formula-optimization-master':
@@ -355,7 +370,7 @@ export function registerKnowledgeIndexResource(server: McpServer): void {
       // Build index content
       const indexContent = {
         $schema: 'knowledge:///index',
-        version: '1.6.0',
+        version: VERSION,
         generated: new Date().toISOString(),
         totalFiles: resources.length,
 

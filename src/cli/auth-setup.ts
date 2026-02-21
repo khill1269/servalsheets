@@ -19,6 +19,7 @@ import { google } from 'googleapis';
 import type { OAuth2Client } from 'google-auth-library';
 import { EncryptedFileTokenStore } from '../services/token-store.js';
 import { getRecommendedScopes, SCOPE_DESCRIPTIONS } from '../config/oauth-scopes.js';
+import { ACTION_COUNT } from '../schemas/action-counts.js';
 import { EMBEDDED_OAUTH, isEmbeddedOAuthConfigured } from '../config/embedded-oauth.js';
 import { promises as fsPromises } from 'fs';
 import * as path from 'path';
@@ -452,7 +453,9 @@ async function main(): Promise<void> {
       );
       console.log('');
     } else if (scopeMode === 'full') {
-      console.log(`${colors.green}✓${colors.reset} All features enabled (298/298 actions)`);
+      console.log(
+        `${colors.green}✓${colors.reset} All features enabled (${ACTION_COUNT}/${ACTION_COUNT} actions)`
+      );
       console.log('');
     }
 
@@ -502,13 +505,26 @@ async function main(): Promise<void> {
 
     // Save tokens to encrypted file
     const tokenPath = path.join(process.env['HOME'] || '', '.servalsheets', 'tokens.encrypted');
-    const encryptionKey = process.env['ENCRYPTION_KEY'] || randomBytes(32).toString('hex');
 
-    // If we generated a new encryption key, add it to .env
+    // Resolve encryption key: process.env > existing .env file entry > generate new
+    const envPath = path.join(process.cwd(), '.env');
+    let envContent = '';
+    try {
+      envContent = await fsPromises.readFile(envPath, 'utf-8');
+    } catch {
+      // .env doesn't exist yet
+    }
+    const existingKeyMatch = envContent.match(/^ENCRYPTION_KEY=(.+)$/m);
+    const encryptionKey =
+      process.env['ENCRYPTION_KEY'] ?? existingKeyMatch?.[1] ?? randomBytes(32).toString('hex');
+
+    // Upsert ENCRYPTION_KEY into .env — never append a duplicate
     if (!process.env['ENCRYPTION_KEY']) {
-      const envPath = path.join(process.cwd(), '.env');
-      let envContent = await fsPromises.readFile(envPath, 'utf-8');
-      envContent += `\n# Token Encryption Key (auto-generated)\nENCRYPTION_KEY=${encryptionKey}\n`;
+      if (existingKeyMatch) {
+        envContent = envContent.replace(/^ENCRYPTION_KEY=.+$/m, `ENCRYPTION_KEY=${encryptionKey}`);
+      } else {
+        envContent += `\n# Token Encryption Key (auto-generated)\nENCRYPTION_KEY=${encryptionKey}\n`;
+      }
       await fsPromises.writeFile(envPath, envContent, 'utf-8');
     }
 

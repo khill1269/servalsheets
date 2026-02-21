@@ -81,6 +81,7 @@ await client.close();
 ### 1. Basic CRUD Operations (`basic-crud.test.ts`)
 
 Tests fundamental operations:
+
 - Tool discovery (22 tools)
 - Read operations (spreadsheet metadata, range values)
 - Write operations (values, updates)
@@ -89,6 +90,7 @@ Tests fundamental operations:
 - Resource and prompt access
 
 **Run:**
+
 ```bash
 TEST_E2E=true TEST_SPREADSHEET_ID=your-id npm test tests/e2e/workflows/basic-crud.test.ts
 ```
@@ -96,6 +98,7 @@ TEST_E2E=true TEST_SPREADSHEET_ID=your-id npm test tests/e2e/workflows/basic-cru
 ### 2. Multi-Step Workflows (`multi-step-workflows.test.ts`)
 
 Tests complex workflows:
+
 - **Import → Analyze → Visualize** - Full data pipeline
 - **Create → Format → Validate** - Sheet creation and styling
 - **Transaction → Rollback → Verify** - Transaction lifecycle
@@ -105,6 +108,7 @@ Tests complex workflows:
 - **Collaboration** - Sharing and comments
 
 **Run:**
+
 ```bash
 TEST_E2E=true TEST_SPREADSHEET_ID=your-id npm test tests/e2e/workflows/multi-step-workflows.test.ts
 ```
@@ -112,6 +116,7 @@ TEST_E2E=true TEST_SPREADSHEET_ID=your-id npm test tests/e2e/workflows/multi-ste
 ### 3. Error Recovery (`error-recovery.test.ts`)
 
 Tests error handling:
+
 - **Input validation** - Invalid IDs, missing fields, bad ranges
 - **Google API errors** - Non-existent sheets, permission denied
 - **Rate limiting** - Rapid request handling
@@ -121,6 +126,7 @@ Tests error handling:
 - **Error message quality** - Actionable error messages
 
 **Run:**
+
 ```bash
 TEST_E2E=true TEST_SPREADSHEET_ID=your-id npm test tests/e2e/workflows/error-recovery.test.ts
 ```
@@ -128,6 +134,7 @@ TEST_E2E=true TEST_SPREADSHEET_ID=your-id npm test tests/e2e/workflows/error-rec
 ### 4. Protocol Compliance (`protocol-compliance.test.ts`)
 
 Validates MCP 2025-11-25 compliance:
+
 - **Initialize handshake** - Complete flow validation
 - **Capability negotiation** - Server/client capabilities
 - **Tool registration** - Format validation, naming conventions
@@ -139,6 +146,7 @@ Validates MCP 2025-11-25 compliance:
 - **Error handling** - isError flag, error content
 
 **Run:**
+
 ```bash
 TEST_E2E=true npm test tests/e2e/workflows/protocol-compliance.test.ts
 ```
@@ -147,32 +155,33 @@ TEST_E2E=true npm test tests/e2e/workflows/protocol-compliance.test.ts
 
 Smoke tests for all 22 tools:
 
-| Tool | Actions Tested | Key Operations |
-|------|----------------|----------------|
-| sheets_auth | 2/4 | check_auth, get_scopes |
-| sheets_core | 5/19 | get_spreadsheet, list_sheets, create_sheet |
-| sheets_data | 5/18 | read_range, write_values, append_values |
-| sheets_format | 5/22 | format_cells, set_number_format, merge_cells |
-| sheets_dimensions | 5/28 | insert_rows, delete_columns, freeze_rows |
-| sheets_visualize | 3/18 | create_chart, list_charts, create_pivot_table |
-| sheets_collaborate | 2/35 | list_permissions, add_comment |
-| sheets_advanced | 3/26 | create_named_range, list_named_ranges |
-| sheets_transaction | 2/6 | start_transaction, list_transactions |
-| sheets_quality | 2/4 | check_data, validate_schema |
-| sheets_history | 2/7 | get_history, list_snapshots |
-| sheets_confirm | 1/5 | check_support |
-| sheets_analyze | 2/16 | check_support, analyze_range |
-| sheets_fix | 1/1 | detect_issues |
-| sheets_composite | 2/10 | batch_update, import_csv |
-| sheets_session | 2/26 | initialize_session, get_context |
-| sheets_templates | 2/8 | list_templates, apply_template |
-| sheets_bigquery | 1/14 | check_support |
-| sheets_appsscript | 1/14 | list_projects |
-| sheets_webhook | 1/6 | list_webhooks |
-| sheets_dependencies | 1/7 | analyze |
-| sheets_federation | 1/5 | list_servers |
+| Tool                | Actions Tested | Key Operations                                |
+| ------------------- | -------------- | --------------------------------------------- |
+| sheets_auth         | 2/4            | check_auth, get_scopes                        |
+| sheets_core         | 5/19           | get_spreadsheet, list_sheets, create_sheet    |
+| sheets_data         | 5/18           | read_range, write_values, append_values       |
+| sheets_format       | 5/22           | format_cells, set_number_format, merge_cells  |
+| sheets_dimensions   | 5/28           | insert_rows, delete_columns, freeze_rows      |
+| sheets_visualize    | 3/18           | create_chart, list_charts, create_pivot_table |
+| sheets_collaborate  | 2/35           | list_permissions, add_comment                 |
+| sheets_advanced     | 3/26           | create_named_range, list_named_ranges         |
+| sheets_transaction  | 2/6            | start_transaction, list_transactions          |
+| sheets_quality      | 2/4            | check_data, validate_schema                   |
+| sheets_history      | 2/7            | get_history, list_snapshots                   |
+| sheets_confirm      | 1/5            | check_support                                 |
+| sheets_analyze      | 2/16           | check_support, analyze_range                  |
+| sheets_fix          | 1/1            | detect_issues                                 |
+| sheets_composite    | 2/10           | batch_update, import_csv                      |
+| sheets_session      | 2/26           | initialize_session, get_context               |
+| sheets_templates    | 2/8            | list_templates, apply_template                |
+| sheets_bigquery     | 1/14           | check_support                                 |
+| sheets_appsscript   | 1/14           | list_projects                                 |
+| sheets_webhook      | 1/6            | list_webhooks                                 |
+| sheets_dependencies | 1/7            | analyze                                       |
+| sheets_federation   | 1/5            | list_servers                                  |
 
 **Run:**
+
 ```bash
 TEST_E2E=true TEST_SPREADSHEET_ID=your-id npm test tests/e2e/workflows/all-tools-smoke.test.ts
 ```
@@ -182,11 +191,13 @@ TEST_E2E=true TEST_SPREADSHEET_ID=your-id npm test tests/e2e/workflows/all-tools
 ### Prerequisites
 
 1. **HTTP server running** - Start ServalSheets HTTP server:
+
    ```bash
    npm run start:http
    ```
 
 2. **Environment variables**:
+
    ```bash
    export TEST_E2E=true                          # Enable E2E tests
    export TEST_SPREADSHEET_ID=your-sheet-id      # Test spreadsheet (optional)
@@ -231,6 +242,7 @@ npm run test:all            # Skips
 Expected results when running E2E tests:
 
 ### Protocol Compliance
+
 - ✅ Initialize handshake completes successfully
 - ✅ Server declares all required capabilities
 - ✅ 22 tools registered with valid schemas
@@ -240,6 +252,7 @@ Expected results when running E2E tests:
 - ✅ Protocol validation passes with 0 errors
 
 ### Basic Operations
+
 - ✅ Read operations succeed with valid data
 - ✅ Write operations update spreadsheet
 - ✅ Delete operations clear ranges
@@ -247,6 +260,7 @@ Expected results when running E2E tests:
 - ✅ Resources and prompts accessible
 
 ### Multi-Step Workflows
+
 - ✅ Data pipeline: Import → Analyze → Visualize
 - ✅ Sheet creation: Create → Format → Validate
 - ✅ Transactions: Start → Modify → Rollback
@@ -254,6 +268,7 @@ Expected results when running E2E tests:
 - ✅ Session state maintained across calls
 
 ### Error Recovery
+
 - ✅ Invalid input rejected quickly (< 100ms)
 - ✅ API errors handled gracefully
 - ✅ Rate limiting respects quotas
@@ -341,22 +356,27 @@ export class MCPWebSocketClient extends MCPClientSimulator {
 ## Troubleshooting
 
 ### Tests Skip Automatically
+
 - **Cause**: `TEST_E2E=true` not set
 - **Solution**: `export TEST_E2E=true`
 
 ### Connection Refused
+
 - **Cause**: HTTP server not running
 - **Solution**: `npm run start:http` in another terminal
 
 ### Authentication Errors
+
 - **Cause**: OAuth tokens not configured
 - **Solution**: `npm run auth` and follow setup wizard
 
 ### Spreadsheet Not Found
+
 - **Cause**: Invalid `TEST_SPREADSHEET_ID`
 - **Solution**: Use a valid Google Sheets ID you have access to
 
 ### Rate Limit Errors
+
 - **Cause**: Too many requests to Google API
 - **Solution**: Wait 60 seconds, or use different spreadsheet
 
@@ -375,7 +395,7 @@ e2e-tests:
 
     # Start HTTP server in background
     - run: npm run start:http &
-    - run: sleep 5  # Wait for server startup
+    - run: sleep 5 # Wait for server startup
 
     # Run E2E tests
     - run: TEST_E2E=true npm run test:e2e
@@ -388,18 +408,19 @@ e2e-tests:
 
 Expected test execution times:
 
-| Test Suite | Duration | Tests | Coverage |
-|------------|----------|-------|----------|
-| basic-crud.test.ts | ~30s | 15 | CRUD operations |
-| multi-step-workflows.test.ts | ~60s | 20 | Complex workflows |
-| error-recovery.test.ts | ~45s | 25 | Error handling |
-| protocol-compliance.test.ts | ~20s | 30 | MCP compliance |
-| all-tools-smoke.test.ts | ~90s | 50+ | All 22 tools |
-| **Total** | **~4-5 min** | **140+** | **Full E2E** |
+| Test Suite                   | Duration     | Tests    | Coverage          |
+| ---------------------------- | ------------ | -------- | ----------------- |
+| basic-crud.test.ts           | ~30s         | 15       | CRUD operations   |
+| multi-step-workflows.test.ts | ~60s         | 20       | Complex workflows |
+| error-recovery.test.ts       | ~45s         | 25       | Error handling    |
+| protocol-compliance.test.ts  | ~20s         | 30       | MCP compliance    |
+| all-tools-smoke.test.ts      | ~90s         | 50+      | All 22 tools      |
+| **Total**                    | **~4-5 min** | **140+** | **Full E2E**      |
 
 ## Coverage
 
 E2E tests cover:
+
 - ✅ All 22 tools (100%)
 - ✅ 60+ actions tested (~20% of 298 total)
 - ✅ MCP protocol compliance (100%)
@@ -410,6 +431,7 @@ E2E tests cover:
 ## Future Enhancements
 
 Planned additions:
+
 - [ ] WebSocket transport client
 - [ ] STDIO transport client (spawning subprocess)
 - [ ] Load testing with concurrent clients

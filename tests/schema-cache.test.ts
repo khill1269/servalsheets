@@ -1,16 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, rmSync, unlinkSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, rmSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { SchemaCache, getSchemaCache, resetSchemaCache } from '../src/services/schema-cache.js';
 import type { DiscoverySchema } from '../src/services/discovery-client.js';
 
 // Detect sandboxed environments where unlink/rmSync fails with EPERM
 let canDeleteFiles = true;
 try {
-  const probe = `.probe-delete-${Date.now()}`;
-  mkdirSync(probe, { recursive: true });
-  writeFileSync(`${probe}/test`, 'x');
-  unlinkSync(`${probe}/test`);
-  rmSync(probe, { recursive: true, force: true });
+  const probeDir = mkdtempSync(join(tmpdir(), 'servalsheets-probe-delete-'));
+  const probeFile = join(probeDir, 'test');
+  writeFileSync(probeFile, 'x');
+  rmSync(probeFile, { force: true });
+  rmSync(probeDir, { recursive: true, force: true });
 } catch {
   canDeleteFiles = false;
 }
@@ -39,7 +41,7 @@ describe('SchemaCache', () => {
   };
 
   beforeEach(() => {
-    testCacheDir = `.test-discovery-cache-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    testCacheDir = mkdtempSync(join(tmpdir(), 'servalsheets-test-discovery-cache-'));
     resetSchemaCache();
     cache = new SchemaCache({ cacheDir: testCacheDir, defaultTTL: 60000 });
   });
@@ -275,7 +277,8 @@ describe('SchemaCache', () => {
 
   describe('cache directory creation', () => {
     it('should create cache directory on first operation', async () => {
-      const customDir = '.test-custom-cache';
+      const customCacheRoot = mkdtempSync(join(tmpdir(), 'servalsheets-test-custom-cache-'));
+      const customDir = join(customCacheRoot, 'cache');
 
       try {
         const customCache = new SchemaCache({ cacheDir: customDir });
@@ -285,8 +288,8 @@ describe('SchemaCache', () => {
         expect(existsSync(customDir)).toBe(true);
       } finally {
         try {
-          if (existsSync(customDir)) {
-            rmSync(customDir, { recursive: true, force: true });
+          if (existsSync(customCacheRoot)) {
+            rmSync(customCacheRoot, { recursive: true, force: true });
           }
         } catch {
           // EPERM in sandboxed environments — safe to ignore

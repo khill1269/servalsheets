@@ -13,6 +13,7 @@ This directory contains Kubernetes manifests for deploying ServalSheets in produ
 ## Quick Start
 
 ### 1. Create Namespace
+
 ```bash
 kubectl create namespace servalsheets
 ```
@@ -20,6 +21,7 @@ kubectl create namespace servalsheets
 ### 2. Create Secrets
 
 **Google Service Account**:
+
 ```bash
 kubectl create secret generic google-credentials \
   --from-file=service-account.json=/path/to/your/service-account.json \
@@ -27,6 +29,7 @@ kubectl create secret generic google-credentials \
 ```
 
 **OAuth Secrets**:
+
 ```bash
 kubectl create secret generic oauth-secrets \
   --from-literal=client-id="your-oauth-client-id" \
@@ -38,6 +41,7 @@ kubectl create secret generic oauth-secrets \
 ### 3. Update Configuration
 
 Edit the manifests to update:
+
 - `servalsheets.example.com` → your actual domain
 - Resource limits (if needed)
 - Environment variables
@@ -83,6 +87,7 @@ kubectl exec -it deployment/servalsheets -n servalsheets -- wget -q -O- http://l
 ## Horizontal Pod Autoscaling
 
 The HPA is configured to:
+
 - Min replicas: 2
 - Max replicas: 10
 - Scale up: When CPU > 70% or Memory > 80%
@@ -97,6 +102,7 @@ The HPA is configured to:
 ## Rolling Updates
 
 Configured for zero-downtime updates:
+
 - `maxSurge: 1` - One extra pod during update
 - `maxUnavailable: 0` - No pods unavailable during update
 - `terminationGracePeriodSeconds: 30` - Wait 30s for graceful shutdown
@@ -111,21 +117,24 @@ Configured for zero-downtime updates:
 ## Monitoring
 
 The deployment is annotated for Prometheus scraping:
+
 ```yaml
-prometheus.io/scrape: "true"
-prometheus.io/port: "3000"
-prometheus.io/path: "/metrics"
+prometheus.io/scrape: 'true'
+prometheus.io/port: '3000'
+prometheus.io/path: '/metrics'
 ```
 
 ## Troubleshooting
 
 **Pods not starting**:
+
 ```bash
 kubectl describe pod -n servalsheets
 kubectl logs -n servalsheets -l app=servalsheets
 ```
 
 **Ingress not working**:
+
 ```bash
 kubectl describe ingress servalsheets -n servalsheets
 # Check cert-manager logs
@@ -133,6 +142,7 @@ kubectl logs -n cert-manager -l app=cert-manager
 ```
 
 **OAuth errors**:
+
 - Verify secrets are correct: `kubectl get secret oauth-secrets -n servalsheets -o yaml`
 - Check redirect URI matches Google Cloud Console configuration
 - Ensure domain in Ingress matches OAUTH_REDIRECT_URI
@@ -140,12 +150,14 @@ kubectl logs -n cert-manager -l app=cert-manager
 ## Production Recommendations
 
 1. **Use a managed Redis** for session storage across pods:
+
    ```yaml
    - name: REDIS_URL
-     value: "redis://redis-master:6379"
+     value: 'redis://redis-master:6379'
    ```
 
 2. **Enable Pod Disruption Budget**:
+
    ```yaml
    apiVersion: policy/v1
    kind: PodDisruptionBudget

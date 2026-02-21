@@ -10,7 +10,13 @@ import type { LiveApiClient } from '../setup/live-api-client.js';
 /**
  * Resource types tracked by the guard
  */
-export type ResourceType = 'spreadsheet' | 'sheet' | 'namedRange' | 'chart' | 'filter' | 'protection';
+export type ResourceType =
+  | 'spreadsheet'
+  | 'sheet'
+  | 'namedRange'
+  | 'chart'
+  | 'filter'
+  | 'protection';
 
 /**
  * Tracked resource
@@ -126,14 +132,14 @@ export class TestIsolationGuard {
    * Get resources created by a specific test
    */
   getResourcesByTest(testName: string): TrackedResource[] {
-    return this.getTrackedResources().filter(r => r.createdBy === testName);
+    return this.getTrackedResources().filter((r) => r.createdBy === testName);
   }
 
   /**
    * Get resources of a specific type
    */
   getResourcesByType(type: ResourceType): TrackedResource[] {
-    return this.getTrackedResources().filter(r => r.type === type);
+    return this.getTrackedResources().filter((r) => r.type === type);
   }
 
   /**
@@ -141,7 +147,7 @@ export class TestIsolationGuard {
    */
   checkTestIsolation(testName: string): IsolationCheckResult {
     const testResources = this.getResourcesByTest(testName);
-    const leakedResources = testResources.filter(r => !this.isResourceCleaned(r));
+    const leakedResources = testResources.filter((r) => !this.isResourceCleaned(r));
 
     // Check for orphaned resources (parent no longer exists)
     const orphanedResources: TrackedResource[] = [];
@@ -254,9 +260,11 @@ export class TestIsolationGuard {
           await this.client.sheets.spreadsheets.batchUpdate({
             spreadsheetId: resource.parentId,
             requestBody: {
-              requests: [{
-                deleteSheet: { sheetId: parseInt(resource.id, 10) },
-              }],
+              requests: [
+                {
+                  deleteSheet: { sheetId: parseInt(resource.id, 10) },
+                },
+              ],
             },
           });
         }
@@ -267,9 +275,11 @@ export class TestIsolationGuard {
           await this.client.sheets.spreadsheets.batchUpdate({
             spreadsheetId: resource.parentId,
             requestBody: {
-              requests: [{
-                deleteNamedRange: { namedRangeId: resource.id },
-              }],
+              requests: [
+                {
+                  deleteNamedRange: { namedRangeId: resource.id },
+                },
+              ],
             },
           });
         }
@@ -280,9 +290,11 @@ export class TestIsolationGuard {
           await this.client.sheets.spreadsheets.batchUpdate({
             spreadsheetId: resource.parentId,
             requestBody: {
-              requests: [{
-                deleteEmbeddedObject: { objectId: parseInt(resource.id, 10) },
-              }],
+              requests: [
+                {
+                  deleteEmbeddedObject: { objectId: parseInt(resource.id, 10) },
+                },
+              ],
             },
           });
         }
@@ -293,11 +305,13 @@ export class TestIsolationGuard {
           await this.client.sheets.spreadsheets.batchUpdate({
             spreadsheetId: resource.parentId,
             requestBody: {
-              requests: [{
-                clearBasicFilter: {
-                  sheetId: resource.metadata.sheetId as number,
+              requests: [
+                {
+                  clearBasicFilter: {
+                    sheetId: resource.metadata.sheetId as number,
+                  },
                 },
-              }],
+              ],
             },
           });
         }
@@ -308,9 +322,11 @@ export class TestIsolationGuard {
           await this.client.sheets.spreadsheets.batchUpdate({
             spreadsheetId: resource.parentId,
             requestBody: {
-              requests: [{
-                deleteProtectedRange: { protectedRangeId: parseInt(resource.id, 10) },
-              }],
+              requests: [
+                {
+                  deleteProtectedRange: { protectedRangeId: parseInt(resource.id, 10) },
+                },
+              ],
             },
           });
         }
@@ -353,10 +369,7 @@ export class TestIsolationGuard {
   /**
    * Generate isolation summary
    */
-  private generateIsolationSummary(
-    leaked: TrackedResource[],
-    orphaned: TrackedResource[]
-  ): string {
+  private generateIsolationSummary(leaked: TrackedResource[], orphaned: TrackedResource[]): string {
     if (leaked.length === 0 && orphaned.length === 0) {
       return 'Test isolation verified - no resource leaks.';
     }
@@ -412,9 +425,10 @@ export class TestIsolationGuard {
       byTest[resource.createdBy] = (byTest[resource.createdBy] ?? 0) + 1;
     }
 
-    const oldestResource = resources.length > 0
-      ? resources.reduce((oldest, r) => r.createdAt < oldest.createdAt ? r : oldest)
-      : undefined;
+    const oldestResource =
+      resources.length > 0
+        ? resources.reduce((oldest, r) => (r.createdAt < oldest.createdAt ? r : oldest))
+        : undefined;
 
     return {
       totalTracked: resources.length,
@@ -461,10 +475,7 @@ export function resetTestIsolationGuard(): void {
 /**
  * Convenience: Track a spreadsheet
  */
-export function trackSpreadsheet(
-  id: string,
-  metadata?: Record<string, unknown>
-): TrackedResource {
+export function trackSpreadsheet(id: string, metadata?: Record<string, unknown>): TrackedResource {
   return getTestIsolationGuard().trackResource('spreadsheet', id, { metadata });
 }
 

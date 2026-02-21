@@ -66,7 +66,7 @@ export class AutoFixer {
 
     for (const [file, fileIssues] of issuesByFile) {
       // Filter auto-fixable issues
-      const fixableIssues = fileIssues.filter(i => i.autoFixable);
+      const fixableIssues = fileIssues.filter((i) => i.autoFixable);
 
       for (const issue of fixableIssues) {
         const result = await this.fixIssue(issue);
@@ -75,7 +75,7 @@ export class AutoFixer {
 
       // Also handle non-auto-fixable but worth attempting
       const attemptableIssues = fileIssues.filter(
-        i => !i.autoFixable && this.shouldAttemptFix(i)
+        (i) => !i.autoFixable && this.shouldAttemptFix(i)
       );
 
       for (const issue of attemptableIssues) {
@@ -86,8 +86,8 @@ export class AutoFixer {
 
     const summary: FixSummary = {
       total: results.length,
-      fixed: results.filter(r => r.success).length,
-      failed: results.filter(r => !r.success && r.reason).length,
+      fixed: results.filter((r) => r.success).length,
+      failed: results.filter((r) => !r.success && r.reason).length,
       skipped: issues.length - results.length,
       results,
       duration: Date.now() - startTime,
@@ -131,12 +131,7 @@ export class AutoFixer {
    */
   private async fixImportOrdering(issue: AnalysisIssue): Promise<FixResult> {
     const content = fs.readFileSync(issue.file, 'utf-8');
-    const sourceFile = ts.createSourceFile(
-      issue.file,
-      content,
-      ts.ScriptTarget.Latest,
-      true
-    );
+    const sourceFile = ts.createSourceFile(issue.file, content, ts.ScriptTarget.Latest, true);
 
     // Extract all imports
     const imports = this.extractImports(sourceFile);
@@ -231,12 +226,7 @@ export class AutoFixer {
    */
   private async fixUnusedImport(issue: AnalysisIssue): Promise<FixResult> {
     const content = fs.readFileSync(issue.file, 'utf-8');
-    const sourceFile = ts.createSourceFile(
-      issue.file,
-      content,
-      ts.ScriptTarget.Latest,
-      true
-    );
+    const sourceFile = ts.createSourceFile(issue.file, content, ts.ScriptTarget.Latest, true);
 
     // Find unused imports
     const unusedImports = this.findUnusedImports(sourceFile);
@@ -257,7 +247,7 @@ export class AutoFixer {
       success: true,
       issue,
       message: 'Unused imports removed',
-      changes: unusedImports.map(u => `Removed: ${u.name}`),
+      changes: unusedImports.map((u) => `Removed: ${u.name}`),
     };
   }
 
@@ -266,12 +256,7 @@ export class AutoFixer {
    */
   private async fixDuplicateImports(issue: AnalysisIssue): Promise<FixResult> {
     const content = fs.readFileSync(issue.file, 'utf-8');
-    const sourceFile = ts.createSourceFile(
-      issue.file,
-      content,
-      ts.ScriptTarget.Latest,
-      true
-    );
+    const sourceFile = ts.createSourceFile(issue.file, content, ts.ScriptTarget.Latest, true);
 
     // Find duplicate imports
     const duplicates = this.findDuplicateImports(sourceFile);
@@ -292,7 +277,7 @@ export class AutoFixer {
       success: true,
       issue,
       message: 'Duplicate imports merged',
-      changes: duplicates.map(d => `Merged: ${d.module}`),
+      changes: duplicates.map((d) => `Merged: ${d.module}`),
     };
   }
 
@@ -314,8 +299,9 @@ export class AutoFixer {
 
   private shouldAttemptFix(issue: AnalysisIssue): boolean {
     // Try to fix low-severity issues even if not marked auto-fixable
-    return issue.severity === 'low' && ['unusedImport', 'duplicateImports'].includes(
-      this.getCategoryFromDimension(issue.dimension)
+    return (
+      issue.severity === 'low' &&
+      ['unusedImport', 'duplicateImports'].includes(this.getCategoryFromDimension(issue.dimension))
     );
   }
 
@@ -335,7 +321,7 @@ export class AutoFixer {
   private extractImports(sourceFile: ts.SourceFile): ImportInfo[] {
     const imports: ImportInfo[] = [];
 
-    sourceFile.forEachChild(node => {
+    sourceFile.forEachChild((node) => {
       if (ts.isImportDeclaration(node)) {
         const moduleSpecifier = node.moduleSpecifier;
         if (ts.isStringLiteral(moduleSpecifier)) {
@@ -383,11 +369,7 @@ export class AutoFixer {
     return true;
   }
 
-  private replaceImports(
-    content: string,
-    original: ImportInfo[],
-    sorted: ImportInfo[]
-  ): string {
+  private replaceImports(content: string, original: ImportInfo[], sorted: ImportInfo[]): string {
     if (original.length === 0) return content;
 
     // Find the import block range
@@ -397,7 +379,7 @@ export class AutoFixer {
     const before = content.substring(0, firstImport.start);
     const after = content.substring(lastImport.end);
 
-    const sortedText = sorted.map(imp => imp.text).join('\n');
+    const sortedText = sorted.map((imp) => imp.text).join('\n');
 
     return before + sortedText + after;
   }
@@ -437,7 +419,7 @@ export class AutoFixer {
     const usedNames = new Set<string>();
 
     // Collect all imports
-    sourceFile.forEachChild(node => {
+    sourceFile.forEachChild((node) => {
       if (ts.isImportDeclaration(node)) {
         const clause = node.importClause;
         if (clause) {
@@ -500,7 +482,7 @@ export class AutoFixer {
   private findDuplicateImports(sourceFile: ts.SourceFile): DuplicateImport[] {
     const importsByModule = new Map<string, ts.ImportDeclaration[]>();
 
-    sourceFile.forEachChild(node => {
+    sourceFile.forEachChild((node) => {
       if (ts.isImportDeclaration(node)) {
         const moduleSpecifier = node.moduleSpecifier;
         if (ts.isStringLiteral(moduleSpecifier)) {
@@ -631,8 +613,8 @@ async function main() {
   console.log(`Duration: ${summary.duration}ms\n`);
 
   // Show details
-  const successful = summary.results.filter(r => r.success);
-  const failed = summary.results.filter(r => !r.success);
+  const successful = summary.results.filter((r) => r.success);
+  const failed = summary.results.filter((r) => !r.success);
 
   if (successful.length > 0) {
     console.log('✅ Successfully Fixed:');

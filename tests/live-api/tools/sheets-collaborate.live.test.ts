@@ -3,22 +3,19 @@
  *
  * Tests sharing, comments, and collaboration operations against the real Google API.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet for all tests.
  */
 
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { LiveApiClient } from '../setup/live-api-client.js';
 import { TestSpreadsheetManager, TestSpreadsheet } from '../setup/test-spreadsheet-manager.js';
-import {
-  loadTestCredentials,
-  shouldRunIntegrationTests,
-} from '../../helpers/credential-loader.js';
+import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 
 const runLiveTests = shouldRunIntegrationTests();
 
 // Helper to add delay between tests to avoid quota limits
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe.skipIf(!runLiveTests)('sheets_collaborate Live API Tests', () => {
   let client: LiveApiClient;
@@ -33,7 +30,7 @@ describe.skipIf(!runLiveTests)('sheets_collaborate Live API Tests', () => {
     }
     client = new LiveApiClient(credentials, { trackMetrics: true });
     manager = new TestSpreadsheetManager(client);
-    
+
     // Create ONE spreadsheet for all tests
     testSpreadsheet = await manager.createTestSpreadsheet('collaborate');
     const meta = await client.sheets.spreadsheets.get({
@@ -110,20 +107,29 @@ describe.skipIf(!runLiveTests)('sheets_collaborate Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addProtectedRange: {
-              protectedRange: {
-                range: { sheetId, startRowIndex: 0, endRowIndex: 5, startColumnIndex: 0, endColumnIndex: 3 },
-                description: 'Header rows - edit with caution',
-                warningOnly: true,
+          requests: [
+            {
+              addProtectedRange: {
+                protectedRange: {
+                  range: {
+                    sheetId,
+                    startRowIndex: 0,
+                    endRowIndex: 5,
+                    startColumnIndex: 0,
+                    endColumnIndex: 3,
+                  },
+                  description: 'Header rows - edit with caution',
+                  warningOnly: true,
+                },
               },
             },
-          }],
+          ],
         },
       });
 
       expect(response.status).toBe(200);
-      const protectedRangeId = response.data.replies![0].addProtectedRange?.protectedRange?.protectedRangeId;
+      const protectedRangeId =
+        response.data.replies![0].addProtectedRange?.protectedRange?.protectedRangeId;
       expect(protectedRangeId).toBeDefined();
     });
 
@@ -131,16 +137,26 @@ describe.skipIf(!runLiveTests)('sheets_collaborate Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addProtectedRange: {
-              protectedRange: {
-                range: { sheetId },
-                description: 'Entire sheet protected',
-                warningOnly: false,
-                unprotectedRanges: [{ sheetId, startRowIndex: 5, endRowIndex: 100, startColumnIndex: 1, endColumnIndex: 5 }],
+          requests: [
+            {
+              addProtectedRange: {
+                protectedRange: {
+                  range: { sheetId },
+                  description: 'Entire sheet protected',
+                  warningOnly: false,
+                  unprotectedRanges: [
+                    {
+                      sheetId,
+                      startRowIndex: 5,
+                      endRowIndex: 100,
+                      startColumnIndex: 1,
+                      endColumnIndex: 5,
+                    },
+                  ],
+                },
               },
             },
-          }],
+          ],
         },
       });
 
@@ -151,18 +167,27 @@ describe.skipIf(!runLiveTests)('sheets_collaborate Live API Tests', () => {
       const addResponse = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addProtectedRange: {
-              protectedRange: {
-                range: { sheetId, startRowIndex: 10, endRowIndex: 11, startColumnIndex: 0, endColumnIndex: 1 },
-                warningOnly: true,
+          requests: [
+            {
+              addProtectedRange: {
+                protectedRange: {
+                  range: {
+                    sheetId,
+                    startRowIndex: 10,
+                    endRowIndex: 11,
+                    startColumnIndex: 0,
+                    endColumnIndex: 1,
+                  },
+                  warningOnly: true,
+                },
               },
             },
-          }],
+          ],
         },
       });
 
-      const protectedRangeId = addResponse.data.replies![0].addProtectedRange?.protectedRange?.protectedRangeId;
+      const protectedRangeId =
+        addResponse.data.replies![0].addProtectedRange?.protectedRange?.protectedRangeId;
 
       const deleteResponse = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
@@ -180,21 +205,24 @@ describe.skipIf(!runLiveTests)('sheets_collaborate Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            createDeveloperMetadata: {
-              developerMetadata: {
-                metadataKey: `app_version_${Date.now()}`,
-                metadataValue: '1.0.0',
-                location: { spreadsheet: true },
-                visibility: 'DOCUMENT',
+          requests: [
+            {
+              createDeveloperMetadata: {
+                developerMetadata: {
+                  metadataKey: `app_version_${Date.now()}`,
+                  metadataValue: '1.0.0',
+                  location: { spreadsheet: true },
+                  visibility: 'DOCUMENT',
+                },
               },
             },
-          }],
+          ],
         },
       });
 
       expect(response.status).toBe(200);
-      const metadataId = response.data.replies![0].createDeveloperMetadata?.developerMetadata?.metadataId;
+      const metadataId =
+        response.data.replies![0].createDeveloperMetadata?.developerMetadata?.metadataId;
       expect(metadataId).toBeDefined();
     });
 
@@ -202,16 +230,18 @@ describe.skipIf(!runLiveTests)('sheets_collaborate Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            createDeveloperMetadata: {
-              developerMetadata: {
-                metadataKey: `sheet_type_${Date.now()}`,
-                metadataValue: 'data',
-                location: { sheetId },
-                visibility: 'DOCUMENT',
+          requests: [
+            {
+              createDeveloperMetadata: {
+                developerMetadata: {
+                  metadataKey: `sheet_type_${Date.now()}`,
+                  metadataValue: 'data',
+                  location: { sheetId },
+                  visibility: 'DOCUMENT',
+                },
               },
             },
-          }],
+          ],
         },
       });
 
@@ -220,20 +250,22 @@ describe.skipIf(!runLiveTests)('sheets_collaborate Live API Tests', () => {
 
     it('should find metadata by key', async () => {
       const testKey = `test_key_${Date.now()}`;
-      
+
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            createDeveloperMetadata: {
-              developerMetadata: {
-                metadataKey: testKey,
-                metadataValue: 'test_value',
-                location: { spreadsheet: true },
-                visibility: 'DOCUMENT',
+          requests: [
+            {
+              createDeveloperMetadata: {
+                developerMetadata: {
+                  metadataKey: testKey,
+                  metadataValue: 'test_value',
+                  location: { spreadsheet: true },
+                  visibility: 'DOCUMENT',
+                },
               },
             },
-          }],
+          ],
         },
       });
 

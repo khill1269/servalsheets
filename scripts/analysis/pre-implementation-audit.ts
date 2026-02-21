@@ -105,7 +105,7 @@ class PreImplementationAuditor {
     results.push(await this.auditGitStatus());
 
     // Check if we should continue
-    const hasBlockers = results.some(r => r.blockers > 0);
+    const hasBlockers = results.some((r) => r.blockers > 0);
     if (hasBlockers && this.config.strictMode) {
       console.log('\n❌ BLOCKING ISSUES FOUND - Stopping audit\n');
       return {
@@ -193,13 +193,13 @@ class PreImplementationAuditor {
       });
     }
 
-    const blockers = issues.filter(i => i.severity === 'critical').length;
-    const warnings = issues.filter(i => i.severity !== 'critical').length;
+    const blockers = issues.filter((i) => i.severity === 'critical').length;
+    const warnings = issues.filter((i) => i.severity !== 'critical').length;
 
     return {
       category: 'Build Health',
       status: blockers > 0 ? 'fail' : warnings > 0 ? 'warning' : 'pass',
-      score: Math.max(0, 100 - (blockers * 50) - (warnings * 10)),
+      score: Math.max(0, 100 - blockers * 50 - warnings * 10),
       issues,
       duration: Date.now() - startTime,
       blockers,
@@ -219,9 +219,7 @@ class PreImplementationAuditor {
         cwd: this.config.projectRoot,
       });
 
-      const auditData = JSON.parse(
-        fs.readFileSync('/tmp/npm-audit.json', 'utf-8')
-      );
+      const auditData = JSON.parse(fs.readFileSync('/tmp/npm-audit.json', 'utf-8'));
 
       if (auditData.metadata.vulnerabilities.critical > 0) {
         issues.push({
@@ -286,13 +284,13 @@ class PreImplementationAuditor {
       });
     }
 
-    const blockers = issues.filter(i => i.severity === 'critical').length;
-    const warnings = issues.filter(i => i.severity !== 'critical').length;
+    const blockers = issues.filter((i) => i.severity === 'critical').length;
+    const warnings = issues.filter((i) => i.severity !== 'critical').length;
 
     return {
       category: 'Dependency Health',
       status: blockers > 0 ? 'fail' : warnings > 0 ? 'warning' : 'pass',
-      score: Math.max(0, 100 - (blockers * 50) - (warnings * 10)),
+      score: Math.max(0, 100 - blockers * 50 - warnings * 10),
       issues,
       duration: Date.now() - startTime,
       blockers,
@@ -325,9 +323,9 @@ class PreImplementationAuditor {
       }
 
       // Check for untracked files in src/
-      const untrackedInSrc = status.split('\n').filter(line =>
-        line.startsWith('??') && line.includes('src/')
-      );
+      const untrackedInSrc = status
+        .split('\n')
+        .filter((line) => line.startsWith('??') && line.includes('src/'));
 
       if (untrackedInSrc.length > 0) {
         issues.push({
@@ -347,12 +345,12 @@ class PreImplementationAuditor {
     }
 
     const blockers = 0; // Git issues don't block
-    const warnings = issues.filter(i => i.severity !== 'info').length;
+    const warnings = issues.filter((i) => i.severity !== 'info').length;
 
     return {
       category: 'Git Status',
       status: warnings > 0 ? 'warning' : 'pass',
-      score: Math.max(0, 100 - (warnings * 5)),
+      score: Math.max(0, 100 - warnings * 5),
       issues,
       duration: Date.now() - startTime,
       blockers,
@@ -368,10 +366,10 @@ class PreImplementationAuditor {
 
     // Run multi-agent analysis on all handlers
     try {
-      const output = execSync(
-        'npm run analyze:dir src/handlers/ --format=json',
-        { cwd: this.config.projectRoot, encoding: 'utf-8' }
-      );
+      const output = execSync('npm run analyze:dir src/handlers/ --format=json', {
+        cwd: this.config.projectRoot,
+        encoding: 'utf-8',
+      });
 
       const results = JSON.parse(output);
 
@@ -398,13 +396,13 @@ class PreImplementationAuditor {
       });
     }
 
-    const blockers = issues.filter(i => i.severity === 'critical').length;
-    const warnings = issues.filter(i => ['high', 'medium'].includes(i.severity)).length;
+    const blockers = issues.filter((i) => i.severity === 'critical').length;
+    const warnings = issues.filter((i) => ['high', 'medium'].includes(i.severity)).length;
 
     return {
       category: 'Code Quality',
       status: blockers > 0 ? 'fail' : warnings > 5 ? 'warning' : 'pass',
-      score: Math.max(0, 100 - (blockers * 50) - (warnings * 5)),
+      score: Math.max(0, 100 - blockers * 50 - warnings * 5),
       issues,
       duration: Date.now() - startTime,
       blockers,
@@ -420,10 +418,10 @@ class PreImplementationAuditor {
 
     // Check for 'any' types
     try {
-      const anyCount = execSync(
-        'grep -r ":\\s*any" src/ --include="*.ts" | wc -l',
-        { cwd: this.config.projectRoot, encoding: 'utf-8' }
-      ).trim();
+      const anyCount = execSync('grep -r ":\\s*any" src/ --include="*.ts" | wc -l', {
+        cwd: this.config.projectRoot,
+        encoding: 'utf-8',
+      }).trim();
 
       const count = parseInt(anyCount);
       if (count > 0) {
@@ -465,7 +463,7 @@ class PreImplementationAuditor {
     return {
       category: 'Type Safety',
       status: warnings > 10 ? 'warning' : 'pass',
-      score: Math.max(0, 100 - (warnings * 5)),
+      score: Math.max(0, 100 - warnings * 5),
       issues,
       duration: Date.now() - startTime,
       blockers,
@@ -488,10 +486,10 @@ class PreImplementationAuditor {
       ];
 
       for (const pattern of secretPatterns) {
-        const matches = execSync(
-          `grep -rE "${pattern}" src/ --include="*.ts" | wc -l`,
-          { cwd: this.config.projectRoot, encoding: 'utf-8' }
-        ).trim();
+        const matches = execSync(`grep -rE "${pattern}" src/ --include="*.ts" | wc -l`, {
+          cwd: this.config.projectRoot,
+          encoding: 'utf-8',
+        }).trim();
 
         const count = parseInt(matches);
         if (count > 0) {
@@ -528,13 +526,13 @@ class PreImplementationAuditor {
       // grep failed
     }
 
-    const blockers = issues.filter(i => i.severity === 'critical').length;
-    const warnings = issues.filter(i => i.severity !== 'critical').length;
+    const blockers = issues.filter((i) => i.severity === 'critical').length;
+    const warnings = issues.filter((i) => i.severity !== 'critical').length;
 
     return {
       category: 'Security',
       status: blockers > 0 ? 'fail' : warnings > 0 ? 'warning' : 'pass',
-      score: Math.max(0, 100 - (blockers * 50) - (warnings * 20)),
+      score: Math.max(0, 100 - blockers * 50 - warnings * 20),
       issues,
       duration: Date.now() - startTime,
       blockers,
@@ -597,7 +595,6 @@ class PreImplementationAuditor {
 
       // Parse coverage report
       // TODO: Implement coverage parsing
-
     } catch (error) {
       issues.push({
         severity: 'high',
@@ -664,8 +661,8 @@ class PreImplementationAuditor {
       score: issues.length > 0 ? 50 : 100,
       issues,
       duration: Date.now() - startTime,
-      blockers: issues.filter(i => i.severity === 'critical').length,
-      warnings: issues.filter(i => i.severity !== 'critical').length,
+      blockers: issues.filter((i) => i.severity === 'critical').length,
+      warnings: issues.filter((i) => i.severity !== 'critical').length,
       recommendations: this.generateRecommendations(issues),
     };
   }
@@ -689,11 +686,11 @@ class PreImplementationAuditor {
     // Weighted average (security and integration are most important)
     const overall =
       breakdown.security * 0.25 +
-      breakdown.integration * 0.20 +
+      breakdown.integration * 0.2 +
       breakdown.testing * 0.15 +
       breakdown.codeQuality * 0.15 +
-      breakdown.typeSafety * 0.10 +
-      breakdown.dependencies * 0.10 +
+      breakdown.typeSafety * 0.1 +
+      breakdown.dependencies * 0.1 +
       breakdown.documentation * 0.03 +
       breakdown.performance * 0.02;
 
@@ -723,15 +720,15 @@ class PreImplementationAuditor {
   }
 
   private getScoreForCategory(results: AuditResult[], category: string): number {
-    const result = results.find(r => r.category === category);
+    const result = results.find((r) => r.category === category);
     return result ? result.score : 100; // Default to perfect if not run
   }
 
   private generateRecommendations(issues: AuditIssue[]): string[] {
     const recommendations: string[] = [];
 
-    const critical = issues.filter(i => i.severity === 'critical');
-    const high = issues.filter(i => i.severity === 'high');
+    const critical = issues.filter((i) => i.severity === 'critical');
+    const high = issues.filter((i) => i.severity === 'high');
 
     if (critical.length > 0) {
       recommendations.push(`Fix ${critical.length} critical issue(s) immediately`);
@@ -741,7 +738,7 @@ class PreImplementationAuditor {
       recommendations.push(`Address ${high.length} high-priority issue(s) before proceeding`);
     }
 
-    const autoFixable = issues.filter(i => i.autoFixable);
+    const autoFixable = issues.filter((i) => i.autoFixable);
     if (autoFixable.length > 0) {
       recommendations.push(`${autoFixable.length} issue(s) can be auto-fixed`);
     }

@@ -7,9 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import {
-  prepareSchemaForRegistration,
-} from '../../src/mcp/registration/schema-helpers.js';
+import { prepareSchemaForRegistration } from '../../src/mcp/registration/schema-helpers.js';
 import { TOOL_DEFINITIONS } from '../../src/mcp/registration/tool-definitions.js';
 import { DEFER_SCHEMAS, DEFER_DESCRIPTIONS } from '../../src/config/constants.js';
 import { zodSchemaToJsonSchema } from '../../src/utils/schema-compat.js';
@@ -148,11 +146,10 @@ describe('Deferred Schema Mode', () => {
       let totalSize = 0;
       for (const tool of TOOL_DEFINITIONS) {
         // Measure the PREPARED (deferred) schemas, not raw definitions
-        const preparedInput = prepareSchemaForRegistration(
-          tool.inputSchema as z.ZodType, 'input'
-        );
+        const preparedInput = prepareSchemaForRegistration(tool.inputSchema as z.ZodType, 'input');
         const preparedOutput = prepareSchemaForRegistration(
-          tool.outputSchema as z.ZodType, 'output'
+          tool.outputSchema as z.ZodType,
+          'output'
         );
         const inputJson = zodSchemaToJsonSchema(preparedInput as z.ZodType);
         const outputJson = zodSchemaToJsonSchema(preparedOutput as z.ZodType);
@@ -160,7 +157,7 @@ describe('Deferred Schema Mode', () => {
         totalSize += JSON.stringify(outputJson).length;
       }
 
-      // 21 tools: flat input schemas (~23KB) + minimal output schemas (~5KB) ≈ ~28KB
+      // 22 tools: flat input schemas (~23KB) + minimal output schemas (~5KB) ≈ ~28KB
       // With action enums and property descriptions, budget is ~50KB
       expect(totalSize).toBeLessThan(50_000);
     });

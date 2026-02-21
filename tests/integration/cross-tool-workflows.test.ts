@@ -288,12 +288,7 @@ describe('Workflow: Transactional Update', () => {
         action: 'write' as const,
         spreadsheetId,
         range: { a1: 'Inventory!C2:C5' },
-        values: [
-          ['=NOW()'],
-          ['=NOW()'],
-          ['=NOW()'],
-          ['=NOW()'],
-        ],
+        values: [['=NOW()'], ['=NOW()'], ['=NOW()'], ['=NOW()']],
         valueInputOption: 'USER_ENTERED',
       },
     };
@@ -467,7 +462,7 @@ describe('Workflow: Template-Based Creation', () => {
         values: [
           ['Widget Pro', 5, 99.99, '=B10*C10'],
           ['Support Package', 1, 299.99, '=B11*C11'],
-          ['Shipping', 1, 15.00, '=B12*C12'],
+          ['Shipping', 1, 15.0, '=B12*C12'],
         ],
         valueInputOption: 'USER_ENTERED',
       },
@@ -619,11 +614,7 @@ describe('Workflow: Batch Operations', () => {
       request: {
         action: 'batch_read' as const,
         spreadsheetId,
-        ranges: [
-          { a1: 'Sales!A1:D100' },
-          { a1: 'Inventory!A1:C50' },
-          { a1: 'Customers!A1:E200' },
-        ],
+        ranges: [{ a1: 'Sales!A1:D100' }, { a1: 'Inventory!A1:C50' }, { a1: 'Customers!A1:E200' }],
       },
     };
 
@@ -663,10 +654,7 @@ describe('Workflow: Batch Operations', () => {
       request: {
         action: 'batch_clear' as const,
         spreadsheetId,
-        ranges: [
-          { a1: 'Temp!A:Z' },
-          { a1: 'Cache!A:Z' },
-        ],
+        ranges: [{ a1: 'Temp!A:Z' }, { a1: 'Cache!A:Z' }],
       },
     };
 
@@ -696,7 +684,11 @@ describe('Workflow: Conditional Formatting', () => {
         rule: {
           type: 'gradient' as const,
           minpoint: { type: 'MIN' as const, color: { red: 1, green: 0.8, blue: 0.8 } },
-          midpoint: { type: 'PERCENTILE' as const, value: '50', color: { red: 1, green: 1, blue: 0.8 } },
+          midpoint: {
+            type: 'PERCENTILE' as const,
+            value: '50',
+            color: { red: 1, green: 1, blue: 0.8 },
+          },
           maxpoint: { type: 'MAX' as const, color: { red: 0.8, green: 1, blue: 0.8 } },
         },
       },

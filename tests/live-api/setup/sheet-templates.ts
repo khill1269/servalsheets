@@ -76,9 +76,13 @@ export const TEMPLATE_FORMULAS: SheetTemplate = {
 /**
  * Large template - 1000 rows with 26 columns (A-Z)
  */
-export function generateLargeTemplate(rowCount: number = 1000, columnCount: number = 26): SheetTemplate {
-  const headers = Array.from({ length: columnCount }, (_, i) =>
-    String.fromCharCode(65 + (i % 26)) + (i >= 26 ? Math.floor(i / 26).toString() : '')
+export function generateLargeTemplate(
+  rowCount: number = 1000,
+  columnCount: number = 26
+): SheetTemplate {
+  const headers = Array.from(
+    { length: columnCount },
+    (_, i) => String.fromCharCode(65 + (i % 26)) + (i >= 26 ? Math.floor(i / 26).toString() : '')
   );
 
   const data: unknown[][] = [];
@@ -87,11 +91,21 @@ export function generateLargeTemplate(rowCount: number = 1000, columnCount: numb
     for (let col = 0; col < columnCount; col++) {
       // Mix of data types
       switch (col % 5) {
-        case 0: rowData.push(row + 1); break; // Number (ID)
-        case 1: rowData.push(`Row ${row + 1} Col ${col + 1}`); break; // String
-        case 2: rowData.push(Math.random() * 1000); break; // Float
-        case 3: rowData.push(row % 2 === 0); break; // Boolean
-        case 4: rowData.push(new Date(2024, 0, row + 1).toISOString().split('T')[0]); break; // Date
+        case 0:
+          rowData.push(row + 1);
+          break; // Number (ID)
+        case 1:
+          rowData.push(`Row ${row + 1} Col ${col + 1}`);
+          break; // String
+        case 2:
+          rowData.push(Math.random() * 1000);
+          break; // Float
+        case 3:
+          rowData.push(row % 2 === 0);
+          break; // Boolean
+        case 4:
+          rowData.push(new Date(2024, 0, row + 1).toISOString().split('T')[0]);
+          break; // Date
       }
     }
     data.push(rowData);
@@ -120,8 +134,20 @@ export const TEMPLATE_UNICODE: SheetTemplate = {
     // European Languages
     ['English', 'Hello', 'The quick brown fox jumps over the lazy dog', '123,456.78', '© ® ™'],
     ['Spanish', 'Hola', 'El veloz murciélago hindú comía feliz cardillo', '123.456,78', '¿¡áéíóúñ'],
-    ['French', 'Bonjour', 'Portez ce vieux whisky au juge blond qui fume', '123 456,78', 'àâæçéèêë'],
-    ['German', 'Guten Tag', 'Falsches Üben von Xylophonmusik quält jeden größeren Zwerg', '123.456,78', 'äöüß'],
+    [
+      'French',
+      'Bonjour',
+      'Portez ce vieux whisky au juge blond qui fume',
+      '123 456,78',
+      'àâæçéèêë',
+    ],
+    [
+      'German',
+      'Guten Tag',
+      'Falsches Üben von Xylophonmusik quält jeden größeren Zwerg',
+      '123.456,78',
+      'äöüß',
+    ],
     ['Portuguese', 'Olá', 'Vejam a bruxa da raposa verde', '123.456,78', 'ãõç'],
     ['Italian', 'Ciao', 'Quel fsjfhzqui vituperabile xenofobo', '123.456,78', 'àèéìòù'],
     ['Polish', 'Cześć', 'Pchnąć w tę łódź jeża lub ośm skrzyń fig', '123 456,78', 'ąćęłńóśźż'],
@@ -186,7 +212,7 @@ export const TEMPLATE_EDGE_CASES: SheetTemplate = {
     ['String', '', 'Empty string', '', 'Falsy'],
     ['String', ' ', 'Single space', ' ', 'Whitespace'],
     ['String', '\t\n\r', 'Control chars', 'Tab, LF, CR', 'Whitespace'],
-    ['String', '\'quotes\'', 'Single quotes', '\'quotes\'', 'Escape test'],
+    ['String', "'quotes'", 'Single quotes', "'quotes'", 'Escape test'],
     ['String', '"double"', 'Double quotes', '"double"', 'Escape test'],
     ['String', 'back\\slash', 'Backslash', 'back\\slash', 'Escape test'],
     ['String', 'line\nbreak', 'Newline', 'Multi-line', 'In cell'],
@@ -210,7 +236,7 @@ export const TEMPLATE_EDGE_CASES: SheetTemplate = {
 
     // Formula edge cases (as strings to not evaluate)
     ['Formula', '=1+1', 'Simple formula', '2', 'Will evaluate'],
-    ['Formula', '\'=1+1', 'Escaped formula', '=1+1', 'Text prefix'],
+    ['Formula', "'=1+1", 'Escaped formula', '=1+1', 'Text prefix'],
     ['Formula', '=A1', 'Self reference', '#REF!', 'Circular'],
     ['Formula', '=INDIRECT("A1")', 'Indirect ref', 'Dynamic', 'Volatile'],
   ],

@@ -1,6 +1,6 @@
 name: ✨ Feature Request
 description: Suggest a new feature or enhancement for ServalSheets
-labels: ["enhancement", "needs-triage"]
+labels: ['enhancement', 'needs-triage']
 body:
   - type: markdown
     attributes:
@@ -33,7 +33,7 @@ body:
     attributes:
       label: Proposed Solution
       description: Describe the feature you'd like to see
-      placeholder: "Add a new action to sheets_format that automatically applies formatting based on data types..."
+      placeholder: 'Add a new action to sheets_format that automatically applies formatting based on data types...'
     validations:
       required: true
 

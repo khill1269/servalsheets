@@ -129,10 +129,7 @@ describe('PrefetchPredictor', () => {
 
       const mockExecutor = vi.fn();
 
-      const results = await disabledPredictor.prefetchInBackground(
-        mockPredictions,
-        mockExecutor
-      );
+      const results = await disabledPredictor.prefetchInBackground(mockPredictions, mockExecutor);
 
       expect(results).toEqual([]);
       expect(mockExecutor).not.toHaveBeenCalled();

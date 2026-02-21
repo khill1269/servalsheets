@@ -114,7 +114,9 @@ export class LiveApiClient {
       oauth2Client.setCredentials(credentials.oauth.tokens);
       auth = oauth2Client;
     } else {
-      throw new Error('No valid credentials found. Provide either serviceAccount or oauth credentials.');
+      throw new Error(
+        'No valid credentials found. Provide either serviceAccount or oauth credentials.'
+      );
     }
 
     this.sheetsApi = google.sheets({ version: 'v4', auth });
@@ -218,14 +220,11 @@ export class LiveApiClient {
 
     // Wrap with retry if enabled
     if (this.options.useRetryManager) {
-      return executeWithTestRetry(
-        async () => this.trackOperation(operation, method, fn),
-        {
-          operationName: operation,
-          ...this.options.retryOptions,
-          ...retryOptions,
-        }
-      );
+      return executeWithTestRetry(async () => this.trackOperation(operation, method, fn), {
+        operationName: operation,
+        ...this.options.retryOptions,
+        ...retryOptions,
+      });
     }
 
     // Otherwise just track
@@ -398,13 +397,9 @@ let liveClientInstance: LiveApiClient | null = null;
  * Get the singleton live API client
  * Throws if credentials are not configured
  */
-export async function getLiveApiClient(
-  options: LiveApiClientOptions = {}
-): Promise<LiveApiClient> {
+export async function getLiveApiClient(options: LiveApiClientOptions = {}): Promise<LiveApiClient> {
   if (!shouldRunIntegrationTests()) {
-    throw new Error(
-      'Live API tests are not enabled. Set TEST_REAL_API=true to run live tests.'
-    );
+    throw new Error('Live API tests are not enabled. Set TEST_REAL_API=true to run live tests.');
   }
 
   if (!liveClientInstance) {

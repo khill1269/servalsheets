@@ -68,25 +68,30 @@ clasp open
 ### Quick Actions (9 buttons)
 
 **AI Analysis:**
+
 - 📊 **Analyze** - Comprehensive data analysis
 - 🔢 **Formula** - Generate formulas from natural language
 - 📈 **Chart** - Create/suggest charts
 - 🔍 **Patterns** - Detect data patterns
 
 **Spreadsheet Management:**
+
 - 📋 **Sheets** - List all sheets/tabs with IDs
 - ➕ **Add Sheet** - Create new sheet with custom name
 
 **Data Operations:**
+
 - ➕ **Rows** - Insert rows at specified position
 
 **Collaboration:**
+
 - 👥 **Share** - Share spreadsheet with users
 - 💬 **Comments** - List all comments
 
 ### API Coverage
 
 **19 wrapper functions across 7 tools:**
+
 - sheets_data (read, write)
 - sheets_analyze (comprehensive analysis, formulas, patterns)
 - sheets_visualize (charts and suggestions)
@@ -106,7 +111,7 @@ const CONFIG = {
   API_URL: 'http://localhost:3000',
   API_KEY_PROPERTY: 'SERVALSHEETS_API_KEY',
   PLAN_PROPERTY: 'SERVALSHEETS_PLAN',
-  SESSION_ID_PROPERTY: 'SERVALSHEETS_SESSION_ID'
+  SESSION_ID_PROPERTY: 'SERVALSHEETS_SESSION_ID',
 };
 ```
 
@@ -182,6 +187,7 @@ Note: For local testing with OAuth disabled, you can use any dummy key like "tes
 **Symptoms:** Errors about invalid session after initialization
 
 **Solutions:**
+
 1. Clear cached session: Call `clearSession()` from Apps Script console
 2. Check server logs for session creation
 3. Verify server is running at the configured URL
@@ -189,6 +195,7 @@ Note: For local testing with OAuth disabled, you can use any dummy key like "tes
 ### Issue: "No ServalSheets menu appears"
 
 **Solutions:**
+
 1. Run `onOpen()` from Apps Script editor
 2. Refresh the Google Sheets page
 3. Check browser console for errors
@@ -197,6 +204,7 @@ Note: For local testing with OAuth disabled, you can use any dummy key like "tes
 ### Issue: "Server connection failed"
 
 **Solutions:**
+
 1. Verify backend server is running: `lsof -i:3000`
 2. Check API_URL in CONFIG matches server address
 3. For production: verify CORS settings allow Apps Script origin
@@ -235,6 +243,7 @@ Note: For local testing with OAuth disabled, you can use any dummy key like "tes
 ### Backend Deployment Options
 
 **Option 1: Railway**
+
 ```bash
 railway login
 railway init
@@ -242,11 +251,13 @@ railway up
 ```
 
 **Option 2: Render**
+
 - Connect GitHub repo
 - Set build command: `npm run build`
 - Set start command: `node dist/cli.js --http --port 3000`
 
 **Option 3: Google Cloud Run**
+
 ```bash
 gcloud run deploy servalsheets \
   --source . \
@@ -287,11 +298,13 @@ gcloud run deploy servalsheets \
 **Project Repository:** https://github.com/khill1269/servalsheets
 
 **Documentation:**
+
 - Architecture: See `docs/development/`
 - API Reference: See `docs/reference/`
 - Troubleshooting: See `docs/guides/`
 
 **Development Files:**
+
 - Source: `add-on/*.gs` and `add-on/*.html`
 - Status: `add-on/IMPLEMENTATION_STATUS.md`
 - Changes: `add-on/CHANGES.md`
@@ -311,6 +324,7 @@ After successful deployment:
 ### v1.0.0 (2026-02-17) - Phase 1 Complete
 
 **Features:**
+
 - 19 tool wrapper functions
 - 7 tools covered (sheets_data, sheets_analyze, sheets_visualize, sheets_format, sheets_core, sheets_dimensions, sheets_collaborate)
 - 9 quick action UI buttons
@@ -318,6 +332,7 @@ After successful deployment:
 - Automatic session retry logic
 
 **Files:**
+
 - Code.gs: 727 lines
 - Sidebar.html: 573 lines
 - Settings.html: 223 lines

@@ -2,7 +2,7 @@ name: Sync Documentation
 
 on:
   workflow_run:
-    workflows: ["106-Category Audit"]
+    workflows: ['106-Category Audit']
     types:
       - completed
 
@@ -89,7 +89,7 @@ jobs:
             Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
           branch: docs/audit-sync-${{ github.run_number }}
           delete-branch: true
-          title: "docs: sync audit results (${{ steps.check-results.outputs.score }}%)"
+          title: 'docs: sync audit results (${{ steps.check-results.outputs.score }}%)'
           body: |
             ## 📊 Audit Documentation Sync
 

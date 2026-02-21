@@ -3,17 +3,14 @@
  *
  * Tests analysis operations against the real Google API.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet, no beforeEach data clearing.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { LiveApiClient } from '../setup/live-api-client.js';
 import { TestSpreadsheetManager, TestSpreadsheet } from '../setup/test-spreadsheet-manager.js';
-import {
-  loadTestCredentials,
-  shouldRunIntegrationTests,
-} from '../../helpers/credential-loader.js';
+import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 
 const runLiveTests = shouldRunIntegrationTests();
 
@@ -30,7 +27,7 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
     }
     client = new LiveApiClient(credentials, { trackMetrics: true });
     manager = new TestSpreadsheetManager(client);
-    
+
     testSpreadsheet = await manager.createTestSpreadsheet('analyze');
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,
@@ -129,7 +126,13 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
         range: 'TestData!M1:N5',
         valueInputOption: 'RAW',
         requestBody: {
-          values: [['ID', 'Value'], ['A001', '100'], ['A002', '200'], ['A001', '150'], ['A003', '300']],
+          values: [
+            ['ID', 'Value'],
+            ['A001', '100'],
+            ['A002', '200'],
+            ['A001', '150'],
+            ['A003', '300'],
+          ],
         },
       });
 
@@ -138,7 +141,7 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
         range: 'TestData!M1:N5',
       });
 
-      const ids = response.data.values!.slice(1).map(row => row[0]);
+      const ids = response.data.values!.slice(1).map((row) => row[0]);
       const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
       expect(duplicates).toContain('A001');
     });
@@ -168,7 +171,7 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
 
       const departments = response.data.values!.flat();
       const distribution: Record<string, number> = {};
-      departments.forEach(dept => {
+      departments.forEach((dept) => {
         distribution[dept] = (distribution[dept] || 0) + 1;
       });
 
@@ -185,9 +188,18 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
         requestBody: {
           values: [
             ['Month', 'Revenue'],
-            ['Jan', '10000'], ['Feb', '11500'], ['Mar', '12000'], ['Apr', '13500'],
-            ['May', '14000'], ['Jun', '15500'], ['Jul', '16000'], ['Aug', '17500'],
-            ['Sep', '18000'], ['Oct', '19500'], ['Nov', '20000'], ['Dec', '21500'],
+            ['Jan', '10000'],
+            ['Feb', '11500'],
+            ['Mar', '12000'],
+            ['Apr', '13500'],
+            ['May', '14000'],
+            ['Jun', '15500'],
+            ['Jul', '16000'],
+            ['Aug', '17500'],
+            ['Sep', '18000'],
+            ['Oct', '19500'],
+            ['Nov', '20000'],
+            ['Dec', '21500'],
           ],
         },
       });
@@ -201,7 +213,10 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
       const values = response.data.values!.flat().map(Number);
       let isUpwardTrend = true;
       for (let i = 1; i < values.length; i++) {
-        if (values[i] < values[i - 1]) { isUpwardTrend = false; break; }
+        if (values[i] < values[i - 1]) {
+          isUpwardTrend = false;
+          break;
+        }
       }
       expect(isUpwardTrend).toBe(true);
     });
@@ -214,8 +229,15 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
         requestBody: {
           values: [
             ['ID', 'Value'],
-            ['1', '100'], ['2', '105'], ['3', '98'], ['4', '102'],
-            ['5', '500'], ['6', '99'], ['7', '103'], ['8', '97'], ['9', '101'],
+            ['1', '100'],
+            ['2', '105'],
+            ['3', '98'],
+            ['4', '102'],
+            ['5', '500'],
+            ['6', '99'],
+            ['7', '103'],
+            ['8', '97'],
+            ['9', '101'],
           ],
         },
       });
@@ -228,9 +250,10 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
 
       const values = response.data.values!.flat().map(Number);
       const mean = values.reduce((a, b) => a + b, 0) / values.length;
-      const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+      const variance =
+        values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
       const stdDev = Math.sqrt(variance);
-      const outliers = values.filter(v => Math.abs(v - mean) > 2 * stdDev);
+      const outliers = values.filter((v) => Math.abs(v - mean) > 2 * stdDev);
       expect(outliers).toContain(500);
     });
   });
@@ -259,8 +282,8 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
       });
 
       const formulas = response.data.values!.flat();
-      expect(formulas.some(f => f.includes('SUM'))).toBe(true);
-      expect(formulas.some(f => f.includes('AVERAGE'))).toBe(true);
+      expect(formulas.some((f) => f.includes('SUM'))).toBe(true);
+      expect(formulas.some((f) => f.includes('AVERAGE'))).toBe(true);
     });
 
     it('should detect formula errors', async () => {
@@ -278,7 +301,7 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
       });
 
       const values = response.data.values!.flat();
-      expect(values.some(v => v.includes('#'))).toBe(true);
+      expect(values.some((v) => v.includes('#'))).toBe(true);
     });
   });
 
@@ -315,7 +338,7 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
         fields: 'sheets(properties(sheetId,title,gridProperties))',
       });
 
-      response.data.sheets!.forEach(sheet => {
+      response.data.sheets!.forEach((sheet) => {
         expect(sheet.properties?.sheetId).toBeDefined();
         expect(sheet.properties?.title).toBeDefined();
       });
@@ -352,7 +375,11 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
     it('should handle sampling for large datasets', async () => {
       const largeData = [['ID', 'Value', 'Category']];
       for (let i = 1; i <= 100; i++) {
-        largeData.push([String(i), String(Math.floor(Math.random() * 1000)), ['A', 'B', 'C'][i % 3]]);
+        largeData.push([
+          String(i),
+          String(Math.floor(Math.random() * 1000)),
+          ['A', 'B', 'C'][i % 3],
+        ]);
       }
 
       await client.sheets.spreadsheets.values.update({

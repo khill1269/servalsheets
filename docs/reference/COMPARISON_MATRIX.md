@@ -41,7 +41,7 @@ A comprehensive comparison of Google Sheets integration options for AI/LLM appli
 - 🎯 Purpose-built for MCP and Claude
 - 🛡️ Comprehensive safety rails (dry-run, confirmations, effect limits)
 - 🤖 AI-powered features (formula generation, chart recommendations)
-- 📊 299 actions covering 100% of Sheets API v4
+- 📊 305 actions covering 100% of Sheets API v4
 - 🔄 Smart request deduplication and batching
 - 📈 Built-in monitoring and observability
 - 🔐 Enterprise security (OAuth 2.1, CSRF protection)
@@ -183,7 +183,7 @@ function updateSheet() {
 
 | MCP Feature       | ServalSheets             | Availability Elsewhere |
 | ----------------- | ------------------------ | ---------------------- |
-| Tools             | ✅ 22 tools, 299 actions | ❌ Not MCP             |
+| Tools             | ✅ 22 tools, 305 actions | ❌ Not MCP             |
 | Resources         | ✅ 6 URI templates       | ❌ Not MCP             |
 | Prompts           | ✅ 6 guided workflows    | ❌ Not MCP             |
 | Task cancellation | ✅ Full AbortController  | ❌ Not MCP             |
@@ -210,7 +210,7 @@ function updateSheet() {
 - Need safety rails for destructive operations
 - Want AI-powered spreadsheet features
 - Require enterprise-grade security
-- Need comprehensive API coverage (299 actions)
+- Need comprehensive API coverage (305 actions)
 - Want self-hosted deployment options
 
 ❌ **Consider alternatives if you:**
@@ -256,7 +256,7 @@ ServalSheets is the **only MCP-native Google Sheets integration** with:
 - Comprehensive safety rails
 - AI-powered features
 - Enterprise-grade security
-- 299 actions covering the complete Sheets API
+- 305 actions covering the complete Sheets API
 
 For AI applications and Claude Desktop users, ServalSheets provides unmatched functionality and safety features that no other solution offers.
 

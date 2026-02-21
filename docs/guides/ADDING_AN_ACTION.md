@@ -37,6 +37,7 @@ tags: [tutorial, action, development, schema]
 We'll add a `clear_range` action to the existing `sheets_data` tool.
 
 **New action will:**
+
 - Clear values from a specified range
 - Support optional clearing of formatting
 - Return success confirmation with cleared range
@@ -79,14 +80,15 @@ export const SheetsDataInputSchema = z.discriminatedUnion('action', [
     /** Range to clear in A1 notation */
     range: z.string().describe('Range in A1 notation (e.g., "Sheet1!A1:B10")'),
     /** Clear formatting as well as values */
-    clearFormatting: z.boolean().optional().default(false).describe('Also clear formatting')
-  })
+    clearFormatting: z.boolean().optional().default(false).describe('Also clear formatting'),
+  }),
 ]);
 ```
 
 ### Schema Best Practices
 
 ✅ **Do:**
+
 - Add to existing `z.discriminatedUnion('action', [...])`
 - Use unique `action` literal (e.g., `'clear_range'`)
 - Add JSDoc comments with `/** */`
@@ -94,6 +96,7 @@ export const SheetsDataInputSchema = z.discriminatedUnion('action', [
 - Provide sensible defaults with `.default()`
 
 ❌ **Don't:**
+
 - Create a new schema file (add to existing)
 - Forget the `action` literal field
 - Skip descriptions
@@ -144,14 +147,14 @@ export class DataHandler extends BaseHandler<SheetsDataInput, SheetsDataOutput> 
     this.context.logger.info('Clearing range', {
       spreadsheetId,
       range,
-      clearFormatting
+      clearFormatting,
     });
 
     try {
       // Clear values
       await this.context.googleClient.sheets.spreadsheets.values.clear({
         spreadsheetId,
-        range
+        range,
       });
 
       // Optionally clear formatting
@@ -159,28 +162,28 @@ export class DataHandler extends BaseHandler<SheetsDataInput, SheetsDataOutput> 
         // Get sheet ID from range
         const sheetName = range.split('!')[0];
         const spreadsheet = await this.context.googleClient.sheets.spreadsheets.get({
-          spreadsheetId
+          spreadsheetId,
         });
 
-        const sheet = spreadsheet.data.sheets?.find(
-          s => s.properties?.title === sheetName
-        );
+        const sheet = spreadsheet.data.sheets?.find((s) => s.properties?.title === sheetName);
 
         if (sheet) {
           await this.context.googleClient.sheets.spreadsheets.batchUpdate({
             spreadsheetId,
             requestBody: {
-              requests: [{
-                repeatCell: {
-                  range: {
-                    sheetId: sheet.properties!.sheetId,
-                    // Parse A1 notation to grid range
-                    // (simplified - production code would use range-helpers.ts)
+              requests: [
+                {
+                  repeatCell: {
+                    range: {
+                      sheetId: sheet.properties!.sheetId,
+                      // Parse A1 notation to grid range
+                      // (simplified - production code would use range-helpers.ts)
+                    },
+                    fields: 'userEnteredFormat',
                   },
-                  fields: 'userEnteredFormat'
-                }
-              }]
-            }
+                },
+              ],
+            },
           });
         }
       }
@@ -190,14 +193,14 @@ export class DataHandler extends BaseHandler<SheetsDataInput, SheetsDataOutput> 
           success: true,
           action: 'clear_range',
           clearedRange: range,
-          formattingCleared: clearFormatting
-        }
+          formattingCleared: clearFormatting,
+        },
       };
     } catch (error) {
       this.context.logger.error('Failed to clear range', {
         spreadsheetId,
         range,
-        error
+        error,
       });
       throw error;
     }
@@ -208,6 +211,7 @@ export class DataHandler extends BaseHandler<SheetsDataInput, SheetsDataOutput> 
 ### Handler Best Practices
 
 ✅ **Do:**
+
 - Add case to switch statement
 - Create private handler method
 - Use proper TypeScript types with `Extract<>`
@@ -216,6 +220,7 @@ export class DataHandler extends BaseHandler<SheetsDataInput, SheetsDataOutput> 
 - Return structured response `{ response: { success, ... } }`
 
 ❌ **Don't:**
+
 - Return MCP format directly
 - Skip error handling
 - Use `console.log` (use `logger`)
@@ -234,6 +239,7 @@ npm run schema:commit
 ```
 
 **What it does:**
+
 1. Runs `gen:metadata` - Updates tool/action counts
 2. Runs `check:drift` - Verifies synchronization
 3. Runs `typecheck` - Checks TypeScript compilation
@@ -241,6 +247,7 @@ npm run schema:commit
 5. Runs `git add` - Stages all changed files
 
 **Expected output:**
+
 ```
 📊 Analyzing 22 schema files...
   📝 data.ts → 19 actions [read_range, write_range, ..., clear_range]
@@ -296,14 +303,14 @@ describe('DataHandler', () => {
           action: 'clear_range',
           spreadsheetId: 'test-123',
           range: 'Sheet1!A1:B10',
-          clearFormatting: false
-        }
+          clearFormatting: false,
+        },
       };
 
       mockContext.googleClient.sheets.spreadsheets.values.clear.mockResolvedValue({
         data: {
-          clearedRange: 'Sheet1!A1:B10'
-        }
+          clearedRange: 'Sheet1!A1:B10',
+        },
       });
 
       // Act
@@ -318,7 +325,7 @@ describe('DataHandler', () => {
       // Verify API was called correctly
       expect(mockContext.googleClient.sheets.spreadsheets.values.clear).toHaveBeenCalledWith({
         spreadsheetId: 'test-123',
-        range: 'Sheet1!A1:B10'
+        range: 'Sheet1!A1:B10',
       });
     });
 
@@ -329,27 +336,29 @@ describe('DataHandler', () => {
           action: 'clear_range',
           spreadsheetId: 'test-123',
           range: 'Sheet1!A1:B10',
-          clearFormatting: true
-        }
+          clearFormatting: true,
+        },
       };
 
       mockContext.googleClient.sheets.spreadsheets.values.clear.mockResolvedValue({
-        data: { clearedRange: 'Sheet1!A1:B10' }
+        data: { clearedRange: 'Sheet1!A1:B10' },
       });
 
       mockContext.googleClient.sheets.spreadsheets.get.mockResolvedValue({
         data: {
-          sheets: [{
-            properties: {
-              title: 'Sheet1',
-              sheetId: 0
-            }
-          }]
-        }
+          sheets: [
+            {
+              properties: {
+                title: 'Sheet1',
+                sheetId: 0,
+              },
+            },
+          ],
+        },
       });
 
       mockContext.googleClient.sheets.spreadsheets.batchUpdate.mockResolvedValue({
-        data: {}
+        data: {},
       });
 
       // Act
@@ -368,8 +377,8 @@ describe('DataHandler', () => {
           action: 'clear_range',
           spreadsheetId: 'test-123',
           range: 'InvalidSheet!A1:B10',
-          clearFormatting: false
-        }
+          clearFormatting: false,
+        },
       };
 
       mockContext.googleClient.sheets.spreadsheets.values.clear.mockRejectedValue(
@@ -386,13 +395,13 @@ describe('DataHandler', () => {
         request: {
           action: 'clear_range',
           spreadsheetId: 'test-123',
-          range: 'Sheet1!A1:B10'
+          range: 'Sheet1!A1:B10',
           // clearFormatting omitted (should default to false)
-        }
+        },
       };
 
       mockContext.googleClient.sheets.spreadsheets.values.clear.mockResolvedValue({
-        data: { clearedRange: 'Sheet1!A1:B10' }
+        data: { clearedRange: 'Sheet1!A1:B10' },
       });
 
       // Act
@@ -424,6 +433,7 @@ npm test tests/handlers/data.test.ts -- --grep="clear_range"
 ### Test Best Practices
 
 ✅ **Do:**
+
 - Test happy path (success case)
 - Test with optional parameters
 - Test error cases
@@ -431,6 +441,7 @@ npm test tests/handlers/data.test.ts -- --grep="clear_range"
 - Use descriptive test names
 
 ❌ **Don't:**
+
 - Skip error case testing
 - Forget to mock API responses
 - Test multiple things in one test
@@ -447,6 +458,7 @@ npm run verify
 ```
 
 **Expected:**
+
 ```
 ✅ Drift check passed
 ✅ No placeholders found
@@ -534,12 +546,13 @@ Modified:
 ```bash
 ❌ Metadata drift detected in 2 files:
   - src/schemas/index.ts (expected ACTION_COUNT = 300, found 299)
-  - package.json (expected "300 actions", found "299 actions")
+  - package.json (expected "300 actions", found "305 actions")
 ```
 
 **Cause:** Didn't run `npm run schema:commit`
 
 **Fix:**
+
 ```bash
 npm run schema:commit
 ```
@@ -582,7 +595,7 @@ export const SheetsDataOutputSchema = z.object({
       // ... existing fields
     }),
     // ... error case
-  ])
+  ]),
 });
 ```
 
@@ -597,12 +610,13 @@ export const SheetsDataOutputSchema = z.object({
 **Cause:** Test input not wrapped in legacy envelope
 
 **Fix:**
+
 ```typescript
 // ❌ Wrong
 const input = {
   action: 'clear_range',
   spreadsheetId: 'test-123',
-  range: 'A1:B10'
+  range: 'A1:B10',
 };
 
 // ✅ Correct
@@ -610,8 +624,8 @@ const input = {
   request: {
     action: 'clear_range',
     spreadsheetId: 'test-123',
-    range: 'A1:B10'
-  }
+    range: 'A1:B10',
+  },
 };
 ```
 

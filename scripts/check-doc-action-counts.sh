@@ -61,10 +61,13 @@ ADDITIONAL_DOCS=(
 )
 
 # Files to EXCLUDE (historical records, archived content)
-EXCLUDE_PATTERNS=(
+EXCLUDE_FILES=(
   "CHANGELOG.md"
+)
+EXCLUDE_DIRS=(
   "docs/archive/"
   "docs/generated/"
+  "docs/releases/"
   ".plan/"
   "node_modules/"
   "dist/"
@@ -179,14 +182,17 @@ echo "Scanning for obsolete count references..."
 
 # Known old counts to flag
 OLD_TOOL_COUNTS=("20" "21")
-OLD_ACTION_COUNTS=("272" "291" "293" "294")
+OLD_ACTION_COUNTS=("272" "291" "293" "294" "298" "299")
 
 OBSOLETE_FOUND=0
 
 # Build exclude arguments for grep
 GREP_EXCLUDES=""
-for pattern in "${EXCLUDE_PATTERNS[@]}"; do
-  GREP_EXCLUDES="$GREP_EXCLUDES --exclude-dir=$pattern"
+for pattern in "${EXCLUDE_FILES[@]}"; do
+  GREP_EXCLUDES="$GREP_EXCLUDES --exclude=$pattern"
+done
+for pattern in "${EXCLUDE_DIRS[@]}"; do
+  GREP_EXCLUDES="$GREP_EXCLUDES --exclude-dir=$(basename "$pattern")"
 done
 
 for old_count in "${OLD_TOOL_COUNTS[@]}"; do

@@ -134,12 +134,12 @@ X-Webhook-Id: webhook_<uuid>
 
 ### Header Descriptions
 
-| Header | Description |
-|--------|-------------|
-| `X-Webhook-Signature` | HMAC-SHA256 signature for verification |
-| `X-Webhook-Delivery` | Unique delivery ID (for idempotency tracking) |
-| `X-Webhook-Event` | Event type that triggered this webhook |
-| `X-Webhook-Id` | The webhook ID (use to look up secret) |
+| Header                | Description                                   |
+| --------------------- | --------------------------------------------- |
+| `X-Webhook-Signature` | HMAC-SHA256 signature for verification        |
+| `X-Webhook-Delivery`  | Unique delivery ID (for idempotency tracking) |
+| `X-Webhook-Event`     | Event type that triggered this webhook        |
+| `X-Webhook-Id`        | The webhook ID (use to look up secret)        |
 
 ## Webhook Payload Structure
 
@@ -175,9 +175,9 @@ X-Webhook-Id: webhook_<uuid>
 import { verifyWebhookSignature } from 'servalsheets/security/webhook-signature';
 
 const isValid = verifyWebhookSignature(
-  rawBody,              // Request body as Buffer
-  secret,               // Webhook secret
-  'sha256=abc123...'    // X-Webhook-Signature header value
+  rawBody, // Request body as Buffer
+  secret, // Webhook secret
+  'sha256=abc123...' // X-Webhook-Signature header value
 );
 
 if (!isValid) {
@@ -460,19 +460,27 @@ const isValid = verifyWebhookSignature(payload, secret, signature);
 
 ```typescript
 // Verify webhook with middleware
-app.use(webhookVerificationMiddleware({
-  getSecret: async (webhookId) => { /* ... */ },
-}));
+app.use(
+  webhookVerificationMiddleware({
+    getSecret: async (webhookId) => {
+      /* ... */
+    },
+  })
+);
 
 // With custom configuration
-app.use(webhookVerificationMiddleware({
-  getSecret,
-  webhookIdHeader: 'x-webhook-id',
-  signatureHeader: 'x-webhook-signature',
-  deliveryIdHeader: 'x-webhook-delivery',
-  requireSignature: true,
-  onError: (error, req, res) => { /* ... */ },
-}));
+app.use(
+  webhookVerificationMiddleware({
+    getSecret,
+    webhookIdHeader: 'x-webhook-id',
+    signatureHeader: 'x-webhook-signature',
+    deliveryIdHeader: 'x-webhook-delivery',
+    requireSignature: true,
+    onError: (error, req, res) => {
+      /* ... */
+    },
+  })
+);
 ```
 
 ## Compliance

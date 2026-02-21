@@ -2,8 +2,7 @@
 
 ![Audit Score](https://img.shields.io/badge/audit-130.83%25-brightgreen)
 
-
-Production-grade Google Sheets MCP Server with 22 tools, 299 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 22 tools, 315 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
@@ -15,22 +14,54 @@ Production-grade Google Sheets MCP Server with 22 tools, 299 actions, safety rai
   <img src="docs/public/demos/hero-optimized.gif" alt="ServalSheets Demo" width="600">
 </p>
 
-## What's New in v1.6.0 (2026-01-26)
+## What's New in v1.7.0 (2026-02-17)
 
-🚀 **Enterprise Deployment & Infrastructure Release**
+🚀 **Modern Formula Intelligence & Marketplace Release**
 
-- ✅ **Helm Charts**: Production-ready Kubernetes deployment with HPA, PDB, ServiceMonitor
-- ✅ **Terraform Modules**: AWS (ECS Fargate) and GCP (Cloud Run) infrastructure as code
-- ✅ **Health Monitoring**: Heap health checks, connection tracking, heartbeat detection
-- ✅ **W3C Trace Context**: Distributed tracing for Google API calls
-- ✅ **Schema Caching**: 80-90% validation overhead reduction via memoization
-- ✅ **Webhook Support**: Event-driven notifications with HMAC signatures
-- ✅ **Per-User Rate Limiting**: Redis-backed quota tracking with sliding windows
-- ✅ **VitePress Docs**: Full documentation site with 115+ pages
+- ✅ **Named Functions**: LAMBDA-based custom functions via `sheets_advanced` (+5 actions)
+- ✅ **Spill Range Detection**: Find dynamic array formulas via `sheets_data.detect_spill_ranges`
+- ✅ **Formula Presets**: XLOOKUP, XMATCH, FILTER, BYROW/BYCOL via `sheets_analyze.generate_formula`
+- ✅ **Marketplace Ready**: `privacy_policies` array in server.json (MCP registry v0.3+)
+- ✅ **Knowledge Base**: Modern arrays & spill range patterns (`src/knowledge/formulas/modern-arrays.md`)
 
 See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
+---
+
+## Quick Start
+
+```bash
+# Install globally
+npm install -g servalsheets
+
+# Or run directly with npx
+npx servalsheets
+
+# Claude Desktop config (~/.claude/claude_desktop_config.json)
+{
+  "mcpServers": {
+    "servalsheets": {
+      "command": "npx",
+      "args": ["-y", "servalsheets"]
+    }
+  }
+}
+```
+
+On first run, ServalSheets will guide you through Google OAuth authentication.
+
+---
+
 ### Previous Releases
+
+<details>
+<summary>v1.6.0 - Enterprise Deployment & Infrastructure (2026-01-26)</summary>
+
+- Helm Charts, Terraform Modules (AWS/GCP), Health Monitoring
+- W3C Trace Context, Schema Caching, Webhook Support
+- Per-User Rate Limiting, VitePress Docs (115+ pages)
+
+</details>
 
 <details>
 <summary>v1.6.0 - Zod v4 & Performance (2026-01-10)</summary>
@@ -45,8 +76,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 <summary>v1.6.0 - MCP Protocol Native (2026-01-06)</summary>
 
 - MCP Logging, Tasks, Elicitation, Sampling support
-- 6 URI resource templates
-- Full AbortController cancellation
+- 6 URI resource templates, Full AbortController cancellation
 
 </details>
 
@@ -62,7 +92,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
 ### Core Capabilities
 
-- **21 Tools, 293 Actions**: Comprehensive Google Sheets API v4 coverage
+- **22 Tools, 315 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Compliant**: Full protocol compliance with structured outputs
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
@@ -73,7 +103,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 Full compliance with Model Context Protocol 2025-11-25:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.26.0
-- ✅ **Tools**: 22 tools with 299 actions using discriminated unions
+- ✅ **Tools**: 22 tools with 315 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -132,6 +162,7 @@ Full compliance with Model Context Protocol 2025-11-25:
 - **Authentication Schemes**: Bearer token and OAuth 2.0 documented
 
 **Access Documentation:**
+
 ```bash
 npm run start:http        # Start HTTP server
 open http://localhost:3000/api-docs  # View Swagger UI
@@ -179,12 +210,12 @@ PORT=3000 GOOGLE_CLIENT_ID=xxx GOOGLE_CLIENT_SECRET=xxx npm run start:http
 
 ServalSheets uses deployment-aware OAuth scopes to balance functionality and Google verification speed:
 
-| Mode | Actions Available | Use Case | Google Verification Time |
-|------|-------------------|----------|--------------------------|
-| **full** (default) | 298/298 | Self-hosted, enterprise | 4-6 weeks |
-| **standard** | 260/298 | SaaS, marketplace apps | 3-5 days |
-| **minimal** | ~180/298 | Basic operations only | 3-5 days |
-| **readonly** | ~120/298 | Analysis/reporting only | 3-5 days |
+| Mode               | Actions Available | Use Case                | Google Verification Time |
+| ------------------ | ----------------- | ----------------------- | ------------------------ |
+| **full** (default) | 298/298           | Self-hosted, enterprise | 4-6 weeks                |
+| **standard**       | 260/298           | SaaS, marketplace apps  | 3-5 days                 |
+| **minimal**        | ~180/298          | Basic operations only   | 3-5 days                 |
+| **readonly**       | ~120/298          | Analysis/reporting only | 3-5 days                 |
 
 **Self-Hosted (Default)**
 
@@ -206,6 +237,7 @@ npm run start:http
 ```
 
 **Disabled features in standard mode:**
+
 - Sharing/collaboration (sheets_collaborate)
 - BigQuery integration (sheets_bigquery)
 - Apps Script automation (sheets_appsscript)
@@ -214,6 +246,7 @@ npm run start:http
 **Enable all features:** Set `OAUTH_SCOPE_MODE=full` (accepts longer verification time)
 
 **Environment Variables:**
+
 - `DEPLOYMENT_MODE`: `self-hosted` (default, full scopes) or `saas` (standard scopes)
 - `OAUTH_SCOPE_MODE`: Explicit override - `full`, `standard`, `minimal`, `readonly`
 
@@ -321,30 +354,30 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ## Tools Reference
 
-### Tool Summary (22 tools, 299 actions)
+### Tool Summary (22 tools, 315 actions)
 
 | Tool                  | Actions | Description                                                       |
 | --------------------- | ------- | ----------------------------------------------------------------- |
 | `sheets_auth`         | 4       | Authentication & OAuth                                            |
-| `sheets_core`         | 17      | Spreadsheet and sheet metadata/management                         |
-| `sheets_data`         | 18      | Read/write values, notes, hyperlinks, clipboard                   |
-| `sheets_format`       | 21      | Cell formatting, conditional formats, data validation, sparklines |
+| `sheets_core`         | 19      | Spreadsheet and sheet metadata/management                         |
+| `sheets_data`         | 19      | Read/write values, notes, hyperlinks, clipboard                   |
+| `sheets_format`       | 23      | Cell formatting, conditional formats, data validation, sparklines |
 | `sheets_dimensions`   | 28      | Rows/columns, filters, sorts, groups, freezes, views, slicers     |
 | `sheets_visualize`    | 18      | Charts and pivot tables                                           |
-| `sheets_collaborate`  | 28      | Sharing, comments, versions/snapshots                             |
-| `sheets_advanced`     | 23      | Named ranges, protected ranges, metadata, banding, tables, chips  |
+| `sheets_collaborate`  | 35      | Sharing, comments, versions/snapshots                             |
+| `sheets_advanced`     | 31      | Named ranges, protected ranges, metadata, banding, tables, chips  |
 | `sheets_transaction`  | 6       | Transaction management                                            |
 | `sheets_quality`      | 4       | Validation, conflicts, impact analysis                            |
 | `sheets_history`      | 7       | Undo/redo, history, revert                                        |
 | `sheets_confirm`      | 5       | Elicitation confirmations & wizards                               |
-| `sheets_analyze`      | 11      | AI-assisted analysis & recommendations                            |
+| `sheets_analyze`      | 16      | AI-assisted analysis & recommendations                            |
 | `sheets_fix`          | 1       | Automated fixes from analysis                                     |
-| `sheets_composite`    | 10      | High-level bulk operations                                        |
-| `sheets_session`      | 17      | Session context and references                                    |
-| `sheets_appsscript`   | 14      | Apps Script automation                                            |
-| `sheets_bigquery`     | 14      | BigQuery Connected Sheets                                         |
+| `sheets_composite`    | 11      | High-level bulk operations                                        |
+| `sheets_session`      | 26      | Session context and references                                    |
+| `sheets_appsscript`   | 18      | Apps Script automation                                            |
+| `sheets_bigquery`     | 17      | BigQuery Connected Sheets                                         |
 | `sheets_templates`    | 8       | Enterprise templates                                              |
-| `sheets_webhook`      | 6       | Webhook registration & delivery                                   |
+| `sheets_webhook`      | 7       | Webhook registration & delivery                                   |
 | `sheets_dependencies` | 7       | Formula dependency analysis                                       |
 
 ## Examples
@@ -461,6 +494,117 @@ const rule = await sheets_format({
   },
 });
 ```
+
+## Marketplace Examples
+
+Complete, copy-pasteable prompts for Claude Desktop or any MCP client.
+
+### Example 1: Sales Dashboard with XLOOKUP Formulas
+
+> "Create a sales dashboard in spreadsheet 1BxiMVs0... with XLOOKUP formulas that look up product names from a Products sheet and return their category and price."
+
+```json
+// Step 1: Generate the XLOOKUP formula
+{ "action": "generate_formula", "spreadsheetId": "1BxiMVs0...", "formulaType": "xlookup",
+  "description": "Look up product name in Products!A:A and return the category from Products!C:C",
+  "targetCell": "D2" }
+
+// Step 2: Write the formula to the dashboard
+{ "action": "write", "spreadsheetId": "1BxiMVs0...", "range": "Dashboard!D2",
+  "values": [["=XLOOKUP(A2,Products!A:A,Products!C:C,\"Unknown\")"]] }
+
+// Step 3: Format the dashboard
+{ "action": "batch_format", "spreadsheetId": "1BxiMVs0...",
+  "operations": [{ "range": "Dashboard!A1:E1", "preset": "header_row" }] }
+```
+
+---
+
+### Example 2: Quarterly Data Analysis with Charts
+
+> "Analyze my Q4 revenue data in sheet 'Q4 Data' and create a column chart comparing monthly revenue."
+
+```json
+// Step 1: Scout the spreadsheet structure
+{ "action": "scout", "spreadsheetId": "1BxiMVs0..." }
+
+// Step 2: Comprehensive analysis
+{ "action": "comprehensive", "spreadsheetId": "1BxiMVs0...", "range": "'Q4 Data'!A1:D100" }
+
+// Step 3: Create the chart
+{ "action": "suggest_chart", "spreadsheetId": "1BxiMVs0...", "range": "'Q4 Data'!A1:D13" }
+```
+
+---
+
+### Example 3: Import CSV, Deduplicate, and Format as Table
+
+> "Import this CSV of customer data, remove duplicates on the email column, and format it as a styled table."
+
+```json
+// Step 1: Import the CSV
+{ "action": "import_csv", "spreadsheetId": "1BxiMVs0...", "sheetName": "Customers",
+  "csvData": "Name,Email,Revenue\nAlice,alice@co.com,5000\n..." }
+
+// Step 2: Deduplicate on Email column
+{ "action": "deduplicate", "spreadsheetId": "1BxiMVs0...", "range": "Customers!A1:C100",
+  "keyColumns": ["Email"], "keep": "first" }
+
+// Step 3: Create a table
+{ "action": "create_table", "spreadsheetId": "1BxiMVs0...", "range": "Customers!A1:C50",
+  "tableName": "CustomerTable", "hasHeaders": true }
+```
+
+---
+
+### Example 4: Automated Sharing and Version Snapshots
+
+> "Share my budget spreadsheet with the finance team, create a version snapshot before making changes, and track the edit."
+
+```json
+// Step 1: Create a version snapshot before editing
+{ "action": "version_create_snapshot", "spreadsheetId": "1BxiMVs0...",
+  "name": "Pre-Q4-Budget-Edit", "description": "Snapshot before Q4 budget update" }
+
+// Step 2: Share with the team
+{ "action": "share_add", "spreadsheetId": "1BxiMVs0...",
+  "emailAddress": "finance-team@company.com", "role": "writer",
+  "sendNotification": true, "emailMessage": "Q4 budget ready for review" }
+
+// Step 3: Make changes, then create another snapshot
+{ "action": "version_create_snapshot", "spreadsheetId": "1BxiMVs0...",
+  "name": "Post-Q4-Budget-Edit" }
+```
+
+---
+
+### Example 5: Build a Named Function Library for Reuse
+
+> "Create reusable named functions for profit margin and CAGR calculations, then apply them to my financial model."
+
+```json
+// Step 1: Create a profit margin named function
+{ "action": "create_named_function", "spreadsheetId": "1BxiMVs0...",
+  "functionName": "PROFIT_MARGIN",
+  "functionBody": "LAMBDA(revenue, cost, (revenue-cost)/revenue)",
+  "description": "Calculate profit margin as a decimal",
+  "parameterDefinitions": [
+    { "name": "revenue", "description": "Total revenue" },
+    { "name": "cost", "description": "Total cost" }
+  ] }
+
+// Step 2: Create a CAGR function
+{ "action": "create_named_function", "spreadsheetId": "1BxiMVs0...",
+  "functionName": "CAGR",
+  "functionBody": "LAMBDA(start_val, end_val, periods, (end_val/start_val)^(1/periods)-1)",
+  "description": "Compound Annual Growth Rate" }
+
+// Step 3: Use in your sheet
+{ "action": "write", "spreadsheetId": "1BxiMVs0...", "range": "Model!D2",
+  "values": [["=PROFIT_MARGIN(B2,C2)"]] }
+```
+
+---
 
 ## Safety Rails
 
@@ -1062,7 +1206,7 @@ graph TB
 
 ## Schema Architecture: Discriminated Unions
 
-ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 22 tools and 299 actions. This architecture provides:
+ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 22 tools and 315 actions. This architecture provides:
 
 ### Pattern Overview
 
@@ -1102,14 +1246,14 @@ Tool: sheets_[category]
 
 **Example Action Variants** (sheets_data):
 
-| Action | Input Shape | Output | Use Case |
-|--------|-------------|--------|----------|
-| `read` | `{ action: 'read', spreadsheetId, range, valueRenderOption }` | Values array | Fetch cell data |
-| `write` | `{ action: 'write', spreadsheetId, range, values, safety }` | Write summary | Update cells |
-| `batch_read` | `{ action: 'batch_read', spreadsheetId, ranges }` | Multi-range values | Fetch multiple ranges |
-| `batch_write` | `{ action: 'batch_write', spreadsheetId, data }` | Batch summary | Multi-range update |
-| `append` | `{ action: 'append', spreadsheetId, range, values }` | Append summary | Add rows |
-| `clear` | `{ action: 'clear', spreadsheetId, range }` | Clear summary | Delete values (keep format) |
+| Action        | Input Shape                                                   | Output             | Use Case                    |
+| ------------- | ------------------------------------------------------------- | ------------------ | --------------------------- |
+| `read`        | `{ action: 'read', spreadsheetId, range, valueRenderOption }` | Values array       | Fetch cell data             |
+| `write`       | `{ action: 'write', spreadsheetId, range, values, safety }`   | Write summary      | Update cells                |
+| `batch_read`  | `{ action: 'batch_read', spreadsheetId, ranges }`             | Multi-range values | Fetch multiple ranges       |
+| `batch_write` | `{ action: 'batch_write', spreadsheetId, data }`              | Batch summary      | Multi-range update          |
+| `append`      | `{ action: 'append', spreadsheetId, range, values }`          | Append summary     | Add rows                    |
+| `clear`       | `{ action: 'clear', spreadsheetId, range }`                   | Clear summary      | Delete values (keep format) |
 
 ### Response Format
 
@@ -1138,31 +1282,31 @@ All tool responses use a **discriminated union by `success` field**:
 }
 ```
 
-### 21 Tools Overview
+### 22 Tools Overview
 
-| Tool | Actions | Pattern | Use Case |
-|------|---------|---------|----------|
-| `sheets_auth` | 4 | Status, Login, Callback, Logout | OAuth & credentials |
-| `sheets_core` | 17 | Get, Create, Delete, List, Update | Sheet metadata |
-| `sheets_data` | 18 | Read, Write, Append, Clear, Batch ops | Cell values & notes |
-| `sheets_format` | 21 | Colors, Borders, Validation, Conditionals | Styling & rules |
-| `sheets_dimensions` | 28 | Insert, Delete, Resize, Filter, Sort, Freeze | Rows & columns |
-| `sheets_visualize` | 18 | Create, Update charts, Pivot tables | Charts & pivots |
-| `sheets_collaborate` | 28 | Share, Comments, Versions, Snapshots | Multi-user features |
-| `sheets_advanced` | 23 | Named ranges, Protected ranges, Metadata, Banding | Advanced features |
-| `sheets_transaction` | 6 | Begin, Queue, Commit, Rollback | Atomic operations |
-| `sheets_quality` | 4 | Validate, Detect conflicts, Impact analysis | Data quality |
-| `sheets_history` | 7 | Undo, Redo, Revert, List history | Version control |
-| `sheets_confirm` | 5 | Request, Wizard, Elicitation | User confirmations |
-| `sheets_analyze` | 11 | Comprehensive, Scout, Planner, Quality analysis | AI analysis |
-| `sheets_fix` | 1 | Auto-fix detected issues | Automated fixes |
-| `sheets_composite` | 10 | Import CSV, Deduplicate, Smart append | Bulk operations |
-| `sheets_session` | 17 | Set active, Get context, Save checkpoint | Session context |
-| `sheets_appsscript` | 14 | Run, Deploy, Get content | Apps Script automation |
-| `sheets_bigquery` | 14 | Query, Import, Connect Looker | BigQuery integration |
-| `sheets_templates` | 8 | List, Create, Apply, Import builtin | Templates |
-| `sheets_webhook` | 6 | Register, Unregister, List, Test | Change notifications |
-| `sheets_dependencies` | 7 | Build, Analyze, Detect cycles, Export | Formula analysis |
+| Tool                  | Actions | Pattern                                           | Use Case               |
+| --------------------- | ------- | ------------------------------------------------- | ---------------------- |
+| `sheets_auth`         | 4       | Status, Login, Callback, Logout                   | OAuth & credentials    |
+| `sheets_core`         | 19      | Get, Create, Delete, List, Update                 | Sheet metadata         |
+| `sheets_data`         | 19      | Read, Write, Append, Clear, Batch ops             | Cell values & notes    |
+| `sheets_format`       | 23      | Colors, Borders, Validation, Conditionals         | Styling & rules        |
+| `sheets_dimensions`   | 28      | Insert, Delete, Resize, Filter, Sort, Freeze      | Rows & columns         |
+| `sheets_visualize`    | 18      | Create, Update charts, Pivot tables               | Charts & pivots        |
+| `sheets_collaborate`  | 35      | Share, Comments, Versions, Snapshots              | Multi-user features    |
+| `sheets_advanced`     | 31      | Named ranges, Protected ranges, Metadata, Banding | Advanced features      |
+| `sheets_transaction`  | 6       | Begin, Queue, Commit, Rollback                    | Atomic operations      |
+| `sheets_quality`      | 4       | Validate, Detect conflicts, Impact analysis       | Data quality           |
+| `sheets_history`      | 7       | Undo, Redo, Revert, List history                  | Version control        |
+| `sheets_confirm`      | 5       | Request, Wizard, Elicitation                      | User confirmations     |
+| `sheets_analyze`      | 16      | Comprehensive, Scout, Planner, Quality analysis   | AI analysis            |
+| `sheets_fix`          | 1       | Auto-fix detected issues                          | Automated fixes        |
+| `sheets_composite`    | 11      | Import CSV, Deduplicate, Smart append             | Bulk operations        |
+| `sheets_session`      | 26      | Set active, Get context, Save checkpoint          | Session context        |
+| `sheets_appsscript`   | 18      | Run, Deploy, Get content                          | Apps Script automation |
+| `sheets_bigquery`     | 17      | Query, Import, Connect Looker                     | BigQuery integration   |
+| `sheets_templates`    | 8       | List, Create, Apply, Import builtin               | Templates              |
+| `sheets_webhook`      | 7       | Register, Unregister, List, Test                  | Change notifications   |
+| `sheets_dependencies` | 7       | Build, Analyze, Detect cycles, Export             | Formula analysis       |
 
 ---
 
@@ -1177,6 +1321,7 @@ ServalSheets implements a comprehensive error classification system with recover
 **When**: Invalid input, malformed data, type mismatches
 
 **Recovery Strategy**:
+
 ```typescript
 // Error details always include field name and expected format
 {
@@ -1201,6 +1346,7 @@ ServalSheets implements a comprehensive error classification system with recover
 **When**: Token expired, invalid credentials, auth flow failures
 
 **Recovery Strategy**:
+
 ```typescript
 // Retryable auth errors include refresh instructions
 {
@@ -1217,6 +1363,7 @@ ServalSheets implements a comprehensive error classification system with recover
 ```
 
 **Action**:
+
 1. Attempt token refresh
 2. If refresh fails, restart OAuth flow
 3. Retry operation with new token
@@ -1227,6 +1374,7 @@ ServalSheets implements a comprehensive error classification system with recover
 **When**: API quota exhausted, rate limited (429 errors)
 
 **Recovery Strategy**:
+
 ```typescript
 {
   code: 'QUOTA_EXCEEDED',
@@ -1249,6 +1397,7 @@ ServalSheets implements a comprehensive error classification system with recover
 ```
 
 **Action**:
+
 1. Wait `retryAfterMs` (usually 60 seconds)
 2. Use batch operations to reduce future quota usage
 3. Enable caching (see Performance Tuning section)
@@ -1256,6 +1405,7 @@ ServalSheets implements a comprehensive error classification system with recover
 5. Request higher quotas from Google Cloud Console
 
 **Optimization** (80-90% quota savings):
+
 ```typescript
 // Before: 3 separate API calls = 3 quota units
 await sheets_data({ action: 'read', range: 'A1:A100' });
@@ -1265,7 +1415,7 @@ await sheets_data({ action: 'read', range: 'C1:C100' });
 // After: 1 batch API call = 1 quota unit (saves 66% quota)
 await sheets_data({
   action: 'batch_read',
-  ranges: ['A1:A100', 'B1:B100', 'C1:C100']
+  ranges: ['A1:A100', 'B1:B100', 'C1:C100'],
 });
 ```
 
@@ -1276,6 +1426,7 @@ await sheets_data({
 **Recovery Strategy** (4 conflict types):
 
 **A) Concurrent Modification**:
+
 ```typescript
 {
   code: 'TRANSACTION_CONFLICT',
@@ -1292,6 +1443,7 @@ await sheets_data({
 ```
 
 **B) Stale Data** (cached version outdated):
+
 ```typescript
 {
   conflictType: 'stale_data',
@@ -1307,6 +1459,7 @@ await sheets_data({
 ```
 
 **C) Version Mismatch**:
+
 ```typescript
 {
   conflictType: 'version_mismatch',
@@ -1319,6 +1472,7 @@ await sheets_data({
 ```
 
 **D) Merge Conflict** (manual resolution required):
+
 ```typescript
 {
   conflictType: 'merge_conflict',
@@ -1338,6 +1492,7 @@ await sheets_data({
 **When**: Request exceeds timeout (default 30s), slow network
 
 **Recovery Strategy**:
+
 ```typescript
 {
   code: 'DEADLINE_EXCEEDED',
@@ -1358,6 +1513,7 @@ await sheets_data({
 ```
 
 **Action**:
+
 1. Reduce request scope (fewer rows/columns)
 2. Implement pagination
 3. Use batch operations
@@ -1371,6 +1527,7 @@ await sheets_data({
 **Recovery Strategy** (context-specific):
 
 **Invalid Range Format**:
+
 ```typescript
 {
   code: 'INVALID_RANGE',
@@ -1386,6 +1543,7 @@ await sheets_data({
 ```
 
 **Sheet Not Found**:
+
 ```typescript
 {
   code: 'SHEET_NOT_FOUND',
@@ -1400,6 +1558,7 @@ await sheets_data({
 ```
 
 **Ambiguous Column Name**:
+
 ```typescript
 {
   code: 'AMBIGUOUS_RANGE',
@@ -1416,6 +1575,7 @@ await sheets_data({
 **When**: Multiple operations fail validation, circular references, schema mismatches
 
 **Recovery Strategy**:
+
 ```typescript
 {
   code: 'BATCH_UPDATE_ERROR',
@@ -1442,6 +1602,7 @@ await sheets_data({
 ```
 
 **Action**:
+
 1. Review each failed operation
 2. Fix validation errors
 3. Split into smaller batches (50 ops max)
@@ -1452,21 +1613,18 @@ await sheets_data({
 
 ```typescript
 // Exponential backoff with jitter
-async function retryWithBackoff(
-  operation: () => Promise<T>,
-  maxRetries: number = 5
-): Promise<T> {
+async function retryWithBackoff(operation: () => Promise<T>, maxRetries: number = 5): Promise<T> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await operation();
     } catch (error) {
       // Check if retryable
       if (!error.retryable || attempt === maxRetries) {
-        throw error;  // Non-retryable or final attempt
+        throw error; // Non-retryable or final attempt
       }
 
       // Calculate backoff with jitter
-      const baseDelay = Math.pow(2, attempt) * 1000;  // 1s, 2s, 4s, 8s, ...
+      const baseDelay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s, 8s, ...
       const jitter = Math.random() * 0.1 * baseDelay; // 10% jitter
       const delayMs = baseDelay + jitter;
 
@@ -1474,10 +1632,12 @@ async function retryWithBackoff(
       const specifiedDelay = error.retryAfterMs;
       const actualDelayMs = specifiedDelay || delayMs;
 
-      console.log(`Attempt ${attempt + 1}/${maxRetries + 1} failed. ` +
-                  `Waiting ${(actualDelayMs / 1000).toFixed(1)}s before retry...`);
+      console.log(
+        `Attempt ${attempt + 1}/${maxRetries + 1} failed. ` +
+          `Waiting ${(actualDelayMs / 1000).toFixed(1)}s before retry...`
+      );
 
-      await new Promise(resolve => setTimeout(resolve, actualDelayMs));
+      await new Promise((resolve) => setTimeout(resolve, actualDelayMs));
     }
   }
 }
@@ -1507,6 +1667,7 @@ ServalSheets offers multiple performance optimization strategies for different w
 ### 1. Caching (80-100x API call reduction)
 
 **Configuration**:
+
 ```bash
 # Enable/disable caching (default: enabled)
 export CACHE_ENABLED=true
@@ -1524,6 +1685,7 @@ export CACHE_CLEANUP_INTERVAL_MS=300000
 **Cache Strategy by Workload**:
 
 **A) Read-Heavy Workloads** (same data accessed repeatedly):
+
 ```bash
 # Increase TTL to 30 minutes for stable data
 export CACHE_TTL_MS=1800000
@@ -1536,6 +1698,7 @@ export CACHE_MAX_SIZE_MB=500  # Larger cache
 ```
 
 **B) Real-Time Workloads** (data changes frequently):
+
 ```bash
 # Disable caching for absolutely fresh data
 export CACHE_ENABLED=false
@@ -1545,6 +1708,7 @@ export CACHE_ENABLED=false
 ```
 
 **C) Hybrid Approach** (recommended):
+
 ```bash
 # Short TTL for frequently-changing data
 export CACHE_TTL_MS=30000  # 30 seconds
@@ -1558,6 +1722,7 @@ export CACHE_TTL_MS=30000  # 30 seconds
 ```
 
 **Cache Stats Monitoring**:
+
 ```typescript
 // Access cache statistics
 const stats = cacheManager.getStats();
@@ -1579,6 +1744,7 @@ const stats = cacheManager.getStats();
 **Pattern**: Combine multiple operations into single API call
 
 **Read Batching** (Quota efficiency):
+
 ```typescript
 // ❌ Inefficient: 3 API calls = 3 quota units
 const range1 = await sheets_data({ action: 'read', range: 'Sales!A1:A100' });
@@ -1588,11 +1754,12 @@ const range3 = await sheets_data({ action: 'read', range: 'Sales!C1:C100' });
 // ✅ Efficient: 1 API call = 1 quota unit (66% quota savings)
 const [range1, range2, range3] = await sheets_data({
   action: 'batch_read',
-  ranges: ['Sales!A1:A100', 'Sales!B1:B100', 'Sales!C1:C100']
+  ranges: ['Sales!A1:A100', 'Sales!B1:B100', 'Sales!C1:C100'],
 });
 ```
 
 **Write Batching**:
+
 ```typescript
 // ❌ Inefficient: 3 API calls = 3 quota units
 await sheets_data({ action: 'write', range: 'Sheet1!A1:A100', values: dataA });
@@ -1605,12 +1772,13 @@ await sheets_data({
   data: [
     { range: 'Sheet1!A1:A100', values: dataA },
     { range: 'Sheet1!B1:B100', values: dataB },
-    { range: 'Sheet1!C1:C100', values: dataC }
-  ]
+    { range: 'Sheet1!C1:C100', values: dataC },
+  ],
 });
 ```
 
 **Transaction Batching** (10-50 operations per API call):
+
 ```typescript
 // Use transactions for complex multi-step operations
 // Each transaction = 1 API call regardless of operation count
@@ -1639,16 +1807,17 @@ await sheets_transaction({
 
 **Quota Savings by Batch Size**:
 
-| Strategy | API Calls | Quota Units | Savings |
-|----------|-----------|------------|---------|
-| Individual ops (1 at a time) | 100 | 100 | 0% |
-| Batch read/write (10 ops/call) | 10 | 10 | 90% |
-| Transactions (50 ops/call) | 2 | 2 | 98% |
-| Batch + Cache (repeat reads) | 1 | 1 | 99% |
+| Strategy                       | API Calls | Quota Units | Savings |
+| ------------------------------ | --------- | ----------- | ------- |
+| Individual ops (1 at a time)   | 100       | 100         | 0%      |
+| Batch read/write (10 ops/call) | 10        | 10          | 90%     |
+| Transactions (50 ops/call)     | 2         | 2           | 98%     |
+| Batch + Cache (repeat reads)   | 1         | 1           | 99%     |
 
 ### 3. Rate Limiting (Prevent 429 errors)
 
 **Configuration**:
+
 ```bash
 # Configure per your Google Workspace edition
 # Default: 300 reads/min, 60 writes/min (Free tier)
@@ -1667,12 +1836,14 @@ export RATE_LIMIT_WRITES_PER_MINUTE=240
 ```
 
 **Token Bucket Algorithm**:
+
 - Tokens refill at your configured rate (per second)
 - Each operation consumes tokens
 - Operations wait if insufficient tokens (backpressure)
 - 429 errors trigger automatic 50% rate reduction for 60s
 
 **Example**: Free tier with batch optimization
+
 ```typescript
 // Configuration: 300 reads/min = 5 reads/sec
 
@@ -1688,6 +1859,7 @@ export RATE_LIMIT_WRITES_PER_MINUTE=240
 ```
 
 **Dynamic Throttling** (Automatic on 429 errors):
+
 ```
 Standard rate → 429 Error → Reduce 50% (6 months) → Gradual restore → Normal rate
 300 reads/min → 150 reads/min (60s) → 225 → 300
@@ -1696,6 +1868,7 @@ Standard rate → 429 Error → Reduce 50% (6 months) → Gradual restore → No
 ### 4. Payload Monitoring (Prevent 10MB hard limits)
 
 **Configuration**:
+
 ```bash
 # Enable payload monitoring
 export ENABLE_PAYLOAD_MONITORING=true
@@ -1706,6 +1879,7 @@ export PAYLOAD_MAX_SIZE_MB=10
 ```
 
 **Monitor payload sizes**:
+
 ```typescript
 // Monitor request/response sizes
 const metrics = googleApi.getPayloadMetrics();
@@ -1720,11 +1894,12 @@ const metrics = googleApi.getPayloadMetrics();
 ```
 
 **Optimize large payloads**:
+
 ```typescript
 // ❌ Inefficient: Single read of entire sheet (10K rows × 100 cols)
 const allData = await sheets_data({
   action: 'read',
-  range: 'Sheet1!A1:CV10000'
+  range: 'Sheet1!A1:CV10000',
 });
 
 // ✅ Efficient: Paginated reads
@@ -1734,7 +1909,7 @@ for (let page = 0; page < 100; page++) {
   const endRow = startRow + pageSize - 1;
   const pageData = await sheets_data({
     action: 'read',
-    range: `Sheet1!A${startRow}:CV${endRow}`
+    range: `Sheet1!A${startRow}:CV${endRow}`,
   });
   processPage(pageData);
 }
@@ -1743,6 +1918,7 @@ for (let page = 0; page < 100; page++) {
 ### 5. Connection Pooling (HTTP/2)
 
 **Configuration**:
+
 ```bash
 # Enable HTTP/2 connection pooling (default: enabled)
 export GOOGLE_API_HTTP2_ENABLED=true
@@ -1759,12 +1935,14 @@ export HTTP2_POOL_MONITOR_INTERVAL_MS=300000  # 5 minutes
 ```
 
 **Benefits**:
+
 - 5-15% latency reduction
 - Connection multiplexing (multiple requests per connection)
 - Header compression
 - Reduced TCP handshake overhead
 
 **Monitor pool health**:
+
 ```typescript
 // Automatic warnings logged every 5 minutes (if enabled)
 // Example log output:
@@ -1775,6 +1953,7 @@ export HTTP2_POOL_MONITOR_INTERVAL_MS=300000  # 5 minutes
 ### 6. Metrics & Observability
 
 **Configuration**:
+
 ```bash
 # Enable metrics server (default: disabled)
 export ENABLE_METRICS_SERVER=true
@@ -1788,6 +1967,7 @@ export OTEL_LOG_SPANS=true
 ```
 
 **Access metrics**:
+
 ```bash
 # Prometheus format
 curl http://localhost:9090/metrics
@@ -1804,20 +1984,21 @@ curl http://localhost:9090/health
 
 **Key metrics to monitor**:
 
-| Metric | Target | Action if High |
-|--------|--------|---|
-| Cache hit rate | >90% | Good! Cache is working |
-| Cache hit rate | <50% | Increase TTL or max size |
-| Avg batch size | >10 ops | Good! Operations batched |
-| Avg batch size | <5 ops | Add more operations per batch |
-| API errors 429 | 0/min | Good! Rate limit OK |
-| API errors 429 | >1/min | Reduce requests or increase quotas |
-| Response time p99 | <2s | Good! Performance OK |
-| Response time p99 | >10s | Check payload sizes, add caching |
+| Metric            | Target  | Action if High                     |
+| ----------------- | ------- | ---------------------------------- |
+| Cache hit rate    | >90%    | Good! Cache is working             |
+| Cache hit rate    | <50%    | Increase TTL or max size           |
+| Avg batch size    | >10 ops | Good! Operations batched           |
+| Avg batch size    | <5 ops  | Add more operations per batch      |
+| API errors 429    | 0/min   | Good! Rate limit OK                |
+| API errors 429    | >1/min  | Reduce requests or increase quotas |
+| Response time p99 | <2s     | Good! Performance OK               |
+| Response time p99 | >10s    | Check payload sizes, add caching   |
 
 ### 7. Timeout Configuration
 
 **Configuration**:
+
 ```bash
 # Google Sheets API timeout (default: 30 seconds)
 export GOOGLE_API_TIMEOUT_MS=30000
@@ -1828,12 +2009,12 @@ export REQUEST_TIMEOUT_MS=120000
 
 **Timeout tuning strategy**:
 
-| Scenario | API Timeout | Request Timeout | Rationale |
-|----------|-----------|---------|-----------|
-| Large payloads (>5MB) | 60000ms | 120000ms | More time for transfer |
-| Complex formulas | 45000ms | 90000ms | Formulas recalc slower |
-| Standard operations | 30000ms | 60000ms | Default (recommended) |
-| Latency-sensitive | 20000ms | 40000ms | Fail fast, retry quickly |
+| Scenario              | API Timeout | Request Timeout | Rationale                |
+| --------------------- | ----------- | --------------- | ------------------------ |
+| Large payloads (>5MB) | 60000ms     | 120000ms        | More time for transfer   |
+| Complex formulas      | 45000ms     | 90000ms         | Formulas recalc slower   |
+| Standard operations   | 30000ms     | 60000ms         | Default (recommended)    |
+| Latency-sensitive     | 20000ms     | 40000ms         | Fail fast, retry quickly |
 
 ### Performance Tuning Checklist
 
@@ -1863,50 +2044,52 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 
 ### Protocol Coverage
 
-| Feature | Status | Version | Implementation |
-|---------|--------|---------|-----------------|
-| **JSON-RPC 2.0** | ✅ Full | 2.0 | @modelcontextprotocol/sdk v1.26.0 |
-| **Tools** | ✅ Full | 2025-11-25 | 22 tools, 299 actions, discriminated unions |
-| **Resources** | ✅ Full | 2025-11-25 | 6 URI templates + 7 knowledge resources |
-| **Prompts** | ✅ Full | 2025-11-25 | 6 guided workflows with arguments |
-| **Completions** | ✅ Full | 2025-11-25 | Argument autocompletion |
-| **Tasks** | ✅ Full | SEP-1686 | Background execution, cancellation |
-| **Elicitation** | ✅ Full | SEP-1036 | User confirmations for destructive ops |
-| **Sampling** | ✅ Full | SEP-1577 | AI-powered analysis (sheets_analyze) |
-| **Logging** | ✅ Full | 2025-11-25 | Dynamic log level control |
-| **Progress** | ✅ Full | 2025-11-25 | Long-running operations reporting |
-| **Streaming** | ✅ Full | 2025-11-25 | Streamable HTTP + paginated responses |
+| Feature          | Status  | Version    | Implementation                              |
+| ---------------- | ------- | ---------- | ------------------------------------------- |
+| **JSON-RPC 2.0** | ✅ Full | 2.0        | @modelcontextprotocol/sdk v1.26.0           |
+| **Tools**        | ✅ Full | 2025-11-25 | 22 tools, 315 actions, discriminated unions |
+| **Resources**    | ✅ Full | 2025-11-25 | 6 URI templates + 7 knowledge resources     |
+| **Prompts**      | ✅ Full | 2025-11-25 | 6 guided workflows with arguments           |
+| **Completions**  | ✅ Full | 2025-11-25 | Argument autocompletion                     |
+| **Tasks**        | ✅ Full | SEP-1686   | Background execution, cancellation          |
+| **Elicitation**  | ✅ Full | SEP-1036   | User confirmations for destructive ops      |
+| **Sampling**     | ✅ Full | SEP-1577   | AI-powered analysis (sheets_analyze)        |
+| **Logging**      | ✅ Full | 2025-11-25 | Dynamic log level control                   |
+| **Progress**     | ✅ Full | 2025-11-25 | Long-running operations reporting           |
+| **Streaming**    | ✅ Full | 2025-11-25 | Streamable HTTP + paginated responses       |
 
 ### Feature Checklist
 
 #### Tools (22 tools ✅)
 
 **Implemented & Tested** (all 22 tools):
+
 ```
 ✅ sheets_auth (4 actions) - OAuth, login, logout, status
-✅ sheets_core (17 actions) - Spreadsheet CRUD, metadata
-✅ sheets_data (18 actions) - Read, write, batch ops, notes, hyperlinks
-✅ sheets_format (21 actions) - Colors, borders, conditionals, validation
+✅ sheets_core (19 actions) - Spreadsheet CRUD, metadata
+✅ sheets_data (19 actions) - Read, write, batch ops, notes, hyperlinks
+✅ sheets_format (23 actions) - Colors, borders, conditionals, validation
 ✅ sheets_dimensions (28 actions) - Rows, columns, filters, sorts, freezes
 ✅ sheets_visualize (18 actions) - Charts, pivot tables
-✅ sheets_collaborate (28 actions) - Sharing, comments, versions
-✅ sheets_advanced (23 actions) - Named ranges, protected ranges, banding
+✅ sheets_collaborate (35 actions) - Sharing, comments, versions
+✅ sheets_advanced (31 actions) - Named ranges, protected ranges, banding
 ✅ sheets_transaction (6 actions) - Atomic operations, rollback
 ✅ sheets_quality (4 actions) - Validation, conflict detection
 ✅ sheets_history (7 actions) - Undo, redo, revert
 ✅ sheets_confirm (5 actions) - User confirmations, wizards
-✅ sheets_analyze (11 actions) - AI analysis, recommendations
+✅ sheets_analyze (16 actions) - AI analysis, recommendations
 ✅ sheets_fix (1 action) - Automated fixes
-✅ sheets_composite (10 actions) - Bulk ops, import, deduplicate
-✅ sheets_session (17 actions) - Session context
-✅ sheets_appsscript (14 actions) - Apps Script automation
-✅ sheets_bigquery (14 actions) - BigQuery integration
+✅ sheets_composite (11 actions) - Bulk ops, import, deduplicate
+✅ sheets_session (26 actions) - Session context
+✅ sheets_appsscript (18 actions) - Apps Script automation
+✅ sheets_bigquery (17 actions) - BigQuery integration
 ✅ sheets_templates (8 actions) - Template management
-✅ sheets_webhook (6 actions) - Change notifications
+✅ sheets_webhook (7 actions) - Change notifications
 ✅ sheets_dependencies (7 actions) - Formula analysis
 ```
 
 **Discriminated Union Schema** ✅:
+
 - Input: `z.discriminatedUnion('action', [...])`
 - Output: `z.discriminatedUnion('success', [...])`
 - Type-safe handler dispatch
@@ -1916,6 +2099,7 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 #### Resources (6 URI templates ✅)
 
 **Implemented & Tested**:
+
 ```
 ✅ sheets:///{spreadsheetId}
    └─ Spreadsheet metadata (title, sheets, properties)
@@ -1937,6 +2121,7 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 ```
 
 **Knowledge Resources** (7 resources):
+
 ```
 ✅ Formulas Reference - All supported Google Sheets functions
 ✅ Colors Reference - RGB color codes and named colors
@@ -1950,6 +2135,7 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 #### Prompts (6 workflows ✅)
 
 **Implemented & Tested**:
+
 ```
 ✅ Create Spreadsheet - Guided sheet creation
 ✅ Import Data - CSV to Sheets import workflow
@@ -1962,6 +2148,7 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 #### Tasks (SEP-1686 ✅)
 
 **Implemented Features**:
+
 ```
 ✅ Background execution - Long-running ops don't block
 ✅ Progress reporting - Real-time operation status
@@ -1972,13 +2159,14 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 ```
 
 **Example**: Long-running import
+
 ```typescript
 // Start background import task
 const task = await sheets_composite({
   action: 'import_csv',
   spreadsheetId: '...',
   csvData: largeDataset,
-  targetRange: 'Sheet1!A1'
+  targetRange: 'Sheet1!A1',
 });
 // Result: { taskId: 'task-123', progress: 0, status: 'running' }
 
@@ -1994,6 +2182,7 @@ await waitForTask(task.taskId);
 #### Elicitation (SEP-1036 ✅)
 
 **Implemented**: User confirmations for destructive operations
+
 ```
 ✅ Confirmation requests - Ask before delete/overwrite
 ✅ Wizard patterns - Step-by-step guidance
@@ -2003,6 +2192,7 @@ await waitForTask(task.taskId);
 ```
 
 **Example**: Safe deletion
+
 ```typescript
 // 1. Elicitation: Ask for confirmation
 const confirm = await sheets_confirm({
@@ -2010,7 +2200,7 @@ const confirm = await sheets_confirm({
   title: 'Delete 500 rows?',
   description: 'This operation will delete rows 2-501 from Sheet1',
   warning: 'This cannot be undone without using Sheets version history',
-  suggestedAction: 'Create a version snapshot before proceeding'
+  suggestedAction: 'Create a version snapshot before proceeding',
 });
 
 // 2. User confirms or cancels
@@ -2018,7 +2208,7 @@ const confirm = await sheets_confirm({
 // 3. Create snapshot before destructive op
 await sheets_collaborate({
   action: 'version_create_snapshot',
-  description: 'Before bulk delete'
+  description: 'Before bulk delete',
 });
 
 // 4. Execute deletion
@@ -2026,13 +2216,14 @@ await sheets_dimensions({
   action: 'delete_rows',
   sheetId: 0,
   startIndex: 1,
-  endIndex: 501
+  endIndex: 501,
 });
 ```
 
 #### Sampling (SEP-1577 ✅)
 
 **Implemented**: AI-powered analysis and recommendations
+
 ```
 ✅ Comprehensive analysis - Data quality, patterns, anomalies
 ✅ Pattern detection - Trends, correlations, seasonality
@@ -2043,12 +2234,13 @@ await sheets_dimensions({
 ```
 
 **Example**: Generate formula from natural language
+
 ```typescript
 const analysis = await sheets_analyze({
   action: 'analyze_data',
   spreadsheetId: '...',
   range: 'Sales!A1:D100',
-  question: 'Calculate total revenue for Q4'
+  question: 'Calculate total revenue for Q4',
 });
 
 // Result includes:
@@ -2061,6 +2253,7 @@ const analysis = await sheets_analyze({
 #### Logging (Dynamic level control ✅)
 
 **Implemented**: Runtime log level adjustment
+
 ```bash
 # Initial log level (default: info)
 export LOG_LEVEL=info
@@ -2076,6 +2269,7 @@ curl -X POST http://localhost:9090/logging/setLevel \
 #### Transports (3 types ✅)
 
 **Implemented & Tested**:
+
 ```
 ✅ STDIO - For Claude Desktop, local CLI
 ✅ HTTP/SSE - For web clients, remote access
@@ -2083,6 +2277,7 @@ curl -X POST http://localhost:9090/logging/setLevel \
 ```
 
 **Configuration**:
+
 ```bash
 # STDIO (default)
 npx servalsheets

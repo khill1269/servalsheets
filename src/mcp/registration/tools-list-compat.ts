@@ -24,17 +24,25 @@ function toJsonSchema(schema: unknown): Record<string, unknown> {
   if (!schema) {
     return EMPTY_OBJECT_JSON_SCHEMA;
   }
+  let result: Record<string, unknown>;
   if (isZodSchema(schema)) {
     try {
-      return zodSchemaToJsonSchema(schema as unknown as import('zod').ZodTypeAny);
+      result = zodSchemaToJsonSchema(schema as unknown as import('zod').ZodTypeAny);
     } catch {
       return EMPTY_OBJECT_JSON_SCHEMA;
     }
+  } else if (typeof schema === 'object') {
+    result = schema as Record<string, unknown>;
+  } else {
+    return EMPTY_OBJECT_JSON_SCHEMA;
   }
-  if (typeof schema === 'object') {
-    return schema as Record<string, unknown>;
+
+  // MCP spec requires inputSchema MUST be type: 'object'.
+  // Discriminated unions produce { anyOf: [...] } without type — wrap them.
+  if (result && !('type' in result)) {
+    return { type: 'object', ...result };
   }
-  return EMPTY_OBJECT_JSON_SCHEMA;
+  return result;
 }
 
 export function registerToolsListCompatibilityHandler(server: McpServer): void {

@@ -71,16 +71,21 @@ class MetricsTracker {
     const p95 = this.percentile(sortedLatencies, 0.95);
     const p99 = this.percentile(sortedLatencies, 0.99);
 
-    const cacheHitRate = this.cacheHits + this.cacheMisses > 0
-      ? (this.cacheHits / (this.cacheHits + this.cacheMisses)) * 100
-      : 0;
+    const cacheHitRate =
+      this.cacheHits + this.cacheMisses > 0
+        ? (this.cacheHits / (this.cacheHits + this.cacheMisses)) * 100
+        : 0;
 
-    const apiCallReduction = this.apiCalls > 0
-      ? ((this.cacheHits + this.cacheMisses - this.apiCalls) / (this.cacheHits + this.cacheMisses)) * 100
-      : 0;
+    const apiCallReduction =
+      this.apiCalls > 0
+        ? ((this.cacheHits + this.cacheMisses - this.apiCalls) /
+            (this.cacheHits + this.cacheMisses)) *
+          100
+        : 0;
 
     const maxMemoryMB = Math.max(...this.memorySnapshots) / (1024 * 1024);
-    const avgMemoryMB = this.memorySnapshots.reduce((a, b) => a + b, 0) / this.memorySnapshots.length / (1024 * 1024);
+    const avgMemoryMB =
+      this.memorySnapshots.reduce((a, b) => a + b, 0) / this.memorySnapshots.length / (1024 * 1024);
 
     return {
       apiCalls: this.apiCalls,
@@ -89,7 +94,7 @@ class MetricsTracker {
       cacheHitRate,
       apiCallReduction,
       latency: { p50, p95, p99 },
-      errors429: this.errors.filter(e => e === 429).length,
+      errors429: this.errors.filter((e) => e === 429).length,
       errorsTotal: this.errors.length,
       memoryMB: { max: maxMemoryMB, avg: avgMemoryMB },
     };
@@ -202,7 +207,7 @@ describe('Phase 2 Feature Integration', () => {
 
     // Verify values keys were invalidated but metadata was not
     expect(invalidated.length).toBe(2);
-    expect(invalidated.every(k => k.includes('values'))).toBe(true);
+    expect(invalidated.every((k) => k.includes('values'))).toBe(true);
 
     // Step 4: Next read should hit API (merging still works)
     metrics.recordApiCall();
@@ -227,11 +232,7 @@ describe('Phase 2 Feature Integration', () => {
 
     // Step 1: Establish pattern - read sequential ranges and record in history
     const historyService = getHistoryService();
-    const ranges = [
-      'Sheet1!A1:A100',
-      'Sheet1!A101:A200',
-      'Sheet1!A201:A300',
-    ];
+    const ranges = ['Sheet1!A1:A100', 'Sheet1!A101:A200', 'Sheet1!A201:A300'];
 
     for (let i = 0; i < ranges.length; i++) {
       const range = ranges[i]!;
@@ -313,14 +314,12 @@ describe('Phase 2 Feature Integration', () => {
       const range = `Sheet1!A${i * 10 + 1}:D${i * 10 + 10}`;
       const startTime = Date.now();
 
-      const promise = requestMerger.mergeRead(
-        mockSheetsApi as unknown as sheets_v4.Sheets,
-        spreadsheetId,
-        range
-      ).then(() => {
-        metrics.recordLatency(Date.now() - startTime);
-        metrics.recordApiCall();
-      });
+      const promise = requestMerger
+        .mergeRead(mockSheetsApi as unknown as sheets_v4.Sheets, spreadsheetId, range)
+        .then(() => {
+          metrics.recordLatency(Date.now() - startTime);
+          metrics.recordApiCall();
+        });
 
       readPromises.push(promise);
     }
@@ -363,7 +362,10 @@ describe('Phase 2 Feature Integration', () => {
 
     // Use deterministic seed for reproducibility
     let seed = 42;
-    const random = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const random = () => {
+      seed = (seed * 16807) % 2147483647;
+      return seed / 2147483647;
+    };
 
     for (let i = 0; i < operations; i++) {
       metrics.recordMemory();
@@ -426,12 +428,7 @@ describe('Phase 2 Feature Integration', () => {
     const graph = getCacheInvalidationGraph();
 
     // Read from Sheet1 and Sheet2 via merger
-    const ranges = [
-      'Sheet1!A1:B10',
-      'Sheet1!C1:D10',
-      'Sheet2!A1:B10',
-      'Sheet2!C1:D10',
-    ];
+    const ranges = ['Sheet1!A1:B10', 'Sheet1!C1:D10', 'Sheet2!A1:B10', 'Sheet2!C1:D10'];
 
     for (const range of ranges) {
       await requestMerger.mergeRead(
@@ -456,14 +453,14 @@ describe('Phase 2 Feature Integration', () => {
 
     // Verify only values keys are invalidated (not metadata)
     expect(invalidated.length).toBe(4); // All 4 values keys match values:*
-    expect(invalidated.every(k => k.includes('values'))).toBe(true);
-    expect(invalidated.some(k => k.includes('metadata'))).toBe(false);
+    expect(invalidated.every((k) => k.includes('values'))).toBe(true);
+    expect(invalidated.some((k) => k.includes('metadata'))).toBe(false);
 
     // Format operation invalidates metadata:* pattern only
     const formatInvalidated = graph.getKeysToInvalidate('sheets_format', 'set_bold', allCacheKeys);
     expect(formatInvalidated.length).toBe(2); // Only metadata keys
-    expect(formatInvalidated.every(k => k.includes('metadata'))).toBe(true);
-    expect(formatInvalidated.some(k => k.includes('values'))).toBe(false);
+    expect(formatInvalidated.every((k) => k.includes('metadata'))).toBe(true);
+    expect(formatInvalidated.some((k) => k.includes('values'))).toBe(false);
 
     // Read operation invalidates nothing
     const readInvalidated = graph.getKeysToInvalidate('sheets_data', 'read', allCacheKeys);
@@ -529,14 +526,12 @@ describe('Phase 2 Feature Integration', () => {
       const range = `Sheet1!A${i + 1}:D${i + 10}`;
       const startTime = Date.now();
 
-      const promise = requestMerger.mergeRead(
-        mockSheetsApi as unknown as sheets_v4.Sheets,
-        spreadsheetId,
-        range
-      ).then(() => {
-        metrics.recordLatency(Date.now() - startTime);
-        metrics.recordMemory();
-      });
+      const promise = requestMerger
+        .mergeRead(mockSheetsApi as unknown as sheets_v4.Sheets, spreadsheetId, range)
+        .then(() => {
+          metrics.recordLatency(Date.now() - startTime);
+          metrics.recordMemory();
+        });
 
       readPromises.push(promise);
     }

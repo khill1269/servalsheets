@@ -79,7 +79,7 @@ describe('google-sheets-helpers', () => {
     it('should handle multi-letter columns like AA1:AZ100', () => {
       const result = parseA1Notation('AA1:AZ100');
       expect(result.startCol).toBe(26); // AA = 26
-      expect(result.endCol).toBe(52);   // AZ = 51, +1 = 52
+      expect(result.endCol).toBe(52); // AZ = 51, +1 = 52
       expect(result.startRow).toBe(0);
       expect(result.endRow).toBe(100);
     });

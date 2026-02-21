@@ -68,15 +68,15 @@ const HISTORY_DIR = join(BASELINE_DIR, 'history');
 const THRESHOLDS = {
   latency: {
     critical: 20, // 20% increase is critical
-    warning: 15,  // 15% increase is warning
+    warning: 15, // 15% increase is warning
   },
   memory: {
     critical: 25, // 25% increase is critical
-    warning: 20,  // 20% increase is warning
+    warning: 20, // 20% increase is warning
   },
   throughput: {
     critical: -20, // 20% decrease is critical
-    warning: -15,  // 15% decrease is warning
+    warning: -15, // 15% decrease is warning
   },
 };
 

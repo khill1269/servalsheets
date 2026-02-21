@@ -31,10 +31,12 @@ Before creating this audit, the following validations MUST be run:
 
 **Claim:**
 Clear, specific claim about what's wrong. Use precise language:
+
 - ✅ Good: "Handler has 3 extra cases: rename_sheet, hide_sheet, show_sheet"
 - ❌ Bad: "Handler has extra cases"
 
 **Evidence:**
+
 ```bash
 # REQUIRED: Show actual command output that proves the claim
 
@@ -51,6 +53,7 @@ PASS tests/handlers/core.test.ts
 ```
 
 **Impact:**
+
 - What happens if this isn't fixed?
 - Who is affected?
 - What's the business/technical risk?
@@ -59,12 +62,14 @@ PASS tests/handlers/core.test.ts
 Technical explanation of WHY this issue exists.
 
 **Reproduction Steps:**
+
 1. Step-by-step instructions to reproduce the issue
 2. Expected behavior vs actual behavior
 3. Any preconditions or setup required
 
 **Fix:**
 Concrete, actionable fix with:
+
 - Which files to change
 - What changes to make
 - Estimated effort (hours or days)
@@ -72,6 +77,7 @@ Concrete, actionable fix with:
 
 **Verification:**
 How to verify the fix worked:
+
 ```bash
 # Commands to run after fix
 npm run validate:alignment
@@ -92,6 +98,7 @@ npm run gates
 **Claim:** Preset cases are unreachable dead code
 
 **Coverage Proof:**
+
 ```bash
 $ npm run validate:dead-code src/handlers/format.ts 1091 1207
 Running tests with coverage...
@@ -102,6 +109,7 @@ Coverage for lines 1091-1207: 0/15 statements
 ```
 
 **Test Verification:**
+
 ```bash
 $ npm test -- tests/handlers/format.test.ts --grep "apply_preset"
 ✓ should apply header_row preset
@@ -110,6 +118,7 @@ $ npm test -- tests/handlers/format.test.ts --grep "apply_preset"
 ```
 
 **Conclusion:**
+
 - [ ] Tests pass ✓
 - [ ] Code has 0% coverage ✓
 - [ ] Confirmed dead code ✓
@@ -126,6 +135,7 @@ $ npm run validate:alignment
 ```
 
 **Summary:**
+
 - Aligned: X/22 tools
 - Misaligned: Y tools
 - Total extra cases: Z
@@ -136,12 +146,15 @@ $ npm run validate:alignment
 ## Action Required
 
 ### Immediate (P0)
+
 List critical issues that block progress.
 
 ### Near-term (P1)
+
 List high-priority issues for next sprint.
 
 ### Backlog (P2)
+
 List medium/low priority issues for future consideration.
 
 ---
@@ -164,19 +177,24 @@ Before submitting this audit:
 ## Appendix
 
 ### Methodology
+
 Describe how the audit was conducted:
+
 - Tools used
 - Manual inspection areas
 - Automated checks run
 - Sample size or coverage
 
 ### Assumptions
+
 List any assumptions made during the audit.
 
 ### Limitations
+
 List any limitations or areas not covered by this audit.
 
 ### References
+
 - Link to related issues, PRs, or documentation
 - References to best practices or standards used
 
@@ -204,6 +222,7 @@ List any limitations or areas not covered by this audit.
 7. **Risk assessment** - Every fix should have effort + risk estimate
 
 **Good audit:**
+
 - Includes command outputs
 - Shows test results
 - Has reproduction steps
@@ -211,6 +230,7 @@ List any limitations or areas not covered by this audit.
 - Estimates effort and risk
 
 **Bad audit:**
+
 - Makes claims without proof
 - Uses vague language ("approximately", "around", "seems like")
 - Lacks reproduction steps

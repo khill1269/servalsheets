@@ -32,7 +32,12 @@ const CONFIGURATIONS: ToolConfig[] = [
   { mode: 'full', deferSchemas: false, deferDescriptions: false, label: 'full + no-defer' },
   { mode: 'full', deferSchemas: true, deferDescriptions: false, label: 'full + defer-schemas' },
   { mode: 'standard', deferSchemas: false, deferDescriptions: false, label: 'standard + no-defer' },
-  { mode: 'standard', deferSchemas: true, deferDescriptions: false, label: 'standard + defer-schemas' },
+  {
+    mode: 'standard',
+    deferSchemas: true,
+    deferDescriptions: false,
+    label: 'standard + defer-schemas',
+  },
   { mode: 'standard', deferSchemas: true, deferDescriptions: true, label: 'standard + defer-all' },
   { mode: 'lite', deferSchemas: true, deferDescriptions: true, label: 'lite + defer-all' },
 ];
@@ -102,9 +107,15 @@ console.log('║               ServalSheets Token Budget Calculator             
 console.log('╚══════════════════════════════════════════════════════════════════════╝\n');
 
 console.log(`Total schema files: ${tools.length}`);
-console.log(`Enterprise tools: ${tools.filter((t) => t.isEnterprise).length} (${ENTERPRISE_TOOLS.join(', ')})`);
-console.log(`Core (lite) tools: ${tools.filter((t) => t.isLite).length} (${LITE_TOOLS.join(', ')})`);
-console.log(`Standard tools: ${tools.filter((t) => !t.isEnterprise).length} (all except enterprise)`);
+console.log(
+  `Enterprise tools: ${tools.filter((t) => t.isEnterprise).length} (${ENTERPRISE_TOOLS.join(', ')})`
+);
+console.log(
+  `Core (lite) tools: ${tools.filter((t) => t.isLite).length} (${LITE_TOOLS.join(', ')})`
+);
+console.log(
+  `Standard tools: ${tools.filter((t) => !t.isEnterprise).length} (all except enterprise)`
+);
 console.log('');
 
 // Estimate for each configuration
@@ -156,7 +167,9 @@ for (const config of CONFIGURATIONS) {
   const pctStr = `${pctOfWindow}%`.padStart(8);
   const budgetStr = budgetLeft.toLocaleString().padStart(9);
 
-  console.log(`${config.label.padEnd(35)}│${toolCount}   │${tokenStr}   │${pctStr}   │${budgetStr}`);
+  console.log(
+    `${config.label.padEnd(35)}│${toolCount}   │${tokenStr}   │${pctStr}   │${budgetStr}`
+  );
 }
 
 console.log('');

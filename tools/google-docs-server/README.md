@@ -56,6 +56,7 @@ Or for development:
 Fetch latest documentation for specific endpoint.
 
 **Input:**
+
 ```json
 {
   "endpoint": "spreadsheets.values.batchGet"
@@ -63,6 +64,7 @@ Fetch latest documentation for specific endpoint.
 ```
 
 **Output:**
+
 ```json
 {
   "endpoint": "spreadsheets.values.batchGet",
@@ -82,13 +84,15 @@ Fetch latest documentation for specific endpoint.
 Get API changes and breaking changes.
 
 **Input:**
+
 ```json
 {
-  "since": "2024-01-01"  // Optional
+  "since": "2024-01-01" // Optional
 }
 ```
 
 **Output:**
+
 ```json
 {
   "changes": [...],
@@ -102,13 +106,15 @@ Get API changes and breaking changes.
 Get current quota limits.
 
 **Input:**
+
 ```json
 {
-  "method": "batchGet"  // Optional
+  "method": "batchGet" // Optional
 }
 ```
 
 **Output:**
+
 ```json
 {
   "readRequests": {
@@ -128,13 +134,15 @@ Get current quota limits.
 Get best practices for category.
 
 **Input:**
+
 ```json
 {
-  "category": "quota"  // quota | performance | security | errors
+  "category": "quota" // quota | performance | security | errors
 }
 ```
 
 **Output:**
+
 ```json
 {
   "category": "quota",
@@ -153,11 +161,13 @@ Get best practices for category.
 Get deprecation schedule.
 
 **Input:**
+
 ```json
 {}
 ```
 
 **Output:**
+
 ```json
 {
   "deprecations": [...],
@@ -185,7 +195,7 @@ name: Google Docs Sync
 
 on:
   schedule:
-    - cron: '0 0 * * 1'  # Weekly on Monday
+    - cron: '0 0 * * 1' # Weekly on Monday
   workflow_dispatch:
 
 jobs:
@@ -289,6 +299,7 @@ npm run dev
 ### Tools not appearing in Claude
 
 1. Check Claude Desktop config:
+
    ```bash
    cat ~/.config/Claude/claude_desktop_config.json
    ```

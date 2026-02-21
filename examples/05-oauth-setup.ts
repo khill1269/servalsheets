@@ -72,20 +72,16 @@ function createOAuth2Client(): OAuth2Client {
   if (!CLIENT_ID || !CLIENT_SECRET) {
     throw new Error(
       'OAuth credentials not found. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.\n\n' +
-      'To get credentials:\n' +
-      '1. Go to https://console.cloud.google.com\n' +
-      '2. Create/select a project\n' +
-      '3. Enable Google Sheets API\n' +
-      '4. Create OAuth 2.0 Client ID\n' +
-      '5. Download credentials'
+        'To get credentials:\n' +
+        '1. Go to https://console.cloud.google.com\n' +
+        '2. Create/select a project\n' +
+        '3. Enable Google Sheets API\n' +
+        '4. Create OAuth 2.0 Client ID\n' +
+        '5. Download credentials'
     );
   }
 
-  return new google.auth.OAuth2(
-    CLIENT_ID,
-    CLIENT_SECRET,
-    REDIRECT_URI
-  );
+  return new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 }
 
 // ============================================================================
@@ -144,10 +140,13 @@ function startAuthServer(oauth2Client: OAuth2Client): Promise<Credentials> {
       console.log('\n✓ Authorization server started on http://localhost:3000');
     });
 
-    setTimeout(() => {
-      server.close();
-      reject(new Error('Authorization timeout'));
-    }, 5 * 60 * 1000);
+    setTimeout(
+      () => {
+        server.close();
+        reject(new Error('Authorization timeout'));
+      },
+      5 * 60 * 1000
+    );
   });
 }
 
@@ -229,7 +228,7 @@ async function main(): Promise<void> {
 
     await authorize(oauth2Client);
 
-    const sheets = google.sheets({ version: "v4", auth: oauth2Client as any });
+    const sheets = google.sheets({ version: 'v4', auth: oauth2Client as any });
 
     console.log('\n[TEST] Testing authenticated API access...');
     const response = await sheets.spreadsheets.get({
@@ -246,7 +245,6 @@ async function main(): Promise<void> {
     console.log('  2. Refresh tokens enable long-term access without re-authorization');
     console.log('  3. Tokens should be stored securely (encrypted in production)');
     console.log('  4. TypeScript provides type safety for OAuth flow and tokens');
-
   } catch (error) {
     console.error('\n=== Example Failed ===');
     const message = error instanceof Error ? error.message : String(error);

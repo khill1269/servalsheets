@@ -237,9 +237,7 @@ describe('FormatHandler batch_format execution', () => {
 
       const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
       expect(call.requestBody.requests[0]).toHaveProperty('repeatCell');
-      expect(call.requestBody.requests[0].repeatCell.fields).toBe(
-        'userEnteredFormat.textFormat'
-      );
+      expect(call.requestBody.requests[0].repeatCell.fields).toBe('userEnteredFormat.textFormat');
     });
 
     it('should execute single number_format operation', async () => {
@@ -261,9 +259,7 @@ describe('FormatHandler batch_format execution', () => {
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
 
       const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
-      expect(call.requestBody.requests[0].repeatCell.fields).toBe(
-        'userEnteredFormat.numberFormat'
-      );
+      expect(call.requestBody.requests[0].repeatCell.fields).toBe('userEnteredFormat.numberFormat');
     });
 
     it('should execute single alignment operation', async () => {
@@ -286,9 +282,7 @@ describe('FormatHandler batch_format execution', () => {
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
 
       const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
-      expect(call.requestBody.requests[0].repeatCell.fields).toContain(
-        'horizontalAlignment'
-      );
+      expect(call.requestBody.requests[0].repeatCell.fields).toContain('horizontalAlignment');
     });
 
     it('should execute single borders operation', async () => {

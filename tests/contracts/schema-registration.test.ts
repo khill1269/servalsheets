@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { TOOL_DEFINITIONS } from '../../src/mcp/registration.js';
+import { TOOL_DEFINITIONS } from '../../src/mcp/registration/index.js';
 import { zodToJsonSchemaCompat } from '../../src/utils/schema-compat.js';
 
 describe('Schema Registration Contract', () => {

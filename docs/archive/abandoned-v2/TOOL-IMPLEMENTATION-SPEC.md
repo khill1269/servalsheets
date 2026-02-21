@@ -9,19 +9,19 @@ description: | Tool | Actions | Primary Use Case |
 
 ## Quick Reference: 11 Super Tools
 
-| Tool | Actions | Primary Use Case |
-|------|---------|------------------|
-| `sheets_auth` | 4 | OAuth authentication |
-| `sheets_data` | 28 | Read/write all data |
-| `sheets_style` | 18 | Formatting + rules |
-| `sheets_structure` | 25 | Sheets, dims, named ranges |
-| `sheets_visualize` | 20 | Charts, pivots, filters |
-| `sheets_analyze` | 15 | AI + traditional analysis |
-| `sheets_automate` | 12 | Fixes, bulk ops, import |
-| `sheets_share` | 16 | Permissions + comments |
-| `sheets_history` | 12 | Versions + operations |
-| `sheets_safety` | 12 | Transactions + validation |
-| `sheets_context` | 8 | Session + confirmation |
+| Tool               | Actions | Primary Use Case           |
+| ------------------ | ------- | -------------------------- |
+| `sheets_auth`      | 4       | OAuth authentication       |
+| `sheets_data`      | 28      | Read/write all data        |
+| `sheets_style`     | 18      | Formatting + rules         |
+| `sheets_structure` | 25      | Sheets, dims, named ranges |
+| `sheets_visualize` | 20      | Charts, pivots, filters    |
+| `sheets_analyze`   | 15      | AI + traditional analysis  |
+| `sheets_automate`  | 12      | Fixes, bulk ops, import    |
+| `sheets_share`     | 16      | Permissions + comments     |
+| `sheets_history`   | 12      | Versions + operations      |
+| `sheets_safety`    | 12      | Transactions + validation  |
+| `sheets_context`   | 8       | Session + confirmation     |
 
 **Total: 11 tools, 170 actions**
 
@@ -48,23 +48,29 @@ const SheetsAuthSchema = z.discriminatedUnion('action', [
 
 ```typescript
 // Safety options available on all write operations
-const SafetyOptionsSchema = z.object({
-  dryRun: z.boolean().default(false),
-  createSnapshot: z.boolean().default(false),
-  requireConfirmation: z.boolean().default(false),
-  transactionId: z.string().optional(), // Auto-queue to existing transaction
-}).optional();
+const SafetyOptionsSchema = z
+  .object({
+    dryRun: z.boolean().default(false),
+    createSnapshot: z.boolean().default(false),
+    requireConfirmation: z.boolean().default(false),
+    transactionId: z.string().optional(), // Auto-queue to existing transaction
+  })
+  .optional();
 
 const SheetsDataSchema = z.discriminatedUnion('action', [
   // === SPREADSHEET LEVEL ===
   z.object({
     action: z.literal('create'),
     title: z.string(),
-    sheets: z.array(z.object({
-      title: z.string(),
-      rowCount: z.number().optional(),
-      columnCount: z.number().optional(),
-    })).optional(),
+    sheets: z
+      .array(
+        z.object({
+          title: z.string(),
+          rowCount: z.number().optional(),
+          columnCount: z.number().optional(),
+        })
+      )
+      .optional(),
   }),
   z.object({
     action: z.literal('get'),
@@ -138,10 +144,12 @@ const SheetsDataSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('batch_write'),
     spreadsheetId: z.string(),
-    data: z.array(z.object({
-      range: z.string(),
-      values: z.array(z.array(z.any())),
-    })),
+    data: z.array(
+      z.object({
+        range: z.string(),
+        values: z.array(z.array(z.any())),
+      })
+    ),
     valueInputOption: z.enum(['RAW', 'USER_ENTERED']).optional(),
     safety: SafetyOptionsSchema,
   }),
@@ -228,7 +236,17 @@ const SheetsDataSchema = z.discriminatedUnion('action', [
     spreadsheetId: z.string(),
     source: z.string(),
     destination: z.string(),
-    pasteType: z.enum(['PASTE_NORMAL', 'PASTE_VALUES', 'PASTE_FORMAT', 'PASTE_NO_BORDERS', 'PASTE_FORMULA', 'PASTE_DATA_VALIDATION', 'PASTE_CONDITIONAL_FORMATTING']).optional(),
+    pasteType: z
+      .enum([
+        'PASTE_NORMAL',
+        'PASTE_VALUES',
+        'PASTE_FORMAT',
+        'PASTE_NO_BORDERS',
+        'PASTE_FORMULA',
+        'PASTE_DATA_VALIDATION',
+        'PASTE_CONDITIONAL_FORMATTING',
+      ])
+      .optional(),
     safety: SafetyOptionsSchema,
   }),
   z.object({
@@ -299,7 +317,9 @@ const SheetsStyleSchema = z.discriminatedUnion('action', [
     range: z.string(),
     style: z.enum(['SOLID', 'DASHED', 'DOTTED', 'DOUBLE', 'NONE']),
     color: ColorSchema.optional(),
-    sides: z.array(z.enum(['TOP', 'BOTTOM', 'LEFT', 'RIGHT', 'INNER_HORIZONTAL', 'INNER_VERTICAL'])).optional(),
+    sides: z
+      .array(z.enum(['TOP', 'BOTTOM', 'LEFT', 'RIGHT', 'INNER_HORIZONTAL', 'INNER_VERTICAL']))
+      .optional(),
   }),
   z.object({
     action: z.literal('clear_format'),
@@ -310,7 +330,18 @@ const SheetsStyleSchema = z.discriminatedUnion('action', [
     action: z.literal('apply_preset'),
     spreadsheetId: z.string(),
     range: z.string(),
-    preset: z.enum(['header', 'subheader', 'data', 'currency', 'percentage', 'date', 'highlight', 'warning', 'error', 'success']),
+    preset: z.enum([
+      'header',
+      'subheader',
+      'data',
+      'currency',
+      'percentage',
+      'date',
+      'highlight',
+      'warning',
+      'error',
+      'success',
+    ]),
   }),
   z.object({
     action: z.literal('auto_fit'),
@@ -585,7 +616,18 @@ const SheetsVisualizeSchema = z.discriminatedUnion('action', [
     action: z.literal('create_chart'),
     spreadsheetId: z.string(),
     sheetId: z.number(),
-    type: z.enum(['LINE', 'BAR', 'COLUMN', 'PIE', 'SCATTER', 'AREA', 'COMBO', 'HISTOGRAM', 'TREEMAP', 'WATERFALL']),
+    type: z.enum([
+      'LINE',
+      'BAR',
+      'COLUMN',
+      'PIE',
+      'SCATTER',
+      'AREA',
+      'COMBO',
+      'HISTOGRAM',
+      'TREEMAP',
+      'WATERFALL',
+    ]),
     dataRange: z.string(),
     title: z.string().optional(),
     position: ChartPositionSchema.optional(),
@@ -685,10 +727,12 @@ const SheetsVisualizeSchema = z.discriminatedUnion('action', [
     action: z.literal('sort_range'),
     spreadsheetId: z.string(),
     range: z.string(),
-    sortSpecs: z.array(z.object({
-      dimensionIndex: z.number(),
-      sortOrder: z.enum(['ASCENDING', 'DESCENDING']),
-    })),
+    sortSpecs: z.array(
+      z.object({
+        dimensionIndex: z.number(),
+        sortOrder: z.enum(['ASCENDING', 'DESCENDING']),
+      })
+    ),
   }),
   z.object({
     action: z.literal('create_filter_view'),
@@ -744,7 +788,7 @@ const SheetsVisualizeSchema = z.discriminatedUnion('action', [
 - column_analysis, generate_formula, suggest_chart, explain_data, query_natural
 - suggest_template, apply_recommendation, analyze_performance, analyze_formulas, compare_ranges
 
-### sheets_automate (12 actions)  
+### sheets_automate (12 actions)
 
 - preview_fixes, apply_fixes, fix_formulas, fix_formatting
 - import_csv, import_json, smart_append, bulk_update
@@ -813,35 +857,35 @@ src/
 
 ## Migration Mapping
 
-| Old Tool | New Tool | Notes |
-|----------|----------|-------|
-| sheets_auth | sheets_auth | Unchanged |
-| sheets_core | sheets_data | Merged |
-| sheets_data | sheets_data | Merged |
-| sheets_data | sheets_data | Merged |
-| sheets_format | sheets_style | Merged |
-| sheets_format | sheets_style | Merged |
-| sheets_core | sheets_structure | Merged |
-| sheets_dimensions | sheets_structure | Merged |
+| Old Tool                  | New Tool         | Notes                    |
+| ------------------------- | ---------------- | ------------------------ |
+| sheets_auth               | sheets_auth      | Unchanged                |
+| sheets_core               | sheets_data      | Merged                   |
+| sheets_data               | sheets_data      | Merged                   |
+| sheets_data               | sheets_data      | Merged                   |
+| sheets_format             | sheets_style     | Merged                   |
+| sheets_format             | sheets_style     | Merged                   |
+| sheets_core               | sheets_structure | Merged                   |
+| sheets_dimensions         | sheets_structure | Merged                   |
 | sheets_advanced (partial) | sheets_structure | Named ranges, protection |
-| sheets_advanced (partial) | sheets_style | Banding |
-| sheets_visualize | sheets_visualize | Merged |
-| sheets_visualize | sheets_visualize | Merged |
-| sheets_dimensions | sheets_visualize | Merged |
-| sheets_analyze | sheets_analyze | Deprecated, merged |
-| sheets_analyze | sheets_analyze | Enhanced |
-| sheets_fix | sheets_automate | Merged |
-| sheets_composite | sheets_automate | Merged |
-| sheets_collaborate | sheets_share | Enhanced |
-| sheets_collaborate | sheets_share | Merged |
-| sheets_collaborate | sheets_history | Merged |
-| sheets_history | sheets_history | Enhanced |
-| sheets_transaction | sheets_safety | Merged |
-| sheets_quality | sheets_safety | Merged |
-| sheets_quality | sheets_safety | Merged |
-| sheets_quality | sheets_safety | Merged |
-| sheets_confirm | sheets_context | Merged |
-| sheets_session | sheets_context | Merged |
+| sheets_advanced (partial) | sheets_style     | Banding                  |
+| sheets_visualize          | sheets_visualize | Merged                   |
+| sheets_visualize          | sheets_visualize | Merged                   |
+| sheets_dimensions         | sheets_visualize | Merged                   |
+| sheets_analyze            | sheets_analyze   | Deprecated, merged       |
+| sheets_analyze            | sheets_analyze   | Enhanced                 |
+| sheets_fix                | sheets_automate  | Merged                   |
+| sheets_composite          | sheets_automate  | Merged                   |
+| sheets_collaborate        | sheets_share     | Enhanced                 |
+| sheets_collaborate        | sheets_share     | Merged                   |
+| sheets_collaborate        | sheets_history   | Merged                   |
+| sheets_history            | sheets_history   | Enhanced                 |
+| sheets_transaction        | sheets_safety    | Merged                   |
+| sheets_quality            | sheets_safety    | Merged                   |
+| sheets_quality            | sheets_safety    | Merged                   |
+| sheets_quality            | sheets_safety    | Merged                   |
+| sheets_confirm            | sheets_context   | Merged                   |
+| sheets_session            | sheets_context   | Merged                   |
 
 ---
 

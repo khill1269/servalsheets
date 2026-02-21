@@ -69,7 +69,9 @@ async function loadCircuitBreakers() {
       return;
     }
 
-    container.innerHTML = breakers.map(breaker => `
+    container.innerHTML = breakers
+      .map(
+        (breaker) => `
       <div class="circuit-breaker">
         <div class="circuit-breaker-name">${escapeHtml(breaker.name)}</div>
         <div class="circuit-breaker-state">
@@ -77,10 +79,13 @@ async function loadCircuitBreakers() {
           <span>${breaker.successCount} success / ${breaker.failureCount} failures</span>
         </div>
       </div>
-    `).join('');
+    `
+      )
+      .join('');
   } catch (error) {
     console.error('Failed to load circuit breakers:', error);
-    document.getElementById('circuit-breakers').innerHTML = '<p class="loading">Failed to load circuit breakers</p>';
+    document.getElementById('circuit-breakers').innerHTML =
+      '<p class="loading">Failed to load circuit breakers</p>';
   }
 }
 
@@ -116,7 +121,9 @@ async function loadSessions() {
       return;
     }
 
-    container.innerHTML = sessions.map(session => `
+    container.innerHTML = sessions
+      .map(
+        (session) => `
       <div class="session-item">
         <div class="session-header">
           <span class="session-id">${escapeHtml(session.id)}</span>
@@ -124,10 +131,13 @@ async function loadSessions() {
         </div>
         <div>${session.clientName || 'Unknown Client'} v${session.clientVersion || '?'}</div>
       </div>
-    `).join('');
+    `
+      )
+      .join('');
   } catch (error) {
     console.error('Failed to load sessions:', error);
-    document.getElementById('sessions-list').innerHTML = '<p class="loading">Failed to load sessions</p>';
+    document.getElementById('sessions-list').innerHTML =
+      '<p class="loading">Failed to load sessions</p>';
   }
 }
 
@@ -146,7 +156,9 @@ async function loadRequestLogs() {
       return;
     }
 
-    container.innerHTML = logs.map(log => `
+    container.innerHTML = logs
+      .map(
+        (log) => `
       <div class="log-item">
         <span class="log-time">${formatTime(log.timestamp)}</span>
         <span class="log-tool">${escapeHtml(log.tool_name)}</span>
@@ -155,10 +167,13 @@ async function loadRequestLogs() {
           ${log.error_message ? 'ERROR' : 'OK'} (${log.duration_ms}ms)
         </span>
       </div>
-    `).join('');
+    `
+      )
+      .join('');
   } catch (error) {
     console.error('Failed to load request logs:', error);
-    document.getElementById('request-logs').innerHTML = '<p class="loading">Failed to load request logs</p>';
+    document.getElementById('request-logs').innerHTML =
+      '<p class="loading">Failed to load request logs</p>';
   }
 }
 
@@ -219,7 +234,9 @@ async function clearDeduplicationCache() {
  * Shutdown server
  */
 async function shutdownServer() {
-  if (!confirm('⚠️ WARNING: This will shut down the ServalSheets server.\n\nAre you absolutely sure?')) {
+  if (
+    !confirm('⚠️ WARNING: This will shut down the ServalSheets server.\n\nAre you absolutely sure?')
+  ) {
     return;
   }
 

@@ -147,8 +147,7 @@ export class CodeQualityAgent extends AnalysisAgent {
         if (complexity > this.thresholds.complexity.warning) {
           const name = this.getFunctionName(node);
           const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
-          const severity =
-            complexity > this.thresholds.complexity.critical ? 'high' : 'medium';
+          const severity = complexity > this.thresholds.complexity.critical ? 'high' : 'medium';
 
           issues.push(
             this.createIssue(
@@ -162,8 +161,7 @@ export class CodeQualityAgent extends AnalysisAgent {
                   complexity > this.thresholds.complexity.critical
                     ? 'CRITICAL: Break into smaller functions immediately'
                     : 'Consider extracting logic into smaller, testable functions',
-                estimatedEffort:
-                  complexity > this.thresholds.complexity.critical ? '2-4h' : '1-2h',
+                estimatedEffort: complexity > this.thresholds.complexity.critical ? '2-4h' : '1-2h',
                 autoFixable: false,
               }
             )
@@ -274,12 +272,10 @@ export class CodeQualityAgent extends AnalysisAgent {
     const startTime = Date.now();
     const issues: AnalysisIssue[] = [];
 
-    const lineCount =
-      sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line + 1;
+    const lineCount = sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line + 1;
 
     if (lineCount > this.thresholds.fileSize.warning) {
-      const severity =
-        lineCount > this.thresholds.fileSize.critical ? 'high' : 'medium';
+      const severity = lineCount > this.thresholds.fileSize.critical ? 'high' : 'medium';
 
       issues.push(
         this.createIssue(
@@ -292,8 +288,7 @@ export class CodeQualityAgent extends AnalysisAgent {
               lineCount > this.thresholds.fileSize.critical
                 ? 'CRITICAL: Split into multiple modules immediately - maintainability risk'
                 : 'Monitor file growth - consider splitting if continues to grow',
-            estimatedEffort:
-              lineCount > this.thresholds.fileSize.critical ? '1-2 days' : '4-8h',
+            estimatedEffort: lineCount > this.thresholds.fileSize.critical ? '1-2 days' : '4-8h',
             autoFixable: false,
           }
         )
@@ -336,10 +331,8 @@ export class CodeQualityAgent extends AnalysisAgent {
         ts.isArrowFunction(node) ||
         ts.isFunctionExpression(node)
       ) {
-        const startLine =
-          sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
-        const endLine =
-          sourceFile.getLineAndCharacterOfPosition(node.getEnd()).line + 1;
+        const startLine = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+        const endLine = sourceFile.getLineAndCharacterOfPosition(node.getEnd()).line + 1;
         const length = endLine - startLine + 1;
 
         maxLength = Math.max(maxLength, length);
@@ -357,8 +350,7 @@ export class CodeQualityAgent extends AnalysisAgent {
               {
                 severity: 'medium',
                 line: startLine,
-                suggestion:
-                  'Extract logical sections into smaller, named helper functions',
+                suggestion: 'Extract logical sections into smaller, named helper functions',
                 estimatedEffort: '1-3h',
                 autoFixable: false,
               }
@@ -469,10 +461,10 @@ export class CodeQualityAgent extends AnalysisAgent {
         maxDepth = Math.max(maxDepth, newDepth);
       }
 
-      ts.forEachChild(n, child => visit(child, newDepth));
+      ts.forEachChild(n, (child) => visit(child, newDepth));
     };
 
-    ts.forEachChild(node, child => visit(child, currentDepth));
+    ts.forEachChild(node, (child) => visit(child, currentDepth));
     return maxDepth;
   }
 
@@ -549,8 +541,7 @@ export class CodeQualityAgent extends AnalysisAgent {
         ts.isFunctionExpression(node)
       ) {
         const name = this.getFunctionName(node);
-        const startLine =
-          sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+        const startLine = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
         const endLine = sourceFile.getLineAndCharacterOfPosition(node.getEnd()).line + 1;
 
         // Extract tokens for comparison
@@ -611,7 +602,7 @@ export class CodeQualityAgent extends AnalysisAgent {
     const set1 = new Set(block1.tokens);
     const set2 = new Set(block2.tokens);
 
-    const intersection = new Set([...set1].filter(x => set2.has(x)));
+    const intersection = new Set([...set1].filter((x) => set2.has(x)));
     const union = new Set([...set1, ...set2]);
 
     return intersection.size / union.size;

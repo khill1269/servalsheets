@@ -57,6 +57,25 @@ const createMockSheetsApi = () => ({
       data: {
         spreadsheetId: 'test-spreadsheet-id',
         replies: [{}],
+        updatedSpreadsheet: {
+          spreadsheetId: 'test-spreadsheet-id',
+          spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/test-spreadsheet-id',
+          properties: {
+            title: 'Test Spreadsheet',
+            locale: 'en_US',
+            timeZone: 'America/Los_Angeles',
+          },
+          sheets: [
+            {
+              properties: {
+                sheetId: 0,
+                title: 'Sheet1',
+                index: 0,
+                gridProperties: { rowCount: 1000, columnCount: 26 },
+              },
+            },
+          ],
+        },
       },
     }),
     sheets: {
@@ -678,23 +697,24 @@ describe('SheetsCoreHandler', () => {
 
     describe('update_sheet action', () => {
       it('should update sheet properties', async () => {
-        // Mock the get call after update to return the sheet with updated properties
-        mockApi.spreadsheets.get.mockResolvedValueOnce({
+        // Mock batchUpdate to return updatedSpreadsheet with the updated sheet
+        mockApi.spreadsheets.batchUpdate.mockResolvedValueOnce({
           data: {
             spreadsheetId: 'test-spreadsheet-id',
-            sheets: [
-              {
-                properties: {
-                  sheetId: 123,
-                  title: 'Updated Sheet Name',
-                  index: 0,
-                  gridProperties: {
-                    rowCount: 1000,
-                    columnCount: 26,
+            replies: [{}],
+            updatedSpreadsheet: {
+              spreadsheetId: 'test-spreadsheet-id',
+              sheets: [
+                {
+                  properties: {
+                    sheetId: 123,
+                    title: 'Updated Sheet Name',
+                    index: 0,
+                    gridProperties: { rowCount: 1000, columnCount: 26 },
                   },
                 },
-              },
-            ],
+              ],
+            },
           },
         });
 
@@ -715,15 +735,19 @@ describe('SheetsCoreHandler', () => {
       });
 
       it('should resolve sheetName to sheetId 0 for first sheet', async () => {
-        mockApi.spreadsheets.get
-          .mockResolvedValueOnce({
-            data: {
-              spreadsheetId: 'test-spreadsheet-id',
-              sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
-            },
-          })
-          .mockResolvedValueOnce({
-            data: {
+        // First get call is for sheetName→sheetId resolution
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'test-spreadsheet-id',
+            sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
+          },
+        });
+        // batchUpdate returns updatedSpreadsheet (replaces the second get call)
+        mockApi.spreadsheets.batchUpdate.mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'test-spreadsheet-id',
+            replies: [{}],
+            updatedSpreadsheet: {
               spreadsheetId: 'test-spreadsheet-id',
               sheets: [
                 {
@@ -736,7 +760,8 @@ describe('SheetsCoreHandler', () => {
                 },
               ],
             },
-          });
+          },
+        });
 
         const result = await handler.handle({
           action: 'update_sheet',
@@ -748,9 +773,9 @@ describe('SheetsCoreHandler', () => {
         expect(result.response.success).toBe(true);
 
         const batchUpdateArgs = mockApi.spreadsheets.batchUpdate.mock.calls[0]?.[0] as any;
-        expect(batchUpdateArgs.requestBody.requests[0].updateSheetProperties.properties.sheetId).toBe(
-          0
-        );
+        expect(
+          batchUpdateArgs.requestBody.requests[0].updateSheetProperties.properties.sheetId
+        ).toBe(0);
       });
     });
 

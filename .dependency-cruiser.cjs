@@ -43,14 +43,15 @@ module.exports = {
     {
       name: 'no-handler-to-handler',
       severity: 'error',
-      comment: 'Handlers must not import other handlers (except base handler and index.ts barrel exports)',
+      comment:
+        'Handlers must not import other handlers (except base handler, helpers, and index.ts barrel exports)',
       from: {
         path: '^src/handlers',
         pathNot: '^src/handlers/index\\.ts$', // Allow index.ts to import all handlers (barrel export)
       },
       to: {
         path: '^src/handlers',
-        pathNot: '^src/handlers/base\\.ts$',
+        pathNot: ['^src/handlers/base\\.ts$', '^src/handlers/helpers/'],
       },
     },
     {
@@ -83,14 +84,15 @@ module.exports = {
     {
       name: 'services-only-import-allowed-layers',
       severity: 'error',
-      comment: 'Services can only import from other services, schemas, utils, config, core',
+      comment:
+        'Services can only import from other services, schemas, utils, config, core, security, resources',
       from: {
         path: '^src/services',
       },
       to: {
         path: '^src/',
         pathNot: [
-          '^src/(services|schemas|utils|types|config|observability|errors|constants|core)',
+          '^src/(services|schemas|utils|types|config|observability|errors|constants|core|security|resources)',
         ],
       },
     },
@@ -125,12 +127,7 @@ module.exports = {
   options: {
     // Only check TypeScript files in src/
     doNotFollow: {
-      path: [
-        'node_modules',
-        'dist',
-        'coverage',
-        '\\.d\\.ts$',
-      ],
+      path: ['node_modules', 'dist', 'coverage', '\\.d\\.ts$'],
     },
     includeOnly: '^src/',
 

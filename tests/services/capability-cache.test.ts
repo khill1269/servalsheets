@@ -264,15 +264,15 @@ describe('CapabilityCacheService', () => {
     it('should clear all Redis cache entries', async () => {
       mockRedis.scan.mockResolvedValue({
         cursor: 0,
-        keys: [
-          'servalsheets:capabilities:session-1',
-          'servalsheets:capabilities:session-2',
-        ],
+        keys: ['servalsheets:capabilities:session-1', 'servalsheets:capabilities:session-2'],
       });
 
       await service.clearAll();
 
-      expect(mockRedis.scan).toHaveBeenCalledWith(0, { MATCH: 'servalsheets:capabilities:*', COUNT: 100 });
+      expect(mockRedis.scan).toHaveBeenCalledWith(0, {
+        MATCH: 'servalsheets:capabilities:*',
+        COUNT: 100,
+      });
       expect(mockRedis.del).toHaveBeenCalledWith(
         'servalsheets:capabilities:session-1',
         'servalsheets:capabilities:session-2'

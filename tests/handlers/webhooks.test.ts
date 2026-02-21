@@ -1,7 +1,7 @@
 /**
  * Webhook Handler Tests (Phase 2.4)
  *
- * Comprehensive tests for sheets_webhook handler (6 actions)
+ * Comprehensive tests for sheets_webhook handler (7 actions)
  * Tests webhook registration, management, and statistics
  */
 
@@ -226,7 +226,11 @@ describe('WebhookHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      if (result.response.success && 'data' in result.response && 'webhooks' in result.response.data) {
+      if (
+        result.response.success &&
+        'data' in result.response &&
+        'webhooks' in result.response.data
+      ) {
         expect(result.response.data.webhooks).toHaveLength(2);
         expect(result.response.data.webhooks[0]?.webhookId).toBe('webhook-1');
       }
@@ -271,7 +275,11 @@ describe('WebhookHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      if (result.response.success && 'data' in result.response && 'webhooks' in result.response.data) {
+      if (
+        result.response.success &&
+        'data' in result.response &&
+        'webhooks' in result.response.data
+      ) {
         expect(result.response.data.webhooks).toEqual([]);
       }
     });
@@ -315,7 +323,11 @@ describe('WebhookHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      if (result.response.success && 'data' in result.response && 'webhook' in result.response.data) {
+      if (
+        result.response.success &&
+        'data' in result.response &&
+        'webhook' in result.response.data
+      ) {
         expect(result.response.data.webhook.webhookId).toBe('webhook-123');
         expect(result.response.data.webhook.deliveryCount).toBe(15);
         expect(result.response.data.webhook.failureCount).toBe(2);
@@ -373,7 +385,11 @@ describe('WebhookHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      if (result.response.success && 'data' in result.response && 'delivery' in result.response.data) {
+      if (
+        result.response.success &&
+        'data' in result.response &&
+        'delivery' in result.response.data
+      ) {
         expect(result.response.data.delivery.deliveryId).toBe('delivery-123');
         expect(result.response.data.delivery.webhookId).toBe('webhook-123');
         expect(result.response.data.delivery.status).toBe('pending');
@@ -551,7 +567,11 @@ describe('WebhookHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      if (result.response.success && 'data' in result.response && 'webhookStats' in result.response.data) {
+      if (
+        result.response.success &&
+        'data' in result.response &&
+        'webhookStats' in result.response.data
+      ) {
         expect(result.response.data.webhookStats).toBeDefined();
         expect(result.response.data.webhookStats).toHaveLength(2);
       }
@@ -678,7 +698,9 @@ describe('WebhookHandler', () => {
     });
 
     it('maps Redis dependency failures to CONFIG_ERROR with guidance', async () => {
-      mockWebhookManager.list.mockRejectedValue(new Error('Redis required for webhook functionality'));
+      mockWebhookManager.list.mockRejectedValue(
+        new Error('Redis required for webhook functionality')
+      );
 
       const result = await handler.handle({
         request: {

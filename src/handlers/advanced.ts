@@ -61,6 +61,22 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         case 'get_named_range':
           response = await this.handleGetNamedRange(req);
           break;
+        // Named functions (LAMBDA-based custom functions)
+        case 'create_named_function':
+          response = await this.handleCreateNamedFunction(req);
+          break;
+        case 'list_named_functions':
+          response = await this.handleListNamedFunctions(req);
+          break;
+        case 'get_named_function':
+          response = await this.handleGetNamedFunction(req);
+          break;
+        case 'update_named_function':
+          response = await this.handleUpdateNamedFunction(req);
+          break;
+        case 'delete_named_function':
+          response = await this.handleDeleteNamedFunction(req);
+          break;
         case 'add_protected_range':
           response = await this.handleAddProtectedRange(req);
           break;
@@ -173,6 +189,11 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         delete_named_range: 'DELETE_NAMED_RANGE',
         list_named_ranges: null,
         get_named_range: null,
+        create_named_function: null,
+        list_named_functions: null,
+        get_named_function: null,
+        update_named_function: null,
+        delete_named_function: null,
         add_protected_range: 'ADD_PROTECTED_RANGE',
         update_protected_range: 'UPDATE_PROTECTED_RANGE',
         delete_protected_range: 'DELETE_PROTECTED_RANGE',
@@ -204,6 +225,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
 
       const destructiveActions: AdvancedRequest['action'][] = [
         'delete_named_range',
+        'delete_named_function',
         'delete_protected_range',
         'delete_metadata',
         'delete_banding',
@@ -550,6 +572,40 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
   private async handleGetMetadata(
     req: Extract<SheetsAdvancedInput['request'], { action: 'get_metadata' }>
   ): Promise<AdvancedResponse> {
+    // Support lookup by metadataId (direct GET) or metadataKey (search) or list all
+    if ((req as Record<string, unknown>)['metadataId']) {
+      const metadataId = (req as Record<string, unknown>)['metadataId'] as number;
+      const response = await this.sheetsApi.spreadsheets.developerMetadata.get({
+        spreadsheetId: req.spreadsheetId!,
+        metadataId,
+      });
+      const m = response.data;
+      return this.success('get_metadata', {
+        metadata: {
+          metadataId: m.metadataId ?? 0,
+          metadataKey: m.metadataKey ?? '',
+          metadataValue: m.metadataValue ?? '',
+          visibility: (m.visibility ?? 'DOCUMENT') as 'DOCUMENT' | 'PROJECT',
+          location: m.location
+            ? {
+                spreadsheet: m.location.spreadsheet ?? undefined,
+                sheetId: m.location.sheetId ?? undefined,
+                dimensionRange: m.location.dimensionRange
+                  ? {
+                      sheetId: m.location.dimensionRange.sheetId ?? 0,
+                      dimension: (m.location.dimensionRange.dimension ?? 'ROWS') as
+                        | 'ROWS'
+                        | 'COLUMNS',
+                      startIndex: m.location.dimensionRange.startIndex ?? 0,
+                      endIndex: m.location.dimensionRange.endIndex ?? 0,
+                    }
+                  : undefined,
+              }
+            : undefined,
+        },
+      });
+    }
+
     const response = await this.sheetsApi.spreadsheets.developerMetadata.search({
       spreadsheetId: req.spreadsheetId!,
       requestBody: {
@@ -1478,6 +1534,201 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
     }
 
     return this.success('list_chips', { chips });
+  }
+
+  // ============================================================
+  // Named Functions (LAMBDA-based custom functions)
+  // ============================================================
+
+  private async handleCreateNamedFunction(
+    req: Extract<SheetsAdvancedInput['request'], { action: 'create_named_function' }>
+  ): Promise<AdvancedResponse> {
+    const paramDefs = req.parameterDefinitions?.map((p) => ({
+      name: p.name,
+      description: p.description ?? '',
+    }));
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (this.sheetsApi.spreadsheets.batchUpdate as any)({
+      spreadsheetId: req.spreadsheetId!,
+      requestBody: {
+        requests: [
+          {
+            addNamedFunction: {
+              namedFunction: {
+                name: req.functionName!,
+                description: req.description ?? '',
+                functionBody: req.functionBody!,
+                argumentNames: paramDefs?.map((p) => p.name),
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    return this.success('create_named_function', {
+      namedFunction: {
+        functionName: req.functionName!,
+        functionBody: req.functionBody!,
+        description: req.description,
+        parameterDefinitions: paramDefs,
+      },
+    });
+  }
+
+  private async handleListNamedFunctions(
+    req: Extract<SheetsAdvancedInput['request'], { action: 'list_named_functions' }>
+  ): Promise<AdvancedResponse> {
+    const result = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: req.spreadsheetId!,
+      fields: 'properties.namedFunctions',
+    });
+
+    // namedFunctions is a newer API field not yet in googleapis types; cast to access
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawFunctions: unknown[] = (result.data.properties as any)?.namedFunctions ?? [];
+
+    const namedFunctions = rawFunctions.map((fn) => {
+      const f = fn as {
+        name?: string;
+        functionBody?: string;
+        description?: string;
+        argumentNames?: string[];
+      };
+      return {
+        functionName: f.name ?? '',
+        functionBody: f.functionBody ?? '',
+        description: f.description ?? undefined,
+        parameterDefinitions: f.argumentNames?.map((name) => ({ name })),
+      };
+    });
+
+    return this.success('list_named_functions', { namedFunctions });
+  }
+
+  private async handleGetNamedFunction(
+    req: Extract<SheetsAdvancedInput['request'], { action: 'get_named_function' }>
+  ): Promise<AdvancedResponse> {
+    const result = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: req.spreadsheetId!,
+      fields: 'properties.namedFunctions',
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawFunctions: unknown[] = (result.data.properties as any)?.namedFunctions ?? [];
+
+    const fn = rawFunctions.find((f) => (f as { name?: string }).name === req.functionName);
+
+    if (!fn) {
+      return this.error({
+        code: 'NOT_FOUND',
+        message: `Named function "${req.functionName}" not found`,
+        retryable: false,
+        suggestedFix: 'Use list_named_functions to see all available named functions',
+      });
+    }
+
+    const f = fn as {
+      name?: string;
+      functionBody?: string;
+      description?: string;
+      argumentNames?: string[];
+    };
+    return this.success('get_named_function', {
+      namedFunction: {
+        functionName: f.name ?? '',
+        functionBody: f.functionBody ?? '',
+        description: f.description ?? undefined,
+        parameterDefinitions: f.argumentNames?.map((name) => ({ name })),
+      },
+    });
+  }
+
+  private async handleUpdateNamedFunction(
+    req: Extract<SheetsAdvancedInput['request'], { action: 'update_named_function' }>
+  ): Promise<AdvancedResponse> {
+    // First retrieve the existing function to build the update
+    const getResult = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: req.spreadsheetId!,
+      fields: 'properties.namedFunctions',
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawFunctions: unknown[] = (getResult.data.properties as any)?.namedFunctions ?? [];
+
+    const existing = rawFunctions.find(
+      (f) => (f as { name?: string }).name === req.functionName
+    ) as
+      | { name?: string; functionBody?: string; description?: string; argumentNames?: string[] }
+      | undefined;
+
+    if (!existing) {
+      return this.error({
+        code: 'NOT_FOUND',
+        message: `Named function "${req.functionName}" not found`,
+        retryable: false,
+        suggestedFix: 'Use list_named_functions to see all available named functions',
+      });
+    }
+
+    const updatedName = req.newFunctionName ?? existing.name ?? req.functionName!;
+    const updatedBody = req.functionBody ?? existing.functionBody ?? '';
+    const updatedDesc =
+      req.description !== undefined ? req.description : (existing.description ?? '');
+    const updatedArgs = req.parameterDefinitions
+      ? req.parameterDefinitions.map((p) => p.name)
+      : (existing.argumentNames ?? []);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (this.sheetsApi.spreadsheets.batchUpdate as any)({
+      spreadsheetId: req.spreadsheetId!,
+      requestBody: {
+        requests: [
+          {
+            updateNamedFunction: {
+              namedFunction: {
+                name: updatedName,
+                description: updatedDesc,
+                functionBody: updatedBody,
+                argumentNames: updatedArgs,
+              },
+              oldName: req.functionName!,
+              fields: 'name,description,functionBody,argumentNames',
+            },
+          },
+        ],
+      },
+    });
+
+    return this.success('update_named_function', {
+      namedFunction: {
+        functionName: updatedName,
+        functionBody: updatedBody,
+        description: updatedDesc || undefined,
+        parameterDefinitions: updatedArgs.map((name) => ({ name })),
+      },
+    });
+  }
+
+  private async handleDeleteNamedFunction(
+    req: Extract<SheetsAdvancedInput['request'], { action: 'delete_named_function' }>
+  ): Promise<AdvancedResponse> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (this.sheetsApi.spreadsheets.batchUpdate as any)({
+      spreadsheetId: req.spreadsheetId!,
+      requestBody: {
+        requests: [
+          {
+            deleteNamedFunction: {
+              name: req.functionName!,
+            },
+          },
+        ],
+      },
+    });
+
+    return this.success('delete_named_function', {});
   }
 
   // ============================================================

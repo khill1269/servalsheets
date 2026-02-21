@@ -49,6 +49,12 @@ vi.mock('googleapis', () => {
         tables: { list: vi.fn(), get: vi.fn() },
         jobs: { query: vi.fn(), get: vi.fn() },
       }),
+      docs: vi.fn().mockReturnValue({
+        documents: { get: vi.fn(), create: vi.fn(), batchUpdate: vi.fn() },
+      }),
+      slides: vi.fn().mockReturnValue({
+        presentations: { get: vi.fn(), create: vi.fn(), batchUpdate: vi.fn() },
+      }),
     },
   };
 });

@@ -21,6 +21,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { TOOL_ACTIONS } from '../mcp/completions.js';
 
 /**
  * Cache invalidation rule
@@ -46,7 +47,7 @@ export type InvalidationRules = Record<string, InvalidationRule>;
 /**
  * Cache Invalidation Graph
  *
- * Maintains a graph of cache invalidation rules for all 298 actions.
+ * Maintains a graph of cache invalidation rules for all actions.
  * Provides methods to determine which cache keys to invalidate for a given operation.
  */
 export class CacheInvalidationGraph {
@@ -57,7 +58,7 @@ export class CacheInvalidationGraph {
   }
 
   /**
-   * Build invalidation rules for all 298 actions
+   * Build invalidation rules for all actions
    */
   private buildInvalidationRules(): InvalidationRules {
     const rules: InvalidationRules = {};
@@ -344,6 +345,16 @@ export class CacheInvalidationGraph {
     rules['sheets_advanced.unregister_function'] = { invalidates: ['metadata:*'] };
     rules['sheets_advanced.list_functions'] = { invalidates: [] };
 
+    // New table/chips actions added in Wave 5 consolidation (sheets_advanced: 26→31)
+    rules['sheets_advanced.create_table'] = { invalidates: ['metadata:*'] };
+    rules['sheets_advanced.delete_table'] = { invalidates: ['metadata:*'] };
+    rules['sheets_advanced.update_table'] = { invalidates: ['metadata:*'] };
+    rules['sheets_advanced.rename_table_column'] = { invalidates: ['metadata:*'] };
+    rules['sheets_advanced.set_table_column_properties'] = { invalidates: ['metadata:*'] };
+
+    // New dynamic array action added to sheets_data (sheets_data: 18→19)
+    rules['sheets_data.detect_spill_ranges'] = { invalidates: [] }; // Read-only
+
     // ========================================================================
     // sheets_transaction (6 actions)
     // ========================================================================
@@ -484,20 +495,20 @@ export class CacheInvalidationGraph {
     // ========================================================================
     // sheets_appsscript (14 actions)
     // ========================================================================
-    rules['sheets_appsscript.create_script'] = { invalidates: ['metadata:*'] };
-    rules['sheets_appsscript.update_script'] = { invalidates: ['metadata:*'] };
-    rules['sheets_appsscript.delete_script'] = { invalidates: ['metadata:*'] };
-    rules['sheets_appsscript.list_scripts'] = { invalidates: [] };
-    rules['sheets_appsscript.get_script'] = { invalidates: [] };
-    rules['sheets_appsscript.run_script'] = { invalidates: ['*'], cascade: true }; // Can modify anything
-    rules['sheets_appsscript.create_trigger'] = { invalidates: ['metadata:*'] };
-    rules['sheets_appsscript.delete_trigger'] = { invalidates: ['metadata:*'] };
-    rules['sheets_appsscript.list_triggers'] = { invalidates: [] };
-    rules['sheets_appsscript.create_menu'] = { invalidates: ['metadata:*'] };
-    rules['sheets_appsscript.update_menu'] = { invalidates: ['metadata:*'] };
-    rules['sheets_appsscript.delete_menu'] = { invalidates: ['metadata:*'] };
-    rules['sheets_appsscript.list_menus'] = { invalidates: [] };
+    rules['sheets_appsscript.create'] = { invalidates: ['metadata:*'] };
+    rules['sheets_appsscript.get'] = { invalidates: [] };
+    rules['sheets_appsscript.get_content'] = { invalidates: [] };
+    rules['sheets_appsscript.update_content'] = { invalidates: ['metadata:*', 'values:*'] };
+    rules['sheets_appsscript.create_version'] = { invalidates: ['metadata:*'] };
+    rules['sheets_appsscript.list_versions'] = { invalidates: [] };
+    rules['sheets_appsscript.get_version'] = { invalidates: [] };
     rules['sheets_appsscript.deploy'] = { invalidates: ['metadata:*'] };
+    rules['sheets_appsscript.list_deployments'] = { invalidates: [] };
+    rules['sheets_appsscript.get_deployment'] = { invalidates: [] };
+    rules['sheets_appsscript.undeploy'] = { invalidates: ['metadata:*'] };
+    rules['sheets_appsscript.run'] = { invalidates: ['*'], cascade: true }; // Can modify anything
+    rules['sheets_appsscript.list_processes'] = { invalidates: [] };
+    rules['sheets_appsscript.get_metrics'] = { invalidates: [] };
 
     // ========================================================================
     // sheets_webhook (6 actions)
@@ -527,6 +538,47 @@ export class CacheInvalidationGraph {
     rules['sheets_federation.unregister_server'] = { invalidates: [] };
     rules['sheets_federation.list_servers'] = { invalidates: [] };
     rules['sheets_federation.call_remote'] = { invalidates: [] };
+
+    // ========================================================================
+    // Auto-generate rules for any schema actions not manually defined above.
+    // This ensures the graph stays in sync as new actions are added to schemas.
+    // Default: read-like actions (get/list/status/check) → no invalidation,
+    //          write-like actions → invalidate values and metadata.
+    // ========================================================================
+    const READ_PREFIXES = [
+      'get',
+      'list',
+      'read',
+      'search',
+      'detect',
+      'analyze',
+      'check',
+      'suggest',
+      'explain',
+      'status',
+      'preview',
+      'validate',
+      'find',
+      'query',
+      'export',
+      'scout',
+      'forecast',
+      'comprehensive',
+      'drill',
+    ];
+
+    for (const [tool, actions] of Object.entries(TOOL_ACTIONS)) {
+      for (const action of actions) {
+        const key = `${tool}.${action}`;
+        if (!rules[key]) {
+          // Determine if this is a read or write operation based on action name prefix
+          const isRead = READ_PREFIXES.some(
+            (prefix) => action === prefix || action.startsWith(`${prefix}_`)
+          );
+          rules[key] = { invalidates: isRead ? [] : ['values:*', 'metadata:*'] };
+        }
+      }
+    }
 
     return rules;
   }

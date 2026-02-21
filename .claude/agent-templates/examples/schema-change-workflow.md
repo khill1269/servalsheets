@@ -15,9 +15,9 @@
 
 ```typescript
 Task({
-  subagent_type: "Explore",
-  model: "haiku",
-  description: "Research timeout patterns (5min)",
+  subagent_type: 'Explore',
+  model: 'haiku',
+  description: 'Research timeout patterns (5min)',
   prompt: `
     Research how timeouts are currently handled:
 
@@ -41,35 +41,42 @@ Task({
     - Common optional parameter patterns
     - Where timeout will be applied in code
     - Recommended default/max values
-  `
-})
+  `,
+});
 ```
 
 **Expected Output:**
-```markdown
+
+````markdown
 # Timeout Pattern Research
 
 ## Current State
+
 - No explicit timeout parameters in schemas
 - Default timeout: 30s (from Google API client config)
 - Applied at: src/services/google-api.ts:42
 
 ## Optional Parameter Pattern
+
 All optional parameters follow this pattern:
+
 ```typescript
 z.object({
   requiredParam: z.string(),
-  optionalParam: z.string().optional()
-})
+  optionalParam: z.string().optional(),
+});
 ```
+````
 
 ## Recommendations
+
 - timeout?: number (milliseconds)
 - Default: 30000 (30s)
 - Min: 1000 (1s)
 - Max: 300000 (5min)
 - Validation: z.number().min(1000).max(300000).optional()
-```
+
+````
 
 ---
 
@@ -135,26 +142,32 @@ Task({
     - [ ] Backward compatible
   `
 })
-```
+````
 
 **Expected Output:**
-```markdown
+
+````markdown
 # Timeout Implementation Plan
 
 ## Phase 1: Shared Types (10 min)
+
 File: src/schemas/shared.ts
 
 Add after line 50:
+
 ```typescript
-export const TimeoutSchema = z.number()
-  .min(1000, "Timeout must be at least 1 second")
-  .max(300000, "Timeout cannot exceed 5 minutes")
+export const TimeoutSchema = z
+  .number()
+  .min(1000, 'Timeout must be at least 1 second')
+  .max(300000, 'Timeout cannot exceed 5 minutes')
   .optional()
-  .describe("Request timeout in milliseconds (default: 30000)");
+  .describe('Request timeout in milliseconds (default: 30000)');
 ```
+````
 
 ## Phase 2: Update All Schemas (20 min)
-For each of 22 schemas in src/schemas/*.ts:
+
+For each of 22 schemas in src/schemas/\*.ts:
 
 ```typescript
 // Example: src/schemas/data.ts
@@ -169,11 +182,13 @@ export const SheetsDataInputSchema = z.object({
 Automated with: scripts/bulk-schema-update.sh
 
 ## Phase 3: BaseHandler Integration (15 min)
+
 File: src/handlers/base.ts
 
 ...
 [Complete implementation steps]
-```
+
+````
 
 ---
 
@@ -249,9 +264,10 @@ Task({
     - Run schema:commit after schema changes
   `
 })
-```
+````
 
 **Expected Commits:**
+
 ```
 1. test: add timeout parameter tests
 2. feat: add TimeoutSchema to shared types
@@ -267,9 +283,9 @@ Task({
 
 ```typescript
 Task({
-  subagent_type: "general-purpose",
-  model: "haiku",
-  description: "Validate timeout implementation (5min)",
+  subagent_type: 'general-purpose',
+  model: 'haiku',
+  description: 'Validate timeout implementation (5min)',
   prompt: `
     Validate timeout implementation:
 
@@ -318,27 +334,30 @@ Task({
     ### Ready for Commit: YES ✓
 
     If any failures, report file:line and suggested fixes.
-  `
-})
+  `,
+});
 ```
 
 **Expected Output:**
+
 ```markdown
 ## Validation Results
 
 ### G0: Baseline Integrity ✓
+
 - TypeScript: 0 errors
 - ESLint: 0 errors
 - Metadata: No drift
 - Tests: 142/142 passing
-Duration: 95s
+  Duration: 95s
 
 ### G1: Metadata Consistency ✓
+
 - Cross-map: ✓ All 22 tools aligned
 - Schema-handler: ✓ All aligned
 - Action count: 299 (unchanged ✓)
 - Tool count: 24 (unchanged ✓)
-Duration: 42s
+  Duration: 42s
 
 ### Ready for Commit: YES ✓
 ```
@@ -347,13 +366,13 @@ Duration: 42s
 
 ## Complete Workflow Summary
 
-| Agent | Model | Cost | Time | Output |
-|-------|-------|------|------|--------|
-| 1. Research | Haiku | $0.10 | 5min | Pattern analysis |
-| 2. Planning | Sonnet | $3.00 | 10min | Implementation plan |
-| 3. Implementation | Sonnet | $8.00 | 40min | Working code + tests |
-| 4. Validation | Haiku | $0.30 | 5min | PASS/FAIL report |
-| **Total** | **Mixed** | **$11.40** | **60min** | **Complete feature** |
+| Agent             | Model     | Cost       | Time      | Output               |
+| ----------------- | --------- | ---------- | --------- | -------------------- |
+| 1. Research       | Haiku     | $0.10      | 5min      | Pattern analysis     |
+| 2. Planning       | Sonnet    | $3.00      | 10min     | Implementation plan  |
+| 3. Implementation | Sonnet    | $8.00      | 40min     | Working code + tests |
+| 4. Validation     | Haiku     | $0.30      | 5min      | PASS/FAIL report     |
+| **Total**         | **Mixed** | **$11.40** | **60min** | **Complete feature** |
 
 **vs All Opus:** $70.00 → **84% savings**
 
@@ -361,12 +380,12 @@ Duration: 42s
 
 ## Keyboard Shortcuts Used
 
-| Shortcut | Action | When |
-|----------|--------|------|
-| `Cmd+Shift+S` | Schema commit workflow | After schema changes (Agent 3) |
-| `Cmd+G Cmd+0` | G0: Baseline integrity | Validation (Agent 4) |
-| `Cmd+G Cmd+1` | G1: Metadata consistency | Validation (Agent 4) |
-| `Cmd+K Cmd+V` | Quick verify | Final check |
+| Shortcut      | Action                   | When                           |
+| ------------- | ------------------------ | ------------------------------ |
+| `Cmd+Shift+S` | Schema commit workflow   | After schema changes (Agent 3) |
+| `Cmd+G Cmd+0` | G0: Baseline integrity   | Validation (Agent 4)           |
+| `Cmd+G Cmd+1` | G1: Metadata consistency | Validation (Agent 4)           |
+| `Cmd+K Cmd+V` | Quick verify             | Final check                    |
 
 ---
 
@@ -384,20 +403,24 @@ Duration: 42s
 ## Common Issues & Solutions
 
 **Issue 1: Metadata drift after schema changes**
+
 - **Cause:** Forgot to run `npm run schema:commit`
 - **Solution:** Run it now, re-validate with G1
 
 **Issue 2: Tests failing after implementation**
+
 - **Cause:** Validation logic too strict or wrong default
 - **Solution:** Review test expectations, adjust validation
 
 **Issue 3: G1 fails (schema-handler alignment)**
+
 - **Cause:** Handler doesn't extract new parameter
 - **Solution:** Update BaseHandler to extract timeout
 
 ---
 
 **Related Templates:**
+
 - `research-agent.md` - Agent 1 template
 - `planning-agent.md` - Agent 2 template (use Plan subagent)
 - `implementation-agent.md` - Agent 3 template

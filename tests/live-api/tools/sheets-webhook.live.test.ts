@@ -3,7 +3,7 @@
  *
  * Tests webhook management with real Google Sheets data.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet for all tests.
  *
  * Note: Full webhook functionality requires a publicly accessible HTTPS endpoint.
@@ -42,7 +42,14 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
     });
 
     it('should define supported event types', () => {
-      const eventTypes = ['sheet.update', 'sheet.create', 'sheet.delete', 'cell.update', 'format.update', 'all'];
+      const eventTypes = [
+        'sheet.update',
+        'sheet.create',
+        'sheet.delete',
+        'cell.update',
+        'format.update',
+        'all',
+      ];
       expect(eventTypes).toContain('cell.update');
       expect(eventTypes).toContain('all');
     });
@@ -81,8 +88,18 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
   describe('list action', () => {
     it('should define webhook list structure', () => {
       const webhooks = [
-        { webhookId: 'wh_123', spreadsheetId: 'spreadsheet_abc', eventTypes: ['cell.update'], active: true },
-        { webhookId: 'wh_456', spreadsheetId: 'spreadsheet_xyz', eventTypes: ['all'], active: true },
+        {
+          webhookId: 'wh_123',
+          spreadsheetId: 'spreadsheet_abc',
+          eventTypes: ['cell.update'],
+          active: true,
+        },
+        {
+          webhookId: 'wh_456',
+          spreadsheetId: 'spreadsheet_xyz',
+          eventTypes: ['all'],
+          active: true,
+        },
       ];
       expect(webhooks.length).toBe(2);
       expect(webhooks[0].active).toBe(true);
@@ -127,7 +144,12 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
     });
 
     it('should understand delivery response tracking', () => {
-      const deliveryResult = { webhookId: 'wh_123', delivered: true, responseStatus: 200, responseTime: 145 };
+      const deliveryResult = {
+        webhookId: 'wh_123',
+        delivered: true,
+        responseStatus: 200,
+        responseTime: 145,
+      };
       expect(deliveryResult.delivered).toBe(true);
     });
   });
@@ -212,7 +234,12 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
           spreadsheetId: testSpreadsheet.id,
           range: 'TestData!B1:C2',
           valueInputOption: 'RAW',
-          requestBody: { values: [['Key', 'Value'], ['test', '123']] },
+          requestBody: {
+            values: [
+              ['Key', 'Value'],
+              ['test', '123'],
+            ],
+          },
         })
       );
 
@@ -280,12 +307,14 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
         await client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [{
-              updateSheetProperties: {
-                properties: { sheetId, title: newName },
-                fields: 'title',
+            requests: [
+              {
+                updateSheetProperties: {
+                  properties: { sheetId, title: newName },
+                  fields: 'title',
+                },
               },
-            }],
+            ],
           },
         });
 
@@ -313,23 +342,25 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
         await client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [{
-              repeatCell: {
-                range: {
-                  sheetId: 0,
-                  startRowIndex: 0,
-                  endRowIndex: 1,
-                  startColumnIndex: 0,
-                  endColumnIndex: 1,
-                },
-                cell: {
-                  userEnteredFormat: {
-                    backgroundColor: { red: 1, green: 0, blue: 0 },
+            requests: [
+              {
+                repeatCell: {
+                  range: {
+                    sheetId: 0,
+                    startRowIndex: 0,
+                    endRowIndex: 1,
+                    startColumnIndex: 0,
+                    endColumnIndex: 1,
                   },
+                  cell: {
+                    userEnteredFormat: {
+                      backgroundColor: { red: 1, green: 0, blue: 0 },
+                    },
+                  },
+                  fields: 'userEnteredFormat.backgroundColor',
                 },
-                fields: 'userEnteredFormat.backgroundColor',
               },
-            }],
+            ],
           },
         });
 

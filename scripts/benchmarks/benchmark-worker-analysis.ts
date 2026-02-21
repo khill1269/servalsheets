@@ -29,9 +29,8 @@ function generateDataset(rows: number, cols: number): number[][] {
 
 // Main thread analysis (using helpers)
 async function analyzeInMainThread(data: unknown[][]): Promise<number> {
-  const { analyzeTrends, detectAnomalies, analyzeCorrelationsData } = await import(
-    '../../dist/analysis/helpers.js'
-  );
+  const { analyzeTrends, detectAnomalies, analyzeCorrelationsData } =
+    await import('../../dist/analysis/helpers.js');
 
   const startTime = performance.now();
 

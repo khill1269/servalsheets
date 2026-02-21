@@ -2,7 +2,8 @@
  * ServalSheets
  *
  * Production-grade Google Sheets MCP Server
- * 22 tools, 298 actions, safety rails, enterprise features
+ * Production-grade MCP server with safety rails and enterprise features
+ * Tool/action counts: see TOOL_COUNT and ACTION_COUNT in schemas/action-counts.ts
  *
  * MCP Protocol: 2025-11-25
  * Google Sheets API: v4

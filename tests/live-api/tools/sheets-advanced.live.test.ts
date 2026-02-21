@@ -17,10 +17,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { LiveApiClient } from '../setup/live-api-client.js';
 import { TestSpreadsheetManager, TestSpreadsheet } from '../setup/test-spreadsheet-manager.js';
-import {
-  loadTestCredentials,
-  shouldRunIntegrationTests,
-} from '../../helpers/credential-loader.js';
+import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 
 const runLiveTests = shouldRunIntegrationTests();
 
@@ -37,7 +34,7 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
     }
     client = new LiveApiClient(credentials, { trackMetrics: true });
     manager = new TestSpreadsheetManager(client);
-    
+
     // Create ONE spreadsheet for all tests
     testSpreadsheet = await manager.createTestSpreadsheet('advanced');
     const meta = await client.sheets.spreadsheets.get({
@@ -142,9 +139,7 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
         expect(response.data.namedRanges).toBeDefined();
         expect(response.data.namedRanges!.length).toBeGreaterThan(0);
 
-        const foundRange = response.data.namedRanges!.find(
-          (nr) => nr.name === 'ListTestRange'
-        );
+        const foundRange = response.data.namedRanges!.find((nr) => nr.name === 'ListTestRange');
         expect(foundRange).toBeDefined();
       });
     });
@@ -174,7 +169,8 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
           },
         });
 
-        const namedRangeId = createResponse.data.replies![0].addNamedRange?.namedRange?.namedRangeId;
+        const namedRangeId =
+          createResponse.data.replies![0].addNamedRange?.namedRange?.namedRangeId;
 
         // Update the name
         const updateResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -228,7 +224,8 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
           },
         });
 
-        const namedRangeId = createResponse.data.replies![0].addNamedRange?.namedRange?.namedRangeId;
+        const namedRangeId =
+          createResponse.data.replies![0].addNamedRange?.namedRange?.namedRangeId;
 
         // Update the range extent
         const updateResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -284,7 +281,8 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
           },
         });
 
-        const namedRangeId = createResponse.data.replies![0].addNamedRange?.namedRange?.namedRangeId;
+        const namedRangeId =
+          createResponse.data.replies![0].addNamedRange?.namedRange?.namedRangeId;
 
         // Delete it
         const deleteResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -795,7 +793,8 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
           },
         });
 
-        const bandedRangeId = createResponse.data.replies![0].addBanding?.bandedRange?.bandedRangeId;
+        const bandedRangeId =
+          createResponse.data.replies![0].addBanding?.bandedRange?.bandedRangeId;
 
         // Update colors
         const updateResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -857,7 +856,8 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
           },
         });
 
-        const bandedRangeId = createResponse.data.replies![0].addBanding?.bandedRange?.bandedRangeId;
+        const bandedRangeId =
+          createResponse.data.replies![0].addBanding?.bandedRange?.bandedRangeId;
 
         // Delete banding
         const deleteResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -1098,10 +1098,7 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
                 rule: {
                   condition: {
                     type: 'NUMBER_BETWEEN',
-                    values: [
-                      { userEnteredValue: '0' },
-                      { userEnteredValue: '100' },
-                    ],
+                    values: [{ userEnteredValue: '0' }, { userEnteredValue: '100' }],
                   },
                   strict: true,
                   inputMessage: 'Enter a number between 0 and 100',
@@ -1264,5 +1261,4 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
       expect(stats.avgDuration).toBeGreaterThan(0);
     });
   });
-
 });

@@ -39,7 +39,9 @@ describe('CircuitBreaker - State Transitions', () => {
       // 2 failures (threshold is 3)
       for (let i = 0; i < 2; i++) {
         await expect(
-          breaker.execute(async () => { throw new Error('fail'); })
+          breaker.execute(async () => {
+            throw new Error('fail');
+          })
         ).rejects.toThrow('fail');
       }
       expect(breaker.getState()).toBe('closed');
@@ -48,7 +50,9 @@ describe('CircuitBreaker - State Transitions', () => {
     it('should transition to OPEN at failure threshold', async () => {
       for (let i = 0; i < 3; i++) {
         await expect(
-          breaker.execute(async () => { throw new Error('fail'); })
+          breaker.execute(async () => {
+            throw new Error('fail');
+          })
         ).rejects.toThrow('fail');
       }
       expect(breaker.getState()).toBe('open');
@@ -57,11 +61,27 @@ describe('CircuitBreaker - State Transitions', () => {
 
     it('should reset failure count on success', async () => {
       // 2 failures, then 1 success, then 2 more failures
-      await expect(breaker.execute(async () => { throw new Error('f'); })).rejects.toThrow();
-      await expect(breaker.execute(async () => { throw new Error('f'); })).rejects.toThrow();
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('f');
+        })
+      ).rejects.toThrow();
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('f');
+        })
+      ).rejects.toThrow();
       await breaker.execute(async () => 'ok');
-      await expect(breaker.execute(async () => { throw new Error('f'); })).rejects.toThrow();
-      await expect(breaker.execute(async () => { throw new Error('f'); })).rejects.toThrow();
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('f');
+        })
+      ).rejects.toThrow();
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('f');
+        })
+      ).rejects.toThrow();
       // Should still be closed (failures were reset by the success)
       expect(breaker.getState()).toBe('closed');
     });
@@ -72,16 +92,18 @@ describe('CircuitBreaker - State Transitions', () => {
       // Force circuit open
       for (let i = 0; i < 3; i++) {
         await expect(
-          breaker.execute(async () => { throw new Error('fail'); })
+          breaker.execute(async () => {
+            throw new Error('fail');
+          })
         ).rejects.toThrow();
       }
       expect(breaker.getState()).toBe('open');
     });
 
     it('should reject requests immediately when OPEN', async () => {
-      await expect(
-        breaker.execute(async () => 'should not run')
-      ).rejects.toThrow(CircuitBreakerError);
+      await expect(breaker.execute(async () => 'should not run')).rejects.toThrow(
+        CircuitBreakerError
+      );
     });
 
     it('should include circuit name in error', async () => {
@@ -108,7 +130,9 @@ describe('CircuitBreaker - State Transitions', () => {
       // Force open
       for (let i = 0; i < 3; i++) {
         await expect(
-          breaker.execute(async () => { throw new Error('fail'); })
+          breaker.execute(async () => {
+            throw new Error('fail');
+          })
         ).rejects.toThrow();
       }
       expect(breaker.getState()).toBe('open');
@@ -129,7 +153,9 @@ describe('CircuitBreaker - State Transitions', () => {
       // Force open
       for (let i = 0; i < 3; i++) {
         await expect(
-          breaker.execute(async () => { throw new Error('fail'); })
+          breaker.execute(async () => {
+            throw new Error('fail');
+          })
         ).rejects.toThrow();
       }
 
@@ -151,7 +177,9 @@ describe('CircuitBreaker - State Transitions', () => {
       // Force open
       for (let i = 0; i < 3; i++) {
         await expect(
-          breaker.execute(async () => { throw new Error('fail'); })
+          breaker.execute(async () => {
+            throw new Error('fail');
+          })
         ).rejects.toThrow();
       }
 
@@ -165,15 +193,25 @@ describe('CircuitBreaker - State Transitions', () => {
       // Failure in half-open resets success count but stays half_open
       // (needs failureThreshold failures to reopen)
       await expect(
-        breaker.execute(async () => { throw new Error('half-open-fail'); })
+        breaker.execute(async () => {
+          throw new Error('half-open-fail');
+        })
       ).rejects.toThrow();
 
       // Still half_open after one failure (threshold is 3)
       expect(breaker.getState()).toBe('half_open');
 
       // Multiple failures in half-open should eventually reopen
-      await expect(breaker.execute(async () => { throw new Error('f2'); })).rejects.toThrow();
-      await expect(breaker.execute(async () => { throw new Error('f3'); })).rejects.toThrow();
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('f2');
+        })
+      ).rejects.toThrow();
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('f3');
+        })
+      ).rejects.toThrow();
       expect(breaker.getState()).toBe('open');
     });
   });
@@ -183,7 +221,9 @@ describe('CircuitBreaker - State Transitions', () => {
       // Force open
       for (let i = 0; i < 3; i++) {
         await expect(
-          breaker.execute(async () => { throw new Error('fail'); })
+          breaker.execute(async () => {
+            throw new Error('fail');
+          })
         ).rejects.toThrow();
       }
       expect(breaker.getState()).toBe('open');
@@ -202,7 +242,9 @@ describe('CircuitBreaker - State Transitions', () => {
     it('should track total requests across states', async () => {
       await breaker.execute(async () => 'ok');
       await expect(
-        breaker.execute(async () => { throw new Error('fail'); })
+        breaker.execute(async () => {
+          throw new Error('fail');
+        })
       ).rejects.toThrow();
       await breaker.execute(async () => 'ok-2');
 

@@ -45,19 +45,23 @@ npm run benchmarks:run
 The system tracks the following performance metrics:
 
 ### Metadata Fetch
+
 - **avgLatency**: Average latency for spreadsheet.get() calls
 - **p95Latency**: 95th percentile latency
 - **p99Latency**: 99th percentile latency
 
 ### Batch Request
+
 - **avgLatency**: Average latency for batch operations
 
 ### Connection Reuse
+
 - **firstCall**: Latency of first API call
 - **avgSubsequent**: Average latency of subsequent calls
 - **improvementPercent**: Connection reuse improvement
 
 ### Concurrent Requests
+
 - **totalTime**: Total time for concurrent requests
 - **avgPerRequest**: Average time per concurrent request
 
@@ -90,6 +94,7 @@ npm run benchmarks:track
 ```
 
 This will:
+
 1. Run benchmark tests
 2. Compare against baseline
 3. Exit with error if regressions detected

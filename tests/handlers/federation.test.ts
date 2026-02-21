@@ -133,9 +133,7 @@ describe('FederationHandler', () => {
     });
 
     it('should handle remote call errors gracefully', async () => {
-      mockFederationClient.callRemoteTool.mockRejectedValue(
-        new Error('Connection refused')
-      );
+      mockFederationClient.callRemoteTool.mockRejectedValue(new Error('Connection refused'));
 
       const result = await handler.handle({
         request: {
@@ -155,9 +153,7 @@ describe('FederationHandler', () => {
 
   describe('list_servers action', () => {
     it('should list configured servers with connection status', async () => {
-      mockFederationClient.isConnected.mockImplementation((name: string) =>
-        name === 'test-server'
-      );
+      mockFederationClient.isConnected.mockImplementation((name: string) => name === 'test-server');
 
       const result = await handler.handle({
         request: {
@@ -241,9 +237,7 @@ describe('FederationHandler', () => {
     });
 
     it('should fail gracefully when connection validation fails', async () => {
-      mockFederationClient.listRemoteTools.mockRejectedValue(
-        new Error('Connection timeout')
-      );
+      mockFederationClient.listRemoteTools.mockRejectedValue(new Error('Connection timeout'));
 
       const result = await handler.handle({
         request: {
@@ -396,24 +390,18 @@ describe('FederationHandler', () => {
 
     it('should handle SSRF attempts in server URLs', async () => {
       const { getFederationConfig } = await import('../../src/config/env.js');
-      const { parseFederationServers } = await import(
-        '../../src/config/federation-config.js'
-      );
+      const { parseFederationServers } = await import('../../src/config/federation-config.js');
 
       vi.mocked(getFederationConfig).mockReturnValueOnce({
         enabled: true,
-        serversJson: JSON.stringify([
-          { name: 'ssrf-test', url: 'http://localhost:22/ssh' },
-        ]),
+        serversJson: JSON.stringify([{ name: 'ssrf-test', url: 'http://localhost:22/ssh' }]),
       });
 
       vi.mocked(parseFederationServers).mockReturnValueOnce([
         { name: 'ssrf-test', url: 'http://localhost:22/ssh' },
       ]);
 
-      mockFederationClient.callRemoteTool.mockRejectedValue(
-        new Error('Connection refused')
-      );
+      mockFederationClient.callRemoteTool.mockRejectedValue(new Error('Connection refused'));
 
       const result = await handler.handle({
         request: {
@@ -527,9 +515,7 @@ describe('FederationHandler', () => {
     });
 
     it('should handle invalid server URLs', async () => {
-      mockFederationClient.callRemoteTool.mockRejectedValue(
-        new Error('Invalid URL: not-a-url')
-      );
+      mockFederationClient.callRemoteTool.mockRejectedValue(new Error('Invalid URL: not-a-url'));
 
       const result = await handler.handle({
         request: {
@@ -591,9 +577,7 @@ describe('FederationHandler', () => {
   describe('action-specific edge cases', () => {
     it('should return empty array when no servers configured (list_servers)', async () => {
       const { getFederationConfig } = await import('../../src/config/env.js');
-      const { parseFederationServers } = await import(
-        '../../src/config/federation-config.js'
-      );
+      const { parseFederationServers } = await import('../../src/config/federation-config.js');
 
       vi.mocked(getFederationConfig).mockReturnValueOnce({
         enabled: true,
@@ -615,9 +599,7 @@ describe('FederationHandler', () => {
     });
 
     it('should validate server exists before listing tools (get_server_tools)', async () => {
-      mockFederationClient.listRemoteTools.mockRejectedValue(
-        new Error('Server not registered')
-      );
+      mockFederationClient.listRemoteTools.mockRejectedValue(new Error('Server not registered'));
 
       const result = await handler.handle({
         request: {

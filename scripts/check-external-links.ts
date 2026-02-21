@@ -10,7 +10,10 @@ import http from 'node:http';
 import { glob } from 'glob';
 
 const FIX_MODE = process.argv.includes('--fix');
-const TIMEOUT = parseInt(process.argv.find((arg) => arg.startsWith('--timeout='))?.split('=')[1] || '5000', 10);
+const TIMEOUT = parseInt(
+  process.argv.find((arg) => arg.startsWith('--timeout='))?.split('=')[1] || '5000',
+  10
+);
 const DRY_RUN = process.argv.includes('--dry-run');
 
 interface LinkCheck {
@@ -23,13 +26,7 @@ interface LinkCheck {
   error?: string;
 }
 
-const SKIP_DOMAINS = [
-  'localhost',
-  '127.0.0.1',
-  '0.0.0.0',
-  'example.com',
-  'example.org',
-];
+const SKIP_DOMAINS = ['localhost', '127.0.0.1', '0.0.0.0', 'example.com', 'example.org'];
 
 const urlCache = new Map<string, LinkCheck>();
 
@@ -175,11 +172,7 @@ async function main() {
 
   const pattern = 'docs/**/*.md';
   const files = await glob(pattern, {
-    ignore: [
-      '**/node_modules/**',
-      '**/docs/.vitepress/**',
-      '**/docs/archive/**',
-    ],
+    ignore: ['**/node_modules/**', '**/docs/.vitepress/**', '**/docs/archive/**'],
   });
 
   console.log(`Found ${files.length} markdown files\n`);

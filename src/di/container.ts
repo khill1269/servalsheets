@@ -139,9 +139,7 @@ export class Container {
 
     const visit = (serviceName: string, path: string[] = []): void => {
       if (recursionStack.has(serviceName)) {
-        errors.push(
-          `Circular dependency: ${[...path, serviceName].join(' -> ')}`
-        );
+        errors.push(`Circular dependency: ${[...path, serviceName].join(' -> ')}`);
         return;
       }
 
@@ -160,9 +158,7 @@ export class Container {
 
       for (const dep of definition.dependencies ?? []) {
         if (!this.definitions.has(dep)) {
-          errors.push(
-            `Service "${serviceName}" depends on unregistered service "${dep}"`
-          );
+          errors.push(`Service "${serviceName}" depends on unregistered service "${dep}"`);
         } else {
           visit(dep, [...path, serviceName]);
         }
@@ -245,9 +241,7 @@ export class Container {
 
     const validation = this.validateDependencies();
     if (!validation.valid) {
-      throw new Error(
-        `Dependency validation failed:\n${validation.errors.join('\n')}`
-      );
+      throw new Error(`Dependency validation failed:\n${validation.errors.join('\n')}`);
     }
 
     const singletons = Array.from(this.definitions.entries())

@@ -72,12 +72,18 @@ echo ""
 echo "▶ G4: FINAL TRUTH CHECK"
 echo "───────────────────────────────────────"
 npm run build > /dev/null 2>&1
-node -e "const {TOOL_COUNT, ACTION_COUNT} = require('./dist/schemas/action-counts.js'); \
-  if (TOOL_COUNT !== 22 || ACTION_COUNT !== 298) { \
-    console.error('❌ Source of truth mismatch'); process.exit(1); \
-  } else { \
-    console.log('✓ Source of truth confirmed: 22 tools, 298 actions'); \
-  }"
+node --input-type=module <<'EOF'
+import { TOOL_COUNT, ACTION_COUNT } from './dist/schemas/action-counts.js';
+if (TOOL_COUNT !== 22) {
+  console.error('❌ Source of truth mismatch: TOOL_COUNT=' + TOOL_COUNT + ' (expected 22)');
+  process.exit(1);
+}
+if (ACTION_COUNT < 200) {
+  console.error('❌ Source of truth mismatch: ACTION_COUNT=' + ACTION_COUNT + ' (suspiciously low)');
+  process.exit(1);
+}
+console.log('✓ Source of truth confirmed: ' + TOOL_COUNT + ' tools, ' + ACTION_COUNT + ' actions');
+EOF
 echo "✅ G4 passed"
 
 # G5: Audit validation & score

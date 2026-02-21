@@ -11,7 +11,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { RequestBuilder, type WrappedRequest, type RequestMetadata } from '../../src/core/request-builder.js';
+import {
+  RequestBuilder,
+  type WrappedRequest,
+  type RequestMetadata,
+} from '../../src/core/request-builder.js';
 import type { sheets_v4 } from 'googleapis';
 
 // ============================================================
@@ -991,8 +995,18 @@ describe('RequestBuilder.addConditionalFormatRule', () => {
   it('should estimate cells from all ranges', () => {
     const rule: sheets_v4.Schema$ConditionalFormatRule = {
       ranges: [
-        createGridRange({ startRowIndex: 0, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: 3 }),
-        createGridRange({ startRowIndex: 5, endRowIndex: 7, startColumnIndex: 0, endColumnIndex: 3 }),
+        createGridRange({
+          startRowIndex: 0,
+          endRowIndex: 2,
+          startColumnIndex: 0,
+          endColumnIndex: 3,
+        }),
+        createGridRange({
+          startRowIndex: 5,
+          endRowIndex: 7,
+          startColumnIndex: 0,
+          endColumnIndex: 3,
+        }),
       ],
     };
 
@@ -1063,9 +1077,7 @@ describe('RequestBuilder.deleteConditionalFormatRule', () => {
 
 describe('RequestBuilder.sortRange', () => {
   it('should create sortRange request', () => {
-    const sortSpecs: sheets_v4.Schema$SortSpec[] = [
-      { dimensionIndex: 0, sortOrder: 'ASCENDING' },
-    ];
+    const sortSpecs: sheets_v4.Schema$SortSpec[] = [{ dimensionIndex: 0, sortOrder: 'ASCENDING' }];
 
     const options = {
       ...createBaseOptions(),
@@ -1526,9 +1538,7 @@ describe('RequestBuilder.updateDeveloperMetadata', () => {
       metadataValue: 'newvalue',
     };
 
-    const dataFilters: sheets_v4.Schema$DataFilter[] = [
-      { a1Range: 'A1:B10' },
-    ];
+    const dataFilters: sheets_v4.Schema$DataFilter[] = [{ a1Range: 'A1:B10' }];
 
     const options = {
       ...createBaseOptions(),
@@ -1803,13 +1813,15 @@ describe('Edge Cases and Common Patterns', () => {
 
     const result = RequestBuilder.updateCells(options);
 
-    expect(result.metadata).toEqual(expect.objectContaining({
-      sourceTool: 'sheets_data',
-      sourceAction: 'updateCells',
-      transactionId: 'tx-456',
-      priority: 10,
-      spreadsheetId: 'test-spreadsheet-id',
-    }));
+    expect(result.metadata).toEqual(
+      expect.objectContaining({
+        sourceTool: 'sheets_data',
+        sourceAction: 'updateCells',
+        transactionId: 'tx-456',
+        priority: 10,
+        spreadsheetId: 'test-spreadsheet-id',
+      })
+    );
   });
 
   it('should preserve spreadsheet ID across all methods', () => {
@@ -1822,7 +1834,7 @@ describe('Edge Cases and Common Patterns', () => {
       RequestBuilder.autoResizeDimensions({ ...options, dimensions: createDimensionRange() }),
     ];
 
-    results.forEach(result => {
+    results.forEach((result) => {
       expect(result.metadata.spreadsheetId).toBe(spreadsheetId);
     });
   });
@@ -1887,7 +1899,7 @@ describe('Edge Cases and Common Patterns', () => {
       'PASTE_CONDITIONAL_FORMATTING',
     ] as const;
 
-    pasteTypes.forEach(pasteType => {
+    pasteTypes.forEach((pasteType) => {
       const options = {
         ...createBaseOptions(),
         source: createGridRange(),
@@ -1904,7 +1916,7 @@ describe('Edge Cases and Common Patterns', () => {
   it('should handle dimension types correctly', () => {
     const dimensions = ['ROWS', 'COLUMNS'] as const;
 
-    dimensions.forEach(dimension => {
+    dimensions.forEach((dimension) => {
       const options = {
         ...createBaseOptions(),
         sheetId: 0,
@@ -1954,7 +1966,7 @@ describe('Type Safety Verification', () => {
       }),
     ];
 
-    metadataChecks.forEach(result => {
+    metadataChecks.forEach((result) => {
       const metadata = result.metadata as RequestMetadata;
 
       expect(metadata).toHaveProperty('sourceTool');

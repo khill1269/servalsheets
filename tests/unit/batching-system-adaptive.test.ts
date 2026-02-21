@@ -13,6 +13,8 @@ describe('BatchingSystem with Adaptive Window', () => {
   let batchingSystem: BatchingSystem;
 
   beforeEach(() => {
+    vi.useFakeTimers();
+
     // Mock sheets API
     sheetsApi = {
       spreadsheets: {
@@ -37,6 +39,7 @@ describe('BatchingSystem with Adaptive Window', () => {
 
   afterEach(() => {
     batchingSystem?.destroy();
+    vi.useRealTimers();
   });
 
   describe('Adaptive Window Initialization', () => {
@@ -105,7 +108,7 @@ describe('BatchingSystem with Adaptive Window', () => {
       });
 
       // Wait for batch to execute
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
       await batchingSystem.flush();
       await promise;
 
@@ -131,7 +134,7 @@ describe('BatchingSystem with Adaptive Window', () => {
           },
         });
 
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await vi.advanceTimersByTimeAsync(50);
         await batchingSystem.flush();
         await promise;
 
@@ -181,7 +184,7 @@ describe('BatchingSystem with Adaptive Window', () => {
       }
 
       // Wait for batch to collect and execute
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await vi.advanceTimersByTimeAsync(100);
       await batchingSystem.flush();
       await Promise.all(promises);
 
@@ -212,7 +215,7 @@ describe('BatchingSystem with Adaptive Window', () => {
           );
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         await batchingSystem.flush();
         await Promise.all(promises);
 
@@ -262,7 +265,7 @@ describe('BatchingSystem with Adaptive Window', () => {
           );
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 60));
+        await vi.advanceTimersByTimeAsync(60);
         await batchingSystem.flush();
         await Promise.all(promises);
 
@@ -308,7 +311,7 @@ describe('BatchingSystem with Adaptive Window', () => {
           );
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 30));
+        await vi.advanceTimersByTimeAsync(30);
         await batchingSystem.flush();
         await Promise.all(promises);
       }
@@ -340,7 +343,7 @@ describe('BatchingSystem with Adaptive Window', () => {
           },
         });
 
-        await new Promise((resolve) => setTimeout(resolve, 60));
+        await vi.advanceTimersByTimeAsync(60);
         await batchingSystem.flush();
         await promise;
       }
@@ -371,7 +374,7 @@ describe('BatchingSystem with Adaptive Window', () => {
         },
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
       await batchingSystem.flush();
       await promise;
 
@@ -399,7 +402,7 @@ describe('BatchingSystem with Adaptive Window', () => {
           },
         });
 
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await vi.advanceTimersByTimeAsync(50);
         await batchingSystem.flush();
         await promise;
       }
@@ -443,21 +446,25 @@ describe('BatchingSystem with Adaptive Window', () => {
       expect(stats1.currentWindowMs).toBeUndefined();
 
       // Execute operations - window should never change
+      const promises: Promise<unknown>[] = [];
       for (let i = 0; i < 5; i++) {
-        await batchingSystem.execute({
-          id: `test-${i}`,
-          type: 'values:update',
-          spreadsheetId: 'test-sheet',
-          params: {
-            range: `Sheet1!A${i + 1}`,
-            values: [['test']],
-          },
-        });
+        promises.push(
+          batchingSystem.execute({
+            id: `test-${i}`,
+            type: 'values:update',
+            spreadsheetId: 'test-sheet',
+            params: {
+              range: `Sheet1!A${i + 1}`,
+              values: [['test']],
+            },
+          })
+        );
 
-        await new Promise((resolve) => setTimeout(resolve, 70));
+        await vi.advanceTimersByTimeAsync(70);
       }
 
       await batchingSystem.flush();
+      await Promise.all(promises);
 
       const stats2 = batchingSystem.getStats();
       expect(stats2.currentWindowMs).toBeUndefined();
@@ -470,23 +477,27 @@ describe('BatchingSystem with Adaptive Window', () => {
         windowMs: 50,
       });
 
-      // Simulate varying traffic
+      // Simulate varying traffic - fire-and-collect pattern for fake timers
+      const fixedPromises: Promise<unknown>[] = [];
       for (let i = 0; i < 20; i++) {
-        await fixedSystem.execute({
-          id: `test-${i}`,
-          type: 'values:update',
-          spreadsheetId: 'test-sheet',
-          params: {
-            range: `Sheet1!A${i + 1}`,
-            values: [['test']],
-          },
-        });
+        fixedPromises.push(
+          fixedSystem.execute({
+            id: `test-${i}`,
+            type: 'values:update',
+            spreadsheetId: 'test-sheet',
+            params: {
+              range: `Sheet1!A${i + 1}`,
+              values: [['test']],
+            },
+          })
+        );
 
         // Varying delays to test traffic pattern handling
-        await new Promise((resolve) => setTimeout(resolve, i % 3 === 0 ? 10 : 100));
+        await vi.advanceTimersByTimeAsync(i % 3 === 0 ? 10 : 100);
       }
 
       await fixedSystem.flush();
+      await Promise.all(fixedPromises);
       const fixedStats = fixedSystem.getStats();
       fixedSystem.destroy();
 
@@ -498,21 +509,25 @@ describe('BatchingSystem with Adaptive Window', () => {
         },
       });
 
+      const adaptivePromises: Promise<unknown>[] = [];
       for (let i = 0; i < 20; i++) {
-        await adaptiveSystem.execute({
-          id: `test-${i}`,
-          type: 'values:update',
-          spreadsheetId: 'test-sheet',
-          params: {
-            range: `Sheet1!A${i + 1}`,
-            values: [['test']],
-          },
-        });
+        adaptivePromises.push(
+          adaptiveSystem.execute({
+            id: `test-${i}`,
+            type: 'values:update',
+            spreadsheetId: 'test-sheet',
+            params: {
+              range: `Sheet1!A${i + 1}`,
+              values: [['test']],
+            },
+          })
+        );
 
-        await new Promise((resolve) => setTimeout(resolve, i % 3 === 0 ? 10 : 100));
+        await vi.advanceTimersByTimeAsync(i % 3 === 0 ? 10 : 100);
       }
 
       await adaptiveSystem.flush();
+      await Promise.all(adaptivePromises);
       const adaptiveStats = adaptiveSystem.getStats();
       adaptiveSystem.destroy();
 
@@ -523,6 +538,6 @@ describe('BatchingSystem with Adaptive Window', () => {
       // Adaptive should have stats
       expect(adaptiveStats.currentWindowMs).toBeDefined();
       expect(fixedStats.currentWindowMs).toBeUndefined();
-    }, 20000); // 20 second timeout for this long-running test
+    });
   });
 });

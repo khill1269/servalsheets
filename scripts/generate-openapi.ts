@@ -2,7 +2,7 @@
  * OpenAPI Generator
  *
  * Generates OpenAPI 3.1 specification from Zod schemas.
- * Converts ServalSheets' 22 tools and 298 actions into REST API specification.
+ * Converts ServalSheets' 22 tools and 305 actions into REST API specification.
  */
 
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -93,7 +93,7 @@ export class OpenAPIGenerator {
       info: {
         title: 'ServalSheets API',
         version: this.version,
-        description: `Production-grade Google Sheets API with 22 tools and 298 actions.
+        description: `Production-grade Google Sheets API with 22 tools and 305 actions.
 
 Features:
 - AI-powered spreadsheet operations
@@ -145,7 +145,7 @@ Built with the Model Context Protocol (MCP).`,
                 tokenUrl: `${this.baseUrl}/oauth/token`,
                 scopes: {
                   'spreadsheets.readonly': 'Read spreadsheet data',
-                  'spreadsheets': 'Read and write spreadsheet data',
+                  spreadsheets: 'Read and write spreadsheet data',
                   'drive.readonly': 'Read Drive metadata',
                   'drive.file': 'Manage Drive files created by app',
                 },
@@ -186,10 +186,7 @@ Built with the Model Context Protocol (MCP).`,
           },
         },
       },
-      security: [
-        { bearerAuth: [] },
-        { oauth2: ['spreadsheets'] },
-      ],
+      security: [{ bearerAuth: [] }, { oauth2: ['spreadsheets'] }],
       tags: this.generateTags(),
     };
 

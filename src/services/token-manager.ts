@@ -81,7 +81,7 @@ export class TokenManager {
   constructor(options: TokenManagerOptions = {}) {
     this.oauthClient = options.oauthClient;
     this.refreshThreshold = options.refreshThreshold ?? 0.8; // 80% of lifetime
-    this.checkIntervalMs = options.checkIntervalMs ?? 300000; // 5 minutes
+    this.checkIntervalMs = options.checkIntervalMs ?? 60000; // 1 minute (reduced from 5min for faster token recovery)
     this.onTokenRefreshed = options.onTokenRefreshed;
     this.onRefreshError = options.onRefreshError;
   }
@@ -181,6 +181,24 @@ export class TokenManager {
       threshold: this.refreshThreshold,
     });
 
+    return await this.refreshToken();
+  }
+
+  /**
+   * Reactively refresh token on 401 errors (called by retry logic)
+   * Skips if last refresh was within the cooldown window to prevent refresh storms
+   */
+  async refreshTokenOnAuthError(): Promise<boolean> {
+    const cooldownMs = 5000; // 5 second cooldown between reactive refreshes
+    const timeSinceLastRefresh = Date.now() - this.metrics.lastRefreshTime;
+    if (timeSinceLastRefresh < cooldownMs) {
+      logger.debug('Skipping reactive token refresh (cooldown active)', {
+        timeSinceLastRefresh,
+        cooldownMs,
+      });
+      return false;
+    }
+    logger.info('Reactive token refresh triggered by auth error');
     return await this.refreshToken();
   }
 

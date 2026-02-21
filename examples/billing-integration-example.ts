@@ -172,7 +172,9 @@ export async function exampleInvoiceGeneration() {
   console.log(`  ID: ${invoice.invoiceId}`);
   console.log(`  Amount: $${invoice.amount.toFixed(2)}`);
   console.log(`  Status: ${invoice.status}`);
-  console.log(`  Period: ${invoice.periodStart.toISOString()} - ${invoice.periodEnd.toISOString()}`);
+  console.log(
+    `  Period: ${invoice.periodStart.toISOString()} - ${invoice.periodEnd.toISOString()}`
+  );
   console.log(`  URL: ${invoice.hostedInvoiceUrl}`);
   console.log(`  PDF: ${invoice.invoicePdf}`);
 

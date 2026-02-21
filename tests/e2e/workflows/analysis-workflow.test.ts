@@ -16,7 +16,11 @@
  */
 
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
-import { createTestOrchestrator, describeE2E, type WorkflowContext } from '../setup/test-orchestrator.js';
+import {
+  createTestOrchestrator,
+  describeE2E,
+  type WorkflowContext,
+} from '../setup/test-orchestrator.js';
 
 /**
  * Generate test data for population
@@ -234,7 +238,10 @@ describeE2E('E2E: Analysis Workflow', () => {
         args: {
           spreadsheetId,
           range: 'Data!A1:B2',
-          values: [['A', 'B'], ['C', 'D']],
+          values: [
+            ['A', 'B'],
+            ['C', 'D'],
+          ],
         },
         validate: () => {
           throw new Error('Validation failed intentionally');

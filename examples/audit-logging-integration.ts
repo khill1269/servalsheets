@@ -7,10 +7,7 @@
 
 import { getAuditLogger } from '../src/services/audit-logger.js';
 import { createAuditMiddleware } from '../src/middleware/audit-middleware.js';
-import {
-  runWithRequestContext,
-  createRequestContext,
-} from '../src/utils/request-context.js';
+import { runWithRequestContext, createRequestContext } from '../src/utils/request-context.js';
 
 /**
  * Example 1: Manual audit logging
@@ -121,7 +118,10 @@ async function automaticAuditLogging() {
         userId: 'user@example.com',
         spreadsheetId: '1ABC...',
         range: 'Sheet1!A1:B10',
-        values: [[1, 2], [3, 4]],
+        values: [
+          [1, 2],
+          [3, 4],
+        ],
       },
       async () => {
         // Simulate handler execution
@@ -169,7 +169,10 @@ async function automaticAuditLogging() {
         // Simulate handler execution
         return {
           success: true,
-          values: [[1, 2], [3, 4]],
+          values: [
+            [1, 2],
+            [3, 4],
+          ],
         };
       }
     );
@@ -315,7 +318,7 @@ async function tamperDetection() {
  */
 async function main() {
   console.log('🔍 ServalSheets Audit Logging Integration Examples\n');
-  console.log('=' .repeat(60));
+  console.log('='.repeat(60));
 
   try {
     // Example 1: Manual logging

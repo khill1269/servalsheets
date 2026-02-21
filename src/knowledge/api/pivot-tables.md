@@ -28,13 +28,13 @@ A pivot table summarizes data by grouping rows/columns and applying aggregation 
 
 ### Key Components
 
-| Component | Purpose |
-|-----------|---------|
-| **Source** | Data range to analyze |
-| **Rows** | Fields to group by (vertical) |
-| **Columns** | Fields to group by (horizontal) |
-| **Values** | Aggregations (SUM, COUNT, AVG, etc.) |
-| **Filters** | Criteria to include/exclude data |
+| Component   | Purpose                              |
+| ----------- | ------------------------------------ |
+| **Source**  | Data range to analyze                |
+| **Rows**    | Fields to group by (vertical)        |
+| **Columns** | Fields to group by (horizontal)      |
+| **Values**  | Aggregations (SUM, COUNT, AVG, etc.) |
+| **Filters** | Criteria to include/exclude data     |
 
 ---
 
@@ -48,31 +48,31 @@ interface PivotTable {
   rows?: PivotGroup[];
   columns?: PivotGroup[];
   values?: PivotValue[];
-  criteria?: Record<number, PivotFilterCriteria>;  // Column offset -> filter
+  criteria?: Record<number, PivotFilterCriteria>; // Column offset -> filter
   filterSpecs?: PivotFilterSpec[];
   valueLayout?: 'HORIZONTAL' | 'VERTICAL';
   dataExecutionStatus?: DataExecutionStatus;
 }
 
 interface PivotGroup {
-  sourceColumnOffset: number;       // Column index in source data (0-based)
-  showTotals?: boolean;             // Show group totals
+  sourceColumnOffset: number; // Column index in source data (0-based)
+  showTotals?: boolean; // Show group totals
   sortOrder?: 'ASCENDING' | 'DESCENDING';
   valueBucket?: PivotGroupSortValueBucket;
   valueMetadata?: PivotGroupValueMetadata[];
   repeatHeadings?: boolean;
-  label?: string;                   // Custom group label
-  groupRule?: PivotGroupRule;       // Date/histogram grouping
-  groupLimit?: PivotGroupLimit;     // Limit displayed groups
+  label?: string; // Custom group label
+  groupRule?: PivotGroupRule; // Date/histogram grouping
+  groupLimit?: PivotGroupLimit; // Limit displayed groups
   dataSourceColumnReference?: DataSourceColumnReference;
 }
 
 interface PivotValue {
   summarizeFunction: PivotValueSummarizeFunction;
-  sourceColumnOffset?: number;      // Column to aggregate
-  name?: string;                    // Custom display name
+  sourceColumnOffset?: number; // Column to aggregate
+  name?: string; // Custom display name
   calculatedDisplayType?: PivotValueCalculatedDisplayType;
-  formula?: string;                 // For CUSTOM function
+  formula?: string; // For CUSTOM function
   dataSourceColumnReference?: DataSourceColumnReference;
 }
 
@@ -109,27 +109,31 @@ type PivotValueCalculatedDisplayType =
 // Pivot table is created by updating a cell with pivotTable data
 const createPivotTableRequest = {
   updateCells: {
-    rows: [{
-      values: [{
-        pivotTable: {
-          source: {
-            sheetId: 0,              // Source data sheet
-            startRowIndex: 0,
-            endRowIndex: 100,
-            startColumnIndex: 0,
-            endColumnIndex: 5,
+    rows: [
+      {
+        values: [
+          {
+            pivotTable: {
+              source: {
+                sheetId: 0, // Source data sheet
+                startRowIndex: 0,
+                endRowIndex: 100,
+                startColumnIndex: 0,
+                endColumnIndex: 5,
+              },
+              rows: [
+                { sourceColumnOffset: 0, showTotals: true }, // Group by column A
+              ],
+              values: [
+                { summarizeFunction: 'SUM', sourceColumnOffset: 2 }, // Sum column C
+              ],
+            },
           },
-          rows: [
-            { sourceColumnOffset: 0, showTotals: true },  // Group by column A
-          ],
-          values: [
-            { summarizeFunction: 'SUM', sourceColumnOffset: 2 },  // Sum column C
-          ],
-        },
-      }],
-    }],
+        ],
+      },
+    ],
     start: {
-      sheetId: 1,          // Destination sheet
+      sheetId: 1, // Destination sheet
       rowIndex: 0,
       columnIndex: 0,
     },
@@ -158,32 +162,34 @@ const requests = [
 // After getting sheetId from addSheet reply
 const pivotRequest = {
   updateCells: {
-    rows: [{
-      values: [{
-        pivotTable: {
-          source: {
-            sheetId: 0,  // Data source
-            startRowIndex: 0,
-            endRowIndex: 1000,
-            startColumnIndex: 0,
-            endColumnIndex: 10,
+    rows: [
+      {
+        values: [
+          {
+            pivotTable: {
+              source: {
+                sheetId: 0, // Data source
+                startRowIndex: 0,
+                endRowIndex: 1000,
+                startColumnIndex: 0,
+                endColumnIndex: 10,
+              },
+              rows: [
+                { sourceColumnOffset: 1, showTotals: true, label: 'Region' },
+                { sourceColumnOffset: 2, showTotals: true, label: 'Product' },
+              ],
+              columns: [{ sourceColumnOffset: 0, showTotals: true, label: 'Year' }],
+              values: [
+                { summarizeFunction: 'SUM', sourceColumnOffset: 4, name: 'Total Sales' },
+                { summarizeFunction: 'COUNT', sourceColumnOffset: 4, name: 'Order Count' },
+              ],
+            },
           },
-          rows: [
-            { sourceColumnOffset: 1, showTotals: true, label: 'Region' },
-            { sourceColumnOffset: 2, showTotals: true, label: 'Product' },
-          ],
-          columns: [
-            { sourceColumnOffset: 0, showTotals: true, label: 'Year' },
-          ],
-          values: [
-            { summarizeFunction: 'SUM', sourceColumnOffset: 4, name: 'Total Sales' },
-            { summarizeFunction: 'COUNT', sourceColumnOffset: 4, name: 'Order Count' },
-          ],
-        },
-      }],
-    }],
+        ],
+      },
+    ],
     start: {
-      sheetId: newSheetId,  // From addSheet reply
+      sheetId: newSheetId, // From addSheet reply
       rowIndex: 0,
       columnIndex: 0,
     },
@@ -201,14 +207,14 @@ const pivotRequest = {
 ```typescript
 // Group by single column
 const singleGroup: PivotGroup = {
-  sourceColumnOffset: 0,  // First column in source
+  sourceColumnOffset: 0, // First column in source
   showTotals: true,
   sortOrder: 'ASCENDING',
 };
 
 // Multiple row groups (nested)
 const nestedGroups: PivotGroup[] = [
-  { sourceColumnOffset: 0, showTotals: true, label: 'Category' },    // Outer group
+  { sourceColumnOffset: 0, showTotals: true, label: 'Category' }, // Outer group
   { sourceColumnOffset: 1, showTotals: true, label: 'Subcategory' }, // Inner group
 ];
 ```
@@ -218,7 +224,7 @@ const nestedGroups: PivotGroup[] = [
 ```typescript
 // Group dates by month
 const monthGroup: PivotGroup = {
-  sourceColumnOffset: 3,  // Date column
+  sourceColumnOffset: 3, // Date column
   showTotals: true,
   groupRule: {
     dateTimeRule: {
@@ -264,13 +270,13 @@ const yearQuarterGroups: PivotGroup[] = [
 ```typescript
 // Group numbers into buckets
 const histogramGroup: PivotGroup = {
-  sourceColumnOffset: 4,  // Numeric column
+  sourceColumnOffset: 4, // Numeric column
   showTotals: true,
   groupRule: {
     histogramRule: {
-      interval: 100,      // Bucket size
-      start: 0,           // Start value
-      end: 1000,          // End value
+      interval: 100, // Bucket size
+      start: 0, // Start value
+      end: 1000, // End value
     },
   },
 };
@@ -280,7 +286,7 @@ const ageGroup: PivotGroup = {
   sourceColumnOffset: 2,
   groupRule: {
     histogramRule: {
-      interval: 10,  // 10-year brackets
+      interval: 10, // 10-year brackets
       start: 0,
       end: 100,
     },
@@ -299,7 +305,7 @@ const manualGroup: PivotGroup = {
   valueMetadata: [
     { value: { stringValue: 'High' }, collapsed: false },
     { value: { stringValue: 'Medium' }, collapsed: false },
-    { value: { stringValue: 'Low' }, collapsed: true },  // Collapsed by default
+    { value: { stringValue: 'Low' }, collapsed: true }, // Collapsed by default
   ],
 };
 ```
@@ -313,11 +319,11 @@ const topNGroup: PivotGroup = {
   showTotals: true,
   groupLimit: {
     countLimit: 10,
-    applyOrder: 'VALUE',  // Limit by value aggregation
+    applyOrder: 'VALUE', // Limit by value aggregation
   },
   valueBucket: {
     buckets: [{ stringValue: '' }],
-    valuesIndex: 0,  // Index of value to sort by
+    valuesIndex: 0, // Index of value to sort by
   },
   sortOrder: 'DESCENDING',
 };
@@ -435,7 +441,7 @@ const percentOfGrand: PivotValue = {
 // Custom calculated field
 const customValue: PivotValue = {
   summarizeFunction: 'CUSTOM',
-  formula: '=SUM(Sales)/SUM(Quantity)',  // Average price
+  formula: '=SUM(Sales)/SUM(Quantity)', // Average price
   name: 'Avg Price',
 };
 ```
@@ -462,18 +468,22 @@ const multipleValues: PivotValue[] = [
 ```typescript
 // Horizontal: values side by side
 const horizontalLayout: PivotTable = {
-  source: { /* ... */ },
+  source: {
+    /* ... */
+  },
   rows: [{ sourceColumnOffset: 0 }],
   values: [
     { summarizeFunction: 'SUM', sourceColumnOffset: 1 },
     { summarizeFunction: 'SUM', sourceColumnOffset: 2 },
   ],
-  valueLayout: 'HORIZONTAL',  // Default
+  valueLayout: 'HORIZONTAL', // Default
 };
 
 // Vertical: values stacked
 const verticalLayout: PivotTable = {
-  source: { /* ... */ },
+  source: {
+    /* ... */
+  },
   rows: [{ sourceColumnOffset: 0 }],
   values: [
     { summarizeFunction: 'SUM', sourceColumnOffset: 1 },
@@ -492,16 +502,19 @@ const verticalLayout: PivotTable = {
 ```typescript
 // Filter specific values
 const filterByValues: PivotFilterCriteria = {
-  visibleValues: ['North', 'South'],  // Only show these
+  visibleValues: ['North', 'South'], // Only show these
 };
 
 // Using criteria map (column offset -> filter)
 const pivotWithFilter: PivotTable = {
-  source: { /* ... */ },
+  source: {
+    /* ... */
+  },
   rows: [{ sourceColumnOffset: 1 }],
   values: [{ summarizeFunction: 'SUM', sourceColumnOffset: 3 }],
   criteria: {
-    0: {  // Filter column at offset 0
+    0: {
+      // Filter column at offset 0
       visibleValues: ['2024', '2023'],
     },
   },
@@ -513,7 +526,7 @@ const pivotWithFilter: PivotTable = {
 ```typescript
 // Using filterSpecs (more flexible)
 const filterByCondition: PivotFilterSpec = {
-  columnOffsetIndex: 4,  // Column to filter
+  columnOffsetIndex: 4, // Column to filter
   filterCriteria: {
     condition: {
       type: 'NUMBER_GREATER',
@@ -553,25 +566,25 @@ const multipleFilters: PivotFilterSpec[] = [
 
 ### Available Filter Conditions
 
-| Type | Description |
-|------|-------------|
-| `NUMBER_GREATER` | > value |
-| `NUMBER_GREATER_THAN_EQ` | >= value |
-| `NUMBER_LESS` | < value |
-| `NUMBER_LESS_THAN_EQ` | <= value |
-| `NUMBER_EQ` | = value |
-| `NUMBER_NOT_EQ` | ≠ value |
-| `NUMBER_BETWEEN` | Between two values |
-| `TEXT_CONTAINS` | Contains substring |
-| `TEXT_NOT_CONTAINS` | Doesn't contain |
-| `TEXT_STARTS_WITH` | Starts with |
-| `TEXT_ENDS_WITH` | Ends with |
-| `TEXT_EQ` | Exact match |
-| `DATE_EQ` | Equals date |
-| `DATE_BEFORE` | Before date |
-| `DATE_AFTER` | After date |
-| `BLANK` | Is empty |
-| `NOT_BLANK` | Is not empty |
+| Type                     | Description        |
+| ------------------------ | ------------------ |
+| `NUMBER_GREATER`         | > value            |
+| `NUMBER_GREATER_THAN_EQ` | >= value           |
+| `NUMBER_LESS`            | < value            |
+| `NUMBER_LESS_THAN_EQ`    | <= value           |
+| `NUMBER_EQ`              | = value            |
+| `NUMBER_NOT_EQ`          | ≠ value            |
+| `NUMBER_BETWEEN`         | Between two values |
+| `TEXT_CONTAINS`          | Contains substring |
+| `TEXT_NOT_CONTAINS`      | Doesn't contain    |
+| `TEXT_STARTS_WITH`       | Starts with        |
+| `TEXT_ENDS_WITH`         | Ends with          |
+| `TEXT_EQ`                | Exact match        |
+| `DATE_EQ`                | Equals date        |
+| `DATE_BEFORE`            | Before date        |
+| `DATE_AFTER`             | After date         |
+| `BLANK`                  | Is empty           |
+| `NOT_BLANK`              | Is not empty       |
 
 ---
 
@@ -591,8 +604,8 @@ const sortByValue: PivotGroup = {
   sourceColumnOffset: 0,
   sortOrder: 'DESCENDING',
   valueBucket: {
-    buckets: [],       // Empty for simple sort
-    valuesIndex: 0,    // Sort by first value aggregation
+    buckets: [], // Empty for simple sort
+    valuesIndex: 0, // Sort by first value aggregation
   },
 };
 
@@ -602,7 +615,7 @@ const sortBySpecificValue: PivotGroup = {
   sortOrder: 'DESCENDING',
   valueBucket: {
     buckets: [],
-    valuesIndex: 1,    // Sort by second value (index 1)
+    valuesIndex: 1, // Sort by second value (index 1)
   },
 };
 ```
@@ -613,7 +626,7 @@ const sortBySpecificValue: PivotGroup = {
 // Row totals
 const withRowTotals: PivotGroup = {
   sourceColumnOffset: 0,
-  showTotals: true,  // Show subtotals for this group
+  showTotals: true, // Show subtotals for this group
 };
 
 // No totals
@@ -629,7 +642,7 @@ const withoutTotals: PivotGroup = {
 // Repeat row headers on each row
 const repeatHeaders: PivotGroup = {
   sourceColumnOffset: 0,
-  repeatHeadings: true,  // Repeat value in each row
+  repeatHeadings: true, // Repeat value in each row
 };
 ```
 
@@ -653,22 +666,22 @@ const salesPivot: PivotTable = {
   },
   rows: [
     {
-      sourceColumnOffset: 1,  // Region
+      sourceColumnOffset: 1, // Region
       showTotals: true,
       sortOrder: 'ASCENDING',
       label: 'Region',
     },
     {
-      sourceColumnOffset: 2,  // Product
+      sourceColumnOffset: 2, // Product
       showTotals: true,
       sortOrder: 'DESCENDING',
-      valueBucket: { valuesIndex: 0 },  // Sort by revenue
+      valueBucket: { valuesIndex: 0 }, // Sort by revenue
       label: 'Product',
     },
   ],
   columns: [
     {
-      sourceColumnOffset: 0,  // Date
+      sourceColumnOffset: 0, // Date
       showTotals: true,
       groupRule: {
         dateTimeRule: { type: 'QUARTER' },
@@ -679,17 +692,17 @@ const salesPivot: PivotTable = {
   values: [
     {
       summarizeFunction: 'SUM',
-      sourceColumnOffset: 5,  // Revenue
+      sourceColumnOffset: 5, // Revenue
       name: 'Total Revenue',
     },
     {
       summarizeFunction: 'SUM',
-      sourceColumnOffset: 4,  // Quantity
+      sourceColumnOffset: 4, // Quantity
       name: 'Units Sold',
     },
     {
       summarizeFunction: 'COUNTUNIQUE',
-      sourceColumnOffset: 3,  // Salesperson
+      sourceColumnOffset: 3, // Salesperson
       name: 'Active Reps',
     },
   ],
@@ -710,13 +723,17 @@ const salesPivot: PivotTable = {
 // Create request
 const createSalesPivot = {
   updateCells: {
-    rows: [{
-      values: [{
-        pivotTable: salesPivot,
-      }],
-    }],
+    rows: [
+      {
+        values: [
+          {
+            pivotTable: salesPivot,
+          },
+        ],
+      },
+    ],
     start: {
-      sheetId: 1,  // Pivot sheet
+      sheetId: 1, // Pivot sheet
       rowIndex: 0,
       columnIndex: 0,
     },
@@ -740,7 +757,7 @@ const cohortPivot: PivotTable = {
   },
   rows: [
     {
-      sourceColumnOffset: 1,  // Signup date
+      sourceColumnOffset: 1, // Signup date
       showTotals: true,
       groupRule: {
         dateTimeRule: { type: 'YEAR_MONTH' },
@@ -750,7 +767,7 @@ const cohortPivot: PivotTable = {
   ],
   columns: [
     {
-      sourceColumnOffset: 2,  // Order date
+      sourceColumnOffset: 2, // Order date
       showTotals: true,
       groupRule: {
         dateTimeRule: { type: 'YEAR_MONTH' },
@@ -761,12 +778,12 @@ const cohortPivot: PivotTable = {
   values: [
     {
       summarizeFunction: 'COUNTUNIQUE',
-      sourceColumnOffset: 0,  // Customer ID
+      sourceColumnOffset: 0, // Customer ID
       name: 'Active Customers',
     },
     {
       summarizeFunction: 'SUM',
-      sourceColumnOffset: 3,  // Order value
+      sourceColumnOffset: 3, // Order value
       name: 'Revenue',
     },
   ],
@@ -788,12 +805,12 @@ const performancePivot: PivotTable = {
   },
   rows: [
     {
-      sourceColumnOffset: 1,  // Department
+      sourceColumnOffset: 1, // Department
       showTotals: true,
       sortOrder: 'ASCENDING',
     },
     {
-      sourceColumnOffset: 2,  // Role
+      sourceColumnOffset: 2, // Role
       showTotals: true,
     },
   ],
@@ -820,7 +837,8 @@ const performancePivot: PivotTable = {
     },
   ],
   criteria: {
-    5: {  // Filter by rating >= 3
+    5: {
+      // Filter by rating >= 3
       condition: {
         type: 'NUMBER_GREATER_THAN_EQ',
         values: [{ userEnteredValue: '3' }],
@@ -838,9 +856,11 @@ const performancePivot: PivotTable = {
 
 ```typescript
 const yoyPivot: PivotTable = {
-  source: { /* date, category, value */ },
+  source: {
+    /* date, category, value */
+  },
   rows: [
-    { sourceColumnOffset: 1, showTotals: true },  // Category
+    { sourceColumnOffset: 1, showTotals: true }, // Category
   ],
   columns: [
     {
@@ -848,9 +868,7 @@ const yoyPivot: PivotTable = {
       groupRule: { dateTimeRule: { type: 'YEAR' } },
     },
   ],
-  values: [
-    { summarizeFunction: 'SUM', sourceColumnOffset: 2, name: 'Total' },
-  ],
+  values: [{ summarizeFunction: 'SUM', sourceColumnOffset: 2, name: 'Total' }],
 };
 ```
 
@@ -858,19 +876,19 @@ const yoyPivot: PivotTable = {
 
 ```typescript
 const topNPivot: PivotTable = {
-  source: { /* ... */ },
+  source: {
+    /* ... */
+  },
   rows: [
     {
-      sourceColumnOffset: 0,  // Entity to rank
+      sourceColumnOffset: 0, // Entity to rank
       showTotals: false,
       sortOrder: 'DESCENDING',
       valueBucket: { valuesIndex: 0 },
-      groupLimit: { countLimit: 10 },  // Top 10
+      groupLimit: { countLimit: 10 }, // Top 10
     },
   ],
-  values: [
-    { summarizeFunction: 'SUM', sourceColumnOffset: 1 },
-  ],
+  values: [{ summarizeFunction: 'SUM', sourceColumnOffset: 1 }],
 };
 ```
 
@@ -878,14 +896,16 @@ const topNPivot: PivotTable = {
 
 ```typescript
 const distributionPivot: PivotTable = {
-  source: { /* ... with numeric values */ },
+  source: {
+    /* ... with numeric values */
+  },
   rows: [
     {
-      sourceColumnOffset: 2,  // Numeric column
+      sourceColumnOffset: 2, // Numeric column
       showTotals: true,
       groupRule: {
         histogramRule: {
-          interval: 1000,  // $1000 buckets
+          interval: 1000, // $1000 buckets
           start: 0,
           end: 10000,
         },
@@ -908,16 +928,16 @@ const distributionPivot: PivotTable = {
 
 ```typescript
 const crossTabPivot: PivotTable = {
-  source: { /* ... */ },
+  source: {
+    /* ... */
+  },
   rows: [
-    { sourceColumnOffset: 0, showTotals: true },  // Dimension 1
+    { sourceColumnOffset: 0, showTotals: true }, // Dimension 1
   ],
   columns: [
-    { sourceColumnOffset: 1, showTotals: true },  // Dimension 2
+    { sourceColumnOffset: 1, showTotals: true }, // Dimension 2
   ],
-  values: [
-    { summarizeFunction: 'COUNTA', sourceColumnOffset: 0, name: 'Count' },
-  ],
+  values: [{ summarizeFunction: 'COUNTA', sourceColumnOffset: 0, name: 'Count' }],
 };
 ```
 
@@ -931,11 +951,15 @@ const crossTabPivot: PivotTable = {
 // Update by replacing pivotTable in cell
 const updatePivot = {
   updateCells: {
-    rows: [{
-      values: [{
-        pivotTable: updatedPivotTable,  // New configuration
-      }],
-    }],
+    rows: [
+      {
+        values: [
+          {
+            pivotTable: updatedPivotTable, // New configuration
+          },
+        ],
+      },
+    ],
     start: {
       sheetId: 1,
       rowIndex: 0,
@@ -952,11 +976,15 @@ const updatePivot = {
 // Clear the cell containing pivot table
 const deletePivot = {
   updateCells: {
-    rows: [{
-      values: [{
-        // Empty cell data clears pivot
-      }],
-    }],
+    rows: [
+      {
+        values: [
+          {
+            // Empty cell data clears pivot
+          },
+        ],
+      },
+    ],
     start: {
       sheetId: 1,
       rowIndex: 0,
@@ -969,4 +997,4 @@ const deletePivot = {
 
 ---
 
-*Source: Google Sheets API v4 Documentation*
+_Source: Google Sheets API v4 Documentation_

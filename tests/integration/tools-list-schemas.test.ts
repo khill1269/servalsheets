@@ -11,8 +11,9 @@ type ListToolsResponse = {
 
 async function requestToolsList(server: ServalSheetsServer): Promise<ListToolsResponse> {
   const mcpServer = server.server;
-  const protocolServer = (mcpServer as unknown as { server: { _requestHandlers?: Map<string, any> } })
-    .server;
+  const protocolServer = (
+    mcpServer as unknown as { server: { _requestHandlers?: Map<string, any> } }
+  ).server;
   const handler = protocolServer?._requestHandlers?.get('tools/list');
   if (!handler) {
     throw new Error('tools/list handler not registered');
@@ -120,9 +121,10 @@ describe('tools/list Schema Serialization', () => {
         // Should not be empty
         const properties = tool.outputSchema.properties as Record<string, unknown>;
         const propertyCount = Object.keys(properties).length;
-        expect(propertyCount, `Tool ${tool.name} should have non-empty output schema`).toBeGreaterThan(
-          0
-        );
+        expect(
+          propertyCount,
+          `Tool ${tool.name} should have non-empty output schema`
+        ).toBeGreaterThan(0);
       }
     }
   });

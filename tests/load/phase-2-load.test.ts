@@ -127,9 +127,7 @@ describe.skipIf(!LOAD_TEST_ENABLED)('Phase 2 Load Testing', () => {
         [SPREADSHEET_ID]: {
           spreadsheetId: SPREADSHEET_ID,
           title: 'Load Test Sheet',
-          sheets: [
-            { sheetId: 0, title: 'Sheet1', rowCount: 1000000, columnCount: 26 },
-          ],
+          sheets: [{ sheetId: 0, title: 'Sheet1', rowCount: 1000000, columnCount: 26 }],
           values: {
             'Sheet1!A1:D10': Array(10).fill(['A', 'B', 'C', 'D']),
           },
@@ -284,7 +282,7 @@ describe.skipIf(!LOAD_TEST_ENABLED)('Phase 2 Load Testing', () => {
           await requestMerger.mergeRead(
             mockSheetsApi as unknown as sheets_v4.Sheets,
             SPREADSHEET_ID,
-            `Sheet1!A${i % 10000 + 1}:D${i % 10000 + 10}`
+            `Sheet1!A${(i % 10000) + 1}:D${(i % 10000) + 10}`
           );
           metrics.recordOperation(Date.now() - opStart);
         } catch (error) {
@@ -457,9 +455,7 @@ describe.skipIf(!LOAD_TEST_ENABLED)('Phase 2 Load Testing', () => {
       // Validate prefetch improvement
       // Note: In mock environment, improvement may be limited
       // In production, expect 20%+ improvement
-      expect(withPrefetchReport.latency.p95).toBeLessThanOrEqual(
-        noPrefetchReport.latency.p95
-      );
+      expect(withPrefetchReport.latency.p95).toBeLessThanOrEqual(noPrefetchReport.latency.p95);
     },
     5 * 60 * 1000 // 5 min timeout
   );

@@ -183,18 +183,25 @@ describe('Cross-Version Compatibility - v1.6.0 New Features', () => {
 });
 
 describe('Cross-Version Compatibility - Response Shapes', () => {
-  const V1_5_0_ResponseSchema = z.object({
-    success: z.boolean(),
-  }).passthrough();
+  const V1_5_0_ResponseSchema = z
+    .object({
+      success: z.boolean(),
+    })
+    .passthrough();
 
-  const V1_6_0_ResponseSchema = z.object({
-    success: z.boolean(),
-  }).passthrough();
+  const V1_6_0_ResponseSchema = z
+    .object({
+      success: z.boolean(),
+    })
+    .passthrough();
 
   it('v1.5.0 responses remain valid in v1.6.0', () => {
     const v1_5_0_response = {
       success: true,
-      values: [['A', 'B'], ['1', '2']],
+      values: [
+        ['A', 'B'],
+        ['1', '2'],
+      ],
       range: 'Sheet1!A1:B2',
     };
 
@@ -205,7 +212,10 @@ describe('Cross-Version Compatibility - Response Shapes', () => {
   it('v1.6.0 responses include all v1.5.0 fields', () => {
     const v1_6_0_response = {
       success: true,
-      values: [['A', 'B'], ['1', '2']],
+      values: [
+        ['A', 'B'],
+        ['1', '2'],
+      ],
       range: 'Sheet1!A1:B2',
       metadata: {
         rowCount: 2,
@@ -327,9 +337,11 @@ describe('Cross-Version Compatibility - Consumer Expectations', () => {
   });
 
   it('Claude Desktop expects success field in responses', () => {
-    const ResponseSchema = z.object({
-      success: z.boolean(),
-    }).passthrough();
+    const ResponseSchema = z
+      .object({
+        success: z.boolean(),
+      })
+      .passthrough();
 
     const responseWithoutSuccess = {
       data: {},
@@ -339,13 +351,17 @@ describe('Cross-Version Compatibility - Consumer Expectations', () => {
   });
 
   it('Claude Desktop expects error structure on failure', () => {
-    const ErrorResponseSchema = z.object({
-      success: z.literal(false),
-      error: z.object({
-        code: z.string(),
-        message: z.string(),
-      }).passthrough(),
-    }).passthrough();
+    const ErrorResponseSchema = z
+      .object({
+        success: z.literal(false),
+        error: z
+          .object({
+            code: z.string(),
+            message: z.string(),
+          })
+          .passthrough(),
+      })
+      .passthrough();
 
     const errorResponseWithoutStructure = {
       success: false,

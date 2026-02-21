@@ -468,7 +468,9 @@ function generateReport(analyses: DocAnalysis[]): void {
   console.log(`  Total files analyzed: ${totalFiles}`);
   console.log(`  Total words: ${totalWords.toLocaleString()}`);
   console.log(`  Average words per doc: ${Math.round(totalWords / totalFiles)}`);
-  console.log(`  Files with issues: ${filesWithIssues} (${((filesWithIssues / totalFiles) * 100).toFixed(1)}%)`);
+  console.log(
+    `  Files with issues: ${filesWithIssues} (${((filesWithIssues / totalFiles) * 100).toFixed(1)}%)`
+  );
   console.log(`  Total issues found: ${totalIssues}`);
 
   // Issue breakdown
@@ -499,7 +501,9 @@ function generateReport(analyses: DocAnalysis[]): void {
 
   // Top issues
   console.log('\n🔴 Files with Most Issues (Top 10):\n');
-  const sortedByIssues = [...analyses].sort((a, b) => b.issues.length - a.issues.length).slice(0, 10);
+  const sortedByIssues = [...analyses]
+    .sort((a, b) => b.issues.length - a.issues.length)
+    .slice(0, 10);
 
   for (const analysis of sortedByIssues) {
     if (analysis.issues.length === 0) break;
@@ -522,8 +526,12 @@ function generateReport(analyses: DocAnalysis[]): void {
   const withPrerequisites = analyses.filter((a) => a.quality.hasPrerequisites).length;
 
   console.log('\n📝 Content Features:\n');
-  console.log(`  With code blocks: ${withCodeBlocks} (${((withCodeBlocks / totalFiles) * 100).toFixed(1)}%)`);
-  console.log(`  With examples section: ${withExamples} (${((withExamples / totalFiles) * 100).toFixed(1)}%)`);
+  console.log(
+    `  With code blocks: ${withCodeBlocks} (${((withCodeBlocks / totalFiles) * 100).toFixed(1)}%)`
+  );
+  console.log(
+    `  With examples section: ${withExamples} (${((withExamples / totalFiles) * 100).toFixed(1)}%)`
+  );
   console.log(
     `  With troubleshooting: ${withTroubleshooting} (${((withTroubleshooting / totalFiles) * 100).toFixed(1)}%)`
   );
@@ -568,7 +576,9 @@ function generateReport(analyses: DocAnalysis[]): void {
     priorities.push(`⚠️  Add descriptions to ${missingDescriptions} docs (improves search)`);
   }
 
-  const missingTags = analyses.filter((a) => !a.metadata.tags || a.metadata.tags.length === 0).length;
+  const missingTags = analyses.filter(
+    (a) => !a.metadata.tags || a.metadata.tags.length === 0
+  ).length;
   if (missingTags > 10) {
     priorities.push(`ℹ️  Add tags to ${missingTags} docs (improves discoverability)`);
   }
@@ -632,7 +642,9 @@ async function main() {
 
   // Output JSON if requested
   if (process.argv.includes('--json')) {
-    const outputPath = process.argv.find((arg) => arg.startsWith('--output='))?.split('=')[1] || 'docs-analysis.json';
+    const outputPath =
+      process.argv.find((arg) => arg.startsWith('--output='))?.split('=')[1] ||
+      'docs-analysis.json';
 
     writeFileSync(
       outputPath,

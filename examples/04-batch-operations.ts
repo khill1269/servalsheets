@@ -140,8 +140,9 @@ async function batchWrite(
   console.log(`\n[BATCH WRITE] Writing ${data.length} ranges...`);
 
   const startTime = Date.now();
-  const totalCells = data.reduce((sum, item) =>
-    sum + item.values.reduce((s, row) => s + row.length, 0), 0
+  const totalCells = data.reduce(
+    (sum, item) => sum + item.values.reduce((s, row) => s + row.length, 0),
+    0
   );
 
   console.log(`  Total cells to write: ${totalCells}`);
@@ -151,7 +152,7 @@ async function batchWrite(
       spreadsheetId,
       requestBody: {
         valueInputOption: 'USER_ENTERED',
-        data: data.map(item => ({
+        data: data.map((item) => ({
           range: item.range,
           values: item.values,
         })),
@@ -191,7 +192,7 @@ async function batchReadModifyWrite(
   try {
     // Step 1: Batch read all ranges
     console.log('\n  Step 1: Reading data...');
-    const ranges = transformations.map(t => t.range);
+    const ranges = transformations.map((t) => t.range);
     const readResult = await batchRead(sheets, spreadsheetId, ranges);
 
     // Step 2: Apply transformations
@@ -275,7 +276,7 @@ async function main(): Promise<void> {
 
   try {
     const auth = await getGoogleAuth();
-    const sheets = google.sheets({ version: "v4", auth: auth as any });
+    const sheets = google.sheets({ version: 'v4', auth: auth as any });
 
     await setupDemoData(sheets, SPREADSHEET_ID, SHEET_NAME);
 
@@ -284,10 +285,7 @@ async function main(): Promise<void> {
     // ========================================================================
     console.log('\n--- Example 1: Batch Read Performance ---');
 
-    const readRanges = [
-      `${SHEET_NAME}!A1:C5`,
-      `${SHEET_NAME}!E1:G5`,
-    ];
+    const readRanges = [`${SHEET_NAME}!A1:C5`, `${SHEET_NAME}!E1:G5`];
 
     await batchRead(sheets, SPREADSHEET_ID, readRanges);
 
@@ -300,13 +298,13 @@ async function main(): Promise<void> {
       {
         range: `${SHEET_NAME}!B2:B5`,
         modify: (values: string[][]) => {
-          return values.map(row => [parseInt(row[0] || '0') + 1]);
+          return values.map((row) => [parseInt(row[0] || '0') + 1]);
         },
       },
       {
         range: `${SHEET_NAME}!F2:F5`,
         modify: (values: string[][]) => {
-          return values.map(row => [(parseFloat(row[0] || '0') * 0.9).toFixed(2)]);
+          return values.map((row) => [(parseFloat(row[0] || '0') * 0.9).toFixed(2)]);
         },
       },
     ];
@@ -320,7 +318,6 @@ async function main(): Promise<void> {
     console.log('  3. Use batchUpdate for atomic multi-range writes');
     console.log('  4. Batch operations are atomic (all or nothing)');
     console.log('  5. TypeScript provides type safety for complex batch operations');
-
   } catch (error) {
     console.error('\n=== Example Failed ===');
     const message = error instanceof Error ? error.message : String(error);

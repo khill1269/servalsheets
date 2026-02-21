@@ -80,10 +80,7 @@ describe('SheetsBigQueryHandler', () => {
       jobs: {
         query: vi.fn().mockResolvedValue({
           data: {
-            rows: [
-              { f: [{ v: '1' }, { v: 'Alice' }] },
-              { f: [{ v: '2' }, { v: 'Bob' }] },
-            ],
+            rows: [{ f: [{ v: '1' }, { v: 'Alice' }] }, { f: [{ v: '2' }, { v: 'Bob' }] }],
             schema: {
               fields: [
                 { name: 'id', type: 'INTEGER' },
@@ -185,9 +182,7 @@ describe('SheetsBigQueryHandler', () => {
     });
 
     it('should handle API errors gracefully', async () => {
-      mockSheetsApi.spreadsheets.batchUpdate.mockRejectedValue(
-        new Error('API quota exceeded')
-      );
+      mockSheetsApi.spreadsheets.batchUpdate.mockRejectedValue(new Error('API quota exceeded'));
 
       const result = await handler.handle({
         request: {
@@ -287,7 +282,7 @@ describe('SheetsBigQueryHandler', () => {
   });
 
   describe('query action', () => {
-    it('should execute BigQuery query', async () => {
+    it('should execute BigQuery query via direct API when BigQuery client is available', async () => {
       const result = await handler.handle({
         request: {
           action: 'query',
@@ -300,13 +295,13 @@ describe('SheetsBigQueryHandler', () => {
       expect(result.response.success).toBe(true);
       if (result.response.success && 'rows' in result.response) {
         expect(result.response.rows).toHaveLength(2);
-        expect(result.response.totalRows).toBe(2);
+        expect(result.response.rowCount).toBe(2);
       }
     });
 
-    it('should handle query errors', async () => {
-      // Query action uses Connected Sheets batchUpdate under the hood
-      mockSheetsApi.spreadsheets.batchUpdate.mockRejectedValue(new Error('Syntax error near SELECT'));
+    it('should handle query errors via BigQuery API', async () => {
+      // Query action uses BigQuery API when client is available
+      mockBigQueryApi.jobs.query.mockRejectedValue(new Error('Syntax error near SELECT'));
 
       const result = await handler.handle({
         request: {
@@ -571,9 +566,7 @@ describe('SheetsBigQueryHandler', () => {
     });
 
     it('should handle no active refresh', async () => {
-      mockSheetsApi.spreadsheets.batchUpdate.mockRejectedValue(
-        new Error('No refresh in progress')
-      );
+      mockSheetsApi.spreadsheets.batchUpdate.mockRejectedValue(new Error('No refresh in progress'));
 
       const result = await handler.handle({
         request: {
@@ -592,10 +585,7 @@ describe('SheetsBigQueryHandler', () => {
     it('should preview query results', async () => {
       mockBigQueryApi.jobs.query.mockResolvedValue({
         data: {
-          rows: [
-            { f: [{ v: 'val1' }, { v: 'val2' }] },
-            { f: [{ v: 'val3' }, { v: 'val4' }] },
-          ],
+          rows: [{ f: [{ v: 'val1' }, { v: 'val2' }] }, { f: [{ v: 'val3' }, { v: 'val4' }] }],
           schema: {
             fields: [
               { name: 'col1', type: 'STRING' },
@@ -626,10 +616,7 @@ describe('SheetsBigQueryHandler', () => {
     it('should limit preview rows with maxRows parameter', async () => {
       mockBigQueryApi.jobs.query.mockResolvedValue({
         data: {
-          rows: [
-            { f: [{ v: 'data1' }] },
-            { f: [{ v: 'data2' }] },
-          ],
+          rows: [{ f: [{ v: 'data1' }] }, { f: [{ v: 'data2' }] }],
           schema: { fields: [{ name: 'col', type: 'STRING' }] },
           totalBytesProcessed: '2048',
           jobComplete: true,
@@ -883,10 +870,7 @@ describe('SheetsBigQueryHandler', () => {
     beforeEach(() => {
       mockBigQueryApi.jobs.query.mockResolvedValue({
         data: {
-          rows: [
-            { f: [{ v: 'val1' }, { v: 'val2' }] },
-            { f: [{ v: 'val3' }, { v: 'val4' }] },
-          ],
+          rows: [{ f: [{ v: 'val1' }, { v: 'val2' }] }, { f: [{ v: 'val3' }, { v: 'val4' }] }],
           schema: {
             fields: [
               { name: 'col1', type: 'STRING' },
@@ -1073,7 +1057,11 @@ describe('SheetsBigQueryHandler', () => {
         ...mockContext,
         googleClient: null,
       };
-      const noAuthHandler = new SheetsBigQueryHandler(noAuthContext, mockSheetsApi, mockBigQueryApi);
+      const noAuthHandler = new SheetsBigQueryHandler(
+        noAuthContext,
+        mockSheetsApi,
+        mockBigQueryApi
+      );
 
       await expect(
         noAuthHandler.handle({

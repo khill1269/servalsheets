@@ -59,11 +59,7 @@ export class SDKGenerator {
       },
     };
 
-    writeFileSync(
-      join(outputDir, 'package.json'),
-      JSON.stringify(packageJson, null, 2),
-      'utf-8'
-    );
+    writeFileSync(join(outputDir, 'package.json'), JSON.stringify(packageJson, null, 2), 'utf-8');
 
     // Generate tsconfig.json
     const tsConfig = {
@@ -404,7 +400,7 @@ console.log(result.response.values);
 - ✅ Fully typed with TypeScript
 - ✅ Automatic retries with exponential backoff
 - ✅ Built-in error handling
-- ✅ IntelliSense support for all 298 actions
+- ✅ IntelliSense support for all 305 actions
 - ✅ Streaming support for large datasets
 
 ## Documentation
@@ -660,7 +656,7 @@ print(result["response"]["values"])
 - ✅ Type hints with Python 3.8+
 - ✅ Automatic retries with exponential backoff
 - ✅ Built-in error handling
-- ✅ Support for all 298 actions
+- ✅ Support for all 305 actions
 
 ## Documentation
 
@@ -700,11 +696,7 @@ MIT
       },
     };
 
-    writeFileSync(
-      join(outputDir, 'package.json'),
-      JSON.stringify(packageJson, null, 2),
-      'utf-8'
-    );
+    writeFileSync(join(outputDir, 'package.json'), JSON.stringify(packageJson, null, 2), 'utf-8');
 
     // Generate client
     const client = `/**

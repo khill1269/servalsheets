@@ -5,7 +5,11 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { getLiveApiClient, isLiveApiEnabled, type LiveApiClient } from '../setup/live-api-client.js';
+import {
+  getLiveApiClient,
+  isLiveApiEnabled,
+  type LiveApiClient,
+} from '../setup/live-api-client.js';
 import {
   TestSpreadsheetManager,
   createTestSpreadsheetManager,
@@ -33,11 +37,7 @@ describeOrSkip('Prefetching System Live Verification', () => {
 
   describe('Access Pattern Learning', () => {
     it('should learn sequential access patterns', async () => {
-      const ranges = [
-        'TestData!A1:F10',
-        'TestData!A11:F20',
-        'TestData!A21:F30',
-      ];
+      const ranges = ['TestData!A1:F10', 'TestData!A11:F20', 'TestData!A21:F30'];
 
       const durations: number[] = [];
 
@@ -50,10 +50,12 @@ describeOrSkip('Prefetching System Live Verification', () => {
         durations.push(performance.now() - start);
       }
 
-      console.log(`Sequential access durations: ${durations.map(d => d.toFixed(2)).join('ms, ')}ms`);
+      console.log(
+        `Sequential access durations: ${durations.map((d) => d.toFixed(2)).join('ms, ')}ms`
+      );
 
       expect(durations.length).toBe(3);
-      expect(durations.every(d => d > 0)).toBe(true);
+      expect(durations.every((d) => d > 0)).toBe(true);
     });
 
     it('should handle repeated access to same ranges', async () => {
@@ -69,7 +71,9 @@ describeOrSkip('Prefetching System Live Verification', () => {
         durations.push(performance.now() - start);
       }
 
-      console.log(`Repeated access durations: ${durations.map(d => d.toFixed(2)).join('ms, ')}ms`);
+      console.log(
+        `Repeated access durations: ${durations.map((d) => d.toFixed(2)).join('ms, ')}ms`
+      );
 
       expect(durations[0]).toBeGreaterThan(0);
     });
@@ -82,7 +86,7 @@ describeOrSkip('Prefetching System Live Verification', () => {
         range: 'TestData!A100:F110',
       });
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       const start = performance.now();
       const result = await client.sheets.spreadsheets.values.get({

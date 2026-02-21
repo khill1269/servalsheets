@@ -42,23 +42,27 @@ ServalSheets includes a comprehensive cost attribution system that tracks usage 
 ### Free Tier
 
 **Limits:**
+
 - 1,000 API calls per month
 - 1 GB storage
 - 1 user seat
 - Basic features only
 
 **Pricing:**
+
 - $0/month (free)
 
 ### Starter Tier
 
 **Limits:**
+
 - 10,000 API calls per month
 - 10 GB storage
 - 5 user seats
 - Includes transactions
 
 **Pricing:**
+
 - $0.10 per 1,000 API requests
 - $0.50 per GB storage per month
 - $10 per user seat per month
@@ -69,12 +73,14 @@ ServalSheets includes a comprehensive cost attribution system that tracks usage 
 ### Professional Tier
 
 **Limits:**
+
 - 100,000 API calls per month
 - 100 GB storage
 - 25 user seats
 - Full feature access (transactions, webhooks, BigQuery)
 
 **Pricing (20% discount):**
+
 - $0.08 per 1,000 API requests
 - $0.40 per GB storage per month
 - $8 per user seat per month
@@ -85,12 +91,14 @@ ServalSheets includes a comprehensive cost attribution system that tracks usage 
 ### Enterprise Tier
 
 **Limits:**
+
 - Unlimited API calls
 - Unlimited storage
 - Unlimited user seats
 - All features (including Apps Script integration)
 
 **Pricing (50% discount):**
+
 - $0.05 per 1,000 API requests
 - $0.25 per GB storage per month
 - $5 per user seat per month
@@ -239,12 +247,9 @@ const billing = createBillingIntegration({
 
 ```typescript
 // Create Stripe customer
-const customerId = await billing.createCustomer(
-  tenantId,
-  'customer@example.com',
-  'Company Name',
-  { plan: 'professional' }
-);
+const customerId = await billing.createCustomer(tenantId, 'customer@example.com', 'Company Name', {
+  plan: 'professional',
+});
 ```
 
 ### Subscription Management
@@ -347,6 +352,7 @@ billing://dashboard/{tenantId}
 ```
 
 Returns:
+
 - Current period info (dates, days elapsed/remaining)
 - Current and forecasted costs
 - Cost breakdown by category
@@ -362,6 +368,7 @@ billing://allocation/{tenantId}
 ```
 
 Returns:
+
 - Cost breakdown by category
 - Percentage of total for each category
 - Period information
@@ -373,6 +380,7 @@ billing://invoices/{tenantId}
 ```
 
 Returns:
+
 - List of recent invoices
 - Payment status
 - Download links
@@ -383,7 +391,7 @@ Returns:
 // Access via MCP server
 server.registerResource(
   'Cost Dashboard',
-  'billing://dashboard/{tenantId}',
+  'billing://dashboard/{tenantId}'
   // ... resource handler
 );
 ```
@@ -395,6 +403,7 @@ The cost tracker provides intelligent optimization suggestions based on usage pa
 ### API Call Optimization
 
 When API usage exceeds 1,000 calls, suggests:
+
 - Using batch operations
 - Implementing caching
 - Potential savings: up to 30%
@@ -402,6 +411,7 @@ When API usage exceeds 1,000 calls, suggests:
 ### Storage Optimization
 
 When storage exceeds 10 GB, suggests:
+
 - Archiving old data
 - Implementing data retention policies
 - Potential savings: up to 20%
@@ -409,18 +419,21 @@ When storage exceeds 10 GB, suggests:
 ### User Seat Optimization
 
 When active seat ratio < 70%, suggests:
+
 - Removing unused seats
 - Potential savings: unused seats × seat cost
 
 ### Tier Optimization
 
 When usage exceeds tier limits, suggests:
+
 - Upgrading to higher tier for volume discounts
 - Potential savings: calculated based on discount percentage
 
 ### Feature Usage Optimization
 
 When processing > 1M rows, suggests:
+
 - Using sampling techniques
 - Implementing incremental processing
 - Potential savings: up to 15%
@@ -536,21 +549,25 @@ export const billingCostsTotal = new Counter({
 ### Common Issues
 
 **Issue:** Invoice not generating
+
 - Check Stripe customer exists
 - Verify usage has been tracked
 - Check auto-invoicing is enabled
 
 **Issue:** Incorrect cost calculation
+
 - Verify pricing tier is set correctly
 - Check usage tracking calls are made
 - Review discount application
 
 **Issue:** Budget alerts not firing
+
 - Ensure budget limit is set
 - Verify cost tracker is initialized
 - Check event listener is registered
 
 **Issue:** Webhook failures
+
 - Verify webhook secret is correct
 - Check Stripe signature validation
 - Review webhook endpoint accessibility
@@ -569,6 +586,7 @@ export const billingCostsTotal = new Counter({
 ## Support
 
 For billing-related issues:
+
 - Check logs in `src/services/cost-tracker.ts` and `billing-integration.ts`
 - Review Stripe dashboard for payment issues
 - Contact support with tenant ID and invoice ID

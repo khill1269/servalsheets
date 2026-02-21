@@ -22,10 +22,13 @@ interface ContractVersion {
   protocolVersion: string;
   toolCount: number;
   actionCount: number;
-  tools: Record<string, {
-    actions: string[];
-    requiredFields: Record<string, string[]>;
-  }>;
+  tools: Record<
+    string,
+    {
+      actions: string[];
+      requiredFields: Record<string, string[]>;
+    }
+  >;
   responseStructure: unknown;
   enums: Record<string, string[]>;
   newFeatures?: Record<string, unknown>;
@@ -51,7 +54,12 @@ interface DiffResult {
 }
 
 interface BreakingChange {
-  type: 'removed_tool' | 'removed_action' | 'added_required_field' | 'removed_enum_value' | 'changed_field_type';
+  type:
+    | 'removed_tool'
+    | 'removed_action'
+    | 'added_required_field'
+    | 'removed_enum_value'
+    | 'changed_field_type';
   tool?: string;
   action?: string;
   field?: string;
@@ -79,7 +87,14 @@ interface Change {
 }
 
 function loadContract(version: string): ContractVersion {
-  const contractPath = path.join(__dirname, '..', 'tests', 'contracts', 'versions', `${version}.json`);
+  const contractPath = path.join(
+    __dirname,
+    '..',
+    'tests',
+    'contracts',
+    'versions',
+    `${version}.json`
+  );
 
   if (!fs.existsSync(contractPath)) {
     console.error(`❌ Contract file not found: ${contractPath}`);
@@ -87,7 +102,7 @@ function loadContract(version: string): ContractVersion {
     const versionsDir = path.join(__dirname, '..', 'tests', 'contracts', 'versions');
     if (fs.existsSync(versionsDir)) {
       const files = fs.readdirSync(versionsDir);
-      files.forEach(file => console.error(`  - ${file.replace('.json', '')}`));
+      files.forEach((file) => console.error(`  - ${file.replace('.json', '')}`));
     }
     process.exit(1);
   }

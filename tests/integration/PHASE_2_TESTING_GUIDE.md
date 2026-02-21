@@ -13,12 +13,14 @@ Comprehensive test suite validating all 6 Phase 2 performance features work toge
 ## Test Files
 
 ### 1. Integration Tests
+
 **File:** `tests/integration/phase-2-integration.test.ts`
 **Purpose:** Verify features integrate correctly
 **Duration:** ~5 minutes
 **Run:** `npm run test:phase2`
 
 **Test Scenarios:**
+
 1. Range merging + cache invalidation
 2. Prefetch + streaming responses
 3. Adaptive concurrency + worker pool
@@ -28,12 +30,14 @@ Comprehensive test suite validating all 6 Phase 2 performance features work toge
 7. Performance regression detection
 
 ### 2. Performance Benchmarks
+
 **File:** `tests/benchmarks/phase-2-performance.bench.ts`
 **Purpose:** Measure performance characteristics
 **Duration:** ~10 minutes
 **Run:** `npm run bench:phase2`
 
 **Benchmark Categories:**
+
 1. Request merging throughput (sequential vs overlapping)
 2. Prefetch prediction speed (learning + generation)
 3. Cache invalidation graph performance
@@ -42,12 +46,14 @@ Comprehensive test suite validating all 6 Phase 2 performance features work toge
 6. Scalability tests (10, 50, 100, 500 concurrent ops)
 
 ### 3. Load Tests
+
 **File:** `tests/load/phase-2-load.test.ts`
 **Purpose:** Validate stability under production load
 **Duration:** ~30 minutes
 **Run:** `npm run test:phase2:load`
 
 **Load Scenarios:**
+
 1. Sustained 1000+ req/s for 5 minutes
 2. Spike load (5000 req/s burst for 30 seconds)
 3. Memory stability over 100K operations
@@ -61,44 +67,52 @@ Comprehensive test suite validating all 6 Phase 2 performance features work toge
 
 All tests validate against these Phase 2 targets:
 
-| Metric | Baseline | Target | Validation |
-|--------|----------|--------|------------|
-| API Calls | 1000 | 700 | -30% reduction |
-| P95 Latency | 400ms | 240ms | -40% improvement |
-| Cache Hit Rate | 30% | 60%+ | +100% increase |
-| Memory OOM | Variable | 0 events | Stable on 100K rows |
-| 429 Errors | Variable | 0 | No rate limits |
-| Throughput | 500 req/s | 1000+ req/s | +100% increase |
+| Metric         | Baseline  | Target      | Validation          |
+| -------------- | --------- | ----------- | ------------------- |
+| API Calls      | 1000      | 700         | -30% reduction      |
+| P95 Latency    | 400ms     | 240ms       | -40% improvement    |
+| Cache Hit Rate | 30%       | 60%+        | +100% increase      |
+| Memory OOM     | Variable  | 0 events    | Stable on 100K rows |
+| 429 Errors     | Variable  | 0           | No rate limits      |
+| Throughput     | 500 req/s | 1000+ req/s | +100% increase      |
 
 ---
 
 ## Running Tests
 
 ### Quick Integration Test
+
 ```bash
 npm run test:phase2
 ```
+
 **Duration:** 5 minutes
 **What it tests:** Feature integration, correctness, basic performance
 
 ### Full Performance Benchmark
+
 ```bash
 npm run bench:phase2
 ```
+
 **Duration:** 10 minutes
 **What it tests:** Detailed performance metrics, scalability, regression detection
 
 ### Full Load Test (CI only)
+
 ```bash
 npm run test:phase2:load
 ```
+
 **Duration:** 30 minutes
 **What it tests:** Production-level load, sustained throughput, memory stability
 
 ### Complete Phase 2 Test Suite
+
 ```bash
 npm run test:phase2:all
 ```
+
 **Duration:** 45 minutes
 **What it tests:** Everything - integration + benchmarks + load
 
@@ -107,7 +121,9 @@ npm run test:phase2:all
 ## Test Architecture
 
 ### MetricsTracker Class
+
 Collects performance metrics across all tests:
+
 - API call counts
 - Cache hit/miss ratios
 - Latency percentiles (P50, P95, P99)
@@ -115,14 +131,18 @@ Collects performance metrics across all tests:
 - Error tracking (including 429 rate limits)
 
 ### LoadMetrics Class
+
 Specialized for load testing:
+
 - Throughput calculation (ops/sec)
 - Memory trend analysis (stable/increasing/decreasing)
 - Error rate tracking
 - Time-series memory snapshots
 
 ### Mock Infrastructure
+
 Uses existing `tests/helpers/google-api-mocks.ts`:
+
 - Realistic Google Sheets API responses
 - Configurable spreadsheet data
 - Error simulation
@@ -133,70 +153,88 @@ Uses existing `tests/helpers/google-api-mocks.ts`:
 ## Feature Coverage
 
 ### 1. Request Merging (request-merger.ts)
+
 **Tests:**
+
 - Overlapping range detection
 - Merge window timing (50ms)
 - API call reduction calculation
 - Response splitting accuracy
 
 **Validation:**
+
 - Merging reduces API calls by 30%+
 - Merged responses correctly split to requesters
 - No data loss or corruption
 
 ### 2. Adaptive Concurrency (adaptive-concurrency.ts)
+
 **Tests:**
+
 - Concurrency adjustment based on CPU load
 - Backpressure handling
 - Throughput optimization
 
 **Validation:**
+
 - Adapts to system load dynamically
 - Maintains P95 latency < 400ms
 - No event loop blocking
 
 ### 3. Predictive Prefetch (prefetch-predictor.ts)
+
 **Tests:**
+
 - Pattern learning from history
 - Sequential range prediction
 - Background prefetch execution
 - Accuracy tracking
 
 **Validation:**
+
 - Prediction accuracy > 70%
 - Prefetch improves P95 latency by 20%+
 - Cache hit rate improvement
 
 ### 4. Worker Thread Pool (worker-pool.ts)
+
 **Tests:**
+
 - Task distribution
 - Worker lifecycle (create/restart/shutdown)
 - Pool size scaling (1, 2, 4, 8 workers)
 
 **Validation:**
+
 - Linear scaling up to CPU count
 - No deadlocks or starvation
 - Graceful shutdown
 
 ### 5. Streaming Responses (streaming-response-writer.ts)
+
 **Tests:**
+
 - Large dataset streaming (100K rows)
 - Memory efficiency
 - Chunked response handling
 
 **Validation:**
+
 - Memory stays below 512MB
 - No OOM events
 - Reasonable latency (< 5s for 100K rows)
 
 ### 6. Cache Invalidation Graph (cache-invalidation-graph.ts)
+
 **Tests:**
+
 - Dependency tracking
 - Overlap detection
 - Selective invalidation
 - Performance at scale
 
 **Validation:**
+
 - Only dependent ranges invalidated
 - Query speed < 10ms for 1000 ranges
 - No false positives/negatives
@@ -206,6 +244,7 @@ Uses existing `tests/helpers/google-api-mocks.ts`:
 ## CI Integration
 
 ### Fast CI (PR validation)
+
 ```yaml
 - name: Phase 2 Integration Tests
   run: npm run test:phase2
@@ -213,6 +252,7 @@ Uses existing `tests/helpers/google-api-mocks.ts`:
 ```
 
 ### Nightly CI (full validation)
+
 ```yaml
 - name: Phase 2 Full Test Suite
   run: npm run test:phase2:all
@@ -220,6 +260,7 @@ Uses existing `tests/helpers/google-api-mocks.ts`:
 ```
 
 ### Performance Monitoring
+
 ```yaml
 - name: Phase 2 Benchmarks
   run: npm run bench:phase2
@@ -235,6 +276,7 @@ Uses existing `tests/helpers/google-api-mocks.ts`:
 ## Interpreting Results
 
 ### Successful Test Run
+
 ```json
 {
   "apiCalls": 670,
@@ -245,9 +287,11 @@ Uses existing `tests/helpers/google-api-mocks.ts`:
   "memoryMB": { "max": 245, "avg": 180 }
 }
 ```
+
 ✅ All targets met
 
 ### Failed Test Run
+
 ```json
 {
   "apiCalls": 950,
@@ -258,7 +302,9 @@ Uses existing `tests/helpers/google-api-mocks.ts`:
   "memoryMB": { "max": 780, "avg": 520 }
 }
 ```
+
 ❌ Multiple targets missed:
+
 - API call reduction < 30% target
 - Cache hit rate < 60% target
 - P95 latency > 400ms baseline
@@ -270,51 +316,62 @@ Uses existing `tests/helpers/google-api-mocks.ts`:
 ## Debugging Test Failures
 
 ### API Call Reduction Below Target
+
 **Symptom:** `apiCallReduction < 30%`
 **Possible causes:**
+
 - Request merger disabled or misconfigured
 - Merge window too short (< 50ms)
 - No overlapping requests in test
-**Fix:** Check RequestMerger config, verify test generates overlapping ranges
+  **Fix:** Check RequestMerger config, verify test generates overlapping ranges
 
 ### Cache Hit Rate Below Target
+
 **Symptom:** `cacheHitRate < 60%`
 **Possible causes:**
+
 - Cache disabled
 - TTL too short
 - No repeated reads in test
 - Cache invalidation too aggressive
-**Fix:** Verify cache config, check invalidation graph logic
+  **Fix:** Verify cache config, check invalidation graph logic
 
 ### Latency Above Baseline
+
 **Symptom:** `p95 > 400ms`
 **Possible causes:**
+
 - Worker pool not initialized
 - Adaptive concurrency not enabled
 - Mock API slow
-**Fix:** Check worker pool stats, verify adaptive concurrency config
+  **Fix:** Check worker pool stats, verify adaptive concurrency config
 
 ### Rate Limit Errors
+
 **Symptom:** `errors429 > 0`
 **Possible causes:**
+
 - Request merging not working
 - Too many parallel requests
 - Mock API misconfigured
-**Fix:** Verify mock API setup, check request merging stats
+  **Fix:** Verify mock API setup, check request merging stats
 
 ### Memory Issues
+
 **Symptom:** `memoryMB.max > 512` or `trend = 'increasing'`
 **Possible causes:**
+
 - Memory leak in feature
 - No garbage collection
 - Streaming not working
-**Fix:** Profile with `--inspect`, check for retained references
+  **Fix:** Profile with `--inspect`, check for retained references
 
 ---
 
 ## Property-Based Testing
 
 ### Range Merging Properties
+
 ```typescript
 // Property: Merged ranges always produce same data as individual reads
 fc.assert(
@@ -322,7 +379,7 @@ fc.assert(
     fc.array(fc.tuple(fc.nat(100), fc.nat(100))), // Generate random ranges
     async (ranges) => {
       const merged = await mergeRead(...ranges);
-      const individual = await Promise.all(ranges.map(r => read(r)));
+      const individual = await Promise.all(ranges.map((r) => read(r)));
       expect(merged).toEqual(individual);
     }
   )
@@ -330,6 +387,7 @@ fc.assert(
 ```
 
 ### Cache Invalidation Properties
+
 ```typescript
 // Property: Write to range R invalidates all overlapping cached ranges
 fc.assert(
@@ -338,7 +396,7 @@ fc.assert(
     fc.range(), // Generate write range
     (cached, write) => {
       const invalidated = invalidateWrite(write);
-      cached.forEach(c => {
+      cached.forEach((c) => {
         if (overlaps(c, write)) {
           expect(invalidated).toContain(c);
         } else {
@@ -355,20 +413,25 @@ fc.assert(
 ## Maintenance
 
 ### Updating Performance Targets
+
 When baseline performance improves, update targets in:
+
 1. `phase-2-integration.test.ts` - Integration test assertions
 2. `phase-2-performance.bench.ts` - Benchmark thresholds
 3. `phase-2-load.test.ts` - Load test targets
 4. This guide - Target table
 
 ### Adding New Features
+
 1. Add feature-specific tests to `phase-2-integration.test.ts`
 2. Add performance benchmarks to `phase-2-performance.bench.ts`
 3. Add load tests if feature affects throughput/memory
 4. Update this guide with new coverage
 
 ### Test Data Updates
+
 Mock data in `tests/helpers/google-api-mocks.ts`:
+
 - Spreadsheet structure
 - Sheet dimensions
 - Value ranges
@@ -387,16 +450,17 @@ Mock data in `tests/helpers/google-api-mocks.ts`:
 
 ## Appendix: Complete Test Matrix
 
-| Feature | Integration | Benchmark | Load | Property |
-|---------|-------------|-----------|------|----------|
-| Request Merging | ✅ 3 tests | ✅ 4 benchmarks | ✅ 2 load tests | ⬜ Planned |
-| Adaptive Concurrency | ✅ 2 tests | ⬜ Future | ✅ 1 load test | ⬜ Planned |
-| Predictive Prefetch | ✅ 2 tests | ✅ 3 benchmarks | ✅ 1 load test | ⬜ Planned |
-| Worker Pool | ✅ 2 tests | ✅ 3 benchmarks | ✅ 1 load test | ⬜ Planned |
-| Streaming | ✅ 1 test | ⬜ Future | ⬜ Future | ⬜ Planned |
-| Cache Invalidation | ✅ 2 tests | ✅ 4 benchmarks | ✅ 1 load test | ⬜ Planned |
+| Feature              | Integration | Benchmark       | Load            | Property   |
+| -------------------- | ----------- | --------------- | --------------- | ---------- |
+| Request Merging      | ✅ 3 tests  | ✅ 4 benchmarks | ✅ 2 load tests | ⬜ Planned |
+| Adaptive Concurrency | ✅ 2 tests  | ⬜ Future       | ✅ 1 load test  | ⬜ Planned |
+| Predictive Prefetch  | ✅ 2 tests  | ✅ 3 benchmarks | ✅ 1 load test  | ⬜ Planned |
+| Worker Pool          | ✅ 2 tests  | ✅ 3 benchmarks | ✅ 1 load test  | ⬜ Planned |
+| Streaming            | ✅ 1 test   | ⬜ Future       | ⬜ Future       | ⬜ Planned |
+| Cache Invalidation   | ✅ 2 tests  | ✅ 4 benchmarks | ✅ 1 load test  | ⬜ Planned |
 
 **Total Coverage:**
+
 - Integration tests: 12 scenarios
 - Benchmarks: 14 scenarios
 - Load tests: 6 scenarios

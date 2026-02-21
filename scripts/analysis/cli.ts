@@ -52,7 +52,11 @@ function formatTable(report: OrchestratorReport): void {
     const issueCount = agentReport.dimensionReports.reduce((sum, r) => sum + r.issueCount, 0);
     const status = agentReport.status.toUpperCase().padEnd(8);
     const statusColor =
-      agentReport.status === 'pass' ? COLORS.green : agentReport.status === 'warning' ? COLORS.yellow : COLORS.red;
+      agentReport.status === 'pass'
+        ? COLORS.green
+        : agentReport.status === 'warning'
+          ? COLORS.yellow
+          : COLORS.red;
 
     console.log(
       `${agentReport.agentName.padEnd(25)} ${statusColor}${status}${COLORS.reset} ${String(issueCount).padEnd(8)} ${formatDuration(agentReport.duration)}`
@@ -105,7 +109,9 @@ function formatDetailed(report: OrchestratorReport): void {
     for (const dimReport of agentReport.dimensionReports) {
       if (dimReport.issueCount === 0) continue;
 
-      console.log(`\n${COLORS.cyan}${agentReport.agentName} → ${dimReport.dimension}${COLORS.reset}`);
+      console.log(
+        `\n${COLORS.cyan}${agentReport.agentName} → ${dimReport.dimension}${COLORS.reset}`
+      );
       console.log(`Status: ${dimReport.status.toUpperCase()}`);
       console.log(`Issues: ${dimReport.issueCount}\n`);
 
@@ -117,7 +123,9 @@ function formatDetailed(report: OrchestratorReport): void {
               ? COLORS.yellow
               : COLORS.dim;
 
-        console.log(`  ${severityColor}[${issue.severity.toUpperCase()}]${COLORS.reset} ${issue.message}`);
+        console.log(
+          `  ${severityColor}[${issue.severity.toUpperCase()}]${COLORS.reset} ${issue.message}`
+        );
         console.log(`    File: ${issue.file}${issue.line ? `:${issue.line}` : ''}`);
 
         if (issue.suggestion) {
@@ -273,7 +281,11 @@ program
   .argument('<files...>', 'Files to analyze')
   .option('-o, --output <file>', 'Output file path', 'analysis-report.json')
   .option('--html', 'Generate HTML report')
-  .option('--fail-on <severity>', 'Fail if issues of this severity found (critical|high|medium|low)', 'critical')
+  .option(
+    '--fail-on <severity>',
+    'Fail if issues of this severity found (critical|high|medium|low)',
+    'critical'
+  )
   .action(async (files: string[], options) => {
     try {
       const resolvedFiles: string[] = [];
@@ -321,7 +333,9 @@ program
       }
 
       if (shouldFail) {
-        console.log(`${COLORS.red}✗ Analysis failed (found ${failOn} or higher severity issues)${COLORS.reset}`);
+        console.log(
+          `${COLORS.red}✗ Analysis failed (found ${failOn} or higher severity issues)${COLORS.reset}`
+        );
         process.exit(1);
       }
 
@@ -438,7 +452,7 @@ function generateHtmlReport(report: OrchestratorReport): string {
     <tbody>
       ${report.agentReports
         .map(
-          agent => `
+          (agent) => `
         <tr>
           <td>${agent.agentName}</td>
           <td class="${agent.status}">${agent.status.toUpperCase()}</td>
@@ -453,9 +467,9 @@ function generateHtmlReport(report: OrchestratorReport): string {
 
   <h2>Issues</h2>
   ${report.validatedFindings
-    .filter(f => !f.isFalsePositive)
+    .filter((f) => !f.isFalsePositive)
     .map(
-      f => `
+      (f) => `
     <div class="issue ${f.issue.severity}">
       <strong class="${f.issue.severity}">[${f.issue.severity.toUpperCase()}]</strong>
       ${f.issue.message}

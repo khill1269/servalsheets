@@ -13,6 +13,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
+import { VERSION } from '../../src/version.js';
 import { createHttpServer, type HttpServerOptions } from '../../src/http-server.js';
 import type { Express } from 'express';
 import net from 'node:net';
@@ -64,19 +65,21 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
       await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     }
     // Clean up any active sessions/transports
-    const sessions = server.sessions as Map<
-      string,
-      { transport?: { close?: () => void }; taskStore?: { dispose?: () => void } }
-    >;
-    sessions.forEach((session) => {
-      if (typeof session.transport?.close === 'function') {
-        session.transport.close();
-      }
-      if (typeof session.taskStore?.dispose === 'function') {
-        session.taskStore.dispose();
-      }
-    });
-    sessions.clear();
+    if (server?.sessions) {
+      const sessions = server.sessions as Map<
+        string,
+        { transport?: { close?: () => void }; taskStore?: { dispose?: () => void } }
+      >;
+      sessions.forEach((session) => {
+        if (typeof session.transport?.close === 'function') {
+          session.transport.close();
+        }
+        if (typeof session.taskStore?.dispose === 'function') {
+          session.taskStore.dispose();
+        }
+      });
+      sessions.clear();
+    }
   });
 
   describe('Health and Info Endpoints', () => {
@@ -86,7 +89,7 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
       // May be 'degraded' if OAuth tokens not configured (expected in test env)
       expect(['healthy', 'degraded']).toContain(response.body.status);
       expect(response.body).toMatchObject({
-        version: '1.4.0',
+        version: VERSION,
       });
     });
 
@@ -95,7 +98,7 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
 
       expect(response.body).toMatchObject({
         name: 'servalsheets',
-        version: '1.4.0',
+        version: VERSION,
         description: 'Production-grade Google Sheets MCP server',
         protocol: 'MCP 2025-11-25',
       });
@@ -250,9 +253,7 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
     });
 
     it('should return 404 on DELETE /mcp with unknown session', async () => {
-      const response = await agent
-        .delete('/mcp')
-        .set('Mcp-Session-Id', 'missing-session');
+      const response = await agent.delete('/mcp').set('Mcp-Session-Id', 'missing-session');
       expect(response.status).toBe(404);
     });
   });
@@ -284,10 +285,7 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
     it('should accept custom request ID from client', async () => {
       const customRequestId = 'custom-test-request-id';
 
-      const response = await agent
-        .get('/health')
-        .set('X-Request-ID', customRequestId)
-        .expect(200);
+      const response = await agent.get('/health').set('X-Request-ID', customRequestId).expect(200);
 
       expect(response.headers['x-request-id']).toBe(customRequestId);
     });

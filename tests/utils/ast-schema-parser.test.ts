@@ -57,8 +57,8 @@ describe('AST Schema Parser', () => {
       const schemaPath = path.join(PROJECT_ROOT, 'src/schemas/data.ts');
       const actions = extractSchemaActions(schemaPath);
 
-      // Data has 18 actions
-      expect(actions.length).toBe(18);
+      // Data has 19 actions (added detect_spill_ranges in v1.7.0)
+      expect(actions.length).toBe(19);
       expect(actions).toContain('read');
       expect(actions).toContain('write');
       expect(actions).toContain('append');
@@ -121,8 +121,8 @@ describe('AST Schema Parser', () => {
       const handlerPath = path.join(PROJECT_ROOT, 'src/handlers/data.ts');
       const cases = extractHandlerCases(handlerPath);
 
-      // Data has 18 actions
-      expect(cases.length).toBe(18);
+      // Data has 19 actions (added detect_spill_ranges in v1.7.0)
+      expect(cases.length).toBe(19);
       expect(cases).toContain('read');
       expect(cases).toContain('write');
       expect(cases).toContain('append');
@@ -152,9 +152,10 @@ describe('AST Schema Parser', () => {
       const handlerPath = path.join(PROJECT_ROOT, 'src/handlers/webhooks.ts');
       const cases = extractHandlerCases(handlerPath);
 
-      expect(cases.length).toBe(6);
+      expect(cases.length).toBe(7);
       expect(cases).toContain('register');
       expect(cases).toContain('unregister');
+      expect(cases).toContain('watch_changes');
     });
   });
 
@@ -288,29 +289,21 @@ describe('AST Schema Parser', () => {
       expect(federationActions.length).toBeGreaterThan(0);
 
       // Pattern 4: Nested object (data.ts)
-      const dataActions = extractSchemaActions(
-        path.join(PROJECT_ROOT, 'src/schemas/data.ts')
-      );
+      const dataActions = extractSchemaActions(path.join(PROJECT_ROOT, 'src/schemas/data.ts'));
       expect(dataActions.length).toBeGreaterThan(0);
     });
 
     it('should handle all 3 handler patterns across codebase', () => {
       // Pattern 1: Direct switch (data.ts)
-      const dataCases = extractHandlerCases(
-        path.join(PROJECT_ROOT, 'src/handlers/data.ts')
-      );
+      const dataCases = extractHandlerCases(path.join(PROJECT_ROOT, 'src/handlers/data.ts'));
       expect(dataCases.length).toBeGreaterThan(0);
 
       // Pattern 2: Destructured (session.ts)
-      const sessionCases = extractHandlerCases(
-        path.join(PROJECT_ROOT, 'src/handlers/session.ts')
-      );
+      const sessionCases = extractHandlerCases(path.join(PROJECT_ROOT, 'src/handlers/session.ts'));
       expect(sessionCases.length).toBeGreaterThan(0);
 
       // Pattern 3: Type cast (core.ts)
-      const coreCases = extractHandlerCases(
-        path.join(PROJECT_ROOT, 'src/handlers/core.ts')
-      );
+      const coreCases = extractHandlerCases(path.join(PROJECT_ROOT, 'src/handlers/core.ts'));
       expect(coreCases.length).toBeGreaterThan(0);
     });
   });

@@ -6,10 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import {
-  createServalSheetsTestHarness,
-  type McpTestHarness,
-} from '../helpers/mcp-test-harness.js';
+import { createServalSheetsTestHarness, type McpTestHarness } from '../helpers/mcp-test-harness.js';
 import { TOOL_COUNT, ACTION_COUNT } from '../../src/schemas/index.js';
 import { MCP_PROTOCOL_VERSION, VERSION } from '../../src/version.js';
 
@@ -42,7 +39,7 @@ describe('MCP Protocol 2025-11-25 Compliance', () => {
 
     it('should have expected action count defined', () => {
       expect(ACTION_COUNT).toBeGreaterThan(0);
-      expect(ACTION_COUNT).toBeLessThanOrEqual(300); // Reasonable upper bound
+      expect(ACTION_COUNT).toBeLessThanOrEqual(350); // Reasonable upper bound
     });
   });
 

@@ -5,6 +5,7 @@
 **Specialization:** Plan mode, architecture design, API design
 
 **Typical usage:**
+
 - Design system architecture
 - Create implementation plans
 - Design APIs and interfaces
@@ -31,7 +32,7 @@ Task(
 
   Requirements:
   1. Map natural language queries to action names
-  2. Support 298 actions across 22 tools
+  2. Support 305 actions across 22 tools
   3. 70%+ accuracy on common queries
   4. <100ms latency (p95)
   5. Minimal dependencies (no ML models)
@@ -147,3 +148,8 @@ grep -c "interface" docs/design/intent-classifier.md
 # Verify test plan exists
 grep -c "Test case" docs/design/intent-classifier.md
 ```
+
+## Runtime Guardrails
+
+Before taking tool actions, load `.claude/AGENT_GUARDRAILS.md`.
+If it exists, load `.agent-context/learning-memory.md` and apply the top recurring fixes first.

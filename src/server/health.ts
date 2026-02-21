@@ -88,20 +88,22 @@ export class HealthService {
     const checks: HealthCheck[] = [];
     let overallStatus: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
 
-    // Check 1: Authentication
-    const authCheck = await this.checkAuth();
-    checks.push(authCheck);
-    if (authCheck.status === 'error') overallStatus = 'unhealthy';
-    else if (authCheck.status === 'degraded' && overallStatus === 'healthy') {
-      overallStatus = 'degraded';
-    }
+    // Check 1: Authentication (skip when no client configured — e.g. HTTP server without session)
+    if (this.googleClient) {
+      const authCheck = await this.checkAuth();
+      checks.push(authCheck);
+      if (authCheck.status === 'error') overallStatus = 'unhealthy';
+      else if (authCheck.status === 'degraded' && overallStatus === 'healthy') {
+        overallStatus = 'degraded';
+      }
 
-    // Check 2: Google API connectivity
-    const apiCheck = await this.checkGoogleApi();
-    checks.push(apiCheck);
-    if (apiCheck.status === 'error') overallStatus = 'unhealthy';
-    else if (apiCheck.status === 'degraded' && overallStatus === 'healthy') {
-      overallStatus = 'degraded';
+      // Check 2: Google API connectivity
+      const apiCheck = await this.checkGoogleApi();
+      checks.push(apiCheck);
+      if (apiCheck.status === 'error') overallStatus = 'unhealthy';
+      else if (apiCheck.status === 'degraded' && overallStatus === 'healthy') {
+        overallStatus = 'degraded';
+      }
     }
 
     // Check 3: Cache health

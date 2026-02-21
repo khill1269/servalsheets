@@ -24,10 +24,7 @@ const packageFiles = [
   'tools/gcloud-console-server/package.json',
 ];
 
-async function validateVersion(
-  pkg: string,
-  version: string
-): Promise<ValidationResult> {
+async function validateVersion(pkg: string, version: string): Promise<ValidationResult> {
   try {
     // Remove semver range characters to get exact version
     const cleanVersion = version.replace(/[\^~>=<]/, '').trim();
@@ -61,8 +58,7 @@ async function validateVersion(
       package: pkg,
       specified: version,
       exists: false,
-      error:
-        error instanceof Error ? error.message : 'Unknown error occurred',
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
     };
   }
 }

@@ -6,10 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import {
-  createServalSheetsTestHarness,
-  type McpTestHarness,
-} from '../helpers/mcp-test-harness.js';
+import { createServalSheetsTestHarness, type McpTestHarness } from '../helpers/mcp-test-harness.js';
 
 describe('Error Code Compliance', () => {
   let harness: McpTestHarness;

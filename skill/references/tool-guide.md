@@ -1,8 +1,8 @@
 # ServalSheets Complete Tool & Action Reference
 
-**Version:** 1.6.0  
-**Total:** 21 Tools | 272 Actions  
-**Updated:** 2026-01-25
+**Version:** 1.7.0
+**Total:** 22 Tools | 314 Actions
+**Updated:** 2026-02-18
 
 ---
 

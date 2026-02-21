@@ -28,6 +28,7 @@ When the Google Sheets API returns an error, it uses standard HTTP status codes.
 **Meaning:** The API rejected the request because it was malformed or contained invalid parameters.
 
 **Common Causes:**
+
 - Invalid A1 notation (missing sheet name, wrong format)
 - Spreadsheet ID with incorrect format (not 44 alphanumeric characters)
 - Field values that don't match schema constraints
@@ -35,6 +36,7 @@ When the Google Sheets API returns an error, it uses standard HTTP status codes.
 - Circular formula references
 
 **Recovery Steps:**
+
 1. Check the error message for the specific field that failed
 2. Validate A1 notation format: `"SheetName!A1:D10"` (include sheet name with `!`)
 3. Verify spreadsheet ID: 44-character alphanumeric string
@@ -43,6 +45,7 @@ When the Google Sheets API returns an error, it uses standard HTTP status codes.
 6. Correct the parameter and retry
 
 **Example Recovery:**
+
 ```
 Error: "Invalid range: A1:B10"
 Fix: Use "Sheet1!A1:B10" (include sheet name)
@@ -56,6 +59,7 @@ Tool: sheets_data action="read" spreadsheetId="..." range="Sheet1!A1:B10"
 **Meaning:** Authentication failed. The access token is missing, invalid, or expired.
 
 **Common Causes:**
+
 - No access token provided
 - Token has expired
 - Token was revoked by the user
@@ -63,6 +67,7 @@ Tool: sheets_data action="read" spreadsheetId="..." range="Sheet1!A1:B10"
 - Client credentials incorrect
 
 **Recovery Steps:**
+
 1. Check authentication status: `sheets_auth` action="status"
 2. If not authenticated or token expired:
    - Run `sheets_auth` action="login" to start OAuth flow
@@ -83,6 +88,7 @@ ServalSheets automatically refreshes expired tokens using refresh tokens. If aut
 **Meaning:** Authentication succeeded, but the user lacks permission to perform the requested operation.
 
 **Common Causes:**
+
 - User has read-only access but attempted write
 - Sheet is protected and user not in exception list
 - Spreadsheet is shared with view-only permissions
@@ -92,17 +98,19 @@ ServalSheets automatically refreshes expired tokens using refresh tokens. If aut
 **Permission Levels:**
 | Level | Can Read | Can Write | Can Share | Can Delete |
 |-------|----------|-----------|-----------|-----------|
-| View  | ✓        | ✗         | ✗         | ✗          |
-| Comment | ✓      | ✓ comments | ✗        | ✗          |
-| Edit  | ✓        | ✓         | ✗         | ✗          |
-| Owner | ✓        | ✓         | ✓         | ✓          |
+| View | ✓ | ✗ | ✗ | ✗ |
+| Comment | ✓ | ✓ comments | ✗ | ✗ |
+| Edit | ✓ | ✓ | ✗ | ✗ |
+| Owner | ✓ | ✓ | ✓ | ✓ |
 
 **Recovery Steps (in order):**
 
 1. **Check permission level:**
+
    ```
    sheets_collaborate action="share_list" spreadsheetId="..."
    ```
+
    Look for your email and note permission level
 
 2. **If insufficient permission:**
@@ -129,6 +137,7 @@ ServalSheets automatically refreshes expired tokens using refresh tokens. If aut
 **Meaning:** The requested resource does not exist or has been deleted.
 
 **Resource Types:**
+
 - Spreadsheet ID is invalid or spreadsheet was deleted
 - Sheet name/ID doesn't exist in spreadsheet
 - Range refers to cells that don't exist
@@ -137,6 +146,7 @@ ServalSheets automatically refreshes expired tokens using refresh tokens. If aut
 **Recovery Steps:**
 
 **For Spreadsheet:**
+
 1. Verify spreadsheet ID format: 44 alphanumeric characters
 2. URL format: `https://docs.google.com/spreadsheets/d/{ID}/`
 3. Try accessing directly: `sheets_core` action="get" spreadsheetId="..."
@@ -145,12 +155,14 @@ ServalSheets automatically refreshes expired tokens using refresh tokens. If aut
 6. Check if spreadsheet was deleted or moved to trash
 
 **For Sheet:**
+
 1. List all sheets: `sheets_core` action="list_sheets" spreadsheetId="..."
 2. Check sheet name (case-sensitive)
 3. Verify sheet wasn't deleted or renamed
 4. Try alternative spelling or exact match
 
 **For Range:**
+
 1. Verify sheet name exists: `sheets_core` action="list_sheets"`
 2. Check A1 notation: "SheetName!A1:B10"
 3. Verify range coordinates exist in sheet
@@ -163,11 +175,13 @@ ServalSheets automatically refreshes expired tokens using refresh tokens. If aut
 **Meaning:** Too many requests have been made in a short time. The API is temporarily rejecting requests to prevent overload.
 
 **Quota Limits:**
+
 - **Per User Per Minute:** 60 requests/minute
 - **Per Project Per Minute:** 300 requests/minute
 - **Daily:** No daily limit (only per-minute limits apply)
 
 **What Counts as a Request:**
+
 - Each `values.get` or `values.update` = 1 request
 - Each `batchGet` or `batchUpdate` = 1 request regardless of batch size
 - Metadata operations (spreadsheets.get, list_sheets) = 1 request each
@@ -179,6 +193,7 @@ ServalSheets automatically refreshes expired tokens using refresh tokens. If aut
    - Wait minimum 60 seconds before retrying
 
 2. **Use Exponential Backoff:**
+
    ```
    Wait = min(2^attempt + random(0, 1000)ms, 64000ms)
 
@@ -216,11 +231,13 @@ ServalSheets automatically refreshes expired tokens using refresh tokens. If aut
 **Meaning:** Google's servers encountered an unexpected error while processing the request.
 
 **Characteristics:**
+
 - Transient (usually resolves on retry)
 - Not caused by user input
 - Affects multiple users if Google system-wide issue
 
 **Recovery Steps:**
+
 1. Wait 1-5 seconds (short delay)
 2. Retry operation using exponential backoff
 3. If persists (retry 5+ times), wait longer (30-60 seconds)
@@ -234,11 +251,13 @@ ServalSheets automatically refreshes expired tokens using refresh tokens. If aut
 **Meaning:** Google Sheets API is temporarily unavailable due to maintenance or overload.
 
 **Characteristics:**
+
 - Usually brief (minutes to hours)
 - Often scheduled maintenance (check status page)
 - All requests fail until service recovers
 
 **Recovery Steps:**
+
 1. Check Google Workspace Status Dashboard
 2. If maintenance scheduled, wait for completion time
 3. If unscheduled outage:
@@ -258,6 +277,7 @@ ServalSheets wraps Google API errors in higher-level error codes that are more a
 **Meaning:** The specified sheet (by name or ID) doesn't exist in the spreadsheet.
 
 **Recovery Tool Chain:**
+
 ```
 1. sheets_core action="list_sheets" spreadsheetId="..."
    → See all available sheets
@@ -267,6 +287,7 @@ ServalSheets wraps Google API errors in higher-level error codes that are more a
 ```
 
 **Prevention:**
+
 - Always verify sheet name is case-sensitive
 - Use sheet IDs (numeric gid) for more reliable references
 - Avoid relying on sheet names that may be renamed
@@ -278,12 +299,14 @@ ServalSheets wraps Google API errors in higher-level error codes that are more a
 **Meaning:** The specified range doesn't exist or refers to cells outside sheet boundaries.
 
 **Common Causes:**
+
 - Sheet name missing in range: `"A1:B10"` instead of `"Sheet1!A1:B10"`
 - Sheet name has special characters and isn't quoted: `"Q4 Report!A1"` instead of `"'Q4 Report'!A1"`
 - Range exceeds sheet dimensions
 - Typo in sheet name (case-sensitive)
 
 **Recovery Tool Chain:**
+
 ```
 1. sheets_core action="get_sheet" spreadsheetId="..." sheetName="..."
    → Check actual sheet dimensions
@@ -311,6 +334,7 @@ ServalSheets wraps Google API errors in higher-level error codes that are more a
 **Meaning:** User lacks required permissions for this operation. Could be auth or access issue.
 
 **Diagnosis Steps:**
+
 ```
 1. Check auth status:
    sheets_auth action="status"
@@ -323,13 +347,13 @@ ServalSheets wraps Google API errors in higher-level error codes that are more a
 3. Identify permission type:
 ```
 
-| Error | Likely Cause | Fix |
-|-------|------|-----|
-| Can't write to read-only sheet | View-only access | Request edit access |
-| Can't modify protected range | Range protection | Contact owner or use different range |
-| Can't share spreadsheet | Not owner | Request owner to share |
-| Can't access spreadsheet | Not shared | Request access from owner |
-| OAuth scope insufficient | scopes.readonly granted instead of full edit | Re-authenticate with full scopes |
+| Error                          | Likely Cause                                 | Fix                                  |
+| ------------------------------ | -------------------------------------------- | ------------------------------------ |
+| Can't write to read-only sheet | View-only access                             | Request edit access                  |
+| Can't modify protected range   | Range protection                             | Contact owner or use different range |
+| Can't share spreadsheet        | Not owner                                    | Request owner to share               |
+| Can't access spreadsheet       | Not shared                                   | Request access from owner            |
+| OAuth scope insufficient       | scopes.readonly granted instead of full edit | Re-authenticate with full scopes     |
 
 ---
 
@@ -338,6 +362,7 @@ ServalSheets wraps Google API errors in higher-level error codes that are more a
 **Meaning:** API quota has been exhausted. Different from RATE_LIMITED—quota is harder limit.
 
 **Recovery Steps:**
+
 1. Wait 60+ seconds
 2. Reduce request volume:
    - Use batch operations (60-90% savings)
@@ -361,6 +386,7 @@ ServalSheets wraps Google API errors in higher-level error codes that are more a
 | `"Sheet1!A"` | `"Sheet1!A:A"` | Column reference needs colon |
 
 **Recovery:**
+
 1. Check range format in error message
 2. Use `sheets_data` action="read" with corrected range
 3. Alternative: Use semantic ranges if available
@@ -372,11 +398,13 @@ ServalSheets wraps Google API errors in higher-level error codes that are more a
 **Meaning:** A transaction took too long to complete and was cancelled.
 
 **Causes:**
+
 - Too many operations in transaction (>50 recommended)
 - Operations are too complex (heavy formulas)
 - Network latency
 
 **Recovery:**
+
 ```
 1. Split transaction into smaller batches
    sheets_transaction action="begin"
@@ -392,6 +420,7 @@ ServalSheets wraps Google API errors in higher-level error codes that are more a
 ```
 
 **Best Practice:**
+
 - Limit batch size: 20-50 operations per transaction
 - Avoid complex formulas in batch mode
 - Use individual operations for formula-heavy work
@@ -403,12 +432,14 @@ ServalSheets wraps Google API errors in higher-level error codes that are more a
 **Meaning:** Input parameters failed schema validation.
 
 **Common Causes:**
+
 - Missing required parameter
 - Wrong parameter type (string instead of number)
 - Invalid enum value for parameter
 - Parameter value out of range
 
 **Recovery:**
+
 1. Check error message for field that failed
 2. Verify parameter type matches schema:
    - `spreadsheetId`: string (44 chars)
@@ -424,12 +455,14 @@ ServalSheets wraps Google API errors in higher-level error codes that are more a
 **Meaning:** A formula creates a circular dependency (formula references itself, directly or indirectly).
 
 **Example:**
+
 ```
 Cell A1 = B1 + 1
 Cell B1 = A1 + 2  ← Circular! A1 depends on B1, B1 depends on A1
 ```
 
 **Recovery:**
+
 1. Identify cells involved in cycle
 2. Restructure formulas to break dependency
 3. Use helper columns if needed
@@ -442,6 +475,7 @@ Cell B1 = A1 + 2  ← Circular! A1 depends on B1, B1 depends on A1
 **Meaning:** A sheet with the specified name already exists.
 
 **Recovery:**
+
 ```
 1. List existing sheets:
    sheets_core action="list_sheets"
@@ -458,6 +492,7 @@ Cell B1 = A1 + 2  ← Circular! A1 depends on B1, B1 depends on A1
 **Meaning:** User attempted to modify a protected range.
 
 **Recovery:**
+
 1. Identify protection: Check sheet protection settings
 2. Options:
    - Request edit permission from protection owner
@@ -480,6 +515,7 @@ Cell B1 = A1 + 2  ← Circular! A1 depends on B1, B1 depends on A1
 | BigQuery | bigquery | High risk |
 
 **Recovery:**
+
 ```
 1. Check current scopes:
    sheets_auth action="status"
@@ -504,7 +540,7 @@ When a request fails with a retryable error, implement exponential backoff with 
 ```typescript
 function exponentialBackoff(attempt: number): number {
   const baseDelay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s, 8s, ...
-  const jitter = Math.random() * 1000;            // Random 0-1000ms
+  const jitter = Math.random() * 1000; // Random 0-1000ms
   const totalDelay = Math.min(baseDelay + jitter, 64000); // Cap at 64 seconds
   return totalDelay;
 }
@@ -512,28 +548,28 @@ function exponentialBackoff(attempt: number): number {
 
 ### Backoff Sequence
 
-| Attempt | Formula | Range | Typical |
-|---------|---------|-------|---------|
-| 0 | 2^0 * 1000 + random | 1,000-2,000 ms | 1.5s |
-| 1 | 2^1 * 1000 + random | 2,000-3,000 ms | 2.5s |
-| 2 | 2^2 * 1000 + random | 4,000-5,000 ms | 4.5s |
-| 3 | 2^3 * 1000 + random | 8,000-9,000 ms | 8.5s |
-| 4 | 2^4 * 1000 + random | 16,000-17,000 ms | 16.5s |
-| 5 | 2^5 * 1000 + random | 32,000-33,000 ms | 32.5s |
-| 6+ | capped at 64,000 ms | 64,000 ms | 64s |
+| Attempt | Formula              | Range            | Typical |
+| ------- | -------------------- | ---------------- | ------- |
+| 0       | 2^0 \* 1000 + random | 1,000-2,000 ms   | 1.5s    |
+| 1       | 2^1 \* 1000 + random | 2,000-3,000 ms   | 2.5s    |
+| 2       | 2^2 \* 1000 + random | 4,000-5,000 ms   | 4.5s    |
+| 3       | 2^3 \* 1000 + random | 8,000-9,000 ms   | 8.5s    |
+| 4       | 2^4 \* 1000 + random | 16,000-17,000 ms | 16.5s   |
+| 5       | 2^5 \* 1000 + random | 32,000-33,000 ms | 32.5s   |
+| 6+      | capped at 64,000 ms  | 64,000 ms        | 64s     |
 
 ### Retry Count Recommendations
 
-| Error Code | Max Retries | Max Wait |
-|------------|-----------|----------|
-| 429 (Rate Limit) | 10 | 10 minutes |
-| 500 (Server Error) | 5 | 1-2 minutes |
-| 503 (Service Unavailable) | 5-10 | 5-10 minutes |
-| 502/504 (Gateway) | 5 | 5 minutes |
-| 401 (Auth) | 0 (needs re-auth) | N/A |
-| 403 (Permission) | 0 (needs different approach) | N/A |
-| 400 (Bad Request) | 0 (needs fix) | N/A |
-| 404 (Not Found) | 0 (needs fix) | N/A |
+| Error Code                | Max Retries                  | Max Wait     |
+| ------------------------- | ---------------------------- | ------------ |
+| 429 (Rate Limit)          | 10                           | 10 minutes   |
+| 500 (Server Error)        | 5                            | 1-2 minutes  |
+| 503 (Service Unavailable) | 5-10                         | 5-10 minutes |
+| 502/504 (Gateway)         | 5                            | 5 minutes    |
+| 401 (Auth)                | 0 (needs re-auth)            | N/A          |
+| 403 (Permission)          | 0 (needs different approach) | N/A          |
+| 400 (Bad Request)         | 0 (needs fix)                | N/A          |
+| 404 (Not Found)           | 0 (needs fix)                | N/A          |
 
 ---
 
@@ -542,15 +578,18 @@ function exponentialBackoff(attempt: number): number {
 ### Pattern 1: "Unable to parse range"
 
 **Symptoms:**
+
 - Error mentions "range" or "A1 notation"
 - Range in error looks incomplete
 
 **Root Causes:**
+
 1. Missing sheet name prefix: `"A1:B10"` instead of `"Sheet1!A1:B10"`
 2. Sheet name with spaces not quoted: `"Sheet 1!A1"` instead of `"'Sheet 1'!A1"`
 3. Wrong separator: `"Sheet1 A1:B10"` (space) instead of `"Sheet1!A1:B10"` (exclamation)
 
 **Fix:**
+
 ```
 1. Ensure format: "SheetName!A1:D10"
 2. For spaces: "'Sheet Name'!A1:D10"
@@ -561,17 +600,20 @@ function exponentialBackoff(attempt: number): number {
 ### Pattern 2: "The caller does not have permission"
 
 **Symptoms:**
+
 - 403 Forbidden error
 - Can read but can't write
 - Operations that worked before now fail
 
 **Root Causes:**
+
 1. Sheet permissions changed (downgraded from edit to view)
 2. OAuth token scopes insufficient
 3. Spreadsheet owner changed permissions
 4. Protected range prevents modification
 
 **Diagnosis:**
+
 ```
 1. Check permission level:
    sheets_collaborate action="share_list"
@@ -590,11 +632,13 @@ function exponentialBackoff(attempt: number): number {
 ### Pattern 3: "Requested entity was not found"
 
 **Symptoms:**
+
 - 404 error with generic message
 - Operation worked before, now fails
 - Spreadsheet ID looks correct
 
 **Root Causes:**
+
 1. Spreadsheet was deleted
 2. Spreadsheet moved to trash
 3. Sharing was revoked
@@ -602,6 +646,7 @@ function exponentialBackoff(attempt: number): number {
 5. User accidentally used sheet ID instead of spreadsheet ID
 
 **Fix:**
+
 ```
 1. Verify ID format: 44 alphanumeric characters
 2. List accessible spreadsheets: sheets_core action="list"
@@ -613,17 +658,20 @@ function exponentialBackoff(attempt: number): number {
 ### Pattern 4: "Quota exceeded" / "Rate limited"
 
 **Symptoms:**
+
 - 429 error or 403 with quotaExceeded reason
 - First few requests work, then fails
 - Fails consistently if retried immediately
 
 **Root Causes:**
+
 1. Making sequential requests in loop (missing batch)
 2. Polling without delay
 3. Too many concurrent requests
 4. Cache misses causing redundant reads
 
 **Fix:**
+
 ```
 1. Immediate: Wait 60+ seconds, then retry with backoff
 2. Long-term: Use batch operations
@@ -635,17 +683,20 @@ function exponentialBackoff(attempt: number): number {
 ### Pattern 5: "Invalid value at 'range'"
 
 **Symptoms:**
+
 - 400 error
 - Range parameter fails validation
 - Error mentions specific position/format
 
 **Root Causes:**
+
 1. Range string is null/undefined
 2. Range has invalid characters
 3. Range doesn't follow A1 notation
 4. Sheet name has special characters without quotes
 
 **Fix:**
+
 ```
 1. Verify range is not null/empty
 2. Check for invalid characters (!, @, #, etc. unescaped)
@@ -663,14 +714,14 @@ Not all operations are safe to retry automatically. Understand the idempotency o
 
 These operations always produce the same result regardless of how many times they're executed:
 
-| Operation | Tool | Action | Why Safe |
-|-----------|------|--------|----------|
-| Read | sheets_data | read | Reading doesn't change state |
-| Batch Read | sheets_data | batch_read | No side effects |
-| Get Sheet Info | sheets_core | get | Metadata query, no changes |
-| List Sheets | sheets_core | list_sheets | No changes |
-| Get Spreadsheet | sheets_core | get | Metadata query |
-| Analyze Data | sheets_analyze | analyze_data | Non-mutating analysis |
+| Operation       | Tool           | Action       | Why Safe                     |
+| --------------- | -------------- | ------------ | ---------------------------- |
+| Read            | sheets_data    | read         | Reading doesn't change state |
+| Batch Read      | sheets_data    | batch_read   | No side effects              |
+| Get Sheet Info  | sheets_core    | get          | Metadata query, no changes   |
+| List Sheets     | sheets_core    | list_sheets  | No changes                   |
+| Get Spreadsheet | sheets_core    | get          | Metadata query               |
+| Analyze Data    | sheets_analyze | analyze_data | Non-mutating analysis        |
 
 **Retry Approach:** Automatic exponential backoff is safe. Retry indefinitely if needed.
 
@@ -680,16 +731,17 @@ These operations always produce the same result regardless of how many times the
 
 These operations change state. Retrying without validation may cause duplicates or unintended changes:
 
-| Operation | Tool | Action | Risk |
-|-----------|------|--------|------|
-| Append | sheets_data | append | Row duplicates if retried |
-| Insert | sheets_dimensions | insert | Inserts twice if retried |
-| Delete | sheets_dimensions | delete | Deletes unintended rows if retried |
-| Add Comment | sheets_collaborate | comment_add | Duplicate comments |
-| Add Sheet | sheets_core | add_sheet | Duplicate sheets if retried |
-| Paste Data | sheets_data | copy_paste | Duplicate content |
+| Operation   | Tool               | Action      | Risk                               |
+| ----------- | ------------------ | ----------- | ---------------------------------- |
+| Append      | sheets_data        | append      | Row duplicates if retried          |
+| Insert      | sheets_dimensions  | insert      | Inserts twice if retried           |
+| Delete      | sheets_dimensions  | delete      | Deletes unintended rows if retried |
+| Add Comment | sheets_collaborate | comment_add | Duplicate comments                 |
+| Add Sheet   | sheets_core        | add_sheet   | Duplicate sheets if retried        |
+| Paste Data  | sheets_data        | copy_paste  | Duplicate content                  |
 
 **Retry Approach:**
+
 1. Check for idempotency key (not supported by Google API)
 2. Verify operation succeeded before retrying
 3. Only retry if network error (not business logic error)
@@ -701,14 +753,15 @@ These operations change state. Retrying without validation may cause duplicates 
 
 These operations can be safely retried IF the data hasn't changed:
 
-| Operation | Tool | Action | Condition |
-|-----------|------|--------|-----------|
-| Write | sheets_data | write | Same data value |
-| Batch Write | sheets_data | batch_write | Same data values |
-| Update Sheet Props | sheets_core | update_sheet | Same property values |
-| Find Replace | sheets_data | find_replace | Same search/replace values |
+| Operation          | Tool        | Action       | Condition                  |
+| ------------------ | ----------- | ------------ | -------------------------- |
+| Write              | sheets_data | write        | Same data value            |
+| Batch Write        | sheets_data | batch_write  | Same data values           |
+| Update Sheet Props | sheets_core | update_sheet | Same property values       |
+| Find Replace       | sheets_data | find_replace | Same search/replace values |
 
 **Retry Approach:**
+
 1. Compare request data before retry
 2. If identical, safe to retry
 3. If data changed (user provided different values), don't retry
@@ -759,14 +812,14 @@ Got PERMISSION_DENIED error?
 
 ### Quick Disambiguation Table
 
-| "permission denied" → | Check | Tool | Action | Fix |
-|---|---|---|---|---|
-| No token | sheets_auth | status | Token missing | login |
-| Expired token | sheets_auth | status | Token expired | login |
-| Wrong scope | sheets_auth | status | Scopes insufficient | login |
-| Not shared | sheets_collaborate | share_list | Email not in list | Request access |
-| View only | sheets_collaborate | share_list | Permission is "view" | Request edit |
-| Protected range | (manual) | (manual) | Range locked | Contact owner |
+| "permission denied" → | Check              | Tool       | Action               | Fix            |
+| --------------------- | ------------------ | ---------- | -------------------- | -------------- |
+| No token              | sheets_auth        | status     | Token missing        | login          |
+| Expired token         | sheets_auth        | status     | Token expired        | login          |
+| Wrong scope           | sheets_auth        | status     | Scopes insufficient  | login          |
+| Not shared            | sheets_collaborate | share_list | Email not in list    | Request access |
+| View only             | sheets_collaborate | share_list | Permission is "view" | Request edit   |
+| Protected range       | (manual)           | (manual)   | Range locked         | Contact owner  |
 
 ---
 
@@ -777,10 +830,12 @@ Got PERMISSION_DENIED error?
 Google Sheets API has **per-minute limits**, not daily:
 
 **Standard Limits:**
+
 - User: 60 requests/minute
 - Project: 300 requests/minute
 
 **What Counts?**
+
 - Each API method = 1 request
 - Batch methods = 1 request (regardless of batch size)
 - Metadata queries = 1 request each
@@ -789,11 +844,11 @@ Google Sheets API has **per-minute limits**, not daily:
 
 Batch methods cost the SAME as single operations but process multiple items:
 
-| Approach | Requests | Cost | Speed |
-|----------|----------|------|-------|
-| 3x `values.get` | 3 | 3 units | ~3 seconds |
-| 1x `batchGet` (3 ranges) | 1 | 1 unit | ~1 second |
-| **Savings** | **67% fewer** | **67% quota** | **3x faster** |
+| Approach                 | Requests      | Cost          | Speed         |
+| ------------------------ | ------------- | ------------- | ------------- |
+| 3x `values.get`          | 3             | 3 units       | ~3 seconds    |
+| 1x `batchGet` (3 ranges) | 1             | 1 unit        | ~1 second     |
+| **Savings**              | **67% fewer** | **67% quota** | **3x faster** |
 
 ### Quota Optimization Strategies
 
@@ -809,6 +864,7 @@ data = sheets_data.batch_read(ranges=["A1:B10", "C1:D10", "E1:F10"])
 ```
 
 **When to Use:**
+
 - Multiple reads of different ranges
 - Multiple writes to different ranges
 - Bulk data operations
@@ -831,6 +887,7 @@ sheets_transaction.commit()
 ```
 
 **When to Use:**
+
 - Atomic multi-step updates
 - Bulk data loading
 - Complex workflows
@@ -851,6 +908,7 @@ for i in range(100):
 ```
 
 **Cache Candidates:**
+
 - Sheet names and IDs
 - Column headers
 - Named ranges
@@ -858,6 +916,7 @@ for i in range(100):
 - Protected ranges
 
 **Cache Invalidation:**
+
 - Clear on write operations
 - Refresh before critical operations
 - Set reasonable TTL (5-15 minutes)
@@ -867,6 +926,7 @@ for i in range(100):
 #### Strategy 4: Deduplication (10-30% savings)
 
 **Within 5-Second Window:**
+
 - Detect duplicate requests
 - Return cached result
 - Single API call for identical requests
@@ -903,6 +963,7 @@ Remaining budget: 58 requests for contingency/other ops
 #### Before Operations:
 
 1. **Validate Spreadsheet Access**
+
    ```
    sheets_core action="get" spreadsheetId="..."
    → Fails if spreadsheet not found or not accessible
@@ -910,6 +971,7 @@ Remaining budget: 58 requests for contingency/other ops
    ```
 
 2. **Verify Sheet Exists**
+
    ```
    sheets_core action="list_sheets" spreadsheetId="..."
    → Before using sheet name
@@ -931,6 +993,7 @@ Remaining budget: 58 requests for contingency/other ops
    - Monitor response time
 
 2. **Use Dry-Run for Destructive Ops**
+
    ```
    operation with safety={"dryRun": true}
    → Preview changes without applying
@@ -970,18 +1033,18 @@ Operation failed?
 
 ## Quick Reference: Troubleshooting by Error Message
 
-| Error Message | HTTP Code | Likely Cause | First Fix |
-|---|---|---|---|
-| "Invalid range" | 400 | A1 notation format | Add sheet name: `"Sheet1!A1:B10"` |
-| "Unauthorized" | 401 | No/expired token | `sheets_auth action="login"` |
-| "Forbidden" | 403 | No permission | `sheets_collaborate action="share_list"` |
-| "Not found" | 404 | Resource deleted | Verify resource exists, recreate if needed |
-| "Quota exceeded" | 429 | Too many requests | Wait 60s, then use batch operations |
-| "Server error" | 500 | Google error | Retry with backoff |
-| "Service unavailable" | 503 | Google maintenance | Check status dashboard, wait |
-| "Circular reference" | 400 | Formula loop | Remove formula dependency cycle |
-| "Protected range" | 403 | Range locked | Request owner access or use different range |
-| "Duplicate sheet name" | 400 | Name conflict | Use `sheets_core action="list_sheets"`, choose unique name |
+| Error Message          | HTTP Code | Likely Cause       | First Fix                                                  |
+| ---------------------- | --------- | ------------------ | ---------------------------------------------------------- |
+| "Invalid range"        | 400       | A1 notation format | Add sheet name: `"Sheet1!A1:B10"`                          |
+| "Unauthorized"         | 401       | No/expired token   | `sheets_auth action="login"`                               |
+| "Forbidden"            | 403       | No permission      | `sheets_collaborate action="share_list"`                   |
+| "Not found"            | 404       | Resource deleted   | Verify resource exists, recreate if needed                 |
+| "Quota exceeded"       | 429       | Too many requests  | Wait 60s, then use batch operations                        |
+| "Server error"         | 500       | Google error       | Retry with backoff                                         |
+| "Service unavailable"  | 503       | Google maintenance | Check status dashboard, wait                               |
+| "Circular reference"   | 400       | Formula loop       | Remove formula dependency cycle                            |
+| "Protected range"      | 403       | Range locked       | Request owner access or use different range                |
+| "Duplicate sheet name" | 400       | Name conflict      | Use `sheets_core action="list_sheets"`, choose unique name |
 
 ---
 
@@ -991,4 +1054,3 @@ Operation failed?
 - **Google Sheets API Documentation:** https://developers.google.com/sheets/api
 - **Quota Documentation:** `src/knowledge/api/limits/quotas.json`
 - **Batch Operations Guide:** `src/knowledge/api/batch-operations.md`
-

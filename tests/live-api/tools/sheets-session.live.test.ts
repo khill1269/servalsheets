@@ -3,17 +3,14 @@
  *
  * Tests session context management with real Google Sheets data.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet for all tests.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { LiveApiClient } from '../setup/live-api-client.js';
 import { TestSpreadsheetManager, TestSpreadsheet } from '../setup/test-spreadsheet-manager.js';
-import {
-  loadTestCredentials,
-  shouldRunIntegrationTests,
-} from '../../helpers/credential-loader.js';
+import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 
 const runLiveTests = shouldRunIntegrationTests();
 
@@ -56,7 +53,7 @@ describe.skipIf(!runLiveTests)('sheets_session Live API Tests', () => {
     it('should handle spreadsheets with multiple sheets', async () => {
       const sheetName1 = `SessionSheet1_${Date.now()}`;
       const sheetName2 = `SessionSheet2_${Date.now()}`;
-      
+
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
@@ -72,7 +69,7 @@ describe.skipIf(!runLiveTests)('sheets_session Live API Tests', () => {
         fields: 'sheets.properties.title',
       });
 
-      const sheetNames = response.data.sheets!.map(s => s.properties?.title!);
+      const sheetNames = response.data.sheets!.map((s) => s.properties?.title!);
       expect(sheetNames).toContain(sheetName1);
       expect(sheetNames).toContain(sheetName2);
     });
@@ -84,7 +81,12 @@ describe.skipIf(!runLiveTests)('sheets_session Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!A1:B2',
         valueInputOption: 'RAW',
-        requestBody: { values: [['Name', 'Value'], ['Test', '100']] },
+        requestBody: {
+          values: [
+            ['Name', 'Value'],
+            ['Test', '100'],
+          ],
+        },
       });
 
       expect(writeResponse.status).toBe(200);
@@ -95,13 +97,21 @@ describe.skipIf(!runLiveTests)('sheets_session Live API Tests', () => {
       const formatResponse = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            repeatCell: {
-              range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 2 },
-              cell: { userEnteredFormat: { textFormat: { bold: true } } },
-              fields: 'userEnteredFormat.textFormat.bold',
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 0,
+                  endColumnIndex: 2,
+                },
+                cell: { userEnteredFormat: { textFormat: { bold: true } } },
+                fields: 'userEnteredFormat.textFormat.bold',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -136,7 +146,13 @@ describe.skipIf(!runLiveTests)('sheets_session Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!C1:D3',
         valueInputOption: 'RAW',
-        requestBody: { values: [['Checkpoint', 'Data'], ['Row1', '100'], ['Row2', '200']] },
+        requestBody: {
+          values: [
+            ['Checkpoint', 'Data'],
+            ['Row1', '100'],
+            ['Row2', '200'],
+          ],
+        },
       });
 
       const response = await client.sheets.spreadsheets.values.get({
@@ -181,7 +197,7 @@ describe.skipIf(!runLiveTests)('sheets_session Live API Tests', () => {
   describe('Pending Operation State', () => {
     it('should track progress through multi-step operations', async () => {
       const importSheetName = `ImportTarget_${Date.now()}`;
-      
+
       await client.sheets.spreadsheets.values.get({
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!A1:Z1',
@@ -196,7 +212,13 @@ describe.skipIf(!runLiveTests)('sheets_session Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: `${importSheetName}!A1:C3`,
         valueInputOption: 'RAW',
-        requestBody: { values: [['Col1', 'Col2', 'Col3'], ['A', 'B', 'C'], ['D', 'E', 'F']] },
+        requestBody: {
+          values: [
+            ['Col1', 'Col2', 'Col3'],
+            ['A', 'B', 'C'],
+            ['D', 'E', 'F'],
+          ],
+        },
       });
 
       const response = await client.sheets.spreadsheets.get({
@@ -204,7 +226,7 @@ describe.skipIf(!runLiveTests)('sheets_session Live API Tests', () => {
         fields: 'sheets.properties.title',
       });
 
-      const sheetNames = response.data.sheets!.map(s => s.properties?.title);
+      const sheetNames = response.data.sheets!.map((s) => s.properties?.title);
       expect(sheetNames).toContain(importSheetName);
     });
   });

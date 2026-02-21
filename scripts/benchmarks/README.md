@@ -21,15 +21,16 @@ cat docs/development/PERFORMANCE_TARGETS.md
 
 Validates the 5 Phase 2 optimizations:
 
-| Optimization | What It Tests | Expected Improvement |
-|--------------|---------------|---------------------|
-| **2.1: Metadata Cache** | N+1 query elimination | 50-70% faster, 66% fewer API calls |
-| **2.2: Range Parsing** | Cached range parsing | 40-60% faster |
-| **2.3: Circuit Breaker** | Prefetch failure handling | 50-70% fewer API calls |
-| **2.4: Array Allocation** | Pre-allocated arrays | 10-20% faster, 90% fewer allocations |
-| **Token Efficiency** | Response truncation | 40-95% smaller responses |
+| Optimization              | What It Tests             | Expected Improvement                 |
+| ------------------------- | ------------------------- | ------------------------------------ |
+| **2.1: Metadata Cache**   | N+1 query elimination     | 50-70% faster, 66% fewer API calls   |
+| **2.2: Range Parsing**    | Cached range parsing      | 40-60% faster                        |
+| **2.3: Circuit Breaker**  | Prefetch failure handling | 50-70% fewer API calls               |
+| **2.4: Array Allocation** | Pre-allocated arrays      | 10-20% faster, 90% fewer allocations |
+| **Token Efficiency**      | Response truncation       | 40-95% smaller responses             |
 
 **Sample Output**:
+
 ```
 ╔════════════════════════════════════════════════════════════╗
 ║  ServalSheets Phase 2 Optimization Validation Benchmark   ║
@@ -131,6 +132,7 @@ See [docs/development/PERFORMANCE_TARGETS.md](../../docs/development/PERFORMANCE
 ### Warmup
 
 All benchmarks include a warmup phase (10% of iterations) to:
+
 - Allow JIT compilation to stabilize
 - Prime caches
 - Reduce measurement noise
@@ -154,11 +156,7 @@ All benchmarks include a warmup phase (10% of iterations) to:
 ```typescript
 import { performance } from 'node:perf_hooks';
 
-function benchmark(
-  name: string,
-  iterations: number,
-  fn: () => void
-): BenchmarkResult {
+function benchmark(name: string, iterations: number, fn: () => void): BenchmarkResult {
   const samples: number[] = [];
 
   // Warmup

@@ -506,7 +506,10 @@ describe('TransactionHandler', () => {
           id: 'txn-002',
           spreadsheetId: 'sheet-2',
           status: 'queued',
-          operations: [{ id: 'op_2', type: 'custom' }, { id: 'op_3', type: 'custom' }],
+          operations: [
+            { id: 'op_2', type: 'custom' },
+            { id: 'op_3', type: 'custom' },
+          ],
           startTime: Date.now() - 3000,
           isolationLevel: 'serializable',
           snapshot: { id: 'snap-002' },
@@ -619,7 +622,9 @@ describe('TransactionHandler', () => {
       expect(result.response.success).toBe(true);
       if (result.response.success) {
         expect(result.response.transactions?.length).toBe(2);
-        expect(result.response.transactions?.every(tx => tx.spreadsheetId === 'sheet-1')).toBe(true);
+        expect(result.response.transactions?.every((tx) => tx.spreadsheetId === 'sheet-1')).toBe(
+          true
+        );
 
         // Should be sorted by creation time (newest first)
         expect(result.response.transactions?.[0].id).toBe('txn-003');
@@ -671,8 +676,8 @@ describe('TransactionHandler', () => {
       expect(result.response.success).toBe(true);
       if (result.response.success) {
         const transactions = result.response.transactions || [];
-        const active = transactions.find(tx => tx.id === 'txn-active');
-        const completed = transactions.find(tx => tx.id === 'txn-completed');
+        const active = transactions.find((tx) => tx.id === 'txn-active');
+        const completed = transactions.find((tx) => tx.id === 'txn-completed');
 
         // Active transaction should have calculated duration (current time - start time)
         expect(active?.duration).toBeGreaterThan(0);

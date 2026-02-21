@@ -55,7 +55,6 @@ describe('OAuth Flow Integration Tests', () => {
     app = express();
     app.use(express.json());
     app.use(oauthProvider.createRouter());
-
   });
 
   afterAll(async () => {

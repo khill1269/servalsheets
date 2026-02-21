@@ -1,7 +1,7 @@
 /**
  * Action-Level Metadata for AI Cost-Aware Decision Making
  *
- * Provides detailed metadata for all 299 actions across 22 tools.
+ * Provides detailed metadata for all actions across all tools (see ACTION_COUNT in action-counts.ts).
  * This enables AI to make informed decisions about:
  * - API quota costs
  * - Read-only vs destructive operations
@@ -30,7 +30,7 @@ export interface ActionMetadata {
 }
 
 /**
- * Complete action metadata for all 298 actions
+ * Complete action metadata for all actions (count derived from ACTION_COUNT)
  */
 export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
   sheets_advanced: {
@@ -419,7 +419,7 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       typicalLatency: '300-800ms',
     },
     share_list: {
-      readOnly: false,
+      readOnly: true,
       apiCalls: 1,
       quotaCost: 1,
       requiresConfirmation: false,
@@ -428,7 +428,7 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       typicalLatency: '300-800ms',
     },
     share_get: {
-      readOnly: false,
+      readOnly: true,
       apiCalls: 1,
       quotaCost: 1,
       requiresConfirmation: false,
@@ -491,7 +491,7 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       typicalLatency: '300-800ms',
     },
     comment_list: {
-      readOnly: false,
+      readOnly: true,
       apiCalls: 1,
       quotaCost: 1,
       requiresConfirmation: false,
@@ -500,7 +500,7 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       typicalLatency: '300-800ms',
     },
     comment_get: {
-      readOnly: false,
+      readOnly: true,
       apiCalls: 1,
       quotaCost: 1,
       requiresConfirmation: false,
@@ -554,7 +554,7 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       typicalLatency: '300-800ms',
     },
     version_list_revisions: {
-      readOnly: false,
+      readOnly: true,
       apiCalls: 1,
       quotaCost: 1,
       requiresConfirmation: false,
@@ -563,7 +563,7 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       typicalLatency: '300-800ms',
     },
     version_get_revision: {
-      readOnly: false,
+      readOnly: true,
       apiCalls: 1,
       quotaCost: 1,
       requiresConfirmation: false,
@@ -939,24 +939,6 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       idempotent: true,
       typicalLatency: '300-800ms',
     },
-    set_validation: {
-      readOnly: false,
-      apiCalls: 1,
-      quotaCost: 1,
-      requiresConfirmation: false,
-      destructive: false,
-      idempotent: true,
-      typicalLatency: '300-800ms',
-    },
-    clear_validation: {
-      readOnly: false,
-      apiCalls: 1,
-      quotaCost: 1,
-      requiresConfirmation: false,
-      destructive: true,
-      idempotent: true,
-      typicalLatency: '300-800ms',
-    },
     set_hyperlink: {
       readOnly: false,
       apiCalls: 1,
@@ -1271,7 +1253,7 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       quotaCost: 1,
       requiresConfirmation: false,
       destructive: true,
-      idempotent: true,
+      idempotent: false, // Randomize produces different results each call
       typicalLatency: '300-800ms',
     },
     text_to_columns: {
@@ -1795,7 +1777,7 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       apiCalls: 'dynamic',
       quotaCost: 'dynamic',
       requiresConfirmation: false,
-      destructive: false,
+      destructive: true,
       idempotent: false,
       typicalLatency: '500-3000ms',
       savings: 'Batch operations: N actions -> 1 API call',
@@ -1866,7 +1848,7 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       typicalLatency: '300-800ms',
     },
     chart_list: {
-      readOnly: false,
+      readOnly: true,
       apiCalls: 1,
       quotaCost: 1,
       requiresConfirmation: false,
@@ -1875,7 +1857,7 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       typicalLatency: '300-800ms',
     },
     chart_get: {
-      readOnly: false,
+      readOnly: true,
       apiCalls: 1,
       quotaCost: 1,
       requiresConfirmation: false,
@@ -1947,7 +1929,7 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       typicalLatency: '300-800ms',
     },
     pivot_list: {
-      readOnly: false,
+      readOnly: true,
       apiCalls: 1,
       quotaCost: 1,
       requiresConfirmation: false,
@@ -1956,7 +1938,7 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       typicalLatency: '300-800ms',
     },
     pivot_get: {
-      readOnly: false,
+      readOnly: true,
       apiCalls: 1,
       quotaCost: 1,
       requiresConfirmation: false,
@@ -2164,11 +2146,11 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       typicalLatency: '500-2000ms',
     },
     export_to_bigquery: {
-      readOnly: true,
+      readOnly: false,
       apiCalls: 2,
       quotaCost: 'BigQuery pricing applies',
       requiresConfirmation: true,
-      destructive: false,
+      destructive: true,
       idempotent: false,
       typicalLatency: '5000-120000ms',
     },
@@ -2327,7 +2309,7 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       apiCalls: 1,
       quotaCost: 1,
       requiresConfirmation: false,
-      destructive: false,
+      destructive: true,
       idempotent: true,
       typicalLatency: '300-800ms',
     },

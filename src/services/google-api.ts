@@ -15,7 +15,7 @@
  * const response = await sheets.spreadsheets.get({ spreadsheetId });
  */
 
-import { google, sheets_v4, drive_v3, bigquery_v2 } from 'googleapis';
+import { google, sheets_v4, drive_v3, bigquery_v2, docs_v1, slides_v1 } from 'googleapis';
 import type { OAuth2Client } from 'google-auth-library';
 import { executeWithRetry, type RetryOptions } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
@@ -38,6 +38,18 @@ import {
   getRecommendedScopes,
 } from '../config/oauth-scopes.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
+
+// Lazy-loaded metrics module — avoids dynamic import overhead on every API call
+let _metricsModule: typeof import('../observability/metrics.js') | null = null;
+async function getMetrics(): Promise<typeof import('../observability/metrics.js') | null> {
+  if (_metricsModule) return _metricsModule;
+  try {
+    _metricsModule = await import('../observability/metrics.js');
+    return _metricsModule;
+  } catch {
+    return null;
+  }
+}
 
 export interface GoogleApiClientOptions {
   credentials?: {
@@ -138,12 +150,18 @@ export class GoogleApiClient {
   private _sheets: sheets_v4.Sheets | null = null;
   private _drive: drive_v3.Drive | null = null;
   private _bigquery: bigquery_v2.Bigquery | null = null;
+  private _docs: docs_v1.Docs | null = null;
+  private _slides: slides_v1.Slides | null = null;
   private options: GoogleApiClientOptions;
   private _scopes: string[];
   private retryOptions?: RetryOptions;
   private timeoutMs?: number;
   private tokenStore?: TokenStore;
-  private circuit: CircuitBreaker;
+  private sheetsCircuit: CircuitBreaker;
+  private driveCircuit: CircuitBreaker;
+  private bigqueryCircuit: CircuitBreaker;
+  private docsCircuit: CircuitBreaker;
+  private slidesCircuit: CircuitBreaker;
   private tokenRefreshQueue: PQueue;
   private tokenListener?: (tokens: import('google-auth-library').Credentials) => void;
   private httpAgents: { http: HttpAgent; https: HttpsAgent };
@@ -155,7 +173,7 @@ export class GoogleApiClient {
   private lastValidationTime?: number;
   // HTTP/2 connection reset tracking
   private lastCredentialChangeTime?: number;
-  private static readonly VALIDATION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  private static readonly VALIDATION_CACHE_TTL_MS = 60 * 1000; // 1 minute (reduced from 5min to detect token invalidation faster)
 
   // HTTP/2 Connection Health Management
   private consecutiveErrors = 0;
@@ -190,18 +208,39 @@ export class GoogleApiClient {
       this.tokenStore = new EncryptedFileTokenStore(options.tokenStorePath, options.tokenStoreKey);
     }
 
-    // Initialize circuit breaker
+    // Initialize per-API circuit breakers (separate so a Sheets outage doesn't block Drive/BigQuery)
     const circuitConfig = getCircuitBreakerConfig();
-    this.circuit = new CircuitBreaker({
-      ...circuitConfig,
-      name: 'google-api',
-    });
+    this.sheetsCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-sheets-api' });
+    this.driveCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-drive-api' });
+    this.bigqueryCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-bigquery-api' });
+    this.docsCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-docs-api' });
+    this.slidesCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-slides-api' });
 
-    // Register circuit breaker for monitoring
+    // Register circuit breakers for monitoring
     circuitBreakerRegistry.register(
-      'google-api',
-      this.circuit,
-      'Main Google API client circuit breaker'
+      'google-sheets-api',
+      this.sheetsCircuit,
+      'Sheets API circuit breaker'
+    );
+    circuitBreakerRegistry.register(
+      'google-drive-api',
+      this.driveCircuit,
+      'Drive API circuit breaker'
+    );
+    circuitBreakerRegistry.register(
+      'google-bigquery-api',
+      this.bigqueryCircuit,
+      'BigQuery API circuit breaker'
+    );
+    circuitBreakerRegistry.register(
+      'google-docs-api',
+      this.docsCircuit,
+      'Docs API circuit breaker'
+    );
+    circuitBreakerRegistry.register(
+      'google-slides-api',
+      this.slidesCircuit,
+      'Slides API circuit breaker'
     );
 
     // Initialize token refresh queue (prevents concurrent refreshes)
@@ -255,8 +294,8 @@ export class GoogleApiClient {
       this.auth = (await auth.getClient()) as OAuth2Client;
     }
 
-    await this.loadStoredTokens();
     this.attachTokenListener();
+    await this.loadStoredTokens();
     this.initializeTokenManager();
 
     // Log HTTP/2 capabilities at initialization
@@ -291,6 +330,16 @@ export class GoogleApiClient {
       auth: this.auth,
       http2: enableHTTP2,
     });
+    const docsApi = google.docs({
+      version: 'v1',
+      auth: this.auth,
+      http2: enableHTTP2,
+    });
+    const slidesApi = google.slides({
+      version: 'v1',
+      auth: this.auth,
+      http2: enableHTTP2,
+    });
 
     logger.info('Google API clients initialized', {
       http2Enabled: enableHTTP2,
@@ -306,25 +355,44 @@ export class GoogleApiClient {
         const defaults = transporter['defaults'] as Record<string, unknown>;
         defaults['agent'] = this.httpAgents.https;
         defaults['httpAgent'] = this.httpAgents.http;
+        // google-auth-library v10.5.0 sets 'User-Agent: google-api-nodejs-client/10.5.0' (no gzip suffix).
+        // Google docs require '(gzip)' in User-Agent for compressed responses.
+        // Setting a custom UA here causes the auth interceptor to append the library token:
+        //   result → 'ServalSheets/1.7.0 (gzip) google-api-nodejs-client/10.5.0'
+        // https://developers.google.com/sheets/api/guides/performance#gzip
+        const existingHeaders = (defaults['headers'] as Record<string, string> | undefined) ?? {};
+        defaults['headers'] = { ...existingHeaders, 'User-Agent': 'ServalSheets/1.7.0 (gzip)' };
       }
     }
 
     this._sheets = wrapGoogleApi(sheetsApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
-      circuit: this.circuit,
+      circuit: this.sheetsCircuit,
       client: this,
     });
     this._drive = wrapGoogleApi(driveApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
-      circuit: this.circuit,
+      circuit: this.driveCircuit,
       client: this,
     });
     this._bigquery = wrapGoogleApi(bigqueryApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
-      circuit: this.circuit,
+      circuit: this.bigqueryCircuit,
+      client: this,
+    });
+    this._docs = wrapGoogleApi(docsApi, {
+      ...(this.retryOptions ?? {}),
+      timeoutMs: this.timeoutMs,
+      circuit: this.docsCircuit,
+      client: this,
+    });
+    this._slides = wrapGoogleApi(slidesApi, {
+      ...(this.retryOptions ?? {}),
+      timeoutMs: this.timeoutMs,
+      circuit: this.slidesCircuit,
       client: this,
     });
 
@@ -354,8 +422,8 @@ export class GoogleApiClient {
     logger.info('Resetting HTTP agents due to credential change');
 
     // Record metric
-    const { recordHttp2ConnectionReset } = await import('../observability/metrics.js');
-    recordHttp2ConnectionReset('token_refresh');
+    const metrics = await getMetrics();
+    metrics?.recordHttp2ConnectionReset('token_refresh');
 
     // Destroy old agents (closes stale HTTP/2 connections)
     this.httpAgents.http.destroy();
@@ -392,6 +460,8 @@ export class GoogleApiClient {
         const defaults = transporter['defaults'] as Record<string, unknown>;
         defaults['agent'] = this.httpAgents.https;
         defaults['httpAgent'] = this.httpAgents.http;
+        const existingHeaders = (defaults['headers'] as Record<string, string> | undefined) ?? {};
+        defaults['headers'] = { ...existingHeaders, 'User-Agent': 'ServalSheets/1.7.0 (gzip)' };
       }
     }
 
@@ -399,19 +469,19 @@ export class GoogleApiClient {
     this._sheets = wrapGoogleApi(sheetsApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
-      circuit: this.circuit,
+      circuit: this.sheetsCircuit,
       client: this,
     });
     this._drive = wrapGoogleApi(driveApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
-      circuit: this.circuit,
+      circuit: this.driveCircuit,
       client: this,
     });
     this._bigquery = wrapGoogleApi(bigqueryApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
-      circuit: this.circuit,
+      circuit: this.bigqueryCircuit,
       client: this,
     });
 
@@ -440,8 +510,7 @@ export class GoogleApiClient {
 
     try {
       // Record metric with different reason than token refresh
-      const { recordHttp2ConnectionReset } = await import('../observability/metrics.js');
-      recordHttp2ConnectionReset('consecutive_errors');
+      (await getMetrics())?.recordHttp2ConnectionReset('consecutive_errors');
 
       // Reuse the existing agent reset logic
       await this.resetHttpAgents();
@@ -468,8 +537,7 @@ export class GoogleApiClient {
     this.connectionResetInProgress = true;
     try {
       logger.warn('Resetting HTTP/2 connections due to GOAWAY error during retry');
-      const { recordHttp2ConnectionReset } = await import('../observability/metrics.js');
-      recordHttp2ConnectionReset('goaway_retry');
+      (await getMetrics())?.recordHttp2ConnectionReset('goaway_retry');
       await this.resetHttpAgents();
       this.consecutiveErrors = 0;
       logger.info('HTTP/2 connections reset successfully for retry');
@@ -509,14 +577,21 @@ export class GoogleApiClient {
       }
     }
 
-    // Update connection health metrics
-    import('../observability/metrics.js')
-      .then(({ updateConnectionHealth }) => {
-        updateConnectionHealth(this.consecutiveErrors, this.lastSuccessfulCall);
-      })
+    // Update connection health metrics (non-blocking)
+    getMetrics()
+      .then((m) => m?.updateConnectionHealth(this.consecutiveErrors, this.lastSuccessfulCall))
       .catch(() => {
         // Metrics are optional, don't fail on import errors
       });
+  }
+
+  /**
+   * Reactively refresh OAuth token on auth errors (called by retry onRetry callback)
+   */
+  public async refreshTokenOnAuthError(): Promise<void> {
+    if (this.tokenManager) {
+      await this.tokenManager.refreshTokenOnAuthError();
+    }
   }
 
   /**
@@ -533,8 +608,7 @@ export class GoogleApiClient {
         maxIdleMs,
       });
 
-      const { recordHttp2ConnectionReset } = await import('../observability/metrics.js');
-      recordHttp2ConnectionReset('idle_timeout');
+      (await getMetrics())?.recordHttp2ConnectionReset('idle_timeout');
 
       await this.resetHttpAgents();
       this.lastSuccessfulCall = Date.now();
@@ -803,7 +877,12 @@ export class GoogleApiClient {
   }
 
   private async safeSaveTokens(tokens: StoredTokens): Promise<void> {
-    if (!this.tokenStore) return;
+    if (!this.tokenStore) {
+      logger.warn(
+        'Token store not available - tokens will not persist across restarts. Set ENCRYPTION_KEY to enable token persistence.'
+      );
+      return;
+    }
     try {
       await this.tokenStore.save(tokens);
     } catch (error) {
@@ -831,10 +910,16 @@ export class GoogleApiClient {
     this.tokenManager = new TokenManager({
       oauthClient: this.auth,
       refreshThreshold: 0.8, // Refresh at 80% of token lifetime
-      checkIntervalMs: 300000, // Check every 5 minutes
-      onTokenRefreshed: async (_tokens) => {
+      checkIntervalMs: 60000, // Check every 1 minute (reduced from 5min for faster recovery)
+      onTokenRefreshed: async (tokens) => {
         logger.info('Token proactively refreshed by TokenManager');
-        // Tokens are automatically saved by the 'tokens' event listener
+        // Explicitly save tokens to prevent race with 'tokens' event listener
+        const current = this.sanitizeTokens({
+          ...(this.auth?.credentials ?? {}),
+        } as Record<string, unknown>);
+        const incoming = this.sanitizeTokens(tokens as Record<string, unknown>);
+        const merged = this.mergeTokens(current, incoming);
+        await this.safeSaveTokens(merged);
       },
       onRefreshError: (error) => {
         logger.error('Token refresh failed in TokenManager', {
@@ -884,6 +969,20 @@ export class GoogleApiClient {
    */
   get bigquery(): bigquery_v2.Bigquery | null {
     return this._bigquery;
+  }
+
+  /**
+   * Get Docs API client (optional, returns null if not initialized)
+   */
+  get docs(): docs_v1.Docs | null {
+    return this._docs;
+  }
+
+  /**
+   * Get Slides API client (optional, returns null if not initialized)
+   */
+  get slides(): slides_v1.Slides | null {
+    return this._slides;
   }
 
   /**
@@ -1027,7 +1126,7 @@ export class GoogleApiClient {
    * Get current circuit breaker state
    */
   getCircuitBreakerState(): 'closed' | 'open' | 'half_open' {
-    return this.circuit.getStats().state;
+    return this.sheetsCircuit.getStats().state;
   }
 
   /**
@@ -1095,7 +1194,16 @@ export class GoogleApiClient {
       refresh_token: effectiveRefreshToken,
     });
     this.auth.setCredentials(tokens);
-    void this.safeSaveTokens(tokens);
+    // Queue token save via the token refresh queue to ensure serialized persistence
+    // without blocking the synchronous setCredentials call.
+    // Previously used fire-and-forget `void` which could lose tokens between calls.
+    this.tokenRefreshQueue
+      .add(async () => {
+        await this.safeSaveTokens(tokens);
+      })
+      .catch((error) => {
+        logger.warn('Failed to queue token save in setCredentials', { error });
+      });
 
     // Invalidate validation cache when credentials change
     this.lastValidationResult = undefined;
@@ -1128,7 +1236,11 @@ export class GoogleApiClient {
    * Get circuit breaker statistics
    */
   getCircuitStats(): unknown {
-    return this.circuit.getStats();
+    return {
+      sheets: this.sheetsCircuit.getStats(),
+      drive: this.driveCircuit.getStats(),
+      bigquery: this.bigqueryCircuit.getStats(),
+    };
   }
 
   /**
@@ -1272,8 +1384,10 @@ export class GoogleApiClient {
       );
     }
     const credentials = this.auth.credentials;
-    if (credentials.access_token) {
-      await this.auth.revokeToken(credentials.access_token);
+    const tokenToRevoke = credentials.refresh_token ?? credentials.access_token;
+    if (tokenToRevoke) {
+      await this.auth.revokeToken(tokenToRevoke);
+      this.auth.setCredentials({});
     }
   }
 
@@ -1377,6 +1491,22 @@ function wrapGoogleApi<T extends object>(
         if (typeof value === 'function') {
           return async (...args: unknown[]) => {
             try {
+              // Auto-inject default field masks for read operations (Fix 1)
+              // Reduces response payload by 30-70% on unmasked calls
+              const methodName = String(prop);
+              if (args.length > 0 && args[0] && typeof args[0] === 'object') {
+                const params = args[0] as Record<string, unknown>;
+                if (params['spreadsheetId'] && !params['fields']) {
+                  if (methodName === 'get' && params['range']) {
+                    // values.get — only need range + values
+                    params['fields'] = 'range,values,majorDimension';
+                  } else if (methodName === 'get' && params['ranges']) {
+                    // values.batchGet — only need ranges + values
+                    params['fields'] = 'spreadsheetId,valueRanges(range,values,majorDimension)';
+                  }
+                }
+              }
+
               const retryOptions = {
                 ...options,
                 // Reset HTTP/2 connections on GOAWAY errors before retrying
@@ -1385,12 +1515,18 @@ function wrapGoogleApi<T extends object>(
                       const msg =
                         error instanceof Error ? error.message.toLowerCase() : String(error);
                       const code = (error as { code?: string })?.code ?? '';
+                      const status = (error as { response?: { status?: number } })?.response
+                        ?.status;
                       if (
                         code === 'ERR_HTTP2_GOAWAY_SESSION' ||
                         msg.includes('goaway') ||
                         msg.includes('new streams cannot be created')
                       ) {
                         await client.resetOnConnectionError();
+                      }
+                      // Reactively refresh token on 401 auth errors
+                      if (status === 401) {
+                        await client.refreshTokenOnAuthError();
                       }
                     }
                   : undefined,

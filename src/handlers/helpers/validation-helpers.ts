@@ -71,13 +71,7 @@ export function applyVerbosityFilter<T extends { success: boolean; _meta?: unkno
     }
 
     // Remove optional verbose fields that aren't essential for LLM decision-making
-    const verboseFields = [
-      'suggestions',
-      'nextSteps',
-      'documentation',
-      'warnings',
-      'relatedTools',
-    ];
+    const verboseFields = ['suggestions', 'nextSteps', 'documentation', 'warnings', 'relatedTools'];
     for (const field of verboseFields) {
       if (field in filtered) {
         delete filtered[field];

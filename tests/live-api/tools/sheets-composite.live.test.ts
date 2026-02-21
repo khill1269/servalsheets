@@ -3,22 +3,19 @@
  *
  * Tests composite/bulk operations against the real Google API.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet for all tests.
  */
 
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { LiveApiClient } from '../setup/live-api-client.js';
 import { TestSpreadsheetManager, TestSpreadsheet } from '../setup/test-spreadsheet-manager.js';
-import {
-  loadTestCredentials,
-  shouldRunIntegrationTests,
-} from '../../helpers/credential-loader.js';
+import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 
 const runLiveTests = shouldRunIntegrationTests();
 
 // Helper to add delay between tests to avoid quota limits
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
   let client: LiveApiClient;
@@ -33,7 +30,7 @@ describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
     }
     client = new LiveApiClient(credentials, { trackMetrics: true });
     manager = new TestSpreadsheetManager(client);
-    
+
     // Create ONE spreadsheet for all tests
     testSpreadsheet = await manager.createTestSpreadsheet('composite');
     const meta = await client.sheets.spreadsheets.get({
@@ -48,8 +45,9 @@ describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
 
   describe('CSV Import Operations', () => {
     it('should import CSV data with headers', async () => {
-      const csvData = 'Name,Email,Department\nAlice,alice@example.com,Engineering\nBob,bob@example.com,Sales';
-      const rows = csvData.split('\n').map(row => row.split(','));
+      const csvData =
+        'Name,Email,Department\nAlice,alice@example.com,Engineering\nBob,bob@example.com,Sales';
+      const rows = csvData.split('\n').map((row) => row.split(','));
 
       const response = await client.sheets.spreadsheets.values.update({
         spreadsheetId: testSpreadsheet.id,
@@ -64,7 +62,7 @@ describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
 
     it('should handle different delimiters', async () => {
       const tsvData = 'Name\tEmail\tDepartment\nAlice\talice@example.com\tEngineering';
-      const rows = tsvData.split('\n').map(row => row.split('\t'));
+      const rows = tsvData.split('\n').map((row) => row.split('\t'));
 
       const response = await client.sheets.spreadsheets.values.update({
         spreadsheetId: testSpreadsheet.id,
@@ -88,7 +86,11 @@ describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
       const newSheetId = addResponse.data.replies![0].addSheet?.properties?.sheetId;
       expect(newSheetId).toBeDefined();
 
-      const csvData = [['ID', 'Product', 'Price'], ['1', 'Widget', '10.99'], ['2', 'Gadget', '24.99']];
+      const csvData = [
+        ['ID', 'Product', 'Price'],
+        ['1', 'Widget', '10.99'],
+        ['2', 'Gadget', '24.99'],
+      ];
       await client.sheets.spreadsheets.values.update({
         spreadsheetId: testSpreadsheet.id,
         range: `${sheetName}!A1`,
@@ -112,7 +114,10 @@ describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
         range: 'TestData!I1:K2',
         valueInputOption: 'RAW',
         requestBody: {
-          values: [['Name', 'Department', 'Salary'], ['Alice', 'Engineering', '80000']],
+          values: [
+            ['Name', 'Department', 'Salary'],
+            ['Alice', 'Engineering', '80000'],
+          ],
         },
       });
 
@@ -212,12 +217,15 @@ describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
         },
       });
 
-      const response = await client.drive.files.export({
-        fileId: testSpreadsheet.id,
-        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      }, {
-        responseType: 'arraybuffer',
-      });
+      const response = await client.drive.files.export(
+        {
+          fileId: testSpreadsheet.id,
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+        {
+          responseType: 'arraybuffer',
+        }
+      );
 
       expect(response.status).toBe(200);
       expect(response.data).toBeDefined();
@@ -230,9 +238,13 @@ describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
       const addResponse = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addSheet: { properties: { title: sheetName, gridProperties: { rowCount: 100, columnCount: 5 } } },
-          }],
+          requests: [
+            {
+              addSheet: {
+                properties: { title: sheetName, gridProperties: { rowCount: 100, columnCount: 5 } },
+              },
+            },
+          ],
         },
       });
 
@@ -251,8 +263,19 @@ describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
           requests: [
             {
               repeatCell: {
-                range: { sheetId: newSheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 5 },
-                cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.2, green: 0.4, blue: 0.8 } } },
+                range: {
+                  sheetId: newSheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 0,
+                  endColumnIndex: 5,
+                },
+                cell: {
+                  userEnteredFormat: {
+                    textFormat: { bold: true },
+                    backgroundColor: { red: 0.2, green: 0.4, blue: 0.8 },
+                  },
+                },
                 fields: 'userEnteredFormat(textFormat.bold,backgroundColor)',
               },
             },
@@ -271,7 +294,7 @@ describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
         fields: 'sheets(properties)',
       });
 
-      const setupSheet = metaResponse.data.sheets!.find(s => s.properties?.title === sheetName);
+      const setupSheet = metaResponse.data.sheets!.find((s) => s.properties?.title === sheetName);
       expect(setupSheet?.properties?.gridProperties?.frozenRowCount).toBe(1);
     });
   });
@@ -365,7 +388,13 @@ describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
             requests: [
               {
                 repeatCell: {
-                  range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 22, endColumnIndex: 25 },
+                  range: {
+                    sheetId,
+                    startRowIndex: 0,
+                    endRowIndex: 1,
+                    startColumnIndex: 22,
+                    endColumnIndex: 25,
+                  },
                   cell: { userEnteredFormat: { textFormat: { bold: true } } },
                   fields: 'userEnteredFormat.textFormat.bold',
                 },

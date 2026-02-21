@@ -308,24 +308,21 @@ class ChaosTestExecutor {
 
     for (let i = 0; i < 20; i++) {
       try {
-        const response = await this.networkChaos.chaosRequest(
-          `${this.baseUrl}/tools/call`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${CHAOS_CONFIG.token}`,
+        const response = await this.networkChaos.chaosRequest(`${this.baseUrl}/tools/call`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${CHAOS_CONFIG.token}`,
+          },
+          body: JSON.stringify({
+            name: 'sheets_data',
+            arguments: {
+              spreadsheetId: CHAOS_CONFIG.spreadsheetId,
+              action: 'read',
+              args: { range: 'A1:B10' },
             },
-            body: JSON.stringify({
-              name: 'sheets_data',
-              arguments: {
-                spreadsheetId: CHAOS_CONFIG.spreadsheetId,
-                action: 'read',
-                args: { range: 'A1:B10' },
-              },
-            }),
-          }
-        );
+          }),
+        });
 
         if (response.status === 503) {
           circuitBreakerActivated = true;

@@ -322,12 +322,7 @@ describe.skipIf(SKIP_E2E)('E2E: MCP Protocol Compliance', () => {
     });
 
     it('should accept all log levels', async () => {
-      const levels: Array<'debug' | 'info' | 'warn' | 'error'> = [
-        'debug',
-        'info',
-        'warn',
-        'error',
-      ];
+      const levels: Array<'debug' | 'info' | 'warn' | 'error'> = ['debug', 'info', 'warn', 'error'];
 
       for (const level of levels) {
         await expect(client.setLogLevel(level)).resolves.not.toThrow();

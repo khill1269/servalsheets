@@ -18,34 +18,34 @@ tags: [scripts, validation, gates, development]
 
 ### Essential Commands (Use These Daily)
 
-| Command | Purpose | When to Use | Time |
-|---------|---------|-------------|------|
-| `npm run verify` | Full verification pipeline | Before every commit | 30-45s |
-| `npm run schema:commit` | Schema change workflow | After modifying schemas | 60s |
-| `npm run gates:g0` | Baseline integrity check | Quick verification | 20s |
-| `npm run test:fast` | Fast test suite | During development | 8-12s |
-| `npm run check:drift` | Metadata sync check | After schema changes | 3s |
+| Command                 | Purpose                    | When to Use             | Time   |
+| ----------------------- | -------------------------- | ----------------------- | ------ |
+| `npm run verify`        | Full verification pipeline | Before every commit     | 30-45s |
+| `npm run schema:commit` | Schema change workflow     | After modifying schemas | 60s    |
+| `npm run gates:g0`      | Baseline integrity check   | Quick verification      | 20s    |
+| `npm run test:fast`     | Fast test suite            | During development      | 8-12s  |
+| `npm run check:drift`   | Metadata sync check        | After schema changes    | 3s     |
 
 ### Validation Scripts (Part of Verify)
 
-| Script                       | Purpose                     | Usage                            | Part of Verify    |
-| ---------------------------- | --------------------------- | -------------------------------- | ----------------- |
-| `generate-metadata.ts`       | Generate tool/action counts | `npm run gen:metadata`           | Via `check:drift` |
-| `check-metadata-drift.sh`    | Verify metadata sync        | `npm run check:drift`            | ✅ Yes            |
-| `no-placeholders.sh`         | Check for TODO/FIXME        | `npm run check:placeholders`     | ✅ Yes            |
-| `check-silent-fallbacks.sh`  | Find silent returns         | `npm run check:silent-fallbacks` | ❌ No (optional)  |
-| `check-debug-prints.sh`      | Find console.log            | `npm run check:debug-prints`     | ❌ No (optional)  |
-| `validate-action-counts.ts`  | ESM-based action validation | `npm run validate:actions`       | ✅ Yes            |
-| `validate-schema-handler-alignment.ts` | Schema/handler sync | `npm run validate:alignment` | ✅ Yes            |
-| `check-hardcoded-counts.sh`  | Scan docs for count drift   | `bash scripts/check-hardcoded-counts.sh` | Via gates:g1 |
+| Script                                 | Purpose                     | Usage                                    | Part of Verify    |
+| -------------------------------------- | --------------------------- | ---------------------------------------- | ----------------- |
+| `generate-metadata.ts`                 | Generate tool/action counts | `npm run gen:metadata`                   | Via `check:drift` |
+| `check-metadata-drift.sh`              | Verify metadata sync        | `npm run check:drift`                    | ✅ Yes            |
+| `no-placeholders.sh`                   | Check for TODO/FIXME        | `npm run check:placeholders`             | ✅ Yes            |
+| `check-silent-fallbacks.sh`            | Find silent returns         | `npm run check:silent-fallbacks`         | ❌ No (optional)  |
+| `check-debug-prints.sh`                | Find console.log            | `npm run check:debug-prints`             | ❌ No (optional)  |
+| `validate-action-counts.ts`            | ESM-based action validation | `npm run validate:actions`               | ✅ Yes            |
+| `validate-schema-handler-alignment.ts` | Schema/handler sync         | `npm run validate:alignment`             | ✅ Yes            |
+| `check-hardcoded-counts.sh`            | Scan docs for count drift   | `bash scripts/check-hardcoded-counts.sh` | Via gates:g1      |
 
 ### Diagnostic Scripts
 
-| Script                       | Purpose                     | Usage                            |
-| ---------------------------- | --------------------------- | -------------------------------- |
-| `show-tools-list-schemas.ts` | Display tool schemas        | `npm run show:tools`             |
-| `show-metrics.ts`            | Display Prometheus metrics  | `npm run metrics`                |
-| `validation-gates.sh`        | Multi-level gate pipeline   | `npm run gates`                  |
+| Script                       | Purpose                    | Usage                |
+| ---------------------------- | -------------------------- | -------------------- |
+| `show-tools-list-schemas.ts` | Display tool schemas       | `npm run show:tools` |
+| `show-metrics.ts`            | Display Prometheus metrics | `npm run metrics`    |
+| `validation-gates.sh`        | Multi-level gate pipeline  | `npm run gates`      |
 
 ---
 
@@ -58,13 +58,13 @@ tags: [scripts, validation, gates, development]
 
 ServalSheets uses a 5-level gate system (G0-G4) that progressively validates different aspects:
 
-| Gate | Name | Purpose | Time | Commands |
-|------|------|---------|------|----------|
-| **G0** | Baseline Integrity | Essential checks before commit | ~20s | `npm run gates:g0` |
-| **G1** | Metadata Consistency | Schema/handler/doc alignment | ~8s | `npm run gates:g1` |
-| **G2** | Phase Behavior | Handler + integration tests | ~45s | `npm run gates:g2` |
-| **G3** | API/Protocol/Docs | Compliance + documentation | ~15s | `npm run gates:g3` |
-| **G4** | Final Truth Check | Build + runtime verification | ~60s | `npm run gates:g4` |
+| Gate   | Name                 | Purpose                        | Time | Commands           |
+| ------ | -------------------- | ------------------------------ | ---- | ------------------ |
+| **G0** | Baseline Integrity   | Essential checks before commit | ~20s | `npm run gates:g0` |
+| **G1** | Metadata Consistency | Schema/handler/doc alignment   | ~8s  | `npm run gates:g1` |
+| **G2** | Phase Behavior       | Handler + integration tests    | ~45s | `npm run gates:g2` |
+| **G3** | API/Protocol/Docs    | Compliance + documentation     | ~15s | `npm run gates:g3` |
+| **G4** | Final Truth Check    | Build + runtime verification   | ~60s | `npm run gates:g4` |
 
 ### Gate Details
 
@@ -76,6 +76,7 @@ npm run gates:g0
 ```
 
 **What it checks:**
+
 - TypeScript compilation (strict mode)
 - ESLint rules
 - Metadata synchronization
@@ -95,6 +96,7 @@ npm run gates:g1
 ```
 
 **What it checks:**
+
 - Schema action counts match handler implementations
 - Documentation has correct tool/action counts
 - No hardcoded numbers out of sync
@@ -113,6 +115,7 @@ npm run gates:g2
 ```
 
 **What it checks:**
+
 - All 22 handlers work correctly
 - Integration between layers
 - MCP protocol compliance
@@ -131,6 +134,7 @@ npm run gates:g3
 ```
 
 **What it checks:**
+
 - Google Sheets API compliance
 - MCP 2025-11-25 protocol compliance
 - Documentation links + formatting
@@ -149,6 +153,7 @@ npm run gates:g4
 ```
 
 **What it checks:**
+
 - Clean production build
 - Runtime TOOL_COUNT/ACTION_COUNT match source
 - No build-time errors
@@ -221,7 +226,7 @@ Cmd+G Cmd+A  → All gates (G0-G4)
 
 **Output (Generated - DO NOT edit manually):**
 
-- `package.json` - Updates description with `"22 tools, 299 actions"`
+- `package.json` - Updates description with `"22 tools, 305 actions"`
 - `src/schemas/index.ts` - Updates `TOOL_COUNT` and `ACTION_COUNT` constants
 - `src/schemas/annotations.ts` - Updates `ACTION_COUNTS` object
 - `src/mcp/completions.ts` - Updates `TOOL_ACTIONS` object
@@ -243,7 +248,7 @@ npm run gen:metadata
 # 📊 Analyzing 16 schema files...
 #   📝 advanced.ts → 19 actions [add_named_range, update_named_range, ...]
 #   ...
-# ✅ Total: 22 tools, 299 actions
+# ✅ Total: 22 tools, 305 actions
 # ✅ Updated src/schemas/index.ts constants
 # ✅ Updated src/schemas/annotations.ts ACTION_COUNTS
 # ✅ Updated src/mcp/completions.ts TOOL_ACTIONS
@@ -268,6 +273,7 @@ npm run gen:metadata
 **Purpose:** ESM-based validation of action counts using real TypeScript imports
 
 **What changed in Phase -1:**
+
 - ❌ **Old:** Regex-based text parsing (brittle, missed aliases)
 - ✅ **New:** ESM imports with TypeScript AST analysis
 
@@ -333,7 +339,7 @@ const mismatches = compareActions(actions, handlerActions, deviations);
 ```bash
 # Matches:
 "22 tools"           # Hardcoded count
-"299 actions"        # Hardcoded count
+"305 actions"        # Hardcoded count
 "Currently 24 tools" # Potentially stale
 "All 22 handlers"    # Hardcoded count
 
@@ -356,7 +362,7 @@ bash scripts/check-hardcoded-counts.sh
 # ❌ Found hardcoded counts in 3 files:
 #
 # README.md:42
-#   "ServalSheets provides 22 tools with 299 actions"
+#   "ServalSheets provides 22 tools with 305 actions"
 #   → Should reference: src/schemas/index.ts:63
 #
 # docs/guides/QUICKSTART.md:18
@@ -377,6 +383,7 @@ bash scripts/check-hardcoded-counts.sh
 **Purpose:** Run multi-agent analysis tests using real vitest execution
 
 **What changed in Phase -1:**
+
 - ❌ **Old:** Simulator mode (always passed, no real validation)
 - ✅ **New:** Real vitest execution with proper test discovery
 
@@ -454,6 +461,7 @@ Running Gate G1: Metadata Consistency
 ```
 
 **Exit codes:**
+
 - `0` - All gates passed
 - `1` - One or more gates failed
 
@@ -489,7 +497,7 @@ npm run check:drift
 
 # Failure output:
 # ❌ Metadata drift detected in 2 files:
-#   - package.json (expected 299 actions, found 53)
+#   - package.json (expected 305 actions, found 53)
 #   - src/schemas/index.ts (expected ACTION_COUNT = 207, found 53)
 # Run 'npm run gen:metadata' to fix
 ```
@@ -847,16 +855,16 @@ bash scripts/diagnose-all.sh > diagnosis.txt
 
 ServalSheets has **8 test categories** with different purposes:
 
-| Category | Command | Purpose | Speed | Files |
-|----------|---------|---------|-------|-------|
-| **Unit** | `npm run test:unit` | Pure unit tests | Fast (8s) | 450+ tests |
-| **Fast** | `npm run test:fast` | Unit + contracts | Fast (12s) | 600+ tests |
-| **Handlers** | `npm run test:handlers` | Handler tests | Medium (15s) | 150+ tests |
-| **Integration** | `npm run test:integration` | Cross-layer tests | Medium (20s) | 200+ tests |
-| **Contracts** | `npm run test:contracts` | Schema guarantees | Fast (5s) | 50+ tests |
-| **Compliance** | `npm run test:compliance` | MCP compliance | Fast (8s) | 30+ tests |
-| **E2E** | `npm run test:e2e` | End-to-end workflows | Slow (60s) | 40+ tests |
-| **Live** | `npm run test:live` | Real Google API | Slow (120s) | 80+ tests |
+| Category        | Command                    | Purpose              | Speed        | Files      |
+| --------------- | -------------------------- | -------------------- | ------------ | ---------- |
+| **Unit**        | `npm run test:unit`        | Pure unit tests      | Fast (8s)    | 450+ tests |
+| **Fast**        | `npm run test:fast`        | Unit + contracts     | Fast (12s)   | 600+ tests |
+| **Handlers**    | `npm run test:handlers`    | Handler tests        | Medium (15s) | 150+ tests |
+| **Integration** | `npm run test:integration` | Cross-layer tests    | Medium (20s) | 200+ tests |
+| **Contracts**   | `npm run test:contracts`   | Schema guarantees    | Fast (5s)    | 50+ tests  |
+| **Compliance**  | `npm run test:compliance`  | MCP compliance       | Fast (8s)    | 30+ tests  |
+| **E2E**         | `npm run test:e2e`         | End-to-end workflows | Slow (60s)   | 40+ tests  |
+| **Live**        | `npm run test:live`        | Real Google API      | Slow (120s)  | 80+ tests  |
 
 ### Essential Test Commands
 
@@ -942,6 +950,7 @@ npm run analyze:report         # Aggregated findings
 ```
 
 **Agents available:**
+
 1. Pattern Recognition - Detects anti-patterns
 2. Type Safety - TypeScript usage review
 3. Code Quality - General quality checks
@@ -1234,6 +1243,7 @@ Cmd+G Cmd+D       → Documentation audit
 ```
 
 **Why keyboard shortcuts?**
+
 - Save 5-10 seconds per command
 - Reduce context switching
 - Encourage frequent validation
@@ -1245,14 +1255,14 @@ Cmd+G Cmd+D       → Documentation audit
 
 ### When to Run What
 
-| Situation | Command | Time | Frequency |
-|-----------|---------|------|-----------|
-| **Before commit** | `npm run gates:g0` | 20s | Always |
-| **After schema change** | `npm run schema:commit` | 60s | Every schema edit |
-| **During development** | `npm run test:fast` | 12s | Every 5-10 min |
-| **Before PR** | `npm run verify` | 45s | Once per PR |
-| **After merge** | `npm run ci` | 3 min | Automated |
-| **Before release** | `npm run gates` | 3 min | Every release |
+| Situation               | Command                 | Time  | Frequency         |
+| ----------------------- | ----------------------- | ----- | ----------------- |
+| **Before commit**       | `npm run gates:g0`      | 20s   | Always            |
+| **After schema change** | `npm run schema:commit` | 60s   | Every schema edit |
+| **During development**  | `npm run test:fast`     | 12s   | Every 5-10 min    |
+| **Before PR**           | `npm run verify`        | 45s   | Once per PR       |
+| **After merge**         | `npm run ci`            | 3 min | Automated         |
+| **Before release**      | `npm run gates`         | 3 min | Every release     |
 
 ### Optimization Tips
 
@@ -1361,14 +1371,14 @@ git add . && git commit -m "fix: ..."
 
 **Common mistakes:**
 
-| ❌ Wrong | ✅ Correct |
-|---------|----------|
-| Manually update `ACTION_COUNT = 299` | Run `npm run schema:commit` |
-| Skip verification | Always `npm run verify` |
-| Leave TODOs in `src/` | Remove or move to issues |
-| Edit `server.json` | Let `gen:metadata` regenerate it |
-| Run full test suite | Use `npm run test:fast` for quick checks |
-| Commit without gates | Run `npm run gates:g0` first |
+| ❌ Wrong                             | ✅ Correct                               |
+| ------------------------------------ | ---------------------------------------- |
+| Manually update `ACTION_COUNT = 299` | Run `npm run schema:commit`              |
+| Skip verification                    | Always `npm run verify`                  |
+| Leave TODOs in `src/`                | Remove or move to issues                 |
+| Edit `server.json`                   | Let `gen:metadata` regenerate it         |
+| Run full test suite                  | Use `npm run test:fast` for quick checks |
+| Commit without gates                 | Run `npm run gates:g0` first             |
 
 **Verification before claims:**
 

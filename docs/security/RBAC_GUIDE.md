@@ -102,6 +102,7 @@ ServalSheets RBAC provides fine-grained access control at multiple levels:
 ```
 
 **Use cases:**
+
 - System administrators
 - DevOps teams
 - Service accounts for automation
@@ -125,6 +126,7 @@ ServalSheets RBAC provides fine-grained access control at multiple levels:
 ```
 
 **Use cases:**
+
 - Regular users who need to edit spreadsheets
 - Data entry teams
 - Analysts who need write access
@@ -147,6 +149,7 @@ ServalSheets RBAC provides fine-grained access control at multiple levels:
 ```
 
 **Use cases:**
+
 - Stakeholders who need visibility
 - Report viewers
 - Auditors
@@ -167,6 +170,7 @@ ServalSheets RBAC provides fine-grained access control at multiple levels:
 ```
 
 **Use cases:**
+
 - Data scientists
 - Business analysts
 - Report generators
@@ -186,6 +190,7 @@ ServalSheets RBAC provides fine-grained access control at multiple levels:
 ```
 
 **Use cases:**
+
 - Team leads
 - Project managers
 - Document coordinators
@@ -206,15 +211,15 @@ const customRole = await rbacManager.createRole({
   builtIn: false,
   toolPermissions: [
     { toolName: 'sheets_data', permission: 'allow' },
-    { toolName: 'sheets_bigquery', permission: 'allow' }
+    { toolName: 'sheets_bigquery', permission: 'allow' },
   ],
   actionPermissions: [
     // Deny write operations
     { toolName: 'sheets_data', actionName: 'write_range', permission: 'deny' },
-    { toolName: 'sheets_data', actionName: 'append_rows', permission: 'deny' }
+    { toolName: 'sheets_data', actionName: 'append_rows', permission: 'deny' },
   ],
   resourcePermissions: [],
-  inheritsFrom: ['viewer']
+  inheritsFrom: ['viewer'],
 });
 ```
 
@@ -226,8 +231,8 @@ await rbacManager.updateRole('data_engineer', {
   toolPermissions: [
     { toolName: 'sheets_data', permission: 'allow' },
     { toolName: 'sheets_bigquery', permission: 'allow' },
-    { toolName: 'sheets_templates', permission: 'allow' }
-  ]
+    { toolName: 'sheets_templates', permission: 'allow' },
+  ],
 });
 ```
 
@@ -298,6 +303,7 @@ Roles can inherit permissions from other roles:
 ```
 
 **Inheritance rules:**
+
 - Child role inherits all permissions from parent roles
 - Child can override parent permissions
 - `deny` in child overrides `allow` in parent
@@ -312,15 +318,13 @@ const { apiKey, apiKeyScope } = await rbacManager.createApiKey({
   name: 'Production API Key',
   roles: ['viewer'],
   allowedTools: ['sheets_data', 'sheets_core'],
-  allowedResources: [
-    '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
-  ],
+  allowedResources: ['1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'],
   rateLimit: {
     requestsPerMinute: 60,
-    requestsPerHour: 1000
+    requestsPerHour: 1000,
   },
   createdBy: 'admin@example.com',
-  expiresAt: new Date('2027-01-01')
+  expiresAt: new Date('2027-01-01'),
 });
 
 // Save apiKey securely - it's only shown once
@@ -357,25 +361,23 @@ import { initializeRbacManager } from './services/rbac-manager.js';
 // Initialize RBAC manager at startup
 await initializeRbacManager({
   enableAuditing: true,
-  defaultDeny: true
+  defaultDeny: true,
 });
 
 // Add middleware
-app.use(rbacMiddleware({
-  enabled: true,
-  skipPaths: [/^\/health/, /^\/metrics/]
-}));
+app.use(
+  rbacMiddleware({
+    enabled: true,
+    skipPaths: [/^\/health/, /^\/metrics/],
+  })
+);
 ```
 
 ### Assign Roles to Users
 
 ```typescript
 // Via OAuth user ID
-await rbacManager.assignRoles(
-  'user@example.com',
-  ['editor'],
-  'admin@example.com'
-);
+await rbacManager.assignRoles('user@example.com', ['editor'], 'admin@example.com');
 
 // With expiration
 await rbacManager.assignRoles(
@@ -393,7 +395,7 @@ const result = await rbacManager.checkPermission({
   userId: 'user@example.com',
   toolName: 'sheets_data',
   actionName: 'write_range',
-  resourceId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
+  resourceId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
 });
 
 if (result.allowed) {
@@ -428,13 +430,9 @@ await rbacManager.createRole({
   roleId: 'report_viewer',
   roleName: 'Report Viewer',
   description: 'Can view reports but not raw data',
-  toolPermissions: [
-    { toolName: 'sheets_analyze', permission: 'allow' }
-  ],
-  actionPermissions: [
-    { toolName: 'sheets_data', actionName: 'read_range', permission: 'deny' }
-  ],
-  inheritsFrom: ['viewer']
+  toolPermissions: [{ toolName: 'sheets_analyze', permission: 'allow' }],
+  actionPermissions: [{ toolName: 'sheets_data', actionName: 'read_range', permission: 'deny' }],
+  inheritsFrom: ['viewer'],
 });
 ```
 
@@ -449,9 +447,9 @@ const { apiKey } = await rbacManager.createApiKey({
   allowedTools: ['sheets_data', 'sheets_core'],
   rateLimit: {
     requestsPerMinute: 10,
-    requestsPerHour: 100
+    requestsPerHour: 100,
   },
-  createdBy: 'admin@example.com'
+  createdBy: 'admin@example.com',
 });
 ```
 
@@ -462,11 +460,11 @@ Review audit logs periodically:
 ```typescript
 const logs = await rbacManager.getAuditLogs({
   startTime: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
-  limit: 1000
+  limit: 1000,
 });
 
 // Analyze for suspicious patterns
-const deniedAccess = logs.filter(log => !log.allowed);
+const deniedAccess = logs.filter((log) => !log.allowed);
 console.log('Denied access attempts:', deniedAccess.length);
 ```
 
@@ -488,53 +486,69 @@ await rbacManager.assignRoles(
 ### RbacManager
 
 #### `createRole(role)`
+
 Create a custom role.
 
 #### `updateRole(roleId, updates)`
+
 Update a custom role.
 
 #### `deleteRole(roleId)`
+
 Delete a custom role.
 
 #### `getRole(roleId)`
+
 Get role definition.
 
 #### `listRoles()`
+
 List all roles.
 
 #### `assignRoles(userId, roles, assignedBy?, expiresAt?)`
+
 Assign roles to a user.
 
 #### `getUserRoles(userId)`
+
 Get user's assigned roles.
 
 #### `revokeUserRoles(userId)`
+
 Revoke all user roles.
 
 #### `createApiKey(options)`
+
 Create API key with scoped permissions.
 
 #### `validateApiKey(apiKey)`
+
 Validate and get API key scope.
 
 #### `revokeApiKey(apiKeyId)`
+
 Revoke API key.
 
 #### `listApiKeys()`
+
 List all API keys (without keys).
 
 #### `checkPermission(request)`
+
 Check if user has permission.
 
 #### `getAuditLogs(filters?)`
+
 Get permission audit logs.
 
 ### RBAC Middleware
 
 #### `rbacMiddleware(options?)`
+
 Create RBAC enforcement middleware.
 
 **Options:**
+
 - `enabled` - Enable/disable RBAC (default: true)
 - `skipPaths` - Paths to skip (default: [/^\/health/, /^\/metrics/])
 - `getUserId` - Custom user ID extraction function
@@ -549,6 +563,7 @@ Create RBAC enforcement middleware.
 **Symptom:** User has role but still gets permission denied.
 
 **Solution:**
+
 ```typescript
 // Check user roles
 const roles = await rbacManager.getUserRoles('user@example.com');
@@ -558,7 +573,7 @@ console.log('User roles:', roles);
 const result = await rbacManager.checkPermission({
   userId: 'user@example.com',
   toolName: 'sheets_data',
-  actionName: 'write_range'
+  actionName: 'write_range',
 });
 console.log('Permission result:', result);
 console.log('Matched rules:', result.matchedRules);
@@ -569,6 +584,7 @@ console.log('Matched rules:', result.matchedRules);
 **Symptom:** Assigned role but permissions not applied.
 
 **Solution:**
+
 ```typescript
 // Verify role exists
 const role = await rbacManager.getRole('custom_role');
@@ -588,6 +604,7 @@ if (assignment?.expiresAt && new Date(assignment.expiresAt) < new Date()) {
 **Symptom:** Valid API key returns 403.
 
 **Solution:**
+
 ```typescript
 // Validate API key
 const scope = await rbacManager.validateApiKey(apiKey);
@@ -623,14 +640,17 @@ const deniedLogs = await rbacManager.getAuditLogs({
   startTime: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
 });
 
-const denied = deniedLogs.filter(log => !log.allowed);
+const denied = deniedLogs.filter((log) => !log.allowed);
 console.log('Failed permission checks:', denied.length);
 
 // Group by user
-const byUser = denied.reduce((acc, log) => {
-  acc[log.userId] = (acc[log.userId] || 0) + 1;
-  return acc;
-}, {} as Record<string, number>);
+const byUser = denied.reduce(
+  (acc, log) => {
+    acc[log.userId] = (acc[log.userId] || 0) + 1;
+    return acc;
+  },
+  {} as Record<string, number>
+);
 console.log('Failed checks by user:', byUser);
 ```
 

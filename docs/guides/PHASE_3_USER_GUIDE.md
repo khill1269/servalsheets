@@ -89,6 +89,7 @@ await transport.disconnect();
 #### Heartbeat & Auto-Reconnection
 
 WebSocket transport automatically:
+
 - Sends ping/pong heartbeats every 30 seconds
 - Detects connection loss within 60 seconds
 - Reconnects with exponential backoff (1s, 2s, 4s, 8s...)
@@ -153,8 +154,8 @@ export default {
     const { data, options } = context.params;
 
     // Transform data
-    const normalized = data.map(row =>
-      row.map(cell => {
+    const normalized = data.map((row) =>
+      row.map((cell) => {
         if (typeof cell === 'string') {
           return options.uppercase ? cell.toUpperCase() : cell.toLowerCase();
         }
@@ -216,11 +217,13 @@ await runtime.reloadPlugin('data-normalizer', updatedPluginCode);
 The plugin system uses V8 isolates for sandboxing:
 
 **Allowed:**
+
 - Pure JavaScript/TypeScript logic
 - Accessing plugin context
 - Returning JSON-serializable results
 
 **Blocked:**
+
 - File system access (`fs` module)
 - Network access (`http`, `https`, `fetch`)
 - Process access (`process.exit()`, `child_process`)
@@ -429,6 +432,7 @@ npm run gen:sdks:go
 ```
 
 Output directories:
+
 - TypeScript: `dist/sdks/typescript/`
 - Python: `dist/sdks/python/`
 - JavaScript: `dist/sdks/javascript/`
@@ -475,7 +479,10 @@ console.log(checkpoint.id); // checkpoint-abc123
 await client.sheets.data.writeRange({
   spreadsheetId: 'your-spreadsheet-id',
   range: 'Sheet1!A1:B10',
-  values: [[1, 2], [3, 4]],
+  values: [
+    [1, 2],
+    [3, 4],
+  ],
 });
 ```
 
@@ -494,7 +501,7 @@ const checkpoint2 = await timeTravelService.createCheckpoint(
 ```typescript
 const checkpoints = timeTravelService.listCheckpoints('your-spreadsheet-id');
 
-checkpoints.forEach(cp => {
+checkpoints.forEach((cp) => {
   console.log(`${cp.name} (${cp.createdAt}): ${cp.description}`);
 });
 // pre-import (2024-02-17T10:00:00Z): Before importing external data
@@ -505,10 +512,7 @@ checkpoints.forEach(cp => {
 
 ```typescript
 // Undo changes by reverting to first checkpoint
-const result = await timeTravelService.revertToCheckpoint(
-  'your-spreadsheet-id',
-  checkpoint.id
-);
+const result = await timeTravelService.revertToCheckpoint('your-spreadsheet-id', checkpoint.id);
 
 console.log(`Reverted to ${result.checkpoint.name}`);
 ```
@@ -548,7 +552,7 @@ const operations = await timeTravelService.getOperationHistory(
   checkpoint2.id
 );
 
-operations.forEach(op => {
+operations.forEach((op) => {
   console.log(`${op.action} by ${op.userId} at ${op.timestamp}`);
 });
 ```
@@ -666,6 +670,7 @@ console.log(`Completed ${executionResult.stepsCompleted}/${workflowPlan.steps.le
 #### Automatic Recovery
 
 If a step fails, the workflow automatically:
+
 1. Retries up to 3 times (exponential backoff)
 2. If still failing, rolls back to last checkpoint
 3. Notifies user of failure
@@ -712,6 +717,7 @@ Steps can depend on previous steps:
 ```
 
 The executor automatically:
+
 - Runs steps in correct order
 - Executes independent steps in parallel
 - Fails if dependency fails

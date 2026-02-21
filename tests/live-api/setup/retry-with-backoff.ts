@@ -67,7 +67,11 @@ export function isRetryableError(error: unknown): boolean {
   if (code && code >= 500 && code < 600) return true;
 
   // Network errors
-  if (message.includes('network') || message.includes('econnreset') || message.includes('timeout')) {
+  if (
+    message.includes('network') ||
+    message.includes('econnreset') ||
+    message.includes('timeout')
+  ) {
     return true;
   }
 
@@ -190,9 +194,7 @@ export async function retryWithBackoff<T>(
       totalDelayMs += delayMs;
 
       if (opts.verbose) {
-        console.log(
-          `[Retry] ${opts.operationName}: ${reason}`
-        );
+        console.log(`[Retry] ${opts.operationName}: ${reason}`);
       }
 
       // Wait before retry

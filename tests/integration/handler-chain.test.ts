@@ -182,8 +182,20 @@ describe('Handler Chain Integration', () => {
           data: {
             spreadsheetId: testSpreadsheetId,
             valueRanges: [
-              { range: 'Sheet1!A1:B2', values: [['A', 'B'], ['1', '2']] },
-              { range: 'Sheet1!C1:D2', values: [['C', 'D'], ['3', '4']] },
+              {
+                range: 'Sheet1!A1:B2',
+                values: [
+                  ['A', 'B'],
+                  ['1', '2'],
+                ],
+              },
+              {
+                range: 'Sheet1!C1:D2',
+                values: [
+                  ['C', 'D'],
+                  ['3', '4'],
+                ],
+              },
             ],
           },
         });

@@ -89,6 +89,9 @@ export class InMemoryTaskStore implements TaskStore {
   private cancelledTasks = new Map<string, string>(); // taskId -> reason
   private cleanupInterval: NodeJS.Timeout;
 
+  /** Callback invoked when a task is cancelled (for aborting running operations) */
+  public onTaskCancelled?: (taskId: string, reason: string) => void;
+
   constructor(cleanupIntervalMs: number = 60000) {
     // Cleanup expired tasks periodically
     this.cleanupInterval = setInterval(() => {
@@ -316,6 +319,9 @@ export class InMemoryTaskStore implements TaskStore {
 
     // Update task status
     await this.updateTaskStatus(taskId, 'cancelled');
+
+    // Notify the server to abort the running operation
+    this.onTaskCancelled?.(taskId, reason || 'Cancelled by client');
 
     logger.warn('Task cancelled', { taskId, reason: reason || 'no reason' });
   }

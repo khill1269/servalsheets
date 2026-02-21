@@ -217,9 +217,9 @@ export class MetricsCollector {
     const endTime = Date.now();
     const apiCalls = this.activeTest.apiCalls;
 
-    const totalReads = apiCalls.filter(c => c.type === 'read' && c.method !== 'RETRY').length;
-    const totalWrites = apiCalls.filter(c => c.type === 'write').length;
-    const totalRetries = apiCalls.filter(c => c.method === 'RETRY').length;
+    const totalReads = apiCalls.filter((c) => c.type === 'read' && c.method !== 'RETRY').length;
+    const totalWrites = apiCalls.filter((c) => c.type === 'write').length;
+    const totalRetries = apiCalls.filter((c) => c.method === 'RETRY').length;
 
     const metric: TestMetric = {
       testName: this.activeTest.testName,
@@ -273,7 +273,7 @@ export class MetricsCollector {
    * Get metrics for a specific suite
    */
   getSuiteMetrics(suiteName: string): SuiteMetric {
-    const suiteTests = this.testMetrics.filter(t => t.suiteName === suiteName);
+    const suiteTests = this.testMetrics.filter((t) => t.suiteName === suiteName);
 
     if (suiteTests.length === 0) {
       return {
@@ -293,11 +293,11 @@ export class MetricsCollector {
       };
     }
 
-    const startTime = Math.min(...suiteTests.map(t => t.startTime));
-    const endTime = Math.max(...suiteTests.map(t => t.endTime));
-    const passedCount = suiteTests.filter(t => t.status === 'passed').length;
-    const failedCount = suiteTests.filter(t => t.status === 'failed').length;
-    const skippedCount = suiteTests.filter(t => t.status === 'skipped').length;
+    const startTime = Math.min(...suiteTests.map((t) => t.startTime));
+    const endTime = Math.max(...suiteTests.map((t) => t.endTime));
+    const passedCount = suiteTests.filter((t) => t.status === 'passed').length;
+    const failedCount = suiteTests.filter((t) => t.status === 'failed').length;
+    const skippedCount = suiteTests.filter((t) => t.status === 'skipped').length;
 
     return {
       suiteName,
@@ -312,9 +312,10 @@ export class MetricsCollector {
       totalApiCalls: suiteTests.reduce((sum, t) => sum + t.apiCalls.length, 0),
       totalReads: suiteTests.reduce((sum, t) => sum + t.totalReads, 0),
       totalWrites: suiteTests.reduce((sum, t) => sum + t.totalWrites, 0),
-      avgDurationMs: suiteTests.length > 0
-        ? suiteTests.reduce((sum, t) => sum + t.durationMs, 0) / suiteTests.length
-        : 0,
+      avgDurationMs:
+        suiteTests.length > 0
+          ? suiteTests.reduce((sum, t) => sum + t.durationMs, 0) / suiteTests.length
+          : 0,
     };
   }
 
@@ -322,13 +323,13 @@ export class MetricsCollector {
    * Get overall run metrics
    */
   getRunMetrics(): RunMetric {
-    const suiteNames = [...new Set(this.testMetrics.map(t => t.suiteName))];
-    const suites = suiteNames.map(name => this.getSuiteMetrics(name));
+    const suiteNames = [...new Set(this.testMetrics.map((t) => t.suiteName))];
+    const suites = suiteNames.map((name) => this.getSuiteMetrics(name));
 
     const endTime = Date.now();
-    const passedTests = this.testMetrics.filter(t => t.status === 'passed').length;
-    const failedTests = this.testMetrics.filter(t => t.status === 'failed').length;
-    const skippedTests = this.testMetrics.filter(t => t.status === 'skipped').length;
+    const passedTests = this.testMetrics.filter((t) => t.status === 'passed').length;
+    const failedTests = this.testMetrics.filter((t) => t.status === 'failed').length;
+    const skippedTests = this.testMetrics.filter((t) => t.status === 'skipped').length;
     const totalTests = this.testMetrics.length;
 
     return {
@@ -346,9 +347,10 @@ export class MetricsCollector {
       totalReads: this.testMetrics.reduce((sum, t) => sum + t.totalReads, 0),
       totalWrites: this.testMetrics.reduce((sum, t) => sum + t.totalWrites, 0),
       quotaViolations: this.quotaViolations,
-      avgTestDurationMs: totalTests > 0
-        ? this.testMetrics.reduce((sum, t) => sum + t.durationMs, 0) / totalTests
-        : 0,
+      avgTestDurationMs:
+        totalTests > 0
+          ? this.testMetrics.reduce((sum, t) => sum + t.durationMs, 0) / totalTests
+          : 0,
     };
   }
 
@@ -406,15 +408,19 @@ export class MetricsCollector {
     for (const suite of metrics.suites) {
       lines.push(`### ${suite.suiteName}`);
       lines.push('');
-      lines.push(`- Tests: ${suite.testCount} (${suite.passedCount} passed, ${suite.failedCount} failed)`);
+      lines.push(
+        `- Tests: ${suite.testCount} (${suite.passedCount} passed, ${suite.failedCount} failed)`
+      );
       lines.push(`- Pass Rate: ${suite.passRate.toFixed(1)}%`);
       lines.push(`- Duration: ${(suite.durationMs / 1000).toFixed(2)}s`);
-      lines.push(`- API Calls: ${suite.totalApiCalls} (${suite.totalReads} reads, ${suite.totalWrites} writes)`);
+      lines.push(
+        `- API Calls: ${suite.totalApiCalls} (${suite.totalReads} reads, ${suite.totalWrites} writes)`
+      );
       lines.push('');
     }
 
     // Failed tests section
-    const failedTests = this.testMetrics.filter(t => t.status === 'failed');
+    const failedTests = this.testMetrics.filter((t) => t.status === 'failed');
     if (failedTests.length > 0) {
       lines.push('## Failed Tests');
       lines.push('');
@@ -437,7 +443,8 @@ export class MetricsCollector {
    * Generate HTML report
    */
   private generateHtmlReport(metrics: RunMetric): string {
-    const passRateColor = metrics.passRate >= 95 ? '#22c55e' : metrics.passRate >= 80 ? '#eab308' : '#ef4444';
+    const passRateColor =
+      metrics.passRate >= 95 ? '#22c55e' : metrics.passRate >= 80 ? '#eab308' : '#ef4444';
 
     return `<!DOCTYPE html>
 <html>
@@ -489,7 +496,9 @@ export class MetricsCollector {
       <tr><th>Suite</th><th>Tests</th><th>Passed</th><th>Failed</th><th>Pass Rate</th><th>Duration</th><th>API Calls</th></tr>
     </thead>
     <tbody>
-      ${metrics.suites.map(s => `
+      ${metrics.suites
+        .map(
+          (s) => `
         <tr>
           <td>${s.suiteName}</td>
           <td>${s.testCount}</td>
@@ -499,17 +508,28 @@ export class MetricsCollector {
           <td>${(s.durationMs / 1000).toFixed(2)}s</td>
           <td>${s.totalApiCalls}</td>
         </tr>
-      `).join('')}
+      `
+        )
+        .join('')}
     </tbody>
   </table>
 
-  ${this.testMetrics.filter(t => t.status === 'failed').length > 0 ? `
+  ${
+    this.testMetrics.filter((t) => t.status === 'failed').length > 0
+      ? `
     <h2>Failed Tests</h2>
-    ${this.testMetrics.filter(t => t.status === 'failed').map(t => `
+    ${this.testMetrics
+      .filter((t) => t.status === 'failed')
+      .map(
+        (t) => `
       <h3>${t.suiteName} > ${t.testName}</h3>
       ${t.error ? `<div class="error-box">${t.error.message}</div>` : ''}
-    `).join('')}
-  ` : ''}
+    `
+      )
+      .join('')}
+  `
+      : ''
+  }
 </body>
 </html>`;
   }
@@ -575,7 +595,10 @@ export function startTestMetrics(testName: string): void {
 /**
  * Convenience: End tracking a test
  */
-export function endTestMetrics(status: 'passed' | 'failed' | 'skipped', error?: Error): TestMetric | null {
+export function endTestMetrics(
+  status: 'passed' | 'failed' | 'skipped',
+  error?: Error
+): TestMetric | null {
   return getMetricsCollector().endTest(status, error);
 }
 

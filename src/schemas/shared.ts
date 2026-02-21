@@ -350,6 +350,9 @@ export const ConditionTypeSchema = z.enum([
   'ONE_OF_LIST',
   'ONE_OF_RANGE',
   'BOOLEAN',
+  'TEXT_NOT_EQ',
+  'DATE_NOT_EQ',
+  'FILTER_EXPRESSION',
 ]);
 
 // ============================================================================

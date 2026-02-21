@@ -21,6 +21,7 @@ Thank you for your interest in contributing to ServalSheets! This guide will hel
 ## Code of Conduct
 
 By participating in this project, you agree to:
+
 - Be respectful and inclusive
 - Provide constructive feedback
 - Focus on what is best for the community
@@ -68,6 +69,7 @@ cp .env.example .env
 ```
 
 Required environment variables for OAuth testing:
+
 - `GOOGLE_CLIENT_ID` - OAuth client ID
 - `GOOGLE_CLIENT_SECRET` - OAuth client secret
 - `GOOGLE_REDIRECT_URI` - OAuth redirect URI (e.g., http://localhost:3000/oauth/callback)
@@ -86,6 +88,7 @@ npm test
 ```
 
 **Expected results:**
+
 - 2,150+ passing tests
 - Duration: ~10 seconds
 - Coverage: 53%+ (target: 75%)
@@ -118,6 +121,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 ```
 
 **Types:**
+
 - `feat` - New feature
 - `fix` - Bug fix
 - `docs` - Documentation changes
@@ -188,14 +192,14 @@ npm test -- --watch
 Use descriptive test names with the Arrange-Act-Assert (AAA) pattern:
 
 ```typescript
-describe("ValuesHandler", () => {
-  describe("get_values action", () => {
-    it("should return cell values for valid range", async () => {
+describe('ValuesHandler', () => {
+  describe('get_values action', () => {
+    it('should return cell values for valid range', async () => {
       // Arrange
       const params = {
-        action: "get_values" as const,
-        spreadsheetId: "test-id",
-        range: "Sheet1!A1:B10",
+        action: 'get_values' as const,
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:B10',
       };
 
       // Act
@@ -206,12 +210,12 @@ describe("ValuesHandler", () => {
       expect(result.values[0]).toHaveLength(2);
     });
 
-    it("should throw ValidationError for invalid range", async () => {
+    it('should throw ValidationError for invalid range', async () => {
       // Arrange
       const params = {
-        action: "get_values" as const,
-        spreadsheetId: "test-id",
-        range: "InvalidRange!!!",
+        action: 'get_values' as const,
+        spreadsheetId: 'test-id',
+        range: 'InvalidRange!!!',
       };
 
       // Act & Assert
@@ -228,11 +232,13 @@ describe("ValuesHandler", () => {
 - **Critical paths:** 90%+
 
 Coverage is enforced in CI:
+
 ```bash
 npm run test:coverage -- --coverage.thresholds.lines=60
 ```
 
 **Focus areas for increasing coverage:**
+
 1. Error paths (quota exceeded, network failures, invalid inputs)
 2. Edge cases (empty ranges, maximum cell counts, special characters)
 3. Property-based tests with fast-check
@@ -253,9 +259,7 @@ npm run test:coverage -- --coverage.thresholds.lines=60
 
 ```typescript
 // ✅ Good
-export async function getSpreadsheet(
-  spreadsheetId: string,
-): Promise<Spreadsheet> {
+export async function getSpreadsheet(spreadsheetId: string): Promise<Spreadsheet> {
   // Implementation
 }
 
@@ -279,6 +283,7 @@ npm run lint:fix
 ```
 
 **Zero tolerance policy:**
+
 - All ESLint errors must be fixed
 - Warnings should be addressed or justified
 - Use `// eslint-disable-next-line` sparingly with comments
@@ -299,7 +304,7 @@ npm run format
 
 All public APIs must include TSDoc comments:
 
-```typescript
+````typescript
 /**
  * Fetches cell values from a Google Sheets spreadsheet.
  *
@@ -318,15 +323,13 @@ All public APIs must include TSDoc comments:
  *
  * @see {@link https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets.values}
  */
-export async function getValues(
-  spreadsheetId: string,
-  range: string,
-): Promise<string[][]> {
+export async function getValues(spreadsheetId: string, range: string): Promise<string[][]> {
   // Implementation
 }
-```
+````
 
 **Required TSDoc tags:**
+
 - `@param` - Parameter descriptions
 - `@returns` - Return value description
 - `@throws` - Possible error types
@@ -340,7 +343,7 @@ Update relevant documentation when making changes:
 - **README.md** - For user-facing changes
 - **CHANGELOG.md** - For all changes (following Keep a Changelog format)
 - **SECURITY.md** - For security-related changes
-- **docs/*.md** - For detailed guides and architecture docs
+- **docs/\*.md** - For detailed guides and architecture docs
 
 ---
 
@@ -496,6 +499,7 @@ Add to `.vscode/launch.json`:
 ### Common Issues
 
 **Tests timing out:**
+
 ```bash
 # Clean build fixes most issues
 rm -rf dist && npm run build
@@ -503,6 +507,7 @@ npm test
 ```
 
 **Import errors:**
+
 ```bash
 # Ensure .js extensions in imports (ESM requirement)
 import { foo } from "./foo.js";  // ✅
@@ -510,6 +515,7 @@ import { foo } from "./foo";     // ❌
 ```
 
 **Coverage not updating:**
+
 ```bash
 # Clear coverage cache
 rm -rf coverage .nyc_output
@@ -540,6 +546,7 @@ By contributing to ServalSheets, you agree that your contributions will be licen
 Thank you for contributing to ServalSheets! Your improvements help make this tool better for everyone in the MCP ecosystem.
 
 **Contributors:**
+
 - See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the full list
 
 ---

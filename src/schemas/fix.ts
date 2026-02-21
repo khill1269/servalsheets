@@ -152,7 +152,11 @@ const VerbositySchema = z
 const FixActionSchema = z.object({
   action: z.literal('fix').describe('Apply automated fixes to identified issues'),
   spreadsheetId: z.string().describe('Spreadsheet ID to fix'),
-  issues: z.array(IssueToFixSchema).describe('Issues to fix (from sheets_analyze)'),
+  issues: z
+    .array(IssueToFixSchema)
+    .describe(
+      'Issues to fix (from sheets_analyze). Each issue needs: { type: "volatile_formula"|"missing_freeze"|..., severity: "low"|"medium"|"high", description: "...", sheet?: "Sheet1", metadata?: {} }'
+    ),
   mode: FixModeSchema.optional().describe(
     'preview = show what would be fixed, apply = actually fix'
   ),

@@ -115,7 +115,7 @@ echo ""
 
 # Check service accounts
 echo -e "${YELLOW}Checking service accounts...${NC}"
-SA_COUNT=$(gcloud iam service-accounts list --project=$PROJECT_ID 2>/dev/null | grep -c "@$PROJECT_ID.iam.gserviceaccount.com" || echo "0")
+SA_COUNT=$(gcloud iam service-accounts list --project="$PROJECT_ID" 2>/dev/null | grep -c "@${PROJECT_ID}.iam.gserviceaccount.com") || SA_COUNT=0
 if [ "$SA_COUNT" -gt 0 ]; then
     echo -e "${GREEN}✓ Found $SA_COUNT service account(s)${NC}"
     gcloud iam service-accounts list --project=$PROJECT_ID 2>/dev/null | tail -n +2

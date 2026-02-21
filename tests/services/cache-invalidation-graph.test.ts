@@ -408,7 +408,10 @@ describe('CacheInvalidationGraph', () => {
 
   describe('Performance', () => {
     it('should perform pattern matching efficiently', () => {
-      const allKeys = Array.from({ length: 1000 }, (_, i) => `spreadsheet123:values:Sheet${i}!A1:B10`);
+      const allKeys = Array.from(
+        { length: 1000 },
+        (_, i) => `spreadsheet123:values:Sheet${i}!A1:B10`
+      );
 
       const start = Date.now();
       const keysToInvalidate = graph.getKeysToInvalidate('sheets_data', 'write', allKeys);

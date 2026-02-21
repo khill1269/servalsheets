@@ -3,17 +3,14 @@
  *
  * Tests chart and pivot table operations against the real Google Sheets API.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet with unique ranges per test, no beforeEach clearing.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { LiveApiClient } from '../setup/live-api-client.js';
 import { TestSpreadsheetManager, TestSpreadsheet } from '../setup/test-spreadsheet-manager.js';
-import {
-  loadTestCredentials,
-  shouldRunIntegrationTests,
-} from '../../helpers/credential-loader.js';
+import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 
 const runLiveTests = shouldRunIntegrationTests();
 
@@ -31,16 +28,16 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
     }
     client = new LiveApiClient(credentials, { trackMetrics: true });
     manager = new TestSpreadsheetManager(client);
-    
+
     testSpreadsheet = await manager.createTestSpreadsheet('visualize');
-    
+
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,
     });
     sheetId = meta.data.sheets![0].properties!.sheetId!;
-    
+
     // Find or create Benchmarks sheet
-    const benchmarks = meta.data.sheets?.find(s => s.properties?.title === 'Benchmarks');
+    const benchmarks = meta.data.sheets?.find((s) => s.properties?.title === 'Benchmarks');
     if (benchmarks) {
       benchmarksSheetId = benchmarks.properties!.sheetId!;
     } else {
@@ -100,46 +97,68 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addChart: {
-              chart: {
-                spec: {
-                  title: 'Monthly Sales',
-                  basicChart: {
-                    chartType: 'COLUMN',
-                    legendPosition: 'BOTTOM_LEGEND',
-                    axis: [
-                      { position: 'BOTTOM_AXIS', title: 'Month' },
-                      { position: 'LEFT_AXIS', title: 'Amount' },
-                    ],
-                    domains: [{
-                      domain: {
-                        sourceRange: {
-                          sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 0, endColumnIndex: 1 }],
+          requests: [
+            {
+              addChart: {
+                chart: {
+                  spec: {
+                    title: 'Monthly Sales',
+                    basicChart: {
+                      chartType: 'COLUMN',
+                      legendPosition: 'BOTTOM_LEGEND',
+                      axis: [
+                        { position: 'BOTTOM_AXIS', title: 'Month' },
+                        { position: 'LEFT_AXIS', title: 'Amount' },
+                      ],
+                      domains: [
+                        {
+                          domain: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId,
+                                  startRowIndex: 0,
+                                  endRowIndex: 6,
+                                  startColumnIndex: 0,
+                                  endColumnIndex: 1,
+                                },
+                              ],
+                            },
+                          },
                         },
-                      },
-                    }],
-                    series: [{
-                      series: {
-                        sourceRange: {
-                          sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 1, endColumnIndex: 2 }],
+                      ],
+                      series: [
+                        {
+                          series: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId,
+                                  startRowIndex: 0,
+                                  endRowIndex: 6,
+                                  startColumnIndex: 1,
+                                  endColumnIndex: 2,
+                                },
+                              ],
+                            },
+                          },
+                          targetAxis: 'LEFT_AXIS',
                         },
-                      },
-                      targetAxis: 'LEFT_AXIS',
-                    }],
-                    headerCount: 1,
+                      ],
+                      headerCount: 1,
+                    },
                   },
-                },
-                position: {
-                  overlayPosition: {
-                    anchorCell: { sheetId, rowIndex: 0, columnIndex: 5 },
-                    widthPixels: 600,
-                    heightPixels: 400,
+                  position: {
+                    overlayPosition: {
+                      anchorCell: { sheetId, rowIndex: 0, columnIndex: 5 },
+                      widthPixels: 600,
+                      heightPixels: 400,
+                    },
                   },
                 },
               },
             },
-          }],
+          ],
         },
       });
 
@@ -151,50 +170,78 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addChart: {
-              chart: {
-                spec: {
-                  title: 'Sales Trend',
-                  basicChart: {
-                    chartType: 'LINE',
-                    legendPosition: 'RIGHT_LEGEND',
-                    domains: [{
-                      domain: {
-                        sourceRange: {
-                          sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 0, endColumnIndex: 1 }],
-                        },
-                      },
-                    }],
-                    series: [
-                      {
-                        series: {
-                          sourceRange: {
-                            sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 1, endColumnIndex: 2 }],
+          requests: [
+            {
+              addChart: {
+                chart: {
+                  spec: {
+                    title: 'Sales Trend',
+                    basicChart: {
+                      chartType: 'LINE',
+                      legendPosition: 'RIGHT_LEGEND',
+                      domains: [
+                        {
+                          domain: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId,
+                                  startRowIndex: 0,
+                                  endRowIndex: 6,
+                                  startColumnIndex: 0,
+                                  endColumnIndex: 1,
+                                },
+                              ],
+                            },
                           },
                         },
-                      },
-                      {
-                        series: {
-                          sourceRange: {
-                            sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 2, endColumnIndex: 3 }],
+                      ],
+                      series: [
+                        {
+                          series: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId,
+                                  startRowIndex: 0,
+                                  endRowIndex: 6,
+                                  startColumnIndex: 1,
+                                  endColumnIndex: 2,
+                                },
+                              ],
+                            },
                           },
                         },
-                      },
-                    ],
-                    headerCount: 1,
+                        {
+                          series: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId,
+                                  startRowIndex: 0,
+                                  endRowIndex: 6,
+                                  startColumnIndex: 2,
+                                  endColumnIndex: 3,
+                                },
+                              ],
+                            },
+                          },
+                        },
+                      ],
+                      headerCount: 1,
+                    },
                   },
-                },
-                position: {
-                  overlayPosition: {
-                    anchorCell: { sheetId, rowIndex: 10, columnIndex: 0 },
-                    widthPixels: 600,
-                    heightPixels: 400,
+                  position: {
+                    overlayPosition: {
+                      anchorCell: { sheetId, rowIndex: 10, columnIndex: 0 },
+                      widthPixels: 600,
+                      heightPixels: 400,
+                    },
                   },
                 },
               },
             },
-          }],
+          ],
         },
       });
 
@@ -205,35 +252,53 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addChart: {
-              chart: {
-                spec: {
-                  title: 'Sales Distribution',
-                  pieChart: {
-                    legendPosition: 'RIGHT_LEGEND',
-                    domain: {
-                      sourceRange: {
-                        sources: [{ sheetId, startRowIndex: 1, endRowIndex: 6, startColumnIndex: 0, endColumnIndex: 1 }],
+          requests: [
+            {
+              addChart: {
+                chart: {
+                  spec: {
+                    title: 'Sales Distribution',
+                    pieChart: {
+                      legendPosition: 'RIGHT_LEGEND',
+                      domain: {
+                        sourceRange: {
+                          sources: [
+                            {
+                              sheetId,
+                              startRowIndex: 1,
+                              endRowIndex: 6,
+                              startColumnIndex: 0,
+                              endColumnIndex: 1,
+                            },
+                          ],
+                        },
                       },
-                    },
-                    series: {
-                      sourceRange: {
-                        sources: [{ sheetId, startRowIndex: 1, endRowIndex: 6, startColumnIndex: 1, endColumnIndex: 2 }],
+                      series: {
+                        sourceRange: {
+                          sources: [
+                            {
+                              sheetId,
+                              startRowIndex: 1,
+                              endRowIndex: 6,
+                              startColumnIndex: 1,
+                              endColumnIndex: 2,
+                            },
+                          ],
+                        },
                       },
                     },
                   },
-                },
-                position: {
-                  overlayPosition: {
-                    anchorCell: { sheetId, rowIndex: 0, columnIndex: 10 },
-                    widthPixels: 400,
-                    heightPixels: 400,
+                  position: {
+                    overlayPosition: {
+                      anchorCell: { sheetId, rowIndex: 0, columnIndex: 10 },
+                      widthPixels: 400,
+                      heightPixels: 400,
+                    },
                   },
                 },
               },
             },
-          }],
+          ],
         },
       });
 
@@ -244,22 +309,62 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
       const createResponse = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addChart: {
-              chart: {
-                spec: {
-                  title: 'Original Title',
-                  basicChart: {
-                    chartType: 'BAR',
-                    domains: [{ domain: { sourceRange: { sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 0, endColumnIndex: 1 }] } } }],
-                    series: [{ series: { sourceRange: { sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 1, endColumnIndex: 2 }] } } }],
-                    headerCount: 1,
+          requests: [
+            {
+              addChart: {
+                chart: {
+                  spec: {
+                    title: 'Original Title',
+                    basicChart: {
+                      chartType: 'BAR',
+                      domains: [
+                        {
+                          domain: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId,
+                                  startRowIndex: 0,
+                                  endRowIndex: 6,
+                                  startColumnIndex: 0,
+                                  endColumnIndex: 1,
+                                },
+                              ],
+                            },
+                          },
+                        },
+                      ],
+                      series: [
+                        {
+                          series: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId,
+                                  startRowIndex: 0,
+                                  endRowIndex: 6,
+                                  startColumnIndex: 1,
+                                  endColumnIndex: 2,
+                                },
+                              ],
+                            },
+                          },
+                        },
+                      ],
+                      headerCount: 1,
+                    },
+                  },
+                  position: {
+                    overlayPosition: {
+                      anchorCell: { sheetId, rowIndex: 20, columnIndex: 5 },
+                      widthPixels: 400,
+                      heightPixels: 300,
+                    },
                   },
                 },
-                position: { overlayPosition: { anchorCell: { sheetId, rowIndex: 20, columnIndex: 5 }, widthPixels: 400, heightPixels: 300 } },
               },
             },
-          }],
+          ],
         },
       });
 
@@ -269,20 +374,54 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
       const updateResponse = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateChartSpec: {
-              chartId,
-              spec: {
-                title: 'Updated Title',
-                basicChart: {
-                  chartType: 'BAR',
-                  domains: [{ domain: { sourceRange: { sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 0, endColumnIndex: 1 }] } } }],
-                  series: [{ series: { sourceRange: { sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 1, endColumnIndex: 2 }] } } }],
-                  headerCount: 1,
+          requests: [
+            {
+              updateChartSpec: {
+                chartId,
+                spec: {
+                  title: 'Updated Title',
+                  basicChart: {
+                    chartType: 'BAR',
+                    domains: [
+                      {
+                        domain: {
+                          sourceRange: {
+                            sources: [
+                              {
+                                sheetId,
+                                startRowIndex: 0,
+                                endRowIndex: 6,
+                                startColumnIndex: 0,
+                                endColumnIndex: 1,
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    ],
+                    series: [
+                      {
+                        series: {
+                          sourceRange: {
+                            sources: [
+                              {
+                                sheetId,
+                                startRowIndex: 0,
+                                endRowIndex: 6,
+                                startColumnIndex: 1,
+                                endColumnIndex: 2,
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    ],
+                    headerCount: 1,
+                  },
                 },
               },
             },
-          }],
+          ],
         },
       });
 
@@ -293,22 +432,62 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
       const createResponse = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addChart: {
-              chart: {
-                spec: {
-                  title: 'To Be Deleted',
-                  basicChart: {
-                    chartType: 'COLUMN',
-                    domains: [{ domain: { sourceRange: { sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 0, endColumnIndex: 1 }] } } }],
-                    series: [{ series: { sourceRange: { sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 1, endColumnIndex: 2 }] } } }],
-                    headerCount: 1,
+          requests: [
+            {
+              addChart: {
+                chart: {
+                  spec: {
+                    title: 'To Be Deleted',
+                    basicChart: {
+                      chartType: 'COLUMN',
+                      domains: [
+                        {
+                          domain: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId,
+                                  startRowIndex: 0,
+                                  endRowIndex: 6,
+                                  startColumnIndex: 0,
+                                  endColumnIndex: 1,
+                                },
+                              ],
+                            },
+                          },
+                        },
+                      ],
+                      series: [
+                        {
+                          series: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId,
+                                  startRowIndex: 0,
+                                  endRowIndex: 6,
+                                  startColumnIndex: 1,
+                                  endColumnIndex: 2,
+                                },
+                              ],
+                            },
+                          },
+                        },
+                      ],
+                      headerCount: 1,
+                    },
+                  },
+                  position: {
+                    overlayPosition: {
+                      anchorCell: { sheetId, rowIndex: 30, columnIndex: 5 },
+                      widthPixels: 400,
+                      heightPixels: 300,
+                    },
                   },
                 },
-                position: { overlayPosition: { anchorCell: { sheetId, rowIndex: 30, columnIndex: 5 }, widthPixels: 400, heightPixels: 300 } },
               },
             },
-          }],
+          ],
         },
       });
 
@@ -338,28 +517,38 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateCells: {
-              rows: [{
-                values: [{
-                  pivotTable: {
-                    source: {
-                      sheetId: benchmarksSheetId,
-                      startRowIndex: 0,
-                      endRowIndex: 9,
-                      startColumnIndex: 0,
-                      endColumnIndex: 4,
-                    },
-                    rows: [{ sourceColumnOffset: 0, showTotals: true, sortOrder: 'ASCENDING' }],
-                    columns: [{ sourceColumnOffset: 2, showTotals: true, sortOrder: 'ASCENDING' }],
-                    values: [{ sourceColumnOffset: 3, summarizeFunction: 'SUM' }],
+          requests: [
+            {
+              updateCells: {
+                rows: [
+                  {
+                    values: [
+                      {
+                        pivotTable: {
+                          source: {
+                            sheetId: benchmarksSheetId,
+                            startRowIndex: 0,
+                            endRowIndex: 9,
+                            startColumnIndex: 0,
+                            endColumnIndex: 4,
+                          },
+                          rows: [
+                            { sourceColumnOffset: 0, showTotals: true, sortOrder: 'ASCENDING' },
+                          ],
+                          columns: [
+                            { sourceColumnOffset: 2, showTotals: true, sortOrder: 'ASCENDING' },
+                          ],
+                          values: [{ sourceColumnOffset: 3, summarizeFunction: 'SUM' }],
+                        },
+                      },
+                    ],
                   },
-                }],
-              }],
-              start: { sheetId: benchmarksSheetId, rowIndex: 12, columnIndex: 0 },
-              fields: 'pivotTable',
+                ],
+                start: { sheetId: benchmarksSheetId, rowIndex: 12, columnIndex: 0 },
+                fields: 'pivotTable',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -370,31 +559,47 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateCells: {
-              rows: [{
-                values: [{
-                  pivotTable: {
-                    source: {
-                      sheetId: benchmarksSheetId,
-                      startRowIndex: 0,
-                      endRowIndex: 9,
-                      startColumnIndex: 0,
-                      endColumnIndex: 4,
-                    },
-                    rows: [{ sourceColumnOffset: 1, showTotals: true, sortOrder: 'ASCENDING' }],
+          requests: [
+            {
+              updateCells: {
+                rows: [
+                  {
                     values: [
-                      { sourceColumnOffset: 3, summarizeFunction: 'SUM', name: 'Total Revenue' },
-                      { sourceColumnOffset: 3, summarizeFunction: 'AVERAGE', name: 'Avg Revenue' },
-                      { sourceColumnOffset: 3, summarizeFunction: 'COUNTA', name: 'Count' },
+                      {
+                        pivotTable: {
+                          source: {
+                            sheetId: benchmarksSheetId,
+                            startRowIndex: 0,
+                            endRowIndex: 9,
+                            startColumnIndex: 0,
+                            endColumnIndex: 4,
+                          },
+                          rows: [
+                            { sourceColumnOffset: 1, showTotals: true, sortOrder: 'ASCENDING' },
+                          ],
+                          values: [
+                            {
+                              sourceColumnOffset: 3,
+                              summarizeFunction: 'SUM',
+                              name: 'Total Revenue',
+                            },
+                            {
+                              sourceColumnOffset: 3,
+                              summarizeFunction: 'AVERAGE',
+                              name: 'Avg Revenue',
+                            },
+                            { sourceColumnOffset: 3, summarizeFunction: 'COUNTA', name: 'Count' },
+                          ],
+                        },
+                      },
                     ],
                   },
-                }],
-              }],
-              start: { sheetId: benchmarksSheetId, rowIndex: 20, columnIndex: 0 },
-              fields: 'pivotTable',
+                ],
+                start: { sheetId: benchmarksSheetId, rowIndex: 20, columnIndex: 0 },
+                fields: 'pivotTable',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -408,21 +613,25 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
         client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [{
-              addChart: {
-                chart: {
-                  spec: {
-                    title: 'Invalid Chart',
-                    basicChart: {
-                      chartType: 'COLUMN',
-                      domains: [],
-                      series: [],
+            requests: [
+              {
+                addChart: {
+                  chart: {
+                    spec: {
+                      title: 'Invalid Chart',
+                      basicChart: {
+                        chartType: 'COLUMN',
+                        domains: [],
+                        series: [],
+                      },
+                    },
+                    position: {
+                      overlayPosition: { anchorCell: { sheetId, rowIndex: 40, columnIndex: 0 } },
                     },
                   },
-                  position: { overlayPosition: { anchorCell: { sheetId, rowIndex: 40, columnIndex: 0 } } },
                 },
               },
-            }],
+            ],
           },
         })
       ).rejects.toThrow();
@@ -437,22 +646,62 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
         client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [{
-              addChart: {
-                chart: {
-                  spec: {
-                    title: 'Performance Test Chart',
-                    basicChart: {
-                      chartType: 'COLUMN',
-                      domains: [{ domain: { sourceRange: { sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 0, endColumnIndex: 1 }] } } }],
-                      series: [{ series: { sourceRange: { sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 1, endColumnIndex: 2 }] } } }],
-                      headerCount: 1,
+            requests: [
+              {
+                addChart: {
+                  chart: {
+                    spec: {
+                      title: 'Performance Test Chart',
+                      basicChart: {
+                        chartType: 'COLUMN',
+                        domains: [
+                          {
+                            domain: {
+                              sourceRange: {
+                                sources: [
+                                  {
+                                    sheetId,
+                                    startRowIndex: 0,
+                                    endRowIndex: 6,
+                                    startColumnIndex: 0,
+                                    endColumnIndex: 1,
+                                  },
+                                ],
+                              },
+                            },
+                          },
+                        ],
+                        series: [
+                          {
+                            series: {
+                              sourceRange: {
+                                sources: [
+                                  {
+                                    sheetId,
+                                    startRowIndex: 0,
+                                    endRowIndex: 6,
+                                    startColumnIndex: 1,
+                                    endColumnIndex: 2,
+                                  },
+                                ],
+                              },
+                            },
+                          },
+                        ],
+                        headerCount: 1,
+                      },
+                    },
+                    position: {
+                      overlayPosition: {
+                        anchorCell: { sheetId, rowIndex: 50, columnIndex: 5 },
+                        widthPixels: 400,
+                        heightPixels: 300,
+                      },
                     },
                   },
-                  position: { overlayPosition: { anchorCell: { sheetId, rowIndex: 50, columnIndex: 5 }, widthPixels: 400, heightPixels: 300 } },
                 },
               },
-            }],
+            ],
           },
         })
       );

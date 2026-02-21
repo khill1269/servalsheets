@@ -96,10 +96,7 @@ export class BenchmarkReporter {
   /**
    * Generate a complete benchmark report
    */
-  generateReport(
-    results: BenchmarkResult[],
-    previousReport?: BenchmarkReport
-  ): BenchmarkReport {
+  generateReport(results: BenchmarkResult[], previousReport?: BenchmarkReport): BenchmarkReport {
     const environment = this.getEnvironmentInfo();
     const regressions = this.detectRegressions(results, previousReport);
     const summary = this.calculateSummary(results);
@@ -250,7 +247,7 @@ export class BenchmarkReporter {
       platform: process.platform,
       arch: process.arch,
       cpuCount: os.cpus().length,
-      memoryGB: Math.round(os.totalmem() / (1024 ** 3)),
+      memoryGB: Math.round(os.totalmem() / 1024 ** 3),
       sdkVersion: '^1.25.2',
       serverVersion: '1.6.0',
       timestamp: new Date().toISOString(),

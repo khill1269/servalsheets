@@ -60,14 +60,17 @@ TRACE_AGGREGATION_TTL=300000        # 5 min TTL
 ## Troubleshooting
 
 **Dashboard not loading:**
+
 - Run `npm run build` in `src/ui/tracing-dashboard`
 - Check backend is running on port 3000
 
 **No traces visible:**
+
 - Enable: `TRACE_AGGREGATION_ENABLED=true`
 - Make API requests to generate traces
 
 **SSE connection fails:**
+
 - Check CORS settings
 - Verify `/traces/stream` endpoint
 

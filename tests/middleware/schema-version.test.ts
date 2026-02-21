@@ -127,9 +127,7 @@ describe('Schema Version Middleware', () => {
     it('detects deprecated version', () => {
       // Temporarily add v1 to deprecated list for testing
       const originalDeprecated = new Map();
-      const DEPRECATED_VERSIONS = new Map<string, Date>([
-        ['v1', new Date('2026-08-17')],
-      ]);
+      const DEPRECATED_VERSIONS = new Map<string, Date>([['v1', new Date('2026-08-17')]]);
 
       // Note: In production, this would use the actual DEPRECATED_VERSIONS from middleware
       // For now, test the logic by checking the return structure

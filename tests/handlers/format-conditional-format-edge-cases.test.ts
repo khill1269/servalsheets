@@ -263,7 +263,7 @@ describe('FormatHandler Edge Cases', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.message).toContain('Unknown preset');
+      expect(result.response.error?.message).toContain('unknown_preset');
     });
   });
 });

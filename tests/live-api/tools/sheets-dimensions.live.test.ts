@@ -3,7 +3,7 @@
  *
  * Tests row and column operations against the real Google Sheets API.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet but each test sets up its own data.
  * Note: Dimension operations permanently modify sheet structure, so tests
  * must be designed to not depend on previous test state.
@@ -12,15 +12,12 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { LiveApiClient } from '../setup/live-api-client.js';
 import { TestSpreadsheetManager, TestSpreadsheet } from '../setup/test-spreadsheet-manager.js';
-import {
-  loadTestCredentials,
-  shouldRunIntegrationTests,
-} from '../../helpers/credential-loader.js';
+import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 
 const runLiveTests = shouldRunIntegrationTests();
 
 // Helper to add delay between tests to avoid quota limits
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
   let client: LiveApiClient;
@@ -35,10 +32,10 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
     }
     client = new LiveApiClient(credentials, { trackMetrics: true });
     manager = new TestSpreadsheetManager(client);
-    
+
     // Create ONE spreadsheet for all tests
     testSpreadsheet = await manager.createTestSpreadsheet('dimensions');
-    
+
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,
     });
@@ -75,12 +72,14 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            insertDimension: {
-              range: { sheetId, dimension: 'ROWS', startIndex: 0, endIndex: 2 },
-              inheritFromBefore: false,
+          requests: [
+            {
+              insertDimension: {
+                range: { sheetId, dimension: 'ROWS', startIndex: 0, endIndex: 2 },
+                inheritFromBefore: false,
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -99,13 +98,15 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateDimensionProperties: {
-              range: { sheetId, dimension: 'ROWS', startIndex: 10, endIndex: 11 },
-              properties: { pixelSize: 50 },
-              fields: 'pixelSize',
+          requests: [
+            {
+              updateDimensionProperties: {
+                range: { sheetId, dimension: 'ROWS', startIndex: 10, endIndex: 11 },
+                properties: { pixelSize: 50 },
+                fields: 'pixelSize',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -125,11 +126,13 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            autoResizeDimensions: {
-              dimensions: { sheetId, dimension: 'ROWS', startIndex: 15, endIndex: 20 },
+          requests: [
+            {
+              autoResizeDimensions: {
+                dimensions: { sheetId, dimension: 'ROWS', startIndex: 15, endIndex: 20 },
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -141,13 +144,15 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       const hideResponse = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateDimensionProperties: {
-              range: { sheetId, dimension: 'ROWS', startIndex: 20, endIndex: 23 },
-              properties: { hiddenByUser: true },
-              fields: 'hiddenByUser',
+          requests: [
+            {
+              updateDimensionProperties: {
+                range: { sheetId, dimension: 'ROWS', startIndex: 20, endIndex: 23 },
+                properties: { hiddenByUser: true },
+                fields: 'hiddenByUser',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -166,13 +171,15 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       const unhideResponse = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateDimensionProperties: {
-              range: { sheetId, dimension: 'ROWS', startIndex: 20, endIndex: 23 },
-              properties: { hiddenByUser: false },
-              fields: 'hiddenByUser',
+          requests: [
+            {
+              updateDimensionProperties: {
+                range: { sheetId, dimension: 'ROWS', startIndex: 20, endIndex: 23 },
+                properties: { hiddenByUser: false },
+                fields: 'hiddenByUser',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -191,12 +198,14 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            moveDimension: {
-              source: { sheetId, dimension: 'ROWS', startIndex: 29, endIndex: 31 },
-              destinationIndex: 35,
+          requests: [
+            {
+              moveDimension: {
+                source: { sheetId, dimension: 'ROWS', startIndex: 29, endIndex: 31 },
+                destinationIndex: 35,
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -209,13 +218,15 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateDimensionProperties: {
-              range: { sheetId, dimension: 'COLUMNS', startIndex: 10, endIndex: 11 },
-              properties: { pixelSize: 200 },
-              fields: 'pixelSize',
+          requests: [
+            {
+              updateDimensionProperties: {
+                range: { sheetId, dimension: 'COLUMNS', startIndex: 10, endIndex: 11 },
+                properties: { pixelSize: 200 },
+                fields: 'pixelSize',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -235,11 +246,13 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            autoResizeDimensions: {
-              dimensions: { sheetId, dimension: 'COLUMNS', startIndex: 12, endIndex: 15 },
+          requests: [
+            {
+              autoResizeDimensions: {
+                dimensions: { sheetId, dimension: 'COLUMNS', startIndex: 12, endIndex: 15 },
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -250,13 +263,15 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateDimensionProperties: {
-              range: { sheetId, dimension: 'COLUMNS', startIndex: 15, endIndex: 17 },
-              properties: { hiddenByUser: true },
-              fields: 'hiddenByUser',
+          requests: [
+            {
+              updateDimensionProperties: {
+                range: { sheetId, dimension: 'COLUMNS', startIndex: 15, endIndex: 17 },
+                properties: { hiddenByUser: true },
+                fields: 'hiddenByUser',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -269,12 +284,14 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateSheetProperties: {
-              properties: { sheetId, gridProperties: { frozenRowCount: 1 } },
-              fields: 'gridProperties.frozenRowCount',
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: { sheetId, gridProperties: { frozenRowCount: 1 } },
+                fields: 'gridProperties.frozenRowCount',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -292,12 +309,14 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateSheetProperties: {
-              properties: { sheetId, gridProperties: { frozenColumnCount: 1 } },
-              fields: 'gridProperties.frozenColumnCount',
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: { sheetId, gridProperties: { frozenColumnCount: 1 } },
+                fields: 'gridProperties.frozenColumnCount',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -316,12 +335,17 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateSheetProperties: {
-              properties: { sheetId, gridProperties: { frozenRowCount: 2, frozenColumnCount: 2 } },
-              fields: 'gridProperties(frozenRowCount,frozenColumnCount)',
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: {
+                  sheetId,
+                  gridProperties: { frozenRowCount: 2, frozenColumnCount: 2 },
+                },
+                fields: 'gridProperties(frozenRowCount,frozenColumnCount)',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -329,12 +353,17 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateSheetProperties: {
-              properties: { sheetId, gridProperties: { frozenRowCount: 0, frozenColumnCount: 0 } },
-              fields: 'gridProperties(frozenRowCount,frozenColumnCount)',
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: {
+                  sheetId,
+                  gridProperties: { frozenRowCount: 0, frozenColumnCount: 0 },
+                },
+                fields: 'gridProperties(frozenRowCount,frozenColumnCount)',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -348,11 +377,13 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       const groupResponse = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addDimensionGroup: {
-              range: { sheetId, dimension: 'ROWS', startIndex: 40, endIndex: 45 },
+          requests: [
+            {
+              addDimensionGroup: {
+                range: { sheetId, dimension: 'ROWS', startIndex: 40, endIndex: 45 },
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -362,11 +393,13 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       const ungroupResponse = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            deleteDimensionGroup: {
-              range: { sheetId, dimension: 'ROWS', startIndex: 40, endIndex: 45 },
+          requests: [
+            {
+              deleteDimensionGroup: {
+                range: { sheetId, dimension: 'ROWS', startIndex: 40, endIndex: 45 },
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -411,9 +444,11 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addSheet: { properties: { title: testSheet2Name } },
-          }],
+          requests: [
+            {
+              addSheet: { properties: { title: testSheet2Name } },
+            },
+          ],
         },
       });
 
@@ -435,12 +470,14 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            insertDimension: {
-              range: { sheetId: testSheet2Id, dimension: 'ROWS', startIndex: 2, endIndex: 4 },
-              inheritFromBefore: true,
+          requests: [
+            {
+              insertDimension: {
+                range: { sheetId: testSheet2Id, dimension: 'ROWS', startIndex: 2, endIndex: 4 },
+                inheritFromBefore: true,
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -459,11 +496,13 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            deleteDimension: {
-              range: { sheetId: testSheet2Id, dimension: 'ROWS', startIndex: 2, endIndex: 4 },
+          requests: [
+            {
+              deleteDimension: {
+                range: { sheetId: testSheet2Id, dimension: 'ROWS', startIndex: 2, endIndex: 4 },
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -487,12 +526,14 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            insertDimension: {
-              range: { sheetId: testSheet2Id, dimension: 'COLUMNS', startIndex: 1, endIndex: 3 },
-              inheritFromBefore: false,
+          requests: [
+            {
+              insertDimension: {
+                range: { sheetId: testSheet2Id, dimension: 'COLUMNS', startIndex: 1, endIndex: 3 },
+                inheritFromBefore: false,
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -509,11 +550,13 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            deleteDimension: {
-              range: { sheetId: testSheet2Id, dimension: 'COLUMNS', startIndex: 1, endIndex: 3 },
+          requests: [
+            {
+              deleteDimension: {
+                range: { sheetId: testSheet2Id, dimension: 'COLUMNS', startIndex: 1, endIndex: 3 },
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -533,11 +576,13 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
         client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [{
-              deleteDimension: {
-                range: { sheetId, dimension: 'ROWS', startIndex: 1000000, endIndex: 1000001 },
+            requests: [
+              {
+                deleteDimension: {
+                  range: { sheetId, dimension: 'ROWS', startIndex: 1000000, endIndex: 1000001 },
+                },
               },
-            }],
+            ],
           },
         })
       ).rejects.toThrow();

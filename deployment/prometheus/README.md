@@ -5,6 +5,7 @@ Production-ready Prometheus alert rules and monitoring setup for ServalSheets.
 ## Overview
 
 This directory contains:
+
 - **alerts.yml** - 24 comprehensive alert rules across 4 severity levels
 - **alertmanager.yml** - Alert routing and notification configuration
 - **prometheus.yml** - Metrics collection configuration
@@ -52,52 +53,56 @@ curl http://localhost:9090/api/v1/alerts
 ## Alert Rules
 
 ### Critical Alerts (5 rules)
+
 Immediate response required, user-facing impact.
 
-| Alert | Trigger | Impact |
-|-------|---------|--------|
-| **HighErrorRate** | Error rate > 5% for 2m | Users experiencing failed operations |
-| **CircuitBreakerOpen** | Circuit breaker state >= 2 for 1m | Requests being rejected |
-| **ServiceDown** | Service unreachable for 1m | Complete outage |
-| **HighAuthenticationFailureRate** | Auth failures > 10% for 2m | Users unable to authenticate |
-| **HighMemoryUsage** | Memory > 1.5GB for 5m | Service may crash |
+| Alert                             | Trigger                           | Impact                               |
+| --------------------------------- | --------------------------------- | ------------------------------------ |
+| **HighErrorRate**                 | Error rate > 5% for 2m            | Users experiencing failed operations |
+| **CircuitBreakerOpen**            | Circuit breaker state >= 2 for 1m | Requests being rejected              |
+| **ServiceDown**                   | Service unreachable for 1m        | Complete outage                      |
+| **HighAuthenticationFailureRate** | Auth failures > 10% for 2m        | Users unable to authenticate         |
+| **HighMemoryUsage**               | Memory > 1.5GB for 5m             | Service may crash                    |
 
 ### Warning Alerts (8 rules)
+
 Performance degradation, risk of impact.
 
-| Alert | Trigger | Impact |
-|-------|---------|--------|
-| **RequestQueueBackup** | Queue depth > 50 for 5m | Increased latency |
-| **HighLatencyP99** | P99 latency > 5s for 5m | 1% of requests slow |
-| **HighLatencyP95** | P95 latency > 3s for 10m | 5% of requests slow |
-| **APIQuotaNearLimit** | API rate > 55/min for 2m | Risk of throttling |
+| Alert                      | Trigger                          | Impact               |
+| -------------------------- | -------------------------------- | -------------------- |
+| **RequestQueueBackup**     | Queue depth > 50 for 5m          | Increased latency    |
+| **HighLatencyP99**         | P99 latency > 5s for 5m          | 1% of requests slow  |
+| **HighLatencyP95**         | P95 latency > 3s for 10m         | 5% of requests slow  |
+| **APIQuotaNearLimit**      | API rate > 55/min for 2m         | Risk of throttling   |
 | **CircuitBreakerHalfOpen** | Circuit breaker state = 1 for 5m | Recovery in progress |
-| **HighQueuePending** | Pending > 30 for 3m | Backlog building |
-| **GoogleAPIErrorRate** | Google API errors > 2% for 5m | Upstream issues |
-| **SlowGoogleAPICalls** | Google API P95 > 3s for 10m | Upstream latency |
+| **HighQueuePending**       | Pending > 30 for 3m              | Backlog building     |
+| **GoogleAPIErrorRate**     | Google API errors > 2% for 5m    | Upstream issues      |
+| **SlowGoogleAPICalls**     | Google API P95 > 3s for 10m      | Upstream latency     |
 
 ### Info Alerts (8 rules)
+
 Operational awareness, optimization opportunities.
 
-| Alert | Trigger | Impact |
-|-------|---------|--------|
-| **LowCacheHitRate** | Hit rate < 50% for 10m | More API calls |
-| **HighCacheEvictionRate** | Evictions > 10/s for 10m | Reduced cache effectiveness |
-| **LowBatchEfficiency** | Batch efficiency < 0.6 for 10m | Suboptimal batching |
-| **SmallBatchSizes** | Median batch size < 5 for 15m | Not utilizing batching |
-| **TransactionFailureRate** | Transaction failures > 1% for 10m | Data integrity concern |
-| **HighSessionCount** | Sessions > 100 for 30m | Memory usage concern |
-| **LargeCacheSize** | Cache > 100MB for 15m | High memory consumption |
-| **SpecificErrorTypeSpike** | Permission/Quota errors > 1/s for 10m | Specific error pattern |
+| Alert                      | Trigger                               | Impact                      |
+| -------------------------- | ------------------------------------- | --------------------------- |
+| **LowCacheHitRate**        | Hit rate < 50% for 10m                | More API calls              |
+| **HighCacheEvictionRate**  | Evictions > 10/s for 10m              | Reduced cache effectiveness |
+| **LowBatchEfficiency**     | Batch efficiency < 0.6 for 10m        | Suboptimal batching         |
+| **SmallBatchSizes**        | Median batch size < 5 for 15m         | Not utilizing batching      |
+| **TransactionFailureRate** | Transaction failures > 1% for 10m     | Data integrity concern      |
+| **HighSessionCount**       | Sessions > 100 for 30m                | Memory usage concern        |
+| **LargeCacheSize**         | Cache > 100MB for 15m                 | High memory consumption     |
+| **SpecificErrorTypeSpike** | Permission/Quota errors > 1/s for 10m | Specific error pattern      |
 
 ### Anomaly Alerts (3 rules)
+
 Rate of change detection.
 
-| Alert | Trigger | Impact |
-|-------|---------|--------|
-| **SuddenDropInRequests** | Rate < 20% of baseline for 5m | Possible client issues |
-| **SuddenSpikeInRequests** | Rate > 3x baseline for 5m | Potential abuse |
-| **CacheHitRateDegradation** | Hit rate drops 20% for 10m | Performance regression |
+| Alert                       | Trigger                       | Impact                 |
+| --------------------------- | ----------------------------- | ---------------------- |
+| **SuddenDropInRequests**    | Rate < 20% of baseline for 5m | Possible client issues |
+| **SuddenSpikeInRequests**   | Rate > 3x baseline for 5m     | Potential abuse        |
+| **CacheHitRateDegradation** | Hit rate drops 20% for 10m    | Performance regression |
 
 ## Testing Alerts
 
@@ -141,6 +146,7 @@ curl -X POST http://localhost:9093/api/v1/alerts \
 ### Test Specific Alert Scenarios
 
 See `docs/guides/MONITORING.md` for detailed test scenarios:
+
 - High error rate testing
 - Queue backup testing
 - Circuit breaker testing
@@ -151,6 +157,7 @@ See `docs/guides/MONITORING.md` for detailed test scenarios:
 ### Prometheus Configuration
 
 Edit `prometheus.yml` to configure:
+
 - Scrape targets (where to collect metrics)
 - Scrape intervals
 - Alertmanager endpoints
@@ -170,6 +177,7 @@ scrape_configs:
 ### Alert Rules Configuration
 
 Edit `alerts.yml` to:
+
 - Add new alert rules
 - Modify thresholds
 - Change evaluation intervals
@@ -188,6 +196,7 @@ Edit `alerts.yml` to:
 ### Alertmanager Configuration
 
 Edit `alertmanager.yml` to:
+
 - Configure notification channels (Slack, PagerDuty, email)
 - Set up routing rules
 - Define inhibition rules
@@ -324,12 +333,14 @@ storage:
 ### Security Considerations
 
 1. **Change default passwords**
+
    ```yaml
    # In docker-compose.yml, update Grafana password
    GF_SECURITY_ADMIN_PASSWORD=<strong-password>
    ```
 
 2. **Enable authentication**
+
    ```yaml
    # In prometheus.yml
    basic_auth:
@@ -338,6 +349,7 @@ storage:
    ```
 
 3. **Use TLS**
+
    ```yaml
    # In alertmanager.yml
    tls_config:
@@ -355,6 +367,7 @@ storage:
 For high-volume deployments:
 
 1. **Use remote storage**
+
    ```yaml
    # In prometheus.yml
    remote_write:
@@ -362,6 +375,7 @@ For high-volume deployments:
    ```
 
 2. **Enable Prometheus federation**
+
    ```yaml
    # Scrape from multiple Prometheus instances
    - job_name: 'federate'
@@ -438,6 +452,7 @@ curl http://localhost:9090/api/v1/status/runtimeinfo
 ## Support
 
 For issues or questions:
+
 1. Check logs: `docker-compose logs prometheus alertmanager`
 2. Review documentation: `docs/guides/MONITORING.md`
 3. Validate configuration: `scripts/validate-alerts.sh`

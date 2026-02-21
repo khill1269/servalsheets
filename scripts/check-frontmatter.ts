@@ -25,7 +25,10 @@ interface ValidationError {
   error: string;
 }
 
-function extractFrontmatter(content: string): { frontmatter: Record<string, unknown>; hasError: boolean } {
+function extractFrontmatter(content: string): {
+  frontmatter: Record<string, unknown>;
+  hasError: boolean;
+} {
   const trimmed = content.trimStart();
 
   if (!trimmed.startsWith('---')) {
@@ -103,7 +106,10 @@ function validateFile(filePath: string): ValidationError[] {
     }
 
     // Validate last_updated format (YYYY-MM-DD)
-    if (frontmatter.last_updated && !/^\d{4}-\d{2}-\d{2}$/.test(frontmatter.last_updated as string)) {
+    if (
+      frontmatter.last_updated &&
+      !/^\d{4}-\d{2}-\d{2}$/.test(frontmatter.last_updated as string)
+    ) {
       errors.push({
         file: filePath,
         line: 1,

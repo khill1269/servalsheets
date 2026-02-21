@@ -7,15 +7,15 @@ spec:
   replicas: 3
   image:
     repository: servalsheets/server
-    tag: "1.6.0"
+    tag: '1.6.0'
     pullPolicy: IfNotPresent
   resources:
     requests:
-      cpu: "200m"
-      memory: "256Mi"
+      cpu: '200m'
+      memory: '256Mi'
     limits:
-      cpu: "2000m"
-      memory: "1Gi"
+      cpu: '2000m'
+      memory: '1Gi'
   autoscaling:
     enabled: true
     minReplicas: 2
@@ -39,4 +39,4 @@ spec:
       enabled: true
       secretName: servalsheets-tls
     annotations:
-      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      cert-manager.io/cluster-issuer: 'letsencrypt-prod'

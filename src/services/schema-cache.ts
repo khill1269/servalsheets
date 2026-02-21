@@ -51,7 +51,8 @@ export class SchemaCache {
   private initialized: boolean = false;
 
   constructor(config: SchemaCacheConfig = {}) {
-    this.cacheDir = config.cacheDir ?? '.discovery-cache';
+    this.cacheDir =
+      config.cacheDir ?? process.env['SERVALSHEETS_SCHEMA_CACHE_DIR'] ?? '.discovery-cache';
     this.defaultTTL = config.defaultTTL ?? 24 * 60 * 60 * 1000; // 24 hours
   }
 

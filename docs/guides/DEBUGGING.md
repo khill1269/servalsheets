@@ -24,6 +24,7 @@ Comprehensive debugging techniques and troubleshooting for ServalSheets develope
 ### 1. "action is required" Error
 
 **Symptom:**
+
 ```
 ValidationError: action is required
 ```
@@ -31,6 +32,7 @@ ValidationError: action is required
 **Cause:** Missing legacy envelope wrapper in test input
 
 **Solution:**
+
 ```typescript
 // ❌ Wrong
 const input = {
@@ -54,6 +56,7 @@ const input = {
 ### 2. Metadata Drift Detected
 
 **Symptom:**
+
 ```bash
 $ npm run check:drift
 ❌ Metadata drift detected
@@ -62,11 +65,13 @@ $ npm run check:drift
 **Cause:** Schema files modified without regenerating metadata
 
 **Solution:**
+
 ```bash
 npm run schema:commit
 ```
 
 This regenerates:
+
 - `src/schemas/index.ts` (action counts)
 - `src/schemas/annotations.ts` (per-tool metadata)
 - `src/mcp/completions.ts` (autocomplete)
@@ -79,6 +84,7 @@ This regenerates:
 ### 3. TypeScript Errors After Schema Change
 
 **Symptom:**
+
 ```
 Type 'new_action' is not assignable to type 'read' | 'write' | ...
 ```
@@ -86,12 +92,14 @@ Type 'new_action' is not assignable to type 'read' | 'write' | ...
 **Cause:** Generated types not updated
 
 **Solution:**
+
 ```bash
 npm run gen:metadata
 npm run build
 ```
 
 **Check:** Verify action is in discriminated union:
+
 ```typescript
 export const SheetsDataInputSchema = z.discriminatedUnion('action', [
   ReadInputSchema,
@@ -105,6 +113,7 @@ export const SheetsDataInputSchema = z.discriminatedUnion('action', [
 ### 4. Tests Pass Locally But Fail in CI
 
 **Possible Causes:**
+
 - Metadata drift
 - Missing `npm run verify` before commit
 - Hard-coded file paths
@@ -112,6 +121,7 @@ export const SheetsDataInputSchema = z.discriminatedUnion('action', [
 - Race conditions in parallel tests
 
 **Solution:**
+
 ```bash
 # Run full verification locally
 npm run verify
@@ -131,6 +141,7 @@ npm test -- --pool=forks
 ### 5. "Service not found" in DI Container
 
 **Symptom:**
+
 ```
 Error: Service 'googleClient' not found
 ```
@@ -138,6 +149,7 @@ Error: Service 'googleClient' not found
 **Cause:** Service not registered in DI container
 
 **Solution:**
+
 ```typescript
 // In src/di/service-registrations.ts
 container.register(registerGoogleApiClient(googleApiOptions));
@@ -148,6 +160,7 @@ container.register(registerGoogleApiClient(googleApiOptions));
 ### 6. Circuit Breaker OPEN State
 
 **Symptom:**
+
 ```
 CircuitBreakerError: Circuit breaker is OPEN
 ```
@@ -155,6 +168,7 @@ CircuitBreakerError: Circuit breaker is OPEN
 **Cause:** Too many failures to Google API endpoint
 
 **Solution:**
+
 ```bash
 # Check circuit breaker status
 npm run monitor:health
@@ -172,6 +186,7 @@ curl -X POST http://localhost:3000/admin/circuit-breakers/reset
 ### 7. Response Validation Warnings
 
 **Symptom:**
+
 ```
 ⚠️  Output validation warning: Missing field 'data'
 ```
@@ -179,6 +194,7 @@ curl -X POST http://localhost:3000/admin/circuit-breakers/reset
 **Cause:** Handler returning wrong response format
 
 **Solution:**
+
 ```typescript
 // ❌ Wrong
 return { success: true, result: data };
@@ -273,6 +289,7 @@ logger.trace('Very verbose', { everything }); // Debugging
 ### Reading Logs
 
 **Structure:**
+
 ```json
 {
   "timestamp": "2026-02-17T12:34:56.789Z",
@@ -286,6 +303,7 @@ logger.trace('Very verbose', { everything }); // Debugging
 ```
 
 **Key Fields:**
+
 - `timestamp` - When event occurred
 - `level` - Log severity
 - `message` - Human-readable description
@@ -295,6 +313,7 @@ logger.trace('Very verbose', { everything }); // Debugging
 ### Common Log Patterns
 
 **Successful Operation:**
+
 ```
 INFO: Handler started {action: 'read', spreadsheetId: '...'}
 INFO: API call started {endpoint: 'spreadsheets.get'}
@@ -303,6 +322,7 @@ INFO: Handler completed {duration: 52ms}
 ```
 
 **Failed Operation:**
+
 ```
 INFO: Handler started {action: 'read'}
 ERROR: API call failed {error: '404 Not Found'}
@@ -310,6 +330,7 @@ ERROR: Handler failed {error: 'Spreadsheet not found'}
 ```
 
 **Performance Issue:**
+
 ```
 WARN: Slow operation detected {duration: 5000ms, threshold: 1000ms}
 ```
@@ -386,7 +407,8 @@ const memBefore = process.memoryUsage().heapUsed;
 const memAfter = process.memoryUsage().heapUsed;
 const growth = memAfter - memBefore;
 
-if (growth > 10 * 1024 * 1024) { // 10MB
+if (growth > 10 * 1024 * 1024) {
+  // 10MB
   logger.warn('Excessive memory growth', {
     growthMB: (growth / 1024 / 1024).toFixed(2),
   });

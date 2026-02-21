@@ -370,7 +370,10 @@ describeE2E('E2E: Multi-Sheet Collaboration', () => {
       args: {
         spreadsheetId,
         range: 'Data!A1:B2',
-        values: [['Source', 'Value'], ['Item 1', '100']],
+        values: [
+          ['Source', 'Value'],
+          ['Item 1', '100'],
+        ],
       },
     });
 

@@ -179,7 +179,11 @@ describe('PatternRecognitionAgent', () => {
       }
 
       // Should have high consistency score
-      const reports = await agent.analyze(throwFiles[0].filePath, throwFiles[0].sourceFile, context);
+      const reports = await agent.analyze(
+        throwFiles[0].filePath,
+        throwFiles[0].sourceFile,
+        context
+      );
 
       const errorReport = reports.find((r) => r.dimension === 'errorPattern');
       expect(errorReport).toBeDefined();
@@ -268,7 +272,11 @@ describe('PatternRecognitionAgent', () => {
       const consistentFile = createFileWithConsistentNaming('camelCase');
       const context = createContext([consistentFile.filePath]);
 
-      const reports = await agent.analyze(consistentFile.filePath, consistentFile.sourceFile, context);
+      const reports = await agent.analyze(
+        consistentFile.filePath,
+        consistentFile.sourceFile,
+        context
+      );
 
       const namingReport = reports.find((r) => r.dimension === 'namingPattern');
       expect(namingReport).toBeDefined();

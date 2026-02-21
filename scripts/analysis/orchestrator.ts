@@ -183,10 +183,7 @@ export class AnalysisOrchestrator {
   /**
    * Phase 1: Run all agents in parallel
    */
-  private async runAgents(
-    files: string[],
-    context: AnalysisContext
-  ): Promise<AgentReport[]> {
+  private async runAgents(files: string[], context: AnalysisContext): Promise<AgentReport[]> {
     const agentReports: AgentReport[] = [];
 
     for (const [agentName, agent] of this.agents.entries()) {
@@ -200,12 +197,7 @@ export class AnalysisOrchestrator {
       for (const filePath of files) {
         try {
           const content = fs.readFileSync(filePath, 'utf-8');
-          const sourceFile = ts.createSourceFile(
-            filePath,
-            content,
-            ts.ScriptTarget.Latest,
-            true
-          );
+          const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true);
 
           const reports = await agent.analyze(filePath, sourceFile, context);
           dimensionReports.push(...reports);
@@ -240,7 +232,9 @@ export class AnalysisOrchestrator {
 
       if (this.options.verbose) {
         const issueCount = dimensionReports.reduce((sum, r) => sum + r.issueCount, 0);
-        console.log(`    ${agentName}: ${status.toUpperCase()} (${issueCount} issues, ${Date.now() - agentStartTime}ms)`);
+        console.log(
+          `    ${agentName}: ${status.toUpperCase()} (${issueCount} issues, ${Date.now() - agentStartTime}ms)`
+        );
       }
     }
 
@@ -377,11 +371,7 @@ export class AnalysisOrchestrator {
     }
 
     // Pattern: Any types in external type definitions
-    if (
-      agent === 'TypeSafety' &&
-      issue.dimension === 'anyTypes' &&
-      issue.file.includes('.d.ts')
-    ) {
+    if (agent === 'TypeSafety' && issue.dimension === 'anyTypes' && issue.file.includes('.d.ts')) {
       return true;
     }
 
@@ -394,10 +384,7 @@ export class AnalysisOrchestrator {
   private areConflicting(issue1: AnalysisIssue, issue2: AnalysisIssue): boolean {
     // Example: Pattern agent says "use execute" but file uses "handle"
     // and Consistency agent says "consistent with similar files"
-    if (
-      issue1.dimension === 'patternConsistency' &&
-      issue2.dimension === 'namingConventions'
-    ) {
+    if (issue1.dimension === 'patternConsistency' && issue2.dimension === 'namingConventions') {
       // Check if suggestions conflict
       if (issue1.suggestion && issue2.suggestion) {
         const pattern1 = issue1.suggestion.match(/use "(\w+)"/);
@@ -473,7 +460,7 @@ export class AnalysisOrchestrator {
     });
 
     const winner = sorted[0];
-    const issues = findings.map(f => f.issue);
+    const issues = findings.map((f) => f.issue);
 
     return {
       conflictType: 'pattern',
@@ -501,7 +488,7 @@ export class AnalysisOrchestrator {
     }
 
     // Filter findings based on resolutions
-    return findings.filter(finding => {
+    return findings.filter((finding) => {
       const key = `${finding.issue.file}:${finding.issue.line}:${finding.issue.dimension}`;
       const resolution = resolutionMap.get(key);
 
@@ -564,16 +551,16 @@ export class AnalysisOrchestrator {
     duration: number
   ): OrchestratorReport {
     // Calculate summary
-    const allIssues = validatedFindings.filter(f => !f.isFalsePositive);
+    const allIssues = validatedFindings.filter((f) => !f.isFalsePositive);
     const summary = {
       totalIssues: allIssues.length,
-      criticalIssues: allIssues.filter(f => f.issue.severity === 'critical').length,
-      highIssues: allIssues.filter(f => f.issue.severity === 'high').length,
-      mediumIssues: allIssues.filter(f => f.issue.severity === 'medium').length,
-      lowIssues: allIssues.filter(f => f.issue.severity === 'low').length,
-      falsePositives: validatedFindings.filter(f => f.isFalsePositive).length,
-      autoFixable: allIssues.filter(f => f.issue.autoFixable).length,
-      autoFixed: autoFixesApplied.filter(f => f.applied).length,
+      criticalIssues: allIssues.filter((f) => f.issue.severity === 'critical').length,
+      highIssues: allIssues.filter((f) => f.issue.severity === 'high').length,
+      mediumIssues: allIssues.filter((f) => f.issue.severity === 'medium').length,
+      lowIssues: allIssues.filter((f) => f.issue.severity === 'low').length,
+      falsePositives: validatedFindings.filter((f) => f.isFalsePositive).length,
+      autoFixable: allIssues.filter((f) => f.issue.autoFixable).length,
+      autoFixed: autoFixesApplied.filter((f) => f.applied).length,
     };
 
     // Generate recommendations
@@ -592,15 +579,11 @@ export class AnalysisOrchestrator {
     }
 
     if (resolvedConflicts.length > 0) {
-      recommendations.push(
-        `${resolvedConflicts.length} conflict(s) resolved automatically`
-      );
+      recommendations.push(`${resolvedConflicts.length} conflict(s) resolved automatically`);
     }
 
     if (summary.falsePositives > 0) {
-      recommendations.push(
-        `${summary.falsePositives} false positive(s) filtered out`
-      );
+      recommendations.push(`${summary.falsePositives} false positive(s) filtered out`);
     }
 
     return {
@@ -674,7 +657,7 @@ export class AnalysisOrchestrator {
         const fullPath = path.join(dir, entry.name);
 
         // Skip excluded directories
-        if (exclude.some(ex => fullPath.includes(ex))) {
+        if (exclude.some((ex) => fullPath.includes(ex))) {
           continue;
         }
 

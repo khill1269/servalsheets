@@ -264,14 +264,14 @@ docs/
 
 ### Error Message Quick Fixes
 
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `❌ Metadata drift detected` | Schema changed without regen | `npm run schema:commit` |
-| `❌ action is required` | Missing action in discriminated union | Add to `z.enum([...])` |
-| `❌ Unknown action: xyz` | Handler missing case | Add `case 'xyz':` to handler |
-| `❌ TODO found in src/` | Placeholder in source | Remove or move to issue |
-| `❌ TypeScript error TS2345` | Type mismatch | Check schema vs handler types |
-| `❌ Schema/handler mismatch` | Action count mismatch | Check deviations or fix handler |
+| Error                        | Cause                                 | Fix                             |
+| ---------------------------- | ------------------------------------- | ------------------------------- |
+| `❌ Metadata drift detected` | Schema changed without regen          | `npm run schema:commit`         |
+| `❌ action is required`      | Missing action in discriminated union | Add to `z.enum([...])`          |
+| `❌ Unknown action: xyz`     | Handler missing case                  | Add `case 'xyz':` to handler    |
+| `❌ TODO found in src/`      | Placeholder in source                 | Remove or move to issue         |
+| `❌ TypeScript error TS2345` | Type mismatch                         | Check schema vs handler types   |
+| `❌ Schema/handler mismatch` | Action count mismatch                 | Check deviations or fix handler |
 
 ### Decision Tree: Which Command to Run?
 
@@ -408,6 +408,7 @@ Validation gates are **progressive checkpoints** that validate different aspects
 **Command:** `npm run gates:g0` or `Cmd+G Cmd+0`
 
 **What it checks:**
+
 ```bash
 1. TypeScript compilation (tsc --noEmit)
 2. ESLint rules
@@ -416,6 +417,7 @@ Validation gates are **progressive checkpoints** that validate different aspects
 ```
 
 **Example output:**
+
 ```
 🚦 Gate G0: Baseline Integrity
   ├─ TypeScript... ✅ (5.2s)
@@ -436,12 +438,14 @@ Validation gates are **progressive checkpoints** that validate different aspects
 **Command:** `npm run gates:g1` or `Cmd+G Cmd+1`
 
 **What it checks:**
+
 ```bash
 1. Schema/handler alignment (validate-action-counts.ts)
 2. Documentation hardcoded counts (check-hardcoded-counts.sh)
 ```
 
 **Example output:**
+
 ```
 🚦 Gate G1: Metadata Consistency
   ├─ Action counts... ✅ (5.3s)
@@ -462,6 +466,7 @@ Validation gates are **progressive checkpoints** that validate different aspects
 **Command:** `npm run gates:g2` or `Cmd+G Cmd+2`
 
 **What it checks:**
+
 ```bash
 1. Handler tests (all 22 handlers)
 2. Integration tests (cross-layer)
@@ -479,6 +484,7 @@ Validation gates are **progressive checkpoints** that validate different aspects
 **Command:** `npm run gates:g3` or `Cmd+G Cmd+3`
 
 **What it checks:**
+
 ```bash
 1. API compliance validation
 2. MCP protocol compliance
@@ -496,6 +502,7 @@ Validation gates are **progressive checkpoints** that validate different aspects
 **Command:** `npm run gates:g4` or `Cmd+G Cmd+4`
 
 **What it checks:**
+
 ```bash
 1. Production build (clean compile)
 2. Runtime constant verification (TOOL_COUNT/ACTION_COUNT)
@@ -1233,22 +1240,24 @@ git push
 **Cause:** Type mismatch between schema definition and handler usage.
 
 **Example:**
+
 ```typescript
 // Schema defines:
-action: z.literal('read_range')
+action: z.literal('read_range');
 
 // Handler tries:
-const action: string = input.action;  // ❌ Wrong type
+const action: string = input.action; // ❌ Wrong type
 ```
 
 **Fix:**
+
 ```typescript
 // Use discriminated union properly:
-const action: 'read_range' = input.action;  // ✅ Correct
+const action: 'read_range' = input.action; // ✅ Correct
 
 // Or use schema type:
 type Input = z.infer<typeof SheetsDataInputSchema>;
-const action: Input['action'] = input.action;  // ✅ Also correct
+const action: Input['action'] = input.action; // ✅ Also correct
 ```
 
 **Prevention:** Always use `z.infer<typeof Schema>` for handler types.
@@ -1260,15 +1269,17 @@ const action: Input['action'] = input.action;  // ✅ Also correct
 **Cause:** Optional field not handled in handler.
 
 **Example:**
+
 ```typescript
 // Schema:
-range: z.string().optional()
+range: z.string().optional();
 
 // Handler:
-const range: string = input.range;  // ❌ Might be undefined
+const range: string = input.range; // ❌ Might be undefined
 ```
 
 **Fix:**
+
 ```typescript
 // Option 1: Handle undefined
 const range: string | undefined = input.range;
@@ -1288,6 +1299,7 @@ const range = input.range!;
 **Cause:** Import path uses `.ts` extension or is missing `.js`.
 
 **Fix:**
+
 ```typescript
 // ❌ Wrong
 import { Schema } from './schemas/index';
@@ -1308,6 +1320,7 @@ import { Schema } from './schemas/index.js';
 **Cause:** Schema file modified without regenerating metadata.
 
 **Files out of sync:**
+
 - `src/schemas/index.ts` (TOOL_COUNT, ACTION_COUNT)
 - `src/schemas/annotations.ts` (ACTION_COUNTS)
 - `src/mcp/completions.ts` (TOOL_ACTIONS)
@@ -1315,6 +1328,7 @@ import { Schema } from './schemas/index.js';
 - `package.json` (description)
 
 **Fix:**
+
 ```bash
 npm run schema:commit
 # Automatically regenerates all 5 files + runs verification
@@ -1329,6 +1343,7 @@ npm run schema:commit
 **Cause:** Schema defines actions that handler doesn't implement (or vice versa).
 
 **Example:**
+
 ```typescript
 // Schema: 18 actions
 action: z.enum(['read', 'write', 'update', 'delete', ...])
@@ -1342,12 +1357,14 @@ switch (action) {
 ```
 
 **Fix Option 1:** Add to schema
+
 ```typescript
 action: z.enum(['read', 'write', 'update', 'delete', 'export', ...])
 npm run schema:commit
 ```
 
 **Fix Option 2:** Remove from handler
+
 ```typescript
 switch (action) {
   case 'read': ...
@@ -1357,10 +1374,11 @@ switch (action) {
 ```
 
 **Fix Option 3:** Document as acceptable deviation
+
 ```typescript
 // In src/schemas/handler-deviations.ts
 export const ACCEPTABLE_DEVIATIONS = {
-  sheets_data: ['export'],  // Alias for 'export_csv'
+  sheets_data: ['export'], // Alias for 'export_csv'
 };
 ```
 
@@ -1371,11 +1389,12 @@ export const ACCEPTABLE_DEVIATIONS = {
 **Cause:** Test input missing `action` field or not wrapped in legacy envelope.
 
 **Example:**
+
 ```typescript
 // ❌ Wrong (for tests)
 const input = {
   spreadsheetId: 'test123',
-  range: 'A1:B10'
+  range: 'A1:B10',
 };
 
 // ✅ Correct (legacy envelope)
@@ -1383,8 +1402,8 @@ const input = {
   request: {
     action: 'read_range',
     spreadsheetId: 'test123',
-    range: 'A1:B10'
-  }
+    range: 'A1:B10',
+  },
 };
 ```
 
@@ -1399,6 +1418,7 @@ const input = {
 **Cause:** Handler returns `undefined` instead of empty array.
 
 **Example:**
+
 ```typescript
 // ❌ Wrong
 if (!values) return undefined;
@@ -1408,8 +1428,8 @@ if (!values || values.length === 0) {
   return {
     response: {
       success: true,
-      values: []
-    }
+      values: [],
+    },
   };
 }
 ```
@@ -1421,10 +1441,11 @@ if (!values || values.length === 0) {
 **Cause:** Test makes real API call instead of using mock.
 
 **Fix:**
+
 ```typescript
 // Add mock before test
 mockApi.spreadsheets.values.get.mockResolvedValue({
-  data: { values: [['test']] }
+  data: { values: [['test']] },
 });
 
 // Verify mock was called
@@ -1438,6 +1459,7 @@ expect(mockApi.spreadsheets.values.get).toHaveBeenCalled();
 **Cause:** Circular dependency or missing mock.
 
 **Fix:**
+
 ```typescript
 // Check for circular imports
 npm run check:architecture
@@ -1459,6 +1481,7 @@ import { handler } from '../handlers/data.js';
 **Cause:** MCP client sent action not defined in schema.
 
 **Debug:**
+
 ```bash
 # Check what actions are defined
 npm run show:tools | grep xyz
@@ -1476,22 +1499,24 @@ grep "case 'xyz'" src/handlers/*.ts
 **Cause:** Invalid spreadsheet ID or missing permissions.
 
 **Debug:**
+
 ```typescript
 // Add logging in handler
 logger.debug('Attempting to access spreadsheet', {
   spreadsheetId,
   sheetName,
-  userId
+  userId,
 });
 
 // Check Google API response
 const result = await this.context.googleClient.sheets.spreadsheets.get({
-  spreadsheetId
+  spreadsheetId,
 });
 logger.debug('Spreadsheet response', result);
 ```
 
 **Common causes:**
+
 1. Wrong spreadsheet ID format
 2. Spreadsheet deleted
 3. OAuth token expired
@@ -1504,6 +1529,7 @@ logger.debug('Spreadsheet response', result);
 **Cause:** Google API endpoint failing repeatedly (>5 times).
 
 **Debug:**
+
 ```bash
 # Check circuit breaker state
 npm run metrics | grep circuit_breaker
@@ -1513,6 +1539,7 @@ grep "Circuit breaker" logs/servalsheets.log
 ```
 
 **Fix:**
+
 1. Wait 30s for half-open state
 2. Check Google API status: https://www.google.com/appsstatus
 3. Verify OAuth credentials
@@ -1527,15 +1554,17 @@ grep "Circuit breaker" logs/servalsheets.log
 **Cause:** Documentation has hardcoded tool/action counts instead of references.
 
 **Example:**
+
 ```markdown
 ❌ Wrong:
-ServalSheets has 22 tools and 299 actions.
+ServalSheets has 22 tools and 305 actions.
 
 ✅ Correct:
-ServalSheets has 22 tools and 299 actions (see src/schemas/index.ts:63).
+ServalSheets has 22 tools and 305 actions (see src/schemas/index.ts:63).
 ```
 
 **Fix:**
+
 ```bash
 # Find all hardcoded counts
 bash scripts/check-hardcoded-counts.sh
@@ -1551,6 +1580,7 @@ code docs/README.md
 **Cause:** Documentation references file that doesn't exist.
 
 **Fix:**
+
 ```bash
 # Check all doc links
 npm run docs:check-links
@@ -1568,6 +1598,7 @@ code docs/path/to/file.md
 **Cause:** VS Code TypeScript version out of sync.
 
 **Fix:**
+
 1. Open Command Palette (`Cmd+Shift+P`)
 2. Run "TypeScript: Select TypeScript Version"
 3. Choose "Use Workspace Version"
@@ -1580,6 +1611,7 @@ code docs/path/to/file.md
 **Cause:** ESLint extension not installed or disabled.
 
 **Fix:**
+
 ```bash
 # Install extension
 code --install-extension dbaeumer.vscode-eslint

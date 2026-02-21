@@ -54,6 +54,7 @@
 
 import { logger } from '../utils/logger.js';
 import { UserProfileManager, type UserProfile } from './user-profile-manager.js';
+import { UnderstandingStore } from '../analysis/understanding-store.js';
 
 // ============================================================================
 // TYPES
@@ -205,6 +206,9 @@ export class SessionContextManager {
   private readonly maxSheetNames = 100; // Limit sheet names to prevent memory issues
   private readonly maxDescriptionLength = 500; // Limit operation descriptions
   private readonly maxStateStringLength = 10_000_000; // 10MB limit for JSON state
+
+  /** Progressive understanding store for confidence-aware analysis (keyed by spreadsheetId) */
+  readonly understandingStore = new UnderstandingStore();
 
   // Quota tracking for predictive quota management
   private quotaTracking = {
@@ -513,6 +517,18 @@ export class SessionContextManager {
    * Update user preferences
    */
   updatePreferences(updates: Partial<UserPreferences>): void {
+    // Validate confirmationLevel if provided
+    if (updates.confirmationLevel !== undefined) {
+      const validLevels: UserPreferences['confirmationLevel'][] = [
+        'always',
+        'destructive',
+        'never',
+      ];
+      if (!validLevels.includes(updates.confirmationLevel)) {
+        logger.warn('Invalid confirmationLevel rejected', { value: updates.confirmationLevel });
+        delete updates.confirmationLevel;
+      }
+    }
     this.state.preferences = {
       ...this.state.preferences,
       ...updates,

@@ -470,6 +470,16 @@ exports[`Schema Snapshots > Input Schemas > WebhookUnregisterInputSchema should 
 }
 `;
 
+exports[`Schema Snapshots > Input Schemas > WebhookWatchChangesInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/WebhookWatchChangesInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "WebhookWatchChangesInputSchema": {},
+  },
+}
+`;
+
 exports[`Schema Snapshots > Output Schemas > BulkUpdateOutputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/BulkUpdateOutputSchema",

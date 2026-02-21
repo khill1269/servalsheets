@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+/* eslint-disable no-console */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Request Replay CLI Tool
  *
@@ -9,17 +11,18 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import Table from 'cli-table3';
 import { getRequestRecorder, type RecordFilter } from '../services/request-recorder.js';
-import { createReplayEngine, type ReplayMode, type ToolExecutor } from '../services/replay-engine.js';
+import {
+  createReplayEngine,
+  type ReplayMode,
+  type ToolExecutor,
+} from '../services/replay-engine.js';
 import { formatDiffReport } from '../utils/response-diff.js';
 import { createHandlers, type HandlerContext } from '../handlers/index.js';
 import { createGoogleApiClient } from '../services/google-api.js';
 
 const program = new Command();
 
-program
-  .name('replay')
-  .description('Replay recorded MCP requests for debugging')
-  .version('1.0.0');
+program.name('replay').description('Replay recorded MCP requests for debugging').version('1.0.0');
 
 /**
  * List recorded requests
@@ -51,7 +54,9 @@ program
     }
 
     const table = new Table({
-      head: ['ID', 'Tool', 'Action', 'Spreadsheet', 'Status', 'Duration', 'Timestamp'].map((h) => chalk.cyan(h)),
+      head: ['ID', 'Tool', 'Action', 'Spreadsheet', 'Status', 'Duration', 'Timestamp'].map((h) =>
+        chalk.cyan(h)
+      ),
       colWidths: [8, 20, 20, 25, 10, 12, 20],
     });
 
@@ -94,7 +99,12 @@ program
     console.log(chalk.bold('Tool:'), request.tool_name);
     console.log(chalk.bold('Action:'), request.action);
     console.log(chalk.bold('Spreadsheet:'), request.spreadsheet_id || 'N/A');
-    console.log(chalk.bold('Status:'), request.status_code === 200 ? chalk.green(request.status_code) : chalk.red(request.status_code));
+    console.log(
+      chalk.bold('Status:'),
+      request.status_code === 200
+        ? chalk.green(request.status_code)
+        : chalk.red(request.status_code)
+    );
     console.log(chalk.bold('Duration:'), `${request.duration_ms}ms`);
     console.log(chalk.bold('Timestamp:'), new Date(request.timestamp).toLocaleString());
 
@@ -133,7 +143,11 @@ program
 
       if (result.success) {
         console.log(chalk.green('✓ Replay successful'));
-        console.log(chalk.gray(`Duration: ${result.actualDuration}ms (original: ${result.originalDuration}ms)`));
+        console.log(
+          chalk.gray(
+            `Duration: ${result.actualDuration}ms (original: ${result.originalDuration}ms)`
+          )
+        );
 
         if (options.compare && result.diff) {
           console.log(chalk.cyan('\n--- Response Comparison ---\n'));
@@ -144,7 +158,10 @@ program
         console.log(chalk.red(`Error: ${result.error}`));
       }
     } catch (error) {
-      console.error(chalk.red('Replay error:'), error instanceof Error ? error.message : String(error));
+      console.error(
+        chalk.red('Replay error:'),
+        error instanceof Error ? error.message : String(error)
+      );
       process.exit(1);
     }
   });
@@ -179,7 +196,9 @@ program
 
     const requestIds = requests.map((r) => r.id!);
 
-    console.log(chalk.cyan(`\nReplaying ${requestIds.length} request(s) in ${options.mode} mode...\n`));
+    console.log(
+      chalk.cyan(`\nReplaying ${requestIds.length} request(s) in ${options.mode} mode...\n`)
+    );
 
     try {
       const executor = await createToolExecutorFromEnv();
@@ -190,7 +209,9 @@ program
         options.mode as ReplayMode,
         (result, index, total) => {
           const icon = result.success ? chalk.green('✓') : chalk.red('✗');
-          console.log(`${icon} [${index}/${total}] Request ${result.requestId} - ${result.originalRequest.tool_name}.${result.originalRequest.action}`);
+          console.log(
+            `${icon} [${index}/${total}] Request ${result.requestId} - ${result.originalRequest.tool_name}.${result.originalRequest.action}`
+          );
         }
       );
 
@@ -200,7 +221,10 @@ program
       console.log(chalk.bold('Failed:'), chalk.red(batchResult.failedReplays));
       console.log(chalk.bold('Duration:'), `${batchResult.totalDuration}ms`);
     } catch (error) {
-      console.error(chalk.red('Batch replay error:'), error instanceof Error ? error.message : String(error));
+      console.error(
+        chalk.red('Batch replay error:'),
+        error instanceof Error ? error.message : String(error)
+      );
       process.exit(1);
     }
   });

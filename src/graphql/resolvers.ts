@@ -89,9 +89,11 @@ export const resolvers = {
       ];
 
       return schemas.map(({ name, schema }) => {
-        const actions = 'shape' in schema && 'action' in schema.shape
-          ? (schema.shape.action as any)._def?.values || []
-          : [];
+        const actions =
+          'shape' in schema && 'action' in schema.shape
+            ? // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod internal API
+              (schema.shape.action as any)._def?.values || []
+            : [];
 
         return {
           name,
@@ -107,6 +109,7 @@ export const resolvers = {
      * Get a specific tool by name
      */
     tool: (_parent: unknown, { name }: { name: string }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod schema map
       const schemaMap: Record<string, any> = {
         sheets_advanced: SheetsAdvancedInputSchema,
         sheets_analyze: SheetsAnalyzeInputSchema,
@@ -139,9 +142,11 @@ export const resolvers = {
         });
       }
 
-      const actions = 'shape' in schema && 'action' in schema.shape
-        ? (schema.shape.action as any)._def?.values || []
-        : [];
+      const actions =
+        'shape' in schema && 'action' in schema.shape
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod internal API
+            (schema.shape.action as any)._def?.values || []
+          : [];
 
       return {
         name,

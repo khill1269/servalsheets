@@ -188,11 +188,11 @@ describe('executeWithRetry', () => {
   });
 
   describe('Non-Retryable Errors', () => {
-    it('should NOT retry on 401 unauthorized', async () => {
+    it('should NOT retry on 401 with non-token error message', async () => {
       let attempts = 0;
       const op = vi.fn().mockImplementation(() => {
         attempts += 1;
-        const error = new Error('unauthorized');
+        const error = new Error('access denied to resource');
         (error as unknown as { response: { status: number } }).response = { status: 401 };
         return Promise.reject(error);
       });
@@ -204,9 +204,13 @@ describe('executeWithRetry', () => {
         timeoutMs: 1000,
       });
 
-      await expect(promise).rejects.toThrow('unauthorized');
+      await expect(promise).rejects.toThrow('access denied to resource');
       expect(attempts).toBe(1);
     });
+
+    // Note: 401 with token-related messages (token expired, unauthorized, invalid_token, etc.)
+    // ARE retried since these indicate transient auth issues that can be resolved via token refresh.
+    // The non-retryable 401 test above uses "access denied to resource" which is NOT retried.
 
     it('should NOT retry on 403 forbidden', async () => {
       let attempts = 0;

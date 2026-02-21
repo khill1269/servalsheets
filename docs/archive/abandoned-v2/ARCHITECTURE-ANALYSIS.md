@@ -2,7 +2,7 @@
 title: ServalSheets v2.0 - Comprehensive Architecture Analysis
 category: archived
 last_updated: 2026-01-31
-description: ServalSheets v2.0 is a complete reimplementation that consolidates 26 v1 tools into 11 intent-based tools with 167+ actions. The architecture follows 
+description: ServalSheets v2.0 is a complete reimplementation that consolidates 26 v1 tools into 11 intent-based tools with 167+ actions. The architecture follows
 tags: [sheets]
 ---
 
@@ -18,14 +18,14 @@ ServalSheets v2.0 is a complete reimplementation that consolidates 26 v1 tools i
 
 ### Source Code Statistics
 
-| Category | Files | Lines of Code |
-|----------|-------|---------------|
-| **Schemas (schemas-v2/)** | 12 | 3,584 |
-| **Handlers (handlers-v2/)** | 12 | 8,484 |
-| **Servers** | 2 | 547 |
-| **Migration Layer** | 1 | 715 |
-| **Services** | 1 | 161 |
-| **Total** | 28 | ~13,491 |
+| Category                    | Files | Lines of Code |
+| --------------------------- | ----- | ------------- |
+| **Schemas (schemas-v2/)**   | 12    | 3,584         |
+| **Handlers (handlers-v2/)** | 12    | 8,484         |
+| **Servers**                 | 2     | 547           |
+| **Migration Layer**         | 1     | 715           |
+| **Services**                | 1     | 161           |
+| **Total**                   | 28    | ~13,491       |
 
 ### Directory Structure
 
@@ -203,12 +203,14 @@ export const SHEETS_DATA_ANNOTATIONS: ToolAnnotations = {...};
 ### Safety Options (Built Into Every Write Action)
 
 ```typescript
-export const SafetyOptionsSchema = z.object({
-  dryRun: z.boolean().default(false),           // Preview without executing
-  createSnapshot: z.boolean().default(false),   // Auto-backup before write
-  requireConfirmation: z.boolean().default(false), // User confirmation
-  transactionId: z.string().optional(),         // Atomic operations
-}).optional();
+export const SafetyOptionsSchema = z
+  .object({
+    dryRun: z.boolean().default(false), // Preview without executing
+    createSnapshot: z.boolean().default(false), // Auto-backup before write
+    requireConfirmation: z.boolean().default(false), // User confirmation
+    transactionId: z.string().optional(), // Atomic operations
+  })
+  .optional();
 ```
 
 ---
@@ -235,7 +237,7 @@ export class SheetsDataHandler {
     try {
       // 1. Validate input
       const validated = SheetsDataInputSchema.parse(input);
-      
+
       // 2. Route to specific action handler
       switch (validated.action) {
         case 'read':
@@ -326,18 +328,18 @@ const schemaValidators: Record<ToolName, ZodSchema> = {
 
 ## 6. API Dependencies by Handler
 
-| Handler | Sheets API | Drive API | Internal Services |
-|---------|-----------|-----------|-------------------|
-| SheetsDataHandler | ✅ Heavy | ✅ (list, copy) | SnapshotService |
-| SheetsStyleHandler | ✅ Heavy | - | - |
-| SheetsStructureHandler | ✅ Heavy | - | - |
-| SheetsVisualizeHandler | ✅ Heavy | - | - |
-| SheetsAnalyzeHandler | ✅ Heavy | - | - |
-| SheetsAutomateHandler | ✅ Heavy | - | SnapshotService |
-| SheetsShareHandler | ✅ Minimal | ✅ Heavy | - |
-| SheetsHistoryHandler | ✅ Medium | ✅ (revisions) | SnapshotService |
-| SheetsSafetyHandler | ✅ Medium | - | SnapshotService, Transactions |
-| SheetsContextHandler | ✅ Minimal | - | SessionState |
+| Handler                | Sheets API | Drive API       | Internal Services             |
+| ---------------------- | ---------- | --------------- | ----------------------------- |
+| SheetsDataHandler      | ✅ Heavy   | ✅ (list, copy) | SnapshotService               |
+| SheetsStyleHandler     | ✅ Heavy   | -               | -                             |
+| SheetsStructureHandler | ✅ Heavy   | -               | -                             |
+| SheetsVisualizeHandler | ✅ Heavy   | -               | -                             |
+| SheetsAnalyzeHandler   | ✅ Heavy   | -               | -                             |
+| SheetsAutomateHandler  | ✅ Heavy   | -               | SnapshotService               |
+| SheetsShareHandler     | ✅ Minimal | ✅ Heavy        | -                             |
+| SheetsHistoryHandler   | ✅ Medium  | ✅ (revisions)  | SnapshotService               |
+| SheetsSafetyHandler    | ✅ Medium  | -               | SnapshotService, Transactions |
+| SheetsContextHandler   | ✅ Minimal | -               | SessionState                  |
 
 ---
 
@@ -409,10 +411,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 ```typescript
 export interface SnapshotService {
-  create(spreadsheetId: string): Promise<string>;           // Returns snapshotId
-  save(snapshotId: string, data: any): Promise<void>;       // Persist snapshot
-  get(snapshotId: string): Promise<any>;                    // Retrieve snapshot
-  list(spreadsheetId: string): Promise<SnapshotMeta[]>;     // List snapshots
+  create(spreadsheetId: string): Promise<string>; // Returns snapshotId
+  save(snapshotId: string, data: any): Promise<void>; // Persist snapshot
+  get(snapshotId: string): Promise<any>; // Retrieve snapshot
+  list(spreadsheetId: string): Promise<SnapshotMeta[]>; // List snapshots
   restore(spreadsheetId: string, snapshotId: string): Promise<void>;
 }
 ```
@@ -473,20 +475,20 @@ interface Transaction {
 
 ## 9. Tool Action Summary
 
-| Tool | Category | Actions | Key Actions |
-|------|----------|---------|-------------|
-| sheets_auth | Foundation | 4 | status, login, callback, logout |
-| sheets_data | Foundation | 26 | read, write, batch_read, batch_write, find, replace |
-| sheets_style | Foundation | 18 | set_format, apply_preset, add_conditional, add_validation |
-| sheets_context | Foundation | 8 | set_active, get_context, update_preferences |
-| sheets_structure | Structure | 27 | add_sheet, insert_rows, freeze, add_named_range |
-| sheets_visualize | Intelligence | 21 | create_chart, create_pivot, set_filter, sort_range |
-| sheets_analyze | Intelligence | 15 | **comprehensive**, statistics, data_quality |
-| sheets_automate | Intelligence | 12 | apply_fixes, import_csv, deduplicate, migrate_data |
-| sheets_share | Collaboration | 16 | share, list_permissions, add_comment, resolve_comment |
-| sheets_history | Safety | 12 | create_snapshot, restore_snapshot, undo, redo |
-| sheets_safety | Safety | 12 | begin, commit, rollback, validate, preview |
-| **Total** | | **171** | |
+| Tool             | Category      | Actions | Key Actions                                               |
+| ---------------- | ------------- | ------- | --------------------------------------------------------- |
+| sheets_auth      | Foundation    | 4       | status, login, callback, logout                           |
+| sheets_data      | Foundation    | 26      | read, write, batch_read, batch_write, find, replace       |
+| sheets_style     | Foundation    | 18      | set_format, apply_preset, add_conditional, add_validation |
+| sheets_context   | Foundation    | 8       | set_active, get_context, update_preferences               |
+| sheets_structure | Structure     | 27      | add_sheet, insert_rows, freeze, add_named_range           |
+| sheets_visualize | Intelligence  | 21      | create_chart, create_pivot, set_filter, sort_range        |
+| sheets_analyze   | Intelligence  | 15      | **comprehensive**, statistics, data_quality               |
+| sheets_automate  | Intelligence  | 12      | apply_fixes, import_csv, deduplicate, migrate_data        |
+| sheets_share     | Collaboration | 16      | share, list_permissions, add_comment, resolve_comment     |
+| sheets_history   | Safety        | 12      | create_snapshot, restore_snapshot, undo, redo             |
+| sheets_safety    | Safety        | 12      | begin, commit, rollback, validate, preview                |
+| **Total**        |               | **171** |                                                           |
 
 ---
 
@@ -544,14 +546,14 @@ interface Transaction {
 
 ## 11. Wiring Verification Checklist
 
-| Component | Wired Correctly | Notes |
-|-----------|-----------------|-------|
-| schemas-v2/index.ts exports all schemas | ✅ | All 10 tool schemas + shared |
-| handlers-v2/index.ts creates all handlers | ✅ | HandlerFactory switch has all 10 |
-| tool-definitions.ts lists all tools | ✅ | 11 tools defined |
-| server-v2.ts validates all inputs | ✅ | schemaValidators map complete |
-| server-compat.ts handles v1+v2 | ✅ | Migration layer integrated |
-| migration-v1-to-v2.ts maps all v1 tools | ✅ | 48 v1 tools mapped |
+| Component                                 | Wired Correctly | Notes                            |
+| ----------------------------------------- | --------------- | -------------------------------- |
+| schemas-v2/index.ts exports all schemas   | ✅              | All 10 tool schemas + shared     |
+| handlers-v2/index.ts creates all handlers | ✅              | HandlerFactory switch has all 10 |
+| tool-definitions.ts lists all tools       | ✅              | 11 tools defined                 |
+| server-v2.ts validates all inputs         | ✅              | schemaValidators map complete    |
+| server-compat.ts handles v1+v2            | ✅              | Migration layer integrated       |
+| migration-v1-to-v2.ts maps all v1 tools   | ✅              | 48 v1 tools mapped               |
 
 ---
 

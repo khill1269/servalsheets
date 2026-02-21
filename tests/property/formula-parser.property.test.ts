@@ -12,13 +12,10 @@ describe('Formula Parser Property Tests', () => {
   describe('Formula Detection', () => {
     it('strings starting with = should be detected as formulas', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 1, maxLength: 100 }),
-          (formulaContent) => {
-            const formula = `=${formulaContent}`;
-            return formula.startsWith('=');
-          }
-        ),
+        fc.property(fc.string({ minLength: 1, maxLength: 100 }), (formulaContent) => {
+          const formula = `=${formulaContent}`;
+          return formula.startsWith('=');
+        }),
         { numRuns: 1000 }
       );
     });
@@ -278,7 +275,9 @@ describe('Formula Parser Property Tests', () => {
           fc.string({
             minLength: 1,
             maxLength: 20,
-            unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_'.split('')),
+            unit: fc.constantFrom(
+              ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_'.split('')
+            ),
           }),
           (namedRange) => {
             const formula = `=SUM(${namedRange})`;
@@ -296,7 +295,9 @@ describe('Formula Parser Property Tests', () => {
           fc.string({
             minLength: 1,
             maxLength: 19,
-            unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_'.split('')),
+            unit: fc.constantFrom(
+              ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_'.split('')
+            ),
           }),
           (firstChar, rest) => {
             const namedRange = `${firstChar}${rest}`;
@@ -343,21 +344,18 @@ describe('Formula Parser Property Tests', () => {
 
     it('should handle nested function calls', () => {
       fc.assert(
-        fc.property(
-          fc.integer({ min: 1, max: 5 }),
-          (depth) => {
-            let formula = 'A1';
-            for (let i = 0; i < depth; i++) {
-              formula = `ABS(${formula})`;
-            }
-            formula = `=${formula}`;
-
-            const openCount = (formula.match(/\(/g) || []).length;
-            const closeCount = (formula.match(/\)/g) || []).length;
-
-            return openCount === closeCount && openCount === depth;
+        fc.property(fc.integer({ min: 1, max: 5 }), (depth) => {
+          let formula = 'A1';
+          for (let i = 0; i < depth; i++) {
+            formula = `ABS(${formula})`;
           }
-        ),
+          formula = `=${formula}`;
+
+          const openCount = (formula.match(/\(/g) || []).length;
+          const closeCount = (formula.match(/\)/g) || []).length;
+
+          return openCount === closeCount && openCount === depth;
+        }),
         { numRuns: 200 }
       );
     });

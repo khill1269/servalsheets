@@ -140,8 +140,11 @@ async function callAnthropic(
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Anthropic API error: ${response.status} - ${error}`);
+    const errorBody = await response.text();
+    logger.error('Anthropic API request failed', { status: response.status, error: errorBody });
+    throw new Error(
+      `AI analysis service temporarily unavailable (status ${response.status}). Please try again.`
+    );
   }
 
   const data = (await response.json()) as {
@@ -198,8 +201,11 @@ async function callOpenAI(
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`OpenAI API error: ${response.status} - ${error}`);
+    const errorBody = await response.text();
+    logger.error('OpenAI API request failed', { status: response.status, error: errorBody });
+    throw new Error(
+      `AI analysis service temporarily unavailable (status ${response.status}). Please try again.`
+    );
   }
 
   const data = (await response.json()) as {
@@ -251,8 +257,11 @@ async function callGoogle(
   );
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Google API error: ${response.status} - ${error}`);
+    const errorBody = await response.text();
+    logger.error('Google Gemini API request failed', { status: response.status, error: errorBody });
+    throw new Error(
+      `AI analysis service temporarily unavailable (status ${response.status}). Please try again.`
+    );
   }
 
   const data = (await response.json()) as {

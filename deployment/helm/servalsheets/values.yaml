@@ -10,14 +10,14 @@ image:
   # -- Image pull policy
   pullPolicy: IfNotPresent
   # -- Overrides the image tag (default: chart appVersion)
-  tag: ""
+  tag: ''
 
 # -- Image pull secrets for private registries
 imagePullSecrets: []
 # -- Override the chart name
-nameOverride: ""
+nameOverride: ''
 # -- Override the full name
-fullnameOverride: ""
+fullnameOverride: ''
 
 serviceAccount:
   # -- Create a service account
@@ -25,13 +25,13 @@ serviceAccount:
   # -- Annotations for the service account
   annotations: {}
   # -- Name of the service account (auto-generated if not set)
-  name: ""
+  name: ''
 
 # -- Pod annotations
 podAnnotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/port: "3000"
-  prometheus.io/path: "/metrics"
+  prometheus.io/scrape: 'true'
+  prometheus.io/port: '3000'
+  prometheus.io/path: '/metrics'
 
 # -- Pod security context
 podSecurityContext:
@@ -59,7 +59,7 @@ ingress:
   # -- Enable ingress
   enabled: false
   # -- Ingress class name
-  className: "nginx"
+  className: 'nginx'
   # -- Ingress annotations
   annotations: {}
     # cert-manager.io/cluster-issuer: letsencrypt-prod
@@ -120,16 +120,16 @@ config:
   # -- Max requests per rate limit window
   rateLimitMaxRequests: 100
   # -- CORS allowed origins (comma-separated)
-  corsAllowedOrigins: ""
+  corsAllowedOrigins: ''
 
 # OAuth Configuration
 oauth:
   # -- OAuth redirect URI
-  redirectUri: ""
+  redirectUri: ''
   # -- Allowed redirect URIs (comma-separated)
-  allowedRedirectUris: ""
+  allowedRedirectUris: ''
   # -- Existing secret name for OAuth credentials
-  existingSecret: ""
+  existingSecret: ''
   # -- Secret key for client ID
   clientIdKey: client-id
   # -- Secret key for client secret
@@ -140,7 +140,7 @@ oauth:
 # Google Credentials
 google:
   # -- Existing secret name for Google credentials
-  existingSecret: ""
+  existingSecret: ''
   # -- Secret key for service account JSON
   serviceAccountKey: service-account.json
   # -- Mount path for credentials
@@ -193,7 +193,7 @@ serviceMonitor:
   # -- Enable ServiceMonitor
   enabled: false
   # -- ServiceMonitor namespace (defaults to release namespace)
-  namespace: ""
+  namespace: ''
   # -- Scrape interval
   interval: 30s
   # -- Scrape timeout

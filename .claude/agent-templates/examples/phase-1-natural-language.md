@@ -12,11 +12,12 @@
 
 **Agent:** Research Agent
 
-**Input:** Handler files (src/handlers/*.ts)
+**Input:** Handler files (src/handlers/\*.ts)
 
 **Output:** Pattern analysis (docs/analysis/handler-patterns.md)
 
 **Command:**
+
 ```bash
 # Start Claude Code in agent mode
 claude --agent
@@ -26,6 +27,7 @@ claude --agent
 ```
 
 **Task prompt:**
+
 ```
 Task(
   subagent_type="Explore",
@@ -47,6 +49,7 @@ Task(
 ```
 
 **Validation:**
+
 ```bash
 # Verify output exists
 ls -la docs/analysis/handler-patterns.md
@@ -69,6 +72,7 @@ grep -c "src/handlers/.*:[0-9]" docs/analysis/handler-patterns.md
 **Output:** Architecture design (docs/design/intent-classifier.md)
 
 **Task prompt:**
+
 ```
 Task(
   subagent_type="Plan",
@@ -76,7 +80,7 @@ Task(
   Design intent classifier architecture using docs/analysis/handler-patterns.md:
 
   Requirements:
-  1. Map natural language → action names (298 actions)
+  1. Map natural language → action names (305 actions)
   2. 70%+ accuracy on common queries
   3. <100ms latency (p95)
   4. No ML dependencies (rules-based)
@@ -95,6 +99,7 @@ Task(
 ```
 
 **Validation:**
+
 ```bash
 # Verify design exists
 ls -la docs/design/intent-classifier.md
@@ -117,6 +122,7 @@ grep -c "Test case" docs/design/intent-classifier.md
 **Output:** Production code + tests
 
 **Task prompt:**
+
 ```
 Task(
   subagent_type="general-purpose",
@@ -154,6 +160,7 @@ Task(
 ```
 
 **Validation:**
+
 ```bash
 # Tests should pass
 npm run test:fast
@@ -180,6 +187,7 @@ npm run test:coverage
 **Output:** Validation report
 
 **Task prompt:**
+
 ```
 Task(
   subagent_type="general-purpose",
@@ -212,6 +220,7 @@ Task(
 **Manual step:** Human review and integration
 
 **Review checklist:**
+
 - [ ] Code follows ServalSheets conventions
 - [ ] Tests cover happy path + edge cases
 - [ ] Performance meets requirements (<100ms)
@@ -219,6 +228,7 @@ Task(
 - [ ] Validation gates passed
 
 **Integration:**
+
 ```bash
 # Run full gate pipeline before commit
 Cmd+G Cmd+A  # Or: npm run gates
@@ -227,7 +237,7 @@ Cmd+G Cmd+A  # Or: npm run gates
 git add .
 git commit -m "feat(discovery): add natural language intent classifier
 
-Implements intent classification for 298 actions across 22 tools.
+Implements intent classification for 305 actions across 22 tools.
 
 Features:
 - 3-stage pipeline (normalize, expand, fuzzy match)
@@ -253,11 +263,13 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 ## Lessons Learned
 
 **What worked:**
+
 - TDD enforcement (implementation agent follows design)
 - Clear templates (agents know expectations)
 - Sequential workflow (research → design → implement → validate)
 
 **What to improve:**
+
 - Add more test case examples to design template
 - Create reusable action index fixture
 - Automate validation report generation

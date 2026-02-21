@@ -62,6 +62,7 @@ npm run build
 ## Integration
 
 Built dashboard served by ServalSheets HTTP server:
+
 - See `src/http-server-tracing-ui.ts`
 - Route: `GET /ui/tracing`
 

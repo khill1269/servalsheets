@@ -192,7 +192,12 @@ describe('ETagCache', () => {
         range: 'A1:B10',
       };
 
-      const data = { values: [['A1', 'B1'], ['A2', 'B2']] };
+      const data = {
+        values: [
+          ['A1', 'B1'],
+          ['A2', 'B2'],
+        ],
+      };
 
       const cached = {
         etag: 'etag-redis',
@@ -455,28 +460,33 @@ describe('ETagCache', () => {
   describe('invalidateSpreadsheet', () => {
     it('should clear all entries for a spreadsheet from L1', async () => {
       await cache.setETag({ spreadsheetId: 'test-123', endpoint: 'metadata' }, 'etag-1');
-      await cache.setETag({ spreadsheetId: 'test-123', endpoint: 'values', range: 'A1:B10' }, 'etag-2');
+      await cache.setETag(
+        { spreadsheetId: 'test-123', endpoint: 'values', range: 'A1:B10' },
+        'etag-2'
+      );
       await cache.setETag({ spreadsheetId: 'other-456', endpoint: 'metadata' }, 'etag-3');
 
       await cache.invalidateSpreadsheet('test-123');
 
       expect(cache.getETag({ spreadsheetId: 'test-123', endpoint: 'metadata' })).toBeNull();
-      expect(cache.getETag({ spreadsheetId: 'test-123', endpoint: 'values', range: 'A1:B10' })).toBeNull();
+      expect(
+        cache.getETag({ spreadsheetId: 'test-123', endpoint: 'values', range: 'A1:B10' })
+      ).toBeNull();
       expect(cache.getETag({ spreadsheetId: 'other-456', endpoint: 'metadata' })).toBe('etag-3'); // Unaffected
     });
 
     it('should clear all entries for a spreadsheet from L2 Redis', async () => {
       mockRedis.scan.mockResolvedValue({
         cursor: 0,
-        keys: [
-          'servalsheets:etag:test-123:metadata',
-          'servalsheets:etag:test-123:values:A1:B10',
-        ],
+        keys: ['servalsheets:etag:test-123:metadata', 'servalsheets:etag:test-123:values:A1:B10'],
       });
 
       await cache.invalidateSpreadsheet('test-123');
 
-      expect(mockRedis.scan).toHaveBeenCalledWith(0, { MATCH: 'servalsheets:etag:test-123:*', COUNT: 100 });
+      expect(mockRedis.scan).toHaveBeenCalledWith(0, {
+        MATCH: 'servalsheets:etag:test-123:*',
+        COUNT: 100,
+      });
       expect(mockRedis.del).toHaveBeenCalledWith(
         'servalsheets:etag:test-123:metadata',
         'servalsheets:etag:test-123:values:A1:B10'
@@ -648,11 +658,9 @@ describe('ETagCache', () => {
 
     it('should handle rapid cache operations', async () => {
       for (let i = 0; i < 100; i++) {
-        await cache.setETag(
-          { spreadsheetId: `sheet-${i}`, endpoint: 'metadata' },
-          `etag-${i}`,
-          { data: i }
-        );
+        await cache.setETag({ spreadsheetId: `sheet-${i}`, endpoint: 'metadata' }, `etag-${i}`, {
+          data: i,
+        });
       }
 
       const stats = cache.getStats();
@@ -660,18 +668,18 @@ describe('ETagCache', () => {
 
       // Verify a few random entries
       expect(cache.getETag({ spreadsheetId: 'sheet-42', endpoint: 'metadata' })).toBe('etag-42');
-      expect(await cache.getCachedData({ spreadsheetId: 'sheet-99', endpoint: 'metadata' })).toEqual({ data: 99 });
+      expect(
+        await cache.getCachedData({ spreadsheetId: 'sheet-99', endpoint: 'metadata' })
+      ).toEqual({ data: 99 });
     });
 
     it('should handle concurrent Redis operations', async () => {
       const promises = [];
       for (let i = 0; i < 10; i++) {
         promises.push(
-          cache.setETag(
-            { spreadsheetId: `sheet-${i}`, endpoint: 'metadata' },
-            `etag-${i}`,
-            { data: i }
-          )
+          cache.setETag({ spreadsheetId: `sheet-${i}`, endpoint: 'metadata' }, `etag-${i}`, {
+            data: i,
+          })
         );
       }
 
@@ -684,7 +692,7 @@ describe('ETagCache', () => {
       const key = {
         spreadsheetId: 'test-123',
         endpoint: 'values' as const,
-        range: "Sheet1!A1:B10",
+        range: 'Sheet1!A1:B10',
         params: {
           majorDimension: 'ROWS',
           valueRenderOption: 'FORMATTED_VALUE',
@@ -706,7 +714,9 @@ describe('ETagCache', () => {
       await cache.setETag({ spreadsheetId, endpoint: 'sheets' }, 'etag-sheets');
 
       expect(cache.getETag({ spreadsheetId, endpoint: 'metadata' })).toBe('etag-meta');
-      expect(cache.getETag({ spreadsheetId, endpoint: 'values', range: 'A1:B10' })).toBe('etag-values');
+      expect(cache.getETag({ spreadsheetId, endpoint: 'values', range: 'A1:B10' })).toBe(
+        'etag-values'
+      );
       expect(cache.getETag({ spreadsheetId, endpoint: 'properties' })).toBe('etag-props');
       expect(cache.getETag({ spreadsheetId, endpoint: 'sheets' })).toBe('etag-sheets');
     });

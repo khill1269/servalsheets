@@ -4,12 +4,40 @@ This guide covers security best practices for deploying and operating ServalShee
 
 ## Table of Contents
 
+- [Embedded OAuth Credentials](#embedded-oauth-credentials)
 - [Token Storage](#token-storage)
 - [Authentication Methods](#authentication-methods)
 - [Service Account Security](#service-account-security)
 - [OAuth Security](#oauth-security)
 - [Production Deployment](#production-deployment)
 - [Incident Response](#incident-response)
+
+---
+
+## Embedded OAuth Credentials
+
+ServalSheets ships with embedded Google OAuth client credentials in `src/config/embedded-oauth.ts` to enable zero-configuration authentication for CLI and Claude Desktop users.
+
+### Why This Is Safe
+
+- **Desktop/CLI OAuth apps** use the "installed application" flow (RFC 8252) with PKCE. Google's [OAuth documentation](https://developers.google.com/identity/protocols/oauth2/native-app) explicitly states that client secrets for installed apps are not treated as confidential, because the binary is distributed to end users.
+- The embedded credentials **cannot access any user data** without the user explicitly completing the OAuth consent flow in their browser.
+- All data access is scoped to the permissions the user grants during consent.
+
+### When to Use Your Own Credentials
+
+For production or enterprise deployments, you should register your own OAuth application in the [Google Cloud Console](https://console.cloud.google.com/apis/credentials) and configure:
+
+```bash
+OAUTH_CLIENT_ID=your-client-id
+OAUTH_CLIENT_SECRET=your-client-secret
+```
+
+This provides: isolated rate limits, custom consent screen branding, and independent credential rotation.
+
+### Rotation Policy
+
+The embedded credentials are rotated with each major version release. If you believe the credentials have been compromised for abuse (not data access — that requires user consent), please report it via the [security contact](#incident-response).
 
 ---
 
@@ -76,19 +104,20 @@ ls -la ~/.config/servalsheets/tokens.enc
 
 ### Service Account vs OAuth
 
-| Factor | Service Account | OAuth |
-|--------|----------------|-------|
-| **Use Case** | Server automation | User-specific access |
-| **Setup Complexity** | Medium | High |
-| **Credential Storage** | JSON file | Encrypted token store |
-| **Sharing Required** | Yes | No (user's own sheets) |
-| **Rotation** | Annual | Per-session |
-| **Audit Trail** | Service account email | User email |
-| **Best For** | Production servers | Desktop apps |
+| Factor                 | Service Account       | OAuth                  |
+| ---------------------- | --------------------- | ---------------------- |
+| **Use Case**           | Server automation     | User-specific access   |
+| **Setup Complexity**   | Medium                | High                   |
+| **Credential Storage** | JSON file             | Encrypted token store  |
+| **Sharing Required**   | Yes                   | No (user's own sheets) |
+| **Rotation**           | Annual                | Per-session            |
+| **Audit Trail**        | Service account email | User email             |
+| **Best For**           | Production servers    | Desktop apps           |
 
 ### When to Use Each
 
 **Use Service Account when:**
+
 - ✅ Automating spreadsheet operations
 - ✅ Server-to-server communication
 - ✅ No user interaction required
@@ -96,6 +125,7 @@ ls -la ~/.config/servalsheets/tokens.enc
 - ✅ Long-running processes
 
 **Use OAuth when:**
+
 - ✅ User-specific access needed
 - ✅ Desktop/mobile applications
 - ✅ Per-user permissions required
@@ -109,6 +139,7 @@ ls -la ~/.config/servalsheets/tokens.enc
 ### Creating Secure Service Accounts
 
 1. **Use Descriptive Names**
+
    ```
    servalsheets-prod@project-id.iam.gserviceaccount.com
    servalsheets-staging@project-id.iam.gserviceaccount.com
@@ -224,11 +255,13 @@ ServalSheets implements OAuth 2.1 with PKCE (Proof Key for Code Exchange) for en
 #### Token Security
 
 **Access Tokens:**
+
 - Short-lived (1 hour)
 - Never log or expose
 - Encrypt in token store
 
 **Refresh Tokens:**
+
 - Long-lived (until revoked)
 - Encrypt in token store
 - Rotate on suspicious activity
@@ -402,6 +435,7 @@ https.createServer(httpsOptions, app).listen(443);
 #### 1. Identify Incident
 
 **Indicators of Compromise:**
+
 - Unexpected API calls
 - Rate limit exhaustion
 - Unauthorized spreadsheet access
@@ -411,6 +445,7 @@ https.createServer(httpsOptions, app).listen(443);
 #### 2. Contain
 
 **Immediate Actions:**
+
 ```bash
 # Stop service
 systemctl stop servalsheets
@@ -432,6 +467,7 @@ rm ~/.config/servalsheets/tokens.enc
 #### 3. Investigate
 
 **Collect Evidence:**
+
 ```bash
 # Export logs
 journalctl -u servalsheets > incident-logs-$(date +%Y%m%d-%H%M%S).txt
@@ -452,6 +488,7 @@ stat ~/.config/servalsheets/tokens.enc
 #### 4. Remediate
 
 **Steps:**
+
 1. Generate new service account
 2. Generate new encryption keys
 3. Update all secrets in secrets manager
@@ -462,6 +499,7 @@ stat ~/.config/servalsheets/tokens.enc
 #### 5. Document
 
 **Incident Report Template:**
+
 ```markdown
 # Security Incident Report
 
@@ -469,27 +507,33 @@ Date: YYYY-MM-DD
 Severity: [Critical/High/Medium/Low]
 
 ## Summary
+
 [Brief description]
 
 ## Timeline
+
 - HH:MM - Incident detected
 - HH:MM - Service stopped
 - HH:MM - Keys revoked
 - HH:MM - Service restored
 
 ## Impact
+
 - Affected systems: [list]
 - Data accessed: [yes/no/unknown]
 - Downtime: [duration]
 
 ## Root Cause
+
 [Detailed analysis]
 
 ## Remediation
+
 - [Action taken]
 - [Action taken]
 
 ## Prevention
+
 - [Measure implemented]
 - [Measure implemented]
 ```
@@ -497,9 +541,11 @@ Severity: [Critical/High/Medium/Low]
 ### Contact Information
 
 **Google Workspace Security:**
+
 - Report abuse: https://support.google.com/code/contact/abuse
 
 **Vulnerability Disclosure:**
+
 - Report security issues: security@anthropic.com
 
 ---
@@ -561,6 +607,7 @@ ServalSheets implements automatic data retention policies to comply with GDPR Ar
 - **GDPR Compliance:** Automatic expiration ensures minimal data retention
 
 **Configuration:**
+
 ```bash
 # Session store cleanup interval (milliseconds)
 # Default: 60000 (1 minute)
@@ -580,6 +627,7 @@ export SESSION_DEFAULT_TTL_MS=3600000
 - **Manual Revocation:** `sheets_auth` action with `revoke: true`
 
 **Best Practices:**
+
 - Rotate tokens when user access changes
 - Revoke tokens immediately upon user offboarding
 - Regularly audit token usage via logging
@@ -592,6 +640,7 @@ export SESSION_DEFAULT_TTL_MS=3600000
 - **Automatic Cleanup:** Use logrotate or cloud logging retention policies
 
 **Configuration:**
+
 ```bash
 # Log retention (days) - handled by log management system
 export LOG_RETENTION_DAYS=90
@@ -621,23 +670,26 @@ export LOG_MAX_AGE=90d
 To delete all data for a specific user:
 
 1. **Revoke OAuth tokens:**
+
    ```javascript
    await sheets_auth({ action: 'revoke' });
    ```
 
 2. **Clear session data:**
+
    ```javascript
    // Sessions expire automatically within 1 hour
    // For immediate removal, restart the server
    ```
 
 3. **Remove from Google Sheets:**
+
    ```javascript
    // Use sheets_collaborate to remove user permissions
    await sheets_collaborate({
      action: 'remove_permission',
      spreadsheetId: 'your-sheet-id',
-     email: 'user@example.com'
+     email: 'user@example.com',
    });
    ```
 
@@ -647,14 +699,14 @@ To delete all data for a specific user:
 
 #### Compliance Summary
 
-| Data Type | Retention | Auto-Cleanup | GDPR Compliant |
-|-----------|-----------|--------------|----------------|
-| Sessions | 1 hour | ✅ Yes (1min) | ✅ Yes |
-| OAuth Access Tokens | 1 hour | ✅ Yes | ✅ Yes |
-| OAuth Refresh Tokens | Until revoked | ⚠️ Manual | ⚠️ Requires user action |
-| Logs (operational) | 90 days | ⚠️ External | ✅ Yes (with logrotate) |
-| Logs (audit) | 1-7 years | ⚠️ External | ✅ Yes (compliance req) |
-| Service Account Keys | Until rotated | ❌ Manual | ✅ Yes (with rotation) |
+| Data Type            | Retention     | Auto-Cleanup  | GDPR Compliant          |
+| -------------------- | ------------- | ------------- | ----------------------- |
+| Sessions             | 1 hour        | ✅ Yes (1min) | ✅ Yes                  |
+| OAuth Access Tokens  | 1 hour        | ✅ Yes        | ✅ Yes                  |
+| OAuth Refresh Tokens | Until revoked | ⚠️ Manual     | ⚠️ Requires user action |
+| Logs (operational)   | 90 days       | ⚠️ External   | ✅ Yes (with logrotate) |
+| Logs (audit)         | 1-7 years     | ⚠️ External   | ✅ Yes (compliance req) |
+| Service Account Keys | Until rotated | ❌ Manual     | ✅ Yes (with rotation)  |
 
 ### Audit Logging
 
@@ -733,6 +785,7 @@ npm ls hono
 ## Questions?
 
 For security questions or to report vulnerabilities:
+
 - Email: security@anthropic.com
 - Issues: https://github.com/khill1269/servalsheets/security
 

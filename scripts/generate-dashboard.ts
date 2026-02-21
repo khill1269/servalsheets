@@ -73,10 +73,9 @@ const history: any[] = [];
 
 try {
   // Get list of commits that modified results.json
-  const commits = execSync(
-    'git log --all --format="%H %ct" -- audit-output/results.json',
-    { encoding: 'utf8' }
-  )
+  const commits = execSync('git log --all --format="%H %ct" -- audit-output/results.json', {
+    encoding: 'utf8',
+  })
     .trim()
     .split('\n')
     .filter(Boolean);
@@ -86,10 +85,9 @@ try {
     const [hash, timestamp] = commit.split(' ');
 
     try {
-      const fileContent = execSync(
-        `git show ${hash}:audit-output/results.json`,
-        { encoding: 'utf8' }
-      );
+      const fileContent = execSync(`git show ${hash}:audit-output/results.json`, {
+        encoding: 'utf8',
+      });
 
       const historicalResult = JSON.parse(fileContent);
       history.push({

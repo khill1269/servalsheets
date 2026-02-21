@@ -2,4 +2,4 @@
  * Admin Module Exports
  */
 
-export { addAdminRoutes, type AdminSessionManager } from './routes.js';
+export { addAdminRoutes, requireAdminAuth, type AdminSessionManager } from './routes.js';

@@ -20,12 +20,18 @@ import {
 
 // Import handler factory for testing
 import { createHandlers } from '../../src/handlers/index.js';
-import { createMockContext, createMockSheetsApi, createMockDriveApi } from '../helpers/google-api-mocks.js';
+import {
+  createMockContext,
+  createMockSheetsApi,
+  createMockDriveApi,
+} from '../helpers/google-api-mocks.js';
 
 /**
  * Measure execution time of an async function
  */
-async function measureTime<T>(fn: () => Promise<T> | T): Promise<{ result: T; durationMs: number }> {
+async function measureTime<T>(
+  fn: () => Promise<T> | T
+): Promise<{ result: T; durationMs: number }> {
   const start = performance.now();
   const result = await fn();
   const durationMs = performance.now() - start;
@@ -267,7 +273,9 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
       });
 
       // Store with latency metric
-      const latencyMetric = collectedMetrics.find((m) => m.name === 'handler.data.write_range.large');
+      const latencyMetric = collectedMetrics.find(
+        (m) => m.name === 'handler.data.write_range.large'
+      );
       if (latencyMetric) {
         latencyMetric.memory = { heapUsed, external, rss };
       }
@@ -422,7 +430,7 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
     it('should measure batch read performance', async () => {
       const ranges = Array(50)
         .fill(null)
-        .map((_, i) => ({ a1: `Sheet${i % 5 + 1}!A${i * 10 + 1}:Z${(i + 1) * 10}` }));
+        .map((_, i) => ({ a1: `Sheet${(i % 5) + 1}!A${i * 10 + 1}:Z${(i + 1) * 10}` }));
 
       const input = {
         action: 'batch_read' as const,
@@ -492,16 +500,13 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
       const mockApi = createMockSheetsApi();
       let callCount = 0;
 
-      const stats = await benchmark(
-        () => {
-          callCount++;
-          return mockApi.spreadsheets.values.get({
-            spreadsheetId: 'test-spreadsheet-id',
-            range: 'Sheet1!A1:B10',
-          });
-        },
-        100
-      );
+      const stats = await benchmark(() => {
+        callCount++;
+        return mockApi.spreadsheets.values.get({
+          spreadsheetId: 'test-spreadsheet-id',
+          range: 'Sheet1!A1:B10',
+        });
+      }, 100);
 
       collectedMetrics.push({
         name: 'api.retry.overhead',
