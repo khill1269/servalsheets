@@ -22,7 +22,7 @@ All verification checks are currently passing.
 | TypeScript       | ✅ Pass              | `npm run typecheck`              |
 | Linting          | ✅ Pass              | `npm run lint`                   |
 | Tests            | ✅ Pass              | `npm run test`                   |
-| Metadata Drift   | ⚠️ Script hangs      | `npm run check:drift`            |
+| Metadata Drift   | ✅ Pass              | `npm run check:drift`            |
 | Silent Fallbacks | ✅ None              | `npm run check:silent-fallbacks` |
 | Placeholders     | ✅ None              | `npm run check:placeholders`     |
 
