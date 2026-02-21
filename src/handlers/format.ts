@@ -561,6 +561,10 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
         return await this.handleAddConditionalFormatRule(
           request as FormatRequest & { action: 'add_conditional_format_rule' }
         );
+      case 'generate_conditional_format':
+        return await this.handleGenerateConditionalFormat(
+          request as FormatRequest & { action: 'generate_conditional_format' }
+        );
       case 'sparkline_add':
         return await this.handleSparklineAdd(
           request as FormatRequest & { action: 'sparkline_add' }
@@ -573,6 +577,8 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
         return await this.handleSparklineClear(
           request as FormatRequest & { action: 'sparkline_clear' }
         );
+      case 'set_rich_text':
+        return await this.handleSetRichText(request as FormatRequest & { action: 'set_rich_text' });
       default:
         return this.error({
           code: 'INVALID_PARAMS',
@@ -1655,6 +1661,17 @@ Always return valid JSON in the exact format requested.`,
       });
     }
 
+    // Enforce Google API limit: batchUpdate supports max 100 subrequests per call
+    if (requests.length > 100) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: `batch_format built ${requests.length} API subrequests but Google Sheets API allows max 100 per batchUpdate call.`,
+        retryable: false,
+        suggestedFix: 'Split into multiple batch_format calls with up to 100 operations each',
+        details: { requestCount: requests.length, limit: 100 },
+      });
+    }
+
     // Execute ALL format operations in a single API call
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -2465,10 +2482,10 @@ Always return valid JSON in the exact format requested.`,
       default:
         return this.error({
           code: 'INVALID_PARAMS',
-          message: `Unknown preset: ${input.rulePreset}`,
+          message: `Unknown conditional format preset: "${input.rulePreset}". Available presets: highlight_duplicates, highlight_blanks, highlight_errors, color_scale, data_bar, above_average, top_n, positive_negative, traffic_light, variance_highlight`,
           retryable: false,
           suggestedFix:
-            'Check the parameter format and ensure all required parameters are provided',
+            'Use one of the listed presets, or use rule_add_conditional_format for custom rules',
         });
     }
 
@@ -2478,6 +2495,223 @@ Always return valid JSON in the exact format requested.`,
     });
 
     return this.success('add_conditional_format_rule', { ruleIndex: 0 });
+  }
+
+  // ============================================================
+  // NL→CF Compiler
+  // ============================================================
+
+  /**
+   * Parse a natural language conditional format description and apply it.
+   * Supports: comparison rules, text rules, blanks/errors, presets, color scale.
+   */
+  private async handleGenerateConditionalFormat(
+    input: FormatRequest & { action: 'generate_conditional_format' }
+  ): Promise<FormatResponse> {
+    const {
+      spreadsheetId,
+      description,
+      sheetId = 0,
+      applyImmediately = true,
+    } = input as {
+      spreadsheetId: string;
+      description: string;
+      range: unknown;
+      sheetId?: number;
+      applyImmediately?: boolean;
+    };
+    const range = (input as Record<string, unknown>)['range'] as unknown;
+
+    const parsed = this.parseNLConditionalFormat(description);
+    if (!parsed.success) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: `Could not parse conditional format description: "${description}". ${parsed.hint}`,
+        retryable: false,
+        suggestedFix:
+          'Try: "highlight values greater than 100 in red", "color scale green to red", "highlight blanks in yellow", "above average in green"',
+      });
+    }
+
+    if (!applyImmediately) {
+      return this.success('generate_conditional_format', {
+        generatedRule: parsed.rule,
+        message: `Rule generated (not applied). Set applyImmediately:true to apply.`,
+      });
+    }
+
+    // Delegate to existing handler using the parsed rule
+    if (parsed.rulePreset) {
+      return this.handleAddConditionalFormatRule({
+        spreadsheetId,
+        sheetId,
+        range,
+        rulePreset: parsed.rulePreset,
+        action: 'add_conditional_format_rule',
+      } as FormatRequest & { action: 'add_conditional_format_rule' });
+    }
+
+    if (parsed.rule) {
+      return this.handleRuleAddConditionalFormat({
+        spreadsheetId,
+        sheetId,
+        range,
+        rule: parsed.rule,
+        action: 'rule_add_conditional_format',
+      } as FormatRequest & { action: 'rule_add_conditional_format' });
+    }
+
+    return this.error({
+      code: 'INTERNAL_ERROR',
+      message: 'Rule parsing produced no output',
+      retryable: false,
+      suggestedFix: 'Use add_conditional_format_rule directly with a preset',
+    });
+  }
+
+  /**
+   * Parse a natural language conditional format description into rule parameters.
+   */
+  private parseNLConditionalFormat(description: string): {
+    success: boolean;
+    rulePreset?: string;
+    rule?: Record<string, unknown>;
+    hint?: string;
+  } {
+    const d = description.toLowerCase().trim();
+
+    // === Preset patterns (delegate to add_conditional_format_rule) ===
+    if (/\bblank|empty cell/.test(d)) return { success: true, rulePreset: 'highlight_blanks' };
+    if (/\bduplicate/.test(d)) return { success: true, rulePreset: 'highlight_duplicates' };
+    if (/\berror/.test(d)) return { success: true, rulePreset: 'highlight_errors' };
+    if (/\bdata.?bar/.test(d)) return { success: true, rulePreset: 'data_bars' };
+    if (/\babove.?average/.test(d)) return { success: true, rulePreset: 'above_average' };
+    if (/\bbelow.?average/.test(d)) return { success: true, rulePreset: 'below_average' };
+    if (/\btop\s+10/.test(d)) return { success: true, rulePreset: 'top_10_percent' };
+    if (/\bbottom\s+10/.test(d)) return { success: true, rulePreset: 'bottom_10_percent' };
+
+    // Color scale patterns
+    if (/\bcolor.?scale|heat.?map|gradient/.test(d)) {
+      if (/blue/.test(d)) return { success: true, rulePreset: 'color_scale_blue_red' };
+      return { success: true, rulePreset: 'color_scale_green_red' };
+    }
+
+    // === Comparison rules (build full rule object) ===
+    const color = this.parseNLColor(d);
+
+    // Number comparisons
+    const numMatch = d.match(
+      /(?:greater\s+than|more\s+than|above|>)\s*([\d.,]+)|(?:less\s+than|below|<)\s*([\d.,]+)|(?:equal(?:s)?\s+to|=)\s*([\d.,]+)|(?:not\s+equal|!=)\s*([\d.,]+)/
+    );
+    if (numMatch) {
+      let condType: string;
+      let value: string;
+      if (numMatch[1]) {
+        condType = 'NUMBER_GREATER';
+        value = numMatch[1].replace(/,/g, '');
+      } else if (numMatch[2]) {
+        condType = 'NUMBER_LESS';
+        value = numMatch[2].replace(/,/g, '');
+      } else if (numMatch[3]) {
+        condType = 'NUMBER_EQ';
+        value = numMatch[3].replace(/,/g, '');
+      } else {
+        condType = 'NUMBER_NOT_EQ';
+        value = numMatch[4]!.replace(/,/g, '');
+      }
+
+      return {
+        success: true,
+        rule: {
+          type: 'boolean',
+          condition: { type: condType, values: [{ userEnteredValue: value }] },
+          format: { backgroundColor: color ?? { red: 0.9, green: 0.2, blue: 0.2 } },
+        },
+      };
+    }
+
+    // Between range: "between 10 and 100"
+    const betweenMatch = d.match(/between\s+([\d.,]+)\s+and\s+([\d.,]+)/);
+    if (betweenMatch) {
+      return {
+        success: true,
+        rule: {
+          type: 'boolean',
+          condition: {
+            type: 'NUMBER_BETWEEN',
+            values: [
+              { userEnteredValue: betweenMatch[1]!.replace(/,/g, '') },
+              { userEnteredValue: betweenMatch[2]!.replace(/,/g, '') },
+            ],
+          },
+          format: { backgroundColor: color ?? { red: 0.9, green: 0.9, blue: 0.2 } },
+        },
+      };
+    }
+
+    // Text comparisons
+    const textContainsMatch = d.match(/contains?\s+["']?([^"']+?)["']?\s*(?:in\s+\w+)?$/);
+    if (
+      textContainsMatch &&
+      !/greater|less|equal|above|below|blank|duplicate|error|scale/.test(d)
+    ) {
+      return {
+        success: true,
+        rule: {
+          type: 'boolean',
+          condition: {
+            type: 'TEXT_CONTAINS',
+            values: [{ userEnteredValue: textContainsMatch[1]!.trim() }],
+          },
+          format: { backgroundColor: color ?? { red: 0.9, green: 0.9, blue: 0.2 } },
+        },
+      };
+    }
+
+    // Text starts with
+    const startsWithMatch = d.match(/starts?\s+with\s+["']?([^"']+?)["']?/);
+    if (startsWithMatch) {
+      return {
+        success: true,
+        rule: {
+          type: 'boolean',
+          condition: {
+            type: 'TEXT_STARTS_WITH',
+            values: [{ userEnteredValue: startsWithMatch[1]!.trim() }],
+          },
+          format: { backgroundColor: color ?? { red: 0.9, green: 0.9, blue: 0.2 } },
+        },
+      };
+    }
+
+    // Not blank
+    if (/not\s+blank|not\s+empty|has\s+value|is\s+filled/.test(d)) {
+      return {
+        success: true,
+        rule: {
+          type: 'boolean',
+          condition: { type: 'NOT_BLANK' },
+          format: { backgroundColor: color ?? { red: 0.2, green: 0.7, blue: 0.2 } },
+        },
+      };
+    }
+
+    return {
+      success: false,
+      hint: 'Supported patterns: "greater than N", "less than N", "between X and Y", "contains text", "starts with text", "blank", "duplicate", "error", "above average", "below average", "top 10%", "color scale", "data bars".',
+    };
+  }
+
+  /** Parse a color name from a natural language string */
+  private parseNLColor(text: string): Record<string, number> | undefined {
+    if (/\bred\b/.test(text)) return { red: 0.9, green: 0.2, blue: 0.2 };
+    if (/\bgreen\b/.test(text)) return { red: 0.2, green: 0.7, blue: 0.2 };
+    if (/\byellow\b/.test(text)) return { red: 1, green: 0.9, blue: 0 };
+    if (/\bblue\b/.test(text)) return { red: 0.2, green: 0.4, blue: 0.8 };
+    if (/\borange\b/.test(text)) return { red: 1, green: 0.5, blue: 0 };
+    if (/\bpurple\b/.test(text)) return { red: 0.6, green: 0.2, blue: 0.8 };
+    if (/\bpink\b/.test(text)) return { red: 1, green: 0.5, blue: 0.7 };
+    return undefined;
   }
 
   // ============================================================
@@ -2818,5 +3052,77 @@ Always return valid JSON in the exact format requested.`,
       { input: range, spreadsheetId },
       false
     );
+  }
+
+  /**
+   * Set rich text formatting within a single cell.
+   * Uses the updateCells request with textFormatRuns to apply different
+   * formatting to different segments of text within one cell.
+   */
+  private async handleSetRichText(
+    input: FormatRequest & { action: 'set_rich_text' }
+  ): Promise<FormatResponse> {
+    const cell = (input as unknown as { cell: string }).cell;
+    const runs = (
+      input as unknown as { runs: Array<{ text: string; format?: Record<string, unknown> }> }
+    ).runs;
+
+    // Parse cell reference to get sheet and cell position
+    const cellA1 = await this.resolveRange(input.spreadsheetId, { a1: cell });
+    const gridRange = await this.a1ToGridRange(input.spreadsheetId, cellA1);
+    const googleRange = toGridRange(gridRange);
+
+    // Build the full text value from all runs
+    const fullText = runs.map((r) => r.text).join('');
+
+    // Build textFormatRuns array for Google Sheets API
+    // Each run specifies a startIndex and format for that segment
+    const textFormatRuns: Array<{ startIndex?: number; format?: Record<string, unknown> }> = [];
+    let currentIndex = 0;
+    for (const run of runs) {
+      if (run.format) {
+        textFormatRuns.push({
+          startIndex: currentIndex,
+          format: run.format,
+        });
+      } else {
+        // Even runs without formatting need an entry to reset to default
+        textFormatRuns.push({
+          startIndex: currentIndex,
+          format: {},
+        });
+      }
+      currentIndex += run.text.length;
+    }
+
+    await this.sheetsApi.spreadsheets.batchUpdate({
+      spreadsheetId: input.spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            updateCells: {
+              range: googleRange,
+              rows: [
+                {
+                  values: [
+                    {
+                      userEnteredValue: { stringValue: fullText },
+                      textFormatRuns: textFormatRuns,
+                    },
+                  ],
+                },
+              ],
+              fields: 'userEnteredValue,textFormatRuns',
+            },
+          },
+        ],
+      },
+    });
+
+    return this.success('set_rich_text', {
+      cell: cellA1,
+      runsApplied: runs.length,
+      textLength: fullText.length,
+    });
   }
 }

@@ -881,7 +881,7 @@ export type DimensionsTextToColumnsInput = SheetsDimensionsInput['request'] & {
   action: 'text_to_columns';
   spreadsheetId: string;
   source: z.infer<typeof RangeInputSchema>;
-  delimiterType?: 'DETECT' | 'COMMA' | 'SEMICOLON' | 'PERIOD' | 'SPACE' | 'CUSTOM';
+  delimiterType?: 'AUTODETECT' | 'COMMA' | 'SEMICOLON' | 'PERIOD' | 'SPACE' | 'CUSTOM';
   delimiter?: string;
 };
 export type DimensionsAutoFillInput = SheetsDimensionsInput['request'] & {

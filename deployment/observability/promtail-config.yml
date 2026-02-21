@@ -16,7 +16,7 @@ scrape_configs:
         refresh_interval: 5s
         filters:
           - name: label
-            values: ["com.docker.compose.project=servalsheets"]
+            values: ['com.docker.compose.project=servalsheets']
     relabel_configs:
       - source_labels: ['__meta_docker_container_name']
         regex: '/(.*)'
@@ -77,7 +77,7 @@ scrape_configs:
         refresh_interval: 5s
         filters:
           - name: label
-            values: ["com.docker.compose.service=servalsheets"]
+            values: ['com.docker.compose.service=servalsheets']
     relabel_configs:
       - source_labels: ['__meta_docker_container_name']
         regex: '/(.*)'

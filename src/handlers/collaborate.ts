@@ -152,48 +152,52 @@ export class CollaborateHandler extends BaseHandler<
       };
     }
 
-    // Check for elevated access for sharing operations
-    if (req.action.startsWith('share_') && !this.context.auth?.hasElevatedAccess) {
-      // Use incremental scope consent system
+    // Check scope sufficiency for sharing operations using incremental consent
+    if (req.action.startsWith('share_')) {
       const validator = new ScopeValidator({
         scopes: this.context.auth?.scopes ?? [],
       });
 
       const operation = `sheets_collaborate.${req.action}`;
-      const requirements = validator.getOperationRequirements(operation);
 
-      // Generate authorization URL for incremental consent
-      const authUrl = validator.generateIncrementalAuthUrl(
-        requirements?.missing ?? ['https://www.googleapis.com/auth/drive']
-      );
+      // Only block if current scopes are actually insufficient for this operation
+      if (!validator.hasRequiredScopes(operation)) {
+        const requirements = validator.getOperationRequirements(operation);
 
-      // Return properly formatted error response
-      return {
-        response: this.error({
-          code: 'PERMISSION_DENIED',
-          message: requirements?.description ?? 'Sharing operations require full Drive access',
-          category: 'auth',
-          severity: 'high',
-          retryable: false,
-          retryStrategy: 'manual',
-          suggestedFix:
-            'Check that the spreadsheet is shared with your account and you have edit permissions',
-          details: {
-            operation,
-            requiredScopes: requirements?.required ?? ['https://www.googleapis.com/auth/drive'],
-            currentScopes: this.context.auth?.scopes ?? [],
-            missingScopes: requirements?.missing ?? ['https://www.googleapis.com/auth/drive'],
-            authorizationUrl: authUrl,
-            scopeCategory: requirements?.category ?? ScopeCategory.DRIVE_FULL,
-          },
-          resolution: 'Grant additional permissions to complete this operation.',
-          resolutionSteps: [
-            '1. Visit the authorization URL to approve required scopes',
-            `2. Authorization URL: ${authUrl}`,
-            '3. After approving, retry the operation',
-          ],
-        }),
-      };
+        // Generate authorization URL for incremental consent
+        const authUrl = validator.generateIncrementalAuthUrl(
+          requirements?.missing ?? ['https://www.googleapis.com/auth/drive']
+        );
+
+        // Return properly formatted error response
+        return {
+          response: this.error({
+            code: 'PERMISSION_DENIED',
+            message:
+              requirements?.description ?? 'Sharing operations require additional Drive access',
+            category: 'auth',
+            severity: 'high',
+            retryable: false,
+            retryStrategy: 'manual',
+            suggestedFix:
+              'Grant additional permissions via the authorization URL to complete this operation',
+            details: {
+              operation,
+              requiredScopes: requirements?.required ?? ['https://www.googleapis.com/auth/drive'],
+              currentScopes: this.context.auth?.scopes ?? [],
+              missingScopes: requirements?.missing ?? ['https://www.googleapis.com/auth/drive'],
+              authorizationUrl: authUrl,
+              scopeCategory: requirements?.category ?? ScopeCategory.DRIVE_FULL,
+            },
+            resolution: 'Grant additional permissions to complete this operation.',
+            resolutionSteps: [
+              '1. Visit the authorization URL to approve required scopes',
+              `2. Authorization URL: ${authUrl}`,
+              '3. After approving, retry the operation',
+            ],
+          }),
+        };
+      }
     }
 
     // Phase 1, Task 1.4: Infer missing parameters from context
@@ -492,11 +496,17 @@ export class CollaborateHandler extends BaseHandler<
     const response = await this.driveApi!.permissions.list({
       fileId: input.spreadsheetId!,
       supportsAllDrives: true,
-      fields: 'permissions(id,type,role,emailAddress,domain,displayName,expirationTime)',
+      pageSize: 100,
+      pageToken: (input as typeof input & { pageToken?: string }).pageToken ?? undefined,
+      fields:
+        'nextPageToken,permissions(id,type,role,emailAddress,domain,displayName,expirationTime)',
     });
 
     const permissions = (response.data.permissions ?? []).map(this.mapPermission);
-    return this.success('share_list', { permissions });
+    return this.success('share_list', {
+      permissions,
+      nextPageToken: response.data.nextPageToken ?? undefined,
+    });
   }
 
   private async handleShareGet(input: CollaborateShareGetInput): Promise<CollaborateResponse> {
@@ -545,6 +555,7 @@ export class CollaborateHandler extends BaseHandler<
       const list = await this.driveApi!.permissions.list({
         fileId: input.spreadsheetId!,
         supportsAllDrives: true,
+        pageSize: 100,
         fields: 'permissions(id,type)',
       });
       const anyone = (list.data.permissions ?? []).find((p) => p.type === 'anyone');
@@ -577,6 +588,12 @@ export class CollaborateHandler extends BaseHandler<
   private async handleShareGetLink(
     input: CollaborateShareGetLinkInput
   ): Promise<CollaborateResponse> {
+    // Verify the spreadsheet exists before returning a URL
+    await this.sheetsApi!.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId!,
+      fields: 'spreadsheetId',
+    });
+
     const baseUrl = `https://docs.google.com/spreadsheets/d/${input.spreadsheetId}`;
     const sharingLink = `${baseUrl}/edit?usp=sharing`;
     return this.success('share_get_link', { sharingLink });
@@ -670,14 +687,18 @@ export class CollaborateHandler extends BaseHandler<
     const response = await this.driveApi!.comments.list({
       fileId: input.spreadsheetId!,
       includeDeleted: input.includeDeleted ?? false,
-      pageToken: input.startIndex ? String(input.startIndex) : undefined,
+      pageToken:
+        (input as typeof input & { commentPageToken?: string }).commentPageToken ?? undefined,
       pageSize: input.maxResults ?? 100,
       fields:
-        'comments(id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor,replies(id,content,createdTime,author(displayName)))',
+        'nextPageToken,comments(id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor,replies(id,content,createdTime,author(displayName)))',
     });
 
     const comments = (response.data.comments ?? []).map(this.mapComment);
-    return this.success('comment_list', { comments });
+    return this.success('comment_list', {
+      comments,
+      nextPageToken: response.data.nextPageToken ?? undefined,
+    });
   }
 
   private async handleCommentGet(input: CollaborateCommentGetInput): Promise<CollaborateResponse> {
@@ -883,6 +904,7 @@ export class CollaborateHandler extends BaseHandler<
         name,
         parents: input.destinationFolderId ? [input.destinationFolderId] : undefined,
         description: input.description,
+        appProperties: { sourceSpreadsheetId: input.spreadsheetId! },
       },
       fields: 'id,name,createdTime,size',
       supportsAllDrives: true,
@@ -903,8 +925,10 @@ export class CollaborateHandler extends BaseHandler<
   private async handleVersionListSnapshots(
     input: CollaborateVersionListSnapshotsInput
   ): Promise<CollaborateResponse> {
+    this.checkOperationScopes('version_list_snapshots');
+
     const response = await this.driveApi!.files.list({
-      q: `mimeType='${DRIVE_MIME_TYPES.GOOGLE_SHEETS}' and name contains 'Snapshot' and trashed=false`,
+      q: `appProperties has { key='sourceSpreadsheetId' and value='${input.spreadsheetId}' } and trashed=false`,
       spaces: 'drive',
       fields: 'files(id,name,createdTime,size),nextPageToken',
       pageSize: 50,
@@ -1023,16 +1047,65 @@ export class CollaborateHandler extends BaseHandler<
     }
 
     try {
+      // Drive revision IDs must be opaque numeric strings from revisions.list
+      // Resolve symbolic IDs ('head', 'head~1') via a pre-flight revisions.list call
+      const needsResolution =
+        !input.revisionId1 ||
+        !input.revisionId2 ||
+        input.revisionId1 === 'head' ||
+        input.revisionId1 === 'head~1' ||
+        input.revisionId2 === 'head' ||
+        input.revisionId2 === 'head~1';
+
+      let resolvedId1 = input.revisionId1;
+      let resolvedId2 = input.revisionId2;
+
+      if (needsResolution) {
+        const revisionsResponse = await this.driveApi.revisions.list({
+          fileId: input.spreadsheetId!,
+          pageSize: 1000,
+          fields: 'revisions(id)',
+        });
+        const revisionIds = (revisionsResponse.data.revisions ?? [])
+          .map((r) => r.id!)
+          .filter(Boolean);
+
+        if (revisionIds.length < 2) {
+          return this.error({
+            code: 'INVALID_PARAMS',
+            message: 'Spreadsheet has fewer than 2 revisions to compare',
+            retryable: false,
+          });
+        }
+
+        // 'head' = latest, 'head~1' = second-to-last
+        const headId = revisionIds[revisionIds.length - 1]!;
+        const prevId = revisionIds[revisionIds.length - 2]!;
+
+        resolvedId1 =
+          resolvedId1 === 'head'
+            ? headId
+            : resolvedId1 === 'head~1'
+              ? prevId
+              : (resolvedId1 ?? prevId);
+        resolvedId2 =
+          resolvedId2 === 'head'
+            ? headId
+            : resolvedId2 === 'head~1'
+              ? prevId
+              : (resolvedId2 ?? headId);
+      }
+
       // Fetch both revisions
       const [rev1Response, rev2Response] = await Promise.all([
         this.driveApi.revisions.get({
           fileId: input.spreadsheetId!,
-          revisionId: input.revisionId1 ?? 'head~1', // Default to previous revision
+          revisionId: resolvedId1!,
           fields: 'id,modifiedTime,lastModifyingUser,size',
         }),
         this.driveApi.revisions.get({
           fileId: input.spreadsheetId!,
-          revisionId: input.revisionId2 ?? 'head', // Default to current
+          revisionId: resolvedId2!,
           fields: 'id,modifiedTime,lastModifyingUser,size',
         }),
       ]);

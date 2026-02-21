@@ -4,9 +4,9 @@ const server = spawn('node', ['dist/index.js'], {
   env: {
     ...process.env,
     GOOGLE_CLIENT_ID: 'test-client',
-    GOOGLE_CLIENT_SECRET: 'test-secret'
+    GOOGLE_CLIENT_SECRET: 'test-secret',
   },
-  stdio: ['pipe', 'pipe', 'pipe']
+  stdio: ['pipe', 'pipe', 'pipe'],
 });
 
 console.log('Server spawned, PID:', server.pid);
@@ -32,9 +32,13 @@ setTimeout(() => {
   console.log('Sending initialize...');
   const msg = JSON.stringify({
     method: 'initialize',
-    params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1.0' } },
+    params: {
+      protocolVersion: '2025-11-25',
+      capabilities: {},
+      clientInfo: { name: 'test', version: '1.0' },
+    },
     jsonrpc: '2.0',
-    id: 0
+    id: 0,
   });
   console.log('Message:', msg);
   server.stdin.write(msg + '\n');

@@ -37,7 +37,6 @@ export interface DeprecationInfo {
 
 // Augment Express Request to include version info
 declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       schemaVersion?: string;
@@ -75,7 +74,7 @@ export function extractVersion(req: Request): string {
   }
 
   // 3. Try query parameter
-  const queryVersion = req.query.schema_version as string | undefined;
+  const queryVersion = req.query['schema_version'] as string | undefined;
   if (queryVersion && isVersionSupported(queryVersion)) {
     return queryVersion;
   }
@@ -139,7 +138,7 @@ export function getDeprecationInfo(version: string): DeprecationInfo {
 function getNextVersion(current: string): string {
   const match = current.match(/v(\d+)/);
   if (!match) return 'v2';
-  const num = parseInt(match[1], 10);
+  const num = parseInt(match[1]!, 10);
   return `v${num + 1}`;
 }
 

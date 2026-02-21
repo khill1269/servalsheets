@@ -474,13 +474,13 @@ You should see **22 tools** available:
 18. `sheets_bigquery` - BigQuery Connected Sheets (Tier 7)
 19. `sheets_appsscript` - Apps Script automation (Tier 7)
 
-**Total**: 22 tools, 299 actions
+**Total**: 22 tools, 305 actions
 
 To see the current action breakdown, run:
 
 ```bash
 npm run check:drift | grep "Total:"
-# Output: ✅ Total: 22 tools, 299 actions
+# Output: ✅ Total: 22 tools, 305 actions
 ```
 
 ## 🎯 Example Tasks
@@ -698,6 +698,7 @@ ServalSheets provides several optimization flags to reduce token usage and impro
 ### Schema Optimization Flags
 
 **SERVAL_SCHEMA_REFS** (60% payload reduction)
+
 ```json
 {
   "mcpServers": {
@@ -709,12 +710,14 @@ ServalSheets provides several optimization flags to reduce token usage and impro
   }
 }
 ```
+
 - **Token savings:** ~60% reduction in schema payload (527KB → 209KB)
 - **Impact:** Uses JSON Schema $ref for shared definitions
 - **Trade-off:** Some MCP clients may not handle $refs correctly
 - **Recommendation:** Test thoroughly with your client before enabling
 
 **SERVAL_STRIP_SCHEMA_DESCRIPTIONS** (14,000 token savings)
+
 ```json
 {
   "mcpServers": {
@@ -726,12 +729,14 @@ ServalSheets provides several optimization flags to reduce token usage and impro
   }
 }
 ```
+
 - **Token savings:** ~14,000 tokens (removes inline parameter descriptions)
 - **Impact:** Claude relies on tool descriptions instead of schema descriptions
 - **Best combined with:** SERVAL_SCHEMA_REFS for maximum savings (~74% total)
 - **Recommendation:** Enable if context window is constrained
 
 **SERVAL_DEFER_DESCRIPTIONS** (7,700 token savings)
+
 ```json
 {
   "mcpServers": {
@@ -743,6 +748,7 @@ ServalSheets provides several optimization flags to reduce token usage and impro
   }
 }
 ```
+
 - **Token savings:** ~7,700 tokens (31KB → 3KB description payload)
 - **Impact:** Shorter tool descriptions, Claude reads SKILL.md for complex operations
 - **Trade-off:** Less routing guidance in initial tool list
@@ -751,6 +757,7 @@ ServalSheets provides several optimization flags to reduce token usage and impro
 ### Tool Mode Optimization
 
 **SERVAL_TOOL_MODE** (Lite mode: 199KB vs 527KB full)
+
 ```json
 {
   "mcpServers": {
@@ -764,11 +771,13 @@ ServalSheets provides several optimization flags to reduce token usage and impro
 ```
 
 Available modes:
+
 - **lite** (8 tools, 199KB) - Core operations only, recommended for Claude Desktop
 - **standard** (12 tools, 444KB) - Removes MCP-native + Tier 7 enterprise tools
 - **full** (22 tools, 527KB) - All tools including BigQuery, Apps Script, Templates
 
 Tool breakdown:
+
 - **Lite mode includes:** sheets_auth, sheets_core, sheets_data, sheets_format, sheets_dimensions, sheets_visualize, sheets_collaborate, sheets_transaction
 - **Standard adds:** sheets_advanced, sheets_quality, sheets_history, sheets_session
 - **Full adds:** sheets_analyze, sheets_fix, sheets_composite, sheets_templates, sheets_bigquery, sheets_appsscript, sheets_webhook, sheets_dependencies, sheets_confirm, sheets_impact
@@ -776,6 +785,7 @@ Tool breakdown:
 ### Recommended Configurations
 
 **Maximum Optimization** (Claude Desktop with context constraints):
+
 ```json
 {
   "mcpServers": {
@@ -790,11 +800,13 @@ Tool breakdown:
   }
 }
 ```
+
 - **Total payload:** ~80KB (85% reduction from 527KB)
 - **Token savings:** ~21,700 tokens
 - **Best for:** Context-constrained environments, Claude Desktop Lite users
 
 **Balanced** (Good performance with full features):
+
 ```json
 {
   "mcpServers": {
@@ -807,11 +819,13 @@ Tool breakdown:
   }
 }
 ```
+
 - **Total payload:** ~209KB (60% reduction)
 - **Token savings:** ~318KB
 - **Best for:** Users who need all 22 tools but want better performance
 
 **Default** (No optimization):
+
 ```json
 {
   "mcpServers": {
@@ -821,6 +835,7 @@ Tool breakdown:
   }
 }
 ```
+
 - **Total payload:** 527KB (tools/list) + 31KB (descriptions)
 - **Auto-enabled:** DEFER_SCHEMAS and DEFER_DESCRIPTIONS for STDIO transport
 - **Best for:** HTTP deployments, debugging, development
@@ -838,6 +853,7 @@ tail -f ~/Library/Logs/Claude/mcp-server-servalsheets.log | grep -E "tools/list|
 ```
 
 **Expected payload sizes:**
+
 - Default full mode: ~527KB
 - Full with $refs: ~209KB
 - Standard mode: ~444KB

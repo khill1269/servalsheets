@@ -30,7 +30,7 @@ let serverJson: any;
 try {
   serverJson = JSON.parse(readFileSync('./server.json', 'utf-8'));
 } catch (error) {
-  console.error('❌ Failed to load server.json:',  (error as Error).message);
+  console.error('❌ Failed to load server.json:', (error as Error).message);
   process.exit(1);
 }
 
@@ -49,7 +49,7 @@ if (!serverJson.metadata) {
   // Tool count
   if (serverJson.metadata.toolCount !== TOOL_COUNT) {
     errors.push(
-      `metadata.toolCount (${serverJson.metadata.toolCount}) !== TOOL_COUNT (${TOOL_COUNT})`,
+      `metadata.toolCount (${serverJson.metadata.toolCount}) !== TOOL_COUNT (${TOOL_COUNT})`
     );
   } else {
     console.log(`  ✅ toolCount: ${TOOL_COUNT}`);
@@ -58,7 +58,7 @@ if (!serverJson.metadata) {
   // Action count
   if (serverJson.metadata.actionCount !== ACTION_COUNT) {
     errors.push(
-      `metadata.actionCount (${serverJson.metadata.actionCount}) !== ACTION_COUNT (${ACTION_COUNT})`,
+      `metadata.actionCount (${serverJson.metadata.actionCount}) !== ACTION_COUNT (${ACTION_COUNT})`
     );
   } else {
     console.log(`  ✅ actionCount: ${ACTION_COUNT}`);
@@ -71,7 +71,7 @@ if (!serverJson.metadata) {
 
     if (!hasToolCount || !hasActionCount) {
       warnings.push(
-        `metadata.description should mention "${TOOL_COUNT} tools" and "${ACTION_COUNT} actions"`,
+        `metadata.description should mention "${TOOL_COUNT} tools" and "${ACTION_COUNT} actions"`
       );
     }
   }
@@ -88,9 +88,7 @@ if (!serverJson.tools || !Array.isArray(serverJson.tools)) {
 } else {
   // Tool count matches
   if (serverJson.tools.length !== TOOL_COUNT) {
-    errors.push(
-      `tools array length (${serverJson.tools.length}) !== TOOL_COUNT (${TOOL_COUNT})`,
-    );
+    errors.push(`tools array length (${serverJson.tools.length}) !== TOOL_COUNT (${TOOL_COUNT})`);
   } else {
     console.log(`  ✅ tools array length: ${TOOL_COUNT}`);
   }
@@ -98,13 +96,11 @@ if (!serverJson.tools || !Array.isArray(serverJson.tools)) {
   // Sum of actions matches
   const totalActionsInTools = serverJson.tools.reduce(
     (sum: number, tool: any) => sum + (tool.actions?.length || 0),
-    0,
+    0
   );
 
   if (totalActionsInTools !== ACTION_COUNT) {
-    errors.push(
-      `Sum of tool actions (${totalActionsInTools}) !== ACTION_COUNT (${ACTION_COUNT})`,
-    );
+    errors.push(`Sum of tool actions (${totalActionsInTools}) !== ACTION_COUNT (${ACTION_COUNT})`);
   } else {
     console.log(`  ✅ total actions in tools: ${ACTION_COUNT}`);
   }
@@ -128,13 +124,11 @@ if (!serverJson.tools || !Array.isArray(serverJson.tools)) {
 
   // Tool names follow convention
   const invalidToolNames = serverJson.tools.filter(
-    (tool: any) => !tool.name?.startsWith('sheets_'),
+    (tool: any) => !tool.name?.startsWith('sheets_')
   );
 
   if (invalidToolNames.length > 0) {
-    errors.push(
-      `${invalidToolNames.length} tools don't follow sheets_* naming convention`,
-    );
+    errors.push(`${invalidToolNames.length} tools don't follow sheets_* naming convention`);
   } else {
     console.log(`  ✅ all tool names follow sheets_* convention`);
   }
@@ -150,7 +144,7 @@ const expectedProtocolVersion = '2025-11-25';
 
 if (serverJson.mcpProtocol !== expectedProtocolVersion) {
   errors.push(
-    `Incorrect mcpProtocol version: "${serverJson.mcpProtocol}" (expected "${expectedProtocolVersion}")`,
+    `Incorrect mcpProtocol version: "${serverJson.mcpProtocol}" (expected "${expectedProtocolVersion}")`
   );
 } else {
   console.log(`  ✅ mcpProtocol: ${expectedProtocolVersion}`);
@@ -162,19 +156,13 @@ if (serverJson.mcpProtocol !== expectedProtocolVersion) {
 
 console.log('\nValidating capabilities...');
 
-const requiredCapabilities = [
-  'tools',
-  'resources',
-  'prompts',
-  'logging',
-  'completions',
-];
+const requiredCapabilities = ['tools', 'resources', 'prompts', 'logging', 'completions'];
 
 if (!serverJson.capabilities || !Array.isArray(serverJson.capabilities)) {
   errors.push('Missing or invalid capabilities array');
 } else {
   const missingCapabilities = requiredCapabilities.filter(
-    (cap) => !serverJson.capabilities.includes(cap),
+    (cap) => !serverJson.capabilities.includes(cap)
   );
 
   if (missingCapabilities.length > 0) {

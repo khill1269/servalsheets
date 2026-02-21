@@ -23,12 +23,13 @@
 
 ### Why Batch?
 
-| Approach | API Calls | Quota Cost | Speed |
-|----------|-----------|------------|-------|
-| Individual requests | N | N × cost | Slow |
-| Batch requests | 1 | 1 × cost | Fast |
+| Approach            | API Calls | Quota Cost | Speed |
+| ------------------- | --------- | ---------- | ----- |
+| Individual requests | N         | N × cost   | Slow  |
+| Batch requests      | 1         | 1 × cost   | Fast  |
 
 **Benefits:**
+
 - Reduced quota consumption (60 req/min/user limit)
 - Faster execution (single round-trip)
 - Atomic operations (all-or-nothing)
@@ -36,12 +37,12 @@
 
 ### Batch Limits
 
-| Limit | Value |
-|-------|-------|
+| Limit              | Value                   |
+| ------------------ | ----------------------- |
 | Requests per batch | 500 (recommended: <100) |
-| Cells per write | 10,000,000 |
-| Request size | 10 MB |
-| Values per write | Varies by cell count |
+| Cells per write    | 10,000,000              |
+| Request size       | 10 MB                   |
+| Values per write   | Varies by cell count    |
 
 ---
 
@@ -66,19 +67,19 @@ const batchUpdateRequest = {
 
 All batchUpdate request types:
 
-| Category | Request Types |
-|----------|---------------|
-| Sheets | `addSheet`, `deleteSheet`, `updateSheetProperties`, `duplicateSheet` |
-| Cells | `updateCells`, `repeatCell`, `appendCells` |
-| Dimensions | `insertDimension`, `deleteDimension`, `updateDimensionProperties`, `moveDimension`, `autoResizeDimensions` |
-| Merges | `mergeCells`, `unmergeCells` |
-| Formatting | `updateBorders`, `addConditionalFormatRule`, `updateConditionalFormatRule`, `deleteConditionalFormatRule` |
-| Data | `sortRange`, `setBasicFilter`, `clearBasicFilter`, `addFilterView`, `updateFilterView`, `deleteFilterView` |
-| Charts | `addChart`, `updateChartSpec`, `deleteEmbeddedObject`, `moveEmbeddedObjectToSheet` |
-| Protection | `addProtectedRange`, `updateProtectedRange`, `deleteProtectedRange` |
-| Named Ranges | `addNamedRange`, `updateNamedRange`, `deleteNamedRange` |
-| Validation | `setDataValidation` |
-| Other | `copyPaste`, `cutPaste`, `pasteData`, `textToColumns`, `findReplace`, `duplicateFilterView` |
+| Category     | Request Types                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------------- |
+| Sheets       | `addSheet`, `deleteSheet`, `updateSheetProperties`, `duplicateSheet`                                       |
+| Cells        | `updateCells`, `repeatCell`, `appendCells`                                                                 |
+| Dimensions   | `insertDimension`, `deleteDimension`, `updateDimensionProperties`, `moveDimension`, `autoResizeDimensions` |
+| Merges       | `mergeCells`, `unmergeCells`                                                                               |
+| Formatting   | `updateBorders`, `addConditionalFormatRule`, `updateConditionalFormatRule`, `deleteConditionalFormatRule`  |
+| Data         | `sortRange`, `setBasicFilter`, `clearBasicFilter`, `addFilterView`, `updateFilterView`, `deleteFilterView` |
+| Charts       | `addChart`, `updateChartSpec`, `deleteEmbeddedObject`, `moveEmbeddedObjectToSheet`                         |
+| Protection   | `addProtectedRange`, `updateProtectedRange`, `deleteProtectedRange`                                        |
+| Named Ranges | `addNamedRange`, `updateNamedRange`, `deleteNamedRange`                                                    |
+| Validation   | `setDataValidation`                                                                                        |
+| Other        | `copyPaste`, `cutPaste`, `pasteData`, `textToColumns`, `findReplace`, `duplicateFilterView`                |
 
 ---
 
@@ -114,14 +115,16 @@ const populateSheet = (sheetId: number) => ({
     // 2. Add headers
     {
       updateCells: {
-        rows: [{
-          values: [
-            { userEnteredValue: { stringValue: 'Date' } },
-            { userEnteredValue: { stringValue: 'Category' } },
-            { userEnteredValue: { stringValue: 'Amount' } },
-            { userEnteredValue: { stringValue: 'Status' } },
-          ],
-        }],
+        rows: [
+          {
+            values: [
+              { userEnteredValue: { stringValue: 'Date' } },
+              { userEnteredValue: { stringValue: 'Category' } },
+              { userEnteredValue: { stringValue: 'Amount' } },
+              { userEnteredValue: { stringValue: 'Status' } },
+            ],
+          },
+        ],
         start: { sheetId, rowIndex: 0, columnIndex: 0 },
         fields: 'userEnteredValue',
       },
@@ -202,13 +205,15 @@ const populateSheet = (sheetId: number) => ({
     {
       addConditionalFormatRule: {
         rule: {
-          ranges: [{
-            sheetId,
-            startRowIndex: 1,
-            endRowIndex: 100,
-            startColumnIndex: 3,
-            endColumnIndex: 4,
-          }],
+          ranges: [
+            {
+              sheetId,
+              startRowIndex: 1,
+              endRowIndex: 100,
+              startColumnIndex: 3,
+              endColumnIndex: 4,
+            },
+          ],
           booleanRule: {
             condition: {
               type: 'TEXT_EQ',
@@ -314,14 +319,14 @@ Some operations depend on others:
 const correctOrder = {
   requests: [
     { addSheet: { properties: { title: 'New', sheetId: 999 } } },
-    { updateCells: { start: { sheetId: 999, rowIndex: 0, columnIndex: 0 }, /* ... */ } },
+    { updateCells: { start: { sheetId: 999, rowIndex: 0, columnIndex: 0 } /* ... */ } },
   ],
 };
 
 // ❌ WRONG: Using sheet before it exists
 const wrongOrder = {
   requests: [
-    { updateCells: { start: { sheetId: 999, rowIndex: 0, columnIndex: 0 }, /* ... */ } },
+    { updateCells: { start: { sheetId: 999, rowIndex: 0, columnIndex: 0 } /* ... */ } },
     { addSheet: { properties: { title: 'New', sheetId: 999 } } },
   ],
 };
@@ -345,9 +350,7 @@ When you need IDs from created objects:
 const response = await sheets.spreadsheets.batchUpdate({
   spreadsheetId,
   requestBody: {
-    requests: [
-      { addSheet: { properties: { title: 'Dashboard' } } },
-    ],
+    requests: [{ addSheet: { properties: { title: 'Dashboard' } } }],
     includeSpreadsheetInResponse: true,
   },
 });
@@ -359,9 +362,7 @@ const newSheetId = response.data.replies[0].addSheet.properties.sheetId;
 await sheets.spreadsheets.batchUpdate({
   spreadsheetId,
   requestBody: {
-    requests: [
-      { updateCells: { start: { sheetId: newSheetId, /* ... */ } } },
-    ],
+    requests: [{ updateCells: { start: { sheetId: newSheetId /* ... */ } } }],
   },
 });
 ```
@@ -390,26 +391,28 @@ async function writeInChunks(
   chunkSize = 1000
 ) {
   const chunks = chunkArray(data, chunkSize);
-  
+
   for (let i = 0; i < chunks.length; i++) {
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
       requestBody: {
-        requests: [{
-          updateCells: {
-            rows: chunks[i].map(row => ({
-              values: row.map(cell => ({
-                userEnteredValue: { stringValue: String(cell) },
+        requests: [
+          {
+            updateCells: {
+              rows: chunks[i].map((row) => ({
+                values: row.map((cell) => ({
+                  userEnteredValue: { stringValue: String(cell) },
+                })),
               })),
-            })),
-            start: {
-              sheetId,
-              rowIndex: i * chunkSize,
-              columnIndex: 0,
+              start: {
+                sheetId,
+                rowIndex: i * chunkSize,
+                columnIndex: 0,
+              },
+              fields: 'userEnteredValue',
             },
-            fields: 'userEnteredValue',
           },
-        }],
+        ],
       },
     });
   }
@@ -426,23 +429,25 @@ async function updateMultipleSheets(
   sheetUpdates: Array<{ sheetId: number; data: any[][] }>
 ) {
   // Create separate batch requests
-  const batchRequests = sheetUpdates.map(update => ({
-    requests: [{
-      updateCells: {
-        rows: update.data.map(row => ({
-          values: row.map(cell => ({
-            userEnteredValue: { stringValue: String(cell) },
+  const batchRequests = sheetUpdates.map((update) => ({
+    requests: [
+      {
+        updateCells: {
+          rows: update.data.map((row) => ({
+            values: row.map((cell) => ({
+              userEnteredValue: { stringValue: String(cell) },
+            })),
           })),
-        })),
-        start: { sheetId: update.sheetId, rowIndex: 0, columnIndex: 0 },
-        fields: 'userEnteredValue',
+          start: { sheetId: update.sheetId, rowIndex: 0, columnIndex: 0 },
+          fields: 'userEnteredValue',
+        },
       },
-    }],
+    ],
   }));
 
   // Execute in parallel
   await Promise.all(
-    batchRequests.map(requestBody =>
+    batchRequests.map((requestBody) =>
       sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody })
     )
   );
@@ -457,11 +462,15 @@ async function updateMultipleSheets(
 const inefficient = {
   requests: data.map((_, i) => ({
     updateCells: {
-      rows: [{
-        values: [{
-          userEnteredFormat: { textFormat: { bold: true } },
-        }],
-      }],
+      rows: [
+        {
+          values: [
+            {
+              userEnteredFormat: { textFormat: { bold: true } },
+            },
+          ],
+        },
+      ],
       start: { sheetId: 0, rowIndex: i, columnIndex: 0 },
       fields: 'userEnteredFormat.textFormat.bold',
     },
@@ -470,21 +479,23 @@ const inefficient = {
 
 // ✅ Efficient - single repeatCell
 const efficient = {
-  requests: [{
-    repeatCell: {
-      range: {
-        sheetId: 0,
-        startRowIndex: 0,
-        endRowIndex: data.length,
-        startColumnIndex: 0,
-        endColumnIndex: 1,
+  requests: [
+    {
+      repeatCell: {
+        range: {
+          sheetId: 0,
+          startRowIndex: 0,
+          endRowIndex: data.length,
+          startColumnIndex: 0,
+          endColumnIndex: 1,
+        },
+        cell: {
+          userEnteredFormat: { textFormat: { bold: true } },
+        },
+        fields: 'userEnteredFormat.textFormat.bold',
       },
-      cell: {
-        userEnteredFormat: { textFormat: { bold: true } },
-      },
-      fields: 'userEnteredFormat.textFormat.bold',
     },
-  }],
+  ],
 };
 ```
 
@@ -513,15 +524,19 @@ const initializeDashboard = (sheetId: number) => ({
     // Create title
     {
       updateCells: {
-        rows: [{
-          values: [{
-            userEnteredValue: { stringValue: 'Sales Dashboard' },
-            userEnteredFormat: {
-              textFormat: { fontSize: 24, bold: true },
-              horizontalAlignment: 'CENTER',
-            },
-          }],
-        }],
+        rows: [
+          {
+            values: [
+              {
+                userEnteredValue: { stringValue: 'Sales Dashboard' },
+                userEnteredFormat: {
+                  textFormat: { fontSize: 24, bold: true },
+                  horizontalAlignment: 'CENTER',
+                },
+              },
+            ],
+          },
+        ],
         start: { sheetId, rowIndex: 0, columnIndex: 0 },
         fields: 'userEnteredValue,userEnteredFormat',
       },
@@ -559,18 +574,18 @@ const createReportTemplate = (sheetId: number) => ({
     // Headers
     {
       updateCells: {
-        rows: [{
-          values: [
-            'Month', 'Revenue', 'Expenses', 'Profit', 'Margin %'
-          ].map(h => ({
-            userEnteredValue: { stringValue: h },
-            userEnteredFormat: {
-              backgroundColor: { red: 0.1, green: 0.2, blue: 0.4 },
-              textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
-              horizontalAlignment: 'CENTER',
-            },
-          })),
-        }],
+        rows: [
+          {
+            values: ['Month', 'Revenue', 'Expenses', 'Profit', 'Margin %'].map((h) => ({
+              userEnteredValue: { stringValue: h },
+              userEnteredFormat: {
+                backgroundColor: { red: 0.1, green: 0.2, blue: 0.4 },
+                textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
+                horizontalAlignment: 'CENTER',
+              },
+            })),
+          },
+        ],
         start: { sheetId, rowIndex: 0, columnIndex: 0 },
         fields: 'userEnteredValue,userEnteredFormat',
       },
@@ -580,11 +595,18 @@ const createReportTemplate = (sheetId: number) => ({
       updateCells: {
         rows: Array.from({ length: 12 }, (_, i) => ({
           values: [
-            { userEnteredValue: { stringValue: new Date(2024, i, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) } },
-            { userEnteredValue: { numberValue: 0 } },  // Revenue input
-            { userEnteredValue: { numberValue: 0 } },  // Expenses input
-            { userEnteredValue: { formulaValue: `=B${i + 2}-C${i + 2}` } },  // Profit
-            { userEnteredValue: { formulaValue: `=IF(B${i + 2}=0,0,D${i + 2}/B${i + 2})` } },  // Margin
+            {
+              userEnteredValue: {
+                stringValue: new Date(2024, i, 1).toLocaleDateString('en-US', {
+                  month: 'short',
+                  year: 'numeric',
+                }),
+              },
+            },
+            { userEnteredValue: { numberValue: 0 } }, // Revenue input
+            { userEnteredValue: { numberValue: 0 } }, // Expenses input
+            { userEnteredValue: { formulaValue: `=B${i + 2}-C${i + 2}` } }, // Profit
+            { userEnteredValue: { formulaValue: `=IF(B${i + 2}=0,0,D${i + 2}/B${i + 2})` } }, // Margin
           ],
         })),
         start: { sheetId, rowIndex: 1, columnIndex: 0 },
@@ -594,14 +616,26 @@ const createReportTemplate = (sheetId: number) => ({
     // Number formats
     {
       repeatCell: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: 13, startColumnIndex: 1, endColumnIndex: 4 },
+        range: {
+          sheetId,
+          startRowIndex: 1,
+          endRowIndex: 13,
+          startColumnIndex: 1,
+          endColumnIndex: 4,
+        },
         cell: { userEnteredFormat: { numberFormat: { type: 'CURRENCY', pattern: '"$"#,##0' } } },
         fields: 'userEnteredFormat.numberFormat',
       },
     },
     {
       repeatCell: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: 13, startColumnIndex: 4, endColumnIndex: 5 },
+        range: {
+          sheetId,
+          startRowIndex: 1,
+          endRowIndex: 13,
+          startColumnIndex: 4,
+          endColumnIndex: 5,
+        },
         cell: { userEnteredFormat: { numberFormat: { type: 'PERCENT', pattern: '0.0%' } } },
         fields: 'userEnteredFormat.numberFormat',
       },
@@ -610,7 +644,9 @@ const createReportTemplate = (sheetId: number) => ({
     {
       addConditionalFormatRule: {
         rule: {
-          ranges: [{ sheetId, startRowIndex: 1, endRowIndex: 13, startColumnIndex: 0, endColumnIndex: 5 }],
+          ranges: [
+            { sheetId, startRowIndex: 1, endRowIndex: 13, startColumnIndex: 0, endColumnIndex: 5 },
+          ],
           booleanRule: {
             condition: { type: 'CUSTOM_FORMULA', values: [{ userEnteredValue: '=ISEVEN(ROW())' }] },
             format: { backgroundColor: { red: 0.95, green: 0.95, blue: 0.95 } },
@@ -622,22 +658,30 @@ const createReportTemplate = (sheetId: number) => ({
     // Totals row
     {
       updateCells: {
-        rows: [{
-          values: [
-            { userEnteredValue: { stringValue: 'TOTAL' } },
-            { userEnteredValue: { formulaValue: '=SUM(B2:B13)' } },
-            { userEnteredValue: { formulaValue: '=SUM(C2:C13)' } },
-            { userEnteredValue: { formulaValue: '=SUM(D2:D13)' } },
-            { userEnteredValue: { formulaValue: '=IF(B14=0,0,D14/B14)' } },
-          ],
-        }],
+        rows: [
+          {
+            values: [
+              { userEnteredValue: { stringValue: 'TOTAL' } },
+              { userEnteredValue: { formulaValue: '=SUM(B2:B13)' } },
+              { userEnteredValue: { formulaValue: '=SUM(C2:C13)' } },
+              { userEnteredValue: { formulaValue: '=SUM(D2:D13)' } },
+              { userEnteredValue: { formulaValue: '=IF(B14=0,0,D14/B14)' } },
+            ],
+          },
+        ],
         start: { sheetId, rowIndex: 13, columnIndex: 0 },
         fields: 'userEnteredValue',
       },
     },
     {
       repeatCell: {
-        range: { sheetId, startRowIndex: 13, endRowIndex: 14, startColumnIndex: 0, endColumnIndex: 5 },
+        range: {
+          sheetId,
+          startRowIndex: 13,
+          endRowIndex: 14,
+          startColumnIndex: 0,
+          endColumnIndex: 5,
+        },
         cell: {
           userEnteredFormat: {
             backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 },
@@ -727,11 +771,11 @@ const cleanUpSheet = (sheetId: number) => ({
 ```typescript
 function validateBatchRequest(requests: any[]): string[] {
   const errors: string[] = [];
-  
+
   requests.forEach((req, i) => {
     const type = Object.keys(req)[0];
     const params = req[type];
-    
+
     // Check for common issues
     if (params.range) {
       if (params.range.startRowIndex < 0) {
@@ -741,7 +785,7 @@ function validateBatchRequest(requests: any[]): string[] {
         errors.push(`Request ${i} (${type}): endRowIndex must be > startRowIndex`);
       }
     }
-    
+
     // Validate color values
     if (params.cell?.userEnteredFormat?.backgroundColor) {
       const bg = params.cell.userEnteredFormat.backgroundColor;
@@ -750,7 +794,7 @@ function validateBatchRequest(requests: any[]): string[] {
       }
     }
   });
-  
+
   return errors;
 }
 ```
@@ -774,15 +818,15 @@ async function batchWithRetry(
       if (error.code === 429) {
         // Rate limited - exponential backoff
         const delay = Math.pow(2, attempt) * 1000;
-        await new Promise(r => setTimeout(r, delay));
+        await new Promise((r) => setTimeout(r, delay));
         continue;
       }
       if (error.code >= 500) {
         // Server error - retry
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 1000));
         continue;
       }
-      throw error;  // Client error - don't retry
+      throw error; // Client error - don't retry
     }
   }
   throw new Error('Max retries exceeded');
@@ -812,13 +856,13 @@ async function batchWithRetry(
 
 ### Request Size Guidelines
 
-| Operation | Recommended Limit |
-|-----------|-------------------|
-| updateCells rows | 1,000 per request |
-| Formatting requests | 50 per batch |
-| Chart operations | 10 per batch |
-| Total requests | <100 per batch |
+| Operation           | Recommended Limit |
+| ------------------- | ----------------- |
+| updateCells rows    | 1,000 per request |
+| Formatting requests | 50 per batch      |
+| Chart operations    | 10 per batch      |
+| Total requests      | <100 per batch    |
 
 ---
 
-*Source: Google Sheets API v4 Best Practices*
+_Source: Google Sheets API v4 Best Practices_

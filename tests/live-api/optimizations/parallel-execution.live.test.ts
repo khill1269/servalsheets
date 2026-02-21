@@ -5,7 +5,11 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { getLiveApiClient, isLiveApiEnabled, type LiveApiClient } from '../setup/live-api-client.js';
+import {
+  getLiveApiClient,
+  isLiveApiEnabled,
+  type LiveApiClient,
+} from '../setup/live-api-client.js';
 import {
   TestSpreadsheetManager,
   createTestSpreadsheetManager,
@@ -33,7 +37,10 @@ describeOrSkip('Parallel Execution Live Verification', () => {
 
   describe('Concurrent Read Operations', () => {
     it('should handle 10 concurrent reads successfully', async () => {
-      const ranges = Array.from({ length: 10 }, (_, i) => `TestData!A${i * 10 + 1}:F${i * 10 + 10}`);
+      const ranges = Array.from(
+        { length: 10 },
+        (_, i) => `TestData!A${i * 10 + 1}:F${i * 10 + 10}`
+      );
 
       const startTime = performance.now();
 
@@ -66,7 +73,13 @@ describeOrSkip('Parallel Execution Live Verification', () => {
           range: 'Benchmarks!A1:B5',
           valueInputOption: 'RAW',
           requestBody: {
-            values: [['Mixed', 'Op1'], ['Test', 'Op2'], ['Data', 'Op3'], ['Row', 'Op4'], ['Five', 'Op5']],
+            values: [
+              ['Mixed', 'Op1'],
+              ['Test', 'Op2'],
+              ['Data', 'Op3'],
+              ['Row', 'Op4'],
+              ['Five', 'Op5'],
+            ],
           },
         }),
         client.sheets.spreadsheets.values.get({
@@ -130,13 +143,13 @@ describeOrSkip('Parallel Execution Live Verification', () => {
         durations.push(performance.now() - start);
 
         // Small delay between batches to avoid quota issues
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, 200));
       }
 
-      console.log(`Batch durations: ${durations.map(d => d.toFixed(2)).join('ms, ')}ms`);
+      console.log(`Batch durations: ${durations.map((d) => d.toFixed(2)).join('ms, ')}ms`);
 
       expect(durations.length).toBe(batchCount);
-      expect(durations.every(d => d > 0)).toBe(true);
+      expect(durations.every((d) => d > 0)).toBe(true);
     });
   });
 });

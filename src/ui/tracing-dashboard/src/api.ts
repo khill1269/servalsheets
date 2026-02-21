@@ -26,8 +26,7 @@ class TracingAPI {
     if (filters.maxDuration !== undefined)
       params.append('maxDuration', filters.maxDuration.toString());
     if (filters.success !== undefined) params.append('success', filters.success.toString());
-    if (filters.startTime !== undefined)
-      params.append('startTime', filters.startTime.toString());
+    if (filters.startTime !== undefined) params.append('startTime', filters.startTime.toString());
     if (filters.endTime !== undefined) params.append('endTime', filters.endTime.toString());
 
     const response = await fetch(`${BASE_URL}?${params.toString()}`);
@@ -75,7 +74,10 @@ class TracingAPI {
     return data.trace as RequestTrace;
   }
 
-  streamLiveTraces(onTrace: (trace: RequestTrace) => void, onError?: (error: Error) => void): () => void {
+  streamLiveTraces(
+    onTrace: (trace: RequestTrace) => void,
+    onError?: (error: Error) => void
+  ): () => void {
     const eventSource = new EventSource(`${BASE_URL}/stream`);
 
     eventSource.onmessage = (event) => {

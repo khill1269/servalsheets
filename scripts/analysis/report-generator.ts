@@ -43,10 +43,7 @@ export class ReportGenerator {
   /**
    * Generate report in specified format
    */
-  generateReport(
-    report: OrchestratorReport,
-    format: ReportFormat
-  ): string {
+  generateReport(report: OrchestratorReport, format: ReportFormat): string {
     switch (format) {
       case 'json':
         return this.generateJSON(report);
@@ -69,16 +66,16 @@ export class ReportGenerator {
     const summary = {
       timestamp: report.timestamp,
       score: report.overallScore,
-      agents: report.agents.map(a => ({
+      agents: report.agents.map((a) => ({
         name: a.name,
         status: a.status,
         issueCount: a.issues.length,
       })),
-      critical: report.issues.filter(i => i.severity === 'critical').length,
-      high: report.issues.filter(i => i.severity === 'high').length,
-      medium: report.issues.filter(i => i.severity === 'medium').length,
-      low: report.issues.filter(i => i.severity === 'low').length,
-      autoFixable: report.issues.filter(i => i.autoFixable).length,
+      critical: report.issues.filter((i) => i.severity === 'critical').length,
+      high: report.issues.filter((i) => i.severity === 'high').length,
+      medium: report.issues.filter((i) => i.severity === 'medium').length,
+      low: report.issues.filter((i) => i.severity === 'low').length,
+      autoFixable: report.issues.filter((i) => i.autoFixable).length,
     };
 
     return JSON.stringify(
@@ -97,18 +94,17 @@ export class ReportGenerator {
    * Generate HTML report (browser-viewable)
    */
   private generateHTML(report: OrchestratorReport): string {
-    const critical = report.issues.filter(i => i.severity === 'critical').length;
-    const high = report.issues.filter(i => i.severity === 'high').length;
-    const medium = report.issues.filter(i => i.severity === 'medium').length;
-    const low = report.issues.filter(i => i.severity === 'low').length;
-    const autoFixable = report.issues.filter(i => i.autoFixable).length;
+    const critical = report.issues.filter((i) => i.severity === 'critical').length;
+    const high = report.issues.filter((i) => i.severity === 'high').length;
+    const medium = report.issues.filter((i) => i.severity === 'medium').length;
+    const low = report.issues.filter((i) => i.severity === 'low').length;
+    const autoFixable = report.issues.filter((i) => i.autoFixable).length;
 
-    const statusColor =
-      critical > 0 ? '#dc3545' : high > 0 ? '#ffc107' : '#28a745';
+    const statusColor = critical > 0 ? '#dc3545' : high > 0 ? '#ffc107' : '#28a745';
 
     const agentRows = report.agents
       .map(
-        a => `
+        (a) => `
         <tr>
           <td>${a.name}</td>
           <td><span class="badge badge-${a.status}">${a.status}</span></td>
@@ -121,7 +117,7 @@ export class ReportGenerator {
     const issueRows = report.issues
       .slice(0, 50) // Limit to first 50 issues
       .map(
-        i => `
+        (i) => `
         <tr>
           <td><span class="badge badge-${i.severity}">${i.severity}</span></td>
           <td>${i.dimension}</td>
@@ -242,11 +238,11 @@ export class ReportGenerator {
    * Generate Markdown report (human-readable, GitHub-friendly)
    */
   private generateMarkdown(report: OrchestratorReport): string {
-    const critical = report.issues.filter(i => i.severity === 'critical').length;
-    const high = report.issues.filter(i => i.severity === 'high').length;
-    const medium = report.issues.filter(i => i.severity === 'medium').length;
-    const low = report.issues.filter(i => i.severity === 'low').length;
-    const autoFixable = report.issues.filter(i => i.autoFixable).length;
+    const critical = report.issues.filter((i) => i.severity === 'critical').length;
+    const high = report.issues.filter((i) => i.severity === 'high').length;
+    const medium = report.issues.filter((i) => i.severity === 'medium').length;
+    const low = report.issues.filter((i) => i.severity === 'low').length;
+    const autoFixable = report.issues.filter((i) => i.autoFixable).length;
 
     const statusEmoji = critical > 0 ? '❌' : high > 0 ? '⚠️' : '✅';
 
@@ -281,7 +277,7 @@ export class ReportGenerator {
     // Issues by severity
     if (critical > 0) {
       md += `## ❌ Critical Issues\n\n`;
-      const criticalIssues = report.issues.filter(i => i.severity === 'critical');
+      const criticalIssues = report.issues.filter((i) => i.severity === 'critical');
       for (const issue of criticalIssues) {
         md += `### ${issue.dimension}\n\n`;
         md += `**File:** \`${issue.file}\`${issue.line ? ` (Line ${issue.line})` : ''}\n\n`;
@@ -295,7 +291,7 @@ export class ReportGenerator {
 
     if (high > 0) {
       md += `## ⚠️ High Priority Issues\n\n`;
-      const highIssues = report.issues.filter(i => i.severity === 'high');
+      const highIssues = report.issues.filter((i) => i.severity === 'high');
       for (const issue of highIssues.slice(0, 10)) {
         md += `- **${issue.dimension}** in \`${path.basename(issue.file)}\`${issue.line ? `:${issue.line}` : ''}: ${issue.message}\n`;
       }
@@ -307,7 +303,7 @@ export class ReportGenerator {
 
     if (medium > 0) {
       md += `## 📝 Medium Priority Issues\n\n`;
-      const mediumIssues = report.issues.filter(i => i.severity === 'medium');
+      const mediumIssues = report.issues.filter((i) => i.severity === 'medium');
       md += `${mediumIssues.length} medium priority issues found. See full report for details.\n\n`;
     }
 
@@ -349,7 +345,9 @@ async function main() {
   const args = process.argv.slice(2);
 
   if (args.length < 2) {
-    console.error('Usage: npx tsx report-generator.ts --input <report.json> [--format json|html|markdown] [--output <file>]');
+    console.error(
+      'Usage: npx tsx report-generator.ts --input <report.json> [--format json|html|markdown] [--output <file>]'
+    );
     process.exit(1);
   }
 

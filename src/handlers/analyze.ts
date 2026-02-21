@@ -10,7 +10,8 @@
  */
 
 import type { sheets_v4 } from 'googleapis';
-import { unwrapRequest, type HandlerContext } from './base.js';
+import { BaseHandler, unwrapRequest, type HandlerContext } from './base.js';
+import type { Intent } from '../core/intent.js';
 import { DataError, ServiceError } from '../core/errors.js';
 import { logger } from '../utils/logger.js';
 import {
@@ -44,6 +45,10 @@ import { storeAnalysisResult } from '../resources/analyze.js';
 import { createNotFoundError } from '../utils/error-factory.js';
 import { buildA1Notation } from '../utils/google-sheets-helpers.js';
 import { Scout, type ScoutResult } from '../analysis/scout.js';
+import { ConfidenceScorer, type ComprehensiveAnalysisData } from '../analysis/confidence-scorer.js';
+import { ElicitationEngine } from '../analysis/elicitation-engine.js';
+import { FlowOrchestrator } from '../analysis/flow-orchestrator.js';
+import { getSessionContext } from '../services/session-context.js';
 import { Planner, type AnalysisPlan } from '../analysis/planner.js';
 import {
   ActionGenerator,
@@ -61,8 +66,7 @@ export interface AnalyzeHandlerOptions {
  *
  * Uses MCP Sampling to provide AI-powered data analysis.
  */
-export class AnalyzeHandler {
-  private context: HandlerContext;
+export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyzeOutput> {
   private sheetsApi: sheets_v4.Sheets;
 
   constructor(
@@ -70,9 +74,12 @@ export class AnalyzeHandler {
     sheetsApi: sheets_v4.Sheets,
     _options?: AnalyzeHandlerOptions
   ) {
-    // If options.context is provided, use it; otherwise use the passed context
-    this.context = _options?.context ?? context;
+    super('sheets_analyze', _options?.context ?? context);
     this.sheetsApi = sheetsApi;
+  }
+
+  protected createIntents(_input: SheetsAnalyzeInput): Intent[] {
+    return []; // Analyze uses direct API calls, not batch compiler
   }
 
   /**
@@ -97,7 +104,7 @@ export class AnalyzeHandler {
   /**
    * Apply verbosity filtering to optimize token usage (LLM optimization)
    */
-  private applyVerbosityFilter(
+  private applyAnalyzeVerbosityFilter(
     response: AnalyzeResponse,
     verbosity: 'minimal' | 'standard' | 'detailed'
   ): AnalyzeResponse {
@@ -121,7 +128,7 @@ export class AnalyzeHandler {
   /**
    * Resolve range to A1 notation
    */
-  private resolveRange(range?: {
+  private resolveAnalyzeRange(range?: {
     a1?: string;
     sheetName?: string;
     range?: string;
@@ -190,7 +197,7 @@ export class AnalyzeHandler {
   private async readData(spreadsheetId: string, range?: string): Promise<unknown[][]> {
     const response = await this.sheetsApi.spreadsheets.values.get({
       spreadsheetId,
-      range: range ?? 'A:ZZ',
+      range: range ?? 'A1:ZZ10000',
       valueRenderOption: 'FORMATTED_VALUE',
     });
     return response.data.values ?? [];
@@ -317,7 +324,7 @@ export class AnalyzeHandler {
           const startTime = Date.now();
 
           // Read the data
-          const rangeStr = this.resolveRange(chartInput.range);
+          const rangeStr = this.resolveAnalyzeRange(chartInput.range);
           const sheetName = this.getSheetNameFromRange(rangeStr);
           const sheetId = await this.resolveSheetId(chartInput.spreadsheetId, sheetName);
           const anchorCell = sheetName ? buildA1Notation(sheetName, 0, 0) : 'A1';
@@ -451,7 +458,7 @@ export class AnalyzeHandler {
 
           // Read the data
           const convertedPatternRange = this.convertRangeInput(patternInput.range);
-          const rangeStr = this.resolveRange(convertedPatternRange);
+          const rangeStr = this.resolveAnalyzeRange(convertedPatternRange);
           const data = await this.readData(patternInput.spreadsheetId, rangeStr);
 
           if (data.length === 0) {
@@ -568,7 +575,8 @@ export class AnalyzeHandler {
                   description: `${t.trend} trend in Column ${t.column + 1} (change: ${t.changeRate})`,
                 })),
                 correlations: {
-                  matrix: [],
+                  // Each entry: [col_i, col_j, pearson_coefficient]
+                  matrix: correlations.map((c) => [...c.columns, parseFloat(c.correlation)]),
                   columns: correlations.map((c) => `Columns ${c.columns.join(' & ')}`),
                 },
               },
@@ -612,6 +620,13 @@ export class AnalyzeHandler {
             const sheets = spreadsheet.data.sheets ?? [];
             const namedRanges = spreadsheet.data.namedRanges ?? [];
 
+            // Build sheetId → title lookup (sheetId is NOT an array index)
+            const sheetTitleById = new Map<number, string>(
+              sheets
+                .filter((s) => s.properties?.sheetId != null)
+                .map((s) => [s.properties!.sheetId!, s.properties?.title ?? 'Untitled'])
+            );
+
             // Calculate totals
             const totalRows = sheets.reduce(
               (sum, sheet) => sum + (sheet.properties?.gridProperties?.rowCount ?? 0),
@@ -630,7 +645,7 @@ export class AnalyzeHandler {
                 name: nr.name ?? 'Unnamed',
                 range:
                   nr.range?.startRowIndex !== undefined && nr.range.startRowIndex !== null
-                    ? `${sheets[nr.range.sheetId ?? 0]?.properties?.title ?? 'Sheet1'}!R${nr.range.startRowIndex + 1}C${(nr.range.startColumnIndex ?? 0) + 1}:R${nr.range.endRowIndex ?? 0}C${nr.range.endColumnIndex ?? 0}`
+                    ? `${sheetTitleById.get(nr.range.sheetId ?? 0) ?? 'Sheet1'}!R${nr.range.startRowIndex + 1}C${(nr.range.startColumnIndex ?? 0) + 1}:R${nr.range.endRowIndex ?? 0}C${nr.range.endColumnIndex ?? 0}`
                     : 'Unknown',
               })),
             };
@@ -678,7 +693,7 @@ export class AnalyzeHandler {
           try {
             // Read the data
             const convertedQualityRange = this.convertRangeInput(qualityInput.range);
-            const rangeStr = this.resolveRange(convertedQualityRange);
+            const rangeStr = this.resolveAnalyzeRange(convertedQualityRange);
             const data = await this.readData(qualityInput.spreadsheetId, rangeStr);
 
             if (data.length === 0) {
@@ -743,7 +758,7 @@ export class AnalyzeHandler {
                 score: overallScore,
                 completeness: avgCompleteness,
                 consistency: avgConsistency,
-                accuracy: 100, // Placeholder - would need additional validation
+                accuracy: Math.round(avgConsistency), // Type consistency as accuracy proxy
                 issues,
                 summary: `Quality score: ${overallScore.toFixed(1)}% (${issues.length} issues found)`,
               },
@@ -780,8 +795,9 @@ export class AnalyzeHandler {
             // Get spreadsheet metadata
             const spreadsheet = await this.sheetsApi.spreadsheets.get({
               spreadsheetId: perfInput.spreadsheetId,
+              includeGridData: true,
               fields:
-                'spreadsheetId,properties,sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount)))',
+                'spreadsheetId,properties,sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount)),data(rowData(values(userEnteredValue))),conditionalFormats,charts)',
             });
 
             const sheets = spreadsheet.data.sheets ?? [];
@@ -963,55 +979,46 @@ export class AnalyzeHandler {
               formattedValue?: string;
             }> = [];
 
-            // Fetch formulas from each sheet using includeGridData with fields filter
-            // CRITICAL FIX: Include effectiveValue and formattedValue to detect formula errors
-            for (const sheet of metadata.sheets) {
-              const response = await this.sheetsApi.spreadsheets.get({
-                spreadsheetId: formulaInput.spreadsheetId,
-                ranges: [`'${sheet.title}'`],
-                includeGridData: true,
-                fields:
-                  'sheets(data(rowData(values(userEnteredValue,effectiveValue,formattedValue))),properties(title))',
-              });
+            // Fetch formulas from ALL sheets in a single API call (fix N+1 pattern)
+            const allRanges = metadata.sheets.map((s) => `'${s.title}'`);
+            const batchResponse = await this.sheetsApi.spreadsheets.get({
+              spreadsheetId: formulaInput.spreadsheetId,
+              ranges: allRanges,
+              includeGridData: true,
+              fields:
+                'sheets(data(rowData(values(userEnteredValue,effectiveValue,formattedValue))),properties(title))',
+            });
 
-              if (response.data.sheets && response.data.sheets[0]?.data) {
-                const sheetData = response.data.sheets[0];
-                const sheetTitle = sheetData.properties?.title || sheet.title;
-
-                for (const gridData of sheetData.data || []) {
-                  if (!gridData.rowData) continue;
-
-                  for (let rowIdx = 0; rowIdx < gridData.rowData.length; rowIdx++) {
-                    const row = gridData.rowData[rowIdx];
-                    if (!row?.values) continue;
-
-                    for (let colIdx = 0; colIdx < row.values.length; colIdx++) {
-                      const cell = row.values[colIdx];
-                      if (cell?.userEnteredValue?.formulaValue) {
-                        const cellA1 = `${String.fromCharCode(65 + colIdx)}${rowIdx + 1}`;
-
-                        // Extract effective value (what user sees, including errors)
-                        const effectiveValue = cell.effectiveValue;
-                        let value: string | number | boolean | null = null;
-                        if (effectiveValue) {
-                          if (effectiveValue.errorValue) {
-                            value = effectiveValue.errorValue.type || '#ERROR!';
-                          } else if (effectiveValue.stringValue !== undefined) {
-                            value = effectiveValue.stringValue;
-                          } else if (effectiveValue.numberValue !== undefined) {
-                            value = effectiveValue.numberValue;
-                          } else if (effectiveValue.boolValue !== undefined) {
-                            value = effectiveValue.boolValue;
-                          }
+            for (const sheetData of batchResponse.data.sheets ?? []) {
+              const sheetTitle = sheetData.properties?.title ?? 'Untitled';
+              for (const gridData of sheetData.data ?? []) {
+                if (!gridData.rowData) continue;
+                for (let rowIdx = 0; rowIdx < gridData.rowData.length; rowIdx++) {
+                  const row = gridData.rowData[rowIdx];
+                  if (!row?.values) continue;
+                  for (let colIdx = 0; colIdx < row.values.length; colIdx++) {
+                    const cell = row.values[colIdx];
+                    if (cell?.userEnteredValue?.formulaValue) {
+                      const cellA1 = `${String.fromCharCode(65 + colIdx)}${rowIdx + 1}`;
+                      const effectiveValue = cell.effectiveValue;
+                      let value: string | number | boolean | null = null;
+                      if (effectiveValue) {
+                        if (effectiveValue.errorValue) {
+                          value = effectiveValue.errorValue.type || '#ERROR!';
+                        } else if (effectiveValue.stringValue !== undefined) {
+                          value = effectiveValue.stringValue;
+                        } else if (effectiveValue.numberValue !== undefined) {
+                          value = effectiveValue.numberValue;
+                        } else if (effectiveValue.boolValue !== undefined) {
+                          value = effectiveValue.boolValue;
                         }
-
-                        formulas.push({
-                          cell: `${sheetTitle}!${cellA1}`,
-                          formula: cell.userEnteredValue.formulaValue,
-                          value,
-                          formattedValue: cell.formattedValue || undefined,
-                        });
                       }
+                      formulas.push({
+                        cell: `${sheetTitle}!${cellA1}`,
+                        formula: cell.userEnteredValue.formulaValue,
+                        value,
+                        formattedValue: cell.formattedValue || undefined,
+                      });
                     }
                   }
                 }
@@ -1389,6 +1396,61 @@ export class AnalyzeHandler {
         case 'comprehensive': {
           // Type assertion: refine() ensures spreadsheetId is present for 'comprehensive' action
           response = await this.handleComprehensive(req as ComprehensiveInput, verbosity);
+
+          // Intelligence cluster: confidence scoring for comprehensive results (non-critical)
+          if (response.success) {
+            try {
+              const respData = response as Record<string, unknown>;
+              const comprehensiveData: ComprehensiveAnalysisData = {
+                qualityScore:
+                  typeof respData['qualityScore'] === 'number'
+                    ? (respData['qualityScore'] as number)
+                    : undefined,
+                issueCount: Array.isArray(respData['issues'])
+                  ? (respData['issues'] as unknown[]).length
+                  : undefined,
+                wasTruncated:
+                  typeof respData['wasTruncated'] === 'boolean'
+                    ? (respData['wasTruncated'] as boolean)
+                    : undefined,
+                detectedDomain:
+                  typeof respData['detectedDomain'] === 'string'
+                    ? (respData['detectedDomain'] as string)
+                    : undefined,
+                hasVisualizationSuggestions: Array.isArray(respData['visualizationSuggestions'])
+                  ? (respData['visualizationSuggestions'] as unknown[]).length > 0
+                  : undefined,
+              };
+
+              const scorer = new ConfidenceScorer();
+              const store = getSessionContext().understandingStore;
+              const spreadsheetId = (req as Record<string, unknown>)['spreadsheetId'] as string;
+
+              const assessment = scorer.scoreFromComprehensive(spreadsheetId, comprehensiveData);
+              store.updateFromComprehensive(spreadsheetId, assessment, {
+                detectedDomain: comprehensiveData.detectedDomain,
+              });
+
+              (response as Record<string, unknown>)['confidence'] = {
+                overallScore: assessment.overallScore,
+                level: assessment.overallLevel,
+                dimensions: assessment.dimensions.map((d) => ({
+                  dimension: d.dimension,
+                  score: d.score,
+                  level: d.level,
+                  gaps: d.gaps,
+                })),
+                gaps: assessment.topGaps.map((g) => g.gap),
+              };
+            } catch (intelligenceErr) {
+              logger.warn('Intelligence cluster comprehensive scoring failed (non-critical)', {
+                error:
+                  intelligenceErr instanceof Error
+                    ? intelligenceErr.message
+                    : String(intelligenceErr),
+              });
+            }
+          }
           break;
         }
 
@@ -1471,6 +1533,60 @@ export class AnalyzeHandler {
               duration: scoutResult.latencyMs,
               message: `Scout complete: ${scoutResult.indicators.sizeCategory} spreadsheet with ${scoutResult.sheets.length} sheet(s). Detected intent: ${scoutResult.detectedIntent}`,
             };
+
+            // Intelligence cluster: confidence scoring + elicitation (non-critical)
+            try {
+              const scorer = new ConfidenceScorer();
+              const store = getSessionContext().understandingStore;
+              const engine = new ElicitationEngine();
+
+              const assessment = scorer.scoreFromScout(scoutResult);
+              store.initFromScout(
+                scoutResult.spreadsheetId,
+                scoutResult.title,
+                scoutResult.sheets.map((s) => ({ sheetId: s.sheetId, title: s.title })),
+                assessment
+              );
+
+              (response as Record<string, unknown>)['confidence'] = {
+                overallScore: assessment.overallScore,
+                level: assessment.overallLevel,
+                dimensions: assessment.dimensions.map((d) => ({
+                  dimension: d.dimension,
+                  score: d.score,
+                  level: d.level,
+                  gaps: d.gaps,
+                })),
+                gaps: assessment.topGaps.map((g) => g.gap),
+              };
+
+              const elicitation = engine.generate(assessment);
+              if (elicitation.shouldElicit) {
+                (response as Record<string, unknown>)['elicitation'] = {
+                  shouldElicit: true,
+                  questions: elicitation.questions
+                    .slice(0, elicitation.recommendedBatchSize)
+                    .map((q) => ({
+                      id: q.id,
+                      question: q.question,
+                      reason: q.reason,
+                      type: q.type,
+                      options: q.options,
+                      priority: q.priority,
+                    })),
+                  projectedBoost:
+                    elicitation.projectedConfidenceAfterElicitation - assessment.overallScore,
+                };
+              }
+            } catch (intelligenceErr) {
+              logger.warn('Intelligence cluster scoring failed (non-critical)', {
+                spreadsheetId: req.spreadsheetId,
+                error:
+                  intelligenceErr instanceof Error
+                    ? intelligenceErr.message
+                    : String(intelligenceErr),
+              });
+            }
           } catch (error) {
             logger.error('Scout failed', {
               spreadsheetId: req.spreadsheetId,
@@ -1480,7 +1596,8 @@ export class AnalyzeHandler {
               success: false,
               error: {
                 code: 'INTERNAL_ERROR',
-                message: `Scout analysis failed: ${error instanceof Error ? error.message : String(error)}`,
+                message:
+                  'Scout analysis failed. The AI analysis service may be temporarily unavailable. Please try again.',
                 retryable: true,
               },
             };
@@ -1561,7 +1678,8 @@ export class AnalyzeHandler {
               success: false,
               error: {
                 code: 'INTERNAL_ERROR',
-                message: `Plan creation failed: ${error instanceof Error ? error.message : String(error)}`,
+                message:
+                  'Plan creation failed. The AI analysis service may be temporarily unavailable. Please try again.',
                 retryable: true,
               },
             };
@@ -1654,12 +1772,16 @@ export class AnalyzeHandler {
               },
               message: `Drill-down result for ${targetType}: ${targetId}`,
             };
-          } catch (error) {
+          } catch (drillError) {
+            logger.error('Drill-down analysis failed', {
+              error: drillError instanceof Error ? drillError.message : String(drillError),
+            });
             response = {
               success: false,
               error: {
                 code: 'INTERNAL_ERROR',
-                message: `Drill-down failed: ${error instanceof Error ? error.message : String(error)}`,
+                message:
+                  'Drill-down analysis failed. The AI analysis service may be temporarily unavailable. Please try again.',
                 retryable: true,
               },
             };
@@ -1726,6 +1848,33 @@ export class AnalyzeHandler {
               },
               message: `Generated ${result.actions.length} actions from ${result.summary.totalFindings} findings`,
             };
+
+            // Intelligence cluster: suggest multi-tool chains based on current understanding
+            try {
+              const orchestrator = new FlowOrchestrator();
+              const store = getSessionContext().understandingStore;
+              const summary = store.getSummary(req.spreadsheetId);
+              const suggestions = orchestrator.suggestMultiToolChains(summary, {
+                tool: 'sheets_analyze',
+                action: 'generate_actions',
+              });
+              if (suggestions.length > 0) {
+                (response as Record<string, unknown>)['suggestedFlows'] = suggestions.map((s) => ({
+                  title: s.title,
+                  reason: s.reason,
+                  steps: s.toolChain.map((t) => `${t.tool}.${t.action}`),
+                  confidence: s.confidence,
+                }));
+              }
+            } catch (intelligenceErr) {
+              logger.warn('Intelligence cluster flow suggestions failed (non-critical)', {
+                spreadsheetId: req.spreadsheetId,
+                error:
+                  intelligenceErr instanceof Error
+                    ? intelligenceErr.message
+                    : String(intelligenceErr),
+              });
+            }
           } catch (error) {
             logger.error('Generate actions failed', {
               spreadsheetId: req.spreadsheetId,
@@ -1735,7 +1884,8 @@ export class AnalyzeHandler {
               success: false,
               error: {
                 code: 'INTERNAL_ERROR',
-                message: `Action generation failed: ${error instanceof Error ? error.message : String(error)}`,
+                message:
+                  'Action generation failed. The AI analysis service may be temporarily unavailable. Please try again.',
                 retryable: true,
               },
             };
@@ -1786,7 +1936,7 @@ export class AnalyzeHandler {
       }
 
       // Apply verbosity filtering (LLM optimization)
-      return { response: this.applyVerbosityFilter(response, verbosity) };
+      return { response: this.applyAnalyzeVerbosityFilter(response, verbosity) };
     } catch (error) {
       return {
         response: {
@@ -2272,7 +2422,7 @@ export class AnalyzeHandler {
 
     if ('range' in req && req.range) {
       const convertedRange = this.convertRangeInput(req.range);
-      const rangeStr = this.resolveRange(convertedRange);
+      const rangeStr = this.resolveAnalyzeRange(convertedRange);
       const data = await this.readData(req.spreadsheetId, rangeStr);
       if (data.length > 0) {
         headers = data[0]?.map(String);

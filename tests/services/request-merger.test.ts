@@ -172,9 +172,7 @@ describe('RequestMerger', () => {
 
     it('should handle API errors', async () => {
       const disabledMerger = new RequestMerger({ enabled: false });
-      mockSheetsApi.spreadsheets.values.get.mockRejectedValue(
-        new Error('API error')
-      );
+      mockSheetsApi.spreadsheets.values.get.mockRejectedValue(new Error('API error'));
 
       await expect(
         disabledMerger.mergeRead(
@@ -449,7 +447,10 @@ describe('splitResponse utility', () => {
     const mergedData: sheets_v4.Schema$ValueRange = {
       range: 'Sheet1!A1:B5',
       majorDimension: 'COLUMNS',
-      values: [['A1', 'A2'], ['B1', 'B2']],
+      values: [
+        ['A1', 'A2'],
+        ['B1', 'B2'],
+      ],
     };
 
     const split = splitResponse(mergedData, mergedRange, requestedRange);

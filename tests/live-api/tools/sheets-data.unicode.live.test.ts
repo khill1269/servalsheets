@@ -385,12 +385,7 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
       await applyQuotaDelay();
 
       // Try various Unicode sheet names
-      const unicodeSheetNames = [
-        'Sheet_日本語',
-        'Sheet_العربية',
-        'Sheet_한국어',
-        'Sheet_Émoji_🎉',
-      ];
+      const unicodeSheetNames = ['Sheet_日本語', 'Sheet_العربية', 'Sheet_한국어', 'Sheet_Émoji_🎉'];
 
       for (const sheetName of unicodeSheetNames) {
         try {

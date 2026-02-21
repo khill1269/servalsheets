@@ -81,6 +81,7 @@ The ServalSheets Kubernetes Operator provides declarative management of MCP serv
 ```
 
 **Key Components:**
+
 - **CRD**: `ServalSheetsServer` custom resource (API: `servalsheets.io/v1alpha1`)
 - **Operator**: Watches CRs and reconciles Kubernetes resources
 - **Managed Resources**: Deployments, Services, HPAs, Ingresses, ConfigMaps, Secrets
@@ -209,7 +210,7 @@ spec:
   replicas: 1
   image:
     repository: servalsheets/server
-    tag: "1.6.0"
+    tag: '1.6.0'
     pullPolicy: IfNotPresent
 ```
 
@@ -225,16 +226,16 @@ spec:
   replicas: 3
   image:
     repository: servalsheets/server
-    tag: "1.6.0"
+    tag: '1.6.0'
     pullPolicy: IfNotPresent
 
   resources:
     requests:
-      cpu: "500m"
-      memory: "512Mi"
+      cpu: '500m'
+      memory: '512Mi'
     limits:
-      cpu: "2000m"
-      memory: "2Gi"
+      cpu: '2000m'
+      memory: '2Gi'
 
   autoscaling:
     enabled: true
@@ -257,7 +258,7 @@ spec:
       metricsEnabled: true
       metricsPort: 9090
       tracingEnabled: true
-      tracingEndpoint: "http://jaeger-collector:14268/api/traces"
+      tracingEndpoint: 'http://jaeger-collector:14268/api/traces'
 
     google:
       credentialsSecretRef:
@@ -272,68 +273,68 @@ spec:
       enabled: true
       secretName: prod-tls-cert
     annotations:
-      cert-manager.io/cluster-issuer: "letsencrypt-prod"
-      nginx.ingress.kubernetes.io/rate-limit: "100"
+      cert-manager.io/cluster-issuer: 'letsencrypt-prod'
+      nginx.ingress.kubernetes.io/rate-limit: '100'
 ```
 
 ### Configuration Reference
 
 #### Spec Fields
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `replicas` | integer | **Yes** | 1 | Number of pod replicas (1-100) |
-| `image.repository` | string | No | `servalsheets/server` | Container image repository |
-| `image.tag` | string | No | `latest` | Container image tag |
-| `image.pullPolicy` | string | No | `IfNotPresent` | Image pull policy (`Always`, `IfNotPresent`, `Never`) |
-| `resources.requests.cpu` | string | No | `100m` | CPU request |
-| `resources.requests.memory` | string | No | `128Mi` | Memory request |
-| `resources.limits.cpu` | string | No | `1000m` | CPU limit |
-| `resources.limits.memory` | string | No | `512Mi` | Memory limit |
-| `autoscaling.enabled` | boolean | No | `true` | Enable HorizontalPodAutoscaler |
-| `autoscaling.minReplicas` | integer | No | 1 | Minimum replicas for HPA |
-| `autoscaling.maxReplicas` | integer | No | 10 | Maximum replicas for HPA |
-| `autoscaling.targetCPUUtilizationPercentage` | integer | No | 70 | Target CPU utilization (1-100) |
-| `autoscaling.targetMemoryUtilizationPercentage` | integer | No | 80 | Target memory utilization (1-100) |
-| `autoscaling.targetRequestRatePerSecond` | integer | No | 100 | Target requests/sec per pod |
-| `config.oauth.enabled` | boolean | No | `false` | Enable OAuth 2.1 authentication |
-| `config.oauth.issuer` | string | No | - | OAuth issuer URL |
-| `config.oauth.clientId` | string | No | - | OAuth client ID |
-| `config.oauth.clientSecretRef.name` | string | No | - | Secret name containing OAuth client secret |
-| `config.oauth.clientSecretRef.key` | string | No | - | Secret key containing OAuth client secret |
-| `config.google.credentialsSecretRef.name` | string | No | - | Secret name containing Google credentials JSON |
-| `config.google.credentialsSecretRef.key` | string | No | - | Secret key containing Google credentials JSON |
-| `config.redis.enabled` | boolean | No | `false` | Enable Redis caching |
-| `config.redis.host` | string | No | - | Redis host (e.g., `redis-service`) |
-| `config.redis.port` | integer | No | 6379 | Redis port |
-| `config.redis.passwordSecretRef.name` | string | No | - | Secret name containing Redis password |
-| `config.redis.passwordSecretRef.key` | string | No | - | Secret key containing Redis password |
-| `config.observability.metricsEnabled` | boolean | No | `true` | Enable Prometheus metrics |
-| `config.observability.metricsPort` | integer | No | 9090 | Metrics port |
-| `config.observability.tracingEnabled` | boolean | No | `false` | Enable distributed tracing |
-| `config.observability.tracingEndpoint` | string | No | - | Tracing endpoint URL |
-| `ingress.enabled` | boolean | No | `false` | Create Ingress resource |
-| `ingress.className` | string | No | `nginx` | Ingress class name |
-| `ingress.host` | string | No | - | Ingress hostname |
-| `ingress.tls.enabled` | boolean | No | `false` | Enable TLS |
-| `ingress.tls.secretName` | string | No | - | TLS certificate secret name |
-| `ingress.annotations` | object | No | `{}` | Custom ingress annotations |
+| Field                                           | Type    | Required | Default               | Description                                           |
+| ----------------------------------------------- | ------- | -------- | --------------------- | ----------------------------------------------------- |
+| `replicas`                                      | integer | **Yes**  | 1                     | Number of pod replicas (1-100)                        |
+| `image.repository`                              | string  | No       | `servalsheets/server` | Container image repository                            |
+| `image.tag`                                     | string  | No       | `latest`              | Container image tag                                   |
+| `image.pullPolicy`                              | string  | No       | `IfNotPresent`        | Image pull policy (`Always`, `IfNotPresent`, `Never`) |
+| `resources.requests.cpu`                        | string  | No       | `100m`                | CPU request                                           |
+| `resources.requests.memory`                     | string  | No       | `128Mi`               | Memory request                                        |
+| `resources.limits.cpu`                          | string  | No       | `1000m`               | CPU limit                                             |
+| `resources.limits.memory`                       | string  | No       | `512Mi`               | Memory limit                                          |
+| `autoscaling.enabled`                           | boolean | No       | `true`                | Enable HorizontalPodAutoscaler                        |
+| `autoscaling.minReplicas`                       | integer | No       | 1                     | Minimum replicas for HPA                              |
+| `autoscaling.maxReplicas`                       | integer | No       | 10                    | Maximum replicas for HPA                              |
+| `autoscaling.targetCPUUtilizationPercentage`    | integer | No       | 70                    | Target CPU utilization (1-100)                        |
+| `autoscaling.targetMemoryUtilizationPercentage` | integer | No       | 80                    | Target memory utilization (1-100)                     |
+| `autoscaling.targetRequestRatePerSecond`        | integer | No       | 100                   | Target requests/sec per pod                           |
+| `config.oauth.enabled`                          | boolean | No       | `false`               | Enable OAuth 2.1 authentication                       |
+| `config.oauth.issuer`                           | string  | No       | -                     | OAuth issuer URL                                      |
+| `config.oauth.clientId`                         | string  | No       | -                     | OAuth client ID                                       |
+| `config.oauth.clientSecretRef.name`             | string  | No       | -                     | Secret name containing OAuth client secret            |
+| `config.oauth.clientSecretRef.key`              | string  | No       | -                     | Secret key containing OAuth client secret             |
+| `config.google.credentialsSecretRef.name`       | string  | No       | -                     | Secret name containing Google credentials JSON        |
+| `config.google.credentialsSecretRef.key`        | string  | No       | -                     | Secret key containing Google credentials JSON         |
+| `config.redis.enabled`                          | boolean | No       | `false`               | Enable Redis caching                                  |
+| `config.redis.host`                             | string  | No       | -                     | Redis host (e.g., `redis-service`)                    |
+| `config.redis.port`                             | integer | No       | 6379                  | Redis port                                            |
+| `config.redis.passwordSecretRef.name`           | string  | No       | -                     | Secret name containing Redis password                 |
+| `config.redis.passwordSecretRef.key`            | string  | No       | -                     | Secret key containing Redis password                  |
+| `config.observability.metricsEnabled`           | boolean | No       | `true`                | Enable Prometheus metrics                             |
+| `config.observability.metricsPort`              | integer | No       | 9090                  | Metrics port                                          |
+| `config.observability.tracingEnabled`           | boolean | No       | `false`               | Enable distributed tracing                            |
+| `config.observability.tracingEndpoint`          | string  | No       | -                     | Tracing endpoint URL                                  |
+| `ingress.enabled`                               | boolean | No       | `false`               | Create Ingress resource                               |
+| `ingress.className`                             | string  | No       | `nginx`               | Ingress class name                                    |
+| `ingress.host`                                  | string  | No       | -                     | Ingress hostname                                      |
+| `ingress.tls.enabled`                           | boolean | No       | `false`               | Enable TLS                                            |
+| `ingress.tls.secretName`                        | string  | No       | -                     | TLS certificate secret name                           |
+| `ingress.annotations`                           | object  | No       | `{}`                  | Custom ingress annotations                            |
 
 #### Status Fields
 
 The operator updates the `status` field with current state information:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `phase` | string | Current phase: `Pending`, `Running`, `Failed`, `Scaling` |
-| `replicas` | integer | Current number of replicas |
-| `readyReplicas` | integer | Number of ready replicas |
-| `observedGeneration` | integer | Most recent generation observed by operator |
-| `lastScaleTime` | timestamp | Last time autoscaler scaled the deployment |
-| `currentMetrics.cpuUtilization` | integer | Current CPU utilization percentage |
-| `currentMetrics.memoryUtilization` | integer | Current memory utilization percentage |
-| `currentMetrics.requestRate` | integer | Current requests per second |
-| `conditions[]` | array | Status conditions (type, status, reason, message, lastTransitionTime) |
+| Field                              | Type      | Description                                                           |
+| ---------------------------------- | --------- | --------------------------------------------------------------------- |
+| `phase`                            | string    | Current phase: `Pending`, `Running`, `Failed`, `Scaling`              |
+| `replicas`                         | integer   | Current number of replicas                                            |
+| `readyReplicas`                    | integer   | Number of ready replicas                                              |
+| `observedGeneration`               | integer   | Most recent generation observed by operator                           |
+| `lastScaleTime`                    | timestamp | Last time autoscaler scaled the deployment                            |
+| `currentMetrics.cpuUtilization`    | integer   | Current CPU utilization percentage                                    |
+| `currentMetrics.memoryUtilization` | integer   | Current memory utilization percentage                                 |
+| `currentMetrics.requestRate`       | integer   | Current requests per second                                           |
+| `conditions[]`                     | array     | Status conditions (type, status, reason, message, lastTransitionTime) |
 
 **Example status:**
 
@@ -343,22 +344,22 @@ status:
   replicas: 5
   readyReplicas: 5
   observedGeneration: 3
-  lastScaleTime: "2026-02-17T10:30:00Z"
+  lastScaleTime: '2026-02-17T10:30:00Z'
   currentMetrics:
     cpuUtilization: 68
     memoryUtilization: 72
     requestRate: 145
   conditions:
     - type: Available
-      status: "True"
-      lastTransitionTime: "2026-02-17T09:00:00Z"
+      status: 'True'
+      lastTransitionTime: '2026-02-17T09:00:00Z'
       reason: MinimumReplicasAvailable
-      message: "Deployment has minimum availability"
+      message: 'Deployment has minimum availability'
     - type: Progressing
-      status: "True"
-      lastTransitionTime: "2026-02-17T10:30:00Z"
+      status: 'True'
+      lastTransitionTime: '2026-02-17T10:30:00Z'
       reason: NewReplicaSetAvailable
-      message: "ReplicaSet has successfully progressed"
+      message: 'ReplicaSet has successfully progressed'
 ```
 
 ### Auto-scaling
@@ -373,8 +374,8 @@ spec:
     enabled: true
     minReplicas: 2
     maxReplicas: 10
-    targetCPUUtilizationPercentage: 70      # Scale up at 70% CPU
-    targetMemoryUtilizationPercentage: 80   # Scale up at 80% memory
+    targetCPUUtilizationPercentage: 70 # Scale up at 70% CPU
+    targetMemoryUtilizationPercentage: 80 # Scale up at 80% memory
 ```
 
 #### Request Rate Scaling (Custom Metric)
@@ -385,10 +386,11 @@ spec:
     enabled: true
     minReplicas: 2
     maxReplicas: 20
-    targetRequestRatePerSecond: 100  # Scale to maintain 100 req/s per pod
+    targetRequestRatePerSecond: 100 # Scale to maintain 100 req/s per pod
 ```
 
 **Prerequisites for request rate scaling:**
+
 - Prometheus metrics server installed
 - Prometheus adapter configured with custom metrics
 - Application exposes `http_requests_per_second` metric
@@ -417,8 +419,8 @@ spec:
   config:
     oauth:
       enabled: true
-      issuer: "https://auth.example.com"
-      clientId: "servalsheets-prod"
+      issuer: 'https://auth.example.com'
+      clientId: 'servalsheets-prod'
       clientSecretRef:
         name: oauth-client-secret
         key: clientSecret
@@ -478,9 +480,9 @@ spec:
       enabled: true
       secretName: sheets-tls-cert
     annotations:
-      cert-manager.io/cluster-issuer: "letsencrypt-prod"
-      nginx.ingress.kubernetes.io/ssl-redirect: "true"
-      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      cert-manager.io/cluster-issuer: 'letsencrypt-prod'
+      nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+      nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
 ```
 
 **With cert-manager installed**, the annotation `cert-manager.io/cluster-issuer: "letsencrypt-prod"` will automatically provision a TLS certificate.
@@ -750,15 +752,15 @@ spec:
   replicas: 1
   image:
     repository: servalsheets/server
-    tag: "latest"
+    tag: 'latest'
     pullPolicy: Always
   resources:
     requests:
-      cpu: "100m"
-      memory: "128Mi"
+      cpu: '100m'
+      memory: '128Mi'
     limits:
-      cpu: "500m"
-      memory: "256Mi"
+      cpu: '500m'
+      memory: '256Mi'
   autoscaling:
     enabled: false
   config:
@@ -781,16 +783,16 @@ spec:
   replicas: 5
   image:
     repository: servalsheets/server
-    tag: "1.6.0"
+    tag: '1.6.0'
     pullPolicy: IfNotPresent
 
   resources:
     requests:
-      cpu: "1000m"
-      memory: "1Gi"
+      cpu: '1000m'
+      memory: '1Gi'
     limits:
-      cpu: "4000m"
-      memory: "4Gi"
+      cpu: '4000m'
+      memory: '4Gi'
 
   autoscaling:
     enabled: true
@@ -813,7 +815,7 @@ spec:
       metricsEnabled: true
       metricsPort: 9090
       tracingEnabled: true
-      tracingEndpoint: "http://jaeger-collector.observability:14268/api/traces"
+      tracingEndpoint: 'http://jaeger-collector.observability:14268/api/traces'
 
     google:
       credentialsSecretRef:
@@ -822,8 +824,8 @@ spec:
 
     oauth:
       enabled: true
-      issuer: "https://auth.example.com"
-      clientId: "servalsheets-production"
+      issuer: 'https://auth.example.com'
+      clientId: 'servalsheets-production'
       clientSecretRef:
         name: oauth-prod-secret
         key: clientSecret
@@ -836,12 +838,12 @@ spec:
       enabled: true
       secretName: prod-wildcard-tls
     annotations:
-      cert-manager.io/cluster-issuer: "letsencrypt-prod"
-      nginx.ingress.kubernetes.io/rate-limit: "500"
-      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-      nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
-      nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
-      nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+      cert-manager.io/cluster-issuer: 'letsencrypt-prod'
+      nginx.ingress.kubernetes.io/rate-limit: '500'
+      nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: '60'
+      nginx.ingress.kubernetes.io/proxy-send-timeout: '60'
+      nginx.ingress.kubernetes.io/proxy-read-timeout: '60'
 ```
 
 ### Example 3: Multi-Region Deployment
@@ -953,58 +955,58 @@ metadata:
   name: servalsheets-operator
 rules:
   # Custom resources
-  - apiGroups: ["servalsheets.io"]
-    resources: ["servalsheets-servers"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  - apiGroups: ["servalsheets.io"]
-    resources: ["servalsheets-servers/status"]
-    verbs: ["get", "update", "patch"]
+  - apiGroups: ['servalsheets.io']
+    resources: ['servalsheets-servers']
+    verbs: ['get', 'list', 'watch', 'create', 'update', 'patch', 'delete']
+  - apiGroups: ['servalsheets.io']
+    resources: ['servalsheets-servers/status']
+    verbs: ['get', 'update', 'patch']
 
   # Core resources
-  - apiGroups: [""]
-    resources: ["services", "pods", "configmaps", "secrets"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  - apiGroups: [""]
-    resources: ["events"]
-    verbs: ["create", "patch"]
+  - apiGroups: ['']
+    resources: ['services', 'pods', 'configmaps', 'secrets']
+    verbs: ['get', 'list', 'watch', 'create', 'update', 'patch', 'delete']
+  - apiGroups: ['']
+    resources: ['events']
+    verbs: ['create', 'patch']
 
   # Apps resources
-  - apiGroups: ["apps"]
-    resources: ["deployments", "replicasets"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ['apps']
+    resources: ['deployments', 'replicasets']
+    verbs: ['get', 'list', 'watch', 'create', 'update', 'patch', 'delete']
 
   # Autoscaling resources
-  - apiGroups: ["autoscaling"]
-    resources: ["horizontalpodautoscalers"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ['autoscaling']
+    resources: ['horizontalpodautoscalers']
+    verbs: ['get', 'list', 'watch', 'create', 'update', 'patch', 'delete']
 
   # Networking resources
-  - apiGroups: ["networking.k8s.io"]
-    resources: ["ingresses"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ['networking.k8s.io']
+    resources: ['ingresses']
+    verbs: ['get', 'list', 'watch', 'create', 'update', 'patch', 'delete']
 
   # Metrics (read-only)
-  - apiGroups: ["metrics.k8s.io"]
-    resources: ["pods", "nodes"]
-    verbs: ["get", "list"]
+  - apiGroups: ['metrics.k8s.io']
+    resources: ['pods', 'nodes']
+    verbs: ['get', 'list']
 ```
 
 ### Required Permissions Summary
 
-| Resource | API Group | Verbs | Purpose |
-|----------|-----------|-------|---------|
-| `servalsheets-servers` | `servalsheets.io` | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage custom resources |
-| `servalsheets-servers/status` | `servalsheets.io` | `get`, `update`, `patch` | Update CR status |
-| `services` | Core (`""`) | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage Services |
-| `pods` | Core (`""`) | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage Pods |
-| `configmaps` | Core (`""`) | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage ConfigMaps |
-| `secrets` | Core (`""`) | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage Secrets |
-| `events` | Core (`""`) | `create`, `patch` | Create Kubernetes events |
-| `deployments` | `apps` | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage Deployments |
-| `replicasets` | `apps` | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage ReplicaSets |
-| `horizontalpodautoscalers` | `autoscaling` | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage HPAs |
-| `ingresses` | `networking.k8s.io` | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage Ingress |
-| `pods`, `nodes` | `metrics.k8s.io` | `get`, `list` | Read metrics (for HPA) |
+| Resource                      | API Group           | Verbs                                                         | Purpose                  |
+| ----------------------------- | ------------------- | ------------------------------------------------------------- | ------------------------ |
+| `servalsheets-servers`        | `servalsheets.io`   | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage custom resources  |
+| `servalsheets-servers/status` | `servalsheets.io`   | `get`, `update`, `patch`                                      | Update CR status         |
+| `services`                    | Core (`""`)         | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage Services          |
+| `pods`                        | Core (`""`)         | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage Pods              |
+| `configmaps`                  | Core (`""`)         | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage ConfigMaps        |
+| `secrets`                     | Core (`""`)         | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage Secrets           |
+| `events`                      | Core (`""`)         | `create`, `patch`                                             | Create Kubernetes events |
+| `deployments`                 | `apps`              | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage Deployments       |
+| `replicasets`                 | `apps`              | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage ReplicaSets       |
+| `horizontalpodautoscalers`    | `autoscaling`       | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage HPAs              |
+| `ingresses`                   | `networking.k8s.io` | `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` | Manage Ingress           |
+| `pods`, `nodes`               | `metrics.k8s.io`    | `get`, `list`                                                 | Read metrics (for HPA)   |
 
 ### Minimal User Permissions
 
@@ -1017,12 +1019,12 @@ metadata:
   name: servalsheets-user
   namespace: my-namespace
 rules:
-  - apiGroups: ["servalsheets.io"]
-    resources: ["servalsheets-servers"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  - apiGroups: ["servalsheets.io"]
-    resources: ["servalsheets-servers/status"]
-    verbs: ["get"]
+  - apiGroups: ['servalsheets.io']
+    resources: ['servalsheets-servers']
+    verbs: ['get', 'list', 'watch', 'create', 'update', 'patch', 'delete']
+  - apiGroups: ['servalsheets.io']
+    resources: ['servalsheets-servers/status']
+    verbs: ['get']
 ```
 
 The operator handles all underlying Kubernetes resources automatically.
@@ -1036,6 +1038,7 @@ The operator handles all underlying Kubernetes resources automatically.
 #### Issue 1: Operator Not Starting
 
 **Symptoms:**
+
 - Operator pod in `CrashLoopBackOff` or `Error` state
 - Operator logs show RBAC permission errors
 
@@ -1059,6 +1062,7 @@ kubectl apply -f k8s/operator/rbac.yaml
 #### Issue 2: CRD Not Found
 
 **Symptoms:**
+
 - Error: `the server doesn't have a resource type "servalsheets-servers"`
 - `kubectl get sss` fails
 
@@ -1079,6 +1083,7 @@ kubectl get crd servalsheets-servers.servalsheets.io -o jsonpath='{.status.condi
 #### Issue 3: Pods Not Starting
 
 **Symptoms:**
+
 - Pods in `ImagePullBackOff`, `ErrImagePull`, or `CrashLoopBackOff`
 - Deployment shows 0 ready replicas
 
@@ -1105,6 +1110,7 @@ kubectl logs <pod-name> -n my-namespace
 #### Issue 4: HPA Not Scaling
 
 **Symptoms:**
+
 - HPA shows `<unknown>` for current metrics
 - Pods not scaling despite high CPU/memory
 
@@ -1133,6 +1139,7 @@ kubectl top pods -n my-namespace
 #### Issue 5: Ingress Not Working
 
 **Symptoms:**
+
 - 404 or 503 errors when accessing ingress hostname
 - TLS certificate errors
 
@@ -1162,6 +1169,7 @@ kubectl describe certificate <cert-name> -n my-namespace  # if using cert-manage
 #### Issue 6: OAuth Authentication Failing
 
 **Symptoms:**
+
 - 401 Unauthorized errors
 - OAuth callback errors
 
@@ -1187,6 +1195,7 @@ kubectl logs -n my-namespace -l app=<server-name> | grep -i oauth
 #### Issue 7: Google API Quota Exceeded
 
 **Symptoms:**
+
 - 429 rate limit errors in logs
 - Slow response times
 

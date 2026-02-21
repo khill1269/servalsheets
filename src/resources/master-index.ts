@@ -12,6 +12,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
 import { TOOL_ACTIONS } from '../mcp/completions.js';
+import { VERSION } from '../version.js';
 
 /**
  * Resource category definition
@@ -232,7 +233,7 @@ export function registerMasterIndexResource(server: McpServer): void {
 
       const indexContent = {
         $schema: 'servalsheets://index',
-        version: '1.6.0',
+        version: VERSION,
         protocol: 'MCP 2025-11-25',
         generated: new Date().toISOString(),
 
@@ -326,7 +327,7 @@ export function registerMasterIndexResource(server: McpServer): void {
     },
     async (uri) => {
       const capabilities = {
-        version: '1.6.0',
+        version: VERSION,
         summary: `ServalSheets: ${TOOL_COUNT} tools, ${ACTION_COUNT} actions for Google Sheets automation`,
 
         canDo: [

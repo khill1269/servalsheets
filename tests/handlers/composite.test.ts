@@ -27,7 +27,12 @@ describe('Composite Handler', () => {
         getCapability: vi.fn(),
       },
       snapshotService: {} as HandlerContext['snapshotService'],
-      auth: { scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'] },
+      auth: {
+        scopes: [
+          'https://www.googleapis.com/auth/spreadsheets',
+          'https://www.googleapis.com/auth/drive',
+        ],
+      },
     } as unknown as HandlerContext;
 
     // Mock Google Sheets API with comprehensive mocking
@@ -66,19 +71,17 @@ describe('Composite Handler', () => {
               updatedRows: 3,
               updatedColumns: 3,
               updatedCells: 9,
-            }
+            },
           }),
-          append: vi
-            .fn()
-            .mockResolvedValue({
-              data: {
-                spreadsheetId: 'test123',
-                updatedRange: 'Sheet1!A2:C2',
-                updatedRows: 1,
-                updatedColumns: 3,
-                updatedCells: 3,
-              }
-            }),
+          append: vi.fn().mockResolvedValue({
+            data: {
+              spreadsheetId: 'test123',
+              updatedRange: 'Sheet1!A2:C2',
+              updatedRows: 1,
+              updatedColumns: 3,
+              updatedCells: 3,
+            },
+          }),
           clear: vi.fn().mockResolvedValue({ data: { clearedRange: 'Sheet1!A2:Z1000' } }),
         },
         batchUpdate: vi.fn().mockResolvedValue({
@@ -173,7 +176,8 @@ describe('Composite Handler', () => {
       const input = {
         action: 'import_csv' as const,
         spreadsheetId: 'test123',
-        csvData: 'Name,Age,Email\nAlice,30,alice@test.com\nBob,25,bob@test.com\nCharlie,35,charlie@test.com',
+        csvData:
+          'Name,Age,Email\nAlice,30,alice@test.com\nBob,25,bob@test.com\nCharlie,35,charlie@test.com',
         hasHeader: true,
       };
 

@@ -52,7 +52,7 @@ if (TOOL_COUNT !== actualToolCount) {
 
 console.log(
   TOOL_COUNT === actualToolCount ? '✅' : '❌',
-  `TOOL_COUNT: ${TOOL_COUNT} (TOOL_DEFINITIONS: ${actualToolCount})`,
+  `TOOL_COUNT: ${TOOL_COUNT} (TOOL_DEFINITIONS: ${actualToolCount})`
 );
 
 // ============================================================================
@@ -61,7 +61,7 @@ console.log(
 
 const actualActionCount = Object.values(TOOL_ACTIONS).reduce(
   (sum, actions) => sum + actions.length,
-  0,
+  0
 );
 
 if (ACTION_COUNT !== actualActionCount) {
@@ -75,7 +75,7 @@ if (ACTION_COUNT !== actualActionCount) {
 
 console.log(
   ACTION_COUNT === actualActionCount ? '✅' : '❌',
-  `ACTION_COUNT: ${ACTION_COUNT} (calculated from TOOL_ACTIONS: ${actualActionCount})`,
+  `ACTION_COUNT: ${ACTION_COUNT} (calculated from TOOL_ACTIONS: ${actualActionCount})`
 );
 
 // ============================================================================
@@ -94,7 +94,7 @@ if (actionCountsSum !== ACTION_COUNT) {
 
 console.log(
   actionCountsSum === ACTION_COUNT ? '✅' : '❌',
-  `ACTION_COUNTS sum: ${actionCountsSum} (ACTION_COUNT: ${ACTION_COUNT})`,
+  `ACTION_COUNTS sum: ${actionCountsSum} (ACTION_COUNT: ${ACTION_COUNT})`
 );
 
 // ============================================================================
@@ -157,7 +157,7 @@ if (defToolsStr !== metaToolsStr) {
 
 console.log(
   crossMapConsistent ? '✅' : '❌',
-  `Cross-map tool names (${defTools.length} tools across 5 maps)`,
+  `Cross-map tool names (${defTools.length} tools across 5 maps)`
 );
 
 // ============================================================================
@@ -200,17 +200,14 @@ for (const [toolName, expectedCount] of Object.entries(ACTION_COUNTS)) {
       expected: expectedCount,
       actual: actualActions.length,
     });
-    mismatchedTools.push(
-      `${toolName}: expected ${expectedCount}, got ${actualActions.length}`,
-    );
+    mismatchedTools.push(`${toolName}: expected ${expectedCount}, got ${actualActions.length}`);
     perToolAccurate = false;
   }
-
 }
 
 console.log(
   perToolAccurate ? '✅' : '❌',
-  `Per-tool action counts ${perToolAccurate ? 'accurate' : `(${mismatchedTools.length} mismatches)`}`,
+  `Per-tool action counts ${perToolAccurate ? 'accurate' : `(${mismatchedTools.length} mismatches)`}`
 );
 
 if (!perToolAccurate && mismatchedTools.length > 0) {
@@ -238,7 +235,7 @@ for (const [toolName, count] of Object.entries(ACTION_COUNTS)) {
 
 console.log(
   zeroActionTools.length === 0 ? '✅' : '❌',
-  `No zero-action tools ${zeroActionTools.length > 0 ? `(found ${zeroActionTools.length})` : ''}`,
+  `No zero-action tools ${zeroActionTools.length > 0 ? `(found ${zeroActionTools.length})` : ''}`
 );
 
 // ============================================================================
@@ -262,7 +259,7 @@ for (const [toolName, actions] of Object.entries(TOOL_ACTIONS)) {
 
 console.log(
   toolsWithDuplicates.length === 0 ? '✅' : '❌',
-  `No duplicate actions ${toolsWithDuplicates.length > 0 ? `(found in ${toolsWithDuplicates.length} tools)` : ''}`,
+  `No duplicate actions ${toolsWithDuplicates.length > 0 ? `(found in ${toolsWithDuplicates.length} tools)` : ''}`
 );
 
 // ============================================================================
@@ -286,7 +283,7 @@ for (const toolName of Object.keys(TOOL_ACTIONS)) {
 
 console.log(
   invalidToolNames.length === 0 ? '✅' : '❌',
-  `Tool naming convention (sheets_*) ${invalidToolNames.length > 0 ? `(${invalidToolNames.length} invalid)` : ''}`,
+  `Tool naming convention (sheets_*) ${invalidToolNames.length > 0 ? `(${invalidToolNames.length} invalid)` : ''}`
 );
 
 // ============================================================================
@@ -298,7 +295,7 @@ let sanityPassed = true;
 // Tool count should be reasonable (20-30)
 if (TOOL_COUNT < 20 || TOOL_COUNT > 30) {
   warnings.push(
-    `TOOL_COUNT (${TOOL_COUNT}) outside expected range (20-30). This may indicate a data issue.`,
+    `TOOL_COUNT (${TOOL_COUNT}) outside expected range (20-30). This may indicate a data issue.`
   );
   sanityPassed = false;
 }
@@ -306,14 +303,14 @@ if (TOOL_COUNT < 20 || TOOL_COUNT > 30) {
 // Action count should be reasonable (280-350)
 if (ACTION_COUNT < 280 || ACTION_COUNT > 350) {
   warnings.push(
-    `ACTION_COUNT (${ACTION_COUNT}) outside expected range (280-350). This may indicate a data issue.`,
+    `ACTION_COUNT (${ACTION_COUNT}) outside expected range (280-350). This may indicate a data issue.`
   );
   sanityPassed = false;
 }
 
 console.log(
   sanityPassed ? '✅' : '⚠️',
-  `Sanity checks (tool/action counts within expected ranges)`,
+  `Sanity checks (tool/action counts within expected ranges)`
 );
 
 // ============================================================================

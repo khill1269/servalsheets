@@ -10,6 +10,11 @@
 import { getFieldMask, getEstimatedReduction } from '../config/action-field-masks.js';
 import { logger } from './logger.js';
 
+// Module-level counters for field mask coverage (used by getFieldMaskStats)
+let _totalCalls = 0;
+let _maskedCalls = 0;
+let _estimatedBytesSaved = 0;
+
 /**
  * Options for field mask injection
  */
@@ -84,6 +89,7 @@ export function injectFieldMask<T extends Record<string, unknown>>(
         action: options.action,
       });
     }
+    _totalCalls++;
     return params;
   }
 
@@ -98,6 +104,11 @@ export function injectFieldMask<T extends Record<string, unknown>>(
       estimatedReduction: `${estimatedReduction}%`,
     });
   }
+
+  _totalCalls++;
+  _maskedCalls++;
+  // Rough byte estimate: assume average unmasked response ~4 KB, reduction per configured %
+  _estimatedBytesSaved += Math.round((estimatedReduction / 100) * 4096);
 
   // Inject field mask
   return {
@@ -134,8 +145,8 @@ export function injectBatchFieldMask<T extends Record<string, unknown>>(
     return params;
   }
 
-  // For batchUpdate, use responseFields
-  // For batchGet, use fields
+  // Both batchUpdate and batchGet use the standard 'fields' query parameter
+  // for partial response filtering (same as all other Google API endpoints)
   return {
     ...params,
     fields: fieldMask,
@@ -237,13 +248,13 @@ export function getFieldMaskStats(): {
   coveragePercent: number;
   estimatedBytesSaved: number;
 } {
-  // Stats tracking requires instrumentation layer (future enhancement)
-  // Returns zero values until instrumentation is added
+  const unmaskedCalls = _totalCalls - _maskedCalls;
+  const coveragePercent = _totalCalls > 0 ? Math.round((_maskedCalls / _totalCalls) * 100) : 0;
   return {
-    totalCalls: 0,
-    maskedCalls: 0,
-    unmaskedCalls: 0,
-    coveragePercent: 0,
-    estimatedBytesSaved: 0,
+    totalCalls: _totalCalls,
+    maskedCalls: _maskedCalls,
+    unmaskedCalls,
+    coveragePercent,
+    estimatedBytesSaved: _estimatedBytesSaved,
   };
 }

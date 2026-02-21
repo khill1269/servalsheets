@@ -48,7 +48,7 @@ const CONFIG = {
   PLAN_PROPERTY: 'SERVALSHEETS_PLAN',
 
   // Session ID for MCP protocol (stored per user)
-  SESSION_ID_PROPERTY: 'SERVALSHEETS_SESSION_ID'
+  SESSION_ID_PROPERTY: 'SERVALSHEETS_SESSION_ID',
 };
 
 /**
@@ -85,9 +85,7 @@ function showSidebar() {
  * Show settings dialog for API key configuration
  */
 function showSettings() {
-  const html = HtmlService.createHtmlOutputFromFile('Settings')
-    .setWidth(400)
-    .setHeight(300);
+  const html = HtmlService.createHtmlOutputFromFile('Settings').setWidth(400).setHeight(300);
   SpreadsheetApp.getUi().showModalDialog(html, 'ServalSheets Settings');
 }
 
@@ -95,9 +93,7 @@ function showSettings() {
  * Show usage statistics dialog
  */
 function showUsageStats() {
-  const html = HtmlService.createHtmlOutputFromFile('UsageStats')
-    .setWidth(500)
-    .setHeight(400);
+  const html = HtmlService.createHtmlOutputFromFile('UsageStats').setWidth(500).setHeight(400);
   SpreadsheetApp.getUi().showModalDialog(html, 'Usage Statistics');
 }
 
@@ -169,7 +165,7 @@ function getEnvironment() {
     environment: detectedEnv,
     apiUrl: apiUrl,
     deploymentId: ScriptApp.getScriptId(),
-    isOverridden: props.getProperty('API_URL') !== null
+    isOverridden: props.getProperty('API_URL') !== null,
   };
 }
 
@@ -203,20 +199,20 @@ function initializeSession() {
         capabilities: {},
         clientInfo: {
           name: 'workspace-addon',
-          version: '1.0.0'
-        }
-      }
+          version: '1.0.0',
+        },
+      },
     };
 
     const options = {
       method: 'post',
       contentType: 'application/json',
       headers: {
-        'Accept': 'application/json, text/event-stream',
-        'X-MCP-Client': 'workspace-addon/1.0.0'
+        Accept: 'application/json, text/event-stream',
+        'X-MCP-Client': 'workspace-addon/1.0.0',
       },
       payload: JSON.stringify(payload),
-      muteHttpExceptions: true
+      muteHttpExceptions: true,
     };
 
     const response = UrlFetchApp.fetch(url, options);
@@ -279,16 +275,17 @@ function clearSession() {
  */
 function formatErrorMessage(error) {
   const errorMessages = {
-    'NO_API_KEY': 'API key not configured. Go to ServalSheets > Settings.',
-    'UNAUTHORIZED': 'Invalid API key. Please check Settings and try again.',
-    'QUOTA_EXCEEDED': 'Monthly quota exceeded. Upgrade at servalsheets.com/upgrade',
-    'NETWORK_ERROR': 'Cannot reach ServalSheets API. Check your internet connection.',
-    'TIMEOUT': 'Request timed out. The operation is taking too long - try again or contact support.',
-    'INVALID_REQUEST': 'Invalid request format. This may be a bug - please report it.',
-    'SPREADSHEET_NOT_FOUND': 'Spreadsheet not found. It may have been deleted or you may not have access.',
-    'PERMISSION_DENIED': 'You don\'t have permission to access this spreadsheet.',
-    'SESSION_ERROR': 'Failed to establish connection. Please try again.',
-    'API_ERROR': 'Server error occurred. Please try again in a few moments.'
+    NO_API_KEY: 'API key not configured. Go to ServalSheets > Settings.',
+    UNAUTHORIZED: 'Invalid API key. Please check Settings and try again.',
+    QUOTA_EXCEEDED: 'Monthly quota exceeded. Upgrade at servalsheets.com/upgrade',
+    NETWORK_ERROR: 'Cannot reach ServalSheets API. Check your internet connection.',
+    TIMEOUT: 'Request timed out. The operation is taking too long - try again or contact support.',
+    INVALID_REQUEST: 'Invalid request format. This may be a bug - please report it.',
+    SPREADSHEET_NOT_FOUND:
+      'Spreadsheet not found. It may have been deleted or you may not have access.',
+    PERMISSION_DENIED: "You don't have permission to access this spreadsheet.",
+    SESSION_ERROR: 'Failed to establish connection. Please try again.',
+    API_ERROR: 'Server error occurred. Please try again in a few moments.',
   };
 
   const code = error.code || 'UNKNOWN_ERROR';
@@ -310,7 +307,7 @@ function checkConnection() {
     const options = {
       method: 'get',
       muteHttpExceptions: true,
-      timeout: 5000  // 5 second timeout for health check
+      timeout: 5000, // 5 second timeout for health check
     };
 
     const response = UrlFetchApp.fetch(url, options);
@@ -369,7 +366,7 @@ function setCachedValue(key, value, ttl) {
   const cache = CacheService.getUserCache();
   const cacheData = {
     value: value,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   };
 
   try {
@@ -422,7 +419,7 @@ function getSpreadsheetMetadataCached() {
   Logger.log('Cache miss: fetching spreadsheet metadata from API');
   const result = callServalSheets('sheets_core', {
     action: 'get',
-    spreadsheetId: info.spreadsheetId
+    spreadsheetId: info.spreadsheetId,
   });
 
   // Cache successful results
@@ -461,7 +458,8 @@ function getUserPlanCached() {
  * Invalidate cache for spreadsheet after modification
  */
 function invalidateSpreadsheetCache(spreadsheetId) {
-  const cacheKey = 'spreadsheet_metadata_' + (spreadsheetId || getActiveSpreadsheetInfo().spreadsheetId);
+  const cacheKey =
+    'spreadsheet_metadata_' + (spreadsheetId || getActiveSpreadsheetInfo().spreadsheetId);
   clearCache(cacheKey);
   Logger.log('Invalidated cache for: ' + cacheKey);
 }
@@ -479,8 +477,8 @@ function callServalSheets(tool, request, maxRetries = 3) {
       success: false,
       error: {
         code: 'NO_API_KEY',
-        message: formatErrorMessage({ code: 'NO_API_KEY' })
-      }
+        message: formatErrorMessage({ code: 'NO_API_KEY' }),
+      },
     };
   }
 
@@ -492,8 +490,8 @@ function callServalSheets(tool, request, maxRetries = 3) {
       success: false,
       error: {
         code: 'SESSION_ERROR',
-        message: formatErrorMessage({ code: 'SESSION_ERROR' })
-      }
+        message: formatErrorMessage({ code: 'SESSION_ERROR' }),
+      },
     };
   }
 
@@ -508,25 +506,25 @@ function callServalSheets(tool, request, maxRetries = 3) {
       // Use JSON-RPC 2.0 format required by MCP protocol
       const payload = {
         jsonrpc: '2.0',
-        id: Date.now(),  // Unique request ID
+        id: Date.now(), // Unique request ID
         method: 'tools/call',
         params: {
           name: tool,
-          arguments: { request }
-        }
+          arguments: { request },
+        },
       };
 
       const options = {
         method: 'post',
         contentType: 'application/json',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
           'X-MCP-Client': 'workspace-addon/1.0.0',
-          'Accept': 'application/json, text/event-stream',  // Required by MCP protocol
-          'Mcp-Session-Id': sessionId  // Required for all tool calls
+          Accept: 'application/json, text/event-stream', // Required by MCP protocol
+          'Mcp-Session-Id': sessionId, // Required for all tool calls
         },
         payload: JSON.stringify(payload),
-        muteHttpExceptions: true
+        muteHttpExceptions: true,
       };
 
       const response = UrlFetchApp.fetch(url, options);
@@ -539,55 +537,55 @@ function callServalSheets(tool, request, maxRetries = 3) {
           success: false,
           error: {
             code: 'UNAUTHORIZED',
-            message: formatErrorMessage({ code: 'UNAUTHORIZED' })
-          }
+            message: formatErrorMessage({ code: 'UNAUTHORIZED' }),
+          },
         };
       }
 
-    if (statusCode === 400 && result.error?.code === 'INVALID_REQUEST') {
-      // Session might be invalid - retry once with new session
-      Logger.log('Session invalid, retrying with new session...');
-      clearSession();
-      sessionId = getSessionId();
+      if (statusCode === 400 && result.error?.code === 'INVALID_REQUEST') {
+        // Session might be invalid - retry once with new session
+        Logger.log('Session invalid, retrying with new session...');
+        clearSession();
+        sessionId = getSessionId();
 
-      if (sessionId) {
-        // Retry the request with new session
-        options.headers['Mcp-Session-Id'] = sessionId;
-        const retryResponse = UrlFetchApp.fetch(url, options);
-        const retryStatusCode = retryResponse.getResponseCode();
-        const retryResult = JSON.parse(retryResponse.getContentText());
+        if (sessionId) {
+          // Retry the request with new session
+          options.headers['Mcp-Session-Id'] = sessionId;
+          const retryResponse = UrlFetchApp.fetch(url, options);
+          const retryStatusCode = retryResponse.getResponseCode();
+          const retryResult = JSON.parse(retryResponse.getContentText());
 
-        if (retryStatusCode !== 200) {
-          return {
-            success: false,
-            error: {
-              code: 'API_ERROR',
-              message: retryResult.error?.message || `API returned status ${retryStatusCode}`
-            }
-          };
-        }
+          if (retryStatusCode !== 200) {
+            return {
+              success: false,
+              error: {
+                code: 'API_ERROR',
+                message: retryResult.error?.message || `API returned status ${retryStatusCode}`,
+              },
+            };
+          }
 
-        // Parse retry result
-        if (retryResult.result && retryResult.result.content && retryResult.result.content[0]) {
-          const content = retryResult.result.content[0];
-          if (content.text) {
-            try {
-              return JSON.parse(content.text);
-            } catch (e) {
-              return { success: true, response: { text: content.text } };
+          // Parse retry result
+          if (retryResult.result && retryResult.result.content && retryResult.result.content[0]) {
+            const content = retryResult.result.content[0];
+            if (content.text) {
+              try {
+                return JSON.parse(content.text);
+              } catch (e) {
+                return { success: true, response: { text: content.text } };
+              }
             }
           }
         }
-      }
 
-      return {
-        success: false,
-        error: {
-          code: 'SESSION_ERROR',
-          message: 'Failed to establish valid session'
-        }
-      };
-    }
+        return {
+          success: false,
+          error: {
+            code: 'SESSION_ERROR',
+            message: 'Failed to establish valid session',
+          },
+        };
+      }
 
       // Don't retry quota errors
       if (statusCode === 429) {
@@ -595,8 +593,8 @@ function callServalSheets(tool, request, maxRetries = 3) {
           success: false,
           error: {
             code: 'QUOTA_EXCEEDED',
-            message: formatErrorMessage({ code: 'QUOTA_EXCEEDED' })
-          }
+            message: formatErrorMessage({ code: 'QUOTA_EXCEEDED' }),
+          },
         };
       }
 
@@ -604,7 +602,7 @@ function callServalSheets(tool, request, maxRetries = 3) {
       if (statusCode >= 500 && statusCode < 600) {
         lastError = {
           code: 'API_ERROR',
-          message: formatErrorMessage({ code: 'API_ERROR' })
+          message: formatErrorMessage({ code: 'API_ERROR' }),
         };
 
         if (attempt < maxRetries) {
@@ -612,12 +610,12 @@ function callServalSheets(tool, request, maxRetries = 3) {
           const backoffMs = Math.pow(2, attempt - 1) * 1000;
           Logger.log(`Attempt ${attempt} failed with ${statusCode}, retrying in ${backoffMs}ms...`);
           Utilities.sleep(backoffMs);
-          continue;  // Retry
+          continue; // Retry
         } else {
           // Max retries reached
           return {
             success: false,
-            error: lastError
+            error: lastError,
           };
         }
       }
@@ -628,8 +626,8 @@ function callServalSheets(tool, request, maxRetries = 3) {
           success: false,
           error: {
             code: 'API_ERROR',
-            message: result.error?.message || formatErrorMessage({ code: 'API_ERROR' })
-          }
+            message: result.error?.message || formatErrorMessage({ code: 'API_ERROR' }),
+          },
         };
       }
 
@@ -646,7 +644,7 @@ function callServalSheets(tool, request, maxRetries = 3) {
             // Not JSON, return as-is
             return {
               success: true,
-              response: { text: content.text }
+              response: { text: content.text },
             };
           }
         }
@@ -654,12 +652,11 @@ function callServalSheets(tool, request, maxRetries = 3) {
 
       // Fallback: return result as-is
       return result.result || result;
-
     } catch (error) {
       // Network errors are retryable
       lastError = {
         code: 'NETWORK_ERROR',
-        message: formatErrorMessage({ code: 'NETWORK_ERROR' })
+        message: formatErrorMessage({ code: 'NETWORK_ERROR' }),
       };
 
       if (attempt < maxRetries) {
@@ -667,12 +664,12 @@ function callServalSheets(tool, request, maxRetries = 3) {
         const backoffMs = Math.pow(2, attempt - 1) * 1000;
         Logger.log(`Network error on attempt ${attempt}, retrying in ${backoffMs}ms...`);
         Utilities.sleep(backoffMs);
-        continue;  // Retry
+        continue; // Retry
       } else {
         // Max retries reached
         return {
           success: false,
-          error: lastError
+          error: lastError,
         };
       }
     }
@@ -683,8 +680,8 @@ function callServalSheets(tool, request, maxRetries = 3) {
     success: false,
     error: lastError || {
       code: 'UNKNOWN_ERROR',
-      message: formatErrorMessage({ code: 'UNKNOWN_ERROR' })
-    }
+      message: formatErrorMessage({ code: 'UNKNOWN_ERROR' }),
+    },
   };
 }
 
@@ -701,7 +698,7 @@ function getActiveSpreadsheetInfo() {
     spreadsheetName: ss.getName(),
     sheetName: sheet.getName(),
     sheetId: sheet.getSheetId(),
-    activeRange: range ? range.getA1Notation() : null
+    activeRange: range ? range.getA1Notation() : null,
   };
 }
 
@@ -718,7 +715,7 @@ function readData(range) {
   return callServalSheets('sheets_data', {
     action: 'read',
     spreadsheetId: info.spreadsheetId,
-    range: range || info.activeRange || 'A1:Z100'
+    range: range || info.activeRange || 'A1:Z100',
   });
 }
 
@@ -732,7 +729,7 @@ function writeData(range, values) {
     action: 'write',
     spreadsheetId: info.spreadsheetId,
     range: range,
-    values: values
+    values: values,
   });
 
   // Invalidate cache after successful write
@@ -753,7 +750,7 @@ function analyzeData(prompt, range) {
     action: 'comprehensive',
     spreadsheetId: info.spreadsheetId,
     range: range || info.activeRange || info.sheetName,
-    prompt: prompt
+    prompt: prompt,
   });
 }
 
@@ -767,7 +764,7 @@ function generateFormula(description) {
     action: 'generate_formula',
     spreadsheetId: info.spreadsheetId,
     range: info.activeRange,
-    prompt: description
+    prompt: description,
   });
 }
 
@@ -780,7 +777,7 @@ function detectPatterns(range) {
   return callServalSheets('sheets_analyze', {
     action: 'detect_patterns',
     spreadsheetId: info.spreadsheetId,
-    range: range || info.activeRange || info.sheetName
+    range: range || info.activeRange || info.sheetName,
   });
 }
 
@@ -796,7 +793,7 @@ function createChart(chartType, dataRange, title) {
     sheetName: info.sheetName,
     type: chartType,
     dataRange: dataRange,
-    title: title
+    title: title,
   });
 }
 
@@ -809,7 +806,7 @@ function suggestChart(dataRange) {
   return callServalSheets('sheets_visualize', {
     action: 'suggest_chart',
     spreadsheetId: info.spreadsheetId,
-    range: dataRange || info.activeRange
+    range: dataRange || info.activeRange,
   });
 }
 
@@ -823,7 +820,7 @@ function applyFormatting(range, format) {
     action: 'set_format',
     spreadsheetId: info.spreadsheetId,
     range: range,
-    format: format
+    format: format,
   });
 }
 
@@ -839,7 +836,7 @@ function getSpreadsheet() {
 
   return callServalSheets('sheets_core', {
     action: 'get',
-    spreadsheetId: info.spreadsheetId
+    spreadsheetId: info.spreadsheetId,
   });
 }
 
@@ -851,7 +848,7 @@ function listSheets() {
 
   return callServalSheets('sheets_core', {
     action: 'list_sheets',
-    spreadsheetId: info.spreadsheetId
+    spreadsheetId: info.spreadsheetId,
   });
 }
 
@@ -866,7 +863,7 @@ function addSheet(sheetName, rowCount, columnCount) {
     spreadsheetId: info.spreadsheetId,
     title: sheetName,
     rowCount: rowCount || 1000,
-    columnCount: columnCount || 26
+    columnCount: columnCount || 26,
   });
 
   // Invalidate cache after successful sheet addition
@@ -886,7 +883,7 @@ function deleteSheet(sheetId) {
   const result = callServalSheets('sheets_core', {
     action: 'delete_sheet',
     spreadsheetId: info.spreadsheetId,
-    sheetId: sheetId
+    sheetId: sheetId,
   });
 
   // Invalidate cache after successful sheet deletion
@@ -907,7 +904,7 @@ function copySheetTo(sheetId, destinationSpreadsheetId) {
     action: 'copy_sheet_to',
     spreadsheetId: info.spreadsheetId,
     sheetId: sheetId,
-    destinationSpreadsheetId: destinationSpreadsheetId
+    destinationSpreadsheetId: destinationSpreadsheetId,
   });
 }
 
@@ -927,7 +924,7 @@ function insertRows(startIndex, count) {
     sheetId: info.sheetId,
     dimension: 'ROWS',
     startIndex: startIndex,
-    count: count || 1
+    count: count || 1,
   });
 
   // Invalidate cache after successful row insertion
@@ -950,7 +947,7 @@ function deleteRows(startIndex, endIndex) {
     sheetId: info.sheetId,
     dimension: 'ROWS',
     startIndex: startIndex,
-    endIndex: endIndex
+    endIndex: endIndex,
   });
 }
 
@@ -966,7 +963,7 @@ function insertColumns(startIndex, count) {
     sheetId: info.sheetId,
     dimension: 'COLUMNS',
     startIndex: startIndex,
-    count: count || 1
+    count: count || 1,
   });
 }
 
@@ -986,7 +983,7 @@ function shareWithUser(email, role, sendNotification) {
     type: 'user',
     emailAddress: email,
     role: role || 'reader',
-    sendNotification: sendNotification !== false
+    sendNotification: sendNotification !== false,
   });
 }
 
@@ -1000,7 +997,7 @@ function addComment(range, text) {
     action: 'comment_add',
     spreadsheetId: info.spreadsheetId,
     content: text,
-    anchor: range
+    anchor: range,
   });
 }
 
@@ -1012,7 +1009,7 @@ function listComments() {
 
   return callServalSheets('sheets_collaborate', {
     action: 'comment_list',
-    spreadsheetId: info.spreadsheetId
+    spreadsheetId: info.spreadsheetId,
   });
 }
 
@@ -1030,7 +1027,7 @@ function beginTransaction() {
   const info = getActiveSpreadsheetInfo();
   return callServalSheets('sheets_transaction', {
     action: 'begin',
-    spreadsheetId: info.spreadsheetId
+    spreadsheetId: info.spreadsheetId,
   });
 }
 
@@ -1043,7 +1040,7 @@ function commitTransaction(transactionId) {
   const result = callServalSheets('sheets_transaction', {
     action: 'commit',
     spreadsheetId: info.spreadsheetId,
-    transactionId: transactionId
+    transactionId: transactionId,
   });
 
   // Invalidate cache after successful transaction commit
@@ -1062,7 +1059,7 @@ function rollbackTransaction(transactionId) {
   return callServalSheets('sheets_transaction', {
     action: 'rollback',
     spreadsheetId: info.spreadsheetId,
-    transactionId: transactionId
+    transactionId: transactionId,
   });
 }
 
@@ -1080,7 +1077,7 @@ function validateData(range, validationType, options) {
     sheetName: info.sheetName,
     range: range,
     validationType: validationType,
-    options: options
+    options: options,
   });
 }
 
@@ -1093,7 +1090,7 @@ function detectConflicts(range) {
     action: 'detect_conflicts',
     spreadsheetId: info.spreadsheetId,
     sheetName: info.sheetName,
-    range: range
+    range: range,
   });
 }
 
@@ -1107,7 +1104,7 @@ function analyzeImpact(range, proposedChange) {
     spreadsheetId: info.spreadsheetId,
     sheetName: info.sheetName,
     range: range,
-    proposedChange: proposedChange
+    proposedChange: proposedChange,
   });
 }
 
@@ -1125,7 +1122,7 @@ function importCsv(csvData, targetRange, options) {
     sheetName: info.sheetName,
     csvData: csvData,
     targetRange: targetRange,
-    options: options
+    options: options,
   });
 }
 
@@ -1139,7 +1136,7 @@ function smartAppend(data, options) {
     spreadsheetId: info.spreadsheetId,
     sheetName: info.sheetName,
     data: data,
-    options: options
+    options: options,
   });
 }
 
@@ -1151,7 +1148,7 @@ function bulkUpdate(updates) {
   return callServalSheets('sheets_composite', {
     action: 'bulk_update',
     spreadsheetId: info.spreadsheetId,
-    updates: updates
+    updates: updates,
   });
 }
 
@@ -1165,7 +1162,7 @@ function setActiveContext(spreadsheetId, sheetName) {
   return callServalSheets('sheets_session', {
     action: 'set_active',
     spreadsheetId: spreadsheetId,
-    sheetName: sheetName
+    sheetName: sheetName,
   });
 }
 
@@ -1174,7 +1171,7 @@ function setActiveContext(spreadsheetId, sheetName) {
  */
 function getSessionContext() {
   return callServalSheets('sheets_session', {
-    action: 'get_context'
+    action: 'get_context',
   });
 }
 
@@ -1185,7 +1182,7 @@ function storeContextVar(key, value) {
   return callServalSheets('sheets_session', {
     action: 'store_var',
     key: key,
-    value: value
+    value: value,
   });
 }
 
@@ -1195,7 +1192,7 @@ function storeContextVar(key, value) {
 function retrieveContextVar(key) {
   return callServalSheets('sheets_session', {
     action: 'retrieve_var',
-    key: key
+    key: key,
   });
 }
 
@@ -1216,7 +1213,7 @@ function addNamedRange(name, range) {
     spreadsheetId: info.spreadsheetId,
     sheetName: info.sheetName,
     name: name,
-    range: range
+    range: range,
   });
 }
 
@@ -1229,7 +1226,7 @@ function updateNamedRange(name, newRange) {
     action: 'update_named_range',
     spreadsheetId: info.spreadsheetId,
     name: name,
-    range: newRange
+    range: newRange,
   });
 }
 
@@ -1241,7 +1238,7 @@ function deleteNamedRange(name) {
   return callServalSheets('sheets_advanced', {
     action: 'delete_named_range',
     spreadsheetId: info.spreadsheetId,
-    name: name
+    name: name,
   });
 }
 
@@ -1256,7 +1253,7 @@ function addConditionalFormat(range, condition, format) {
     sheetName: info.sheetName,
     range: range,
     condition: condition,
-    format: format
+    format: format,
   });
 }
 
@@ -1272,7 +1269,7 @@ function requestConfirmation(operation, details) {
     action: 'request',
     spreadsheetId: info.spreadsheetId,
     operation: operation,
-    details: details
+    details: details,
   });
 }
 
@@ -1283,7 +1280,7 @@ function getConfirmationStats() {
   const info = getActiveSpreadsheetInfo();
   return callServalSheets('sheets_confirm', {
     action: 'get_stats',
-    spreadsheetId: info.spreadsheetId
+    spreadsheetId: info.spreadsheetId,
   });
 }
 
@@ -1300,7 +1297,7 @@ function autoFix(range, issues) {
     spreadsheetId: info.spreadsheetId,
     sheetName: info.sheetName,
     range: range,
-    issues: issues
+    issues: issues,
   });
 }
 
@@ -1313,7 +1310,7 @@ function autoFix(range, issues) {
 function listTemplates(category) {
   return callServalSheets('sheets_templates', {
     action: 'list',
-    category: category
+    category: category,
   });
 }
 
@@ -1323,7 +1320,7 @@ function listTemplates(category) {
 function getTemplate(templateId) {
   return callServalSheets('sheets_templates', {
     action: 'get',
-    templateId: templateId
+    templateId: templateId,
   });
 }
 
@@ -1334,7 +1331,7 @@ function createFromTemplate(templateId, name) {
   return callServalSheets('sheets_templates', {
     action: 'create',
     templateId: templateId,
-    name: name
+    name: name,
   });
 }
 
@@ -1350,7 +1347,7 @@ function connectBigQuery(projectId, datasetId) {
     action: 'connect',
     spreadsheetId: info.spreadsheetId,
     projectId: projectId,
-    datasetId: datasetId
+    datasetId: datasetId,
   });
 }
 
@@ -1364,7 +1361,7 @@ function queryBigQuery(query, targetRange) {
     spreadsheetId: info.spreadsheetId,
     sheetName: info.sheetName,
     query: query,
-    targetRange: targetRange
+    targetRange: targetRange,
   });
 }
 
@@ -1378,7 +1375,7 @@ function exportToBigQuery(range, tableName) {
     spreadsheetId: info.spreadsheetId,
     sheetName: info.sheetName,
     range: range,
-    tableName: tableName
+    tableName: tableName,
   });
 }
 
@@ -1393,7 +1390,7 @@ function createAppsScript(projectName) {
   return callServalSheets('sheets_appsscript', {
     action: 'create',
     spreadsheetId: info.spreadsheetId,
-    projectName: projectName
+    projectName: projectName,
   });
 }
 
@@ -1403,7 +1400,7 @@ function createAppsScript(projectName) {
 function getAppsScriptContent(projectId) {
   return callServalSheets('sheets_appsscript', {
     action: 'get_content',
-    projectId: projectId
+    projectId: projectId,
   });
 }
 
@@ -1414,7 +1411,7 @@ function deployAppsScript(projectId, version) {
   return callServalSheets('sheets_appsscript', {
     action: 'deploy',
     projectId: projectId,
-    version: version
+    version: version,
   });
 }
 
@@ -1430,7 +1427,7 @@ function registerWebhook(url, events) {
     action: 'register',
     spreadsheetId: info.spreadsheetId,
     url: url,
-    events: events
+    events: events,
   });
 }
 
@@ -1441,7 +1438,7 @@ function listWebhooks() {
   const info = getActiveSpreadsheetInfo();
   return callServalSheets('sheets_webhook', {
     action: 'list',
-    spreadsheetId: info.spreadsheetId
+    spreadsheetId: info.spreadsheetId,
   });
 }
 
@@ -1453,7 +1450,7 @@ function unregisterWebhook(webhookId) {
   return callServalSheets('sheets_webhook', {
     action: 'unregister',
     spreadsheetId: info.spreadsheetId,
-    webhookId: webhookId
+    webhookId: webhookId,
   });
 }
 
@@ -1467,7 +1464,7 @@ function buildDependencyGraph() {
   const info = getActiveSpreadsheetInfo();
   return callServalSheets('sheets_dependencies', {
     action: 'build',
-    spreadsheetId: info.spreadsheetId
+    spreadsheetId: info.spreadsheetId,
   });
 }
 
@@ -1479,7 +1476,7 @@ function analyzeDependencyImpact(cellReference) {
   return callServalSheets('sheets_dependencies', {
     action: 'analyze_impact',
     spreadsheetId: info.spreadsheetId,
-    cellReference: cellReference
+    cellReference: cellReference,
   });
 }
 
@@ -1490,7 +1487,7 @@ function detectCircularDependencies() {
   const info = getActiveSpreadsheetInfo();
   return callServalSheets('sheets_dependencies', {
     action: 'detect_cycles',
-    spreadsheetId: info.spreadsheetId
+    spreadsheetId: info.spreadsheetId,
   });
 }
 
@@ -1502,7 +1499,7 @@ function detectCircularDependencies() {
  */
 function getAuthStatus() {
   return callServalSheets('sheets_auth', {
-    action: 'status'
+    action: 'status',
   });
 }
 
@@ -1511,7 +1508,7 @@ function getAuthStatus() {
  */
 function loginOAuth() {
   return callServalSheets('sheets_auth', {
-    action: 'login'
+    action: 'login',
   });
 }
 
@@ -1520,7 +1517,7 @@ function loginOAuth() {
  */
 function logoutUser() {
   return callServalSheets('sheets_auth', {
-    action: 'logout'
+    action: 'logout',
   });
 }
 
@@ -1540,8 +1537,8 @@ function getUsageStats() {
       plan: getPlan(),
       operationsThisMonth: 0,
       limit: 1000,
-      percentUsed: 0
-    }
+      percentUsed: 0,
+    },
   };
 }
 
@@ -1554,7 +1551,7 @@ function testConnection() {
   if (!apiKey) {
     return {
       success: false,
-      message: 'No API key configured'
+      message: 'No API key configured',
     };
   }
 
@@ -1562,7 +1559,7 @@ function testConnection() {
     const url = `${CONFIG.API_URL}/health`;
     const options = {
       method: 'get',
-      muteHttpExceptions: true
+      muteHttpExceptions: true,
     };
 
     const response = UrlFetchApp.fetch(url, options);
@@ -1571,18 +1568,18 @@ function testConnection() {
     if (statusCode === 200) {
       return {
         success: true,
-        message: 'Connected to ServalSheets API successfully!'
+        message: 'Connected to ServalSheets API successfully!',
       };
     } else {
       return {
         success: false,
-        message: `API returned status ${statusCode}`
+        message: `API returned status ${statusCode}`,
       };
     }
   } catch (error) {
     return {
       success: false,
-      message: `Connection failed: ${error.message}. Make sure your local server is running on ${CONFIG.API_URL}`
+      message: `Connection failed: ${error.message}. Make sure your local server is running on ${CONFIG.API_URL}`,
     };
   }
 }
@@ -1602,9 +1599,17 @@ function detectContext() {
       return {
         hasSelection: false,
         suggestions: [
-          { action: 'analyze', label: '📊 Analyze Sheet', description: 'Get insights from your data' },
-          { action: 'listSheets', label: '📋 List All Sheets', description: 'View all sheets in this spreadsheet' }
-        ]
+          {
+            action: 'analyze',
+            label: '📊 Analyze Sheet',
+            description: 'Get insights from your data',
+          },
+          {
+            action: 'listSheets',
+            label: '📋 List All Sheets',
+            description: 'View all sheets in this spreadsheet',
+          },
+        ],
       };
     }
 
@@ -1653,14 +1658,14 @@ function detectContext() {
       suggestions.push({
         action: 'analyze',
         label: '📊 Analyze Large Dataset',
-        description: `Analyze ${rowCount} rows × ${colCount} columns`
+        description: `Analyze ${rowCount} rows × ${colCount} columns`,
       });
 
       if (hasNumbers) {
         suggestions.push({
           action: 'patterns',
           label: '🔍 Find Patterns',
-          description: 'Detect trends and anomalies'
+          description: 'Detect trends and anomalies',
         });
       }
     }
@@ -1670,14 +1675,14 @@ function detectContext() {
       suggestions.push({
         action: 'chart',
         label: '📈 Create Chart',
-        description: 'Visualize numeric data'
+        description: 'Visualize numeric data',
       });
 
       if (!hasFormulas && rowCount > 1) {
         suggestions.push({
           action: 'formula',
           label: '🔢 Add Formulas',
-          description: 'Generate calculations'
+          description: 'Generate calculations',
         });
       }
     }
@@ -1687,7 +1692,7 @@ function detectContext() {
       suggestions.push({
         action: 'timeline',
         label: '📅 Timeline Chart',
-        description: 'Visualize data over time'
+        description: 'Visualize data over time',
       });
     }
 
@@ -1696,7 +1701,7 @@ function detectContext() {
       suggestions.push({
         action: 'quality',
         label: '✅ Check Data Quality',
-        description: `${emptyCellPercent.toFixed(0)}% empty cells detected`
+        description: `${emptyCellPercent.toFixed(0)}% empty cells detected`,
       });
     }
 
@@ -1705,7 +1710,7 @@ function detectContext() {
       suggestions.push({
         action: 'format',
         label: '🎨 Format Cells',
-        description: 'Apply number formatting'
+        description: 'Apply number formatting',
       });
     }
 
@@ -1714,7 +1719,7 @@ function detectContext() {
       suggestions.push({
         action: 'analyze',
         label: '📝 Analyze Text',
-        description: 'Extract insights from text'
+        description: 'Extract insights from text',
       });
     }
 
@@ -1723,12 +1728,12 @@ function detectContext() {
       suggestions.push({
         action: 'analyze',
         label: '📊 Analyze Selection',
-        description: 'Get AI insights'
+        description: 'Get AI insights',
       });
       suggestions.push({
         action: 'formula',
         label: '🔢 Generate Formula',
-        description: 'Create custom formulas'
+        description: 'Create custom formulas',
       });
     }
 
@@ -1737,28 +1742,27 @@ function detectContext() {
       range: range.getA1Notation(),
       size: {
         rows: rowCount,
-        cols: colCount
+        cols: colCount,
       },
       types: {
         hasNumbers,
         hasDates,
         hasText,
-        hasFormulas
+        hasFormulas,
       },
       metrics: {
         emptyCellPercent: emptyCellPercent.toFixed(1),
         isLargeRange,
-        isSmallRange
+        isSmallRange,
       },
-      suggestions: suggestions.slice(0, 4) // Limit to 4 suggestions
+      suggestions: suggestions.slice(0, 4), // Limit to 4 suggestions
     };
-
   } catch (error) {
     Logger.log('Error detecting context: ' + error.message);
     return {
       hasSelection: false,
       error: error.message,
-      suggestions: []
+      suggestions: [],
     };
   }
 }
@@ -1779,7 +1783,7 @@ function executeBatch(operations) {
     // Start transaction
     const txStart = callServalSheets('sheets_transaction', {
       action: 'begin',
-      spreadsheetId: info.spreadsheetId
+      spreadsheetId: info.spreadsheetId,
     });
 
     if (!txStart.success) {
@@ -1787,8 +1791,8 @@ function executeBatch(operations) {
         success: false,
         error: {
           code: 'TRANSACTION_START_FAILED',
-          message: 'Failed to start transaction: ' + (txStart.error?.message || 'Unknown error')
-        }
+          message: 'Failed to start transaction: ' + (txStart.error?.message || 'Unknown error'),
+        },
       };
     }
 
@@ -1805,7 +1809,7 @@ function executeBatch(operations) {
         const request = {
           action: op.action,
           spreadsheetId: info.spreadsheetId,
-          ...op.params
+          ...op.params,
         };
 
         // Add transaction ID to request
@@ -1820,13 +1824,12 @@ function executeBatch(operations) {
           results.push({
             operation: op.label,
             status: 'success',
-            result: result.response
+            result: result.response,
           });
         } else {
           // Operation failed - trigger rollback
           throw new Error(`Operation failed: ${result.error?.message || 'Unknown error'}`);
         }
-
       } catch (opError) {
         Logger.log(`Operation ${i + 1} failed: ${opError.message}`);
         throw opError; // Propagate to outer catch for rollback
@@ -1837,11 +1840,13 @@ function executeBatch(operations) {
     const txCommit = callServalSheets('sheets_transaction', {
       action: 'commit',
       spreadsheetId: info.spreadsheetId,
-      transactionId: transactionId
+      transactionId: transactionId,
     });
 
     if (!txCommit.success) {
-      throw new Error('Failed to commit transaction: ' + (txCommit.error?.message || 'Unknown error'));
+      throw new Error(
+        'Failed to commit transaction: ' + (txCommit.error?.message || 'Unknown error')
+      );
     }
 
     Logger.log('Transaction committed successfully');
@@ -1851,10 +1856,9 @@ function executeBatch(operations) {
       response: {
         message: `Successfully executed ${operations.length} operation(s)`,
         results: results,
-        transactionId: transactionId
-      }
+        transactionId: transactionId,
+      },
     };
-
   } catch (error) {
     Logger.log('Batch execution failed: ' + error.message);
 
@@ -1865,7 +1869,7 @@ function executeBatch(operations) {
         const txRollback = callServalSheets('sheets_transaction', {
           action: 'rollback',
           spreadsheetId: info.spreadsheetId,
-          transactionId: transactionId
+          transactionId: transactionId,
         });
 
         if (txRollback.success) {
@@ -1884,8 +1888,8 @@ function executeBatch(operations) {
         code: 'BATCH_EXECUTION_FAILED',
         message: error.message,
         completedOperations: results.length,
-        totalOperations: operations.length
-      }
+        totalOperations: operations.length,
+      },
     };
   }
 }
@@ -1900,25 +1904,30 @@ function validateBatchOperation(operation) {
   if (!operation.tool || !operation.action) {
     return {
       valid: false,
-      error: 'Operation must have tool and action'
+      error: 'Operation must have tool and action',
     };
   }
 
   // Check tool exists (basic validation)
   const validTools = [
-    'sheets_data', 'sheets_format', 'sheets_dimensions', 'sheets_core',
-    'sheets_collaborate', 'sheets_visualize', 'sheets_analyze'
+    'sheets_data',
+    'sheets_format',
+    'sheets_dimensions',
+    'sheets_core',
+    'sheets_collaborate',
+    'sheets_visualize',
+    'sheets_analyze',
   ];
 
   if (!validTools.includes(operation.tool)) {
     return {
       valid: false,
-      error: `Unknown tool: ${operation.tool}`
+      error: `Unknown tool: ${operation.tool}`,
     };
   }
 
   return {
-    valid: true
+    valid: true,
   };
 }
 
@@ -1937,7 +1946,7 @@ function getOperationHistory(limit) {
     const result = callServalSheets('sheets_history', {
       action: 'list',
       spreadsheetId: info.spreadsheetId,
-      limit: limit
+      limit: limit,
     });
 
     if (result.success) {
@@ -1945,13 +1954,13 @@ function getOperationHistory(limit) {
         success: true,
         response: {
           operations: result.response?.operations || [],
-          total: result.response?.total || 0
-        }
+          total: result.response?.total || 0,
+        },
       };
     } else {
       return {
         success: false,
-        error: result.error
+        error: result.error,
       };
     }
   } catch (error) {
@@ -1960,8 +1969,8 @@ function getOperationHistory(limit) {
       success: false,
       error: {
         code: 'HISTORY_ERROR',
-        message: error.message
-      }
+        message: error.message,
+      },
     };
   }
 }
@@ -1976,18 +1985,18 @@ function getHistoryStats() {
   try {
     const result = callServalSheets('sheets_history', {
       action: 'stats',
-      spreadsheetId: info.spreadsheetId
+      spreadsheetId: info.spreadsheetId,
     });
 
     if (result.success) {
       return {
         success: true,
-        response: result.response
+        response: result.response,
       };
     } else {
       return {
         success: false,
-        error: result.error
+        error: result.error,
       };
     }
   } catch (error) {
@@ -1996,8 +2005,8 @@ function getHistoryStats() {
       success: false,
       error: {
         code: 'HISTORY_STATS_ERROR',
-        message: error.message
-      }
+        message: error.message,
+      },
     };
   }
 }
@@ -2016,8 +2025,8 @@ function undoOperation(operationId) {
         success: false,
         error: {
           code: 'INVALID_OPERATION_ID',
-          message: 'Operation ID is required'
-        }
+          message: 'Operation ID is required',
+        },
       };
     }
 
@@ -2026,7 +2035,7 @@ function undoOperation(operationId) {
     const result = callServalSheets('sheets_history', {
       action: 'undo',
       spreadsheetId: info.spreadsheetId,
-      operationId: operationId
+      operationId: operationId,
     });
 
     if (result.success) {
@@ -2035,13 +2044,13 @@ function undoOperation(operationId) {
         response: {
           message: 'Operation undone successfully',
           operationId: operationId,
-          ...result.response
-        }
+          ...result.response,
+        },
       };
     } else {
       return {
         success: false,
-        error: result.error
+        error: result.error,
       };
     }
   } catch (error) {
@@ -2050,8 +2059,8 @@ function undoOperation(operationId) {
       success: false,
       error: {
         code: 'UNDO_ERROR',
-        message: error.message
-      }
+        message: error.message,
+      },
     };
   }
 }
@@ -2071,7 +2080,7 @@ function undoLastOperations(count) {
     const result = callServalSheets('sheets_history', {
       action: 'undo_last',
       spreadsheetId: info.spreadsheetId,
-      count: count
+      count: count,
     });
 
     if (result.success) {
@@ -2080,13 +2089,13 @@ function undoLastOperations(count) {
         response: {
           message: `Undone ${count} operation(s)`,
           count: count,
-          ...result.response
-        }
+          ...result.response,
+        },
       };
     } else {
       return {
         success: false,
-        error: result.error
+        error: result.error,
       };
     }
   } catch (error) {
@@ -2095,8 +2104,8 @@ function undoLastOperations(count) {
       success: false,
       error: {
         code: 'UNDO_LAST_ERROR',
-        message: error.message
-      }
+        message: error.message,
+      },
     };
   }
 }
@@ -2111,20 +2120,20 @@ function clearHistory() {
   try {
     const result = callServalSheets('sheets_history', {
       action: 'clear',
-      spreadsheetId: info.spreadsheetId
+      spreadsheetId: info.spreadsheetId,
     });
 
     if (result.success) {
       return {
         success: true,
         response: {
-          message: 'History cleared'
-        }
+          message: 'History cleared',
+        },
       };
     } else {
       return {
         success: false,
-        error: result.error
+        error: result.error,
       };
     }
   } catch (error) {
@@ -2133,8 +2142,8 @@ function clearHistory() {
       success: false,
       error: {
         code: 'CLEAR_HISTORY_ERROR',
-        message: error.message
-      }
+        message: error.message,
+      },
     };
   }
 }
@@ -2152,7 +2161,7 @@ function previewOperation(tool, request) {
     // Add dryRun flag to request
     const previewRequest = {
       ...request,
-      dryRun: true
+      dryRun: true,
     };
 
     Logger.log('Running preview for: ' + tool);
@@ -2168,13 +2177,13 @@ function previewOperation(tool, request) {
           message: 'Preview completed - no changes made',
           wouldDo: result.response,
           tool: tool,
-          action: request.action
-        }
+          action: request.action,
+        },
       };
     } else {
       return {
         success: false,
-        error: result.error
+        error: result.error,
       };
     }
   } catch (error) {
@@ -2183,8 +2192,8 @@ function previewOperation(tool, request) {
       success: false,
       error: {
         code: 'PREVIEW_ERROR',
-        message: error.message
-      }
+        message: error.message,
+      },
     };
   }
 }
@@ -2203,7 +2212,7 @@ function previewWrite(range, values) {
     spreadsheetId: info.spreadsheetId,
     sheetName: info.sheetName,
     range: range,
-    values: values
+    values: values,
   });
 }
 
@@ -2221,7 +2230,7 @@ function previewFormat(range, format) {
     spreadsheetId: info.spreadsheetId,
     sheetName: info.sheetName,
     range: range,
-    format: format
+    format: format,
   });
 }
 
@@ -2242,7 +2251,7 @@ function previewDimensions(dimension, operation, startIndex, count) {
     sheetId: info.sheetId,
     dimension: dimension,
     startIndex: startIndex,
-    count: count
+    count: count,
   });
 }
 
@@ -2265,7 +2274,7 @@ function previewBatch(operations) {
         action: op.action,
         spreadsheetId: info.spreadsheetId,
         ...op.params,
-        dryRun: true
+        dryRun: true,
       };
 
       const result = callServalSheets(op.tool, previewRequest);
@@ -2276,7 +2285,7 @@ function previewBatch(operations) {
         action: op.action,
         success: result.success,
         preview: result.response,
-        error: result.error
+        error: result.error,
       });
     }
 
@@ -2286,10 +2295,9 @@ function previewBatch(operations) {
         preview: true,
         message: `Preview of ${operations.length} operation(s) - no changes made`,
         previews: previews,
-        allSuccessful: previews.every(p => p.success)
-      }
+        allSuccessful: previews.every((p) => p.success),
+      },
     };
-
   } catch (error) {
     Logger.log('Error previewing batch: ' + error.message);
     return {
@@ -2297,8 +2305,8 @@ function previewBatch(operations) {
       error: {
         code: 'BATCH_PREVIEW_ERROR',
         message: error.message,
-        completedPreviews: previews.length
-      }
+        completedPreviews: previews.length,
+      },
     };
   }
 }
@@ -2323,8 +2331,8 @@ function setPreviewMode(enabled) {
     success: true,
     response: {
       previewMode: enabled,
-      message: enabled ? 'Preview mode enabled' : 'Preview mode disabled'
-    }
+      message: enabled ? 'Preview mode enabled' : 'Preview mode disabled',
+    },
   };
 }
 
@@ -2372,8 +2380,8 @@ function runAllTests() {
   const duration = endTime - startTime;
 
   // Summary
-  const passed = results.filter(r => r.passed).length;
-  const failed = results.filter(r => !r.passed).length;
+  const passed = results.filter((r) => r.passed).length;
+  const failed = results.filter((r) => !r.passed).length;
 
   Logger.log('\n========================================');
   Logger.log('Test Summary');
@@ -2385,14 +2393,14 @@ function runAllTests() {
   Logger.log('========================================\n');
 
   // Detailed results
-  results.forEach(r => {
+  results.forEach((r) => {
     const status = r.passed ? '✓ PASS' : '✗ FAIL';
     Logger.log(`${status} - ${r.name}: ${r.message}`);
   });
 
   return {
     summary: { total: results.length, passed, failed, duration },
-    results: results
+    results: results,
   };
 }
 
@@ -2406,20 +2414,20 @@ function test_apiConnection() {
       return {
         name: 'API Connection',
         passed: true,
-        message: `Connection check returned: ${result}`
+        message: `Connection check returned: ${result}`,
       };
     } else {
       return {
         name: 'API Connection',
         passed: false,
-        message: 'checkConnection() did not return boolean'
+        message: 'checkConnection() did not return boolean',
       };
     }
   } catch (error) {
     return {
       name: 'API Connection',
       passed: false,
-      message: `Error: ${error.message}`
+      message: `Error: ${error.message}`,
     };
   }
 }
@@ -2432,11 +2440,13 @@ function test_responseParsing() {
     // Mock MCP response format
     const mockResponse = {
       result: {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({ response: { success: true, data: 'test' } })
-        }]
-      }
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ response: { success: true, data: 'test' } }),
+          },
+        ],
+      },
     };
 
     // Test parsing logic
@@ -2449,7 +2459,7 @@ function test_responseParsing() {
         return {
           name: 'Response Parsing',
           passed: isValid,
-          message: isValid ? 'Parsed successfully' : 'Parsed but structure invalid'
+          message: isValid ? 'Parsed successfully' : 'Parsed but structure invalid',
         };
       }
     }
@@ -2457,13 +2467,13 @@ function test_responseParsing() {
     return {
       name: 'Response Parsing',
       passed: false,
-      message: 'Failed to parse mock response'
+      message: 'Failed to parse mock response',
     };
   } catch (error) {
     return {
       name: 'Response Parsing',
       passed: false,
-      message: `Error: ${error.message}`
+      message: `Error: ${error.message}`,
     };
   }
 }
@@ -2482,13 +2492,13 @@ function test_errorHandling() {
     return {
       name: 'Error Handling',
       passed: isValidMessage,
-      message: isValidMessage ? `Formatted: "${formatted}"` : 'Error message formatting failed'
+      message: isValidMessage ? `Formatted: "${formatted}"` : 'Error message formatting failed',
     };
   } catch (error) {
     return {
       name: 'Error Handling',
       passed: false,
-      message: `Error: ${error.message}`
+      message: `Error: ${error.message}`,
     };
   }
 }
@@ -2507,7 +2517,7 @@ function test_cachingFunctions() {
       return {
         name: 'Caching Functions',
         passed: false,
-        message: 'Failed to set cache value'
+        message: 'Failed to set cache value',
       };
     }
 
@@ -2517,7 +2527,7 @@ function test_cachingFunctions() {
       return {
         name: 'Caching Functions',
         passed: false,
-        message: 'Failed to retrieve cached value'
+        message: 'Failed to retrieve cached value',
       };
     }
 
@@ -2530,13 +2540,13 @@ function test_cachingFunctions() {
     return {
       name: 'Caching Functions',
       passed: matches,
-      message: matches ? 'Set and retrieved successfully' : 'Retrieved value does not match'
+      message: matches ? 'Set and retrieved successfully' : 'Retrieved value does not match',
     };
   } catch (error) {
     return {
       name: 'Caching Functions',
       passed: false,
-      message: `Error: ${error.message}`
+      message: `Error: ${error.message}`,
     };
   }
 }
@@ -2555,15 +2565,16 @@ function test_environmentDetection() {
     return {
       name: 'Environment Detection',
       passed: hasRequiredFields && isValidEnv,
-      message: hasRequiredFields && isValidEnv
-        ? `Detected: ${envInfo.environment} (${envInfo.apiUrl})`
-        : 'Invalid environment configuration'
+      message:
+        hasRequiredFields && isValidEnv
+          ? `Detected: ${envInfo.environment} (${envInfo.apiUrl})`
+          : 'Invalid environment configuration',
     };
   } catch (error) {
     return {
       name: 'Environment Detection',
       passed: false,
-      message: `Error: ${error.message}`
+      message: `Error: ${error.message}`,
     };
   }
 }
@@ -2573,13 +2584,7 @@ function test_environmentDetection() {
  */
 function test_errorMessageFormatting() {
   try {
-    const errorCodes = [
-      'NO_API_KEY',
-      'UNAUTHORIZED',
-      'QUOTA_EXCEEDED',
-      'NETWORK_ERROR',
-      'TIMEOUT'
-    ];
+    const errorCodes = ['NO_API_KEY', 'UNAUTHORIZED', 'QUOTA_EXCEEDED', 'NETWORK_ERROR', 'TIMEOUT'];
 
     let allFormatted = true;
     let messages = [];
@@ -2598,13 +2603,13 @@ function test_errorMessageFormatting() {
       passed: allFormatted,
       message: allFormatted
         ? `All ${errorCodes.length} error codes formatted correctly`
-        : 'Some error codes not formatted'
+        : 'Some error codes not formatted',
     };
   } catch (error) {
     return {
       name: 'Error Message Formatting',
       passed: false,
-      message: `Error: ${error.message}`
+      message: `Error: ${error.message}`,
     };
   }
 }
@@ -2616,7 +2621,8 @@ function test_activeSpreadsheetInfo() {
   try {
     const info = getActiveSpreadsheetInfo();
 
-    const hasRequiredFields = info &&
+    const hasRequiredFields =
+      info &&
       info.spreadsheetId &&
       info.spreadsheetName &&
       info.sheetName &&
@@ -2627,13 +2633,13 @@ function test_activeSpreadsheetInfo() {
       passed: hasRequiredFields,
       message: hasRequiredFields
         ? `Retrieved: ${info.spreadsheetName} / ${info.sheetName}`
-        : 'Missing required fields'
+        : 'Missing required fields',
     };
   } catch (error) {
     return {
       name: 'Active Spreadsheet Info',
       passed: false,
-      message: `Error: ${error.message}`
+      message: `Error: ${error.message}`,
     };
   }
 }
@@ -2648,24 +2654,21 @@ function test_retryLogic() {
     const attempt2Backoff = Math.pow(2, 2 - 1) * 1000; // Should be 2000ms
     const attempt3Backoff = Math.pow(2, 3 - 1) * 1000; // Should be 4000ms
 
-    const correctBackoff = (
-      attempt1Backoff === 1000 &&
-      attempt2Backoff === 2000 &&
-      attempt3Backoff === 4000
-    );
+    const correctBackoff =
+      attempt1Backoff === 1000 && attempt2Backoff === 2000 && attempt3Backoff === 4000;
 
     return {
       name: 'Retry Logic',
       passed: correctBackoff,
       message: correctBackoff
         ? 'Exponential backoff calculation correct (1s, 2s, 4s)'
-        : 'Backoff calculation incorrect'
+        : 'Backoff calculation incorrect',
     };
   } catch (error) {
     return {
       name: 'Retry Logic',
       passed: false,
-      message: `Error: ${error.message}`
+      message: `Error: ${error.message}`,
     };
   }
 }
@@ -2685,14 +2688,14 @@ function runQuickTests() {
   results.push(test_activeSpreadsheetInfo());
   results.push(test_cachingFunctions());
 
-  const passed = results.filter(r => r.passed).length;
-  const failed = results.filter(r => !r.passed).length;
+  const passed = results.filter((r) => r.passed).length;
+  const failed = results.filter((r) => !r.passed).length;
 
   Logger.log('\n========================================');
   Logger.log(`Passed: ${passed}/${results.length}`);
   Logger.log('========================================\n');
 
-  results.forEach(r => {
+  results.forEach((r) => {
     const status = r.passed ? '✓' : '✗';
     Logger.log(`${status} ${r.name}: ${r.message}`);
   });
@@ -2723,7 +2726,7 @@ function runIntegrationTests() {
   results.push({
     name: 'API Connection',
     passed: connResult.success === true,
-    message: connResult.message
+    message: connResult.message,
   });
 
   // Test 2: Session initialization
@@ -2733,16 +2736,16 @@ function runIntegrationTests() {
   results.push({
     name: 'Session Initialization',
     passed: sessionId !== null && sessionId.length > 0,
-    message: sessionId ? `Session ID: ${sessionId.substring(0, 8)}...` : 'Failed to get session'
+    message: sessionId ? `Session ID: ${sessionId.substring(0, 8)}...` : 'Failed to get session',
   });
 
   // Summary
-  const passed = results.filter(r => r.passed).length;
+  const passed = results.filter((r) => r.passed).length;
   Logger.log(`\n========================================`);
   Logger.log(`Integration Tests: ${passed}/${results.length} passed`);
   Logger.log('========================================\n');
 
-  results.forEach(r => {
+  results.forEach((r) => {
     const status = r.passed ? '✓' : '✗';
     Logger.log(`${status} ${r.name}: ${r.message}`);
   });

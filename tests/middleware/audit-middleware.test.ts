@@ -129,12 +129,7 @@ describe('AuditMiddleware', () => {
     it('should log export_csv as export event', async () => {
       const handler = vi.fn().mockResolvedValue({ recordCount: 500 });
 
-      await middleware.wrap(
-        'sheets_data',
-        'export_csv',
-        { spreadsheetId: 'abc' },
-        handler
-      );
+      await middleware.wrap('sheets_data', 'export_csv', { spreadsheetId: 'abc' }, handler);
 
       expect(mockLogger.logExport).toHaveBeenCalledWith(
         expect.objectContaining({

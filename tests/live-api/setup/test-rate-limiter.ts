@@ -139,10 +139,7 @@ export class TestRateLimiter {
       this.totalWaitTimeMs += Date.now() - startTime;
 
       // Report to quota manager
-      getQuotaManager().recordOperations(
-        type === 'read' ? count : 0,
-        type === 'write' ? count : 0
-      );
+      getQuotaManager().recordOperations(type === 'read' ? count : 0, type === 'write' ? count : 0);
     });
   }
 
@@ -184,7 +181,11 @@ export class TestRateLimiter {
    * Release a token reservation
    * Call with actual usage to release unused tokens
    */
-  releaseReservation(reservation: TokenReservation, actualReads?: number, actualWrites?: number): void {
+  releaseReservation(
+    reservation: TokenReservation,
+    actualReads?: number,
+    actualWrites?: number
+  ): void {
     if (reservation.released) {
       return;
     }
@@ -225,7 +226,7 @@ export class TestRateLimiter {
   hasTokens(type: 'read' | 'write', count: number = 1): boolean {
     const bucket = type === 'read' ? this.readBucket : this.writeBucket;
     this.refillBucket(bucket);
-    return (bucket.tokens - bucket.reserved) >= count;
+    return bucket.tokens - bucket.reserved >= count;
   }
 
   /**
@@ -268,7 +269,10 @@ export class TestRateLimiter {
   /**
    * Pre-test verification - checks if enough quota for estimated operations
    */
-  verifyPreTestQuota(estimatedReads: number, estimatedWrites: number): {
+  verifyPreTestQuota(
+    estimatedReads: number,
+    estimatedWrites: number
+  ): {
     canProceed: boolean;
     availableReads: number;
     availableWrites: number;

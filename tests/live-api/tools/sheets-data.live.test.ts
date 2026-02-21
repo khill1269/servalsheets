@@ -3,17 +3,14 @@
  *
  * Tests data read/write operations against the real Google Sheets API.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single test spreadsheet with unique row ranges per test.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { LiveApiClient } from '../setup/live-api-client.js';
 import { TestSpreadsheetManager, TestSpreadsheet } from '../setup/test-spreadsheet-manager.js';
-import {
-  loadTestCredentials,
-  shouldRunIntegrationTests,
-} from '../../helpers/credential-loader.js';
+import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 
 const runLiveTests = shouldRunIntegrationTests();
 
@@ -48,7 +45,11 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
         range: 'TestData!A1:C3',
         valueInputOption: 'RAW',
         requestBody: {
-          values: [['Name', 'Age', 'City'], ['Alice', 30, 'NYC'], ['Bob', 25, 'LA']],
+          values: [
+            ['Name', 'Age', 'City'],
+            ['Alice', 30, 'NYC'],
+            ['Bob', 25, 'LA'],
+          ],
         },
       });
 
@@ -66,7 +67,12 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!E1:F2',
         valueInputOption: 'USER_ENTERED',
-        requestBody: { values: [['10', '20'], ['=E1+F1', '=SUM(E1:F1)']] },
+        requestBody: {
+          values: [
+            ['10', '20'],
+            ['=E1+F1', '=SUM(E1:F1)'],
+          ],
+        },
       });
 
       const formattedResponse = await client.sheets.spreadsheets.values.get({
@@ -89,7 +95,13 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!H1:J3',
         valueInputOption: 'RAW',
-        requestBody: { values: [['H1', '', 'J1'], ['', 'I2', ''], ['H3', '', 'J3']] },
+        requestBody: {
+          values: [
+            ['H1', '', 'J1'],
+            ['', 'I2', ''],
+            ['H3', '', 'J3'],
+          ],
+        },
       });
 
       const response = await client.sheets.spreadsheets.values.get({
@@ -130,7 +142,12 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!P1:Q2',
         valueInputOption: 'RAW',
-        requestBody: { values: [['Hello', 'World'], ['Foo', 'Bar']] },
+        requestBody: {
+          values: [
+            ['Hello', 'World'],
+            ['Foo', 'Bar'],
+          ],
+        },
       });
 
       expect(response.status).toBe(200);
@@ -159,7 +176,12 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!U1:V2',
         valueInputOption: 'RAW',
-        requestBody: { values: [['Header1', 'Header2'], ['Row1', 'Data1']] },
+        requestBody: {
+          values: [
+            ['Header1', 'Header2'],
+            ['Row1', 'Data1'],
+          ],
+        },
       });
 
       const appendResponse = await client.sheets.spreadsheets.values.append({
@@ -167,7 +189,12 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
         range: 'TestData!U:V',
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: [['Row2', 'Data2'], ['Row3', 'Data3']] },
+        requestBody: {
+          values: [
+            ['Row2', 'Data2'],
+            ['Row3', 'Data3'],
+          ],
+        },
       });
 
       expect(appendResponse.data.updates?.updatedRows).toBe(2);
@@ -200,7 +227,12 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!A20:B21',
         valueInputOption: 'RAW',
-        requestBody: { values: [['Data1', 'Data2'], ['Data3', 'Data4']] },
+        requestBody: {
+          values: [
+            ['Data1', 'Data2'],
+            ['Data3', 'Data4'],
+          ],
+        },
       });
 
       const clearResponse = await client.sheets.spreadsheets.values.clear({
@@ -225,7 +257,11 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
         range: 'TestData!A30:C32',
         valueInputOption: 'RAW',
         requestBody: {
-          values: [['apple', 'banana', 'cherry'], ['apricot', 'blueberry', 'apple pie'], ['avocado', 'apple sauce', 'cranberry']],
+          values: [
+            ['apple', 'banana', 'cherry'],
+            ['apricot', 'blueberry', 'apple pie'],
+            ['avocado', 'apple sauce', 'cranberry'],
+          ],
         },
       });
 
@@ -257,13 +293,15 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateCells: {
-              rows: [{ values: [{ note: 'This is a test note' }] }],
-              fields: 'note',
-              start: { sheetId, rowIndex: 39, columnIndex: 0 },
+          requests: [
+            {
+              updateCells: {
+                rows: [{ values: [{ note: 'This is a test note' }] }],
+                fields: 'note',
+                start: { sheetId, rowIndex: 39, columnIndex: 0 },
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -281,17 +319,25 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateCells: {
-              rows: [{
-                values: [{
-                  userEnteredValue: { formulaValue: '=HYPERLINK("https://example.com", "Click here")' },
-                }],
-              }],
-              fields: 'userEnteredValue',
-              start: { sheetId, rowIndex: 44, columnIndex: 0 },
+          requests: [
+            {
+              updateCells: {
+                rows: [
+                  {
+                    values: [
+                      {
+                        userEnteredValue: {
+                          formulaValue: '=HYPERLINK("https://example.com", "Click here")',
+                        },
+                      },
+                    ],
+                  },
+                ],
+                fields: 'userEnteredValue',
+                start: { sheetId, rowIndex: 44, columnIndex: 0 },
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -311,12 +357,20 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            mergeCells: {
-              range: { sheetId, startRowIndex: 50, endRowIndex: 52, startColumnIndex: 0, endColumnIndex: 2 },
-              mergeType: 'MERGE_ALL',
+          requests: [
+            {
+              mergeCells: {
+                range: {
+                  sheetId,
+                  startRowIndex: 50,
+                  endRowIndex: 52,
+                  startColumnIndex: 0,
+                  endColumnIndex: 2,
+                },
+                mergeType: 'MERGE_ALL',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -330,11 +384,19 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            unmergeCells: {
-              range: { sheetId, startRowIndex: 50, endRowIndex: 52, startColumnIndex: 0, endColumnIndex: 2 },
+          requests: [
+            {
+              unmergeCells: {
+                range: {
+                  sheetId,
+                  startRowIndex: 50,
+                  endRowIndex: 52,
+                  startColumnIndex: 0,
+                  endColumnIndex: 2,
+                },
+              },
             },
-          }],
+          ],
         },
       });
     });

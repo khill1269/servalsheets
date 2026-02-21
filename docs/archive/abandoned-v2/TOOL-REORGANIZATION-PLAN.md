@@ -2,7 +2,7 @@
 title: ServalSheets Tool Reorganization Plan
 category: archived
 last_updated: 2026-01-31
-description: "Current State: 26 tools, ~215 actions"
+description: 'Current State: 26 tools, ~215 actions'
 tags: [sheets]
 ---
 
@@ -20,34 +20,34 @@ tags: [sheets]
 
 ### Tool Inventory (26 tools)
 
-| # | Tool | Actions | Category | Issues |
-|---|------|---------|----------|--------|
-| 1 | sheets_auth | 4 | Core | ✅ Good |
-| 2 | sheets_core | 8 | Core | ✅ Good |
-| 3 | sheets_core | 7 | Core | ✅ Good |
-| 4 | sheets_data | 9 | Core | ✅ Good |
-| 5 | sheets_data | 12 | Core | ⚠️ Overlaps with values |
-| 6 | sheets_format | 9 | Core | ✅ Good |
-| 7 | sheets_dimensions | 21 | Core | ✅ Good but large |
-| 8 | sheets_format | 8 | Core | ⚠️ Should merge with format |
-| 9 | sheets_visualize | 9 | Viz | ✅ Good |
-| 10 | sheets_visualize | 6 | Viz | ⚠️ Could merge with charts |
-| 11 | sheets_dimensions | 14 | Viz | ✅ Good |
-| 12 | sheets_collaborate | 8 | Collab | ✅ Good |
-| 13 | sheets_collaborate | 10 | Collab | ⚠️ Could merge with sharing |
-| 14 | sheets_collaborate | 10 | Collab | ⚠️ Overlaps with history |
-| 15 | sheets_advanced | 19 | Core | ⚠️ Miscellaneous catch-all |
-| 16 | sheets_analyze | 13 | Analysis | ❌ DEPRECATED, confusing name |
-| 17 | sheets_analyze | 10 | Analysis | ⚠️ Confusing vs sheets_analyze |
-| 18 | sheets_fix | 1 | Analysis | ⚠️ Single action tool |
-| 19 | sheets_transaction | 6 | Safety | ✅ Critical |
-| 20 | sheets_quality | 1 | Safety | ⚠️ Single action tool |
-| 21 | sheets_quality | 2 | Safety | ⚠️ Low action count |
-| 22 | sheets_quality | 1 | Safety | ⚠️ Single action tool |
-| 23 | sheets_history | 7 | Safety | ⚠️ Overlaps with versions |
-| 24 | sheets_confirm | 2 | MCP | ✅ Good |
-| 25 | sheets_session | 13 | MCP | ⚠️ Too many actions |
-| 26 | sheets_composite | 4 | High-Level | ✅ Good concept |
+| #   | Tool               | Actions | Category   | Issues                         |
+| --- | ------------------ | ------- | ---------- | ------------------------------ |
+| 1   | sheets_auth        | 4       | Core       | ✅ Good                        |
+| 2   | sheets_core        | 8       | Core       | ✅ Good                        |
+| 3   | sheets_core        | 7       | Core       | ✅ Good                        |
+| 4   | sheets_data        | 9       | Core       | ✅ Good                        |
+| 5   | sheets_data        | 12      | Core       | ⚠️ Overlaps with values        |
+| 6   | sheets_format      | 9       | Core       | ✅ Good                        |
+| 7   | sheets_dimensions  | 21      | Core       | ✅ Good but large              |
+| 8   | sheets_format      | 8       | Core       | ⚠️ Should merge with format    |
+| 9   | sheets_visualize   | 9       | Viz        | ✅ Good                        |
+| 10  | sheets_visualize   | 6       | Viz        | ⚠️ Could merge with charts     |
+| 11  | sheets_dimensions  | 14      | Viz        | ✅ Good                        |
+| 12  | sheets_collaborate | 8       | Collab     | ✅ Good                        |
+| 13  | sheets_collaborate | 10      | Collab     | ⚠️ Could merge with sharing    |
+| 14  | sheets_collaborate | 10      | Collab     | ⚠️ Overlaps with history       |
+| 15  | sheets_advanced    | 19      | Core       | ⚠️ Miscellaneous catch-all     |
+| 16  | sheets_analyze     | 13      | Analysis   | ❌ DEPRECATED, confusing name  |
+| 17  | sheets_analyze     | 10      | Analysis   | ⚠️ Confusing vs sheets_analyze |
+| 18  | sheets_fix         | 1       | Analysis   | ⚠️ Single action tool          |
+| 19  | sheets_transaction | 6       | Safety     | ✅ Critical                    |
+| 20  | sheets_quality     | 1       | Safety     | ⚠️ Single action tool          |
+| 21  | sheets_quality     | 2       | Safety     | ⚠️ Low action count            |
+| 22  | sheets_quality     | 1       | Safety     | ⚠️ Single action tool          |
+| 23  | sheets_history     | 7       | Safety     | ⚠️ Overlaps with versions      |
+| 24  | sheets_confirm     | 2       | MCP        | ✅ Good                        |
+| 25  | sheets_session     | 13      | MCP        | ⚠️ Too many actions            |
+| 26  | sheets_composite   | 4       | High-Level | ✅ Good concept                |
 
 ### Key Problems
 
@@ -141,7 +141,7 @@ No changes needed. Clear, focused, essential.
 
 ```
 status    - Check authentication state
-login     - Initiate OAuth flow  
+login     - Initiate OAuth flow
 callback  - Complete OAuth with code
 logout    - Clear credentials
 ```
@@ -527,14 +527,14 @@ get_stats           - Get confirmation statistics
 
 ## Action Count Comparison
 
-| Category | Current | Proposed | Delta |
-|----------|---------|----------|-------|
-| Foundation | 32 | 50 | +18 (consolidated) |
-| Structure | 47 | 45 | -2 |
-| Intelligence | 24 | 27 | +3 |
-| Collaboration | 28 | 28 | 0 |
-| Safety | 17 | 20 | +3 |
-| **TOTAL** | **215** | **170** | **-45** |
+| Category      | Current | Proposed | Delta              |
+| ------------- | ------- | -------- | ------------------ |
+| Foundation    | 32      | 50       | +18 (consolidated) |
+| Structure     | 47      | 45       | -2                 |
+| Intelligence  | 24      | 27       | +3                 |
+| Collaboration | 28      | 28       | 0                  |
+| Safety        | 17      | 20       | +3                 |
+| **TOTAL**     | **215** | **170**  | **-45**            |
 
 Note: Action count decreased because we removed redundant actions and consolidated similar ones.
 
@@ -608,5 +608,5 @@ All tools use consistent verb patterns:
 
 ---
 
-*Document created: 2025-01-13*
-*Target completion: Q1 2025*
+_Document created: 2025-01-13_
+_Target completion: Q1 2025_

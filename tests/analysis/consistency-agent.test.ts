@@ -44,7 +44,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'namingConventions');
+      const report = reports.find((r) => r.dimension === 'namingConventions');
 
       expect(report?.status).toBe('pass');
       expect(report?.issueCount).toBe(0);
@@ -56,7 +56,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'namingConventions');
+      const report = reports.find((r) => r.dimension === 'namingConventions');
 
       expect(report?.status).toBe('warning');
       expect(report?.issueCount).toBeGreaterThan(0);
@@ -69,7 +69,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'namingConventions');
+      const report = reports.find((r) => r.dimension === 'namingConventions');
 
       // Note: This will likely fail to parse as valid TS
       // But we test the detection logic
@@ -84,7 +84,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'namingConventions');
+      const report = reports.find((r) => r.dimension === 'namingConventions');
 
       expect(report?.status).toBe('pass');
       expect(report?.issueCount).toBe(0);
@@ -96,7 +96,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'namingConventions');
+      const report = reports.find((r) => r.dimension === 'namingConventions');
 
       expect(report?.status).toBe('warning');
       expect(report?.issueCount).toBeGreaterThan(0);
@@ -111,7 +111,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'namingConventions');
+      const report = reports.find((r) => r.dimension === 'namingConventions');
 
       expect(report?.status).toBe('pass');
       expect(report?.issueCount).toBe(0);
@@ -126,7 +126,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'namingConventions');
+      const report = reports.find((r) => r.dimension === 'namingConventions');
 
       expect(report?.status).toBe('warning');
       expect(report?.issueCount).toBeGreaterThan(0);
@@ -148,7 +148,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'importOrdering');
+      const report = reports.find((r) => r.dimension === 'importOrdering');
 
       expect(report?.status).toBe('pass');
       expect(report?.issueCount).toBe(0);
@@ -161,7 +161,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'importOrdering');
+      const report = reports.find((r) => r.dimension === 'importOrdering');
 
       expect(report?.status).toBe('warning');
       expect(report?.issueCount).toBeGreaterThan(0);
@@ -177,7 +177,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'importOrdering');
+      const report = reports.find((r) => r.dimension === 'importOrdering');
 
       expect(report?.status).toBe('warning');
       expect(report?.issueCount).toBeGreaterThan(0);
@@ -190,7 +190,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'importOrdering');
+      const report = reports.find((r) => r.dimension === 'importOrdering');
 
       expect(report?.status).toBe('pass');
       expect(report?.issueCount).toBe(0);
@@ -202,7 +202,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'importOrdering');
+      const report = reports.find((r) => r.dimension === 'importOrdering');
 
       expect(report?.status).toBe('pass');
       expect(report?.issueCount).toBe(0);
@@ -215,7 +215,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'importOrdering');
+      const report = reports.find((r) => r.dimension === 'importOrdering');
 
       expect(report?.issues[0]?.autoFixable).toBe(true);
     });
@@ -233,7 +233,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('src/handlers/test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'errorHandling');
+      const report = reports.find((r) => r.dimension === 'errorHandling');
 
       expect(report?.status).toBe('pass');
       expect(report?.issueCount).toBe(0);
@@ -245,7 +245,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('src/handlers/test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'errorHandling');
+      const report = reports.find((r) => r.dimension === 'errorHandling');
 
       expect(report?.status).toBe('warning');
       expect(report?.issueCount).toBeGreaterThan(0);
@@ -260,7 +260,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('src/services/test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'errorHandling');
+      const report = reports.find((r) => r.dimension === 'errorHandling');
 
       expect(report?.status).toBe('warning');
       expect(report?.issueCount).toBeGreaterThan(0);
@@ -273,7 +273,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test/fixtures/test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'errorHandling');
+      const report = reports.find((r) => r.dimension === 'errorHandling');
 
       expect(report?.status).toBe('pass');
       expect(report?.issueCount).toBe(0);
@@ -285,7 +285,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('src/handlers/test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'errorHandling');
+      const report = reports.find((r) => r.dimension === 'errorHandling');
 
       expect(report?.metrics).toBeDefined();
       expect(report?.metrics?.hasStructuredErrors).toBe(1);
@@ -304,7 +304,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('src/handlers/test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'responseFormat');
+      const report = reports.find((r) => r.dimension === 'responseFormat');
 
       expect(report?.status).toBe('pass');
     });
@@ -315,7 +315,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('src/handlers/test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'responseFormat');
+      const report = reports.find((r) => r.dimension === 'responseFormat');
 
       expect(report?.status).toBe('warning');
       expect(report?.issueCount).toBeGreaterThan(0);
@@ -329,7 +329,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('src/handlers/test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'responseFormat');
+      const report = reports.find((r) => r.dimension === 'responseFormat');
 
       expect(report?.issues[0]?.references).toBeDefined();
       expect(report?.issues[0]?.references?.[0]).toContain('tool-handlers.ts');
@@ -341,7 +341,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('src/utils/test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'responseFormat');
+      const report = reports.find((r) => r.dimension === 'responseFormat');
 
       expect(report?.status).toBe('pass');
       expect(report?.issueCount).toBe(0);
@@ -366,7 +366,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'commentStyle');
+      const report = reports.find((r) => r.dimension === 'commentStyle');
 
       expect(report?.status).toBe('pass');
       expect(report?.issueCount).toBe(0);
@@ -380,7 +380,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'commentStyle');
+      const report = reports.find((r) => r.dimension === 'commentStyle');
 
       expect(report?.issueCount).toBeGreaterThan(0);
       expect(report?.issues[0].message).toContain('calculateTotal');
@@ -395,7 +395,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'commentStyle');
+      const report = reports.find((r) => r.dimension === 'commentStyle');
 
       expect(report?.issueCount).toBeGreaterThan(0);
       expect(report?.issues[0].message).toContain('processData');
@@ -409,7 +409,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'commentStyle');
+      const report = reports.find((r) => r.dimension === 'commentStyle');
 
       expect(report?.issueCount).toBe(0);
     });
@@ -424,7 +424,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'commentStyle');
+      const report = reports.find((r) => r.dimension === 'commentStyle');
 
       expect(report?.issueCount).toBe(0);
     });
@@ -436,7 +436,7 @@ describe('ConsistencyAgent', () => {
       `;
       const sourceFile = createSourceFile(code);
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const report = reports.find(r => r.dimension === 'commentStyle');
+      const report = reports.find((r) => r.dimension === 'commentStyle');
 
       // Should be 'pass' with only 2 issues
       expect(report?.status).toBe('pass');
@@ -462,7 +462,7 @@ describe('ConsistencyAgent', () => {
       const reports = await agent.analyze('src/handlers/test.ts', sourceFile, context);
 
       expect(reports).toHaveLength(5);
-      expect(reports.map(r => r.dimension).sort()).toEqual([
+      expect(reports.map((r) => r.dimension).sort()).toEqual([
         'commentStyle',
         'errorHandling',
         'importOrdering',

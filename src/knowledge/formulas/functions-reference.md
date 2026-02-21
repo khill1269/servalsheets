@@ -29,12 +29,12 @@
 =HLOOKUP(search_key, range, index, [is_sorted])
 ```
 
-| Parameter | Description |
-|-----------|-------------|
-| search_key | Value to find |
-| range | Data range to search |
-| index | Column/row number to return (1-based) |
-| is_sorted | FALSE for exact match (recommended) |
+| Parameter  | Description                           |
+| ---------- | ------------------------------------- |
+| search_key | Value to find                         |
+| range      | Data range to search                  |
+| index      | Column/row number to return (1-based) |
+| is_sorted  | FALSE for exact match (recommended)   |
 
 ```
 // Find price for product "Widget"
@@ -854,13 +854,17 @@ When writing formulas via API:
 ```typescript
 const writeCellWithFormula = {
   updateCells: {
-    rows: [{
-      values: [{
-        userEnteredValue: {
-          formulaValue: '=SUM(A1:A100)',  // Formula string
-        },
-      }],
-    }],
+    rows: [
+      {
+        values: [
+          {
+            userEnteredValue: {
+              formulaValue: '=SUM(A1:A100)', // Formula string
+            },
+          },
+        ],
+      },
+    ],
     start: { sheetId: 0, rowIndex: 0, columnIndex: 5 },
     fields: 'userEnteredValue',
   },
@@ -870,9 +874,9 @@ const writeCellWithFormula = {
 const formulaWithQuotes = '=IF(A1="Yes", "Active", "Inactive")';
 
 // For QUERY with embedded quotes
-const queryFormula = '=QUERY(A:E, "SELECT * WHERE B = \'Sales\'")'
+const queryFormula = '=QUERY(A:E, "SELECT * WHERE B = \'Sales\'")';
 ```
 
 ---
 
-*Source: Google Sheets Function Reference*
+_Source: Google Sheets Function Reference_

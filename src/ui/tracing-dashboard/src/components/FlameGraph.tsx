@@ -55,9 +55,7 @@ export default function FlameGraph({ trace }: FlameGraphProps) {
   return (
     <div className="flamegraph-container">
       <div className="flamegraph-info">
-        <p>
-          Click on a frame to zoom in. Click outside to zoom out. Hover to see details.
-        </p>
+        <p>Click on a frame to zoom in. Click outside to zoom out. Hover to see details.</p>
       </div>
       <div ref={containerRef} className="flamegraph" />
     </div>

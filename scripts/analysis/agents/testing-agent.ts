@@ -92,18 +92,14 @@ export class TestingAgent extends AnalysisAgent {
     }
 
     // Find untested functions
-    const untestedFunctions = await this.findUntestedFunctions(
-      filePath,
-      sourceFile,
-      context
-    );
+    const untestedFunctions = await this.findUntestedFunctions(filePath, sourceFile, context);
 
     for (const fn of untestedFunctions) {
       issues.push(
         this.createIssue('coverageGaps', filePath, fn.reason, {
           severity: 'medium',
           line: fn.line,
-          suggestion: `Add test cases:\n${fn.suggestedTests.map(t => `  - ${t}`).join('\n')}`,
+          suggestion: `Add test cases:\n${fn.suggestedTests.map((t) => `  - ${t}`).join('\n')}`,
           estimatedEffort: fn.estimatedEffort,
           autoFixable: false,
         })
@@ -172,11 +168,11 @@ export class TestingAgent extends AnalysisAgent {
           this.createIssue(
             'missingEdgeCases',
             filePath,
-            `Function "${fn.name}" missing edge case tests: ${missingCases.map(c => c.category).join(', ')}`,
+            `Function "${fn.name}" missing edge case tests: ${missingCases.map((c) => c.category).join(', ')}`,
             {
               severity: 'medium',
               line: fn.line,
-              suggestion: `Add edge case tests:\n${missingCases.map(c => `  - ${c.description}: ${c.example}`).join('\n')}`,
+              suggestion: `Add edge case tests:\n${missingCases.map((c) => `  - ${c.description}: ${c.example}`).join('\n')}`,
               estimatedEffort: '30min-1h',
               autoFixable: false,
             }
@@ -236,9 +232,7 @@ export class TestingAgent extends AnalysisAgent {
           // Don't count as empty if it has expect() calls
           const hasExpect = bodyText.includes('expect(');
           const hasTODO = bodyText.includes('//') && bodyText.includes('TODO');
-          const isEmptyBody =
-            bodyText.trim() === '{}' ||
-            bodyText.replace(/\s+/g, '') === '()=>{}';
+          const isEmptyBody = bodyText.trim() === '{}' || bodyText.replace(/\s+/g, '') === '()=>{}';
 
           const isEmpty = (isEmptyBody || hasTODO) && !hasExpect;
 
@@ -332,7 +326,7 @@ export class TestingAgent extends AnalysisAgent {
     const testFilePath = this.getTestFilePath(filePath, context);
 
     if (!testFilePath) {
-      return exportedFunctions.map(fn => ({
+      return exportedFunctions.map((fn) => ({
         name: fn.name,
         reason: `No test file found for "${fn.name}"`,
         suggestedTests: this.suggestTestCases(fn),
@@ -375,9 +369,7 @@ export class TestingAgent extends AnalysisAgent {
     const visit = (node: ts.Node) => {
       // Exported function declarations
       if (ts.isFunctionDeclaration(node) && node.name) {
-        const hasExport = node.modifiers?.some(
-          m => m.kind === ts.SyntaxKind.ExportKeyword
-        );
+        const hasExport = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
 
         if (hasExport) {
           functions.push(this.extractFunctionInfo(node, node.name.text, sourceFile));
@@ -386,21 +378,17 @@ export class TestingAgent extends AnalysisAgent {
 
       // Exported class methods
       if (ts.isClassDeclaration(node)) {
-        const hasExport = node.modifiers?.some(
-          m => m.kind === ts.SyntaxKind.ExportKeyword
-        );
+        const hasExport = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
 
         if (hasExport) {
-          node.members.forEach(member => {
+          node.members.forEach((member) => {
             if (ts.isMethodDeclaration(member) && ts.isIdentifier(member.name)) {
               const isPublic = !member.modifiers?.some(
-                m => m.kind === ts.SyntaxKind.PrivateKeyword
+                (m) => m.kind === ts.SyntaxKind.PrivateKeyword
               );
 
               if (isPublic) {
-                functions.push(
-                  this.extractFunctionInfo(member, member.name.text, sourceFile)
-                );
+                functions.push(this.extractFunctionInfo(member, member.name.text, sourceFile));
               }
             }
           });
@@ -421,14 +409,13 @@ export class TestingAgent extends AnalysisAgent {
   ): FunctionInfo {
     const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
 
-    const parameters: ParameterInfo[] = node.parameters.map(param => ({
+    const parameters: ParameterInfo[] = node.parameters.map((param) => ({
       name: ts.isIdentifier(param.name) ? param.name.text : 'unknown',
       type: param.type ? param.type.getText(sourceFile) : 'any',
       optional: !!param.questionToken,
     }));
 
-    const returnsPromise =
-      node.type?.getText(sourceFile).includes('Promise') || false;
+    const returnsPromise = node.type?.getText(sourceFile).includes('Promise') || false;
 
     // Check if function throws errors
     let throwsErrors = false;

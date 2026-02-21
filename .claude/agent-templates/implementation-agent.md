@@ -12,22 +12,26 @@
 ## When to Use
 
 ✅ **Feature Implementation**
+
 - New tool actions
 - Handler modifications
 - Schema changes
 - API integrations
 
 ✅ **Bug Fixes**
+
 - Production bugs
 - Test failures
 - Integration issues
 
 ✅ **Refactoring**
+
 - Code cleanup
 - Pattern standardization
 - Performance optimization
 
 ❌ **Not Suitable For**
+
 - Novel architecture design (use Opus)
 - Simple file searches (use Haiku research-agent)
 - Just running tests (use Haiku validation-agent)
@@ -38,9 +42,9 @@
 
 ```typescript
 Task({
-  subagent_type: "general-purpose",
-  model: "sonnet",
-  description: "Implement [feature] with TDD (30min)",
+  subagent_type: 'general-purpose',
+  model: 'sonnet',
+  description: 'Implement [feature] with TDD (30min)',
   prompt: `
     Implement [feature] using strict TDD approach:
 
@@ -71,8 +75,8 @@ Task({
     - NO refactoring in this PR (separate PR)
     - NO changes outside [specific-directory]
     - MUST follow existing error handling patterns
-  `
-})
+  `,
+});
 ```
 
 ---
@@ -81,9 +85,9 @@ Task({
 
 ```typescript
 Task({
-  subagent_type: "general-purpose",
-  model: "sonnet",
-  description: "Add bulk_delete action to sheets_data (30min)",
+  subagent_type: 'general-purpose',
+  model: 'sonnet',
+  description: 'Add bulk_delete action to sheets_data (30min)',
   prompt: `
     Add bulk_delete action to sheets_data handler:
 
@@ -127,8 +131,8 @@ Task({
     - [ ] G0 and G1 gates passing
     - [ ] Schema metadata regenerated
     - [ ] Git history: test commit → feat commit → chore commit
-  `
-})
+  `,
+});
 ```
 
 ---
@@ -137,9 +141,9 @@ Task({
 
 ```typescript
 Task({
-  subagent_type: "general-purpose",
-  model: "sonnet",
-  description: "Fix composite streaming test failures (45min)",
+  subagent_type: 'general-purpose',
+  model: 'sonnet',
+  description: 'Fix composite streaming test failures (45min)',
   prompt: `
     Fix 4 failing tests in tests/handlers/composite.streaming.test.ts
 
@@ -174,8 +178,8 @@ Task({
     - NO unrelated changes
     - NO refactoring in same commit
     - Follow existing response patterns
-  `
-})
+  `,
+});
 ```
 
 ---
@@ -184,9 +188,9 @@ Task({
 
 ```typescript
 Task({
-  subagent_type: "general-purpose",
-  model: "sonnet",
-  description: "Add optional timeout parameter to all tools (40min)",
+  subagent_type: 'general-purpose',
+  model: 'sonnet',
+  description: 'Add optional timeout parameter to all tools (40min)',
   prompt: `
     Add optional timeout parameter to all 22 tool schemas:
 
@@ -221,8 +225,8 @@ Task({
     - Backward compatible (optional parameter)
     - Consistent across all 22 tools
     - Default timeout preserves existing behavior
-  `
-})
+  `,
+});
 ```
 
 ---
@@ -243,12 +247,12 @@ Task({
 
 **Example Cost Comparison:**
 
-| Task | Sonnet Cost | Opus Cost | Savings |
-|------|-------------|-----------|---------|
-| Add new action | $5 | $25 | 80% |
-| Fix standard bug | $3 | $15 | 80% |
-| Schema change | $4 | $20 | 80% |
-| Complex refactor | $15 | $40 | 62% |
+| Task             | Sonnet Cost | Opus Cost | Savings |
+| ---------------- | ----------- | --------- | ------- |
+| Add new action   | $5          | $25       | 80%     |
+| Fix standard bug | $3          | $15       | 80%     |
+| Schema change    | $4          | $20       | 80%     |
+| Complex refactor | $15         | $40       | 62%     |
 
 ---
 
@@ -290,6 +294,7 @@ Task({
 ## Success Metrics
 
 **Good Implementation Session:**
+
 - ✓ Tests written before code
 - ✓ All tests passing
 - ✓ G0 and G1 gates passing
@@ -298,6 +303,7 @@ Task({
 - ✓ Cost: $5-15 (Sonnet)
 
 **Needs Improvement:**
+
 - ✗ Code before tests
 - ✗ Tests still failing
 - ✗ Gates failing
@@ -308,6 +314,12 @@ Task({
 ---
 
 **Related Templates:**
+
 - `research-agent.md` - Find patterns before implementing
 - `planning-agent.md` - Design before coding
 - `validation-agent.md` - Verify after implementing
+
+## Runtime Guardrails
+
+Before taking tool actions, load `.claude/AGENT_GUARDRAILS.md`.
+If it exists, load `.agent-context/learning-memory.md` and apply the top recurring fixes first.

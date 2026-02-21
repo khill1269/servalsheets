@@ -23,8 +23,8 @@ export interface ReplayResult {
   originalRequest: RecordedRequest;
   replayedAt: number;
   success: boolean;
-  actualResponse: any;
-  originalResponse: any;
+  actualResponse: unknown;
+  originalResponse: unknown;
   actualDuration: number;
   originalDuration: number;
   diff: ResponseDiff | null;
@@ -72,10 +72,7 @@ export class ReplayEngine {
   /**
    * Replay a single request by ID
    */
-  async replaySingle(
-    requestId: number,
-    mode: ReplayMode = 'realtime'
-  ): Promise<ReplayResult> {
+  async replaySingle(requestId: number, mode: ReplayMode = 'realtime'): Promise<ReplayResult> {
     const originalRequest = this.recorder.getById(requestId);
     if (!originalRequest) {
       throw new Error(`Request ${requestId} not found`);
@@ -123,7 +120,8 @@ export class ReplayEngine {
           const nextRequest = this.recorder.getById(nextId);
 
           if (currentRequest && nextRequest) {
-            const gap = nextRequest.timestamp - (currentRequest.timestamp + currentRequest.duration_ms);
+            const gap =
+              nextRequest.timestamp - (currentRequest.timestamp + currentRequest.duration_ms);
             if (gap > 0) {
               const adjustedGap = mode === '10x' ? gap / 10 : gap;
               await this.sleep(adjustedGap);
@@ -157,7 +155,7 @@ export class ReplayEngine {
    */
   private async replayRequest(
     originalRequest: RecordedRequest,
-    mode: ReplayMode
+    _mode: ReplayMode
   ): Promise<ReplayResult> {
     const replayedAt = Date.now();
 
@@ -301,7 +299,7 @@ export interface ToolExecutor {
    * Execute a tool with the given request
    * @returns Tool response
    */
-  execute(toolName: string, request: any): Promise<any>;
+  execute(toolName: string, request: unknown): Promise<unknown>;
 }
 
 /**

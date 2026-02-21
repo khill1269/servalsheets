@@ -15,10 +15,7 @@ import {
   applyQuotaDelay,
   resetTestInfrastructure,
 } from './setup/index.js';
-import {
-  validatePreTestConditions,
-  getTestIsolationGuard,
-} from './guards/index.js';
+import { validatePreTestConditions, getTestIsolationGuard } from './guards/index.js';
 import { shouldRunIntegrationTests, loadTestCredentials } from '../helpers/credential-loader.js';
 
 /**
@@ -80,9 +77,13 @@ beforeAll(async () => {
 
   // Display configuration
   console.log('📋 Test Configuration:');
-  console.log(`   Retry: ${TEST_CONFIG.retry.maxRetries} retries, ${TEST_CONFIG.retry.baseDelayMs}ms base delay`);
+  console.log(
+    `   Retry: ${TEST_CONFIG.retry.maxRetries} retries, ${TEST_CONFIG.retry.baseDelayMs}ms base delay`
+  );
   console.log(`   Quota: ${TEST_CONFIG.quota.delayBetweenTestsMs}ms between tests`);
-  console.log(`   Rate Limits: ${TEST_CONFIG.quota.maxReadsPerMinute} reads/min, ${TEST_CONFIG.quota.maxWritesPerMinute} writes/min`);
+  console.log(
+    `   Rate Limits: ${TEST_CONFIG.quota.maxReadsPerMinute} reads/min, ${TEST_CONFIG.quota.maxWritesPerMinute} writes/min`
+  );
   console.log(`   Timeout: ${TEST_CONFIG.timeout.live}ms for live tests`);
   console.log('');
 
@@ -175,7 +176,8 @@ beforeEach(async (context) => {
  */
 afterEach(async (context) => {
   // Extract test result from context
-  const task = (context as unknown as { task?: { result?: { state?: string; error?: Error } } })?.task;
+  const task = (context as unknown as { task?: { result?: { state?: string; error?: Error } } })
+    ?.task;
   const state = task?.result?.state ?? 'unknown';
   const error = task?.result?.error;
 

@@ -21,11 +21,11 @@ curl http://localhost:9090/api/v1/rules | jq '.data.groups[] | .name'
 
 ## Alert Severity Quick Reference
 
-| Severity | Response | Count | Examples |
-|----------|----------|-------|----------|
-| CRITICAL | Immediate | 5 | ServiceDown, HighErrorRate, CircuitBreakerOpen |
-| WARNING | 15 min | 10 | RequestQueueBackup, HighLatency, APIQuotaNearLimit |
-| INFO | 1 hour | 9 | LowCacheHitRate, LowBatchEfficiency |
+| Severity | Response  | Count | Examples                                           |
+| -------- | --------- | ----- | -------------------------------------------------- |
+| CRITICAL | Immediate | 5     | ServiceDown, HighErrorRate, CircuitBreakerOpen     |
+| WARNING  | 15 min    | 10    | RequestQueueBackup, HighLatency, APIQuotaNearLimit |
+| INFO     | 1 hour    | 9     | LowCacheHitRate, LowBatchEfficiency                |
 
 ## Critical Alerts (Immediate Response)
 
@@ -49,6 +49,7 @@ curl 'http://localhost:9090/api/v1/query?query=process_resident_memory_bytes/(10
 ## Common Operations
 
 ### Check Active Alerts
+
 ```bash
 # All firing alerts
 curl http://localhost:9090/api/v1/alerts | jq '.data.alerts[] | select(.state=="firing")'
@@ -58,6 +59,7 @@ curl http://localhost:9090/api/v1/alerts | jq '.data.alerts[] | select(.labels.s
 ```
 
 ### Send Test Alert
+
 ```bash
 curl -X POST http://localhost:9093/api/v1/alerts -H 'Content-Type: application/json' -d '[
   {
@@ -69,6 +71,7 @@ curl -X POST http://localhost:9093/api/v1/alerts -H 'Content-Type: application/j
 ```
 
 ### Reload Configuration
+
 ```bash
 # Reload Prometheus (hot reload)
 curl -X POST http://localhost:9090/-/reload
@@ -81,6 +84,7 @@ docker-compose restart prometheus alertmanager
 ```
 
 ### Validate Configuration
+
 ```bash
 # Validate alert rules
 ./scripts/validate-alerts.sh
@@ -95,6 +99,7 @@ curl http://localhost:9090/api/v1/rules | jq '.data.groups[] | {name, rules: (.r
 ## Troubleshooting One-Liners
 
 ### Alerts Not Firing
+
 ```bash
 # Check metric exists
 curl 'http://localhost:9090/api/v1/query?query=servalsheets_tool_calls_total' | jq '.data.result | length'
@@ -104,6 +109,7 @@ curl http://localhost:9090/api/v1/rules | jq '.data.groups[].rules[] | select(.n
 ```
 
 ### Notifications Not Received
+
 ```bash
 # Check Alertmanager has alerts
 curl http://localhost:9093/api/v1/alerts | jq '.data | length'
@@ -116,6 +122,7 @@ docker-compose logs alertmanager | tail -50
 ```
 
 ### High Alert Noise
+
 ```bash
 # Check inhibition rules are working
 curl http://localhost:9093/api/v1/alerts | jq '.data[] | select(.status.inhibitedBy | length > 0)'
@@ -173,6 +180,7 @@ scripts/
 ## Emergency Procedures
 
 ### ServiceDown Alert
+
 ```bash
 # 1. Check process
 docker-compose ps servalsheets
@@ -188,6 +196,7 @@ curl http://localhost:3000/health/live
 ```
 
 ### High Error Rate
+
 ```bash
 # 1. Check error types
 docker-compose logs servalsheets | grep ERROR | tail -50
@@ -203,6 +212,7 @@ cat docs/runbooks/high-error-rate.md
 ```
 
 ### Circuit Breaker Open
+
 ```bash
 # 1. Check which circuit
 curl 'http://localhost:9090/api/v1/query?query=servalsheets_circuit_breaker_state{state="open"}'
@@ -271,30 +281,30 @@ Infrastructure Team: [Contact]
 
 ## Metrics Reference
 
-| Metric | Type | Purpose |
-|--------|------|---------|
-| servalsheets_tool_calls_total | Counter | Total operations (success/error) |
-| servalsheets_tool_call_latency_summary | Summary | Latency percentiles |
-| servalsheets_google_api_calls_total | Counter | Google API calls |
-| servalsheets_circuit_breaker_state | Gauge | Circuit breaker state (0/1/2) |
-| servalsheets_cache_hits_total | Counter | Cache hits |
-| servalsheets_cache_misses_total | Counter | Cache misses |
-| servalsheets_request_queue_depth | Gauge | Queue depth |
-| servalsheets_batch_efficiency_ratio | Gauge | Batch efficiency (0-1) |
-| servalsheets_errors_by_type_total | Counter | Errors by type |
+| Metric                                 | Type    | Purpose                          |
+| -------------------------------------- | ------- | -------------------------------- |
+| servalsheets_tool_calls_total          | Counter | Total operations (success/error) |
+| servalsheets_tool_call_latency_summary | Summary | Latency percentiles              |
+| servalsheets_google_api_calls_total    | Counter | Google API calls                 |
+| servalsheets_circuit_breaker_state     | Gauge   | Circuit breaker state (0/1/2)    |
+| servalsheets_cache_hits_total          | Counter | Cache hits                       |
+| servalsheets_cache_misses_total        | Counter | Cache misses                     |
+| servalsheets_request_queue_depth       | Gauge   | Queue depth                      |
+| servalsheets_batch_efficiency_ratio    | Gauge   | Batch efficiency (0-1)           |
+| servalsheets_errors_by_type_total      | Counter | Errors by type                   |
 
 ## Alert Thresholds Summary
 
-| Alert | Threshold | Duration |
-|-------|-----------|----------|
-| HighErrorRate | > 5% | 2m |
-| HighLatencyP99 | > 5s | 5m |
-| HighLatencyP95 | > 3s | 10m |
-| RequestQueueBackup | > 50 requests | 5m |
-| APIQuotaNearLimit | > 55/min | 2m |
-| LowCacheHitRate | < 50% | 10m |
-| HighMemoryUsage | > 1.5GB | 5m |
-| CircuitBreakerOpen | state >= 2 | 1m |
+| Alert              | Threshold     | Duration |
+| ------------------ | ------------- | -------- |
+| HighErrorRate      | > 5%          | 2m       |
+| HighLatencyP99     | > 5s          | 5m       |
+| HighLatencyP95     | > 3s          | 10m      |
+| RequestQueueBackup | > 50 requests | 5m       |
+| APIQuotaNearLimit  | > 55/min      | 2m       |
+| LowCacheHitRate    | < 50%         | 10m      |
+| HighMemoryUsage    | > 1.5GB       | 5m       |
+| CircuitBreakerOpen | state >= 2    | 1m       |
 
 ---
 

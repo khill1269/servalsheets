@@ -194,14 +194,24 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
     });
 
     it('should mark read-only tools correctly', () => {
-      const readOnlyTools = ['sheets_quality', 'sheets_history', 'sheets_confirm', 'sheets_analyze', 'sheets_dependencies'];
+      // sheets_quality (resolve_conflict) and sheets_history (undo/redo) have write operations
+      const readOnlyTools = ['sheets_confirm', 'sheets_analyze', 'sheets_dependencies'];
       for (const tool of readOnlyTools) {
         expect(TOOL_ANNOTATIONS[tool]!.readOnlyHint).toBe(true);
       }
     });
 
     it('should mark write tools as non-read-only', () => {
-      const writeTools = ['sheets_data', 'sheets_core', 'sheets_format', 'sheets_dimensions', 'sheets_fix', 'sheets_composite'];
+      const writeTools = [
+        'sheets_data',
+        'sheets_core',
+        'sheets_format',
+        'sheets_dimensions',
+        'sheets_fix',
+        'sheets_composite',
+        'sheets_quality',
+        'sheets_history', // resolve_conflict, undo/redo are write operations
+      ];
       for (const tool of writeTools) {
         expect(TOOL_ANNOTATIONS[tool]!.readOnlyHint).toBe(false);
       }
@@ -246,11 +256,24 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
 
     it('should mark open world tools (external API calls) correctly', () => {
       const openWorldTools = [
-        'sheets_auth', 'sheets_core', 'sheets_data', 'sheets_format',
-        'sheets_dimensions', 'sheets_visualize', 'sheets_collaborate',
-        'sheets_advanced', 'sheets_transaction', 'sheets_analyze',
-        'sheets_fix', 'sheets_composite', 'sheets_templates',
-        'sheets_bigquery', 'sheets_appsscript', 'sheets_webhook',
+        'sheets_auth',
+        'sheets_core',
+        'sheets_data',
+        'sheets_format',
+        'sheets_dimensions',
+        'sheets_visualize',
+        'sheets_collaborate',
+        'sheets_advanced',
+        'sheets_transaction',
+        'sheets_analyze',
+        'sheets_fix',
+        'sheets_composite',
+        'sheets_templates',
+        'sheets_bigquery',
+        'sheets_appsscript',
+        'sheets_webhook',
+        'sheets_quality',
+        'sheets_history', // resolve_conflict, undo/redo call Google API
       ];
       for (const tool of openWorldTools) {
         expect(TOOL_ANNOTATIONS[tool]!.openWorldHint).toBe(true);
@@ -258,7 +281,8 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
     });
 
     it('should mark local-only tools correctly', () => {
-      const localTools = ['sheets_quality', 'sheets_history', 'sheets_confirm', 'sheets_session', 'sheets_dependencies'];
+      // sheets_quality (resolve_conflict) and sheets_history (undo/redo) call Google API
+      const localTools = ['sheets_confirm', 'sheets_session', 'sheets_dependencies'];
       for (const tool of localTools) {
         expect(TOOL_ANNOTATIONS[tool]!.openWorldHint).toBe(false);
       }
@@ -342,9 +366,15 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
 
     it('should allow task support for long-running tools', () => {
       const longRunning = [
-        'sheets_analyze', 'sheets_data', 'sheets_format',
-        'sheets_dimensions', 'sheets_visualize', 'sheets_composite',
-        'sheets_appsscript', 'sheets_bigquery', 'sheets_templates',
+        'sheets_analyze',
+        'sheets_data',
+        'sheets_format',
+        'sheets_dimensions',
+        'sheets_visualize',
+        'sheets_composite',
+        'sheets_appsscript',
+        'sheets_bigquery',
+        'sheets_templates',
       ];
       for (const tool of longRunning) {
         expect(TOOL_EXECUTION_CONFIG[tool]!.taskSupport).toBe('optional');
@@ -353,9 +383,16 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
 
     it('should forbid task support for fast tools', () => {
       const fast = [
-        'sheets_auth', 'sheets_core', 'sheets_collaborate',
-        'sheets_advanced', 'sheets_transaction', 'sheets_quality',
-        'sheets_history', 'sheets_confirm', 'sheets_fix', 'sheets_session',
+        'sheets_auth',
+        'sheets_core',
+        'sheets_collaborate',
+        'sheets_advanced',
+        'sheets_transaction',
+        'sheets_quality',
+        'sheets_history',
+        'sheets_confirm',
+        'sheets_fix',
+        'sheets_session',
       ];
       for (const tool of fast) {
         expect(TOOL_EXECUTION_CONFIG[tool]!.taskSupport).toBe('forbidden');

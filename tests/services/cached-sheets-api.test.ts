@@ -81,7 +81,10 @@ function createMockSheetsApi() {
         get: vi.fn().mockResolvedValue({
           data: {
             range: 'Sheet1!A1:D10',
-            values: [['a', 'b'], ['c', 'd']],
+            values: [
+              ['a', 'b'],
+              ['c', 'd'],
+            ],
           },
         }),
         batchGet: vi.fn().mockResolvedValue({

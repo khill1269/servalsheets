@@ -8,28 +8,28 @@
  */
 
 export const ACTION_COUNTS: Record<string, number> = {
-  sheets_advanced: 26,
+  sheets_advanced: 31,
   sheets_analyze: 16,
-  sheets_appsscript: 14,
+  sheets_appsscript: 18,
   sheets_auth: 4,
-  sheets_bigquery: 14,
+  sheets_bigquery: 17,
   sheets_collaborate: 35,
   sheets_composite: 11,
   sheets_confirm: 5,
   sheets_core: 19,
-  sheets_data: 18,
+  sheets_data: 19,
   sheets_dependencies: 7,
   sheets_dimensions: 28,
   sheets_federation: 4,
   sheets_fix: 1,
-  sheets_format: 22,
+  sheets_format: 24,
   sheets_history: 7,
   sheets_quality: 4,
   sheets_session: 26,
   sheets_templates: 8,
   sheets_transaction: 6,
   sheets_visualize: 18,
-  sheets_webhook: 6,
+  sheets_webhook: 7,
 };
 
 /**

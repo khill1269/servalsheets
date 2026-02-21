@@ -5,7 +5,11 @@
  */
 
 import { getRequestContext, getRequestLogger } from './request-context.js';
-import { recordRateLimitHit, recordRetryAttempt, recordHttp2Error } from '../observability/metrics.js';
+import {
+  recordRateLimitHit,
+  recordRetryAttempt,
+  recordHttp2Error,
+} from '../observability/metrics.js';
 
 export interface RetryOptions {
   maxRetries?: number;
@@ -18,7 +22,7 @@ export interface RetryOptions {
   onRetry?: (error: unknown, attempt: number) => void | Promise<void>;
 }
 
-const DEFAULT_TIMEOUT_MS = parseInt(process.env['GOOGLE_API_TIMEOUT_MS'] ?? '30000', 10);
+const DEFAULT_TIMEOUT_MS = parseInt(process.env['GOOGLE_API_TIMEOUT_MS'] ?? '60000', 10); // 60s default (raised from 30s for copy/clear/import operations)
 const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, 'retryable' | 'timeoutMs' | 'onRetry'>> = {
   maxRetries: parseInt(process.env['GOOGLE_API_MAX_RETRIES'] ?? '3', 10),
   baseDelayMs: parseInt(process.env['GOOGLE_API_RETRY_BASE_DELAY_MS'] ?? '500', 10),
@@ -26,7 +30,7 @@ const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, 'retryable' | 'timeoutM
   jitterRatio: parseFloat(process.env['GOOGLE_API_RETRY_JITTER'] ?? '0.2'),
 };
 
-const RETRYABLE_STATUS = new Set([401, 429, 500, 502, 503, 504]);
+const RETRYABLE_STATUS = new Set([401, 403, 429, 500, 502, 503, 504]);
 const RETRYABLE_CODES = new Set([
   'ETIMEDOUT',
   'ECONNRESET',
@@ -75,9 +79,10 @@ export async function executeWithRetry<T>(
       lastError = error;
 
       // Track HTTP/2 errors for observability
-      const errCode = typeof (error as { code?: unknown })?.code === 'string'
-        ? (error as { code: string }).code
-        : '';
+      const errCode =
+        typeof (error as { code?: unknown })?.code === 'string'
+          ? (error as { code: string }).code
+          : '';
       const errMsg = error instanceof Error ? error.message.toLowerCase() : '';
       if (RETRYABLE_CODES.has(errCode) && errCode.startsWith('ERR_HTTP2_')) {
         recordHttp2Error(errCode, 'connection');
@@ -188,10 +193,37 @@ function isRetryableError(error: unknown): boolean {
 
   const status = errAny.response?.status;
   if (typeof status === 'number' && RETRYABLE_STATUS.has(status)) {
-    // Special handling for 401: only retry if token expired
+    // 403: only retry for userRateLimitExceeded (quota exhausted), not permission errors
+    if (status === 403) {
+      const message = typeof errAny.message === 'string' ? errAny.message.toLowerCase() : '';
+      const body = JSON.stringify(
+        (errAny as { response?: { data?: unknown } }).response?.data ?? ''
+      );
+      return (
+        message.includes('userratelimitexceeded') ||
+        body.toLowerCase().includes('userratelimitexceeded') ||
+        message.includes('rate limit') ||
+        message.includes('quota exceeded')
+      );
+    }
+    // Special handling for 401: retry on token expiry, invalid credentials, and scope issues
+    // Google API can return various 401 messages beyond just "token expired"
     if (status === 401) {
       const message = typeof errAny.message === 'string' ? errAny.message.toLowerCase() : '';
-      return message.includes('token expired') || message.includes('invalid credentials');
+      const body = JSON.stringify(
+        (errAny as { response?: { data?: unknown } }).response?.data ?? ''
+      ).toLowerCase();
+      return (
+        message.includes('token expired') ||
+        message.includes('token has been expired') ||
+        message.includes('invalid_grant') ||
+        message.includes('invalid credentials') ||
+        message.includes('unauthorized') ||
+        message.includes('invalid_token') ||
+        message.includes('token has been revoked') ||
+        body.includes('invalid_token') ||
+        body.includes('token expired')
+      );
     }
     return true;
   }
@@ -204,8 +236,10 @@ function isRetryableError(error: unknown): boolean {
     return true;
   }
 
+  // AbortError from external cancellation (MCP client disconnect) should NOT be retried.
+  // Internal timeouts use name='TimeoutError' and are handled via message matching below.
   if (typeof errAny.name === 'string' && errAny.name === 'AbortError') {
-    return true;
+    return false;
   }
 
   if (typeof errAny.message === 'string') {

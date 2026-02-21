@@ -6,10 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import {
-  compactResponse,
-  isCompactModeEnabled,
-} from '../../src/utils/response-compactor.js';
+import { compactResponse, isCompactModeEnabled } from '../../src/utils/response-compactor.js';
 import { getSessionContext, resetSessionContext } from '../../src/services/session-context.js';
 
 // Enable compact mode for these tests (global setup disables it)
@@ -28,9 +25,7 @@ afterAll(() => {
 describe('Response Truncation Hints', () => {
   it('should add _hint when 2D array is truncated', () => {
     // Create a response with >10 rows (threshold for truncation)
-    const bigValues = Array.from({ length: 200 }, (_, i) =>
-      [`row${i}`, `data${i}`, `value${i}`]
-    );
+    const bigValues = Array.from({ length: 200 }, (_, i) => [`row${i}`, `data${i}`, `value${i}`]);
 
     const response = {
       success: true,
@@ -47,7 +42,8 @@ describe('Response Truncation Hints', () => {
   });
 
   it('should add _hint when 1D array is truncated', () => {
-    const bigItems = Array.from({ length: 200 }, (_, i) => ({
+    // Must exceed MAX_INLINE_ITEMS (500) to trigger truncation
+    const bigItems = Array.from({ length: 600 }, (_, i) => ({
       id: `item_${i}`,
       name: `Item ${i}`,
     }));
@@ -85,7 +81,10 @@ describe('Response Truncation Hints', () => {
     const response = {
       success: true,
       action: 'read',
-      values: [['a', 'b'], ['c', 'd']],
+      values: [
+        ['a', 'b'],
+        ['c', 'd'],
+      ],
     };
 
     const compacted = compactResponse({ response });
@@ -95,9 +94,7 @@ describe('Response Truncation Hints', () => {
   });
 
   it('should NOT add _hint when verbosity is detailed', () => {
-    const bigValues = Array.from({ length: 200 }, (_, i) =>
-      [`row${i}`, `data${i}`]
-    );
+    const bigValues = Array.from({ length: 200 }, (_, i) => [`row${i}`, `data${i}`]);
 
     const response = {
       success: true,
@@ -136,9 +133,9 @@ describe('Response Truncation Hints', () => {
   });
 
   it('should include cursor hint when both truncation and pagination occur', () => {
-    const bigValues = Array.from({ length: 200 }, (_, i) =>
-      [`row${i}`, `data${i}`]
-    );
+    // Must exceed MAX_INLINE_ITEMS (500 cells) to trigger truncation
+    // 300 rows × 2 cols = 600 cells > 500 threshold
+    const bigValues = Array.from({ length: 300 }, (_, i) => [`row${i}`, `data${i}`]);
 
     const response = {
       success: true,

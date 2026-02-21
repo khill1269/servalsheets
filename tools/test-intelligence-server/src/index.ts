@@ -16,10 +16,7 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema
-} from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import Database from 'better-sqlite3';
 import { DecisionTreeClassifier } from 'ml-cart';
 import { glob } from 'fast-glob';
@@ -89,7 +86,7 @@ async function loadPredictionModel(): Promise<DecisionTreeClassifier> {
   predictionModel = new DecisionTreeClassifier({
     gainFunction: 'gini',
     maxDepth: 10,
-    minNumSamples: 3
+    minNumSamples: 3,
   });
 
   predictionModel.train(trainingData.features, trainingData.labels);
@@ -104,13 +101,17 @@ async function loadPredictionModel(): Promise<DecisionTreeClassifier> {
  * Prepare training data from test execution history
  */
 async function prepareTrainingData(): Promise<{ features: number[][]; labels: number[] }> {
-  const executions = db.prepare(`
+  const executions = db
+    .prepare(
+      `
     SELECT test_file, changed_files, success
     FROM test_executions
     WHERE changed_files IS NOT NULL
     ORDER BY timestamp DESC
     LIMIT 1000
-  `).all() as any[];
+  `
+    )
+    .all() as any[];
 
   const features: number[][] = [];
   const labels: number[] = [];
@@ -135,15 +136,15 @@ async function extractFeatures(testFile: string, changedFiles: string[]): Promis
   features.push(changedFiles.length);
 
   // Feature 2: Handler changes (high impact)
-  const handlerChanges = changedFiles.filter(f => f.includes('handlers/')).length;
+  const handlerChanges = changedFiles.filter((f) => f.includes('handlers/')).length;
   features.push(handlerChanges);
 
   // Feature 3: Schema changes (high impact)
-  const schemaChanges = changedFiles.filter(f => f.includes('schemas/')).length;
+  const schemaChanges = changedFiles.filter((f) => f.includes('schemas/')).length;
   features.push(schemaChanges);
 
   // Feature 4: Test changes
-  const testChanges = changedFiles.filter(f => f.includes('tests/')).length;
+  const testChanges = changedFiles.filter((f) => f.includes('tests/')).length;
   features.push(testChanges);
 
   // Feature 5: Historical failure rate
@@ -165,14 +166,18 @@ async function extractFeatures(testFile: string, changedFiles: string[]): Promis
  * Get historical failure rate for test
  */
 async function getHistoricalFailureRate(testFile: string): Promise<number> {
-  const result = db.prepare(`
+  const result = db
+    .prepare(
+      `
     SELECT
       SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failures,
       COUNT(*) as total
     FROM test_executions
     WHERE test_file = ?
     AND timestamp > ?
-  `).get(testFile, Date.now() - 30 * 24 * 60 * 60 * 1000) as any; // Last 30 days
+  `
+    )
+    .get(testFile, Date.now() - 30 * 24 * 60 * 60 * 1000) as any; // Last 30 days
 
   if (!result || result.total === 0) return 0.1; // Default 10% if no history
 
@@ -188,11 +193,15 @@ async function getCouplingStrength(testFile: string, changedFiles: string[]): Pr
   let totalStrength = 0;
 
   for (const sourceFile of changedFiles) {
-    const result = db.prepare(`
+    const result = db
+      .prepare(
+        `
       SELECT coupling_strength
       FROM test_coupling
       WHERE test_file = ? AND source_file = ?
-    `).get(testFile, sourceFile) as any;
+    `
+      )
+      .get(testFile, sourceFile) as any;
 
     totalStrength += result?.coupling_strength || 0;
   }
@@ -217,7 +226,7 @@ async function predictFailures(changedFiles: string[]): Promise<any> {
   // Get all test files
   const testFiles = await glob('tests/**/*.test.ts', {
     cwd: process.cwd(),
-    absolute: false
+    absolute: false,
   });
 
   const predictions: any[] = [];
@@ -227,12 +236,13 @@ async function predictFailures(changedFiles: string[]): Promise<any> {
     const prediction = model.predict([features])[0];
     const confidence = calculateConfidence(features, prediction);
 
-    if (prediction === 1 || confidence > 0.3) { // Will fail or uncertain
+    if (prediction === 1 || confidence > 0.3) {
+      // Will fail or uncertain
       predictions.push({
         testFile,
         prediction: prediction === 1 ? 'fail' : 'pass',
         confidence,
-        reason: explainPrediction(features, changedFiles)
+        reason: explainPrediction(features, changedFiles),
       });
     }
   }
@@ -242,10 +252,10 @@ async function predictFailures(changedFiles: string[]): Promise<any> {
 
   return {
     changedFiles,
-    predictedFailures: predictions.filter(p => p.prediction === 'fail'),
-    uncertainTests: predictions.filter(p => p.confidence > 0.3 && p.prediction === 'pass'),
+    predictedFailures: predictions.filter((p) => p.prediction === 'fail'),
+    uncertainTests: predictions.filter((p) => p.confidence > 0.3 && p.prediction === 'pass'),
     totalTests: testFiles.length,
-    selectedTests: predictions.length
+    selectedTests: predictions.length,
   };
 }
 
@@ -277,7 +287,8 @@ function explainPrediction(features: number[], changedFiles: string[]): string {
 
   if (features[1] > 0) reasons.push(`${features[1]} handler files changed`);
   if (features[2] > 0) reasons.push(`${features[2]} schema files changed`);
-  if (features[4] > 0.3) reasons.push(`High historical failure rate (${(features[4] * 100).toFixed(0)}%)`);
+  if (features[4] > 0.3)
+    reasons.push(`High historical failure rate (${(features[4] * 100).toFixed(0)}%)`);
   if (features[5] > 0.5) reasons.push(`Strong coupling with changed files`);
 
   return reasons.join(', ') || 'Low confidence prediction';
@@ -298,7 +309,7 @@ async function selectTests(changedFiles: string[], confidence: number = 0.95): P
   const selectedTests = new Set<string>();
 
   // Add contract tests
-  contractTests.forEach(t => selectedTests.add(t));
+  contractTests.forEach((t) => selectedTests.add(t));
 
   // Add predicted failures
   predictions.predictedFailures.forEach((p: any) => selectedTests.add(p.testFile));
@@ -309,7 +320,7 @@ async function selectTests(changedFiles: string[], confidence: number = 0.95): P
   // Calculate coverage
   const totalTests = predictions.totalTests;
   const selected = selectedTests.size;
-  const reduction = ((totalTests - selected) / totalTests * 100).toFixed(1);
+  const reduction = (((totalTests - selected) / totalTests) * 100).toFixed(1);
 
   return {
     changedFiles,
@@ -322,8 +333,8 @@ async function selectTests(changedFiles: string[], confidence: number = 0.95): P
     coverage: {
       contracts: contractTests.length,
       predictedFailures: predictions.predictedFailures.length,
-      uncertain: predictions.uncertainTests.length
-    }
+      uncertain: predictions.uncertainTests.length,
+    },
   };
 }
 
@@ -333,7 +344,9 @@ async function selectTests(changedFiles: string[], confidence: number = 0.95): P
 async function detectFlakyTests(sinceDays: number = 30): Promise<any> {
   const cutoff = Date.now() - sinceDays * 24 * 60 * 60 * 1000;
 
-  const results = db.prepare(`
+  const results = db
+    .prepare(
+      `
     SELECT
       test_file,
       test_name,
@@ -344,17 +357,21 @@ async function detectFlakyTests(sinceDays: number = 30): Promise<any> {
     WHERE timestamp > ?
     GROUP BY test_file, test_name
     HAVING executions >= 5 AND passes > 0 AND failures > 0
-  `).all(cutoff) as any[];
+  `
+    )
+    .all(cutoff) as any[];
 
-  const flakyTests = results.map((r: any) => ({
-    testFile: r.test_file,
-    testName: r.test_name,
-    executions: r.executions,
-    passes: r.passes,
-    failures: r.failures,
-    failureRate: (r.failures / r.executions * 100).toFixed(1) + '%',
-    flakiness: calculateFlakiness(r)
-  })).filter((t: any) => t.flakiness > 0.2); // >20% flakiness
+  const flakyTests = results
+    .map((r: any) => ({
+      testFile: r.test_file,
+      testName: r.test_name,
+      executions: r.executions,
+      passes: r.passes,
+      failures: r.failures,
+      failureRate: ((r.failures / r.executions) * 100).toFixed(1) + '%',
+      flakiness: calculateFlakiness(r),
+    }))
+    .filter((t: any) => t.flakiness > 0.2); // >20% flakiness
 
   flakyTests.sort((a: any, b: any) => b.flakiness - a.flakiness);
 
@@ -362,9 +379,10 @@ async function detectFlakyTests(sinceDays: number = 30): Promise<any> {
     sinceDays,
     flakyTests,
     count: flakyTests.length,
-    recommendation: flakyTests.length > 0
-      ? 'Fix or quarantine flaky tests to improve CI reliability'
-      : 'No flaky tests detected'
+    recommendation:
+      flakyTests.length > 0
+        ? 'Fix or quarantine flaky tests to improve CI reliability'
+        : 'No flaky tests detected',
   };
 }
 
@@ -536,7 +554,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const impact = {
           changedFiles,
           affectedTests: [], // Would implement test coverage analysis
-          recommendation: 'Run full test suite - impact analysis not yet implemented'
+          recommendation: 'Run full test suite - impact analysis not yet implemented',
         };
         return {
           content: [

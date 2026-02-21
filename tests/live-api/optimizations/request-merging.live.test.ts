@@ -5,7 +5,11 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { getLiveApiClient, isLiveApiEnabled, type LiveApiClient } from '../setup/live-api-client.js';
+import {
+  getLiveApiClient,
+  isLiveApiEnabled,
+  type LiveApiClient,
+} from '../setup/live-api-client.js';
 import {
   TestSpreadsheetManager,
   createTestSpreadsheetManager,
@@ -33,11 +37,7 @@ describeOrSkip('Request Merging Live Verification', () => {
 
   describe('Overlapping Range Merging', () => {
     it('should handle concurrent reads of overlapping ranges', async () => {
-      const ranges = [
-        'TestData!A1:C10',
-        'TestData!B5:D15',
-        'TestData!A1:D20',
-      ];
+      const ranges = ['TestData!A1:C10', 'TestData!B5:D15', 'TestData!A1:D20'];
 
       const startTime = performance.now();
 
@@ -64,11 +64,7 @@ describeOrSkip('Request Merging Live Verification', () => {
 
       const result = await client.sheets.spreadsheets.values.batchGet({
         spreadsheetId: testSpreadsheet.id,
-        ranges: [
-          'TestData!A1:B10',
-          'TestData!C1:D10',
-          'TestData!E1:F10',
-        ],
+        ranges: ['TestData!A1:B10', 'TestData!C1:D10', 'TestData!E1:F10'],
       });
 
       const duration = performance.now() - startTime;

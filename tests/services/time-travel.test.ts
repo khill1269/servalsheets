@@ -241,12 +241,8 @@ describe('TimeTravelDebugger', () => {
       const sourceBranch = debugger_['branches'].get('ss-1:source')!;
       const targetBranch = debugger_['branches'].get('ss-1:target')!;
 
-      sourceBranch.operations.push(
-        makeOp({ id: 'src-op', params: { range: 'Sheet1!A1:B5' } })
-      );
-      targetBranch.operations.push(
-        makeOp({ id: 'tgt-op', params: { range: 'Sheet1!A3:B3' } })
-      );
+      sourceBranch.operations.push(makeOp({ id: 'src-op', params: { range: 'Sheet1!A1:B5' } }));
+      targetBranch.operations.push(makeOp({ id: 'tgt-op', params: { range: 'Sheet1!A3:B3' } }));
 
       const result = debugger_.mergeBranch('ss-1', 'source', 'target');
 

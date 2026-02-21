@@ -35,7 +35,7 @@ import type { SamplingServer } from '../mcp/sampling.js';
 import type { RequestDeduplicator } from '../utils/request-deduplication.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
-import { getCircuitBreakerConfig } from '../config/env.js';
+import { getCircuitBreakerConfig, getEnv } from '../config/env.js';
 import {
   buildGridRangeInput,
   parseA1Notation,
@@ -71,7 +71,6 @@ import {
   columnToLetter as columnToLetterHelper,
   letterToColumn as letterToColumnHelper,
 } from './helpers/column-helpers.js';
-import { unwrapRequest } from './helpers/request-helpers.js';
 
 export interface HandlerContext {
   batchCompiler: BatchCompiler;
@@ -137,7 +136,6 @@ export interface HandlerError {
  */
 export type HandlerOutput<T extends Record<string, unknown>> = HandlerResult<T> | HandlerError;
 
-
 /**
  * Base handler with common utilities
  * Now using mixin pattern for better modularity
@@ -165,7 +163,7 @@ export abstract class BaseHandler<TInput, TOutput> {
   /**
    * Check that current OAuth scopes include required permissions for an operation.
    *
-   * This provides graceful degradation when using standard scopes (260/298 actions):
+   * This provides graceful degradation when using standard scopes (~85% of actions):
    * - Operations with required scopes work normally
    * - Operations missing scopes throw IncrementalScopeRequiredError with auth URL
    * - User can grant additional permissions and retry
@@ -178,7 +176,7 @@ export abstract class BaseHandler<TInput, TOutput> {
    */
   protected checkOperationScopes(operation: string): void {
     // Skip validation if incremental consent is disabled or auth context missing
-    if (!process.env['INCREMENTAL_CONSENT_ENABLED'] || !this.context.auth) {
+    if (!getEnv().INCREMENTAL_CONSENT_ENABLED || !this.context.auth) {
       return;
     }
 
@@ -280,7 +278,6 @@ export abstract class BaseHandler<TInput, TOutput> {
     }
   }
 
-
   /**
    * Execute an API call with circuit breaker protection
    * Creates/retrieves a circuit breaker for the operation type
@@ -364,7 +361,6 @@ export abstract class BaseHandler<TInput, TOutput> {
       { 'api.system': 'google_sheets' }
     );
   }
-
 
   /**
    * Execute intents through the batch compiler
@@ -1306,7 +1302,6 @@ export abstract class BaseHandler<TInput, TOutput> {
       return null;
     }
   }
-
 
   /**
    * Get sheet ID by name with caching

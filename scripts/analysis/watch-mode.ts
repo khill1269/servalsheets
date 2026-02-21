@@ -186,7 +186,9 @@ export class WatchMode {
     const fileName = path.basename(filePath);
     const relPath = path.relative(process.cwd(), filePath);
 
-    console.log(`\n${COLORS.cyan}[${timestamp}]${COLORS.reset} ${COLORS.bright}${fileName}${COLORS.reset} ${changeType}`);
+    console.log(
+      `\n${COLORS.cyan}[${timestamp}]${COLORS.reset} ${COLORS.bright}${fileName}${COLORS.reset} ${changeType}`
+    );
     console.log(`${COLORS.dim}${relPath}${COLORS.reset}\n`);
 
     const startTime = Date.now();
@@ -235,12 +237,15 @@ export class WatchMode {
       statusColor = COLORS.yellow;
     }
 
-    console.log(`${statusColor}${statusIcon} Analysis complete${COLORS.reset} (${formatDuration(duration)})\n`);
+    console.log(
+      `${statusColor}${statusIcon} Analysis complete${COLORS.reset} (${formatDuration(duration)})\n`
+    );
 
     // Agent summary
     console.log(`${COLORS.bright}Agents (${report.agentReports.length}):${COLORS.reset}`);
     for (const agentReport of report.agentReports) {
-      const icon = agentReport.status === 'pass' ? '✓' : agentReport.status === 'warning' ? '⚠' : '✗';
+      const icon =
+        agentReport.status === 'pass' ? '✓' : agentReport.status === 'warning' ? '⚠' : '✗';
       const color =
         agentReport.status === 'pass'
           ? COLORS.green
@@ -273,7 +278,7 @@ export class WatchMode {
 
       // Show top 3 issues
       const topIssues = report.validatedFindings
-        .filter(f => !f.isFalsePositive)
+        .filter((f) => !f.isFalsePositive)
         .sort((a, b) => {
           const severityOrder = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
           return severityOrder[a.issue.severity] - severityOrder[b.issue.severity];
@@ -305,7 +310,9 @@ export class WatchMode {
 
     // Auto-fix summary
     if (report.summary.autoFixed > 0) {
-      console.log(`\n${COLORS.green}✓ Auto-fixed: ${report.summary.autoFixed} issue(s)${COLORS.reset}`);
+      console.log(
+        `\n${COLORS.green}✓ Auto-fixed: ${report.summary.autoFixed} issue(s)${COLORS.reset}`
+      );
     }
 
     // Recommendations

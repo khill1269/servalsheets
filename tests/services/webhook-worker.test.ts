@@ -496,7 +496,10 @@ describe('WebhookWorker', () => {
         text: vi.fn().mockResolvedValue('OK'),
       });
 
-      await Promise.all([invokeProcessDelivery(worker, job1, 0), invokeProcessDelivery(worker, job2, 1)]);
+      await Promise.all([
+        invokeProcessDelivery(worker, job1, 0),
+        invokeProcessDelivery(worker, job2, 1),
+      ]);
 
       expect(global.fetch).toHaveBeenCalledTimes(2);
       expect(mockWebhookQueue.markSuccess).toHaveBeenCalledTimes(2);

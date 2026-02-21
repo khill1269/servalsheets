@@ -87,9 +87,8 @@ describe('Tool Routing - Annotation Consistency', () => {
       .filter(([_, ann]) => !ann.openWorldHint)
       .map(([name]) => name);
 
-    // These should be session/quality/history/confirm/dependencies
-    expect(localTools).toContain('sheets_quality');
-    expect(localTools).toContain('sheets_history');
+    // sheets_quality and sheets_history call Google API (resolve_conflict, undo/redo)
+    // so they are NOT local-only
     expect(localTools).toContain('sheets_session');
     expect(localTools).toContain('sheets_dependencies');
     expect(localTools).toContain('sheets_confirm');

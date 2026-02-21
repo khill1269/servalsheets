@@ -21,7 +21,8 @@ const runLiveTests = shouldRunIntegrationTests();
 
 describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
   const testSpreadsheetId = process.env['TEST_SPREADSHEET_ID'];
-  const webhookEndpoint = process.env['WEBHOOK_ENDPOINT'] ?? 'https://example.com/webhook/drive-callback';
+  const webhookEndpoint =
+    process.env['WEBHOOK_ENDPOINT'] ?? 'https://example.com/webhook/drive-callback';
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockRedis: any;
   let googleApi: ReturnType<typeof createGoogleApiClient>;

@@ -67,9 +67,7 @@ export class SchemaVersionManager {
     const selectedVersion = requestedVersion || DEFAULT_VERSION;
     const metadata = this.getVersionMetadata(selectedVersion);
     const isDeprecated = metadata.status === 'deprecated';
-    const deprecationWarning = isDeprecated
-      ? this.generateDeprecationWarning(metadata)
-      : undefined;
+    const deprecationWarning = isDeprecated ? this.generateDeprecationWarning(metadata) : undefined;
 
     logger.debug('Schema version selected', {
       requestedVersion,

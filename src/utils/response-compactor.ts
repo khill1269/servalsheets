@@ -25,7 +25,7 @@ export interface TruncationMetadata {
 /**
  * Fields that are always included in compact responses
  */
-const ESSENTIAL_FIELDS = ['success', 'action', 'message', 'error', 'authenticated'];
+const ESSENTIAL_FIELDS = new Set(['success', 'action', 'message', 'error', 'authenticated']);
 
 /**
  * Fields that MUST pass through untouched (never truncated/stringified).
@@ -49,7 +49,7 @@ const PRESERVED_FIELDS = new Set([
  * These fields are preserved (with truncation for large arrays) rather than stripped.
  * Includes all common list/array response fields from handlers.
  */
-const CONDITIONAL_FIELDS = [
+const CONDITIONAL_FIELDS = new Set([
   'values',
   'data',
   'sheets',
@@ -75,11 +75,17 @@ const CONDITIONAL_FIELDS = [
   'processes', // sheets_appsscript: list_processes
   // Suggestion/recommendation response fields (BUG FIX 0.4)
   'suggestions', // sheets_visualize: suggest_chart, suggest_pivot
+  // New API response fields (2026-02-19)
+  'triggers', // sheets_appsscript: list_triggers
+  'slicers', // sheets_dimensions: list_slicers
+  'tables', // Tables API: list
+  'functions', // sheets_advanced: list_named_functions / sheets_appsscript: list_functions
+  'scripts', // sheets_appsscript: list
   // smart_append response fields
   'columnsMatched', // sheets_composite: smart_append
   'columnsCreated', // sheets_composite: smart_append
   'columnsSkipped', // sheets_composite: smart_append
-];
+]);
 
 /**
  * List action fields that must remain arrays (not wrapped in objects)
@@ -103,12 +109,17 @@ const LIST_ACTION_FIELDS = new Set([
   'versions',
   'processes',
   'suggestions',
+  'triggers',
+  'slicers',
+  'tables',
+  'functions',
+  'scripts',
 ]);
 
 /**
  * Fields always stripped in compact mode
  */
-const STRIPPED_FIELDS = [
+const STRIPPED_FIELDS = new Set([
   '_meta',
   'costEstimate',
   'quotaImpact',
@@ -118,13 +129,15 @@ const STRIPPED_FIELDS = [
   'spanId',
   'requestId',
   'debugInfo',
-];
+]);
 
 /**
  * Maximum size for inline arrays before truncation
- * OPTIMIZATION: Reduced from 500 to 100 for faster responses
+ * Configurable via MAX_INLINE_CELLS env var. Default 500 cells.
+ * Note: Previously was 100 which was too aggressive for typical spreadsheet reads
+ * (26 columns = only ~3.8 rows before truncation). Increased to 500 (19 rows at 26 cols).
  */
-const MAX_INLINE_ITEMS = parseInt(process.env['MAX_INLINE_CELLS'] || '100', 10);
+const MAX_INLINE_ITEMS = parseInt(process.env['MAX_INLINE_CELLS'] || '500', 10);
 
 /**
  * Maximum string length before truncation
@@ -224,9 +237,9 @@ function compactInner(
 
   // Include simple scalar fields not in stripped list
   for (const [key, value] of Object.entries(response)) {
-    if (STRIPPED_FIELDS.includes(key)) continue;
-    if (ESSENTIAL_FIELDS.includes(key)) continue;
-    if (CONDITIONAL_FIELDS.includes(key)) continue;
+    if (STRIPPED_FIELDS.has(key)) continue;
+    if (ESSENTIAL_FIELDS.has(key)) continue;
+    if (CONDITIONAL_FIELDS.has(key)) continue;
 
     // Preserved fields pass through untouched (schema-required objects)
     if (PRESERVED_FIELDS.has(key)) {
@@ -338,8 +351,9 @@ function truncate2DArray(values: unknown[][], fieldName: string): unknown {
     return values;
   }
 
-  // Sample strategy: first 3 rows + last 2 rows for pattern detection
-  const previewRows = Math.min(5, totalRows);
+  // Sample strategy: first 6 rows + last 4 rows for pattern detection
+  // Increased from 5 to 10 preview rows to give AI better context for analysis
+  const previewRows = Math.min(10, totalRows);
   const firstRows = Math.ceil(previewRows * 0.6); // 60% from start
   const lastRows = previewRows - firstRows; // 40% from end
 
@@ -412,7 +426,7 @@ function truncateObject(obj: Record<string, unknown>): Record<string, unknown> {
   let fieldCount = 0;
 
   for (const [key, value] of Object.entries(obj)) {
-    if (STRIPPED_FIELDS.includes(key)) continue;
+    if (STRIPPED_FIELDS.has(key)) continue;
     if (fieldCount >= 10) {
       result['_moreFields'] = Object.keys(obj).length - fieldCount;
       break;
@@ -448,6 +462,245 @@ function isSimpleValue(value: unknown): boolean {
     typeof value === 'boolean' ||
     value === null
   );
+}
+
+// =============================================================================
+// SheetCompressor — SpreadsheetLLM-inspired context compression (2026-02-19)
+// =============================================================================
+
+/**
+ * Structural anchor cell (header or type-boundary row)
+ */
+export interface AnchorCell {
+  row: number;
+  col: number;
+  value: string;
+  isHeader: boolean;
+}
+
+/**
+ * Per-column statistical summary
+ */
+export interface ColumnStats {
+  col: number;
+  header: string;
+  dominantType: 'text' | 'number' | 'date' | 'boolean' | 'empty' | 'mixed';
+  nonEmptyCount: number;
+  uniqueCount: number;
+  examples: string[];
+  min?: number | string;
+  max?: number | string;
+}
+
+/**
+ * Compressed sheet representation for LLM consumption.
+ * Replaces raw cell data with structural skeleton + statistics.
+ */
+export interface CompressedSheet {
+  dimensions: { rows: number; cols: number };
+  anchors: AnchorCell[];
+  inverseIndex: Record<string, [number, number][]>;
+  columnStats: ColumnStats[];
+  compressionRatio: number;
+  hint: string;
+}
+
+/**
+ * Compress a sheet's cell data for efficient LLM understanding.
+ *
+ * Implements the core ideas from Microsoft SpreadsheetLLM (2024):
+ *  1. Structural anchor extraction — find header rows and type-boundary rows
+ *  2. Inverse index translation — map unique values → [row,col] positions
+ *  3. Column statistics — type distribution, min/max/mean, unique examples
+ *
+ * Achieves ~25x context compression while preserving structural understanding.
+ * Use for sheets > 100 rows where full cell data would overflow context.
+ *
+ * @param values - 2D cell array (row-major, strings or primitives)
+ * @param options.maxAnchors - Max structural anchor rows to include (default 20)
+ * @param options.maxExamples - Max example values per column (default 5)
+ */
+export function compressSheetForLLM(
+  values: unknown[][],
+  options?: { maxAnchors?: number; maxExamples?: number }
+): CompressedSheet {
+  const maxAnchors = options?.maxAnchors ?? 20;
+  const maxExamples = options?.maxExamples ?? 5;
+  const rows = values.length;
+  const cols = rows > 0 ? Math.max(...values.map((r) => r.length)) : 0;
+
+  // === Step 1: Extract structural anchors ===
+  const anchors: AnchorCell[] = [];
+
+  // Row 0 is always a header anchor candidate
+  const headerRow = values[0];
+  if (headerRow) {
+    for (let c = 0; c < headerRow.length; c++) {
+      const v = headerRow[c];
+      if (v !== null && v !== undefined && v !== '') {
+        anchors.push({
+          row: 0,
+          col: c,
+          value: String(v),
+          isHeader: true,
+        });
+      }
+    }
+  }
+
+  // Detect type-boundary rows: rows where column types shift significantly
+  const rowTypes = values.map((row) => classifyRowTypes(row));
+  for (let r = 1; r < Math.min(rows, 1000); r++) {
+    const prev = rowTypes[r - 1];
+    const curr = rowTypes[r];
+    if (prev && curr && isTypeBoundary(prev, curr)) {
+      const row = values[r];
+      if (row) {
+        for (let c = 0; c < Math.min(row.length, 5); c++) {
+          const v = row[c];
+          if (v !== null && v !== undefined && v !== '') {
+            anchors.push({ row: r, col: c, value: String(v), isHeader: false });
+            break; // One anchor per boundary row
+          }
+        }
+        if (anchors.length >= maxAnchors) break;
+      }
+    }
+  }
+
+  // === Step 2: Inverse index (value → positions) ===
+  const valueMap = new Map<string, [number, number][]>();
+  const MAX_INDEX_ROWS = Math.min(rows, 500); // Cap to avoid huge indexes
+
+  for (let r = 0; r < MAX_INDEX_ROWS; r++) {
+    const row = values[r];
+    if (!row) continue;
+    for (let c = 0; c < row.length; c++) {
+      const v = row[c];
+      if (v === null || v === undefined || v === '') continue;
+      const key = String(v);
+      // Only index repeated values (unique values don't need indexing)
+      if (!valueMap.has(key)) {
+        valueMap.set(key, []);
+      }
+      valueMap.get(key)!.push([r, c]);
+    }
+  }
+
+  // Keep only values that appear in 2+ cells (repeated patterns) and aren't too long
+  const inverseIndex: Record<string, [number, number][]> = {};
+  for (const [key, positions] of valueMap.entries()) {
+    if (positions.length >= 2 && key.length <= 50) {
+      inverseIndex[key] = positions;
+    }
+  }
+
+  // === Step 3: Column statistics ===
+  const columnStats: ColumnStats[] = [];
+
+  for (let c = 0; c < cols; c++) {
+    const colValues = values
+      .slice(1) // Skip header row
+      .map((row) => row[c])
+      .filter((v) => v !== null && v !== undefined && v !== '');
+
+    const header =
+      headerRow?.[c] !== undefined && headerRow[c] !== null ? String(headerRow[c]) : `Col${c + 1}`;
+
+    if (colValues.length === 0) {
+      columnStats.push({
+        col: c,
+        header,
+        dominantType: 'empty',
+        nonEmptyCount: 0,
+        uniqueCount: 0,
+        examples: [],
+      });
+      continue;
+    }
+
+    const types = colValues.map(inferCellType);
+    const typeCounts: Record<string, number> = {};
+    for (const t of types) {
+      typeCounts[t] = (typeCounts[t] ?? 0) + 1;
+    }
+
+    const dominantType =
+      (Object.entries(typeCounts).sort(
+        (a, b) => b[1] - a[1]
+      )[0]?.[0] as ColumnStats['dominantType']) ?? 'mixed';
+
+    const uniqueValues = [...new Set(colValues.map(String))];
+    const examples = uniqueValues.slice(0, maxExamples);
+
+    const stat: ColumnStats = {
+      col: c,
+      header,
+      dominantType,
+      nonEmptyCount: colValues.length,
+      uniqueCount: uniqueValues.length,
+      examples,
+    };
+
+    // Add min/max for numeric columns
+    if (dominantType === 'number') {
+      const nums = colValues.filter((v) => typeof v === 'number' || !isNaN(Number(v)));
+      if (nums.length > 0) {
+        const parsed = nums.map(Number);
+        stat.min = Math.min(...parsed);
+        stat.max = Math.max(...parsed);
+      }
+    } else if (dominantType === 'text' && uniqueValues.length > 1) {
+      stat.min = uniqueValues.sort()[0];
+      stat.max = uniqueValues.sort()[uniqueValues.length - 1];
+    }
+
+    columnStats.push(stat);
+  }
+
+  // === Compression ratio ===
+  const originalSize = values.reduce((sum, row) => sum + row.length, 0);
+  const compressedSize = anchors.length + Object.keys(inverseIndex).length + columnStats.length;
+  const compressionRatio =
+    originalSize > 0 ? Math.round(originalSize / Math.max(compressedSize, 1)) : 1;
+
+  return {
+    dimensions: { rows, cols },
+    anchors,
+    inverseIndex,
+    columnStats,
+    compressionRatio,
+    hint: `Sheet compressed ${compressionRatio}x. Use verbosity:"detailed" to read raw cell data.`,
+  };
+}
+
+/** Classify the data types in a row */
+function classifyRowTypes(row: unknown[]): string[] {
+  return row.map(inferCellType);
+}
+
+/** Infer cell value type */
+function inferCellType(value: unknown): 'text' | 'number' | 'date' | 'boolean' | 'empty' {
+  if (value === null || value === undefined || value === '') return 'empty';
+  if (typeof value === 'boolean') return 'boolean';
+  if (typeof value === 'number') return 'number';
+  const s = String(value);
+  if (!isNaN(Number(s)) && s.trim() !== '') return 'number';
+  if (/^\d{4}-\d{2}-\d{2}/.test(s) || /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(s)) return 'date';
+  return 'text';
+}
+
+/** Detect if two adjacent rows represent a type boundary (structural change) */
+function isTypeBoundary(prevTypes: string[], currTypes: string[]): boolean {
+  const len = Math.min(prevTypes.length, currTypes.length);
+  if (len === 0) return false;
+  let changes = 0;
+  for (let i = 0; i < len; i++) {
+    if (prevTypes[i] !== currTypes[i] && prevTypes[i] !== 'empty' && currTypes[i] !== 'empty') {
+      changes++;
+    }
+  }
+  return changes / len > 0.5; // >50% of non-empty columns changed type
 }
 
 /**

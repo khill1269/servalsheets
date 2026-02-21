@@ -44,7 +44,7 @@ find "$ARCHIVE_DIR" -type d -not -path "$ARCHIVE_DIR" | sort | while read -r dir
     echo "### $rel_path ($file_count files)" >> "$OUTPUT_FILE"
     echo "" >> "$OUTPUT_FILE"
 
-    find "$dir" -maxdepth 1 -name "*.md" -type f | sort | while read -r file; then
+    find "$dir" -maxdepth 1 -name "*.md" -type f | sort | while read -r file; do
       filename=$(basename "$file")
       rel_file_path="${file#docs/}"
       title=$(grep "^# " "$file" 2>/dev/null | head -1 | sed 's/^# //' || echo "$filename")

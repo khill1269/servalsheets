@@ -3,7 +3,7 @@
  *
  * Tests spreadsheet and sheet management operations against the real Google Sheets API.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single main spreadsheet where possible, only creates
  * additional spreadsheets for tests that specifically need them.
  */
@@ -11,10 +11,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { LiveApiClient } from '../setup/live-api-client.js';
 import { TestSpreadsheetManager, TestSpreadsheet } from '../setup/test-spreadsheet-manager.js';
-import {
-  loadTestCredentials,
-  shouldRunIntegrationTests,
-} from '../../helpers/credential-loader.js';
+import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 
 // Skip all tests if not running against real API
 const runLiveTests = shouldRunIntegrationTests();
@@ -31,7 +28,7 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
     }
     client = new LiveApiClient(credentials, { trackMetrics: true });
     manager = new TestSpreadsheetManager(client);
-    
+
     // Create ONE main spreadsheet for most tests
     testSpreadsheet = await manager.createTestSpreadsheet('core');
   }, 60000);
@@ -179,19 +176,21 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
         const response = await client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [{
-              addSheet: {
-                properties: {
-                  title: newSheetTitle,
-                  gridProperties: {
-                    rowCount: 100,
-                    columnCount: 26,
-                    frozenRowCount: 1,
+            requests: [
+              {
+                addSheet: {
+                  properties: {
+                    title: newSheetTitle,
+                    gridProperties: {
+                      rowCount: 100,
+                      columnCount: 26,
+                      frozenRowCount: 1,
+                    },
+                    tabColor: { red: 0.2, green: 0.6, blue: 0.8 },
                   },
-                  tabColor: { red: 0.2, green: 0.6, blue: 0.8 },
                 },
               },
-            }],
+            ],
           },
         });
 
@@ -249,12 +248,14 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
         const renameResponse = await client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [{
-              updateSheetProperties: {
-                properties: { sheetId, title: newTitle },
-                fields: 'title',
+            requests: [
+              {
+                updateSheetProperties: {
+                  properties: { sheetId, title: newTitle },
+                  fields: 'title',
+                },
               },
-            }],
+            ],
           },
         });
 
@@ -298,12 +299,14 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
         const duplicateResponse = await client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [{
-              duplicateSheet: {
-                sourceSheetId,
-                newSheetName: `Copy_${Date.now()}`,
+            requests: [
+              {
+                duplicateSheet: {
+                  sourceSheetId,
+                  newSheetName: `Copy_${Date.now()}`,
+                },
               },
-            }],
+            ],
           },
         });
 

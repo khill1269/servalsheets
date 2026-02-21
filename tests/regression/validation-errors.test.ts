@@ -1,9 +1,9 @@
 /**
  * Regression Tests: Validation Error Fixes
- * 
+ *
  * Tests for the 59 validation errors identified in the analysis.
  * Each test documents the original error and validates the fix.
- * 
+ *
  * Error breakdown:
  * - sheets_advanced: 7 errors
  * - sheets_bigquery: 10 errors
@@ -420,13 +420,7 @@ describe('Regression: Validation Error Fixes', () => {
         // Note: "Sheet1" alone (without cell reference) is NOT currently supported
         // due to A1_NOTATION_REGEX. This is a known limitation.
         // Google Sheets API does accept sheet names as ranges for the entire sheet.
-        const ranges = [
-          'A1:B10',
-          'Sheet1!A1:D10',
-          'A:A',
-          '1:1',
-          "'Sheet Name'!A1:B5",
-        ];
+        const ranges = ['A1:B10', 'Sheet1!A1:D10', 'A:A', '1:1', "'Sheet Name'!A1:B5"];
 
         for (const range of ranges) {
           const input = {

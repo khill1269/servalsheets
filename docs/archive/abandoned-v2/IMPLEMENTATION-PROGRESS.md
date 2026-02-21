@@ -16,19 +16,19 @@ All components for ServalSheets v2.0 have been implemented. The system is ready 
 
 ## Summary
 
-| Component | Status | Files | Lines (est) |
-|-----------|--------|-------|-------------|
-| Schemas | ✅ Complete | 12 | ~3,360 |
-| Handlers | ✅ Complete | 11 | ~5,720 |
-| Tool Definitions | ✅ Complete | 1 | ~400 |
-| Handler Registry | ✅ Complete | 1 | ~250 |
-| MCP Server (v2) | ✅ Complete | 1 | ~150 |
-| Compatibility Server | ✅ Complete | 1 | ~200 |
-| Migration Layer | ✅ Complete | 1 | ~400 |
-| Snapshot Service | ✅ Complete | 1 | ~150 |
-| Unit Tests | ✅ Complete | 1 | ~600 |
-| Documentation | ✅ Complete | 5 | - |
-| **Total** | **✅ Complete** | **35** | **~11,230** |
+| Component            | Status          | Files  | Lines (est) |
+| -------------------- | --------------- | ------ | ----------- |
+| Schemas              | ✅ Complete     | 12     | ~3,360      |
+| Handlers             | ✅ Complete     | 11     | ~5,720      |
+| Tool Definitions     | ✅ Complete     | 1      | ~400        |
+| Handler Registry     | ✅ Complete     | 1      | ~250        |
+| MCP Server (v2)      | ✅ Complete     | 1      | ~150        |
+| Compatibility Server | ✅ Complete     | 1      | ~200        |
+| Migration Layer      | ✅ Complete     | 1      | ~400        |
+| Snapshot Service     | ✅ Complete     | 1      | ~150        |
+| Unit Tests           | ✅ Complete     | 1      | ~600        |
+| Documentation        | ✅ Complete     | 5      | -           |
+| **Total**            | **✅ Complete** | **35** | **~11,230** |
 
 ---
 
@@ -87,32 +87,32 @@ servalsheets/
 
 ## Tool Summary
 
-| Tool | Actions | Category | Key Actions |
-|------|---------|----------|-------------|
-| `sheets_data` | 26 | Foundation | `read`, `write`, `batch_read`, `batch_write`, `search`, `replace` |
-| `sheets_style` | 18 | Foundation | `set_format`, `apply_preset`, `add_conditional`, `add_validation` |
-| `sheets_structure` | 27 | Structure | `add_sheet`, `insert_rows`, `freeze`, `add_named_range` |
-| `sheets_visualize` | 21 | Intelligence | `create_chart`, `create_pivot`, `set_filter`, `sort_range` |
-| `sheets_analyze` | 15 | Intelligence | **`comprehensive`**, `statistics`, `data_quality`, `generate_formula` |
-| `sheets_automate` | 12 | Intelligence | `apply_fixes`, `import_csv`, `deduplicate`, `migrate_data` |
-| `sheets_share` | 16 | Collaboration | `share`, `list_permissions`, `add_comment`, `resolve_comment` |
-| `sheets_history` | 12 | Safety | `create_snapshot`, `restore_snapshot`, `undo`, `compare_versions` |
-| `sheets_safety` | 12 | Safety | `begin`, `commit`, `rollback`, `validate`, `preview` |
-| `sheets_context` | 8 | Foundation | `set_active`, `get_context`, `update_preferences`, `get_stats` |
-| **Total** | **167** | - | - |
+| Tool               | Actions | Category      | Key Actions                                                           |
+| ------------------ | ------- | ------------- | --------------------------------------------------------------------- |
+| `sheets_data`      | 26      | Foundation    | `read`, `write`, `batch_read`, `batch_write`, `search`, `replace`     |
+| `sheets_style`     | 18      | Foundation    | `set_format`, `apply_preset`, `add_conditional`, `add_validation`     |
+| `sheets_structure` | 27      | Structure     | `add_sheet`, `insert_rows`, `freeze`, `add_named_range`               |
+| `sheets_visualize` | 21      | Intelligence  | `create_chart`, `create_pivot`, `set_filter`, `sort_range`            |
+| `sheets_analyze`   | 15      | Intelligence  | **`comprehensive`**, `statistics`, `data_quality`, `generate_formula` |
+| `sheets_automate`  | 12      | Intelligence  | `apply_fixes`, `import_csv`, `deduplicate`, `migrate_data`            |
+| `sheets_share`     | 16      | Collaboration | `share`, `list_permissions`, `add_comment`, `resolve_comment`         |
+| `sheets_history`   | 12      | Safety        | `create_snapshot`, `restore_snapshot`, `undo`, `compare_versions`     |
+| `sheets_safety`    | 12      | Safety        | `begin`, `commit`, `rollback`, `validate`, `preview`                  |
+| `sheets_context`   | 8       | Foundation    | `set_active`, `get_context`, `update_preferences`, `get_stats`        |
+| **Total**          | **167** | -             | -                                                                     |
 
 ---
 
 ## v1 vs v2 Comparison
 
-| Metric | v1 | v2 | Change |
-|--------|-----|-----|--------|
-| Tools | 26 | 11 | **-58%** |
-| Actions | 215 | 167 | **-22%** |
-| LLM tool choices | 26 | 11 | **-58%** |
-| Analysis calls | 10+ | 1 | **-90%** |
-| Safety | Opt-in | Built-in | ✅ Improved |
-| Transactions | None | Full | ✅ New |
+| Metric           | v1     | v2       | Change      |
+| ---------------- | ------ | -------- | ----------- |
+| Tools            | 26     | 11       | **-58%**    |
+| Actions          | 215    | 167      | **-22%**    |
+| LLM tool choices | 26     | 11       | **-58%**    |
+| Analysis calls   | 10+    | 1        | **-90%**    |
+| Safety           | Opt-in | Built-in | ✅ Improved |
+| Transactions     | None   | Full     | ✅ New      |
 
 ---
 
@@ -160,11 +160,11 @@ COMPAT_MODE=v1-and-v2 npm run start:compat
 
 ## Server Modes
 
-| Mode | Command | Description |
-|------|---------|-------------|
-| v2-only | `npm run start:v2` | New projects, v2 tools only |
-| Compatibility | `npm run start:compat` | Both v1 and v2, auto-conversion |
-| v1-deprecated | `COMPAT_MODE=v1-deprecated npm run start:compat` | v1 with warnings |
+| Mode          | Command                                          | Description                     |
+| ------------- | ------------------------------------------------ | ------------------------------- |
+| v2-only       | `npm run start:v2`                               | New projects, v2 tools only     |
+| Compatibility | `npm run start:compat`                           | Both v1 and v2, auto-conversion |
+| v1-deprecated | `COMPAT_MODE=v1-deprecated npm run start:compat` | v1 with warnings                |
 
 ---
 
@@ -232,4 +232,4 @@ The "10 tool calls to understand a spreadsheet" problem is solved. One call, one
 
 ---
 
-*Implementation completed - Ready for integration testing and deployment*
+_Implementation completed - Ready for integration testing and deployment_

@@ -37,7 +37,7 @@ route:
       receiver: 'pagerduty-critical'
       group_wait: 5s
       repeat_interval: 4h
-      continue: true  # Also send to Slack
+      continue: true # Also send to Slack
 
     # Critical alerts also go to Slack
     - match:

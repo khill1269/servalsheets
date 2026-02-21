@@ -75,7 +75,11 @@ const GetQuotasSchema = z.object({
 
 const ListIAMPoliciesSchema = z.object({
   projectId: z.string().describe('Google Cloud project ID'),
-  resourceType: z.string().optional().default('project').describe('Resource type (project, bucket, etc.)'),
+  resourceType: z
+    .string()
+    .optional()
+    .default('project')
+    .describe('Resource type (project, bucket, etc.)'),
 });
 
 const GetLogsSchema = z.object({
@@ -87,7 +91,9 @@ const GetLogsSchema = z.object({
 
 const GetMetricsSchema = z.object({
   projectId: z.string().describe('Google Cloud project ID'),
-  metricType: z.string().describe('Metric type (e.g., "sheets.googleapis.com/quota/read_requests")'),
+  metricType: z
+    .string()
+    .describe('Metric type (e.g., "sheets.googleapis.com/quota/read_requests")'),
   startTime: z.string().optional().describe('Start time (RFC3339)'),
   endTime: z.string().optional().describe('End time (RFC3339)'),
 });
@@ -357,14 +363,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const response = await serviceUsage.services.list({
           auth: authClient,
           parent: `projects/${input.projectId}`,
-          filter: input.filter ? `state:ENABLED AND displayName:*${input.filter}*` : 'state:ENABLED',
+          filter: input.filter
+            ? `state:ENABLED AND displayName:*${input.filter}*`
+            : 'state:ENABLED',
         });
 
         const services = response.data?.services || [];
         const relevantAPIs = services.filter((s: any) =>
-          ['sheets', 'drive', 'bigquery', 'appsscript'].some((api) =>
-            s.config?.name?.includes(api)
-          )
+          ['sheets', 'drive', 'bigquery', 'appsscript'].some((api) => s.config?.name?.includes(api))
         );
 
         return {
@@ -524,9 +530,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         });
 
         const hasAll = response.data?.permissions?.length === input.permissions.length;
-        const missing = input.permissions.filter(
-          (p) => !response.data?.permissions?.includes(p)
-        );
+        const missing = input.permissions.filter((p) => !response.data?.permissions?.includes(p));
 
         return {
           content: [

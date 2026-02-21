@@ -3,22 +3,19 @@
  *
  * Tests cell formatting operations against the real Google Sheets API.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet for all tests.
  */
 
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { LiveApiClient } from '../setup/live-api-client.js';
 import { TestSpreadsheetManager, TestSpreadsheet } from '../setup/test-spreadsheet-manager.js';
-import {
-  loadTestCredentials,
-  shouldRunIntegrationTests,
-} from '../../helpers/credential-loader.js';
+import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 
 const runLiveTests = shouldRunIntegrationTests();
 
 // Helper to add delay between tests to avoid quota limits
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
   let client: LiveApiClient;
@@ -33,7 +30,7 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
     }
     client = new LiveApiClient(credentials, { trackMetrics: true });
     manager = new TestSpreadsheetManager(client);
-    
+
     // Create ONE spreadsheet for all tests
     testSpreadsheet = await manager.createTestSpreadsheet('format');
     const meta = await client.sheets.spreadsheets.get({
@@ -56,13 +53,23 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            repeatCell: {
-              range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 1 },
-              cell: { userEnteredFormat: { backgroundColor: { red: 0.2, green: 0.6, blue: 0.8 } } },
-              fields: 'userEnteredFormat.backgroundColor',
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 0,
+                  endColumnIndex: 1,
+                },
+                cell: {
+                  userEnteredFormat: { backgroundColor: { red: 0.2, green: 0.6, blue: 0.8 } },
+                },
+                fields: 'userEnteredFormat.backgroundColor',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -74,7 +81,8 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
         includeGridData: true,
       });
 
-      const cellFormat = verifyResponse.data.sheets![0].data![0].rowData![0].values![0].userEnteredFormat;
+      const cellFormat =
+        verifyResponse.data.sheets![0].data![0].rowData![0].values![0].userEnteredFormat;
       expect(cellFormat?.backgroundColor?.red).toBeCloseTo(0.2, 1);
     });
 
@@ -82,13 +90,21 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            repeatCell: {
-              range: { sheetId, startRowIndex: 0, endRowIndex: 3, startColumnIndex: 0, endColumnIndex: 3 },
-              cell: { userEnteredFormat: { backgroundColor: { red: 1, green: 0.9, blue: 0.8 } } },
-              fields: 'userEnteredFormat.backgroundColor',
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 3,
+                  startColumnIndex: 0,
+                  endColumnIndex: 3,
+                },
+                cell: { userEnteredFormat: { backgroundColor: { red: 1, green: 0.9, blue: 0.8 } } },
+                fields: 'userEnteredFormat.backgroundColor',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -108,13 +124,21 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            repeatCell: {
-              range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 1, endColumnIndex: 2 },
-              cell: { userEnteredFormat: { textFormat: { bold: true } } },
-              fields: 'userEnteredFormat.textFormat.bold',
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 1,
+                  endColumnIndex: 2,
+                },
+                cell: { userEnteredFormat: { textFormat: { bold: true } } },
+                fields: 'userEnteredFormat.textFormat.bold',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -126,7 +150,9 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
         includeGridData: true,
       });
 
-      const textFormat = verifyResponse.data.sheets![0].data![0].rowData![0].values![0].userEnteredFormat?.textFormat;
+      const textFormat =
+        verifyResponse.data.sheets![0].data![0].rowData![0].values![0].userEnteredFormat
+          ?.textFormat;
       expect(textFormat?.bold).toBe(true);
     });
 
@@ -134,13 +160,25 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            repeatCell: {
-              range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 2, endColumnIndex: 3 },
-              cell: { userEnteredFormat: { textFormat: { fontSize: 14, foregroundColor: { red: 0, green: 0, blue: 0.8 } } } },
-              fields: 'userEnteredFormat.textFormat(fontSize,foregroundColor)',
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 2,
+                  endColumnIndex: 3,
+                },
+                cell: {
+                  userEnteredFormat: {
+                    textFormat: { fontSize: 14, foregroundColor: { red: 0, green: 0, blue: 0.8 } },
+                  },
+                },
+                fields: 'userEnteredFormat.textFormat(fontSize,foregroundColor)',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -151,13 +189,25 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            repeatCell: {
-              range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 3, endColumnIndex: 4 },
-              cell: { userEnteredFormat: { textFormat: { bold: true, italic: true, underline: true, fontSize: 12 } } },
-              fields: 'userEnteredFormat.textFormat',
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 3,
+                  endColumnIndex: 4,
+                },
+                cell: {
+                  userEnteredFormat: {
+                    textFormat: { bold: true, italic: true, underline: true, fontSize: 12 },
+                  },
+                },
+                fields: 'userEnteredFormat.textFormat',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -177,13 +227,23 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            repeatCell: {
-              range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 3, endColumnIndex: 4 },
-              cell: { userEnteredFormat: { numberFormat: { type: 'CURRENCY', pattern: '$#,##0.00' } } },
-              fields: 'userEnteredFormat.numberFormat',
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 3,
+                  endColumnIndex: 4,
+                },
+                cell: {
+                  userEnteredFormat: { numberFormat: { type: 'CURRENCY', pattern: '$#,##0.00' } },
+                },
+                fields: 'userEnteredFormat.numberFormat',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -201,13 +261,21 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            repeatCell: {
-              range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 4, endColumnIndex: 5 },
-              cell: { userEnteredFormat: { numberFormat: { type: 'PERCENT', pattern: '0%' } } },
-              fields: 'userEnteredFormat.numberFormat',
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 4,
+                  endColumnIndex: 5,
+                },
+                cell: { userEnteredFormat: { numberFormat: { type: 'PERCENT', pattern: '0%' } } },
+                fields: 'userEnteredFormat.numberFormat',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -228,17 +296,33 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateBorders: {
-              range: { sheetId, startRowIndex: 2, endRowIndex: 5, startColumnIndex: 0, endColumnIndex: 3 },
-              top: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
-              bottom: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
-              left: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
-              right: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
-              innerHorizontal: { style: 'SOLID', width: 1, color: { red: 0.8, green: 0.8, blue: 0.8 } },
-              innerVertical: { style: 'SOLID', width: 1, color: { red: 0.8, green: 0.8, blue: 0.8 } },
+          requests: [
+            {
+              updateBorders: {
+                range: {
+                  sheetId,
+                  startRowIndex: 2,
+                  endRowIndex: 5,
+                  startColumnIndex: 0,
+                  endColumnIndex: 3,
+                },
+                top: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
+                bottom: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
+                left: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
+                right: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
+                innerHorizontal: {
+                  style: 'SOLID',
+                  width: 1,
+                  color: { red: 0.8, green: 0.8, blue: 0.8 },
+                },
+                innerVertical: {
+                  style: 'SOLID',
+                  width: 1,
+                  color: { red: 0.8, green: 0.8, blue: 0.8 },
+                },
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -249,12 +333,20 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateBorders: {
-              range: { sheetId, startRowIndex: 5, endRowIndex: 6, startColumnIndex: 0, endColumnIndex: 5 },
-              bottom: { style: 'SOLID_THICK', width: 2, color: { red: 0, green: 0, blue: 0 } },
+          requests: [
+            {
+              updateBorders: {
+                range: {
+                  sheetId,
+                  startRowIndex: 5,
+                  endRowIndex: 6,
+                  startColumnIndex: 0,
+                  endColumnIndex: 5,
+                },
+                bottom: { style: 'SOLID_THICK', width: 2, color: { red: 0, green: 0, blue: 0 } },
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -267,13 +359,21 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            repeatCell: {
-              range: { sheetId, startRowIndex: 6, endRowIndex: 7, startColumnIndex: 0, endColumnIndex: 1 },
-              cell: { userEnteredFormat: { horizontalAlignment: 'CENTER' } },
-              fields: 'userEnteredFormat.horizontalAlignment',
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 6,
+                  endRowIndex: 7,
+                  startColumnIndex: 0,
+                  endColumnIndex: 1,
+                },
+                cell: { userEnteredFormat: { horizontalAlignment: 'CENTER' } },
+                fields: 'userEnteredFormat.horizontalAlignment',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -285,7 +385,9 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
         includeGridData: true,
       });
 
-      const alignment = verifyResponse.data.sheets![0].data![0].rowData![0].values![0].userEnteredFormat?.horizontalAlignment;
+      const alignment =
+        verifyResponse.data.sheets![0].data![0].rowData![0].values![0].userEnteredFormat
+          ?.horizontalAlignment;
       expect(alignment).toBe('CENTER');
     });
 
@@ -293,13 +395,21 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            repeatCell: {
-              range: { sheetId, startRowIndex: 7, endRowIndex: 8, startColumnIndex: 0, endColumnIndex: 1 },
-              cell: { userEnteredFormat: { verticalAlignment: 'MIDDLE' } },
-              fields: 'userEnteredFormat.verticalAlignment',
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 7,
+                  endRowIndex: 8,
+                  startColumnIndex: 0,
+                  endColumnIndex: 1,
+                },
+                cell: { userEnteredFormat: { verticalAlignment: 'MIDDLE' } },
+                fields: 'userEnteredFormat.verticalAlignment',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -312,18 +422,28 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addConditionalFormatRule: {
-              rule: {
-                ranges: [{ sheetId, startRowIndex: 10, endRowIndex: 20, startColumnIndex: 0, endColumnIndex: 1 }],
-                booleanRule: {
-                  condition: { type: 'NUMBER_GREATER', values: [{ userEnteredValue: '100' }] },
-                  format: { backgroundColor: { red: 0.8, green: 1, blue: 0.8 } },
+          requests: [
+            {
+              addConditionalFormatRule: {
+                rule: {
+                  ranges: [
+                    {
+                      sheetId,
+                      startRowIndex: 10,
+                      endRowIndex: 20,
+                      startColumnIndex: 0,
+                      endColumnIndex: 1,
+                    },
+                  ],
+                  booleanRule: {
+                    condition: { type: 'NUMBER_GREATER', values: [{ userEnteredValue: '100' }] },
+                    format: { backgroundColor: { red: 0.8, green: 1, blue: 0.8 } },
+                  },
                 },
+                index: 0,
               },
-              index: 0,
             },
-          }],
+          ],
         },
       });
 
@@ -334,19 +454,33 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addConditionalFormatRule: {
-              rule: {
-                ranges: [{ sheetId, startRowIndex: 10, endRowIndex: 20, startColumnIndex: 1, endColumnIndex: 2 }],
-                gradientRule: {
-                  minpoint: { color: { red: 1, green: 0.8, blue: 0.8 }, type: 'MIN' },
-                  midpoint: { color: { red: 1, green: 1, blue: 0.8 }, type: 'PERCENTILE', value: '50' },
-                  maxpoint: { color: { red: 0.8, green: 1, blue: 0.8 }, type: 'MAX' },
+          requests: [
+            {
+              addConditionalFormatRule: {
+                rule: {
+                  ranges: [
+                    {
+                      sheetId,
+                      startRowIndex: 10,
+                      endRowIndex: 20,
+                      startColumnIndex: 1,
+                      endColumnIndex: 2,
+                    },
+                  ],
+                  gradientRule: {
+                    minpoint: { color: { red: 1, green: 0.8, blue: 0.8 }, type: 'MIN' },
+                    midpoint: {
+                      color: { red: 1, green: 1, blue: 0.8 },
+                      type: 'PERCENTILE',
+                      value: '50',
+                    },
+                    maxpoint: { color: { red: 0.8, green: 1, blue: 0.8 }, type: 'MAX' },
+                  },
                 },
+                index: 0,
               },
-              index: 0,
             },
-          }],
+          ],
         },
       });
 
@@ -362,7 +496,13 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
           requests: [
             {
               repeatCell: {
-                range: { sheetId, startRowIndex: 20, endRowIndex: 21, startColumnIndex: 0, endColumnIndex: 5 },
+                range: {
+                  sheetId,
+                  startRowIndex: 20,
+                  endRowIndex: 21,
+                  startColumnIndex: 0,
+                  endColumnIndex: 5,
+                },
                 cell: {
                   userEnteredFormat: {
                     backgroundColor: { red: 0.2, green: 0.4, blue: 0.6 },
@@ -376,9 +516,20 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
             {
               addConditionalFormatRule: {
                 rule: {
-                  ranges: [{ sheetId, startRowIndex: 21, endRowIndex: 30, startColumnIndex: 0, endColumnIndex: 5 }],
+                  ranges: [
+                    {
+                      sheetId,
+                      startRowIndex: 21,
+                      endRowIndex: 30,
+                      startColumnIndex: 0,
+                      endColumnIndex: 5,
+                    },
+                  ],
                   booleanRule: {
-                    condition: { type: 'CUSTOM_FORMULA', values: [{ userEnteredValue: '=ISEVEN(ROW())' }] },
+                    condition: {
+                      type: 'CUSTOM_FORMULA',
+                      values: [{ userEnteredValue: '=ISEVEN(ROW())' }],
+                    },
                     format: { backgroundColor: { red: 0.95, green: 0.95, blue: 0.95 } },
                   },
                 },
@@ -399,13 +550,23 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       const response = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            repeatCell: {
-              range: { sheetId, startRowIndex: 30, endRowIndex: 31, startColumnIndex: 0, endColumnIndex: 1 },
-              cell: { userEnteredFormat: { backgroundColor: { red: 0.5, green: 0.5, blue: 0.5 } } },
-              fields: 'userEnteredFormat.backgroundColor',
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 30,
+                  endRowIndex: 31,
+                  startColumnIndex: 0,
+                  endColumnIndex: 1,
+                },
+                cell: {
+                  userEnteredFormat: { backgroundColor: { red: 0.5, green: 0.5, blue: 0.5 } },
+                },
+                fields: 'userEnteredFormat.backgroundColor',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -424,14 +585,28 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
             requests: [
               {
                 repeatCell: {
-                  range: { sheetId, startRowIndex: 40, endRowIndex: 50, startColumnIndex: 0, endColumnIndex: 5 },
-                  cell: { userEnteredFormat: { backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
+                  range: {
+                    sheetId,
+                    startRowIndex: 40,
+                    endRowIndex: 50,
+                    startColumnIndex: 0,
+                    endColumnIndex: 5,
+                  },
+                  cell: {
+                    userEnteredFormat: { backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } },
+                  },
                   fields: 'userEnteredFormat.backgroundColor',
                 },
               },
               {
                 updateBorders: {
-                  range: { sheetId, startRowIndex: 40, endRowIndex: 50, startColumnIndex: 0, endColumnIndex: 5 },
+                  range: {
+                    sheetId,
+                    startRowIndex: 40,
+                    endRowIndex: 50,
+                    startColumnIndex: 0,
+                    endColumnIndex: 5,
+                  },
                   top: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
                   bottom: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
                 },

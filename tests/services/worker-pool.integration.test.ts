@@ -209,8 +209,16 @@ describe('WorkerPool - Analysis Worker Integration', () => {
 
   describe('concurrent analysis', () => {
     it('should handle multiple analysis calls', () => {
-      const data1 = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
-      const data2 = [[10, 20, 30], [40, 50, 60], [70, 80, 90]];
+      const data1 = [
+        [1, 2, 3],
+        [4, 5, 6],
+        [7, 8, 9],
+      ];
+      const data2 = [
+        [10, 20, 30],
+        [40, 50, 60],
+        [70, 80, 90],
+      ];
 
       const result1 = execute({
         operation: 'analyzeTrends',

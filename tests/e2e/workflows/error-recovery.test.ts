@@ -145,7 +145,7 @@ describe.skipIf(SKIP_E2E)('E2E: Error Recovery', () => {
             spreadsheetId: TEST_SPREADSHEET_ID,
             range: `Sheet1!A${i + 1}`,
           },
-        }),
+        })
       );
 
       const results = await Promise.allSettled(promises);
@@ -222,7 +222,7 @@ describe.skipIf(SKIP_E2E)('E2E: Error Recovery', () => {
             spreadsheetId: 'invalid-id',
             range: 'A1',
           },
-        }),
+        })
       );
 
       const results = await Promise.all(promises);

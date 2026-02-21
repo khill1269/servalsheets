@@ -14,15 +14,38 @@
  * Uses TypeScript Compiler API for robust AST parsing instead of regex.
  */
 
-import { readFileSync, writeFileSync, readdirSync } from 'fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import * as ts from 'typescript';
-import { execSync } from 'node:child_process';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT = join(__dirname, '..');
+
+// ============================================================================
+// CLI FLAGS
+// ============================================================================
+
+const VALIDATE_MODE = process.argv.includes('--validate');
+if (VALIDATE_MODE) {
+  console.log('🔍 Running in validation mode (no files will be written)...\n');
+}
+
+/**
+ * Track files that would be written vs their current content.
+ * In validate mode, we compare without writing.
+ */
+const pendingWrites: Array<{ path: string; content: string }> = [];
+
+function writeOrTrack(filePath: string, content: string): void {
+  if (VALIDATE_MODE) {
+    pendingWrites.push({ path: filePath, content });
+  } else {
+    writeFileSync(filePath, content);
+  }
+}
 
 // ============================================================================
 // SPECIAL CASE TOOLS (don't follow standard discriminated union pattern)
@@ -307,7 +330,7 @@ pkg.description = oldDescription.replace(
 );
 
 if (oldDescription !== pkg.description) {
-  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+  writeOrTrack(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
   console.log('✅ Updated package.json description');
 } else {
   console.log('✓  package.json already up to date');
@@ -331,7 +354,7 @@ schemasIndex = schemasIndex.replace(
   `// Action count\nexport const ACTION_COUNT = ${ACTION_COUNT};`
 );
 
-writeFileSync(schemasIndexPath, schemasIndex);
+writeOrTrack(schemasIndexPath, schemasIndex);
 console.log('✅ Updated src/schemas/index.ts constants');
 
 // ============================================================================
@@ -371,7 +394,7 @@ export const TOOL_COUNT = Object.keys(ACTION_COUNTS).length;
 export const ACTION_COUNT = Object.values(ACTION_COUNTS).reduce((sum, count) => sum + count, 0);
 `;
 
-writeFileSync(actionCountsPath, actionCountsContent);
+writeOrTrack(actionCountsPath, actionCountsContent);
 console.log('✅ Updated src/schemas/action-counts.ts ACTION_COUNTS');
 
 // ============================================================================
@@ -408,9 +431,9 @@ if (completionsContent.includes('const TOOL_ACTIONS')) {
     completionsContent.slice(nextLineIndex);
 }
 
-writeFileSync(completionsPath, completionsContent);
-// Format with Prettier to match codebase style
-execSync(`npx prettier --write "${completionsPath}"`, { cwd: ROOT, stdio: 'ignore' });
+writeOrTrack(completionsPath, completionsContent);
+// Note: Prettier formatting removed from this script to prevent generate/validate drift.
+// Run `npm run format` separately if formatting is needed.
 console.log('✅ Updated src/mcp/completions.ts TOOL_ACTIONS');
 
 // ============================================================================
@@ -441,9 +464,9 @@ const serverJson = {
     'NEVER wrap arguments in {"request":{...}} object.\n\n' +
     '✅ CORRECT format for ALL tools:\n' +
     '{"action":"...", "spreadsheetId":"...", "range":"..."}\n\n' +
-    '❌ WRONG format (causes INVALID_PARAMS):\n' +
+    '❌ LEGACY format (normalized at runtime, avoid in new integrations):\n' +
     '{"request": {"action":"...", "spreadsheetId":"..."}}\n\n' +
-    'This rule applies to EVERY tool call. No exceptions.\n\n' +
+    'Use flat format for all new tool calls. No exceptions.\n\n' +
     '---\n\n' +
     'ServalSheets provides ' +
     TOOL_COUNT +
@@ -466,14 +489,7 @@ const serverJson = {
       description: `${a.toolName} operations (${a.actionCount} actions)`,
       actions: a.actions,
     })),
-  capabilities: [
-    'tools',
-    'resources',
-    'prompts',
-    'logging',
-    'completions',
-    'tasks',
-  ],
+  capabilities: ['tools', 'resources', 'prompts', 'logging', 'completions', 'tasks'],
   metadata: {
     toolCount: TOOL_COUNT,
     actionCount: ACTION_COUNT,
@@ -498,19 +514,98 @@ const serverJson = {
     source: 'https://github.com/khill1269/servalsheets',
   },
   homepage: 'https://github.com/khill1269/servalsheets#readme',
+  privacy_policies: [
+    {
+      url: 'https://github.com/khill1269/servalsheets/blob/main/PRIVACY.md',
+      description: 'ServalSheets Privacy Policy',
+    },
+  ],
 };
 
 const serverJsonPath = join(ROOT, 'server.json');
-writeFileSync(serverJsonPath, JSON.stringify(serverJson, null, 2) + '\n');
+writeOrTrack(serverJsonPath, JSON.stringify(serverJson, null, 2) + '\n');
 
-// Run prettier on server.json to match repo formatting
-try {
-  execSync('npx prettier --write server.json', { cwd: ROOT, stdio: 'pipe' });
-} catch {
-  // Prettier may not be available in all environments, continue silently
-}
+// Note: Prettier formatting removed from this script to prevent generate/validate drift.
+// Run `npm run format` separately if formatting is needed.
 
 console.log('✅ Generated server.json');
+
+// ============================================================================
+// GENERATE MANIFEST (src/generated/manifest.json)
+// ============================================================================
+
+const generatedDir = join(ROOT, 'src/generated');
+if (!existsSync(generatedDir) && !VALIDATE_MODE) {
+  mkdirSync(generatedDir, { recursive: true });
+}
+
+const manifest = {
+  _comment: 'Auto-generated by scripts/generate-metadata.ts — DO NOT EDIT',
+  toolCount: TOOL_COUNT,
+  actionCount: ACTION_COUNT,
+  tools: toolAnalyses.map((a) => ({
+    name: `sheets_${a.toolName}`,
+    actionCount: a.actionCount,
+    actions: a.actions,
+  })),
+};
+
+const manifestPath = join(generatedDir, 'manifest.json');
+writeOrTrack(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+console.log('✅ Generated src/generated/manifest.json');
+
+// ============================================================================
+// VALIDATION MODE: Compare pending writes with existing files
+// ============================================================================
+
+if (VALIDATE_MODE) {
+  let driftFound = false;
+
+  for (const { path: filePath, content: expectedContent } of pendingWrites) {
+    if (!existsSync(filePath)) {
+      console.error(`❌ DRIFT: File missing: ${filePath.replace(ROOT + '/', '')}`);
+      driftFound = true;
+      continue;
+    }
+
+    const actualContent = readFileSync(filePath, 'utf-8');
+    // For JSON files, compare parsed content to ignore Prettier formatting differences
+    // (Prettier may compact short arrays onto single lines, etc.)
+    const isJsonFile = filePath.endsWith('.json');
+    let contentMatches: boolean;
+
+    if (isJsonFile) {
+      try {
+        const actualParsed = JSON.parse(actualContent);
+        const expectedParsed = JSON.parse(expectedContent);
+        contentMatches = JSON.stringify(actualParsed) === JSON.stringify(expectedParsed);
+      } catch {
+        contentMatches = false;
+      }
+    } else {
+      // Normalize line endings and trailing whitespace for text comparison
+      const normalize = (s: string) =>
+        s
+          .replace(/\r\n/g, '\n')
+          .replace(/[ \t]+$/gm, '')
+          .trimEnd();
+      contentMatches = normalize(actualContent) === normalize(expectedContent);
+    }
+
+    if (!contentMatches) {
+      console.error(`❌ DRIFT: ${filePath.replace(ROOT + '/', '')} is out of sync`);
+      driftFound = true;
+    }
+  }
+
+  if (driftFound) {
+    console.error('\n❌ METADATA DRIFT DETECTED — run `npm run gen:metadata` to fix\n');
+    process.exit(1);
+  } else {
+    console.log('\n✅ No metadata drift detected — all files are synchronized\n');
+    process.exit(0);
+  }
+}
 
 // ============================================================================
 // SUMMARY
@@ -529,6 +624,7 @@ console.log(`
 ║  ✓ src/schemas/action-counts.ts         ║
 ║  ✓ src/mcp/completions.ts              ║
 ║  ✓ server.json                         ║
+║  ✓ src/generated/manifest.json         ║
 ╚════════════════════════════════════════╝
 `);
 

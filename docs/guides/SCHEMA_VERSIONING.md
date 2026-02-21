@@ -31,10 +31,10 @@ ServalSheets supports multiple schema versions simultaneously to allow gradual c
 
 ### Current Versions
 
-| Version | Status | Released | Sunset Date | Notes |
-|---------|--------|----------|-------------|-------|
-| v1 | ✅ Stable | 2026-01-01 | TBD | Current production version |
-| v2 | 🚧 Preview | 2026-02-17 | N/A | Next generation schema |
+| Version | Status     | Released   | Sunset Date | Notes                      |
+| ------- | ---------- | ---------- | ----------- | -------------------------- |
+| v1      | ✅ Stable  | 2026-01-01 | TBD         | Current production version |
+| v2      | 🚧 Preview | 2026-02-17 | N/A         | Next generation schema     |
 
 ### Architecture
 
@@ -79,6 +79,7 @@ Content-Type: application/json
 ```
 
 **Benefits:**
+
 - Standard HTTP content negotiation
 - Works with HTTP proxies and caches
 - Clear intent in request headers
@@ -141,11 +142,13 @@ Link: </docs/schema-versioning>; rel="deprecation"; type="text/html"
 ### Backward Compatibility
 
 **Supported:**
+
 - Old clients can use deprecated versions
 - Automatic request/response migration
 - Deprecation warnings in responses
 
 **Not Supported:**
+
 - Breaking changes within same version
 - Downgrade migrations after sunset
 - Indefinite support for old versions
@@ -163,7 +166,7 @@ const client = new McpClient({
   transport: 'http',
   url: 'https://api.servalsheets.com/mcp',
   headers: {
-    'Accept': 'application/vnd.servalsheets.v2+json',
+    Accept: 'application/vnd.servalsheets.v2+json',
   },
 });
 
@@ -281,7 +284,7 @@ export const SUPPORTED_VERSIONS = ['v1', 'v2', 'v3'] as const;
 it('should migrate v2 to v3', () => {
   const v2Data = { operation: 'read', spreadsheetId: '...' };
   const v3Data = migrateSchema(v2Data, 'v2', 'v3');
-  
+
   expect(v3Data.clientVersion).toBeDefined();
   expect(v3Data.operation).toBe('read');
 });
@@ -303,12 +306,14 @@ export const DEPRECATED_VERSIONS: Map<SchemaVersion, Date> = new Map([
 ### Client Experience
 
 1. **Deprecation Header:**
+
    ```http
    Deprecation: true
    Sunset: Sat, 17 Aug 2026 00:00:00 GMT
    ```
 
 2. **Warning Logs:**
+
    ```
    WARN: Using deprecated schema version v1
    Sunset date: 2026-08-17
@@ -419,11 +424,13 @@ describe('Version Negotiation', () => {
 ### v1 to v2 Migration Guide
 
 **Key Changes:**
+
 - `action` field renamed to `operation`
 - Stricter `spreadsheetId` validation
 - New optional `clientMetadata` field
 
 **Before (v1):**
+
 ```json
 {
   "action": "read",
@@ -432,6 +439,7 @@ describe('Version Negotiation', () => {
 ```
 
 **After (v2):**
+
 ```json
 {
   "operation": "read",
@@ -444,6 +452,7 @@ describe('Version Negotiation', () => {
 ```
 
 **Automatic Migration:**
+
 ```typescript
 // Requests using v1 format are automatically converted to v2
 // No code changes needed in client - just update Accept header!

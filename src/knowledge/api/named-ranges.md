@@ -25,32 +25,32 @@ Named ranges provide human-readable references to cell ranges, making formulas m
 
 ```typescript
 interface NamedRange {
-  namedRangeId: string;      // Unique ID (read-only, auto-generated)
-  name: string;              // Name (must be valid identifier)
-  range: GridRange;          // The range this name refers to
+  namedRangeId: string; // Unique ID (read-only, auto-generated)
+  name: string; // Name (must be valid identifier)
+  range: GridRange; // The range this name refers to
 }
 
 interface GridRange {
   sheetId: number;
-  startRowIndex?: number;    // 0-based, inclusive
-  endRowIndex?: number;      // 0-based, exclusive
+  startRowIndex?: number; // 0-based, inclusive
+  endRowIndex?: number; // 0-based, exclusive
   startColumnIndex?: number; // 0-based, inclusive
-  endColumnIndex?: number;   // 0-based, exclusive
+  endColumnIndex?: number; // 0-based, exclusive
 }
 ```
 
 ### Naming Rules
 
-| Rule | Example | Valid? |
-|------|---------|--------|
-| Must start with letter or underscore | `Sales_2024` | ✅ |
-| Can contain letters, numbers, underscores | `Q1_Revenue` | ✅ |
-| Cannot start with number | `2024_Sales` | ❌ |
-| Cannot contain spaces | `Sales Data` | ❌ |
-| Cannot be cell reference | `A1` | ❌ |
-| Cannot be R1C1 notation | `R1C1` | ❌ |
-| Case insensitive (stored as entered) | `SALES` = `sales` | ⚠️ |
-| Max 250 characters | - | - |
+| Rule                                      | Example           | Valid? |
+| ----------------------------------------- | ----------------- | ------ |
+| Must start with letter or underscore      | `Sales_2024`      | ✅     |
+| Can contain letters, numbers, underscores | `Q1_Revenue`      | ✅     |
+| Cannot start with number                  | `2024_Sales`      | ❌     |
+| Cannot contain spaces                     | `Sales Data`      | ❌     |
+| Cannot be cell reference                  | `A1`              | ❌     |
+| Cannot be R1C1 notation                   | `R1C1`            | ❌     |
+| Case insensitive (stored as entered)      | `SALES` = `sales` | ⚠️     |
+| Max 250 characters                        | -                 | -      |
 
 ### Create Named Range
 
@@ -61,10 +61,10 @@ const addNamedRange = {
       name: 'SalesData',
       range: {
         sheetId: 0,
-        startRowIndex: 1,      // Row 2 (skip header)
-        endRowIndex: 101,      // Row 101
-        startColumnIndex: 0,   // Column A
-        endColumnIndex: 5,     // Column E
+        startRowIndex: 1, // Row 2 (skip header)
+        endRowIndex: 101, // Row 101
+        startColumnIndex: 0, // Column A
+        endColumnIndex: 5, // Column E
       },
     },
   },
@@ -107,9 +107,10 @@ const addMultipleNamedRanges = {
 const updateNamedRange = {
   updateNamedRange: {
     namedRange: {
-      namedRangeId: 'existing-id-here',  // Required
-      name: 'UpdatedName',                // New name (optional)
-      range: {                            // New range (optional)
+      namedRangeId: 'existing-id-here', // Required
+      name: 'UpdatedName', // New name (optional)
+      range: {
+        // New range (optional)
         sheetId: 0,
         startRowIndex: 0,
         endRowIndex: 200,
@@ -117,7 +118,7 @@ const updateNamedRange = {
         endColumnIndex: 10,
       },
     },
-    fields: 'name,range',  // Specify which fields to update
+    fields: 'name,range', // Specify which fields to update
   },
 };
 
@@ -129,7 +130,7 @@ const updateRangeOnly = {
       range: {
         sheetId: 0,
         startRowIndex: 0,
-        endRowIndex: 500,  // Extended range
+        endRowIndex: 500, // Extended range
         startColumnIndex: 0,
         endColumnIndex: 10,
       },
@@ -196,13 +197,17 @@ interface SpreadsheetResponse {
 // Write formula using named range
 const writeFormula = {
   updateCells: {
-    rows: [{
-      values: [{
-        userEnteredValue: {
-          formulaValue: '=SUM(Revenue)',  // Uses named range
-        },
-      }],
-    }],
+    rows: [
+      {
+        values: [
+          {
+            userEnteredValue: {
+              formulaValue: '=SUM(Revenue)', // Uses named range
+            },
+          },
+        ],
+      },
+    ],
     start: { sheetId: 0, rowIndex: 0, columnIndex: 10 },
     fields: 'userEnteredValue',
   },
@@ -211,13 +216,17 @@ const writeFormula = {
 // Complex formula with named ranges
 const complexFormula = {
   updateCells: {
-    rows: [{
-      values: [{
-        userEnteredValue: {
-          formulaValue: '=SUMIF(Categories,"Electronics",Revenue)',
-        },
-      }],
-    }],
+    rows: [
+      {
+        values: [
+          {
+            userEnteredValue: {
+              formulaValue: '=SUMIF(Categories,"Electronics",Revenue)',
+            },
+          },
+        ],
+      },
+    ],
     start: { sheetId: 0, rowIndex: 0, columnIndex: 11 },
     fields: 'userEnteredValue',
   },
@@ -231,6 +240,7 @@ const complexFormula = {
 ### Overview
 
 Protected ranges restrict who can edit specific cells. Two types:
+
 1. **Range Protection**: Protects specific cells
 2. **Sheet Protection**: Protects entire sheet with optional unprotected ranges
 
@@ -238,20 +248,20 @@ Protected ranges restrict who can edit specific cells. Two types:
 
 ```typescript
 interface ProtectedRange {
-  protectedRangeId?: number;        // Auto-generated ID
-  range?: GridRange;                 // Range to protect (for range protection)
-  namedRangeId?: string;            // Use named range instead of GridRange
-  description?: string;              // User-visible description
-  warningOnly?: boolean;            // Show warning vs block edits
-  requestingUserCanEdit?: boolean;  // Can the requesting user edit?
-  unprotectedRanges?: GridRange[];  // Exceptions within protected sheet
-  editors?: Editors;                 // Who can edit
+  protectedRangeId?: number; // Auto-generated ID
+  range?: GridRange; // Range to protect (for range protection)
+  namedRangeId?: string; // Use named range instead of GridRange
+  description?: string; // User-visible description
+  warningOnly?: boolean; // Show warning vs block edits
+  requestingUserCanEdit?: boolean; // Can the requesting user edit?
+  unprotectedRanges?: GridRange[]; // Exceptions within protected sheet
+  editors?: Editors; // Who can edit
 }
 
 interface Editors {
-  users?: string[];           // Email addresses
-  groups?: string[];          // Group email addresses
-  domainUsersCanEdit?: boolean;  // Anyone in domain can edit
+  users?: string[]; // Email addresses
+  groups?: string[]; // Group email addresses
+  domainUsersCanEdit?: boolean; // Anyone in domain can edit
 }
 ```
 
@@ -265,7 +275,7 @@ const addBasicProtection = {
       range: {
         sheetId: 0,
         startRowIndex: 0,
-        endRowIndex: 1,        // Protect header row
+        endRowIndex: 1, // Protect header row
         startColumnIndex: 0,
         endColumnIndex: 10,
       },
@@ -283,18 +293,13 @@ const addProtectionWithEditors = {
         sheetId: 0,
         startRowIndex: 0,
         endRowIndex: 100,
-        startColumnIndex: 4,   // Protect column E (formulas)
+        startColumnIndex: 4, // Protect column E (formulas)
         endColumnIndex: 5,
       },
       description: 'Formula column - finance team only',
       editors: {
-        users: [
-          'finance@company.com',
-          'cfo@company.com',
-        ],
-        groups: [
-          'finance-team@company.com',
-        ],
+        users: ['finance@company.com', 'cfo@company.com'],
+        groups: ['finance-team@company.com'],
       },
       warningOnly: false,
     },
@@ -342,7 +347,7 @@ const domainEditors = {
       },
       description: 'Company data - domain users can edit',
       editors: {
-        domainUsersCanEdit: true,  // Anyone in organization
+        domainUsersCanEdit: true, // Anyone in organization
       },
     },
   },
@@ -355,7 +360,7 @@ const domainEditors = {
 const updateProtection = {
   updateProtectedRange: {
     protectedRange: {
-      protectedRangeId: 12345,  // Required
+      protectedRangeId: 12345, // Required
       description: 'Updated description',
       editors: {
         users: ['new-user@company.com'],
@@ -384,7 +389,7 @@ const addEditor = {
       editors: {
         users: [
           'existing@company.com',
-          'new-editor@company.com',  // Add this user
+          'new-editor@company.com', // Add this user
         ],
       },
     },
@@ -442,7 +447,7 @@ const protectSheet = {
   addProtectedRange: {
     protectedRange: {
       range: {
-        sheetId: 0,  // Only sheetId, no row/column indices
+        sheetId: 0, // Only sheetId, no row/column indices
       },
       description: 'Protected sheet - admins only',
       editors: {
@@ -461,7 +466,7 @@ const protectSheetWithExceptions = {
   addProtectedRange: {
     protectedRange: {
       range: {
-        sheetId: 0,  // Protect entire sheet
+        sheetId: 0, // Protect entire sheet
       },
       description: 'Template sheet - only input cells editable',
       unprotectedRanges: [
@@ -470,8 +475,8 @@ const protectSheetWithExceptions = {
           sheetId: 0,
           startRowIndex: 5,
           endRowIndex: 20,
-          startColumnIndex: 1,  // Column B
-          endColumnIndex: 4,    // Through Column D
+          startColumnIndex: 1, // Column B
+          endColumnIndex: 4, // Through Column D
         },
         {
           sheetId: 0,
@@ -547,7 +552,7 @@ const dynamicRange = {
       range: {
         sheetId: 0,
         startRowIndex: 1,
-        endRowIndex: 1000,  // Set large initial size
+        endRowIndex: 1000, // Set large initial size
         startColumnIndex: 0,
         endColumnIndex: 10,
       },
@@ -575,11 +580,11 @@ const protectFormulaRanges = {
             sheetId: 0,
             startRowIndex: 1,
             endRowIndex: 100,
-            startColumnIndex: 5,  // Column F (formulas)
-            endColumnIndex: 10,   // Through Column J
+            startColumnIndex: 5, // Column F (formulas)
+            endColumnIndex: 10, // Through Column J
           },
           description: 'Calculated columns - do not edit',
-          warningOnly: true,  // Allow override with warning
+          warningOnly: true, // Allow override with warning
         },
       },
     },
@@ -663,7 +668,7 @@ const auditLogSetup = {
         namedRange: {
           name: 'AuditLog',
           range: {
-            sheetId: 1,  // Separate sheet for audit
+            sheetId: 1, // Separate sheet for audit
             startRowIndex: 0,
             startColumnIndex: 0,
             endColumnIndex: 5,
@@ -698,7 +703,7 @@ const dropdownSources = {
         namedRange: {
           name: 'StatusOptions',
           range: {
-            sheetId: 2,  // Config sheet
+            sheetId: 2, // Config sheet
             startRowIndex: 0,
             endRowIndex: 5,
             startColumnIndex: 0,
@@ -747,13 +752,13 @@ const dropdownSources = {
 
 ### Common Errors
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `Invalid named range name` | Name violates naming rules | Use valid identifier |
-| `Named range already exists` | Duplicate name | Use unique name or update existing |
-| `Named range not found` | Invalid ID for update/delete | Get current list first |
-| `Cannot edit protected range` | User lacks permission | Add user to editors or use service account |
-| `Invalid range` | Range outside sheet bounds | Check sheet dimensions |
+| Error                         | Cause                        | Solution                                   |
+| ----------------------------- | ---------------------------- | ------------------------------------------ |
+| `Invalid named range name`    | Name violates naming rules   | Use valid identifier                       |
+| `Named range already exists`  | Duplicate name               | Use unique name or update existing         |
+| `Named range not found`       | Invalid ID for update/delete | Get current list first                     |
+| `Cannot edit protected range` | User lacks permission        | Add user to editors or use service account |
+| `Invalid range`               | Range outside sheet bounds   | Check sheet dimensions                     |
 
 ### Error Response Examples
 
@@ -779,4 +784,4 @@ const dropdownSources = {
 
 ---
 
-*Source: Google Sheets API v4 Documentation*
+_Source: Google Sheets API v4 Documentation_

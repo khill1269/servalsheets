@@ -12,7 +12,7 @@ ERRORS=0
 # Check 1: Tool naming convention (must be snake_case)
 echo ""
 echo "▶ Checking tool naming convention..."
-INVALID_NAMES=$(grep -E "name: ['\"]([^'\"]*[A-Z][^'\"]*)['"]" src/mcp/registration/tool-definitions.ts || true)
+INVALID_NAMES=$(grep -E "name: ['\"]([^'\"]*[A-Z][^'\"]*)['\"]" src/mcp/registration/tool-definitions.ts || true)
 
 if [ -n "$INVALID_NAMES" ]; then
   echo "❌ Invalid tool names (must be snake_case, not camelCase):"

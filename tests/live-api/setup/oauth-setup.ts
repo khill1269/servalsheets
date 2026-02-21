@@ -128,17 +128,25 @@ async function main() {
       console.log('🌐 Waiting for authentication callback on http://localhost:3456...\n');
 
       // Try to open browser
-      const start = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+      const start =
+        process.platform === 'darwin'
+          ? 'open'
+          : process.platform === 'win32'
+            ? 'start'
+            : 'xdg-open';
       import('child_process').then(({ exec }) => {
         exec(`${start} "${authUrl}"`);
       });
     });
 
     // Timeout after 5 minutes
-    setTimeout(() => {
-      reject(new Error('Authentication timeout'));
-      server.close();
-    }, 5 * 60 * 1000);
+    setTimeout(
+      () => {
+        reject(new Error('Authentication timeout'));
+        server.close();
+      },
+      5 * 60 * 1000
+    );
   });
 
   console.log('🔄 Exchanging code for tokens...\n');

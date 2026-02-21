@@ -45,14 +45,18 @@ async function main() {
   lines.push('');
   lines.push('# Documentation Archive Index');
   lines.push('');
-  lines.push('> **Note:** These documents are archived and may be outdated. For current documentation, see [docs/](../).');
+  lines.push(
+    '> **Note:** These documents are archived and may be outdated. For current documentation, see [docs/](../).'
+  );
   lines.push('');
   lines.push('## Overview');
   lines.push('');
   lines.push(`**Total archived files:** ${files.length}`);
   lines.push(`**Last updated:** ${timestamp}`);
   lines.push('');
-  lines.push('This archive contains historical documentation, deprecated guides, and old analysis reports that are no longer actively maintained but kept for reference.');
+  lines.push(
+    'This archive contains historical documentation, deprecated guides, and old analysis reports that are no longer actively maintained but kept for reference.'
+  );
   lines.push('');
   lines.push('## Archive Structure');
   lines.push('');
@@ -88,11 +92,13 @@ async function main() {
   lines.push('');
   lines.push('## Maintenance');
   lines.push('');
-  lines.push('Archived files are not included in the main documentation catalog and are excluded from link checking and linting.');
+  lines.push(
+    'Archived files are not included in the main documentation catalog and are excluded from link checking and linting.'
+  );
   lines.push('');
   lines.push('**If you need to reference archived content:**');
   lines.push('');
-  lines.push('1. Check if there\'s a newer version in active docs');
+  lines.push("1. Check if there's a newer version in active docs");
   lines.push('2. Consider updating the current docs rather than using archived versions');
   lines.push('3. Contact the team if critical information seems missing');
   lines.push('');

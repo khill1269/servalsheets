@@ -135,7 +135,8 @@ module.exports = {
       ref: 'origin/main',
       repo: 'git@github.com:your-org/servalsheets.git',
       path: '/opt/servalsheets',
-      'post-deploy': 'npm ci --production && npm run build && pm2 reload ecosystem.config.js --env production',
+      'post-deploy':
+        'npm ci --production && npm run build && pm2 reload ecosystem.config.js --env production',
       env: {
         NODE_ENV: 'production',
       },

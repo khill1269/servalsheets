@@ -191,9 +191,9 @@ export const SheetsTransactionOutputSchema = z.object({
 export const SHEETS_TRANSACTION_ANNOTATIONS: ToolAnnotations = {
   title: 'Transaction Support',
   readOnlyHint: false,
-  destructiveHint: false,
+  destructiveHint: true, // commit applies batched mutations to Google Sheets
   idempotentHint: false,
-  openWorldHint: false,
+  openWorldHint: true, // commit calls Google Sheets API
 };
 
 export type SheetsTransactionInput = z.infer<typeof SheetsTransactionInputSchema>;

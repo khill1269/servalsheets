@@ -3,13 +3,17 @@
  *
  * Verifies that the caching layer correctly caches responses
  * and improves performance on repeated reads.
- * 
+ *
  * Note: These tests use the direct Google API client since we're testing
  * internal caching behavior, not MCP protocol.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { getLiveApiClient, isLiveApiEnabled, type LiveApiClient } from '../setup/live-api-client.js';
+import {
+  getLiveApiClient,
+  isLiveApiEnabled,
+  type LiveApiClient,
+} from '../setup/live-api-client.js';
 import {
   TestSpreadsheetManager,
   createTestSpreadsheetManager,
@@ -55,7 +59,9 @@ describeOrSkip('Caching System Live Verification', () => {
       });
       const duration2 = performance.now() - start2;
 
-      console.log(`Cache test: First read ${duration1.toFixed(2)}ms, Second read ${duration2.toFixed(2)}ms`);
+      console.log(
+        `Cache test: First read ${duration1.toFixed(2)}ms, Second read ${duration2.toFixed(2)}ms`
+      );
 
       // Both should succeed
       expect(duration1).toBeGreaterThan(0);
@@ -108,7 +114,9 @@ describeOrSkip('Caching System Live Verification', () => {
       });
       const duration2 = performance.now() - start2;
 
-      console.log(`Metadata cache: First ${duration1.toFixed(2)}ms, Second ${duration2.toFixed(2)}ms`);
+      console.log(
+        `Metadata cache: First ${duration1.toFixed(2)}ms, Second ${duration2.toFixed(2)}ms`
+      );
 
       expect(duration1).toBeGreaterThan(0);
       expect(duration2).toBeGreaterThan(0);

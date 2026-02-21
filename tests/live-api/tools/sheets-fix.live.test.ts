@@ -3,17 +3,14 @@
  *
  * Tests automated issue resolution against the real Google API.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet for all tests.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { LiveApiClient } from '../setup/live-api-client.js';
 import { TestSpreadsheetManager, TestSpreadsheet } from '../setup/test-spreadsheet-manager.js';
-import {
-  loadTestCredentials,
-  shouldRunIntegrationTests,
-} from '../../helpers/credential-loader.js';
+import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 
 const runLiveTests = shouldRunIntegrationTests();
 
@@ -57,19 +54,25 @@ describe.skipIf(!runLiveTests)('sheets_fix Live API Tests', () => {
 
       const gridProps = response.data.sheets![0].properties!.gridProperties;
       // Initially headers may or may not be frozen depending on previous tests
-      expect(gridProps?.frozenRowCount === 0 || gridProps?.frozenRowCount === 1 || gridProps?.frozenRowCount === undefined).toBe(true);
+      expect(
+        gridProps?.frozenRowCount === 0 ||
+          gridProps?.frozenRowCount === 1 ||
+          gridProps?.frozenRowCount === undefined
+      ).toBe(true);
     });
 
     it('should apply freeze header fix', async () => {
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            updateSheetProperties: {
-              properties: { sheetId, gridProperties: { frozenRowCount: 1 } },
-              fields: 'gridProperties.frozenRowCount',
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: { sheetId, gridProperties: { frozenRowCount: 1 } },
+                fields: 'gridProperties.frozenRowCount',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -100,15 +103,23 @@ describe.skipIf(!runLiveTests)('sheets_fix Live API Tests', () => {
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addProtectedRange: {
-              protectedRange: {
-                range: { sheetId, startRowIndex: 0, endRowIndex: 100, startColumnIndex: 7, endColumnIndex: 8 },
-                description: 'Protected salary data',
-                warningOnly: true,
+          requests: [
+            {
+              addProtectedRange: {
+                protectedRange: {
+                  range: {
+                    sheetId,
+                    startRowIndex: 0,
+                    endRowIndex: 100,
+                    startColumnIndex: 7,
+                    endColumnIndex: 8,
+                  },
+                  description: 'Protected salary data',
+                  warningOnly: true,
+                },
               },
             },
-          }],
+          ],
         },
       });
 
@@ -177,7 +188,13 @@ describe.skipIf(!runLiveTests)('sheets_fix Live API Tests', () => {
         range: 'TestData!P1:Q5',
         valueInputOption: 'USER_ENTERED',
         requestBody: {
-          values: [['Values', 'Sum'], ['10', '=SUM(P:P)'], ['20', ''], ['30', ''], ['40', '']],
+          values: [
+            ['Values', 'Sum'],
+            ['10', '=SUM(P:P)'],
+            ['20', ''],
+            ['30', ''],
+            ['40', ''],
+          ],
         },
       });
 
@@ -216,9 +233,20 @@ describe.skipIf(!runLiveTests)('sheets_fix Live API Tests', () => {
         requests.push({
           addConditionalFormatRule: {
             rule: {
-              ranges: [{ sheetId, startRowIndex: 50 + i, endRowIndex: 51 + i, startColumnIndex: 0, endColumnIndex: 5 }],
+              ranges: [
+                {
+                  sheetId,
+                  startRowIndex: 50 + i,
+                  endRowIndex: 51 + i,
+                  startColumnIndex: 0,
+                  endColumnIndex: 5,
+                },
+              ],
               booleanRule: {
-                condition: { type: 'NUMBER_GREATER', values: [{ userEnteredValue: String(i * 10) }] },
+                condition: {
+                  type: 'NUMBER_GREATER',
+                  values: [{ userEnteredValue: String(i * 10) }],
+                },
                 format: { backgroundColor: { red: 1, green: 0, blue: 0 } },
               },
             },
@@ -249,7 +277,11 @@ describe.skipIf(!runLiveTests)('sheets_fix Live API Tests', () => {
         range: 'TestData!S1:T3',
         valueInputOption: 'USER_ENTERED',
         requestBody: {
-          values: [['Header', 'Value'], ['=TODAY()', '100'], ['=TODAY()+1', '200']],
+          values: [
+            ['Header', 'Value'],
+            ['=TODAY()', '100'],
+            ['=TODAY()+1', '200'],
+          ],
         },
       });
 
@@ -270,7 +302,13 @@ describe.skipIf(!runLiveTests)('sheets_fix Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!U1:V3',
         valueInputOption: 'RAW',
-        requestBody: { values: [['Name', 'Value'], ['Item1', '100'], ['Item2', '200']] },
+        requestBody: {
+          values: [
+            ['Name', 'Value'],
+            ['Item1', '100'],
+            ['Item2', '200'],
+          ],
+        },
       });
 
       const snapshot = await client.sheets.spreadsheets.values.get({

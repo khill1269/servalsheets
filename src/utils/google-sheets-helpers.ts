@@ -388,7 +388,7 @@ export type ChipType = 'person' | 'drive' | 'rich_link' | 'unknown';
 /**
  * Person chip display format
  */
-export type PersonChipDisplayFormat = 'DEFAULT' | 'FULL' | 'NAME_ONLY';
+export type PersonChipDisplayFormat = 'DEFAULT' | 'LAST_NAME_COMMA_FIRST_NAME' | 'EMAIL';
 
 /**
  * Parsed chip information

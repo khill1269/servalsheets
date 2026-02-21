@@ -24,6 +24,9 @@ export const STANDARD_SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets',
   // Drive: only files created or opened by this app
   'https://www.googleapis.com/auth/drive.file',
+  // Drive: read-only access for listing spreadsheets (sheets_core.list) and file metadata
+  // This is a "sensitive" scope (not restricted) - no additional verification needed
+  'https://www.googleapis.com/auth/drive.readonly',
   // Drive AppData: template storage in hidden app folder
   'https://www.googleapis.com/auth/drive.appdata',
 ] as const;
@@ -97,8 +100,8 @@ export function getRecommendedScopes(): readonly string[] {
  * Get scopes based on environment or configuration
  *
  * Deployment-aware defaults:
- * - self-hosted (default): Uses 'full' scopes - all 298 actions work
- * - saas: Uses 'standard' scopes - 260/298 actions, faster verification
+ * - self-hosted (default): Uses 'full' scopes - all actions work
+ * - saas: Uses 'standard' scopes - ~85% of actions, faster verification
  *
  * Explicit OAUTH_SCOPE_MODE takes precedence over DEPLOYMENT_MODE.
  *
@@ -113,8 +116,8 @@ export function getConfiguredScopes(): readonly string[] {
   }
 
   // Deployment mode determines default
-  // self-hosted: Full features (backwards compatible, all 298 actions)
-  // saas: Fast verification (standard scopes, 260/298 actions + incremental consent)
+  // self-hosted: Full features (backwards compatible, all actions)
+  // saas: Fast verification (standard scopes, ~85% of actions + incremental consent)
   const deploymentMode = process.env['DEPLOYMENT_MODE'] ?? 'self-hosted';
   const defaultMode = deploymentMode === 'saas' ? 'standard' : 'full';
 

@@ -12,16 +12,17 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 import type { ToolTaskHandler } from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
 import { randomUUID } from 'crypto';
 import { recordToolCall, recordToolCallLatency, recordError } from '../../observability/metrics.js';
+import { getTemporaryResourceStore } from '../../resources/temporary-storage.js';
 import { withToolSpan } from '../../utils/tracing.js';
 import { z, type ZodSchema, type ZodTypeAny } from 'zod';
 
 import type { Handlers } from '../../handlers/index.js';
 import { AuthHandler } from '../../handlers/auth.js';
+import { SessionHandler } from '../../handlers/session.js';
 import type { GoogleApiClient } from '../../services/google-api.js';
 import {
   createRequestContext,
   runWithRequestContext,
-  getRequestLogger,
   getRequestContext,
 } from '../../utils/request-context.js';
 import { compactResponse, isCompactModeEnabled } from '../../utils/response-compactor.js';
@@ -646,6 +647,18 @@ export function buildToolResponse(
     };
   }
 
+  // Strip stack traces from error responses before MCP serialization (security)
+  if ('response' in structuredContent) {
+    const resp = structuredContent['response'] as Record<string, unknown>;
+    if (resp?.['error'] && typeof resp['error'] === 'object') {
+      const err = resp['error'] as Record<string, unknown>;
+      if (err['details'] && typeof err['details'] === 'object') {
+        delete (err['details'] as Record<string, unknown>)['stack'];
+      }
+      delete err['stackTrace'];
+    }
+  }
+
   // Track request for quota prediction
   const sessionContext = getSessionContext();
   sessionContext.trackRequest();
@@ -700,29 +713,12 @@ export function buildToolResponse(
     };
   }
 
-  // DEBUG: Log sheets_collaborate responses to diagnose validation issue
-  if (typeof result === 'object' && result !== null && 'response' in result) {
-    const resp = (result as Record<string, unknown>)['response'];
-    if (resp && typeof resp === 'object' && 'action' in resp) {
-      const action = (resp as Record<string, unknown>)['action'];
-      if (typeof action === 'string' && action.includes('permission')) {
-        const logger = getRequestLogger();
-        logger.info('[DEBUG] buildToolResponse for sharing', {
-          action,
-          responseSuccess,
-          responseSuccessType: typeof responseSuccess,
-          isError,
-          structuredContentKeys: Object.keys(structuredContent),
-          responseKeys:
-            response && typeof response === 'object' ? Object.keys(response) : undefined,
-        });
-      }
-    }
-  }
-
   // P1-3: Response size validation to prevent MCP protocol issues
   // Limit responses to 10MB to avoid overwhelming MCP clients
   const MAX_RESPONSE_SIZE = 10 * 1024 * 1024; // 10MB
+  // Approximate token budget: ~25,000 tokens ≈ ~100KB of JSON text
+  // Anthropic MCP Marketplace recommends ≤25K tokens per tool result
+  const MAX_RESPONSE_TOKENS_BYTES = parseInt(process.env['MCP_MAX_RESPONSE_BYTES'] || '100000', 10); // ~25K tokens
   // Use compact JSON for large responses (>50KB) to reduce payload by 10-20%
   const COMPACT_THRESHOLD = 50 * 1024; // 50KB
   const compactStr = JSON.stringify(structuredContent);
@@ -730,16 +726,38 @@ export function buildToolResponse(
   const responseStr =
     sizeBytes > COMPACT_THRESHOLD ? compactStr : JSON.stringify(structuredContent, null, 2);
 
+  // Token budget enforcement: truncate responses exceeding ~25K tokens
+  // This prevents overwhelming LLM context windows in MCP clients like Claude
+  if (sizeBytes > MAX_RESPONSE_TOKENS_BYTES && sizeBytes <= MAX_RESPONSE_SIZE) {
+    // Store full data as temporary resource and return a truncated preview
+    const store = getTemporaryResourceStore();
+    const resourceUri = store.store(structuredContent, 1800); // 30 min TTL
+    const preview = truncateForPreview(structuredContent, 2000);
+
+    const budgetContent: Record<string, unknown> = {
+      response: {
+        success: true,
+        resourceUri,
+        preview,
+        message: `Response size ${(sizeBytes / 1024).toFixed(0)}KB exceeds token budget (~25K tokens). Full data stored as temporary resource.`,
+        _hint: `Full data available via: resources/read uri="${resourceUri}" (expires in 30 minutes)`,
+        details: {
+          sizeBytes,
+          maxTokenBytes: MAX_RESPONSE_TOKENS_BYTES,
+          expiresIn: '30 minutes',
+        },
+      },
+    };
+
+    return {
+      content: [{ type: 'text', text: JSON.stringify(budgetContent, null, 2) }],
+      structuredContent: budgetContent,
+      isError: undefined,
+    };
+  }
+
   if (sizeBytes > MAX_RESPONSE_SIZE) {
     // Phase 3: Store as temporary resource instead of failing (edge case: <0.1% of requests)
-    // Lazy import to avoid loading in common case
-    let getTemporaryResourceStore: () => import('../../resources/temporary-storage.js').TemporaryResourceStore;
-    try {
-      ({ getTemporaryResourceStore } = require('../../resources/temporary-storage.js'));
-    } catch {
-      // Fallback if module not available (shouldn't happen in production)
-      throw new Error('Temporary resource storage not available');
-    }
     const store = getTemporaryResourceStore();
     const resourceUri = store.store(structuredContent, 1800); // 30 min TTL
 
@@ -764,7 +782,7 @@ export function buildToolResponse(
     return {
       content: [{ type: 'text', text: JSON.stringify(fallbackContent, null, 2) }],
       structuredContent: fallbackContent,
-      isError: false,
+      isError: undefined,
     };
   }
 
@@ -789,7 +807,10 @@ export function buildToolResponse(
 
 export function normalizeToolArgs(args: unknown): Record<string, unknown> {
   if (!args || typeof args !== 'object') {
-    // OK: Explicit empty - invalid args will be caught by Zod validation downstream
+    logger.warn(
+      'normalizeToolArgs: received non-object args, falling back to empty record for Zod validation',
+      { args }
+    );
     return {};
   }
   const record = args as Record<string, unknown>;
@@ -1306,17 +1327,30 @@ export async function registerServalSheetsTools(
 
   const handlerMap = handlers
     ? createToolHandlerMap(handlers, authHandler)
-    : {
-        sheets_auth: (args: unknown) =>
-          authHandler.handle(
-            parseForHandler<Parameters<AuthHandler['handle']>[0]>(
-              SheetsAuthInputSchema,
-              args,
-              'SheetsAuthInput',
-              'sheets_auth'
-            )
-          ),
-      };
+    : (() => {
+        // Pre-auth: only sheets_auth (for login) and local-only tools available
+        const sessionHandler = new SessionHandler();
+        return {
+          sheets_auth: (args: unknown) =>
+            authHandler.handle(
+              parseForHandler<Parameters<AuthHandler['handle']>[0]>(
+                SheetsAuthInputSchema,
+                args,
+                'SheetsAuthInput',
+                'sheets_auth'
+              )
+            ),
+          sheets_session: (args: unknown) =>
+            sessionHandler.handle(
+              parseForHandler<Parameters<SessionHandler['handle']>[0]>(
+                SheetsSessionInputSchemaLegacy,
+                args,
+                'SheetsSessionInput',
+                'sheets_session'
+              )
+            ),
+        };
+      })();
 
   // Validate tool names comply with MCP spec (SEP-986: snake_case only)
   const TOOL_NAME_REGEX = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;

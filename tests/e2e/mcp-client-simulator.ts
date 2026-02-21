@@ -348,7 +348,7 @@ export class MCPClientSimulator extends EventEmitter {
    */
   async getPrompt(
     name: string,
-    args?: Record<string, string>,
+    args?: Record<string, string>
   ): Promise<{ description?: string; messages: unknown[] }> {
     this.assertInitialized();
 
@@ -550,9 +550,7 @@ export class MCPHttpClient extends MCPClientSimulator {
  *
  * Convenience factory for creating test clients.
  */
-export function createTestClient(
-  overrides?: Partial<MCPClientConfig>,
-): MCPClientSimulator {
+export function createTestClient(overrides?: Partial<MCPClientConfig>): MCPClientSimulator {
   const defaults: MCPClientConfig = {
     name: 'test-client',
     version: '1.0.0',
@@ -573,7 +571,7 @@ export function createTestClient(
  */
 export function createTestHttpClient(
   baseUrl: string,
-  overrides?: Partial<MCPClientConfig>,
+  overrides?: Partial<MCPClientConfig>
 ): MCPHttpClient {
   const defaults: MCPClientConfig = {
     name: 'test-http-client',

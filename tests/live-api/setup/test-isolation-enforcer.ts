@@ -282,9 +282,7 @@ class TestIsolationEnforcer {
           await this.client.sheets.spreadsheets.batchUpdate({
             spreadsheetId: resource.parentId,
             requestBody: {
-              requests: [
-                { deleteProtectedRange: { protectedRangeId: parseInt(resource.id, 10) } },
-              ],
+              requests: [{ deleteProtectedRange: { protectedRangeId: parseInt(resource.id, 10) } }],
             },
           });
         }
@@ -330,9 +328,7 @@ class TestIsolationEnforcer {
     totalCleanupErrors: number;
     testsWithLeaks: string[];
   } {
-    const testsWithLeaks = this.reports
-      .filter((r) => r.resourcesLeaked > 0)
-      .map((r) => r.testName);
+    const testsWithLeaks = this.reports.filter((r) => r.resourcesLeaked > 0).map((r) => r.testName);
 
     return {
       totalTests: this.reports.length,
@@ -379,10 +375,7 @@ export const testIsolationEnforcer = new TestIsolationEnforcer();
 /**
  * Helper to wrap test with isolation enforcement
  */
-export function withIsolation<T>(
-  testName: string,
-  testFn: () => Promise<T>
-): () => Promise<T> {
+export function withIsolation<T>(testName: string, testFn: () => Promise<T>): () => Promise<T> {
   return async () => {
     testIsolationEnforcer.startTest(testName);
     try {

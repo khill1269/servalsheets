@@ -3,7 +3,7 @@
  *
  * Tests Apps Script integration with real Google Sheets data.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet for all tests.
  *
  * Note: Apps Script API does NOT work with service accounts.
@@ -53,7 +53,11 @@ describe.skipIf(!runLiveTests)('sheets_appsscript Live API Tests', () => {
     it('should define script file structure', () => {
       const files = [
         { name: 'Code', type: 'SERVER_JS', source: 'function onEdit(e) { Logger.log("Edited"); }' },
-        { name: 'appsscript', type: 'JSON', source: JSON.stringify({ timeZone: 'America/New_York' }) },
+        {
+          name: 'appsscript',
+          type: 'JSON',
+          source: JSON.stringify({ timeZone: 'America/New_York' }),
+        },
       ];
       expect(files.length).toBe(2);
       expect(files[0].type).toBe('SERVER_JS');
@@ -84,7 +88,9 @@ describe.skipIf(!runLiveTests)('sheets_appsscript Live API Tests', () => {
         config: { access: 'ANYONE', executeAs: 'USER_DEPLOYING' },
       };
       expect(deployment.type).toBe('WEB_APP');
-      expect(['MYSELF', 'DOMAIN', 'ANYONE', 'ANYONE_ANONYMOUS']).toContain(deployment.config.access);
+      expect(['MYSELF', 'DOMAIN', 'ANYONE', 'ANYONE_ANONYMOUS']).toContain(
+        deployment.config.access
+      );
     });
 
     it('should define deployment list structure', () => {
@@ -92,7 +98,12 @@ describe.skipIf(!runLiveTests)('sheets_appsscript Live API Tests', () => {
         {
           deploymentId: 'dep_123',
           versionNumber: 2,
-          entryPoints: [{ entryPointType: 'WEB_APP', webApp: { url: 'https://script.google.com/macros/s/ABC123/exec' } }],
+          entryPoints: [
+            {
+              entryPointType: 'WEB_APP',
+              webApp: { url: 'https://script.google.com/macros/s/ABC123/exec' },
+            },
+          ],
         },
       ];
       expect(deployments[0].entryPoints[0].webApp?.url).toContain('script.google.com');

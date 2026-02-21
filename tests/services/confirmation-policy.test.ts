@@ -47,9 +47,7 @@ describe('ConfirmationPolicy', () => {
     });
 
     it('should have low threshold less than medium', () => {
-      expect(CONFIRMATION_THRESHOLDS.cells.low).toBeLessThan(
-        CONFIRMATION_THRESHOLDS.cells.medium
-      );
+      expect(CONFIRMATION_THRESHOLDS.cells.low).toBeLessThan(CONFIRMATION_THRESHOLDS.cells.medium);
     });
 
     it('should have increasing risk thresholds', () => {

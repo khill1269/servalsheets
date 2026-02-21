@@ -98,7 +98,10 @@ if (Array.isArray(serverJson.tools)) {
       assert(!seen.has(tool.name), `server.json: duplicate tool.name "${tool.name}"`);
       seen.add(tool.name);
     }
-    assert(isNonEmptyString(tool.description), 'server.json: tool.description must be a non-empty string');
+    assert(
+      isNonEmptyString(tool.description),
+      'server.json: tool.description must be a non-empty string'
+    );
   }
 }
 

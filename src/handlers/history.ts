@@ -364,8 +364,8 @@ export class HistoryHandler {
           if (req.spreadsheetId) {
             cleared = historyService.clearForSpreadsheet(req.spreadsheetId);
           } else {
-            historyService.clear();
             cleared = historyService.size();
+            historyService.clear();
           }
 
           response = {

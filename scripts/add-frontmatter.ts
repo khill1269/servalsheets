@@ -37,7 +37,10 @@ function extractDescription(content: string): string | undefined {
     }
     if (foundTitle && line.trim() && !line.startsWith('#') && !line.startsWith('```')) {
       // Remove markdown formatting for description
-      return line.trim().replace(/[*_`[\]]/g, '').slice(0, 150);
+      return line
+        .trim()
+        .replace(/[*_`[\]]/g, '')
+        .slice(0, 150);
     }
   }
   return undefined;
@@ -190,14 +193,13 @@ async function main() {
   console.log('🔍 Finding markdown files...\n');
 
   // Allow path pattern as argument (default to all docs)
-  const pattern = process.argv.find((arg) => !arg.startsWith('--') && arg !== process.argv[0] && arg !== process.argv[1]) || 'docs/**/*.md';
+  const pattern =
+    process.argv.find(
+      (arg) => !arg.startsWith('--') && arg !== process.argv[0] && arg !== process.argv[1]
+    ) || 'docs/**/*.md';
 
   const files = await glob(pattern, {
-    ignore: [
-      '**/node_modules/**',
-      '**/docs/.vitepress/**',
-      '**/docs/.templates/**',
-    ],
+    ignore: ['**/node_modules/**', '**/docs/.vitepress/**', '**/docs/.templates/**'],
   });
 
   console.log(`Found ${files.length} markdown files in ${pattern}\n`);

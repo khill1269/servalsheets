@@ -46,7 +46,10 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
         values: {
           get: vi.fn().mockResolvedValue({
             data: {
-              values: [['Header1', 'Header2'], ['Value1', 'Value2']],
+              values: [
+                ['Header1', 'Header2'],
+                ['Value1', 'Value2'],
+              ],
             },
           }),
           update: vi.fn().mockResolvedValue({ data: {} }),
@@ -129,9 +132,7 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
 
       // BUG FIX 0.10: Error message should mention the correct parameter name
       const errorMessage = result.response.error?.message.toLowerCase();
-      expect(
-        errorMessage?.includes('sheet') || errorMessage?.includes('parameter')
-      ).toBe(true);
+      expect(errorMessage?.includes('sheet') || errorMessage?.includes('parameter')).toBe(true);
     });
 
     it('should accept sheet parameter correctly', async () => {

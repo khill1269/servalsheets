@@ -15,7 +15,7 @@ import { logger } from '../utils/logger.js';
 /**
  * Create and configure Apollo Server
  */
-export function createApolloServer() {
+export function createApolloServer(): ApolloServer<GraphQLContext> {
   const server = new ApolloServer<GraphQLContext>({
     typeDefs,
     resolvers,
@@ -57,54 +57,50 @@ export async function addGraphQLEndpoint(
   await server.start();
 
   // Handle GraphQL requests manually
-  app.post(
-    '/graphql',
-    json(),
-    async (req, res) => {
-      try {
-        // Extract auth token from Authorization header
-        const authHeader = req.headers['authorization'];
-        const token = authHeader?.replace('Bearer ', '');
+  app.post('/graphql', json(), async (req, res) => {
+    try {
+      // Extract auth token from Authorization header
+      const authHeader = req.headers['authorization'];
+      const token = authHeader?.replace('Bearer ', '');
 
-        // Get handler context for this request
-        const handlerContext = await getHandlerContext(token);
+      // Get handler context for this request
+      const handlerContext = await getHandlerContext(token);
 
-        // Execute GraphQL query
-        const response = await server.executeOperation(
-          {
-            query: req.body['query'],
-            variables: req.body['variables'],
-            operationName: req.body['operationName'],
+      // Execute GraphQL query
+      const response = await server.executeOperation(
+        {
+          query: req.body['query'],
+          variables: req.body['variables'],
+          operationName: req.body['operationName'],
+        },
+        {
+          contextValue: {
+            handlerContext,
+            userId: token,
           },
-          {
-            contextValue: {
-              handlerContext,
-              userId: token,
-            },
-          }
-        );
-
-        // Send response
-        if (response.body.kind === 'single') {
-          res.status(200).json(response.body.singleResult);
-        } else {
-          res.status(200).json({ errors: [{ message: 'Incremental delivery not supported' }] });
         }
-      } catch (error) {
-        logger.error('GraphQL request failed', { error });
-        res.status(500).json({
-          errors: [
-            {
-              message: 'Internal server error',
-              extensions: {
-                code: 'INTERNAL_SERVER_ERROR',
-              },
-            },
-          ],
-        });
+      );
+
+      // Send response
+      if (response.body.kind === 'single') {
+        res.status(200).json(response.body.singleResult);
+      } else {
+        res.status(200).json({ errors: [{ message: 'Incremental delivery not supported' }] });
       }
+    } catch (error) {
+      logger.error('GraphQL request failed', { error });
+      res.status(500).json({
+        errors: [
+          {
+            message: 'Internal server error',
+            extensions: {
+              code: 'INTERNAL_SERVER_ERROR',
+            },
+          },
+        ],
+      });
     }
-  );
+  });
 
   // GraphQL Playground (GET requests)
   app.get('/graphql', (_req, res) => {

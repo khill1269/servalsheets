@@ -6,10 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import {
-  BenchmarkHarness,
-  createBenchmarkHarness,
-} from '../harness/benchmark-harness.js';
+import { BenchmarkHarness, createBenchmarkHarness } from '../harness/benchmark-harness.js';
 import {
   BenchmarkReporter,
   createDefaultReporter,

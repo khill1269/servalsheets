@@ -6,12 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import {
-  TEST_CONFIG,
-  getTestConfig,
-  resetTestConfig,
-  overrideTestConfig,
-} from './setup/config.js';
+import { TEST_CONFIG, getTestConfig, resetTestConfig, overrideTestConfig } from './setup/config.js';
 import {
   executeWithTestRetry,
   isTestRetryableError,
@@ -19,11 +14,7 @@ import {
   clearRetryMetrics,
   TestRetryManager,
 } from './setup/test-retry-manager.js';
-import {
-  QuotaManager,
-  getQuotaManager,
-  resetQuotaManager,
-} from './setup/quota-manager.js';
+import { QuotaManager, getQuotaManager, resetQuotaManager } from './setup/quota-manager.js';
 import {
   TestRateLimiter,
   getTestRateLimiter,
@@ -150,10 +141,7 @@ describe('Test Infrastructure', () => {
     });
 
     it('should track retry metrics', async () => {
-      await executeWithTestRetry(
-        async () => 'success',
-        { operationName: 'test_operation' }
-      );
+      await executeWithTestRetry(async () => 'success', { operationName: 'test_operation' });
 
       const stats = getRetryStats();
       expect(stats.totalOperations).toBeGreaterThanOrEqual(1);
@@ -415,9 +403,9 @@ describe('Test Infrastructure', () => {
         }, 'test')
       ).resolves.toBeDefined();
 
-      await expect(
-        assertThrows(async () => 'no throw')
-      ).rejects.toThrow('Expected function to throw');
+      await expect(assertThrows(async () => 'no throw')).rejects.toThrow(
+        'Expected function to throw'
+      );
     });
   });
 
@@ -496,7 +484,7 @@ describe('Test Infrastructure', () => {
       detector.storeSnapshot('test', data1);
       const result = detector.checkAgainstSnapshots('test', data2);
 
-      expect(result.changes.some(c => c.type === 'STRUCTURE_CHANGE')).toBe(true);
+      expect(result.changes.some((c) => c.type === 'STRUCTURE_CHANGE')).toBe(true);
     });
   });
 

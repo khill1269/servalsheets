@@ -58,6 +58,9 @@ export { registerPatternResources, readPatternResource } from './patterns.js';
 // Dynamic sheet discovery (MCP 2025-11-25 Resource Templates)
 export { registerSheetResources, readSheetResource } from './sheets.js';
 
+// Time travel debugger (checkpoint-based debugging)
+export { registerTimeTravelResources } from './time-travel.js';
+
 // Schema resources for deferred loading (SERVAL_DEFER_SCHEMAS=true)
 export { registerSchemaResources, readSchemaResource, getToolSchema } from './schemas.js';
 

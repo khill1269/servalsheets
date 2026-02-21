@@ -107,7 +107,9 @@ try {
   let failed = false;
   for (const [metric, threshold] of Object.entries(thresholds)) {
     if (totalCoverage[metric].pct < threshold) {
-      console.error(`❌ ${metric} coverage (${totalCoverage[metric].pct.toFixed(2)}%) below threshold (${threshold}%)`);
+      console.error(
+        `❌ ${metric} coverage (${totalCoverage[metric].pct.toFixed(2)}%) below threshold (${threshold}%)`
+      );
       failed = true;
     }
   }

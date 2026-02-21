@@ -415,6 +415,25 @@ const GenerateFormulaActionSchema = CommonFieldsSchema.extend({
   range: RangeInputSchema.optional().describe('Range for formula context'),
   targetCell: z.string().optional().describe('Target cell for formula context'),
   includeExplanation: z.boolean().optional().default(true).describe('Include formula explanation'),
+  formulaType: z
+    .enum([
+      'auto',
+      'xlookup',
+      'xmatch',
+      'filter_array',
+      'unique',
+      'sort_array',
+      'sequence',
+      'let_formula',
+      'lambda',
+      'byrow',
+      'bycol',
+    ])
+    .optional()
+    .default('auto')
+    .describe(
+      'Modern formula type preset: auto (AI chooses), xlookup (flexible lookup), xmatch (position match), filter_array (conditional array), unique (deduplicate), sort_array (sort by column), sequence (number series), let_formula (variable binding), lambda (reusable function), byrow/bycol (row/column iteration)'
+    ),
 });
 
 const DetectPatternsActionSchema = CommonFieldsSchema.extend({

@@ -135,7 +135,7 @@ describe('Cross-Map Consistency', () => {
         expect(toolMetadata, `${toolName} missing metadata object`).toBeDefined();
         expect(
           Object.keys(toolMetadata).length,
-          `${toolName} has zero action metadata entries`,
+          `${toolName} has zero action metadata entries`
         ).toBeGreaterThan(0);
       }
     });
@@ -214,20 +214,16 @@ describe('Cross-Map Consistency', () => {
     it('no duplicate actions within any tool in TOOL_ACTIONS', () => {
       for (const [toolName, actions] of Object.entries(TOOL_ACTIONS)) {
         const uniqueActions = new Set(actions);
-        expect(
-          uniqueActions.size,
-          `Tool ${toolName} has duplicate actions`,
-        ).toBe(actions.length);
+        expect(uniqueActions.size, `Tool ${toolName} has duplicate actions`).toBe(actions.length);
       }
     });
 
     it('all actions use snake_case naming', () => {
       for (const [toolName, actions] of Object.entries(TOOL_ACTIONS)) {
         for (const action of actions) {
-          expect(
-            action,
-            `Action "${action}" in tool "${toolName}" is not snake_case`,
-          ).toMatch(/^[a-z][a-z0-9_]*$/);
+          expect(action, `Action "${action}" in tool "${toolName}" is not snake_case`).toMatch(
+            /^[a-z][a-z0-9_]*$/
+          );
         }
       }
     });
@@ -237,7 +233,7 @@ describe('Cross-Map Consistency', () => {
         for (const actionName of Object.keys(actionMetadata)) {
           expect(
             actionName,
-            `Action metadata key "${actionName}" in tool "${toolName}" is not snake_case`,
+            `Action metadata key "${actionName}" in tool "${toolName}" is not snake_case`
           ).toMatch(/^[a-z][a-z0-9_]*$/);
         }
       }
@@ -250,10 +246,9 @@ describe('Cross-Map Consistency', () => {
   describe('Tool Naming Consistency', () => {
     it('all tools use sheets_ prefix', () => {
       for (const toolName of Object.keys(TOOL_ACTIONS)) {
-        expect(
-          toolName,
-          `Tool "${toolName}" does not use sheets_ prefix`,
-        ).toMatch(/^sheets_[a-z][a-z0-9_]*$/);
+        expect(toolName, `Tool "${toolName}" does not use sheets_ prefix`).toMatch(
+          /^sheets_[a-z][a-z0-9_]*$/
+        );
       }
     });
 
@@ -261,7 +256,7 @@ describe('Cross-Map Consistency', () => {
       for (const toolDef of TOOL_DEFINITIONS) {
         expect(
           toolDef.name,
-          `Tool "${toolDef.name}" in TOOL_DEFINITIONS does not use sheets_ prefix`,
+          `Tool "${toolDef.name}" in TOOL_DEFINITIONS does not use sheets_ prefix`
         ).toMatch(/^sheets_[a-z][a-z0-9_]*$/);
       }
     });
@@ -279,19 +274,13 @@ describe('Cross-Map Consistency', () => {
   describe('Zero-Action Tools Prevention', () => {
     it('no tool has zero actions in TOOL_ACTIONS', () => {
       for (const [toolName, actions] of Object.entries(TOOL_ACTIONS)) {
-        expect(
-          actions.length,
-          `Tool "${toolName}" has zero actions`,
-        ).toBeGreaterThan(0);
+        expect(actions.length, `Tool "${toolName}" has zero actions`).toBeGreaterThan(0);
       }
     });
 
     it('no tool has zero actions in ACTION_COUNTS', () => {
       for (const [toolName, count] of Object.entries(ACTION_COUNTS)) {
-        expect(
-          count,
-          `Tool "${toolName}" has zero actions in ACTION_COUNTS`,
-        ).toBeGreaterThan(0);
+        expect(count, `Tool "${toolName}" has zero actions in ACTION_COUNTS`).toBeGreaterThan(0);
       }
     });
 
@@ -299,7 +288,7 @@ describe('Cross-Map Consistency', () => {
       for (const [toolName, toolMeta] of Object.entries(ACTION_METADATA)) {
         expect(
           Object.keys(toolMeta).length,
-          `Tool "${toolName}" has zero entries in ACTION_METADATA`,
+          `Tool "${toolName}" has zero entries in ACTION_METADATA`
         ).toBeGreaterThan(0);
       }
     });
@@ -310,18 +299,13 @@ describe('Cross-Map Consistency', () => {
   // =========================================================================
   describe('Metadata Structure Validation', () => {
     it('every tool in TOOL_ANNOTATIONS has all required hint fields', () => {
-      const requiredHints = [
-        'readOnlyHint',
-        'destructiveHint',
-        'openWorldHint',
-        'idempotentHint',
-      ];
+      const requiredHints = ['readOnlyHint', 'destructiveHint', 'openWorldHint', 'idempotentHint'];
 
       for (const [toolName, annotation] of Object.entries(TOOL_ANNOTATIONS)) {
         for (const hint of requiredHints) {
           expect(
             annotation[hint as keyof typeof annotation],
-            `${toolName} missing hint: ${hint}`,
+            `${toolName} missing hint: ${hint}`
           ).toBeDefined();
         }
       }
@@ -352,7 +336,7 @@ describe('Cross-Map Consistency', () => {
           for (const field of requiredFields) {
             expect(
               metadata[field as keyof typeof metadata],
-              `${toolName}.${actionName} missing metadata field: ${field}`,
+              `${toolName}.${actionName} missing metadata field: ${field}`
             ).toBeDefined();
           }
         }

@@ -251,7 +251,8 @@ export function createAuthenticationError(params: {
 
   switch (reason) {
     case 'missing_token':
-      message = '[PERMISSION_DENIED] Authentication required: No access token provided\nSuggestion: Run authentication flow with "npm run auth" and grant required permissions';
+      message =
+        '[PERMISSION_DENIED] Authentication required: No access token provided\nSuggestion: Run authentication flow with "npm run auth" and grant required permissions';
       resolution = 'Run authentication flow to obtain access token';
       resolutionSteps.push(
         '1. Run authentication: npm run auth',
@@ -262,7 +263,8 @@ export function createAuthenticationError(params: {
       break;
 
     case 'invalid_token':
-      message = '[PERMISSION_DENIED] Invalid access token: Token is malformed or revoked\nSuggestion: Clear token storage and re-authenticate with "npm run auth"';
+      message =
+        '[PERMISSION_DENIED] Invalid access token: Token is malformed or revoked\nSuggestion: Clear token storage and re-authenticate with "npm run auth"';
       resolution = 'Re-authenticate to obtain a new valid token';
       resolutionSteps.push(
         '1. Clear existing token storage',
@@ -273,7 +275,8 @@ export function createAuthenticationError(params: {
       break;
 
     case 'expired_token':
-      message = '[PERMISSION_DENIED] Access token expired: Token needs refresh\nSuggestion: Token should auto-refresh, but if it fails, re-authenticate with "npm run auth"';
+      message =
+        '[PERMISSION_DENIED] Access token expired: Token needs refresh\nSuggestion: Token should auto-refresh, but if it fails, re-authenticate with "npm run auth"';
       resolution = 'Refresh the access token or re-authenticate';
       resolutionSteps.push(
         '1. Token refresh should happen automatically',
@@ -411,7 +414,18 @@ export function parseGoogleApiError(error: {
 
     // Authorization & Permission Errors (403)
     case 403:
-      if (reason === 'rateLimitExceeded' || reason === 'quotaExceeded') {
+      // Match all Google API quota/rate-limit reason variants
+      // See: https://cloud.google.com/apis/design/errors#error_payloads
+      if (
+        reason === 'rateLimitExceeded' ||
+        reason === 'quotaExceeded' ||
+        reason === 'userRateLimitExceeded' ||
+        reason === 'dailyLimitExceeded' ||
+        reason === 'storageQuotaExceeded' ||
+        reason === 'usageQuotaExceeded' ||
+        reason?.endsWith('QuotaExceeded') ||
+        reason?.endsWith('LimitExceeded')
+      ) {
         return createRateLimitError({});
       }
       if (reason === 'insufficientPermissions' || domain === 'global') {

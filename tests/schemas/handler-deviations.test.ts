@@ -113,7 +113,8 @@ describe('validateDeviation', () => {
       tool: 'test',
       reason: 'Testing',
       extraCases: ['test_case'],
-      justification: 'This is a detailed justification explaining why this deviation exists and is acceptable.',
+      justification:
+        'This is a detailed justification explaining why this deviation exists and is acceptable.',
       addedDate: '2026-02-17',
     };
 

@@ -19,12 +19,8 @@ export default defineConfig({
     // Parallel execution with thread pool (increased for P2-2 optimization)
     pool: 'threads',
     maxConcurrency: 8,
-    poolOptions: {
-      threads: {
-        maxThreads: 8,
-        minThreads: 2,
-      },
-    },
+    maxThreads: 8,
+    minThreads: 2,
     // Test sharding support for parallel execution
     // Use: npm run test:shard 1/4 to run 1st quarter of tests
     // Use: npm run test:unit to run unit tests only

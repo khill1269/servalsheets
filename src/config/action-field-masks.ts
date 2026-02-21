@@ -1,7 +1,7 @@
 /**
  * Action-to-Field-Mask Mapping
  *
- * Maps each of the 298 ServalSheets actions to optimal Google API field masks.
+ * Maps each ServalSheets action to optimal Google API field masks.
  * This enables automatic partial response optimization, reducing bandwidth by 30-70%.
  *
  * Performance Impact:
@@ -14,6 +14,7 @@
  */
 
 import { FIELD_MASKS } from '../constants/field-masks.js';
+import { ACTION_COUNT } from '../schemas/action-counts.js';
 
 /**
  * Field mask configuration per action
@@ -44,7 +45,7 @@ export interface ActionFieldMask {
  * Action-to-field-mask registry
  *
  * Organized by tool for easier maintenance.
- * Total: 298 actions across 22 tools
+ * Total: ACTION_COUNT actions across TOOL_COUNT tools (see src/schemas/action-counts.ts)
  */
 export const ACTION_FIELD_MASKS: Record<string, ActionFieldMask> = {
   // ==========================================================================
@@ -408,7 +409,7 @@ export function getFieldMaskCoverage(): {
   coveragePercent: number;
   byOperationType: Record<string, number>;
 } {
-  const totalActions = 298; // Known from ACTION_COUNT
+  const totalActions = ACTION_COUNT;
   const configured = Object.keys(ACTION_FIELD_MASKS).length;
 
   const byOperationType: Record<string, number> = {};

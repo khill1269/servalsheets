@@ -2,14 +2,19 @@
  * ServalSheets - Session Handler Tests
  *
  * Tests for session context management.
- * Covers 13 actions: set_active, get_active, get_context, record_operation,
+ * Covers all 26 actions: set_active, get_active, get_context, record_operation,
  * get_last_operation, get_history, find_by_reference, update_preferences,
- * get_preferences, set_pending, get_pending, clear_pending, reset
+ * get_preferences, set_pending, get_pending, clear_pending, reset,
+ * get_alerts, acknowledge_alert, clear_alerts, set_user_id, get_profile,
+ * update_profile_preferences, record_successful_formula, get_top_formulas,
+ * reject_suggestion, save_checkpoint, load_checkpoint, list_checkpoints,
+ * delete_checkpoint
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SessionHandler } from '../../src/handlers/session.js';
 import { SheetsSessionOutputSchema } from '../../src/schemas/session.js';
+import { getSessionContext } from '../../src/services/session-context.js';
 
 describe('SessionHandler', () => {
   let handler: SessionHandler;
@@ -234,6 +239,311 @@ describe('SessionHandler', () => {
       });
 
       expect(contextResult.response.success).toBe(true);
+    });
+  });
+
+  describe('get_alerts', () => {
+    it('should return empty alerts list when no alerts exist', async () => {
+      // Reset to ensure clean state
+      await handler.handle({ action: 'reset' });
+
+      const result = await handler.handle({
+        action: 'get_alerts',
+        onlyUnacknowledged: false,
+      });
+
+      expect(result.response.success).toBe(true);
+    });
+
+    it('should filter alerts by acknowledged status', async () => {
+      const result = await handler.handle({
+        action: 'get_alerts',
+        onlyUnacknowledged: true,
+      });
+
+      expect(result.response.success).toBe(true);
+    });
+
+    it('should filter alerts by severity', async () => {
+      const result = await handler.handle({
+        action: 'get_alerts',
+        severity: 'high',
+        onlyUnacknowledged: false,
+      });
+
+      expect(result.response.success).toBe(true);
+    });
+  });
+
+  describe('acknowledge_alert', () => {
+    it('should acknowledge an existing alert', async () => {
+      // Add an alert directly via the session singleton
+      const session = getSessionContext();
+      session.addAlert({
+        severity: 'high',
+        message: 'Test alert for acknowledge test',
+        spreadsheetId: 'test-id',
+      });
+
+      const alerts = session.getAlerts({ onlyUnacknowledged: true });
+      expect(alerts.length).toBeGreaterThan(0);
+      const alertId = alerts[0].id;
+
+      const result = await handler.handle({
+        action: 'acknowledge_alert',
+        alertId,
+      });
+
+      expect(result.response.success).toBe(true);
+    });
+
+    it('should return an error when alert is not found', async () => {
+      const result = await handler.handle({
+        action: 'acknowledge_alert',
+        alertId: 'nonexistent-alert-id',
+      });
+
+      expect(result.response.success).toBe(false);
+    });
+  });
+
+  describe('clear_alerts', () => {
+    it('should clear all alerts', async () => {
+      // Add an alert first
+      const session = getSessionContext();
+      session.addAlert({
+        severity: 'low',
+        message: 'Alert to be cleared',
+      });
+
+      const result = await handler.handle({
+        action: 'clear_alerts',
+      });
+
+      expect(result.response.success).toBe(true);
+    });
+  });
+
+  describe('set_user_id', () => {
+    it('should set the current user ID', async () => {
+      const result = await handler.handle({
+        action: 'set_user_id',
+        userId: 'user-123',
+      });
+
+      expect(result.response.success).toBe(true);
+    });
+  });
+
+  describe('get_profile', () => {
+    it('should return null profile when no user ID is set', async () => {
+      // Reset to clear user ID
+      await handler.handle({ action: 'reset' });
+
+      const result = await handler.handle({
+        action: 'get_profile',
+      });
+
+      expect(result.response.success).toBe(true);
+    });
+
+    it('should return profile after user ID is set', async () => {
+      await handler.handle({
+        action: 'set_user_id',
+        userId: 'user-profile-test',
+      });
+
+      const result = await handler.handle({
+        action: 'get_profile',
+      });
+
+      expect(result.response.success).toBe(true);
+    });
+  });
+
+  describe('update_profile_preferences', () => {
+    it('should update profile preferences for current user', async () => {
+      await handler.handle({
+        action: 'set_user_id',
+        userId: 'user-prefs-test',
+      });
+
+      const result = await handler.handle({
+        action: 'update_profile_preferences',
+        preferences: {
+          theme: 'dark',
+          language: 'en',
+          notifications: true,
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+    });
+
+    it('should succeed even when no user ID is set', async () => {
+      // Reset to clear user ID
+      await handler.handle({ action: 'reset' });
+
+      const result = await handler.handle({
+        action: 'update_profile_preferences',
+        preferences: { theme: 'light' },
+      });
+
+      // Handler gracefully handles missing user ID (logs a warning but does not throw)
+      expect(result.response.success).toBe(true);
+    });
+  });
+
+  describe('record_successful_formula', () => {
+    it('should record a successful formula for the current user', async () => {
+      await handler.handle({
+        action: 'set_user_id',
+        userId: 'formula-user',
+      });
+
+      const result = await handler.handle({
+        action: 'record_successful_formula',
+        formula: '=SUMIF(A:A,"Q1",B:B)',
+        useCase: 'Sum Q1 revenue by region',
+      });
+
+      expect(result.response.success).toBe(true);
+    });
+
+    it('should succeed gracefully when no user ID is set', async () => {
+      await handler.handle({ action: 'reset' });
+
+      const result = await handler.handle({
+        action: 'record_successful_formula',
+        formula: '=VLOOKUP(A1,Sheet2!A:B,2,FALSE)',
+        useCase: 'Look up employee department',
+      });
+
+      expect(result.response.success).toBe(true);
+    });
+  });
+
+  describe('get_top_formulas', () => {
+    it('should return top formulas for the current user', async () => {
+      await handler.handle({
+        action: 'set_user_id',
+        userId: 'top-formulas-user',
+      });
+
+      const result = await handler.handle({
+        action: 'get_top_formulas',
+        limit: 5,
+      });
+
+      expect(result.response.success).toBe(true);
+    });
+
+    it('should return empty list when no user ID is set', async () => {
+      await handler.handle({ action: 'reset' });
+
+      const result = await handler.handle({
+        action: 'get_top_formulas',
+      });
+
+      expect(result.response.success).toBe(true);
+    });
+  });
+
+  describe('reject_suggestion', () => {
+    it('should record a rejected suggestion for the current user', async () => {
+      await handler.handle({
+        action: 'set_user_id',
+        userId: 'reject-user',
+      });
+
+      const result = await handler.handle({
+        action: 'reject_suggestion',
+        suggestion: 'Use ARRAYFORMULA instead of SUMIF',
+      });
+
+      expect(result.response.success).toBe(true);
+    });
+
+    it('should succeed gracefully when no user ID is set', async () => {
+      await handler.handle({ action: 'reset' });
+
+      const result = await handler.handle({
+        action: 'reject_suggestion',
+        suggestion: 'Use pivot tables',
+      });
+
+      expect(result.response.success).toBe(true);
+    });
+  });
+
+  describe('save_checkpoint', () => {
+    it('should return disabled error when ENABLE_CHECKPOINTS is not set', async () => {
+      // Checkpoints are disabled by default in test environment
+      const result = await handler.handle({
+        action: 'save_checkpoint',
+        sessionId: 'test-session-1',
+        description: 'After initial data load',
+      });
+
+      // Either succeeds (if enabled) or returns CHECKPOINTS_DISABLED error
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('CHECKPOINTS_DISABLED');
+      } else {
+        expect(result.response.success).toBe(true);
+      }
+    });
+  });
+
+  describe('load_checkpoint', () => {
+    it('should return error when checkpoint is not found', async () => {
+      const result = await handler.handle({
+        action: 'load_checkpoint',
+        sessionId: 'nonexistent-session',
+      });
+
+      // Either CHECKPOINTS_DISABLED or CHECKPOINT_NOT_FOUND
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(['CHECKPOINTS_DISABLED', 'CHECKPOINT_NOT_FOUND']).toContain(
+          result.response.error.code
+        );
+      }
+    });
+  });
+
+  describe('list_checkpoints', () => {
+    it('should return empty list or disabled message', async () => {
+      const result = await handler.handle({
+        action: 'list_checkpoints',
+      });
+
+      // list_checkpoints always succeeds (returns empty list when disabled)
+      expect(result.response.success).toBe(true);
+    });
+
+    it('should filter by sessionId when provided', async () => {
+      const result = await handler.handle({
+        action: 'list_checkpoints',
+        sessionId: 'my-session',
+      });
+
+      expect(result.response.success).toBe(true);
+    });
+  });
+
+  describe('delete_checkpoint', () => {
+    it('should return disabled error when ENABLE_CHECKPOINTS is not set', async () => {
+      const result = await handler.handle({
+        action: 'delete_checkpoint',
+        sessionId: 'test-session-to-delete',
+      });
+
+      // Either CHECKPOINTS_DISABLED or succeeds with deleted=false
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('CHECKPOINTS_DISABLED');
+      } else {
+        expect(result.response.success).toBe(true);
+      }
     });
   });
 });

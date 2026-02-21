@@ -320,9 +320,10 @@ function detectRepeatedValidationErrors(sessions: Session[]): Pattern[] {
     }
 
     // Detect range format errors specifically
-    const rangeErrors = session.errors.filter(e =>
-      e.error?.message?.toLowerCase().includes('range') ||
-      e.error?.message?.toLowerCase().includes('a1')
+    const rangeErrors = session.errors.filter(
+      (e) =>
+        e.error?.message?.toLowerCase().includes('range') ||
+        e.error?.message?.toLowerCase().includes('a1')
     );
     if (rangeErrors.length >= 2) {
       patterns.push({
@@ -349,15 +350,15 @@ function detectInefficientPatterns(sessions: Session[]): Pattern[] {
 
   for (const session of sessions) {
     // Detect individual format calls (should batch)
-    const formatCalls = session.entries.filter(e =>
-      e.toolName === 'sheets_format' &&
-      !e.action?.includes('batch')
+    const formatCalls = session.entries.filter(
+      (e) => e.toolName === 'sheets_format' && !e.action?.includes('batch')
     );
 
     if (formatCalls.length >= 3) {
       // Check if within 1 minute
-      const timeSpan = formatCalls[formatCalls.length - 1].timestamp.getTime() -
-                      formatCalls[0].timestamp.getTime();
+      const timeSpan =
+        formatCalls[formatCalls.length - 1].timestamp.getTime() -
+        formatCalls[0].timestamp.getTime();
       if (timeSpan < 60000) {
         patterns.push({
           category: 'inefficient',
@@ -375,9 +376,9 @@ function detectInefficientPatterns(sessions: Session[]): Pattern[] {
     }
 
     // Detect no use of sheets_analyze before operations
-    const hasAnalyze = session.entries.some(e => e.toolName === 'sheets_analyze');
-    const hasDataOps = session.entries.some(e =>
-      e.toolName === 'sheets_data' && e.action !== 'read'
+    const hasAnalyze = session.entries.some((e) => e.toolName === 'sheets_analyze');
+    const hasDataOps = session.entries.some(
+      (e) => e.toolName === 'sheets_data' && e.action !== 'read'
     );
     if (!hasAnalyze && hasDataOps) {
       patterns.push({
@@ -403,16 +404,17 @@ function detectAuthIssues(sessions: Session[]): Pattern[] {
   const patterns: Pattern[] = [];
 
   for (const session of sessions) {
-    const authErrors = session.errors.filter(e =>
-      e.error?.code?.includes('AUTH') ||
-      e.error?.code?.includes('PERMISSION') ||
-      e.error?.message?.toLowerCase().includes('permission') ||
-      e.error?.message?.toLowerCase().includes('unauthorized')
+    const authErrors = session.errors.filter(
+      (e) =>
+        e.error?.code?.includes('AUTH') ||
+        e.error?.code?.includes('PERMISSION') ||
+        e.error?.message?.toLowerCase().includes('permission') ||
+        e.error?.message?.toLowerCase().includes('unauthorized')
     );
 
     if (authErrors.length > 0) {
       // Check if auth was checked first
-      const authCheck = session.entries.find(e => e.toolName === 'sheets_auth');
+      const authCheck = session.entries.find((e) => e.toolName === 'sheets_auth');
       if (!authCheck) {
         patterns.push({
           category: 'auth_issue',
@@ -478,8 +480,10 @@ function detectWriteInsteadOfAppend(session: Session): ToolCall | null {
   for (const entry of session.entries) {
     if (entry.toolName === 'sheets_data' && entry.action === 'write') {
       // Check if error suggests it should be append
-      if (entry.error?.message?.toLowerCase().includes('append') ||
-          entry.error?.message?.toLowerCase().includes('add row')) {
+      if (
+        entry.error?.message?.toLowerCase().includes('append') ||
+        entry.error?.message?.toLowerCase().includes('add row')
+      ) {
         return entry;
       }
     }
@@ -497,10 +501,10 @@ function analyzePatterns(patterns: Pattern[]): void {
   console.log('='.repeat(80));
 
   const byCategory = {
-    wrong_tool: patterns.filter(p => p.category === 'wrong_tool'),
-    validation_error: patterns.filter(p => p.category === 'validation_error'),
-    inefficient: patterns.filter(p => p.category === 'inefficient'),
-    auth_issue: patterns.filter(p => p.category === 'auth_issue'),
+    wrong_tool: patterns.filter((p) => p.category === 'wrong_tool'),
+    validation_error: patterns.filter((p) => p.category === 'validation_error'),
+    inefficient: patterns.filter((p) => p.category === 'inefficient'),
+    auth_issue: patterns.filter((p) => p.category === 'auth_issue'),
   };
 
   console.log(`\n🔧 Wrong Tool Selection: ${byCategory.wrong_tool.length} patterns`);
@@ -510,9 +514,9 @@ function analyzePatterns(patterns: Pattern[]): void {
 
   console.log(`\n📈 Total Patterns Detected: ${patterns.length}`);
 
-  const highSeverity = patterns.filter(p => p.severity === 'high').length;
-  const mediumSeverity = patterns.filter(p => p.severity === 'medium').length;
-  const lowSeverity = patterns.filter(p => p.severity === 'low').length;
+  const highSeverity = patterns.filter((p) => p.severity === 'high').length;
+  const mediumSeverity = patterns.filter((p) => p.severity === 'medium').length;
+  const lowSeverity = patterns.filter((p) => p.severity === 'low').length;
 
   console.log(`\n🚨 High Severity: ${highSeverity}`);
   console.log(`⚠️  Medium Severity: ${mediumSeverity}`);

@@ -7,7 +7,11 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { sheets_v4 } from 'googleapis';
-import { BatchCompiler, type ExecutionResult, type CompiledBatch } from '../../src/core/batch-compiler.js';
+import {
+  BatchCompiler,
+  type ExecutionResult,
+  type CompiledBatch,
+} from '../../src/core/batch-compiler.js';
 import type { RateLimiter } from '../../src/core/rate-limiter.js';
 import type { DiffEngine, SpreadsheetState } from '../../src/core/diff-engine.js';
 import type { PolicyEnforcer } from '../../src/core/policy-enforcer.js';

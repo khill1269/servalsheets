@@ -69,15 +69,12 @@ import { logger as baseLogger } from './utils/logger.js';
 import { createRequestContext, runWithRequestContext } from './utils/request-context.js';
 import { verifyJsonSchema } from './utils/schema-compat.js';
 import { extractIdempotencyKeyFromHeaders } from './utils/idempotency-key-generator.js';
-import {
-  TOOL_DEFINITIONS,
-  createToolHandlerMap,
-  buildToolResponse,
-  registerServalSheetsResources,
-  registerServalSheetsPrompts,
-  prepareSchemaForRegistrationCached,
-  registerToolsListCompatibilityHandler,
-} from './mcp/registration.js';
+import { TOOL_DEFINITIONS } from './mcp/registration/tool-definitions.js';
+import { createToolHandlerMap, buildToolResponse } from './mcp/registration/tool-handlers.js';
+import { registerServalSheetsResources } from './mcp/registration/resource-registration.js';
+import { registerServalSheetsPrompts } from './mcp/registration/prompt-registration.js';
+import { prepareSchemaForRegistrationCached } from './mcp/registration/schema-helpers.js';
+import { registerToolsListCompatibilityHandler } from './mcp/registration/tools-list-compat.js';
 import { recordSpreadsheetId } from './mcp/completions.js';
 import {
   registerKnowledgeResources,
@@ -106,6 +103,7 @@ import {
   registerConnectionHealthResource,
   registerRestartHealthResource,
   registerCostDashboardResources,
+  registerTimeTravelResources,
 } from './resources/index.js';
 import { cacheManager } from './utils/cache-manager.js';
 import { requestDeduplicator } from './utils/request-deduplication.js';
@@ -176,7 +174,10 @@ export class ServalSheetsServer {
   private connectionHealthCheck: ReturnType<typeof createConnectionHealthCheck>;
 
   // Cached handler map (rebuilt only when handlers change)
-  private cachedHandlerMap: Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> | null = null;
+  private cachedHandlerMap: Record<
+    string,
+    (args: unknown, extra?: unknown) => Promise<unknown>
+  > | null = null;
 
   // Resource lazy loading state
   private resourcesRegistered = false;
@@ -723,14 +724,44 @@ export class ServalSheetsServer {
             return buildToolResponse(result);
           }
 
+          // Local-only tools that work without Google authentication
+          // These operate purely on in-memory state and never call Google APIs
+          const AUTH_EXEMPT_TOOLS = new Set(['sheets_session', 'sheets_confirm']);
+          const AUTH_EXEMPT_ACTIONS: Record<string, Set<string>> = {
+            sheets_history: new Set(['list', 'get', 'stats']),
+          };
+          const rawAction = (args as Record<string, unknown>)['action'] as string | undefined;
+          const isExempt =
+            AUTH_EXEMPT_TOOLS.has(toolName) ||
+            (rawAction !== undefined && AUTH_EXEMPT_ACTIONS[toolName]?.has(rawAction));
+
           // For all other tools, check authentication first
-          const authResult = checkAuth(this.googleClient);
-          if (!authResult.authenticated) {
-            const errorResponse = buildAuthErrorResponse(authResult.error!);
-            return buildToolResponse(errorResponse);
+          if (!isExempt) {
+            const authResult = checkAuth(this.googleClient);
+            if (!authResult.authenticated) {
+              const errorResponse = buildAuthErrorResponse(authResult.error!);
+              return buildToolResponse(errorResponse);
+            }
           }
 
           if (!this.handlers) {
+            // Pre-auth path: serve local-only tools without full handler initialization
+            if (isExempt) {
+              if (toolName === 'sheets_session') {
+                const { SessionHandler } = await import('./handlers/session.js');
+                const { SheetsSessionInputSchema } = await import('./schemas/session.js');
+                const handler = new SessionHandler();
+                const result = await handler.handle(parseWithCache(SheetsSessionInputSchema, args, 'SheetsSessionInput'));
+                return buildToolResponse(result);
+              }
+              if (toolName === 'sheets_history') {
+                const { HistoryHandler } = await import('./handlers/history.js');
+                const { SheetsHistoryInputSchema } = await import('./schemas/history.js');
+                const handler = new HistoryHandler({});
+                const result = await handler.handle(parseWithCache(SheetsHistoryInputSchema, args, 'SheetsHistoryInput'));
+                return buildToolResponse(result);
+              }
+            }
             return buildToolResponse({
               response: {
                 success: false,
@@ -745,7 +776,10 @@ export class ServalSheetsServer {
           }
 
           // Route to appropriate handler (cached — handlers don't change between requests)
-          this.cachedHandlerMap ??= createToolHandlerMap(this.handlers, this.authHandler ?? undefined);
+          this.cachedHandlerMap ??= createToolHandlerMap(
+            this.handlers,
+            this.authHandler ?? undefined
+          );
           const handlerMap = this.cachedHandlerMap;
 
           const handler = handlerMap[toolName];
@@ -900,6 +934,9 @@ export class ServalSheetsServer {
     // Register operation history resources (Phase 1, Task 1.3)
     registerHistoryResources(this._server);
 
+    // Register time travel debugger resources (checkpoint blame analysis)
+    registerTimeTravelResources(this._server);
+
     // Register cache statistics resources (Phase 1, Task 1.5)
     registerCacheResources(this._server);
 
@@ -1034,14 +1071,23 @@ export class ServalSheetsServer {
    */
   private registerTaskCancelHandler(): void {
     try {
-      // Register the cancel handler with the SDK tasks API
-      // Note: The SDK routes cancel requests via experimental.tasks accessor
-      if (this._server.experimental?.tasks) {
-        // The TaskStoreAdapter handles the protocol-level cancel requests
-        // Our handleTaskCancel method provides the implementation
+      // Wire the cancel callback: when the SDK's TaskStore.cancelTask() is called
+      // (via tasks/cancel protocol request), abort the running operation's AbortController
+      const underlyingStore = this.taskStore.getUnderlyingStore();
+      if ('onTaskCancelled' in underlyingStore) {
+        (
+          underlyingStore as { onTaskCancelled?: (taskId: string, reason: string) => void }
+        ).onTaskCancelled = (taskId, reason) => {
+          const abortController = this.taskAbortControllers.get(taskId);
+          if (abortController) {
+            abortController.abort(reason);
+            this.taskAbortControllers.delete(taskId);
+            baseLogger.info('Task abort signal sent', { taskId, reason });
+          }
+        };
         baseLogger.info('Task cancellation support enabled');
       } else {
-        baseLogger.warn('Task cancellation not available (SDK does not expose tasks API)');
+        baseLogger.warn('Task cancellation not available (store does not support onTaskCancelled)');
       }
     } catch (error) {
       baseLogger.error('Failed to register task cancel handler', { error });

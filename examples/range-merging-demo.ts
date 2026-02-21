@@ -22,8 +22,14 @@ const result1 = mergeOverlappingRanges(example1);
 console.log('Input ranges:');
 example1.forEach((r, i) => console.log(`  ${i + 1}. ${r}`));
 console.log('\nMerged ranges:');
-result1.mergedRanges.forEach((m, i) => console.log(`  ${i + 1}. ${m.mergedRange} (combines original ranges: ${m.originalIndices.map((idx) => idx + 1).join(', ')})`));
-console.log(`\n✅ API calls saved: ${result1.apiCallReduction} (${calculateReductionPercentage(result1).toFixed(1)}% reduction)`);
+result1.mergedRanges.forEach((m, i) =>
+  console.log(
+    `  ${i + 1}. ${m.mergedRange} (combines original ranges: ${m.originalIndices.map((idx) => idx + 1).join(', ')})`
+  )
+);
+console.log(
+  `\n✅ API calls saved: ${result1.apiCallReduction} (${calculateReductionPercentage(result1).toFixed(1)}% reduction)`
+);
 
 // Example 2: Complex multi-sheet scenario
 console.log('\n📊 Example 2: Complex multi-sheet batch operation\n');
@@ -44,7 +50,9 @@ result2.mergedRanges.forEach((m, i) => {
   console.log(`  ${i + 1}. ${m.mergedRange}`);
   console.log(`     └─ Combines original ranges: [${originals}]`);
 });
-console.log(`\n✅ API calls saved: ${result2.apiCallReduction} (${calculateReductionPercentage(result2).toFixed(1)}% reduction)`);
+console.log(
+  `\n✅ API calls saved: ${result2.apiCallReduction} (${calculateReductionPercentage(result2).toFixed(1)}% reduction)`
+);
 
 // Example 3: Large batch optimization
 console.log('\n📊 Example 3: Large batch with clustering\n');
@@ -65,7 +73,9 @@ for (let i = 0; i < 10; i++) {
 const result3 = mergeOverlappingRanges(example3);
 console.log(`Input: ${result3.originalCount} ranges across 3 sheets`);
 console.log(`Output: ${result3.mergedCount} merged ranges`);
-console.log(`\n✅ API calls saved: ${result3.apiCallReduction} (${calculateReductionPercentage(result3).toFixed(1)}% reduction)`);
+console.log(
+  `\n✅ API calls saved: ${result3.apiCallReduction} (${calculateReductionPercentage(result3).toFixed(1)}% reduction)`
+);
 
 // Performance characteristics
 console.log('\n📊 Performance Characteristics\n');

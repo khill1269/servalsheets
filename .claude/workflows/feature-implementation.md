@@ -14,6 +14,7 @@
 **Agent:** `servalsheets-research` (Haiku)
 
 **Task:**
+
 ```
 Analyze existing patterns for [feature-name]:
 1. Find similar implementations in src/handlers/
@@ -23,6 +24,7 @@ Analyze existing patterns for [feature-name]:
 ```
 
 **Expected Output:**
+
 - List of similar handlers
 - Utility functions to reuse
 - Schema pattern examples
@@ -33,6 +35,7 @@ Analyze existing patterns for [feature-name]:
 **Agent:** `servalsheets-implementation` (Sonnet)
 
 **Task:**
+
 ```
 Implement [feature-name] using TDD:
 1. Read research findings from .agent-context/patterns.json
@@ -43,6 +46,7 @@ Implement [feature-name] using TDD:
 ```
 
 **Expected Output:**
+
 - Test file with failing test
 - Implementation file with minimal code
 - Test results showing PASS
@@ -53,6 +57,7 @@ Implement [feature-name] using TDD:
 **Agent:** `servalsheets-validation` (Haiku)
 
 **Task:**
+
 ```
 Validate [feature-name] implementation:
 1. Run npm run gates:g0 (baseline)
@@ -62,6 +67,7 @@ Validate [feature-name] implementation:
 ```
 
 **Expected Output:**
+
 - G0 status
 - Metadata drift status
 - Test results
@@ -74,6 +80,7 @@ Validate [feature-name] implementation:
 ### Feature: Add trackRead() to CacheInvalidationGraph
 
 **Step 1: Research (servalsheets-research)**
+
 ```
 Use Explore agent (medium) to analyze range tracking patterns:
 1. Find similar tracking implementations in src/services/
@@ -82,6 +89,7 @@ Use Explore agent (medium) to analyze range tracking patterns:
 ```
 
 **Step 2: Implementation (servalsheets-implementation)**
+
 ```
 Use general-purpose agent to implement trackRead():
 1. Add private trackedReads: Map<string, Set<string>>
@@ -91,6 +99,7 @@ Use general-purpose agent to implement trackRead():
 ```
 
 **Step 3: Validation (servalsheets-validation)**
+
 ```
 Use Explore agent to validate implementation:
 1. Run npm run gates:g0
@@ -116,14 +125,17 @@ Use Explore agent to validate implementation:
 ## Workflow Variants
 
 ### Variant A: Simple Feature (No Research)
+
 **Skip Step 1**, start with Step 2
 **Cost:** $5-7, **Time:** 10-12 min
 
 ### Variant B: Complex Feature (With API Review)
+
 **Add Step 0:** google-api-expert reviews API usage
 **Cost:** $9-12, **Time:** 20-25 min
 
 ### Variant C: Bug Fix (Validation First)
+
 **Step 1:** servalsheets-validation identifies issue
 **Step 2:** servalsheets-implementation fixes
 **Step 3:** servalsheets-validation verifies
@@ -134,6 +146,7 @@ Use Explore agent to validate implementation:
 ## Agent Communication
 
 **Research → Implementation:**
+
 ```json
 // .agent-context/patterns.json
 {
@@ -141,13 +154,12 @@ Use Explore agent to validate implementation:
     "parseA1Range from src/services/request-merger.ts:480",
     "rangesOverlap from src/services/request-merger.ts:542"
   ],
-  "similarImplementations": [
-    "src/services/request-merger.ts has range tracking pattern"
-  ]
+  "similarImplementations": ["src/services/request-merger.ts has range tracking pattern"]
 }
 ```
 
 **Implementation → Validation:**
+
 ```json
 // .agent-context/task-progress.json
 {
@@ -165,14 +177,17 @@ Use Explore agent to validate implementation:
 ## Troubleshooting
 
 ### Research Agent Returns No Patterns
+
 **Cause:** Pattern doesn't exist yet
 **Solution:** Skip to implementation, document new pattern
 
 ### Implementation Exceeds 3 Files
+
 **Cause:** Schema change required
 **Solution:** Acceptable if schema + handler + test (3 files)
 
 ### Validation Fails on Drift
+
 **Cause:** Forgot to run schema:commit
 **Solution:** Run `npm run schema:commit`, re-validate
 

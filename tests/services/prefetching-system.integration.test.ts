@@ -13,7 +13,10 @@ import {
   resetPrefetchingSystem,
   PrefetchingSystem,
 } from '../../src/services/prefetching-system.js';
-import { getAccessPatternTracker, resetAccessPatternTracker } from '../../src/services/access-pattern-tracker.js';
+import {
+  getAccessPatternTracker,
+  resetAccessPatternTracker,
+} from '../../src/services/access-pattern-tracker.js';
 import { cacheManager } from '../../src/utils/cache-manager.js';
 
 describe('PrefetchingSystem Integration', () => {
@@ -201,7 +204,9 @@ describe('PrefetchingSystem Integration', () => {
       expect(stats.totalPrefetches).toBeGreaterThan(0);
 
       // API should have been called for the prefetched data
-      expect(mockValuesGet.mock.calls.length + mockSpreadsheetGet.mock.calls.length).toBeGreaterThan(0);
+      expect(
+        mockValuesGet.mock.calls.length + mockSpreadsheetGet.mock.calls.length
+      ).toBeGreaterThan(0);
     });
 
     it('should prefetch on spreadsheet open', async () => {
@@ -215,7 +220,9 @@ describe('PrefetchingSystem Integration', () => {
       expect(stats.totalPrefetches).toBeGreaterThan(0);
 
       // Should have prefetched comprehensive metadata and/or values
-      expect(mockValuesGet.mock.calls.length + mockSpreadsheetGet.mock.calls.length).toBeGreaterThan(0);
+      expect(
+        mockValuesGet.mock.calls.length + mockSpreadsheetGet.mock.calls.length
+      ).toBeGreaterThan(0);
     });
   });
 

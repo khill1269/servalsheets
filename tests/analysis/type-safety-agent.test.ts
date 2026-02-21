@@ -40,7 +40,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const anyReport = reports.find(r => r.dimension === 'anyTypes');
+      const anyReport = reports.find((r) => r.dimension === 'anyTypes');
 
       expect(anyReport).toBeDefined();
       expect(anyReport!.issueCount).toBe(1);
@@ -59,7 +59,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const anyReport = reports.find(r => r.dimension === 'anyTypes');
+      const anyReport = reports.find((r) => r.dimension === 'anyTypes');
 
       expect(anyReport!.issueCount).toBe(1);
       expect(anyReport!.issues[0].suggestion).toContain('unknown');
@@ -73,7 +73,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const anyReport = reports.find(r => r.dimension === 'anyTypes');
+      const anyReport = reports.find((r) => r.dimension === 'anyTypes');
 
       expect(anyReport!.issueCount).toBe(1);
       expect(anyReport!.issues[0].message).toContain('Explicit "any" type found');
@@ -91,7 +91,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const anyReport = reports.find(r => r.dimension === 'anyTypes');
+      const anyReport = reports.find((r) => r.dimension === 'anyTypes');
 
       expect(anyReport!.issueCount).toBe(4);
       expect(anyReport!.metrics?.explicitAnyCount).toBe(4);
@@ -107,7 +107,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const anyReport = reports.find(r => r.dimension === 'anyTypes');
+      const anyReport = reports.find((r) => r.dimension === 'anyTypes');
 
       expect(anyReport!.status).toBe('pass');
       expect(anyReport!.issueCount).toBe(0);
@@ -123,7 +123,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const assertionReport = reports.find(r => r.dimension === 'typeAssertions');
+      const assertionReport = reports.find((r) => r.dimension === 'typeAssertions');
 
       expect(assertionReport!.issueCount).toBe(1);
       expect(assertionReport!.issues[0].message).toContain('as');
@@ -141,7 +141,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const assertionReport = reports.find(r => r.dimension === 'typeAssertions');
+      const assertionReport = reports.find((r) => r.dimension === 'typeAssertions');
 
       expect(assertionReport!.issueCount).toBe(3);
       expect(assertionReport!.metrics?.asAssertions).toBe(3);
@@ -155,7 +155,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const assertionReport = reports.find(r => r.dimension === 'typeAssertions');
+      const assertionReport = reports.find((r) => r.dimension === 'typeAssertions');
 
       expect(assertionReport!.issues[0].suggestion).toContain('isUser');
       expect(assertionReport!.issues[0].suggestion).toContain('value is User');
@@ -169,7 +169,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const assertionReport = reports.find(r => r.dimension === 'typeAssertions');
+      const assertionReport = reports.find((r) => r.dimension === 'typeAssertions');
 
       expect(assertionReport!.issues[0].suggestion).toContain('typeof');
     });
@@ -184,7 +184,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const assertionReport = reports.find(r => r.dimension === 'typeAssertions');
+      const assertionReport = reports.find((r) => r.dimension === 'typeAssertions');
 
       expect(assertionReport!.issueCount).toBe(1);
       expect(assertionReport!.issues[0].suggestion).toContain('Prefer "as" syntax');
@@ -200,7 +200,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const assertionReport = reports.find(r => r.dimension === 'typeAssertions');
+      const assertionReport = reports.find((r) => r.dimension === 'typeAssertions');
 
       expect(assertionReport!.issueCount).toBe(2);
       expect(assertionReport!.metrics?.asAssertions).toBe(1);
@@ -217,7 +217,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const nonNullReport = reports.find(r => r.dimension === 'nonNullAssertions');
+      const nonNullReport = reports.find((r) => r.dimension === 'nonNullAssertions');
 
       expect(nonNullReport!.issueCount).toBe(1);
       expect(nonNullReport!.issues[0].message).toContain('Non-null assertion');
@@ -233,7 +233,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const nonNullReport = reports.find(r => r.dimension === 'nonNullAssertions');
+      const nonNullReport = reports.find((r) => r.dimension === 'nonNullAssertions');
 
       expect(nonNullReport!.issueCount).toBe(1);
       expect(nonNullReport!.issues[0].suggestion).toContain('null check');
@@ -249,7 +249,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const nonNullReport = reports.find(r => r.dimension === 'nonNullAssertions');
+      const nonNullReport = reports.find((r) => r.dimension === 'nonNullAssertions');
 
       expect(nonNullReport!.issueCount).toBe(3);
       expect(nonNullReport!.metrics?.nonNullAssertionCount).toBe(3);
@@ -263,7 +263,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const nonNullReport = reports.find(r => r.dimension === 'nonNullAssertions');
+      const nonNullReport = reports.find((r) => r.dimension === 'nonNullAssertions');
 
       expect(nonNullReport!.issues[0].suggestion).toContain('Ensure return type');
     });
@@ -276,7 +276,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const nonNullReport = reports.find(r => r.dimension === 'nonNullAssertions');
+      const nonNullReport = reports.find((r) => r.dimension === 'nonNullAssertions');
 
       expect(nonNullReport!.status).toBe('warning');
 
@@ -287,7 +287,7 @@ describe('TypeSafetyAgent', () => {
         .join('\n');
       const manySourceFile = createSourceFile(manyCode);
       const manyReports = await agent.analyze('test.ts', manySourceFile, context);
-      const manyNonNullReport = manyReports.find(r => r.dimension === 'nonNullAssertions');
+      const manyNonNullReport = manyReports.find((r) => r.dimension === 'nonNullAssertions');
 
       expect(manyNonNullReport!.status).toBe('fail');
     });
@@ -303,7 +303,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const tsIgnoreReport = reports.find(r => r.dimension === 'tsIgnoreComments');
+      const tsIgnoreReport = reports.find((r) => r.dimension === 'tsIgnoreComments');
 
       expect(tsIgnoreReport!.issueCount).toBe(1);
       expect(tsIgnoreReport!.issues[0].message).toContain('without explanation');
@@ -320,7 +320,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const tsIgnoreReport = reports.find(r => r.dimension === 'tsIgnoreComments');
+      const tsIgnoreReport = reports.find((r) => r.dimension === 'tsIgnoreComments');
 
       expect(tsIgnoreReport!.issueCount).toBe(1);
       expect(tsIgnoreReport!.issues[0].message).toContain('Legacy API compatibility');
@@ -343,7 +343,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const tsIgnoreReport = reports.find(r => r.dimension === 'tsIgnoreComments');
+      const tsIgnoreReport = reports.find((r) => r.dimension === 'tsIgnoreComments');
 
       expect(tsIgnoreReport!.issueCount).toBe(3);
       expect(tsIgnoreReport!.metrics?.tsIgnoreCount).toBe(3);
@@ -359,7 +359,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const tsIgnoreReport = reports.find(r => r.dimension === 'tsIgnoreComments');
+      const tsIgnoreReport = reports.find((r) => r.dimension === 'tsIgnoreComments');
 
       expect(tsIgnoreReport!.status).toBe('pass');
       expect(tsIgnoreReport!.issueCount).toBe(0);
@@ -374,7 +374,7 @@ describe('TypeSafetyAgent', () => {
       const context = createContext();
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
-      const tsIgnoreReport = reports.find(r => r.dimension === 'tsIgnoreComments');
+      const tsIgnoreReport = reports.find((r) => r.dimension === 'tsIgnoreComments');
 
       expect(tsIgnoreReport!.status).toBe('fail');
     });
@@ -401,16 +401,16 @@ describe('TypeSafetyAgent', () => {
       // Should have reports for all 4 dimensions
       expect(reports).toHaveLength(4);
 
-      const anyReport = reports.find(r => r.dimension === 'anyTypes');
+      const anyReport = reports.find((r) => r.dimension === 'anyTypes');
       expect(anyReport!.issueCount).toBeGreaterThan(0);
 
-      const assertionReport = reports.find(r => r.dimension === 'typeAssertions');
+      const assertionReport = reports.find((r) => r.dimension === 'typeAssertions');
       expect(assertionReport!.issueCount).toBe(2); // as and <>
 
-      const nonNullReport = reports.find(r => r.dimension === 'nonNullAssertions');
+      const nonNullReport = reports.find((r) => r.dimension === 'nonNullAssertions');
       expect(nonNullReport!.issueCount).toBe(1);
 
-      const tsIgnoreReport = reports.find(r => r.dimension === 'tsIgnoreComments');
+      const tsIgnoreReport = reports.find((r) => r.dimension === 'tsIgnoreComments');
       expect(tsIgnoreReport!.issueCount).toBe(1);
     });
 
@@ -442,13 +442,13 @@ describe('TypeSafetyAgent', () => {
 
       const reports = await agent.analyze('test.ts', sourceFile, context);
 
-      const anyReport = reports.find(r => r.dimension === 'anyTypes');
+      const anyReport = reports.find((r) => r.dimension === 'anyTypes');
       expect(anyReport!.status).toBe('pass');
 
-      const tsIgnoreReport = reports.find(r => r.dimension === 'tsIgnoreComments');
+      const tsIgnoreReport = reports.find((r) => r.dimension === 'tsIgnoreComments');
       expect(tsIgnoreReport!.status).toBe('pass');
 
-      const nonNullReport = reports.find(r => r.dimension === 'nonNullAssertions');
+      const nonNullReport = reports.find((r) => r.dimension === 'nonNullAssertions');
       expect(nonNullReport!.status).toBe('pass');
     });
   });
@@ -504,7 +504,7 @@ describe('TypeSafetyAgent', () => {
       expect(duration).toBeLessThan(100); // Should complete in < 100ms
 
       // Verify all patterns detected
-      const anyReport = reports.find(r => r.dimension === 'anyTypes');
+      const anyReport = reports.find((r) => r.dimension === 'anyTypes');
       expect(anyReport!.issueCount).toBe(200); // 2 any per function
     });
   });

@@ -12,9 +12,7 @@ import {
   shouldSkipTruncation,
   getCompactionStats,
 } from '../../src/utils/response-compactor.js';
-import {
-  getPreparedSchemaCacheSize,
-} from '../../src/mcp/registration/schema-helpers.js';
+import { getPreparedSchemaCacheSize } from '../../src/mcp/registration/schema-helpers.js';
 
 // Save and restore env
 const savedEnv: Record<string, string | undefined> = {};
@@ -103,9 +101,12 @@ describe('Response Compaction Performance', () => {
       response: {
         success: true,
         action: 'read',
-        values: Array.from({ length: 500 }, (_, i) =>
-          [`row${i}`, `data${i}`, `value${i}`, `extra${i}`]
-        ),
+        values: Array.from({ length: 500 }, (_, i) => [
+          `row${i}`,
+          `data${i}`,
+          `value${i}`,
+          `extra${i}`,
+        ]),
         _meta: { costEstimate: 5, traceId: 'abc', requestId: '123' },
         debugInfo: { stack: 'some stack trace' },
         quotaImpact: { used: 100, remaining: 900 },

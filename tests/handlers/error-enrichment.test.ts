@@ -50,8 +50,6 @@ describe('BaseHandler error enrichment', () => {
     });
     const result = handler.mapErrorPublic(error);
 
-    expect(result.error.resolutionSteps?.some((step) => step.includes('list_sheets'))).toBe(
-      true
-    );
+    expect(result.error.resolutionSteps?.some((step) => step.includes('list_sheets'))).toBe(true);
   });
 });

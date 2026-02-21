@@ -123,7 +123,7 @@ async function dryRunWrite(
     range,
     rowsAffected: values.length,
     cellsAffected: values.reduce((sum, row) => sum + row.length, 0),
-    columnsAffected: Math.max(...values.map(row => row.length)),
+    columnsAffected: Math.max(...values.map((row) => row.length)),
     dataPreview: values.slice(0, 3), // First 3 rows
   };
 
@@ -275,7 +275,7 @@ async function validateExpectedState(
   spreadsheetId: string,
   expectedState: ExpectedState
 ): Promise<boolean> {
-  console.log('\n[STATE VALIDATION] Verifying data hasn\'t changed...');
+  console.log("\n[STATE VALIDATION] Verifying data hasn't changed...");
 
   try {
     const response = await sheets.spreadsheets.values.get({
@@ -433,7 +433,7 @@ async function main(): Promise<void> {
   try {
     // Initialize
     const auth = await getGoogleAuth();
-    const sheets = google.sheets({ version: "v4", auth: auth as any });
+    const sheets = google.sheets({ version: 'v4', auth: auth as any });
 
     // Setup demo data
     await setupDemoData(sheets, SPREADSHEET_ID, SHEET_NAME);
@@ -444,12 +444,7 @@ async function main(): Promise<void> {
     console.log('\n--- Example 1: Dry-Run Preview ---');
 
     const updateRange = `${SHEET_NAME}!C2:C5`;
-    const updateData: string[][] = [
-      ['Pending'],
-      ['Pending'],
-      ['Active'],
-      ['Pending'],
-    ];
+    const updateData: string[][] = [['Pending'], ['Pending'], ['Active'], ['Pending']];
 
     // Preview the operation
     const preview = await dryRunWrite(sheets, SPREADSHEET_ID, updateRange, updateData);
@@ -476,7 +471,9 @@ async function main(): Promise<void> {
     }
 
     // Large operation (should fail)
-    const largeData: string[][] = Array(200).fill(null).map(() => ['X', 'Y', 'Z']);
+    const largeData: string[][] = Array(200)
+      .fill(null)
+      .map(() => ['X', 'Y', 'Z']);
     try {
       validateEffectScope(largeData, 1000, 100);
       console.error('  ✗ Large operation should have been rejected!');
@@ -497,7 +494,7 @@ async function main(): Promise<void> {
 
     // Simulate some time passing
     console.log('\n[SIMULATION] Time passes... other processes might have modified data...');
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Validate state before write
     try {
@@ -542,7 +539,7 @@ async function main(): Promise<void> {
 
     // Oops! Need to undo
     console.log('\n[OOPS] That was a mistake! Restoring from snapshot...');
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
     await restoreSnapshot(sheets, SPREADSHEET_ID, snapshot);
 
     // Verify restoration
@@ -566,7 +563,6 @@ async function main(): Promise<void> {
     console.log('  5. Combine all features for maximum safety in production');
     console.log('  6. Safety rails add minimal overhead but prevent disasters');
     console.log('  7. TypeScript ensures type safety for all safety operations');
-
   } catch (error) {
     console.error('\n=== Example Failed ===');
     if (error instanceof Error) {

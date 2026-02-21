@@ -219,7 +219,7 @@ export class ConsistencyAgent extends AnalysisAgent {
     // Convert any case to camelCase
     return name
       .replace(/[-_](.)/g, (_, char) => char.toUpperCase())
-      .replace(/^[A-Z]/, char => char.toLowerCase());
+      .replace(/^[A-Z]/, (char) => char.toLowerCase());
   }
 
   private convertToPascalCase(name: string): string {
@@ -483,14 +483,14 @@ export class ConsistencyAgent extends AnalysisAgent {
         // Check for { response: { success, data } } pattern
         if (ts.isObjectLiteralExpression(returnExpr)) {
           const hasResponseProp = returnExpr.properties.some(
-            prop =>
+            (prop) =>
               ts.isPropertyAssignment(prop) &&
               ts.isIdentifier(prop.name) &&
               prop.name.text === 'response'
           );
 
           const hasContentProp = returnExpr.properties.some(
-            prop =>
+            (prop) =>
               ts.isPropertyAssignment(prop) &&
               ts.isIdentifier(prop.name) &&
               prop.name.text === 'content'
@@ -561,9 +561,8 @@ export class ConsistencyAgent extends AnalysisAgent {
       // Check exported functions
       if (ts.isFunctionDeclaration(node)) {
         const isExported = node.modifiers?.some(
-          mod =>
-            mod.kind === ts.SyntaxKind.ExportKeyword ||
-            mod.kind === ts.SyntaxKind.DefaultKeyword
+          (mod) =>
+            mod.kind === ts.SyntaxKind.ExportKeyword || mod.kind === ts.SyntaxKind.DefaultKeyword
         );
 
         if (isExported && !this.hasJSDoc(node)) {
@@ -571,12 +570,17 @@ export class ConsistencyAgent extends AnalysisAgent {
           const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
 
           issues.push(
-            this.createIssue('commentStyle', filePath, `Exported function "${name}" missing JSDoc`, {
-              line,
-              suggestion: 'Add JSDoc with @param and @returns tags',
-              severity: 'low',
-              autoFixable: false,
-            })
+            this.createIssue(
+              'commentStyle',
+              filePath,
+              `Exported function "${name}" missing JSDoc`,
+              {
+                line,
+                suggestion: 'Add JSDoc with @param and @returns tags',
+                severity: 'low',
+                autoFixable: false,
+              }
+            )
           );
         }
       }
@@ -586,7 +590,7 @@ export class ConsistencyAgent extends AnalysisAgent {
         const isPublic =
           !node.modifiers ||
           !node.modifiers.some(
-            mod =>
+            (mod) =>
               mod.kind === ts.SyntaxKind.PrivateKeyword ||
               mod.kind === ts.SyntaxKind.ProtectedKeyword
           );
@@ -598,17 +602,12 @@ export class ConsistencyAgent extends AnalysisAgent {
             const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
 
             issues.push(
-              this.createIssue(
-                'commentStyle',
-                filePath,
-                `Public method "${name}" missing JSDoc`,
-                {
-                  line,
-                  suggestion: 'Add JSDoc with @param and @returns tags',
-                  severity: 'low',
-                  autoFixable: false,
-                }
-              )
+              this.createIssue('commentStyle', filePath, `Public method "${name}" missing JSDoc`, {
+                line,
+                suggestion: 'Add JSDoc with @param and @returns tags',
+                severity: 'low',
+                autoFixable: false,
+              })
             );
           }
         }

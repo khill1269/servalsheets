@@ -9,7 +9,7 @@ services:
     image: ghcr.io/khill1269/servalsheets:latest
     container_name: servalsheets-prod
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       # Server config
       - NODE_ENV=production
@@ -44,7 +44,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health/live"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health/live']
       interval: 30s
       timeout: 3s
       retries: 3
@@ -61,10 +61,10 @@ services:
     networks:
       - servalsheets
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
   # Redis with persistence (Production)
   redis:
@@ -74,7 +74,7 @@ services:
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 3s
       retries: 5
@@ -95,15 +95,15 @@ services:
     image: nginx:alpine
     container_name: servalsheets-nginx
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - ./deployment/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./deployment/nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       - servalsheets
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost/health']
       interval: 30s
       timeout: 3s
       retries: 3

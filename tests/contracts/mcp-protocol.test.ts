@@ -15,7 +15,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
   registerServalSheetsTools,
   registerServalSheetsPrompts,
-} from '../../src/mcp/registration.js';
+} from '../../src/mcp/registration/index.js';
 import { TOOL_COUNT } from '../../src/schemas/index.js';
 
 // Monkey-patches removed: All schemas now use flattened z.object() pattern

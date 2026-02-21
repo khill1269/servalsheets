@@ -195,8 +195,8 @@ describe('Schema Contracts', () => {
       // ACTION_COUNT constant must match the sum of all tool actions
       expect(ACTION_COUNT).toBe(actualActionCount);
 
-      // For reference: as of 2026-02-16, this is 298 actions across 22 tools
-      expect(actualActionCount).toBeGreaterThan(290); // Sanity check: at least 290 actions
+      // Sanity check: at least 290 actions (grows as tools are added)
+      expect(actualActionCount).toBeGreaterThan(290);
     });
 
     it('should not have duplicate tool names', () => {

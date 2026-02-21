@@ -27,10 +27,7 @@ import {
   extractHandlerCases,
   isSingleActionTool,
 } from '../../src/utils/ast-schema-parser.js';
-import {
-  ACCEPTABLE_DEVIATIONS,
-  getToolDeviation,
-} from '../../src/schemas/handler-deviations.js';
+import { ACCEPTABLE_DEVIATIONS, getToolDeviation } from '../../src/schemas/handler-deviations.js';
 
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 
@@ -74,10 +71,7 @@ describe('Schema-Handler Alignment', () => {
 
         // Extract actions from schema using shared parser
         const schemaActions = extractSchemaActions(schemaPath);
-        expect(schemaActions.length).toBeGreaterThan(
-          0,
-          `Schema ${tool}.ts has no actions defined`
-        );
+        expect(schemaActions.length).toBeGreaterThan(0, `Schema ${tool}.ts has no actions defined`);
 
         // Extract cases from handler using shared parser
         const handlerCases = extractHandlerCases(handlerPath);
@@ -89,10 +83,7 @@ describe('Schema-Handler Alignment', () => {
           return; // Single-action tool - alignment verified
         }
 
-        expect(handlerCases.length).toBeGreaterThan(
-          0,
-          `Handler ${tool}.ts has no switch cases`
-        );
+        expect(handlerCases.length).toBeGreaterThan(0, `Handler ${tool}.ts has no switch cases`);
 
         // Check alignment
         const extra = handlerCases.filter((c) => !schemaActions.includes(c));
@@ -107,12 +98,8 @@ describe('Schema-Handler Alignment', () => {
           const documentedMissing = deviation.missingCases || [];
 
           // Check for UNDOCUMENTED extra cases
-          const undocumentedExtra = extra.filter(
-            (c) => !documentedExtra.includes(c)
-          );
-          const undocumentedMissing = missing.filter(
-            (a) => !documentedMissing.includes(a)
-          );
+          const undocumentedExtra = extra.filter((c) => !documentedExtra.includes(c));
+          const undocumentedMissing = missing.filter((a) => !documentedMissing.includes(a));
 
           // Report all misalignments for visibility
           if (extra.length > 0) {
@@ -152,22 +139,15 @@ describe('Schema-Handler Alignment', () => {
         } else {
           // No documented deviations - expect perfect alignment
           if (extra.length > 0) {
-            console.error(
-              `❌ sheets_${tool}: Extra cases in handler: ${extra.join(', ')}`
-            );
+            console.error(`❌ sheets_${tool}: Extra cases in handler: ${extra.join(', ')}`);
             console.error(`   Either remove from handler or add to ACCEPTABLE_DEVIATIONS`);
           }
           if (missing.length > 0) {
-            console.error(
-              `❌ sheets_${tool}: Missing cases in handler: ${missing.join(', ')}`
-            );
+            console.error(`❌ sheets_${tool}: Missing cases in handler: ${missing.join(', ')}`);
             console.error(`   Either add to handler or add to ACCEPTABLE_DEVIATIONS`);
           }
 
-          expect(
-            extra,
-            `Extra cases in handler (not documented): ${extra.join(', ')}`
-          ).toEqual([]);
+          expect(extra, `Extra cases in handler (not documented): ${extra.join(', ')}`).toEqual([]);
           expect(
             missing,
             `Missing cases in handler (not documented): ${missing.join(', ')}`
@@ -180,38 +160,37 @@ describe('Schema-Handler Alignment', () => {
   describe('Sanity checks: Expected action counts', () => {
     it('should have correct action counts per tool', () => {
       const expectedCounts: Record<string, number> = {
-        advanced: 26,
+        advanced: 31,
         analyze: 16,
-        appsscript: 14,
+        appsscript: 18,
         auth: 4,
-        bigquery: 14,
+        bigquery: 17,
         collaborate: 35,
         composite: 11,
         confirm: 5,
         core: 19,
-        data: 18,
+        data: 19,
         dependencies: 7,
         dimensions: 28,
         federation: 4,
         fix: 1,
-        format: 22,
+        format: 24,
         history: 7,
         quality: 4,
         session: 26,
         templates: 8,
         transaction: 6,
         visualize: 18,
-        webhook: 6,
+        webhook: 7,
       };
 
       Object.entries(expectedCounts).forEach(([tool, expectedCount]) => {
         const schemaPath = path.join(PROJECT_ROOT, `src/schemas/${tool}.ts`);
         const actions = extractSchemaActions(schemaPath);
 
-        expect(
-          actions.length,
-          `Tool ${tool} should have ${expectedCount} actions`
-        ).toBe(expectedCount);
+        expect(actions.length, `Tool ${tool} should have ${expectedCount} actions`).toBe(
+          expectedCount
+        );
       });
     });
   });
@@ -223,9 +202,7 @@ describe('Schema-Handler Alignment', () => {
         expect(deviation.reason).toBeTruthy();
         expect(deviation.justification).toBeTruthy();
         expect(deviation.addedDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-        expect(
-          deviation.extraCases || deviation.missingCases
-        ).toBeTruthy();
+        expect(deviation.extraCases || deviation.missingCases).toBeTruthy();
       });
     });
 
@@ -253,7 +230,9 @@ describe('Schema-Handler Alignment', () => {
 
       console.log('\n📊 Schema-Handler Alignment Statistics:');
       console.log(`  Total tools: ${totalTools}`);
-      console.log(`  Perfect alignment: ${perfectAlignment} (${Math.round((perfectAlignment / totalTools) * 100)}%)`);
+      console.log(
+        `  Perfect alignment: ${perfectAlignment} (${Math.round((perfectAlignment / totalTools) * 100)}%)`
+      );
       console.log(`  With documented deviations: ${toolsWithDeviations}`);
 
       ACCEPTABLE_DEVIATIONS.forEach((deviation) => {

@@ -19,51 +19,42 @@ describe('Error Handling Property Tests', () => {
   describe('Error Code Consistency', () => {
     it('permission errors should always have PERMISSION_DENIED code', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 1, maxLength: 100 }),
-          (operation) => {
-            const error = createPermissionError({
-              operation,
-            });
+        fc.property(fc.string({ minLength: 1, maxLength: 100 }), (operation) => {
+          const error = createPermissionError({
+            operation,
+          });
 
-            return error.code === 'PERMISSION_DENIED';
-          }
-        ),
+          return error.code === 'PERMISSION_DENIED';
+        }),
         { numRuns: 500 }
       );
     });
 
     it('rate limit errors should always have RATE_LIMITED code', () => {
       fc.assert(
-        fc.property(
-          fc.integer({ min: 1000, max: 3600000 }),
-          (retryAfterMs) => {
-            const error = createRateLimitError({
-              retryAfterMs,
-              quotaType: 'write',
-            });
+        fc.property(fc.integer({ min: 1000, max: 3600000 }), (retryAfterMs) => {
+          const error = createRateLimitError({
+            retryAfterMs,
+            quotaType: 'write',
+          });
 
-            return error.code === 'RATE_LIMITED';
-          }
-        ),
+          return error.code === 'RATE_LIMITED';
+        }),
         { numRuns: 500 }
       );
     });
 
     it('not found errors should always have a *_NOT_FOUND code', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 5 }),
-          (resourceId) => {
-            const error = createNotFoundError({
-              resourceId,
-              resourceType: 'spreadsheet',
-            });
+        fc.property(fc.string({ minLength: 5 }), (resourceId) => {
+          const error = createNotFoundError({
+            resourceId,
+            resourceType: 'spreadsheet',
+          });
 
-            // Resource-specific NOT_FOUND codes (e.g., SPREADSHEET_NOT_FOUND, SHEET_NOT_FOUND)
-            return (error.code as string).includes('NOT_FOUND');
-          }
-        ),
+          // Resource-specific NOT_FOUND codes (e.g., SPREADSHEET_NOT_FOUND, SHEET_NOT_FOUND)
+          return (error.code as string).includes('NOT_FOUND');
+        }),
         { numRuns: 500 }
       );
     });
@@ -111,56 +102,47 @@ describe('Error Handling Property Tests', () => {
   describe('Error Message Properties', () => {
     it('error messages should never be empty', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 5 }),
-          (resourceId) => {
-            const error = createNotFoundError({
-              resourceId,
-              resourceType: 'sheet',
-            });
+        fc.property(fc.string({ minLength: 5 }), (resourceId) => {
+          const error = createNotFoundError({
+            resourceId,
+            resourceType: 'sheet',
+          });
 
-            return error.message.length > 0;
-          }
-        ),
+          return error.message.length > 0;
+        }),
         { numRuns: 500 }
       );
     });
 
     it('error messages should contain relevant information', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 1 }),
-          (field) => {
-            const error = createValidationError({
-              field,
-              value: 'test',
-            });
+        fc.property(fc.string({ minLength: 1 }), (field) => {
+          const error = createValidationError({
+            field,
+            value: 'test',
+          });
 
-            // Message should contain the field name
-            return error.message.includes(field);
-          }
-        ),
+          // Message should contain the field name
+          return error.message.includes(field);
+        }),
         { numRuns: 500 }
       );
     });
 
     it('errors should have proper structure', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 1 }),
-          (operation) => {
-            const error = createPermissionError({
-              operation,
-            });
+        fc.property(fc.string({ minLength: 1 }), (operation) => {
+          const error = createPermissionError({
+            operation,
+          });
 
-            return (
-              typeof error.code === 'string' &&
-              typeof error.message === 'string' &&
-              typeof error.category === 'string' &&
-              typeof error.severity === 'string'
-            );
-          }
-        ),
+          return (
+            typeof error.code === 'string' &&
+            typeof error.message === 'string' &&
+            typeof error.category === 'string' &&
+            typeof error.severity === 'string'
+          );
+        }),
         { numRuns: 500 }
       );
     });
@@ -192,50 +174,41 @@ describe('Error Handling Property Tests', () => {
 
     it('retryAfterMs should be preserved for rate limit errors', () => {
       fc.assert(
-        fc.property(
-          fc.integer({ min: 1000, max: 7200000 }),
-          (retryAfterMs) => {
-            const error = createRateLimitError({
-              retryAfterMs,
-              quotaType: 'read',
-            });
+        fc.property(fc.integer({ min: 1000, max: 7200000 }), (retryAfterMs) => {
+          const error = createRateLimitError({
+            retryAfterMs,
+            quotaType: 'read',
+          });
 
-            return error.retryAfterMs === retryAfterMs;
-          }
-        ),
+          return error.retryAfterMs === retryAfterMs;
+        }),
         { numRuns: 500 }
       );
     });
 
     it('validation error field should be preserved', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 1, maxLength: 20 }),
-          (field) => {
-            const error = createValidationError({
-              field,
-              value: 'test',
-            });
+        fc.property(fc.string({ minLength: 1, maxLength: 20 }), (field) => {
+          const error = createValidationError({
+            field,
+            value: 'test',
+          });
 
-            return error.details.field === field;
-          }
-        ),
+          return error.details.field === field;
+        }),
         { numRuns: 500 }
       );
     });
 
     it('operation should be preserved in permission errors', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 1, maxLength: 50 }),
-          (operation) => {
-            const error = createPermissionError({
-              operation,
-            });
+        fc.property(fc.string({ minLength: 1, maxLength: 50 }), (operation) => {
+          const error = createPermissionError({
+            operation,
+          });
 
-            return error.details.operation === operation;
-          }
-        ),
+          return error.details.operation === operation;
+        }),
         { numRuns: 500 }
       );
     });
@@ -244,33 +217,27 @@ describe('Error Handling Property Tests', () => {
   describe('Error Type Classification', () => {
     it('retriable errors should have isRetriable flag', () => {
       fc.assert(
-        fc.property(
-          fc.integer({ min: 1000, max: 3600000 }),
-          (retryAfterMs) => {
-            const error = createRateLimitError({
-              retryAfterMs,
-              quotaType: 'write',
-            });
+        fc.property(fc.integer({ min: 1000, max: 3600000 }), (retryAfterMs) => {
+          const error = createRateLimitError({
+            retryAfterMs,
+            quotaType: 'write',
+          });
 
-            return error.retryable === true;
-          }
-        ),
+          return error.retryable === true;
+        }),
         { numRuns: 500 }
       );
     });
 
     it('permission errors should not be retriable', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 1 }),
-          (operation) => {
-            const error = createPermissionError({
-              operation,
-            });
+        fc.property(fc.string({ minLength: 1 }), (operation) => {
+          const error = createPermissionError({
+            operation,
+          });
 
-            return error.retryable === false;
-          }
-        ),
+          return error.retryable === false;
+        }),
         { numRuns: 500 }
       );
     });
@@ -302,17 +269,14 @@ describe('Error Handling Property Tests', () => {
 
     it('validation errors should not be retriable', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 1 }),
-          (field) => {
-            const error = createValidationError({
-              field,
-              value: 'invalid',
-            });
+        fc.property(fc.string({ minLength: 1 }), (field) => {
+          const error = createValidationError({
+            field,
+            value: 'invalid',
+          });
 
-            return error.retryable === false;
-          }
-        ),
+          return error.retryable === false;
+        }),
         { numRuns: 500 }
       );
     });
@@ -321,66 +285,54 @@ describe('Error Handling Property Tests', () => {
   describe('Error Categories', () => {
     it('permission errors should have auth category', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 1 }),
-          (operation) => {
-            const error = createPermissionError({
-              operation,
-            });
+        fc.property(fc.string({ minLength: 1 }), (operation) => {
+          const error = createPermissionError({
+            operation,
+          });
 
-            return error.category === 'auth';
-          }
-        ),
+          return error.category === 'auth';
+        }),
         { numRuns: 500 }
       );
     });
 
     it('rate limit errors should have quota category', () => {
       fc.assert(
-        fc.property(
-          fc.integer({ min: 1000 }),
-          (retryAfterMs) => {
-            const error = createRateLimitError({
-              retryAfterMs,
-            });
+        fc.property(fc.integer({ min: 1000 }), (retryAfterMs) => {
+          const error = createRateLimitError({
+            retryAfterMs,
+          });
 
-            return error.category === 'quota';
-          }
-        ),
+          return error.category === 'quota';
+        }),
         { numRuns: 500 }
       );
     });
 
     it('not found errors should have client category', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 5 }),
-          (resourceId) => {
-            const error = createNotFoundError({
-              resourceId,
-              resourceType: 'sheet',
-            });
+        fc.property(fc.string({ minLength: 5 }), (resourceId) => {
+          const error = createNotFoundError({
+            resourceId,
+            resourceType: 'sheet',
+          });
 
-            return error.category === 'client';
-          }
-        ),
+          return error.category === 'client';
+        }),
         { numRuns: 500 }
       );
     });
 
     it('validation errors should have client category', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 1 }),
-          (field) => {
-            const error = createValidationError({
-              field,
-              value: 123,
-            });
+        fc.property(fc.string({ minLength: 1 }), (field) => {
+          const error = createValidationError({
+            field,
+            value: 123,
+          });
 
-            return error.category === 'client';
-          }
-        ),
+          return error.category === 'client';
+        }),
         { numRuns: 500 }
       );
     });
@@ -389,33 +341,27 @@ describe('Error Handling Property Tests', () => {
   describe('Error Severity Levels', () => {
     it('all errors should have valid severity levels', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 1 }),
-          (operation) => {
-            const error = createPermissionError({
-              operation,
-            });
+        fc.property(fc.string({ minLength: 1 }), (operation) => {
+          const error = createPermissionError({
+            operation,
+          });
 
-            const validSeverities = ['low', 'medium', 'high', 'critical'];
-            return validSeverities.includes(error.severity);
-          }
-        ),
+          const validSeverities = ['low', 'medium', 'high', 'critical'];
+          return validSeverities.includes(error.severity);
+        }),
         { numRuns: 500 }
       );
     });
 
     it('permission errors should have high severity', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 1 }),
-          (operation) => {
-            const error = createPermissionError({
-              operation,
-            });
+        fc.property(fc.string({ minLength: 1 }), (operation) => {
+          const error = createPermissionError({
+            operation,
+          });
 
-            return error.severity === 'high';
-          }
-        ),
+          return error.severity === 'high';
+        }),
         { numRuns: 500 }
       );
     });
@@ -434,17 +380,14 @@ describe('Error Handling Property Tests', () => {
 
     it('should handle very large retryAfter values', () => {
       fc.assert(
-        fc.property(
-          fc.integer({ min: 3600000, max: 86400000 }),
-          (largeRetry) => {
-            const error = createRateLimitError({
-              retryAfterMs: largeRetry,
-              quotaType: 'read',
-            });
+        fc.property(fc.integer({ min: 3600000, max: 86400000 }), (largeRetry) => {
+          const error = createRateLimitError({
+            retryAfterMs: largeRetry,
+            quotaType: 'read',
+          });
 
-            return error.retryAfterMs === largeRetry;
-          }
-        ),
+          return error.retryAfterMs === largeRetry;
+        }),
         { numRuns: 100 }
       );
     });
@@ -467,7 +410,7 @@ describe('Error Handling Property Tests', () => {
         });
 
         // Each resource type maps to a specific *_NOT_FOUND code
-        expect((error.code as string)).toContain('NOT_FOUND');
+        expect(error.code as string).toContain('NOT_FOUND');
         expect(error.details.resourceType).toBe(resourceType);
       }
     });
@@ -506,33 +449,27 @@ describe('Error Handling Property Tests', () => {
   describe('Resolution Steps', () => {
     it('all errors should provide resolution steps', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 1 }),
-          (operation) => {
-            const error = createPermissionError({
-              operation,
-            });
+        fc.property(fc.string({ minLength: 1 }), (operation) => {
+          const error = createPermissionError({
+            operation,
+          });
 
-            return Array.isArray(error.resolutionSteps) && error.resolutionSteps.length > 0;
-          }
-        ),
+          return Array.isArray(error.resolutionSteps) && error.resolutionSteps.length > 0;
+        }),
         { numRuns: 500 }
       );
     });
 
     it('all errors should provide a resolution message', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 1 }),
-          (field) => {
-            const error = createValidationError({
-              field,
-              value: 123,
-            });
+        fc.property(fc.string({ minLength: 1 }), (field) => {
+          const error = createValidationError({
+            field,
+            value: 123,
+          });
 
-            return typeof error.resolution === 'string' && error.resolution.length > 0;
-          }
-        ),
+          return typeof error.resolution === 'string' && error.resolution.length > 0;
+        }),
         { numRuns: 500 }
       );
     });

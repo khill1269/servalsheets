@@ -1,7 +1,7 @@
 /**
  * Tool 5: sheets_format
- * Cell formatting operations (includes conditional formatting, data validation, and sparklines)
- * Format (10) + Batch (1) + Sparklines (3) + Rules (8) = 22 actions
+ * Cell formatting operations (includes conditional formatting, data validation, sparklines, and rich text)
+ * Format (10) + Batch (1) + Rich Text (1) + Sparklines (3) + Rules (8) = 23 actions
  */
 
 import { z } from 'zod';
@@ -269,7 +269,7 @@ const AutoFitActionSchema = CommonFieldsSchema.extend({
     .describe(
       'Dimension to auto-fit: ROWS, COLUMNS, or BOTH (default: COLUMNS). Case-insensitive.'
     ),
-}).refine((data) => data.range || data.sheetId, {
+}).refine((data) => data.range || data.sheetId !== undefined, {
   message: 'Either range or sheetId must be provided',
 });
 
@@ -647,6 +647,42 @@ const BatchFormatActionSchema = CommonFieldsSchema.extend({
     ),
 });
 
+// ============================================================================
+// RICH TEXT SCHEMA (1 new action)
+// ============================================================================
+
+/**
+ * A text run within a rich text cell — a substring with its own formatting.
+ */
+const TextRunSchema = z.object({
+  text: z.string().describe('The text content of this run'),
+  format: TextFormatSchema.optional().describe(
+    'Formatting for this text run (bold, italic, color, etc.)'
+  ),
+});
+
+const SetRichTextActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('set_rich_text')
+    .describe(
+      'Set rich text formatting within a single cell — allows different formatting per text segment (e.g., bold first word, italic rest)'
+    ),
+  cell: z
+    .string()
+    .regex(
+      /^(?:(?:'[^']+'|[A-Za-z0-9_ ]+)!)?[A-Z]{1,3}\d+$/,
+      'Invalid cell reference (expected A1 notation like A1 or Sheet1!A1)'
+    )
+    .describe('Target cell in A1 notation (e.g., "A1" or "Sheet1!B2")'),
+  runs: z
+    .array(TextRunSchema)
+    .min(1)
+    .max(100)
+    .describe(
+      'Array of text runs, each with text content and optional formatting. Runs are concatenated in order to form the cell value.'
+    ),
+});
+
 // Preprocess to normalize common LLM input variations for format actions
 const normalizeFormatRequest = (val: unknown): unknown => {
   if (typeof val !== 'object' || val === null) return val;
@@ -783,6 +819,35 @@ const normalizeFormatRequest = (val: unknown): unknown => {
   return val;
 };
 
+const GenerateConditionalFormatActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('generate_conditional_format').describe(
+    `Generate and apply a conditional format rule from a natural language description.
+
+Examples:
+  "highlight cells greater than 100 in red"
+  "color scale green to red"
+  "bold cells containing 'error'"
+  "highlight blanks in yellow"
+  "above average values in green"
+  "top 10% in blue"
+
+Parses the description into the correct rule type and applies it to the range.`
+  ),
+  description: z
+    .string()
+    .min(3)
+    .describe('Natural language description of the rule (e.g., "highlight values > 100 in red")'),
+  range: RangeInputSchema.describe('Range to apply the rule to (A1 notation)'),
+  sheetId: SheetIdSchema.describe('Numeric sheet ID where rule will be applied'),
+  applyImmediately: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe(
+      'If true (default), applies the rule immediately. If false, returns the rule JSON without applying.'
+    ),
+});
+
 /**
  * All format operation inputs (cell formatting and rules)
  *
@@ -813,6 +878,8 @@ export const SheetsFormatInputSchema = z.object({
       SparklineAddActionSchema,
       SparklineGetActionSchema,
       SparklineClearActionSchema,
+      // Rich text (1)
+      SetRichTextActionSchema,
       // Rules actions (8)
       RuleAddConditionalFormatActionSchema,
       RuleUpdateConditionalFormatActionSchema,
@@ -822,6 +889,7 @@ export const SheetsFormatInputSchema = z.object({
       ClearDataValidationActionSchema,
       ListDataValidationsActionSchema,
       AddConditionalFormatRuleActionSchema,
+      GenerateConditionalFormatActionSchema,
     ])
   ),
 });
@@ -861,8 +929,15 @@ const FormatResponseSchema = z.discriminatedUnion('success', [
       )
       .optional()
       .describe('Format suggestions (for suggest_format action)'),
+    // Rich text response fields
+    runsApplied: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Number of text runs applied (set_rich_text)'),
+    textLength: z.coerce.number().int().optional().describe('Total text length (set_rich_text)'),
     // Sparkline response fields
-    cell: z.string().optional().describe('Target cell for sparkline operation'),
+    cell: z.string().optional().describe('Target cell for sparkline or rich text operation'),
     formula: z.string().optional().describe('SPARKLINE formula (for sparkline_get/sparkline_add)'),
     // Rules response fields
     ruleIndex: z.coerce.number().int().optional().describe('Index of added/updated rule'),

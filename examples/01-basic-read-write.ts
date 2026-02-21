@@ -108,7 +108,7 @@ async function readData(
       spreadsheetId,
       range,
       valueRenderOption: 'FORMATTED_VALUE', // Get formatted values
-      majorDimension: 'ROWS',                // Data organized by rows
+      majorDimension: 'ROWS', // Data organized by rows
     });
 
     const values = response.data.values as string[][] | undefined;
@@ -271,8 +271,8 @@ async function main(): Promise<void> {
     console.log('\n--- Example 2: Write Data ---');
     const writeRange = `${WRITE_SHEET}!F1:H4`;
     const newData: (string | number)[][] = [
-      ['Product', 'Price', 'Stock'],      // Header row
-      ['Widget A', 29.99, 100],            // Data rows
+      ['Product', 'Price', 'Stock'], // Header row
+      ['Widget A', 29.99, 100], // Data rows
       ['Widget B', 39.99, 50],
       ['Widget C', 19.99, 200],
     ];
@@ -283,7 +283,10 @@ async function main(): Promise<void> {
     // ========================================================================
     console.log('\n--- Example 3: Verify Write ---');
     const verifyData = await readData(sheets, SPREADSHEET_ID, writeRange);
-    console.log('Data verification:', verifyData.length === newData.length ? '✓ Match' : '✗ Mismatch');
+    console.log(
+      'Data verification:',
+      verifyData.length === newData.length ? '✓ Match' : '✗ Mismatch'
+    );
 
     // ========================================================================
     // Example 4: Append data
@@ -304,7 +307,7 @@ async function main(): Promise<void> {
     // First, write a formula
     const formulaRange = `${WRITE_SHEET}!J1:J2`;
     await writeData(sheets, SPREADSHEET_ID, formulaRange, [
-      ['=SUM(G2:G6)'],  // Sum of prices
+      ['=SUM(G2:G6)'], // Sum of prices
       ['=AVERAGE(H2:H6)'], // Average of stock
     ]);
 
@@ -344,7 +347,6 @@ async function main(): Promise<void> {
     console.log('  4. Always handle errors with try/catch');
     console.log('  5. Verify writes by reading back the data');
     console.log('  6. TypeScript provides type safety for all operations');
-
   } catch (error) {
     console.error('\n=== Example Failed ===');
 

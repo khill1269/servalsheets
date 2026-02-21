@@ -372,6 +372,8 @@ export class SheetsTemplatesHandler extends BaseHandler<
       // Create spreadsheet
       const response = await this.sheetsApi.spreadsheets.create({
         requestBody: createRequest,
+        // Field mask reduces response payload - only return fields we actually use
+        fields: 'spreadsheetId,spreadsheetUrl,sheets(properties(sheetId,title))',
       });
 
       // Validate response data before using

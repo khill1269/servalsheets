@@ -332,7 +332,7 @@ const FindReplaceActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('find_replace')
     .describe('Find text/patterns and optionally replace across cells'),
-  find: z.string().describe('Text or pattern to find'),
+  find: z.string().min(1, 'Find pattern cannot be empty').describe('Text or pattern to find'),
   replacement: z
     .string()
     .optional()
@@ -473,7 +473,11 @@ const CutPasteActionSchema = CommonFieldsSchema.extend({
 const CopyPasteActionSchema = CommonFieldsSchema.extend({
   action: z.literal('copy_paste').describe('Copy cells from source and paste to destination'),
   source: RangeInputSchema.describe('Source range to copy from'),
-  destination: z.string().describe('Destination cell in A1 notation (top-left of paste area)'),
+  destination: z
+    .string()
+    .describe(
+      'Destination: MUST be a single cell (e.g. "Sheet1!A1"), NOT a range. This is the top-left corner where paste begins. The paste area size is determined by the source range.'
+    ),
   pasteType: z
     .enum(['PASTE_NORMAL', 'PASTE_VALUES', 'PASTE_FORMAT', 'PASTE_NO_BORDERS', 'PASTE_FORMULA'])
     .optional()
@@ -481,8 +485,16 @@ const CopyPasteActionSchema = CommonFieldsSchema.extend({
     .describe('What to paste: NORMAL (all), VALUES, FORMAT, NO_BORDERS, FORMULA'),
 });
 
+const DetectSpillRangesActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('detect_spill_ranges')
+    .describe('Detect dynamic array / spill range formulas in a sheet'),
+  range: RangeInputSchema.optional().describe('Range to scan (omit to scan entire active sheet)'),
+  sheetId: z.coerce.number().int().optional().describe('Sheet ID to scan (alternative to range)'),
+});
+
 // ============================================================================
-// DISCRIMINATED UNION (18 actions)
+// DISCRIMINATED UNION (19 actions)
 // v2.0: find + replace merged into find_replace
 // v2.0: validation actions moved to sheets_format (set_validation, clear_validation)
 // ============================================================================
@@ -544,28 +556,31 @@ export const SheetsDataInputSchema = z.object({
     normalizeDataRequest,
     z.discriminatedUnion('action', [
       // Value actions (8) - Core cell value operations
-      ReadActionSchema,         // Read values from range or filter
-      WriteActionSchema,        // Write values to range
-      AppendActionSchema,       // Append rows to sheet
-      ClearActionSchema,        // Clear cell values
-      BatchReadActionSchema,    // Read multiple ranges at once
-      BatchWriteActionSchema,   // Write to multiple ranges at once
-      BatchClearActionSchema,   // Clear multiple ranges at once
-      FindReplaceActionSchema,  // Find and replace values (v2.0: merged)
+      ReadActionSchema, // Read values from range or filter
+      WriteActionSchema, // Write values to range
+      AppendActionSchema, // Append rows to sheet
+      ClearActionSchema, // Clear cell values
+      BatchReadActionSchema, // Read multiple ranges at once
+      BatchWriteActionSchema, // Write to multiple ranges at once
+      BatchClearActionSchema, // Clear multiple ranges at once
+      FindReplaceActionSchema, // Find and replace values (v2.0: merged)
 
       // Cell actions (10) - Cell metadata operations (was 12, validation moved to sheets_format)
-      AddNoteActionSchema,      // Add note/comment to cell
-      GetNoteActionSchema,      // Retrieve cell note
-      ClearNoteActionSchema,    // Remove cell note
+      AddNoteActionSchema, // Add note/comment to cell
+      GetNoteActionSchema, // Retrieve cell note
+      ClearNoteActionSchema, // Remove cell note
       // SetValidationActionSchema - REMOVED: moved to sheets_format
       // ClearValidationActionSchema - REMOVED: moved to sheets_format
-      SetHyperlinkActionSchema,   // Add hyperlink to cell
+      SetHyperlinkActionSchema, // Add hyperlink to cell
       ClearHyperlinkActionSchema, // Remove hyperlink
-      MergeCellsActionSchema,     // Merge cells (v2.0: renamed from merge)
-      UnmergeCellsActionSchema,   // Unmerge cells (v2.0: renamed from unmerge)
-      GetMergesActionSchema,      // Get merged cell ranges
-      CutPasteActionSchema,       // Cut and paste cells (v2.0: renamed from cut)
-      CopyPasteActionSchema,      // Copy and paste cells (v2.0: renamed from copy)
+      MergeCellsActionSchema, // Merge cells (v2.0: renamed from merge)
+      UnmergeCellsActionSchema, // Unmerge cells (v2.0: renamed from unmerge)
+      GetMergesActionSchema, // Get merged cell ranges
+      CutPasteActionSchema, // Cut and paste cells (v2.0: renamed from cut)
+      CopyPasteActionSchema, // Copy and paste cells (v2.0: renamed from copy)
+
+      // Dynamic array action (1)
+      DetectSpillRangesActionSchema, // Detect dynamic array / spill ranges
     ])
   ),
 });
@@ -679,6 +694,20 @@ const DataResponseSchema = z.discriminatedUnion('success', [
       )
       .optional()
       .describe('Array of merged cell ranges (for get_merges action)'),
+
+    // Spill range response (for detect_spill_ranges action)
+    spillRanges: z
+      .array(
+        z.object({
+          sourceCell: z.string().describe('Cell containing the array formula (A1 notation)'),
+          formula: z.string().describe('The array formula in the source cell'),
+          spillRange: z.string().describe('Full spill range in A1 notation'),
+          rows: z.coerce.number().int().describe('Number of rows in the spill'),
+          cols: z.coerce.number().int().describe('Number of columns in the spill'),
+        })
+      )
+      .optional()
+      .describe('Detected dynamic array / spill ranges (for detect_spill_ranges action)'),
 
     // ========================================================================
     // SHARED RESPONSE FIELDS
@@ -853,4 +882,9 @@ export type DataCopyPasteInput = SheetsDataInput['request'] & {
   spreadsheetId: string;
   source: RangeInput;
   destination: string;
+};
+
+export type DataDetectSpillRangesInput = SheetsDataInput['request'] & {
+  action: 'detect_spill_ranges';
+  spreadsheetId: string;
 };

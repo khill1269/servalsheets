@@ -21,6 +21,7 @@ cp test-credentials.example.json test-credentials.json
 ```
 
 Then edit `test-credentials.json` with your actual:
+
 - Service account credentials from Google Cloud
 - Test spreadsheet ID
 - Optional test configuration
@@ -28,6 +29,7 @@ Then edit `test-credentials.json` with your actual:
 ## Setup Instructions
 
 See the [Integration Test Setup Guide](../INTEGRATION_TEST_SETUP.md) for detailed instructions on:
+
 1. Creating a Google Cloud project
 2. Enabling the Sheets API
 3. Creating a service account
@@ -38,6 +40,7 @@ See the [Integration Test Setup Guide](../INTEGRATION_TEST_SETUP.md) for detaile
 ## Quick Start
 
 1. Copy the example file:
+
    ```bash
    cp test-credentials.example.json test-credentials.json
    ```
@@ -63,7 +66,7 @@ See the [Integration Test Setup Guide](../INTEGRATION_TEST_SETUP.md) for detaile
 ```typescript
 interface TestCredentials {
   serviceAccount: {
-    type: "service_account";
+    type: 'service_account';
     project_id: string;
     private_key_id: string;
     private_key: string;
@@ -75,14 +78,14 @@ interface TestCredentials {
     client_x509_cert_url: string;
   };
   testSpreadsheet: {
-    id: string;              // Required: Spreadsheet ID
-    name?: string;           // Optional: Display name
-    url?: string;            // Optional: Full URL
+    id: string; // Required: Spreadsheet ID
+    name?: string; // Optional: Display name
+    url?: string; // Optional: Full URL
   };
   testConfig?: {
-    timeoutMs?: number;           // Optional: Test timeout
-    retryAttempts?: number;       // Optional: Retry attempts
-    cleanupAfterTests?: boolean;  // Optional: Auto-cleanup
+    timeoutMs?: number; // Optional: Test timeout
+    retryAttempts?: number; // Optional: Retry attempts
+    cleanupAfterTests?: boolean; // Optional: Auto-cleanup
   };
 }
 ```

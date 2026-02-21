@@ -80,7 +80,8 @@ export class ETagCache {
       ttl: this.maxAge,
       updateAgeOnGet: true,
       dispose: (_value, key, reason) => {
-        const evictionReason = reason === 'evict' ? 'lru_evict' : reason === 'expire' ? 'ttl_expire' : reason;
+        const evictionReason =
+          reason === 'evict' ? 'lru_evict' : reason === 'expire' ? 'ttl_expire' : reason;
         recordCacheEviction(evictionReason);
         logger.debug('ETag cache entry evicted', { key, reason: evictionReason });
       },

@@ -19,7 +19,7 @@ import {
   zodToJsonSchemaCompat,
   verifyJsonSchema,
 } from '../../src/utils/schema-compat.js';
-import { TOOL_DEFINITIONS } from '../../src/mcp/registration.js';
+import { TOOL_DEFINITIONS } from '../../src/mcp/registration/index.js';
 
 const getZodShape = (schema: any): Record<string, unknown> | undefined => {
   const unwrapped = unwrapZodSchema(schema);

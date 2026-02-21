@@ -7,7 +7,7 @@
 
 # GraphQL API
 
-ServalSheets provides a comprehensive GraphQL API as an alternative to the REST/MCP interfaces. The GraphQL API offers type-safe queries and mutations for all 24 tools with 299 actions.
+ServalSheets provides a comprehensive GraphQL API as an alternative to the REST/MCP interfaces. The GraphQL API offers type-safe queries and mutations for all 24 tools with 305 actions.
 
 ## Overview
 
@@ -31,6 +31,7 @@ npm run start:http
 ```
 
 The GraphQL endpoint will be available at:
+
 ```
 http://localhost:3000/graphql
 ```
@@ -38,11 +39,13 @@ http://localhost:3000/graphql
 ### 2. Access GraphQL Playground
 
 In development mode, open your browser to:
+
 ```
 http://localhost:3000/graphql
 ```
 
 This provides an interactive GraphQL IDE with:
+
 - Schema exploration
 - Query/mutation building
 - Auto-completion
@@ -52,11 +55,9 @@ This provides an interactive GraphQL IDE with:
 
 ```graphql
 query ReadSpreadsheet {
-  data(input: {
-    action: "read_range"
-    spreadsheetId: "YOUR_SPREADSHEET_ID"
-    range: "Sheet1!A1:B10"
-  }) {
+  data(
+    input: { action: "read_range", spreadsheetId: "YOUR_SPREADSHEET_ID", range: "Sheet1!A1:B10" }
+  ) {
     success
     action
     data
@@ -72,12 +73,14 @@ query ReadSpreadsheet {
 
 ```graphql
 mutation WriteData {
-  dataWrite(input: {
-    action: "write_range"
-    spreadsheetId: "YOUR_SPREADSHEET_ID"
-    range: "Sheet1!A1:B2"
-    values: [["A1", "B1"], ["A2", "B2"]]
-  }) {
+  dataWrite(
+    input: {
+      action: "write_range"
+      spreadsheetId: "YOUR_SPREADSHEET_ID"
+      range: "Sheet1!A1:B2"
+      values: [["A1", "B1"], ["A2", "B2"]]
+    }
+  ) {
     success
     action
     data
@@ -91,52 +94,52 @@ mutation WriteData {
 
 GraphQL queries map to read-only operations:
 
-| Query | Tool | Description |
-|-------|------|-------------|
-| `auth` | sheets_auth | Authentication status |
-| `core` | sheets_core | Spreadsheet metadata |
-| `data` | sheets_data | Cell data reads |
-| `format` | sheets_format | Format queries |
-| `dimensions` | sheets_dimensions | Row/column info |
-| `visualize` | sheets_visualize | Charts/pivots |
-| `collaborate` | sheets_collaborate | Sharing info |
-| `advanced` | sheets_advanced | Named ranges, etc. |
-| `transaction` | sheets_transaction | Transaction status |
-| `quality` | sheets_quality | Data quality |
-| `history` | sheets_history | Operation history |
-| `analyze` | sheets_analyze | AI analysis |
-| `session` | sheets_session | Session context |
-| `templates` | sheets_templates | Template catalog |
-| `bigquery` | sheets_bigquery | BigQuery queries |
-| `appsscript` | sheets_appsscript | Apps Script info |
-| `webhook` | sheets_webhook | Webhook config |
-| `dependencies` | sheets_dependencies | Formula deps |
-| `federation` | sheets_federation | Federated servers |
+| Query          | Tool                | Description           |
+| -------------- | ------------------- | --------------------- |
+| `auth`         | sheets_auth         | Authentication status |
+| `core`         | sheets_core         | Spreadsheet metadata  |
+| `data`         | sheets_data         | Cell data reads       |
+| `format`       | sheets_format       | Format queries        |
+| `dimensions`   | sheets_dimensions   | Row/column info       |
+| `visualize`    | sheets_visualize    | Charts/pivots         |
+| `collaborate`  | sheets_collaborate  | Sharing info          |
+| `advanced`     | sheets_advanced     | Named ranges, etc.    |
+| `transaction`  | sheets_transaction  | Transaction status    |
+| `quality`      | sheets_quality      | Data quality          |
+| `history`      | sheets_history      | Operation history     |
+| `analyze`      | sheets_analyze      | AI analysis           |
+| `session`      | sheets_session      | Session context       |
+| `templates`    | sheets_templates    | Template catalog      |
+| `bigquery`     | sheets_bigquery     | BigQuery queries      |
+| `appsscript`   | sheets_appsscript   | Apps Script info      |
+| `webhook`      | sheets_webhook      | Webhook config        |
+| `dependencies` | sheets_dependencies | Formula deps          |
+| `federation`   | sheets_federation   | Federated servers     |
 
 ### Mutations (Write Operations)
 
 GraphQL mutations map to write operations:
 
-| Mutation | Tool | Description |
-|----------|------|-------------|
-| `coreWrite` | sheets_core | Create/update spreadsheets |
-| `dataWrite` | sheets_data | Write cell data |
-| `formatWrite` | sheets_format | Apply formatting |
-| `dimensionsWrite` | sheets_dimensions | Modify rows/columns |
-| `visualizeWrite` | sheets_visualize | Create charts |
-| `collaborateWrite` | sheets_collaborate | Share/comment |
-| `advancedWrite` | sheets_advanced | Named ranges |
-| `transactionExecute` | sheets_transaction | Execute transactions |
-| `qualityWrite` | sheets_quality | Apply validation |
-| `confirm` | sheets_confirm | User confirmations |
-| `fix` | sheets_fix | Auto-fix issues |
-| `composite` | sheets_composite | Multi-step ops |
-| `sessionWrite` | sheets_session | Update session |
-| `templatesWrite` | sheets_templates | Apply templates |
-| `bigqueryWrite` | sheets_bigquery | BigQuery operations |
-| `appsscriptWrite` | sheets_appsscript | Execute scripts |
-| `webhookWrite` | sheets_webhook | Configure webhooks |
-| `federationWrite` | sheets_federation | Federation ops |
+| Mutation             | Tool               | Description                |
+| -------------------- | ------------------ | -------------------------- |
+| `coreWrite`          | sheets_core        | Create/update spreadsheets |
+| `dataWrite`          | sheets_data        | Write cell data            |
+| `formatWrite`        | sheets_format      | Apply formatting           |
+| `dimensionsWrite`    | sheets_dimensions  | Modify rows/columns        |
+| `visualizeWrite`     | sheets_visualize   | Create charts              |
+| `collaborateWrite`   | sheets_collaborate | Share/comment              |
+| `advancedWrite`      | sheets_advanced    | Named ranges               |
+| `transactionExecute` | sheets_transaction | Execute transactions       |
+| `qualityWrite`       | sheets_quality     | Apply validation           |
+| `confirm`            | sheets_confirm     | User confirmations         |
+| `fix`                | sheets_fix         | Auto-fix issues            |
+| `composite`          | sheets_composite   | Multi-step ops             |
+| `sessionWrite`       | sheets_session     | Update session             |
+| `templatesWrite`     | sheets_templates   | Apply templates            |
+| `bigqueryWrite`      | sheets_bigquery    | BigQuery operations        |
+| `appsscriptWrite`    | sheets_appsscript  | Execute scripts            |
+| `webhookWrite`       | sheets_webhook     | Configure webhooks         |
+| `federationWrite`    | sheets_federation  | Federation ops             |
 
 ### Response Format
 
@@ -185,11 +188,7 @@ curl -X POST http://localhost:3000/graphql \
 
 ```graphql
 query ReadRange {
-  data(input: {
-    action: "read_range"
-    spreadsheetId: "1abc..."
-    range: "Sheet1!A1:B10"
-  }) {
+  data(input: { action: "read_range", spreadsheetId: "1abc...", range: "Sheet1!A1:B10" }) {
     success
     data
     error {
@@ -204,16 +203,18 @@ query ReadRange {
 
 ```graphql
 mutation WriteRange {
-  dataWrite(input: {
-    action: "write_range"
-    spreadsheetId: "1abc..."
-    range: "Sheet1!A1:C3"
-    values: [
-      ["Name", "Age", "Email"],
-      ["Alice", 30, "alice@example.com"],
-      ["Bob", 25, "bob@example.com"]
-    ]
-  }) {
+  dataWrite(
+    input: {
+      action: "write_range"
+      spreadsheetId: "1abc..."
+      range: "Sheet1!A1:C3"
+      values: [
+        ["Name", "Age", "Email"]
+        ["Alice", 30, "alice@example.com"]
+        ["Bob", 25, "bob@example.com"]
+      ]
+    }
+  ) {
     success
     action
     data
@@ -225,14 +226,13 @@ mutation WriteRange {
 
 ```graphql
 mutation CreateSpreadsheet {
-  coreWrite(input: {
-    action: "create_spreadsheet"
-    title: "My New Spreadsheet"
-    properties: {
-      locale: "en_US"
-      timeZone: "America/New_York"
+  coreWrite(
+    input: {
+      action: "create_spreadsheet"
+      title: "My New Spreadsheet"
+      properties: { locale: "en_US", timeZone: "America/New_York" }
     }
-  }) {
+  ) {
     success
     data
   }
@@ -243,15 +243,17 @@ mutation CreateSpreadsheet {
 
 ```graphql
 mutation FormatCells {
-  formatWrite(input: {
-    action: "format_range"
-    spreadsheetId: "1abc..."
-    range: "Sheet1!A1:A10"
-    format: {
-      backgroundColor: { red: 1.0, green: 0.9, blue: 0.9 }
-      textFormat: { bold: true, fontSize: 12 }
+  formatWrite(
+    input: {
+      action: "format_range"
+      spreadsheetId: "1abc..."
+      range: "Sheet1!A1:A10"
+      format: {
+        backgroundColor: { red: 1.0, green: 0.9, blue: 0.9 }
+        textFormat: { bold: true, fontSize: 12 }
+      }
     }
-  }) {
+  ) {
     success
     action
   }
@@ -262,21 +264,23 @@ mutation FormatCells {
 
 ```graphql
 mutation CreateChart {
-  visualizeWrite(input: {
-    action: "create_chart"
-    spreadsheetId: "1abc..."
-    sheetId: 0
-    chartSpec: {
-      title: "Sales by Region"
-      chartType: "COLUMN"
-      basicChart: {
+  visualizeWrite(
+    input: {
+      action: "create_chart"
+      spreadsheetId: "1abc..."
+      sheetId: 0
+      chartSpec: {
+        title: "Sales by Region"
         chartType: "COLUMN"
-        domains: [{
-          sourceRange: { sources: [{ sheetId: 0, startRowIndex: 0, endRowIndex: 10 }] }
-        }]
+        basicChart: {
+          chartType: "COLUMN"
+          domains: [
+            { sourceRange: { sources: [{ sheetId: 0, startRowIndex: 0, endRowIndex: 10 }] } }
+          ]
+        }
       }
     }
-  }) {
+  ) {
     success
     data
   }
@@ -287,16 +291,14 @@ mutation CreateChart {
 
 ```graphql
 query AnalyzeData {
-  analyze(input: {
-    action: "comprehensive"
-    spreadsheetId: "1abc..."
-    range: "Sheet1!A1:Z1000"
-    options: {
-      includePatterns: true
-      includeQuality: true
-      includeStatistics: true
+  analyze(
+    input: {
+      action: "comprehensive"
+      spreadsheetId: "1abc..."
+      range: "Sheet1!A1:Z1000"
+      options: { includePatterns: true, includeQuality: true, includeStatistics: true }
     }
-  }) {
+  ) {
     success
     data
   }
@@ -307,14 +309,16 @@ query AnalyzeData {
 
 ```graphql
 mutation ExecuteTransaction {
-  transactionExecute(input: {
-    action: "begin"
-    description: "Update sales data"
-    operations: [
-      { type: "write_range", range: "A1:A10", values: [[1], [2], [3]] },
-      { type: "format_range", range: "A1:A10", format: { bold: true } }
-    ]
-  }) {
+  transactionExecute(
+    input: {
+      action: "begin"
+      description: "Update sales data"
+      operations: [
+        { type: "write_range", range: "A1:A10", values: [[1], [2], [3]] }
+        { type: "format_range", range: "A1:A10", format: { bold: true } }
+      ]
+    }
+  ) {
     success
     data
   }
@@ -494,6 +498,7 @@ query {
 ### Query Optimization
 
 **Use specific fields:**
+
 ```graphql
 # Good - Request only needed fields
 query {
@@ -525,14 +530,16 @@ Use `composite` for multiple operations:
 
 ```graphql
 mutation BatchOperations {
-  composite(input: {
-    action: "batch"
-    spreadsheetId: "1abc..."
-    operations: [
-      { type: "write", range: "A1:A10", values: [[1], [2]] },
-      { type: "format", range: "A1:A10", format: { bold: true } }
-    ]
-  }) {
+  composite(
+    input: {
+      action: "batch"
+      spreadsheetId: "1abc..."
+      operations: [
+        { type: "write", range: "A1:A10", values: [[1], [2]] }
+        { type: "format", range: "A1:A10", format: { bold: true } }
+      ]
+    }
+  ) {
     success
     data
   }
@@ -562,14 +569,14 @@ GraphQL errors follow this structure:
 
 ### Common Error Codes
 
-| Code | Description | Retryable |
-|------|-------------|-----------|
-| `UNAUTHENTICATED` | Missing/invalid auth | No |
-| `HANDLER_NOT_FOUND` | Unknown tool | No |
-| `INVALID_RANGE` | Bad range format | No |
-| `SPREADSHEET_NOT_FOUND` | Spreadsheet ID invalid | No |
-| `RATE_LIMIT_EXCEEDED` | Too many requests | Yes |
-| `INTERNAL_ERROR` | Server error | Yes |
+| Code                    | Description            | Retryable |
+| ----------------------- | ---------------------- | --------- |
+| `UNAUTHENTICATED`       | Missing/invalid auth   | No        |
+| `HANDLER_NOT_FOUND`     | Unknown tool           | No        |
+| `INVALID_RANGE`         | Bad range format       | No        |
+| `SPREADSHEET_NOT_FOUND` | Spreadsheet ID invalid | No        |
+| `RATE_LIMIT_EXCEEDED`   | Too many requests      | Yes       |
+| `INTERNAL_ERROR`        | Server error           | Yes       |
 
 ## Monitoring
 
@@ -580,6 +587,7 @@ curl http://localhost:3000/graphql/info
 ```
 
 Returns:
+
 ```json
 {
   "endpoint": "http://localhost:3000/graphql",
@@ -602,6 +610,7 @@ Returns:
 **Problem:** Playground shows blank page
 
 **Solution:**
+
 ```bash
 # Ensure not in production mode
 export NODE_ENV=development
@@ -613,6 +622,7 @@ npm run start:http
 **Problem:** `UNAUTHENTICATED: Missing authorization header`
 
 **Solution:**
+
 ```graphql
 # Add HTTP header in Playground:
 {
@@ -625,6 +635,7 @@ npm run start:http
 **Problem:** `Cannot query field "data" on type "Query"`
 
 **Solution:**
+
 ```bash
 # Rebuild and restart
 npm run build
@@ -660,22 +671,23 @@ GraphQL schema is generated from Zod schemas:
 
 ## Comparison with REST/MCP
 
-| Feature | GraphQL | REST | MCP |
-|---------|---------|------|-----|
-| **Endpoint** | Single `/graphql` | Multiple `/v1/*` | STDIO/SSE |
-| **Schema** | Introspectable | OpenAPI | JSON-RPC |
-| **Type Safety** | Strong | Moderate | Strong |
-| **Over/Under-fetching** | No | Yes | No |
-| **Batching** | Native | Manual | Protocol |
-| **Real-time** | Subscriptions* | SSE | Streaming |
-| **Learning Curve** | Moderate | Low | High |
-| **Tooling** | Excellent | Good | Limited |
+| Feature                 | GraphQL           | REST             | MCP       |
+| ----------------------- | ----------------- | ---------------- | --------- |
+| **Endpoint**            | Single `/graphql` | Multiple `/v1/*` | STDIO/SSE |
+| **Schema**              | Introspectable    | OpenAPI          | JSON-RPC  |
+| **Type Safety**         | Strong            | Moderate         | Strong    |
+| **Over/Under-fetching** | No                | Yes              | No        |
+| **Batching**            | Native            | Manual           | Protocol  |
+| **Real-time**           | Subscriptions\*   | SSE              | Streaming |
+| **Learning Curve**      | Moderate          | Low              | High      |
+| **Tooling**             | Excellent         | Good             | Limited   |
 
-*Note: Subscriptions not yet implemented
+\*Note: Subscriptions not yet implemented
 
 ## Roadmap
 
 ### Phase 1 (Complete) ✅
+
 - [x] GraphQL schema generation
 - [x] Query/Mutation resolvers
 - [x] Apollo Server integration
@@ -683,6 +695,7 @@ GraphQL schema is generated from Zod schemas:
 - [x] GraphQL Playground
 
 ### Phase 2 (Future)
+
 - [ ] GraphQL Subscriptions for real-time updates
 - [ ] DataLoader for batching/caching
 - [ ] Federation support

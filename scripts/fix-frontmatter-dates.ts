@@ -51,10 +51,7 @@ function updateFrontmatter(file: string): boolean {
   // Add last_updated after version or at end
   let newFrontmatter = frontmatter;
   if (frontmatter.includes('version:')) {
-    newFrontmatter = frontmatter.replace(
-      /(version:.*\n)/,
-      `$1last_updated: ${date}\n`
-    );
+    newFrontmatter = frontmatter.replace(/(version:.*\n)/, `$1last_updated: ${date}\n`);
   } else {
     newFrontmatter = frontmatter.trim() + `\nlast_updated: ${date}\n`;
   }

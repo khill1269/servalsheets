@@ -2,8 +2,8 @@
  * OAuth Scope Configuration Tests
  *
  * Tests deployment-aware scope selection logic to ensure:
- * - Self-hosted defaults to full scopes (all 298 actions)
- * - SaaS defaults to standard scopes (260/298 actions, faster verification)
+ * - Self-hosted defaults to full scopes (all actions)
+ * - SaaS defaults to standard scopes (~85% of actions, faster verification)
  * - Explicit OAUTH_SCOPE_MODE overrides DEPLOYMENT_MODE
  * - All scope modes return correct scope sets
  */

@@ -632,12 +632,7 @@ describe('CompositeOperationsService', () => {
     it('should handle no duplicates', async () => {
       mockSheetsApi.spreadsheets.values.get.mockResolvedValue({
         data: {
-          values: [
-            ['Name'],
-            ['Alice'],
-            ['Bob'],
-            ['Charlie'],
-          ],
+          values: [['Name'], ['Alice'], ['Bob'], ['Charlie']],
         },
       });
 
@@ -704,12 +699,7 @@ describe('CompositeOperationsService', () => {
     it('should handle deduplicate with all duplicates', async () => {
       mockSheetsApi.spreadsheets.values.get.mockResolvedValue({
         data: {
-          values: [
-            ['Name'],
-            ['Alice'],
-            ['Alice'],
-            ['Alice'],
-          ],
+          values: [['Name'], ['Alice'], ['Alice'], ['Alice']],
         },
       });
 

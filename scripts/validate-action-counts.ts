@@ -23,7 +23,10 @@
 import { readFileSync } from 'fs';
 import { TOOL_DEFINITIONS } from '../src/mcp/registration/tool-definitions.js';
 import { TOOL_ACTIONS } from '../src/mcp/completions.js';
-import { TOOL_COUNT as actionCountsToolCount, ACTION_COUNT as actionCountsActionCount } from '../src/schemas/action-counts.js';
+import {
+  TOOL_COUNT as actionCountsToolCount,
+  ACTION_COUNT as actionCountsActionCount,
+} from '../src/schemas/action-counts.js';
 
 interface ValidationResult {
   file: string;
@@ -35,7 +38,10 @@ interface ValidationResult {
 /**
  * Validate src/schemas/index.ts re-exports action-counts.ts correctly
  */
-function validateSchemaIndex(expectedToolCount: number, expectedActionCount: number): ValidationResult {
+function validateSchemaIndex(
+  expectedToolCount: number,
+  expectedActionCount: number
+): ValidationResult {
   const filePath = './src/schemas/index.ts';
   const content = readFileSync(filePath, 'utf-8');
 
@@ -182,7 +188,10 @@ function validateServerJson(expectedTools: number, expectedActions: number): Val
 /**
  * Validate src/mcp/completions.ts TOOL_ACTIONS
  */
-function validateCompletions(expectedToolCount: number, expectedActionCount: number): ValidationResult {
+function validateCompletions(
+  expectedToolCount: number,
+  expectedActionCount: number
+): ValidationResult {
   const filePath = './src/mcp/completions.ts';
   const content = readFileSync(filePath, 'utf-8');
 
@@ -240,7 +249,9 @@ function runValidation(): void {
     0
   );
 
-  console.log(`Source of truth: ${sourceOfTruthToolCount} tools, ${sourceOfTruthActionCount} actions`);
+  console.log(
+    `Source of truth: ${sourceOfTruthToolCount} tools, ${sourceOfTruthActionCount} actions`
+  );
   console.log();
 
   // 1. Validate schema index (source of truth)
@@ -302,10 +313,7 @@ function runValidation(): void {
 
   // 5. Validate completions
   console.log('📝 Validating src/mcp/completions.ts...');
-  const completionsResult = validateCompletions(
-    sourceOfTruthToolCount,
-    sourceOfTruthActionCount
-  );
+  const completionsResult = validateCompletions(sourceOfTruthToolCount, sourceOfTruthActionCount);
   results.push(completionsResult);
 
   if (completionsResult.issues.length > 0) {

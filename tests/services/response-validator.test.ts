@@ -183,14 +183,16 @@ describe('ResponseValidator', () => {
       };
 
       // Should not throw
-      await expect(
-        nonStrictValidator.validateBatchUpdateResponse(response)
-      ).resolves.toBeDefined();
+      await expect(nonStrictValidator.validateBatchUpdateResponse(response)).resolves.toBeDefined();
     });
 
     it('should handle validation exceptions gracefully', async () => {
       // Override internal discovery client to force schema fetch failure
-      (validator as unknown as { discoveryClient: { isEnabled: () => boolean; getApiSchema: () => Promise<unknown> } }).discoveryClient = {
+      (
+        validator as unknown as {
+          discoveryClient: { isEnabled: () => boolean; getApiSchema: () => Promise<unknown> };
+        }
+      ).discoveryClient = {
         isEnabled: () => true,
         getApiSchema: vi.fn().mockRejectedValue(new Error('Discovery offline')),
       };
@@ -218,12 +220,7 @@ describe('ResponseValidator', () => {
         },
       };
 
-      const result = await validator.validateResponse(
-        response,
-        'Spreadsheet',
-        'sheets',
-        'v4'
-      );
+      const result = await validator.validateResponse(response, 'Spreadsheet', 'sheets', 'v4');
 
       expect(result).toBeDefined();
       expect(typeof result.valid).toBe('boolean');
@@ -246,11 +243,7 @@ describe('ResponseValidator', () => {
     it('should support different API types', async () => {
       const response = { id: 'file-123' };
 
-      const sheetsResult = await validator.validateResponse(
-        response,
-        'Spreadsheet',
-        'sheets'
-      );
+      const sheetsResult = await validator.validateResponse(response, 'Spreadsheet', 'sheets');
       const driveResult = await validator.validateResponse(response, 'File', 'drive');
 
       expect(sheetsResult).toBeDefined();
@@ -530,9 +523,10 @@ describe('ResponseValidator', () => {
 
     it('should handle disabled discovery client', async () => {
       // Override internal discovery client to simulate disabled state
-      (validator as unknown as { discoveryClient: { isEnabled: () => boolean } }).discoveryClient = {
-        isEnabled: () => false,
-      };
+      (validator as unknown as { discoveryClient: { isEnabled: () => boolean } }).discoveryClient =
+        {
+          isEnabled: () => false,
+        };
 
       const response: sheets_v4.Schema$BatchUpdateSpreadsheetResponse = {
         spreadsheetId: 'test-id',

@@ -13,19 +13,19 @@ ServalSheets 2.0 consolidates 26 tools into **11 Super Tools** with ~170 actions
 
 ## Tool Quick Reference
 
-| Tool | Actions | Use Case |
-|------|---------|----------|
-| `sheets_auth` | 4 | 🔐 OAuth - ALWAYS check first |
-| `sheets_data` | 26 | 📊 Read/write data - START HERE |
-| `sheets_style` | 18 | 🎨 Formatting & rules |
-| `sheets_structure` | 27 | 🏗️ Sheets, rows, columns |
-| `sheets_visualize` | 21 | 📈 Charts, pivots, filters |
-| `sheets_analyze` | 15 | 🤖 AI analysis - use "comprehensive" |
-| `sheets_automate` | 12 | ⚡ Fixes, bulk ops, import |
-| `sheets_share` | 16 | 👥 Permissions & comments |
-| `sheets_history` | 12 | 📜 Versions & undo |
-| `sheets_safety` | 12 | 🛡️ Transactions & validation |
-| `sheets_context` | 8 | 🧠 Session & confirmation |
+| Tool               | Actions | Use Case                             |
+| ------------------ | ------- | ------------------------------------ |
+| `sheets_auth`      | 4       | 🔐 OAuth - ALWAYS check first        |
+| `sheets_data`      | 26      | 📊 Read/write data - START HERE      |
+| `sheets_style`     | 18      | 🎨 Formatting & rules                |
+| `sheets_structure` | 27      | 🏗️ Sheets, rows, columns             |
+| `sheets_visualize` | 21      | 📈 Charts, pivots, filters           |
+| `sheets_analyze`   | 15      | 🤖 AI analysis - use "comprehensive" |
+| `sheets_automate`  | 12      | ⚡ Fixes, bulk ops, import           |
+| `sheets_share`     | 16      | 👥 Permissions & comments            |
+| `sheets_history`   | 12      | 📜 Versions & undo                   |
+| `sheets_safety`    | 12      | 🛡️ Transactions & validation         |
+| `sheets_context`   | 8       | 🧠 Session & confirmation            |
 
 ## Decision Tree
 
@@ -270,7 +270,7 @@ Or from another range:
 Header Background: #1a73e8 (Blue)
 Header Text: #ffffff (White)
 Success/Won: #34a853 / #e6f4ea
-Warning/Pending: #fbbc04 / #fef7e0  
+Warning/Pending: #fbbc04 / #fef7e0
 Danger/Lost: #ea4335 / #fce8e6
 Neutral: #5f6368
 Alt Row: #f8f9fa
@@ -316,33 +316,33 @@ If a transaction fails:
 
 ## Migration from v1
 
-| v1 Tool | v2 Tool |
-|---------|---------|
-| sheets_core | sheets_data |
-| sheets_data | sheets_data |
-| sheets_data | sheets_data |
-| sheets_format | sheets_style |
-| sheets_format | sheets_style |
-| sheets_core | sheets_structure |
-| sheets_dimensions | sheets_structure |
-| sheets_advanced | sheets_structure |
-| sheets_visualize | sheets_visualize |
-| sheets_visualize | sheets_visualize |
-| sheets_dimensions | sheets_visualize |
-| sheets_analyze | sheets_analyze |
-| sheets_analyze | sheets_analyze |
-| sheets_fix | sheets_automate |
-| sheets_composite | sheets_automate |
-| sheets_collaborate | sheets_share |
-| sheets_collaborate | sheets_share |
-| sheets_collaborate | sheets_history |
-| sheets_history | sheets_history |
-| sheets_transaction | sheets_safety |
-| sheets_quality | sheets_safety |
-| sheets_quality | sheets_safety |
-| sheets_quality | sheets_safety |
-| sheets_confirm | sheets_context |
-| sheets_session | sheets_context |
+| v1 Tool            | v2 Tool          |
+| ------------------ | ---------------- |
+| sheets_core        | sheets_data      |
+| sheets_data        | sheets_data      |
+| sheets_data        | sheets_data      |
+| sheets_format      | sheets_style     |
+| sheets_format      | sheets_style     |
+| sheets_core        | sheets_structure |
+| sheets_dimensions  | sheets_structure |
+| sheets_advanced    | sheets_structure |
+| sheets_visualize   | sheets_visualize |
+| sheets_visualize   | sheets_visualize |
+| sheets_dimensions  | sheets_visualize |
+| sheets_analyze     | sheets_analyze   |
+| sheets_analyze     | sheets_analyze   |
+| sheets_fix         | sheets_automate  |
+| sheets_composite   | sheets_automate  |
+| sheets_collaborate | sheets_share     |
+| sheets_collaborate | sheets_share     |
+| sheets_collaborate | sheets_history   |
+| sheets_history     | sheets_history   |
+| sheets_transaction | sheets_safety    |
+| sheets_quality     | sheets_safety    |
+| sheets_quality     | sheets_safety    |
+| sheets_quality     | sheets_safety    |
+| sheets_confirm     | sheets_context   |
+| sheets_session     | sheets_context   |
 
 ## Benefits of v2
 

@@ -33,7 +33,10 @@ vi.mock('../../src/utils/logger.js', () => ({
   },
 }));
 
-import { withIdempotency, wrapToolMapWithIdempotency } from '../../src/middleware/idempotency-middleware.js';
+import {
+  withIdempotency,
+  wrapToolMapWithIdempotency,
+} from '../../src/middleware/idempotency-middleware.js';
 import { idempotencyManager } from '../../src/services/idempotency-manager.js';
 
 beforeEach(() => {

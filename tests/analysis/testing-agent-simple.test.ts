@@ -45,7 +45,7 @@ describe('TestingAgent (Simple)', () => {
       const reports = await agent.analyze('src/utils/math.ts', sourceFile, context);
 
       expect(reports).toHaveLength(3);
-      expect(reports.map(r => r.dimension)).toEqual([
+      expect(reports.map((r) => r.dimension)).toEqual([
         'coverageGaps',
         'missingEdgeCases',
         'testQuality',
@@ -69,7 +69,7 @@ describe('TestingAgent (Simple)', () => {
       );
 
       const reports = await agent.analyze('tests/utils/math.test.ts', sourceFile, context);
-      const coverageReport = reports.find(r => r.dimension === 'coverageGaps');
+      const coverageReport = reports.find((r) => r.dimension === 'coverageGaps');
 
       expect(coverageReport?.status).toBe('pass');
       expect(coverageReport?.issueCount).toBe(0);
@@ -90,7 +90,7 @@ describe('TestingAgent (Simple)', () => {
       );
 
       const reports = await agent.analyze('tests/services/user.test.ts', sourceFile, context);
-      const qualityReport = reports.find(r => r.dimension === 'testQuality');
+      const qualityReport = reports.find((r) => r.dimension === 'testQuality');
 
       expect(qualityReport).toBeDefined();
       expect(qualityReport?.issueCount).toBeGreaterThan(0); // Empty test detected
@@ -121,7 +121,7 @@ describe('TestingAgent (Simple)', () => {
       );
 
       const reports = await agent.analyze('src/utils/math.ts', sourceFile, context);
-      const coverageReport = reports.find(r => r.dimension === 'coverageGaps');
+      const coverageReport = reports.find((r) => r.dimension === 'coverageGaps');
 
       // Should detect 2 exported functions (calculateTotal, formatPrice)
       // privateHelper should be ignored
@@ -153,7 +153,7 @@ describe('TestingAgent (Simple)', () => {
       );
 
       const reports = await agent.analyze('src/services/user.ts', sourceFile, context);
-      const coverageReport = reports.find(r => r.dimension === 'coverageGaps');
+      const coverageReport = reports.find((r) => r.dimension === 'coverageGaps');
 
       expect(coverageReport).toBeDefined();
       // Should detect 2 public methods (createUser, deleteUser)
@@ -177,7 +177,7 @@ describe('TestingAgent (Simple)', () => {
       );
 
       const reports = await agent.analyze('src/services/user.ts', sourceFile, context);
-      const coverageReport = reports.find(r => r.dimension === 'coverageGaps');
+      const coverageReport = reports.find((r) => r.dimension === 'coverageGaps');
 
       expect(coverageReport).toBeDefined();
 
@@ -215,12 +215,8 @@ describe('TestingAgent (Simple)', () => {
         true
       );
 
-      const reports = await agent.analyze(
-        'tests/services/my-service.test.ts',
-        sourceFile,
-        context
-      );
-      const qualityReport = reports.find(r => r.dimension === 'testQuality');
+      const reports = await agent.analyze('tests/services/my-service.test.ts', sourceFile, context);
+      const qualityReport = reports.find((r) => r.dimension === 'testQuality');
 
       expect(qualityReport).toBeDefined();
       expect(qualityReport?.issueCount).toBe(2); // Two empty tests
@@ -254,12 +250,8 @@ describe('TestingAgent (Simple)', () => {
         true
       );
 
-      const reports = await agent.analyze(
-        'tests/services/user.test.ts',
-        sourceFile,
-        context
-      );
-      const qualityReport = reports.find(r => r.dimension === 'testQuality');
+      const reports = await agent.analyze('tests/services/user.test.ts', sourceFile, context);
+      const qualityReport = reports.find((r) => r.dimension === 'testQuality');
 
       expect(qualityReport).toBeDefined();
 
@@ -275,7 +267,7 @@ describe('TestingAgent (Simple)', () => {
       // If more than half use weak assertions, should warn
       if (qualityReport?.metrics?.weakAssertionCount && qualityReport.metrics.testCount) {
         if (qualityReport.metrics.weakAssertionCount > qualityReport.metrics.testCount / 2) {
-          const hasWeakAssertionWarning = qualityReport?.issues.some(i =>
+          const hasWeakAssertionWarning = qualityReport?.issues.some((i) =>
             i.message.includes('weak assertions')
           );
           expect(hasWeakAssertionWarning).toBe(true);
@@ -305,12 +297,8 @@ describe('TestingAgent (Simple)', () => {
         true
       );
 
-      const reports = await agent.analyze(
-        'tests/services/user.test.ts',
-        sourceFile,
-        context
-      );
-      const qualityReport = reports.find(r => r.dimension === 'testQuality');
+      const reports = await agent.analyze('tests/services/user.test.ts', sourceFile, context);
+      const qualityReport = reports.find((r) => r.dimension === 'testQuality');
 
       expect(qualityReport?.status).toBe('pass');
     });
@@ -331,7 +319,7 @@ describe('TestingAgent (Simple)', () => {
       );
 
       const reports = await agent.analyze('src/utils/test.ts', sourceFile, context);
-      const coverageReport = reports.find(r => r.dimension === 'coverageGaps');
+      const coverageReport = reports.find((r) => r.dimension === 'coverageGaps');
 
       expect(coverageReport?.metrics).toBeDefined();
       expect(coverageReport?.metrics?.untestedFunctionCount).toBeGreaterThanOrEqual(0);
@@ -354,7 +342,7 @@ describe('TestingAgent (Simple)', () => {
       );
 
       const reports = await agent.analyze('tests/test.test.ts', sourceFile, context);
-      const qualityReport = reports.find(r => r.dimension === 'testQuality');
+      const qualityReport = reports.find((r) => r.dimension === 'testQuality');
 
       expect(qualityReport?.metrics).toBeDefined();
       expect(qualityReport?.metrics?.testCount).toBe(3);

@@ -31,6 +31,7 @@ export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account-key.json"
 ### Required IAM Roles
 
 Service account needs these roles:
+
 - `roles/resourcemanager.projectViewer` - View projects
 - `roles/serviceusage.serviceUsageViewer` - View enabled APIs
 - `roles/serviceusage.serviceUsageAdmin` - Enable APIs (if needed)
@@ -81,12 +82,7 @@ Enable in project settings (`.claude/settings.local.json`):
 
 ```json
 {
-  "enabledMcpjsonServers": [
-    "servalsheets",
-    "google-docs",
-    "test-intelligence",
-    "gcloud-console"
-  ]
+  "enabledMcpjsonServers": ["servalsheets", "google-docs", "test-intelligence", "gcloud-console"]
 }
 ```
 
@@ -97,14 +93,16 @@ Enable in project settings (`.claude/settings.local.json`):
 List Google Cloud projects accessible with current credentials.
 
 **Input:**
+
 ```json
 {
-  "parent": "organizations/123456",  // Optional
-  "pageSize": 50  // Optional, default: 50
+  "parent": "organizations/123456", // Optional
+  "pageSize": 50 // Optional, default: 50
 }
 ```
 
 **Output:**
+
 ```json
 {
   "projects": [
@@ -123,6 +121,7 @@ List Google Cloud projects accessible with current credentials.
 Get details for a specific Google Cloud project.
 
 **Input:**
+
 ```json
 {
   "projectId": "my-project"
@@ -130,6 +129,7 @@ Get details for a specific Google Cloud project.
 ```
 
 **Output:**
+
 ```json
 {
   "project": {
@@ -138,7 +138,7 @@ Get details for a specific Google Cloud project.
     "projectNumber": "123456789",
     "state": "ACTIVE",
     "createTime": "2024-01-01T00:00:00Z",
-    "labels": {"env": "production"}
+    "labels": { "env": "production" }
   }
 }
 ```
@@ -148,14 +148,16 @@ Get details for a specific Google Cloud project.
 List enabled APIs and services for a project.
 
 **Input:**
+
 ```json
 {
   "projectId": "my-project",
-  "filter": "sheets"  // Optional: filter by service name
+  "filter": "sheets" // Optional: filter by service name
 }
 ```
 
 **Output:**
+
 ```json
 {
   "enabledAPIs": [
@@ -179,6 +181,7 @@ List enabled APIs and services for a project.
 Enable a Google Cloud API or service for a project.
 
 **Input:**
+
 ```json
 {
   "projectId": "my-project",
@@ -187,6 +190,7 @@ Enable a Google Cloud API or service for a project.
 ```
 
 **Output:**
+
 ```json
 {
   "success": true,
@@ -200,6 +204,7 @@ Enable a Google Cloud API or service for a project.
 Get quota limits and usage for a Google Cloud service.
 
 **Input:**
+
 ```json
 {
   "projectId": "my-project",
@@ -208,6 +213,7 @@ Get quota limits and usage for a Google Cloud service.
 ```
 
 **Output:**
+
 ```json
 {
   "service": "sheets.googleapis.com",
@@ -228,14 +234,16 @@ Get quota limits and usage for a Google Cloud service.
 List IAM policies and roles for a project.
 
 **Input:**
+
 ```json
 {
   "projectId": "my-project",
-  "resourceType": "project"  // Optional, default: "project"
+  "resourceType": "project" // Optional, default: "project"
 }
 ```
 
 **Output:**
+
 ```json
 {
   "projectId": "my-project",
@@ -257,16 +265,18 @@ List IAM policies and roles for a project.
 Get Cloud Logging logs for a project.
 
 **Input:**
+
 ```json
 {
   "projectId": "my-project",
-  "filter": "severity>=ERROR",  // Optional
-  "pageSize": 100,  // Optional, default: 100
-  "orderBy": "timestamp desc"  // Optional, default: "timestamp desc"
+  "filter": "severity>=ERROR", // Optional
+  "pageSize": 100, // Optional, default: 100
+  "orderBy": "timestamp desc" // Optional, default: "timestamp desc"
 }
 ```
 
 **Output:**
+
 ```json
 {
   "logEntries": [
@@ -283,6 +293,7 @@ Get Cloud Logging logs for a project.
 ```
 
 **Common Filters:**
+
 - `severity>=ERROR` - Only errors
 - `resource.type=gce_instance` - Specific resource type
 - `timestamp>="2024-02-17T00:00:00Z"` - Time range
@@ -293,16 +304,18 @@ Get Cloud Logging logs for a project.
 Get Cloud Monitoring metrics for a project.
 
 **Input:**
+
 ```json
 {
   "projectId": "my-project",
   "metricType": "sheets.googleapis.com/quota/read_requests",
-  "startTime": "2024-02-17T09:00:00Z",  // Optional, default: 1 hour ago
-  "endTime": "2024-02-17T10:00:00Z"  // Optional, default: now
+  "startTime": "2024-02-17T09:00:00Z", // Optional, default: 1 hour ago
+  "endTime": "2024-02-17T10:00:00Z" // Optional, default: now
 }
 ```
 
 **Output:**
+
 ```json
 {
   "metricType": "sheets.googleapis.com/quota/read_requests",
@@ -322,6 +335,7 @@ Get Cloud Monitoring metrics for a project.
 ```
 
 **Common Metrics:**
+
 - `sheets.googleapis.com/quota/read_requests` - Sheets read requests
 - `sheets.googleapis.com/quota/write_requests` - Sheets write requests
 - `drive.googleapis.com/quota/read_bytes` - Drive read bytes
@@ -332,18 +346,16 @@ Get Cloud Monitoring metrics for a project.
 Validate if service account has required permissions for ServalSheets.
 
 **Input:**
+
 ```json
 {
   "projectId": "my-project",
-  "permissions": [
-    "sheets.spreadsheets.get",
-    "sheets.spreadsheets.update",
-    "drive.files.get"
-  ]
+  "permissions": ["sheets.spreadsheets.get", "sheets.spreadsheets.update", "drive.files.get"]
 }
 ```
 
 **Output:**
+
 ```json
 {
   "projectId": "my-project",
@@ -464,6 +476,7 @@ gcloud_get_logs {
 **Problem:** `Error: Could not load the default credentials`
 
 **Solution:**
+
 ```bash
 # Set up Application Default Credentials
 gcloud auth application-default login
@@ -477,6 +490,7 @@ export GOOGLE_APPLICATION_CREDENTIALS="/path/to/key.json"
 **Problem:** `Error: Permission denied on resource project`
 
 **Solution:**
+
 ```bash
 # Grant required IAM roles
 gcloud projects add-iam-policy-binding my-project \
@@ -489,6 +503,7 @@ gcloud projects add-iam-policy-binding my-project \
 **Problem:** `Error: API [sheets.googleapis.com] not enabled`
 
 **Solution:**
+
 ```bash
 # Use gcloud_enable_api tool
 {"projectId": "my-project", "serviceName": "sheets.googleapis.com"}
@@ -510,6 +525,7 @@ gcloud services enable sheets.googleapis.com --project=my-project
 
 **Agent Cost:** $3-8 per task (Sonnet model)
 **When to use:**
+
 - Project setup and configuration
 - Permission troubleshooting
 - Quota monitoring

@@ -39,7 +39,6 @@ interface JsonRpcResponse {
 }
 
 describeStdio('MCP Protocol tools/list', () => {
-
   const collectResponse = (
     child: ReturnType<typeof spawn>,
     id: number

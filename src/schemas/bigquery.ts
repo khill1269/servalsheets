@@ -151,6 +151,7 @@ const QueryActionSchema = CommonFieldsSchema.extend({
     .describe('Query timeout in milliseconds (1s - 10min, default: 10s)'),
   maximumBytesBilled: z
     .string()
+    .regex(/^\d+$/, 'maximumBytesBilled must be a numeric string')
     .optional()
     .describe('Maximum bytes billed for cost control (e.g., "1000000000" for 1GB)'),
   dryRun: z
@@ -305,12 +306,10 @@ const ExportToBigQueryActionSchema = CommonFieldsSchema.extend({
   range: RangeInputSchema.describe('Source range to export'),
   destination: BigQueryTableRefSchema.describe('Destination BigQuery table'),
   writeDisposition: z
-    .enum(['WRITE_TRUNCATE', 'WRITE_APPEND', 'WRITE_EMPTY'])
+    .literal('WRITE_APPEND')
     .optional()
-    .default('WRITE_TRUNCATE')
-    .describe(
-      'How to handle existing data: TRUNCATE (overwrite), APPEND (add rows), EMPTY (fail if exists)'
-    ),
+    .default('WRITE_APPEND')
+    .describe('Streaming insert always appends. Only WRITE_APPEND is supported.'),
   headerRows: z.coerce
     .number()
     .int()
@@ -348,6 +347,7 @@ const ImportFromBigQueryActionSchema = CommonFieldsSchema.extend({
     .describe('Query timeout in milliseconds (1s - 10min)'),
   maximumBytesBilled: z
     .string()
+    .regex(/^\d+$/, 'maximumBytesBilled must be a numeric string')
     .optional()
     .describe('Maximum bytes billed for cost control (e.g., "1000000000" for 1GB)'),
   dryRun: z
@@ -380,6 +380,58 @@ const ImportFromBigQueryActionSchema = CommonFieldsSchema.extend({
 });
 
 // ============================================================================
+// Scheduled Queries (3 new actions)
+// ============================================================================
+
+const CreateScheduledQueryActionSchema = z.object({
+  action: z
+    .literal('create_scheduled_query')
+    .describe(
+      'Create a scheduled query that runs automatically on a schedule via BigQuery Data Transfer Service'
+    ),
+  projectId: z.string().min(1).describe('Google Cloud project ID'),
+  query: z.string().min(1).describe('SQL query to schedule'),
+  displayName: z.string().min(1).describe('Human-readable name for the scheduled query'),
+  schedule: z
+    .string()
+    .min(1)
+    .describe('Schedule in cron format (e.g., "every 24 hours", "every monday 09:00")'),
+  destinationDatasetId: z
+    .string()
+    .optional()
+    .describe('Destination dataset for query results (if writing to a table)'),
+  destinationTableId: z
+    .string()
+    .optional()
+    .describe('Destination table name (supports template parameters like {run_time|"%Y%m%d"})'),
+  location: z.string().optional().default('US').describe('BigQuery location (default: US)'),
+});
+
+const ListScheduledQueriesActionSchema = z.object({
+  action: z.literal('list_scheduled_queries').describe('List all scheduled queries in a project'),
+  projectId: z.string().min(1).describe('Google Cloud project ID'),
+  location: z.string().optional().default('US').describe('BigQuery location'),
+  maxResults: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .optional()
+    .default(20)
+    .describe('Maximum number of results to return'),
+});
+
+const DeleteScheduledQueryActionSchema = z.object({
+  action: z
+    .literal('delete_scheduled_query')
+    .describe('Delete a scheduled query by its transfer config name'),
+  transferConfigName: z
+    .string()
+    .min(1)
+    .describe('Full resource name of the transfer config (from list_scheduled_queries)'),
+});
+
+// ============================================================================
 // Input Schema (discriminated union wrapped in request)
 // ============================================================================
 
@@ -402,6 +454,10 @@ const BigQueryRequestSchema = z.discriminatedUnion('action', [
   // Data Transfer (2)
   ExportToBigQueryActionSchema,
   ImportFromBigQueryActionSchema,
+  // Scheduled Queries (3)
+  CreateScheduledQueryActionSchema,
+  ListScheduledQueriesActionSchema,
+  DeleteScheduledQueryActionSchema,
 ]);
 
 export const SheetsBigQueryInputSchema = z.object({
@@ -440,6 +496,7 @@ const BigQueryResponseSchema = z.discriminatedUnion('success', [
         'Result rows (for preview) - each cell can be string, number, boolean, null, array, or object'
       ),
     bytesProcessed: z.coerce.number().optional().describe('Bytes processed by query'),
+    cacheHit: z.boolean().optional().describe('Whether query results came from cache'),
     // Schema discovery results
     datasets: z
       .array(

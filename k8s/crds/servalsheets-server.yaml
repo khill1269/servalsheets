@@ -45,14 +45,14 @@ spec:
                   properties:
                     repository:
                       type: string
-                      default: "servalsheets/server"
+                      default: 'servalsheets/server'
                     tag:
                       type: string
-                      default: "latest"
+                      default: 'latest'
                     pullPolicy:
                       type: string
-                      enum: ["Always", "IfNotPresent", "Never"]
-                      default: "IfNotPresent"
+                      enum: ['Always', 'IfNotPresent', 'Never']
+                      default: 'IfNotPresent'
                   required:
                     - repository
                 resources:
@@ -64,19 +64,19 @@ spec:
                       properties:
                         cpu:
                           type: string
-                          default: "100m"
+                          default: '100m'
                         memory:
                           type: string
-                          default: "128Mi"
+                          default: '128Mi'
                     limits:
                       type: object
                       properties:
                         cpu:
                           type: string
-                          default: "1000m"
+                          default: '1000m'
                         memory:
                           type: string
-                          default: "512Mi"
+                          default: '512Mi'
                 autoscaling:
                   type: object
                   description: Horizontal Pod Autoscaler configuration
@@ -187,7 +187,7 @@ spec:
                       default: false
                     className:
                       type: string
-                      default: "nginx"
+                      default: 'nginx'
                     host:
                       type: string
                     tls:
@@ -210,8 +210,8 @@ spec:
                 phase:
                   type: string
                   description: Current phase
-                  enum: ["Pending", "Running", "Failed", "Scaling"]
-                  default: "Pending"
+                  enum: ['Pending', 'Running', 'Failed', 'Scaling']
+                  default: 'Pending'
                 replicas:
                   type: integer
                   description: Current number of replicas
@@ -228,7 +228,7 @@ spec:
                         type: string
                       status:
                         type: string
-                        enum: ["True", "False", "Unknown"]
+                        enum: ['True', 'False', 'Unknown']
                       lastTransitionTime:
                         type: string
                         format: date-time

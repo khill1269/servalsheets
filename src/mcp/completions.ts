@@ -14,7 +14,7 @@ import type { CompleteResult } from '@modelcontextprotocol/sdk/types.js';
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
- * Total: 299 actions across 22 tools (Tier 7: templates, bigquery, appsscript, federation)
+ * Total: 305 actions across 22 tools (Tier 7: templates, bigquery, appsscript, federation)
  * Note: sheets_analyze has 16 actions (comprehensive + targeted + progressive analyses)
  */
 export const TOOL_ACTIONS: Record<string, string[]> = {
@@ -45,6 +45,11 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'add_drive_chip',
     'add_rich_link_chip',
     'list_chips',
+    'create_named_function',
+    'list_named_functions',
+    'get_named_function',
+    'update_named_function',
+    'delete_named_function',
   ],
   sheets_analyze: [
     'comprehensive',
@@ -79,8 +84,17 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'run',
     'list_processes',
     'get_metrics',
+    'create_trigger',
+    'list_triggers',
+    'delete_trigger',
+    'update_trigger',
   ],
-  sheets_auth: ['status', 'login', 'callback', 'logout'],
+  sheets_auth: [
+    'status',
+    'login',
+    'callback',
+    'logout',
+  ],
   sheets_bigquery: [
     'connect',
     'connect_looker',
@@ -96,6 +110,9 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'get_table_schema',
     'export_to_bigquery',
     'import_from_bigquery',
+    'create_scheduled_query',
+    'list_scheduled_queries',
+    'delete_scheduled_query',
   ],
   sheets_collaborate: [
     'share_add',
@@ -147,7 +164,13 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'clone_structure',
     'export_large_dataset',
   ],
-  sheets_confirm: ['request', 'get_stats', 'wizard_start', 'wizard_step', 'wizard_complete'],
+  sheets_confirm: [
+    'request',
+    'get_stats',
+    'wizard_start',
+    'wizard_step',
+    'wizard_complete',
+  ],
   sheets_core: [
     'get',
     'create',
@@ -188,6 +211,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'get_merges',
     'cut_paste',
     'copy_paste',
+    'detect_spill_ranges',
   ],
   sheets_dependencies: [
     'build',
@@ -228,8 +252,15 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'delete_slicer',
     'list_slicers',
   ],
-  sheets_federation: ['call_remote', 'list_servers', 'get_server_tools', 'validate_connection'],
-  sheets_fix: ['fix'],
+  sheets_federation: [
+    'call_remote',
+    'list_servers',
+    'get_server_tools',
+    'validate_connection',
+  ],
+  sheets_fix: [
+    'fix',
+  ],
   sheets_format: [
     'set_format',
     'suggest_format',
@@ -253,9 +284,24 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'list_data_validations',
     'add_conditional_format_rule',
     'batch_format',
+    'set_rich_text',
+    'generate_conditional_format',
   ],
-  sheets_history: ['list', 'get', 'stats', 'undo', 'redo', 'revert_to', 'clear'],
-  sheets_quality: ['validate', 'detect_conflicts', 'resolve_conflict', 'analyze_impact'],
+  sheets_history: [
+    'list',
+    'get',
+    'stats',
+    'undo',
+    'redo',
+    'revert_to',
+    'clear',
+  ],
+  sheets_quality: [
+    'validate',
+    'detect_conflicts',
+    'resolve_conflict',
+    'analyze_impact',
+  ],
   sheets_session: [
     'set_active',
     'get_active',
@@ -294,7 +340,14 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'preview',
     'import_builtin',
   ],
-  sheets_transaction: ['begin', 'queue', 'commit', 'rollback', 'status', 'list'],
+  sheets_transaction: [
+    'begin',
+    'queue',
+    'commit',
+    'rollback',
+    'status',
+    'list',
+  ],
   sheets_visualize: [
     'chart_create',
     'suggest_chart',
@@ -315,7 +368,15 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'pivot_get',
     'pivot_refresh',
   ],
-  sheets_webhook: ['register', 'unregister', 'list', 'get', 'test', 'get_stats'],
+  sheets_webhook: [
+    'register',
+    'unregister',
+    'list',
+    'get',
+    'test',
+    'get_stats',
+    'watch_changes',
+  ],
 };
 
 /**

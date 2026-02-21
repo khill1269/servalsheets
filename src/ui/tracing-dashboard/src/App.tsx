@@ -98,19 +98,13 @@ export default function App() {
         <div className="app-header-left">
           <h1>ServalSheets Tracing</h1>
           <nav className="view-nav">
-            <button
-              className={view === 'recent' ? 'active' : ''}
-              onClick={() => setView('recent')}
-            >
+            <button className={view === 'recent' ? 'active' : ''} onClick={() => setView('recent')}>
               Recent
             </button>
             <button className={view === 'slow' ? 'active' : ''} onClick={() => setView('slow')}>
               Slowest
             </button>
-            <button
-              className={view === 'errors' ? 'active' : ''}
-              onClick={() => setView('errors')}
-            >
+            <button className={view === 'errors' ? 'active' : ''} onClick={() => setView('errors')}>
               Errors
             </button>
           </nav>

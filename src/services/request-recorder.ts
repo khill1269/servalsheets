@@ -53,13 +53,15 @@ export class RequestRecorder {
   private enabled: boolean;
 
   constructor(dbPath?: string) {
-    this.enabled = process.env['RECORD_REQUESTS'] !== 'false';
+    this.enabled =
+      process.env['RECORD_REQUESTS'] === 'true' ||
+      (process.env['NODE_ENV'] !== 'production' && process.env['RECORD_REQUESTS'] !== 'false');
 
     if (!this.enabled) {
       logger.info('Request recording disabled');
       // Create mock database that does nothing
-      this.db = null as any;
-      this.insertStmt = null as any;
+      this.db = null as unknown as Database.Database;
+      this.insertStmt = null as unknown as Database.Statement;
       return;
     }
 
@@ -156,7 +158,7 @@ export class RequestRecorder {
 
     try {
       const stmt = this.db.prepare('SELECT * FROM recorded_requests WHERE id = ?');
-      return stmt.get(id) as RecordedRequest | undefined || null;
+      return (stmt.get(id) as RecordedRequest | undefined) || null;
     } catch (error) {
       logger.error('Failed to get recorded request', {
         error: error instanceof Error ? error.message : String(error),
@@ -174,7 +176,7 @@ export class RequestRecorder {
 
     try {
       const conditions: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (filter.tool_name) {
         conditions.push('tool_name = ?');
@@ -259,7 +261,7 @@ export class RequestRecorder {
     try {
       // Total count
       const totalStmt = this.db.prepare('SELECT COUNT(*) as count FROM recorded_requests');
-      const total = (totalStmt.get() as any).count;
+      const total = (totalStmt.get() as { count: number }).count;
 
       // By tool
       const byToolStmt = this.db.prepare(`
@@ -286,11 +288,15 @@ export class RequestRecorder {
       });
 
       // Errors
-      const errorsStmt = this.db.prepare('SELECT COUNT(*) as count FROM recorded_requests WHERE error_message IS NOT NULL');
-      const errors = (errorsStmt.get() as any).count;
+      const errorsStmt = this.db.prepare(
+        'SELECT COUNT(*) as count FROM recorded_requests WHERE error_message IS NOT NULL'
+      );
+      const errors = (errorsStmt.get() as { count: number }).count;
 
       // Date range
-      const rangeStmt = this.db.prepare('SELECT MIN(timestamp) as earliest, MAX(timestamp) as latest FROM recorded_requests');
+      const rangeStmt = this.db.prepare(
+        'SELECT MIN(timestamp) as earliest, MAX(timestamp) as latest FROM recorded_requests'
+      );
       const range = rangeStmt.get() as { earliest: number; latest: number } | undefined;
 
       return {

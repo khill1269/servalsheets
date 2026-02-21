@@ -11,7 +11,7 @@
  * ============================================================================
  *
  * DECLARED CAPABILITIES (via createServerCapabilities):
- * - tools: 22 tools with 298 actions (current consolidated set)
+ * - tools: TOOL_COUNT tools with ACTION_COUNT actions (current consolidated set)
  * - resources: 2 URI templates + 28 registered resources
  * - prompts: 38 guided workflows for common operations
  * - completions: Argument autocompletion for prompts/resources
@@ -314,9 +314,6 @@ export const TOOL_EXECUTION_CONFIG: Record<string, ToolExecution> = {
  */
 export function createServerCapabilities(): ServerCapabilities {
   return {
-    // Completions support - argument autocompletion for prompts/resources
-    completions: {},
-
     // Task support (MCP 2025-11-25 standard capability)
     // Tools with taskSupport: 'optional'/'required' can be invoked with task mode
     // Registered via server.experimental.tasks.registerToolTask() SDK API
@@ -333,6 +330,11 @@ export function createServerCapabilities(): ServerCapabilities {
     // Logging support - Dynamic log level control
     // Clients can use logging/setLevel to adjust server verbosity
     logging: {},
+
+    // Completions support — argument autocompletion for tools (MCP 2025-11-25)
+    // Required when server handles completion/complete requests.
+    // ServalSheets completes spreadsheetId and action arguments.
+    completions: {},
 
     // Extensions framework (MCP 2025-11-25)
     // Declares non-standard experimental capabilities the server supports.
@@ -392,39 +394,11 @@ Benefits:
 - Use column names instead of A1 notation: \`range:"Sales column"\`
 - Server tracks your working context
 
-## 🔄 WORKFLOW CHAIN (Optimal Tool Sequence)
+## 🔄 WORKFLOW CHAIN
 
-Follow this order for maximum efficiency and clarity:
+**Optimal sequence:** session.set_active → analyze.scout → plan → quality.validate (if >100 cells) → execute (batch/transaction for 3+ ops) → history.undo if needed
 
-**1. sheets_session.set_active** → Set spreadsheet context (0 API calls)
-   - Enables natural language ranges and context memory
-
-**2. sheets_analyze.scout** → Quick metadata scan (1 API call)
-   - Get structure: sheets, columns, data types, row count
-   - Fastest way to understand the spreadsheet
-
-**3. sheets_analyze.comprehensive** → Full analysis if needed (2 API calls)
-   - Get structure + sample data + quality metrics + suggestions
-   - Use only if you need detailed insights (slower, more context)
-
-**4. Plan your changes** using analysis results
-   - Decide which tool chain to use
-   - Check impact with sheets_dependencies if modifying structure
-
-**5. sheets_quality.validate** → Validate before large writes
-   - Check data types, required fields, patterns
-   - Run before sheets_data write if >100 cells affected
-
-**6. Execute changes** using appropriate tool
-   - For 1-2 operations: Direct sheets_data/sheets_format call
-   - For 3+ operations: Use batch or sheets_transaction
-   - For complex workflows: Use sheets_composite helpers
-
-**7. sheets_history** → Undo if something goes wrong
-   - Undo last operation: action:"undo"
-   - View operation history: action:"list"
-
-## 📊 QUICK DECISION TREE (What to Use?)
+## 📊 TOOL SELECTION DECISION TREE (What to Use?)
 
 **Reading data?**
 ├─ 1-2 ranges → \`sheets_data.read\`
@@ -444,10 +418,46 @@ Follow this order for maximum efficiency and clarity:
 ├─ Quick preset → \`sheets_format.apply_preset\` (header_row, currency, percentages)
 └─ New sheet + formatting → \`sheets_composite.setup_sheet\` (2 API calls total)
 
-**Creating a sheet?**
-├─ Empty sheet → \`sheets_core.add_sheet\`
-├─ With headers + formatting → \`sheets_composite.setup_sheet\` (includes freeze)
-└─ Copy structure → \`sheets_core.duplicate_sheet\`
+**Rows & columns?**
+├─ Insert/delete rows or columns → \`sheets_dimensions\` (insert, delete, with dimension:"ROWS" or "COLUMNS")
+├─ Resize, hide, freeze → \`sheets_dimensions\` (resize, hide, show, freeze)
+├─ Sort or filter data → \`sheets_dimensions\` (sort_range, set_basic_filter, create_filter_view)
+└─ Auto-fit column widths → \`sheets_dimensions.auto_resize\`
+
+**Managing sheets?**
+├─ Create → \`sheets_core.add_sheet\` or \`sheets_composite.setup_sheet\` (with formatting)
+├─ Delete → \`sheets_core.delete_sheet\` (⚠️ check sheets_dependencies analyze_impact first!)
+├─ Copy structure → \`sheets_core.duplicate_sheet\`
+└─ Apply template → \`sheets_templates.apply\`
+
+**Sharing & collaboration?**
+├─ Share spreadsheet → \`sheets_collaborate share_add\` / share_update / share_remove
+├─ Comments → \`sheets_collaborate comment_add\` / comment_list / comment_resolve
+└─ Version history → \`sheets_collaborate version_list_revisions\`
+
+**Enterprise & automation?**
+├─ BigQuery integration → \`sheets_bigquery\` (connect, query, import_from_bigquery)
+├─ Apps Script → \`sheets_appsscript\` (run scripts, deploy, trigger management)
+├─ Webhooks → \`sheets_webhook\` (register, watch_changes, trigger notifications)
+├─ Templates → \`sheets_templates\` (list, apply, create reusable patterns)
+└─ Federation → \`sheets_federation\` (call_remote, list_servers, cross-service workflows)
+
+**Large datasets (>10K rows)?**
+├─ Use \`sheets_data.batch_read\` with pagination (cursor-based)
+├─ Use \`sheets_bigquery\` for SQL queries on connected data
+├─ Use \`sheets_composite.export_large_dataset\` for exports
+└─ Use \`sheets_transaction\` for bulk writes (80-95% fewer API calls)
+
+**Checking dependencies before changes?**
+├─ Impact analysis → \`sheets_dependencies analyze_impact\` (what breaks if I change this?)
+├─ Formula graph → \`sheets_dependencies build\` (see all formula relationships)
+└─ Circular refs → \`sheets_dependencies detect_cycles\`
+
+**Undo or audit changes?**
+├─ View recent operations → \`sheets_history list\`
+├─ Undo last change → \`sheets_history undo\`
+├─ Redo → \`sheets_history redo\`
+└─ Revert to specific point → \`sheets_history revert_to\`
 
 **5+ operations?**
 ├─ All formatting → \`sheets_format.batch_format\`
@@ -465,56 +475,17 @@ Follow this order for maximum efficiency and clarity:
 7. **Use verbosity:"minimal"** to save tokens when you don't need full response
 8. **Use sheets_transaction for 5+ operations** — Saves 80-95% API calls and ensures atomicity. Example: Updating 50 rows = 1 transaction call instead of 50 individual writes. Don't use for 1-4 operations (overhead exceeds benefit)
 
-## 🔁 ERROR RECOVERY & LEARNING
+## 🔁 ERROR RECOVERY
 
-⚠️ **CRITICAL: If you make the SAME mistake twice, STOP and analyze**
+**Same error twice? STOP.** Read \`schema://tools/{toolName}\` or ask user for clarification. Never retry unchanged params.
 
-**After ANY error:**
-1. Read the error message completely (don't skim!)
-2. Check if you've made THIS EXACT ERROR before in this conversation
-3. If YES (same tool + same error code):
-   - **DO NOT retry the same approach** — Einstein said insanity is doing the same thing expecting different results
-   - Read the tool schema: \`schema://tools/{toolName}\` for correct parameter format
-   - Or ask the user for clarification: "I'm getting repeated errors on {tool}. Can you clarify what you need?"
-4. If NO (first time seeing this error):
-   - Analyze the error message carefully
-   - Adjust parameters based on error guidance
-   - Try once more with corrections
+**Key error patterns:**
+- \`invalid_union\` on conditional format → Use \`add_conditional_format_rule\` with preset
+- \`range is required\` → Use string \`"Sheet1!A1"\` not object \`{a1: "..."}\`
+- Timeout on \`append\` → Don't retry (NOT idempotent, duplicates data)
+- Timeout on \`auto_resize\` → Skip (non-critical)
 
-**Error Pattern Recognition - If you see these patterns, STOP immediately:**
-- Same error code 2+ times on same tool → Read schema, don't retry again
-- \`"invalid_union"\` on conditional format → Use \`add_conditional_format_rule\` with preset instead
-- \`"range is required"\` → Check if using object \`{a1: "..."}\` instead of string \`"Sheet1!A1"\`
-- Timeout on \`append\` → Don't retry (NOT idempotent, will duplicate data)
-- Timeout on \`auto_resize\` → Skip and move on (non-critical operation, column widths acceptable without)
-- **Auth timeout/failure → CRITICAL: Follow strict protocol (see below)**
-
-**🔐 AUTH RETRY PROTOCOL (MANDATORY):**
-⚠️ **NEVER exceed 2 login attempts** — Audit showed 11 consecutive attempts caused 67% of all timeouts
-
-1. First \`sheets_auth login\` → If timeout/error, WAIT 30 seconds
-2. Second \`sheets_auth login\` → If still fails, **STOP IMMEDIATELY**
-3. Tell user: "Authentication failed after 2 attempts. Possible causes:
-   - Network connectivity issues (check internet connection)
-   - Firewall blocking OAuth traffic (check firewall/proxy settings)
-   - Google OAuth servers temporarily unavailable (try again in 5 minutes)
-   - DNS resolution failures (try flushing DNS cache)"
-4. **DO NOT attempt a 3rd login** — OAuth token exchange has automatic retry (3 attempts with backoff)
-5. If user insists, suggest: \`sheets_auth status\` to check current auth state first
-
-**Your Error History (track mentally during session):**
-- Keep count of errors per tool as you work
-- After 3 errors on same tool → Switch approach or ask user
-- After 5 total errors in short time → Slow down, review context, maybe read comprehensive docs
-
-**Self-Correction Checkpoint (every 10-15 tool calls):**
-Ask yourself:
-- Have I made any mistakes in the last few calls?
-- Did I repeat any mistakes?
-- Should I read documentation before my next call?
-- Am I rushing? Should I slow down and verify parameters?
-
-**Remember:** Errors are learning opportunities. Use them to improve your approach, not to blindly retry.
+**Auth: Max 2 login attempts.** If both fail, STOP and tell user (network/firewall/OAuth issue). Never attempt 3rd login — OAuth has built-in 3x retry. Use \`sheets_auth status\` to check state first.
 
 **⚠️ DEBUG ARTIFACT WARNING:**
 Never leave debug strings (e.g., "test123", task markers, "temp") in production cells. Always verify final values before completing operations.
@@ -530,180 +501,45 @@ Never leave debug strings (e.g., "test123", task markers, "temp") in production 
 **Pattern: Build a dashboard**
 \`sheets_composite.setup_sheet → sheets_data.write formulas → sheets_format.batch_format → sheets_visualize.chart_create\`
 
-## 🎯 TOOL SELECTION DECISION TREE
+## 🔗 TOOL CHAINING (Multi-Step Workflows)
 
-**What do you need to do?**
+**Analysis → Fix workflow:**
+\`sheets_analyze scout\` → \`sheets_analyze comprehensive\` → \`sheets_fix\` (auto-apply suggestions)
 
-→ **Create/manage spreadsheets or sheets (tabs)?**
-  Use \`sheets_core\` (get, create, add_sheet, delete_sheet)
+**Safe deletion workflow:**
+\`sheets_dependencies analyze_impact\` → \`sheets_confirm request\` → \`sheets_core delete_sheet\`
 
-→ **Read or write CELL VALUES?**
-  Use \`sheets_data\` (read, write, append, batch_read, batch_write)
+**Data import workflow:**
+\`sheets_composite import_csv\` → \`sheets_quality validate\` → \`sheets_format apply_preset\`
 
-→ **Change cell APPEARANCE (colors, fonts, borders)?**
-  Use \`sheets_format\` (set_format, set_background, set_text_format)
+**Automation workflow:**
+\`sheets_appsscript create\` → \`sheets_appsscript deploy\` → \`sheets_webhook register\`
 
-→ **Insert/delete/resize ROWS or COLUMNS?**
-  Use \`sheets_dimensions\` (insert_rows, delete_rows, resize_columns)
+## ❌ ANTI-PATTERNS (What NOT to Do)
 
-→ **Create CHARTS or PIVOT TABLES?**
-  Use \`sheets_visualize\` (chart_create, pivot_create)
+- Don't use transactions for single operations — overhead exceeds benefit for <5 ops
+- Don't read entire sheet when you only need a few cells — use specific ranges
+- Don't retry append on timeout — it's NOT idempotent, you'll duplicate data
+- Don't skip sheets_analyze before complex operations — 70%+ of mistakes are preventable
+- Don't hardcode sheet names — always get from list_sheets (emoji/unicode issues)
 
-→ **Analyze data patterns or get recommendations?**
-  Use \`sheets_analyze\` (comprehensive, analyze_data, suggest_chart)
+## 📐 FORMULA EXPERTISE
 
-→ **Share spreadsheet or manage comments?**
-  Use \`sheets_collaborate\` (share_add, comment_add)
+Quick formula tips for common spreadsheet tasks:
+- Lookup: Use INDEX/MATCH instead of VLOOKUP for flexible column references
+- Conditional sums: SUMIFS for multi-criteria, SUMPRODUCT for arrays
+- Dynamic ranges: Use OFFSET+COUNTA or structured table references
+- Error handling: IFERROR wraps, ISBLANK for empty checks
+- Use \`sheets_analyze generate_formula\` to build complex formulas from natural language
 
-→ **Named ranges, formulas, or protection?**
-  Use \`sheets_advanced\` (add_named_range, protect_range)
+## 🤝 COLLABORATIVE WORKFLOW
 
-→ **Batch multiple operations atomically?**
-  Use \`sheets_transaction\` (begin, queue, commit)
-
-→ **Destructive operation needing user approval?**
-  Use \`sheets_confirm\` (request) BEFORE the destructive tool
-
-→ **Import CSV, deduplicate, or smart append?**
-  Use \`sheets_composite\` (import_csv, deduplicate, smart_append)
-
-→ **Check formula dependencies before changing structure?**
-  Use \`sheets_dependencies\` (analyze_impact, detect_cycles)
-
-→ **Run BigQuery SQL on large datasets (>50K rows)?**
-  Use \`sheets_bigquery\` (export_to_bigquery, query)
-
-→ **Automate with triggers, custom functions, or external APIs?**
-  Use \`sheets_appsscript\` (create, deploy, run)
-
-→ **Create spreadsheets from templates?**
-  Use \`sheets_templates\` (list, apply, create)
-
-→ **Set up change notifications (webhooks)?**
-  Use \`sheets_webhook\` (register, list, delete)
-
-→ **Call remote MCP servers or federate operations?**
-  Use \`sheets_federation\` (call_remote, list_servers, get_server_tools)
-
-## 🔗 TOOL CHAINING (Always-Use Patterns)
-
-**Before destructive structural changes (delete rows/cols, clear ranges):**
-\`\`\`
-sheets_dependencies analyze_impact → sheets_confirm → sheets_dimensions delete_rows
-\`\`\`
-
-**Quality-gated write:**
-\`\`\`
-sheets_analyze scout → sheets_data write → sheets_analyze scout (verify)
-If quality dropped: sheets_fix auto-repair
-\`\`\`
-
-**After any read, suggest next step:**
-- Data read → offer sheets_visualize (chart), sheets_analyze (patterns), or sheets_format
-- Read errors → suggest sheets_fix or sheets_quality
-
-**For multi-step workflows, always:**
-1. \`sheets_session set_active\` (set context once, omit spreadsheetId later)
-2. Perform operations
-3. \`sheets_session record_operation\` (enables undo)
-
-## 🎯 ADVANCED TOOL SELECTION (Expert Level)
-
-### Scenario-Based Decision Making
-
-**Scenario: Large Dataset (>10K rows)**
-├─ Need real-time updates? → sheets_webhook + sheets_analyze streaming
-├─ Need complex aggregations? → sheets_bigquery export + query
-├─ Need frequent full scans? → sheets_transaction for batching
-└─ Need incremental processing? → sheets_data batch_read with chunking
-
-**Scenario: Multi-User Editing**
-├─ Need conflict prevention? → sheets_advanced protected_ranges
-├─ Need change tracking? → sheets_collaborate version_control
-├─ Need approval workflow? → sheets_confirm + sheets_history
-└─ Need real-time sync? → sheets_webhook notifications
-
-**Scenario: Complex Calculations**
-├─ One-time calculation? → sheets_data with array formulas
-├─ Recurring calculations? → sheets_appsscript time-based triggers
-├─ Cross-sheet dependencies? → sheets_dependencies analyze_impact first
-└─ Performance-critical? → sheets_advanced named_ranges for stability
-
-**Scenario: Data Quality Issues**
-├─ Unknown quality state? → sheets_analyze comprehensive (get baseline)
-├─ Known issues? → sheets_fix with preview mode first
-├─ Need validation? → sheets_quality validate before write
-└─ Need monitoring? → sheets_session alerts + periodic scout
-
-**Scenario: Automation Needs**
-├─ Simple batch? → sheets_transaction (80% quota savings)
-├─ External integrations? → sheets_appsscript (Gmail, Drive, Calendar)
-├─ Scheduled operations? → sheets_appsscript time-driven triggers
-└─ Event-driven? → sheets_webhook for real-time responses
-
-### When to Combine Tools (Power Patterns)
-
-**Pattern: Quality-Gated Write**
-1. sheets_analyze scout (detect quality baseline)
-2. sheets_data write (perform operation)
-3. sheets_analyze scout (verify quality maintained)
-4. If degraded >15%: sheets_fix auto-repair
-
-**Pattern: Safe Bulk Update**
-1. sheets_quality analyze_impact (preview changes)
-2. sheets_collaborate version_create_snapshot (safety net)
-3. sheets_transaction begin → queue → commit (atomic execution)
-4. sheets_history record for undo capability
-
-**Pattern: Real-Time Dashboard**
-1. sheets_dimensions create_slicer (interactive filtering)
-2. sheets_visualize chart_create with trendlines
-3. sheets_webhook register (change notifications)
-4. sheets_analyze detect_patterns (ongoing insights)
-
-**Pattern: Data Warehouse Sync**
-1. sheets_bigquery export_to_bigquery (move large data)
-2. sheets_bigquery query (complex aggregations)
-3. sheets_data write (results back to sheet)
-4. sheets_advanced add_named_range (reference results)
-
-### Anti-Patterns (What NOT to Do)
-
-❌ **Don't use transactions for single operations**
-   - Overhead: 2 API calls minimum (begin + commit)
-   - Better: Direct sheets_data call (1 API call)
-
-❌ **Don't read entire sheet for small updates**
-   - Wrong: Read 10K rows to update 5 cells
-   - Right: Use sheets_data write with specific range
-
-❌ **Don't bypass quality checks for speed**
-   - Wrong: Skip sheets_analyze because it's "slow"
-   - Right: Use scout mode (200ms) for quick validation
-
-❌ **Don't use Apps Script for simple batch operations**
-   - Wrong: Apps Script to write 100 rows
-   - Right: sheets_transaction (much faster, no quota)
-
-❌ **Don't protect everything**
-   - Wrong: Protect every cell "just in case"
-   - Right: Strategic protection (headers, formulas only)
-
-## 📐 FORMULA & PERFORMANCE REFERENCE
-
-For detailed formula expertise, performance optimization, and spreadsheet limits,
-consult the knowledge base files in the \`knowledge/\` directory via resources.
-
-**Quick formula tips:**
-- VLOOKUP: Simple left-to-right lookups, column index known
-- INDEX/MATCH: More flexible, any direction, better performance on large data
-- XLOOKUP: Most powerful but newer (not all sheets support it)
-
-- Array formulas: Good for <10K rows, use helper columns for >50K
-- Volatile functions (NOW, RAND): Consolidate to 1 cell, reference elsewhere
-- QUERY is faster than ARRAYFORMULA+VLOOKUP for lookups
-- Use named ranges for formula stability
-- Max cells: 10M per sheet, keep formulas <100K cells for performance
+For multi-step operations that affect shared spreadsheets:
+1. Gather requirements from the user (what data, which sheets, what format)
+2. Plan execution steps (use sheets_analyze scout to understand current state)
+3. Wait for user approval before destructive operations (use sheets_confirm)
+4. Execute with safety checks (dryRun first, then actual execution)
+5. Verify results and report back (use sheets_analyze to confirm changes)
 
 ## ⚠️ COMMON ERRORS AND RECOVERY
 
@@ -731,82 +567,10 @@ Before destructive operations (delete, clear, overwrite):
 - [ ] For >1000 cells: Consider using \`sheets_transaction\` for atomicity
 - [ ] Set \`safety.maxCellsAffected\` to limit blast radius
 
-## 📊 PERFORMANCE TIPS
+## 💰 QUOTA & MONITORING
 
-- **Batch operations:** \`batch_read\` / \`batch_write\` instead of multiple single calls
-- **Transactions:** 100 writes = 1 API call (vs 100 calls without)
-- **Quotas:** 60 requests/min/user, 300 requests/min/project
-- **Large data:** Use \`sheets_composite action:"import_csv"\` for bulk imports
-
-## 🤝 COLLABORATIVE WORKFLOW
-
-**For ambiguous requests, ask clarifying questions first:**
-- What spreadsheet? (ID or create new?)
-- What data/columns?
-- What format/output?
-
-**Execution pattern:**
-
-Let me know and I'll build the perfect report!"
-
-1. Gather requirements (ask clarifying questions)
-2. Plan execution steps (show user before executing)
-3. Wait for user approval
-4. Execute with safety checks (dryRun, snapshots for destructive ops)
-5. Verify results and report back
-
-Use \`sheets_session action:"record_operation"\` to track each step for undo capability.
-
-**Skip this pattern for:** explicit unambiguous commands, single-step reads, or when user says "just do it".
-**Always use for:** destructive ops (>100 cells), multi-step workflows, vague requests.
-
-## 💰 QUOTA AWARENESS
-
-Check \`_meta.quotaStatus\` in responses. When quota is low:
-- Use \`batch_read\`/\`batch_write\` instead of multiple calls (saves 85-90%)
-- Use \`sheets_transaction\` for atomic multi-op (saves 80%)
-- If \`recommendation\` exists in quotaStatus → prioritize that suggestion
-
-## 🔔 MONITORING
-
-Check \`sheets_session action:"get_alerts"\` periodically for quality regressions.
-
-**If critical alerts exist:**
-1. Address them BEFORE continuing with user's request
-2. Show user: "⚠️ Found X critical alerts - addressing first"
-3. Execute suggested actionable fixes
-4. Continue with original request
-
-**Alert triggers** (automatically created by handlers):
-- Data quality drops >15%
-- Formula errors detected
-- Permission issues
-- Quota warnings (<10% remaining)
-
-**Actions:**
-\`\`\`typescript
-// Get unacknowledged alerts
-sheets_session action:"get_alerts" onlyUnacknowledged:true
-
-// Get critical alerts only
-sheets_session action:"get_alerts" severity:"critical"
-
-// Acknowledge an alert after fixing
-sheets_session action:"acknowledge_alert" alertId:"alert_12345"
-
-// Clear all alerts
-sheets_session action:"clear_alerts"
-\`\`\`
-
-**Example proactive flow:**
-\`\`\`
-1. Every 10-15 operations: check alerts
-2. If alert with actionable fix exists:
-   - Show: "⚠️ Data quality dropped to 68% in Budget sheet"
-   - Execute: alert.actionable (tool, action, params)
-   - Acknowledge: acknowledge_alert
-3. Continue with user's original request
-\`\`\`
+Quotas: 60 req/min/user, 300 req/min/project. Check \`_meta.quotaStatus\` in responses — if low, use batch/transaction ops.
+Check \`sheets_session action:"get_alerts"\` every 10-15 operations for quality drops, formula errors, or quota warnings.
 
 ## 🎨 COLOR FORMAT
 
@@ -814,13 +578,6 @@ All colors use **0-1 scale** (NOT 0-255):
 \`\`\`json
 { "red": 0.2, "green": 0.6, "blue": 0.8 }
 \`\`\`
-
-## ⚡ PERFORMANCE OPTIMIZATION
-
-- **Multi-range reads:** Use \`sheets_data action:"batch_read"\` instead of multiple \`read_range\` calls (saves 90% quota)
-- **New spreadsheet setup:** Use \`sheets_composite action:"setup_sheet"\` to create + format + populate in 1 call (vs 5+ calls)
-- **Bulk data import:** Use \`sheets_composite action:"import_csv"\` for large CSV/TSV ingestion (streaming, chunked)
-- **Overlapping reads:** The server auto-merges overlapping range reads within 50ms — no client optimization needed
 
 ## 📚 RESOURCE DISCOVERY
 

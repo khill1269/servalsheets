@@ -241,6 +241,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         return this.handleCutPaste(request);
       case 'copy_paste':
         return this.handleCopyPaste(request);
+      case 'detect_spill_ranges':
+        return this.handleDetectSpillRanges(request);
 
       default: {
         // ACTION ALIASES - Common variations that map to existing actions
@@ -818,7 +820,9 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     };
 
     // Check for cached data (TTL-based caching)
-    const cachedData = etagCache.getCachedData(cacheKey) as sheets_v4.Schema$ValueRange | null;
+    const cachedData = (await etagCache.getCachedData(
+      cacheKey
+    )) as sheets_v4.Schema$ValueRange | null;
     if (cachedData && etagCache.getETag(cacheKey)) {
       this.context.logger?.info('Cache hit for values read', {
         spreadsheetId: input.spreadsheetId,
@@ -872,7 +876,9 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           range: readRange,
           valueRenderOption: input.valueRenderOption,
           majorDimension: input.majorDimension,
-          fields: 'range,majorDimension,values',
+          dateTimeRenderOption:
+            input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'FORMATTED_STRING' : undefined,
+          fields: 'range,values,majorDimension',
         })
       );
       responseData = response.data;
@@ -1510,9 +1516,14 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
               },
             })
           ),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Clear operation timed out after 30 seconds')), 30000)
-          ),
+          new Promise<never>((_, reject) => {
+            const timeoutMs = parseInt(process.env['GOOGLE_API_TIMEOUT_MS'] ?? '60000', 10);
+            setTimeout(
+              () =>
+                reject(new Error(`Clear operation timed out after ${timeoutMs / 1000} seconds`)),
+              timeoutMs
+            );
+          }),
         ]);
 
         const duration = Date.now() - startTime;
@@ -1738,6 +1749,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
             range: resolvedRange,
             valueRenderOption: input.valueRenderOption,
             majorDimension: input.majorDimension,
+            dateTimeRenderOption:
+              input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'FORMATTED_STRING' : undefined,
             fields: 'range,majorDimension,values',
           })
         );
@@ -1862,6 +1875,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           ranges: chunk,
           valueRenderOption: input.valueRenderOption,
           majorDimension: input.majorDimension,
+          dateTimeRenderOption:
+            input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'FORMATTED_STRING' : undefined,
           fields: 'valueRanges(range,values)',
         });
 
@@ -1932,6 +1947,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
               range: merged.mergedRange,
               valueRenderOption: input.valueRenderOption,
               majorDimension: (input as DataRequest & { majorDimension?: string }).majorDimension,
+              dateTimeRenderOption:
+                input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'FORMATTED_STRING' : undefined,
               fields: 'range,values',
             })
           );
@@ -1989,6 +2006,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         ranges: mergedRangeStrings,
         valueRenderOption: input.valueRenderOption,
         majorDimension: input.majorDimension,
+        dateTimeRenderOption:
+          input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'FORMATTED_STRING' : undefined,
         fields: 'valueRanges(range,values)',
       });
       const mergedResults = response.data.valueRanges ?? [];
@@ -2260,13 +2279,16 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
 
     // Direct API call - no progress reporting with dynamic imports
     // Protected with circuit breaker to prevent cascade failures during API degradation
+    const includeValues = input.includeValuesInResponse ?? false;
     const response = await this.withCircuitBreaker('values.batchUpdate', () =>
       this.sheetsApi.spreadsheets.values.batchUpdate({
         spreadsheetId: input.spreadsheetId,
-        fields: 'totalUpdatedCells,totalUpdatedRows,totalUpdatedColumns',
+        fields: includeValues
+          ? 'totalUpdatedCells,totalUpdatedRows,totalUpdatedColumns,responses(updatedData)'
+          : 'totalUpdatedCells,totalUpdatedRows,totalUpdatedColumns',
         requestBody: {
           valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
-          includeValuesInResponse: input.includeValuesInResponse ?? false,
+          includeValuesInResponse: includeValues,
           data,
         },
       })
@@ -2280,6 +2302,13 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       updatedRows: response.data.totalUpdatedRows ?? 0,
       updatedColumns: response.data.totalUpdatedColumns ?? 0,
     };
+
+    // Surface echoed-back values when includeValuesInResponse was requested
+    if (includeValues && response.data.responses) {
+      responseData['updatedData'] = response.data.responses
+        .map((r) => r.updatedData?.values)
+        .filter(Boolean);
+    }
 
     const warnings = this.buildPayloadWarnings('batch_write', payloadValidation);
     const meta = warnings
@@ -2630,6 +2659,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         spreadsheetId: input.spreadsheetId,
         range: input.cell,
         valueRenderOption: 'FORMATTED_VALUE',
+        fields: 'values',
       })
     );
     const currentValue = response.data.values?.[0]?.[0] ?? '';
@@ -2851,5 +2881,99 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     );
 
     return this.success('copy_paste', {});
+  }
+
+  private async handleDetectSpillRanges(
+    input: Extract<SheetsDataInput['request'], { action: 'detect_spill_ranges' }>
+  ): Promise<DataResponse> {
+    // Resolve which sheet to scan
+    let rangeStr: string;
+    if (input.range) {
+      rangeStr = await this.resolveRangeToA1(input.spreadsheetId!, input.range);
+    } else if (input.sheetId !== undefined) {
+      const spreadsheet = await this.sheetsApi.spreadsheets.get({
+        spreadsheetId: input.spreadsheetId!,
+        fields: 'sheets.properties',
+      });
+      const sheet = spreadsheet.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);
+      rangeStr = sheet?.properties?.title ?? 'Sheet1';
+    } else {
+      // Default: scan first sheet
+      const spreadsheet = await this.sheetsApi.spreadsheets.get({
+        spreadsheetId: input.spreadsheetId!,
+        fields: 'sheets.properties',
+      });
+      rangeStr = spreadsheet.data.sheets?.[0]?.properties?.title ?? 'Sheet1';
+    }
+
+    // Read cell formulas
+    const result = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId!,
+      ranges: [rangeStr],
+      fields: 'sheets.data.rowData.values.userEnteredValue',
+      includeGridData: true,
+    });
+
+    const sheetName = rangeStr.split('!')[0];
+    const sheetData = result.data.sheets?.[0]?.data?.[0];
+    const rows = sheetData?.rowData ?? [];
+
+    // Dynamic array functions that produce spill ranges in Google Sheets
+    const dynamicArrayRe =
+      /^=\s*(FILTER|SORT|UNIQUE|SEQUENCE|RANDARRAY|XLOOKUP|XMATCH|MMULT|TRANSPOSE|FLATTEN|CHOOSEROWS|CHOOSECOLS|HSTACK|VSTACK|TOROW|TOCOL|BYROW|BYCOL|MAP|REDUCE|SCAN|MAKEARRAY)\s*\(/i;
+
+    const spillRanges: Array<{
+      sourceCell: string;
+      formula: string;
+      spillRange: string;
+      rows: number;
+      cols: number;
+    }> = [];
+
+    for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+      const cells = rows[rowIdx]?.values ?? [];
+      for (let colIdx = 0; colIdx < cells.length; colIdx++) {
+        const formula = cells[colIdx]?.userEnteredValue?.formulaValue ?? '';
+        if (!formula || !dynamicArrayRe.test(formula)) continue;
+
+        // Estimate spill extent: count consecutive non-formula cells right and down
+        let spillCols = 1;
+        for (let c = colIdx + 1; c < cells.length; c++) {
+          const adj = cells[c]?.userEnteredValue;
+          if (!adj || (adj as { formulaValue?: string }).formulaValue) break;
+          spillCols++;
+        }
+
+        let spillRows = 1;
+        for (let r = rowIdx + 1; r < Math.min(rowIdx + 1000, rows.length); r++) {
+          const adjCell = rows[r]?.values?.[colIdx]?.userEnteredValue;
+          if (!adjCell || (adjCell as { formulaValue?: string }).formulaValue) break;
+          spillRows++;
+        }
+
+        const startRef = this.buildCellRef(rowIdx, colIdx);
+        const endRef = this.buildCellRef(rowIdx + spillRows - 1, colIdx + spillCols - 1);
+        spillRanges.push({
+          sourceCell: `${sheetName}!${startRef}`,
+          formula,
+          spillRange: `${sheetName}!${startRef}:${endRef}`,
+          rows: spillRows,
+          cols: spillCols,
+        });
+      }
+    }
+
+    return this.success('detect_spill_ranges', { spillRanges });
+  }
+
+  /** Convert 0-based row/col to A1 cell reference (e.g. 0,0 → "A1") */
+  private buildCellRef(rowIndex: number, colIndex: number): string {
+    let col = '';
+    let c = colIndex;
+    do {
+      col = String.fromCharCode(65 + (c % 26)) + col;
+      c = Math.floor(c / 26) - 1;
+    } while (c >= 0);
+    return `${col}${rowIndex + 1}`;
   }
 }

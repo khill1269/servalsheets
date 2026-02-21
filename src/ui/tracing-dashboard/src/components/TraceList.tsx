@@ -45,9 +45,7 @@ export default function TraceList({ traces, selectedId, onSelect }: TraceListPro
           {trace.errorCode && (
             <div className="trace-error">
               <span className="error-code">{trace.errorCode}</span>
-              {trace.errorMessage && (
-                <span className="error-message">{trace.errorMessage}</span>
-              )}
+              {trace.errorMessage && <span className="error-message">{trace.errorMessage}</span>}
             </div>
           )}
         </div>

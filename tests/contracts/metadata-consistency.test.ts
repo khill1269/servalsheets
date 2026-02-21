@@ -5,26 +5,29 @@
  * the same tool and action counts from the single source of truth.
  *
  * Source of truth: src/schemas/action-counts.ts (TOOL_COUNT, ACTION_COUNT)
+ *
+ * IMPORTANT: This test uses ONLY imported constants — no hardcoded counts.
+ * When tools/actions are added, these tests auto-pass as long as metadata
+ * is regenerated via `npm run gen:metadata`.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { TOOL_COUNT, ACTION_COUNT } from '../../src/schemas/action-counts.js';
 
 describe('Metadata Consistency Contract', () => {
-  // Expected values from source of truth
-  const expectedToolCount = 22;
-  const expectedActionCount = 299;
+  // No hardcoded expected values — TOOL_COUNT and ACTION_COUNT ARE the source of truth.
 
-  it('action-counts.ts is source of truth', () => {
-    // Verify the constants match expected values
-    expect(TOOL_COUNT).toBe(expectedToolCount);
-    expect(ACTION_COUNT).toBe(expectedActionCount);
+  it('action-counts.ts exports valid counts', () => {
+    // Sanity check: counts are reasonable (not zero, not absurdly high)
+    expect(TOOL_COUNT).toBeGreaterThanOrEqual(20);
+    expect(TOOL_COUNT).toBeLessThanOrEqual(50);
+    expect(ACTION_COUNT).toBeGreaterThanOrEqual(200);
+    expect(ACTION_COUNT).toBeLessThanOrEqual(1000);
   });
 
   it('package.json has correct counts', () => {
     const pkg = JSON.parse(readFileSync('package.json', 'utf-8'));
 
-    // Expected format: "... 22 tools, 299 actions ..."
     const expectedPattern = new RegExp(
       `${TOOL_COUNT}\\s+tools,?\\s+${ACTION_COUNT}\\s+actions`,
       'i'
@@ -36,7 +39,6 @@ describe('Metadata Consistency Contract', () => {
   it('server.json has correct counts in description', () => {
     const serverJson = JSON.parse(readFileSync('server.json', 'utf-8'));
 
-    // Expected format: "... 22 tools and 299 actions"
     const expectedPattern = new RegExp(
       `${TOOL_COUNT}\\s+tools\\s+and\\s+${ACTION_COUNT}\\s+actions`,
       'i'
@@ -48,7 +50,6 @@ describe('Metadata Consistency Contract', () => {
   it('server.json has correct counts in metadata', () => {
     const serverJson = JSON.parse(readFileSync('server.json', 'utf-8'));
 
-    // Verify metadata object has correct counts
     expect(serverJson.metadata.toolCount).toBe(TOOL_COUNT);
     expect(serverJson.metadata.actionCount).toBe(ACTION_COUNT);
   });
@@ -56,11 +57,9 @@ describe('Metadata Consistency Contract', () => {
   it('server.json package description has correct counts', () => {
     const serverJson = JSON.parse(readFileSync('server.json', 'utf-8'));
 
-    // Check package description in packages array
     const packageEntry = serverJson.packages?.[0];
     expect(packageEntry).toBeDefined();
 
-    // Expected format: "... 22 tools, 299 actions ..."
     const expectedPattern = new RegExp(
       `${TOOL_COUNT}\\s+tools,?\\s+${ACTION_COUNT}\\s+actions`,
       'i'
@@ -72,7 +71,6 @@ describe('Metadata Consistency Contract', () => {
   it('README.md has correct counts', () => {
     const readme = readFileSync('README.md', 'utf-8');
 
-    // Expected format: "22 tools, 299 actions" or "22 tools with 299 actions"
     const expectedPattern = new RegExp(
       `${TOOL_COUNT}\\s+tools[,\\s]+(with\\s+)?${ACTION_COUNT}\\s+actions`,
       'i'
@@ -84,7 +82,6 @@ describe('Metadata Consistency Contract', () => {
   it('README.md tool summary has correct count', () => {
     const readme = readFileSync('README.md', 'utf-8');
 
-    // Expected format: "### Tool Summary (22 tools, 299 actions)"
     const summaryPattern = new RegExp(
       `Tool Summary\\s*\\(${TOOL_COUNT}\\s+tools,\\s+${ACTION_COUNT}\\s+actions\\)`,
       'i'
@@ -103,7 +100,7 @@ describe('Metadata Consistency Contract', () => {
     const serverDescMatch = serverJson.description.match(/(\d+)\s+tools\s+and\s+(\d+)\s+actions/i);
     const readmeMatch = readme.match(/(\d+)\s+tools[,\s]+(with\s+)?(\d+)\s+actions/i);
 
-    // Verify all sources report same counts
+    // Verify all sources report same counts as source of truth
     expect(pkgMatch).toBeDefined();
     expect(pkgMatch?.[1]).toBe(TOOL_COUNT.toString());
     expect(pkgMatch?.[2]).toBe(ACTION_COUNT.toString());

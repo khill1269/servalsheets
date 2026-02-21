@@ -84,22 +84,15 @@ export class TypeSafetyAgent extends AnalysisAgent {
 
     for (const location of locations) {
       issues.push(
-        this.createIssue(
-          'anyTypes',
-          filePath,
-          `Explicit "any" type found: ${location.context}`,
-          {
-            severity: 'high',
-            line: location.line,
-            column: location.column,
-            suggestion: location.suggestion,
-            estimatedEffort: '15-30min',
-            autoFixable: false,
-            references: [
-              'https://www.typescriptlang.org/docs/handbook/2/narrowing.html',
-            ],
-          }
-        )
+        this.createIssue('anyTypes', filePath, `Explicit "any" type found: ${location.context}`, {
+          severity: 'high',
+          line: location.line,
+          column: location.column,
+          suggestion: location.suggestion,
+          estimatedEffort: '15-30min',
+          autoFixable: false,
+          references: ['https://www.typescriptlang.org/docs/handbook/2/narrowing.html'],
+        })
       );
     }
 
@@ -152,9 +145,8 @@ export class TypeSafetyAgent extends AnalysisAgent {
       issues,
       metrics: {
         typeAssertionCount: locations.length,
-        asAssertions: locations.filter(l => l.assertionType === 'as').length,
-        angleBracketAssertions: locations.filter(l => l.assertionType === 'angle-bracket')
-          .length,
+        asAssertions: locations.filter((l) => l.assertionType === 'as').length,
+        angleBracketAssertions: locations.filter((l) => l.assertionType === 'angle-bracket').length,
       },
       duration: Date.now() - startTime,
     };
@@ -242,8 +234,8 @@ export class TypeSafetyAgent extends AnalysisAgent {
       issues,
       metrics: {
         tsIgnoreCount: locations.length,
-        withReason: locations.filter(l => l.reason).length,
-        withoutReason: locations.filter(l => !l.reason).length,
+        withReason: locations.filter((l) => l.reason).length,
+        withoutReason: locations.filter((l) => !l.reason).length,
       },
       duration: Date.now() - startTime,
     };

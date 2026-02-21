@@ -97,6 +97,7 @@ Add to your Claude Desktop config:
 Predict which tests will fail based on changed files.
 
 **Input:**
+
 ```json
 {
   "changedFiles": ["src/handlers/data.ts", "src/schemas/data.ts"]
@@ -104,6 +105,7 @@ Predict which tests will fail based on changed files.
 ```
 
 **Output:**
+
 ```json
 {
   "changedFiles": ["src/handlers/data.ts", "src/schemas/data.ts"],
@@ -126,21 +128,23 @@ Predict which tests will fail based on changed files.
 Select minimum test set for confidence level.
 
 **Input:**
+
 ```json
 {
   "changedFiles": ["src/handlers/data.ts"],
-  "confidence": 0.95  // 95% confidence
+  "confidence": 0.95 // 95% confidence
 }
 ```
 
 **Output:**
+
 ```json
 {
   "changedFiles": ["src/handlers/data.ts"],
   "confidence": 0.95,
   "selectedTests": [
-    "tests/contracts/**/*.test.ts",  // Always included
-    "tests/handlers/data.test.ts",   // Predicted to fail
+    "tests/contracts/**/*.test.ts", // Always included
+    "tests/handlers/data.test.ts", // Predicted to fail
     "tests/integration/data.test.ts" // High coupling
   ],
   "totalTests": 847,
@@ -160,6 +164,7 @@ Select minimum test set for confidence level.
 Find tests with inconsistent results.
 
 **Input:**
+
 ```json
 {
   "sinceDays": 30
@@ -167,6 +172,7 @@ Find tests with inconsistent results.
 ```
 
 **Output:**
+
 ```json
 {
   "sinceDays": 30,
@@ -191,6 +197,7 @@ Find tests with inconsistent results.
 Analyze test coverage for changed files.
 
 **Input:**
+
 ```json
 {
   "changedFiles": ["src/handlers/data.ts"]
@@ -198,6 +205,7 @@ Analyze test coverage for changed files.
 ```
 
 **Output:**
+
 ```json
 {
   "changedFiles": ["src/handlers/data.ts"],
@@ -216,6 +224,7 @@ Analyze test coverage for changed files.
 Get historical test results.
 
 **Input:**
+
 ```json
 {
   "testFile": "tests/handlers/data.test.ts",
@@ -224,6 +233,7 @@ Get historical test results.
 ```
 
 **Output:**
+
 ```json
 {
   "history": [
@@ -261,14 +271,16 @@ const changedFiles = execSync('git diff --name-only HEAD~1')
   .toString()
   .trim()
   .split('\n')
-  .filter(f => f.endsWith('.ts'));
+  .filter((f) => f.endsWith('.ts'));
 
 // Call test-intelligence-server (via MCP)
 // In practice, would use MCP SDK client
 const selected = await selectTests(changedFiles, 0.95);
 
 // Run only selected tests
-console.log(`Running ${selected.selectedCount}/${selected.totalTests} tests (${selected.reduction} reduction)`);
+console.log(
+  `Running ${selected.selectedCount}/${selected.totalTests} tests (${selected.reduction} reduction)`
+);
 execSync(`npm test -- ${selected.selectedTests.join(' ')}`);
 ```
 

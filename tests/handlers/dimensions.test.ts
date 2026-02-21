@@ -940,7 +940,10 @@ describe('DimensionsHandler', () => {
       }> = [
         { action: 'insert', params: { dimension: 'ROWS', startIndex: 0, count: 1 } },
         { action: 'delete', params: { dimension: 'ROWS', startIndex: 0, endIndex: 1 } },
-        { action: 'resize', params: { dimension: 'ROWS', startIndex: 0, endIndex: 5, pixelSize: 30 } },
+        {
+          action: 'resize',
+          params: { dimension: 'ROWS', startIndex: 0, endIndex: 5, pixelSize: 30 },
+        },
         { action: 'hide', params: { dimension: 'ROWS', startIndex: 0, endIndex: 5 } },
         { action: 'freeze', params: { dimension: 'ROWS', frozenCount: 1 } },
         { action: 'group', params: { dimension: 'ROWS', startIndex: 0, endIndex: 5 } },
@@ -1231,6 +1234,774 @@ describe('DimensionsHandler', () => {
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  // ============================================================
+  // Basic Filter Operations
+  // ============================================================
+
+  describe('Basic Filter Operations', () => {
+    describe('set_basic_filter', () => {
+      it('should set a basic filter using a range', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'set_basic_filter',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+          range: 'Sheet1!A1:D10',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'set_basic_filter');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            spreadsheetId: 'test-sheet-id',
+            requestBody: expect.objectContaining({
+              requests: [expect.objectContaining({ setBasicFilter: expect.any(Object) })],
+            }),
+          })
+        );
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should set a basic filter using sheetId only (no range)', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'set_basic_filter',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            requestBody: expect.objectContaining({
+              requests: [
+                {
+                  setBasicFilter: {
+                    filter: {
+                      range: expect.objectContaining({ sheetId: 0 }),
+                      criteria: undefined,
+                    },
+                  },
+                },
+              ],
+            }),
+          })
+        );
+      });
+
+      it('should return error when incremental update has no existing filter', async () => {
+        // get_basic_filter returns no filter (default mock has no basicFilter)
+        const result = await handler.handle({
+          action: 'set_basic_filter',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+          columnIndex: 2,
+          criteria: { 2: { hiddenValues: ['foo'] } },
+        });
+
+        expect(result.response.success).toBe(false);
+        if (!result.response.success) {
+          expect(result.response.error.code).toBe('FAILED_PRECONDITION');
+        }
+      });
+
+      it('should update criteria for specific column (incremental mode)', async () => {
+        // Mock get_basic_filter to return an existing filter
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                properties: { sheetId: 0, title: 'Sheet1' },
+                basicFilter: {
+                  range: {
+                    sheetId: 0,
+                    startRowIndex: 0,
+                    endRowIndex: 10,
+                    startColumnIndex: 0,
+                    endColumnIndex: 4,
+                  },
+                  criteria: {},
+                },
+              },
+            ],
+          },
+        });
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'set_basic_filter',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+          columnIndex: 2,
+          criteria: { 2: { hiddenValues: ['foo', 'bar'] } },
+        });
+
+        expect(result.response.success).toBe(true);
+        if (result.response.success) {
+          expect(result.response).toHaveProperty('columnIndex', 2);
+        }
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+      });
+    });
+
+    describe('clear_basic_filter', () => {
+      it('should clear the basic filter from a sheet', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'clear_basic_filter',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'clear_basic_filter');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
+          spreadsheetId: 'test-sheet-id',
+          requestBody: {
+            requests: [{ clearBasicFilter: { sheetId: 0 } }],
+          },
+        });
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should respect dryRun for clear_basic_filter', async () => {
+        const result = await handler.handle({
+          action: 'clear_basic_filter',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+          safety: { dryRun: true },
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('get_basic_filter', () => {
+      it('should return filter when one exists on the sheet', async () => {
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                properties: { sheetId: 0, title: 'Sheet1' },
+                basicFilter: {
+                  range: {
+                    sheetId: 0,
+                    startRowIndex: 0,
+                    endRowIndex: 20,
+                    startColumnIndex: 0,
+                    endColumnIndex: 5,
+                  },
+                  criteria: {},
+                },
+              },
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'get_basic_filter',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'get_basic_filter');
+        if (result.response.success) {
+          expect(result.response.filter).toBeDefined();
+        }
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should return empty success when no filter on the sheet', async () => {
+        // Default mock has no basicFilter
+        const result = await handler.handle({
+          action: 'get_basic_filter',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+        });
+
+        expect(result.response.success).toBe(true);
+        if (result.response.success) {
+          expect(result.response.filter).toBeUndefined();
+        }
+      });
+    });
+  });
+
+  // ============================================================
+  // Sort Operations
+  // ============================================================
+
+  describe('Sort Operations', () => {
+    describe('sort_range', () => {
+      it('should sort range by a single column ascending', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'sort_range',
+          spreadsheetId: 'test-sheet-id',
+          range: 'Sheet1!A1:D10',
+          sortSpecs: [{ columnIndex: 0, sortOrder: 'ASCENDING' }],
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'sort_range');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            spreadsheetId: 'test-sheet-id',
+            requestBody: expect.objectContaining({
+              requests: [
+                expect.objectContaining({
+                  sortRange: expect.objectContaining({
+                    sortSpecs: [
+                      expect.objectContaining({
+                        dimensionIndex: 0,
+                        sortOrder: 'ASCENDING',
+                      }),
+                    ],
+                  }),
+                }),
+              ],
+            }),
+          })
+        );
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should sort range by multiple columns with different orders', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'sort_range',
+          spreadsheetId: 'test-sheet-id',
+          range: 'Sheet1!A1:D20',
+          sortSpecs: [
+            { columnIndex: 0, sortOrder: 'ASCENDING' },
+            { columnIndex: 2, sortOrder: 'DESCENDING' },
+          ],
+        });
+
+        expect(result.response.success).toBe(true);
+        const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+        expect(call.requestBody.requests[0].sortRange.sortSpecs).toHaveLength(2);
+        expect(call.requestBody.requests[0].sortRange.sortSpecs[1].sortOrder).toBe('DESCENDING');
+      });
+    });
+  });
+
+  // ============================================================
+  // Filter View Operations
+  // ============================================================
+
+  describe('Filter View Operations', () => {
+    describe('create_filter_view', () => {
+      it('should create a filter view on a range', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({
+          data: {
+            replies: [{ addFilterView: { filter: { filterViewId: 42 } } }],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'create_filter_view',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+          title: 'High Value Customers',
+          range: 'Sheet1!A1:D100',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'create_filter_view');
+        if (result.response.success) {
+          expect(result.response.filterViewId).toBe(42);
+        }
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            requestBody: expect.objectContaining({
+              requests: [
+                expect.objectContaining({
+                  addFilterView: expect.objectContaining({
+                    filter: expect.objectContaining({
+                      title: 'High Value Customers',
+                    }),
+                  }),
+                }),
+              ],
+            }),
+          })
+        );
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should create a filter view using sheetId only', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({
+          data: { replies: [{ addFilterView: { filter: { filterViewId: 7 } } }] },
+        });
+
+        const result = await handler.handle({
+          action: 'create_filter_view',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+          title: 'My Filter',
+        });
+
+        expect(result.response.success).toBe(true);
+        if (result.response.success) {
+          expect(result.response.filterViewId).toBe(7);
+        }
+      });
+    });
+
+    describe('update_filter_view', () => {
+      it('should update filter view title', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'update_filter_view',
+          spreadsheetId: 'test-sheet-id',
+          filterViewId: 42,
+          title: 'Updated Filter Name',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'update_filter_view');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            requestBody: expect.objectContaining({
+              requests: [
+                expect.objectContaining({
+                  updateFilterView: expect.objectContaining({
+                    filter: expect.objectContaining({
+                      filterViewId: 42,
+                      title: 'Updated Filter Name',
+                    }),
+                  }),
+                }),
+              ],
+            }),
+          })
+        );
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should respect dryRun for update_filter_view', async () => {
+        const result = await handler.handle({
+          action: 'update_filter_view',
+          spreadsheetId: 'test-sheet-id',
+          filterViewId: 42,
+          title: 'New Name',
+          safety: { dryRun: true },
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('delete_filter_view', () => {
+      it('should delete a filter view by ID', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'delete_filter_view',
+          spreadsheetId: 'test-sheet-id',
+          filterViewId: 42,
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'delete_filter_view');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
+          spreadsheetId: 'test-sheet-id',
+          requestBody: {
+            requests: [{ deleteFilterView: { filterId: 42 } }],
+          },
+        });
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should respect dryRun for delete_filter_view', async () => {
+        const result = await handler.handle({
+          action: 'delete_filter_view',
+          spreadsheetId: 'test-sheet-id',
+          filterViewId: 42,
+          safety: { dryRun: true },
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('list_filter_views', () => {
+      it('should list all filter views across all sheets', async () => {
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                properties: { sheetId: 0, title: 'Sheet1' },
+                filterViews: [
+                  {
+                    filterViewId: 1,
+                    title: 'View A',
+                    range: { sheetId: 0, startRowIndex: 0, endRowIndex: 10 },
+                  },
+                  {
+                    filterViewId: 2,
+                    title: 'View B',
+                    range: { sheetId: 0, startRowIndex: 0, endRowIndex: 20 },
+                  },
+                ],
+              },
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'list_filter_views',
+          spreadsheetId: 'test-sheet-id',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'list_filter_views');
+        if (result.response.success) {
+          expect(result.response.filterViews).toHaveLength(2);
+          expect(result.response.filterViews?.[0].filterViewId).toBe(1);
+          expect(result.response.filterViews?.[0].title).toBe('View A');
+        }
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should filter views by sheetId', async () => {
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                properties: { sheetId: 0, title: 'Sheet1' },
+                filterViews: [{ filterViewId: 1, title: 'View A', range: { sheetId: 0 } }],
+              },
+              {
+                properties: { sheetId: 1, title: 'Sheet2' },
+                filterViews: [{ filterViewId: 2, title: 'View B', range: { sheetId: 1 } }],
+              },
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'list_filter_views',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+        });
+
+        expect(result.response.success).toBe(true);
+        if (result.response.success) {
+          expect(result.response.filterViews).toHaveLength(1);
+          expect(result.response.filterViews?.[0].filterViewId).toBe(1);
+        }
+      });
+    });
+
+    describe('get_filter_view', () => {
+      it('should get a specific filter view by ID', async () => {
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                properties: { sheetId: 0 },
+                filterViews: [
+                  {
+                    filterViewId: 42,
+                    title: 'My View',
+                    range: { sheetId: 0, startRowIndex: 0, endRowIndex: 50 },
+                    criteria: {},
+                  },
+                ],
+              },
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'get_filter_view',
+          spreadsheetId: 'test-sheet-id',
+          filterViewId: 42,
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'get_filter_view');
+        if (result.response.success) {
+          expect(result.response.filterViews).toHaveLength(1);
+          expect(result.response.filterViews?.[0].filterViewId).toBe(42);
+          expect(result.response.filterViews?.[0].title).toBe('My View');
+        }
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should return not-found error when filter view does not exist', async () => {
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                properties: { sheetId: 0 },
+                filterViews: [],
+              },
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'get_filter_view',
+          spreadsheetId: 'test-sheet-id',
+          filterViewId: 999,
+        });
+
+        expect(result.response.success).toBe(false);
+      });
+    });
+  });
+
+  // ============================================================
+  // Slicer Operations
+  // ============================================================
+
+  describe('Slicer Operations', () => {
+    describe('create_slicer', () => {
+      it('should create a slicer with anchor position', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({
+          data: {
+            replies: [{ addSlicer: { slicer: { slicerId: 5 } } }],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'create_slicer',
+          spreadsheetId: 'test-sheet-id',
+          title: 'Product Filter',
+          dataRange: 'Sheet1!A1:D100',
+          filterColumn: 0,
+          position: {
+            anchorCell: 'F1',
+            width: 200,
+            height: 150,
+          },
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'create_slicer');
+        if (result.response.success) {
+          expect(result.response.slicerId).toBe(5);
+        }
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            requestBody: expect.objectContaining({
+              requests: [
+                expect.objectContaining({
+                  addSlicer: expect.objectContaining({
+                    slicer: expect.objectContaining({
+                      spec: expect.objectContaining({
+                        title: 'Product Filter',
+                        columnIndex: 0,
+                      }),
+                    }),
+                  }),
+                }),
+              ],
+            }),
+          })
+        );
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+    });
+
+    describe('update_slicer', () => {
+      it('should update slicer title and filter column', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'update_slicer',
+          spreadsheetId: 'test-sheet-id',
+          slicerId: 5,
+          title: 'Region Filter',
+          filterColumn: 2,
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'update_slicer');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            requestBody: expect.objectContaining({
+              requests: [
+                expect.objectContaining({
+                  updateSlicerSpec: expect.objectContaining({
+                    slicerId: 5,
+                    spec: expect.objectContaining({ title: 'Region Filter', columnIndex: 2 }),
+                  }),
+                }),
+              ],
+            }),
+          })
+        );
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should respect dryRun for update_slicer', async () => {
+        const result = await handler.handle({
+          action: 'update_slicer',
+          spreadsheetId: 'test-sheet-id',
+          slicerId: 5,
+          title: 'New Title',
+          safety: { dryRun: true },
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('delete_slicer', () => {
+      it('should delete a slicer by ID', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'delete_slicer',
+          spreadsheetId: 'test-sheet-id',
+          slicerId: 5,
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'delete_slicer');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
+          spreadsheetId: 'test-sheet-id',
+          requestBody: {
+            requests: [{ deleteEmbeddedObject: { objectId: 5 } }],
+          },
+        });
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should respect dryRun for delete_slicer', async () => {
+        const result = await handler.handle({
+          action: 'delete_slicer',
+          spreadsheetId: 'test-sheet-id',
+          slicerId: 5,
+          safety: { dryRun: true },
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('list_slicers', () => {
+      it('should list all slicers across sheets', async () => {
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                properties: { sheetId: 0, title: 'Sheet1' },
+                slicers: [
+                  { slicerId: 3, spec: { title: 'Product Filter' } },
+                  { slicerId: 4, spec: { title: 'Region Filter' } },
+                ],
+              },
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'list_slicers',
+          spreadsheetId: 'test-sheet-id',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'list_slicers');
+        if (result.response.success) {
+          expect(result.response.slicers).toHaveLength(2);
+          expect(result.response.slicers?.[0].slicerId).toBe(3);
+          expect(result.response.slicers?.[0].title).toBe('Product Filter');
+        }
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should filter slicers by sheetId', async () => {
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                properties: { sheetId: 0, title: 'Sheet1' },
+                slicers: [{ slicerId: 1, spec: { title: 'Slicer 1' } }],
+              },
+              {
+                properties: { sheetId: 1, title: 'Sheet2' },
+                slicers: [{ slicerId: 2, spec: { title: 'Slicer 2' } }],
+              },
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'list_slicers',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 1,
+        });
+
+        expect(result.response.success).toBe(true);
+        if (result.response.success) {
+          expect(result.response.slicers).toHaveLength(1);
+          expect(result.response.slicers?.[0].slicerId).toBe(2);
+        }
+      });
+
+      it('should return empty list when no slicers exist', async () => {
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            sheets: [{ properties: { sheetId: 0, title: 'Sheet1' }, slicers: [] }],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'list_slicers',
+          spreadsheetId: 'test-sheet-id',
+        });
+
+        expect(result.response.success).toBe(true);
+        if (result.response.success) {
+          expect(result.response.slicers).toHaveLength(0);
+        }
       });
     });
   });

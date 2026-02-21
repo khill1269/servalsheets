@@ -40,11 +40,7 @@ describe('CompositeHandler - Streaming Export', () => {
   describe('export_large_dataset action', () => {
     it('should export small dataset without streaming', async () => {
       // Mock small dataset (< 10K rows)
-      const smallData = Array.from({ length: 100 }, (_, i) => [
-        `Row ${i}`,
-        `Value ${i}`,
-        i * 10,
-      ]);
+      const smallData = Array.from({ length: 100 }, (_, i) => [`Row ${i}`, `Value ${i}`, i * 10]);
 
       vi.mocked(mockSheetsApi.spreadsheets.get).mockResolvedValue({
         data: {
@@ -120,10 +116,13 @@ describe('CompositeHandler - Streaming Export', () => {
         const chunkSize = endRow - startRow + 1;
 
         // Generate chunk data
-        const chunkData = Array.from({ length: Math.min(chunkSize, totalRows - startRow + 1) }, (_, i) => {
-          const rowIndex = startRow + i - 1;
-          return [`Row ${rowIndex}`, `Value ${rowIndex}`, rowIndex * 10];
-        });
+        const chunkData = Array.from(
+          { length: Math.min(chunkSize, totalRows - startRow + 1) },
+          (_, i) => {
+            const rowIndex = startRow + i - 1;
+            return [`Row ${rowIndex}`, `Value ${rowIndex}`, rowIndex * 10];
+          }
+        );
 
         return {
           data: { values: chunkData },

@@ -309,7 +309,6 @@ export abstract class AnalysisAgent {
   }
 }
 
-
 // ============================================================================
 // ANALYSIS CONTEXT
 // ============================================================================
@@ -344,25 +343,15 @@ export class AnalysisOrchestrator {
     this.agents.push(agent);
   }
 
-  async analyzeFile(
-    filePath: string,
-    context: AnalysisContext
-  ): Promise<MultiAgentReport> {
+  async analyzeFile(filePath: string, context: AnalysisContext): Promise<MultiAgentReport> {
     const startTime = Date.now();
     const content = fs.readFileSync(filePath, 'utf-8');
-    const sourceFile = ts.createSourceFile(
-      filePath,
-      content,
-      ts.ScriptTarget.Latest,
-      true
-    );
+    const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true);
 
     const allReports: DimensionReport[] = [];
 
     // Run all agents in parallel
-    const agentPromises = this.agents.map(agent =>
-      agent.analyze(filePath, sourceFile, context)
-    );
+    const agentPromises = this.agents.map((agent) => agent.analyze(filePath, sourceFile, context));
 
     const agentResults = await Promise.all(agentPromises);
 
@@ -377,14 +366,14 @@ export class AnalysisOrchestrator {
     }
 
     // Calculate summary
-    const allIssues = allReports.flatMap(r => r.issues);
+    const allIssues = allReports.flatMap((r) => r.issues);
     const summary = {
       total: allIssues.length,
-      critical: allIssues.filter(i => i.severity === 'critical').length,
-      high: allIssues.filter(i => i.severity === 'high').length,
-      medium: allIssues.filter(i => i.severity === 'medium').length,
-      low: allIssues.filter(i => i.severity === 'low').length,
-      autoFixable: allIssues.filter(i => i.autoFixable).length,
+      critical: allIssues.filter((i) => i.severity === 'critical').length,
+      high: allIssues.filter((i) => i.severity === 'high').length,
+      medium: allIssues.filter((i) => i.severity === 'medium').length,
+      low: allIssues.filter((i) => i.severity === 'low').length,
+      autoFixable: allIssues.filter((i) => i.autoFixable).length,
     };
 
     // Determine overall status
@@ -406,10 +395,7 @@ export class AnalysisOrchestrator {
     };
   }
 
-  private generateRecommendations(
-    reports: DimensionReport[],
-    summary: any
-  ): string[] {
+  private generateRecommendations(reports: DimensionReport[], summary: any): string[] {
     const recommendations: string[] = [];
 
     if (summary.critical > 0) {
@@ -418,18 +404,16 @@ export class AnalysisOrchestrator {
       );
     }
 
-    const complexityReport = reports.find(r => r.dimension === 'complexity');
+    const complexityReport = reports.find((r) => r.dimension === 'complexity');
     if (complexityReport && complexityReport.metrics?.maxComplexity > 20) {
       recommendations.push(
         `Consider refactoring high-complexity functions (max: ${complexityReport.metrics.maxComplexity})`
       );
     }
 
-    const fileSizeReport = reports.find(r => r.dimension === 'fileSize');
+    const fileSizeReport = reports.find((r) => r.dimension === 'fileSize');
     if (fileSizeReport && fileSizeReport.metrics?.lineCount > 1000) {
-      recommendations.push(
-        `File size exceeds 1000 lines - consider splitting into modules`
-      );
+      recommendations.push(`File size exceeds 1000 lines - consider splitting into modules`);
     }
 
     if (summary.autoFixable > 0) {

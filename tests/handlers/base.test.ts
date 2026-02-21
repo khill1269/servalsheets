@@ -9,7 +9,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { BaseHandler, type HandlerContext, type HandlerError, unwrapRequest } from '../../src/handlers/base.js';
+import {
+  BaseHandler,
+  type HandlerContext,
+  type HandlerError,
+  unwrapRequest,
+} from '../../src/handlers/base.js';
 import type { Intent } from '../../src/core/intent.js';
 import type { BatchCompiler } from '../../src/core/batch-compiler.js';
 import type { RangeResolver } from '../../src/core/range-resolver.js';
@@ -143,13 +148,19 @@ describe('BaseHandler', () => {
       const data = {
         spreadsheetId: 'sheet-123',
         range: 'A1:B10',
-        values: [[1, 2], [3, 4]],
+        values: [
+          [1, 2],
+          [3, 4],
+        ],
       };
       const result = handler.testSuccess('get', data);
 
       expect(result.spreadsheetId).toBe('sheet-123');
       expect(result.range).toBe('A1:B10');
-      expect(result.values).toEqual([[1, 2], [3, 4]]);
+      expect(result.values).toEqual([
+        [1, 2],
+        [3, 4],
+      ]);
       // Data should NOT be nested under 'data' field
       expect((result as any).data).toBeUndefined();
     });
@@ -502,11 +513,16 @@ describe('BaseHandler', () => {
 
     it('should handle metadata generation with options', () => {
       handler.testSetVerbosity('standard');
-      const meta = handler.testGenerateMeta('test', {}, {}, {
-        cellsAffected: 100,
-        apiCallsMade: 5,
-        duration: 1000,
-      });
+      const meta = handler.testGenerateMeta(
+        'test',
+        {},
+        {},
+        {
+          cellsAffected: 100,
+          apiCallsMade: 5,
+          duration: 1000,
+        }
+      );
 
       expect(meta).toBeDefined();
     });
@@ -541,11 +557,7 @@ describe('BaseHandler', () => {
 
     it('should handle mixed row lengths in values array', () => {
       const data = {
-        values: [
-          [1, 2],
-          [3, 4, 5],
-          [6],
-        ],
+        values: [[1, 2], [3, 4, 5], [6]],
       };
       const cells = handler.testExtractCellsAffected(data);
       expect(cells).toBe(6);
@@ -593,7 +605,9 @@ describe('BaseHandler', () => {
       }
 
       expect(thrownError).not.toBeNull();
-      expect(thrownError.error?.message || thrownError.message).toContain('Authentication required');
+      expect(thrownError.error?.message || thrownError.message).toContain(
+        'Authentication required'
+      );
     });
   });
 
@@ -666,14 +680,24 @@ describe('BaseHandler', () => {
     it('should preserve essential arrays even in minimal mode', () => {
       const response = {
         success: true,
-        values: [[1, 2], [3, 4], [5, 6], [7, 8]],
+        values: [
+          [1, 2],
+          [3, 4],
+          [5, 6],
+          [7, 8],
+        ],
         _meta: { costEstimate: { tokens: 100 } },
       } as any;
 
       const filtered = handler.testApplyVerbosityFilter(response, 'minimal');
 
       // 'values' is in preserved arrays list, so shouldn't be truncated
-      expect(filtered.values).toEqual([[1, 2], [3, 4], [5, 6], [7, 8]]);
+      expect(filtered.values).toEqual([
+        [1, 2],
+        [3, 4],
+        [5, 6],
+        [7, 8],
+      ]);
     });
 
     it('should remove verbose fields for minimal verbosity', () => {
@@ -772,7 +796,10 @@ describe('BaseHandler', () => {
       const data = {
         spreadsheetId: 'sheet-123',
         updatedCells: 25,
-        values: [[1, 2], [3, 4]],
+        values: [
+          [1, 2],
+          [3, 4],
+        ],
       };
       const mutation = {
         cellsAffected: 25,

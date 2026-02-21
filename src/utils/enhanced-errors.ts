@@ -119,7 +119,7 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
         title: 'API quota exceeded - Reduce request rate',
         steps: [
           '1. Wait 60 seconds before retrying',
-          '2. Use batch operations: sheets_data action="batch_read" (saves 80% quota)',
+          '2. Use batch operations: sheets_data action="read_multiple" (saves 80% quota)',
           '3. Use transactions: sheets_transaction (batches multiple ops into 1 API call)',
           '4. Check quota: sheets_auth action="status"',
           '5. Avoid polling - use event-driven updates instead',
@@ -576,7 +576,13 @@ function getErrorResources(code: string): Array<{ uri: string; description: stri
     RATE_LIMIT: [
       {
         uri: 'servalsheets://reference/rate-limiting',
-        description: 'Rate limit policies',
+        description: 'Rate limit policies and quota limits',
+      },
+    ],
+    RATE_LIMIT_EXCEEDED: [
+      {
+        uri: 'servalsheets://reference/rate-limiting',
+        description: 'Rate limit policies and quota limits',
       },
     ],
     INVALID_PARAMS: [

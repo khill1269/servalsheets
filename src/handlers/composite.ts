@@ -758,109 +758,103 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       (s) => s.properties?.title === input.sheetName
     );
 
+    // Helper: build format/width requests given a known sheetId
+    const buildFormatRequests = (id: number): sheets_v4.Schema$Request[] => {
+      const reqs: sheets_v4.Schema$Request[] = [];
+      if (input.headerFormat) {
+        reqs.push({
+          repeatCell: {
+            range: {
+              sheetId: id,
+              startRowIndex: 0,
+              endRowIndex: 1,
+              startColumnIndex: 0,
+              endColumnIndex: input.headers.length,
+            },
+            cell: {
+              userEnteredFormat: {
+                textFormat: {
+                  bold: input.headerFormat.bold ?? true,
+                  foregroundColor: input.headerFormat.textColor,
+                },
+                backgroundColor: input.headerFormat.backgroundColor,
+              },
+            },
+            fields: 'userEnteredFormat(textFormat,backgroundColor)',
+          },
+        });
+      }
+      if (input.columnWidths && input.columnWidths.length > 0) {
+        input.columnWidths.forEach((width, idx) => {
+          if (idx < input.headers.length) {
+            reqs.push({
+              updateDimensionProperties: {
+                range: { sheetId: id, dimension: 'COLUMNS', startIndex: idx, endIndex: idx + 1 },
+                properties: { pixelSize: width },
+                fields: 'pixelSize',
+              },
+            });
+          }
+        });
+      }
+      return reqs;
+    };
+
     let sheetId: number;
 
     if (existing?.properties?.sheetId !== undefined && existing.properties.sheetId !== null) {
-      // Sheet already exists - use it
+      // Sheet already exists — write headers then apply formats separately
       sheetId = existing.properties.sheetId;
-    } else {
-      // Add new sheet
-      const requests: sheets_v4.Schema$Request[] = [
-        {
-          addSheet: {
-            properties: {
-              title: input.sheetName,
-              gridProperties: {
-                rowCount: 1000,
-                columnCount: input.headers.length,
-                frozenRowCount: input.freezeHeaderRow ? 1 : 0,
-              },
-            },
-          },
-        },
-      ];
 
-      const addSheetResponse = await this.sheetsApi.spreadsheets.batchUpdate({
+      await this.sheetsApi.spreadsheets.values.update({
         spreadsheetId: input.spreadsheetId,
-        requestBody: { requests },
+        range: `'${input.sheetName}'!A1`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [input.headers] },
       });
 
-      const newSheetId = addSheetResponse.data.replies?.[0]?.addSheet?.properties?.sheetId;
-      if (newSheetId === undefined || newSheetId === null) {
-        return {
-          success: false,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: 'Failed to create sheet - no sheet ID returned',
-            retryable: true,
-          },
-        };
+      const formatRequests = buildFormatRequests(sheetId);
+      if (formatRequests.length > 0) {
+        await this.sheetsApi.spreadsheets.batchUpdate({
+          spreadsheetId: input.spreadsheetId,
+          requestBody: { requests: formatRequests },
+        });
       }
-      sheetId = newSheetId;
-    }
+    } else {
+      // New sheet: pre-determine sheetId so addSheet + formats merge into ONE batchUpdate.
+      // Google docs: "By adding the sheet ID in the request, you can use it for other
+      // subrequests in the same API call" — avoids a write-read-write cycle.
+      sheetId = Math.floor(Math.random() * 2_147_483_647);
 
-    // 2. Write headers
-    await this.sheetsApi.spreadsheets.values.update({
-      spreadsheetId: input.spreadsheetId,
-      range: `'${input.sheetName}'!A1`,
-      valueInputOption: 'RAW',
-      requestBody: {
-        values: [input.headers],
-      },
-    });
-
-    // 3. Apply formatting and column widths in one batch
-    const formatRequests: sheets_v4.Schema$Request[] = [];
-
-    // Header formatting
-    if (input.headerFormat) {
-      formatRequests.push({
-        repeatCell: {
-          range: {
-            sheetId,
-            startRowIndex: 0,
-            endRowIndex: 1,
-            startColumnIndex: 0,
-            endColumnIndex: input.headers.length,
-          },
-          cell: {
-            userEnteredFormat: {
-              textFormat: {
-                bold: input.headerFormat.bold ?? true,
-                foregroundColor: input.headerFormat.textColor,
-              },
-              backgroundColor: input.headerFormat.backgroundColor,
-            },
-          },
-          fields: 'userEnteredFormat(textFormat,backgroundColor)',
-        },
-      });
-    }
-
-    // Column widths
-    if (input.columnWidths && input.columnWidths.length > 0) {
-      input.columnWidths.forEach((width, idx) => {
-        if (idx < input.headers.length) {
-          formatRequests.push({
-            updateDimensionProperties: {
-              range: {
-                sheetId,
-                dimension: 'COLUMNS',
-                startIndex: idx,
-                endIndex: idx + 1,
-              },
-              properties: { pixelSize: width },
-              fields: 'pixelSize',
-            },
-          });
-        }
-      });
-    }
-
-    if (formatRequests.length > 0) {
+      const formatRequests = buildFormatRequests(sheetId);
       await this.sheetsApi.spreadsheets.batchUpdate({
         spreadsheetId: input.spreadsheetId,
-        requestBody: { requests: formatRequests },
+        requestBody: {
+          requests: [
+            {
+              addSheet: {
+                properties: {
+                  sheetId,
+                  title: input.sheetName,
+                  gridProperties: {
+                    rowCount: 1000,
+                    columnCount: input.headers.length,
+                    frozenRowCount: input.freezeHeaderRow ? 1 : 0,
+                  },
+                },
+              },
+            },
+            ...formatRequests,
+          ],
+        },
+      });
+
+      // Sheet now exists — write headers
+      await this.sheetsApi.spreadsheets.values.update({
+        spreadsheetId: input.spreadsheetId,
+        range: `'${input.sheetName}'!A1`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [input.headers] },
       });
     }
 

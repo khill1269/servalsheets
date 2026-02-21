@@ -3,17 +3,14 @@
  *
  * Tests operation history and undo/redo capabilities against the real Google API.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet for all tests.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { LiveApiClient } from '../setup/live-api-client.js';
 import { TestSpreadsheetManager, TestSpreadsheet } from '../setup/test-spreadsheet-manager.js';
-import {
-  loadTestCredentials,
-  shouldRunIntegrationTests,
-} from '../../helpers/credential-loader.js';
+import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 
 const runLiveTests = shouldRunIntegrationTests();
 
@@ -47,7 +44,12 @@ describe.skipIf(!runLiveTests)('sheets_history Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!A1:B2',
         valueInputOption: 'RAW',
-        requestBody: { values: [['Initial', 'Data'], ['Row', 'Values']] },
+        requestBody: {
+          values: [
+            ['Initial', 'Data'],
+            ['Row', 'Values'],
+          ],
+        },
       });
 
       const beforeState = await client.sheets.spreadsheets.values.get({
@@ -61,7 +63,12 @@ describe.skipIf(!runLiveTests)('sheets_history Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!A1:B2',
         valueInputOption: 'RAW',
-        requestBody: { values: [['Modified', 'Content'], ['New', 'Values']] },
+        requestBody: {
+          values: [
+            ['Modified', 'Content'],
+            ['New', 'Values'],
+          ],
+        },
       });
 
       const afterState = await client.sheets.spreadsheets.values.get({
@@ -76,13 +83,21 @@ describe.skipIf(!runLiveTests)('sheets_history Live API Tests', () => {
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            repeatCell: {
-              range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 2 },
-              cell: { userEnteredFormat: { backgroundColor: { red: 1, green: 0, blue: 0 } } },
-              fields: 'userEnteredFormat.backgroundColor',
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 0,
+                  endColumnIndex: 2,
+                },
+                cell: { userEnteredFormat: { backgroundColor: { red: 1, green: 0, blue: 0 } } },
+                fields: 'userEnteredFormat.backgroundColor',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -109,7 +124,7 @@ describe.skipIf(!runLiveTests)('sheets_history Live API Tests', () => {
         fields: 'sheets.properties',
       });
 
-      const sheetNames = sheetsResponse.data.sheets!.map(s => s.properties?.title);
+      const sheetNames = sheetsResponse.data.sheets!.map((s) => s.properties?.title);
       expect(sheetNames).toContain(sheetName);
     });
   });
@@ -161,7 +176,13 @@ describe.skipIf(!runLiveTests)('sheets_history Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!E1:F3',
         valueInputOption: 'RAW',
-        requestBody: { values: [['Header1', 'Header2'], ['Data1', 'Data2'], ['Data3', 'Data4']] },
+        requestBody: {
+          values: [
+            ['Header1', 'Header2'],
+            ['Data1', 'Data2'],
+            ['Data3', 'Data4'],
+          ],
+        },
       });
 
       const savedState = await client.sheets.spreadsheets.values.get({
@@ -332,9 +353,45 @@ describe.skipIf(!runLiveTests)('sheets_history Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
           requests: [
-            { updateCells: { range: { sheetId, startRowIndex: 10, endRowIndex: 11, startColumnIndex: 0, endColumnIndex: 1 }, rows: [{ values: [{ userEnteredValue: { stringValue: 'Batch 1' } }] }], fields: 'userEnteredValue' } },
-            { updateCells: { range: { sheetId, startRowIndex: 11, endRowIndex: 12, startColumnIndex: 0, endColumnIndex: 1 }, rows: [{ values: [{ userEnteredValue: { stringValue: 'Batch 2' } }] }], fields: 'userEnteredValue' } },
-            { updateCells: { range: { sheetId, startRowIndex: 12, endRowIndex: 13, startColumnIndex: 0, endColumnIndex: 1 }, rows: [{ values: [{ userEnteredValue: { stringValue: 'Batch 3' } }] }], fields: 'userEnteredValue' } },
+            {
+              updateCells: {
+                range: {
+                  sheetId,
+                  startRowIndex: 10,
+                  endRowIndex: 11,
+                  startColumnIndex: 0,
+                  endColumnIndex: 1,
+                },
+                rows: [{ values: [{ userEnteredValue: { stringValue: 'Batch 1' } }] }],
+                fields: 'userEnteredValue',
+              },
+            },
+            {
+              updateCells: {
+                range: {
+                  sheetId,
+                  startRowIndex: 11,
+                  endRowIndex: 12,
+                  startColumnIndex: 0,
+                  endColumnIndex: 1,
+                },
+                rows: [{ values: [{ userEnteredValue: { stringValue: 'Batch 2' } }] }],
+                fields: 'userEnteredValue',
+              },
+            },
+            {
+              updateCells: {
+                range: {
+                  sheetId,
+                  startRowIndex: 12,
+                  endRowIndex: 13,
+                  startColumnIndex: 0,
+                  endColumnIndex: 1,
+                },
+                rows: [{ values: [{ userEnteredValue: { stringValue: 'Batch 3' } }] }],
+                fields: 'userEnteredValue',
+              },
+            },
           ],
         },
       });
@@ -370,7 +427,12 @@ describe.skipIf(!runLiveTests)('sheets_history Live API Tests', () => {
           spreadsheetId: testSpreadsheet.id,
           range: 'TestData!K1:L2',
           valueInputOption: 'RAW',
-          requestBody: { values: [['History', 'Test'], ['Data', 'Values']] },
+          requestBody: {
+            values: [
+              ['History', 'Test'],
+              ['Data', 'Values'],
+            ],
+          },
         })
       );
 

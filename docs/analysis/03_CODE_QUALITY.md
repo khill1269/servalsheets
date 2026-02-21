@@ -32,7 +32,7 @@ src/schemas/index.ts
 
 ### Questions
 
-1. All 21 tools have schemas?
+1. All 22 tools have schemas?
 2. Are discriminated unions used?
 3. Are refinements present?
 4. Is JSON Schema generated correctly?
@@ -125,7 +125,7 @@ npm ls --depth=0
 
 ### Requirements
 
-- [ ] All 21 tools registered
+- [ ] All 22 tools registered
 - [ ] Names follow convention
 - [ ] Descriptions clear
 - [ ] Input schemas valid

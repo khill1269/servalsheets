@@ -614,7 +614,13 @@ describe('Audit Middleware - Automatic Event Logging', () => {
           range: 'Sheet1!A1:B10',
         },
         async () => {
-          return { success: true, values: [[1, 2], [3, 4]] };
+          return {
+            success: true,
+            values: [
+              [1, 2],
+              [3, 4],
+            ],
+          };
         }
       );
     });

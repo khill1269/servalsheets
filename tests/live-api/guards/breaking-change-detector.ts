@@ -45,7 +45,12 @@ export interface BreakingChangeResult {
  * Individual breaking change
  */
 export interface BreakingChange {
-  type: 'MISSING_FIELD' | 'TYPE_CHANGE' | 'FORBIDDEN_FIELD' | 'SCHEMA_MISMATCH' | 'STRUCTURE_CHANGE';
+  type:
+    | 'MISSING_FIELD'
+    | 'TYPE_CHANGE'
+    | 'FORBIDDEN_FIELD'
+    | 'SCHEMA_MISMATCH'
+    | 'STRUCTURE_CHANGE';
   severity: 'error' | 'warning';
   path: string;
   expected?: string;
@@ -157,7 +162,7 @@ export class BreakingChangeDetector {
       changes.push(...schemaChanges);
     }
 
-    const hasBreakingChanges = changes.some(c => c.severity === 'error');
+    const hasBreakingChanges = changes.some((c) => c.severity === 'error');
     return {
       hasBreakingChanges,
       changes,
@@ -190,7 +195,7 @@ export class BreakingChangeDetector {
     const structureChanges = this.compareSchemas(snapshotSchema, currentSchema, '');
     changes.push(...structureChanges);
 
-    const hasBreakingChanges = changes.some(c => c.severity === 'error');
+    const hasBreakingChanges = changes.some((c) => c.severity === 'error');
     return {
       hasBreakingChanges,
       changes,
@@ -207,7 +212,7 @@ export class BreakingChangeDetector {
     const snapshotResult = this.checkAgainstSnapshots(contractName, response);
 
     const allChanges = [...contractResult.changes, ...snapshotResult.changes];
-    const hasBreakingChanges = allChanges.some(c => c.severity === 'error');
+    const hasBreakingChanges = allChanges.some((c) => c.severity === 'error');
 
     return {
       hasBreakingChanges,
@@ -357,8 +362,8 @@ export class BreakingChangeDetector {
       return changes;
     }
 
-    const expectedMap = new Map(expected.map(f => [f.name, f]));
-    const actualMap = new Map(actual.map(f => [f.name, f]));
+    const expectedMap = new Map(expected.map((f) => [f.name, f]));
+    const actualMap = new Map(actual.map((f) => [f.name, f]));
 
     // Check for removed fields
     for (const [name, field] of expectedMap) {
@@ -491,8 +496,8 @@ export class BreakingChangeDetector {
       return 'No breaking changes detected.';
     }
 
-    const errors = changes.filter(c => c.severity === 'error');
-    const warnings = changes.filter(c => c.severity === 'warning');
+    const errors = changes.filter((c) => c.severity === 'error');
+    const warnings = changes.filter((c) => c.severity === 'warning');
 
     const parts: string[] = [];
     if (errors.length > 0) {

@@ -3,7 +3,7 @@
  *
  * Tests template management with real Google Sheets/Drive data.
  * Requires TEST_REAL_API=true environment variable.
- * 
+ *
  * OPTIMIZED: Uses a single spreadsheet for all tests.
  */
 
@@ -85,7 +85,12 @@ describe.skipIf(!runLiveTests)('sheets_templates Live API Tests', () => {
             {
               repeatCell: {
                 range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
-                cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
+                cell: {
+                  userEnteredFormat: {
+                    textFormat: { bold: true },
+                    backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 },
+                  },
+                },
                 fields: 'userEnteredFormat(textFormat.bold,backgroundColor)',
               },
             },
@@ -112,8 +117,20 @@ describe.skipIf(!runLiveTests)('sheets_templates Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
           requests: [
-            { updateDimensionProperties: { range: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 }, properties: { pixelSize: 150 }, fields: 'pixelSize' } },
-            { updateDimensionProperties: { range: { sheetId, dimension: 'COLUMNS', startIndex: 1, endIndex: 2 }, properties: { pixelSize: 200 }, fields: 'pixelSize' } },
+            {
+              updateDimensionProperties: {
+                range: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 },
+                properties: { pixelSize: 150 },
+                fields: 'pixelSize',
+              },
+            },
+            {
+              updateDimensionProperties: {
+                range: { sheetId, dimension: 'COLUMNS', startIndex: 1, endIndex: 2 },
+                properties: { pixelSize: 200 },
+                fields: 'pixelSize',
+              },
+            },
           ],
         },
       });
@@ -132,14 +149,19 @@ describe.skipIf(!runLiveTests)('sheets_templates Live API Tests', () => {
     it('should create new spreadsheet from template structure', async () => {
       const template = {
         name: 'Test Template',
-        sheets: [{ name: 'Data', headers: ['Column A', 'Column B', 'Column C'], frozenRowCount: 1 }],
+        sheets: [
+          { name: 'Data', headers: ['Column A', 'Column B', 'Column C'], frozenRowCount: 1 },
+        ],
       };
 
       const createResponse = await client.sheets.spreadsheets.create({
         requestBody: {
           properties: { title: `FromTemplate_${Date.now()}` },
           sheets: template.sheets.map((s) => ({
-            properties: { title: s.name, gridProperties: { frozenRowCount: s.frozenRowCount || 0 } },
+            properties: {
+              title: s.name,
+              gridProperties: { frozenRowCount: s.frozenRowCount || 0 },
+            },
           })),
         },
       });
@@ -172,21 +194,37 @@ describe.skipIf(!runLiveTests)('sheets_templates Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!F1:G5',
         valueInputOption: 'RAW',
-        requestBody: { values: [['Name', 'Value'], ['Item1', '100'], ['Item2', '200'], ['Item3', '300'], ['Item4', '400']] },
+        requestBody: {
+          values: [
+            ['Name', 'Value'],
+            ['Item1', '100'],
+            ['Item2', '200'],
+            ['Item3', '300'],
+            ['Item4', '400'],
+          ],
+        },
       });
 
       const namedRangeName = `DataValues_${Date.now()}`;
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            addNamedRange: {
-              namedRange: {
-                name: namedRangeName,
-                range: { sheetId, startRowIndex: 1, endRowIndex: 5, startColumnIndex: 6, endColumnIndex: 7 },
+          requests: [
+            {
+              addNamedRange: {
+                namedRange: {
+                  name: namedRangeName,
+                  range: {
+                    sheetId,
+                    startRowIndex: 1,
+                    endRowIndex: 5,
+                    startColumnIndex: 6,
+                    endColumnIndex: 7,
+                  },
+                },
               },
             },
-          }],
+          ],
         },
       });
 
@@ -226,8 +264,16 @@ describe.skipIf(!runLiveTests)('sheets_templates Live API Tests', () => {
   describe('import_builtin action context', () => {
     it('should define builtin template structure', () => {
       const builtinTemplates = [
-        { builtinName: 'budget_tracker', name: 'Budget Tracker', sheets: ['Transactions', 'Summary'] },
-        { builtinName: 'project_timeline', name: 'Project Timeline', sheets: ['Tasks', 'Milestones'] },
+        {
+          builtinName: 'budget_tracker',
+          name: 'Budget Tracker',
+          sheets: ['Transactions', 'Summary'],
+        },
+        {
+          builtinName: 'project_timeline',
+          name: 'Project Timeline',
+          sheets: ['Tasks', 'Milestones'],
+        },
       ];
       expect(builtinTemplates.length).toBeGreaterThan(0);
       expect(builtinTemplates[0].sheets).toContain('Transactions');
@@ -246,13 +292,26 @@ describe.skipIf(!runLiveTests)('sheets_templates Live API Tests', () => {
       await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
         requestBody: {
-          requests: [{
-            repeatCell: {
-              range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 7, endColumnIndex: 13 },
-              cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.2, green: 0.4, blue: 0.7 } } },
-              fields: 'userEnteredFormat(backgroundColor,textFormat)',
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 7,
+                  endColumnIndex: 13,
+                },
+                cell: {
+                  userEnteredFormat: {
+                    textFormat: { bold: true },
+                    backgroundColor: { red: 0.2, green: 0.4, blue: 0.7 },
+                  },
+                },
+                fields: 'userEnteredFormat(backgroundColor,textFormat)',
+              },
             },
-          }],
+          ],
         },
       });
 
@@ -268,7 +327,13 @@ describe.skipIf(!runLiveTests)('sheets_templates Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!N1:P3',
         valueInputOption: 'RAW',
-        requestBody: { values: [['Header1', 'Header2', 'Header3'], ['Data1', 'Data2', 'Data3'], ['Data4', 'Data5', 'Data6']] },
+        requestBody: {
+          values: [
+            ['Header1', 'Header2', 'Header3'],
+            ['Data1', 'Data2', 'Data3'],
+            ['Data4', 'Data5', 'Data6'],
+          ],
+        },
       });
 
       const copyResponse = await client.drive.files.copy({

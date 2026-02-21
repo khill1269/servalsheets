@@ -32,7 +32,7 @@ export const googleApiDuration = new Histogram({
   name: 'servalsheets_google_api_duration_seconds',
   help: 'Google API call duration',
   labelNames: ['method'],
-  buckets: [0.1, 0.5, 1, 2, 5],
+  buckets: [0.1, 0.5, 1, 2, 5, 10, 30],
 });
 
 // Circuit breaker metrics
@@ -536,14 +536,14 @@ export const circuitBreakerTransitionsTotal = new Counter({
 export const webhookDeliveriesTotal = new Counter({
   name: 'servalsheets_webhook_deliveries_total',
   help: 'Total webhook delivery attempts',
-  labelNames: ['webhook_id', 'spreadsheet_id', 'event_type', 'status'],
+  labelNames: ['event_type', 'status'],
   registers: [register],
 });
 
 export const webhookDeliveryDuration = new Histogram({
   name: 'servalsheets_webhook_delivery_duration_seconds',
   help: 'Webhook delivery duration in seconds',
-  labelNames: ['webhook_id', 'event_type'],
+  labelNames: ['event_type'],
   buckets: [0.1, 0.5, 1, 2, 5, 10, 30],
   registers: [register],
 });
@@ -565,22 +565,17 @@ export const webhookActiveCount = new Gauge({
  * Record webhook delivery attempt
  */
 export function recordWebhookDelivery(
-  webhookId: string,
-  spreadsheetId: string,
+  _webhookId: string,
+  _spreadsheetId: string,
   eventType: string,
   status: 'success' | 'failure',
   durationSeconds: number
 ): void {
   webhookDeliveriesTotal.inc({
-    webhook_id: webhookId,
-    spreadsheet_id: spreadsheetId,
     event_type: eventType,
     status,
   });
-  webhookDeliveryDuration.observe(
-    { webhook_id: webhookId, event_type: eventType },
-    durationSeconds
-  );
+  webhookDeliveryDuration.observe({ event_type: eventType }, durationSeconds);
 }
 
 /**

@@ -19,7 +19,9 @@ describe('Range Operations Property Tests', () => {
     it('extractSheetName should never return empty string for valid input', () => {
       fc.assert(
         fc.property(
-          fc.string({ minLength: 1, maxLength: 50 }).filter((s) => s.trim().length > 0 && !s.startsWith('!') && !s.startsWith("'")),
+          fc
+            .string({ minLength: 1, maxLength: 50 })
+            .filter((s) => s.trim().length > 0 && !s.startsWith('!') && !s.startsWith("'")),
           fc.integer({ min: 0, max: 25 }),
           fc.integer({ min: 1, max: 1000 }),
           (sheetName, colIndex, rowNum) => {
@@ -37,7 +39,9 @@ describe('Range Operations Property Tests', () => {
     it('extractSheetName should handle quoted sheet names', () => {
       fc.assert(
         fc.property(
-          fc.string({ minLength: 1, maxLength: 50 }).filter((s) => s.trim().length > 0 && !s.includes('!') && !s.includes("'")),
+          fc
+            .string({ minLength: 1, maxLength: 50 })
+            .filter((s) => s.trim().length > 0 && !s.includes('!') && !s.includes("'")),
           fc.integer({ min: 0, max: 25 }),
           (sheetName, colIndex) => {
             const col = String.fromCharCode(65 + colIndex);
@@ -55,7 +59,9 @@ describe('Range Operations Property Tests', () => {
     it('extractSheetName should handle sheet-only references', () => {
       fc.assert(
         fc.property(
-          fc.string({ minLength: 1, maxLength: 50 }).filter((s) => s.trim().length > 0 && !s.startsWith('!') && !s.startsWith("'")),
+          fc
+            .string({ minLength: 1, maxLength: 50 })
+            .filter((s) => s.trim().length > 0 && !s.startsWith('!') && !s.startsWith("'")),
           (sheetName) => {
             const extracted = extractSheetName(sheetName);
             return extracted.length > 0;
@@ -68,7 +74,9 @@ describe('Range Operations Property Tests', () => {
     it('extractSheetName should be idempotent', () => {
       fc.assert(
         fc.property(
-          fc.string({ minLength: 1, maxLength: 50 }).filter((s) => s.trim().length > 0 && !s.startsWith('!') && !s.startsWith("'")),
+          fc
+            .string({ minLength: 1, maxLength: 50 })
+            .filter((s) => s.trim().length > 0 && !s.startsWith('!') && !s.startsWith("'")),
           fc.integer({ min: 0, max: 25 }),
           (sheetName, colIndex) => {
             const col = String.fromCharCode(65 + colIndex);
@@ -89,7 +97,9 @@ describe('Range Operations Property Tests', () => {
     it('parseRange should preserve original input', () => {
       fc.assert(
         fc.property(
-          fc.string({ minLength: 1, maxLength: 100 }).filter((s) => s.trim().length > 0 && !s.startsWith('!') && !s.startsWith("'")),
+          fc
+            .string({ minLength: 1, maxLength: 100 })
+            .filter((s) => s.trim().length > 0 && !s.startsWith('!') && !s.startsWith("'")),
           fc.integer({ min: 0, max: 25 }),
           (sheetName, colIndex) => {
             const col = String.fromCharCode(65 + colIndex);
@@ -106,7 +116,9 @@ describe('Range Operations Property Tests', () => {
     it('parseRange should split sheet and cell consistently', () => {
       fc.assert(
         fc.property(
-          fc.string({ minLength: 1, maxLength: 50 }).filter((s) => s.trim().length > 0 && !s.includes('!') && !s.includes("'")),
+          fc
+            .string({ minLength: 1, maxLength: 50 })
+            .filter((s) => s.trim().length > 0 && !s.includes('!') && !s.includes("'")),
           fc.integer({ min: 0, max: 25 }),
           fc.integer({ min: 1, max: 1000 }),
           (sheetName, colIndex, rowNum) => {
@@ -160,7 +172,9 @@ describe('Range Operations Property Tests', () => {
     it('normalizeSheetReference should preserve already quoted names', () => {
       fc.assert(
         fc.property(
-          fc.string({ minLength: 1, maxLength: 50 }).filter((s) => s.trim().length > 0 && !s.startsWith('!') && !s.startsWith("'")),
+          fc
+            .string({ minLength: 1, maxLength: 50 })
+            .filter((s) => s.trim().length > 0 && !s.startsWith('!') && !s.startsWith("'")),
           fc.integer({ min: 0, max: 25 }),
           (sheetName, colIndex) => {
             const col = String.fromCharCode(65 + colIndex);
@@ -179,8 +193,12 @@ describe('Range Operations Property Tests', () => {
     it('normalizeSheetReference should quote names with spaces', () => {
       fc.assert(
         fc.property(
-          fc.string({ minLength: 1, maxLength: 20 }).filter((s) => s.trim().length > 0 && !s.includes('!') && !s.includes("'")),
-          fc.string({ minLength: 1, maxLength: 20 }).filter((s) => s.trim().length > 0 && !s.includes('!') && !s.includes("'")),
+          fc
+            .string({ minLength: 1, maxLength: 20 })
+            .filter((s) => s.trim().length > 0 && !s.includes('!') && !s.includes("'")),
+          fc
+            .string({ minLength: 1, maxLength: 20 })
+            .filter((s) => s.trim().length > 0 && !s.includes('!') && !s.includes("'")),
           fc.integer({ min: 0, max: 25 }),
           (part1, part2, colIndex) => {
             const sheetName = `${part1} ${part2}`;
@@ -212,7 +230,9 @@ describe('Range Operations Property Tests', () => {
           fc.string({
             minLength: 1,
             maxLength: 30,
-            unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('')),
+            unit: fc.constantFrom(
+              ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('')
+            ),
           }),
           fc.integer({ min: 0, max: 25 }),
           (sheetName, colIndex) => {
@@ -304,7 +324,9 @@ describe('Range Operations Property Tests', () => {
     it('should handle very long sheet names', () => {
       fc.assert(
         fc.property(
-          fc.string({ minLength: 100, maxLength: 200 }).filter((s) => s.trim().length > 0 && !s.includes('!') && !s.includes("'")),
+          fc
+            .string({ minLength: 100, maxLength: 200 })
+            .filter((s) => s.trim().length > 0 && !s.includes('!') && !s.includes("'")),
           fc.integer({ min: 0, max: 25 }),
           (longSheetName, colIndex) => {
             const col = String.fromCharCode(65 + colIndex);
@@ -320,11 +342,11 @@ describe('Range Operations Property Tests', () => {
 
     it('should handle sheet names with multiple special characters', () => {
       const testCases = [
-        "Sheet-Name-With-Hyphens!A1",
-        "Sheet With Spaces!A1",
-        "Sheet_With_Underscores!A1",
-        "Sheet.With.Dots!A1",
-        "Sheet (With Parens)!A1",
+        'Sheet-Name-With-Hyphens!A1',
+        'Sheet With Spaces!A1',
+        'Sheet_With_Underscores!A1',
+        'Sheet.With.Dots!A1',
+        'Sheet (With Parens)!A1',
       ];
 
       for (const testCase of testCases) {
@@ -384,7 +406,9 @@ describe('Range Operations Property Tests', () => {
           fc.string({
             minLength: 1,
             maxLength: 30,
-            unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('')),
+            unit: fc.constantFrom(
+              ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('')
+            ),
           }),
           fc.integer({ min: 0, max: 25 }),
           fc.integer({ min: 1, max: 1000 }),
@@ -430,10 +454,13 @@ describe('Range Operations Property Tests', () => {
   describe('Cell Reference Extraction', () => {
     it('cellRef should be undefined for sheet-only references', () => {
       fc.assert(
-        fc.property(fc.string({ minLength: 1, maxLength: 50 }).filter((s) => !s.includes('!')), (sheetName) => {
-          const parsed = parseRange(sheetName);
-          return parsed.cellRef === undefined;
-        }),
+        fc.property(
+          fc.string({ minLength: 1, maxLength: 50 }).filter((s) => !s.includes('!')),
+          (sheetName) => {
+            const parsed = parseRange(sheetName);
+            return parsed.cellRef === undefined;
+          }
+        ),
         { numRuns: 500 }
       );
     });
@@ -441,7 +468,9 @@ describe('Range Operations Property Tests', () => {
     it('cellRef should contain colon for range references', () => {
       fc.assert(
         fc.property(
-          fc.string({ minLength: 1, maxLength: 30 }).filter((s) => s.trim().length > 0 && !s.includes('!') && !s.includes("'")),
+          fc
+            .string({ minLength: 1, maxLength: 30 })
+            .filter((s) => s.trim().length > 0 && !s.includes('!') && !s.includes("'")),
           fc.integer({ min: 0, max: 25 }),
           fc.integer({ min: 1, max: 100 }),
           fc.integer({ min: 0, max: 25 }),
@@ -462,7 +491,9 @@ describe('Range Operations Property Tests', () => {
     it('cellRef should not contain colon for single cell references', () => {
       fc.assert(
         fc.property(
-          fc.string({ minLength: 1, maxLength: 30 }).filter((s) => !s.includes(':') && !s.includes('!')),
+          fc
+            .string({ minLength: 1, maxLength: 30 })
+            .filter((s) => !s.includes(':') && !s.includes('!')),
           fc.integer({ min: 0, max: 25 }),
           fc.integer({ min: 1, max: 1000 }),
           (sheetName, colIndex, rowNum) => {

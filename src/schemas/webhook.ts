@@ -20,6 +20,7 @@ export const WebhookActionsSchema = z.enum([
   'get',
   'test',
   'get_stats',
+  'watch_changes',
 ]);
 
 /**
@@ -102,6 +103,33 @@ export const WebhookStatsInputSchema = z.object({
 });
 
 /**
+ * Watch changes input — uses Google Drive files.watch to receive push notifications
+ * when a spreadsheet file changes. More reliable than polling for changes.
+ */
+export const WebhookWatchChangesInputSchema = z.object({
+  action: z
+    .literal('watch_changes')
+    .describe(
+      'Set up Google Drive push notifications for a spreadsheet using files.watch API — notifies your endpoint when the file changes'
+    ),
+  spreadsheetId: z.string().min(1, 'Spreadsheet ID required'),
+  webhookUrl: z.string().url('Must be a valid HTTPS URL').startsWith('https://'),
+  channelId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Custom channel ID (auto-generated if not provided)'),
+  expirationMs: z
+    .number()
+    .int()
+    .positive()
+    .max(86400000)
+    .optional()
+    .default(43200000)
+    .describe('Channel expiration in milliseconds (max 1 day per Drive API limit)'),
+});
+
+/**
  * Webhook request (discriminated union)
  */
 const WebhookRequestSchema = z.discriminatedUnion('action', [
@@ -111,6 +139,7 @@ const WebhookRequestSchema = z.discriminatedUnion('action', [
   WebhookGetInputSchema,
   WebhookTestInputSchema,
   WebhookStatsInputSchema,
+  WebhookWatchChangesInputSchema,
 ]);
 
 /**
@@ -256,6 +285,15 @@ const WebhookResponseSchema = z.discriminatedUnion('success', [
       z.object({ webhook: WebhookInfoSchema }),
       z.object({ delivery: WebhookDeliverySchema }),
       WebhookStatsSchema,
+      z.object({
+        success: z.boolean(),
+        message: z.string(),
+        channelId: z.string(),
+        resourceId: z.string(),
+        expiration: z.string(),
+        spreadsheetId: z.string(),
+        webhookUrl: z.string(),
+      }),
     ]),
   }),
   z.object({
@@ -274,7 +312,7 @@ export const SheetsWebhookOutputSchema = z.object({
 export const SHEETS_WEBHOOK_ANNOTATIONS = {
   title: 'Webhook Management',
   readOnlyHint: false,
-  destructiveHint: false,
+  destructiveHint: true, // unregister permanently removes webhook
   idempotentHint: false,
   openWorldHint: true,
 };
@@ -290,6 +328,7 @@ export type WebhookListInput = z.infer<typeof WebhookListInputSchema>;
 export type WebhookGetInput = z.infer<typeof WebhookGetInputSchema>;
 export type WebhookTestInput = z.infer<typeof WebhookTestInputSchema>;
 export type WebhookStatsInput = z.infer<typeof WebhookStatsInputSchema>;
+export type WebhookWatchChangesInput = z.infer<typeof WebhookWatchChangesInputSchema>;
 export type WebhookRegisterResponse = z.infer<typeof WebhookRegisterResponseSchema>;
 export type WebhookInfo = z.infer<typeof WebhookInfoSchema>;
 export type WebhookDelivery = z.infer<typeof WebhookDeliverySchema>;

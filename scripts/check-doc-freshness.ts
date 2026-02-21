@@ -108,10 +108,18 @@ function generateReport(results: DocFreshness[]): void {
   console.log('═'.repeat(60));
   console.log('\n📈 Summary:\n');
   console.log(`  Total documents: ${results.length}`);
-  console.log(`  ✅ Fresh (< 3 months):     ${fresh.length} (${((fresh.length / results.length) * 100).toFixed(1)}%)`);
-  console.log(`  ⏰ Aging (3-6 months):     ${aging.length} (${((aging.length / results.length) * 100).toFixed(1)}%)`);
-  console.log(`  ⚠️  Stale (6-12 months):    ${stale.length} (${((stale.length / results.length) * 100).toFixed(1)}%)`);
-  console.log(`  🚨 Critical (> 12 months): ${critical.length} (${((critical.length / results.length) * 100).toFixed(1)}%)`);
+  console.log(
+    `  ✅ Fresh (< 3 months):     ${fresh.length} (${((fresh.length / results.length) * 100).toFixed(1)}%)`
+  );
+  console.log(
+    `  ⏰ Aging (3-6 months):     ${aging.length} (${((aging.length / results.length) * 100).toFixed(1)}%)`
+  );
+  console.log(
+    `  ⚠️  Stale (6-12 months):    ${stale.length} (${((stale.length / results.length) * 100).toFixed(1)}%)`
+  );
+  console.log(
+    `  🚨 Critical (> 12 months): ${critical.length} (${((critical.length / results.length) * 100).toFixed(1)}%)`
+  );
 
   if (critical.length > 0) {
     console.log('\n\n🚨 CRITICAL - Not updated in over 1 year:\n');
@@ -205,7 +213,8 @@ function generateJsonReport(results: DocFreshness[], outputPath: string): void {
 
 async function main() {
   const outputJson = process.argv.includes('--json');
-  const jsonPath = process.argv.find((arg) => arg.startsWith('--output='))?.split('=')[1] || 'docs-freshness.json';
+  const jsonPath =
+    process.argv.find((arg) => arg.startsWith('--output='))?.split('=')[1] || 'docs-freshness.json';
 
   console.log('🔍 Analyzing documentation freshness...');
 
@@ -224,7 +233,9 @@ async function main() {
   if (process.argv.includes('--ci')) {
     const threshold = 10; // Max 10 critical docs
     if (critical > threshold) {
-      console.error(`\n❌ CI Check Failed: ${critical} critical docs exceed threshold of ${threshold}`);
+      console.error(
+        `\n❌ CI Check Failed: ${critical} critical docs exceed threshold of ${threshold}`
+      );
       process.exit(1);
     }
   }

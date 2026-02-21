@@ -10,10 +10,7 @@ import * as path from 'path';
 import * as yaml from 'yaml';
 
 describe('CI Integration', () => {
-  const workflowPath = path.join(
-    __dirname,
-    '../../.github/workflows/multi-agent-analysis.yml'
-  );
+  const workflowPath = path.join(__dirname, '../../.github/workflows/multi-agent-analysis.yml');
 
   describe('Workflow File', () => {
     it('should exist', () => {
@@ -93,9 +90,7 @@ describe('CI Integration', () => {
       const workflow = yaml.parse(content);
 
       const steps = workflow.jobs.analyze.steps;
-      const analysisStep = steps.find((s: any) =>
-        s.name?.includes('Multi-Agent Analysis')
-      );
+      const analysisStep = steps.find((s: any) => s.name?.includes('Multi-Agent Analysis'));
 
       expect(analysisStep).toBeDefined();
       expect(analysisStep.run).toContain('multi-agent-analysis');
@@ -176,9 +171,7 @@ describe('CI Integration', () => {
       const content = fs.readFileSync(tasksPath, 'utf-8');
       const tasks = JSON.parse(content);
 
-      const analysisTask = tasks.tasks.find((t: any) =>
-        t.label?.includes('Multi-Agent Analysis')
-      );
+      const analysisTask = tasks.tasks.find((t: any) => t.label?.includes('Multi-Agent Analysis'));
 
       expect(analysisTask).toBeDefined();
     });
@@ -206,9 +199,7 @@ describe('CI Integration', () => {
       const content = fs.readFileSync(tasksPath, 'utf-8');
       const tasks = JSON.parse(content);
 
-      const reportTask = tasks.tasks.find((t: any) =>
-        t.label?.includes('Analysis Report')
-      );
+      const reportTask = tasks.tasks.find((t: any) => t.label?.includes('Analysis Report'));
 
       expect(reportTask).toBeDefined();
     });
@@ -217,9 +208,7 @@ describe('CI Integration', () => {
       const content = fs.readFileSync(tasksPath, 'utf-8');
       const tasks = JSON.parse(content);
 
-      const changedTask = tasks.tasks.find((t: any) =>
-        t.label?.includes('Changed Files')
-      );
+      const changedTask = tasks.tasks.find((t: any) => t.label?.includes('Changed Files'));
 
       expect(changedTask).toBeDefined();
       expect(changedTask.command).toContain('git diff');

@@ -8,11 +8,6 @@
 import { diff as deepDiff } from 'deep-diff';
 
 /**
- * deep-diff result type (approximation since package doesn't export types)
- */
-type DiffResult = any;
-
-/**
  * Diff change types
  */
 export type DiffChangeType = 'added' | 'deleted' | 'modified' | 'unchanged';
@@ -23,8 +18,8 @@ export type DiffChangeType = 'added' | 'deleted' | 'modified' | 'unchanged';
 export interface DiffEntry {
   type: DiffChangeType;
   path: string;
-  oldValue?: any;
-  newValue?: any;
+  oldValue?: unknown;
+  newValue?: unknown;
   description: string;
 }
 
@@ -43,6 +38,7 @@ export interface ResponseDiff {
 /**
  * Compare two responses and generate a detailed diff
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- deep-diff accepts any
 export function diffResponses(original: any, actual: any): ResponseDiff {
   const changes = deepDiff(original, actual);
 
@@ -101,6 +97,7 @@ export function diffResponses(original: any, actual: any): ResponseDiff {
 /**
  * Convert deep-diff change to DiffEntry
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- deep-diff untyped
 function convertDiffToEntry(change: any): DiffEntry {
   const path = formatPath(change.path);
 
@@ -165,7 +162,7 @@ function formatPath(path: Array<string | number> | undefined): string {
 /**
  * Format value for display
  */
-function formatValue(value: any): string {
+function formatValue(value: unknown): string {
   if (value === null) return 'null';
   if (value === undefined) return 'undefined';
 
@@ -244,7 +241,9 @@ export function formatDiffJSON(diff: ResponseDiff): string {
  */
 export function hasFieldChanged(diff: ResponseDiff, fieldPath: string): boolean {
   const allChanges = [...diff.additions, ...diff.deletions, ...diff.modifications];
-  return allChanges.some((entry) => entry.path === fieldPath || entry.path.startsWith(`${fieldPath}.`));
+  return allChanges.some(
+    (entry) => entry.path === fieldPath || entry.path.startsWith(`${fieldPath}.`)
+  );
 }
 
 /**
@@ -252,7 +251,9 @@ export function hasFieldChanged(diff: ResponseDiff, fieldPath: string): boolean 
  */
 export function getFieldChanges(diff: ResponseDiff, fieldPath: string): DiffEntry[] {
   const allChanges = [...diff.additions, ...diff.deletions, ...diff.modifications];
-  return allChanges.filter((entry) => entry.path === fieldPath || entry.path.startsWith(`${fieldPath}.`));
+  return allChanges.filter(
+    (entry) => entry.path === fieldPath || entry.path.startsWith(`${fieldPath}.`)
+  );
 }
 
 /**

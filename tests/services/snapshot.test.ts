@@ -46,13 +46,15 @@ describe('SnapshotService', () => {
       // Assert
       expect(snapshotId).toBeDefined();
       expect(snapshotId).toMatch(/^snap_\d+_[a-z0-9]+$/);
-      expect(mockDriveApi.files.copy).toHaveBeenCalledWith(expect.objectContaining({
-        fileId: spreadsheetId,
-        requestBody: expect.objectContaining({
-          name: expect.stringMatching(/^Snapshot \d{4}-\d{2}-\d{2}T/),
-          parents: ['test-folder'],
-        }),
-      }));
+      expect(mockDriveApi.files.copy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fileId: spreadsheetId,
+          requestBody: expect.objectContaining({
+            name: expect.stringMatching(/^Snapshot \d{4}-\d{2}-\d{2}T/),
+            parents: ['test-folder'],
+          }),
+        })
+      );
 
       // Verify snapshot is stored
       const snapshots = snapshotService.list(spreadsheetId);
@@ -74,13 +76,15 @@ describe('SnapshotService', () => {
       await snapshotService.create(spreadsheetId, customName);
 
       // Assert
-      expect(mockDriveApi.files.copy).toHaveBeenCalledWith(expect.objectContaining({
-        fileId: spreadsheetId,
-        requestBody: expect.objectContaining({
-          name: customName,
-          parents: ['test-folder'],
-        }),
-      }));
+      expect(mockDriveApi.files.copy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fileId: spreadsheetId,
+          requestBody: expect.objectContaining({
+            name: customName,
+            parents: ['test-folder'],
+          }),
+        })
+      );
 
       const snapshots = snapshotService.list(spreadsheetId);
       expect(snapshots[0].name).toBe(customName);
@@ -100,12 +104,14 @@ describe('SnapshotService', () => {
       await serviceWithoutFolder.create('test-sheet');
 
       // Assert
-      expect(mockDriveApi.files.copy).toHaveBeenCalledWith(expect.objectContaining({
-        fileId: 'test-sheet',
-        requestBody: expect.objectContaining({
-          name: expect.any(String),
-        }),
-      }));
+      expect(mockDriveApi.files.copy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fileId: 'test-sheet',
+          requestBody: expect.objectContaining({
+            name: expect.any(String),
+          }),
+        })
+      );
     });
 
     it('should throw ServiceError when Drive API fails to return file ID', async () => {
@@ -207,12 +213,14 @@ describe('SnapshotService', () => {
       // Assert
       expect(restoredId).toBe('copy-restored');
       expect(mockDriveApi.files.copy).toHaveBeenCalledTimes(2);
-      expect(mockDriveApi.files.copy).toHaveBeenLastCalledWith(expect.objectContaining({
-        fileId: 'copy-original',
-        requestBody: expect.objectContaining({
-          name: 'Restored from Backup',
-        }),
-      }));
+      expect(mockDriveApi.files.copy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          fileId: 'copy-original',
+          requestBody: expect.objectContaining({
+            name: 'Restored from Backup',
+          }),
+        })
+      );
     });
 
     it('should throw NotFoundError when restoring non-existent snapshot', async () => {
@@ -307,9 +315,11 @@ describe('SnapshotService', () => {
       await snapshotService.delete(snapshotId);
 
       // Assert
-      expect(mockDriveApi.files.delete).toHaveBeenCalledWith(expect.objectContaining({
-        fileId: 'copy-to-delete',
-      }));
+      expect(mockDriveApi.files.delete).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fileId: 'copy-to-delete',
+        })
+      );
 
       // Snapshot removed from memory
       expect(snapshotService.get(snapshotId)).toBeUndefined();

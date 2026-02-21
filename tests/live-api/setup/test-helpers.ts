@@ -43,7 +43,7 @@ export interface CreateTestSheetOptions {
  * Sleep for a given number of milliseconds
  */
 export function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -105,11 +105,16 @@ export function generateTestData(
     const types = ['number', 'string', 'boolean', 'date'];
     const type = types[col % types.length];
     switch (type) {
-      case 'number': return row * cols + col;
-      case 'string': return `Cell_${row}_${col}`;
-      case 'boolean': return row % 2 === 0;
-      case 'date': return new Date(2024, 0, row + 1).toISOString().split('T')[0];
-      default: return `${row},${col}`;
+      case 'number':
+        return row * cols + col;
+      case 'string':
+        return `Cell_${row}_${col}`;
+      case 'boolean':
+        return row % 2 === 0;
+      case 'date':
+        return new Date(2024, 0, row + 1).toISOString().split('T')[0];
+      default:
+        return `${row},${col}`;
     }
   };
 
@@ -152,16 +157,15 @@ export async function waitForQuota(
 export function shouldSkipForQuota(estimatedReads: number, estimatedWrites: number): boolean {
   const quota = getQuotaManager();
   const verification = quota.verifyQuota({ reads: estimatedReads, writes: estimatedWrites });
-  return !verification.hasQuota && verification.recommendedDelayMs > TEST_CONFIG.quota.maxQuotaDelayMs;
+  return (
+    !verification.hasQuota && verification.recommendedDelayMs > TEST_CONFIG.quota.maxQuotaDelayMs
+  );
 }
 
 /**
  * Create a test wrapper that handles setup/teardown
  */
-export function withTestTracking<T>(
-  testName: string,
-  testFn: () => Promise<T>
-): () => Promise<T> {
+export function withTestTracking<T>(testName: string, testFn: () => Promise<T>): () => Promise<T> {
   return async () => {
     startTestMetrics(testName);
     try {
@@ -220,7 +224,8 @@ export function assertApproxEqual(
   const diff = Math.abs(actual - expected);
   if (diff > tolerance) {
     throw new Error(
-      message ?? `Expected ${actual} to be approximately ${expected} (tolerance: ${tolerance}, diff: ${diff})`
+      message ??
+        `Expected ${actual} to be approximately ${expected} (tolerance: ${tolerance}, diff: ${diff})`
     );
   }
 }
@@ -373,7 +378,7 @@ export function deepEqual(a: unknown, b: unknown): boolean {
   const bKeys = Object.keys(bObj);
 
   if (aKeys.length !== bKeys.length) return false;
-  return aKeys.every(key => deepEqual(aObj[key], bObj[key]));
+  return aKeys.every((key) => deepEqual(aObj[key], bObj[key]));
 }
 
 /**

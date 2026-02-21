@@ -107,10 +107,7 @@ export function redactSensitiveData(input: string): { output: string; redactionC
  * Controlled by ENABLE_RESPONSE_REDACTION env var (default: true in production).
  */
 export function responseRedactionMiddleware() {
-  const isEnabled =
-    process.env['ENABLE_RESPONSE_REDACTION'] !== 'false' &&
-    (process.env['NODE_ENV'] === 'production' ||
-      process.env['ENABLE_RESPONSE_REDACTION'] === 'true');
+  const isEnabled = process.env['ENABLE_RESPONSE_REDACTION'] !== 'false';
 
   if (!isEnabled) {
     // Return no-op middleware when disabled

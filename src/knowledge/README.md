@@ -48,19 +48,19 @@ knowledge/
 
 Comprehensive references for advanced Google Sheets API operations:
 
-| File | Description | Size |
-|------|-------------|------|
-| `api/charts.md` | Complete chart types, styling, axes configuration | 29KB |
-| `api/pivot-tables.md` | Pivot table creation, grouping, aggregations | 20KB |
-| `api/conditional-formatting.md` | Boolean conditions, gradients, custom formulas | 24KB |
-| `api/data-validation.md` | 25+ validation types, form patterns, dropdowns | 21KB |
-| `api/batch-operations.md` | Request batching, optimization, error handling | 21KB |
-| `api/named-ranges.md` | Named ranges, protection, permissions | 17KB |
+| File                            | Description                                       | Size |
+| ------------------------------- | ------------------------------------------------- | ---- |
+| `api/charts.md`                 | Complete chart types, styling, axes configuration | 29KB |
+| `api/pivot-tables.md`           | Pivot table creation, grouping, aggregations      | 20KB |
+| `api/conditional-formatting.md` | Boolean conditions, gradients, custom formulas    | 24KB |
+| `api/data-validation.md`        | 25+ validation types, form patterns, dropdowns    | 21KB |
+| `api/batch-operations.md`       | Request batching, optimization, error handling    | 21KB |
+| `api/named-ranges.md`           | Named ranges, protection, permissions             | 17KB |
 
 ### Formula Functions Reference
 
-| File | Description | Size |
-|------|-------------|------|
+| File                              | Description                          | Size |
+| --------------------------------- | ------------------------------------ | ---- |
 | `formulas/functions-reference.md` | 100+ formula functions with examples | 15KB |
 
 Categories covered: Lookup & Reference, Text, Math & Statistics, Date & Time, Logical, Array, Financial, Data Manipulation, Error Handling.
@@ -100,6 +100,7 @@ Templates are complete, production-ready spreadsheet structures. Each template i
 4. **Advanced Formulas** (`formulas/advanced.json`) - 10 power user formulas
 
 Each formula includes:
+
 - Syntax and parameters
 - Examples
 - Description

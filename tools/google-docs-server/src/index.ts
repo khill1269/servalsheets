@@ -16,10 +16,7 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema
-} from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
@@ -45,9 +42,9 @@ async function fetchGoogleApiDocs(endpoint: string): Promise<any> {
 
     const response = await axios.get(url, {
       headers: {
-        'User-Agent': 'ServalSheets-MCP-Server/1.0'
+        'User-Agent': 'ServalSheets-MCP-Server/1.0',
       },
-      timeout: 10000
+      timeout: 10000,
     });
 
     const $ = cheerio.load(response.data);
@@ -65,7 +62,7 @@ async function fetchGoogleApiDocs(endpoint: string): Promise<any> {
       responseBody: extractResponseBody($),
       scopes: extractScopes($),
       examples: extractExamples($),
-      lastFetched: new Date().toISOString()
+      lastFetched: new Date().toISOString(),
     };
 
     cache.set(cacheKey, { data: documentation, timestamp: Date.now() });
@@ -93,7 +90,7 @@ async function fetchGoogleApiChangelog(since?: string): Promise<any> {
     const url = 'https://developers.google.com/sheets/api/guides/migration';
     const response = await axios.get(url, {
       headers: { 'User-Agent': 'ServalSheets-MCP-Server/1.0' },
-      timeout: 10000
+      timeout: 10000,
     });
 
     const $ = cheerio.load(response.data);
@@ -103,7 +100,7 @@ async function fetchGoogleApiChangelog(since?: string): Promise<any> {
       changes: [] as any[],
       breakingChanges: [] as any[],
       deprecations: [] as any[],
-      lastFetched: new Date().toISOString()
+      lastFetched: new Date().toISOString(),
     };
 
     // Extract changelog entries
@@ -115,7 +112,7 @@ async function fetchGoogleApiChangelog(since?: string): Promise<any> {
         date: extractDate(heading),
         title: heading,
         description: content,
-        type: determineChangeType(heading, content)
+        type: determineChangeType(heading, content),
       };
 
       changes.changes.push(change);
@@ -130,11 +127,9 @@ async function fetchGoogleApiChangelog(since?: string): Promise<any> {
     // Filter by date if provided
     if (since) {
       const sinceDate = new Date(since);
-      changes.changes = changes.changes.filter(c =>
-        c.date && new Date(c.date) >= sinceDate
-      );
-      changes.breakingChanges = changes.breakingChanges.filter(c =>
-        c.date && new Date(c.date) >= sinceDate
+      changes.changes = changes.changes.filter((c) => c.date && new Date(c.date) >= sinceDate);
+      changes.breakingChanges = changes.breakingChanges.filter(
+        (c) => c.date && new Date(c.date) >= sinceDate
       );
     }
 
@@ -163,7 +158,7 @@ async function fetchQuotaLimits(method?: string): Promise<any> {
     const url = 'https://developers.google.com/sheets/api/limits';
     const response = await axios.get(url, {
       headers: { 'User-Agent': 'ServalSheets-MCP-Server/1.0' },
-      timeout: 10000
+      timeout: 10000,
     });
 
     const $ = cheerio.load(response.data);
@@ -173,15 +168,15 @@ async function fetchQuotaLimits(method?: string): Promise<any> {
       readRequests: {
         perMinPerUser: 300,
         perDayPerProject: 500000,
-        description: 'Read requests quota'
+        description: 'Read requests quota',
       },
       writeRequests: {
         perMinPerUser: 300,
         perDayPerProject: 500000,
-        description: 'Write requests quota'
+        description: 'Write requests quota',
       },
       general: [] as any[],
-      lastFetched: new Date().toISOString()
+      lastFetched: new Date().toISOString(),
     };
 
     // Extract quota details from table
@@ -190,7 +185,7 @@ async function fetchQuotaLimits(method?: string): Promise<any> {
       if (cells.length >= 2) {
         quotas.general.push({
           operation: $(cells[0]).text().trim(),
-          limit: $(cells[1]).text().trim()
+          limit: $(cells[1]).text().trim(),
         });
       }
     });
@@ -220,7 +215,7 @@ async function fetchBestPractices(category: string): Promise<any> {
     quota: 'https://developers.google.com/sheets/api/guides/performance',
     performance: 'https://developers.google.com/sheets/api/guides/performance',
     security: 'https://developers.google.com/sheets/api/guides/authorizing',
-    errors: 'https://developers.google.com/sheets/api/guides/troubleshooting'
+    errors: 'https://developers.google.com/sheets/api/guides/troubleshooting',
   };
 
   const url = urlMap[category] || urlMap.performance;
@@ -228,7 +223,7 @@ async function fetchBestPractices(category: string): Promise<any> {
   try {
     const response = await axios.get(url, {
       headers: { 'User-Agent': 'ServalSheets-MCP-Server/1.0' },
-      timeout: 10000
+      timeout: 10000,
     });
 
     const $ = cheerio.load(response.data);
@@ -237,7 +232,7 @@ async function fetchBestPractices(category: string): Promise<any> {
       category,
       url,
       practices: [] as any[],
-      lastFetched: new Date().toISOString()
+      lastFetched: new Date().toISOString(),
     };
 
     // Extract best practices
@@ -249,7 +244,7 @@ async function fetchBestPractices(category: string): Promise<any> {
         practices.practices.push({
           title: heading,
           description: content,
-          category: determinePracticeCategory(heading, content)
+          category: determinePracticeCategory(heading, content),
         });
       }
     });
@@ -266,27 +261,35 @@ async function fetchBestPractices(category: string): Promise<any> {
 
 // Helper functions
 function extractHttpMethod($: cheerio.CheerioAPI): string {
-  const method = $('code:contains("POST"), code:contains("GET"), code:contains("PUT")').first().text();
+  const method = $('code:contains("POST"), code:contains("GET"), code:contains("PUT")')
+    .first()
+    .text();
   return method || 'UNKNOWN';
 }
 
 function extractRequestUrl($: cheerio.CheerioAPI): string {
-  const url = $('code').filter((i, el) => $(el).text().includes('https://')).first().text();
+  const url = $('code')
+    .filter((i, el) => $(el).text().includes('https://'))
+    .first()
+    .text();
   return url || '';
 }
 
 function extractParameters($: cheerio.CheerioAPI): any[] {
   const params: any[] = [];
-  $('table').first().find('tr').each((i, row) => {
-    const cells = $(row).find('td');
-    if (cells.length >= 2) {
-      params.push({
-        name: $(cells[0]).text().trim(),
-        type: $(cells[1]).text().trim(),
-        description: $(cells[2])?.text().trim() || ''
-      });
-    }
-  });
+  $('table')
+    .first()
+    .find('tr')
+    .each((i, row) => {
+      const cells = $(row).find('td');
+      if (cells.length >= 2) {
+        params.push({
+          name: $(cells[0]).text().trim(),
+          type: $(cells[1]).text().trim(),
+          description: $(cells[2])?.text().trim() || '',
+        });
+      }
+    });
   return params;
 }
 
@@ -497,10 +500,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           content: [
             {
               type: 'text',
-              text: JSON.stringify({
-                deprecations: changelog.deprecations,
-                breakingChanges: changelog.breakingChanges,
-              }, null, 2),
+              text: JSON.stringify(
+                {
+                  deprecations: changelog.deprecations,
+                  breakingChanges: changelog.breakingChanges,
+                },
+                null,
+                2
+              ),
             },
           ],
         };

@@ -11,7 +11,12 @@
  */
 
 import * as ts from 'typescript';
-import { AnalysisAgent, AnalysisIssue, DimensionReport, AnalysisContext } from '../multi-agent-analysis.js';
+import {
+  AnalysisAgent,
+  AnalysisIssue,
+  DimensionReport,
+  AnalysisContext,
+} from '../multi-agent-analysis.js';
 
 export class SecurityAgent extends AnalysisAgent {
   constructor() {
@@ -67,10 +72,7 @@ export class SecurityAgent extends AnalysisAgent {
 
     const visit = (node: ts.Node) => {
       // Check for Zod parsing
-      if (
-        ts.isCallExpression(node) &&
-        ts.isPropertyAccessExpression(node.expression)
-      ) {
+      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
         const methodName = node.expression.name.text;
         if (methodName === 'parse' || methodName === 'safeParse') {
           hasZodValidation = true;
@@ -107,9 +109,7 @@ export class SecurityAgent extends AnalysisAgent {
             severity: 'critical',
             suggestion: 'Add Zod schema validation or manual type checking',
             estimatedEffort: '1-2h',
-            references: [
-              'https://owasp.org/www-project-top-ten/2017/A1_2017-Injection',
-            ],
+            references: ['https://owasp.org/www-project-top-ten/2017/A1_2017-Injection'],
           }
         )
       );
@@ -138,7 +138,7 @@ export class SecurityAgent extends AnalysisAgent {
 
         // SQL keywords
         const sqlKeywords = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'FROM', 'WHERE'];
-        const hasSQLKeyword = sqlKeywords.some(kw => text.toUpperCase().includes(kw));
+        const hasSQLKeyword = sqlKeywords.some((kw) => text.toUpperCase().includes(kw));
 
         if (hasSQLKeyword) {
           const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
@@ -153,9 +153,7 @@ export class SecurityAgent extends AnalysisAgent {
                 line,
                 suggestion: 'Use parameterized queries or prepared statements',
                 estimatedEffort: '30min-1h',
-                references: [
-                  'https://owasp.org/www-community/attacks/SQL_Injection',
-                ],
+                references: ['https://owasp.org/www-community/attacks/SQL_Injection'],
               }
             )
           );
@@ -185,10 +183,7 @@ export class SecurityAgent extends AnalysisAgent {
 
     const visit = (node: ts.Node) => {
       // Check for path.join/resolve with user input
-      if (
-        ts.isCallExpression(node) &&
-        ts.isPropertyAccessExpression(node.expression)
-      ) {
+      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
         const obj = node.expression.expression;
         const method = node.expression.name.text;
 
@@ -198,7 +193,7 @@ export class SecurityAgent extends AnalysisAgent {
           (method === 'join' || method === 'resolve')
         ) {
           // Check if any argument looks like user input
-          const hasUserInput = node.arguments.some(arg => {
+          const hasUserInput = node.arguments.some((arg) => {
             const text = arg.getText(sourceFile);
             return (
               text.includes('request') ||
@@ -221,9 +216,7 @@ export class SecurityAgent extends AnalysisAgent {
                   line,
                   suggestion: 'Sanitize path input, validate against allowlist',
                   estimatedEffort: '1h',
-                  references: [
-                    'https://owasp.org/www-community/attacks/Path_Traversal',
-                  ],
+                  references: ['https://owasp.org/www-community/attacks/Path_Traversal'],
                 }
               )
             );
@@ -254,10 +247,7 @@ export class SecurityAgent extends AnalysisAgent {
 
     const visit = (node: ts.Node) => {
       // Check for child_process.exec with user input
-      if (
-        ts.isCallExpression(node) &&
-        ts.isPropertyAccessExpression(node.expression)
-      ) {
+      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
         const method = node.expression.name.text;
 
         if (method === 'exec' || method === 'spawn') {
@@ -265,9 +255,7 @@ export class SecurityAgent extends AnalysisAgent {
           if (firstArg) {
             const text = firstArg.getText(sourceFile);
             const hasUserInput =
-              text.includes('request') ||
-              text.includes('input') ||
-              text.includes('${');
+              text.includes('request') || text.includes('input') || text.includes('${');
 
             if (hasUserInput) {
               const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
@@ -282,9 +270,7 @@ export class SecurityAgent extends AnalysisAgent {
                     line,
                     suggestion: 'Use spawn with argument array, avoid shell interpolation',
                     estimatedEffort: '1-2h',
-                    references: [
-                      'https://owasp.org/www-community/attacks/Command_Injection',
-                    ],
+                    references: ['https://owasp.org/www-community/attacks/Command_Injection'],
                   }
                 )
               );
@@ -333,20 +319,15 @@ export class SecurityAgent extends AnalysisAgent {
         const line = sourceFile.getLineAndCharacterOfPosition(pos).line + 1;
 
         issues.push(
-          this.createIssue(
-            'secrets',
-            filePath,
-            `Potential hardcoded ${type} detected`,
-            {
-              severity: 'critical',
-              line,
-              suggestion: 'Use environment variables or secret management service',
-              estimatedEffort: '30min',
-              references: [
-                'https://owasp.org/www-community/vulnerabilities/Use_of_hard-coded_password',
-              ],
-            }
-          )
+          this.createIssue('secrets', filePath, `Potential hardcoded ${type} detected`, {
+            severity: 'critical',
+            line,
+            suggestion: 'Use environment variables or secret management service',
+            estimatedEffort: '30min',
+            references: [
+              'https://owasp.org/www-community/vulnerabilities/Use_of_hard-coded_password',
+            ],
+          })
         );
       }
     }

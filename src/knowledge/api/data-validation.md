@@ -24,28 +24,22 @@
 ```typescript
 interface DataValidationRule {
   condition: BooleanCondition;
-  inputMessage?: string;       // Help text shown on cell focus
-  strict?: boolean;            // true = reject invalid, false = warning only
-  showCustomUi?: boolean;      // Show dropdown for lists
+  inputMessage?: string; // Help text shown on cell focus
+  strict?: boolean; // true = reject invalid, false = warning only
+  showCustomUi?: boolean; // Show dropdown for lists
 }
 
 interface BooleanCondition {
   type: ConditionType;
-  values?: ConditionValue[];   // Arguments for the condition
+  values?: ConditionValue[]; // Arguments for the condition
 }
 
 interface ConditionValue {
-  userEnteredValue?: string;   // Literal value or formula
+  userEnteredValue?: string; // Literal value or formula
   relativeDate?: RelativeDate; // For date conditions
 }
 
-type RelativeDate = 
-  | 'PAST_YEAR'
-  | 'PAST_MONTH'
-  | 'PAST_WEEK'
-  | 'YESTERDAY'
-  | 'TODAY'
-  | 'TOMORROW';
+type RelativeDate = 'PAST_YEAR' | 'PAST_MONTH' | 'PAST_WEEK' | 'YESTERDAY' | 'TODAY' | 'TOMORROW';
 ```
 
 ### SetDataValidation Request
@@ -53,7 +47,7 @@ type RelativeDate =
 ```typescript
 interface SetDataValidationRequest {
   range: GridRange;
-  rule?: DataValidationRule;  // Omit to clear validation
+  rule?: DataValidationRule; // Omit to clear validation
 }
 
 // Example
@@ -84,37 +78,37 @@ const request = {
 
 ### All Condition Types
 
-| Type | Description | Values Required |
-|------|-------------|-----------------|
-| `NUMBER_GREATER` | > value | 1 |
-| `NUMBER_GREATER_THAN_EQ` | >= value | 1 |
-| `NUMBER_LESS` | < value | 1 |
-| `NUMBER_LESS_THAN_EQ` | <= value | 1 |
-| `NUMBER_EQ` | = value | 1 |
-| `NUMBER_NOT_EQ` | ≠ value | 1 |
-| `NUMBER_BETWEEN` | Between min and max | 2 |
-| `NUMBER_NOT_BETWEEN` | Not between min and max | 2 |
-| `TEXT_CONTAINS` | Contains substring | 1 |
-| `TEXT_NOT_CONTAINS` | Doesn't contain substring | 1 |
-| `TEXT_STARTS_WITH` | Starts with prefix | 1 |
-| `TEXT_ENDS_WITH` | Ends with suffix | 1 |
-| `TEXT_EQ` | Exact text match | 1 |
-| `TEXT_IS_EMAIL` | Valid email format | 0 |
-| `TEXT_IS_URL` | Valid URL format | 0 |
-| `DATE_EQ` | Equals date | 1 |
-| `DATE_BEFORE` | Before date | 1 |
-| `DATE_AFTER` | After date | 1 |
-| `DATE_ON_OR_BEFORE` | On or before date | 1 |
-| `DATE_ON_OR_AFTER` | On or after date | 1 |
-| `DATE_BETWEEN` | Between dates | 2 |
-| `DATE_NOT_BETWEEN` | Not between dates | 2 |
-| `DATE_IS_VALID` | Any valid date | 0 |
-| `ONE_OF_RANGE` | Value in range | 1 (range ref) |
-| `ONE_OF_LIST` | Value in list | N (list items) |
-| `BLANK` | Cell is empty | 0 |
-| `NOT_BLANK` | Cell is not empty | 0 |
-| `CUSTOM_FORMULA` | Custom formula | 1 (formula) |
-| `BOOLEAN` | Checkbox | 0 |
+| Type                     | Description               | Values Required |
+| ------------------------ | ------------------------- | --------------- |
+| `NUMBER_GREATER`         | > value                   | 1               |
+| `NUMBER_GREATER_THAN_EQ` | >= value                  | 1               |
+| `NUMBER_LESS`            | < value                   | 1               |
+| `NUMBER_LESS_THAN_EQ`    | <= value                  | 1               |
+| `NUMBER_EQ`              | = value                   | 1               |
+| `NUMBER_NOT_EQ`          | ≠ value                   | 1               |
+| `NUMBER_BETWEEN`         | Between min and max       | 2               |
+| `NUMBER_NOT_BETWEEN`     | Not between min and max   | 2               |
+| `TEXT_CONTAINS`          | Contains substring        | 1               |
+| `TEXT_NOT_CONTAINS`      | Doesn't contain substring | 1               |
+| `TEXT_STARTS_WITH`       | Starts with prefix        | 1               |
+| `TEXT_ENDS_WITH`         | Ends with suffix          | 1               |
+| `TEXT_EQ`                | Exact text match          | 1               |
+| `TEXT_IS_EMAIL`          | Valid email format        | 0               |
+| `TEXT_IS_URL`            | Valid URL format          | 0               |
+| `DATE_EQ`                | Equals date               | 1               |
+| `DATE_BEFORE`            | Before date               | 1               |
+| `DATE_AFTER`             | After date                | 1               |
+| `DATE_ON_OR_BEFORE`      | On or before date         | 1               |
+| `DATE_ON_OR_AFTER`       | On or after date          | 1               |
+| `DATE_BETWEEN`           | Between dates             | 2               |
+| `DATE_NOT_BETWEEN`       | Not between dates         | 2               |
+| `DATE_IS_VALID`          | Any valid date            | 0               |
+| `ONE_OF_RANGE`           | Value in range            | 1 (range ref)   |
+| `ONE_OF_LIST`            | Value in list             | N (list items)  |
+| `BLANK`                  | Cell is empty             | 0               |
+| `NOT_BLANK`              | Cell is not empty         | 0               |
+| `CUSTOM_FORMULA`         | Custom formula            | 1 (formula)     |
+| `BOOLEAN`                | Checkbox                  | 0               |
 
 ---
 
@@ -182,10 +176,7 @@ const notEqual: DataValidationRule = {
 const between: DataValidationRule = {
   condition: {
     type: 'NUMBER_BETWEEN',
-    values: [
-      { userEnteredValue: '1' },
-      { userEnteredValue: '100' },
-    ],
+    values: [{ userEnteredValue: '1' }, { userEnteredValue: '100' }],
   },
   strict: true,
   inputMessage: 'Enter a number between 1 and 100',
@@ -195,10 +186,7 @@ const between: DataValidationRule = {
 const notBetween: DataValidationRule = {
   condition: {
     type: 'NUMBER_NOT_BETWEEN',
-    values: [
-      { userEnteredValue: '0' },
-      { userEnteredValue: '10' },
-    ],
+    values: [{ userEnteredValue: '0' }, { userEnteredValue: '10' }],
   },
   strict: true,
 };
@@ -207,7 +195,7 @@ const notBetween: DataValidationRule = {
 const greaterThanCell: DataValidationRule = {
   condition: {
     type: 'NUMBER_GREATER',
-    values: [{ userEnteredValue: '=A1' }],  // Formula reference
+    values: [{ userEnteredValue: '=A1' }], // Formula reference
   },
   strict: true,
 };
@@ -307,7 +295,7 @@ const beforeDate: DataValidationRule = {
 const afterDate: DataValidationRule = {
   condition: {
     type: 'DATE_AFTER',
-    values: [{ userEnteredValue: '=TODAY()' }],  // After today
+    values: [{ userEnteredValue: '=TODAY()' }], // After today
   },
   strict: true,
   inputMessage: 'Date must be in the future',
@@ -335,10 +323,7 @@ const onOrAfter: DataValidationRule = {
 const betweenDates: DataValidationRule = {
   condition: {
     type: 'DATE_BETWEEN',
-    values: [
-      { userEnteredValue: '2024-01-01' },
-      { userEnteredValue: '2024-12-31' },
-    ],
+    values: [{ userEnteredValue: '2024-01-01' }, { userEnteredValue: '2024-12-31' }],
   },
   strict: true,
   inputMessage: 'Date must be in 2024',
@@ -384,7 +369,7 @@ const staticList: DataValidationRule = {
       { userEnteredValue: 'Low' },
     ],
   },
-  showCustomUi: true,  // Show dropdown
+  showCustomUi: true, // Show dropdown
   strict: true,
   inputMessage: 'Select priority level',
 };
@@ -403,7 +388,7 @@ const rangeList: DataValidationRule = {
 const namedRangeList: DataValidationRule = {
   condition: {
     type: 'ONE_OF_RANGE',
-    values: [{ userEnteredValue: '=StatusOptions' }],  // Named range
+    values: [{ userEnteredValue: '=StatusOptions' }], // Named range
   },
   showCustomUi: true,
   strict: true,
@@ -423,10 +408,7 @@ const dependentList: DataValidationRule = {
 const yesNo: DataValidationRule = {
   condition: {
     type: 'ONE_OF_LIST',
-    values: [
-      { userEnteredValue: 'Yes' },
-      { userEnteredValue: 'No' },
-    ],
+    values: [{ userEnteredValue: 'Yes' }, { userEnteredValue: 'No' }],
   },
   showCustomUi: true,
   strict: true,
@@ -447,12 +429,9 @@ const checkbox: DataValidationRule = {
 const customCheckbox: DataValidationRule = {
   condition: {
     type: 'ONE_OF_LIST',
-    values: [
-      { userEnteredValue: 'Complete' },
-      { userEnteredValue: 'Incomplete' },
-    ],
+    values: [{ userEnteredValue: 'Complete' }, { userEnteredValue: 'Incomplete' }],
   },
-  showCustomUi: false,  // Renders as checkbox
+  showCustomUi: false, // Renders as checkbox
 };
 ```
 
@@ -572,7 +551,13 @@ const formValidationRequests = [
   // Name: Required, max 100 chars
   {
     setDataValidation: {
-      range: { sheetId: 0, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 0, endColumnIndex: 1 },
+      range: {
+        sheetId: 0,
+        startRowIndex: 1,
+        endRowIndex: 1000,
+        startColumnIndex: 0,
+        endColumnIndex: 1,
+      },
       rule: {
         condition: {
           type: 'CUSTOM_FORMULA',
@@ -583,11 +568,17 @@ const formValidationRequests = [
       },
     },
   },
-  
+
   // Email: Valid format
   {
     setDataValidation: {
-      range: { sheetId: 0, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 1, endColumnIndex: 2 },
+      range: {
+        sheetId: 0,
+        startRowIndex: 1,
+        endRowIndex: 1000,
+        startColumnIndex: 1,
+        endColumnIndex: 2,
+      },
       rule: {
         condition: { type: 'TEXT_IS_EMAIL' },
         strict: true,
@@ -595,29 +586,38 @@ const formValidationRequests = [
       },
     },
   },
-  
+
   // Age: 18-120
   {
     setDataValidation: {
-      range: { sheetId: 0, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 2, endColumnIndex: 3 },
+      range: {
+        sheetId: 0,
+        startRowIndex: 1,
+        endRowIndex: 1000,
+        startColumnIndex: 2,
+        endColumnIndex: 3,
+      },
       rule: {
         condition: {
           type: 'NUMBER_BETWEEN',
-          values: [
-            { userEnteredValue: '18' },
-            { userEnteredValue: '120' },
-          ],
+          values: [{ userEnteredValue: '18' }, { userEnteredValue: '120' }],
         },
         strict: true,
         inputMessage: 'Age must be between 18 and 120',
       },
     },
   },
-  
+
   // Status: Dropdown
   {
     setDataValidation: {
-      range: { sheetId: 0, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 3, endColumnIndex: 4 },
+      range: {
+        sheetId: 0,
+        startRowIndex: 1,
+        endRowIndex: 1000,
+        startColumnIndex: 3,
+        endColumnIndex: 4,
+      },
       rule: {
         condition: {
           type: 'ONE_OF_LIST',
@@ -633,11 +633,17 @@ const formValidationRequests = [
       },
     },
   },
-  
+
   // Start Date: Today or future
   {
     setDataValidation: {
-      range: { sheetId: 0, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 4, endColumnIndex: 5 },
+      range: {
+        sheetId: 0,
+        startRowIndex: 1,
+        endRowIndex: 1000,
+        startColumnIndex: 4,
+        endColumnIndex: 5,
+      },
       rule: {
         condition: {
           type: 'DATE_ON_OR_AFTER',
@@ -648,11 +654,17 @@ const formValidationRequests = [
       },
     },
   },
-  
+
   // End Date: After Start Date
   {
     setDataValidation: {
-      range: { sheetId: 0, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 5, endColumnIndex: 6 },
+      range: {
+        sheetId: 0,
+        startRowIndex: 1,
+        endRowIndex: 1000,
+        startColumnIndex: 5,
+        endColumnIndex: 6,
+      },
       rule: {
         condition: {
           type: 'CUSTOM_FORMULA',
@@ -663,11 +675,17 @@ const formValidationRequests = [
       },
     },
   },
-  
+
   // Amount: Positive number
   {
     setDataValidation: {
-      range: { sheetId: 0, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 6, endColumnIndex: 7 },
+      range: {
+        sheetId: 0,
+        startRowIndex: 1,
+        endRowIndex: 1000,
+        startColumnIndex: 6,
+        endColumnIndex: 7,
+      },
       rule: {
         condition: {
           type: 'NUMBER_GREATER',
@@ -678,11 +696,17 @@ const formValidationRequests = [
       },
     },
   },
-  
+
   // Checkbox: Confirmed
   {
     setDataValidation: {
-      range: { sheetId: 0, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 7, endColumnIndex: 8 },
+      range: {
+        sheetId: 0,
+        startRowIndex: 1,
+        endRowIndex: 1000,
+        startColumnIndex: 7,
+        endColumnIndex: 8,
+      },
       rule: {
         condition: { type: 'BOOLEAN' },
       },
@@ -709,7 +733,13 @@ const namedRangeRequests = [
     addNamedRange: {
       namedRange: {
         name: 'Electronics',
-        range: { sheetId: 1, startRowIndex: 1, endRowIndex: 4, startColumnIndex: 1, endColumnIndex: 2 },
+        range: {
+          sheetId: 1,
+          startRowIndex: 1,
+          endRowIndex: 4,
+          startColumnIndex: 1,
+          endColumnIndex: 2,
+        },
       },
     },
   },
@@ -717,7 +747,13 @@ const namedRangeRequests = [
     addNamedRange: {
       namedRange: {
         name: 'Clothing',
-        range: { sheetId: 1, startRowIndex: 1, endRowIndex: 4, startColumnIndex: 2, endColumnIndex: 3 },
+        range: {
+          sheetId: 1,
+          startRowIndex: 1,
+          endRowIndex: 4,
+          startColumnIndex: 2,
+          endColumnIndex: 3,
+        },
       },
     },
   },
@@ -725,7 +761,13 @@ const namedRangeRequests = [
     addNamedRange: {
       namedRange: {
         name: 'Food',
-        range: { sheetId: 1, startRowIndex: 1, endRowIndex: 4, startColumnIndex: 3, endColumnIndex: 4 },
+        range: {
+          sheetId: 1,
+          startRowIndex: 1,
+          endRowIndex: 4,
+          startColumnIndex: 3,
+          endColumnIndex: 4,
+        },
       },
     },
   },
@@ -734,7 +776,13 @@ const namedRangeRequests = [
 // Step 3: Set validation for main category
 const categoryValidation = {
   setDataValidation: {
-    range: { sheetId: 0, startRowIndex: 1, endRowIndex: 100, startColumnIndex: 0, endColumnIndex: 1 },
+    range: {
+      sheetId: 0,
+      startRowIndex: 1,
+      endRowIndex: 100,
+      startColumnIndex: 0,
+      endColumnIndex: 1,
+    },
     rule: {
       condition: {
         type: 'ONE_OF_LIST',
@@ -753,11 +801,17 @@ const categoryValidation = {
 // Step 4: Set dependent validation for subcategory
 const subcategoryValidation = {
   setDataValidation: {
-    range: { sheetId: 0, startRowIndex: 1, endRowIndex: 100, startColumnIndex: 1, endColumnIndex: 2 },
+    range: {
+      sheetId: 0,
+      startRowIndex: 1,
+      endRowIndex: 100,
+      startColumnIndex: 1,
+      endColumnIndex: 2,
+    },
     rule: {
       condition: {
         type: 'ONE_OF_RANGE',
-        values: [{ userEnteredValue: '=INDIRECT(A1)' }],  // Dynamic reference
+        values: [{ userEnteredValue: '=INDIRECT(A1)' }], // Dynamic reference
       },
       showCustomUi: true,
       strict: true,
@@ -821,13 +875,13 @@ async function setValidations(
   spreadsheetId: string,
   validations: Array<{ range: GridRange; rule: DataValidationRule }>
 ): Promise<void> {
-  const requests = validations.map(v => ({
+  const requests = validations.map((v) => ({
     setDataValidation: {
       range: v.range,
       rule: v.rule,
     },
   }));
-  
+
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
     requestBody: { requests },
@@ -845,10 +899,7 @@ async function setValidations(
 const percentage: DataValidationRule = {
   condition: {
     type: 'NUMBER_BETWEEN',
-    values: [
-      { userEnteredValue: '0' },
-      { userEnteredValue: '100' },
-    ],
+    values: [{ userEnteredValue: '0' }, { userEnteredValue: '100' }],
   },
   strict: true,
   inputMessage: 'Enter percentage (0-100)',
@@ -929,10 +980,7 @@ const rating: DataValidationRule = {
 const numericRating: DataValidationRule = {
   condition: {
     type: 'NUMBER_BETWEEN',
-    values: [
-      { userEnteredValue: '1' },
-      { userEnteredValue: '5' },
-    ],
+    values: [{ userEnteredValue: '1' }, { userEnteredValue: '5' }],
   },
   strict: true,
   inputMessage: 'Rate 1-5',
@@ -963,4 +1011,4 @@ const timeSlot: DataValidationRule = {
 
 ---
 
-*Source: Google Sheets API v4 Documentation*
+_Source: Google Sheets API v4 Documentation_

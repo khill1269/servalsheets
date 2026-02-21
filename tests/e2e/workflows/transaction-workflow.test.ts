@@ -295,7 +295,10 @@ describeE2E('E2E: Error Recovery in Transactions', () => {
       args: {
         spreadsheetId,
         range: 'Data!A1:B2',
-        values: [['A', 'B'], ['1', '2']],
+        values: [
+          ['A', 'B'],
+          ['1', '2'],
+        ],
       },
     });
 

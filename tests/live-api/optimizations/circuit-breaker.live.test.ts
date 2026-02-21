@@ -5,7 +5,11 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { getLiveApiClient, isLiveApiEnabled, type LiveApiClient } from '../setup/live-api-client.js';
+import {
+  getLiveApiClient,
+  isLiveApiEnabled,
+  type LiveApiClient,
+} from '../setup/live-api-client.js';
 import {
   TestSpreadsheetManager,
   createTestSpreadsheetManager,
@@ -69,21 +73,25 @@ describeOrSkip('Circuit Breaker Live Verification', () => {
     it('should reject requests when open', async () => {
       for (let i = 0; i < 3; i++) {
         try {
-          await breaker.execute(async () => { throw new Error('fail'); });
+          await breaker.execute(async () => {
+            throw new Error('fail');
+          });
         } catch {
           // Expected
         }
       }
 
-      await expect(
-        breaker.execute(async () => 'success')
-      ).rejects.toThrow(/Circuit breaker.*OPEN/i);
+      await expect(breaker.execute(async () => 'success')).rejects.toThrow(
+        /Circuit breaker.*OPEN/i
+      );
     });
 
     it('should transition to half-open after timeout', async () => {
       for (let i = 0; i < 3; i++) {
         try {
-          await breaker.execute(async () => { throw new Error('fail'); });
+          await breaker.execute(async () => {
+            throw new Error('fail');
+          });
         } catch {
           // Expected
         }
@@ -91,7 +99,7 @@ describeOrSkip('Circuit Breaker Live Verification', () => {
 
       expect(breaker.getState()).toBe('open');
 
-      await new Promise(resolve => setTimeout(resolve, 1100));
+      await new Promise((resolve) => setTimeout(resolve, 1100));
 
       const result = await breaker.execute(async () => 'recovered');
       expect(result).toBe('recovered');
@@ -100,13 +108,15 @@ describeOrSkip('Circuit Breaker Live Verification', () => {
     it('should close after successful operations in half-open', async () => {
       for (let i = 0; i < 3; i++) {
         try {
-          await breaker.execute(async () => { throw new Error('fail'); });
+          await breaker.execute(async () => {
+            throw new Error('fail');
+          });
         } catch {
           // Expected
         }
       }
 
-      await new Promise(resolve => setTimeout(resolve, 1100));
+      await new Promise((resolve) => setTimeout(resolve, 1100));
 
       await breaker.execute(async () => 'success1');
       await breaker.execute(async () => 'success2');

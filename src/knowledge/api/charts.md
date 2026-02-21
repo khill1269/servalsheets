@@ -24,7 +24,7 @@
 
 ```typescript
 interface EmbeddedChart {
-  chartId?: number;              // Auto-generated on create
+  chartId?: number; // Auto-generated on create
   position: EmbeddedObjectPosition;
   spec: ChartSpec;
   border?: EmbeddedObjectBorder;
@@ -41,11 +41,12 @@ interface ChartSpec {
   fontName?: string;
   backgroundColor?: Color;
   maximized?: boolean;
-  hiddenDimensionStrategy?: 'CHART_HIDDEN_DIMENSION_STRATEGY_UNSPECIFIED' | 
-                            'SKIP_HIDDEN_ROWS_AND_COLUMNS' | 
-                            'SKIP_HIDDEN_ROWS' | 
-                            'SKIP_HIDDEN_COLUMNS' | 
-                            'SHOW_ALL';
+  hiddenDimensionStrategy?:
+    | 'CHART_HIDDEN_DIMENSION_STRATEGY_UNSPECIFIED'
+    | 'SKIP_HIDDEN_ROWS_AND_COLUMNS'
+    | 'SKIP_HIDDEN_ROWS'
+    | 'SKIP_HIDDEN_COLUMNS'
+    | 'SHOW_ALL';
   // One of the following chart types:
   basicChart?: BasicChartSpec;
   pieChart?: PieChartSpec;
@@ -85,7 +86,7 @@ const position: EmbeddedObjectPosition = {
     anchorCell: {
       sheetId: 0,
       rowIndex: 0,
-      columnIndex: 4,  // Column E
+      columnIndex: 4, // Column E
     },
     widthPixels: 600,
     heightPixels: 400,
@@ -115,21 +116,9 @@ interface BasicChartSpec {
   totalDataLabel?: DataLabel;
 }
 
-type BasicChartType = 
-  | 'BAR'
-  | 'LINE'
-  | 'AREA'
-  | 'COLUMN'
-  | 'SCATTER'
-  | 'COMBO'
-  | 'STEPPED_AREA';
+type BasicChartType = 'BAR' | 'LINE' | 'AREA' | 'COLUMN' | 'SCATTER' | 'COMBO' | 'STEPPED_AREA';
 
-type LegendPosition = 
-  | 'BOTTOM_LEGEND'
-  | 'LEFT_LEGEND'
-  | 'RIGHT_LEGEND'
-  | 'TOP_LEGEND'
-  | 'NO_LEGEND';
+type LegendPosition = 'BOTTOM_LEGEND' | 'LEFT_LEGEND' | 'RIGHT_LEGEND' | 'TOP_LEGEND' | 'NO_LEGEND';
 ```
 
 ### BAR Chart
@@ -153,39 +142,47 @@ const barChart: ChartSpec = {
         title: 'Region',
       },
     ],
-    domains: [{
-      domain: {
-        sourceRange: {
-          sources: [{
-            sheetId: 0,
-            startRowIndex: 0,
-            endRowIndex: 6,
-            startColumnIndex: 0,
-            endColumnIndex: 1,
-          }],
+    domains: [
+      {
+        domain: {
+          sourceRange: {
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 6,
+                startColumnIndex: 0,
+                endColumnIndex: 1,
+              },
+            ],
+          },
         },
       },
-    }],
-    series: [{
-      series: {
-        sourceRange: {
-          sources: [{
-            sheetId: 0,
-            startRowIndex: 0,
-            endRowIndex: 6,
-            startColumnIndex: 1,
-            endColumnIndex: 2,
-          }],
+    ],
+    series: [
+      {
+        series: {
+          sourceRange: {
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 6,
+                startColumnIndex: 1,
+                endColumnIndex: 2,
+              },
+            ],
+          },
+        },
+        targetAxis: 'BOTTOM_AXIS',
+        color: { red: 0.2, green: 0.6, blue: 0.9 },
+        dataLabel: {
+          type: 'DATA',
+          placement: 'INSIDE_END',
+          textFormat: { bold: true },
         },
       },
-      targetAxis: 'BOTTOM_AXIS',
-      color: { red: 0.2, green: 0.6, blue: 0.9 },
-      dataLabel: {
-        type: 'DATA',
-        placement: 'INSIDE_END',
-        textFormat: { bold: true },
-      },
-    }],
+    ],
     headerCount: 1,
   },
 };
@@ -212,30 +209,36 @@ const columnChart: ChartSpec = {
         format: { pattern: '$#,##0K' },
       },
     ],
-    domains: [{
-      domain: {
-        sourceRange: {
-          sources: [{
-            sheetId: 0,
-            startRowIndex: 0,
-            endRowIndex: 13,
-            startColumnIndex: 0,
-            endColumnIndex: 1,
-          }],
+    domains: [
+      {
+        domain: {
+          sourceRange: {
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 13,
+                startColumnIndex: 0,
+                endColumnIndex: 1,
+              },
+            ],
+          },
         },
       },
-    }],
+    ],
     series: [
       {
         series: {
           sourceRange: {
-            sources: [{
-              sheetId: 0,
-              startRowIndex: 0,
-              endRowIndex: 13,
-              startColumnIndex: 1,
-              endColumnIndex: 2,
-            }],
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 13,
+                startColumnIndex: 1,
+                endColumnIndex: 2,
+              },
+            ],
           },
         },
         targetAxis: 'LEFT_AXIS',
@@ -244,13 +247,15 @@ const columnChart: ChartSpec = {
       {
         series: {
           sourceRange: {
-            sources: [{
-              sheetId: 0,
-              startRowIndex: 0,
-              endRowIndex: 13,
-              startColumnIndex: 2,
-              endColumnIndex: 3,
-            }],
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 13,
+                startColumnIndex: 2,
+                endColumnIndex: 3,
+              },
+            ],
           },
         },
         targetAxis: 'LEFT_AXIS',
@@ -258,7 +263,7 @@ const columnChart: ChartSpec = {
       },
     ],
     headerCount: 1,
-    stackedType: 'NOT_STACKED',  // or 'STACKED', 'PERCENT_STACKED'
+    stackedType: 'NOT_STACKED', // or 'STACKED', 'PERCENT_STACKED'
   },
 };
 ```
@@ -284,36 +289,44 @@ const lineChart: ChartSpec = {
         format: { pattern: '$#,##0.00' },
       },
     ],
-    domains: [{
-      domain: {
-        sourceRange: {
-          sources: [{
-            sheetId: 0,
-            startRowIndex: 0,
-            endRowIndex: 31,
-            startColumnIndex: 0,
-            endColumnIndex: 1,
-          }],
+    domains: [
+      {
+        domain: {
+          sourceRange: {
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 31,
+                startColumnIndex: 0,
+                endColumnIndex: 1,
+              },
+            ],
+          },
         },
       },
-    }],
-    series: [{
-      series: {
-        sourceRange: {
-          sources: [{
-            sheetId: 0,
-            startRowIndex: 0,
-            endRowIndex: 31,
-            startColumnIndex: 1,
-            endColumnIndex: 2,
-          }],
+    ],
+    series: [
+      {
+        series: {
+          sourceRange: {
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 31,
+                startColumnIndex: 1,
+                endColumnIndex: 2,
+              },
+            ],
+          },
         },
+        targetAxis: 'LEFT_AXIS',
+        color: { red: 0.0, green: 0.4, blue: 0.8 },
+        lineStyle: { type: 'SOLID', width: 2 },
+        pointStyle: { shape: 'CIRCLE', size: 6 },
       },
-      targetAxis: 'LEFT_AXIS',
-      color: { red: 0.0, green: 0.4, blue: 0.8 },
-      lineStyle: { type: 'SOLID', width: 2 },
-      pointStyle: { shape: 'CIRCLE', size: 6 },
-    }],
+    ],
     headerCount: 1,
   },
 };
@@ -333,30 +346,36 @@ const areaChart: ChartSpec = {
       { position: 'BOTTOM_AXIS', title: 'Week' },
       { position: 'LEFT_AXIS', title: 'Visitors' },
     ],
-    domains: [{
-      domain: {
-        sourceRange: {
-          sources: [{
-            sheetId: 0,
-            startRowIndex: 0,
-            endRowIndex: 12,
-            startColumnIndex: 0,
-            endColumnIndex: 1,
-          }],
+    domains: [
+      {
+        domain: {
+          sourceRange: {
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 12,
+                startColumnIndex: 0,
+                endColumnIndex: 1,
+              },
+            ],
+          },
         },
       },
-    }],
+    ],
     series: [
       {
         series: {
           sourceRange: {
-            sources: [{
-              sheetId: 0,
-              startRowIndex: 0,
-              endRowIndex: 12,
-              startColumnIndex: 1,
-              endColumnIndex: 2,
-            }],
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 12,
+                startColumnIndex: 1,
+                endColumnIndex: 2,
+              },
+            ],
           },
         },
         color: { red: 0.2, green: 0.5, blue: 0.9, alpha: 0.7 },
@@ -364,13 +383,15 @@ const areaChart: ChartSpec = {
       {
         series: {
           sourceRange: {
-            sources: [{
-              sheetId: 0,
-              startRowIndex: 0,
-              endRowIndex: 12,
-              startColumnIndex: 2,
-              endColumnIndex: 3,
-            }],
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 12,
+                startColumnIndex: 2,
+                endColumnIndex: 3,
+              },
+            ],
           },
         },
         color: { red: 0.9, green: 0.3, blue: 0.3, alpha: 0.7 },
@@ -401,37 +422,45 @@ const scatterChart: ChartSpec = {
         viewWindowOptions: { viewWindowMin: 40, viewWindowMax: 100 },
       },
     ],
-    domains: [{
-      domain: {
-        sourceRange: {
-          sources: [{
-            sheetId: 0,
-            startRowIndex: 0,
-            endRowIndex: 50,
-            startColumnIndex: 0,
-            endColumnIndex: 1,
-          }],
+    domains: [
+      {
+        domain: {
+          sourceRange: {
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 50,
+                startColumnIndex: 0,
+                endColumnIndex: 1,
+              },
+            ],
+          },
         },
       },
-    }],
-    series: [{
-      series: {
-        sourceRange: {
-          sources: [{
-            sheetId: 0,
-            startRowIndex: 0,
-            endRowIndex: 50,
-            startColumnIndex: 1,
-            endColumnIndex: 2,
-          }],
+    ],
+    series: [
+      {
+        series: {
+          sourceRange: {
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 50,
+                startColumnIndex: 1,
+                endColumnIndex: 2,
+              },
+            ],
+          },
         },
+        pointStyle: {
+          shape: 'CIRCLE',
+          size: 8,
+        },
+        color: { red: 0.8, green: 0.2, blue: 0.2 },
       },
-      pointStyle: {
-        shape: 'CIRCLE',
-        size: 8,
-      },
-      color: { red: 0.8, green: 0.2, blue: 0.2 },
-    }],
+    ],
     headerCount: 1,
   },
 };
@@ -452,31 +481,37 @@ const comboChart: ChartSpec = {
       { position: 'LEFT_AXIS', title: 'Sales ($)' },
       { position: 'RIGHT_AXIS', title: 'Growth (%)' },
     ],
-    domains: [{
-      domain: {
-        sourceRange: {
-          sources: [{
-            sheetId: 0,
-            startRowIndex: 0,
-            endRowIndex: 5,
-            startColumnIndex: 0,
-            endColumnIndex: 1,
-          }],
+    domains: [
+      {
+        domain: {
+          sourceRange: {
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 5,
+                startColumnIndex: 0,
+                endColumnIndex: 1,
+              },
+            ],
+          },
         },
       },
-    }],
+    ],
     series: [
       {
         // Column series for sales
         series: {
           sourceRange: {
-            sources: [{
-              sheetId: 0,
-              startRowIndex: 0,
-              endRowIndex: 5,
-              startColumnIndex: 1,
-              endColumnIndex: 2,
-            }],
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 5,
+                startColumnIndex: 1,
+                endColumnIndex: 2,
+              },
+            ],
           },
         },
         targetAxis: 'LEFT_AXIS',
@@ -487,13 +522,15 @@ const comboChart: ChartSpec = {
         // Line series for growth rate
         series: {
           sourceRange: {
-            sources: [{
-              sheetId: 0,
-              startRowIndex: 0,
-              endRowIndex: 5,
-              startColumnIndex: 2,
-              endColumnIndex: 3,
-            }],
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 5,
+                startColumnIndex: 2,
+                endColumnIndex: 3,
+              },
+            ],
           },
         },
         targetAxis: 'RIGHT_AXIS',
@@ -520,7 +557,7 @@ interface PieChartSpec {
   domain?: ChartData;
   series?: ChartData;
   threeDimensional?: boolean;
-  pieHole?: number;  // 0-1, makes donut chart
+  pieHole?: number; // 0-1, makes donut chart
 }
 
 const pieChart: ChartSpec = {
@@ -529,28 +566,32 @@ const pieChart: ChartSpec = {
     legendPosition: 'RIGHT_LEGEND',
     domain: {
       sourceRange: {
-        sources: [{
-          sheetId: 0,
-          startRowIndex: 0,
-          endRowIndex: 5,
-          startColumnIndex: 0,
-          endColumnIndex: 1,
-        }],
+        sources: [
+          {
+            sheetId: 0,
+            startRowIndex: 0,
+            endRowIndex: 5,
+            startColumnIndex: 0,
+            endColumnIndex: 1,
+          },
+        ],
       },
     },
     series: {
       sourceRange: {
-        sources: [{
-          sheetId: 0,
-          startRowIndex: 0,
-          endRowIndex: 5,
-          startColumnIndex: 1,
-          endColumnIndex: 2,
-        }],
+        sources: [
+          {
+            sheetId: 0,
+            startRowIndex: 0,
+            endRowIndex: 5,
+            startColumnIndex: 1,
+            endColumnIndex: 2,
+          },
+        ],
       },
     },
     threeDimensional: false,
-    pieHole: 0,  // 0 = pie, 0.5 = donut
+    pieHole: 0, // 0 = pie, 0.5 = donut
   },
 };
 
@@ -559,9 +600,13 @@ const donutChart: ChartSpec = {
   title: 'Budget Distribution',
   pieChart: {
     legendPosition: 'BOTTOM_LEGEND',
-    domain: { /* ... */ },
-    series: { /* ... */ },
-    pieHole: 0.5,  // Creates hole in center
+    domain: {
+      /* ... */
+    },
+    series: {
+      /* ... */
+    },
+    pieHole: 0.5, // Creates hole in center
   },
 };
 ```
@@ -576,7 +621,7 @@ interface BubbleChartSpec {
   series?: ChartData;
   groupIds?: ChartData;
   bubbleSizes?: ChartData;
-  bubbleOpacity?: number;  // 0-1
+  bubbleOpacity?: number; // 0-1
   bubbleBorderColor?: Color;
   bubbleMaxRadiusSize?: number;
   bubbleMinRadiusSize?: number;
@@ -593,49 +638,57 @@ const bubbleChart: ChartSpec = {
     // X-axis: GDP
     domain: {
       sourceRange: {
-        sources: [{
-          sheetId: 0,
-          startRowIndex: 1,
-          endRowIndex: 20,
-          startColumnIndex: 1,
-          endColumnIndex: 2,
-        }],
+        sources: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 20,
+            startColumnIndex: 1,
+            endColumnIndex: 2,
+          },
+        ],
       },
     },
     // Y-axis: Life Expectancy
     series: {
       sourceRange: {
-        sources: [{
-          sheetId: 0,
-          startRowIndex: 1,
-          endRowIndex: 20,
-          startColumnIndex: 2,
-          endColumnIndex: 3,
-        }],
+        sources: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 20,
+            startColumnIndex: 2,
+            endColumnIndex: 3,
+          },
+        ],
       },
     },
     // Bubble size: Population
     bubbleSizes: {
       sourceRange: {
-        sources: [{
-          sheetId: 0,
-          startRowIndex: 1,
-          endRowIndex: 20,
-          startColumnIndex: 3,
-          endColumnIndex: 4,
-        }],
+        sources: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 20,
+            startColumnIndex: 3,
+            endColumnIndex: 4,
+          },
+        ],
       },
     },
     // Labels: Country names
     bubbleLabels: {
       sourceRange: {
-        sources: [{
-          sheetId: 0,
-          startRowIndex: 1,
-          endRowIndex: 20,
-          startColumnIndex: 0,
-          endColumnIndex: 1,
-        }],
+        sources: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 20,
+            startColumnIndex: 0,
+            endColumnIndex: 1,
+          },
+        ],
       },
     },
   },
@@ -663,70 +716,82 @@ const candlestickChart: ChartSpec = {
     domain: {
       data: {
         sourceRange: {
-          sources: [{
-            sheetId: 0,
-            startRowIndex: 1,
-            endRowIndex: 31,
-            startColumnIndex: 0,  // Date column
-            endColumnIndex: 1,
-          }],
+          sources: [
+            {
+              sheetId: 0,
+              startRowIndex: 1,
+              endRowIndex: 31,
+              startColumnIndex: 0, // Date column
+              endColumnIndex: 1,
+            },
+          ],
         },
       },
     },
-    data: [{
-      lowSeries: {
-        data: {
-          sourceRange: {
-            sources: [{
-              sheetId: 0,
-              startRowIndex: 1,
-              endRowIndex: 31,
-              startColumnIndex: 3,  // Low column
-              endColumnIndex: 4,
-            }],
+    data: [
+      {
+        lowSeries: {
+          data: {
+            sourceRange: {
+              sources: [
+                {
+                  sheetId: 0,
+                  startRowIndex: 1,
+                  endRowIndex: 31,
+                  startColumnIndex: 3, // Low column
+                  endColumnIndex: 4,
+                },
+              ],
+            },
+          },
+        },
+        openSeries: {
+          data: {
+            sourceRange: {
+              sources: [
+                {
+                  sheetId: 0,
+                  startRowIndex: 1,
+                  endRowIndex: 31,
+                  startColumnIndex: 1, // Open column
+                  endColumnIndex: 2,
+                },
+              ],
+            },
+          },
+        },
+        closeSeries: {
+          data: {
+            sourceRange: {
+              sources: [
+                {
+                  sheetId: 0,
+                  startRowIndex: 1,
+                  endRowIndex: 31,
+                  startColumnIndex: 4, // Close column
+                  endColumnIndex: 5,
+                },
+              ],
+            },
+          },
+        },
+        highSeries: {
+          data: {
+            sourceRange: {
+              sources: [
+                {
+                  sheetId: 0,
+                  startRowIndex: 1,
+                  endRowIndex: 31,
+                  startColumnIndex: 2, // High column
+                  endColumnIndex: 3,
+                },
+              ],
+            },
           },
         },
       },
-      openSeries: {
-        data: {
-          sourceRange: {
-            sources: [{
-              sheetId: 0,
-              startRowIndex: 1,
-              endRowIndex: 31,
-              startColumnIndex: 1,  // Open column
-              endColumnIndex: 2,
-            }],
-          },
-        },
-      },
-      closeSeries: {
-        data: {
-          sourceRange: {
-            sources: [{
-              sheetId: 0,
-              startRowIndex: 1,
-              endRowIndex: 31,
-              startColumnIndex: 4,  // Close column
-              endColumnIndex: 5,
-            }],
-          },
-        },
-      },
-      highSeries: {
-        data: {
-          sourceRange: {
-            sources: [{
-              sheetId: 0,
-              startRowIndex: 1,
-              endRowIndex: 31,
-              startColumnIndex: 2,  // High column
-              endColumnIndex: 3,
-            }],
-          },
-        },
-      },
-    }],
+    ],
   },
 };
 ```
@@ -749,20 +814,24 @@ const histogramChart: ChartSpec = {
     bucketSize: 10,
     showItemDividers: true,
     outlierPercentile: 0.05,
-    series: [{
-      barColor: { red: 0.2, green: 0.6, blue: 0.9 },
-      data: {
-        sourceRange: {
-          sources: [{
-            sheetId: 0,
-            startRowIndex: 1,
-            endRowIndex: 100,
-            startColumnIndex: 0,
-            endColumnIndex: 1,
-          }],
+    series: [
+      {
+        barColor: { red: 0.2, green: 0.6, blue: 0.9 },
+        data: {
+          sourceRange: {
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 1,
+                endRowIndex: 100,
+                startColumnIndex: 0,
+                endColumnIndex: 1,
+              },
+            ],
+          },
         },
       },
-    }],
+    ],
   },
 };
 ```
@@ -789,38 +858,44 @@ const waterfallChart: ChartSpec = {
     domain: {
       data: {
         sourceRange: {
-          sources: [{
-            sheetId: 0,
-            startRowIndex: 0,
-            endRowIndex: 8,
-            startColumnIndex: 0,
-            endColumnIndex: 1,
-          }],
+          sources: [
+            {
+              sheetId: 0,
+              startRowIndex: 0,
+              endRowIndex: 8,
+              startColumnIndex: 0,
+              endColumnIndex: 1,
+            },
+          ],
         },
       },
     },
-    series: [{
-      data: {
-        sourceRange: {
-          sources: [{
-            sheetId: 0,
-            startRowIndex: 0,
-            endRowIndex: 8,
-            startColumnIndex: 1,
-            endColumnIndex: 2,
-          }],
+    series: [
+      {
+        data: {
+          sourceRange: {
+            sources: [
+              {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 8,
+                startColumnIndex: 1,
+                endColumnIndex: 2,
+              },
+            ],
+          },
+        },
+        positiveColumnsStyle: {
+          color: { red: 0.2, green: 0.7, blue: 0.3 },
+        },
+        negativeColumnsStyle: {
+          color: { red: 0.9, green: 0.2, blue: 0.2 },
+        },
+        subtotalColumnsStyle: {
+          color: { red: 0.5, green: 0.5, blue: 0.5 },
         },
       },
-      positiveColumnsStyle: {
-        color: { red: 0.2, green: 0.7, blue: 0.3 },
-      },
-      negativeColumnsStyle: {
-        color: { red: 0.9, green: 0.2, blue: 0.2 },
-      },
-      subtotalColumnsStyle: {
-        color: { red: 0.5, green: 0.5, blue: 0.5 },
-      },
-    }],
+    ],
   },
 };
 ```
@@ -849,35 +924,41 @@ const treemapChart: ChartSpec = {
     levels: 2,
     labels: {
       sourceRange: {
-        sources: [{
-          sheetId: 0,
-          startRowIndex: 1,
-          endRowIndex: 20,
-          startColumnIndex: 0,
-          endColumnIndex: 1,
-        }],
+        sources: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 20,
+            startColumnIndex: 0,
+            endColumnIndex: 1,
+          },
+        ],
       },
     },
     parentLabels: {
       sourceRange: {
-        sources: [{
-          sheetId: 0,
-          startRowIndex: 1,
-          endRowIndex: 20,
-          startColumnIndex: 1,
-          endColumnIndex: 2,
-        }],
+        sources: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 20,
+            startColumnIndex: 1,
+            endColumnIndex: 2,
+          },
+        ],
       },
     },
     sizeData: {
       sourceRange: {
-        sources: [{
-          sheetId: 0,
-          startRowIndex: 1,
-          endRowIndex: 20,
-          startColumnIndex: 2,
-          endColumnIndex: 3,
-        }],
+        sources: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 20,
+            startColumnIndex: 2,
+            endColumnIndex: 3,
+          },
+        ],
       },
     },
     colorScale: {
@@ -908,24 +989,28 @@ const scorecardChart: ChartSpec = {
   scorecardChart: {
     keyValueData: {
       sourceRange: {
-        sources: [{
-          sheetId: 0,
-          startRowIndex: 0,
-          endRowIndex: 1,
-          startColumnIndex: 1,
-          endColumnIndex: 2,
-        }],
+        sources: [
+          {
+            sheetId: 0,
+            startRowIndex: 0,
+            endRowIndex: 1,
+            startColumnIndex: 1,
+            endColumnIndex: 2,
+          },
+        ],
       },
     },
     baselineValueData: {
       sourceRange: {
-        sources: [{
-          sheetId: 0,
-          startRowIndex: 0,
-          endRowIndex: 1,
-          startColumnIndex: 2,
-          endColumnIndex: 3,
-        }],
+        sources: [
+          {
+            sheetId: 0,
+            startRowIndex: 0,
+            endRowIndex: 1,
+            startColumnIndex: 2,
+            endColumnIndex: 3,
+          },
+        ],
       },
     },
     aggregateType: 'SUM',
@@ -969,35 +1054,41 @@ const orgChart: ChartSpec = {
     selectedNodeColor: { red: 0.8, green: 0.9, blue: 1.0 },
     labels: {
       sourceRange: {
-        sources: [{
-          sheetId: 0,
-          startRowIndex: 1,
-          endRowIndex: 10,
-          startColumnIndex: 0,
-          endColumnIndex: 1,
-        }],
+        sources: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 10,
+            startColumnIndex: 0,
+            endColumnIndex: 1,
+          },
+        ],
       },
     },
     parentLabels: {
       sourceRange: {
-        sources: [{
-          sheetId: 0,
-          startRowIndex: 1,
-          endRowIndex: 10,
-          startColumnIndex: 1,
-          endColumnIndex: 2,
-        }],
+        sources: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 10,
+            startColumnIndex: 1,
+            endColumnIndex: 2,
+          },
+        ],
       },
     },
     tooltips: {
       sourceRange: {
-        sources: [{
-          sheetId: 0,
-          startRowIndex: 1,
-          endRowIndex: 10,
-          startColumnIndex: 2,
-          endColumnIndex: 3,
-        }],
+        sources: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 10,
+            startColumnIndex: 2,
+            endColumnIndex: 3,
+          },
+        ],
       },
     },
   },
@@ -1022,10 +1113,11 @@ interface BasicChartAxis {
 interface ChartAxisViewWindowOptions {
   viewWindowMin?: number;
   viewWindowMax?: number;
-  viewWindowMode?: 'DEFAULT_VIEW_WINDOW_MODE' | 
-                   'VIEW_WINDOW_MODE_UNSUPPORTED' | 
-                   'EXPLICIT' | 
-                   'PRETTY';
+  viewWindowMode?:
+    | 'DEFAULT_VIEW_WINDOW_MODE'
+    | 'VIEW_WINDOW_MODE_UNSUPPORTED'
+    | 'EXPLICIT'
+    | 'PRETTY';
 }
 
 // Example: Custom axis range
@@ -1033,7 +1125,7 @@ const customAxis: BasicChartAxis = {
   position: 'LEFT_AXIS',
   title: 'Revenue ($M)',
   format: {
-    pattern: '$#,##0.0,,',  // Millions format
+    pattern: '$#,##0.0,,', // Millions format
   },
   viewWindowOptions: {
     viewWindowMode: 'EXPLICIT',
@@ -1049,8 +1141,15 @@ const customAxis: BasicChartAxis = {
 interface DataLabel {
   type: 'NONE' | 'DATA' | 'CUSTOM';
   textFormat?: TextFormat;
-  placement?: 'CENTER' | 'LEFT' | 'RIGHT' | 'ABOVE' | 'BELOW' | 
-              'INSIDE_END' | 'INSIDE_BASE' | 'OUTSIDE_END';
+  placement?:
+    | 'CENTER'
+    | 'LEFT'
+    | 'RIGHT'
+    | 'ABOVE'
+    | 'BELOW'
+    | 'INSIDE_END'
+    | 'INSIDE_BASE'
+    | 'OUTSIDE_END';
   customLabelData?: ChartData;
 }
 
@@ -1071,19 +1170,26 @@ const dataLabel: DataLabel = {
 ```typescript
 interface LineStyle {
   width?: number;
-  type?: 'INVISIBLE' | 'SOLID' | 'DOTTED' | 'MEDIUM_DASHED' | 
-         'MEDIUM_DASHED_DOTTED' | 'LONG_DASHED' | 'LONG_DASHED_DOTTED';
+  type?:
+    | 'INVISIBLE'
+    | 'SOLID'
+    | 'DOTTED'
+    | 'MEDIUM_DASHED'
+    | 'MEDIUM_DASHED_DOTTED'
+    | 'LONG_DASHED'
+    | 'LONG_DASHED_DOTTED';
 }
 
 interface PointStyle {
   size?: number;
-  shape?: 'POINT_SHAPE_UNSPECIFIED' | 'CIRCLE' | 'SQUARE' | 
-          'DIAMOND' | 'TRIANGLE' | 'X' | 'STAR';
+  shape?: 'POINT_SHAPE_UNSPECIFIED' | 'CIRCLE' | 'SQUARE' | 'DIAMOND' | 'TRIANGLE' | 'X' | 'STAR';
 }
 
 // Example: Dashed line with diamond points
 const series: BasicChartSeries = {
-  series: { /* data source */ },
+  series: {
+    /* data source */
+  },
   lineStyle: {
     width: 2,
     type: 'MEDIUM_DASHED',
@@ -1107,23 +1213,23 @@ const CHART_COLORS = {
   // Blues
   blue1: { red: 0.26, green: 0.52, blue: 0.96 },
   blue2: { red: 0.42, green: 0.65, blue: 0.87 },
-  
+
   // Greens
-  green1: { red: 0.26, green: 0.70, blue: 0.46 },
+  green1: { red: 0.26, green: 0.7, blue: 0.46 },
   green2: { red: 0.52, green: 0.78, blue: 0.35 },
-  
+
   // Reds
   red1: { red: 0.92, green: 0.26, blue: 0.21 },
   red2: { red: 0.85, green: 0.41, blue: 0.35 },
-  
+
   // Oranges
   orange1: { red: 0.96, green: 0.49, blue: 0.13 },
   orange2: { red: 0.96, green: 0.65, blue: 0.26 },
-  
+
   // Purples
   purple1: { red: 0.63, green: 0.28, blue: 0.64 },
   purple2: { red: 0.74, green: 0.48, blue: 0.76 },
-  
+
   // Grays
   gray1: { red: 0.38, green: 0.38, blue: 0.38 },
   gray2: { red: 0.62, green: 0.62, blue: 0.62 },
@@ -1189,7 +1295,7 @@ const updateChartRequest = {
     spec: {
       title: 'Updated Title',
       basicChart: {
-        chartType: 'LINE',  // Change chart type
+        chartType: 'LINE', // Change chart type
         // ... updated configuration
       },
     },
@@ -1246,21 +1352,41 @@ const dashboardRequests = [
               { position: 'BOTTOM_AXIS', title: 'Month' },
               { position: 'LEFT_AXIS', title: 'Revenue ($K)' },
             ],
-            domains: [{
-              domain: {
-                sourceRange: {
-                  sources: [{ sheetId: 0, startRowIndex: 0, endRowIndex: 13, startColumnIndex: 0, endColumnIndex: 1 }],
+            domains: [
+              {
+                domain: {
+                  sourceRange: {
+                    sources: [
+                      {
+                        sheetId: 0,
+                        startRowIndex: 0,
+                        endRowIndex: 13,
+                        startColumnIndex: 0,
+                        endColumnIndex: 1,
+                      },
+                    ],
+                  },
                 },
               },
-            }],
-            series: [{
-              series: {
-                sourceRange: {
-                  sources: [{ sheetId: 0, startRowIndex: 0, endRowIndex: 13, startColumnIndex: 1, endColumnIndex: 2 }],
+            ],
+            series: [
+              {
+                series: {
+                  sourceRange: {
+                    sources: [
+                      {
+                        sheetId: 0,
+                        startRowIndex: 0,
+                        endRowIndex: 13,
+                        startColumnIndex: 1,
+                        endColumnIndex: 2,
+                      },
+                    ],
+                  },
                 },
+                color: { red: 0.2, green: 0.6, blue: 0.9 },
               },
-              color: { red: 0.2, green: 0.6, blue: 0.9 },
-            }],
+            ],
             headerCount: 1,
           },
         },
@@ -1285,12 +1411,28 @@ const dashboardRequests = [
             pieHole: 0.4,
             domain: {
               sourceRange: {
-                sources: [{ sheetId: 1, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 0, endColumnIndex: 1 }],
+                sources: [
+                  {
+                    sheetId: 1,
+                    startRowIndex: 0,
+                    endRowIndex: 6,
+                    startColumnIndex: 0,
+                    endColumnIndex: 1,
+                  },
+                ],
               },
             },
             series: {
               sourceRange: {
-                sources: [{ sheetId: 1, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 1, endColumnIndex: 2 }],
+                sources: [
+                  {
+                    sheetId: 1,
+                    startRowIndex: 0,
+                    endRowIndex: 6,
+                    startColumnIndex: 1,
+                    endColumnIndex: 2,
+                  },
+                ],
               },
             },
           },
@@ -1319,23 +1461,43 @@ const dashboardRequests = [
               { position: 'BOTTOM_AXIS', title: 'Quarter' },
               { position: 'LEFT_AXIS', title: 'Growth (%)' },
             ],
-            domains: [{
-              domain: {
-                sourceRange: {
-                  sources: [{ sheetId: 2, startRowIndex: 0, endRowIndex: 9, startColumnIndex: 0, endColumnIndex: 1 }],
+            domains: [
+              {
+                domain: {
+                  sourceRange: {
+                    sources: [
+                      {
+                        sheetId: 2,
+                        startRowIndex: 0,
+                        endRowIndex: 9,
+                        startColumnIndex: 0,
+                        endColumnIndex: 1,
+                      },
+                    ],
+                  },
                 },
               },
-            }],
-            series: [{
-              series: {
-                sourceRange: {
-                  sources: [{ sheetId: 2, startRowIndex: 0, endRowIndex: 9, startColumnIndex: 1, endColumnIndex: 2 }],
+            ],
+            series: [
+              {
+                series: {
+                  sourceRange: {
+                    sources: [
+                      {
+                        sheetId: 2,
+                        startRowIndex: 0,
+                        endRowIndex: 9,
+                        startColumnIndex: 1,
+                        endColumnIndex: 2,
+                      },
+                    ],
+                  },
                 },
+                color: { red: 0.2, green: 0.7, blue: 0.3 },
+                lineStyle: { width: 3, type: 'SOLID' },
+                pointStyle: { size: 6, shape: 'CIRCLE' },
               },
-              color: { red: 0.2, green: 0.7, blue: 0.3 },
-              lineStyle: { width: 3, type: 'SOLID' },
-              pointStyle: { size: 6, shape: 'CIRCLE' },
-            }],
+            ],
             headerCount: 1,
           },
         },
@@ -1360,4 +1522,4 @@ await sheets.spreadsheets.batchUpdate({
 
 ---
 
-*Source: Google Sheets API v4 Documentation*
+_Source: Google Sheets API v4 Documentation_

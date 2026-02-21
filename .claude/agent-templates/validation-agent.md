@@ -12,22 +12,27 @@
 ## When to Use
 
 ✅ **Before Committing**
+
 - Run G0 (baseline integrity)
 - Check for common issues
 
 ✅ **After Schema Changes**
+
 - Verify metadata regenerated
 - Check for drift
 
 ✅ **Phase Completion**
+
 - Run full gate pipeline (G0→G4)
 - Generate completion report
 
 ✅ **CI/CD Integration**
+
 - Automated validation
 - Pre-merge checks
 
 ❌ **Not Suitable For**
+
 - Complex debugging (use Sonnet)
 - Root cause analysis (use Sonnet/Opus)
 - Implementation work (use implementation-agent)
@@ -38,9 +43,9 @@
 
 ```typescript
 Task({
-  subagent_type: "general-purpose",
-  model: "haiku",
-  description: "Quick validation (G0) - 5min",
+  subagent_type: 'general-purpose',
+  model: 'haiku',
+  description: 'Quick validation (G0) - 5min',
   prompt: `
     Run baseline integrity checks:
 
@@ -70,8 +75,8 @@ Task({
     - Provide file:line references
     - Suggest specific fixes
     - Do NOT auto-fix (just report)
-  `
-})
+  `,
+});
 ```
 
 ---
@@ -80,9 +85,9 @@ Task({
 
 ```typescript
 Task({
-  subagent_type: "general-purpose",
-  model: "haiku",
-  description: "Pre-commit validation (5min)",
+  subagent_type: 'general-purpose',
+  model: 'haiku',
+  description: 'Pre-commit validation (5min)',
   prompt: `
     Before committing, run comprehensive checks:
 
@@ -115,8 +120,8 @@ Task({
     - src/schemas/data.ts (metadata regenerated ✓)
 
     ### Ready to Commit: [YES/NO]
-  `
-})
+  `,
+});
 ```
 
 ---
@@ -125,9 +130,9 @@ Task({
 
 ```typescript
 Task({
-  subagent_type: "general-purpose",
-  model: "haiku",
-  description: "Validate schema changes (8min)",
+  subagent_type: 'general-purpose',
+  model: 'haiku',
+  description: 'Validate schema changes (8min)',
   prompt: `
     After schema modifications, verify complete workflow:
 
@@ -177,8 +182,8 @@ Task({
     ### Tool Count: [Current count]
 
     ### Ready for Commit: [YES/NO]
-  `
-})
+  `,
+});
 ```
 
 ---
@@ -187,9 +192,9 @@ Task({
 
 ```typescript
 Task({
-  subagent_type: "general-purpose",
-  model: "haiku",
-  description: "Full gate validation (G0-G4) - 10min",
+  subagent_type: 'general-purpose',
+  model: 'haiku',
+  description: 'Full gate validation (G0-G4) - 10min',
   prompt: `
     Run complete validation pipeline for phase completion:
 
@@ -237,8 +242,8 @@ Task({
     - List all failing checks with file:line
     - Suggest specific fixes
     - Estimate time to fix
-  `
-})
+  `,
+});
 ```
 
 ---
@@ -247,9 +252,9 @@ Task({
 
 ```typescript
 Task({
-  subagent_type: "general-purpose",
-  model: "haiku",
-  description: "Detect regressions (5min)",
+  subagent_type: 'general-purpose',
+  model: 'haiku',
+  description: 'Detect regressions (5min)',
   prompt: `
     After implementation changes, detect any regressions:
 
@@ -288,8 +293,8 @@ Task({
       Impact: [HIGH/MEDIUM/LOW]
 
     ### Status: [NO REGRESSIONS/REGRESSIONS FOUND]
-  `
-})
+  `,
+});
 ```
 
 ---
@@ -298,13 +303,14 @@ Task({
 
 **Validation Task (5 minutes):**
 
-| Model | Input Tokens | Output Tokens | Cost | vs Haiku |
-|-------|--------------|---------------|------|----------|
-| **Haiku** | 10k | 2k | **$0.005** | 1x (baseline) |
-| Sonnet | 10k | 2k | $0.06 | 12x more expensive |
-| Opus | 10k | 2k | $0.30 | 60x more expensive |
+| Model     | Input Tokens | Output Tokens | Cost       | vs Haiku           |
+| --------- | ------------ | ------------- | ---------- | ------------------ |
+| **Haiku** | 10k          | 2k            | **$0.005** | 1x (baseline)      |
+| Sonnet    | 10k          | 2k            | $0.06      | 12x more expensive |
+| Opus      | 10k          | 2k            | $0.30      | 60x more expensive |
 
 **Running gates 10x per day:**
+
 - Haiku: $0.05/day = $1.50/month
 - Sonnet: $0.60/day = $18/month
 - Opus: $3.00/day = $90/month
@@ -317,12 +323,12 @@ Task({
 
 These validation tasks integrate with your existing shortcuts:
 
-| Shortcut | Task | Agent Template |
-|----------|------|----------------|
-| `Cmd+G Cmd+0` | G0: Baseline | This template (Example 1) |
-| `Cmd+G Cmd+1` | G1: Metadata | This template (Example 2) |
+| Shortcut      | Task          | Agent Template            |
+| ------------- | ------------- | ------------------------- |
+| `Cmd+G Cmd+0` | G0: Baseline  | This template (Example 1) |
+| `Cmd+G Cmd+1` | G1: Metadata  | This template (Example 2) |
 | `Cmd+G Cmd+A` | Full pipeline | This template (Example 3) |
-| `Cmd+K Cmd+V` | Quick verify | This template (Example 1) |
+| `Cmd+K Cmd+V` | Quick verify  | This template (Example 1) |
 
 ---
 
@@ -339,6 +345,7 @@ These validation tasks integrate with your existing shortcuts:
 ## Success Metrics
 
 **Good Validation Session:**
+
 - ✓ Completes in < 10 minutes
 - ✓ Clear pass/fail status
 - ✓ Specific file:line references
@@ -346,6 +353,7 @@ These validation tasks integrate with your existing shortcuts:
 - ✓ Cost: < $0.50 (Haiku)
 
 **Needs Improvement:**
+
 - ✗ Takes > 15 minutes (too much manual work)
 - ✗ Vague error messages
 - ✗ No file:line references
@@ -357,6 +365,7 @@ These validation tasks integrate with your existing shortcuts:
 ## Automation Opportunities
 
 **GitHub Actions Integration:**
+
 ```yaml
 - name: Validate with Claude Code Agent
   run: |
@@ -371,6 +380,7 @@ These validation tasks integrate with your existing shortcuts:
 ```
 
 **Pre-commit Hook:**
+
 ```bash
 # .husky/pre-commit
 npx claude --agent << EOF
@@ -381,5 +391,11 @@ EOF
 ---
 
 **Related Templates:**
+
 - `implementation-agent.md` - After implementing, validate with this
 - `research-agent.md` - Research issues found during validation
+
+## Runtime Guardrails
+
+Before taking tool actions, load `.claude/AGENT_GUARDRAILS.md`.
+If it exists, load `.agent-context/learning-memory.md` and apply the top recurring fixes first.

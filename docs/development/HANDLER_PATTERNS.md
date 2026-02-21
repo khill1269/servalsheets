@@ -11,7 +11,7 @@ tags: [sheets]
 
 > **Version:** 1.0.0
 > **Architecture:** Action-based discriminated unions
-> **Tools:** 22 tools with 299 actions
+> **Tools:** 22 tools with 305 actions
 
 ---
 

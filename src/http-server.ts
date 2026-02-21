@@ -76,19 +76,13 @@ import {
   initializeResourceNotifications,
 } from './resources/index.js';
 import { getTraceAggregator } from './services/trace-aggregator.js';
-import { getRequestRecorder, initRequestRecorder } from './services/request-recorder.js';
-import {
-  extractVersionFromRequest,
-  addDeprecationHeaders,
-  type VersionSelection,
-} from './versioning/schema-manager.js';
+import { getRequestRecorder } from './services/request-recorder.js';
+import { extractVersionFromRequest, addDeprecationHeaders } from './versioning/schema-manager.js';
 import { addGraphQLEndpoint } from './graphql/index.js';
-import { addAdminRoutes, type AdminSessionManager } from './admin/index.js';
-import {
-  registerServalSheetsPrompts,
-  registerServalSheetsResources,
-  registerServalSheetsTools,
-} from './mcp/registration.js';
+import { addAdminRoutes, requireAdminAuth, type AdminSessionManager } from './admin/index.js';
+import { registerServalSheetsPrompts } from './mcp/registration/prompt-registration.js';
+import { registerServalSheetsResources } from './mcp/registration/resource-registration.js';
+import { registerServalSheetsTools } from './mcp/registration/tool-handlers.js';
 import { createServerCapabilities, SERVER_INSTRUCTIONS } from './mcp/features-2025-11-25.js';
 import { InMemoryEventStore, RedisEventStore } from './mcp/event-store.js';
 import {
@@ -309,16 +303,19 @@ async function createMcpServerInstance(
   initializeResourceNotifications(mcpServer);
 
   // Register logging handler
-  mcpServer.server.setRequestHandler(SetLevelRequestSchema, async (request: z.infer<typeof SetLevelRequestSchema>) => {
-    const level = request.params.level;
-    const response = await handleLoggingSetLevel({ level });
-    logger.info('Log level changed via logging/setLevel', {
-      previousLevel: response.previousLevel,
-      newLevel: response.newLevel,
-    });
-    // OK: Explicit empty - MCP logging/setLevel returns empty object per protocol
-    return {};
-  });
+  mcpServer.server.setRequestHandler(
+    SetLevelRequestSchema,
+    async (request: z.infer<typeof SetLevelRequestSchema>) => {
+      const level = request.params.level;
+      const response = await handleLoggingSetLevel({ level });
+      logger.info('Log level changed via logging/setLevel', {
+        previousLevel: response.previousLevel,
+        newLevel: response.newLevel,
+      });
+      // OK: Explicit empty - MCP logging/setLevel returns empty object per protocol
+      return {};
+    }
+  );
   logger.info('HTTP Server: Logging handler registered (logging/setLevel)');
 
   return { mcpServer, taskStore };
@@ -338,7 +335,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   const corsOrigins = options.corsOrigins ?? ['https://claude.ai', 'https://claude.com'];
   const rateLimitWindowMs = options.rateLimitWindowMs ?? DEFAULT_RATE_LIMIT_WINDOW_MS;
   const rateLimitMax = options.rateLimitMax ?? DEFAULT_RATE_LIMIT_MAX;
-  const trustProxy = options.trustProxy ?? true;
+  const trustProxy = options.trustProxy ?? false;
   const envConfig = getEnv();
   const legacySseEnabled = envConfig.ENABLE_LEGACY_SSE;
   const eventStoreRedisUrl = envConfig.REDIS_URL;
@@ -348,7 +345,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   const app = express();
 
   // Derive __dirname for ESM (needed for static file serving)
-  const dirname = resolve(fileURLToPath(import.meta.url), '..', '..');
+  const _dirname = resolve(fileURLToPath(import.meta.url), '..', '..');
 
   // Health service for liveness/readiness probes
   // Note: GoogleClient is session-specific, so health checks will report on active sessions
@@ -357,7 +354,15 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   // Security middleware
   app.use(
     helmet({
-      contentSecurityPolicy: false, // Allow SSE
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'"],
+          connectSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:'],
+        },
+      },
       strictTransportSecurity:
         process.env['NODE_ENV'] === 'production'
           ? {
@@ -391,6 +396,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   app.use((req: Request, res: Response, next: NextFunction) => {
     const versionSelection = extractVersionFromRequest(req);
     addDeprecationHeaders(res, versionSelection);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Express Request augmentation
     (req as any).schemaVersion = versionSelection.selectedVersion;
     next();
   });
@@ -404,6 +410,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     const originalJson = res.json.bind(res);
 
     // Intercept res.json to capture response
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- must match Express res.json signature
     res.json = function (data: any) {
       const duration = Date.now() - startTime;
 
@@ -619,6 +626,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
 
   // Parse JSON
   app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
   // MCP Protocol Version Header (MCP 2025-11-25 Compliance)
   // Specification: https://modelcontextprotocol.io/specification/2025-11-25/basic/transports.md
@@ -676,28 +684,30 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   let userRateLimiter: UserRateLimiter | null = null;
   const redisUrl = process.env['REDIS_URL'];
 
-  if (redisUrl) {
-    (async () => {
-      try {
-        const { createClient } = await import('redis');
-        const redis = createClient({ url: redisUrl });
+  const rateLimiterReady = redisUrl
+    ? (async () => {
+        try {
+          const { createClient } = await import('redis');
+          const redis = createClient({ url: redisUrl });
 
-        redis.on('error', (err) => {
-          logger.error('Redis connection error', { error: err });
-        });
+          redis.on('error', (err) => {
+            logger.error('Redis connection error', { error: err });
+          });
 
-        await redis.connect();
+          await redis.connect();
 
-        userRateLimiter = createUserRateLimiterFromEnv(redis);
-        logger.info('Per-user rate limiter initialized with Redis', {
-          redisUrl: redisUrl.replace(/:[^:]*@/, ':***@'), // Mask credentials
-        });
-      } catch (error) {
-        logger.error('Failed to initialize Redis for rate limiting', { error });
-        logger.warn('Continuing without per-user rate limiting');
-      }
-    })();
-  } else {
+          userRateLimiter = createUserRateLimiterFromEnv(redis);
+          logger.info('Per-user rate limiter initialized with Redis', {
+            redisUrl: redisUrl.replace(/:[^:]*@/, ':***@'), // Mask credentials
+          });
+        } catch (error) {
+          logger.error('Failed to initialize Redis for rate limiting', { error });
+          logger.warn('Continuing without per-user rate limiting');
+        }
+      })()
+    : Promise.resolve();
+
+  if (!redisUrl) {
     logger.debug('REDIS_URL not set, per-user rate limiting disabled');
   }
 
@@ -719,7 +729,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
 
       // Use token hash as user ID (or 'anonymous' if no token)
       const userId = token
-        ? `user:${Buffer.from(token.substring(0, 16)).toString('base64')}`
+        ? `user:${createHash('sha256').update(token).digest('hex').substring(0, 16)}`
         : 'anonymous';
 
       const limitCheck = await userRateLimiter.checkLimit(userId);
@@ -743,9 +753,16 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       next();
     } catch (error) {
       logger.error('Per-user rate limit check failed', { error });
-      next(); // Fail open - allow request on error
+      res.status(503).json({
+        error: { code: 'SERVICE_UNAVAILABLE', message: 'Rate limiter temporarily unavailable' },
+      });
+      return;
     }
   });
+
+  // QuotaManager (src/services/quota-manager.ts) handles per-tenant business quota gates
+  // (reads/writes/admin per month, configurable per tier). Differs from UserRateLimiter
+  // (HTTP throughput). Wire after userRateLimiter when multi-tenant is enabled.
 
   // Request ID middleware
   app.use((req: Request, res: Response, next: NextFunction) => {
@@ -767,9 +784,11 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         tenantMw = import('./middleware/tenant-isolation.js');
         logger.info('HTTP Server: Tenant isolation middleware enabled');
       }
-      void tenantMw.then((mod) => {
-        mod.tenantIsolationMiddleware()(req, res, next);
-      }).catch(next);
+      void tenantMw
+        .then((mod) => {
+          mod.tenantIsolationMiddleware()(req, res, next);
+        })
+        .catch(next);
     });
   }
 
@@ -781,9 +800,11 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         rbacMw = import('./middleware/rbac-middleware.js');
         logger.info('HTTP Server: RBAC middleware enabled');
       }
-      void rbacMw.then((mod) => {
-        mod.rbacMiddleware()(req, res, next);
-      }).catch(next);
+      void rbacMw
+        .then((mod) => {
+          mod.rbacMiddleware()(req, res, next);
+        })
+        .catch(next);
     });
   }
 
@@ -1040,7 +1061,8 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       res.status(404).json({
         error: {
           code: 'NOT_FOUND',
-          message: 'API documentation not available. Generate OpenAPI spec with: npm run gen:openapi',
+          message:
+            'API documentation not available. Generate OpenAPI spec with: npm run gen:openapi',
           hint: 'Run the generator script to create openapi.json and enable interactive documentation',
         },
       });
@@ -1048,10 +1070,10 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   }
 
   // Prometheus metrics endpoint
-  app.get('/metrics', metricsHandler);
+  app.get('/metrics', requireAdminAuth, metricsHandler);
 
   // Circuit breaker metrics endpoint
-  app.get('/metrics/circuit-breakers', async (_req: Request, res: Response) => {
+  app.get('/metrics/circuit-breakers', requireAdminAuth, async (_req: Request, res: Response) => {
     try {
       const { circuitBreakerRegistry } = await import('./services/circuit-breaker-registry.js');
       const breakers = circuitBreakerRegistry.getAll();
@@ -1092,7 +1114,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   });
 
   // Webhook delivery dashboard endpoint
-  app.get('/webhooks/dashboard', async (req: Request, res: Response) => {
+  app.get('/webhooks/dashboard', requireAdminAuth, async (req: Request, res: Response) => {
     try {
       const { getWebhookManager, getWebhookQueue } = await import('./services/index.js');
 
@@ -1161,7 +1183,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   });
 
   // Statistics dashboard endpoint
-  app.get('/stats', async (req: Request, res: Response) => {
+  app.get('/stats', requireAdminAuth, async (req: Request, res: Response) => {
     const cacheStats = getCacheStats() as Record<string, unknown> | null;
     const dedupStats = getDeduplicationStats() as Record<string, unknown> | null;
     const connStats = getConnectionStats() as Record<string, unknown> | null;
@@ -1176,7 +1198,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         const authHeader = req.headers.authorization;
         const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
         const userId = token
-          ? `user:${Buffer.from(token.substring(0, 16)).toString('base64')}`
+          ? `user:${createHash('sha256').update(token).digest('hex').substring(0, 16)}`
           : 'anonymous';
 
         const quotaStats = await userRateLimiter.getUsage(userId);
@@ -1274,7 +1296,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   // ==================== Trace Endpoints ====================
 
   // Search traces with filters
-  app.get('/traces', (req: Request, res: Response) => {
+  app.get('/traces', requireAdminAuth, (req: Request, res: Response) => {
     try {
       // Uses static import at top of file
       const aggregator = getTraceAggregator();
@@ -1288,22 +1310,31 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         return;
       }
 
-      // Parse query filters
+      // Parse query filters with bounds validation
       const filters: Record<string, unknown> = {};
       if (req.query['tool']) filters['tool'] = req.query['tool'] as string;
       if (req.query['action']) filters['action'] = req.query['action'] as string;
       if (req.query['errorCode']) filters['errorCode'] = req.query['errorCode'] as string;
       if (req.query['success']) filters['success'] = req.query['success'] === 'true';
-      if (req.query['minDuration'])
-        filters['minDuration'] = Number.parseInt(req.query['minDuration'] as string, 10);
-      if (req.query['maxDuration'])
-        filters['maxDuration'] = Number.parseInt(req.query['maxDuration'] as string, 10);
-      if (req.query['startTime'])
-        filters['startTime'] = Number.parseInt(req.query['startTime'] as string, 10);
-      if (req.query['endTime'])
-        filters['endTime'] = Number.parseInt(req.query['endTime'] as string, 10);
+      if (req.query['minDuration']) {
+        const val = Number.parseInt(req.query['minDuration'] as string, 10);
+        if (!Number.isNaN(val)) filters['minDuration'] = Math.max(val, 0);
+      }
+      if (req.query['maxDuration']) {
+        const val = Number.parseInt(req.query['maxDuration'] as string, 10);
+        if (!Number.isNaN(val)) filters['maxDuration'] = Math.max(val, 0);
+      }
+      if (req.query['startTime']) {
+        const val = Number.parseInt(req.query['startTime'] as string, 10);
+        if (!Number.isNaN(val)) filters['startTime'] = Math.max(val, 0);
+      }
+      if (req.query['endTime']) {
+        const val = Number.parseInt(req.query['endTime'] as string, 10);
+        if (!Number.isNaN(val)) filters['endTime'] = Math.max(val, 0);
+      }
 
-      const limit = req.query['limit'] ? Number.parseInt(req.query['limit'] as string, 10) : 100;
+      const rawLimit = req.query['limit'] ? Number.parseInt(req.query['limit'] as string, 10) : 100;
+      const limit = Math.min(Math.max(Number.isNaN(rawLimit) ? 100 : rawLimit, 1), 1000);
 
       const traces = aggregator.searchTraces(
         filters as import('./services/trace-aggregator.js').TraceSearchFilters
@@ -1328,7 +1359,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   });
 
   // Get recent traces
-  app.get('/traces/recent', (req: Request, res: Response) => {
+  app.get('/traces/recent', requireAdminAuth, (req: Request, res: Response) => {
     try {
       // Uses static import at top of file
       const aggregator = getTraceAggregator();
@@ -1356,7 +1387,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   });
 
   // Get slowest traces
-  app.get('/traces/slow', (req: Request, res: Response) => {
+  app.get('/traces/slow', requireAdminAuth, (req: Request, res: Response) => {
     try {
       // Uses static import at top of file
       const aggregator = getTraceAggregator();
@@ -1384,7 +1415,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   });
 
   // Get error traces
-  app.get('/traces/errors', (req: Request, res: Response) => {
+  app.get('/traces/errors', requireAdminAuth, (req: Request, res: Response) => {
     try {
       // Uses static import at top of file
       const aggregator = getTraceAggregator();
@@ -1412,7 +1443,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   });
 
   // Get trace statistics
-  app.get('/traces/stats', (_req: Request, res: Response) => {
+  app.get('/traces/stats', requireAdminAuth, (_req: Request, res: Response) => {
     try {
       // Uses static import at top of file
       const aggregator = getTraceAggregator();
@@ -1464,7 +1495,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   });
 
   // Get specific trace by request ID
-  app.get('/traces/:requestId', (req: Request, res: Response) => {
+  app.get('/traces/:requestId', requireAdminAuth, (req: Request, res: Response) => {
     try {
       // Uses static import at top of file
       const aggregator = getTraceAggregator();
@@ -1503,6 +1534,9 @@ export function createHttpServer(options: HttpServerOptions = {}): {
 
   // Integrate tracing dashboard UI (P3-2)
   // Loaded synchronously - routes are added during server initialization
+  // Protect UI routes with admin auth (same as other trace endpoints)
+  app.use('/ui/tracing', requireAdminAuth);
+  app.use('/traces/stream', requireAdminAuth);
   try {
     import('./http-server-tracing-ui.js')
       .then(({ addTracingUIRoutes }) => {
@@ -1721,7 +1755,9 @@ export function createHttpServer(options: HttpServerOptions = {}): {
             : undefined;
 
       // Extract user ID (use token hash as user ID)
-      const userId = googleToken ? `google:${googleToken.substring(0, 16)}` : 'anonymous';
+      const userId = googleToken
+        ? `google:${createHash('sha256').update(googleToken).digest('hex').substring(0, 16)}`
+        : 'anonymous';
 
       // Check for SSE reconnection via Last-Event-ID header (RFC 8895)
       const lastEventId = req.headers['last-event-id'] as string | undefined;
@@ -1852,7 +1888,14 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         // Create and connect MCP server with task store
         const { mcpServer, taskStore } = await createMcpServerInstance(googleToken);
         await mcpServer.connect(transport);
-        sessions.set(sessionId, { transport, mcpServer, taskStore, securityContext, eventStore, lastActivity: Date.now() });
+        sessions.set(sessionId, {
+          transport,
+          mcpServer,
+          taskStore,
+          securityContext,
+          eventStore,
+          lastActivity: Date.now(),
+        });
         sessionsTotal.set(sessions.size);
 
         // Cleanup on disconnect
@@ -1974,7 +2017,9 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     const googleToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
 
     // Extract user ID (use token hash as user ID)
-    const userId = googleToken ? `google:${googleToken.substring(0, 16)}` : 'anonymous';
+    const userId = googleToken
+      ? `google:${createHash('sha256').update(googleToken).digest('hex').substring(0, 16)}`
+      : 'anonymous';
 
     const sessionId = normalizeSessionHeader(req);
     const isPost = req.method === 'POST';
@@ -2145,7 +2190,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     }
   });
 
-  // Session cleanup endpoint
+  // Session cleanup endpoint - requires session ownership verification
   app.delete('/session/:sessionId', (req: Request, res: Response) => {
     const sessionId = req.params['sessionId'] as string;
 
@@ -2162,6 +2207,23 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     const session = sessions.get(sessionId);
 
     if (session) {
+      // Verify caller is the session owner via security context (token + user-agent match)
+      const callerToken = req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.slice(7)
+        : '';
+      const currentContext = createSecurityContext(req, callerToken);
+      const securityCheck = verifySecurityContext(session.securityContext, currentContext);
+
+      if (!securityCheck.valid) {
+        res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Session ownership verification failed',
+          },
+        });
+        return;
+      }
+
       if (typeof session.transport.close === 'function') {
         session.transport.close();
       }
@@ -2686,6 +2748,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   return {
     app,
     start: async () => {
+      await rateLimiterReady;
       await new Promise<void>((resolve) => {
         httpServer = app.listen(port, host, () => {
           logger.info(`ServalSheets HTTP server listening on ${host}:${port}`);
@@ -2700,7 +2763,6 @@ export function createHttpServer(options: HttpServerOptions = {}): {
           resolve();
         });
       });
-
     },
     stop: async () => {
       if (httpServer) {

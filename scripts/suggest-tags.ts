@@ -71,9 +71,7 @@ function analyzeFrontmatter(content: string): { hasTags: boolean; existingTags: 
   const tagsMatch = frontmatter.match(/^tags:\s*\[([^\]]+)\]/m);
 
   if (tagsMatch) {
-    const tags = tagsMatch[1]
-      .split(',')
-      .map((t) => t.trim().replace(/['"]/g, ''));
+    const tags = tagsMatch[1].split(',').map((t) => t.trim().replace(/['"]/g, ''));
     return { hasTags: true, existingTags: tags };
   }
 

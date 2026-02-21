@@ -758,9 +758,14 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       }
 
       // Merge new criteria for the specific column
+      // Extract the criteria for the target column: try exact column key first, then take the first entry
+      const columnCriteria =
+        input.criteria?.[input.columnIndex] ??
+        (input.criteria ? Object.values(input.criteria)[0] : undefined) ??
+        {};
       const updatedCriteria = {
         ...currentFilterResponse.filter.criteria,
-        [input.columnIndex]: input.criteria?.[input.columnIndex] || input.criteria,
+        [input.columnIndex]: columnCriteria,
       };
 
       await this.sheetsApi.spreadsheets.batchUpdate({
@@ -1097,7 +1102,14 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
           {
             updateFilterView: {
               filter,
-              fields: 'title,criteria,sortSpecs',
+              fields:
+                [
+                  input.title !== undefined ? 'title' : '',
+                  input.criteria ? 'criteria' : '',
+                  input.sortSpecs ? 'sortSpecs' : '',
+                ]
+                  .filter(Boolean)
+                  .join(',') || 'title',
             },
           },
         ],
@@ -1282,7 +1294,13 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
             updateSlicerSpec: {
               slicerId: input.slicerId,
               spec,
-              fields: 'title,filterCriteria',
+              fields:
+                [
+                  input.title !== undefined ? 'title' : '',
+                  input.filterColumn !== undefined ? 'columnIndex' : '',
+                ]
+                  .filter(Boolean)
+                  .join(',') || 'title',
             },
           },
         ],

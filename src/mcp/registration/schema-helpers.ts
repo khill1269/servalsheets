@@ -225,16 +225,18 @@ function buildFlatDeferredSchema(fullSchema: ZodSchema, schemaType: SchemaType):
       const actionValues = extractActionEnum(innerSchema);
       if (actionValues.length > 0) {
         // Use z.enum so the client knows valid action values
+        // Include the valid actions directly in the description since many MCP clients
+        // cannot resolve schema:// URIs. The enum constraint provides validation.
         shape['action'] = z
           .enum(actionValues as [string, ...string[]])
           .describe(
-            'IMPORTANT: Read schema://tools/{toolName} first to see available actions and required parameters'
+            `The action to perform. Valid actions: ${actionValues.join(', ')}. For full parameter details, read schema://tools/{toolName} resource if your client supports MCP resources.`
           );
       } else {
         shape['action'] = z
           .string()
           .describe(
-            'IMPORTANT: Read schema://tools/{toolName} first to see available actions and required parameters'
+            `The action to perform. For full parameter details, read schema://tools/{toolName} resource if your client supports MCP resources.`
           );
       }
     }

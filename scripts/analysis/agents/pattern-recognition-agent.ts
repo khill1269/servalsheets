@@ -13,7 +13,12 @@
 
 import * as ts from 'typescript';
 import * as path from 'path';
-import { AnalysisAgent, AnalysisIssue, DimensionReport, AnalysisContext } from '../multi-agent-analysis.js';
+import {
+  AnalysisAgent,
+  AnalysisIssue,
+  DimensionReport,
+  AnalysisContext,
+} from '../multi-agent-analysis.js';
 
 // ============================================================================
 // PATTERN TYPES
@@ -86,7 +91,9 @@ export class PatternRecognitionAgent extends AnalysisAgent {
       // Collect handler method patterns
       if (ts.isMethodDeclaration(node) && node.name) {
         const methodName = node.name.getText();
-        if (['execute', 'handle', 'process', 'run'].some((prefix) => methodName.startsWith(prefix))) {
+        if (
+          ['execute', 'handle', 'process', 'run'].some((prefix) => methodName.startsWith(prefix))
+        ) {
           const variant = methodName.match(/^(execute|handle|process|run)/)?.[1] || 'unknown';
           this.addPattern(this.handlerPatterns, variant, {
             file: filePath,
@@ -129,7 +136,11 @@ export class PatternRecognitionAgent extends AnalysisAgent {
       }
 
       // Collect response format patterns
-      if (ts.isReturnStatement(node) && node.expression && ts.isObjectLiteralExpression(node.expression)) {
+      if (
+        ts.isReturnStatement(node) &&
+        node.expression &&
+        ts.isObjectLiteralExpression(node.expression)
+      ) {
         const responseProperty = node.expression.properties.find(
           (prop) => ts.isPropertyAssignment(prop) && prop.name.getText() === 'response'
         );
@@ -200,12 +211,17 @@ export class PatternRecognitionAgent extends AnalysisAgent {
     for (const instance of currentFilePatterns) {
       if (instance.variant !== dominantVariant) {
         issues.push(
-          this.createIssue('handlerPattern', filePath, `Handler method uses "${instance.variant}" pattern, but ${analysis.dominantCount}/${analysis.totalInstances} handlers use "${dominantVariant}"`, {
-            line: instance.line,
-            severity: 'medium',
-            suggestion: `Consider renaming to follow dominant pattern: "${instance.context?.replace(instance.variant, dominantVariant)}"`,
-            autoFixable: false,
-          })
+          this.createIssue(
+            'handlerPattern',
+            filePath,
+            `Handler method uses "${instance.variant}" pattern, but ${analysis.dominantCount}/${analysis.totalInstances} handlers use "${dominantVariant}"`,
+            {
+              line: instance.line,
+              severity: 'medium',
+              suggestion: `Consider renaming to follow dominant pattern: "${instance.context?.replace(instance.variant, dominantVariant)}"`,
+              autoFixable: false,
+            }
+          )
         );
       }
     }
@@ -253,14 +269,22 @@ export class PatternRecognitionAgent extends AnalysisAgent {
     const dominantVariant = analysis.dominantVariant;
 
     for (const instance of currentFilePatterns) {
-      if (instance.variant !== dominantVariant && analysis.dominantCount / analysis.totalInstances > 0.7) {
+      if (
+        instance.variant !== dominantVariant &&
+        analysis.dominantCount / analysis.totalInstances > 0.7
+      ) {
         issues.push(
-          this.createIssue('schemaPattern', filePath, `Schema uses "${instance.variant}" pattern, but ${analysis.dominantCount}/${analysis.totalInstances} schemas use "${dominantVariant}"`, {
-            line: instance.line,
-            severity: 'low',
-            suggestion: `Consider refactoring to use dominant pattern: "${dominantVariant}"`,
-            autoFixable: false,
-          })
+          this.createIssue(
+            'schemaPattern',
+            filePath,
+            `Schema uses "${instance.variant}" pattern, but ${analysis.dominantCount}/${analysis.totalInstances} schemas use "${dominantVariant}"`,
+            {
+              line: instance.line,
+              severity: 'low',
+              suggestion: `Consider refactoring to use dominant pattern: "${dominantVariant}"`,
+              autoFixable: false,
+            }
+          )
         );
       }
     }
@@ -301,12 +325,17 @@ export class PatternRecognitionAgent extends AnalysisAgent {
       for (const instance of currentFilePatterns) {
         if (instance.variant !== dominantVariant) {
           issues.push(
-            this.createIssue('errorPattern', filePath, `Error handling uses "${instance.variant}" pattern, but ${analysis.dominantCount}/${analysis.totalInstances} files use "${dominantVariant}"`, {
-              line: instance.line,
-              severity: 'low',
-              suggestion: `Consider using dominant error pattern: "${dominantVariant}"`,
-              autoFixable: false,
-            })
+            this.createIssue(
+              'errorPattern',
+              filePath,
+              `Error handling uses "${instance.variant}" pattern, but ${analysis.dominantCount}/${analysis.totalInstances} files use "${dominantVariant}"`,
+              {
+                line: instance.line,
+                severity: 'low',
+                suggestion: `Consider using dominant error pattern: "${dominantVariant}"`,
+                autoFixable: false,
+              }
+            )
           );
         }
       }
@@ -359,12 +388,17 @@ export class PatternRecognitionAgent extends AnalysisAgent {
       for (const instance of currentFilePatterns) {
         if (instance.variant !== dominantVariant) {
           issues.push(
-            this.createIssue('responsePattern', filePath, `Response format deviates from project standard: ${analysis.dominantCount}/${analysis.totalInstances} files use "${dominantVariant}"`, {
-              line: instance.line,
-              severity: 'medium',
-              suggestion: `Use standard response format: { response: { success: boolean, data?: any } }`,
-              autoFixable: false,
-            })
+            this.createIssue(
+              'responsePattern',
+              filePath,
+              `Response format deviates from project standard: ${analysis.dominantCount}/${analysis.totalInstances} files use "${dominantVariant}"`,
+              {
+                line: instance.line,
+                severity: 'medium',
+                suggestion: `Use standard response format: { response: { success: boolean, data?: any } }`,
+                autoFixable: false,
+              }
+            )
           );
         }
       }
@@ -411,11 +445,16 @@ export class PatternRecognitionAgent extends AnalysisAgent {
     if (fileVariantCounts.size > 2) {
       const variants = Array.from(fileVariantCounts.keys()).join(', ');
       issues.push(
-        this.createIssue('namingPattern', filePath, `File uses ${fileVariantCounts.size} different naming conventions: ${variants}. Codebase standard is "${dominantVariant}"`, {
-          severity: 'low',
-          suggestion: `Standardize naming to "${dominantVariant}" for consistency`,
-          autoFixable: false,
-        })
+        this.createIssue(
+          'namingPattern',
+          filePath,
+          `File uses ${fileVariantCounts.size} different naming conventions: ${variants}. Codebase standard is "${dominantVariant}"`,
+          {
+            severity: 'low',
+            suggestion: `Standardize naming to "${dominantVariant}" for consistency`,
+            autoFixable: false,
+          }
+        )
       );
     }
 

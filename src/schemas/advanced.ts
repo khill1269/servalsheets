@@ -1,9 +1,10 @@
 /**
  * Tool 15: sheets_advanced
- * Advanced features: named ranges, protected ranges, metadata, banding, tables, and smart chips
+ * Advanced features: named ranges, named functions, protected ranges, metadata, banding, tables, and smart chips
  *
- * 26 Actions:
+ * 31 Actions:
  * Named Ranges (5): add_named_range, update_named_range, delete_named_range, list_named_ranges, get_named_range
+ * Named Functions (5): create_named_function, list_named_functions, get_named_function, update_named_function, delete_named_function
  * Protected Ranges (4): add_protected_range, update_protected_range, delete_protected_range, list_protected_ranges
  * Metadata (3): set_metadata, get_metadata, delete_metadata
  * Banding (4): add_banding, update_banding, delete_banding, list_banding
@@ -319,10 +320,12 @@ const AddPersonChipActionSchema = CommonFieldsSchema.extend({
   range: RangeInputSchema.describe('Cell to add the chip to'),
   email: z.string().email().describe('Email address of the person to mention'),
   displayFormat: z
-    .enum(['DEFAULT', 'FULL', 'NAME_ONLY'])
+    .enum(['DEFAULT', 'LAST_NAME_COMMA_FIRST_NAME', 'EMAIL'])
     .optional()
     .default('DEFAULT')
-    .describe('Display format: DEFAULT (name), FULL (name and email), NAME_ONLY (first name)'),
+    .describe(
+      'Display format: DEFAULT (full name), LAST_NAME_COMMA_FIRST_NAME (Last, First), EMAIL (email address)'
+    ),
 });
 
 const AddDriveChipActionSchema = CommonFieldsSchema.extend({
@@ -351,6 +354,76 @@ const ListChipsActionSchema = CommonFieldsSchema.extend({
 });
 
 // ============================================================================
+// Named Function Action Schemas (5 actions) - Google Sheets LAMBDA-based custom functions
+// ============================================================================
+
+const NamedFunctionParamSchema = z.object({
+  name: z.string().min(1).describe('Parameter name (used inside the LAMBDA body)'),
+  description: z.string().optional().describe('Optional description of what the parameter does'),
+});
+
+const CreateNamedFunctionActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('create_named_function')
+    .describe('Create a reusable LAMBDA-based custom function'),
+  functionName: z
+    .string()
+    .min(1)
+    .max(255)
+    .regex(
+      /^[A-Za-z][A-Za-z0-9_]*$/,
+      'Function name must start with a letter and contain only letters, numbers, and underscores'
+    )
+    .describe('Name for the custom function (e.g., "PROFIT_MARGIN")'),
+  functionBody: z
+    .string()
+    .min(1)
+    .describe(
+      'The LAMBDA expression or formula body (e.g., "LAMBDA(revenue,cost,(revenue-cost)/revenue)")'
+    ),
+  description: z
+    .string()
+    .optional()
+    .describe('Optional human-readable description of the function'),
+  parameterDefinitions: z
+    .array(NamedFunctionParamSchema)
+    .optional()
+    .describe('Parameter definitions for the function arguments'),
+});
+
+const ListNamedFunctionsActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('list_named_functions').describe('List all custom named functions'),
+});
+
+const GetNamedFunctionActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get_named_function').describe('Get a specific named function by name'),
+  functionName: z.string().min(1).describe('Name of the function to retrieve'),
+});
+
+const UpdateNamedFunctionActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('update_named_function').describe('Update an existing named function'),
+  functionName: z.string().min(1).describe('Name of the function to update'),
+  newFunctionName: z
+    .string()
+    .min(1)
+    .max(255)
+    .regex(/^[A-Za-z][A-Za-z0-9_]*$/)
+    .optional()
+    .describe('New function name (to rename)'),
+  functionBody: z.string().min(1).optional().describe('New LAMBDA expression or formula body'),
+  description: z.string().optional().describe('New description'),
+  parameterDefinitions: z
+    .array(NamedFunctionParamSchema)
+    .optional()
+    .describe('New parameter definitions'),
+});
+
+const DeleteNamedFunctionActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('delete_named_function').describe('Delete a named function'),
+  functionName: z.string().min(1).describe('Name of the function to delete'),
+});
+
+// ============================================================================
 // Combined Input Schema
 // ============================================================================
 
@@ -371,6 +444,12 @@ export const SheetsAdvancedInputSchema = z.object({
     DeleteNamedRangeActionSchema,
     ListNamedRangesActionSchema,
     GetNamedRangeActionSchema,
+    // Named functions (5) - LAMBDA-based custom functions
+    CreateNamedFunctionActionSchema,
+    ListNamedFunctionsActionSchema,
+    GetNamedFunctionActionSchema,
+    UpdateNamedFunctionActionSchema,
+    DeleteNamedFunctionActionSchema,
     // Protected ranges (4)
     AddProtectedRangeActionSchema,
     UpdateProtectedRangeActionSchema,
@@ -443,6 +522,29 @@ const AdvancedResponseSchema = z.discriminatedUnion('success', [
         z.object({
           bandedRangeId: z.coerce.number().int(),
           range: GridRangeSchema,
+        })
+      )
+      .optional(),
+    // Named function fields
+    namedFunction: z
+      .object({
+        functionName: z.string(),
+        functionBody: z.string(),
+        description: z.string().optional(),
+        parameterDefinitions: z
+          .array(z.object({ name: z.string(), description: z.string().optional() }))
+          .optional(),
+      })
+      .optional(),
+    namedFunctions: z
+      .array(
+        z.object({
+          functionName: z.string(),
+          functionBody: z.string(),
+          description: z.string().optional(),
+          parameterDefinitions: z
+            .array(z.object({ name: z.string(), description: z.string().optional() }))
+            .optional(),
         })
       )
       .optional(),
@@ -641,6 +743,33 @@ export type AdvancedSetTableColumnPropertiesInput = SheetsAdvancedInput['request
   tableId: string;
   columnIndex: number;
   columnType?: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'CURRENCY' | 'DROPDOWN';
+};
+
+// Named functions
+export type AdvancedCreateNamedFunctionInput = SheetsAdvancedInput['request'] & {
+  action: 'create_named_function';
+  spreadsheetId: string;
+  functionName: string;
+  functionBody: string;
+};
+export type AdvancedListNamedFunctionsInput = SheetsAdvancedInput['request'] & {
+  action: 'list_named_functions';
+  spreadsheetId: string;
+};
+export type AdvancedGetNamedFunctionInput = SheetsAdvancedInput['request'] & {
+  action: 'get_named_function';
+  spreadsheetId: string;
+  functionName: string;
+};
+export type AdvancedUpdateNamedFunctionInput = SheetsAdvancedInput['request'] & {
+  action: 'update_named_function';
+  spreadsheetId: string;
+  functionName: string;
+};
+export type AdvancedDeleteNamedFunctionInput = SheetsAdvancedInput['request'] & {
+  action: 'delete_named_function';
+  spreadsheetId: string;
+  functionName: string;
 };
 
 // Smart Chips (June 2025 API)

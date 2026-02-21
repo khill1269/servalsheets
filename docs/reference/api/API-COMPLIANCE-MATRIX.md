@@ -272,7 +272,7 @@ Required for: Sharing, Comments, Version History, File Operations
 
 | Feature                | Spec Version | Status | Implementation          |
 | ---------------------- | ------------ | ------ | ----------------------- |
-| Tool Registration      | 2025-11-25   | ✅     | 22 tools, 299 actions   |
+| Tool Registration      | 2025-11-25   | ✅     | 22 tools, 305 actions   |
 | Tool Annotations       | 2025-11-25   | ✅     | All 4 hints             |
 | Structured Errors      | 2025-11-25   | ✅     | 40+ error codes         |
 | Progress Notifications | 2025-11-25   | ✅     | Streaming support       |

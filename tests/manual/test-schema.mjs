@@ -24,7 +24,11 @@ function isDiscriminatedUnion(schema) {
 // Test schema (mimics ServalSheets pattern)
 const ActionUnion = z.discriminatedUnion('action', [
   z.object({ action: z.literal('read'), spreadsheetId: z.string() }),
-  z.object({ action: z.literal('write'), spreadsheetId: z.string(), values: z.array(z.array(z.any())) }),
+  z.object({
+    action: z.literal('write'),
+    spreadsheetId: z.string(),
+    values: z.array(z.array(z.any())),
+  }),
   z.object({ action: z.literal('clear'), spreadsheetId: z.string(), range: z.string() }),
 ]);
 
@@ -56,13 +60,13 @@ try {
     $refStrategy: 'none',
     target: 'jsonSchema7',
   });
-  
+
   console.log('   SUCCESS! Generated JSON Schema:');
   console.log(JSON.stringify(jsonSchema, null, 2));
-  
+
   const properties = jsonSchema.properties;
   const request = properties?.request;
-  
+
   if (request?.oneOf || request?.anyOf) {
     console.log('\\n   ✓ Discriminated union properly converted to oneOf/anyOf');
   } else if (request) {

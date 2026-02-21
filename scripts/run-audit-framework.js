@@ -66,8 +66,8 @@ const WEIGHTS = {
   part1: 0.46, // Functional (1-12)
   part2: 0.18, // Protocol (13-16)
   part3: 0.36, // Code Quality (17-32)
-  part4: 0.20, // Deep Technical (33-60) - Bonus
-  part5: 0.20, // Excellence (61-80) - Bonus
+  part4: 0.2, // Deep Technical (33-60) - Bonus
+  part5: 0.2, // Excellence (61-80) - Bonus
 };
 
 console.log('\n══════════════════════════════════════════════════════');
@@ -81,10 +81,26 @@ const evidence = {
   lint: runCommand('npm run lint', 'Lint', 'lint.log'),
   testFast: runCommand('npm run test:fast', 'Fast Tests', 'test-fast.log'),
   checkDrift: runCommand('npm run check:drift', 'Check Drift', 'drift.log'),
-  checkPlaceholders: runCommand('npm run check:placeholders', 'Check Placeholders', 'placeholders.log'),
-  checkSilentFallbacks: runCommand('npm run check:silent-fallbacks', 'Check Silent Fallbacks', 'silent-fallbacks.log'),
-  checkDebugPrints: runCommand('npm run check:debug-prints', 'Check Debug Prints', 'debug-prints.log'),
-  validateServerJson: runCommand('npm run validate:server-json', 'Validate server.json', 'server-json.log'),
+  checkPlaceholders: runCommand(
+    'npm run check:placeholders',
+    'Check Placeholders',
+    'placeholders.log'
+  ),
+  checkSilentFallbacks: runCommand(
+    'npm run check:silent-fallbacks',
+    'Check Silent Fallbacks',
+    'silent-fallbacks.log'
+  ),
+  checkDebugPrints: runCommand(
+    'npm run check:debug-prints',
+    'Check Debug Prints',
+    'debug-prints.log'
+  ),
+  validateServerJson: runCommand(
+    'npm run validate:server-json',
+    'Validate server.json',
+    'server-json.log'
+  ),
   audit: runCommand('npm audit --json', 'Security Audit', 'audit.json'),
 };
 
@@ -96,7 +112,11 @@ console.log('══════════════════════�
 console.log('▶ Part 1: Functional Features (Categories 1-12)\n');
 
 const functionalCategories = [
-  { id: 1, name: 'Authentication & Authorization', score: evidence.build.success && evidence.testFast.success ? 10 : 5 },
+  {
+    id: 1,
+    name: 'Authentication & Authorization',
+    score: evidence.build.success && evidence.testFast.success ? 10 : 5,
+  },
   { id: 2, name: 'Core Data Operations', score: evidence.testFast.success ? 10 : 5 },
   { id: 3, name: 'Formatting & Styling', score: evidence.testFast.success ? 10 : 5 },
   { id: 4, name: 'Data Rules & Validation', score: evidence.testFast.success ? 10 : 5 },
@@ -106,11 +126,15 @@ const functionalCategories = [
   { id: 8, name: 'Data Analysis & AI Integration', score: evidence.testFast.success ? 10 : 5 },
   { id: 9, name: 'Advanced Functions & Integrations', score: evidence.testFast.success ? 10 : 5 },
   { id: 10, name: 'Enterprise Safety & Confirmation', score: evidence.testFast.success ? 10 : 5 },
-  { id: 11, name: 'Composite Operations & Orchestration', score: evidence.testFast.success ? 10 : 5 },
+  {
+    id: 11,
+    name: 'Composite Operations & Orchestration',
+    score: evidence.testFast.success ? 10 : 5,
+  },
   { id: 12, name: 'Security & Oversight', score: evidence.testFast.success ? 10 : 5 },
 ];
 
-functionalCategories.forEach(cat => {
+functionalCategories.forEach((cat) => {
   auditResults.categories.push({ ...cat, part: 'Functional', weight: WEIGHTS.part1 / 12 });
   console.log(`  ${cat.id}. ${cat.name}: ${cat.score}/10`);
 });
@@ -119,13 +143,17 @@ functionalCategories.forEach(cat => {
 console.log('\n▶ Part 2: Protocol Compliance (Categories 13-16)\n');
 
 const protocolCategories = [
-  { id: 13, name: 'MCP 2025-11-25 Specification', score: evidence.validateServerJson.success ? 10 : 5 },
+  {
+    id: 13,
+    name: 'MCP 2025-11-25 Specification',
+    score: evidence.validateServerJson.success ? 10 : 5,
+  },
   { id: 14, name: 'Google Sheets API v4 Coverage', score: evidence.testFast.success ? 10 : 5 },
   { id: 15, name: 'Google Drive API v3 Integration', score: evidence.testFast.success ? 9 : 5 },
   { id: 16, name: 'Google BigQuery Integration', score: evidence.testFast.success ? 10 : 5 },
 ];
 
-protocolCategories.forEach(cat => {
+protocolCategories.forEach((cat) => {
   auditResults.categories.push({ ...cat, part: 'Protocol', weight: WEIGHTS.part2 / 4 });
   console.log(`  ${cat.id}. ${cat.name}: ${cat.score}/10`);
 });
@@ -152,7 +180,7 @@ const qualityCategories = [
   { id: 32, name: 'Maintainability', score: evidence.checkPlaceholders.success ? 9 : 5 },
 ];
 
-qualityCategories.forEach(cat => {
+qualityCategories.forEach((cat) => {
   auditResults.categories.push({ ...cat, part: 'Quality', weight: WEIGHTS.part3 / 16 });
   console.log(`  ${cat.id}. ${cat.name}: ${cat.score}/10`);
 });
@@ -165,11 +193,11 @@ for (let i = 33; i <= 60; i++) {
   deepTechCategories.push({
     id: i,
     name: `Deep Technical ${i}`,
-    score: evidence.testFast.success && evidence.build.success ? 9 : 5
+    score: evidence.testFast.success && evidence.build.success ? 9 : 5,
   });
 }
 
-deepTechCategories.forEach(cat => {
+deepTechCategories.forEach((cat) => {
   auditResults.categories.push({ ...cat, part: 'DeepTech', weight: WEIGHTS.part4 / 28 });
 });
 console.log(`  Categories 33-60: Average ${deepTechCategories[0].score}/10`);
@@ -182,11 +210,11 @@ for (let i = 61; i <= 80; i++) {
   excellenceCategories.push({
     id: i,
     name: `Excellence ${i}`,
-    score: evidence.testFast.success ? 9 : 5
+    score: evidence.testFast.success ? 9 : 5,
   });
 }
 
-excellenceCategories.forEach(cat => {
+excellenceCategories.forEach((cat) => {
   auditResults.categories.push({ ...cat, part: 'Excellence', weight: WEIGHTS.part5 / 20 });
 });
 console.log(`  Categories 61-80: Average ${excellenceCategories[0].score}/10`);
@@ -218,12 +246,17 @@ for (let i = 97; i <= 106; i++) {
   executionGates.push({
     id: i,
     name: `Execution Gate ${i}`,
-    passed: evidence.testFast.success
+    passed: evidence.testFast.success,
   });
 }
 
-executionGates.forEach(gate => {
-  auditResults.categories.push({ ...gate, score: gate.passed ? 10 : 0, part: 'Execution', weight: 0 });
+executionGates.forEach((gate) => {
+  auditResults.categories.push({
+    ...gate,
+    score: gate.passed ? 10 : 0,
+    part: 'Execution',
+    weight: 0,
+  });
   console.log(`  ${gate.id}. ${gate.name}: ${gate.passed ? 'PASS' : 'FAIL'}`);
 });
 
@@ -233,7 +266,7 @@ console.log('   PHASE 3: SCORE CALCULATION');
 console.log('══════════════════════════════════════════════════════\n');
 
 let weightedScore = 0;
-auditResults.categories.forEach(cat => {
+auditResults.categories.forEach((cat) => {
   if (cat.weight) {
     weightedScore += (cat.score / 10) * cat.weight * 100;
   }
@@ -254,20 +287,28 @@ if (!evidence.build.success) {
   auditResults.issues.push({ priority: 'P0', category: 'Build', description: 'Build failing' });
 }
 if (!evidence.typecheck.success) {
-  auditResults.issues.push({ priority: 'P0', category: 'TypeScript', description: 'Type errors present' });
+  auditResults.issues.push({
+    priority: 'P0',
+    category: 'TypeScript',
+    description: 'Type errors present',
+  });
 }
 if (!evidence.testFast.success) {
   auditResults.issues.push({ priority: 'P0', category: 'Tests', description: 'Tests failing' });
 }
 if (!evidence.checkDrift.success) {
-  auditResults.issues.push({ priority: 'P1', category: 'Metadata', description: 'Metadata drift detected' });
+  auditResults.issues.push({
+    priority: 'P1',
+    category: 'Metadata',
+    description: 'Metadata drift detected',
+  });
 }
 if (!evidence.lint.success) {
   auditResults.issues.push({ priority: 'P2', category: 'Lint', description: 'Linting errors' });
 }
 
 console.log(`Issues found: ${auditResults.issues.length}`);
-auditResults.issues.forEach(issue => {
+auditResults.issues.forEach((issue) => {
   console.log(`  [${issue.priority}] ${issue.category}: ${issue.description}`);
 });
 
@@ -283,4 +324,4 @@ console.log(`✓ Evidence saved to: ${EVIDENCE_DIR}/`);
 console.log(`\nFinal Score: ${auditResults.total_percentage}%\n`);
 
 // Exit with appropriate code
-process.exit(auditResults.issues.filter(i => i.priority === 'P0').length > 0 ? 1 : 0);
+process.exit(auditResults.issues.filter((i) => i.priority === 'P0').length > 0 ? 1 : 0);

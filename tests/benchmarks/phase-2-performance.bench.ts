@@ -39,9 +39,7 @@ beforeAll(() => {
       [SPREADSHEET_ID]: {
         spreadsheetId: SPREADSHEET_ID,
         title: 'Benchmark Sheet',
-        sheets: [
-          { sheetId: 0, title: 'Sheet1', rowCount: 100000, columnCount: 26 },
-        ],
+        sheets: [{ sheetId: 0, title: 'Sheet1', rowCount: 100000, columnCount: 26 }],
         values: {
           'Sheet1!A1:D10': Array(10).fill(['A', 'B', 'C', 'D']),
         },
@@ -123,23 +121,27 @@ describe('Request Merging Performance', () => {
     const merger100 = new RequestMerger({ enabled: true, windowMs: 100 });
     try {
       const test50 = Promise.all(
-        Array(10).fill(0).map((_, i) =>
-          merger50.mergeRead(
-            mockSheetsApi as unknown as sheets_v4.Sheets,
-            SPREADSHEET_ID,
-            `Sheet1!A${i + 1}:B${i + 10}`
+        Array(10)
+          .fill(0)
+          .map((_, i) =>
+            merger50.mergeRead(
+              mockSheetsApi as unknown as sheets_v4.Sheets,
+              SPREADSHEET_ID,
+              `Sheet1!A${i + 1}:B${i + 10}`
+            )
           )
-        )
       );
 
       const test100 = Promise.all(
-        Array(10).fill(0).map((_, i) =>
-          merger100.mergeRead(
-            mockSheetsApi as unknown as sheets_v4.Sheets,
-            SPREADSHEET_ID,
-            `Sheet1!A${i + 1}:B${i + 10}`
+        Array(10)
+          .fill(0)
+          .map((_, i) =>
+            merger100.mergeRead(
+              mockSheetsApi as unknown as sheets_v4.Sheets,
+              SPREADSHEET_ID,
+              `Sheet1!A${i + 1}:B${i + 10}`
+            )
           )
-        )
       );
 
       await Promise.all([test50, test100]);
@@ -258,11 +260,13 @@ describe('Worker Pool Performance', () => {
     const pool = new WorkerPool({ poolSize: 1 });
     pool.registerWorker('test', '/mock/worker.js');
 
-    const tasks = Array(100).fill(0).map((_, i) =>
-      pool.execute('test', { id: i }).catch(() => {
-        /* ignore mock errors */
-      })
-    );
+    const tasks = Array(100)
+      .fill(0)
+      .map((_, i) =>
+        pool.execute('test', { id: i }).catch(() => {
+          /* ignore mock errors */
+        })
+      );
 
     await Promise.all(tasks);
     await pool.shutdown();
@@ -272,11 +276,13 @@ describe('Worker Pool Performance', () => {
     const pool = new WorkerPool({ poolSize: 4 });
     pool.registerWorker('test', '/mock/worker.js');
 
-    const tasks = Array(100).fill(0).map((_, i) =>
-      pool.execute('test', { id: i }).catch(() => {
-        /* ignore mock errors */
-      })
-    );
+    const tasks = Array(100)
+      .fill(0)
+      .map((_, i) =>
+        pool.execute('test', { id: i }).catch(() => {
+          /* ignore mock errors */
+        })
+      );
 
     await Promise.all(tasks);
     await pool.shutdown();

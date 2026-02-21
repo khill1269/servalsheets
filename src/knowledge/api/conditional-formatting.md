@@ -46,13 +46,15 @@ interface GradientRule {
 const request = {
   addConditionalFormatRule: {
     rule: {
-      ranges: [{
-        sheetId: 0,
-        startRowIndex: 1,
-        endRowIndex: 100,
-        startColumnIndex: 0,
-        endColumnIndex: 5,
-      }],
+      ranges: [
+        {
+          sheetId: 0,
+          startRowIndex: 1,
+          endRowIndex: 100,
+          startColumnIndex: 0,
+          endColumnIndex: 5,
+        },
+      ],
       booleanRule: {
         condition: {
           type: 'NUMBER_GREATER',
@@ -64,7 +66,7 @@ const request = {
         },
       },
     },
-    index: 0,  // Rule priority (0 = highest)
+    index: 0, // Rule priority (0 = highest)
   },
 };
 ```
@@ -75,34 +77,34 @@ const request = {
 
 ### All Condition Types
 
-| Type | Description | Values |
-|------|-------------|--------|
-| `NUMBER_GREATER` | > value | 1 |
-| `NUMBER_GREATER_THAN_EQ` | >= value | 1 |
-| `NUMBER_LESS` | < value | 1 |
-| `NUMBER_LESS_THAN_EQ` | <= value | 1 |
-| `NUMBER_EQ` | = value | 1 |
-| `NUMBER_NOT_EQ` | ≠ value | 1 |
-| `NUMBER_BETWEEN` | Between values | 2 |
-| `NUMBER_NOT_BETWEEN` | Not between | 2 |
-| `TEXT_CONTAINS` | Contains text | 1 |
-| `TEXT_NOT_CONTAINS` | Doesn't contain | 1 |
-| `TEXT_STARTS_WITH` | Starts with | 1 |
-| `TEXT_ENDS_WITH` | Ends with | 1 |
-| `TEXT_EQ` | Exact match | 1 |
-| `TEXT_IS_EMAIL` | Is email | 0 |
-| `TEXT_IS_URL` | Is URL | 0 |
-| `DATE_EQ` | Equals date | 1 |
-| `DATE_BEFORE` | Before date | 1 |
-| `DATE_AFTER` | After date | 1 |
-| `DATE_ON_OR_BEFORE` | On/before | 1 |
-| `DATE_ON_OR_AFTER` | On/after | 1 |
-| `DATE_BETWEEN` | Between dates | 2 |
-| `DATE_NOT_BETWEEN` | Not between | 2 |
-| `DATE_IS_VALID` | Valid date | 0 |
-| `BLANK` | Is empty | 0 |
-| `NOT_BLANK` | Is not empty | 0 |
-| `CUSTOM_FORMULA` | Formula = TRUE | 1 |
+| Type                     | Description     | Values |
+| ------------------------ | --------------- | ------ |
+| `NUMBER_GREATER`         | > value         | 1      |
+| `NUMBER_GREATER_THAN_EQ` | >= value        | 1      |
+| `NUMBER_LESS`            | < value         | 1      |
+| `NUMBER_LESS_THAN_EQ`    | <= value        | 1      |
+| `NUMBER_EQ`              | = value         | 1      |
+| `NUMBER_NOT_EQ`          | ≠ value         | 1      |
+| `NUMBER_BETWEEN`         | Between values  | 2      |
+| `NUMBER_NOT_BETWEEN`     | Not between     | 2      |
+| `TEXT_CONTAINS`          | Contains text   | 1      |
+| `TEXT_NOT_CONTAINS`      | Doesn't contain | 1      |
+| `TEXT_STARTS_WITH`       | Starts with     | 1      |
+| `TEXT_ENDS_WITH`         | Ends with       | 1      |
+| `TEXT_EQ`                | Exact match     | 1      |
+| `TEXT_IS_EMAIL`          | Is email        | 0      |
+| `TEXT_IS_URL`            | Is URL          | 0      |
+| `DATE_EQ`                | Equals date     | 1      |
+| `DATE_BEFORE`            | Before date     | 1      |
+| `DATE_AFTER`             | After date      | 1      |
+| `DATE_ON_OR_BEFORE`      | On/before       | 1      |
+| `DATE_ON_OR_AFTER`       | On/after        | 1      |
+| `DATE_BETWEEN`           | Between dates   | 2      |
+| `DATE_NOT_BETWEEN`       | Not between     | 2      |
+| `DATE_IS_VALID`          | Valid date      | 0      |
+| `BLANK`                  | Is empty        | 0      |
+| `NOT_BLANK`              | Is not empty    | 0      |
+| `CUSTOM_FORMULA`         | Formula = TRUE  | 1      |
 
 ### Number Conditions
 
@@ -114,7 +116,7 @@ const greaterThan: BooleanRule = {
     values: [{ userEnteredValue: '100' }],
   },
   format: {
-    backgroundColor: { red: 0.8, green: 1.0, blue: 0.8 },  // Light green
+    backgroundColor: { red: 0.8, green: 1.0, blue: 0.8 }, // Light green
   },
 };
 
@@ -125,7 +127,7 @@ const lessThan: BooleanRule = {
     values: [{ userEnteredValue: '0' }],
   },
   format: {
-    backgroundColor: { red: 1.0, green: 0.8, blue: 0.8 },  // Light red
+    backgroundColor: { red: 1.0, green: 0.8, blue: 0.8 }, // Light red
     textFormat: { foregroundColor: { red: 0.7, green: 0, blue: 0 } },
   },
 };
@@ -134,13 +136,10 @@ const lessThan: BooleanRule = {
 const between: BooleanRule = {
   condition: {
     type: 'NUMBER_BETWEEN',
-    values: [
-      { userEnteredValue: '50' },
-      { userEnteredValue: '100' },
-    ],
+    values: [{ userEnteredValue: '50' }, { userEnteredValue: '100' }],
   },
   format: {
-    backgroundColor: { red: 1.0, green: 1.0, blue: 0.8 },  // Light yellow
+    backgroundColor: { red: 1.0, green: 1.0, blue: 0.8 }, // Light yellow
   },
 };
 
@@ -151,7 +150,7 @@ const equalTo: BooleanRule = {
     values: [{ userEnteredValue: '0' }],
   },
   format: {
-    backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 },  // Gray
+    backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 }, // Gray
     textFormat: { strikethrough: true },
   },
 };
@@ -160,7 +159,7 @@ const equalTo: BooleanRule = {
 const greaterThanCell: BooleanRule = {
   condition: {
     type: 'NUMBER_GREATER',
-    values: [{ userEnteredValue: '=$Z$1' }],  // Reference threshold cell
+    values: [{ userEnteredValue: '=$Z$1' }], // Reference threshold cell
   },
   format: {
     backgroundColor: { red: 0.8, green: 1.0, blue: 0.8 },
@@ -213,7 +212,7 @@ const isEmail: BooleanRule = {
     type: 'TEXT_IS_EMAIL',
   },
   format: {
-    textFormat: { 
+    textFormat: {
       foregroundColor: { red: 0, green: 0, blue: 0.8 },
       underline: true,
     },
@@ -251,10 +250,7 @@ const dueToday: BooleanRule = {
 const dueThisWeek: BooleanRule = {
   condition: {
     type: 'DATE_BETWEEN',
-    values: [
-      { relativeDate: 'TODAY' },
-      { userEnteredValue: '=TODAY()+7' },
-    ],
+    values: [{ relativeDate: 'TODAY' }, { userEnteredValue: '=TODAY()+7' }],
   },
   format: {
     backgroundColor: { red: 0.9, green: 0.95, blue: 1.0 },
@@ -304,7 +300,7 @@ const isFilled: BooleanRule = {
 const highlightRow: BooleanRule = {
   condition: {
     type: 'CUSTOM_FORMULA',
-    values: [{ userEnteredValue: '=$C1="Complete"' }],  // $ anchors column
+    values: [{ userEnteredValue: '=$C1="Complete"' }], // $ anchors column
   },
   format: {
     backgroundColor: { red: 0.9, green: 0.95, blue: 0.9 },
@@ -407,7 +403,7 @@ const isWeekend: BooleanRule = {
 const salesAboveTarget: BooleanRule = {
   condition: {
     type: 'CUSTOM_FORMULA',
-    values: [{ userEnteredValue: '=$B1>=$C1' }],  // Sales >= Target
+    values: [{ userEnteredValue: '=$B1>=$C1' }], // Sales >= Target
   },
   format: {
     backgroundColor: { red: 0.8, green: 1.0, blue: 0.8 },
@@ -424,14 +420,14 @@ const salesAboveTarget: BooleanRule = {
 ```typescript
 interface GradientRule {
   minpoint: InterpolationPoint;
-  midpoint?: InterpolationPoint;  // Optional middle point
+  midpoint?: InterpolationPoint; // Optional middle point
   maxpoint: InterpolationPoint;
 }
 
 interface InterpolationPoint {
   color: Color;
   type: 'MIN' | 'MAX' | 'NUMBER' | 'PERCENT' | 'PERCENTILE';
-  value?: string;  // Required for NUMBER, PERCENT, PERCENTILE
+  value?: string; // Required for NUMBER, PERCENT, PERCENTILE
 }
 ```
 
@@ -441,11 +437,11 @@ interface InterpolationPoint {
 // Simple min-max gradient
 const twoColorGradient: GradientRule = {
   minpoint: {
-    color: { red: 1.0, green: 0.8, blue: 0.8 },  // Light red
+    color: { red: 1.0, green: 0.8, blue: 0.8 }, // Light red
     type: 'MIN',
   },
   maxpoint: {
-    color: { red: 0.8, green: 1.0, blue: 0.8 },  // Light green
+    color: { red: 0.8, green: 1.0, blue: 0.8 }, // Light green
     type: 'MAX',
   },
 };
@@ -469,12 +465,12 @@ const percentileGradient: GradientRule = {
   minpoint: {
     color: { red: 1.0, green: 0.9, blue: 0.9 },
     type: 'PERCENTILE',
-    value: '10',  // 10th percentile
+    value: '10', // 10th percentile
   },
   maxpoint: {
     color: { red: 0.9, green: 1.0, blue: 0.9 },
     type: 'PERCENTILE',
-    value: '90',  // 90th percentile
+    value: '90', // 90th percentile
   },
 };
 ```
@@ -485,16 +481,16 @@ const percentileGradient: GradientRule = {
 // Red-Yellow-Green gradient
 const trafficLightGradient: GradientRule = {
   minpoint: {
-    color: { red: 0.96, green: 0.26, blue: 0.21 },  // Red
+    color: { red: 0.96, green: 0.26, blue: 0.21 }, // Red
     type: 'MIN',
   },
   midpoint: {
-    color: { red: 1.0, green: 0.92, blue: 0.23 },   // Yellow
+    color: { red: 1.0, green: 0.92, blue: 0.23 }, // Yellow
     type: 'PERCENT',
     value: '50',
   },
   maxpoint: {
-    color: { red: 0.26, green: 0.70, blue: 0.46 },  // Green
+    color: { red: 0.26, green: 0.7, blue: 0.46 }, // Green
     type: 'MAX',
   },
 };
@@ -502,16 +498,16 @@ const trafficLightGradient: GradientRule = {
 // Blue-White-Red (for +/- values)
 const divergingGradient: GradientRule = {
   minpoint: {
-    color: { red: 0.26, green: 0.52, blue: 0.96 },  // Blue (negative)
+    color: { red: 0.26, green: 0.52, blue: 0.96 }, // Blue (negative)
     type: 'MIN',
   },
   midpoint: {
-    color: { red: 1.0, green: 1.0, blue: 1.0 },     // White (zero)
+    color: { red: 1.0, green: 1.0, blue: 1.0 }, // White (zero)
     type: 'NUMBER',
     value: '0',
   },
   maxpoint: {
-    color: { red: 0.96, green: 0.26, blue: 0.21 },  // Red (positive)
+    color: { red: 0.96, green: 0.26, blue: 0.21 }, // Red (positive)
     type: 'MAX',
   },
 };
@@ -519,7 +515,7 @@ const divergingGradient: GradientRule = {
 // Cool-to-warm gradient
 const temperatureGradient: GradientRule = {
   minpoint: {
-    color: { red: 0.4, green: 0.6, blue: 0.9 },   // Cool blue
+    color: { red: 0.4, green: 0.6, blue: 0.9 }, // Cool blue
     type: 'NUMBER',
     value: '0',
   },
@@ -529,7 +525,7 @@ const temperatureGradient: GradientRule = {
     value: '50',
   },
   maxpoint: {
-    color: { red: 0.9, green: 0.4, blue: 0.3 },   // Warm red
+    color: { red: 0.9, green: 0.4, blue: 0.3 }, // Warm red
     type: 'NUMBER',
     value: '100',
   },
@@ -544,29 +540,29 @@ const GRADIENT_PRESETS = {
   performance: {
     minpoint: { color: { red: 0.96, green: 0.26, blue: 0.21 }, type: 'MIN' },
     midpoint: { color: { red: 1.0, green: 0.92, blue: 0.23 }, type: 'PERCENT', value: '50' },
-    maxpoint: { color: { red: 0.26, green: 0.70, blue: 0.46 }, type: 'MAX' },
+    maxpoint: { color: { red: 0.26, green: 0.7, blue: 0.46 }, type: 'MAX' },
   },
-  
+
   // Heat map (white to dark)
   heatmap: {
     minpoint: { color: { red: 1.0, green: 1.0, blue: 1.0 }, type: 'MIN' },
     maxpoint: { color: { red: 0.2, green: 0.4, blue: 0.8 }, type: 'MAX' },
   },
-  
+
   // Progress (0-100%)
   progress: {
     minpoint: { color: { red: 0.95, green: 0.95, blue: 0.95 }, type: 'NUMBER', value: '0' },
     midpoint: { color: { red: 0.6, green: 0.8, blue: 0.6 }, type: 'NUMBER', value: '50' },
     maxpoint: { color: { red: 0.2, green: 0.7, blue: 0.3 }, type: 'NUMBER', value: '100' },
   },
-  
+
   // Variance (negative to positive)
   variance: {
     minpoint: { color: { red: 0.96, green: 0.26, blue: 0.21 }, type: 'MIN' },
     midpoint: { color: { red: 1.0, green: 1.0, blue: 1.0 }, type: 'NUMBER', value: '0' },
-    maxpoint: { color: { red: 0.26, green: 0.70, blue: 0.46 }, type: 'MAX' },
+    maxpoint: { color: { red: 0.26, green: 0.7, blue: 0.46 }, type: 'MAX' },
   },
-  
+
   // Sequential blue
   sequentialBlue: {
     minpoint: { color: { red: 0.9, green: 0.95, blue: 1.0 }, type: 'MIN' },
@@ -682,7 +678,15 @@ const statusFormatting = [
   {
     addConditionalFormatRule: {
       rule: {
-        ranges: [{ sheetId: 0, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 0, endColumnIndex: 10 }],
+        ranges: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 1000,
+            startColumnIndex: 0,
+            endColumnIndex: 10,
+          },
+        ],
         booleanRule: {
           condition: {
             type: 'CUSTOM_FORMULA',
@@ -701,7 +705,15 @@ const statusFormatting = [
   {
     addConditionalFormatRule: {
       rule: {
-        ranges: [{ sheetId: 0, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 0, endColumnIndex: 10 }],
+        ranges: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 1000,
+            startColumnIndex: 0,
+            endColumnIndex: 10,
+          },
+        ],
         booleanRule: {
           condition: {
             type: 'CUSTOM_FORMULA',
@@ -719,7 +731,15 @@ const statusFormatting = [
   {
     addConditionalFormatRule: {
       rule: {
-        ranges: [{ sheetId: 0, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 0, endColumnIndex: 10 }],
+        ranges: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 1000,
+            startColumnIndex: 0,
+            endColumnIndex: 10,
+          },
+        ],
         booleanRule: {
           condition: {
             type: 'CUSTOM_FORMULA',
@@ -745,7 +765,15 @@ const financialFormatting = [
   {
     addConditionalFormatRule: {
       rule: {
-        ranges: [{ sheetId: 0, startRowIndex: 1, endRowIndex: 100, startColumnIndex: 4, endColumnIndex: 5 }],
+        ranges: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 100,
+            startColumnIndex: 4,
+            endColumnIndex: 5,
+          },
+        ],
         booleanRule: {
           condition: {
             type: 'NUMBER_GREATER',
@@ -766,7 +794,15 @@ const financialFormatting = [
   {
     addConditionalFormatRule: {
       rule: {
-        ranges: [{ sheetId: 0, startRowIndex: 1, endRowIndex: 100, startColumnIndex: 4, endColumnIndex: 5 }],
+        ranges: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 100,
+            startColumnIndex: 4,
+            endColumnIndex: 5,
+          },
+        ],
         booleanRule: {
           condition: {
             type: 'NUMBER_LESS',
@@ -787,11 +823,19 @@ const financialFormatting = [
   {
     addConditionalFormatRule: {
       rule: {
-        ranges: [{ sheetId: 0, startRowIndex: 1, endRowIndex: 100, startColumnIndex: 2, endColumnIndex: 3 }],
+        ranges: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 100,
+            startColumnIndex: 2,
+            endColumnIndex: 3,
+          },
+        ],
         booleanRule: {
           condition: {
             type: 'CUSTOM_FORMULA',
-            values: [{ userEnteredValue: '=$C1>$D1' }],  // Actual > Budget
+            values: [{ userEnteredValue: '=$C1>$D1' }], // Actual > Budget
           },
           format: {
             backgroundColor: { red: 1.0, green: 0.85, blue: 0.85 },
@@ -805,11 +849,19 @@ const financialFormatting = [
   {
     addConditionalFormatRule: {
       rule: {
-        ranges: [{ sheetId: 0, startRowIndex: 1, endRowIndex: 100, startColumnIndex: 5, endColumnIndex: 6 }],
+        ranges: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 100,
+            startColumnIndex: 5,
+            endColumnIndex: 6,
+          },
+        ],
         gradientRule: {
           minpoint: { color: { red: 0.96, green: 0.26, blue: 0.21 }, type: 'NUMBER', value: '0' },
           midpoint: { color: { red: 1.0, green: 0.92, blue: 0.23 }, type: 'NUMBER', value: '50' },
-          maxpoint: { color: { red: 0.26, green: 0.70, blue: 0.46 }, type: 'NUMBER', value: '100' },
+          maxpoint: { color: { red: 0.26, green: 0.7, blue: 0.46 }, type: 'NUMBER', value: '100' },
         },
       },
       index: 3,
@@ -827,8 +879,20 @@ const dataQualityFormatting = [
     addConditionalFormatRule: {
       rule: {
         ranges: [
-          { sheetId: 0, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 0, endColumnIndex: 1 },  // Name
-          { sheetId: 0, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 2, endColumnIndex: 3 },  // Email
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 1000,
+            startColumnIndex: 0,
+            endColumnIndex: 1,
+          }, // Name
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 1000,
+            startColumnIndex: 2,
+            endColumnIndex: 3,
+          }, // Email
         ],
         booleanRule: {
           condition: { type: 'BLANK' },
@@ -844,11 +908,24 @@ const dataQualityFormatting = [
   {
     addConditionalFormatRule: {
       rule: {
-        ranges: [{ sheetId: 0, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 2, endColumnIndex: 3 }],
+        ranges: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 1000,
+            startColumnIndex: 2,
+            endColumnIndex: 3,
+          },
+        ],
         booleanRule: {
           condition: {
             type: 'CUSTOM_FORMULA',
-            values: [{ userEnteredValue: '=AND(C1<>"",NOT(REGEXMATCH(C1,"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")))' }],
+            values: [
+              {
+                userEnteredValue:
+                  '=AND(C1<>"",NOT(REGEXMATCH(C1,"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")))',
+              },
+            ],
           },
           format: {
             backgroundColor: { red: 1.0, green: 0.85, blue: 0.85 },
@@ -863,7 +940,15 @@ const dataQualityFormatting = [
   {
     addConditionalFormatRule: {
       rule: {
-        ranges: [{ sheetId: 0, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 2, endColumnIndex: 3 }],
+        ranges: [
+          {
+            sheetId: 0,
+            startRowIndex: 1,
+            endRowIndex: 1000,
+            startColumnIndex: 2,
+            endColumnIndex: 3,
+          },
+        ],
         booleanRule: {
           condition: {
             type: 'CUSTOM_FORMULA',
@@ -945,10 +1030,10 @@ const dueDateRules = [
 ```typescript
 function percentageThresholds(range: GridRange) {
   return [
-    { min: 90, color: { red: 0.8, green: 0.95, blue: 0.8 } },   // 90%+ = green
-    { min: 70, color: { red: 1.0, green: 0.98, blue: 0.8 } },   // 70-89% = yellow
-    { min: 50, color: { red: 1.0, green: 0.9, blue: 0.8 } },    // 50-69% = orange
-    { min: 0, color: { red: 1.0, green: 0.85, blue: 0.85 } },   // <50% = red
+    { min: 90, color: { red: 0.8, green: 0.95, blue: 0.8 } }, // 90%+ = green
+    { min: 70, color: { red: 1.0, green: 0.98, blue: 0.8 } }, // 70-89% = yellow
+    { min: 50, color: { red: 1.0, green: 0.9, blue: 0.8 } }, // 50-69% = orange
+    { min: 0, color: { red: 1.0, green: 0.85, blue: 0.85 } }, // <50% = red
   ].map((threshold, index) => ({
     addConditionalFormatRule: {
       rule: {
@@ -961,7 +1046,7 @@ function percentageThresholds(range: GridRange) {
           format: { backgroundColor: threshold.color },
         },
       },
-      index,  // Higher index = lower priority
+      index, // Higher index = lower priority
     },
   }));
 }
@@ -1009,7 +1094,7 @@ const clearAllRules = {
 const deleteSpecificRule = {
   deleteConditionalFormatRule: {
     sheetId: 0,
-    index: 0,  // Delete first rule
+    index: 0, // Delete first rule
   },
 };
 ```
@@ -1020,13 +1105,13 @@ const deleteSpecificRule = {
 // Move rule to different priority
 const updateRulePriority = {
   updateConditionalFormatRule: {
-    rule: existingRule,  // The rule to update
-    index: 0,            // New priority (0 = highest)
-    newIndex: 5,         // Move to lower priority
+    rule: existingRule, // The rule to update
+    index: 0, // New priority (0 = highest)
+    newIndex: 5, // Move to lower priority
   },
 };
 ```
 
 ---
 
-*Source: Google Sheets API v4 Documentation*
+_Source: Google Sheets API v4 Documentation_

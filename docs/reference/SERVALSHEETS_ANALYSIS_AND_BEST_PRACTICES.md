@@ -27,7 +27,7 @@ ServalSheets is an **exceptionally well-architected** MCP server that already im
 | MCP Protocol Compliance | ✅ Excellent    | 96% (26/28)                                  |
 | Security Implementation | ✅ Excellent    | OAuth 2.1, PKCE, HMAC                        |
 | Architecture            | ✅ Excellent    | 3-layer context, clean separation            |
-| Tool Design             | ✅ Excellent    | 22 tools, 299 actions, discriminated unions  |
+| Tool Design             | ✅ Excellent    | 22 tools, 305 actions, discriminated unions  |
 | Documentation           | ✅ Excellent    | Comprehensive SKILL.md, API docs             |
 | Testing                 | ⚠️ Good         | Unit + Integration, needs more E2E           |
 | Skill Format            | ⚠️ Needs Update | Sync required between local and Claude skill |
@@ -44,7 +44,7 @@ ServalSheets is an **exceptionally well-architected** MCP server that already im
 
 #### ServalSheets Implementation ✅ EXCELLENT
 
-ServalSheets groups 299 actions into **21 logical tool categories** using discriminated unions:
+ServalSheets groups 305 actions into **21 logical tool categories** using discriminated unions:
 
 ```
 sheets_auth       → Authentication (4 actions)
@@ -321,7 +321,7 @@ This design:
 
 ### 2.1 High Priority: Skill Synchronization
 
-**Issue:** The skill loaded by Claude at `/mnt/skills/user/google-sheets-expert/` contains outdated information ("111 tools") that doesn't match the actual implementation (22 tools, 299 actions).
+**Issue:** The skill loaded by Claude at `/mnt/skills/user/google-sheets-expert/` contains outdated information ("111 tools") that doesn't match the actual implementation (22 tools, 305 actions).
 
 **Recommendation:**
 
@@ -391,7 +391,7 @@ Based on this analysis, I recommend the following skill structure:
 google-sheets-expert/
 ├── SKILL.md                    # Main skill file (updated)
 └── references/
-    ├── tool-guide.md           # Complete 22 tools, 299 actions reference
+    ├── tool-guide.md           # Complete 22 tools, 305 actions reference
     ├── patterns.md             # Workflow templates
     ├── formulas.md             # Google Sheets functions
     └── best-practices.md       # Data standards

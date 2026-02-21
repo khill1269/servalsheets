@@ -7,6 +7,7 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { TOOL_COUNT, ACTION_COUNT } from '../../schemas/action-counts.js';
 import {
   FirstOperationPromptArgsSchema,
   AnalyzeSpreadsheetPromptArgsSchema,
@@ -77,7 +78,7 @@ export function registerServalSheetsPrompts(server: McpServer): void {
               type: 'text' as const,
               text: `🎉 Welcome to ServalSheets!
 
-I'm your Google Sheets assistant with 22 powerful tools and 298 actions.
+I'm your Google Sheets assistant with ${TOOL_COUNT} powerful tools and ${ACTION_COUNT} actions.
 
 ## 🚀 Quick Start
 Test spreadsheet: \`1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\`
@@ -502,7 +503,7 @@ Collaboration Setup:
 
 4. Setup comments:
    - Add collaboration guidelines comment
-   - sheets_collaborate action "add"
+   - sheets_collaborate action "comment_add"
 
 5. Configure notifications:
    - Enable edit notifications
@@ -4052,7 +4053,7 @@ sheets_advanced action:"add_protected_range"
 
 **Option 2: Version Snapshots**
 \`\`\`
-sheets_collaborate action:"create_snapshot"
+sheets_collaborate action:"version_create_snapshot"
   spreadsheetId:"${spreadsheetId}"
   description:"Before daily edit session"
 \`\`\`
@@ -4231,7 +4232,7 @@ sheets_appsscript action:"time_trigger"
 **Pattern 2: Pre-Change Snapshot**
 \`\`\`
 # Before any major operation
-sheets_collaborate action:"create_snapshot"
+sheets_collaborate action:"version_create_snapshot"
   description:"Before data import - \${new Date()}"
 
 # Perform operation
@@ -4447,7 +4448,7 @@ ${
 
 ## Safety Measures
 - Use sheets_confirm before any destructive operations
-- Create snapshot after setup complete using sheets_history action "create_snapshot"
+- Create snapshot after setup complete using sheets_collaborate action "version_create_snapshot"
 - Verify all formulas work correctly
 
 ## Resources to Reference
@@ -4490,7 +4491,7 @@ Ready to execute this setup workflow? I'll guide you through each step.`,
   - [ ] Are there any domain-wide permissions?
 
 ### 2. Protection Analysis
-- Use sheets_advanced action "protection_list" to check protections
+- Use sheets_advanced action "list_protected_ranges" to check protections
 - Review:
   - [ ] Which sheets are protected?
   - [ ] Which ranges are protected?
@@ -4507,7 +4508,7 @@ Ready to execute this setup workflow? I'll guide you through each step.`,
   - [ ] Addresses
 
 ### 4. History and Audit Trail
-- Use sheets_collaborate action "version_list" to check revision history
+- Use sheets_collaborate action "version_list_revisions" to check revision history
 - Verify:
   - [ ] Is revision history enabled?
   - [ ] Who made recent changes?

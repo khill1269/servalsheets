@@ -10,6 +10,7 @@
  * - get: Get webhook details
  * - test: Send test delivery
  * - get_stats: Get webhook statistics
+ * - watch_changes: Set up Google Drive files.watch push notifications
  *
  * @category Handlers
  */
@@ -23,11 +24,19 @@ import type {
 } from '../schemas/webhook.js';
 import { logger } from '../utils/logger.js';
 import { resourceNotifications } from '../resources/notifications.js';
+import type { drive_v3 } from 'googleapis';
+import { randomUUID } from 'crypto';
 
 /**
  * Webhook handler
  */
 export class WebhookHandler {
+  private driveApi?: drive_v3.Drive;
+
+  constructor(options?: { driveApi?: drive_v3.Drive }) {
+    this.driveApi = options?.driveApi;
+  }
+
   private createErrorDetail(
     error: unknown,
     fallbackMessage: string,
@@ -95,6 +104,13 @@ export class WebhookHandler {
 
         case 'get_stats':
           return { response: await this.handleGetStats(req) };
+
+        case 'watch_changes':
+          return {
+            response: await this.handleWatchChanges(
+              req as import('../schemas/webhook.js').WebhookWatchChangesInput
+            ),
+          };
 
         default:
           return {
@@ -362,11 +378,76 @@ export class WebhookHandler {
       };
     }
   }
+
+  /**
+   * Watch changes via Google Drive files.watch API.
+   * Sets up push notifications when a spreadsheet file changes.
+   * This is a native Google API feature (not custom webhooks).
+   */
+  private async handleWatchChanges(
+    input: import('../schemas/webhook.js').WebhookWatchChangesInput
+  ): Promise<SheetsWebhookOutput['response']> {
+    if (!this.driveApi) {
+      return {
+        success: false,
+        error: {
+          code: 'CONFIG_ERROR',
+          message: 'Drive API client not available. watch_changes requires Drive API access.',
+          retryable: false,
+          resolution: 'Ensure the server is initialized with Drive API scopes.',
+        },
+      };
+    }
+
+    try {
+      const channelId = input.channelId ?? `servalsheets-${randomUUID()}`;
+      const expiration = Date.now() + (input.expirationMs ?? 43200000);
+
+      const response = await this.driveApi.files.watch({
+        fileId: input.spreadsheetId,
+        requestBody: {
+          id: channelId,
+          type: 'web_hook',
+          address: input.webhookUrl,
+          expiration: String(expiration),
+        },
+      });
+
+      logger.info('Drive files.watch channel created', {
+        channelId,
+        spreadsheetId: input.spreadsheetId,
+        resourceId: response.data.resourceId,
+        expiration: new Date(expiration).toISOString(),
+      });
+
+      return {
+        success: true,
+        data: {
+          success: true,
+          message: 'Drive files.watch channel created successfully',
+          channelId,
+          resourceId: response.data.resourceId ?? '',
+          expiration: new Date(expiration).toISOString(),
+          spreadsheetId: input.spreadsheetId,
+          webhookUrl: input.webhookUrl,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: this.createErrorDetail(
+          error,
+          'Failed to create Drive watch channel',
+          'watch_changes'
+        ),
+      };
+    }
+  }
 }
 
 /**
  * Create webhook handler
  */
-export function createWebhookHandler(): WebhookHandler {
-  return new WebhookHandler();
+export function createWebhookHandler(options?: { driveApi?: drive_v3.Drive }): WebhookHandler {
+  return new WebhookHandler(options);
 }

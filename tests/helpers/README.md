@@ -48,7 +48,11 @@ The `google-api-mocks.ts` file provides comprehensive, reusable mocks for Google
 ### Usage
 
 ```typescript
-import { createMockSheetsApi, createMockDriveApi, createMockContext } from '../helpers/google-api-mocks.js';
+import {
+  createMockSheetsApi,
+  createMockDriveApi,
+  createMockContext,
+} from '../helpers/google-api-mocks.js';
 import { YourHandler } from '../../src/handlers/your-handler.js';
 
 describe('YourHandler', () => {
@@ -67,7 +71,7 @@ describe('YourHandler', () => {
   it('should do something', async () => {
     // Mock returns realistic data automatically
     const result = await handler.handle({
-      request: { action: 'read', spreadsheetId: 'test-spreadsheet-id' }
+      request: { action: 'read', spreadsheetId: 'test-spreadsheet-id' },
     });
     expect(result.response.success).toBe(true);
   });
@@ -83,9 +87,7 @@ const mockSheetsApi = createMockSheetsApi({
     'custom-id': {
       spreadsheetId: 'custom-id',
       title: 'Custom Spreadsheet',
-      sheets: [
-        { sheetId: 0, title: 'Data', rowCount: 500, columnCount: 10 },
-      ],
+      sheets: [{ sheetId: 0, title: 'Data', rowCount: 500, columnCount: 10 }],
       values: {
         'Data!A1:B5': [
           ['Name', 'Value'],
@@ -129,6 +131,7 @@ TEST_HTTP_INTEGRATION=true npm test -- tests/integration/http-transport.test.ts
 ### API Coverage
 
 **Sheets API:**
+
 - `spreadsheets.get()` - Returns full spreadsheet metadata
 - `spreadsheets.create()` - Creates new spreadsheet
 - `spreadsheets.batchUpdate()` - Batch updates
@@ -140,6 +143,7 @@ TEST_HTTP_INTEGRATION=true npm test -- tests/integration/http-transport.test.ts
 - `spreadsheets.values.batchUpdate()` - Batch update
 
 **Drive API:**
+
 - `files.copy()` - Copy files
 - `files.get()` - Get file metadata
 - `files.list()` - List files
@@ -158,7 +162,7 @@ export function createMockSheetsApi(options: MockSheetsApiOptions = {}) {
   const api = {
     spreadsheets: {
       // ... existing mocks ...
-      
+
       // Add your new mock
       yourNewMethod: vi.fn().mockImplementation((params) => {
         return Promise.resolve({

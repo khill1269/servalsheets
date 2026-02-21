@@ -78,7 +78,7 @@ if (fs.existsSync(README_FILE)) {
   } else {
     // Add badge after title (first line starting with #)
     const lines = readme.split('\n');
-    const titleIndex = lines.findIndex(line => line.startsWith('# '));
+    const titleIndex = lines.findIndex((line) => line.startsWith('# '));
 
     if (titleIndex !== -1) {
       // Insert badge section after title
@@ -112,9 +112,13 @@ const statusContent = `# ServalSheets Status
 ## Top Issues
 
 ${results.issues.length === 0 ? '✅ No issues identified' : ''}
-${results.issues.slice(0, 10).map((issue: any, i: number) =>
-  `${i + 1}. **[${issue.priority}]** ${issue.category}: ${issue.description}`
-).join('\n')}
+${results.issues
+  .slice(0, 10)
+  .map(
+    (issue: any, i: number) =>
+      `${i + 1}. **[${issue.priority}]** ${issue.category}: ${issue.description}`
+  )
+  .join('\n')}
 
 ${results.issues.length > 10 ? `\n_... and ${results.issues.length - 10} more issues_\n` : ''}
 

@@ -33,7 +33,7 @@ function addIssue(severity: 'error' | 'warning', component: string, message: str
 }
 
 console.log('🔍 ServalSheets Integration Verification\n');
-console.log('Checking 21 tools with 294 actions across all components...\n');
+console.log('Checking 22 tools with 305 actions across all components...\n');
 
 // ============================================================================
 // 1. TOOL DEFINITIONS
@@ -329,8 +329,8 @@ console.log(`  🟡 Warnings: ${warnings.length}`);
 if (issues.length === 0) {
   console.log('\n✨ Perfect! All components are properly wired and integrated!\n');
   console.log('Summary:');
-  console.log(`  • 21 tools defined and registered`);
-  console.log(`  • 294 actions implemented`);
+  console.log(`  • 22 tools defined and registered`);
+  console.log(`  • 305 actions implemented`);
   console.log(`  • All handlers present`);
   console.log(`  • All schemas defined`);
   console.log(`  • All descriptions present`);

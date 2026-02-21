@@ -28,12 +28,12 @@ const results = JSON.parse(fs.readFileSync(RESULTS_FILE, 'utf8'));
 
 // Calculate section scores
 const categoriesByPart = {
-  Functional: results.categories.filter(c => c.part === 'Functional'),
-  Protocol: results.categories.filter(c => c.part === 'Protocol'),
-  Quality: results.categories.filter(c => c.part === 'Quality'),
-  DeepTech: results.categories.filter(c => c.part === 'DeepTech'),
-  Excellence: results.categories.filter(c => c.part === 'Excellence'),
-  Execution: results.categories.filter(c => c.part === 'Execution'),
+  Functional: results.categories.filter((c) => c.part === 'Functional'),
+  Protocol: results.categories.filter((c) => c.part === 'Protocol'),
+  Quality: results.categories.filter((c) => c.part === 'Quality'),
+  DeepTech: results.categories.filter((c) => c.part === 'DeepTech'),
+  Excellence: results.categories.filter((c) => c.part === 'Excellence'),
+  Execution: results.categories.filter((c) => c.part === 'Execution'),
 };
 
 const calculatePartScore = (categories) => {
@@ -78,7 +78,7 @@ const report = `# ServalSheets v${results.version} — 106-Category Audit Report
 
 ### Verdict
 
-ServalSheets v${results.version} scores **${results.total_percentage}%** placing it in the ${getVerdict(results.total_percentage)} tier. ${results.issues.filter(i => i.priority === 'P0').length === 0 ? 'No P0 (critical) issues remain.' : `⚠️ ${results.issues.filter(i => i.priority === 'P0').length} critical issues require immediate attention.`}
+ServalSheets v${results.version} scores **${results.total_percentage}%** placing it in the ${getVerdict(results.total_percentage)} tier. ${results.issues.filter((i) => i.priority === 'P0').length === 0 ? 'No P0 (critical) issues remain.' : `⚠️ ${results.issues.filter((i) => i.priority === 'P0').length} critical issues require immediate attention.`}
 
 ---
 
@@ -86,7 +86,7 @@ ServalSheets v${results.version} scores **${results.total_percentage}%** placing
 
 | #  | Category      | Score | Status |
 | -- | ------------- | ----- | ------ |
-${categoriesByPart.Functional.map(cat => `| ${cat.id}  | ${cat.name.padEnd(40)} | ${cat.score}/10 | ${getStatus(cat.score)} |`).join('\n')}
+${categoriesByPart.Functional.map((cat) => `| ${cat.id}  | ${cat.name.padEnd(40)} | ${cat.score}/10 | ${getStatus(cat.score)} |`).join('\n')}
 
 **Subtotal:** ${partScores.functional.score}/${partScores.functional.max} = ${partScores.functional.percentage}%
 
@@ -96,7 +96,7 @@ ${categoriesByPart.Functional.map(cat => `| ${cat.id}  | ${cat.name.padEnd(40)} 
 
 | #  | Category   | Score | Status |
 | -- | ---------- | ----- | ------ |
-${categoriesByPart.Protocol.map(cat => `| ${cat.id}  | ${cat.name.padEnd(40)} | ${cat.score}/10 | ${getStatus(cat.score)} |`).join('\n')}
+${categoriesByPart.Protocol.map((cat) => `| ${cat.id}  | ${cat.name.padEnd(40)} | ${cat.score}/10 | ${getStatus(cat.score)} |`).join('\n')}
 
 **Subtotal:** ${partScores.protocol.score}/${partScores.protocol.max} = ${partScores.protocol.percentage}%
 
@@ -106,7 +106,7 @@ ${categoriesByPart.Protocol.map(cat => `| ${cat.id}  | ${cat.name.padEnd(40)} | 
 
 | #  | Category              | Score | Status |
 | -- | --------------------- | ----- | ------ |
-${categoriesByPart.Quality.map(cat => `| ${cat.id}  | ${cat.name.padEnd(40)} | ${cat.score}/10 | ${getStatus(cat.score)} |`).join('\n')}
+${categoriesByPart.Quality.map((cat) => `| ${cat.id}  | ${cat.name.padEnd(40)} | ${cat.score}/10 | ${getStatus(cat.score)} |`).join('\n')}
 
 **Subtotal:** ${partScores.quality.score}/${partScores.quality.max} = ${partScores.quality.percentage}%
 
@@ -116,7 +116,7 @@ ${categoriesByPart.Quality.map(cat => `| ${cat.id}  | ${cat.name.padEnd(40)} | $
 
 Categories 33-60 (28 categories)
 
-**Average Score:** ${Math.round(partScores.deepTech.score / categoriesByPart.DeepTech.length * 10) / 10}/10
+**Average Score:** ${Math.round((partScores.deepTech.score / categoriesByPart.DeepTech.length) * 10) / 10}/10
 **Subtotal:** ${partScores.deepTech.percentage}%
 
 ---
@@ -125,7 +125,7 @@ Categories 33-60 (28 categories)
 
 Categories 61-80 (20 categories)
 
-**Average Score:** ${Math.round(partScores.excellence.score / categoriesByPart.Excellence.length * 10) / 10}/10
+**Average Score:** ${Math.round((partScores.excellence.score / categoriesByPart.Excellence.length) * 10) / 10}/10
 **Subtotal:** ${partScores.excellence.percentage}%
 
 ---
@@ -134,9 +134,11 @@ Categories 61-80 (20 categories)
 
 | Cat | Description       | Result       |
 | --- | ----------------- | ------------ |
-${categoriesByPart.Execution.slice(0, 16).map(cat => `| ${cat.id}  | ${cat.name.padEnd(30)} | ${cat.passed ? '**PASS**' : '**FAIL**'} |`).join('\n')}
+${categoriesByPart.Execution.slice(0, 16)
+  .map((cat) => `| ${cat.id}  | ${cat.name.padEnd(30)} | ${cat.passed ? '**PASS**' : '**FAIL**'} |`)
+  .join('\n')}
 
-**Pass Rate:** ${categoriesByPart.Execution.filter(c => c.passed).length}/${categoriesByPart.Execution.length} (${Math.round(categoriesByPart.Execution.filter(c => c.passed).length / categoriesByPart.Execution.length * 100)}%)
+**Pass Rate:** ${categoriesByPart.Execution.filter((c) => c.passed).length}/${categoriesByPart.Execution.length} (${Math.round((categoriesByPart.Execution.filter((c) => c.passed).length / categoriesByPart.Execution.length) * 100)}%)
 
 ---
 
@@ -146,10 +148,10 @@ ${categoriesByPart.Execution.slice(0, 16).map(cat => `| ${cat.id}  | ${cat.name.
 
 ### By Priority
 
-- **P0 (Critical):** ${results.issues.filter(i => i.priority === 'P0').length}
-- **P1 (High):** ${results.issues.filter(i => i.priority === 'P1').length}
-- **P2 (Medium):** ${results.issues.filter(i => i.priority === 'P2').length}
-- **P3 (Low):** ${results.issues.filter(i => i.priority === 'P3').length}
+- **P0 (Critical):** ${results.issues.filter((i) => i.priority === 'P0').length}
+- **P1 (High):** ${results.issues.filter((i) => i.priority === 'P1').length}
+- **P2 (Medium):** ${results.issues.filter((i) => i.priority === 'P2').length}
+- **P3 (Low):** ${results.issues.filter((i) => i.priority === 'P3').length}
 
 ${results.issues.length > 0 ? '### Issues List\n\n' + results.issues.map((issue, i) => `${i + 1}. **[${issue.priority}]** ${issue.category}: ${issue.description}`).join('\n') : '✅ No issues identified'}
 
@@ -165,9 +167,10 @@ ${getRecommendations(results)}
 
 ServalSheets v${results.version} achieves a score of **${results.total_percentage}% out of 140%** (${Math.round(results.total_percentage / 1.4)}% of maximum), placing it firmly in the **"${getVerdict(results.total_percentage)}"** tier.
 
-${results.issues.filter(i => i.priority === 'P0').length === 0
-  ? 'The project is production-ready with no critical issues.'
-  : `⚠️ ${results.issues.filter(i => i.priority === 'P0').length} critical issue(s) must be addressed before production deployment.`
+${
+  results.issues.filter((i) => i.priority === 'P0').length === 0
+    ? 'The project is production-ready with no critical issues.'
+    : `⚠️ ${results.issues.filter((i) => i.priority === 'P0').length} critical issue(s) must be addressed before production deployment.`
 }
 
 ---
@@ -196,18 +199,22 @@ function getVerdict(percentage) {
 function getRecommendations(results) {
   const recs = [];
 
-  if (results.issues.filter(i => i.priority === 'P0').length > 0) {
+  if (results.issues.filter((i) => i.priority === 'P0').length > 0) {
     recs.push('### Immediate (This Week)\n');
-    results.issues.filter(i => i.priority === 'P0').forEach(issue => {
-      recs.push(`- Fix ${issue.category}: ${issue.description}`);
-    });
+    results.issues
+      .filter((i) => i.priority === 'P0')
+      .forEach((issue) => {
+        recs.push(`- Fix ${issue.category}: ${issue.description}`);
+      });
   }
 
-  if (results.issues.filter(i => i.priority === 'P1').length > 0) {
+  if (results.issues.filter((i) => i.priority === 'P1').length > 0) {
     recs.push('\n### Short-term (This Month)\n');
-    results.issues.filter(i => i.priority === 'P1').forEach(issue => {
-      recs.push(`- Address ${issue.category}: ${issue.description}`);
-    });
+    results.issues
+      .filter((i) => i.priority === 'P1')
+      .forEach((issue) => {
+        recs.push(`- Address ${issue.category}: ${issue.description}`);
+      });
   }
 
   if (recs.length === 0) {
@@ -230,5 +237,7 @@ console.log(`✓ Report generated: ${REPORT_FILE}`);
 console.log(`\n══════════════════════════════════════════════════════`);
 console.log(`   Final Score: ${results.total_percentage}%`);
 console.log(`   Verdict: ${getVerdict(results.total_percentage)}`);
-console.log(`   Issues: ${results.issues.length} (${results.issues.filter(i => i.priority === 'P0').length} critical)`);
+console.log(
+  `   Issues: ${results.issues.length} (${results.issues.filter((i) => i.priority === 'P0').length} critical)`
+);
 console.log(`══════════════════════════════════════════════════════\n`);

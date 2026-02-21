@@ -78,11 +78,15 @@ To ignore specific rules in a document, use HTML comments:
 
 ```markdown
 <!-- vale off -->
+
 This text won't be checked by Vale.
+
 <!-- vale on -->
 
 <!-- vale Vale.Spelling = NO -->
+
 This paragraph allows custom spellings like ServalSheets.
+
 <!-- vale Vale.Spelling = YES -->
 ```
 

@@ -6,18 +6,24 @@ export default {
   title: 'ServalSheets',
   description: 'Production-grade Google Sheets MCP Server',
   ignoreDeadLinks: true,
-  
+
   head: [
     ['link', { rel: 'icon', href: '/favicon.ico' }],
     ['meta', { name: 'theme-color', content: '#5f6fd9' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:title', content: 'ServalSheets Documentation' }],
-    ['meta', { property: 'og:description', content: 'Production-grade Google Sheets MCP Server with 272 actions' }],
+    [
+      'meta',
+      {
+        property: 'og:description',
+        content: 'Production-grade Google Sheets MCP Server with 305 actions',
+      },
+    ],
   ],
 
   themeConfig: {
     logo: '/logo.svg',
-    
+
     nav: [
       { text: 'Guide', link: '/guides/FIRST_TIME_USER' },
       { text: 'API', link: '/reference/tools' },
@@ -29,15 +35,15 @@ export default {
           { text: 'Kubernetes', link: '/deployment/kubernetes' },
           { text: 'AWS', link: '/deployment/aws' },
           { text: 'GCP', link: '/deployment/gcp' },
-        ]
+        ],
       },
       {
         text: 'v1.6.0',
         items: [
           { text: 'Changelog', link: '/CHANGELOG' },
           { text: 'GitHub', link: 'https://github.com/khill1269/servalsheets' },
-        ]
-      }
+        ],
+      },
     ],
 
     sidebar: {
@@ -49,7 +55,7 @@ export default {
             { text: 'Installation', link: '/guides/INSTALLATION_GUIDE' },
             { text: 'Claude Desktop Setup', link: '/guides/CLAUDE_DESKTOP_SETUP' },
             { text: 'Quick Credentials', link: '/guides/QUICKSTART_CREDENTIALS' },
-          ]
+          ],
         },
         {
           text: 'Usage',
@@ -58,7 +64,7 @@ export default {
             { text: 'Prompts Guide', link: '/guides/PROMPTS_GUIDE' },
             { text: 'Action Reference', link: '/guides/ACTION_REFERENCE' },
             { text: 'OAuth Setup', link: '/guides/OAUTH_USER_SETUP' },
-          ]
+          ],
         },
         {
           text: 'Production',
@@ -67,8 +73,8 @@ export default {
             { text: 'Monitoring', link: '/guides/MONITORING' },
             { text: 'Performance', link: '/guides/PERFORMANCE' },
             { text: 'Troubleshooting', link: '/guides/TROUBLESHOOTING' },
-          ]
-        }
+          ],
+        },
       ],
       '/reference/': [
         {
@@ -80,15 +86,15 @@ export default {
             { text: 'sheets_formatting', link: '/reference/tools/sheets_formatting' },
             { text: 'sheets_analysis', link: '/reference/tools/sheets_analysis' },
             { text: 'sheets_charts', link: '/reference/tools/sheets_charts' },
-          ]
+          ],
         },
         {
           text: 'Resources',
           items: [
             { text: 'URI Templates', link: '/reference/resources' },
             { text: 'Knowledge Base', link: '/reference/knowledge' },
-          ]
-        }
+          ],
+        },
       ],
       '/examples/': [
         {
@@ -100,8 +106,8 @@ export default {
             { text: 'Charts', link: '/examples/charts' },
             { text: 'Analysis', link: '/examples/analysis' },
             { text: 'OAuth Flow', link: '/examples/oauth' },
-          ]
-        }
+          ],
+        },
       ],
       '/deployment/': [
         {
@@ -114,7 +120,7 @@ export default {
             { text: 'AWS (Terraform)', link: '/deployment/aws' },
             { text: 'GCP (Terraform)', link: '/deployment/gcp' },
             { text: 'PM2', link: '/deployment/pm2' },
-          ]
+          ],
         },
         {
           text: 'Operations',
@@ -122,35 +128,33 @@ export default {
             { text: 'Monitoring', link: '/guides/MONITORING' },
             { text: 'Scaling', link: '/operations/scaling' },
             { text: 'Disaster Recovery', link: '/operations/disaster-recovery' },
-          ]
-        }
-      ]
+          ],
+        },
+      ],
     },
 
-    socialLinks: [
-      { icon: 'github', link: 'https://github.com/khill1269/servalsheets' }
-    ],
+    socialLinks: [{ icon: 'github', link: 'https://github.com/khill1269/servalsheets' }],
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright © 2026 ServalSheets'
+      copyright: 'Copyright © 2026 ServalSheets',
     },
 
     search: {
-      provider: 'local'
+      provider: 'local',
     },
 
     editLink: {
       pattern: 'https://github.com/khill1269/servalsheets/edit/main/docs/:path',
-      text: 'Edit this page on GitHub'
-    }
+      text: 'Edit this page on GitHub',
+    },
   },
 
   markdown: {
-    lineNumbers: true
+    lineNumbers: true,
   },
 
   sitemap: {
-    hostname: 'https://servalsheets.dev'
-  }
-}
+    hostname: 'https://servalsheets.dev',
+  },
+};

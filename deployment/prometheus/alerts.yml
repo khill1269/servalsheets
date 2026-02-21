@@ -26,9 +26,9 @@ groups:
           component: api
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/high-error-rate.md
         annotations:
-          summary: "High error rate detected in ServalSheets"
-          description: "Error rate is {{ $value | humanizePercentage }} over last 5 minutes (threshold: 5%). This indicates significant operational issues affecting user requests."
-          impact: "Users experiencing failed operations"
+          summary: 'High error rate detected in ServalSheets'
+          description: 'Error rate is {{ $value | humanizePercentage }} over last 5 minutes (threshold: 5%). This indicates significant operational issues affecting user requests.'
+          impact: 'Users experiencing failed operations'
           action: "1. Check logs for error patterns\n2. Review recent deployments\n3. Check Google API status\n4. Verify authentication is working"
 
       # Circuit Breaker Open - Service degradation
@@ -40,9 +40,9 @@ groups:
           component: resilience
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/circuit-breaker.md
         annotations:
-          summary: "Circuit breaker {{ $labels.circuit }} is open"
-          description: "Circuit breaker for {{ $labels.circuit }} has opened due to repeated failures. Service is degraded."
-          impact: "Requests to {{ $labels.circuit }} are being rejected"
+          summary: 'Circuit breaker {{ $labels.circuit }} is open'
+          description: 'Circuit breaker for {{ $labels.circuit }} has opened due to repeated failures. Service is degraded.'
+          impact: 'Requests to {{ $labels.circuit }} are being rejected'
           action: "1. Check downstream service health\n2. Review error logs\n3. Verify network connectivity\n4. Check authentication status"
 
       # Service Down - Complete outage
@@ -54,9 +54,9 @@ groups:
           component: availability
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/service-down.md
         annotations:
-          summary: "ServalSheets service is down"
-          description: "Service has been unreachable for 1 minute. Complete outage detected."
-          impact: "All user requests are failing"
+          summary: 'ServalSheets service is down'
+          description: 'Service has been unreachable for 1 minute. Complete outage detected.'
+          impact: 'All user requests are failing'
           action: "1. Check process status\n2. Review system logs\n3. Check resource availability (CPU, memory, disk)\n4. Verify network connectivity\n5. Restart service if needed"
 
       # API Authentication Failures - Security/access issue
@@ -72,9 +72,9 @@ groups:
           component: authentication
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/auth-failures.md
         annotations:
-          summary: "High authentication failure rate"
-          description: "Authentication failures at {{ $value | humanizePercentage }} over last 5 minutes (threshold: 10%)"
-          impact: "Users unable to authenticate with Google Sheets API"
+          summary: 'High authentication failure rate'
+          description: 'Authentication failures at {{ $value | humanizePercentage }} over last 5 minutes (threshold: 10%)'
+          impact: 'Users unable to authenticate with Google Sheets API'
           action: "1. Verify OAuth credentials are valid\n2. Check token expiration\n3. Verify Google API console configuration\n4. Check for API quota issues\n5. Review service account permissions"
 
       # Memory Exhaustion - OOM risk
@@ -90,9 +90,9 @@ groups:
           component: resources
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/memory-exhaustion.md
         annotations:
-          summary: "High memory usage detected"
-          description: "Memory usage is {{ $value }}GB (threshold: 1.5GB). Risk of OOM."
-          impact: "Service may crash or become unresponsive"
+          summary: 'High memory usage detected'
+          description: 'Memory usage is {{ $value }}GB (threshold: 1.5GB). Risk of OOM.'
+          impact: 'Service may crash or become unresponsive'
           action: "1. Check for memory leaks\n2. Review large operations in progress\n3. Clear cache if needed\n4. Consider scaling up memory\n5. Review batch sizes"
 
   # ========================================
@@ -110,9 +110,9 @@ groups:
           component: performance
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/queue-backup.md
         annotations:
-          summary: "Request queue is backing up"
-          description: "Queue depth is {{ $value }} requests (threshold: 50). System is unable to keep up with demand."
-          impact: "Increased latency for user requests"
+          summary: 'Request queue is backing up'
+          description: 'Queue depth is {{ $value }} requests (threshold: 50). System is unable to keep up with demand.'
+          impact: 'Increased latency for user requests'
           action: "1. Check for slow operations\n2. Review rate limiting configuration\n3. Consider horizontal scaling\n4. Check for Google API throttling\n5. Review batch efficiency"
 
       # High P99 Latency - User experience degradation
@@ -124,9 +124,9 @@ groups:
           component: performance
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/high-latency.md
         annotations:
-          summary: "High P99 latency detected"
-          description: "P99 latency is {{ $value }}s for {{ $labels.tool }}:{{ $labels.action }} (threshold: 5s)"
-          impact: "1% of requests experiencing significant delays"
+          summary: 'High P99 latency detected'
+          description: 'P99 latency is {{ $value }}s for {{ $labels.tool }}:{{ $labels.action }} (threshold: 5s)'
+          impact: '1% of requests experiencing significant delays'
           action: "1. Check Google API performance\n2. Review cache hit rate\n3. Check for large operations\n4. Review batch sizes\n5. Consider optimizing diff strategy"
 
       # High P95 Latency - General performance issue
@@ -138,9 +138,9 @@ groups:
           component: performance
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/high-latency.md
         annotations:
-          summary: "Elevated P95 latency"
-          description: "P95 latency is {{ $value }}s for {{ $labels.tool }}:{{ $labels.action }} (threshold: 3s)"
-          impact: "5% of requests slower than expected"
+          summary: 'Elevated P95 latency'
+          description: 'P95 latency is {{ $value }}s for {{ $labels.tool }}:{{ $labels.action }} (threshold: 3s)'
+          impact: '5% of requests slower than expected'
           action: "1. Monitor for further degradation\n2. Check cache effectiveness\n3. Review operation patterns\n4. Check network latency to Google APIs"
 
       # API Quota Near Limit - Risk of throttling
@@ -153,9 +153,9 @@ groups:
           component: quota
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/quota-near-limit.md
         annotations:
-          summary: "API call rate approaching quota limit"
-          description: "API call rate is {{ $value }}/minute (quota limit: 60/minute)"
-          impact: "Risk of API throttling and request failures"
+          summary: 'API call rate approaching quota limit'
+          description: 'API call rate is {{ $value }}/minute (quota limit: 60/minute)'
+          impact: 'Risk of API throttling and request failures'
           action: "1. Enable or tune caching\n2. Review batch efficiency\n3. Check for unnecessary API calls\n4. Consider rate limiting client requests\n5. Request quota increase from Google"
 
       # Circuit Breaker Half-Open - Recovery in progress
@@ -167,9 +167,9 @@ groups:
           component: resilience
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/circuit-breaker.md
         annotations:
-          summary: "Circuit breaker {{ $labels.circuit }} in half-open state"
-          description: "Circuit breaker for {{ $labels.circuit }} is testing recovery but not fully recovered."
-          impact: "Limited requests allowed while testing recovery"
+          summary: 'Circuit breaker {{ $labels.circuit }} in half-open state'
+          description: 'Circuit breaker for {{ $labels.circuit }} is testing recovery but not fully recovered.'
+          impact: 'Limited requests allowed while testing recovery'
           action: "1. Monitor recovery progress\n2. Check if underlying issue is resolved\n3. Review error logs\n4. Verify downstream service health"
 
       # High Queue Pending - Backlog building
@@ -181,9 +181,9 @@ groups:
           component: performance
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/queue-backup.md
         annotations:
-          summary: "High number of pending queue requests"
-          description: "Pending queue requests: {{ $value }} (threshold: 30)"
-          impact: "Requests waiting for processing, increased latency"
+          summary: 'High number of pending queue requests'
+          description: 'Pending queue requests: {{ $value }} (threshold: 30)'
+          impact: 'Requests waiting for processing, increased latency'
           action: "1. Check worker capacity\n2. Review rate limits\n3. Check for blocking operations\n4. Consider increasing concurrency"
 
       # Google API Error Rate - Upstream issues
@@ -199,9 +199,9 @@ groups:
           component: integration
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/google-api-errors.md
         annotations:
-          summary: "Elevated Google API error rate"
-          description: "Google API error rate is {{ $value | humanizePercentage }} (threshold: 2%)"
-          impact: "Increased failures in Google Sheets operations"
+          summary: 'Elevated Google API error rate'
+          description: 'Google API error rate is {{ $value | humanizePercentage }} (threshold: 2%)'
+          impact: 'Increased failures in Google Sheets operations'
           action: "1. Check Google API status dashboard\n2. Review authentication tokens\n3. Check for permission issues\n4. Review rate limiting\n5. Check network connectivity"
 
       # Slow Google API Calls - Upstream latency
@@ -216,9 +216,9 @@ groups:
           component: integration
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/slow-google-api.md
         annotations:
-          summary: "Google API calls are slow"
-          description: "P95 Google API latency is {{ $value }}s (threshold: 3s)"
-          impact: "All operations affected by slow upstream API"
+          summary: 'Google API calls are slow'
+          description: 'P95 Google API latency is {{ $value }}s (threshold: 3s)'
+          impact: 'All operations affected by slow upstream API'
           action: "1. Check Google API status\n2. Verify network latency\n3. Check for large operations\n4. Review timeout configurations\n5. Consider caching strategies"
 
   # ========================================
@@ -240,9 +240,9 @@ groups:
           component: cache
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/low-cache-hit-rate.md
         annotations:
-          summary: "Low cache hit rate for {{ $labels.namespace }}"
-          description: "Cache hit rate is {{ $value | humanizePercentage }} (target: 50%+)"
-          impact: "Increased API calls and latency"
+          summary: 'Low cache hit rate for {{ $labels.namespace }}'
+          description: 'Cache hit rate is {{ $value | humanizePercentage }} (target: 50%+)'
+          impact: 'Increased API calls and latency'
           action: "1. Review cache TTL configuration\n2. Check cache size limits\n3. Review access patterns\n4. Consider increasing cache size\n5. Check for cache evictions"
 
       # High Cache Eviction Rate - Memory pressure
@@ -254,9 +254,9 @@ groups:
           component: cache
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/cache-evictions.md
         annotations:
-          summary: "High cache eviction rate"
-          description: "Cache evictions at {{ $value }}/s due to {{ $labels.reason }}"
-          impact: "Reduced cache effectiveness, more API calls"
+          summary: 'High cache eviction rate'
+          description: 'Cache evictions at {{ $value }}/s due to {{ $labels.reason }}'
+          impact: 'Reduced cache effectiveness, more API calls'
           action: "1. Consider increasing cache size\n2. Review TTL settings\n3. Check memory availability\n4. Review cache key strategy\n5. Monitor cache size growth"
 
       # Low Batch Efficiency - Optimization opportunity
@@ -268,9 +268,9 @@ groups:
           component: optimization
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/batch-efficiency.md
         annotations:
-          summary: "Low batch efficiency for {{ $labels.operation_type }}"
-          description: "Batch efficiency ratio is {{ $value }} (target: 0.6+)"
-          impact: "More API calls than necessary, quota usage"
+          summary: 'Low batch efficiency for {{ $labels.operation_type }}'
+          description: 'Batch efficiency ratio is {{ $value }} (target: 0.6+)'
+          impact: 'More API calls than necessary, quota usage'
           action: "1. Review batching strategy\n2. Check operation patterns\n3. Consider adjusting batch thresholds\n4. Review client usage patterns\n5. Enable auto-batching if disabled"
 
       # Small Batch Sizes - Suboptimal batching
@@ -285,9 +285,9 @@ groups:
           component: optimization
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/small-batches.md
         annotations:
-          summary: "Small batch sizes for {{ $labels.operation }}"
-          description: "Median batch size is {{ $value }} (target: 5+)"
-          impact: "Not fully utilizing batching capabilities"
+          summary: 'Small batch sizes for {{ $labels.operation }}'
+          description: 'Median batch size is {{ $value }} (target: 5+)'
+          impact: 'Not fully utilizing batching capabilities'
           action: "1. Review batch timeout settings\n2. Check operation patterns\n3. Consider aggregating more operations\n4. Review client request patterns"
 
       # Transaction Failure Rate - Data integrity concern
@@ -303,9 +303,9 @@ groups:
           component: transactions
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/transaction-failures.md
         annotations:
-          summary: "Transaction failure rate elevated"
-          description: "Transaction failures at {{ $value | humanizePercentage }} (threshold: 1%)"
-          impact: "Some multi-step operations not completing atomically"
+          summary: 'Transaction failure rate elevated'
+          description: 'Transaction failures at {{ $value | humanizePercentage }} (threshold: 1%)'
+          impact: 'Some multi-step operations not completing atomically'
           action: "1. Review transaction logs\n2. Check for conflicts\n3. Review operation ordering\n4. Check for timeout issues\n5. Review rollback handling"
 
       # Session Count Growing - Potential leak
@@ -317,9 +317,9 @@ groups:
           component: sessions
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/high-session-count.md
         annotations:
-          summary: "High OAuth session count"
-          description: "Active sessions: {{ $value }} (threshold: 100)"
-          impact: "Potential memory usage from session storage"
+          summary: 'High OAuth session count'
+          description: 'Active sessions: {{ $value }} (threshold: 100)'
+          impact: 'Potential memory usage from session storage'
           action: "1. Check session cleanup\n2. Review session timeout\n3. Check for session leaks\n4. Review user activity patterns\n5. Consider session pooling"
 
       # Large Cache Size - Memory usage
@@ -335,9 +335,9 @@ groups:
           component: cache
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/large-cache.md
         annotations:
-          summary: "Large cache size for {{ $labels.namespace }}"
-          description: "Cache size is {{ $value }}MB (threshold: 100MB)"
-          impact: "High memory consumption"
+          summary: 'Large cache size for {{ $labels.namespace }}'
+          description: 'Cache size is {{ $value }}MB (threshold: 100MB)'
+          impact: 'High memory consumption'
           action: "1. Review cache limits\n2. Check for cache growth pattern\n3. Consider reducing TTL\n4. Check for large cached objects\n5. Review eviction policy"
 
       # Error Type Pattern - Specific error trending
@@ -350,9 +350,9 @@ groups:
           component: errors
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/error-patterns.md
         annotations:
-          summary: "Spike in {{ $labels.error_type }} errors"
-          description: "{{ $labels.error_type }} errors at {{ $value }}/s for {{ $labels.tool }}:{{ $labels.action }}"
-          impact: "Specific error pattern detected"
+          summary: 'Spike in {{ $labels.error_type }} errors'
+          description: '{{ $labels.error_type }} errors at {{ $value }}/s for {{ $labels.tool }}:{{ $labels.action }}'
+          impact: 'Specific error pattern detected'
           action: "1. Review permissions if PermissionDenied\n2. Check quota if QuotaExceeded\n3. Review recent changes\n4. Check client configurations\n5. Review API key/credentials"
 
   # ========================================
@@ -374,9 +374,9 @@ groups:
           component: traffic
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/traffic-drop.md
         annotations:
-          summary: "Sudden drop in request rate"
-          description: "Request rate dropped to {{ $value | humanizePercentage }} of baseline"
-          impact: "Possible client issues or service degradation"
+          summary: 'Sudden drop in request rate'
+          description: 'Request rate dropped to {{ $value | humanizePercentage }} of baseline'
+          impact: 'Possible client issues or service degradation'
           action: "1. Check client connectivity\n2. Review error rates\n3. Check for network issues\n4. Verify service health\n5. Review recent deployments"
 
       # Sudden Spike in Request Rate - Potential abuse or issue
@@ -392,9 +392,9 @@ groups:
           component: traffic
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/traffic-spike.md
         annotations:
-          summary: "Sudden spike in request rate"
-          description: "Request rate is {{ $value }}x baseline"
-          impact: "Potential quota exhaustion or abuse"
+          summary: 'Sudden spike in request rate'
+          description: 'Request rate is {{ $value }}x baseline'
+          impact: 'Potential quota exhaustion or abuse'
           action: "1. Check for legitimate traffic spike\n2. Review client behavior\n3. Check for potential abuse\n4. Consider rate limiting\n5. Monitor quota usage"
 
       # Cache Hit Rate Degradation - Performance regression
@@ -416,9 +416,9 @@ groups:
           component: cache
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/cache-degradation.md
         annotations:
-          summary: "Cache hit rate degrading"
-          description: "Hit rate dropped {{ $value | humanizePercentage }} from baseline"
-          impact: "Increased API calls and latency"
+          summary: 'Cache hit rate degrading'
+          description: 'Hit rate dropped {{ $value | humanizePercentage }} from baseline'
+          impact: 'Increased API calls and latency'
           action: "1. Review recent changes\n2. Check access patterns\n3. Verify cache configuration\n4. Check for cache clearing events\n5. Review TTL settings"
 
   # ========================================
@@ -440,11 +440,11 @@ groups:
           slo: availability
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/slo-availability.md
         annotations:
-          summary: "Availability SLO breach (target: 99.9%)"
-          description: "Service availability is {{ $value | humanizePercentage }} over last 5 minutes. SLO target: 99.9%"
-          impact: "User-facing downtime, SLO breach"
+          summary: 'Availability SLO breach (target: 99.9%)'
+          description: 'Service availability is {{ $value | humanizePercentage }} over last 5 minutes. SLO target: 99.9%'
+          impact: 'User-facing downtime, SLO breach'
           action: "1. Identify root cause of downtime\n2. Restore service availability\n3. Review incident timeline\n4. Update error budget tracking"
-          error_budget_impact: "Consuming error budget rapidly"
+          error_budget_impact: 'Consuming error budget rapidly'
 
       # Latency SLO - P95 read operations (500ms target)
       - alert: LatencyP95ReadSLOWarning
@@ -460,9 +460,9 @@ groups:
           slo: latency_p95_read
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/slo-latency.md
         annotations:
-          summary: "P95 read latency approaching SLO threshold"
-          description: "P95 read latency is {{ $value }}s (alert threshold: 400ms, SLO target: 500ms)"
-          impact: "Degraded user experience, approaching SLO breach"
+          summary: 'P95 read latency approaching SLO threshold'
+          description: 'P95 read latency is {{ $value }}s (alert threshold: 400ms, SLO target: 500ms)'
+          impact: 'Degraded user experience, approaching SLO breach'
           action: "1. Identify slow operations\n2. Check cache effectiveness\n3. Review database query performance\n4. Monitor error budget burn rate"
 
       - alert: LatencyP95ReadSLOBreach
@@ -478,11 +478,11 @@ groups:
           slo: latency_p95_read
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/slo-latency.md
         annotations:
-          summary: "P95 read latency SLO breach (target: 500ms)"
-          description: "P95 read latency is {{ $value }}s. SLO target: 500ms"
-          impact: "User-facing latency degradation, SLO breach"
+          summary: 'P95 read latency SLO breach (target: 500ms)'
+          description: 'P95 read latency is {{ $value }}s. SLO target: 500ms'
+          impact: 'User-facing latency degradation, SLO breach'
           action: "1. Immediate performance optimization\n2. Scale resources if needed\n3. Review operation patterns\n4. Update error budget"
-          error_budget_impact: "Consuming error budget"
+          error_budget_impact: 'Consuming error budget'
 
       # Latency SLO - P95 write operations (2000ms target)
       - alert: LatencyP95WriteSLOWarning
@@ -498,9 +498,9 @@ groups:
           slo: latency_p95_write
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/slo-latency.md
         annotations:
-          summary: "P95 write latency approaching SLO threshold"
-          description: "P95 write latency is {{ $value }}s (alert threshold: 1.6s, SLO target: 2s)"
-          impact: "Degraded user experience for write operations"
+          summary: 'P95 write latency approaching SLO threshold'
+          description: 'P95 write latency is {{ $value }}s (alert threshold: 1.6s, SLO target: 2s)'
+          impact: 'Degraded user experience for write operations'
           action: "1. Check Google API latency\n2. Review batch efficiency\n3. Monitor queue depth\n4. Check for large operations"
 
       - alert: LatencyP95WriteSLOBreach
@@ -516,11 +516,11 @@ groups:
           slo: latency_p95_write
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/slo-latency.md
         annotations:
-          summary: "P95 write latency SLO breach (target: 2s)"
-          description: "P95 write latency is {{ $value }}s. SLO target: 2s"
-          impact: "User-facing latency for write operations, SLO breach"
+          summary: 'P95 write latency SLO breach (target: 2s)'
+          description: 'P95 write latency is {{ $value }}s. SLO target: 2s'
+          impact: 'User-facing latency for write operations, SLO breach'
           action: "1. Immediate investigation\n2. Check Google Sheets API status\n3. Review batch settings\n4. Update error budget"
-          error_budget_impact: "Consuming error budget"
+          error_budget_impact: 'Consuming error budget'
 
       # Error Rate SLO - Client errors (0.1% target)
       - alert: ErrorRate4xxSLOBreach
@@ -536,11 +536,11 @@ groups:
           slo: error_rate_4xx
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/slo-errors.md
         annotations:
-          summary: "Client error rate SLO breach (target: 0.1%)"
-          description: "Client error rate is {{ $value | humanizePercentage }}. SLO target: 0.1%"
-          impact: "Increased client errors, SLO breach"
+          summary: 'Client error rate SLO breach (target: 0.1%)'
+          description: 'Client error rate is {{ $value | humanizePercentage }}. SLO target: 0.1%'
+          impact: 'Increased client errors, SLO breach'
           action: "1. Review validation logic\n2. Check for malformed requests\n3. Review authentication issues\n4. Update error budget"
-          error_budget_impact: "Consuming client error budget"
+          error_budget_impact: 'Consuming client error budget'
 
       # Error Rate SLO - Server errors (0.01% target)
       - alert: ErrorRate5xxSLOBreach
@@ -556,11 +556,11 @@ groups:
           slo: error_rate_5xx
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/slo-errors.md
         annotations:
-          summary: "Server error rate SLO breach (target: 0.01%)"
-          description: "Server error rate is {{ $value | humanizePercentage }}. SLO target: 0.01%"
-          impact: "Server errors affecting reliability, SLO breach"
+          summary: 'Server error rate SLO breach (target: 0.01%)'
+          description: 'Server error rate is {{ $value | humanizePercentage }}. SLO target: 0.01%'
+          impact: 'Server errors affecting reliability, SLO breach'
           action: "1. Immediate investigation of server errors\n2. Review logs for root cause\n3. Check service health\n4. Update error budget"
-          error_budget_impact: "Consuming server error budget"
+          error_budget_impact: 'Consuming server error budget'
 
       # Google API Success Rate SLO (99.5% target)
       - alert: GoogleApiSuccessRateSLOWarning
@@ -576,9 +576,9 @@ groups:
           slo: google_api_success_rate
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/slo-google-api.md
         annotations:
-          summary: "Google API success rate approaching SLO threshold"
-          description: "Google API success rate is {{ $value | humanizePercentage }} (alert: 99.0%, target: 99.5%)"
-          impact: "Increased Google API failures"
+          summary: 'Google API success rate approaching SLO threshold'
+          description: 'Google API success rate is {{ $value | humanizePercentage }} (alert: 99.0%, target: 99.5%)'
+          impact: 'Increased Google API failures'
           action: "1. Check Google API status\n2. Review authentication\n3. Check quota limits\n4. Monitor error patterns"
 
       - alert: GoogleApiSuccessRateSLOBreach
@@ -594,11 +594,11 @@ groups:
           slo: google_api_success_rate
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/slo-google-api.md
         annotations:
-          summary: "Google API success rate SLO breach (target: 99.5%)"
-          description: "Google API success rate is {{ $value | humanizePercentage }}. SLO target: 99.5%"
-          impact: "High Google API failure rate, SLO breach"
+          summary: 'Google API success rate SLO breach (target: 99.5%)'
+          description: 'Google API success rate is {{ $value | humanizePercentage }}. SLO target: 99.5%'
+          impact: 'High Google API failure rate, SLO breach'
           action: "1. Check Google Sheets API status\n2. Verify credentials\n3. Review quota usage\n4. Update error budget"
-          error_budget_impact: "Consuming Google API error budget"
+          error_budget_impact: 'Consuming Google API error budget'
 
       # Cache Hit Rate SLO (80% target)
       - alert: CacheHitRateSLOBreach
@@ -614,11 +614,11 @@ groups:
           slo: cache_hit_rate
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/slo-cache.md
         annotations:
-          summary: "Cache hit rate below SLO threshold (target: 80%)"
-          description: "Cache hit rate is {{ $value | humanizePercentage }}. SLO target: 80%, alert: 50%"
-          impact: "Increased API calls and latency due to low cache effectiveness"
+          summary: 'Cache hit rate below SLO threshold (target: 80%)'
+          description: 'Cache hit rate is {{ $value | humanizePercentage }}. SLO target: 80%, alert: 50%'
+          impact: 'Increased API calls and latency due to low cache effectiveness'
           action: "1. Review cache configuration\n2. Check TTL settings\n3. Verify cache size\n4. Review access patterns\n5. Monitor memory usage"
-          error_budget_impact: "Degraded performance"
+          error_budget_impact: 'Degraded performance'
 
       # Error Budget Burn Rate - Fast burn
       - alert: ErrorBudgetBurnRateHigh
@@ -630,11 +630,11 @@ groups:
           component: slo
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/error-budget.md
         annotations:
-          summary: "High error budget burn rate for {{ $labels.slo }}"
-          description: "Error budget for {{ $labels.slo }} is burning at {{ $value }}x normal rate"
-          impact: "Error budget will be exhausted rapidly at current rate"
+          summary: 'High error budget burn rate for {{ $labels.slo }}'
+          description: 'Error budget for {{ $labels.slo }} is burning at {{ $value }}x normal rate'
+          impact: 'Error budget will be exhausted rapidly at current rate'
           action: "1. Identify root cause of SLO breach\n2. Implement immediate mitigation\n3. Consider feature freeze\n4. Review recent changes"
-          error_budget_impact: "Critical - error budget exhaustion imminent"
+          error_budget_impact: 'Critical - error budget exhaustion imminent'
 
       # Error Budget Remaining - Low budget
       - alert: ErrorBudgetLow
@@ -646,8 +646,8 @@ groups:
           component: slo
           runbook: https://github.com/khill1269/servalsheets/blob/main/docs/runbooks/error-budget.md
         annotations:
-          summary: "Low error budget remaining for {{ $labels.slo }}"
-          description: "Only {{ $value | humanizePercentage }} error budget remaining for {{ $labels.slo }}"
-          impact: "Limited room for errors, must improve reliability"
+          summary: 'Low error budget remaining for {{ $labels.slo }}'
+          description: 'Only {{ $value | humanizePercentage }} error budget remaining for {{ $labels.slo }}'
+          impact: 'Limited room for errors, must improve reliability'
           action: "1. Freeze non-critical deployments\n2. Focus on reliability improvements\n3. Review error patterns\n4. Increase monitoring"
-          error_budget_impact: "Warning - approaching error budget exhaustion"
+          error_budget_impact: 'Warning - approaching error budget exhaustion'

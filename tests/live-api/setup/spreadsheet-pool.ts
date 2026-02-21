@@ -112,7 +112,10 @@ class SpreadsheetPool {
     return this.initPromise;
   }
 
-  private async doInitialize(client: LiveApiClient, options?: SpreadsheetPoolOptions): Promise<void> {
+  private async doInitialize(
+    client: LiveApiClient,
+    options?: SpreadsheetPoolOptions
+  ): Promise<void> {
     if (this.initialized && this.client === client) {
       return;
     }
@@ -153,10 +156,11 @@ class SpreadsheetPool {
           fields: 'sheets.properties',
         });
 
-        const sheets = sheetInfo.data.sheets?.map(s => ({
-          sheetId: s.properties?.sheetId ?? 0,
-          title: s.properties?.title ?? 'Sheet1',
-        })) || [];
+        const sheets =
+          sheetInfo.data.sheets?.map((s) => ({
+            sheetId: s.properties?.sheetId ?? 0,
+            title: s.properties?.title ?? 'Sheet1',
+          })) || [];
 
         this.pool.push({
           id: file.id,
@@ -204,10 +208,11 @@ class SpreadsheetPool {
       id: response.data.spreadsheetId!,
       title,
       url: response.data.spreadsheetUrl!,
-      sheets: response.data.sheets?.map(s => ({
-        sheetId: s.properties?.sheetId ?? 0,
-        title: s.properties?.title ?? '',
-      })) || [],
+      sheets:
+        response.data.sheets?.map((s) => ({
+          sheetId: s.properties?.sheetId ?? 0,
+          title: s.properties?.title ?? '',
+        })) || [],
       inUse: false,
       lastUsed: 0,
       createdAt: Date.now(),
@@ -269,7 +274,7 @@ class SpreadsheetPool {
     const waitMs = maxWaitMs ?? this.options.maxBorrowWaitMs;
 
     // Find an available healthy spreadsheet
-    const available = this.pool.find(s => !s.inUse && s.healthy);
+    const available = this.pool.find((s) => !s.inUse && s.healthy);
 
     if (available) {
       return this.markBorrowed(available, testName);
@@ -285,11 +290,15 @@ class SpreadsheetPool {
     return new Promise<PooledSpreadsheet>((resolve, reject) => {
       const timeout = setTimeout(() => {
         // Remove from queue
-        const index = this.waitQueue.findIndex(w => w.resolve === resolve);
+        const index = this.waitQueue.findIndex((w) => w.resolve === resolve);
         if (index !== -1) {
           this.waitQueue.splice(index, 1);
         }
-        reject(new Error(`Timeout waiting for pool spreadsheet after ${waitMs}ms. All ${this.pool.length} spreadsheets are in use.`));
+        reject(
+          new Error(
+            `Timeout waiting for pool spreadsheet after ${waitMs}ms. All ${this.pool.length} spreadsheets are in use.`
+          )
+        );
       }, waitMs);
 
       this.waitQueue.push({ resolve, reject, testName, timeout });
@@ -316,7 +325,7 @@ class SpreadsheetPool {
    * Return a spreadsheet to the pool
    */
   async release(spreadsheetId: string, cleanup = false): Promise<void> {
-    const spreadsheet = this.pool.find(s => s.id === spreadsheetId);
+    const spreadsheet = this.pool.find((s) => s.id === spreadsheetId);
     if (!spreadsheet) return;
 
     // Track borrow time
@@ -367,8 +376,8 @@ class SpreadsheetPool {
    * Get pool statistics
    */
   getStats(): PoolStats {
-    const inUse = this.pool.filter(s => s.inUse).length;
-    const healthy = this.pool.filter(s => s.healthy).length;
+    const inUse = this.pool.filter((s) => s.inUse).length;
+    const healthy = this.pool.filter((s) => s.healthy).length;
 
     return {
       total: this.pool.length,
@@ -389,7 +398,7 @@ class SpreadsheetPool {
   async healthCheck(spreadsheetId: string): Promise<boolean> {
     if (!this.client) return false;
 
-    const spreadsheet = this.pool.find(s => s.id === spreadsheetId);
+    const spreadsheet = this.pool.find((s) => s.id === spreadsheetId);
     if (!spreadsheet) return false;
 
     try {
@@ -464,7 +473,7 @@ class SpreadsheetPool {
     const maxAge = this.options.maxSpreadsheetAgeMs;
 
     for (const spreadsheet of [...this.pool]) {
-      const isOld = (now - spreadsheet.createdAt) > maxAge;
+      const isOld = now - spreadsheet.createdAt > maxAge;
       const isUnhealthy = !spreadsheet.healthy;
 
       if (!spreadsheet.inUse && (isOld || isUnhealthy)) {

@@ -15,7 +15,12 @@
 import * as ts from 'typescript';
 import * as fs from 'fs';
 import * as path from 'path';
-import { AnalysisAgent, AnalysisIssue, DimensionReport, AnalysisContext } from '../multi-agent-analysis.js';
+import {
+  AnalysisAgent,
+  AnalysisIssue,
+  DimensionReport,
+  AnalysisContext,
+} from '../multi-agent-analysis.js';
 
 // ============================================================================
 // OFFICIAL DOCUMENTATION SOURCES
@@ -103,9 +108,7 @@ const TYPESCRIPT_RULES: BestPracticeRule[] = [
     pattern: /:\s*any(?!\w)/,
     severity: 'high',
     autoFixable: false,
-    references: [
-      'https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#any',
-    ],
+    references: ['https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#any'],
     examples: {
       bad: 'function process(data: any) { ... }',
       good: 'function process(data: unknown) { ... } or function process(data: UserData) { ... }',
@@ -120,9 +123,7 @@ const TYPESCRIPT_RULES: BestPracticeRule[] = [
     pattern: /strictNullChecks.*false/,
     severity: 'high',
     autoFixable: true,
-    references: [
-      'https://www.typescriptlang.org/tsconfig#strictNullChecks',
-    ],
+    references: ['https://www.typescriptlang.org/tsconfig#strictNullChecks'],
     examples: {
       bad: '"strictNullChecks": false',
       good: '"strictNullChecks": true',
@@ -154,9 +155,7 @@ const TYPESCRIPT_RULES: BestPracticeRule[] = [
     pattern: /catch\s*\(\s*\w+\s*:\s*any\s*\)/,
     severity: 'medium',
     autoFixable: true,
-    references: [
-      'https://www.typescriptlang.org/docs/handbook/2/functions.html#unknown',
-    ],
+    references: ['https://www.typescriptlang.org/docs/handbook/2/functions.html#unknown'],
     examples: {
       bad: 'catch (error: any) { ... }',
       good: 'catch (error: unknown) { if (error instanceof Error) { ... } }',
@@ -178,9 +177,7 @@ const GOOGLE_SHEETS_RULES: BestPracticeRule[] = [
     pattern: /sheets\.spreadsheets\.(get|values\.get|values\.update)\(/,
     severity: 'medium',
     autoFixable: false,
-    references: [
-      'https://developers.google.com/sheets/api/guides/batch',
-    ],
+    references: ['https://developers.google.com/sheets/api/guides/batch'],
     examples: {
       bad: 'await sheets.spreadsheets.values.get(...); await sheets.spreadsheets.values.get(...);',
       good: 'await sheets.spreadsheets.values.batchGet({ ranges: [...] });',
@@ -195,9 +192,7 @@ const GOOGLE_SHEETS_RULES: BestPracticeRule[] = [
     pattern: /spreadsheets\.get\(/,
     severity: 'low',
     autoFixable: false,
-    references: [
-      'https://developers.google.com/sheets/api/guides/field-masks',
-    ],
+    references: ['https://developers.google.com/sheets/api/guides/field-masks'],
     examples: {
       bad: 'sheets.spreadsheets.get({ spreadsheetId })',
       good: 'sheets.spreadsheets.get({ spreadsheetId, fields: "properties,sheets(properties)" })',
@@ -212,9 +207,7 @@ const GOOGLE_SHEETS_RULES: BestPracticeRule[] = [
     pattern: /catch.*429/,
     severity: 'high',
     autoFixable: false,
-    references: [
-      'https://developers.google.com/sheets/api/limits',
-    ],
+    references: ['https://developers.google.com/sheets/api/limits'],
     examples: {
       bad: 'catch (err) { if (err.code === 429) throw err; }',
       good: 'catch (err) { if (err.code === 429) await exponentialBackoff(); }',
@@ -236,9 +229,7 @@ const MCP_RULES: BestPracticeRule[] = [
     pattern: /tools\/list/,
     severity: 'critical',
     autoFixable: false,
-    references: [
-      'https://spec.modelcontextprotocol.io/specification/2025-11-25/server/tools/',
-    ],
+    references: ['https://spec.modelcontextprotocol.io/specification/2025-11-25/server/tools/'],
     examples: {
       bad: '{ tools: [{ name: "foo" }] }',
       good: '{ tools: [{ name: "foo", description: "...", inputSchema: {...} }] }',
@@ -253,9 +244,7 @@ const MCP_RULES: BestPracticeRule[] = [
     pattern: /throw.*Error/,
     severity: 'high',
     autoFixable: false,
-    references: [
-      'https://spec.modelcontextprotocol.io/specification/2025-11-25/basic/errors/',
-    ],
+    references: ['https://spec.modelcontextprotocol.io/specification/2025-11-25/basic/errors/'],
     examples: {
       bad: 'throw new Error("failed")',
       good: 'throw { code: ErrorCode.InvalidRequest, message: "...", data: {...} }',
@@ -270,9 +259,7 @@ const MCP_RULES: BestPracticeRule[] = [
     pattern: /createMessage/,
     severity: 'medium',
     autoFixable: false,
-    references: [
-      'https://spec.modelcontextprotocol.io/specification/2025-11-25/server/sampling/',
-    ],
+    references: ['https://spec.modelcontextprotocol.io/specification/2025-11-25/server/sampling/'],
     examples: {
       bad: '// No LLM interaction for complex decisions',
       good: 'const response = await server.createMessage({ messages, ... });',
@@ -294,9 +281,7 @@ const ZOD_RULES: BestPracticeRule[] = [
     pattern: /z\.union\(/,
     severity: 'low',
     autoFixable: false,
-    references: [
-      'https://zod.dev/?id=discriminated-unions',
-    ],
+    references: ['https://zod.dev/?id=discriminated-unions'],
     examples: {
       bad: 'z.union([Schema1, Schema2])',
       good: 'z.discriminatedUnion("type", [Schema1, Schema2])',
@@ -311,9 +296,7 @@ const ZOD_RULES: BestPracticeRule[] = [
     pattern: /z\.object\(/,
     severity: 'medium',
     autoFixable: false,
-    references: [
-      'https://zod.dev/?id=strict',
-    ],
+    references: ['https://zod.dev/?id=strict'],
     examples: {
       bad: 'z.object({ name: z.string() })',
       good: 'z.object({ name: z.string() }).strict()',
@@ -335,9 +318,7 @@ const OWASP_RULES: BestPracticeRule[] = [
     pattern: /req\.(body|query|params)/,
     severity: 'critical',
     autoFixable: false,
-    references: [
-      'https://owasp.org/Top10/A03_2021-Injection/',
-    ],
+    references: ['https://owasp.org/Top10/A03_2021-Injection/'],
     examples: {
       bad: 'const userId = req.body.userId;',
       good: 'const userId = UserIdSchema.parse(req.body.userId);',
@@ -352,9 +333,7 @@ const OWASP_RULES: BestPracticeRule[] = [
     pattern: /Math\.random\(/,
     severity: 'high',
     autoFixable: true,
-    references: [
-      'https://owasp.org/www-community/vulnerabilities/Insecure_Randomness',
-    ],
+    references: ['https://owasp.org/www-community/vulnerabilities/Insecure_Randomness'],
     examples: {
       bad: 'const token = Math.random().toString(36);',
       good: 'const token = crypto.randomBytes(32).toString("hex");',
@@ -369,9 +348,7 @@ const OWASP_RULES: BestPracticeRule[] = [
     pattern: /console\.log.*token|console\.log.*password|console\.log.*key/i,
     severity: 'critical',
     autoFixable: false,
-    references: [
-      'https://owasp.org/Top10/A02_2021-Cryptographic_Failures/',
-    ],
+    references: ['https://owasp.org/Top10/A02_2021-Cryptographic_Failures/'],
     examples: {
       bad: 'console.log("Token:", token);',
       good: 'logger.debug("Token:", redact(token));',
@@ -455,12 +432,7 @@ export class DocumentationValidatorAgent extends AnalysisAgent {
 
     // Analyze each source
     for (const [source, rules] of rulesBySource) {
-      const report = await this.analyzeAgainstSource(
-        filePath,
-        sourceFile,
-        source,
-        rules
-      );
+      const report = await this.analyzeAgainstSource(filePath, sourceFile, source, rules);
       reports.push(report);
     }
 
@@ -479,9 +451,7 @@ export class DocumentationValidatorAgent extends AnalysisAgent {
 
     for (const rule of rules) {
       // Check pattern match
-      const pattern = typeof rule.pattern === 'string'
-        ? new RegExp(rule.pattern)
-        : rule.pattern;
+      const pattern = typeof rule.pattern === 'string' ? new RegExp(rule.pattern) : rule.pattern;
 
       const matches = fileContent.matchAll(new RegExp(pattern, 'g'));
 
@@ -492,9 +462,8 @@ export class DocumentationValidatorAgent extends AnalysisAgent {
         // Check if anti-pattern is also present (makes it a violation)
         let isViolation = true;
         if (rule.antiPattern) {
-          const antiPattern = typeof rule.antiPattern === 'string'
-            ? new RegExp(rule.antiPattern)
-            : rule.antiPattern;
+          const antiPattern =
+            typeof rule.antiPattern === 'string' ? new RegExp(rule.antiPattern) : rule.antiPattern;
           isViolation = antiPattern.test(fileContent);
         }
 
@@ -519,9 +488,9 @@ export class DocumentationValidatorAgent extends AnalysisAgent {
 
     // Determine status
     let status: 'pass' | 'warning' | 'fail' = 'pass';
-    if (issues.some(i => i.severity === 'critical')) {
+    if (issues.some((i) => i.severity === 'critical')) {
       status = 'fail';
-    } else if (issues.some(i => i.severity === 'high' || i.severity === 'medium')) {
+    } else if (issues.some((i) => i.severity === 'high' || i.severity === 'medium')) {
       status = 'warning';
     }
 
@@ -578,12 +547,7 @@ async function main() {
   }
 
   const content = fs.readFileSync(filePath, 'utf-8');
-  const sourceFile = ts.createSourceFile(
-    filePath,
-    content,
-    ts.ScriptTarget.Latest,
-    true
-  );
+  const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true);
 
   const context: AnalysisContext = {
     projectRoot: process.cwd(),

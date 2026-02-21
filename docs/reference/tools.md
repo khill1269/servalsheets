@@ -2,7 +2,7 @@
 title: Tools Overview
 category: reference
 last_updated: 2026-01-31
-description: ServalSheets provides 21 MCP tools with 291 total actions covering the complete Google Sheets API v4.
+description: ServalSheets provides 22 MCP tools with 305 total actions covering the complete Google Sheets API v4.
 version: 1.6.0
 tags: [sheets]
 stability: stable
@@ -10,33 +10,33 @@ stability: stable
 
 # Tools Overview
 
-ServalSheets provides 21 MCP tools with 291 total actions covering the complete Google Sheets API v4.
+ServalSheets provides 22 MCP tools with 305 total actions covering the complete Google Sheets API v4.
 
 ## Tool Categories
 
-| Tool                  | Actions | Description                                              |
-| --------------------- | ------- | -------------------------------------------------------- |
-| `sheets_auth`         | 4       | OAuth status/login/callback/logout                       |
-| `sheets_core`         | 17      | Spreadsheet + sheet metadata and management              |
-| `sheets_data`         | 18      | Read/write/append/clear values, notes, links, merges     |
-| `sheets_format`       | 21      | Formatting, borders, number formats, validation, rules   |
-| `sheets_dimensions`   | 28      | Rows/columns, filters, sort, filter views, slicers       |
-| `sheets_visualize`    | 18      | Charts + pivots (create/update/list)                     |
-| `sheets_collaborate`  | 28      | Sharing, comments, revisions, snapshots                  |
-| `sheets_advanced`     | 23      | Named ranges, protections, metadata, banding, chips      |
-| `sheets_transaction`  | 6       | Begin/queue/commit/rollback/status/list                  |
-| `sheets_quality`      | 4       | Validation, conflicts, impact analysis                   |
-| `sheets_history`      | 7       | History, undo/redo, revert                               |
-| `sheets_confirm`      | 5       | Elicitation-based confirmations                          |
-| `sheets_analyze`      | 16      | AI analysis + planning (comprehensive, scout, plan, etc) |
-| `sheets_fix`          | 1       | Auto-fix detected issues                                 |
-| `sheets_composite`    | 10      | CSV/XLSX import/export, smart append, dedupe, setup      |
-| `sheets_session`      | 17      | Context, preferences, checkpoints                        |
-| `sheets_templates`    | 8       | Template management                                      |
-| `sheets_bigquery`     | 14      | Connected Sheets + BigQuery query/import/export          |
-| `sheets_appsscript`   | 14      | Apps Script project/deploy/run                           |
-| `sheets_webhook`      | 6       | Webhook register/test/stats                              |
-| `sheets_dependencies` | 7       | Dependency graph + impact analysis                       |
+| Tool                  | Actions | Description                                                                   |
+| --------------------- | ------- | ----------------------------------------------------------------------------- |
+| `sheets_auth`         | 4       | OAuth status/login/callback/logout                                            |
+| `sheets_core`         | 19      | Spreadsheet + sheet metadata and management                                   |
+| `sheets_data`         | 19      | Read/write/append/clear values, notes, links, merges, spill detection         |
+| `sheets_format`       | 22      | Formatting, borders, number formats, validation, rules                        |
+| `sheets_dimensions`   | 28      | Rows/columns, filters, sort, filter views, slicers                            |
+| `sheets_visualize`    | 18      | Charts + pivots (create/update/list)                                          |
+| `sheets_collaborate`  | 35      | Sharing, comments, revisions, snapshots                                       |
+| `sheets_advanced`     | 31      | Named ranges, named functions (LAMBDA), protections, metadata, banding, chips |
+| `sheets_transaction`  | 6       | Begin/queue/commit/rollback/status/list                                       |
+| `sheets_quality`      | 4       | Validation, conflicts, impact analysis                                        |
+| `sheets_history`      | 7       | History, undo/redo, revert                                                    |
+| `sheets_confirm`      | 5       | Elicitation-based confirmations                                               |
+| `sheets_analyze`      | 16      | AI analysis + planning (comprehensive, scout, plan, etc)                      |
+| `sheets_fix`          | 1       | Auto-fix detected issues                                                      |
+| `sheets_composite`    | 11      | CSV/XLSX import/export, smart append, dedupe, setup                           |
+| `sheets_session`      | 26      | Context, preferences, checkpoints                                             |
+| `sheets_templates`    | 8       | Template management                                                           |
+| `sheets_bigquery`     | 14      | Connected Sheets + BigQuery query/import/export                               |
+| `sheets_appsscript`   | 14      | Apps Script project/deploy/run                                                |
+| `sheets_webhook`      | 6       | Webhook register/test/stats                                                   |
+| `sheets_dependencies` | 7       | Dependency graph + impact analysis                                            |
 
 ## Common Parameters
 

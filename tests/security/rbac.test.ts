@@ -7,11 +7,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { RbacManager, type RbacManagerOptions } from '../../src/services/rbac-manager.js';
-import type {
-  RoleDefinition,
-  UserRoleAssignment,
-  ApiKeyScope,
-} from '../../src/schemas/rbac.js';
+import type { RoleDefinition, UserRoleAssignment, ApiKeyScope } from '../../src/schemas/rbac.js';
 
 // Mock logger
 vi.mock('../../src/utils/logger.js', () => ({
@@ -79,9 +75,7 @@ describe('RBAC Manager', () => {
         roleName: 'Custom Role',
         description: 'A custom test role',
         builtIn: false,
-        toolPermissions: [
-          { toolName: 'sheets_data', permission: 'allow' },
-        ],
+        toolPermissions: [{ toolName: 'sheets_data', permission: 'allow' }],
         actionPermissions: [],
         resourcePermissions: [],
         inheritsFrom: [],
@@ -129,9 +123,7 @@ describe('RBAC Manager', () => {
 
       const updated = await rbacManager.updateRole('update_test', {
         description: 'Updated description',
-        toolPermissions: [
-          { toolName: 'sheets_data', permission: 'allow' },
-        ],
+        toolPermissions: [{ toolName: 'sheets_data', permission: 'allow' }],
       });
 
       expect(updated.description).toBe('Updated description');
@@ -166,9 +158,7 @@ describe('RBAC Manager', () => {
     });
 
     it('should prevent deleting built-in roles', async () => {
-      await expect(rbacManager.deleteRole('admin')).rejects.toThrow(
-        'Cannot delete built-in role'
-      );
+      await expect(rbacManager.deleteRole('admin')).rejects.toThrow('Cannot delete built-in role');
     });
   });
 

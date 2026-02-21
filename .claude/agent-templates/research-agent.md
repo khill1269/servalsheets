@@ -12,21 +12,25 @@
 ## When to Use
 
 ✅ **Pattern Discovery**
+
 - Find common patterns across handlers
 - Identify naming conventions
 - Extract architectural patterns
 
 ✅ **Code Analysis**
+
 - Count occurrences of patterns
 - Find all usages of a function
 - Analyze error handling approaches
 
 ✅ **Documentation Research**
+
 - Find all TODOs
 - Check for outdated comments
 - Validate documentation accuracy
 
 ❌ **Not Suitable For**
+
 - Complex reasoning about trade-offs
 - Multi-step implementation planning
 - Architectural decision-making
@@ -37,9 +41,9 @@
 
 ```typescript
 Task({
-  subagent_type: "Explore",
-  model: "haiku",
-  description: "Research [topic] (5min)",
+  subagent_type: 'Explore',
+  model: 'haiku',
+  description: 'Research [topic] (5min)',
   prompt: `
     Analyze [files/patterns] to identify:
 
@@ -48,8 +52,8 @@ Task({
     3. [Research question 3]
 
     Output: Markdown summary with findings
-  `
-})
+  `,
+});
 ```
 
 ---
@@ -58,9 +62,9 @@ Task({
 
 ```typescript
 Task({
-  subagent_type: "Explore",
-  model: "haiku",
-  description: "Research handler patterns (5min)",
+  subagent_type: 'Explore',
+  model: 'haiku',
+  description: 'Research handler patterns (5min)',
   prompt: `
     Analyze all 22 handlers in src/handlers/*.ts to identify:
 
@@ -89,15 +93,17 @@ Task({
     - Most common conventions
     - Outliers and inconsistencies
     - Recommendations for standardization
-  `
-})
+  `,
+});
 ```
 
 **Expected Output:**
+
 ```markdown
 # Handler Pattern Analysis
 
 ## Action Naming Patterns
+
 - verb_noun: 68% (e.g., read_range, create_sheet)
 - noun_verb: 22% (e.g., sheet_create, range_update)
 - single_word: 10% (e.g., list, get)
@@ -105,6 +111,7 @@ Task({
 **Recommendation:** Standardize on verb_noun pattern
 
 ## Parameter Validation
+
 - All handlers use Zod schemas ✓
 - 95% validate at handler entry point ✓
 - 5% validate in sub-methods (outliers)
@@ -116,9 +123,9 @@ Task({
 
 ```typescript
 Task({
-  subagent_type: "Explore",
-  model: "haiku",
-  description: "Find all TODOs (3min)",
+  subagent_type: 'Explore',
+  model: 'haiku',
+  description: 'Find all TODOs (3min)',
   prompt: `
     Search all src/**/*.ts files for:
 
@@ -134,8 +141,8 @@ Task({
     - Priority (critical/high/medium/low based on keywords)
 
     Group by priority and show file:line references.
-  `
-})
+  `,
+});
 ```
 
 ---
@@ -144,9 +151,9 @@ Task({
 
 ```typescript
 Task({
-  subagent_type: "Explore",
-  model: "haiku",
-  description: "Audit error codes (5min)",
+  subagent_type: 'Explore',
+  model: 'haiku',
+  description: 'Audit error codes (5min)',
   prompt: `
     Compare error codes in two locations:
 
@@ -163,8 +170,8 @@ Task({
     | Error Code | Defined | Used | Frequency | Files |
 
     Flag any mismatches as CRITICAL issues.
-  `
-})
+  `,
+});
 ```
 
 ---
@@ -173,9 +180,9 @@ Task({
 
 ```typescript
 Task({
-  subagent_type: "Explore",
-  model: "haiku",
-  description: "Find test coverage gaps (7min)",
+  subagent_type: 'Explore',
+  model: 'haiku',
+  description: 'Find test coverage gaps (7min)',
   prompt: `
     For each handler in src/handlers/*.ts:
 
@@ -197,8 +204,8 @@ Task({
       - ✓ handleReadRange tested
       - ✓ handleWriteRange tested
       - ✗ handleBulkRead not tested
-  `
-})
+  `,
+});
 ```
 
 ---
@@ -210,27 +217,27 @@ For large codebases, spawn multiple research agents in parallel:
 ```typescript
 // Agent 1: Handlers
 Task({
-  subagent_type: "Explore",
-  model: "haiku",
-  description: "Research handlers (5min)",
-  prompt: "Analyze src/handlers/*.ts..."
-})
+  subagent_type: 'Explore',
+  model: 'haiku',
+  description: 'Research handlers (5min)',
+  prompt: 'Analyze src/handlers/*.ts...',
+});
 
 // Agent 2: Schemas (parallel)
 Task({
-  subagent_type: "Explore",
-  model: "haiku",
-  description: "Research schemas (5min)",
-  prompt: "Analyze src/schemas/*.ts..."
-})
+  subagent_type: 'Explore',
+  model: 'haiku',
+  description: 'Research schemas (5min)',
+  prompt: 'Analyze src/schemas/*.ts...',
+});
 
 // Agent 3: Tests (parallel)
 Task({
-  subagent_type: "Explore",
-  model: "haiku",
-  description: "Research test coverage (5min)",
-  prompt: "Analyze tests/**/*.ts..."
-})
+  subagent_type: 'Explore',
+  model: 'haiku',
+  description: 'Research test coverage (5min)',
+  prompt: 'Analyze tests/**/*.ts...',
+});
 ```
 
 **Speedup:** 3x faster than sequential (15min → 5min)
@@ -250,10 +257,12 @@ Task({
 ## Cost Estimation
 
 **Haiku 4.5 Pricing:**
+
 - Input: $0.25 per 1M tokens
 - Output: $1.25 per 1M tokens
 
 **Typical 5-Minute Research Task:**
+
 - Input: ~20k tokens (read files) = $0.005
 - Output: ~5k tokens (summary) = $0.006
 - **Total: ~$0.01 per task**
@@ -265,6 +274,7 @@ Task({
 ## Next Steps
 
 After research is complete:
+
 1. **Review findings** - Check research output
 2. **Use planning-agent.md** - Design implementation
 3. **Use implementation-agent.md** - Execute changes
@@ -273,5 +283,11 @@ After research is complete:
 ---
 
 **Related Templates:**
+
 - `planning-agent.md` - Use research findings to design implementation
 - `validation-agent.md` - Validate research findings with tests
+
+## Runtime Guardrails
+
+Before taking tool actions, load `.claude/AGENT_GUARDRAILS.md`.
+If it exists, load `.agent-context/learning-memory.md` and apply the top recurring fixes first.

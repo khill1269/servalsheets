@@ -28,6 +28,7 @@ Main agent aggregates findings
 ### Agent 1: google-api-expert (Sonnet, $3-7, 2-3min)
 
 **Task:**
+
 ```
 Review Google Sheets API v4 usage in ServalSheets:
 1. Check batch operations in src/handlers/*.ts
@@ -40,6 +41,7 @@ Review Google Sheets API v4 usage in ServalSheets:
 ### Agent 2: google-drive-expert (Sonnet, $2-4, 2-3min)
 
 **Task:**
+
 ```
 Review Google Drive API v3 integration:
 1. Check permission management in src/handlers/collaborate.ts
@@ -52,6 +54,7 @@ Review Google Drive API v3 integration:
 ### Agent 3: google-bigquery-expert (Sonnet, $2-4, 2-3min)
 
 **Task:**
+
 ```
 Review BigQuery integration patterns:
 1. Check query parameterization in src/handlers/bigquery.ts
@@ -64,6 +67,7 @@ Review BigQuery integration patterns:
 ### Agent 4: google-appsscript-expert (Sonnet, $2-4, 2-3min)
 
 **Task:**
+
 ```
 Review Apps Script automation:
 1. Check script execution safety in src/handlers/appsscript.ts
@@ -78,6 +82,7 @@ Review Apps Script automation:
 ## Step 2: Aggregate Results (1 min)
 
 **Main Agent Task:**
+
 ```
 Synthesize findings from 4 API experts:
 1. Group issues by severity (Critical/High/Medium/Low)
@@ -87,24 +92,30 @@ Synthesize findings from 4 API experts:
 ```
 
 **Output Format:**
+
 ```markdown
 # API Review Summary - ServalSheets
 
 ## Critical Issues (Must Fix)
+
 1. [Issue from Expert X]
 2. [Issue from Expert Y]
 
 ## High Priority (Should Fix)
+
 1. [Issue from Expert Z]
 
 ## Medium Priority (Nice to Have)
+
 ...
 
 ## Common Patterns Observed
+
 - Pattern 1 across Sheets/Drive/BigQuery
 - Pattern 2 in error handling
 
 ## Recommended Actions
+
 1. Priority 1: Fix [Issue]
 2. Priority 2: Optimize [Pattern]
 ```
@@ -114,6 +125,7 @@ Synthesize findings from 4 API experts:
 ## Example Execution
 
 ### Spawn Command (Single Message)
+
 ```
 Review API usage patterns in parallel:
 - Use google-api-expert to analyze Sheets API in src/handlers/
@@ -125,6 +137,7 @@ Report findings with severity ratings and file:line references.
 ```
 
 ### Expected Timeline
+
 ```
 t=0s:    Spawn 4 agents simultaneously
 t=30s:   First agent starts returning results
@@ -150,16 +163,19 @@ TOTAL:   3 minutes (vs 12 minutes sequential!)
 ## Workflow Variants
 
 ### Variant A: 2-Agent Quick Review
+
 **Agents:** google-api-expert + google-drive-expert only
 **Cost:** $5-11, **Time:** 2-3 min
 **Use when:** Quick Sheets/Drive audit
 
 ### Variant B: Full 5-Agent Review
+
 **Add:** testing-specialist for test coverage
 **Cost:** $12-19, **Time:** 3-5 min
 **Use when:** Comprehensive pre-release audit
 
 ### Variant C: Sequential Review (Detailed)
+
 **Pattern:** One agent at a time, in-depth analysis
 **Cost:** Same ($10-15), **Time:** 12-15 min (4x slower!)
 **Use when:** Need detailed per-API analysis
@@ -171,6 +187,7 @@ TOTAL:   3 minutes (vs 12 minutes sequential!)
 ### Parallel vs Sequential
 
 **Parallel (Recommended):**
+
 ```
 Agent 1: $3 (runs 2min)
 Agent 2: $2 (runs 2min)  } All execute simultaneously
@@ -180,6 +197,7 @@ TOTAL: $9, 2 minutes
 ```
 
 **Sequential (Not Recommended):**
+
 ```
 Agent 1: $3 (2min) → wait
 Agent 2: $2 (2min) → wait
@@ -195,15 +213,19 @@ TOTAL: $9, 8 minutes (4x slower, same cost!)
 ## Troubleshooting
 
 ### Issue: Agents Return Different Formats
+
 **Solution:** Provide explicit output format in spawn prompt
 
 ### Issue: One Agent Times Out
+
 **Solution:** Results from other 3 agents still valid, re-spawn failed agent
 
 ### Issue: Findings Overlap
+
 **Solution:** Deduplication in aggregation step (expected, not a bug)
 
 ### Issue: Cost Exceeds $15
+
 **Cause:** Agents using Opus instead of Sonnet
 **Solution:** Verify `model: sonnet` in agent YAML frontmatter
 
@@ -219,6 +241,7 @@ TOTAL: $9, 8 minutes (4x slower, same cost!)
 4. **Assign to implementation agent** for fixes
 
 **Example:**
+
 ```
 Integration test shows: "graph.trackRead is not a function"
 API review shows: No range tracking in CacheInvalidationGraph

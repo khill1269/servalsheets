@@ -814,7 +814,7 @@ Use `npm run validate:compliance` to check all 22 tools for:
 npm run validate:compliance
 ```
 
-Checks all 22 tools and 299 actions for:
+Checks all 22 tools and 305 actions for:
 
 - Schema structure compliance
 - Google API pattern adherence
@@ -895,13 +895,13 @@ Runs all checks:
 | `src/schemas/composite.ts`   | `src/handlers/composite.ts`   | 4       |
 | `src/schemas/session.ts`     | `src/handlers/session.ts`     | 13      |
 
-**Total**: 22 tools, 299 actions
+**Total**: 22 tools, 305 actions
 
 ---
 
 ## Summary
 
-This reference provides the complete pattern for implementing Google Sheets API v4 integration with MCP protocol compliance. Use the validation tools to catch issues early and follow the patterns shown here for consistent, reliable implementation across all 299 actions.
+This reference provides the complete pattern for implementing Google Sheets API v4 integration with MCP protocol compliance. Use the validation tools to catch issues early and follow the patterns shown here for consistent, reliable implementation across all 305 actions.
 
 **Next Steps**:
 

@@ -2,9 +2,52 @@
   "mcpServers": {
     "servalsheets": {
       "command": "node",
-      "args": [
-        "/Users/thomascahill/Downloads/servalsheets/dist/cli.js"
-      ]
+      "args": ["/Users/thomascahill/Documents/servalsheets 2/dist/cli.js"],
+      "env": {
+        "NODE_ENV": "production",
+        "LOG_LEVEL": "warn",
+
+        "OAUTH_CLIENT_ID": "928247231183-7unv94dc4rs3vo3tmib9tkcu5mkd8sd1.apps.googleusercontent.com",
+        "OAUTH_CLIENT_SECRET": "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",
+        "OAUTH_REDIRECT_URI": "http://localhost:3000/callback",
+        "ENCRYPTION_KEY": "5964e384d31a97cb2e607bba1dc974fd877727332be081a7e03a4e531fe520e4",
+        "GOOGLE_TOKEN_STORE_PATH": "/Users/thomascahill/.servalsheets/tokens.encrypted",
+        "OAUTH_SCOPE_MODE": "full",
+
+        "CACHE_ENABLED": "true",
+        "CACHE_TTL_MS": "300000",
+        "ENABLE_REQUEST_MERGING": "true",
+        "ENABLE_PREFETCH": "true",
+        "ENABLE_PREFETCH_BACKGROUND_REFRESH": "true",
+        "DEDUP_ENABLED": "true",
+        "ENABLE_GRANULAR_PROGRESS": "true",
+        "ENABLE_AGGRESSIVE_FIELD_MASKS": "true",
+        "ENABLE_CONDITIONAL_REQUESTS": "true",
+        "ENABLE_DATAFILTER_BATCH": "true",
+
+        "CIRCUIT_BREAKER_FAILURE_THRESHOLD": "5",
+        "CIRCUIT_BREAKER_TIMEOUT_MS": "30000",
+
+        "MCP_DISCONNECT_THRESHOLD_MS": "180000",
+        "MCP_WARN_THRESHOLD_MS": "90000",
+
+        "OTEL_EXPORT_ENABLED": "false",
+        "TRACING_ENABLED": "true",
+
+        "COMPACT_RESPONSES": "true",
+        "DEFER_RESOURCE_DISCOVERY": "false",
+
+        "MCP_FEDERATION_ENABLED": "false",
+        "ENABLE_IDEMPOTENCY": "true",
+        "ENABLE_BACKGROUND_ANALYSIS": "true"
+      }
     }
+  },
+  "preferences": {
+    "coworkScheduledTasksEnabled": false,
+    "sidebarMode": "task",
+    "localAgentModeTrustedFolders": [
+      "/Users/thomascahill/Documents/servalsheets 2"
+    ]
   }
 }

@@ -231,10 +231,12 @@ export class RequestMerger {
       // Group by sheet and options
       const groupsBySheet = this.groupRequestsBySheet(requests);
 
-      // Process each sheet group
-      for (const [sheetKey, sheetRequests] of groupsBySheet) {
-        await this.processSheetGroup(sheetsApi, spreadsheetId, sheetKey, sheetRequests);
-      }
+      // Process each sheet group in parallel
+      await Promise.all(
+        Array.from(groupsBySheet).map(([sheetKey, sheetRequests]) =>
+          this.processSheetGroup(sheetsApi, spreadsheetId, sheetKey, sheetRequests)
+        )
+      );
     } catch (error) {
       // Reject all requests on catastrophic failure
       for (const request of requests) {
@@ -301,10 +303,10 @@ export class RequestMerger {
       savings: requests.length - mergeGroups.length,
     });
 
-    // Execute each merge group
-    for (const group of mergeGroups) {
-      await this.executeMergedRequest(sheetsApi, spreadsheetId, group);
-    }
+    // Execute all merge groups in parallel (each group uses a distinct range)
+    await Promise.all(
+      mergeGroups.map((group) => this.executeMergedRequest(sheetsApi, spreadsheetId, group))
+    );
 
     // Update merge statistics
     this.stats.mergedRequests += requests.length - mergeGroups.length;

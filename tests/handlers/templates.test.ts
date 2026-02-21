@@ -34,7 +34,9 @@ describe('SheetsTemplatesHandler', () => {
                 },
                 data: [
                   {
-                    rowData: [{ values: [{ formattedValue: 'Name' }, { formattedValue: 'Email' }] }],
+                    rowData: [
+                      { values: [{ formattedValue: 'Name' }, { formattedValue: 'Email' }] },
+                    ],
                   },
                 ],
               },

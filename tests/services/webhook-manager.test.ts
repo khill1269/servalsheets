@@ -191,7 +191,10 @@ describe('WebhookManager', () => {
     });
 
     it('should list all webhooks', async () => {
-      mockRedis.scan.mockResolvedValueOnce({ cursor: 0, keys: ['webhook:webhook_1', 'webhook:webhook_2'] });
+      mockRedis.scan.mockResolvedValueOnce({
+        cursor: 0,
+        keys: ['webhook:webhook_1', 'webhook:webhook_2'],
+      });
       mockRedis.get
         .mockResolvedValueOnce(
           JSON.stringify({
@@ -258,7 +261,10 @@ describe('WebhookManager', () => {
     });
 
     it('should filter by active status', async () => {
-      mockRedis.scan.mockResolvedValueOnce({ cursor: 0, keys: ['webhook:webhook_1', 'webhook:webhook_2'] });
+      mockRedis.scan.mockResolvedValueOnce({
+        cursor: 0,
+        keys: ['webhook:webhook_1', 'webhook:webhook_2'],
+      });
       mockRedis.get
         .mockResolvedValueOnce(
           JSON.stringify({
@@ -444,6 +450,97 @@ describe('WebhookManager', () => {
       const cleaned = await manager.cleanupExpired();
 
       expect(cleaned).toBe(0);
+    });
+  });
+
+  describe('SSRF Prevention', () => {
+    beforeEach(() => {
+      initWebhookManager(mockRedis, mockGoogleApi, 'https://example.com/webhook');
+    });
+
+    const registerWith = (webhookUrl: string) => {
+      const manager = getWebhookManager();
+      return manager.register({
+        action: 'register',
+        spreadsheetId: '1ABC',
+        webhookUrl,
+        eventTypes: ['sheet.update'],
+        expirationMs: 7 * 24 * 60 * 60 * 1000,
+      });
+    };
+
+    it('should reject HTTP (non-HTTPS) webhook URLs', async () => {
+      await expect(registerWith('http://example.com/callback')).rejects.toThrow(
+        'Webhook URL must use HTTPS'
+      );
+    });
+
+    it('should reject localhost webhook URLs', async () => {
+      await expect(registerWith('https://localhost/callback')).rejects.toThrow(
+        'Webhook URL cannot target localhost'
+      );
+    });
+
+    it('should reject 127.0.0.1 webhook URLs', async () => {
+      await expect(registerWith('https://127.0.0.1/callback')).rejects.toThrow(
+        'Webhook URL cannot target localhost'
+      );
+    });
+
+    it('should reject private IPv4 range 10.x.x.x', async () => {
+      await expect(registerWith('https://10.0.0.1/callback')).rejects.toThrow(
+        'Webhook URL cannot target private/internal IP addresses'
+      );
+    });
+
+    it('should reject private IPv4 range 192.168.x.x', async () => {
+      await expect(registerWith('https://192.168.1.100/callback')).rejects.toThrow(
+        'Webhook URL cannot target private/internal IP addresses'
+      );
+    });
+
+    it('should reject private IPv4 range 172.16.x.x', async () => {
+      await expect(registerWith('https://172.16.0.1/callback')).rejects.toThrow(
+        'Webhook URL cannot target private/internal IP addresses'
+      );
+    });
+
+    it('should reject link-local address 169.254.x.x', async () => {
+      await expect(registerWith('https://169.254.169.254/callback')).rejects.toThrow(
+        'Webhook URL cannot target private/internal IP addresses'
+      );
+    });
+
+    it('should reject IPv6 loopback ::1', async () => {
+      await expect(registerWith('https://[::1]/callback')).rejects.toThrow(
+        'Webhook URL cannot target private/internal IPv6 addresses'
+      );
+    });
+
+    it('should reject decimal IP encoding (obfuscated 127.0.0.1)', async () => {
+      // 2130706433 = 127.0.0.1 in decimal; Node URL parser normalizes before our check
+      // so either the decimal check or the localhost check fires
+      await expect(registerWith('https://2130706433/callback')).rejects.toThrow(
+        /decimal IP|localhost|private/i
+      );
+    });
+
+    it('should reject hex IP encoding (obfuscated 127.0.0.1)', async () => {
+      // 0x7f000001 = 127.0.0.1 in hex; Node URL parser normalizes before our check
+      // so either the hex check or the localhost check fires
+      await expect(registerWith('https://0x7f000001/callback')).rejects.toThrow(
+        /hex IP|localhost|private/i
+      );
+    });
+
+    it('should reject invalid URLs', async () => {
+      await expect(registerWith('not-a-url')).rejects.toThrow('Invalid webhook URL');
+    });
+
+    it('should allow HTTPS URLs with public hostnames', async () => {
+      // Use a domain that won't DNS-resolve in tests (DNS failure is non-blocking)
+      const result = await registerWith('https://user.example.com/callback');
+      expect(result.webhookUrl).toBe('https://user.example.com/callback');
     });
   });
 });

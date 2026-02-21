@@ -96,7 +96,7 @@ describe.skipIf(SKIP_E2E)('E2E: All Tools Smoke Test', () => {
     });
   });
 
-  describe('sheets_data (18 actions)', () => {
+  describe('sheets_data (19 actions)', () => {
     it('should read range', async () => {
       const result = await client.callTool('sheets_data', {
         request: {
@@ -156,7 +156,7 @@ describe.skipIf(SKIP_E2E)('E2E: All Tools Smoke Test', () => {
     });
   });
 
-  describe('sheets_format (22 actions)', () => {
+  describe('sheets_format (23 actions)', () => {
     it('should format cells', async () => {
       const result = await client.callTool('sheets_format', {
         request: {
@@ -578,7 +578,7 @@ describe.skipIf(SKIP_E2E)('E2E: All Tools Smoke Test', () => {
     });
   });
 
-  describe('sheets_bigquery (14 actions)', () => {
+  describe('sheets_bigquery (17 actions)', () => {
     it('should check BigQuery support', async () => {
       const result = await client.callTool('sheets_bigquery', {
         request: {
@@ -589,7 +589,7 @@ describe.skipIf(SKIP_E2E)('E2E: All Tools Smoke Test', () => {
     });
   });
 
-  describe('sheets_appsscript (14 actions)', () => {
+  describe('sheets_appsscript (18 actions)', () => {
     it('should list projects', async () => {
       const result = await client.callTool('sheets_appsscript', {
         request: {
@@ -601,7 +601,7 @@ describe.skipIf(SKIP_E2E)('E2E: All Tools Smoke Test', () => {
     });
   });
 
-  describe('sheets_webhook (6 actions)', () => {
+  describe('sheets_webhook (7 actions)', () => {
     it('should list webhooks', async () => {
       const result = await client.callTool('sheets_webhook', {
         request: {

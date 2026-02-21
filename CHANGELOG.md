@@ -15,6 +15,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.0] - 2026-02-17
+
+**Modern Formula Intelligence & Marketplace Release**
+
+### Added
+
+- **Named Functions (LAMBDA-based custom functions)** in `sheets_advanced` (+5 actions)
+  - `create_named_function` — Define reusable LAMBDA custom functions (e.g., `PROFIT_MARGIN`)
+  - `list_named_functions` — List all custom named functions in a spreadsheet
+  - `get_named_function` — Retrieve a specific named function's definition
+  - `update_named_function` — Modify body, name, description, or parameters
+  - `delete_named_function` — Remove a named function
+
+- **Dynamic array / spill range detection** in `sheets_data` (+1 action)
+  - `detect_spill_ranges` — Scan for FILTER, SORT, UNIQUE, XLOOKUP and other dynamic array formulas; returns source cells, formulas, spill boundaries, and dimensions
+
+- **Modern formula type presets** for `sheets_analyze.generate_formula`
+  - New `formulaType` parameter: `xlookup`, `xmatch`, `filter_array`, `unique`, `sort_array`, `sequence`, `let_formula`, `lambda`, `byrow`, `bycol`
+  - AI uses the preset as context for generating accurate modern formula templates
+
+- **Knowledge base: modern arrays** — `src/knowledge/formulas/modern-arrays.md`
+  - XLOOKUP vs VLOOKUP comparison, BYROW/BYCOL patterns, Named Function examples, spill range interactions with tables
+
+### Changed
+
+- `sheets_advanced` expanded from 26 → 31 actions
+- `sheets_data` expanded from 18 → 19 actions
+- `server.json` now includes `privacy_policies` array (required by MCP registry v0.3+)
+
+### Fixed
+
+- Tool action counts updated across all metadata files via `npm run schema:commit`
+
+---
+
 ## [1.6.0] - 2026-01-26
 
 **Enterprise Deployment & Infrastructure Release**
@@ -284,7 +319,7 @@ This release refactors AI and planning capabilities to use MCP protocol-native f
   - Error handling with retry support
   - Statistics tracking for analysis operations
 
-- **Tool Count**: 22 tools with 298 actions
+- **Tool Count**: 22 tools with 299 actions
 
 ---
 

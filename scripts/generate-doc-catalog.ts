@@ -139,7 +139,10 @@ function generateCatalog(docs: DocEntry[]): string {
   lines.push('');
   lines.push('# ServalSheets Documentation Catalog');
   lines.push('');
-  lines.push('> **Auto-generated documentation index** - Last updated: ' + new Date().toISOString().split('T')[0]);
+  lines.push(
+    '> **Auto-generated documentation index** - Last updated: ' +
+      new Date().toISOString().split('T')[0]
+  );
   lines.push('');
 
   // Statistics

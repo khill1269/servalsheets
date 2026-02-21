@@ -6,7 +6,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { circuitBreakerRegistry, type CircuitBreakerEntry } from '../../src/services/circuit-breaker-registry.js';
+import {
+  circuitBreakerRegistry,
+  type CircuitBreakerEntry,
+} from '../../src/services/circuit-breaker-registry.js';
 import { CircuitBreaker } from '../../src/utils/circuit-breaker.js';
 
 describe('CircuitBreakerRegistry', () => {
@@ -45,11 +48,7 @@ describe('CircuitBreakerRegistry', () => {
         timeout: 30000,
       });
 
-      circuitBreakerRegistry.register(
-        'api-breaker',
-        breaker,
-        'Protects Google Sheets API calls'
-      );
+      circuitBreakerRegistry.register('api-breaker', breaker, 'Protects Google Sheets API calls');
 
       const registered = circuitBreakerRegistry.get('api-breaker');
       expect(registered?.description).toBe('Protects Google Sheets API calls');
@@ -541,13 +540,15 @@ describe('CircuitBreakerRegistry', () => {
     });
 
     it('should aggregate statistics from multiple circuit breakers', async () => {
-      const breakers = Array.from({ length: 5 }, (_, i) =>
-        new CircuitBreaker({
-          failureThreshold: 5,
-          successThreshold: 2,
-          timeout: 60000,
-          name: `breaker-${i}`,
-        })
+      const breakers = Array.from(
+        { length: 5 },
+        (_, i) =>
+          new CircuitBreaker({
+            failureThreshold: 5,
+            successThreshold: 2,
+            timeout: 60000,
+            name: `breaker-${i}`,
+          })
       );
 
       breakers.forEach((breaker, i) => {

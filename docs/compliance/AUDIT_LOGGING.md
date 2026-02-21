@@ -5,6 +5,7 @@ ServalSheets implements enterprise-grade audit logging for SOC 2, HIPAA, and GDP
 ## Overview
 
 The audit logging system provides:
+
 - **W5 audit format** (Who, What, When, Where, Why)
 - **Immutable storage** with append-only logs
 - **Tamper-proof integrity** using cryptographic signatures
@@ -17,6 +18,7 @@ The audit logging system provides:
 ### Storage Layer
 
 **Primary Storage**: JSON Lines (append-only)
+
 ```
 audit-logs/
 ├── 2026-02-17.jsonl          # Daily log files
@@ -26,6 +28,7 @@ audit-logs/
 ```
 
 **Log Entry Format** (JSON Lines):
+
 ```json
 {
   "sequenceNumber": 1,
@@ -51,6 +54,7 @@ audit-logs/
 ### Integrity Chain
 
 Each audit entry includes:
+
 1. **Sequence Number**: Monotonically increasing (1, 2, 3, ...)
 2. **Hash**: HMAC-SHA256(sequenceNumber + event + previousHash)
 3. **Previous Hash**: Hash of previous entry (chain of trust)
@@ -58,6 +62,7 @@ Each audit entry includes:
 **Genesis Entry**: First entry has `previousHash = "0000..."`
 
 **Verification**:
+
 ```bash
 # Verify audit log integrity
 npm run verify:audit
@@ -72,12 +77,14 @@ const isValid = await getAuditLogger().verifyIntegrity();
 Every audit event captures:
 
 ### 1. WHO (Identity)
+
 - **userId**: User identifier (email, sub claim, API key ID)
 - **sessionId**: Session identifier for correlation
 - **clientId**: OAuth client ID
 - **apiKeyId**: API key identifier (not the key itself)
 
 ### 2. WHAT (Action)
+
 - **action**: Action performed (e.g., `write_range`, `share_spreadsheet`)
 - **tool**: MCP tool invoked (e.g., `sheets_data`)
 - **resource**: Resource affected (spreadsheet, range, permission)
@@ -86,16 +93,19 @@ Every audit event captures:
 - **errorMessage**: Error message (sanitized, no PII)
 
 ### 3. WHEN (Temporal)
+
 - **timestamp**: ISO 8601 timestamp with millisecond precision
 - **durationMs**: Operation duration in milliseconds
 
 ### 4. WHERE (Location)
+
 - **ipAddress**: Source IP address (IPv4 or IPv6)
 - **geoLocation**: Geographic location (city, country)
 - **userAgent**: User agent string
 - **endpoint**: API endpoint invoked
 
 ### 5. WHY (Context)
+
 - **requestId**: Request ID for correlation
 - **scopes**: OAuth scopes granted
 - **reason**: Business justification (e.g., "emergency access")
@@ -103,7 +113,9 @@ Every audit event captures:
 ## Event Categories
 
 ### Data Mutations
+
 All operations that modify spreadsheet data:
+
 - `write_range` - Write values to range
 - `append_rows` - Append rows to sheet
 - `clear_range` - Clear range contents
@@ -114,26 +126,32 @@ All operations that modify spreadsheet data:
 - `apply_formatting` - Apply cell formatting
 
 **Metadata Captured**:
+
 - `cellsModified`: Number of cells affected
 - `rowsModified`: Number of rows affected
 - `columnsModified`: Number of columns affected
 - `snapshot`: Snapshot ID for rollback
 
 ### Permission Changes
+
 All operations that modify access control:
+
 - `share_spreadsheet` - Share spreadsheet with user
 - `update_permissions` - Update user permissions
 - `revoke_access` - Revoke user access
 - `transfer_ownership` - Transfer ownership
 
 **Metadata Captured**:
+
 - `permission.role`: `owner` | `writer` | `reader`
 - `permission.email`: User email
 - `permission.domain`: Domain for domain-wide sharing
 - `permission.anyone`: Public access flag
 
 ### Authentication
+
 All identity verification events:
+
 - `login` - User login
 - `logout` - User logout
 - `token_refresh` - OAuth token refresh
@@ -141,29 +159,36 @@ All identity verification events:
 - `oauth_grant` - OAuth authorization granted
 
 **Metadata Captured**:
+
 - `method`: `oauth` | `api_key` | `service_account` | `managed_identity`
 - `failureReason`: Reason for authentication failure
 
 ### Exports
+
 All data extraction operations:
+
 - `export_csv` - Export to CSV
 - `export_xlsx` - Export to XLSX
 - `export_bigquery` - Export to BigQuery
 - `download_attachment` - Download file attachment
 
 **Metadata Captured**:
+
 - `format`: Export format (csv, xlsx, pdf)
 - `recordCount`: Number of records exported
 - `fileSize`: File size in bytes
 - `destination`: Destination (sanitized, no credentials)
 
 ### Configuration
+
 All system configuration changes:
+
 - `update_env` - Update environment variable
 - `toggle_feature` - Toggle feature flag
 - `adjust_rate_limit` - Adjust rate limit
 
 **Metadata Captured**:
+
 - `configKey`: Configuration key changed
 - `oldValue`: Previous value (sanitized, no secrets)
 - `newValue`: New value (sanitized, no secrets)
@@ -232,15 +257,13 @@ const auditLogger = getAuditLogger();
 const auditMiddleware = createAuditMiddleware(auditLogger);
 
 // Wrap handler execution
-const result = await auditMiddleware.wrap(
-  'sheets_data',
-  'write_range',
-  args,
-  () => handler.executeAction(args)
+const result = await auditMiddleware.wrap('sheets_data', 'write_range', args, () =>
+  handler.executeAction(args)
 );
 ```
 
 The middleware automatically:
+
 - Detects which actions require audit logging
 - Extracts user context from request
 - Logs appropriate event type (mutation, permission, auth, export)
@@ -252,12 +275,14 @@ The middleware automatically:
 ### Splunk HTTP Event Collector
 
 **Environment Variables**:
+
 ```bash
 AUDIT_SPLUNK_ENDPOINT=https://splunk.example.com:8088/services/collector
 AUDIT_SPLUNK_TOKEN=your-hec-token
 ```
 
 **Event Format**:
+
 ```json
 {
   "event": { ...audit event... },
@@ -275,12 +300,14 @@ AUDIT_SPLUNK_TOKEN=your-hec-token
 ### Datadog Logs API
 
 **Environment Variables**:
+
 ```bash
 AUDIT_DATADOG_ENDPOINT=https://http-intake.logs.datadoghq.com/v1/input
 AUDIT_DATADOG_API_KEY=your-dd-api-key
 ```
 
 **Event Format**:
+
 ```json
 {
   "ddsource": "servalsheets",
@@ -297,6 +324,7 @@ AUDIT_DATADOG_API_KEY=your-dd-api-key
 ### AWS CloudWatch Logs
 
 **Environment Variables**:
+
 ```bash
 AUDIT_CLOUDWATCH_LOG_GROUP=/servalsheets/audit
 AUDIT_CLOUDWATCH_LOG_STREAM=production
@@ -308,6 +336,7 @@ Requires AWS SDK for CloudWatch Logs integration.
 ### Azure Monitor Logs
 
 **Environment Variables**:
+
 ```bash
 AUDIT_AZURE_ENDPOINT=https://logs.azure.com/v1/ingest
 AUDIT_AZURE_API_KEY=your-azure-api-key
@@ -320,21 +349,25 @@ Requires Azure SDK for Monitor Logs integration.
 ### SOC 2 (Trust Services Criteria)
 
 **CC6.1 - Logical and Physical Access Controls**:
+
 - ✅ All access attempts logged (authentication events)
 - ✅ Failed authentication attempts logged with reason
 - ✅ User identity captured in all events
 
 **CC6.2 - Prior to Issuing System Credentials**:
+
 - ✅ Credential issuance logged (oauth_grant events)
 - ✅ Token refresh logged (token_refresh events)
 - ✅ Token revocation logged (token_revoke events)
 
 **CC7.2 - System Operations**:
+
 - ✅ All data mutations logged with outcome
 - ✅ Configuration changes logged with old/new values
 - ✅ Tamper-proof integrity via cryptographic signatures
 
 **CC7.3 - Monitoring of Controls**:
+
 - ✅ 7-year retention policy via date-based log files
 - ✅ SIEM integration for real-time monitoring
 - ✅ Integrity verification available on demand
@@ -342,20 +375,24 @@ Requires Azure SDK for Monitor Logs integration.
 ### HIPAA (Health Insurance Portability and Accountability Act)
 
 **§164.312(b) - Audit Controls**:
+
 - ✅ All PHI access logged with user identity
 - ✅ Timestamp with millisecond precision
 - ✅ IP address and location captured
 
 **§164.312(d) - Person or Entity Authentication**:
+
 - ✅ All authentication events logged
 - ✅ Failed authentication attempts logged
 - ✅ Multi-factor authentication events captured
 
 **§164.312(a)(2)(ii) - Emergency Access Procedure**:
+
 - ✅ Emergency access logged with reason field
 - ✅ Break-glass access distinguishable via reason
 
 **§164.316(b)(2)(i) - Retention of Documentation**:
+
 - ✅ 6-year retention minimum (7-year default)
 - ✅ Immutable storage prevents deletion
 - ✅ Daily log files enable date-based archival
@@ -363,21 +400,25 @@ Requires Azure SDK for Monitor Logs integration.
 ### GDPR (General Data Protection Regulation)
 
 **Article 30 - Records of Processing Activities**:
+
 - ✅ All data processing logged with purpose
 - ✅ Legal basis captured in metadata
 - ✅ Data subject identifier captured
 
 **Article 15 - Right of Access by Data Subject**:
+
 - ✅ Audit trail can be filtered by data subject
 - ✅ Export functionality for subject access requests
 - ✅ Structured format (JSON) for machine processing
 
 **Article 17 - Right to Erasure**:
+
 - ✅ Data erasure operations logged
 - ✅ Compliance with retention periods
 - ✅ Audit trail preserved even after data deletion
 
 **Article 33 - Notification of Personal Data Breach**:
+
 - ✅ All data access logged with timestamp
 - ✅ Failed access attempts logged (potential breach indicator)
 - ✅ 72-hour breach notification enabled via audit trail analysis
@@ -387,16 +428,19 @@ Requires Azure SDK for Monitor Logs integration.
 ### Tamper-Proof Guarantees
 
 **Cryptographic Integrity**:
+
 - HMAC-SHA256 signature for each entry
 - Chain of hashes (current entry includes previous hash)
 - Secret key rotation support
 
 **Append-Only Storage**:
+
 - File opened with O_APPEND flag (atomic appends)
 - No update or delete operations
 - Atomic writes with fsync()
 
 **Access Controls**:
+
 - File permissions: 0640 (owner read/write, group read)
 - Separate audit user/group (not application user)
 - SELinux/AppArmor policies recommended
@@ -404,6 +448,7 @@ Requires Azure SDK for Monitor Logs integration.
 ### Secret Management
 
 **HMAC Secret**:
+
 ```bash
 # Generate strong HMAC secret
 AUDIT_HMAC_SECRET=$(openssl rand -hex 32)
@@ -414,6 +459,7 @@ echo "AUDIT_HMAC_SECRET=your-secret-here" >> .env
 ```
 
 **Secret Rotation**:
+
 1. Generate new HMAC secret
 2. Update environment variable
 3. New entries use new secret
@@ -423,11 +469,13 @@ echo "AUDIT_HMAC_SECRET=your-secret-here" >> .env
 ### PII Sanitization
 
 **Automatic Redaction**:
+
 - Configuration values containing "secret", "token", "key" are redacted
 - Error messages sanitized to remove sensitive data
 - User identifiers normalized (email → hashed ID)
 
 **Manual Sanitization**:
+
 ```typescript
 // Sanitize config value before logging
 const sanitized = value.includes('secret') ? '[REDACTED]' : value;
@@ -456,10 +504,10 @@ const content = await fs.readFile(logPath, 'utf-8');
 const entries = content.trim().split('\n').map(JSON.parse);
 
 // Filter by user
-const userEntries = entries.filter(e => e.event.userId === 'user@example.com');
+const userEntries = entries.filter((e) => e.event.userId === 'user@example.com');
 
 // Export to CSV
-const csv = entries.map(e => ({
+const csv = entries.map((e) => ({
   timestamp: e.event.timestamp,
   userId: e.event.userId,
   action: e.event.action,
@@ -493,6 +541,7 @@ if (!isValid) {
 ### Compliance Dashboard
 
 **Key Metrics**:
+
 - Total audit events logged
 - Events by outcome (success/failure)
 - Events by action type
@@ -502,6 +551,7 @@ if (!isValid) {
 - Configuration changes
 
 **Visualization**:
+
 ```bash
 # Export metrics to Prometheus
 curl http://localhost:3000/metrics | grep audit
@@ -519,12 +569,14 @@ curl http://localhost:3000/metrics | grep audit
 ### Write Performance
 
 **Throughput**: ~10,000 events/second (single thread, SSD)
+
 - JSON serialization: ~0.01ms
 - HMAC computation: ~0.05ms
 - File append: ~0.04ms
 - Total latency: ~0.1ms per event
 
 **Optimization**:
+
 - Batch writes for high-throughput scenarios
 - Async SIEM delivery (non-blocking)
 - Daily log rotation to prevent large files
@@ -533,15 +585,18 @@ curl http://localhost:3000/metrics | grep audit
 ### Storage Requirements
 
 **Per Event**: ~500 bytes (JSON)
+
 - 1,000 events/day = 500 KB/day = 180 MB/year
 - 10,000 events/day = 5 MB/day = 1.8 GB/year
 - 100,000 events/day = 50 MB/day = 18 GB/year
 
 **Compression**: gzip compression reduces size by ~70%
+
 - 100,000 events/day = 50 MB/day → 15 MB/day compressed
 - 7-year retention = 38 GB compressed
 
 **Archival Strategy**:
+
 1. Keep last 30 days hot (local SSD)
 2. Compress and move to warm storage (31-365 days)
 3. Archive to cold storage (S3 Glacier, 1-7 years)
@@ -553,6 +608,7 @@ curl http://localhost:3000/metrics | grep audit
 **Symptom**: `ENOENT: no such file or directory`
 
 **Solution**: Ensure audit log directory exists
+
 ```bash
 mkdir -p ./audit-logs
 chmod 750 ./audit-logs
@@ -563,11 +619,13 @@ chmod 750 ./audit-logs
 **Symptom**: `verifyIntegrity()` returns `false`
 
 **Possible Causes**:
+
 1. Log file manually edited
 2. HMAC secret changed
 3. Filesystem corruption
 
 **Resolution**:
+
 1. Check logs for specific integrity violations
 2. Restore from backup
 3. Regenerate audit trail from source data (if available)
@@ -577,6 +635,7 @@ chmod 750 ./audit-logs
 **Symptom**: Logs not appearing in SIEM dashboard
 
 **Debug Steps**:
+
 1. Check SIEM endpoint configuration
 2. Verify API token/key is valid
 3. Check network connectivity

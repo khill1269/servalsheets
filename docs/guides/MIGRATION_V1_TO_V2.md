@@ -42,69 +42,75 @@ This guide helps you migrate from ServalSheets schema v1 to v2. The migration is
 
 ### Core Actions
 
-| V1 Action | V2 Action | Migration |
-|-----------|-----------|-----------|
-| `copy_to` | `copy_sheet_to` | Rename action |
-| `hide_sheet` | `update_sheet` | Add `hidden: true` |
-| `show_sheet` | `update_sheet` | Add `hidden: false` |
-| `rename_sheet` | `update_sheet` | Rename `newName` to `title` |
+| V1 Action      | V2 Action       | Migration                   |
+| -------------- | --------------- | --------------------------- |
+| `copy_to`      | `copy_sheet_to` | Rename action               |
+| `hide_sheet`   | `update_sheet`  | Add `hidden: true`          |
+| `show_sheet`   | `update_sheet`  | Add `hidden: false`         |
+| `rename_sheet` | `update_sheet`  | Rename `newName` to `title` |
 
 #### Example: Hide Sheet
 
 **Before (V1):**
+
 ```typescript
 await sheets.callTool('sheets_core', {
   action: 'hide_sheet',
   spreadsheetId: '...',
-  sheetId: 0
+  sheetId: 0,
 });
 ```
 
 **After (V2):**
+
 ```typescript
 await sheets.callTool('sheets_core', {
   action: 'update_sheet',
   spreadsheetId: '...',
   sheetId: 0,
-  hidden: true
+  hidden: true,
 });
 ```
 
 #### Example: Rename Sheet
 
 **Before (V1):**
+
 ```typescript
 await sheets.callTool('sheets_core', {
   action: 'rename_sheet',
   spreadsheetId: '...',
   sheetId: 0,
-  newName: 'Q1 Report'
+  newName: 'Q1 Report',
 });
 ```
 
 **After (V2):**
+
 ```typescript
 await sheets.callTool('sheets_core', {
   action: 'update_sheet',
   spreadsheetId: '...',
   sheetId: 0,
-  title: 'Q1 Report'
+  title: 'Q1 Report',
 });
 ```
 
 #### Example: Copy Sheet
 
 **Before (V1):**
+
 ```typescript
 await sheets.callTool('sheets_core', {
   action: 'copy_to',
   sourceSpreadsheetId: '...',
   sourceSheetId: 0,
-  destinationSpreadsheetId: '...'
+  destinationSpreadsheetId: '...',
 });
 ```
 
 **After (V2):**
+
 ```typescript
 await sheets.callTool('sheets_core', {
   action: 'copy_sheet_to',
@@ -114,7 +120,7 @@ await sheets.callTool('sheets_core', {
   // V2 enhancements (optional)
   copyPermissions: true,
   copyComments: true,
-  newTitle: 'Copied Sheet'
+  newTitle: 'Copied Sheet',
 });
 ```
 
@@ -122,22 +128,23 @@ await sheets.callTool('sheets_core', {
 
 V1 supported these aliases (removed in V2):
 
-| Alias | Standard Action |
-|-------|----------------|
-| `get_cell` | `read_range` |
-| `set_cell` | `write_range` |
-| `get_range` | `read_range` |
-| `set_range` | `write_range` |
+| Alias       | Standard Action |
+| ----------- | --------------- |
+| `get_cell`  | `read_range`    |
+| `set_cell`  | `write_range`   |
+| `get_range` | `read_range`    |
+| `set_range` | `write_range`   |
 
 **Migration:**
+
 ```typescript
 // Before (V1 aliases)
-action: 'get_cell'
-action: 'set_cell'
+action: 'get_cell';
+action: 'set_cell';
 
 // After (V2)
-action: 'read_range'
-action: 'write_range'
+action: 'read_range';
+action: 'write_range';
 ```
 
 ## Step 2: Stricter Validation
@@ -147,20 +154,23 @@ action: 'write_range'
 **V2 Requirement:** Must contain only alphanumeric characters, hyphens, and underscores.
 
 **Before (V1) - Lenient:**
+
 ```typescript
-spreadsheetId: "my spreadsheet 123"  // ✅ Accepted
-spreadsheetId: "sheet#1"             // ✅ Accepted
+spreadsheetId: 'my spreadsheet 123'; // ✅ Accepted
+spreadsheetId: 'sheet#1'; // ✅ Accepted
 ```
 
 **After (V2) - Strict:**
+
 ```typescript
-spreadsheetId: "my-spreadsheet-123"  // ✅ Valid
-spreadsheetId: "sheet_1"             // ✅ Valid
-spreadsheetId: "my spreadsheet 123"  // ❌ Invalid (spaces)
-spreadsheetId: "sheet#1"             // ❌ Invalid (special chars)
+spreadsheetId: 'my-spreadsheet-123'; // ✅ Valid
+spreadsheetId: 'sheet_1'; // ✅ Valid
+spreadsheetId: 'my spreadsheet 123'; // ❌ Invalid (spaces)
+spreadsheetId: 'sheet#1'; // ❌ Invalid (special chars)
 ```
 
 **Fix:**
+
 ```typescript
 // Sanitize spreadsheetId
 function sanitizeSpreadsheetId(id: string): string {
@@ -175,14 +185,16 @@ const spreadsheetId = sanitizeSpreadsheetId(userInput);
 **V2 requires `action` field** in all requests (no defaults).
 
 **Before (V1):**
+
 ```typescript
 {
-  spreadsheetId: '...'
+  spreadsheetId: '...';
   // action optional, defaults to 'read'
 }
 ```
 
 **After (V2):**
+
 ```typescript
 {
   action: 'read_range',  // ✅ Required
@@ -195,6 +207,7 @@ const spreadsheetId = sanitizeSpreadsheetId(userInput);
 ### New Error Structure
 
 **Before (V1):**
+
 ```json
 {
   "error": "Sheet not found",
@@ -203,6 +216,7 @@ const spreadsheetId = sanitizeSpreadsheetId(userInput);
 ```
 
 **After (V2):**
+
 ```json
 {
   "error": "Sheet not found",
@@ -219,6 +233,7 @@ const spreadsheetId = sanitizeSpreadsheetId(userInput);
 ### Update Error Handling
 
 **Before (V1):**
+
 ```typescript
 try {
   await sheets.callTool(...);
@@ -228,6 +243,7 @@ try {
 ```
 
 **After (V2):**
+
 ```typescript
 try {
   await sheets.callTool(...);
@@ -249,18 +265,20 @@ try {
 **V2 requires explicit opt-in** for batch operations with transactions.
 
 **Before (V1) - Automatic:**
+
 ```typescript
 await sheets.callTool('sheets_transaction', {
-  action: 'begin'
+  action: 'begin',
   // Transactions automatic
 });
 ```
 
 **After (V2) - Explicit:**
+
 ```typescript
 await sheets.callTool('sheets_transaction', {
   action: 'begin',
-  transaction: true  // ✅ Explicit opt-in
+  transaction: true, // ✅ Explicit opt-in
 });
 ```
 
@@ -275,7 +293,7 @@ Test v2 without changing default:
 await sheets.callTool('sheets_core?version=v2', {
   action: 'update_sheet',
   sheetId: 0,
-  hidden: true
+  hidden: true,
 });
 ```
 
@@ -288,7 +306,7 @@ describe('V2 Migration', () => {
       action: 'update_sheet',
       spreadsheetId: TEST_SPREADSHEET_ID,
       sheetId: 0,
-      hidden: true
+      hidden: true,
     });
 
     expect(result.success).toBe(true);
@@ -299,7 +317,7 @@ describe('V2 Migration', () => {
       await sheets.callTool('sheets_core?version=v2', {
         action: 'update_sheet',
         spreadsheetId: 'invalid',
-        sheetId: 999
+        sheetId: 999,
       });
     } catch (error) {
       expect(error.errorCode).toBe('NOT_FOUND');
@@ -318,7 +336,7 @@ app.use((req, res, next) => {
     if (res.getHeader('x-schema-version-deprecated')) {
       logger.warn('V1 usage detected', {
         path: req.path,
-        warning: res.getHeader('x-schema-version-warning')
+        warning: res.getHeader('x-schema-version-warning'),
       });
     }
   });
@@ -375,21 +393,15 @@ import { schemaMigrator } from '@servalsheets/versioning';
 const v1Requests = await loadRequests();
 
 // Generate migration script
-const script = schemaMigrator.generateMigrationScript(
-  v1Requests,
-  'v1',
-  'v2'
-);
+const script = schemaMigrator.generateMigrationScript(v1Requests, 'v1', 'v2');
 
 console.log(script);
 
 // Apply migrations
-const results = v1Requests.map(req =>
-  schemaMigrator.migrateRequestV1ToV2(req)
-);
+const results = v1Requests.map((req) => schemaMigrator.migrateRequestV1ToV2(req));
 
 // Check for errors
-const errors = results.filter(r => !r.success);
+const errors = results.filter((r) => !r.success);
 if (errors.length > 0) {
   console.error('Migration failed:', errors);
   process.exit(1);
@@ -405,6 +417,7 @@ console.log('✅ All requests migrated successfully');
 **Problem:** Using v1 action name with v2
 
 **Solution:**
+
 ```typescript
 // Before
 action: 'hide_sheet'
@@ -419,6 +432,7 @@ hidden: true
 **Problem:** spreadsheetId contains invalid characters
 
 **Solution:**
+
 ```typescript
 function sanitizeSpreadsheetId(id: string): string {
   return id.replace(/[^a-zA-Z0-9_-]/g, '-');
@@ -430,9 +444,10 @@ function sanitizeSpreadsheetId(id: string): string {
 **Problem:** Error handling expects v2 format
 
 **Solution:**
+
 ```typescript
 // Check schema version in error handling
-const errorCode = error.errorCode || error.code;  // Fallback to v1
+const errorCode = error.errorCode || error.code; // Fallback to v1
 ```
 
 ### Issue 4: Batch Operations Failing
@@ -440,6 +455,7 @@ const errorCode = error.errorCode || error.code;  // Fallback to v1
 **Problem:** Missing explicit transaction opt-in
 
 **Solution:**
+
 ```typescript
 {
   action: 'begin',
@@ -450,6 +466,7 @@ const errorCode = error.errorCode || error.code;  // Fallback to v1
 ## Performance Considerations
 
 **V1 → V2 Translation Overhead:**
+
 - **Automatic translation:** < 1ms per request
 - **Output validation:** ~0.5ms per response
 - **Negligible impact** on total request time
@@ -492,6 +509,7 @@ npm run deploy
 ## Support
 
 **Need help?**
+
 - Review [Schema Versioning Guide](./SCHEMA_VERSIONING.md)
 - Check [V2 example schemas](../../src/schemas-v2/)
 - Open an issue on GitHub
@@ -499,12 +517,12 @@ npm run deploy
 
 ## Timeline
 
-| Date | Milestone |
-|------|-----------|
-| 2026-02-17 | V2 released (preview) |
+| Date       | Milestone                |
+| ---------- | ------------------------ |
+| 2026-02-17 | V2 released (preview)    |
 | 2026-03-01 | V2 stable, V1 deprecated |
-| 2026-06-01 | V1 warnings start |
-| 2026-09-01 | V1 sunset (removed) |
+| 2026-06-01 | V1 warnings start        |
+| 2026-09-01 | V1 sunset (removed)      |
 
 **Start migration now** to avoid last-minute issues!
 

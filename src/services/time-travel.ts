@@ -6,6 +6,7 @@
  */
 
 import type { HistoryService } from './history-service.js';
+import { getHistoryService } from './history-service.js';
 import type { SnapshotService } from './snapshot.js';
 import type { OperationHistory } from '../types/history.js';
 
@@ -73,6 +74,22 @@ export function resetTimeTravelDebugger(): void {
   globalInstance = null;
 }
 
+/**
+ * Get or create a singleton TimeTravelDebugger for read-only resource access.
+ * Uses the HistoryService singleton. SnapshotService is unused for read operations.
+ */
+export function getTimeTravelDebugger(): TimeTravelDebugger {
+  if (!globalInstance) {
+    globalInstance = new TimeTravelDebugger({
+      historyService: getHistoryService(),
+      // snapshotService is only called by createCheckpoint/deleteCheckpoint (write ops).
+      // Resource access is read-only so this parameter is never invoked.
+      snapshotService: null as unknown as SnapshotService,
+    });
+  }
+  return globalInstance;
+}
+
 // ─── Range Overlap Helpers ──────────────────────────────────────────────────
 
 /**
@@ -83,9 +100,9 @@ function parseA1(a1: string): { sheet: string; row: number; col: number } | null
   const match = a1.match(/^([^!]+)!([A-Z]+)(\d+)$/);
   if (!match) return null;
 
-  const sheet = match[1];
-  const colLetters = match[2];
-  const row = parseInt(match[3], 10);
+  const sheet = match[1]!;
+  const colLetters = match[2]!;
+  const row = parseInt(match[3]!, 10);
 
   // Convert column letters to 0-indexed number (A=0, B=1, ..., Z=25, AA=26, etc.)
   let col = 0;
@@ -107,16 +124,20 @@ function parseRange(
   const match = range.match(/^([^!]+)!([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
   if (!match) return null;
 
-  const sheet = match[1];
-  const startColLetters = match[2];
-  const startRow = parseInt(match[3], 10);
-  const endColLetters = match[4];
-  const endRow = parseInt(match[5], 10);
+  const sheet = match[1]!;
+  const startColLetters = match[2]!;
+  const startRow = parseInt(match[3]!, 10);
+  const endColLetters = match[4]!;
+  const endRow = parseInt(match[5]!, 10);
 
   const startCol =
-    startColLetters.split('').reduce((acc, c) => acc * 26 + c.charCodeAt(0) - 'A'.charCodeAt(0) + 1, 0) - 1;
+    startColLetters
+      .split('')
+      .reduce((acc, c) => acc * 26 + c.charCodeAt(0) - 'A'.charCodeAt(0) + 1, 0) - 1;
   const endCol =
-    endColLetters.split('').reduce((acc, c) => acc * 26 + c.charCodeAt(0) - 'A'.charCodeAt(0) + 1, 0) - 1;
+    endColLetters
+      .split('')
+      .reduce((acc, c) => acc * 26 + c.charCodeAt(0) - 'A'.charCodeAt(0) + 1, 0) - 1;
 
   return { sheet, startRow, endRow, startCol, endCol };
 }
@@ -260,7 +281,7 @@ export class TimeTravelDebugger {
     const operations = this.historyService.getBySpreadsheet(spreadsheetId);
 
     const overlapping = operations.filter((op) => {
-      const range = op.params.range as string | undefined;
+      const range = op.params['range'] as string | undefined;
       if (!range) return false;
       return cellOverlapsRange(cell, range);
     });
@@ -277,7 +298,7 @@ export class TimeTravelDebugger {
       throw new Error(`Operation ${operationId} not found`);
     }
 
-    const range = operation.params.range as string | undefined;
+    const range = operation.params['range'] as string | undefined;
     if (!range) {
       return { operation, dependents: [] };
     }
@@ -292,7 +313,7 @@ export class TimeTravelDebugger {
       const opTime = new Date(op.timestamp).getTime();
       if (opTime <= operationTime) return false;
 
-      const opRange = op.params.range as string | undefined;
+      const opRange = op.params['range'] as string | undefined;
       if (!opRange) return false;
 
       return rangesOverlap(range, opRange);
@@ -374,11 +395,11 @@ export class TimeTravelDebugger {
     const conflicts: MergeResult['conflicts'] = [];
 
     for (const sourceOp of newOps) {
-      const sourceRange = sourceOp.params.range as string | undefined;
+      const sourceRange = sourceOp.params['range'] as string | undefined;
       if (!sourceRange) continue;
 
       for (const targetOp of targetBranch.operations) {
-        const targetRange = targetOp.params.range as string | undefined;
+        const targetRange = targetOp.params['range'] as string | undefined;
         if (!targetRange) continue;
 
         if (rangesOverlap(sourceRange, targetRange)) {

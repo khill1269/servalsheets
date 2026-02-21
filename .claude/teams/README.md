@@ -8,16 +8,17 @@
 
 ## Available Teams
 
-| Team | Purpose | Teammates | Work Pattern |
-|------|---------|-----------|--------------|
-| [servalsheets-dev.yaml](servalsheets-dev.yaml) | Main development team | 8 specialists | Mixed (parallel + pipeline) |
-| [servalsheets-enterprise.yaml](servalsheets-enterprise.yaml) | Enterprise features | 6 specialists | Sequential |
+| Team                                                         | Purpose               | Teammates     | Work Pattern                |
+| ------------------------------------------------------------ | --------------------- | ------------- | --------------------------- |
+| [servalsheets-dev.yaml](servalsheets-dev.yaml)               | Main development team | 8 specialists | Mixed (parallel + pipeline) |
+| [servalsheets-enterprise.yaml](servalsheets-enterprise.yaml) | Enterprise features   | 6 specialists | Sequential                  |
 
 ---
 
 ## Usage
 
 **Start team:**
+
 ```bash
 claude --agent --team servalsheets-dev
 
@@ -26,6 +27,7 @@ claude --agent --team-config .claude/teams/servalsheets-dev.yaml
 ```
 
 **In Claude session:**
+
 ```
 I'm the team lead for Phase 2: Architecture Excellence.
 
@@ -39,6 +41,7 @@ Start phase with task assignment.
 ## Team Structure
 
 ### Team Lead (Orchestrator)
+
 - Task decomposition and assignment
 - Progress tracking and reporting
 - Conflict resolution
@@ -46,6 +49,7 @@ Start phase with task assignment.
 - Phase completion approval
 
 ### Teammates (8 Specialists)
+
 1. **Frontend** - UI components and MCP resources
 2. **Backend** - Services, handlers, APIs
 3. **Testing** - Test design and quality assurance
@@ -60,20 +64,24 @@ Start phase with task assignment.
 ## Coordination Mechanisms
 
 ### Task Board
+
 - Location: `.claude/tasks/current-phase.yaml`
 - Format: YAML with DAG dependencies
 - Updates: Real-time as tasks complete
 
 ### Messaging
+
 - Location: `.claude/inbox/[teammate]/`
 - Format: Markdown files
 - Retention: 30 days
 
 ### Conflict Resolution
+
 - Strategy: Lead decides
 - Escalation: Ask user via AskUserQuestion
 
 ### Quality Gates
+
 - Enforced: Yes
 - Blocking gates: G0, G1, G2
 - Gate runner: Quality teammate
@@ -83,6 +91,7 @@ Start phase with task assignment.
 ## Success Criteria
 
 Before phase completion:
+
 - [ ] All tasks completed
 - [ ] All tests passing (npm run verify)
 - [ ] Quality gates G0-G4 passed

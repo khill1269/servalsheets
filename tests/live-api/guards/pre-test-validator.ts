@@ -177,7 +177,10 @@ export class PreTestValidator {
   /**
    * Validate credentials
    */
-  private async validateCredentials(): Promise<{ errors: ValidationError[]; warnings: ValidationWarning[] }> {
+  private async validateCredentials(): Promise<{
+    errors: ValidationError[];
+    warnings: ValidationWarning[];
+  }> {
     const errors: ValidationError[] = [];
     const warnings: ValidationWarning[] = [];
 
@@ -187,7 +190,8 @@ export class PreTestValidator {
       if (!credentials) {
         errors.push({
           code: 'CRED_NOT_FOUND',
-          message: 'Could not load test credentials. Check GOOGLE_APPLICATION_CREDENTIALS or OAuth configuration.',
+          message:
+            'Could not load test credentials. Check GOOGLE_APPLICATION_CREDENTIALS or OAuth configuration.',
         });
         return { errors, warnings };
       }
@@ -196,7 +200,8 @@ export class PreTestValidator {
       if (!credentials.serviceAccount && !credentials.oauth) {
         errors.push({
           code: 'CRED_INVALID',
-          message: 'No valid authentication method found. Provide either service account or OAuth credentials.',
+          message:
+            'No valid authentication method found. Provide either service account or OAuth credentials.',
         });
       }
 
@@ -204,7 +209,8 @@ export class PreTestValidator {
       if (!credentials.testSpreadsheet?.id) {
         errors.push({
           code: 'CRED_NO_SPREADSHEET',
-          message: 'No test spreadsheet ID configured. Set TEST_SPREADSHEET_ID environment variable.',
+          message:
+            'No test spreadsheet ID configured. Set TEST_SPREADSHEET_ID environment variable.',
         });
       }
 
@@ -390,9 +396,7 @@ export async function validatePreTestConditions(
  * Convenience function to assert valid pre-test conditions
  * Throws if validation fails
  */
-export async function assertPreTestConditions(
-  options?: PreTestValidationOptions
-): Promise<void> {
+export async function assertPreTestConditions(options?: PreTestValidationOptions): Promise<void> {
   const result = await validatePreTestConditions(options);
   if (!result.valid) {
     throw new Error(`Pre-test validation failed:\n${result.summary}`);

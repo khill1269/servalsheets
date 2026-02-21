@@ -203,13 +203,7 @@ describe.skipIf(skipTests)('Cross-Tool Workflow Tests', () => {
       const sheet = 'Sheet1';
 
       // Write source data
-      await client.writeData(testSpreadsheetId, `${sheet}!A1:A5`, [
-        [10],
-        [20],
-        [30],
-        [40],
-        [50],
-      ]);
+      await client.writeData(testSpreadsheetId, `${sheet}!A1:A5`, [[10], [20], [30], [40], [50]]);
 
       await applyQuotaDelay();
 
@@ -224,12 +218,9 @@ describe.skipIf(skipTests)('Cross-Tool Workflow Tests', () => {
       await applyQuotaDelay();
 
       // Write aggregate formula
-      await client.writeData(
-        testSpreadsheetId,
-        `${sheet}!C1`,
-        [['=SUM(A1:A5)']],
-        { valueInputOption: 'USER_ENTERED' }
-      );
+      await client.writeData(testSpreadsheetId, `${sheet}!C1`, [['=SUM(A1:A5)']], {
+        valueInputOption: 'USER_ENTERED',
+      });
 
       await applyQuotaDelay();
 
@@ -265,12 +256,9 @@ describe.skipIf(skipTests)('Cross-Tool Workflow Tests', () => {
       await applyQuotaDelay();
 
       // Write formula in Sheet1 that references DataSheet
-      await client.writeData(
-        testSpreadsheetId,
-        `'Sheet1'!A1`,
-        [['=SUM(DataSheet!A1:A3)']],
-        { valueInputOption: 'USER_ENTERED' }
-      );
+      await client.writeData(testSpreadsheetId, `'Sheet1'!A1`, [['=SUM(DataSheet!A1:A3)']], {
+        valueInputOption: 'USER_ENTERED',
+      });
 
       await applyQuotaDelay();
 

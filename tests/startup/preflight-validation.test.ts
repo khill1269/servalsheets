@@ -175,7 +175,9 @@ describe('Pre-Flight Validation', () => {
       expect(configCheck?.result.message).toContain('Configuration validation failed');
       const issues = configCheck?.result.details?.issues as string[];
       expect(issues).toBeDefined();
-      expect(issues.some((issue: string) => issue.includes('ENCRYPTION_KEY must be 64 hex characters'))).toBe(true);
+      expect(
+        issues.some((issue: string) => issue.includes('ENCRYPTION_KEY must be 64 hex characters'))
+      ).toBe(true);
     });
 
     it('should fail with incomplete OAuth configuration', async () => {
@@ -191,7 +193,9 @@ describe('Pre-Flight Validation', () => {
       expect(configCheck?.result.message).toContain('Configuration validation failed');
       const issues = configCheck?.result.details?.issues as string[];
       expect(issues).toBeDefined();
-      expect(issues.some((issue: string) => issue.includes('Incomplete OAuth configuration'))).toBe(true);
+      expect(issues.some((issue: string) => issue.includes('Incomplete OAuth configuration'))).toBe(
+        true
+      );
     });
 
     it('should fail with invalid REDIS_URL format', async () => {
@@ -206,7 +210,9 @@ describe('Pre-Flight Validation', () => {
       expect(configCheck?.result.message).toContain('Configuration validation failed');
       const issues = configCheck?.result.details?.issues as string[];
       expect(issues).toBeDefined();
-      expect(issues.some((issue: string) => issue.includes('REDIS_URL should start with redis://'))).toBe(true);
+      expect(
+        issues.some((issue: string) => issue.includes('REDIS_URL should start with redis://'))
+      ).toBe(true);
     });
 
     it('should pass with valid REDIS_URL', async () => {

@@ -49,7 +49,10 @@ const checks = {
   typecheck: runCommand('npm run typecheck > /dev/null 2>&1', 'Type Check'),
   lint: runCommand('npm run lint > /dev/null 2>&1', 'Lint'),
   checkDrift: runCommand('npm run check:drift > /dev/null 2>&1', 'Check Drift'),
-  checkPlaceholders: runCommand('npm run check:placeholders > /dev/null 2>&1', 'Check Placeholders'),
+  checkPlaceholders: runCommand(
+    'npm run check:placeholders > /dev/null 2>&1',
+    'Check Placeholders'
+  ),
   testFast: runCommand('npm run test:fast > /dev/null 2>&1', 'Fast Tests'),
 };
 

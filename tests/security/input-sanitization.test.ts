@@ -22,13 +22,11 @@ describe('Input Sanitization', () => {
           range: 'Sheet1!A1:B10',
         },
       });
-      // Schema may validate format — path traversal patterns should not pass
-      // If schema rejects: good (defense in depth). If it accepts: Google API will reject.
-      // Either outcome is acceptable for security.
-      expect(typeof result.success).toBe('boolean');
+      // SpreadsheetIdSchema regex /^[a-zA-Z0-9-_]+$/ rejects dots and slashes
+      expect(result.success).toBe(false);
     });
 
-    it('should handle extremely long spreadsheet IDs', () => {
+    it('should reject extremely long spreadsheet IDs', () => {
       const result = SheetsDataInputSchema.safeParse({
         request: {
           action: 'read',
@@ -36,9 +34,8 @@ describe('Input Sanitization', () => {
           range: 'Sheet1!A1:B10',
         },
       });
-      // Schema may reject overly long IDs (good for defense in depth)
-      // Either way, Google API would also reject. Both outcomes are acceptable.
-      expect(typeof result.success).toBe('boolean');
+      // SpreadsheetIdSchema has .max(100), so 10K chars must be rejected
+      expect(result.success).toBe(false);
     });
   });
 
@@ -59,7 +56,7 @@ describe('Input Sanitization', () => {
         request: {
           action: 'get_sheet',
           spreadsheetId: 'abc123',
-          sheetName: "Sheet's \"Data\" <script>alert(1)</script>",
+          sheetName: 'Sheet\'s "Data" <script>alert(1)</script>',
         },
       });
       // Schema accepts strings — XSS doesn't apply to server-side processing
