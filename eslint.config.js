@@ -8,6 +8,7 @@ export default [
     ignores: [
       'dist/',
       'node_modules/',
+      '**/node_modules/',
       'coverage/',
       'docs/.vitepress/',
       'scripts/demo/',
@@ -28,6 +29,8 @@ export default [
       'src/services/time-travel.ts',
       'src/transports/websocket-server.ts',
       'src/transports/websocket-transport.ts',
+      // UI sub-projects have their own tooling
+      'src/ui/**',
     ],
   },
   {
@@ -37,9 +40,13 @@ export default [
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
-        // Use a dedicated TSConfig for ESLint so test files are included.
-        // The main tsconfig.json intentionally excludes tests.
-        project: './tsconfig.eslint.json',
+        // projectService is the v8+ replacement for project — uses TypeScript's
+        // language service API which is dramatically more memory-efficient.
+        // Falls back to tsconfig.eslint.json for project references.
+        projectService: {
+          allowDefaultProject: ['scripts/*.ts', 'vitest.config.ts'],
+          defaultProject: './tsconfig.eslint.json',
+        },
       },
       globals: {
         console: 'readonly',

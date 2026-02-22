@@ -71,8 +71,11 @@ import {
   columnToLetter as columnToLetterHelper,
   letterToColumn as letterToColumnHelper,
 } from './helpers/column-helpers.js';
+import type { SpreadsheetBackend } from '@serval/core';
 
 export interface HandlerContext {
+  /** Platform-agnostic backend (optional — enables multi-backend support) */
+  backend?: SpreadsheetBackend;
   batchCompiler: BatchCompiler;
   rangeResolver: RangeResolver;
   sheetResolver?: import('../services/sheet-resolver.js').SheetResolver; // For sheet name/ID resolution

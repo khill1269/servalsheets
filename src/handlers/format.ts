@@ -2711,7 +2711,7 @@ Always return valid JSON in the exact format requested.`,
     if (/\borange\b/.test(text)) return { red: 1, green: 0.5, blue: 0 };
     if (/\bpurple\b/.test(text)) return { red: 0.6, green: 0.2, blue: 0.8 };
     if (/\bpink\b/.test(text)) return { red: 1, green: 0.5, blue: 0.7 };
-    return undefined;
+    return undefined; // no matching color name
   }
 
   // ============================================================

@@ -158,13 +158,13 @@ export function extractIdempotencyKeyFromHeaders(
 
   if (!key) {
     // OK: No idempotency key header present — request proceeds without idempotency
-    return undefined;
+    return undefined; // no key header present
   }
 
   const keyStr = Array.isArray(key) ? key[0] : key;
   if (!keyStr) {
     // OK: Idempotency key header present but empty — treated as absent
-    return undefined;
+    return undefined; // empty key header
   }
 
   const normalized = normalizeIdempotencyKey(keyStr);

@@ -57,6 +57,7 @@ import { initValidationEngine } from './services/validation-engine.js';
 import { initWebhookManager } from './services/webhook-manager.js';
 import { initWebhookQueue } from './services/webhook-queue.js';
 import { createHandlers, type HandlerContext, type Handlers } from './handlers/index.js';
+import { GoogleSheetsBackend } from './adapters/index.js';
 import { AuthHandler } from './handlers/auth.js';
 import { handleLoggingSetLevel } from './handlers/logging.js';
 import {
@@ -277,7 +278,13 @@ export class ServalSheetsServer {
       // Create reusable context and handlers
       // Local ref for closure capture in getter below
       const _googleClient = this.googleClient;
+
+      // Create platform-agnostic backend adapter (wraps GoogleApiClient)
+      const backend = new GoogleSheetsBackend(_googleClient);
+      await backend.initialize();
+
       this.context = {
+        backend, // Platform-agnostic SpreadsheetBackend from @serval/core
         batchCompiler: new BatchCompiler({
           rateLimiter: new RateLimiter(),
           diffEngine: new DiffEngine({ sheetsApi: this.googleClient.sheets }),
@@ -751,14 +758,18 @@ export class ServalSheetsServer {
                 const { SessionHandler } = await import('./handlers/session.js');
                 const { SheetsSessionInputSchema } = await import('./schemas/session.js');
                 const handler = new SessionHandler();
-                const result = await handler.handle(parseWithCache(SheetsSessionInputSchema, args, 'SheetsSessionInput'));
+                const result = await handler.handle(
+                  parseWithCache(SheetsSessionInputSchema, args, 'SheetsSessionInput')
+                );
                 return buildToolResponse(result);
               }
               if (toolName === 'sheets_history') {
                 const { HistoryHandler } = await import('./handlers/history.js');
                 const { SheetsHistoryInputSchema } = await import('./schemas/history.js');
                 const handler = new HistoryHandler({});
-                const result = await handler.handle(parseWithCache(SheetsHistoryInputSchema, args, 'SheetsHistoryInput'));
+                const result = await handler.handle(
+                  parseWithCache(SheetsHistoryInputSchema, args, 'SheetsHistoryInput')
+                );
                 return buildToolResponse(result);
               }
             }
@@ -1176,6 +1187,12 @@ export class ServalSheetsServer {
 
     // Phase 2.5: Destroy services with active timers (prevent memory leaks >24h uptime)
     try {
+      // Dispose SpreadsheetBackend adapter (releases cached API refs)
+      if (this.context?.backend) {
+        await this.context.backend.dispose();
+        baseLogger.debug('SpreadsheetBackend disposed');
+      }
+
       // Destroy GoogleApiClient (pool monitor interval, HTTP agents)
       if (this.googleClient) {
         this.googleClient.destroy();

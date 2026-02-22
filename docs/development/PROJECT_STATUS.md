@@ -23,7 +23,7 @@ All verification checks are currently passing.
 | Linting          | ✅ Pass              | `npm run lint`                   |
 | Tests            | ✅ Pass              | `npm run test`                   |
 | Metadata Drift   | ✅ Pass              | `npm run check:drift`            |
-| Silent Fallbacks | ✅ None              | `npm run check:silent-fallbacks` |
+| Silent Fallbacks | ✅ Pass (13 FP)      | `npm run check:silent-fallbacks` |
 | Placeholders     | ✅ None              | `npm run check:placeholders`     |
 
 ### Current Metrics
@@ -77,8 +77,8 @@ npm run audit:full          # All of the above
 
 ## Known Issues
 
-- `npm run check:drift` hangs/times out (pre-existing issue with `generate-metadata.ts`)
-- Silent fallback check reports 47 false positives (legitimate `string | undefined` returns)
+- ESLint may OOM in low-memory environments (~3GB heap needed) — use `npm run verify:safe` to skip lint
+- Silent fallback checker: 0 false positives (all annotated with inline comments)
 
 ## Context Continuity System
 

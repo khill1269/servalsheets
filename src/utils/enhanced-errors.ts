@@ -438,7 +438,7 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
           params: { spreadsheetId },
         };
       }
-      return undefined;
+      return undefined; // no suggestion for this error
 
     case 'NO_DATA':
       // No data → read range to verify it exists
@@ -449,7 +449,7 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
           params: { spreadsheetId, range },
         };
       }
-      return undefined;
+      return undefined; // no suggestion for this error
 
     case 'NOT_FOUND':
       // Generic not found → list accessible spreadsheets
@@ -477,7 +477,7 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
           params: { spreadsheetId },
         };
       }
-      return undefined;
+      return undefined; // no suggestion for this error
 
     case 'PARSE_ERROR':
       // Parse error → analyze data to understand structure

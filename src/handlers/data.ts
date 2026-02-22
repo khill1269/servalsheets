@@ -503,7 +503,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           }),
         };
       }
-      return undefined;
+      return undefined; // spill detection fallback
     }
 
     const totalRows = Math.max(parsed.endRow - parsed.startRow, 0);
