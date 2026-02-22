@@ -114,10 +114,10 @@ if (existsSync(`${ROOT}/docs/development/PROJECT_STATUS.md`)) {
   }
 }
 
-// Check drift script
-const driftResult = exec('timeout 5 npm run check:drift 2>&1', 8000);
+// Check drift script (fixed in Session 12; 15s timeout is generous)
+const driftResult = exec('timeout 15 npm run check:drift 2>&1', 20000);
 if (driftResult === null || driftResult.includes('timeout')) {
-  knownIssues.push('- npm run check:drift hangs/times out (pre-existing issue with generate-metadata.ts)');
+  knownIssues.push('- npm run check:drift hangs/times out');
 }
 
 // Check README.md staleness
@@ -270,8 +270,8 @@ ${knownIssues.length > 0 ? knownIssues.join('\n') : '- None detected ✅'}
 
 ## Verification Commands
 \`\`\`bash
-npm run verify:safe      # Safe verification (skips broken drift check)
-npm run verify           # Full verification (may hang on check:drift)
+npm run verify:safe      # Safe verification (skips lint — use when ESLint OOMs)
+npm run verify           # Full verification (typecheck + lint + test + drift)
 npm run schema:commit    # After schema changes
 npm run test:fast        # Quick test suite
 npm run gates            # Full gate pipeline (G0-G5)

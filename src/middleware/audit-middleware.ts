@@ -318,7 +318,7 @@ export class AuditMiddleware {
       return String(requestContext['userAgent']);
     }
 
-    return undefined;
+    return undefined; // no userAgent in request context
   }
 
   /**
@@ -334,7 +334,7 @@ export class AuditMiddleware {
       return requestContext['scopes'].map(String);
     }
 
-    return undefined;
+    return undefined; // no scopes in request context
   }
 
   /**

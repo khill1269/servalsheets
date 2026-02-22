@@ -184,8 +184,8 @@ Never hardcode these values — always reference the source file with `file:line
 
 ## Known Issues
 
-- ESLint may OOM in low-memory environments (~4GB heap needed) — use `verify:safe`
-- Silent fallback checker has 13 false positives (legitimate typed returns)
+- ESLint may OOM in low-memory environments (~3GB heap needed) — use `verify:safe`
+- Silent fallback checker: 0 false positives (all annotated with inline comments)
 
 ## Further Reading
 

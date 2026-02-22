@@ -76,12 +76,12 @@
 | ENABLE_CONDITIONAL_REQUESTS | ✅ ON |
 | ENABLE_AUTO_CONNECTION_RESET | ✅ ON |
 | ENABLE_REQUEST_MERGING | ✅ ON |
-| ENABLE_PARALLEL_EXECUTOR | ❌ OFF |
+| ENABLE_PARALLEL_EXECUTOR | ✅ ON |
 | ENABLE_GRANULAR_PROGRESS | ✅ ON |
 | ENABLE_RBAC | ❌ OFF |
-| ENABLE_AUDIT_LOGGING | ❌ OFF |
+| ENABLE_AUDIT_LOGGING | ✅ ON |
 | ENABLE_TENANT_ISOLATION | ❌ OFF |
-| ENABLE_IDEMPOTENCY | ❌ OFF |
+| ENABLE_IDEMPOTENCY | ✅ ON |
 | ENABLE_COST_TRACKING | ❌ OFF |
 | ENABLE_PREFETCH | ✅ ON |
 
@@ -107,12 +107,13 @@ npm run audit:full       # All of the above
 ```
 
 ## Known Issues
-- npm run check:drift hangs/times out (pre-existing issue with generate-metadata.ts)
+- ESLint may OOM in low-memory environments (~3GB heap needed) — use `npm run verify:safe`
+- Silent fallback checker: 0 false positives (all annotated with inline comments)
 
 ## Verification Commands
 ```bash
-npm run verify:safe      # Safe verification (skips broken drift check)
-npm run verify           # Full verification (may hang on check:drift)
+npm run verify:safe      # Safe verification (skips lint — use when ESLint OOMs)
+npm run verify           # Full verification (typecheck + lint + test + drift)
 npm run schema:commit    # After schema changes
 npm run test:fast        # Quick test suite
 npm run gates            # Full gate pipeline (G0-G5)

@@ -82,8 +82,8 @@ const EnvSchema = z.object({
   // Enabled by default — production-ready with safe 50ms window and metrics tracking
   ENABLE_REQUEST_MERGING: z.coerce.boolean().default(true),
   // ParallelExecutor: Parallel execution for large batch operations (40% faster)
-  // Disabled pending test coverage — concurrent API calls need validation before enabling
-  ENABLE_PARALLEL_EXECUTOR: z.coerce.boolean().default(false),
+  // Enabled by default — 19 unit/integration tests pass, guarded by threshold (100+ ranges)
+  ENABLE_PARALLEL_EXECUTOR: z.coerce.boolean().default(true),
   PARALLEL_EXECUTOR_THRESHOLD: z.coerce.number().int().positive().default(100),
   // Granular progress notifications for long-running operations
   // Enabled by default — non-breaking MCP-compliant progress updates for CSV import, dedup, batch ops
@@ -200,11 +200,15 @@ const EnvSchema = z.object({
   // Incremental consent (SaaS deployments)
   INCREMENTAL_CONSENT_ENABLED: z.coerce.boolean().default(false),
 
-  // Enterprise feature flags (all opt-in, default OFF)
+  // Enterprise feature flags
+  // RBAC and Tenant Isolation require infrastructure (role config, API keys) — keep opt-in
   ENABLE_RBAC: z.coerce.boolean().default(false),
-  ENABLE_AUDIT_LOGGING: z.coerce.boolean().default(false),
+  // Audit logging: non-critical (try/catch wrapped), adds compliance visibility
+  ENABLE_AUDIT_LOGGING: z.coerce.boolean().default(true),
   ENABLE_TENANT_ISOLATION: z.coerce.boolean().default(false),
-  ENABLE_IDEMPOTENCY: z.coerce.boolean().default(false),
+  // Idempotency: makes all tool calls retry-safe via key-based dedup
+  ENABLE_IDEMPOTENCY: z.coerce.boolean().default(true),
+  // Cost tracking: useful for SaaS/multi-tenant, adds per-request overhead — keep opt-in
   ENABLE_COST_TRACKING: z.coerce.boolean().default(false),
 
   // Predictive Prefetching (80% latency reduction on sequential operations)

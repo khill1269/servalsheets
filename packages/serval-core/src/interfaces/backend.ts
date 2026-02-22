@@ -20,7 +20,7 @@
 // ============================================================
 
 /** Platform identifier */
-export type SpreadsheetPlatform = 'google-sheets' | 'excel-online' | 'excel-desktop';
+export type SpreadsheetPlatform = 'google-sheets' | 'excel-online' | 'excel-desktop' | 'notion' | 'airtable';
 
 /** A reference to a cell range, always A1 notation (e.g., "Sheet1!A1:D10") */
 export type RangeRef = string;

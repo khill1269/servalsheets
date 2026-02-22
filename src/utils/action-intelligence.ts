@@ -82,7 +82,7 @@ export interface ActionGuidance {
 export function getActionGuidance(toolName: string, actionName: string): ActionGuidance {
   const key = `${toolName}.${actionName}`;
   const ann = ACTION_ANNOTATIONS[key];
-  if (!ann) return {};
+  if (!ann) return {}; // no annotation for this action
 
   return {
     whenToUse: ann.whenToUse,

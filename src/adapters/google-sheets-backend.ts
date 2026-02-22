@@ -217,9 +217,7 @@ export class GoogleSheetsBackend implements SpreadsheetBackend {
         updatedRows: r.updatedRows ?? 0,
         updatedColumns: r.updatedColumns ?? 0,
         updatedCells: r.updatedCells ?? 0,
-        updatedValues: r.updatedData?.values as
-          | (string | number | boolean | null)[][]
-          | undefined,
+        updatedValues: r.updatedData?.values as (string | number | boolean | null)[][] | undefined,
       })),
     };
   }
@@ -286,9 +284,7 @@ export class GoogleSheetsBackend implements SpreadsheetBackend {
                 title: params.title,
                 index: params.index,
                 hidden: params.hidden,
-                tabColorStyle: params.tabColor
-                  ? { rgbColor: params.tabColor }
-                  : undefined,
+                tabColorStyle: params.tabColor ? { rgbColor: params.tabColor } : undefined,
                 gridProperties: {
                   rowCount: params.rowCount ?? 1000,
                   columnCount: params.columnCount ?? 26,

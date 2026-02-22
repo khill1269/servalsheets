@@ -1,44 +1,31 @@
 /**
  * ServalSheets - Structured Error Classes
  *
- * Base error classes for consistent error handling across the codebase.
- * All errors implement toErrorDetail() for conversion to ErrorDetail schema.
+ * Google Sheets-specific error classes extending @serval/core's base errors.
+ * Adds: RangeResolutionError, Sheets-specific resolution steps with tool references.
  *
  * Security: All error messages and details are automatically redacted to
  * prevent sensitive data (tokens, API keys) from leaking into logs.
  */
 
+import { ServalError } from '@serval/core';
 import type { ErrorDetail } from '../schemas/shared.js';
-import { redactString, redactObject } from '../utils/redact.js';
 
 type ErrorCode = ErrorDetail['code'];
 
+// Re-export the base class for any callers that need it
+export { ServalError };
+
 /**
- * Base class for all ServalSheets errors
- *
- * Security: Automatically redacts sensitive data from message and details
+ * @deprecated Use ServalError from @serval/core directly
  */
-export abstract class ServalSheetsError extends Error {
-  abstract code: ErrorCode;
-  abstract retryable: boolean;
-  details?: Record<string, unknown>;
-
-  constructor(message: string, details?: Record<string, unknown>) {
-    // Redact sensitive data from message and details
-    super(redactString(message));
-    this.name = this.constructor.name;
-    this.details = details ? redactObject(details) : undefined;
-    Error.captureStackTrace(this, this.constructor);
-  }
-
-  abstract toErrorDetail(): ErrorDetail;
-}
+export type ServalSheetsError = ServalError;
 
 /**
  * ServiceError - For service initialization and operation failures
  * Use when: Service not initialized, API clients unavailable, external service errors
  */
-export class ServiceError extends ServalSheetsError {
+export class ServiceError extends ServalError {
   code: ErrorCode;
   retryable: boolean;
   serviceName: string;
@@ -73,7 +60,7 @@ export class ServiceError extends ServalSheetsError {
  * ConfigError - For configuration and validation failures
  * Use when: Invalid environment variables, missing config, validation failures
  */
-export class ConfigError extends ServalSheetsError {
+export class ConfigError extends ServalError {
   code: ErrorCode = 'CONFIG_ERROR';
   retryable = false;
   configKey: string;
@@ -103,7 +90,7 @@ export class ConfigError extends ServalSheetsError {
  * ValidationError - For input validation failures
  * Use when: Invalid user input, malformed data, type mismatches
  */
-export class ValidationError extends ServalSheetsError {
+export class ValidationError extends ServalError {
   code: ErrorCode = 'VALIDATION_ERROR';
   retryable = false;
   field: string;
@@ -145,7 +132,7 @@ export class ValidationError extends ServalSheetsError {
  * NotFoundError - For resource not found scenarios
  * Use when: Spreadsheet not found, snapshot not found, resource lookup failures
  */
-export class NotFoundError extends ServalSheetsError {
+export class NotFoundError extends ServalError {
   code: ErrorCode = 'NOT_FOUND';
   retryable = false;
   resourceType: string;
@@ -181,7 +168,7 @@ export class NotFoundError extends ServalSheetsError {
  * AuthenticationError - For OAuth and token issues
  * Use when: Token expired, invalid credentials, auth flow failures
  */
-export class AuthenticationError extends ServalSheetsError {
+export class AuthenticationError extends ServalError {
   code: ErrorCode;
   retryable: boolean;
 
@@ -224,7 +211,7 @@ export class AuthenticationError extends ServalSheetsError {
  * DataError - For data parsing and integrity issues
  * Use when: JSON parse failures, data corruption, version mismatches
  */
-export class DataError extends ServalSheetsError {
+export class DataError extends ServalError {
   code: ErrorCode;
   retryable: boolean;
 
@@ -254,7 +241,7 @@ export class DataError extends ServalSheetsError {
  * HandlerLoadError - For handler factory and dynamic loading failures
  * Use when: Unknown handler, method not found, lazy loading failures
  */
-export class HandlerLoadError extends ServalSheetsError {
+export class HandlerLoadError extends ServalError {
   code: ErrorCode = 'HANDLER_LOAD_ERROR';
   retryable = false;
   handlerName: string;
@@ -279,7 +266,7 @@ export class HandlerLoadError extends ServalSheetsError {
  * RangeResolutionError - For range resolution and parsing failures
  * Use when: Invalid range format, sheet not found, range coordinates out of bounds
  */
-export class RangeResolutionError extends ServalSheetsError {
+export class RangeResolutionError extends ServalError {
   code: ErrorCode;
   retryable: boolean;
   rangeInput?: string;
@@ -363,7 +350,7 @@ export class RangeResolutionError extends ServalSheetsError {
  * BatchCompilationError - For batch operation compilation and validation failures
  * Use when: Multiple operations fail validation, dependency errors in batch, schema mismatches
  */
-export class BatchCompilationError extends ServalSheetsError {
+export class BatchCompilationError extends ServalError {
   code: ErrorCode = 'BATCH_UPDATE_ERROR';
   retryable = false;
   failedOperations: Array<{ index: number; error: string }>;
@@ -423,7 +410,7 @@ export class BatchCompilationError extends ServalSheetsError {
  * QuotaExceededError - For API quota and rate limit exceeded scenarios
  * Use when: API quota exhausted, rate limited, quota reset time known
  */
-export class QuotaExceededError extends ServalSheetsError {
+export class QuotaExceededError extends ServalError {
   code: ErrorCode = 'QUOTA_EXCEEDED';
   retryable = true;
   quotaType: 'read' | 'write' | 'requests' | 'unknown';
@@ -488,7 +475,7 @@ export class QuotaExceededError extends ServalSheetsError {
  * ApiTimeoutError - For API request timeout and deadline exceeded scenarios
  * Use when: Request takes too long, deadline exceeded, slow network
  */
-export class ApiTimeoutError extends ServalSheetsError {
+export class ApiTimeoutError extends ServalError {
   code: ErrorCode = 'DEADLINE_EXCEEDED';
   retryable = true;
   timeoutMs: number;
@@ -556,7 +543,7 @@ export class ApiTimeoutError extends ServalSheetsError {
  * SyncError - For synchronization and concurrent modification failures
  * Use when: Merge conflicts, concurrent updates, stale data, version mismatches
  */
-export class SyncError extends ServalSheetsError {
+export class SyncError extends ServalError {
   code: ErrorCode = 'TRANSACTION_CONFLICT';
   retryable = true;
   conflictType: 'concurrent_modification' | 'stale_data' | 'version_mismatch' | 'merge_conflict';

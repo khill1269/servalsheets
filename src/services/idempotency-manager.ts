@@ -122,7 +122,7 @@ export class IdempotencyManager {
         cachedTool: cached.tool,
         cachedAction: cached.action,
       });
-      return undefined;
+      return undefined; // key mismatch — not a cache hit
     }
 
     if (this.config.verbose) {
