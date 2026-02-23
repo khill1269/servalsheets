@@ -1893,6 +1893,101 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
           break;
         }
 
+        case 'suggest_next_actions': {
+          logger.info('Suggest next actions', { spreadsheetId: req.spreadsheetId });
+          try {
+            const { SuggestionEngine } = await import('../analysis/suggestion-engine.js');
+            const { Scout } = await import('../analysis/scout.js');
+            const { ActionGenerator } = await import('../analysis/action-generator.js');
+            const { getCacheAdapter } = await import('../utils/cache-adapter.js');
+
+            const suggestEngine = new SuggestionEngine({
+              scout: new Scout({
+                cache: getCacheAdapter(),
+                sheetsApi: this.sheetsApi,
+              }),
+              actionGenerator: new ActionGenerator(),
+            });
+
+            const suggestResult = await suggestEngine.suggest({
+              spreadsheetId: req.spreadsheetId,
+              range: req.range ? this.resolveAnalyzeRange(req.range) : undefined,
+              maxSuggestions: req.maxSuggestions ?? 5,
+              categories: req.categories,
+            });
+
+            response = {
+              success: true,
+              action: 'suggest_next_actions',
+              suggestions: suggestResult.suggestions,
+              scoutSummary: suggestResult.scoutSummary,
+              totalCandidates: suggestResult.totalCandidates,
+              filtered: suggestResult.filtered,
+            };
+          } catch (error) {
+            logger.error('suggest_next_actions failed', {
+              spreadsheetId: req.spreadsheetId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            response = {
+              success: false,
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: 'Suggestion generation failed. Please try again.',
+                retryable: true,
+              },
+            };
+          }
+          break;
+        }
+
+        case 'auto_enhance': {
+          logger.info('Auto enhance', { spreadsheetId: req.spreadsheetId, mode: req.mode });
+          try {
+            const { SuggestionEngine } = await import('../analysis/suggestion-engine.js');
+            const { Scout } = await import('../analysis/scout.js');
+            const { ActionGenerator } = await import('../analysis/action-generator.js');
+            const { getCacheAdapter } = await import('../utils/cache-adapter.js');
+
+            const enhanceEngine = new SuggestionEngine({
+              scout: new Scout({
+                cache: getCacheAdapter(),
+                sheetsApi: this.sheetsApi,
+              }),
+              actionGenerator: new ActionGenerator(),
+            });
+
+            const enhanceResult = await enhanceEngine.enhance({
+              spreadsheetId: req.spreadsheetId,
+              range: req.range ? this.resolveAnalyzeRange(req.range) : undefined,
+              categories: req.categories ?? ['formatting', 'structure'],
+              mode: req.mode ?? 'preview',
+              maxEnhancements: req.maxEnhancements ?? 3,
+            });
+
+            response = {
+              success: true,
+              action: 'auto_enhance',
+              mode: req.mode ?? 'preview',
+              enhancements: enhanceResult.applied,
+              enhanceSummary: enhanceResult.summary,
+            };
+          } catch (error) {
+            logger.error('auto_enhance failed', {
+              spreadsheetId: req.spreadsheetId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            response = {
+              success: false,
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: 'Auto-enhancement failed. Please try again.',
+                retryable: true,
+              },
+            };
+          }
+          break;
+        }
         default: {
           // Exhaustive check - should never reach here with discriminated union
           const _exhaustiveCheck: never = req;

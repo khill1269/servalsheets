@@ -850,6 +850,102 @@ const GenerateActionsActionSchema = CommonFieldsSchema.extend({
     .describe('Include before/after impact estimates'),
 });
 
+// ===== SMART SUGGESTIONS ACTIONS (2) - F4 =====
+
+/**
+ * Suggestion category for filtering
+ */
+const SuggestionCategorySchema = z.enum([
+  'formulas',
+  'formatting',
+  'structure',
+  'data_quality',
+  'visualization',
+]);
+
+/**
+ * Individual suggestion with executable params
+ */
+export const SuggestionSchema = z.object({
+  id: z.string().describe('Unique suggestion identifier'),
+  title: z.string().describe('Short human-readable title'),
+  description: z.string().describe('Detailed explanation of what this suggestion does and why'),
+  confidence: z.number().min(0).max(1).describe('Confidence score 0-1'),
+  category: SuggestionCategorySchema.describe('Suggestion category'),
+  impact: z
+    .enum(['low_risk', 'medium_risk', 'high_risk'])
+    .describe('Risk level of applying this suggestion'),
+  action: z
+    .object({
+      tool: z.string().describe('Tool to use (e.g., sheets_data, sheets_format)'),
+      action: z.string().describe('Action to perform'),
+      params: z
+        .record(
+          z.string(),
+          z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+            z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+          ])
+        )
+        .describe('Complete parameters ready to execute'),
+    })
+    .describe('Executable action — can be dispatched directly to the target tool'),
+});
+
+const SuggestNextActionsActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('suggest_next_actions')
+    .describe(
+      'Proactively suggest improvements for a spreadsheet. Returns ranked, executable suggestions based on structural analysis and pattern detection.'
+    ),
+  range: RangeInputSchema.optional().describe('Scope suggestions to this range'),
+  maxSuggestions: z
+    .number()
+    .int()
+    .min(1)
+    .max(20)
+    .optional()
+    .default(5)
+    .describe('Maximum suggestions to return (default 5)'),
+  categories: z
+    .array(SuggestionCategorySchema)
+    .optional()
+    .describe('Filter to specific categories. Omit for all categories.'),
+});
+
+const AutoEnhanceActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('auto_enhance')
+    .describe(
+      'Automatically apply non-destructive enhancements (formatting, structure) to a spreadsheet. Preview mode shows changes without applying.'
+    ),
+  range: RangeInputSchema.optional().describe('Scope enhancements to this range'),
+  categories: z
+    .array(SuggestionCategorySchema)
+    .optional()
+    .default(['formatting', 'structure'])
+    .describe(
+      'Enhancement categories to apply (default: formatting + structure only — safe, non-destructive)'
+    ),
+  mode: z
+    .enum(['preview', 'apply'])
+    .optional()
+    .default('preview')
+    .describe('preview = show what would change; apply = execute enhancements'),
+  maxEnhancements: z
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .optional()
+    .default(3)
+    .describe('Maximum enhancements to apply (default 3)'),
+});
+
 /**
  * All analysis operation inputs
  *
@@ -875,12 +971,15 @@ export const SheetsAnalyzeInputSchema = z.object({
     // Intelligence actions (2)
     QueryNaturalLanguageActionSchema,
     ExplainAnalysisActionSchema,
-    // Progressive analysis actions (5) - NEW
+    // Progressive analysis actions (5)
     ScoutActionSchema,
     PlanActionSchema,
     ExecutePlanActionSchema,
     DrillDownActionSchema,
     GenerateActionsActionSchema,
+    // Smart suggestions actions (2) - F4
+    SuggestNextActionsActionSchema,
+    AutoEnhanceActionSchema,
   ]),
 });
 
@@ -1793,6 +1892,97 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
     next: NextActionsSchema.optional().describe(
       'CRITICAL: What should happen next - recommended action, alternatives, drill-down options'
     ),
+
+    // suggest_next_actions results (F4: Smart Suggestions)
+    suggestions: z
+      .array(
+        z.object({
+          id: z.string(),
+          title: z.string(),
+          description: z.string(),
+          confidence: z.coerce.number().min(0).max(1),
+          category: z.enum([
+            'formulas',
+            'formatting',
+            'structure',
+            'data_quality',
+            'visualization',
+          ]),
+          impact: z.enum(['low_risk', 'medium_risk', 'high_risk']),
+          action: z.object({
+            tool: z.string(),
+            action: z.string(),
+            params: z.record(
+              z.string(),
+              z.union([
+                z.string(),
+                z.number(),
+                z.boolean(),
+                z.null(),
+                z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+                z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+              ])
+            ),
+          }),
+        })
+      )
+      .optional()
+      .describe('Ranked suggestions with executable action params'),
+    scoutSummary: z
+      .object({
+        title: z.string(),
+        sheetCount: z.coerce.number(),
+        estimatedCells: z.coerce.number(),
+        complexityScore: z.coerce.number(),
+      })
+      .optional()
+      .describe('Quick metadata summary from Scout scan'),
+    totalCandidates: z.coerce.number().optional(),
+    filtered: z.coerce.number().optional(),
+
+    // auto_enhance results (F4: Smart Suggestions)
+    enhancements: z
+      .array(
+        z.object({
+          suggestion: z.object({
+            id: z.string(),
+            title: z.string(),
+            description: z.string(),
+            confidence: z.coerce.number(),
+            category: z.string(),
+            impact: z.string(),
+            action: z.object({
+              tool: z.string(),
+              action: z.string(),
+              params: z.record(
+                z.string(),
+                z.union([
+                  z.string(),
+                  z.number(),
+                  z.boolean(),
+                  z.null(),
+                  z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+                  z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+                ])
+              ),
+            }),
+          }),
+          status: z.enum(['applied', 'skipped', 'failed']),
+          reason: z.string().optional(),
+        })
+      )
+      .optional()
+      .describe('Enhancement results with status per suggestion'),
+    enhanceSummary: z
+      .object({
+        total: z.coerce.number(),
+        applied: z.coerce.number(),
+        skipped: z.coerce.number(),
+        failed: z.coerce.number(),
+      })
+      .optional()
+      .describe('Enhancement summary counts'),
+    mode: z.enum(['preview', 'apply']).optional().describe('Enhancement mode (preview or apply)'),
 
     // Common
     duration: z.coerce.number().optional(),

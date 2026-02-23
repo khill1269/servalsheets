@@ -1,8 +1,10 @@
 /**
  * ServalSheets - Fix Handler
  *
- * Automated issue resolution based on analysis results.
- * Takes issues from sheets_analyze and applies fixes in transaction.
+ * Automated issue resolution (F0) and data cleaning pipeline (F3).
+ * Takes issues from sheets_analyze and applies fixes,
+ * plus automated data cleaning: clean, standardize_formats,
+ * fill_missing, detect_anomalies, suggest_cleaning.
  */
 
 import type { sheets_v4 } from 'googleapis';
@@ -16,6 +18,12 @@ import type {
   FixOperation,
   IssueToFix,
   FixResult,
+  CleanInput,
+  StandardizeFormatsInput,
+  FillMissingInput,
+  DetectAnomaliesInput,
+  SuggestCleaningInput,
+  CellChange,
 } from '../schemas/fix.js';
 
 export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
@@ -27,12 +35,53 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   }
 
   async handle(input: SheetsFixInput): Promise<SheetsFixOutput> {
-    // Phase 1, Task 1.4: Infer missing parameters from context
-    const rawReq = unwrapRequest<SheetsFixInput['request']>(input);
-    const req = this.inferRequestParameters(rawReq) as FixRequest & {
-      verbosity?: 'minimal' | 'standard' | 'detailed';
-    };
+    try {
+      // Phase 1, Task 1.4: Infer missing parameters from context
+      const rawReq = unwrapRequest<SheetsFixInput['request']>(input);
+      const req = this.inferRequestParameters(rawReq) as FixRequest & {
+        verbosity?: 'minimal' | 'standard' | 'detailed';
+      };
 
+      const verbosity = req.verbosity ?? 'standard';
+      // Dispatch based on action
+      switch (req.action) {
+        case 'fix':
+          return this.handleFix(req as FixRequest & { action: 'fix' }, verbosity);
+        case 'clean':
+          return this.handleClean(req as unknown as CleanInput, verbosity);
+        case 'standardize_formats':
+          return this.handleStandardizeFormats(
+            req as unknown as StandardizeFormatsInput,
+            verbosity
+          );
+        case 'fill_missing':
+          return this.handleFillMissing(req as unknown as FillMissingInput, verbosity);
+        case 'detect_anomalies':
+          return this.handleDetectAnomalies(req as unknown as DetectAnomaliesInput, verbosity);
+        case 'suggest_cleaning':
+          return this.handleSuggestCleaning(req as unknown as SuggestCleaningInput, verbosity);
+        default:
+          return {
+            response: this.mapError(
+              new ValidationError(
+                `Unknown action: ${(req as { action: string }).action}`,
+                'action',
+                'fix | clean | standardize_formats | fill_missing | detect_anomalies | suggest_cleaning'
+              )
+            ),
+          };
+      }
+    } catch (err) {
+      return { response: this.mapError(err) };
+    }
+  }
+
+  // ─── F0: Original fix action ───
+
+  private async handleFix(
+    req: FixRequest & { action: 'fix'; verbosity?: 'minimal' | 'standard' | 'detailed' },
+    verbosity: string
+  ): Promise<SheetsFixOutput> {
     // Type narrow to ensure required fields are present
     if (!req.spreadsheetId || !req.issues) {
       return {
@@ -41,98 +90,361 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     }
 
     const mode = req.mode ?? 'preview';
-    const verbosity = req.verbosity ?? 'standard';
 
-    try {
-      // Filter issues based on user preferences
-      const filteredIssues = this.filterIssues(req.issues, req.filters);
+    // Filter issues based on user preferences
+    const filteredIssues = this.filterIssues(req.issues, req.filters);
 
-      if (filteredIssues.length === 0) {
-        const response = {
-          success: true as const,
-          mode,
-          operations: [] as FixOperation[],
-          summary: { total: 0, skipped: req.issues.length },
-          message: 'No issues matched the filters',
-        };
-        return {
-          response: super.applyVerbosityFilter(response, verbosity),
-        };
-      }
+    if (filteredIssues.length === 0) {
+      const response = {
+        success: true as const,
+        mode,
+        operations: [] as FixOperation[],
+        summary: { total: 0, skipped: req.issues.length },
+        message: 'No issues matched the filters',
+      };
+      return {
+        response: super.applyVerbosityFilter(response, verbosity),
+      };
+    }
 
-      // Generate fix operations
-      const operations = await this.generateFixOperations(req.spreadsheetId, filteredIssues);
+    // Generate fix operations
+    const operations = await this.generateFixOperations(req.spreadsheetId, filteredIssues);
 
-      // Preview mode - just return operations
-      if (mode === 'preview' || req.safety?.dryRun) {
-        const response = {
-          success: true as const,
-          mode: 'preview' as const,
-          operations,
-          summary: {
-            total: operations.length,
-          },
-          message: `Preview: ${operations.length} operation(s) ready to apply. Use mode="apply" to execute.`,
-        };
-        return {
-          response: super.applyVerbosityFilter(response, verbosity),
-        };
-      }
+    // Preview mode - just return operations
+    if (mode === 'preview' || req.safety?.dryRun) {
+      const response = {
+        success: true as const,
+        mode: 'preview' as const,
+        operations,
+        summary: {
+          total: operations.length,
+        },
+        message: `Preview: ${operations.length} operation(s) ready to apply. Use mode="apply" to execute.`,
+      };
+      return {
+        response: super.applyVerbosityFilter(response, verbosity),
+      };
+    }
 
-      // Apply mode - execute operations
+    // Apply mode - execute operations
+    const snapshot =
+      req.safety?.createSnapshot !== false
+        ? await this.createSnapshot(req.spreadsheetId)
+        : undefined;
+
+    const results = await this.applyFixOperations(req.spreadsheetId, operations);
+
+    // Count successes/failures
+    const applied = results.filter((r) => r.success).length;
+    const failed = results.filter((r) => !r.success).length;
+
+    // Track context on success
+    if (applied > 0) {
+      this.trackContextFromRequest({
+        spreadsheetId: req.spreadsheetId,
+      });
+    }
+
+    const response = {
+      success: true as const,
+      mode: 'apply' as const,
+      operations,
+      results,
+      snapshotId: snapshot?.revisionId,
+      summary: {
+        total: operations.length,
+        applied,
+        failed,
+      },
+      message: `Applied ${applied}/${operations.length} fix(es). ${failed} failed.`,
+    };
+
+    return {
+      response: super.applyVerbosityFilter(response, verbosity),
+    };
+  }
+
+  // ─── F3: Clean action ───
+
+  private async handleClean(req: CleanInput, verbosity: string): Promise<SheetsFixOutput> {
+    if (!req.spreadsheetId || !req.range) {
+      return {
+        response: this.mapError(new Error('Missing required fields: spreadsheetId and range')),
+      };
+    }
+
+    const mode = req.mode ?? 'preview';
+
+    // Dynamically import to avoid circular deps and keep handler lean
+    const { CleaningEngine, parseRangeOffset } = await import('../services/cleaning-engine.js');
+    const engine = new CleaningEngine();
+
+    // Fetch data from the range
+    const data = await this.fetchRangeData(req.spreadsheetId, req.range);
+    const rangeOffset = parseRangeOffset(req.range);
+
+    // Run cleaning
+    const result = await engine.clean(data, req.rules, rangeOffset);
+
+    // Apply mode: write changes back
+    if (mode === 'apply' && result.changes.length > 0) {
       const snapshot =
         req.safety?.createSnapshot !== false
           ? await this.createSnapshot(req.spreadsheetId)
           : undefined;
 
-      const results = await this.applyFixOperations(req.spreadsheetId, operations);
+      await this.writeChanges(req.spreadsheetId, req.range, data, result.changes, rangeOffset);
 
-      // Count successes/failures
-      const applied = results.filter((r) => r.success).length;
-      const failed = results.filter((r) => !r.success).length;
-
-      // Track context on success
-      if (applied > 0) {
-        this.trackContextFromRequest({
-          spreadsheetId: req.spreadsheetId,
-        });
-      }
+      this.trackContextFromRequest({ spreadsheetId: req.spreadsheetId });
 
       const response = {
         success: true as const,
         mode: 'apply' as const,
-        operations,
-        results,
+        action: 'clean',
+        operations: [] as FixOperation[],
+        summary: { total: result.changes.length, applied: result.changes.length },
+        message: `Cleaned ${result.summary.cellsCleaned} cell(s) using ${result.summary.rulesApplied.length} rule(s).`,
         snapshotId: snapshot?.revisionId,
-        summary: {
-          total: operations.length,
-          applied,
-          failed,
-        },
-        message: `Applied ${applied}/${operations.length} fix(es). ${failed} failed.`,
+        changes: result.changes,
+        cleaningSummary: result.summary,
       };
-
-      // Apply verbosity filtering (LLM optimization)
-      return {
-        response: super.applyVerbosityFilter(response, verbosity),
-      };
-    } catch (err) {
-      return { response: this.mapError(err) };
+      return { response: super.applyVerbosityFilter(response, verbosity) };
     }
+
+    // Preview mode
+    const response = {
+      success: true as const,
+      mode: 'preview' as const,
+      action: 'clean',
+      operations: [] as FixOperation[],
+      summary: { total: result.changes.length },
+      message: `Preview: ${result.summary.cellsCleaned} cell(s) would be cleaned using ${result.summary.rulesApplied.length} rule(s). Use mode="apply" to execute.`,
+      changes: result.changes,
+      cleaningSummary: result.summary,
+    };
+    return { response: super.applyVerbosityFilter(response, verbosity) };
   }
+
+  // ─── F3: Standardize formats action ───
+
+  private async handleStandardizeFormats(
+    req: StandardizeFormatsInput,
+    verbosity: string
+  ): Promise<SheetsFixOutput> {
+    if (!req.spreadsheetId || !req.range || !req.columns) {
+      return {
+        response: this.mapError(
+          new Error('Missing required fields: spreadsheetId, range, and columns')
+        ),
+      };
+    }
+
+    const mode = req.mode ?? 'preview';
+
+    const { CleaningEngine, parseRangeOffset } = await import('../services/cleaning-engine.js');
+    const engine = new CleaningEngine();
+
+    const data = await this.fetchRangeData(req.spreadsheetId, req.range);
+    const rangeOffset = parseRangeOffset(req.range);
+
+    const result = await engine.standardizeFormats(data, req.columns, rangeOffset);
+
+    if (mode === 'apply' && result.changes.length > 0) {
+      const snapshot =
+        req.safety?.createSnapshot !== false
+          ? await this.createSnapshot(req.spreadsheetId)
+          : undefined;
+
+      await this.writeChanges(req.spreadsheetId, req.range, data, result.changes, rangeOffset);
+
+      this.trackContextFromRequest({ spreadsheetId: req.spreadsheetId });
+
+      const response = {
+        success: true as const,
+        mode: 'apply' as const,
+        action: 'standardize_formats',
+        operations: [] as FixOperation[],
+        summary: { total: result.changes.length, applied: result.changes.length },
+        message: `Standardized ${result.summary.cellsChanged} cell(s) across ${result.summary.columnsProcessed} column(s).`,
+        snapshotId: snapshot?.revisionId,
+        formatChanges: result.changes,
+        formatSummary: result.summary,
+      };
+      return { response: super.applyVerbosityFilter(response, verbosity) };
+    }
+
+    const response = {
+      success: true as const,
+      mode: 'preview' as const,
+      action: 'standardize_formats',
+      operations: [] as FixOperation[],
+      summary: { total: result.changes.length },
+      message: `Preview: ${result.summary.cellsChanged} cell(s) would be standardized across ${result.summary.columnsProcessed} column(s). Use mode="apply" to execute.`,
+      formatChanges: result.changes,
+      formatSummary: result.summary,
+    };
+    return { response: super.applyVerbosityFilter(response, verbosity) };
+  }
+
+  // ─── F3: Fill missing action ───
+
+  private async handleFillMissing(
+    req: FillMissingInput,
+    verbosity: string
+  ): Promise<SheetsFixOutput> {
+    if (!req.spreadsheetId || !req.range || !req.strategy) {
+      return {
+        response: this.mapError(
+          new Error('Missing required fields: spreadsheetId, range, and strategy')
+        ),
+      };
+    }
+
+    const mode = req.mode ?? 'preview';
+
+    const { CleaningEngine, parseRangeOffset } = await import('../services/cleaning-engine.js');
+    const engine = new CleaningEngine();
+
+    const data = await this.fetchRangeData(req.spreadsheetId, req.range);
+    const rangeOffset = parseRangeOffset(req.range);
+
+    const result = await engine.fillMissing(
+      data,
+      req.strategy,
+      { constantValue: req.constantValue, columns: req.columns },
+      rangeOffset
+    );
+
+    if (mode === 'apply' && result.changes.length > 0) {
+      const snapshot =
+        req.safety?.createSnapshot !== false
+          ? await this.createSnapshot(req.spreadsheetId)
+          : undefined;
+
+      await this.writeChanges(req.spreadsheetId, req.range, data, result.changes, rangeOffset);
+
+      this.trackContextFromRequest({ spreadsheetId: req.spreadsheetId });
+
+      const response = {
+        success: true as const,
+        mode: 'apply' as const,
+        action: 'fill_missing',
+        operations: [] as FixOperation[],
+        summary: { total: result.changes.length, applied: result.changes.length },
+        message: `Filled ${result.summary.filled} of ${result.summary.totalEmpty} empty cell(s) using "${req.strategy}" strategy.`,
+        snapshotId: snapshot?.revisionId,
+        fillChanges: result.changes,
+        fillSummary: result.summary,
+      };
+      return { response: super.applyVerbosityFilter(response, verbosity) };
+    }
+
+    const response = {
+      success: true as const,
+      mode: 'preview' as const,
+      action: 'fill_missing',
+      operations: [] as FixOperation[],
+      summary: { total: result.changes.length },
+      message: `Preview: ${result.summary.filled} of ${result.summary.totalEmpty} empty cell(s) would be filled using "${req.strategy}" strategy. Use mode="apply" to execute.`,
+      fillChanges: result.changes,
+      fillSummary: result.summary,
+    };
+    return { response: super.applyVerbosityFilter(response, verbosity) };
+  }
+
+  // ─── F3: Detect anomalies action ───
+
+  private async handleDetectAnomalies(
+    req: DetectAnomaliesInput,
+    verbosity: string
+  ): Promise<SheetsFixOutput> {
+    if (!req.spreadsheetId || !req.range) {
+      return {
+        response: this.mapError(new Error('Missing required fields: spreadsheetId and range')),
+      };
+    }
+
+    const { CleaningEngine, parseRangeOffset } = await import('../services/cleaning-engine.js');
+    const engine = new CleaningEngine();
+
+    const data = await this.fetchRangeData(req.spreadsheetId, req.range);
+    const rangeOffset = parseRangeOffset(req.range);
+
+    const result = await engine.detectAnomalies(
+      data,
+      req.method ?? 'iqr',
+      req.threshold,
+      req.columns,
+      rangeOffset
+    );
+
+    // detect_anomalies is always read-only (no apply mode)
+    const response = {
+      success: true as const,
+      mode: 'preview' as const,
+      action: 'detect_anomalies',
+      operations: [] as FixOperation[],
+      summary: { total: result.anomalies.length },
+      message: `Found ${result.summary.anomaliesFound} anomaly(ies) across ${Object.keys(result.summary.byColumn).length} column(s) using ${result.summary.method} method (threshold: ${result.summary.threshold}).`,
+      anomalies: result.anomalies,
+      anomalySummary: result.summary,
+    };
+    return { response: super.applyVerbosityFilter(response, verbosity) };
+  }
+
+  // ─── F3: Suggest cleaning action ───
+
+  private async handleSuggestCleaning(
+    req: SuggestCleaningInput,
+    verbosity: string
+  ): Promise<SheetsFixOutput> {
+    if (!req.spreadsheetId || !req.range) {
+      return {
+        response: this.mapError(new Error('Missing required fields: spreadsheetId and range')),
+      };
+    }
+
+    const { CleaningEngine, parseRangeOffset } = await import('../services/cleaning-engine.js');
+    const engine = new CleaningEngine();
+
+    const data = await this.fetchRangeData(req.spreadsheetId, req.range);
+    const rangeOffset = parseRangeOffset(req.range);
+
+    const result = await engine.suggestCleaning(data, req.maxRecommendations ?? 10, rangeOffset);
+
+    // suggest_cleaning is always read-only
+    const response = {
+      success: true as const,
+      mode: 'preview' as const,
+      action: 'suggest_cleaning',
+      operations: [] as FixOperation[],
+      summary: { total: result.recommendations.length },
+      message: `Found ${result.recommendations.length} cleaning recommendation(s) after profiling ${result.dataProfile.totalRows} row(s) across ${result.dataProfile.totalColumns} column(s).`,
+      recommendations: result.recommendations,
+      dataProfile: result.dataProfile,
+    };
+    return { response: super.applyVerbosityFilter(response, verbosity) };
+  }
+
+  // ─── Intent creation ───
 
   protected createIntents(input: SheetsFixInput): Intent[] {
     const req = unwrapRequest<SheetsFixInput['request']>(input);
 
+    // Read-only actions never create intents
+    if (req.action === 'detect_anomalies' || req.action === 'suggest_cleaning') {
+      return []; // OK: Explicit empty — read-only actions
+    }
+
     if ((req.mode ?? 'preview') === 'preview' || req.safety?.dryRun) {
-      return []; // Read-only preview
+      return []; // OK: Explicit empty — preview mode is read-only
     }
 
-    if (!req.spreadsheetId || !req.issues) {
-      return []; // Missing required fields
+    if (!req.spreadsheetId) {
+      return []; // OK: Explicit empty — missing required field
     }
 
-    // Fixing issues is destructive
+    // Mutating actions (fix, clean, standardize_formats, fill_missing) are destructive
     return [
       {
         type: 'SET_VALUES' as const,
@@ -140,17 +452,74 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
           spreadsheetId: req.spreadsheetId,
         },
         payload: {
-          issues: req.issues,
+          action: req.action,
         },
         metadata: {
           sourceTool: 'sheets_fix',
-          sourceAction: 'apply_fixes',
+          sourceAction: req.action,
           priority: 0,
           destructive: true,
         },
       },
     ];
   }
+
+  // ─── Shared helpers ───
+
+  /**
+   * Fetch range data from Google Sheets
+   */
+  private async fetchRangeData(
+    spreadsheetId: string,
+    range: string
+  ): Promise<(string | number | boolean | null)[][]> {
+    const response = await this.sheetsApi.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+      valueRenderOption: 'UNFORMATTED_VALUE',
+    });
+
+    return (response.data.values ?? []) as (string | number | boolean | null)[][];
+  }
+
+  /**
+   * Write cell changes back to the spreadsheet
+   */
+  private async writeChanges(
+    spreadsheetId: string,
+    range: string,
+    originalData: (string | number | boolean | null)[][],
+    changes: CellChange[],
+    _rangeOffset: { startRow: number; startCol: number }
+  ): Promise<void> {
+    // Apply changes to the data grid
+    const updatedData = originalData.map((row) => [...row]);
+
+    for (const change of changes) {
+      // Convert absolute row/col back to data array indices
+      const dataRow = change.row - _rangeOffset.startRow;
+      const dataCol = change.col - _rangeOffset.startCol;
+
+      if (dataRow >= 0 && dataRow < updatedData.length) {
+        while (updatedData[dataRow].length <= dataCol) {
+          updatedData[dataRow].push(null);
+        }
+        updatedData[dataRow][dataCol] = change.newValue;
+      }
+    }
+
+    // Write the entire updated range back
+    await this.sheetsApi.spreadsheets.values.update({
+      spreadsheetId,
+      range,
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: updatedData,
+      },
+    });
+  }
+
+  // ─── F0 fix helpers (unchanged) ───
 
   /**
    * Filter issues based on user preferences
@@ -261,8 +630,6 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
         estimatedImpact: 'Create named range "TodayDate" → _System!B1',
         risk: 'low',
       },
-      // Note: Actually replacing =TODAY() in formulas requires reading all formulas first
-      // This would be a follow-up operation or require AI assistance
     ];
   }
 
@@ -273,14 +640,13 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     spreadsheetId: string,
     sheetName: string
   ): Promise<FixOperation[]> {
-    // Get sheet ID
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId,
       fields: 'sheets.properties',
     });
 
     const sheet = response.data.sheets?.find((s) => s.properties?.title === sheetName);
-    if (!sheet) return [];
+    if (!sheet) return []; // OK: Explicit empty — sheet not found, no operations to generate
 
     return [
       {
@@ -312,7 +678,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     });
 
     const sheet = response.data.sheets?.find((s) => s.properties?.title === sheetName);
-    if (!sheet) return [];
+    if (!sheet) return []; // OK: Explicit empty — sheet not found, no operations to generate
 
     return [
       {
@@ -341,7 +707,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     });
 
     const sheet = response.data.sheets?.find((s) => s.properties?.title === sheetName);
-    if (!sheet) return [];
+    if (!sheet) return []; // OK: Explicit empty — sheet not found, no operations to generate
 
     return [
       {
@@ -353,7 +719,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
           spreadsheetId,
           sheetId: sheet.properties!.sheetId!,
           description: 'Auto-protected by ServalSheets',
-          warningOnly: true, // Don't lock out users
+          warningOnly: true,
         },
         estimatedImpact: `Add protection to "${sheetName}" (warning mode)`,
         risk: 'low',
@@ -368,18 +734,14 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     _spreadsheetId: string,
     _issue: IssueToFix
   ): Promise<FixOperation[]> {
-    // This requires reading formulas, parsing, and rewriting
-    // Would need AI assistance or complex regex
-    // Placeholder for now
+    // Requires reading formulas, parsing, and rewriting — placeholder
     return [
       {
         id: `fix_full_column_${Date.now()}`,
         issueType: 'FULL_COLUMN_REFS',
         tool: 'sheets_data',
         action: 'find_replace',
-        parameters: {
-          // This would need actual formula locations
-        },
+        parameters: {},
         estimatedImpact: 'Replace A:A with A2:A500 in formulas',
         risk: 'medium',
       },
@@ -393,9 +755,8 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     _spreadsheetId: string,
     _issue: IssueToFix
   ): Promise<FixOperation[]> {
-    // Requires formula parsing and rewriting
-    // Placeholder
-    return [];
+    // Requires formula parsing and rewriting — placeholder
+    return []; // OK: Explicit empty — not yet implemented
   }
 
   /**
@@ -405,9 +766,8 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     _spreadsheetId: string,
     _sheetName: string
   ): Promise<FixOperation[]> {
-    // Would need to read rules, merge similar ones, delete duplicates
-    // Complex - currently returns no operations
-    return [];
+    // Would need to read rules, merge similar ones, delete duplicates — placeholder
+    return []; // OK: Explicit empty — not yet implemented
   }
 
   /**
@@ -421,10 +781,10 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       });
 
       // Note: Google Sheets API doesn't have a direct "create snapshot" endpoint
-      // Versions are auto-created. We'd use sheets_collaborate version_create_snapshot here in real implementation
+      // Versions are auto-created. We'd use sheets_collaborate version_create_snapshot in real impl
       return { revisionId: `auto_${Date.now()}` };
     } catch {
-      // OK: Explicit empty - typed as optional, snapshot creation failed (versions API not available)
+      // OK: Explicit empty — snapshot creation failed (versions API not available)
       return undefined;
     }
   }
@@ -440,7 +800,6 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     for (const op of operations) {
       try {
-        // Execute directly against the Sheets API for supported operations.
         await this.executeOperation(op);
 
         results.push({
@@ -535,7 +894,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
                     namedRange: {
                       name: parameters['name'] as string,
                       range: {
-                        sheetId: 0, // Would need to parse parameters.range
+                        sheetId: 0,
                       },
                     },
                   },
