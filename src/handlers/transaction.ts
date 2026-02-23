@@ -10,36 +10,21 @@ import type {
   SheetsTransactionOutput,
   TransactionResponse,
 } from '../schemas/transaction.js';
-import { unwrapRequest } from './base.js';
+import { unwrapRequest, type HandlerContext } from './base.js';
 import { ValidationError } from '../core/errors.js';
+import { mapStandaloneError } from './helpers/error-mapping.js';
+import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
+import { sendProgress } from '../utils/request-context.js';
 
 export interface TransactionHandlerOptions {
-  // Options can be added as needed
+  context?: HandlerContext;
 }
 
 export class TransactionHandler {
-  constructor(_options: TransactionHandlerOptions = {}) {
-    // Constructor logic if needed
-  }
+  private context?: HandlerContext;
 
-  /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
-   */
-  private applyVerbosityFilter(
-    response: TransactionResponse,
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): TransactionResponse {
-    if (!response.success || verbosity === 'standard') {
-      return response;
-    }
-
-    if (verbosity === 'minimal') {
-      // For minimal verbosity, strip _meta field
-      const { _meta, ...rest } = response as Record<string, unknown>;
-      return rest as TransactionResponse;
-    }
-
-    return response;
+  constructor(options: TransactionHandlerOptions = {}) {
+    this.context = options.context;
   }
 
   async handle(input: SheetsTransactionInput): Promise<SheetsTransactionOutput> {
@@ -59,6 +44,35 @@ export class TransactionHandler {
             );
           }
 
+          // Elicitation wizard: ask for a description to enrich the audit trail
+          let txDescription: string | undefined;
+          const beginReqAny = req as Record<string, unknown>;
+          if (!beginReqAny['description'] && this.context?.server) {
+            try {
+              const elicitResult = await this.context.server.elicitInput({
+                mode: 'form',
+                message: 'Transaction description (optional — helps with audit trail):',
+                requestedSchema: {
+                  type: 'object',
+                  properties: {
+                    description: {
+                      type: 'string',
+                      title: 'Transaction description',
+                      description: 'Describe what this transaction will do (for audit trail)',
+                    },
+                  },
+                },
+              });
+              if (elicitResult.action === 'accept' && elicitResult.content?.['description']) {
+                txDescription = elicitResult.content['description'] as string;
+              }
+            } catch {
+              // non-blocking — proceed without description
+            }
+          } else {
+            txDescription = beginReqAny['description'] as string | undefined;
+          }
+
           // NOTE: autoSnapshot is controlled by TransactionManager config, not per-transaction
           // The input.autoSnapshot parameter is currently ignored (design limitation)
           const txId = await transactionManager.begin(req.spreadsheetId, {
@@ -72,13 +86,14 @@ export class TransactionHandler {
             ? ' Note: Snapshots are metadata-only and may fail for very large spreadsheets (>50MB metadata).'
             : '';
 
+          const descriptionNote = txDescription ? ` Description: "${txDescription}".` : '';
           response = {
             success: true,
             action: 'begin',
             transactionId: txId,
             status: 'pending',
             operationsQueued: 0,
-            message: `Transaction ${txId} started for spreadsheet ${req.spreadsheetId}.${snapshotWarning}`,
+            message: `Transaction ${txId} started for spreadsheet ${req.spreadsheetId}.${snapshotWarning}${descriptionNote}`,
           };
           break;
         }
@@ -133,7 +148,9 @@ export class TransactionHandler {
             );
           }
 
+          await sendProgress(0, 100, 'Committing transaction...');
           const result = await transactionManager.commit(req.transactionId);
+          await sendProgress(100, 100, 'Transaction committed');
 
           if (result.success) {
             response = {
@@ -307,7 +324,7 @@ export class TransactionHandler {
 
       // Apply verbosity filtering (LLM optimization)
       const verbosity = req.verbosity ?? 'standard';
-      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
+      const filteredResponse = applyVerbosityFilter(response, verbosity);
 
       return { response: filteredResponse };
     } catch (error) {
@@ -315,11 +332,7 @@ export class TransactionHandler {
       return {
         response: {
           success: false,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: error instanceof Error ? error.message : String(error),
-            retryable: false,
-          },
+          error: mapStandaloneError(error),
         },
       };
     }

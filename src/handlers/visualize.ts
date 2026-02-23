@@ -234,18 +234,78 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
   // ============================================================
 
   private async handleChartCreate(input: ChartCreateInput): Promise<VisualizeResponse> {
-    const dataRange = await this.toGridRange(input.spreadsheetId, input.data.sourceRange);
+    // Elicitation wizard: ask for chart type and title when absent
+    let resolvedInput = input;
+    if (!input.chartType && this.context.server) {
+      try {
+        const elicitResult = await this.context.server.elicitInput({
+          mode: 'form',
+          message: 'Step 1/2: Configure your chart',
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              chartType: {
+                type: 'string',
+                title: 'Chart type',
+                description: 'Choose the type of chart to create',
+                enum: ['BAR', 'LINE', 'PIE', 'COLUMN', 'SCATTER', 'AREA'],
+                default: 'BAR',
+              },
+            },
+            required: ['chartType'],
+          },
+        });
+        if (elicitResult.action === 'accept' && elicitResult.content?.['chartType']) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          resolvedInput = { ...input, chartType: elicitResult.content['chartType'] as any };
+
+          // Step 2: Ask for chart title
+          try {
+            const titleResult = await this.context.server.elicitInput({
+              mode: 'form',
+              message: 'Step 2/2: Chart title (optional)',
+              requestedSchema: {
+                type: 'object',
+                properties: {
+                  chartTitle: {
+                    type: 'string',
+                    title: 'Chart title',
+                    description: 'Optional title for the chart',
+                  },
+                },
+              },
+            });
+            if (titleResult.action === 'accept' && titleResult.content?.['chartTitle']) {
+              const chartTitle = titleResult.content['chartTitle'] as string;
+              resolvedInput = {
+                ...resolvedInput,
+                options: { ...resolvedInput.options, title: chartTitle },
+              };
+            }
+          } catch {
+            // non-blocking — title is optional
+          }
+        }
+      } catch {
+        // non-blocking — proceed with BAR default
+      }
+      if (!resolvedInput.chartType) {
+        resolvedInput = { ...resolvedInput, chartType: 'BAR' };
+      }
+    }
+
+    const dataRange = await this.toGridRange(resolvedInput.spreadsheetId, resolvedInput.data.sourceRange);
     const position = await this.toOverlayPosition(
-      input.spreadsheetId,
-      input.position.anchorCell,
-      input.position
+      resolvedInput.spreadsheetId,
+      resolvedInput.position.anchorCell,
+      resolvedInput.position
     );
 
     // Route to appropriate chart spec builder based on chart type
-    const chartSpec = this.buildChartSpec(dataRange, input.chartType, input.data, input.options);
+    const chartSpec = this.buildChartSpec(dataRange, resolvedInput.chartType, resolvedInput.data, resolvedInput.options);
 
     const response = await this.sheetsApi.spreadsheets.batchUpdate({
-      spreadsheetId: input.spreadsheetId,
+      spreadsheetId: resolvedInput.spreadsheetId,
       requestBody: {
         requests: [
           {
@@ -261,6 +321,21 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
     });
 
     const chartId = response.data?.replies?.[0]?.addChart?.chart?.chartId ?? undefined;
+
+    // Wire session context: record chart creation with chartId for follow-up operations
+    try {
+      if (this.context.sessionContext && chartId !== undefined) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_visualize',
+          action: 'chart_create',
+          spreadsheetId: resolvedInput.spreadsheetId,
+          description: `Created ${resolvedInput.chartType} chart (chartId: ${chartId}) from ${resolvedInput.data.sourceRange}`,
+          undoable: true,
+          cellsAffected: 0,
+        });
+      }
+    } catch { /* non-blocking */ }
+
     return this.success('chart_create', { chartId });
   }
 
@@ -554,7 +629,7 @@ Always return valid JSON in the exact format requested.`;
 
     const charts: Array<{
       chartId: number;
-      chartType: string;
+      chartType: 'BAR' | 'LINE' | 'AREA' | 'COLUMN' | 'SCATTER' | 'COMBO' | 'STEPPED_AREA' | 'PIE' | 'DOUGHNUT' | 'TREEMAP' | 'WATERFALL' | 'HISTOGRAM' | 'CANDLESTICK' | 'ORG' | 'RADAR' | 'SCORECARD' | 'BUBBLE';
       sheetId: number;
       title?: string;
       position: {
@@ -574,7 +649,7 @@ Always return valid JSON in the exact format requested.`;
         const overlay = chart.position?.overlayPosition;
         charts.push({
           chartId: chart.chartId ?? 0,
-          chartType: chart.spec?.basicChart?.chartType ?? 'UNKNOWN',
+          chartType: (chart.spec?.basicChart?.chartType ?? 'BAR') as 'BAR' | 'LINE' | 'AREA' | 'COLUMN' | 'SCATTER' | 'COMBO' | 'STEPPED_AREA' | 'PIE' | 'DOUGHNUT' | 'TREEMAP' | 'WATERFALL' | 'HISTOGRAM' | 'CANDLESTICK' | 'ORG' | 'RADAR' | 'SCORECARD' | 'BUBBLE',
           sheetId,
           title: chart.spec?.title ?? undefined,
           position: {
@@ -607,7 +682,7 @@ Always return valid JSON in the exact format requested.`;
             charts: [
               {
                 chartId: chart.chartId ?? 0,
-                chartType: chart.spec?.basicChart?.chartType ?? 'UNKNOWN',
+                chartType: (chart.spec?.basicChart?.chartType ?? 'BAR') as 'BAR' | 'LINE' | 'AREA' | 'COLUMN' | 'SCATTER' | 'COMBO' | 'STEPPED_AREA' | 'PIE' | 'DOUGHNUT' | 'TREEMAP' | 'WATERFALL' | 'HISTOGRAM' | 'CANDLESTICK' | 'ORG' | 'RADAR' | 'SCORECARD' | 'BUBBLE',
                 sheetId: overlay?.anchorCell?.sheetId ?? 0,
                 title: chart.spec?.title ?? undefined,
                 position: {

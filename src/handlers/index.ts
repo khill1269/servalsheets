@@ -117,7 +117,7 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     },
     async transaction() {
       const { TransactionHandler } = await import('./transaction.js');
-      return new TransactionHandler();
+      return new TransactionHandler({ context: options.context });
     },
     async quality() {
       const { QualityHandler } = await import('./quality.js');
@@ -129,6 +129,8 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
         snapshotService: options.context.snapshotService,
         driveApi: options.driveApi,
         sheetsApi: options.sheetsApi,
+        server: options.context.server,
+        taskStore: options.context.taskStore,
       });
     },
     // New MCP-native handlers
@@ -191,7 +193,7 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     // Federation handler (Feature 3)
     async federation() {
       const { FederationHandler } = await import('./federation.js');
-      return new FederationHandler();
+      return new FederationHandler(options.context.taskStore);
     },
   };
 

@@ -579,14 +579,16 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
         );
       case 'set_rich_text':
         return await this.handleSetRichText(request as FormatRequest & { action: 'set_rich_text' });
-      default:
+      default: {
+        const _exhaustiveCheck: never = request;
         return this.error({
           code: 'INVALID_PARAMS',
-          message: `Unknown action: ${(request as { action: string }).action}`,
+          message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
           retryable: false,
           suggestedFix:
             'Check the parameter format and ensure all required parameters are provided',
         });
+      }
     }
   }
 
@@ -635,6 +637,14 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
     if (format.borders) {
       cellFormat.borders = format.borders;
       fields.push('borders');
+    }
+    if (format.textRotation) {
+      cellFormat.textRotation = format.textRotation;
+      fields.push('textRotation');
+    }
+    if (format.padding) {
+      cellFormat.padding = format.padding;
+      fields.push('padding');
     }
 
     const googleRange = toGridRange(gridRange);
@@ -820,10 +830,58 @@ Always return valid JSON in the exact format requested.`,
         });
       }
 
-      const parsed = JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonMatch[0]) as { suggestions?: Array<{ title: string; explanation: string; confidence: number; reasoning: string; formatOptions: Record<string, unknown> }> };
+      let suggestions = parsed.suggestions ?? [];
+
+      // Wire session context: filter out previously rejected suggestions
+      try {
+        if (this.context.sessionContext && suggestions.length > 0) {
+          const filtered = [];
+          for (const suggestion of suggestions) {
+            const title = suggestion.title ?? '';
+            const avoided = await this.context.sessionContext.shouldAvoidSuggestion(title);
+            if (!avoided) {
+              filtered.push(suggestion);
+            }
+          }
+          suggestions = filtered;
+        }
+      } catch { /* non-blocking */ }
+
+      // If a samplingServer is available, enrich each suggestion with aiRationale
+      if (this.context.samplingServer && suggestions.length > 0) {
+        try {
+          const enriched = await Promise.all(
+            suggestions.map(async (suggestion) => {
+              try {
+                const rationaleResult = await this.context.samplingServer!.createMessage({
+                  messages: [
+                    {
+                      role: 'user' as const,
+                      content: {
+                        type: 'text' as const,
+                        text: `In one concise sentence, explain why "${suggestion.title}" is a good formatting choice for this spreadsheet data.`,
+                      },
+                    },
+                  ],
+                  maxTokens: 128,
+                });
+                const rationaleText = Array.isArray(rationaleResult.content)
+                  ? (rationaleResult.content.find((c) => c.type === 'text') as { text: string } | undefined)?.text ?? ''
+                  : (rationaleResult.content as { text?: string }).text ?? '';
+                return { ...suggestion, aiRationale: rationaleText.trim() };
+              } catch {
+                // Non-blocking: return suggestion unchanged if rationale call fails
+                return suggestion;
+              }
+            })
+          );
+          suggestions = enriched;
+        } catch { /* non-blocking */ }
+      }
 
       return this.success('suggest_format', {
-        suggestions: parsed.suggestions || [],
+        suggestions,
         _meta: {
           duration,
           timestamp: new Date().toISOString(),
@@ -2051,13 +2109,33 @@ Always return valid JSON in the exact format requested.`,
   private async handleListDataValidations(
     input: FormatRequest & { action: 'list_data_validations' }
   ): Promise<FormatResponse> {
-    // Get sheet metadata to check size
-    const metaResponse = await this.sheetsApi.spreadsheets.get({
+    // Build range for API call - convert RangeInput to A1 notation
+    let rangeStr: string | undefined;
+    if (input.range) {
+      if (typeof input.range === 'string') {
+        rangeStr = input.range;
+      } else if ('a1' in input.range) {
+        rangeStr = input.range.a1;
+      } else if ('namedRange' in input.range) {
+        rangeStr = input.range.namedRange;
+      } else {
+        // For grid/semantic ranges, use a reasonable default
+        rangeStr = 'A1:ZZ1000';
+      }
+    }
+
+    const ranges = rangeStr ? [rangeStr] : []; // Empty = entire sheet
+
+    // Single call: fetch grid properties (for size check) and data validations together
+    const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
-      fields: 'sheets(properties(sheetId,gridProperties))',
+      ranges,
+      includeGridData: true,
+      fields:
+        'sheets(properties(sheetId,gridProperties),data.rowData.values.dataValidation)',
     });
 
-    const sheet = metaResponse.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);
+    const sheet = response.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);
     if (!sheet?.properties?.gridProperties) {
       return this.error({
         code: 'SHEET_NOT_FOUND',
@@ -2082,32 +2160,7 @@ Always return valid JSON in the exact format requested.`,
       });
     }
 
-    // Build range for API call - convert RangeInput to A1 notation
-    let rangeStr: string | undefined;
-    if (input.range) {
-      if (typeof input.range === 'string') {
-        rangeStr = input.range;
-      } else if ('a1' in input.range) {
-        rangeStr = input.range.a1;
-      } else if ('namedRange' in input.range) {
-        rangeStr = input.range.namedRange;
-      } else {
-        // For grid/semantic ranges, use a reasonable default
-        rangeStr = 'A1:ZZ1000';
-      }
-    }
-
-    const ranges = rangeStr ? [rangeStr] : []; // Empty = entire sheet
-
-    // Fetch grid data with field mask to only get data validations
-    const response = await this.sheetsApi.spreadsheets.get({
-      spreadsheetId: input.spreadsheetId,
-      ranges,
-      includeGridData: true,
-      fields: 'sheets.data.rowData.values.dataValidation,sheets.properties.sheetId',
-    });
-
-    const sheetData = response.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);
+    const sheetData = sheet;
     const allValidations: Array<{
       range: {
         sheetId: number;
@@ -2149,20 +2202,22 @@ Always return valid JSON in the exact format requested.`,
       });
     });
 
-    // Pagination to prevent >1MB responses (data validation can be per-cell!)
-    const limit = 100; // Max 100 validation rules per response
+    // Pagination: use cursor (numeric offset as string) and limit from input
+    const pageLimit = (input as { limit?: number; cursor?: string }).limit ?? 50;
+    const offset = (input as { limit?: number; cursor?: string }).cursor
+      ? parseInt((input as { limit?: number; cursor?: string }).cursor!, 10)
+      : 0;
     const totalCount = allValidations.length;
-    const validations = allValidations.slice(0, limit);
-    const truncated = totalCount > limit;
+    const validations = allValidations.slice(offset, offset + pageLimit);
+    const hasMore = offset + pageLimit < totalCount;
+    const nextCursor = hasMore ? String(offset + pageLimit) : undefined;
 
     return this.success('list_data_validations', {
       validations,
       totalCount,
-      truncated,
+      hasMore,
+      ...(nextCursor !== undefined && { nextCursor }),
       ...(input.range && { scannedRange: ranges[0] }),
-      ...(truncated && {
-        suggestion: `Found ${totalCount} validation rules. Showing first ${limit}. Consider using a smaller range to see specific validations.`,
-      }),
     });
   }
 
@@ -2173,17 +2228,61 @@ Always return valid JSON in the exact format requested.`,
   private async handleAddConditionalFormatRule(
     input: FormatRequest & { action: 'add_conditional_format_rule' }
   ): Promise<FormatResponse> {
+    // Elicitation wizard: ask for rulePreset when absent
+    let resolvedInput = input;
+    if (!input.rulePreset && this.context.server) {
+      try {
+        const elicitResult = await this.context.server.elicitInput({
+          mode: 'form',
+          message: 'Step 1/2: Choose a conditional formatting rule preset',
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              rulePreset: {
+                type: 'string',
+                title: 'Rule preset',
+                description: 'Select the type of conditional formatting rule',
+                enum: [
+                  'highlight_duplicates',
+                  'highlight_blanks',
+                  'highlight_errors',
+                  'color_scale_green_red',
+                  'data_bars',
+                  'top_10_percent',
+                  'bottom_10_percent',
+                ],
+                default: 'highlight_blanks',
+              },
+            },
+            required: ['rulePreset'],
+          },
+        });
+        if (elicitResult.action === 'accept' && elicitResult.content?.['rulePreset']) {
+          resolvedInput = {
+            ...input,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            rulePreset: elicitResult.content['rulePreset'] as any,
+          };
+        }
+      } catch {
+        // non-blocking — proceed with default
+      }
+      if (!resolvedInput.rulePreset) {
+        resolvedInput = { ...resolvedInput, rulePreset: 'highlight_blanks' };
+      }
+    }
+
     // Fix QA-2.2: Pass sheetId as-is (may be undefined), resolveGridRange will look it up from range
     const gridRange = await this.resolveGridRange(
-      input.spreadsheetId,
-      input.sheetId as number,
-      input.range!
+      resolvedInput.spreadsheetId,
+      resolvedInput.sheetId as number,
+      resolvedInput.range!
     );
     const googleRange = toGridRange(gridRange);
 
     let request: sheets_v4.Schema$Request;
 
-    switch (input.rulePreset!) {
+    switch (resolvedInput.rulePreset!) {
       case 'highlight_duplicates':
         request = {
           addConditionalFormatRule: {
@@ -2407,7 +2506,7 @@ Always return valid JSON in the exact format requested.`,
           },
         };
         await this.sheetsApi.spreadsheets.batchUpdate({
-          spreadsheetId: input.spreadsheetId,
+          spreadsheetId: resolvedInput.spreadsheetId,
           requestBody: { requests: [negativeRule, positiveRule] },
         });
         return this.success('add_conditional_format_rule', { ruleIndex: 0, rulesAdded: 2 });
@@ -2479,7 +2578,7 @@ Always return valid JSON in the exact format requested.`,
           },
         };
         await this.sheetsApi.spreadsheets.batchUpdate({
-          spreadsheetId: input.spreadsheetId,
+          spreadsheetId: resolvedInput.spreadsheetId,
           requestBody: { requests: [negVarRule, posVarRule] },
         });
         return this.success('add_conditional_format_rule', { ruleIndex: 0, rulesAdded: 2 });
@@ -2488,7 +2587,7 @@ Always return valid JSON in the exact format requested.`,
       default:
         return this.error({
           code: 'INVALID_PARAMS',
-          message: `Unknown conditional format preset: "${input.rulePreset}". Available presets: highlight_duplicates, highlight_blanks, highlight_errors, color_scale, data_bar, above_average, top_n, positive_negative, traffic_light, variance_highlight`,
+          message: `Unknown conditional format preset: "${resolvedInput.rulePreset}". Available presets: highlight_duplicates, highlight_blanks, highlight_errors, color_scale, data_bar, above_average, top_n, positive_negative, traffic_light, variance_highlight`,
           retryable: false,
           suggestedFix:
             'Use one of the listed presets, or use rule_add_conditional_format for custom rules',
@@ -2496,7 +2595,7 @@ Always return valid JSON in the exact format requested.`,
     }
 
     await this.sheetsApi.spreadsheets.batchUpdate({
-      spreadsheetId: input.spreadsheetId,
+      spreadsheetId: resolvedInput.spreadsheetId,
       requestBody: { requests: [request] },
     });
 
