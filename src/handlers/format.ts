@@ -1762,18 +1762,21 @@ Always return valid JSON in the exact format requested.`,
             type: input.rule!.minpoint.type,
             value: input.rule!.minpoint.value,
             color: input.rule!.minpoint.color,
+            colorStyle: { rgbColor: input.rule!.minpoint.color },
           },
           midpoint: input.rule!.midpoint
             ? {
                 type: input.rule!.midpoint.type,
                 value: input.rule!.midpoint.value,
                 color: input.rule!.midpoint.color,
+                colorStyle: { rgbColor: input.rule!.midpoint.color },
               }
             : undefined,
           maxpoint: {
             type: input.rule!.maxpoint.type,
             value: input.rule!.maxpoint.value,
             color: input.rule!.maxpoint.color,
+            colorStyle: { rgbColor: input.rule!.maxpoint.color },
           },
         },
       };
@@ -1848,18 +1851,21 @@ Always return valid JSON in the exact format requested.`,
             type: input.rule.minpoint.type,
             value: input.rule.minpoint.value,
             color: input.rule.minpoint.color,
+            colorStyle: { rgbColor: input.rule.minpoint.color },
           },
           midpoint: input.rule.midpoint
             ? {
                 type: input.rule.midpoint.type,
                 value: input.rule.midpoint.value,
                 color: input.rule.midpoint.color,
+                colorStyle: { rgbColor: input.rule.midpoint.color },
               }
             : undefined,
           maxpoint: {
             type: input.rule.maxpoint.type,
             value: input.rule.maxpoint.value,
             color: input.rule.maxpoint.color,
+            colorStyle: { rgbColor: input.rule.maxpoint.color },
           },
         };
       }

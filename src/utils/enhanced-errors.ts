@@ -851,11 +851,14 @@ export function enhanceStartupError(error: unknown): ErrorDetail {
       '5. Check logs for detailed error information',
       '6. If error persists, report issue with full stack trace',
     ],
-    details: {
-      originalError: err.message,
-      stack: err.stack,
-      nodeVersion: process.version,
-      platform: process.platform,
-    },
+    details:
+      process.env['NODE_ENV'] === 'production'
+        ? undefined
+        : {
+            originalError: err.message,
+            stack: err.stack,
+            nodeVersion: process.version,
+            platform: process.platform,
+          },
   });
 }

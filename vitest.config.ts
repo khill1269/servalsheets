@@ -18,6 +18,11 @@ export default defineConfig({
     },
     // Parallel execution with thread pool (increased for P2-2 optimization)
     pool: 'threads',
+    poolOptions: {
+      threads: {
+        execArgv: ['--expose-gc'],
+      },
+    },
     maxConcurrency: 8,
     maxThreads: 8,
     minThreads: 2,

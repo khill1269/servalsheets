@@ -722,7 +722,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     const result = await this.apiRequest<DeploymentResponse>(
       'POST',
       `/projects/${req.scriptId}/deployments`,
-      { deploymentConfig }
+      deploymentConfig
     );
 
     // Extract web app URL if available
@@ -1044,76 +1044,42 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         processId?: string;
         projectName?: string;
         functionName?: string;
-        processType?:
-          | 'EDITOR'
-          | 'SIMPLE_TRIGGER'
-          | 'TRIGGER'
-          | 'WEBAPP'
-          | 'API_EXECUTABLE'
-          | 'ADD_ON'
-          | 'TIME_DRIVEN';
-        processStatus?:
-          | 'COMPLETED'
-          | 'FAILED'
-          | 'RUNNING'
-          | 'CANCELED'
-          | 'TIMED_OUT'
-          | 'UNKNOWN'
-          | 'DELAYED'
-          | 'PENDING';
+        processType?: string;
+        processStatus?: string;
         startTime?: string;
         duration?: string;
-        userAccessLevel?: 'OWNER' | 'READ' | 'WRITE' | 'NONE';
+        userAccessLevel?: string;
       }>;
       nextPageToken?: string;
     }
 
-    // Build request body for POST request
-    interface ListProcessesRequest {
-      userProcessFilter?: {
-        scriptId?: string;
-        functionName?: string;
-        types?: string[];
-        statuses?: string[];
-      };
-      pageSize?: number;
-      pageToken?: string;
-    }
-
-    const body: ListProcessesRequest = {};
-
-    // Build user process filter
-    const userProcessFilter: ListProcessesRequest['userProcessFilter'] = {};
+    // Build query parameters for GET request (per Google Apps Script API spec)
+    const params: string[] = [];
     if (req.scriptId) {
-      userProcessFilter.scriptId = req.scriptId;
+      params.push(`scriptProcessFilter.scriptId=${encodeURIComponent(req.scriptId)}`);
     }
     if (req.functionName) {
-      userProcessFilter.functionName = req.functionName;
+      params.push(`scriptProcessFilter.functionName=${encodeURIComponent(req.functionName)}`);
     }
     if (req.processType) {
-      userProcessFilter.types = [req.processType];
+      params.push(`scriptProcessFilter.types=${encodeURIComponent(req.processType)}`);
     }
     if (req.processStatus) {
-      userProcessFilter.statuses = [req.processStatus];
+      params.push(`scriptProcessFilter.statuses=${encodeURIComponent(req.processStatus)}`);
     }
-
-    // Only include filter if it has properties
-    if (Object.keys(userProcessFilter).length > 0) {
-      body.userProcessFilter = userProcessFilter;
-    }
-
-    // Add pagination parameters to body
     if (req.pageSize) {
-      body.pageSize = req.pageSize;
+      params.push(`pageSize=${req.pageSize}`);
     }
     if (req.pageToken) {
-      body.pageToken = req.pageToken;
+      params.push(`pageToken=${encodeURIComponent(req.pageToken)}`);
     }
 
+    let path = '/processes:listScriptProcesses';
+    if (params.length > 0) path += `?${params.join('&')}`;
+
     const result = await this.apiRequest<ListProcessesResponse>(
-      'POST',
-      '/processes:listScriptProcesses',
-      body
+      'GET',
+      path
     );
 
     return this.success('list_processes', {
@@ -1121,11 +1087,35 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         processId: p.processId ?? undefined,
         projectName: p.projectName ?? undefined,
         functionName: p.functionName ?? undefined,
-        processType: p.processType ?? undefined,
-        processStatus: p.processStatus ?? undefined,
+        processType: (p.processType ?? undefined) as
+          | 'EDITOR'
+          | 'SIMPLE_TRIGGER'
+          | 'TRIGGER'
+          | 'WEBAPP'
+          | 'EXECUTION_API'
+          | 'ADD_ON'
+          | 'TIME_DRIVEN'
+          | 'MENU'
+          | 'BATCH_TASK'
+          | undefined,
+        processStatus: (p.processStatus ?? undefined) as
+          | 'COMPLETED'
+          | 'FAILED'
+          | 'RUNNING'
+          | 'CANCELED'
+          | 'TIMED_OUT'
+          | 'UNKNOWN'
+          | 'DELAYED'
+          | 'PAUSED'
+          | undefined,
         startTime: p.startTime ?? undefined,
         duration: p.duration ?? undefined,
-        userAccessLevel: p.userAccessLevel ?? undefined,
+        userAccessLevel: (p.userAccessLevel ?? undefined) as
+          | 'OWNER'
+          | 'READ'
+          | 'WRITE'
+          | 'NONE'
+          | undefined,
       })),
       nextPageToken: result.nextPageToken ?? undefined,
     });
@@ -1170,65 +1160,29 @@ export class SheetsAppsScriptHandler extends BaseHandler<
    * Uses the Apps Script API triggers endpoint.
    */
   private async handleCreateTrigger(
-    req: AppsScriptCreateTriggerInput
+    _req: AppsScriptCreateTriggerInput
   ): Promise<AppsScriptResponse> {
-    const triggerConfig: Record<string, unknown> = {
-      functionName: req.functionName,
-    };
-
-    if (req.triggerType === 'CLOCK') {
-      // Time-driven trigger
-      const timeTrigger: Record<string, unknown> = {};
-      if (req.everyMinutes) {
-        timeTrigger['everyMinutes'] = req.everyMinutes;
-      }
-      if (req.atHour !== undefined) {
-        timeTrigger['atHour'] = req.atHour;
-      }
-      if (req.weekDay) {
-        timeTrigger['weekDay'] = req.weekDay;
-      }
-      triggerConfig['timeDriven'] = timeTrigger;
-    } else {
-      // Event-driven trigger (ON_OPEN, ON_EDIT, etc.)
-      triggerConfig['eventType'] = req.triggerType;
-    }
-
-    const result = await this.apiRequest<Record<string, unknown>>(
-      'POST',
-      `/projects/${encodeURIComponent(req.scriptId)}/triggers`,
-      triggerConfig
-    );
-
-    return this.success('create_trigger', {
-      trigger: {
-        triggerId: result['triggerId'] ?? result['trigger_id'],
-        functionName: req.functionName,
-        triggerType: req.triggerType,
-        createTime: result['createTime'],
-      },
+    return this.error({
+      code: 'NOT_IMPLEMENTED',
+      message:
+        'Trigger management requires in-script ScriptApp.newTrigger(). ' +
+        'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
+        'Use update_content to add trigger code to your script, then deploy it.',
+      retryable: false,
     });
   }
 
   /**
    * List all triggers for a script project.
    */
-  private async handleListTriggers(req: AppsScriptListTriggersInput): Promise<AppsScriptResponse> {
-    let path = `/projects/${encodeURIComponent(req.scriptId)}/triggers`;
-    const params: string[] = [];
-    if (req.pageSize) params.push(`pageSize=${req.pageSize}`);
-    if (req.pageToken) params.push(`pageToken=${encodeURIComponent(req.pageToken)}`);
-    if (params.length > 0) path += `?${params.join('&')}`;
-
-    const result = await this.apiRequest<{ triggers?: unknown[]; nextPageToken?: string }>(
-      'GET',
-      path
-    );
-
-    return this.success('list_triggers', {
-      triggers: result.triggers ?? [],
-      nextPageToken: result.nextPageToken,
-      count: (result.triggers ?? []).length,
+  private async handleListTriggers(_req: AppsScriptListTriggersInput): Promise<AppsScriptResponse> {
+    return this.error({
+      code: 'NOT_IMPLEMENTED',
+      message:
+        'Trigger management requires in-script ScriptApp APIs. ' +
+        'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
+        'Use get_content to inspect trigger setup code in the script project.',
+      retryable: false,
     });
   }
 
@@ -1236,16 +1190,15 @@ export class SheetsAppsScriptHandler extends BaseHandler<
    * Delete a specific trigger by ID.
    */
   private async handleDeleteTrigger(
-    req: AppsScriptDeleteTriggerInput
+    _req: AppsScriptDeleteTriggerInput
   ): Promise<AppsScriptResponse> {
-    await this.apiRequest<Record<string, unknown>>(
-      'DELETE',
-      `/projects/${encodeURIComponent(req.scriptId)}/triggers/${encodeURIComponent(req.triggerId)}`
-    );
-
-    return this.success('delete_trigger', {
-      deleted: true,
-      triggerId: req.triggerId,
+    return this.error({
+      code: 'NOT_IMPLEMENTED',
+      message:
+        'Trigger management requires in-script ScriptApp APIs. ' +
+        'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
+        'Use update_content to modify trigger code in the script project.',
+      retryable: false,
     });
   }
 
@@ -1254,45 +1207,15 @@ export class SheetsAppsScriptHandler extends BaseHandler<
    * Apps Script API doesn't support PATCH on triggers, so we delete + create.
    */
   private async handleUpdateTrigger(
-    req: AppsScriptUpdateTriggerInput
+    _req: AppsScriptUpdateTriggerInput
   ): Promise<AppsScriptResponse> {
-    // First, get the existing trigger to preserve its settings
-    const existing = await this.apiRequest<Record<string, unknown>>(
-      'GET',
-      `/projects/${encodeURIComponent(req.scriptId)}/triggers/${encodeURIComponent(req.triggerId)}`
-    );
-
-    // Delete old trigger
-    await this.apiRequest<Record<string, unknown>>(
-      'DELETE',
-      `/projects/${encodeURIComponent(req.scriptId)}/triggers/${encodeURIComponent(req.triggerId)}`
-    );
-
-    // Recreate with updated settings
-    const newConfig: Record<string, unknown> = {
-      functionName: req.functionName ?? existing['functionName'] ?? 'unknownFunction',
-    };
-
-    if (req.everyMinutes) {
-      newConfig['timeDriven'] = { everyMinutes: req.everyMinutes };
-    } else if (existing['timeDriven']) {
-      newConfig['timeDriven'] = existing['timeDriven'];
-    } else if (existing['eventType']) {
-      newConfig['eventType'] = existing['eventType'];
-    }
-
-    const result = await this.apiRequest<Record<string, unknown>>(
-      'POST',
-      `/projects/${encodeURIComponent(req.scriptId)}/triggers`,
-      newConfig
-    );
-
-    return this.success('update_trigger', {
-      trigger: {
-        oldTriggerId: req.triggerId,
-        newTriggerId: result['triggerId'] ?? result['trigger_id'],
-        functionName: newConfig['functionName'],
-      },
+    return this.error({
+      code: 'NOT_IMPLEMENTED',
+      message:
+        'Trigger management requires in-script ScriptApp APIs. ' +
+        'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
+        'Use update_content to modify trigger code in the script project.',
+      retryable: false,
     });
   }
 }

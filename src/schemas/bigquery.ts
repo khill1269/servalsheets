@@ -405,6 +405,13 @@ const CreateScheduledQueryActionSchema = z.object({
     .optional()
     .describe('Destination table name (supports template parameters like {run_time|"%Y%m%d"})'),
   location: z.string().optional().default('US').describe('BigQuery location (default: US)'),
+  serviceAccountName: z
+    .string()
+    .optional()
+    .describe(
+      'Service account email to run the scheduled query as (e.g., "sa@project.iam.gserviceaccount.com"). ' +
+      'If omitted, runs as the authenticated user.'
+    ),
 });
 
 const ListScheduledQueriesActionSchema = z.object({

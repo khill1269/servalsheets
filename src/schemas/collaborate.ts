@@ -204,6 +204,12 @@ export const SheetsCollaborateInputSchema = z.object({
         .boolean()
         .optional()
         .describe('Enable or disable link sharing (required for: share_set_link)'),
+      allowFileDiscovery: z
+        .boolean()
+        .optional()
+        .describe(
+          'Whether the file can be found via search (only applicable for: share_set_link with type "anyone" or "domain")'
+        ),
 
       // ========== COMMENT FIELDS ==========
       // Fields for comment_add, comment_update, comment_add_reply, comment_update_reply actions

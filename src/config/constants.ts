@@ -67,7 +67,11 @@ export const RATE_LIMIT_WINDOW_MS = 60000;
 /** Max requests per rate limit window */
 export const RATE_LIMIT_MAX = 100;
 
-/** Google Sheets API rate limit: 60 read/write requests per minute per user per project */
+/**
+ * Google Sheets API rate limit: 60 read/write requests per minute per user per project.
+ * NOTE: This constant is informational only — no rate limiter currently enforces it.
+ * Quota enforcement relies on Google's 429 responses handled by retry logic in google-api.ts.
+ */
 export const GOOGLE_API_RATE_LIMIT = 60;
 
 // ============================================================================
@@ -88,17 +92,17 @@ export const SHUTDOWN_TIMEOUT = 10000;
 // ============================================================================
 
 /**
- * Google Sheets API Batch Limit
+ * Codebase-imposed batch limit for batchUpdate operations.
  *
- * Per Google Sheets API documentation:
- * - Maximum 100 requests per batchUpdate call
- * - Maximum 2 MB payload size recommended
+ * Note: Google does not document an explicit per-call request count limit for
+ * spreadsheets.batchUpdate. This is a codebase-imposed limit to keep payloads
+ * under the ~2 MB recommended size and avoid timeout issues.
  *
  * @see https://developers.google.com/workspace/sheets/api/limits
  */
 export const GOOGLE_SHEETS_MAX_BATCH_REQUESTS = 100;
 
-/** Maximum batch size for batchUpdate operations */
+/** Codebase-imposed batch size limit for batchUpdate operations */
 export const MAX_BATCH_SIZE = 100;
 
 /** Chunk size for large operations */

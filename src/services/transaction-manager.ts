@@ -57,7 +57,7 @@ export class TransactionManager {
     this.config = {
       enabled: config.enabled ?? true,
       autoSnapshot: config.autoSnapshot ?? true,
-      autoRollback: config.autoRollback ?? true,
+      autoRollback: config.autoRollback ?? false,
       maxOperationsPerTransaction: config.maxOperationsPerTransaction ?? 100,
       transactionTimeoutMs: config.transactionTimeoutMs ?? 300000, // 5 minutes
       snapshotRetentionMs: config.snapshotRetentionMs ?? 3600000, // 1 hour
@@ -487,9 +487,10 @@ export class TransactionManager {
     );
 
     throw new Error(
-      'Automatic in-place snapshot restoration is not supported. ' +
-        "Use sheets_collaborate action='version_restore_snapshot' to create a recovery file, " +
-        'or use sheets_history to review and manually undo operations.'
+      `Automatic in-place snapshot restoration is not supported (snapshot: ${snapshot.id}). ` +
+        'Recovery options: (1) Use sheets_history action "undo" to reverse individual operations, ' +
+        '(2) Use sheets_collaborate action "version_restore_snapshot" to export a recovery copy, ' +
+        'or (3) Use sheets_collaborate action "version_list_revisions" to find and restore a previous revision.'
     );
   }
 

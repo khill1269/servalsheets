@@ -37,9 +37,11 @@ const BeginActionSchema = CommonFieldsSchema.extend({
   autoRollback: z
     .boolean()
     .optional()
-    .default(true)
+    .default(false)
     .describe(
-      'Auto-rollback on error (default: true). Note: Rollback implementation has limitations - see documentation.'
+      'Auto-rollback on error (default: false). WARNING: Automatic rollback cannot restore ' +
+      'in-place — it requires manual recovery via sheets_history undo or version restore. ' +
+      'Set to true only if you understand the limitations.'
     ),
   isolationLevel: z
     .enum(['read_uncommitted', 'read_committed', 'serializable'])

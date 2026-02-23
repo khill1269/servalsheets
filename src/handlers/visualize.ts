@@ -1283,12 +1283,47 @@ Always return valid JSON in the exact format requested.`;
       input.safety
     );
 
+    // Find the pivot table's anchor cell on the sheet
+    const getResponse = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      fields: 'sheets.data.rowData.values.pivotTable',
+      ranges: [],
+    });
+    const sheet = (getResponse.data.sheets ?? []).find(
+      (s) => s.properties?.sheetId === input.sheetId
+    );
+    let pivotRow = 0;
+    let pivotCol = 0;
+    if (sheet?.data?.[0]?.rowData) {
+      for (let r = 0; r < sheet.data[0].rowData.length; r++) {
+        const row = sheet.data[0].rowData[r];
+        if (row?.values) {
+          for (let c = 0; c < row.values.length; c++) {
+            if (row.values[c]?.pivotTable) {
+              pivotRow = r;
+              pivotCol = c;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Clear the pivot table by setting pivotTable to null on its anchor cell
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
         requests: [
           {
-            deleteSheet: { sheetId: input.sheetId },
+            updateCells: {
+              start: {
+                sheetId: input.sheetId,
+                rowIndex: pivotRow,
+                columnIndex: pivotCol,
+              },
+              fields: 'pivotTable',
+              rows: [{ values: [{ pivotTable: null as unknown as undefined }] }],
+            },
           },
         ],
       },
@@ -1365,49 +1400,15 @@ Always return valid JSON in the exact format requested.`;
     return this.notFoundError('Pivot on sheet', input.sheetId);
   }
 
-  private async handlePivotRefresh(input: PivotRefreshInput): Promise<VisualizeResponse> {
-    // Sheets API does not expose explicit pivot refresh; rewriting pivot triggers refresh.
-    const getInput = {
-      action: 'pivot_get',
-      spreadsheetId: input.spreadsheetId,
-      sheetId: input.sheetId,
-    } as PivotGetInput;
-    const getResult = await this.handlePivotGet(getInput);
-    if (!getResult.success || !getResult.pivotTable) {
-      return getResult;
-    }
-
-    // Rewrite pivot to force refresh
-    await this.sheetsApi.spreadsheets.batchUpdate({
-      spreadsheetId: input.spreadsheetId,
-      requestBody: {
-        requests: [
-          {
-            updateCells: {
-              start: {
-                sheetId: input.sheetId,
-                rowIndex: getResult.pivotTable.sourceRange.startRowIndex ?? 0,
-                columnIndex: getResult.pivotTable.sourceRange.startColumnIndex ?? 0,
-              },
-              fields: 'pivotTable',
-              rows: [
-                {
-                  values: [
-                    {
-                      pivotTable: {
-                        source: getResult.pivotTable.sourceRange,
-                      },
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-        ],
-      },
+  private async handlePivotRefresh(_input: PivotRefreshInput): Promise<VisualizeResponse> {
+    // Google Sheets pivot tables auto-refresh when their source data changes.
+    // There is no explicit refresh API endpoint. The pivot is always current
+    // when read via the API.
+    return this.success('pivot_refresh', {
+      message:
+        'Google Sheets pivot tables refresh automatically when source data changes. ' +
+        'No manual refresh is needed. Use pivot_get to read the current pivot state.',
     });
-
-    return this.success('pivot_refresh', {});
   }
 
   // ============================================================
@@ -1575,6 +1576,43 @@ Always return valid JSON in the exact format requested.`;
               sourceRange: { sources: [gridRange] },
             },
             aggregateType: 'SUM',
+          },
+        };
+
+      case 'WATERFALL':
+        return {
+          title,
+          waterfallChart: {
+            domain: { data: { sourceRange: { sources: [gridRange] } } },
+            series: [{ data: { sourceRange: { sources: [gridRange] } } }],
+            connectorLineStyle: { type: 'SOLID' },
+          },
+        };
+
+      case 'CANDLESTICK':
+        return {
+          title,
+          candlestickChart: {
+            domain: { data: { sourceRange: { sources: [gridRange] } } },
+            data: [
+              {
+                lowSeries: { data: { sourceRange: { sources: [gridRange] } } },
+                openSeries: { data: { sourceRange: { sources: [gridRange] } } },
+                closeSeries: { data: { sourceRange: { sources: [gridRange] } } },
+                highSeries: { data: { sourceRange: { sources: [gridRange] } } },
+              },
+            ],
+          },
+        };
+
+      case 'TREEMAP':
+        return {
+          title,
+          treemapChart: {
+            labels: { sourceRange: { sources: [gridRange] } },
+            parentLabels: { sourceRange: { sources: [gridRange] } },
+            sizeData: { sourceRange: { sources: [gridRange] } },
+            levels: 2,
           },
         };
 

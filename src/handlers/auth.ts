@@ -26,6 +26,29 @@ import { logger } from '../utils/logger.js';
 import open from 'open';
 import { unwrapRequest } from './base.js';
 import { executeWithRetry } from '../utils/retry.js';
+import { randomBytes } from 'crypto';
+
+/** Module-level CSRF state store with 10-minute TTL */
+const pendingStates = new Map<string, number>();
+
+function generateOAuthState(): string {
+  const state = randomBytes(32).toString('hex');
+  pendingStates.set(state, Date.now() + 10 * 60 * 1000);
+  // Prune expired entries
+  const now = Date.now();
+  for (const [key, expiry] of pendingStates) {
+    if (expiry < now) pendingStates.delete(key);
+  }
+  return state;
+}
+
+function verifyOAuthState(state: string | undefined): boolean {
+  if (!state) return false;
+  const expiry = pendingStates.get(state);
+  if (!expiry) return false;
+  pendingStates.delete(state);
+  return Date.now() < expiry;
+}
 
 export interface AuthHandlerOptions {
   googleClient?: GoogleApiClient | null;
@@ -214,11 +237,13 @@ export class AuthHandler {
       ? Array.from(new Set([...baseScopes, ...request.scopes]))
       : baseScopes;
 
+    const state = generateOAuthState();
     const authUrl = oauthClient.generateAuthUrl({
       access_type: 'offline',
       scope: requestedScopes,
       prompt: 'consent',
       include_granted_scopes: true, // Enable incremental consent - merge with previously granted scopes
+      state,
     });
 
     // Check if we should use automatic callback server
@@ -272,6 +297,19 @@ export class AuthHandler {
         // Wait for callback
         logger.info('Waiting for OAuth callback...');
         const result = await callbackPromise;
+
+        // Verify CSRF state parameter
+        if (!verifyOAuthState(result.state)) {
+          return {
+            success: false,
+            error: {
+              code: 'AUTH_ERROR',
+              message: 'OAuth state verification failed. Possible CSRF attack or expired session.',
+              retryable: true,
+              suggestedFix: 'Restart the login flow with sheets_auth action "login".',
+            },
+          };
+        }
 
         if (result.error) {
           return {

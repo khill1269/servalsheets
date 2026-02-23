@@ -22,11 +22,8 @@
 export const STANDARD_SCOPES = [
   // Core Sheets (read/write)
   'https://www.googleapis.com/auth/spreadsheets',
-  // Drive: only files created or opened by this app
+  // Drive: only files created or opened by this app (sensitive, not restricted)
   'https://www.googleapis.com/auth/drive.file',
-  // Drive: read-only access for listing spreadsheets (sheets_core.list) and file metadata
-  // This is a "sensitive" scope (not restricted) - no additional verification needed
-  'https://www.googleapis.com/auth/drive.readonly',
   // Drive AppData: template storage in hidden app folder
   'https://www.googleapis.com/auth/drive.appdata',
 ] as const;
@@ -49,7 +46,8 @@ export const STANDARD_SCOPES = [
 export const FULL_ACCESS_SCOPES = [
   // Core Sheets & Drive
   'https://www.googleapis.com/auth/spreadsheets',
-  'https://www.googleapis.com/auth/drive',
+  'https://www.googleapis.com/auth/drive', // RESTRICTED — requires security assessment
+  'https://www.googleapis.com/auth/drive.readonly', // RESTRICTED — full read access to all Drive files
   'https://www.googleapis.com/auth/drive.appdata',
 
   // BigQuery (for sheets_bigquery tool)
