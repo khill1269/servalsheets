@@ -635,15 +635,252 @@ export const ExportLargeDatasetOutputSchema = z.object({
 });
 
 // ============================================================================
+// Natural Language Sheet Generator Actions (F1)
+// ============================================================================
+
+/**
+ * Style preset for generated sheets
+ */
+export const GenerationStyleSchema = z
+  .enum(['minimal', 'professional', 'dashboard'])
+  .default('professional')
+  .describe(
+    'Visual style preset: minimal (clean, no colors), professional (headers, borders, number formats), dashboard (conditional formatting, charts-ready)'
+  );
+
+/**
+ * Column definition in a generated sheet
+ */
+export const GeneratedColumnSchema = z.object({
+  header: z.string().describe('Column header text'),
+  type: z
+    .enum(['text', 'number', 'currency', 'percentage', 'date', 'boolean', 'formula'])
+    .describe('Data type for formatting and validation'),
+  width: z.coerce.number().int().min(30).max(500).optional().describe('Column width in pixels'),
+  formula: z.string().optional().describe('Row-level formula template (use {row} for current row)'),
+  numberFormat: z.string().optional().describe('Custom number format pattern'),
+  description: z.string().optional().describe('Column description (used for data validation tooltip)'),
+});
+
+/**
+ * Row data in a generated sheet
+ */
+export const GeneratedRowSchema = z.object({
+  values: z
+    .array(z.union([z.string(), z.number(), z.boolean(), z.null()]))
+    .describe('Cell values in column order'),
+  formulas: z
+    .array(z.string().nullable())
+    .optional()
+    .describe('Override formulas for specific cells (null = use value)'),
+});
+
+/**
+ * Conditional formatting rule for generated sheets
+ */
+export const GeneratedConditionalRuleSchema = z.object({
+  range: z.string().describe('A1 notation range to apply the rule'),
+  rule: z
+    .enum([
+      'negative_red',
+      'positive_green',
+      'zero_gray',
+      'above_average_green',
+      'below_average_red',
+      'color_scale',
+      'data_bar',
+    ])
+    .describe('Preset conditional formatting rule'),
+});
+
+/**
+ * Formatting specification for generated sheets
+ */
+export const GeneratedFormattingSchema = z.object({
+  headerStyle: z
+    .enum(['bold_blue_background', 'bold_gray_background', 'bold_underline', 'bold_border_bottom'])
+    .optional()
+    .default('bold_blue_background')
+    .describe('Header row style preset'),
+  numberFormat: z.string().optional().describe('Default number format for currency/number columns'),
+  conditionalRules: z
+    .array(GeneratedConditionalRuleSchema)
+    .optional()
+    .describe('Conditional formatting rules'),
+  freezeRows: z.coerce.number().int().min(0).max(10).optional().default(1).describe('Rows to freeze'),
+  freezeColumns: z.coerce.number().int().min(0).max(5).optional().default(0).describe('Columns to freeze'),
+  alternatingRows: z.boolean().optional().default(false).describe('Enable alternating row colors'),
+});
+
+/**
+ * Sheet definition within a generated spreadsheet
+ */
+export const GeneratedSheetDefinitionSchema = z.object({
+  name: z.string().max(255).describe('Sheet/tab name'),
+  columns: z.array(GeneratedColumnSchema).min(1).max(50).describe('Column definitions'),
+  rows: z.array(GeneratedRowSchema).optional().describe('Sample data rows'),
+  formatting: GeneratedFormattingSchema.optional().describe('Formatting specification'),
+});
+
+/**
+ * Full sheet generation result
+ */
+export const SheetDefinitionSchema = z.object({
+  title: z.string().describe('Spreadsheet title'),
+  sheets: z
+    .array(GeneratedSheetDefinitionSchema)
+    .min(1)
+    .max(10)
+    .describe('Sheet definitions'),
+});
+
+/**
+ * generate_sheet — Create a fully structured spreadsheet from a natural language description
+ */
+export const GenerateSheetInputSchema = z.object({
+  action: z
+    .literal('generate_sheet')
+    .describe('Create a structured, formatted spreadsheet from a natural language description'),
+  description: z
+    .string()
+    .min(10)
+    .max(2000)
+    .describe(
+      'Natural language description of the spreadsheet to create (e.g., "Q1 budget tracker with revenue by month, expense categories, and profit margin formulas")'
+    ),
+  context: z
+    .string()
+    .max(2000)
+    .optional()
+    .describe(
+      'Additional context: industry, company size, specific requirements, or data constraints'
+    ),
+  style: GenerationStyleSchema.optional().describe('Visual style preset'),
+  spreadsheetId: SpreadsheetIdSchema.optional().describe(
+    'Existing spreadsheet to add sheet to (creates new spreadsheet if omitted)'
+  ),
+  sheetName: SheetNameSchema.optional().describe(
+    'Sheet name (auto-generated from description if omitted)'
+  ),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+  safety: SafetyOptionsSchema.optional().describe(
+    'Safety options: dryRun for preview, autoSnapshot for automatic backups'
+  ),
+});
+
+export const GenerateSheetOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('generate_sheet'),
+  spreadsheetId: SpreadsheetIdSchema,
+  spreadsheetUrl: z.string().url().describe('URL to open the generated spreadsheet'),
+  title: z.string().describe('Spreadsheet title'),
+  sheetsCreated: z.coerce.number().int().min(1).describe('Number of sheets/tabs created'),
+  columnsCreated: z.coerce.number().int().min(1).describe('Total columns across all sheets'),
+  rowsCreated: z.coerce.number().int().min(0).describe('Total data rows (excluding headers)'),
+  formulasApplied: z.coerce.number().int().min(0).describe('Number of formula cells created'),
+  formattingApplied: z.boolean().describe('Whether formatting was applied'),
+  definition: SheetDefinitionSchema.optional().describe(
+    'Full sheet definition (included at detailed verbosity)'
+  ),
+  _meta: ResponseMetaSchema.optional(),
+});
+
+/**
+ * generate_template — Create a reusable template from a natural language description
+ */
+export const GenerateTemplateInputSchema = z.object({
+  action: z
+    .literal('generate_template')
+    .describe(
+      'Create a reusable template definition from a natural language description (saved via sheets_templates)'
+    ),
+  description: z
+    .string()
+    .min(10)
+    .max(2000)
+    .describe('Natural language description of the template to create'),
+  parameterize: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'If true, replace sample values with {{placeholder}} tokens for parameterized filling'
+    ),
+  style: GenerationStyleSchema.optional().describe('Visual style preset'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+
+export const GenerateTemplateOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('generate_template'),
+  templateId: z.string().describe('Template ID for later use with sheets_templates.apply'),
+  name: z.string().describe('Template name (derived from description)'),
+  sheetsCount: z.coerce.number().int().min(1).describe('Number of sheet definitions in template'),
+  columnsCount: z.coerce.number().int().min(1).describe('Total columns across all sheets'),
+  parameters: z
+    .array(z.string())
+    .optional()
+    .describe('Parameterized placeholder names (if parameterize=true)'),
+  definition: SheetDefinitionSchema.optional().describe(
+    'Full template definition (included at standard+ verbosity)'
+  ),
+  _meta: ResponseMetaSchema.optional(),
+});
+
+/**
+ * preview_generation — Dry-run: see proposed structure without creating anything
+ */
+export const PreviewGenerationInputSchema = z.object({
+  action: z
+    .literal('preview_generation')
+    .describe(
+      'Preview the structure that would be generated from a description without creating anything'
+    ),
+  description: z
+    .string()
+    .min(10)
+    .max(2000)
+    .describe('Natural language description of the spreadsheet to preview'),
+  context: z.string().max(2000).optional().describe('Additional context for generation'),
+  style: GenerationStyleSchema.optional().describe('Visual style preset'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+
+export const PreviewGenerationOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('preview_generation'),
+  definition: SheetDefinitionSchema.describe('Proposed sheet structure (not yet created)'),
+  estimatedCells: z.coerce.number().int().describe('Estimated total cells to be created'),
+  estimatedFormulas: z.coerce.number().int().describe('Estimated formula cells'),
+  formattingPreview: z
+    .array(z.string())
+    .describe('Human-readable list of formatting that would be applied'),
+  _meta: ResponseMetaSchema.optional(),
+});
+
+// ============================================================================
 // Combined Composite Input/Output
 // ============================================================================
 
 /**
- * All composite operation inputs (11 actions)
+ * All composite operation inputs (14 actions)
  *
  * Original (7): import_csv, smart_append, bulk_update, deduplicate, export_xlsx, import_xlsx, get_form_responses
  * LLM-Optimized Workflows (3): setup_sheet, import_and_format, clone_structure
  * Streaming (1): export_large_dataset
+ * NL Sheet Generator (3): generate_sheet, generate_template, preview_generation
  *
  * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
  * - Better type safety at compile-time
@@ -666,11 +903,15 @@ export const CompositeInputSchema = z.object({
     CloneStructureInputSchema,
     // Streaming actions (1)
     ExportLargeDatasetInputSchema,
+    // NL Sheet Generator actions (3) — F1
+    GenerateSheetInputSchema,
+    GenerateTemplateInputSchema,
+    PreviewGenerationInputSchema,
   ]),
 });
 
 /**
- * Success outputs (11 actions)
+ * Success outputs (14 actions)
  *
  * Using z.union() (not discriminated union) because output schemas
  * are only used for runtime validation, not for LLM guidance.
@@ -690,6 +931,10 @@ export const CompositeSuccessOutputSchema = z.union([
   CloneStructureOutputSchema,
   // Streaming outputs
   ExportLargeDatasetOutputSchema,
+  // NL Sheet Generator outputs (F1)
+  GenerateSheetOutputSchema,
+  GenerateTemplateOutputSchema,
+  PreviewGenerationOutputSchema,
 ]);
 
 /**
@@ -715,6 +960,10 @@ export const CompositeResponseSchema = z.discriminatedUnion('success', [
   ImportAndFormatOutputSchema,
   CloneStructureOutputSchema,
   ExportLargeDatasetOutputSchema,
+  // NL Sheet Generator outputs (F1)
+  GenerateSheetOutputSchema,
+  GenerateTemplateOutputSchema,
+  PreviewGenerationOutputSchema,
   CompositeErrorOutputSchema,
 ]);
 
@@ -763,6 +1012,21 @@ export type ImportAndFormatInput = z.infer<typeof ImportAndFormatInputSchema>;
 export type ImportAndFormatOutput = z.infer<typeof ImportAndFormatOutputSchema>;
 export type CloneStructureInput = z.infer<typeof CloneStructureInputSchema>;
 export type CloneStructureOutput = z.infer<typeof CloneStructureOutputSchema>;
+
+// NL Sheet Generator types (F1)
+export type GenerationStyle = z.infer<typeof GenerationStyleSchema>;
+export type GeneratedColumn = z.infer<typeof GeneratedColumnSchema>;
+export type GeneratedRow = z.infer<typeof GeneratedRowSchema>;
+export type GeneratedConditionalRule = z.infer<typeof GeneratedConditionalRuleSchema>;
+export type GeneratedFormatting = z.infer<typeof GeneratedFormattingSchema>;
+export type GeneratedSheetDefinition = z.infer<typeof GeneratedSheetDefinitionSchema>;
+export type SheetDefinition = z.infer<typeof SheetDefinitionSchema>;
+export type GenerateSheetInput = z.infer<typeof GenerateSheetInputSchema>;
+export type GenerateSheetOutput = z.infer<typeof GenerateSheetOutputSchema>;
+export type GenerateTemplateInput = z.infer<typeof GenerateTemplateInputSchema>;
+export type GenerateTemplateOutput = z.infer<typeof GenerateTemplateOutputSchema>;
+export type PreviewGenerationInput = z.infer<typeof PreviewGenerationInputSchema>;
+export type PreviewGenerationOutput = z.infer<typeof PreviewGenerationOutputSchema>;
 
 export type CompositeInput = z.infer<typeof CompositeInputSchema>;
 export type CompositeSuccessOutput = z.infer<typeof CompositeSuccessOutputSchema>;
@@ -829,6 +1093,20 @@ export type CompositeCloneStructureInput = CompositeInput['request'] & {
   spreadsheetId: string;
   sourceSheet: SheetReference;
   newSheetName: string;
+};
+
+// NL Sheet Generator type helpers (F1)
+export type CompositeGenerateSheetInput = CompositeInput['request'] & {
+  action: 'generate_sheet';
+  description: string;
+};
+export type CompositeGenerateTemplateInput = CompositeInput['request'] & {
+  action: 'generate_template';
+  description: string;
+};
+export type CompositePreviewGenerationInput = CompositeInput['request'] & {
+  action: 'preview_generation';
+  description: string;
 };
 
 // ============================================================================

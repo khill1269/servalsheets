@@ -62,6 +62,22 @@ Once serval-core is extracted, these become possible:
 - [x] Airtable backend scaffold — Session 21 (924 lines, multi-table base model maps naturally to multi-sheet, batch ops in groups of 10, validates interface for record-oriented platforms)
 - [ ] Google Docs backend (via `@serval/core` interfaces)
 
+### P4 — Competitive Differentiation Features
+
+Full specs in `docs/development/FEATURE_PLAN.md`. 6 features, 20 new actions (315 → 335), 0 new tools.
+
+Phase 1 — Quick Wins (1-2 sessions each):
+- [x] F4: Smart Suggestions / Copilot — extend `sheets_analyze` (+2 actions: `suggest_next_actions`, `auto_enhance`) — Session 24
+- [x] F3: Automated Data Cleaning — extend `sheets_fix` (+5 actions: `clean`, `standardize_formats`, `fill_missing`, `detect_anomalies`, `suggest_cleaning`) — Session 24
+
+Phase 2 — Medium Lift (2-3 sessions each):
+- [ ] F1: Natural Language Sheet Generator — extend `sheets_composite` (+3 actions: `generate_sheet`, `generate_template`, `preview_generation`)
+- [ ] F5: Time-Travel Debugger — extend `sheets_history` (+3 actions: `timeline`, `diff_revisions`, `restore_cells`)
+
+Phase 3 — Complex Features (3-4 sessions each):
+- [ ] F6: Scenario Modeling — extend `sheets_dependencies` (+3 actions: `model_scenario`, `compare_scenarios`, `create_scenario_sheet`)
+- [ ] F2: Multi-Spreadsheet Federation — extend `sheets_data` (+4 actions: `cross_read`, `cross_query`, `cross_write`, `cross_compare`)
+
 ## Completed
 
 - [x] Audit infrastructure (8/8 steps, 981 tests) — Session 9
