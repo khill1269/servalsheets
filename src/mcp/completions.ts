@@ -305,6 +305,9 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'redo',
     'revert_to',
     'clear',
+    'timeline',
+    'diff_revisions',
+    'restore_cells',
   ],
   sheets_quality: [
     'validate',

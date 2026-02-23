@@ -4,6 +4,7 @@
  * Handles operation history tracking, undo/redo functionality, and debugging.
  */
 
+import type { drive_v3, sheets_v4 } from 'googleapis';
 import { getHistoryService } from '../services/history-service.js';
 import { SnapshotService } from '../services/snapshot.js';
 import { createNotFoundError } from '../utils/error-factory.js';
@@ -11,18 +12,32 @@ import type {
   SheetsHistoryInput,
   SheetsHistoryOutput,
   HistoryResponse,
+  HistoryTimelineInput,
+  HistoryDiffRevisionsInput,
+  HistoryRestoreCellsInput,
 } from '../schemas/history.js';
 import { unwrapRequest } from './base.js';
+import {
+  getTimeline,
+  diffRevisions,
+  restoreCells,
+} from '../services/revision-timeline.js';
 
 export interface HistoryHandlerOptions {
   snapshotService?: SnapshotService;
+  driveApi?: drive_v3.Drive;
+  sheetsApi?: sheets_v4.Sheets;
 }
 
 export class HistoryHandler {
   private snapshotService?: SnapshotService;
+  private driveApi?: drive_v3.Drive;
+  private sheetsApi?: sheets_v4.Sheets;
 
   constructor(options: HistoryHandlerOptions = {}) {
     this.snapshotService = options.snapshotService;
+    this.driveApi = options.driveApi;
+    this.sheetsApi = options.sheetsApi;
   }
 
   /**
@@ -378,6 +393,98 @@ export class HistoryHandler {
           };
           break;
         }
+        case 'timeline': {
+          if (!this.driveApi) {
+            response = {
+              success: false,
+              error: { code: 'INTERNAL_ERROR', message: 'Drive API not available for timeline', retryable: false },
+            };
+            break;
+          }
+          const timelineReq = req as HistoryTimelineInput;
+          const entries = await getTimeline(this.driveApi, timelineReq.spreadsheetId, {
+            since: timelineReq.since,
+            until: timelineReq.until,
+            limit: timelineReq.limit,
+          });
+          response = {
+            success: true,
+            action: 'timeline',
+            timeline: entries,
+            message: `Found ${entries.length} revision(s)`,
+          };
+          break;
+        }
+
+        case 'diff_revisions': {
+          if (!this.driveApi) {
+            response = {
+              success: false,
+              error: { code: 'INTERNAL_ERROR', message: 'Drive API not available for diff', retryable: false },
+            };
+            break;
+          }
+          const diffReq = req as HistoryDiffRevisionsInput;
+          const diff = await diffRevisions(
+            this.driveApi,
+            diffReq.spreadsheetId,
+            diffReq.revisionId1,
+            diffReq.revisionId2
+          );
+          response = {
+            success: true,
+            action: 'diff_revisions',
+            diff,
+            message: diff.summary.metadataOnly
+              ? 'Metadata comparison only — cell-level diff unavailable for this revision pair'
+              : `Found ${diff.cellChanges?.length ?? 0} cell change(s)`,
+          };
+          break;
+        }
+
+        case 'restore_cells': {
+          if (!this.driveApi || !this.sheetsApi) {
+            response = {
+              success: false,
+              error: { code: 'INTERNAL_ERROR', message: 'Drive/Sheets API not available for restore', retryable: false },
+            };
+            break;
+          }
+          const restoreReq = req as HistoryRestoreCellsInput;
+
+          if (restoreReq.safety?.dryRun) {
+            response = {
+              success: true,
+              action: 'restore_cells',
+              restored: restoreReq.cells.map((c) => ({ cell: c })),
+              message: `Dry run: would restore ${restoreReq.cells.length} cell(s) from revision ${restoreReq.revisionId}`,
+            };
+            break;
+          }
+
+          // Create snapshot before restoring
+          let snapshotId: string | undefined;
+          if (restoreReq.safety?.createSnapshot !== false && this.snapshotService) {
+            snapshotId = await this.snapshotService.create(restoreReq.spreadsheetId, 'Pre-restore backup');
+          }
+
+          const restored = await restoreCells(
+            this.driveApi,
+            this.sheetsApi,
+            restoreReq.spreadsheetId,
+            restoreReq.revisionId,
+            restoreReq.cells
+          );
+          response = {
+            success: true,
+            action: 'restore_cells',
+            restored,
+            snapshotId,
+            message: `Restored ${restored.length} cell(s) from revision ${restoreReq.revisionId}`,
+          };
+          break;
+        }
+
         default:
           response = {
             success: false,

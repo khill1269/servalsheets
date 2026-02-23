@@ -127,6 +127,8 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
       const { HistoryHandler } = await import('./history.js');
       return new HistoryHandler({
         snapshotService: options.context.snapshotService,
+        driveApi: options.driveApi,
+        sheetsApi: options.sheetsApi,
       });
     },
     // New MCP-native handlers
