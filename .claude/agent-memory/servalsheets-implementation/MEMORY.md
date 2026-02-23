@@ -197,6 +197,18 @@ Before implementing any fix:
 
 ---
 
+## Elicitation Wizard Pattern (Task #16)
+
+- Use `this.context.server.elicitInput()` NOT `this.context.elicitationServer.elicit()`
+- `server` field on HandlerContext has `elicitInput()` method (MCP Server instance)
+- `elicitationServer` is a different, narrower interface — check both may exist
+- Always `try/catch` elicitation calls — they must be non-blocking
+- After catch: fall through to default value, never fail the operation
+- For standalone handlers (TransactionHandler), add `context?: HandlerContext` to options and wire in `index.ts`
+- Test mock for context needs `rangeResolver: { resolve: vi.fn().mockResolvedValue({ a1Notation: '...' }) }`
+- Cast elicit results to `any` when assigning to typed enum fields: `content['field'] as any`
+- Tests bypass Zod validation with `as any` — test handlers can receive undefined for required fields
+
 ## Cost Optimization Learned
 
 **Efficient implementation:**

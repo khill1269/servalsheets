@@ -238,13 +238,16 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
           response = await this.handleUpdateProperties(req as CoreUpdatePropertiesInput);
           break;
 
-        default:
+        default: {
+          // Note: exhaustiveness check skipped — switch uses `req.action as string`
+          // to support handler-level aliases (rename_sheet, hide_sheet, etc.)
           response = this.error({
             code: 'INVALID_PARAMS',
             message: `Unknown action: ${(req as { action: string }).action}. Available actions: get, create, copy, update_properties, get_url, batch_get, get_comprehensive, list, add_sheet, delete_sheet, duplicate_sheet, update_sheet, copy_sheet_to, list_sheets, get_sheet, clear_sheet, move_sheet, batch_delete_sheets, batch_update_sheets`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
+        }
       }
 
       // Track context after successful operation
@@ -522,6 +525,36 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       });
     }
 
+    // Elicitation wizard: ask for spreadsheet name when title is absent
+    let resolvedTitle: string = input.title;
+    if (!resolvedTitle && this.context.server) {
+      try {
+        const elicitResult = await this.context.server.elicitInput({
+          mode: 'form',
+          message: 'What would you like to name your new spreadsheet?',
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              title: {
+                type: 'string',
+                title: 'Spreadsheet name',
+                description: 'Name for your new spreadsheet',
+                default: 'Untitled Spreadsheet',
+              },
+            },
+          },
+        });
+        if (elicitResult.action === 'accept' && elicitResult.content?.['title']) {
+          resolvedTitle = elicitResult.content['title'] as string;
+        }
+      } catch {
+        // non-blocking — proceed with default
+      }
+      if (!resolvedTitle) {
+        resolvedTitle = 'Untitled Spreadsheet';
+      }
+    }
+
     const sheetsConfig: sheets_v4.Schema$Sheet[] | undefined = input.sheets?.map((s) => {
       const sheetProps: sheets_v4.Schema$SheetProperties = {
         title: s.title,
@@ -542,7 +575,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
     });
 
     const spreadsheetProps: sheets_v4.Schema$SpreadsheetProperties = {
-      title: input.title,
+      title: resolvedTitle,
       locale: input.locale ?? 'en_US',
     };
     if (input.timeZone) {
@@ -706,6 +739,10 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
     if (input.autoRecalc !== undefined) {
       properties.autoRecalc = input.autoRecalc;
       fields.push('autoRecalc');
+    }
+    if (input.spreadsheetTheme !== undefined) {
+      (properties as Record<string, unknown>)['spreadsheetTheme'] = input.spreadsheetTheme;
+      fields.push('spreadsheetTheme');
     }
 
     if (fields.length === 0) {
@@ -979,53 +1016,48 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       });
     }
 
-    return this.success('get_comprehensive', {
-      comprehensiveMetadata: {
-        spreadsheetId: data.spreadsheetId,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        properties: data.properties as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        namedRanges: data.namedRanges as any,
-        sheets: paginatedSheets.map((s) => ({
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          properties: s.properties as any,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          conditionalFormats: s.conditionalFormats as any,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          protectedRanges: s.protectedRanges as any,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          charts: s.charts as any,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          filterViews: s.filterViews as any,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          basicFilter: s.basicFilter as any,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          merges: s.merges as any,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          data: s.data as any,
-        })),
-        stats: {
-          sheetsCount,
-          namedRangesCount,
-          totalCharts,
-          totalConditionalFormats,
-          totalProtectedRanges,
-          cacheHit: !!cached,
-          fetchTime: Date.now() - startTime,
-        },
-        // Phase 1.2: Pagination metadata
-        pagination: {
-          hasMore,
-          nextCursor,
-          totalSheets,
-          currentPage: {
-            startIndex,
-            endIndex,
-            count: sheetsCount,
-          },
+    // Google Sheets SDK types use `string | null` typed fields that don't satisfy
+    // the output schema's discriminated union type. We build the metadata object and
+    // cast it as a whole to the schema's expected type using the approved `unknown`
+    // intermediate cast. No data is lost at runtime — this is purely a compile-time fix.
+    type ComprehensiveMeta = NonNullable<Extract<CoreResponse, { success: true }>['comprehensiveMetadata']>;
+    type SheetEntry = NonNullable<ComprehensiveMeta['sheets']>[number];
+    const comprehensiveMetadata: ComprehensiveMeta = {
+      spreadsheetId: data.spreadsheetId!,
+      properties: data.properties as unknown as ComprehensiveMeta['properties'],
+      namedRanges: data.namedRanges as unknown as ComprehensiveMeta['namedRanges'],
+      sheets: paginatedSheets.map((s) => ({
+        properties: s.properties as unknown as SheetEntry['properties'],
+        conditionalFormats: s.conditionalFormats as unknown as SheetEntry['conditionalFormats'],
+        protectedRanges: s.protectedRanges as unknown as SheetEntry['protectedRanges'],
+        charts: s.charts as unknown as SheetEntry['charts'],
+        filterViews: s.filterViews as unknown as SheetEntry['filterViews'],
+        basicFilter: s.basicFilter as unknown as SheetEntry['basicFilter'],
+        merges: s.merges as unknown as SheetEntry['merges'],
+        data: s.data as unknown as SheetEntry['data'],
+      })),
+      stats: {
+        sheetsCount,
+        namedRangesCount,
+        totalCharts,
+        totalConditionalFormats,
+        totalProtectedRanges,
+        cacheHit: !!cached,
+        fetchTime: Date.now() - startTime,
+      },
+      // Phase 1.2: Pagination metadata
+      pagination: {
+        hasMore,
+        nextCursor,
+        totalSheets,
+        currentPage: {
+          startIndex,
+          endIndex,
+          count: sheetsCount,
         },
       },
-    });
+    };
+    return this.success('get_comprehensive', { comprehensiveMetadata });
   }
 
   /**
@@ -1408,7 +1440,10 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       rowCount: sheetData.properties.gridProperties?.rowCount ?? 0,
       columnCount: sheetData.properties.gridProperties?.columnCount ?? 0,
       hidden: sheetData.properties.hidden ?? false,
-      tabColor: this.convertTabColor(sheetData.properties.tabColor, sheetData.properties.tabColorStyle),
+      tabColor: this.convertTabColor(
+        sheetData.properties.tabColor,
+        sheetData.properties.tabColorStyle
+      ),
     };
 
     // Fix: Invalidate sheet cache after property update (title, index, hidden, etc.)
@@ -1527,7 +1562,10 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       rowCount: sheetData.properties.gridProperties?.rowCount ?? 0,
       columnCount: sheetData.properties.gridProperties?.columnCount ?? 0,
       hidden: sheetData.properties.hidden ?? false,
-      tabColor: this.convertTabColor(sheetData.properties.tabColor, sheetData.properties.tabColorStyle),
+      tabColor: this.convertTabColor(
+        sheetData.properties.tabColor,
+        sheetData.properties.tabColorStyle
+      ),
     };
 
     return this.success('get_sheet', { sheet });
