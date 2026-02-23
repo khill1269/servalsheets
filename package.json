@@ -1,6 +1,6 @@
 {
   "name": "servalsheets",
-  "description": "Production-grade Google Sheets MCP server - 22 tools, 325 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features",
+  "description": "Production-grade Google Sheets MCP server - 22 tools, 328 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features",
   "version": "1.7.0",
   "author": {
     "name": "Thomas Lee Cahill",

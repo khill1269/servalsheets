@@ -94,6 +94,48 @@ const ClearActionSchema = CommonFieldsSchema.extend({
 });
 
 // ============================================================================
+// F5: Time-Travel Debugger (3 actions)
+// ============================================================================
+
+const TimelineActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('timeline').describe('View chronological change history for a spreadsheet'),
+  spreadsheetId: z.string().min(1).describe('Spreadsheet ID'),
+  range: z.string().optional().describe('Focus on specific range (A1 notation)'),
+  since: z.string().optional().describe('ISO date — only show changes after this time'),
+  until: z.string().optional().describe('ISO date — only show changes before this time'),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(50).describe('Max revisions'),
+});
+
+const DiffRevisionsActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('diff_revisions')
+    .describe('Compare two revisions to see cell-level changes'),
+  spreadsheetId: z.string().min(1).describe('Spreadsheet ID'),
+  revisionId1: z.string().min(1).describe('First revision ID (older)'),
+  revisionId2: z.string().min(1).describe('Second revision ID (newer)'),
+  range: z.string().optional().describe('Focus diff on specific range (A1 notation)'),
+});
+
+const RestoreCellsActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('restore_cells')
+    .describe('Restore specific cells from a past revision (surgical restore, not full rollback)'),
+  spreadsheetId: z.string().min(1).describe('Spreadsheet ID'),
+  revisionId: z.string().min(1).describe('Source revision to restore from'),
+  cells: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(100)
+    .describe('Cell references to restore (A1 notation, e.g. ["Sheet1!A1", "Sheet1!D15"])'),
+  safety: z
+    .object({
+      dryRun: z.boolean().optional().describe('Preview what would be restored without writing'),
+      createSnapshot: z.boolean().optional().default(true).describe('Create backup before restoring'),
+    })
+    .optional(),
+});
+
+// ============================================================================
 // Combined Input Schema
 // ============================================================================
 
@@ -115,6 +157,9 @@ export const SheetsHistoryInputSchema = z.object({
     RedoActionSchema,
     RevertToActionSchema,
     ClearActionSchema,
+    TimelineActionSchema,
+    DiffRevisionsActionSchema,
+    RestoreCellsActionSchema,
   ]),
 });
 
@@ -207,6 +252,53 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
       .describe('Details of operation that was undone/redone'),
     // clear response
     operationsCleared: z.coerce.number().optional().describe('Number of operations cleared'),
+    // F5: timeline response
+    timeline: z
+      .array(
+        z.object({
+          revisionId: z.string(),
+          timestamp: z.string().describe('ISO timestamp'),
+          user: z.string().optional().describe('Email of user who made the change'),
+          displayName: z.string().optional(),
+          sizeBytes: z.coerce.number().optional(),
+        })
+      )
+      .optional()
+      .describe('Chronological list of revisions'),
+    // F5: diff_revisions response
+    diff: z
+      .object({
+        revision1: z.object({ id: z.string(), timestamp: z.string().optional(), user: z.string().optional() }),
+        revision2: z.object({ id: z.string(), timestamp: z.string().optional(), user: z.string().optional() }),
+        cellChanges: z
+          .array(
+            z.object({
+              cell: z.string().describe('A1 reference'),
+              oldValue: z.union([z.string(), z.number(), z.null()]).optional(),
+              newValue: z.union([z.string(), z.number(), z.null()]).optional(),
+              changeType: z.enum(['added', 'removed', 'modified']),
+            })
+          )
+          .optional()
+          .describe('Cell-level changes (null if content comparison unavailable)'),
+        summary: z.object({
+          metadataOnly: z.boolean().describe('True if only metadata comparison was possible'),
+          rev1Size: z.coerce.number().optional(),
+          rev2Size: z.coerce.number().optional(),
+        }).optional(),
+      })
+      .optional(),
+    // F5: restore_cells response
+    restored: z
+      .array(
+        z.object({
+          cell: z.string(),
+          restoredValue: z.union([z.string(), z.number(), z.null()]).optional(),
+        })
+      )
+      .optional()
+      .describe('Cells that were restored'),
+    snapshotId: z.string().optional().describe('Backup snapshot ID (for undo)'),
     message: z.string().optional(),
     _meta: ResponseMetaSchema.optional(),
   }),
@@ -254,3 +346,19 @@ export type HistoryRevertToInput = SheetsHistoryInput['request'] & {
   operationId: string;
 };
 export type HistoryClearInput = SheetsHistoryInput['request'] & { action: 'clear' };
+export type HistoryTimelineInput = SheetsHistoryInput['request'] & {
+  action: 'timeline';
+  spreadsheetId: string;
+};
+export type HistoryDiffRevisionsInput = SheetsHistoryInput['request'] & {
+  action: 'diff_revisions';
+  spreadsheetId: string;
+  revisionId1: string;
+  revisionId2: string;
+};
+export type HistoryRestoreCellsInput = SheetsHistoryInput['request'] & {
+  action: 'restore_cells';
+  spreadsheetId: string;
+  revisionId: string;
+  cells: string[];
+};
