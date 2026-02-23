@@ -2,9 +2,10 @@
  * ServalSheets - Composite Operations Handler
  *
  * Handles high-level composite operations
- * 11 Actions:
+ * 14 Actions:
  * - Original (7): import_csv, smart_append, bulk_update, deduplicate, export_xlsx, import_xlsx, get_form_responses
  * - LLM-Optimized Workflows (3): setup_sheet, import_and_format, clone_structure
+ * - NL Sheet Generator (3): generate_sheet, generate_template, preview_generation
  *
  * MCP Protocol: 2025-11-25
  * Google Sheets API: v4
@@ -40,7 +41,15 @@ import type {
   CompositeCloneStructureInput,
   // Streaming types
   CompositeExportLargeDatasetInput,
+  // NL Sheet Generator types
+  CompositeGenerateSheetInput,
+  CompositeGenerateTemplateInput,
+  CompositePreviewGenerationInput,
 } from '../schemas/composite.js';
+import {
+  generateDefinition,
+  executeDefinition,
+} from '../services/sheet-generator.js';
 import { readDataInChunks, formatBytes } from '../utils/streaming-export.js';
 import type { Intent } from '../core/intent.js';
 import { getRequestLogger, sendProgress } from '../utils/request-context.js';
@@ -164,13 +173,22 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         case 'export_large_dataset':
           response = await this.handleExportLargeDataset(req as CompositeExportLargeDatasetInput);
           break;
+        case 'generate_sheet':
+          response = await this.handleGenerateSheet(req as CompositeGenerateSheetInput);
+          break;
+        case 'generate_template':
+          response = await this.handleGenerateTemplate(req as CompositeGenerateTemplateInput);
+          break;
+        case 'preview_generation':
+          response = await this.handlePreviewGeneration(req as CompositePreviewGenerationInput);
+          break;
         default: {
           // Exhaustive check - TypeScript ensures this is unreachable
           const _exhaustiveCheck: never = req;
           throw new ValidationError(
             `Unknown action: ${(req as { action: string }).action}`,
             'action',
-            'import_csv | smart_append | bulk_update | deduplicate | export_xlsx | import_xlsx | get_form_responses | setup_sheet | import_and_format | clone_structure | export_large_dataset'
+            'import_csv | smart_append | bulk_update | deduplicate | export_xlsx | import_xlsx | get_form_responses | setup_sheet | import_and_format | clone_structure | export_large_dataset | generate_sheet | generate_template | preview_generation'
           );
         }
       }
@@ -1238,5 +1256,165 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       logger.error('Large dataset export failed', { error, spreadsheetId: input.spreadsheetId });
       return this.mapError(error);
     }
+  }
+
+  // ============================================================================
+  // F1: Natural Language Sheet Generator (3 actions)
+  // ============================================================================
+
+  private async handleGenerateSheet(
+    input: CompositeGenerateSheetInput
+  ): Promise<CompositeOutput['response']> {
+    const logger = getRequestLogger();
+    logger.info('Generating sheet from description', { description: input.description.slice(0, 80) });
+
+    await sendProgress(0, 3, 'Designing spreadsheet structure...');
+
+    const definition = await generateDefinition(
+      input.description,
+      {
+        context: input.context,
+        style: input.style,
+        spreadsheetId: input.spreadsheetId,
+        sheetName: input.sheetName,
+      },
+      this.context.samplingServer
+    );
+
+    if (input.safety?.dryRun) {
+      return {
+        success: true,
+        action: 'generate_sheet',
+        spreadsheetId: '',
+        spreadsheetUrl: '',
+        title: definition.title,
+        sheetsCreated: definition.sheets.length,
+        columnsCreated: definition.sheets.reduce((sum, s) => sum + s.columns.length, 0),
+        rowsCreated: 0,
+        formulasApplied: 0,
+        formattingApplied: false,
+        definition,
+      };
+    }
+
+    await sendProgress(1, 3, 'Creating spreadsheet...');
+
+    const result = await executeDefinition(
+      this.sheetsApi,
+      definition,
+      input.spreadsheetId
+    );
+
+    await sendProgress(3, 3, 'Complete');
+
+    return {
+      success: true,
+      action: 'generate_sheet',
+      ...result,
+    };
+  }
+
+  private async handleGenerateTemplate(
+    input: CompositeGenerateTemplateInput
+  ): Promise<CompositeOutput['response']> {
+    const logger = getRequestLogger();
+    logger.info('Generating template from description', { description: input.description.slice(0, 80) });
+
+    const definition = await generateDefinition(
+      input.description,
+      { style: input.style },
+      this.context.samplingServer
+    );
+
+    // Generate a template ID
+    const templateId = `tpl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const name = definition.title;
+
+    // If parameterize, replace sample values with placeholders
+    if (input.parameterize) {
+      for (const sheet of definition.sheets) {
+        for (const col of sheet.columns) {
+          if (col.type === 'text') {
+            col.header = `{{${col.header.toLowerCase().replace(/\s+/g, '_')}}}`;
+          }
+        }
+      }
+    }
+
+    const parameters = input.parameterize
+      ? definition.sheets.flatMap((s) =>
+          s.columns
+            .filter((c) => c.header.startsWith('{{'))
+            .map((c) => c.header.replace(/[{}]/g, ''))
+        )
+      : undefined;
+
+    return {
+      success: true,
+      action: 'generate_template',
+      templateId,
+      name,
+      sheetsCount: definition.sheets.length,
+      columnsCount: definition.sheets.reduce((sum, s) => sum + s.columns.length, 0),
+      parameters,
+      definition,
+    };
+  }
+
+  private async handlePreviewGeneration(
+    input: CompositePreviewGenerationInput
+  ): Promise<CompositeOutput['response']> {
+    const logger = getRequestLogger();
+    logger.info('Previewing generation', { description: input.description.slice(0, 80) });
+
+    const definition = await generateDefinition(
+      input.description,
+      {
+        context: input.context,
+        style: input.style,
+      },
+      this.context.samplingServer
+    );
+
+    const estimatedCells = definition.sheets.reduce(
+      (sum, s) => sum + s.columns.length * Math.max(s.rows?.length ?? 0, 10),
+      0
+    );
+    const estimatedFormulas = definition.sheets.reduce(
+      (sum, s) => sum + s.columns.filter((c) => c.formula).length * Math.max(s.rows?.length ?? 0, 10),
+      0
+    );
+
+    const formattingPreview: string[] = [];
+    for (const sheet of definition.sheets) {
+      if (sheet.formatting?.headerStyle) {
+        formattingPreview.push(`${sheet.name}: Header style "${sheet.formatting.headerStyle}"`);
+      }
+      if (sheet.formatting?.freezeRows) {
+        formattingPreview.push(`${sheet.name}: Freeze top ${sheet.formatting.freezeRows} row(s)`);
+      }
+      if (sheet.formatting?.alternatingRows) {
+        formattingPreview.push(`${sheet.name}: Alternating row colors`);
+      }
+      if (sheet.formatting?.conditionalRules?.length) {
+        formattingPreview.push(
+          `${sheet.name}: ${sheet.formatting.conditionalRules.length} conditional formatting rule(s)`
+        );
+      }
+      for (const col of sheet.columns) {
+        if (col.type === 'currency' || col.type === 'percentage') {
+          formattingPreview.push(`${sheet.name}: Column "${col.header}" formatted as ${col.type}`);
+        }
+      }
+    }
+
+    return {
+      success: true,
+      action: 'preview_generation',
+      definition,
+      estimatedCells,
+      estimatedFormulas,
+      formattingPreview,
+    };
   }
 }

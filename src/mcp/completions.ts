@@ -165,6 +165,9 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'import_and_format',
     'clone_structure',
     'export_large_dataset',
+    'generate_sheet',
+    'generate_template',
+    'preview_generation',
   ],
   sheets_confirm: [
     'request',
