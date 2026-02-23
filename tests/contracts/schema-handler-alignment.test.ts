@@ -161,7 +161,7 @@ describe('Schema-Handler Alignment', () => {
     it('should have correct action counts per tool', () => {
       const expectedCounts: Record<string, number> = {
         advanced: 31,
-        analyze: 16,
+        analyze: 18,
         appsscript: 18,
         auth: 4,
         bigquery: 17,
@@ -173,7 +173,7 @@ describe('Schema-Handler Alignment', () => {
         dependencies: 7,
         dimensions: 28,
         federation: 4,
-        fix: 1,
+        fix: 6,
         format: 24,
         history: 7,
         quality: 4,

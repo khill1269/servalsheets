@@ -262,6 +262,11 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
   ],
   sheets_fix: [
     'fix',
+    'clean',
+    'standardize_formats',
+    'fill_missing',
+    'detect_anomalies',
+    'suggest_cleaning',
   ],
   sheets_format: [
     'set_format',

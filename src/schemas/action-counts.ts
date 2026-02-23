@@ -21,7 +21,7 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_dependencies: 7,
   sheets_dimensions: 28,
   sheets_federation: 4,
-  sheets_fix: 1,
+  sheets_fix: 6,
   sheets_format: 24,
   sheets_history: 7,
   sheets_quality: 4,

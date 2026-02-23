@@ -77,8 +77,9 @@ describe('AST Schema Parser', () => {
       const schemaPath = path.join(PROJECT_ROOT, 'src/schemas/fix.ts');
       const actions = extractSchemaActions(schemaPath);
 
-      expect(actions.length).toBe(1);
+      expect(actions.length).toBe(6);
       expect(actions).toContain('fix');
+      expect(actions).toContain('clean');
     });
 
     it('should filter out actions from output schemas', () => {
