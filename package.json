@@ -1,6 +1,6 @@
 {
   "name": "servalsheets",
-  "description": "Production-grade Google Sheets MCP server - 22 tools, 315 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features",
+  "description": "Production-grade Google Sheets MCP server - 22 tools, 317 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features",
   "version": "1.7.0",
   "author": {
     "name": "Thomas Lee Cahill",
@@ -451,7 +451,7 @@
     "validate:server-json": "node scripts/validate-server-json.mjs",
     "validate:server-json-extended": "tsx scripts/validate-server-json-extended.ts",
     "verify": "npm-run-all --parallel check:drift check:placeholders check:doc-action-counts typecheck lint format:check && npm run validate:alignment && npm run test:fast",
-    "verify:safe": "npm-run-all --parallel check:placeholders check:doc-action-counts typecheck lint format:check && npm run validate:alignment && npm run test:fast",
+    "verify:safe": "npm-run-all --parallel check:drift check:placeholders check:doc-action-counts typecheck format:check && npm run validate:alignment && npm run test:fast",
     "verify:build": "npm run build && npm run validate:server-json && npm run smoke && echo 'Build OK'",
     "verify:legacy": "npm-run-all --parallel check:drift check:placeholders typecheck lint format:check && npm test",
     "watch:all": "bash scripts/watch-all.sh",

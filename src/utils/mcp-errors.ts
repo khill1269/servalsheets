@@ -64,7 +64,8 @@ export function createResourceReadError(uri: string, originalError: unknown): Mc
 
 /**
  * Create an authentication required error
- * Uses InvalidParams (-32602) as the request is valid but requires authentication
+ * Uses InvalidRequest (-32600) per JSON-RPC spec: the request cannot be
+ * processed in the current unauthenticated state.
  *
  * @param uri - The resource URI that requires authentication
  * @param hint - Optional hint for the user
@@ -72,7 +73,7 @@ export function createResourceReadError(uri: string, originalError: unknown): Mc
  */
 export function createAuthRequiredError(uri: string, hint?: string): McpError {
   return new McpError(
-    ErrorCode.InvalidParams,
+    ErrorCode.InvalidRequest,
     'Not authenticated. Call sheets_auth action:"login" first.',
     {
       uri,

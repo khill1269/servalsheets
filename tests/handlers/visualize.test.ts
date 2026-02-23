@@ -1191,7 +1191,8 @@ describe('VisualizeHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+      // Pivot tables auto-refresh; no API call needed
+      expect(result.response.message).toContain('automatically');
     });
 
     it('should handle pivot refresh with validateGridDataSize check', async () => {

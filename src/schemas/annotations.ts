@@ -37,7 +37,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   sheets_format: {
     title: 'Cell Formatting',
     readOnlyHint: false,
-    destructiveHint: false, // Formatting doesn't destroy data
+    destructiveHint: true, // clear_format removes formatting; conditional format rules can be deleted
     idempotentHint: true, // Same format = same result
     openWorldHint: true,
   },
@@ -81,14 +81,14 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     title: 'Quality Assurance',
     readOnlyHint: false, // resolve_conflict is a write operation
     destructiveHint: false,
-    idempotentHint: true,
+    idempotentHint: false, // resolve_conflict modifies data; validate results can vary with data changes
     openWorldHint: true, // resolve_conflict makes Google API calls
   },
   sheets_history: {
     title: 'Operation History',
     readOnlyHint: false, // undo/redo/revert_to are write operations
     destructiveHint: false,
-    idempotentHint: true,
+    idempotentHint: false, // undo/redo change state on each call
     openWorldHint: true, // undo/redo call Google Sheets API
   },
   // MCP-Native Tools
@@ -161,7 +161,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     readOnlyHint: true, // Analysis only
     destructiveHint: false, // No data modification
     idempotentHint: true, // Same input = same output
-    openWorldHint: false, // Local graph analysis
+    openWorldHint: true, // Reads formula data from Google Sheets API
   },
   sheets_federation: {
     title: 'MCP Server Federation',

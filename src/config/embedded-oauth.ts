@@ -31,10 +31,15 @@
  * 4. Submit app for Google verification (OAuth consent screen → Publish)
  */
 export const EMBEDDED_OAUTH = {
-  clientId: 'REDACTED_OAUTH_CLIENT_ID',
-  clientSecret: 'REDACTED_OAUTH_CLIENT_SECRET',
-  redirectUri: 'http://localhost:3000/callback',
-} as const;
+  clientId:
+    process.env['OAUTH_CLIENT_ID'] ??
+    'REDACTED_OAUTH_CLIENT_ID',
+  clientSecret:
+    process.env['OAUTH_CLIENT_SECRET'] ??
+    'REDACTED_OAUTH_CLIENT_SECRET',
+  redirectUri:
+    process.env['OAUTH_REDIRECT_URI'] ?? 'http://localhost:3000/callback',
+};
 
 /**
  * Check if the embedded credentials have been configured

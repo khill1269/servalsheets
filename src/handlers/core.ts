@@ -454,14 +454,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       rowCount: s.properties?.gridProperties?.rowCount ?? 0,
       columnCount: s.properties?.gridProperties?.columnCount ?? 0,
       hidden: s.properties?.hidden ?? false,
-      tabColor: s.properties?.tabColor
-        ? {
-            red: s.properties.tabColor.red ?? 0,
-            green: s.properties.tabColor.green ?? 0,
-            blue: s.properties.tabColor.blue ?? 0,
-            alpha: s.properties.tabColor.alpha ?? 1,
-          }
-        : undefined,
+      tabColor: this.convertTabColor(s.properties?.tabColor, s.properties?.tabColorStyle),
     }));
 
     // Validate response data
@@ -1062,8 +1055,8 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
     const pageSize = input.maxResults || 100;
     const orderBy = input.orderBy || 'modifiedTime desc';
 
-    // Build query: filter for Google Sheets files
-    let q = "mimeType='application/vnd.google-apps.spreadsheet'";
+    // Build query: filter for Google Sheets files, exclude trashed
+    let q = "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false";
     if (input.query) {
       q += ` and ${input.query}`;
     }
@@ -1125,12 +1118,15 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       sheetProperties.index = input.index;
     }
     if (input.tabColor) {
-      sheetProperties.tabColor = {
+      // Write both deprecated tabColor and tabColorStyle for backward compatibility
+      const colorValue = {
         red: input.tabColor.red,
         green: input.tabColor.green,
         blue: input.tabColor.blue,
         alpha: input.tabColor.alpha,
       };
+      sheetProperties.tabColor = colorValue;
+      sheetProperties.tabColorStyle = { rgbColor: colorValue };
     }
 
     const response = await this.sheetsApi.spreadsheets.batchUpdate({
@@ -1152,7 +1148,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       rowCount: newSheet?.gridProperties?.rowCount ?? input.rowCount ?? 1000,
       columnCount: newSheet?.gridProperties?.columnCount ?? input.columnCount ?? 26,
       hidden: newSheet?.hidden ?? false,
-      tabColor: this.convertTabColor(newSheet?.tabColor),
+      tabColor: this.convertTabColor(newSheet?.tabColor, newSheet?.tabColorStyle),
     };
 
     // Fix: Invalidate sheet cache so subsequent lookups see the new sheet
@@ -1344,13 +1340,15 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       fields.push('hidden');
     }
     if (tabColor !== undefined) {
-      properties.tabColor = {
+      const colorValue = {
         red: tabColor.red,
         green: tabColor.green,
         blue: tabColor.blue,
         alpha: tabColor.alpha,
       };
-      fields.push('tabColor');
+      properties.tabColor = colorValue;
+      properties.tabColorStyle = { rgbColor: colorValue };
+      fields.push('tabColorStyle');
     }
     if (rightToLeft !== undefined) {
       properties.rightToLeft = rightToLeft;
@@ -1410,7 +1408,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       rowCount: sheetData.properties.gridProperties?.rowCount ?? 0,
       columnCount: sheetData.properties.gridProperties?.columnCount ?? 0,
       hidden: sheetData.properties.hidden ?? false,
-      tabColor: this.convertTabColor(sheetData.properties.tabColor),
+      tabColor: this.convertTabColor(sheetData.properties.tabColor, sheetData.properties.tabColorStyle),
     };
 
     // Fix: Invalidate sheet cache after property update (title, index, hidden, etc.)
@@ -1470,7 +1468,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       rowCount: s.properties?.gridProperties?.rowCount ?? 0,
       columnCount: s.properties?.gridProperties?.columnCount ?? 0,
       hidden: s.properties?.hidden ?? false,
-      tabColor: this.convertTabColor(s.properties?.tabColor),
+      tabColor: this.convertTabColor(s.properties?.tabColor, s.properties?.tabColorStyle),
     }));
 
     return this.success('list_sheets', { sheets });
@@ -1529,7 +1527,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       rowCount: sheetData.properties.gridProperties?.rowCount ?? 0,
       columnCount: sheetData.properties.gridProperties?.columnCount ?? 0,
       hidden: sheetData.properties.hidden ?? false,
-      tabColor: this.convertTabColor(sheetData.properties.tabColor),
+      tabColor: this.convertTabColor(sheetData.properties.tabColor, sheetData.properties.tabColorStyle),
     };
 
     return this.success('get_sheet', { sheet });
@@ -1543,15 +1541,18 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
    * Convert Google API tab color to our schema format
    */
   private convertTabColor(
-    tabColor: sheets_v4.Schema$Color | null | undefined
+    tabColor: sheets_v4.Schema$Color | null | undefined,
+    tabColorStyle?: sheets_v4.Schema$ColorStyle | null | undefined
   ): SheetInfo['tabColor'] {
+    // Prefer tabColorStyle.rgbColor (non-deprecated) over tabColor (deprecated)
+    const color = tabColorStyle?.rgbColor ?? tabColor;
     // OK: Explicit empty - tab color is optional, undefined means no color set
-    if (!tabColor) return undefined;
+    if (!color) return undefined;
     return {
-      red: tabColor.red ?? 0,
-      green: tabColor.green ?? 0,
-      blue: tabColor.blue ?? 0,
-      alpha: tabColor.alpha ?? 1,
+      red: color.red ?? 0,
+      green: color.green ?? 0,
+      blue: color.blue ?? 0,
+      alpha: color.alpha ?? 1,
     };
   }
 
@@ -1685,13 +1686,15 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         fields.push('hidden');
       }
       if (update.tabColor !== undefined) {
-        properties.tabColor = {
+        const colorValue = {
           red: update.tabColor.red,
           green: update.tabColor.green,
           blue: update.tabColor.blue,
           alpha: update.tabColor.alpha ?? 1,
         };
-        fields.push('tabColor');
+        properties.tabColor = colorValue;
+        properties.tabColorStyle = { rgbColor: colorValue };
+        fields.push('tabColorStyle');
       }
 
       return {

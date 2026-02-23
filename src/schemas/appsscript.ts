@@ -138,9 +138,11 @@ const ProcessSchema = z.object({
       'SIMPLE_TRIGGER',
       'TRIGGER',
       'WEBAPP',
-      'API_EXECUTABLE',
+      'EXECUTION_API',
       'ADD_ON',
       'TIME_DRIVEN',
+      'MENU',
+      'BATCH_TASK',
     ])
     .optional()
     .describe('Type of process'),
@@ -153,7 +155,7 @@ const ProcessSchema = z.object({
       'TIMED_OUT',
       'UNKNOWN',
       'DELAYED',
-      'PENDING',
+      'PAUSED',
     ])
     .optional()
     .describe('Execution status'),
@@ -354,14 +356,16 @@ const ListProcessesActionSchema = z.object({
       'SIMPLE_TRIGGER',
       'TRIGGER',
       'WEBAPP',
-      'API_EXECUTABLE',
+      'EXECUTION_API',
       'ADD_ON',
       'TIME_DRIVEN',
+      'MENU',
+      'BATCH_TASK',
     ])
     .optional()
     .describe('Filter by process type'),
   processStatus: z
-    .enum(['COMPLETED', 'FAILED', 'RUNNING', 'CANCELED', 'TIMED_OUT'])
+    .enum(['COMPLETED', 'FAILED', 'RUNNING', 'CANCELED', 'TIMED_OUT', 'UNKNOWN', 'DELAYED', 'PAUSED'])
     .optional()
     .describe('Filter by status'),
   pageSize: z

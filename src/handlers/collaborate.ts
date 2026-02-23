@@ -424,6 +424,16 @@ export class CollaborateHandler extends BaseHandler<
   private async handleShareUpdate(
     input: CollaborateShareUpdateInput
   ): Promise<CollaborateResponse> {
+    if (input.role === 'owner') {
+      return this.error({
+        code: 'VALIDATION_ERROR',
+        message:
+          'Cannot change role to "owner" via share_update. Use share_transfer_ownership instead, ' +
+          'which handles the required transferOwnership flag and pending acceptance flow.',
+        retryable: false,
+      });
+    }
+
     if (input.safety?.dryRun) {
       return this.success('share_update', {}, undefined, true);
     }
@@ -431,7 +441,7 @@ export class CollaborateHandler extends BaseHandler<
     const response = await this.driveApi!.permissions.update({
       fileId: input.spreadsheetId!,
       permissionId: input.permissionId!,
-      transferOwnership: input.role === 'owner',
+      transferOwnership: false,
       requestBody: {
         role: input.role,
         expirationTime: input.expirationTime,
@@ -544,6 +554,7 @@ export class CollaborateHandler extends BaseHandler<
 
     return this.success('share_transfer_ownership', {
       permission: this.mapPermission(response.data),
+      pendingAcceptance: (response.data as Record<string, unknown>)['pendingOwner'] === true,
     });
   }
 
@@ -576,8 +587,9 @@ export class CollaborateHandler extends BaseHandler<
       requestBody: {
         type: 'anyone',
         role: input.role ?? 'reader',
+        allowFileDiscovery: (input as Record<string, unknown>)['allowFileDiscovery'] === true,
       },
-      fields: 'id,type,role,emailAddress,displayName',
+      fields: 'id,type,role,emailAddress,displayName,allowFileDiscovery',
     });
 
     return this.success('share_set_link', {
@@ -715,17 +727,17 @@ export class CollaborateHandler extends BaseHandler<
   private async handleCommentResolve(
     input: CollaborateCommentResolveInput
   ): Promise<CollaborateResponse> {
-    // First get the existing comment to preserve its content
-    const existing = await this.driveApi!.comments.get({
+    // Per Drive API v3: resolve via replies.create with action:'resolve'
+    await this.driveApi!.replies.create({
       fileId: input.spreadsheetId!,
       commentId: input.commentId!,
-      fields: 'content',
+      requestBody: { content: '', action: 'resolve' },
+      fields: 'id',
     });
-
-    const response = await this.driveApi!.comments.update({
+    // Fetch updated comment to return current state
+    const response = await this.driveApi!.comments.get({
       fileId: input.spreadsheetId!,
       commentId: input.commentId!,
-      requestBody: { content: existing.data.content ?? '', resolved: true },
       fields:
         'id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor',
     });
@@ -735,17 +747,17 @@ export class CollaborateHandler extends BaseHandler<
   private async handleCommentReopen(
     input: CollaborateCommentReopenInput
   ): Promise<CollaborateResponse> {
-    // First get the existing comment to preserve its content
-    const existing = await this.driveApi!.comments.get({
+    // Per Drive API v3: reopen via replies.create with action:'reopen'
+    await this.driveApi!.replies.create({
       fileId: input.spreadsheetId!,
       commentId: input.commentId!,
-      fields: 'content',
+      requestBody: { content: '', action: 'reopen' },
+      fields: 'id',
     });
-
-    const response = await this.driveApi!.comments.update({
+    // Fetch updated comment to return current state
+    const response = await this.driveApi!.comments.get({
       fileId: input.spreadsheetId!,
       commentId: input.commentId!,
-      requestBody: { content: existing.data.content ?? '', resolved: false },
       fields:
         'id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor',
     });
@@ -1264,21 +1276,23 @@ export class CollaborateHandler extends BaseHandler<
    *
    * Currently unavailable:
    * - version_restore_revision: Requires complex restore operation
-   * - version_compare: Requires complex diff algorithm for revision comparison
-   *   Implementation would need semantic diff of spreadsheet state
+   * - version_restore_revision: Drive API does not support restoring Google Sheets revisions
+   *   in-place. Use version_create_snapshot to export, then manually restore.
    */
   private featureUnavailable(action: CollaborateRequest['action']): CollaborateResponse {
     return this.error({
       code: 'FEATURE_UNAVAILABLE',
-      message: `${action} is unavailable in this server build. This feature requires additional implementation work.`,
+      message: `${action} is not supported. ${
+        action === 'version_restore_revision'
+          ? 'The Drive API does not support restoring Google Sheets revisions in-place. Use version_create_snapshot to export a copy, then restore manually.'
+          : 'This feature requires additional implementation work.'
+      }`,
       details: {
         action,
         reason:
-          action === 'version_compare'
-            ? 'Revision comparison requires semantic diff algorithm for spreadsheet state'
-            : action === 'version_restore_revision'
-              ? 'Revision restore requires complex operation not supported by Drive API'
-              : 'Feature unavailable',
+          action === 'version_restore_revision'
+            ? 'Drive API does not support restoring Google Sheets revisions in-place'
+            : 'Feature unavailable',
       },
       retryable: false,
       suggestedFix:
@@ -1410,7 +1424,6 @@ export class CollaborateHandler extends BaseHandler<
           fileId: input.spreadsheetId!,
           requestBody: {
             content: commentContent,
-            anchor: input.range,
           },
         });
       } catch (error) {

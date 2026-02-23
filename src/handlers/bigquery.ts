@@ -598,6 +598,9 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           },
           sheetId: addedDataSource?.sheetId ?? undefined,
         },
+        message:
+          'BigQuery data source created. Note: initial data load is asynchronous. ' +
+          'Use bigquery refresh action to check status, or read the connected sheet after a few seconds.',
       });
     } catch (err) {
       logger.error('Failed to create BigQuery connection', { err, req });
@@ -1296,7 +1299,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
 
       // Use streaming insert with chunking for large datasets (P1-3)
       // BigQuery streaming insert has a soft limit of ~10,000 rows per call
-      const CHUNK_SIZE = 10_000;
+      const CHUNK_SIZE = 500;
       const totalRows = rows.length;
       const allInsertErrors: unknown[] = [];
       // Generate a stable batch ID for insertId deduplication (prevents duplicate rows on retry)
@@ -1496,6 +1499,9 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     const schedule = req['schedule'] as string;
     const destinationDatasetId = req['destinationDatasetId'] as string | undefined;
     const destinationTableId = req['destinationTableId'] as string | undefined;
+    const serviceAccountName = req['serviceAccountName'] as string | undefined;
+
+    validateBigQuerySql(query);
 
     try {
       const googleClient = this.context.googleClient;
@@ -1526,6 +1532,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           ...(destinationTableId ? { destination_table_name_template: destinationTableId } : {}),
         },
         ...(destinationDatasetId ? { destinationDatasetId } : {}),
+        ...(serviceAccountName ? { serviceAccountName } : {}),
       };
 
       const response = await fetch(url, {

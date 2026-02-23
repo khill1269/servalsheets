@@ -80,6 +80,13 @@ const ReadActionSchema = CommonFieldsSchema.extend({
   valueRenderOption: ValueRenderOptionSchema.optional()
     .default('FORMATTED_VALUE')
     .describe('How values should be rendered (FORMATTED_VALUE, UNFORMATTED_VALUE, FORMULA)'),
+  dateTimeRenderOption: z
+    .enum(['SERIAL_NUMBER', 'FORMATTED_STRING'])
+    .optional()
+    .describe(
+      'How dates/times should be rendered when valueRenderOption is UNFORMATTED_VALUE. ' +
+      'SERIAL_NUMBER (default): date as number. FORMATTED_STRING: date as formatted string.'
+    ),
   majorDimension: MajorDimensionSchema.optional()
     .default('ROWS')
     .describe('Major dimension for data layout (ROWS or COLUMNS)'),
@@ -248,6 +255,13 @@ const BatchReadActionSchema = CommonFieldsSchema.extend({
   valueRenderOption: ValueRenderOptionSchema.optional()
     .default('FORMATTED_VALUE')
     .describe('How values should be rendered'),
+  dateTimeRenderOption: z
+    .enum(['SERIAL_NUMBER', 'FORMATTED_STRING'])
+    .optional()
+    .describe(
+      'How dates/times should be rendered when valueRenderOption is UNFORMATTED_VALUE. ' +
+      'SERIAL_NUMBER (default): date as number. FORMATTED_STRING: date as formatted string.'
+    ),
   majorDimension: MajorDimensionSchema.optional().default('ROWS').describe('Major dimension'),
   cursor: z.string().optional().describe('Pagination cursor'),
   pageSize: z.coerce.number().int().positive().max(10000).optional().describe('Rows per page'),

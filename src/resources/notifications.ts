@@ -8,6 +8,7 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Singleton manager for resource change notifications.
@@ -24,7 +25,7 @@ class ResourceNotificationManager {
    */
   setServer(server: McpServer): void {
     this._server = server;
-    console.error('[ServalSheets] Resource notification manager initialized');
+    logger.info('Resource notification manager initialized');
   }
 
   /**
@@ -49,12 +50,12 @@ class ResourceNotificationManager {
         try {
           this._server.sendResourceListChanged();
           if (reason) {
-            console.error(`[ServalSheets] Resource list changed notification sent: ${reason}`);
+            logger.debug('Resource list changed notification sent', { reason });
           }
         } catch (error) {
           // Client may not be connected - ignore
           const message = error instanceof Error ? error.message : String(error);
-          console.error(`[ServalSheets] Failed to send resource notification: ${message}`);
+          logger.warn('Failed to send resource notification', { error: message });
         }
       }
       this._notificationsPending = 0;

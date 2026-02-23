@@ -149,13 +149,19 @@ export const READ_REQUESTS_PER_MINUTE = 300;
 export const WRITE_REQUESTS_PER_MINUTE = 300;
 
 /**
- * Read requests per 100 seconds per user (alternate quota)
+ * Read requests per 100 seconds per user.
+ * @deprecated Google Sheets API quotas are enforced per-minute (60 req/min/user),
+ * not per-100-seconds. This constant is not referenced by any rate limiter.
+ * Retained for backward compatibility only.
  * @see https://developers.google.com/sheets/api/limits
  */
 export const READ_REQUESTS_PER_100_SECONDS = 500;
 
 /**
- * Write requests per 100 seconds per user (alternate quota)
+ * Write requests per 100 seconds per user.
+ * @deprecated Google Sheets API quotas are enforced per-minute (60 req/min/user),
+ * not per-100-seconds. This constant is not referenced by any rate limiter.
+ * Retained for backward compatibility only.
  * @see https://developers.google.com/sheets/api/limits
  */
 export const WRITE_REQUESTS_PER_100_SECONDS = 500;

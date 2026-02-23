@@ -877,7 +877,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           valueRenderOption: input.valueRenderOption,
           majorDimension: input.majorDimension,
           dateTimeRenderOption:
-            input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'FORMATTED_STRING' : undefined,
+            (input as Record<string, unknown>)['dateTimeRenderOption'] as string ??
+            (input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'SERIAL_NUMBER' : undefined),
           fields: 'range,values,majorDimension',
         })
       );
@@ -1750,7 +1751,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
             valueRenderOption: input.valueRenderOption,
             majorDimension: input.majorDimension,
             dateTimeRenderOption:
-              input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'FORMATTED_STRING' : undefined,
+              (input as Record<string, unknown>)['dateTimeRenderOption'] as string ??
+              (input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'SERIAL_NUMBER' : undefined),
             fields: 'range,majorDimension,values',
           })
         );
@@ -1876,7 +1878,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           valueRenderOption: input.valueRenderOption,
           majorDimension: input.majorDimension,
           dateTimeRenderOption:
-            input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'FORMATTED_STRING' : undefined,
+            (input as Record<string, unknown>)['dateTimeRenderOption'] as string ??
+            (input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'SERIAL_NUMBER' : undefined),
           fields: 'valueRanges(range,values)',
         });
 
@@ -1948,7 +1951,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
               valueRenderOption: input.valueRenderOption,
               majorDimension: (input as DataRequest & { majorDimension?: string }).majorDimension,
               dateTimeRenderOption:
-                input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'FORMATTED_STRING' : undefined,
+                (input as Record<string, unknown>)['dateTimeRenderOption'] as string ??
+                (input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'SERIAL_NUMBER' : undefined),
               fields: 'range,values',
             })
           );
@@ -2007,7 +2011,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         valueRenderOption: input.valueRenderOption,
         majorDimension: input.majorDimension,
         dateTimeRenderOption:
-          input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'FORMATTED_STRING' : undefined,
+          (input as Record<string, unknown>)['dateTimeRenderOption'] as string ??
+          (input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'SERIAL_NUMBER' : undefined),
         fields: 'valueRanges(range,values)',
       });
       const mergedResults = response.data.valueRanges ?? [];

@@ -9,7 +9,7 @@
 
 export const ACTION_COUNTS: Record<string, number> = {
   sheets_advanced: 31,
-  sheets_analyze: 16,
+  sheets_analyze: 18,
   sheets_appsscript: 18,
   sheets_auth: 4,
   sheets_bigquery: 17,
