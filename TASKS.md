@@ -3,9 +3,9 @@
 > Persistent backlog of planned work. Updated across sessions.
 > For session-level context (what just happened, decisions), see `.serval/session-notes.md`.
 
-## Active Phase: Platform Evolution
+## Active Phase: Remediation & Architecture (P16)
 
-Goal: Extract shared logic into `@serval/core` so ServalSheets becomes one backend among many.
+Goal: Fix post-P15 wiring gaps, activate dormant performance systems, and build formula evaluation + pipeline execution capabilities.
 
 ## Backlog
 
@@ -131,73 +131,162 @@ Full audit scope: Google Sheets API feature coverage vs ServalSheets implementat
 
 ---
 
-## Active Phase: Quality Hardening & Protocol Completeness (P7–P15)
+## Completed Phase: Quality Hardening & Protocol Completeness (P7–P15)
 
-> Full analysis conducted Session 36 (2026-02-23). 4 parallel agents audited all 22 tools × 335 actions
-> across: handler patterns, schema coherence, API efficiency, and MCP orchestration.
-> Task IDs 1-20 in Claude Code task tracker map to items below.
+> Completed Sessions 36-38 (2026-02-23). Committed as `3d6e731` — 103 files changed, 12,786 insertions.
+> 22 tools, 340 actions (was 335). All 2,253 tests pass.
 
-### P7 — Critical Bug Fixes (Active bugs causing incorrect behavior)
+### P7 — Critical Bug Fixes ✅
 
-> ✅ **Already fixed (prior session):** TypeScript errors in `dependencies.ts` and `dimensions.ts` — 10 errors (null safety, boolean coercion, filterCriteria type mapping, index signature access). All 1,946+ tests pass.
+- [x] **P7-B1**: Fix cache invalidation rule name mismatch — `sheets_fix.auto_fix` → `sheets_fix.fix` — Session 37
+- [x] **P7-B2**: Add 20 missing P4 cache invalidation rules (cross_write, clean, standardize_formats, fill_missing, restore_cells, auto_enhance, create_scenario_sheet + 13 read-only entries) — Session 37
+- [x] **P7-B3**: Full cache graph key audit — corrected `sheets_core.rename`, slicer actions moved to `sheets_dimensions`, 3 collaborate reply actions — Session 37
+- [x] **P7-VERIFY**: npm run verify:safe passed — Session 37
 
-- [ ] **P7-B1** (Task #1): Fix cache invalidation rule name mismatch — `sheets_fix.auto_fix` → `sheets_fix.fix` in `src/services/cache-invalidation-graph.ts:419`. Rule never fires; post-fix reads return stale data.
-- [ ] **P7-B2** (Task #2): Add 20 missing P4 cache invalidation rules to `cache-invalidation-graph.ts`. 7 mutating actions (cross_write, clean, standardize_formats, fill_missing, restore_cells, auto_enhance, create_scenario_sheet) cause cache staleness.
-- [ ] **P7-B3** (Task #21): **BROADER ISSUE** — Full cache graph key audit. At least 6 additional stale rule keys beyond B1: `sheets_core.rename`, `sheets_core.rename_sheet`, `sheets_data.read_metadata`, `sheets_data.copy_range`, slicer actions under `sheets_visualize` (moved to `sheets_dimensions`), and 3 collaborate comment reply actions. Auto-backfill at lines 570-581 prevents total breakage but all stale keys are dead rules. Fix all stale keys OR refactor graph to auto-generate from schema.
-- [ ] **P7-VERIFY** (Task #18): Gate — npm run verify:safe + cross-reference every rule key in graph against actual action names. Blocked by P7-B1 + P7-B2 + P7-B3.
+### P8 — Safety Regressions ✅
 
-### P8 — Safety Regressions (Data loss risk)
+- [x] **P8-S1**: `history.undo/redo/revert_to` — added `confirmDestructiveAction()` + `createSnapshotIfNeeded()` — Session 37
+- [x] **P8-S2**: 8 `dimensions` destructive actions — fixed insert order (snapshot → confirm → execute), added to move/hide/show/append, `advanced.add_protected_range` — Session 37
+- [x] **P8-VERIFY**: Safety rail order audit passed — Session 37
 
-- [ ] **P8-S1** (Task #3): Add `confirmDestructiveAction()` + `createSnapshotIfNeeded()` to `history.undo` (line 159), `history.redo` (line 233), `history.revert_to` (line 307). Currently execute without any safety rails.
-- [ ] **P8-S2** (Task #4): Add `createSnapshotIfNeeded()` to 8 `dimensions` destructive actions (insert, move, hide, show, append). Fix insert to: snapshot → confirm → execute (currently inverted). Add both safety rails to `advanced.add_protected_range`.
-- [ ] **P8-VERIFY** (Task #19): Gate — npm run verify:safe + manual safety rail order audit. Blocked by P8-S1 + P8-S2.
+### P9 — API Correctness & Performance ✅
 
-### P9 — API Correctness & Performance
+- [x] **P9-A1**: `analyze_performance` unbounded fetch fixed — added `maxSheets` param + batchGet for formula ranges — Session 37
+- [x] **P9-A2**: Double `spreadsheets.get` in `list_data_validations` + `detect_spill_ranges` merged — Session 37
+- [x] **P9-A3**: `share_get_link` pre-existence check removed — Session 37
 
-- [ ] **P9-A1** (Task #5): Fix `analyze_performance` unbounded `includeGridData: true` at `analyze.ts:796`. No ranges parameter, no sheet count guard — fetches up to 520k cells. Add maxSheets param + use batchGet for formula ranges.
-- [ ] **P9-A2** (Task #6): Merge double `spreadsheets.get` calls in `list_data_validations` (format.ts:2055-2108) and `detect_spill_ranges` (data.ts:2918-2940). Apply `MAX_CELLS_PER_REQUEST` cap to detect_spill_ranges.
-- [ ] **P9-A3** (Task #22): Remove unnecessary pre-existence check in `share_get_link` (`collaborate.ts:604-607`). 1 quota unit wasted per call — `permissions.list` would 404 anyway if file missing.
+### P10 — Type Safety ✅
 
-### P10 — Type Safety
+- [x] **P10-T1**: 21 `as any` casts fixed in core.ts, session.ts, appsscript.ts, quality.ts — Session 37
+- [x] **P10-T2**: `SESSION_ERROR` added to `ErrorCodeSchema`; `mapStandaloneError()` extracted to `src/handlers/helpers/error-mapping.ts` — Session 37
+- [x] **P10-T3**: Pre-existing TypeScript errors in suggestion-engine.ts, excel-online-backend.ts, notion-backend.ts fixed — Session 38
 
-> ✅ **Already clean:** `dependencies.ts` and `dimensions.ts` — 0 `as any` casts (verified by grep). Confirmed fixed in prior session.
+### P11 — Architecture Consistency ✅
 
-- [ ] **P10-T1** (Task #7): Fix 18 `as any` casts in remaining 4 handlers — `core.ts:986-1005` (9 consecutive), `session.ts:136,304,315,361,526`, `appsscript.ts:1034`, `quality.ts:136,237`.
-- [ ] **P10-T2** (Task #8): Standardize `ErrorCodeSchema` enum usage. All 22 handlers hardcode string literals. Extract `mapStandaloneError()` helper to `src/handlers/helpers/error-mapping.ts` for 9 standalone handlers.
-- [ ] **P10-T3** (Task #23): Fix pre-existing TypeScript errors in 3 scaffold files — `src/analysis/suggestion-engine.ts`, `src/adapters/excel-online-backend.ts`, `src/adapters/notion-backend.ts`. These block `npm run typecheck` from passing. Fix root type issues, no `as any` casts.
+- [x] **P11-A1**: Verbosity filter extracted to `src/handlers/helpers/verbosity-filter.ts`; progress reporting added to 4 handlers — Session 37
+- [x] **P11-A2**: All 22 handler switch defaults use TypeScript `never` exhaustiveness pattern — Session 37
 
-### P11 — Architecture Consistency
+### P12 — Schema Completeness ✅
 
-- [ ] **P11-A1** (Task #9): Extract verbosity filter helper from 8 standalone handlers (copy-pasted identically in quality.ts:40, session.ts:41, history.ts:46, auth.ts:92, transaction.ts:28 + 3 more). Add progress reporting to quality.validate, transaction.commit, session bulk ops, federation.
-- [ ] **P11-A2** (Task #10): Standardize all 22 handler switch default cases to TypeScript `never` exhaustiveness pattern (currently mixed: never, throw, implicit return).
+- [x] **P12-S1**: Pagination added to list_data_validations, list_filter_views, cross_read; `superRefine` on core.get — Session 37
+- [x] **P12-S2**: `ChartTypeSchema` + `A1NotationSchema` enum constraints added — Session 37
+- [x] **P12-S3**: `textRotation`, `padding`, `spreadsheetTheme`, `filterCriteria`, `foregroundColorStyle`, `backgroundColorStyle` added to schemas — Session 37
+- [x] **P12-S4**: MCP SDK workaround documented; regression test added for collaborate discriminated union — Session 37
 
-### P12 — Schema Completeness
+### P13 — MCP Protocol Completeness ✅
 
-- [ ] **P12-S1** (Task #11): Add pagination (`nextCursor`, `hasMore`, `totalCount`) to list_data_validations, list_filter_views, analyze.comprehensive. Fix cross_read response field `mergedValues` → `rows`. Add `superRefine` to core.get for `includeGridData` requires `ranges`. Run `npm run schema:commit`.
-- [ ] **P12-S2** (Task #12): Add enum constraints to 8 string fields (chartType, shapeType in visualize; aggregation, sortOrder in analyze). Standardize A1 notation validation using shared `A1NotationSchema` for add_note, set_hyperlink, slicer anchorCell. Run `npm run schema:commit`.
-- [ ] **P12-S3** (Task #24): Add missing Google API v4 params — `textRotation` + `padding` on set_format; `spreadsheetTheme` on update_properties; multi-column `sortSpecs` array on sort_range (currently single-column only). Run `npm run schema:commit`.
-- [ ] **P12-S4** (Task #25): Document sheets_collaborate discriminated union MCP SDK workaround (`collaborate.ts:98`). Add regression test verifying refine() catches all 35 invalid field combos. Add migration TODO for when SDK is fixed. 40% schema bloat + no type narrowing until then.
+- [x] **P13-M1**: Task IDs (SEP-1686) on 7 long-running operations — Session 37
+- [x] **P13-M2**: Session Context wired to 10 handler actions — Session 37
+- [x] **P13-M3**: Sampling (SEP-1577) on 5 high-value actions (find_replace, suggest_format, model_scenario, diff_revisions, comment_add) — Session 37
+- [x] **P13-M4**: Elicitation wizards (SEP-1036) on 4 complex actions (chart_create, add_conditional_format_rule, core.create, transaction.begin) — Session 37
 
-### P13 — MCP Protocol Completeness
+### P14 — Composite Workflows ✅
 
-- [ ] **P13-M1** (Task #13): Add Task IDs (SEP-1686) to 7 long-running handlers — bigquery (export/import), appsscript (run), composite (export_large_dataset), history (timeline), data (cross_read >3 sources), federation (all 4 actions). Copy pattern from analyze.ts:2385.
-- [ ] **P13-M2** (Task #14): Wire Session Context to 10 handlers — data.read (active_range), format.suggest_format (filter rejected), fix.suggest_cleaning (learning), fix.clean (record rules), dimensions (schema state), visualize.chart_create (store ID), data.cross_read, history.timeline, data.write.
-- [ ] **P13-M3** (Task #15): Add Sampling (SEP-1577) to 5 actions — data.find_replace (suggest patterns), format.suggest_format (richer suggestions), dependencies.model_scenario (estimate formulas), history.diff_revisions (explain changes), collaborate.comment_add (context templates). All with graceful fallback.
-- [ ] **P13-M4** (Task #16): Add Elicitation wizard flows (SEP-1036) to 4 complex actions — visualize.chart_create (4 steps), format.add_conditional_format_rule (4 steps), core.create (4 steps), transaction.begin (transaction builder). All via optional `interactive: true` param.
+- [x] **P14-C1**: 5 composite workflow actions added to `sheets_composite` (14 → 19 actions, 335 → 340 total): audit_sheet, publish_report, data_pipeline, instantiate_template, migrate_spreadsheet — Session 38
 
-### P14 — Composite Workflows
+### P15 — Documentation Sweep ✅
 
-- [ ] **P14-C1** (Task #17): Add 5 pre-built composite workflow actions to `sheets_composite` (14 → 19 actions, 335 → 340 total):
-  - `audit_sheet` — analyze + validate + suggest_cleaning → unified audit result
-  - `publish_report` — format + export + share with rollback safety
-  - `data_pipeline` — clean + validate + write with all-or-nothing semantics
-  - `instantiate_template` — load template + fill + format + share
-  - `migrate_spreadsheet` — cross_read + cross_write + clean + verify (row count match)
-  - Run `npm run schema:commit` after.
+- [x] **P15**: CODEBASE_CONTEXT.md, README.md, descriptions.ts all updated to 340 actions — Session 38
 
-### P15 — Documentation Sweep (blocked by all P7-P14)
+---
 
-- [ ] **P15** (Task #20): Update CODEBASE_CONTEXT.md (action counts, MCP feature table), FEATURE_PLAN.md, session-notes.md, MEMORY.md (new anti-patterns, safety rail order), README.md (action count), descriptions.ts (4 thin tool descriptions: quality, history, session, templates).
+## P16-Remediation Unified Plan
+
+> Identified Session 39 (2026-02-24). Consolidates two parallel work streams:
+> (A) Audit remediation (ISSUES.md ISSUE-NNN confirmed defects via Remediation Plan Waves 1-6)
+> (B) Post-P15 internal gaps (P16 phases below).
+> Claude Code task tracker Tasks #14-24 map to consolidated execution batches.
+>
+> Execution order: Tasks 14+15+16+17 in parallel → 18 → 19 → 20 → 21 → 22 → 23/24
+> ISSUES.md = lookup reference only (not a tracking document).
+
+### Remediation Wave Status (ISSUES.md confirmed defects)
+
+Batched into Claude Code tasks by parallel-safety and schema dependencies:
+
+| Batch               | Task | Issues                                                    | Schema?                                      |
+| ------------------- | ---- | --------------------------------------------------------- | -------------------------------------------- |
+| Wave 1A             | #14  | ISSUE-088, 16-B5                                          | No — run in parallel                         |
+| Wave 1B             | #15  | ISSUE-096, ISSUE-049, ISSUE-041, ISSUE-200, 16-B4         | No — run in parallel                         |
+| Wave 1C             | #16  | ISSUE-013, ISSUE-099, 16-S1, 16-S2, ISSUE-136             | No — run in parallel                         |
+| Wave 1D             | #17  | ISSUE-093, ISSUE-113, 16-B1/B2/B3, 16-S3/S4/S5, ISSUE-211 | No — run in parallel                         |
+| Wave 1E             | #18  | ISSUE-071 (npm audit)                                     | No — after Wave 1                            |
+| Wave 2 + 16-C2      | #19  | ISSUE-039/011/145/204 + 6 more paginations                | **Yes** — schema:commit required             |
+| Wave 3 + P16-Phase3 | #20  | ISSUE-015/016/019 + 16-A1-A6                              | No                                           |
+| Wave 4 + Wave 5     | #21  | ISSUE-090/102/117/214 + ISSUE-066/107/119                 | No                                           |
+| Wave 6 + P16-Phase5 | #22  | ISSUE-085/101/161/162/169 + 16-U1-U5                      | No                                           |
+| P16-Phase6          | #23  | 16-F1-F6                                                  | Blocked (license)                            |
+| P16-Phase7          | #24  | 16-P1-P4                                                  | **Yes** — schema:commit for execute_pipeline |
+
+Deferred (requires architecture decision): ISSUE-094 (persistent idempotency), ISSUE-086 (formula locale), ISSUE-075 (@serval/core publish), ISSUE-147 (server-side mutex), ISSUE-168 (error path coverage), ISSUE-173/174/175 (enterprise auth/semantic search).
+
+### P16-Phase1 — Critical Bugs (→ Task #14 Wave 1A + Task #17 Wave 1D)
+
+New bugs found AFTER P7-P15 — distinct from the items P7 addressed:
+
+- [ ] **16-B1**: `src/mcp/completions.ts:17` — stale comment says "305 actions" (actual: 340). Causes confusion in drift checks.
+- [ ] **16-B2**: `src/schemas/descriptions.ts:11` — says "22 tools, 335 actions" (actual: 340).
+- [ ] **16-B3**: `src/services/cache-invalidation-graph.ts:155-165` — conditional format action names still stale: `sheets_format.add_rule/update_rule/delete_rule/list_rules/clear_rules/reorder_rules` → correct names: `add_conditional_format_rule`, `rule_add_conditional_format`, `rule_update_conditional_format`, `rule_delete_conditional_format`, `rule_list_conditional_formats`. Cache never invalidates on conditional format mutations despite P7 believing it was fixed.
+- [ ] **16-B4**: `src/handlers/format.ts:702, 902` — `suggest_format` makes two identical `spreadsheets.get()` calls (main path + `handleSuggestFormatRuleBased()` fallback). Extract shared result, pass to fallback.
+- [ ] **16-B5**: `src/services/cross-spreadsheet.ts:73` — `fetchRangeGrid()` calls `sheetsApi.spreadsheets.values.get()` directly without `executeWithRetry()`. Makes entire F2 federation feature fragile under transient failures.
+
+### P16-Phase2 — Safety Gaps in P14 Actions (→ Task #16 Wave 1C)
+
+P14 added 5 composite actions; snapshot/circuit breaker coverage needs verification:
+
+- [ ] **16-S1**: `composite.data_pipeline` (handlers/composite.ts:~1712) — mutates data but likely missing `createSnapshotIfNeeded()`. Verify and add.
+- [ ] **16-S2**: `composite.instantiate_template` (~1880) + `composite.migrate_spreadsheet` (~1965) — audit snapshot coverage and add if missing.
+- [ ] **16-S3**: `src/handlers/federation.ts` — claims "circuit breaker protection" (line 28) but has no circuit breaker for remote MCP calls. Wire `CircuitBreaker` for remote calls.
+- [ ] **16-S4**: `src/handlers/webhooks.ts` — no circuit breaker for HTTP POST deliveries to external endpoints. Wire `CircuitBreaker` for outbound webhook calls.
+- [ ] **16-S5**: Both federation.ts and webhooks.ts do not use `mapStandaloneError()` or `applyVerbosityFilter()` helpers added in P10/P11. Standardize.
+
+### P16-Phase3 — Activate Dormant Performance Systems (→ Task #20)
+
+Fully implemented systems that are wired but never triggered:
+
+- [ ] **16-A1**: `src/services/sampling-context-cache.ts` — exists, fully implemented, **never imported anywhere**. Wire `getSpreadsheetContext()` into `src/mcp/sampling.ts` before building sampling prompts. Saves 200-400ms per sampling call.
+- [ ] **16-A2**: `src/handlers/analyze.ts:478` — `WorkerPool` threshold `rowCount > 10000` is too high. Lower to `> 1000`. Workers never activate for typical Claude workloads (500-5000 rows).
+- [ ] **16-A3**: `PrefetchingSystem` + `AccessPatternTracker` — learns patterns but never acts. Add `recordAccess()` on cache miss and `prefetch()` trigger post-read in `CachedSheetsApi`.
+- [ ] **16-A4**: `PrefetchingSystem` is request-level only. Add tool-level tracking so patterns cross request boundaries within a session.
+- [ ] **16-A5**: `src/services/concurrency-coordinator.ts` — adapts on quota (429) only; `process.memoryUsage()` never called. Add heap pressure monitoring; reduce concurrency when heap > 80%.
+- [ ] **16-A6**: `readOnlyMode` circuit breaker fallback — implemented in circuit-breaker.ts but client ignores return value. Wire response so callers fall back to cached data when circuit opens.
+
+### P16-Phase4 — Cache Graph + Pagination Gaps (→ Task #17 Wave 1D + Task #19 Schema Batch)
+
+Post-P12 gaps identified by deeper audit:
+
+- [ ] **16-C1**: Cache graph missing 3 read-only entries for P5 AI actions: `sheets_format.suggest_format`, `sheets_visualize.suggest_chart`, `sheets_visualize.suggest_pivot`. These should invalidate (read-only cache entry prevents stale suggestion data).
+- [ ] **16-C2**: `src/handlers/advanced.ts` — 6 list operations without pagination (P12-S1 only covered 3 others): `list_named_ranges:381`, `list_protected_ranges:573`, `list_banding:924`, `list_tables:1062`, `list_named_functions:1641`, `list_chips:1518`. Add `nextCursor`/`hasMore`/`totalCount` + `npm run schema:commit`.
+
+### P16-Phase5 — Claude UX Improvements (→ Task #22)
+
+Post-P5 gaps found in MCP features file and completions:
+
+- [ ] **16-U1**: `src/mcp/features-2025-11-25.ts` — P14 composite actions (audit_sheet, publish_report, data_pipeline, instantiate_template, migrate_spreadsheet) absent from all decision trees. Add them.
+- [ ] **16-U2**: `sheets_session` (26 actions) mentioned only once in server instructions — needs "LLM continuity" guidance section explaining checkpoint/pending/preferences pattern.
+- [ ] **16-U3**: Federation workflow example missing from server instructions.
+- [ ] **16-U4**: `src/mcp/completions.ts:562-681` (ACTION_ALIASES) — missing aliases for: `audit`→`audit_sheet`, `publish`→`publish_report`, `pipeline`/`etl`→`data_pipeline`, `scenario`/`what-if`→`model_scenario`, `cross`/`multi`→`cross_read`, `remote`→`call_remote`.
+- [ ] **16-U5**: `src/mcp/registration/prompt-registration.ts` — 7 prompts missing for P14 actions: audit_sheet, publish_report, data_pipeline, instantiate_template, migrate_spreadsheet, cross_sheet_analysis, scenario_what_if.
+
+### P16-Phase6 — Formula Evaluation Engine (→ Task #23, blocked on license)
+
+HyperFormula-based local formula evaluation for scenario modeling:
+
+- [ ] **16-F1**: Evaluate HyperFormula license — GPL-v3 (open source projects) vs commercial (~$2K/year). Decision gate before any implementation.
+- [ ] **16-F2**: Implement 3-layer evaluator: Layer 1 = HyperFormula (395 functions, local), Layer 2 = Google Sheets API (authoritative fallback), Layer 3 = Apps Script bound script (QUERY/FILTER/IMPORTRANGE/GOOGLEFINANCE). New file: `src/services/formula-evaluator.ts`.
+- [ ] **16-F3**: Wire evaluator into `dependencies.model_scenario` + `compare_scenarios` (currently estimates only). Structural sharing pattern: frozen base grid + overlay Map per scenario.
+- [ ] **16-F4**: Wire evaluator into `analyze.generate_formula` dry-run verification mode.
+- [ ] **16-F5**: Apps Script bound script (`src/services/apps-script-evaluator.ts`) — `SpreadsheetApp.flush()` for synchronous recalc. Needs OAuth scope verification.
+- [ ] **16-F6**: Tests covering: HyperFormula path, Google API fallback, Apps Script path, `ErrorType.NOT_AVAILABLE` sentinel for unsupported functions.
+
+### P16-Phase7 — Cross-Tool Pipeline Executor (→ Task #24)
+
+DAG-based parallel execution of multi-step tool sequences:
+
+- [ ] **16-P1**: Implement `PipelineExecutor` service — DAG dependency resolver, READ vs WRITE classification, conservative sequential default for ambiguous cases. New file: `src/services/pipeline-executor.ts`.
+- [ ] **16-P2**: Add `execute_pipeline` action to `sheets_session` (26 → 27 actions). Schema: `{ steps: [{ tool, action, params, dependsOn?: string[] }] }`. Run `npm run schema:commit`.
+- [ ] **16-P3**: Wire `PipelineExecutor` into the handler — parallel READ steps, sequential WRITE steps, fail-fast on error with partial rollback.
+- [ ] **16-P4**: Integration tests for common pipeline patterns: read→transform→write, multi-source federation, audit→fix→publish.
 
 ---
 
@@ -209,3 +298,4 @@ Full audit scope: Google Sheets API feature coverage vs ServalSheets implementat
 - [x] Pipeline restoration (ESLint AJV, drift hang, silent fallbacks) — Session 12
 - [x] CLAUDE.md restructure (1081 → 195 lines, ARCHITECTURE.md created) — Session 13
 - [x] TASKS.md + session-notes.md tracking system — Session 13
+- [x] P7-P15 Quality Hardening & Protocol Completeness — Sessions 36-38, 2026-02-23 (commit `3d6e731`, 103 files, 12,786 insertions, 335 → 340 actions, 2,253/2,253 tests)
