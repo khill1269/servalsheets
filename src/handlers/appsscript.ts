@@ -350,9 +350,14 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     return await executeWithRetry(
       async (signal) => {
         return await this.circuitBreaker.execute(async () => {
-          // Merge retry signal with our manual timeout signal
+          // Merge retry signal + manual timeout signal + MCP cancellation signal (ISSUE-119)
           const fetchController = new AbortController();
           signal.addEventListener('abort', () => fetchController.abort(signal.reason));
+          // ISSUE-119: Wire context abortSignal so client cancellation (notifications/cancelled)
+          // terminates the long-running Apps Script HTTP request immediately.
+          this.context.abortSignal?.addEventListener('abort', () =>
+            fetchController.abort('MCP request cancelled by client')
+          );
 
           try {
             const fetchOptions: RequestInit = { ...options, signal: fetchController.signal };
@@ -835,6 +840,14 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   // ============================================================================
 
   private async handleRun(req: AppsScriptRunInput): Promise<AppsScriptResponse> {
+    // ISSUE-119: Check for pre-flight cancellation (client may have cancelled before we started)
+    if (this.context.abortSignal?.aborted) {
+      return this.error({
+        code: 'CANCELLED',
+        message: 'Request cancelled by client.',
+        retryable: false,
+      });
+    }
     logger.info(`Running function ${req.functionName} in: ${req.scriptId}`);
 
     // Safety gate: dryRun returns early without executing

@@ -404,11 +404,12 @@ export const ErrorCodeSchema = z.enum([
   'INVALID_RANGE',
   'RANGE_NOT_FOUND',
   'PROTECTED_RANGE',
-  // Data & Formula Errors (4 codes)
+  // Data & Formula Errors (5 codes)
   'FORMULA_ERROR',
   'CIRCULAR_REFERENCE',
   'INVALID_DATA_VALIDATION',
   'MERGE_CONFLICT',
+  'FORMULA_INJECTION_BLOCKED', // ISSUE-214: dangerous import/query formula rejected
   // Feature-Specific Errors (7 codes)
   'CONDITIONAL_FORMAT_ERROR',
   'PIVOT_TABLE_ERROR',
@@ -837,6 +838,13 @@ export const SafetyOptionsSchema = z.object({
   transactionId: z.string().uuid().optional(),
   autoSnapshot: z.boolean().optional().default(true),
   effectScope: EffectScopeSchema.optional(),
+  // ISSUE-214: Formula injection guard for write/append
+  sanitizeFormulas: z
+    .boolean()
+    .optional()
+    .describe(
+      'When true, reject cell values containing dangerous data-exfiltration formulas (IMPORTDATA, IMPORTRANGE, IMPORTFEED, IMPORTHTML, IMPORTXML, GOOGLEFINANCE, QUERY). Returns FORMULA_INJECTION_BLOCKED error if detected.'
+    ),
 });
 
 // ============================================================================
@@ -1223,6 +1231,17 @@ export const ResponseMetaSchema = z.object({
     })
     .optional()
     .describe('Summary statistics for list-type responses'),
+  // ISSUE-107: Protocol version surfacing + deprecation guidance
+  protocolVersion: z
+    .string()
+    .optional()
+    .describe('MCP protocol version this server implements (e.g. "2025-11-25")'),
+  deprecationWarning: z
+    .string()
+    .optional()
+    .describe(
+      'Present when the client used a legacy invocation pattern. Contains migration guidance.'
+    ),
 });
 
 // ============================================================================

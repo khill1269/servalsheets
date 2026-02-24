@@ -400,6 +400,29 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     return validateValuesPayload(values, range);
   }
 
+  /**
+   * ISSUE-214: Formula injection guard.
+   * When safety.sanitizeFormulas is true, rejects cell values that look like
+   * dangerous data-exfiltration formulas (IMPORT*, GOOGLEFINANCE, QUERY).
+   * Returns the injected cell reference on detection, or null if clean.
+   */
+  private checkFormulaInjection(values: unknown[][]): string | null {
+    const DANGEROUS_PATTERN =
+      /^[=+\-@].*(?:IMPORTDATA|IMPORTRANGE|IMPORTFEED|IMPORTHTML|IMPORTXML|GOOGLEFINANCE|QUERY)\s*\(/i;
+    for (let r = 0; r < values.length; r++) {
+      const row = values[r];
+      if (!Array.isArray(row)) continue;
+      for (let c = 0; c < row.length; c++) {
+        const cell = row[c];
+        if (typeof cell === 'string' && DANGEROUS_PATTERN.test(cell)) {
+          const colLetter = String.fromCharCode(65 + (c % 26));
+          return `row ${r + 1}, col ${colLetter} (${cell.slice(0, 40)}...)`;
+        }
+      }
+    }
+    return null;
+  }
+
   private validateValuesBatchPayloadIfEnabled(
     data: Array<{ values: ValuesArray }>
   ): PayloadSizeResult {
@@ -957,6 +980,19 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   }
 
   private async handleWrite(input: DataRequest & { action: 'write' }): Promise<DataResponse> {
+    // ISSUE-214: Formula injection guard
+    if (input.safety?.sanitizeFormulas) {
+      const injected = this.checkFormulaInjection(input.values as unknown[][]);
+      if (injected) {
+        return this.error({
+          code: 'FORMULA_INJECTION_BLOCKED',
+          message: `Dangerous formula detected at ${injected}. Set safety.sanitizeFormulas=false to allow, or remove the formula.`,
+          retryable: false,
+          suggestedFix:
+            'Remove formulas containing IMPORTDATA, IMPORTRANGE, IMPORTFEED, IMPORTHTML, IMPORTXML, GOOGLEFINANCE, or QUERY from the values array.',
+        });
+      }
+    }
     // Validate payload size (use default range for dataFilter)
     const range = input.range
       ? await this.resolveRangeToA1(input.spreadsheetId, input.range)
@@ -1191,6 +1227,19 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   }
 
   private async handleAppend(input: DataRequest & { action: 'append' }): Promise<DataResponse> {
+    // ISSUE-214: Formula injection guard
+    if (input.safety?.sanitizeFormulas) {
+      const injected = this.checkFormulaInjection(input.values as unknown[][]);
+      if (injected) {
+        return this.error({
+          code: 'FORMULA_INJECTION_BLOCKED',
+          message: `Dangerous formula detected at ${injected}. Set safety.sanitizeFormulas=false to allow, or remove the formula.`,
+          retryable: false,
+          suggestedFix:
+            'Remove formulas containing IMPORTDATA, IMPORTRANGE, IMPORTFEED, IMPORTHTML, IMPORTXML, GOOGLEFINANCE, or QUERY from the values array.',
+        });
+      }
+    }
     const range = input.range
       ? await this.resolveRangeToA1(input.spreadsheetId, input.range)
       : undefined;

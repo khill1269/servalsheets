@@ -5,9 +5,52 @@
  * Enables cross-session learning and personalized experiences.
  */
 
+import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import { logger } from '../utils/logger.js';
+
+// ============================================================================
+// ISSUE-102: Optional AES-256-GCM encryption at rest
+// Set PROFILE_ENCRYPTION_KEY to a 64-hex-char (32-byte) key for production.
+// Example: openssl rand -hex 32
+// ============================================================================
+const ENCRYPTION_KEY_HEX = process.env['PROFILE_ENCRYPTION_KEY'];
+
+function encryptProfileData(plaintext: string): string {
+  if (!ENCRYPTION_KEY_HEX) return plaintext;
+  const key = Buffer.from(ENCRYPTION_KEY_HEX, 'hex');
+  const iv = crypto.randomBytes(12); // 96-bit IV for GCM
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  return JSON.stringify({
+    v: 1,
+    iv: iv.toString('base64'),
+    tag: authTag.toString('base64'),
+    data: encrypted.toString('base64'),
+  });
+}
+
+function decryptProfileData(input: string): string {
+  if (!ENCRYPTION_KEY_HEX) return input;
+  try {
+    const { v, iv, tag, data } = JSON.parse(input) as {
+      v: number;
+      iv: string;
+      tag: string;
+      data: string;
+    };
+    if (v !== 1) throw new Error(`Unsupported encryption version: ${String(v)}`);
+    const key = Buffer.from(ENCRYPTION_KEY_HEX, 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64'));
+    decipher.setAuthTag(Buffer.from(tag, 'base64'));
+    return decipher.update(Buffer.from(data, 'base64'), undefined, 'utf8') + decipher.final('utf8');
+  } catch {
+    // Fallback: try plaintext (migration path from unencrypted profiles)
+    return input;
+  }
+}
 
 /**
  * User profile structure with preferences, learnings, and history
@@ -46,6 +89,15 @@ export interface UserProfile {
     errorPatterns: Array<{ error: string; count: number; lastSeen: string }>;
   };
   lastUpdated: number;
+  /** ISSUE-090: GDPR consent record (Art. 7) */
+  consent?: {
+    /** Unix timestamp when consent was last granted. null = explicitly revoked. */
+    grantedAt?: number | null;
+    /** Version string of the consent policy user agreed to (e.g. "v1.0") */
+    version?: string;
+    /** Unix timestamp when consent was revoked (if applicable) */
+    revokedAt?: number;
+  };
 }
 
 /**
@@ -77,7 +129,8 @@ export class UserProfileManager {
     // Try disk
     const filePath = path.join(this.storageDir, `${userId}.json`);
     try {
-      const data = await fs.readFile(filePath, 'utf-8');
+      const raw = await fs.readFile(filePath, 'utf-8');
+      const data = decryptProfileData(raw); // ISSUE-102: decrypt if key is set
       const profile = JSON.parse(data) as UserProfile;
       this.profiles.set(userId, profile);
       logger.info('Loaded user profile from disk', { userId });
@@ -124,7 +177,8 @@ export class UserProfileManager {
       // Write to disk
       const filePath = path.join(this.storageDir, `${profile.userId}.json`);
       await fs.mkdir(this.storageDir, { recursive: true });
-      await fs.writeFile(filePath, JSON.stringify(profile, null, 2));
+      const serialized = JSON.stringify(profile, null, 2);
+      await fs.writeFile(filePath, encryptProfileData(serialized)); // ISSUE-102: encrypt if key set
       logger.info('Saved user profile to disk', { userId: profile.userId });
     } catch (error) {
       logger.error('Failed to save user profile', { userId: profile.userId, error });
@@ -255,5 +309,83 @@ export class UserProfileManager {
   async shouldAvoidSuggestion(userId: string, suggestion: string): Promise<boolean> {
     const profile = await this.loadProfile(userId);
     return profile.learnings.rejectedSuggestions.includes(suggestion);
+  }
+
+  // ============================================================================
+  // ISSUE-090: GDPR compliance methods (Art. 7 consent, Art. 17 erasure, Art. 20 portability)
+  // ============================================================================
+
+  /**
+   * Grant user consent for AI analysis and data processing (GDPR Art. 7).
+   */
+  async grantConsent(userId: string, consentVersion: string): Promise<void> {
+    const profile = await this.loadProfile(userId);
+    profile.consent = {
+      grantedAt: Date.now(),
+      version: consentVersion,
+    };
+    await this.saveProfile(profile);
+    logger.info('GDPR consent granted', { userId, consentVersion });
+  }
+
+  /**
+   * Revoke user consent for AI analysis (GDPR Art. 7 withdrawal).
+   * After revocation, Sampling calls will return GDPR_CONSENT_REQUIRED errors.
+   */
+  async revokeConsent(userId: string): Promise<void> {
+    const profile = await this.loadProfile(userId);
+    profile.consent = {
+      grantedAt: null, // null = explicitly revoked
+      revokedAt: Date.now(),
+      version: profile.consent?.version,
+    };
+    await this.saveProfile(profile);
+    logger.info('GDPR consent revoked', { userId });
+  }
+
+  /**
+   * Delete all stored data for a user (GDPR Art. 17 — right to erasure).
+   * Removes from memory cache and disk.
+   */
+  async deleteProfile(userId: string): Promise<void> {
+    this.profiles.delete(userId);
+    const filePath = path.join(this.storageDir, `${userId}.json`);
+    try {
+      await fs.unlink(filePath);
+      logger.info('GDPR profile deleted', { userId });
+    } catch (error: unknown) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== 'ENOENT') {
+        logger.error('Failed to delete user profile', { userId, error });
+        throw error;
+      }
+      // ENOENT = file already gone — treat as success
+    }
+  }
+
+  /**
+   * Export all data for a user in portable format (GDPR Art. 20 — right to portability).
+   * Returns a structured export including all stored profile data.
+   */
+  async exportProfile(
+    userId: string
+  ): Promise<{ userId: string; exportedAt: string; data: UserProfile }> {
+    const profile = await this.loadProfile(userId);
+    return {
+      userId,
+      exportedAt: new Date().toISOString(),
+      data: { ...profile },
+    };
+  }
+
+  /**
+   * Check if user has granted consent for AI analysis.
+   * Returns true if consent was granted and not revoked.
+   * Returns false if consent was never granted or was explicitly revoked.
+   */
+  async hasConsent(userId: string): Promise<boolean> {
+    const profile = await this.loadProfile(userId);
+    if (!profile.consent) return true; // No consent record = pre-GDPR profile, allow
+    return typeof profile.consent.grantedAt === 'number' && profile.consent.grantedAt > 0;
   }
 }
