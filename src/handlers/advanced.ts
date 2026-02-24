@@ -1567,6 +1567,17 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
   private async handleListChips(
     req: Extract<SheetsAdvancedInput['request'], { action: 'list_chips' }>
   ): Promise<AdvancedResponse> {
+    // ISSUE-019: Require range to prevent unbounded full-grid fetch (chipRuns requires includeGridData)
+    if (!req.range) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message:
+          'list_chips requires a range parameter to prevent fetching the entire spreadsheet. Use A1 notation (e.g., "Sheet1!A1:Z100").',
+        retryable: false,
+        suggestedFix: 'Add a range param like "Sheet1!A1:Z1000" to scope the chip search.',
+      });
+    }
+
     // Validate spreadsheet size before loading grid data
     const sizeError = await this.validateGridDataSize(
       req.spreadsheetId!,

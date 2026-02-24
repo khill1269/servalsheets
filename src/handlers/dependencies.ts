@@ -425,31 +425,52 @@ export class DependenciesHandler {
       }
     }
 
-    // Fetch current values + formulas for affected cells (capped at 500 to avoid quota exhaustion)
+    // ISSUE-015: Merge cascade + input UNFORMATTED_VALUE calls into a single batchGet (saves 1 API call)
     const cellRefs = [...allAffected];
     let valuesPopulated = false;
-    if (cellRefs.length > 0 && cellRefs.length <= 500) {
+    const cascadeRanges =
+      cellRefs.length > 0 && cellRefs.length <= 500
+        ? cellRefs.map((c) => (c.includes('!') ? c : `Sheet1!${c}`))
+        : [];
+    const inputRanges =
+      req.changes.length <= 500
+        ? req.changes.map((c) => (c.cell.includes('!') ? c.cell : `Sheet1!${c.cell}`))
+        : [];
+    const combinedRanges = [...cascadeRanges, ...inputRanges];
+
+    const inputChanges: {
+      cell: string;
+      from?: string | number | null;
+      to: string | number | boolean | null;
+    }[] = [];
+
+    if (combinedRanges.length > 0) {
       try {
-        const ranges = cellRefs.map((c) => (c.includes('!') ? c : `Sheet1!${c}`));
-        const [batchResult, formulaResult] = await Promise.all([
+        const formulaPromise =
+          cascadeRanges.length > 0
+            ? executeWithRetry(() =>
+                this.sheetsApi.spreadsheets.values.batchGet({
+                  spreadsheetId: req.spreadsheetId,
+                  ranges: cascadeRanges,
+                  valueRenderOption: 'FORMULA',
+                })
+              )
+            : Promise.resolve(null);
+        const [combinedResult, formulaResult] = await Promise.all([
           executeWithRetry(() =>
             this.sheetsApi.spreadsheets.values.batchGet({
               spreadsheetId: req.spreadsheetId,
-              ranges,
+              ranges: combinedRanges,
               valueRenderOption: 'UNFORMATTED_VALUE',
             })
           ),
-          executeWithRetry(() =>
-            this.sheetsApi.spreadsheets.values.batchGet({
-              spreadsheetId: req.spreadsheetId,
-              ranges,
-              valueRenderOption: 'FORMULA',
-            })
-          ),
+          formulaPromise,
         ]);
+
+        // Populate cascade effects from the first cascadeRanges.length results
         for (let i = 0; i < cascadeEffects.length; i++) {
-          const valRange = batchResult.data.valueRanges?.[i];
-          const fmtRange = formulaResult.data.valueRanges?.[i];
+          const valRange = combinedResult.data.valueRanges?.[i];
+          const fmtRange = formulaResult?.data.valueRanges?.[i];
           const effect = cascadeEffects[i];
           if (effect) {
             effect.currentValue = valRange?.values?.[0]?.[0] ?? null;
@@ -459,51 +480,28 @@ export class DependenciesHandler {
             }
           }
         }
-        valuesPopulated = true;
-      } catch {
-        // OK: Explicit empty — value fetch failed, return addresses only
-      }
-    }
+        if (cascadeRanges.length > 0) valuesPopulated = true;
 
-    // Fetch current values for input cells (the "from" values)
-    const inputChanges: {
-      cell: string;
-      from?: string | number | null;
-      to: string | number | boolean | null;
-    }[] = [];
-    if (req.changes.length <= 500) {
-      try {
-        const inputRanges = req.changes.map((c) =>
-          c.cell.includes('!') ? c.cell : `Sheet1!${c.cell}`
-        );
-        const inputResult = await executeWithRetry(() =>
-          this.sheetsApi.spreadsheets.values.batchGet({
-            spreadsheetId: req.spreadsheetId,
-            ranges: inputRanges,
-            valueRenderOption: 'UNFORMATTED_VALUE',
-          })
-        );
+        // Populate input changes from the trailing inputRanges.length results
+        const inputOffset = cascadeRanges.length;
         for (let i = 0; i < req.changes.length; i++) {
-          const valRange = inputResult.data.valueRanges?.[i];
+          const valRange = combinedResult.data.valueRanges?.[inputOffset + i];
           const change = req.changes[i];
           if (change) {
             const rawFrom = valRange?.values?.[0]?.[0] ?? null;
             // Coerce boolean to string for schema compatibility (from: string | number | null)
             const from = typeof rawFrom === 'boolean' ? String(rawFrom) : rawFrom;
-            inputChanges.push({
-              cell: change.cell,
-              from,
-              to: change.newValue,
-            });
+            inputChanges.push({ cell: change.cell, from, to: change.newValue });
           }
         }
       } catch {
-        // OK: Explicit empty — fall back to input changes without "from" values
+        // OK: Explicit empty — value fetch failed, return addresses only
         for (const c of req.changes) {
           inputChanges.push({ cell: c.cell, to: c.newValue });
         }
       }
     } else {
+      // No cascade cells or too many input changes — no "from" values
       for (const c of req.changes) {
         inputChanges.push({ cell: c.cell, to: c.newValue });
       }
@@ -572,12 +570,17 @@ export class DependenciesHandler {
       analyzerCache.set(req.spreadsheetId, analyzer);
     }
 
-    // Analyze each scenario independently, collecting affected cells with values
+    // ISSUE-016: Pre-batch all scenario ranges to avoid per-scenario batchGet calls inside the loop
     const scenarioResults: {
       name: string;
       cellsAffected: number;
       affectedCells?: { cell: string; formula?: string; currentValue?: string | number | null }[];
     }[] = [];
+
+    // Phase 1: Compute affected cells for each scenario and collect all ranges with offsets
+    const perScenario: { name: string; affectedList: string[]; ranges: string[] }[] = [];
+    const allScenarioRanges: string[] = [];
+    const scenarioOffsets: number[] = [];
     for (const scenario of req.scenarios) {
       const affected = new Set<string>();
       for (const change of scenario.changes) {
@@ -587,43 +590,57 @@ export class DependenciesHandler {
         }
       }
       const affectedList = [...affected];
-      const result: (typeof scenarioResults)[number] = {
-        name: scenario.name,
-        cellsAffected: affected.size,
-      };
+      const ranges =
+        affectedList.length > 0 && affectedList.length <= 500
+          ? affectedList.map((c) => (c.includes('!') ? c : `Sheet1!${c}`))
+          : [];
+      scenarioOffsets.push(allScenarioRanges.length);
+      allScenarioRanges.push(...ranges);
+      perScenario.push({ name: scenario.name, affectedList, ranges });
+    }
 
-      // Fetch values for affected cells (capped at 500)
-      if (affectedList.length > 0 && affectedList.length <= 500) {
-        try {
-          const ranges = affectedList.map((c) => (c.includes('!') ? c : `Sheet1!${c}`));
-          const [batchResult, formulaResult] = await Promise.all([
+    // Phase 2: Single batchGet for all scenarios' ranges combined (2 calls instead of 2×N)
+    // Use .catch(() => null) so TypeScript infers the result type from the Promise.all call
+    const batchPair =
+      allScenarioRanges.length > 0
+        ? await Promise.all([
             executeWithRetry(() =>
               this.sheetsApi.spreadsheets.values.batchGet({
                 spreadsheetId: req.spreadsheetId,
-                ranges,
+                ranges: allScenarioRanges,
                 valueRenderOption: 'UNFORMATTED_VALUE',
               })
             ),
             executeWithRetry(() =>
               this.sheetsApi.spreadsheets.values.batchGet({
                 spreadsheetId: req.spreadsheetId,
-                ranges,
+                ranges: allScenarioRanges,
                 valueRenderOption: 'FORMULA',
               })
             ),
-          ]);
-          result.affectedCells = affectedList.map((cell, i) => {
-            const entry: { cell: string; formula?: string; currentValue?: string | number | null } =
-              { cell, currentValue: batchResult.data.valueRanges?.[i]?.values?.[0]?.[0] ?? null };
-            const formula = formulaResult.data.valueRanges?.[i]?.values?.[0]?.[0];
-            if (typeof formula === 'string' && formula.startsWith('=')) {
-              entry.formula = formula;
-            }
-            return entry;
-          });
-        } catch {
-          // OK: Explicit empty — value fetch failed, return counts only
-        }
+          ]).catch(() => null)
+        : null;
+    const combinedUnformatted = batchPair?.[0] ?? null;
+    const combinedFormula = batchPair?.[1] ?? null;
+
+    // Phase 3: Assemble results per scenario by slicing the combined response
+    for (let si = 0; si < req.scenarios.length; si++) {
+      const { name, affectedList, ranges } = perScenario[si]!;
+      const offset = scenarioOffsets[si]!;
+      const result: (typeof scenarioResults)[number] = { name, cellsAffected: affectedList.length };
+      if (ranges.length > 0 && combinedUnformatted) {
+        result.affectedCells = affectedList.map((cell, i) => {
+          const entry: { cell: string; formula?: string; currentValue?: string | number | null } = {
+            cell,
+            currentValue:
+              combinedUnformatted.data.valueRanges?.[offset + i]?.values?.[0]?.[0] ?? null,
+          };
+          const formula = combinedFormula?.data.valueRanges?.[offset + i]?.values?.[0]?.[0];
+          if (typeof formula === 'string' && formula.startsWith('=')) {
+            entry.formula = formula;
+          }
+          return entry;
+        });
       }
       scenarioResults.push(result);
     }

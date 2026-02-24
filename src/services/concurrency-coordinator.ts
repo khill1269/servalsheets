@@ -298,6 +298,32 @@ export class ConcurrencyCoordinator {
       let newLimit = currentLimit;
       let reason = 'periodic_adjustment';
 
+      // 16-A5: Heap pressure monitoring — reduce concurrency when heap > 80%
+      // This prevents OOM kills during large batch operations regardless of quota state
+      const { heapUsed, heapTotal } = process.memoryUsage();
+      const heapUtilization = heapUsed / heapTotal;
+      if (heapUtilization > 0.8) {
+        newLimit = Math.max(this.config.minConcurrent!, Math.floor(currentLimit * 0.7));
+        reason = 'heap_pressure';
+        if (newLimit !== currentLimit) {
+          logger.warn('Adaptive concurrency: Reducing limit due to heap pressure', {
+            heapUtilization: (heapUtilization * 100).toFixed(1) + '%',
+            heapUsedMB: Math.round(heapUsed / 1024 / 1024),
+            heapTotalMB: Math.round(heapTotal / 1024 / 1024),
+            oldLimit: currentLimit,
+            newLimit,
+          });
+          this.recordLimitAdjustment(currentLimit, newLimit, reason, quotaUtilization);
+          this.config.maxConcurrent = newLimit;
+          this.metrics.currentLimit = newLimit;
+          this.metrics.limitAdjustmentCount++;
+          if (newLimit === this.config.minConcurrent) this.metrics.minimumLimitReached = true;
+          recordConcurrencyAdjustment(reason, currentLimit, newLimit);
+        }
+        recordQuotaUtilization(quotaUtilization * 100);
+        return; // Skip quota-based adjustment this cycle
+      }
+
       if (quotaUtilization > 0.8) {
         // High utilization - decrease by 20% (but not below minimum)
         newLimit = Math.max(this.config.minConcurrent!, Math.floor(currentLimit * 0.8));

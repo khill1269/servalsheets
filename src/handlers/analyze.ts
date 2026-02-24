@@ -476,8 +476,9 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
           }
 
           // Check if dataset is large enough to benefit from worker pool
+          // 16-A2: Lowered threshold from 10000 → 1000 rows to engage worker pool earlier
           const rowCount = data.length;
-          const useWorkerPool = rowCount > 10000;
+          const useWorkerPool = rowCount > 1000;
 
           try {
             let anomalies: Array<{
