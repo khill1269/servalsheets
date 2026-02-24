@@ -14,6 +14,7 @@ import { BaseHandler, unwrapRequest, type HandlerContext } from './base.js';
 import type { Intent } from '../core/intent.js';
 import { DataError, ServiceError } from '../core/errors.js';
 import { logger } from '../utils/logger.js';
+import { isHeapCritical } from '../utils/heap-watchdog.js';
 import {
   getSamplingAnalysisService,
   buildAnalysisSamplingRequest,
@@ -2415,6 +2416,17 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
     req: ComprehensiveInput,
     _verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<AnalyzeResponse> {
+    // Heap pressure gate (ISSUE-115): reject expensive analysis when memory is critical
+    if (isHeapCritical()) {
+      return this.error({
+        code: 'RESOURCE_EXHAUSTED',
+        message:
+          'Server heap memory is critically full (>90%). Comprehensive analysis rejected to prevent OOM crash. Try again after current operations complete.',
+        retryable: true,
+        suggestedFix: 'Wait a few seconds and retry. If the issue persists, restart the server.',
+      });
+    }
+
     // QUICK SCAN MODE: Override settings for fast initial assessment
     const isQuickScan = 'quickScan' in req && req.quickScan === true;
 

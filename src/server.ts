@@ -121,6 +121,7 @@ import {
 import { parseWithCache } from './utils/schema-cache.js';
 import { startKeepalive } from './utils/keepalive.js';
 import { cleanupAllResources } from './utils/resource-cleanup.js';
+import { startHeapWatchdog } from './utils/heap-watchdog.js';
 import { DEFER_SCHEMAS } from './config/constants.js';
 
 /**
@@ -385,6 +386,9 @@ export class ServalSheetsServer {
 
     // Start cache cleanup task
     cacheManager.startCleanupTask();
+
+    // Start reactive heap watchdog (5s interval, disables analysis at 80%, rejects at 90%)
+    startHeapWatchdog();
 
     // Start health monitoring (heap usage, connection tracking)
     await this.healthMonitor.start();

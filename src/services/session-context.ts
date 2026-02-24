@@ -1122,13 +1122,24 @@ export class SessionContextManager {
 // SINGLETON INSTANCE
 // ============================================================================
 
+/** Session TTL in ms — configurable via SESSION_TTL_MS env var (default: 24h) */
+const SESSION_TTL_MS = parseInt(process.env['SESSION_TTL_MS'] ?? String(24 * 60 * 60 * 1000), 10);
+
 let sessionContext: SessionContextManager | null = null;
 
 /**
- * Get or create the session context manager singleton
+ * Get or create the session context manager singleton.
+ * Evicts the session if it has not been active within SESSION_TTL_MS.
  */
 export function getSessionContext(): SessionContextManager {
   if (!sessionContext) {
+    sessionContext = new SessionContextManager();
+  } else if (Date.now() - sessionContext.getState().lastActivityAt > SESSION_TTL_MS) {
+    logger.info('Session expired — creating new SessionContextManager', {
+      component: 'session-context',
+      idleMs: Date.now() - sessionContext.getState().lastActivityAt,
+      ttlMs: SESSION_TTL_MS,
+    });
     sessionContext = new SessionContextManager();
   }
   return sessionContext;

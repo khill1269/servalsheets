@@ -26,6 +26,10 @@ export const STANDARD_SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
   // Drive AppData: template storage in hidden app folder
   'https://www.googleapis.com/auth/drive.appdata',
+  // Drive read-only: required for sheets_core.list (drive.files.list) to enumerate all user spreadsheets.
+  // RESTRICTED scope — requires Google verification but allows listing all Drive files.
+  // Without this, core.list only sees files the app created/opened (drive.file limitation).
+  'https://www.googleapis.com/auth/drive.readonly',
 ] as const;
 
 /**

@@ -21,6 +21,36 @@ import type {
 import { logger } from '../utils/logger.js';
 
 // ============================================================================
+// Timeout Wrapper (ISSUE-088)
+// ============================================================================
+
+/** Default sampling request timeout in ms (configurable via SAMPLING_TIMEOUT_MS env var) */
+const SAMPLING_TIMEOUT_MS = parseInt(process.env['SAMPLING_TIMEOUT_MS'] ?? '30000', 10);
+
+/**
+ * Wrap a sampling request with a configurable timeout.
+ * Rejects with a descriptive error if the request exceeds SAMPLING_TIMEOUT_MS.
+ */
+export function withSamplingTimeout<T>(promise: Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`Sampling request timed out after ${SAMPLING_TIMEOUT_MS}ms`)),
+      SAMPLING_TIMEOUT_MS
+    );
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e: unknown) => {
+        clearTimeout(timer);
+        reject(e);
+      }
+    );
+  });
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -323,13 +353,15 @@ export async function analyzeData(
   }
   prompt += `Data:\n${formattedData}`;
 
-  const result = await server.createMessage({
-    messages: [createUserMessage(prompt)],
-    systemPrompt,
-    maxTokens,
-    ...(modelPreferences && { modelPreferences }),
-    ...(temperature !== undefined && { temperature }),
-  });
+  const result = await withSamplingTimeout(
+    server.createMessage({
+      messages: [createUserMessage(prompt)],
+      systemPrompt,
+      maxTokens,
+      ...(modelPreferences && { modelPreferences }),
+      ...(temperature !== undefined && { temperature }),
+    })
+  );
 
   return extractTextFromResult(result);
 }
@@ -381,13 +413,15 @@ export async function generateFormula(
   }
 
   const defaults = DEFAULT_MODEL_HINTS['formulaGeneration']!;
-  const result = await server.createMessage({
-    messages: [createUserMessage(prompt)],
-    systemPrompt: SAMPLING_PROMPTS.formulaGeneration,
-    maxTokens,
-    modelPreferences: { hints: defaults.hints },
-    temperature: defaults.temperature,
-  });
+  const result = await withSamplingTimeout(
+    server.createMessage({
+      messages: [createUserMessage(prompt)],
+      systemPrompt: SAMPLING_PROMPTS.formulaGeneration,
+      maxTokens,
+      modelPreferences: { hints: defaults.hints },
+      temperature: defaults.temperature,
+    })
+  );
 
   let formula = extractTextFromResult(result).trim();
 
@@ -441,13 +475,15 @@ export async function recommendChart(
 }`;
 
   const chartDefaults = DEFAULT_MODEL_HINTS['chartRecommendation']!;
-  const result = await server.createMessage({
-    messages: [createUserMessage(prompt)],
-    systemPrompt: SAMPLING_PROMPTS.chartRecommendation,
-    maxTokens: 300,
-    modelPreferences: { hints: chartDefaults.hints },
-    temperature: chartDefaults.temperature,
-  });
+  const result = await withSamplingTimeout(
+    server.createMessage({
+      messages: [createUserMessage(prompt)],
+      systemPrompt: SAMPLING_PROMPTS.chartRecommendation,
+      maxTokens: 300,
+      modelPreferences: { hints: chartDefaults.hints },
+      temperature: chartDefaults.temperature,
+    })
+  );
 
   const text = extractTextFromResult(result);
 
@@ -486,13 +522,15 @@ export async function explainFormula(
     : `Briefly explain what this Google Sheets formula does:\n\n${formula}`;
 
   const explainDefaults = DEFAULT_MODEL_HINTS['formulaExplanation']!;
-  const result = await server.createMessage({
-    messages: [createUserMessage(prompt)],
-    systemPrompt: SAMPLING_PROMPTS.formulaExplanation,
-    maxTokens: options.detailed ? 800 : 300,
-    modelPreferences: { hints: explainDefaults.hints },
-    temperature: explainDefaults.temperature,
-  });
+  const result = await withSamplingTimeout(
+    server.createMessage({
+      messages: [createUserMessage(prompt)],
+      systemPrompt: SAMPLING_PROMPTS.formulaExplanation,
+      maxTokens: options.detailed ? 800 : 300,
+      modelPreferences: { hints: explainDefaults.hints },
+      temperature: explainDefaults.temperature,
+    })
+  );
 
   return extractTextFromResult(result);
 }
@@ -533,11 +571,13 @@ export async function identifyDataIssues(
   "suggestedFix": "How to fix it"
 }]`;
 
-  const result = await server.createMessage({
-    messages: [createUserMessage(prompt)],
-    systemPrompt: SAMPLING_PROMPTS.dataCleaning,
-    maxTokens: 1500,
-  });
+  const result = await withSamplingTimeout(
+    server.createMessage({
+      messages: [createUserMessage(prompt)],
+      systemPrompt: SAMPLING_PROMPTS.dataCleaning,
+      maxTokens: 1500,
+    })
+  );
 
   const text = extractTextFromResult(result);
 
@@ -871,13 +911,15 @@ Original question: ${params.question}
 
 Provide a cohesive summary that synthesizes insights from all chunks.`;
 
-  const summary = await server.createMessage({
-    messages: [createUserMessage(summaryPrompt)],
-    systemPrompt:
-      'Synthesize multiple partial analyses into a cohesive summary. Identify patterns that span across chunks. Be concise but comprehensive.',
-    maxTokens: maxTokens * 2, // More tokens for summary
-    ...(modelPreferences && { modelPreferences }),
-  });
+  const summary = await withSamplingTimeout(
+    server.createMessage({
+      messages: [createUserMessage(summaryPrompt)],
+      systemPrompt:
+        'Synthesize multiple partial analyses into a cohesive summary. Identify patterns that span across chunks. Be concise but comprehensive.',
+      maxTokens: maxTokens * 2, // More tokens for summary
+      ...(modelPreferences && { modelPreferences }),
+    })
+  );
 
   onProgress?.({
     phase: 'complete',
@@ -928,7 +970,7 @@ export async function* streamAgenticOperation(
   while (continueLoop && iterationCount < maxIterations) {
     iterationCount++;
 
-    const result = await server.createMessage(params);
+    const result = await withSamplingTimeout(server.createMessage(params));
 
     // Process content
     const content = Array.isArray(result.content) ? result.content : [result.content];

@@ -34,7 +34,7 @@ import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import { createValidationError } from '../utils/error-factory.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { RangeResolutionError } from '../core/range-resolver.js';
-import { checkSamplingSupport } from '../mcp/sampling.js';
+import { checkSamplingSupport, withSamplingTimeout } from '../mcp/sampling.js';
 import { isLLMFallbackAvailable, createMessageWithFallback } from '../services/llm-fallback.js';
 
 // Valid condition types from schema
@@ -835,21 +835,23 @@ Always return valid JSON in the exact format requested.`;
       // If a samplingServer is available, enrich each suggestion with aiRationale
       if (this.context.samplingServer && suggestions.length > 0) {
         try {
-          const enriched = await Promise.all(
+          const settled = await Promise.allSettled(
             suggestions.map(async (suggestion) => {
               try {
-                const rationaleResult = await this.context.samplingServer!.createMessage({
-                  messages: [
-                    {
-                      role: 'user' as const,
-                      content: {
-                        type: 'text' as const,
-                        text: `In one concise sentence, explain why "${suggestion.title}" is a good formatting choice for this spreadsheet data.`,
+                const rationaleResult = await withSamplingTimeout(
+                  this.context.samplingServer!.createMessage({
+                    messages: [
+                      {
+                        role: 'user' as const,
+                        content: {
+                          type: 'text' as const,
+                          text: `In one concise sentence, explain why "${suggestion.title}" is a good formatting choice for this spreadsheet data.`,
+                        },
                       },
-                    },
-                  ],
-                  maxTokens: 128,
-                });
+                    ],
+                    maxTokens: 128,
+                  })
+                );
                 const rationaleText = Array.isArray(rationaleResult.content)
                   ? ((
                       rationaleResult.content.find((c) => c.type === 'text') as
@@ -864,7 +866,12 @@ Always return valid JSON in the exact format requested.`;
               }
             })
           );
-          suggestions = enriched;
+          suggestions = settled
+            .filter(
+              (r): r is PromiseFulfilledResult<(typeof suggestions)[number]> =>
+                r.status === 'fulfilled'
+            )
+            .map((r) => r.value);
         } catch {
           /* non-blocking */
         }
