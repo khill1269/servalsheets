@@ -428,6 +428,7 @@ Saves 70%+ time vs manual analysis. Gets everything you need to plan your next s
 [Banding] add_banding, update_banding, delete_banding, list_banding
 [Tables] create_table, delete_table, list_tables, update_table, rename_table_column, set_table_column_properties
 [Smart Chips] add_person_chip, add_drive_chip, add_rich_link_chip, list_chips
+[Named Functions] create_named_function, update_named_function, delete_named_function, list_named_functions, get_named_function
 
 **Parameter format examples:**
 - Named range: {"action":"add_named_range","spreadsheetId":"1ABC...","name":"Revenue","range":"B2:B100"}
