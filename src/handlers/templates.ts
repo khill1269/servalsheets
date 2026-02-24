@@ -232,6 +232,11 @@ export class SheetsTemplatesHandler extends BaseHandler<
             category: builtin.category,
             version: '1.0.0',
             sheets: builtin.sheets,
+            // Normalize shape to match user template response (ISSUE-050)
+            created: undefined,
+            updated: undefined,
+            namedRanges: undefined,
+            metadata: undefined,
           },
         });
       }
