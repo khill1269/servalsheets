@@ -19,6 +19,7 @@ import type {
 import { unwrapRequest } from './base.js';
 import { getTimeline, diffRevisions, restoreCells } from '../services/revision-timeline.js';
 import type { ElicitationServer } from '../mcp/elicitation.js';
+import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import type { SamplingServer } from '../mcp/sampling.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
@@ -622,13 +623,35 @@ export class HistoryHandler {
             break;
           }
 
-          // Create snapshot before restoring
+          // Create snapshot before restoring (before confirmation per safety rail order)
           let snapshotId: string | undefined;
           if (restoreReq.safety?.createSnapshot !== false && this.snapshotService) {
             snapshotId = await this.snapshotService.create(
               restoreReq.spreadsheetId,
               'Pre-restore backup'
             );
+          }
+
+          // Require confirmation when restoring >10 cells (bulk operation threshold)
+          if (restoreReq.cells.length > 10 && this.server) {
+            const confirmation = await confirmDestructiveAction(
+              this.server,
+              'restore_cells',
+              `Restore ${restoreReq.cells.length} cells from revision ${restoreReq.revisionId} in spreadsheet ${restoreReq.spreadsheetId}. This will overwrite current cell values.`
+            );
+            if (!confirmation.confirmed) {
+              response = {
+                success: false,
+                error: {
+                  code: 'PRECONDITION_FAILED',
+                  message: confirmation.reason || 'User cancelled the bulk restore operation',
+                  retryable: false,
+                  suggestedFix:
+                    'Restore fewer cells at a time, or use safety.dryRun to preview first',
+                },
+              };
+              break;
+            }
           }
 
           const restored = await restoreCells(
