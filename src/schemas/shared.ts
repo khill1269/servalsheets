@@ -579,13 +579,38 @@ export const CellFormatSchema = z.object({
 });
 
 /** Grid range (numeric coordinates) */
-export const GridRangeSchema = z.object({
-  sheetId: SheetIdSchema,
-  startRowIndex: z.number().int().min(0).optional(),
-  endRowIndex: z.number().int().min(0).optional(),
-  startColumnIndex: z.number().int().min(0).optional(),
-  endColumnIndex: z.number().int().min(0).optional(),
-});
+export const GridRangeSchema = z
+  .object({
+    sheetId: SheetIdSchema,
+    startRowIndex: z.number().int().min(0).optional(),
+    endRowIndex: z.number().int().min(0).optional(),
+    startColumnIndex: z.number().int().min(0).optional(),
+    endColumnIndex: z.number().int().min(0).optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (
+      val.startRowIndex !== undefined &&
+      val.endRowIndex !== undefined &&
+      val.startRowIndex >= val.endRowIndex
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'startRowIndex must be less than endRowIndex',
+        path: ['startRowIndex'],
+      });
+    }
+    if (
+      val.startColumnIndex !== undefined &&
+      val.endColumnIndex !== undefined &&
+      val.startColumnIndex >= val.endColumnIndex
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'startColumnIndex must be less than endColumnIndex',
+        path: ['startColumnIndex'],
+      });
+    }
+  });
 
 /** Developer metadata lookup */
 export const DeveloperMetadataLookupSchema = z.object({
