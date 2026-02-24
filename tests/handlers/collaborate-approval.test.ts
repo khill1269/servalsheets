@@ -725,13 +725,9 @@ describe('CollaborateHandler — Approval Actions', () => {
       expect(response.error.code).toBe('NOT_FOUND');
     });
 
-    it('BUG: approval_cancel does not call confirmDestructiveAction (missing safety rail)', async () => {
-      // Documents a known design gap: approval_cancel lacks confirmDestructiveAction()
-      // and createSnapshotIfNeeded() despite being an irreversible state change.
-      // See architecture-improvements.md P8 and TASKS.md P8-S1.
-      const { confirmDestructiveAction: mockConfirm } = await import(
-        '../../src/mcp/elicitation.js'
-      );
+    it('should call createSnapshotIfNeeded before confirmation (safety rail order fixed, ISSUE-013)', async () => {
+      // Verifies that approval_cancel now calls createSnapshotIfNeeded() as required by
+      // the safety rail invariant (snapshot → confirm → execute). Fixed by ISSUE-013.
       const { createSnapshotIfNeeded: mockSnapshot } = await import(
         '../../src/utils/safety-helpers.js'
       );
@@ -742,9 +738,8 @@ describe('CollaborateHandler — Approval Actions', () => {
         approvalId: APPROVAL_ID,
       } as any);
 
-      // Neither safety rail fires — gap confirmed
-      expect(mockConfirm).not.toHaveBeenCalled();
-      expect(mockSnapshot).not.toHaveBeenCalled();
+      // Snapshot fires (safety rail now active)
+      expect(mockSnapshot).toHaveBeenCalled();
     });
   });
 });
