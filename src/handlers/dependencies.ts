@@ -25,6 +25,7 @@ import type {
   CreateScenarioSheetInput,
 } from '../schemas/dependencies.js';
 import type { SamplingServer } from '../mcp/sampling.js';
+import { withSamplingTimeout } from '../mcp/sampling.js';
 import { logger } from '../utils/logger.js';
 import { executeWithRetry } from '../utils/retry.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
@@ -520,18 +521,20 @@ export class DependenciesHandler {
     if (this.samplingServer) {
       try {
         const changeDesc = req.changes.map((c) => `${c.cell} → ${String(c.newValue)}`).join(', ');
-        const narrativeResult = await this.samplingServer.createMessage({
-          messages: [
-            {
-              role: 'user' as const,
-              content: {
-                type: 'text' as const,
-                text: `In 1-2 sentences, describe the business impact of changing ${changeDesc} in spreadsheet '${req.spreadsheetId}', which would affect ${allAffected.size} dependent cell(s).`,
+        const narrativeResult = await withSamplingTimeout(
+          this.samplingServer.createMessage({
+            messages: [
+              {
+                role: 'user' as const,
+                content: {
+                  type: 'text' as const,
+                  text: `In 1-2 sentences, describe the business impact of changing ${changeDesc} in spreadsheet '${req.spreadsheetId}', which would affect ${allAffected.size} dependent cell(s).`,
+                },
               },
-            },
-          ],
-          maxTokens: 256,
-        });
+            ],
+            maxTokens: 256,
+          })
+        );
         const text = Array.isArray(narrativeResult.content)
           ? ((
               narrativeResult.content.find((c) => c.type === 'text') as { text: string } | undefined

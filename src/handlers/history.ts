@@ -21,6 +21,7 @@ import { getTimeline, diffRevisions, restoreCells } from '../services/revision-t
 import type { ElicitationServer } from '../mcp/elicitation.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import type { SamplingServer } from '../mcp/sampling.js';
+import { withSamplingTimeout } from '../mcp/sampling.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { getSessionContext } from '../services/session-context.js';
@@ -586,18 +587,20 @@ export class HistoryHandler {
                     `${c.cell}: ${String(c.oldValue ?? '')} → ${String(c.newValue ?? '')}`
                 )
                 .join('; ');
-              const explanationResult = await this.samplingServer.createMessage({
-                messages: [
-                  {
-                    role: 'user' as const,
-                    content: {
-                      type: 'text' as const,
-                      text: `In 1-2 sentences, explain what changed between revision ${diffReq.revisionId1} and ${diffReq.revisionId2} of spreadsheet '${diffReq.spreadsheetId}'. There were ${changeCount} cell change(s)${sampleChanges ? ': ' + sampleChanges : ''}.`,
+              const explanationResult = await withSamplingTimeout(
+                this.samplingServer.createMessage({
+                  messages: [
+                    {
+                      role: 'user' as const,
+                      content: {
+                        type: 'text' as const,
+                        text: `In 1-2 sentences, explain what changed between revision ${diffReq.revisionId1} and ${diffReq.revisionId2} of spreadsheet '${diffReq.spreadsheetId}'. There were ${changeCount} cell change(s)${sampleChanges ? ': ' + sampleChanges : ''}.`,
+                      },
                     },
-                  },
-                ],
-                maxTokens: 256,
-              });
+                  ],
+                  maxTokens: 256,
+                })
+              );
               const text = Array.isArray(explanationResult.content)
                 ? ((
                     explanationResult.content.find((c) => c.type === 'text') as

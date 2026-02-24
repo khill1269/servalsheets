@@ -57,6 +57,7 @@ import {
   type AnalysisFinding,
 } from '../analysis/action-generator.js';
 import { sendProgress } from '../utils/request-context.js';
+import { withSamplingTimeout } from '../mcp/sampling.js';
 
 export interface AnalyzeHandlerOptions {
   context: HandlerContext;
@@ -1269,7 +1270,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             // Call LLM via MCP Sampling
             let samplingResult;
             try {
-              samplingResult = await server4.createMessage(samplingRequest);
+              samplingResult = await withSamplingTimeout(server4.createMessage(samplingRequest));
             } catch (samplingError) {
               logger.error('MCP Sampling call failed for query_natural_language', {
                 component: 'analyze-handler',
@@ -1379,7 +1380,9 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             // Call LLM via MCP Sampling
             let samplingResult;
             try {
-              samplingResult = await serverExplain.createMessage(samplingRequest);
+              samplingResult = await withSamplingTimeout(
+                serverExplain.createMessage(samplingRequest)
+              );
             } catch (samplingError) {
               logger.error('MCP Sampling call failed for explain_analysis', {
                 component: 'analyze-handler',

@@ -34,6 +34,7 @@ type DataRequest = SheetsDataInput['request'];
 import type { ValuesArray } from '../schemas/index.js';
 import type { RangeInput } from '../schemas/shared.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import { withSamplingTimeout } from '../mcp/sampling.js';
 import { validateHyperlinkUrl } from '../utils/url.js';
 import {
   validateValuesPayload,
@@ -2548,18 +2549,20 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       let aiEstimate: { matchCount: number; confidence: string } | undefined;
       if (this.context.samplingServer) {
         try {
-          const samplingResult = await this.context.samplingServer.createMessage({
-            messages: [
-              {
-                role: 'user' as const,
-                content: {
-                  type: 'text' as const,
-                  text: `Estimate how many cells in the spreadsheet '${input.spreadsheetId}' would match the search term "${input.find}". Reply with JSON: {"matchCount": <number>, "confidence": "low"|"medium"|"high"}`,
+          const samplingResult = await withSamplingTimeout(
+            this.context.samplingServer.createMessage({
+              messages: [
+                {
+                  role: 'user' as const,
+                  content: {
+                    type: 'text' as const,
+                    text: `Estimate how many cells in the spreadsheet '${input.spreadsheetId}' would match the search term "${input.find}". Reply with JSON: {"matchCount": <number>, "confidence": "low"|"medium"|"high"}`,
+                  },
                 },
-              },
-            ],
-            maxTokens: 128,
-          });
+              ],
+              maxTokens: 128,
+            })
+          );
           const text = Array.isArray(samplingResult.content)
             ? ((
                 samplingResult.content.find((c) => c.type === 'text') as
