@@ -99,6 +99,35 @@ export class QualityHandler {
     // Check if dry run mode is enabled
     const isDryRun = input.safety?.dryRun ?? false;
 
+    const hasErrors = report.errors.length > 0;
+
+    // When validation finds errors, return success: false so the caller knows data is invalid.
+    // This eliminates the ambiguous success:true + valid:false dual-success pattern (ISSUE-136).
+    if (hasErrors) {
+      const response: QualityResponse = {
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: `Validation failed. ${report.errors.length} error(s), ${report.warnings.length} warning(s).`,
+          retryable: false,
+          details: {
+            valid: false,
+            errorCount: report.errors.length,
+            warningCount: report.warnings.length,
+            totalChecks: report.totalChecks,
+            passedChecks: report.passedChecks,
+            errors: report.errors?.map((e) => ({
+              ruleId: e.rule.id,
+              ruleName: e.rule.name,
+              severity: e.severity,
+              message: e.message,
+            })),
+          },
+        },
+      };
+      return response;
+    }
+
     const response: QualityResponse = {
       success: true,
       action: 'validate',
@@ -129,9 +158,7 @@ export class QualityHandler {
         message: w.message,
       })),
       duration: report.duration,
-      message: report.valid
-        ? `Validation passed. ${report.passedChecks}/${report.totalChecks} checks passed.`
-        : `Validation failed. ${report.errors.length} error(s), ${report.warnings.length} warning(s).`,
+      message: `Validation passed. ${report.passedChecks}/${report.totalChecks} checks passed.`,
     };
 
     // Add dry run preview if requested

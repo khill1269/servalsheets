@@ -1761,6 +1761,11 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
     // 4. Write if outputRange and not dryRun
     if (input.outputRange && !input.dryRun) {
+      await createSnapshotIfNeeded(
+        this.context.snapshotService,
+        { operationType: 'data_pipeline', isDestructive: true, spreadsheetId: input.spreadsheetId },
+        undefined
+      );
       await this.sheetsApi.spreadsheets.values.update({
         spreadsheetId: input.spreadsheetId,
         range: input.outputRange,
@@ -1940,7 +1945,16 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       targetSpreadsheetId = createResponse.data.spreadsheetId!;
     }
 
-    // 4. Write substituted data
+    // 4. Write substituted data (snapshot pre-existing target before writing)
+    await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'instantiate_template',
+        isDestructive: true,
+        spreadsheetId: targetSpreadsheetId,
+      },
+      undefined
+    );
     const cellsUpdated = substitutedRows.reduce((sum, row) => sum + row.length, 0);
     await this.sheetsApi.spreadsheets.values.update({
       spreadsheetId: targetSpreadsheetId,
@@ -2048,6 +2062,15 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
     // 5. Write to destination if not dryRun
     if (!input.dryRun) {
+      await createSnapshotIfNeeded(
+        this.context.snapshotService,
+        {
+          operationType: 'migrate_spreadsheet',
+          isDestructive: true,
+          spreadsheetId: input.destinationSpreadsheetId,
+        },
+        undefined
+      );
       if (input.appendMode ?? true) {
         await this.sheetsApi.spreadsheets.values.append({
           spreadsheetId: input.destinationSpreadsheetId,

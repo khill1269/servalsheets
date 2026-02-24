@@ -58,6 +58,7 @@ import {
   IncrementalScopeRequiredError,
 } from '../security/incremental-scope.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import { withSamplingTimeout } from '../mcp/sampling.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { createNotFoundError, createValidationError } from '../utils/error-factory.js';
 import { parseA1Notation } from '../utils/google-sheets-helpers.js';
@@ -629,18 +630,20 @@ export class CollaborateHandler extends BaseHandler<
       if (commentContent.includes('?')) {
         // Comment contains a question — ask sampling for a suggested reply
         try {
-          const replyResult = await this.context.samplingServer.createMessage({
-            messages: [
-              {
-                role: 'user' as const,
-                content: {
-                  type: 'text' as const,
-                  text: `A collaborator left this comment on a spreadsheet: "${commentContent}"\nSuggest a concise, helpful reply in 1-2 sentences.`,
+          const replyResult = await withSamplingTimeout(
+            this.context.samplingServer.createMessage({
+              messages: [
+                {
+                  role: 'user' as const,
+                  content: {
+                    type: 'text' as const,
+                    text: `A collaborator left this comment on a spreadsheet: "${commentContent}"\nSuggest a concise, helpful reply in 1-2 sentences.`,
+                  },
                 },
-              },
-            ],
-            maxTokens: 256,
-          });
+              ],
+              maxTokens: 256,
+            })
+          );
           const text = Array.isArray(replyResult.content)
             ? ((replyResult.content.find((c) => c.type === 'text') as { text: string } | undefined)
                 ?.text ?? '')
@@ -1814,6 +1817,17 @@ export class CollaborateHandler extends BaseHandler<
             'Check that the spreadsheet is shared with the right account, or verify sharing settings',
         });
       }
+
+      // Safety rail order: snapshot BEFORE confirmation (invariant: snapshot captures pre-op state)
+      await createSnapshotIfNeeded(
+        this.context.snapshotService,
+        {
+          operationType: 'approval_cancel',
+          isDestructive: true,
+          spreadsheetId: input.spreadsheetId,
+        },
+        input.safety
+      );
 
       // Request confirmation if elicitation available
       if (this.context.elicitationServer) {

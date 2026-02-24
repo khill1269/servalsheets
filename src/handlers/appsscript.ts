@@ -486,7 +486,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     const text = await response.text();
     if (!text) {
       logger.debug('Empty response body - OK for DELETE/void operations');
-      return {} as T; // OK: Explicit empty for void operations
+      return {} as unknown as T; // OK: Explicit empty for void operations (DELETE returns no body)
     }
 
     return JSON.parse(text) as T;
@@ -848,21 +848,19 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       });
     }
 
-    // Safety gate: requireConfirmation asks user before executing
-    if (safety?.requireConfirmation) {
-      const confirmed = await this.confirmOperation(
-        `Execute Apps Script function '${req.functionName}'`,
-        `Script ID: ${req.scriptId}. This will run code with side effects.`,
-        { isDestructive: true, operationType: 'apps_script_run' },
-        { skipIfElicitationUnavailable: false }
-      );
-      if (!confirmed) {
-        return this.error({
-          code: 'OPERATION_CANCELLED',
-          message: 'Execution cancelled by user.',
-          retryable: false,
-        });
-      }
+    // Safety gate: confirm by default before executing (script runs can have side effects)
+    const confirmed = await this.confirmOperation(
+      `Execute Apps Script function '${req.functionName}'`,
+      `Script ID: ${req.scriptId}. This will run code with side effects.`,
+      { isDestructive: true, operationType: 'apps_script_run' },
+      { skipIfElicitationUnavailable: true }
+    );
+    if (!confirmed) {
+      return this.error({
+        code: 'OPERATION_CANCELLED',
+        message: 'Execution cancelled by user.',
+        retryable: false,
+      });
     }
 
     // Pre-flight token check: Refresh if expiring within 360 seconds (6 minutes)
