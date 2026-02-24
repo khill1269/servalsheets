@@ -1802,12 +1802,18 @@ export class CollaborateHandler extends BaseHandler<
       }
 
       // Check if user is the requester (allow if requester email or user email is undefined)
+      // ISSUE-045: Guard against undefined email before using it for authorization
       const userEmail = await this.getCurrentUserEmail();
-      if (
-        userEmail &&
-        approval.requester.emailAddress &&
-        userEmail !== approval.requester.emailAddress
-      ) {
+      if (!userEmail) {
+        return this.error({
+          code: 'AUTHENTICATION_REQUIRED',
+          message:
+            'Cannot verify your identity to cancel this approval — no authenticated email available',
+          retryable: false,
+          suggestedFix: 'Re-authenticate using sheets_auth.login and retry',
+        });
+      }
+      if (approval.requester.emailAddress && userEmail !== approval.requester.emailAddress) {
         return this.error({
           code: 'PERMISSION_DENIED',
           message: 'Only the requester can cancel an approval',

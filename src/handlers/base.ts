@@ -700,7 +700,45 @@ export abstract class BaseHandler<TInput, TOutput> {
       return parsed as ErrorDetail;
     }
 
-    // Fallback: Parse from message string
+    // ISSUE-044: Check numeric HTTP status before falling back to fragile string matching.
+    // GaxiosError exposes status via error.status or error.response?.status.
+    const httpStatus: number | undefined =
+      typeof errorAny['status'] === 'number'
+        ? (errorAny['status'] as number)
+        : typeof (errorAny['response'] as Record<string, unknown> | undefined)?.['status'] ===
+            'number'
+          ? ((errorAny['response'] as Record<string, unknown>)['status'] as number)
+          : undefined;
+
+    if (httpStatus === 429) {
+      const circuitBreakerState =
+        this.context.googleClient &&
+        typeof this.context.googleClient.getCircuitBreakerState === 'function'
+          ? this.context.googleClient.getCircuitBreakerState()
+          : undefined;
+      return createRateLimitError({
+        quotaType: 'requests',
+        retryAfterMs: 60000,
+        circuitBreakerState,
+      });
+    }
+    if (httpStatus === 403) {
+      return createPermissionError({
+        operation: 'perform this operation',
+        resourceType: 'spreadsheet',
+        currentPermission: 'view',
+        requiredPermission: 'edit',
+      });
+    }
+    if (httpStatus === 404) {
+      return createNotFoundError({
+        resourceType: 'spreadsheet',
+        resourceId: this.currentSpreadsheetId || 'unknown (check spreadsheet ID)',
+        searchSuggestion: 'Verify the spreadsheet URL and your access permissions',
+      });
+    }
+
+    // Fallback: Parse from message string (locale-sensitive, used only when no numeric code)
 
     // Rate limit (429)
     if (message.includes('429') || message.includes('rate limit')) {
