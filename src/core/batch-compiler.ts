@@ -1107,8 +1107,17 @@ export class BatchCompiler {
         };
       }
 
-      // Not found
+      // Not found — distinguish sheet-level from spreadsheet-level
+      // Use word-boundary match (\bsheet\b) to avoid matching "spreadsheet"
       if (messageLower.includes('404') || messageLower.includes('not found')) {
+        if (/\bsheet\b/.test(messageLower) || messageLower.includes('tab')) {
+          return {
+            code: 'SHEET_NOT_FOUND',
+            message: 'Sheet not found',
+            retryable: false,
+            suggestedFix: 'Check the sheet name or tab name',
+          };
+        }
         return {
           code: 'SPREADSHEET_NOT_FOUND',
           message: 'Spreadsheet not found',
