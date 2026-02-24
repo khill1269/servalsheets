@@ -681,15 +681,10 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
       : { supported: false };
     const hasLLMFallback = isLLMFallbackAvailable();
 
+    // When neither LLM fallback nor sampling is available, use pattern-based suggestions
+    // (ISSUE-170: previously returned FEATURE_UNAVAILABLE hard error instead of degrading gracefully)
     if (!hasLLMFallback && (!this.context.server || !samplingSupport.supported)) {
-      return this.error({
-        code: 'FEATURE_UNAVAILABLE',
-        message:
-          'Format suggestions require MCP Sampling capability (SEP-1577) or LLM API key. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.',
-        retryable: false,
-        suggestedFix:
-          'Enable the feature by setting the appropriate environment variable, or contact your administrator',
-      });
+      return this.handleSuggestFormatRuleBased(input);
     }
 
     const startTime = Date.now();
@@ -890,6 +885,101 @@ Always return valid JSON in the exact format requested.`;
         suggestedFix: 'Please try again. If the issue persists, contact support',
       });
     }
+  }
+
+  /** Rule-based format suggestion fallback when LLM/Sampling is unavailable (ISSUE-170) */
+  private async handleSuggestFormatRuleBased(
+    input: FormatRequest & { action: 'suggest_format' }
+  ): Promise<FormatResponse> {
+    // Fetch a sample of data to detect patterns
+    const rangeStr =
+      typeof input.range === 'string'
+        ? input.range
+        : input.range && 'a1' in input.range
+          ? input.range.a1
+          : 'A1:Z10';
+
+    const response = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      ranges: [rangeStr],
+      includeGridData: true,
+      fields: 'sheets.data.rowData.values(formattedValue,effectiveValue)',
+    });
+
+    const sheet = response.data.sheets?.[0];
+    const rows = sheet?.data?.[0]?.rowData ?? [];
+
+    const suggestions: Array<{
+      title: string;
+      explanation: string;
+      confidence: number;
+      reasoning: string;
+      formatOptions: Record<string, unknown>;
+    }> = [];
+
+    // Rule 1: Detect header row (first row is all text, subsequent rows differ)
+    const firstRow = rows[0]?.values ?? [];
+    const secondRow = rows[1]?.values ?? [];
+    const firstRowIsText =
+      firstRow.length > 0 &&
+      firstRow.every((c) => c.formattedValue && isNaN(Number(c.formattedValue)));
+    const secondRowHasNumbers = secondRow.some((c) => c.effectiveValue?.numberValue !== undefined);
+    if (firstRowIsText && secondRowHasNumbers) {
+      suggestions.push({
+        title: 'Header Row Formatting',
+        explanation: 'Make column headers stand out with bold text and a light background',
+        confidence: 85,
+        reasoning:
+          'First row contains text labels while subsequent rows have numeric data — classic header pattern',
+        formatOptions: {
+          backgroundColor: { red: 0.85, green: 0.85, blue: 0.85 },
+          textFormat: { bold: true, fontSize: 11 },
+          alignment: 'CENTER',
+        },
+      });
+    }
+
+    // Rule 2: Detect numeric columns (suggest number format)
+    const hasNumbers = rows
+      .slice(1)
+      .some((r) => r.values?.some((c) => c.effectiveValue?.numberValue !== undefined));
+    if (hasNumbers) {
+      suggestions.push({
+        title: 'Number Formatting',
+        explanation: 'Apply consistent number formatting to numeric columns',
+        confidence: 70,
+        reasoning: 'Numeric data detected — standardized formatting improves readability',
+        formatOptions: {
+          numberFormat: { type: 'NUMBER', pattern: '#,##0.00' },
+        },
+      });
+    }
+
+    // Rule 3: Always suggest alternating row colors for readability
+    if (rows.length > 3) {
+      suggestions.push({
+        title: 'Alternating Row Colors',
+        explanation: 'Add alternating light/white row backgrounds to improve readability',
+        confidence: 60,
+        reasoning: 'Tables with more than 3 rows benefit from banding to track rows visually',
+        formatOptions: {
+          banding: {
+            headerColor: { red: 0.85, green: 0.85, blue: 0.85 },
+            firstBandColor: { red: 1, green: 1, blue: 1 },
+            secondBandColor: { red: 0.95, green: 0.95, blue: 0.95 },
+          },
+        },
+      });
+    }
+
+    return this.success('suggest_format', {
+      suggestions,
+      _meta: {
+        duration: 0,
+        timestamp: new Date().toISOString(),
+        source: 'rule-based-fallback',
+      },
+    });
   }
 
   private async handleSetBackground(
