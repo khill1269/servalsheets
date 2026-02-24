@@ -7,6 +7,8 @@
  */
 
 import type { SheetsSessionInput, SheetsSessionOutput } from '../schemas/session.js';
+import { PipelineExecutor, type PipelineStep } from '../services/pipeline-executor.js';
+import { getPipelineDispatch } from '../services/pipeline-registry.js';
 import {
   getSessionContext,
   type SpreadsheetContext,
@@ -38,15 +40,90 @@ import { sendProgress } from '../utils/request-context.js';
  * Session handler class for lazy loading
  */
 export class SessionHandler {
+  /** Lazily-initialized pipeline executor (populated on first execute_pipeline call). */
+  private pipeline: PipelineExecutor | null = null;
+
   async handle(input: SheetsSessionInput): Promise<SheetsSessionOutput> {
     const req = unwrapRequest<SheetsSessionInput['request']>(input);
+    const verbosity = req.verbosity ?? 'standard';
+
+    // execute_pipeline requires access to this.pipeline (class field), so it
+    // is dispatched here rather than in the standalone handleSheetsSession().
+    if (req.action === 'execute_pipeline') {
+      const result = await this.handleExecutePipeline(
+        req as {
+          action: 'execute_pipeline';
+          steps: PipelineStep[];
+          failFast?: boolean;
+        }
+      );
+      const filteredResponse = applyVerbosityFilter(result.response, verbosity);
+      return { response: filteredResponse };
+    }
+
     const result = await handleSheetsSession(input);
 
     // Apply verbosity filtering (LLM optimization)
-    const verbosity = req.verbosity ?? 'standard';
     const filteredResponse = applyVerbosityFilter(result.response, verbosity);
 
     return { response: filteredResponse };
+  }
+
+  private async handleExecutePipeline(req: {
+    action: 'execute_pipeline';
+    steps: PipelineStep[];
+    failFast?: boolean;
+  }): Promise<SheetsSessionOutput> {
+    try {
+      // Lazily initialise from registry (populated by createToolHandlerMap)
+      if (!this.pipeline) {
+        const dispatch = getPipelineDispatch();
+        if (!dispatch) {
+          throw new ValidationError(
+            'Pipeline executor not available — ensure session handler is fully initialized',
+            'pipeline'
+          );
+        }
+        this.pipeline = new PipelineExecutor(dispatch);
+      }
+
+      await sendProgress(0, req.steps.length, `Starting pipeline (${req.steps.length} steps)`);
+
+      const pipelineResult = await this.pipeline.executePipeline(req.steps, {
+        failFast: req.failFast ?? true,
+      });
+
+      await sendProgress(
+        pipelineResult.stepsCompleted,
+        pipelineResult.stepsTotal,
+        pipelineResult.success
+          ? 'Pipeline completed'
+          : `Pipeline failed at step: ${pipelineResult.failedAt}`
+      );
+
+      return {
+        response: {
+          success: true as const,
+          action: 'execute_pipeline' as const,
+          stepsCompleted: pipelineResult.stepsCompleted,
+          stepsTotal: pipelineResult.stepsTotal,
+          pipelineResults: pipelineResult.results,
+          ...(pipelineResult.failedAt ? { failedAt: pipelineResult.failedAt } : {}),
+          pipelineDurationMs: pipelineResult.durationMs,
+        },
+      };
+    } catch (error) {
+      return {
+        response: {
+          success: false,
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: error instanceof Error ? error.message : String(error),
+            retryable: false,
+          },
+        },
+      };
+    }
   }
 }
 
@@ -614,6 +691,15 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             formulas,
           },
         };
+      }
+
+      case 'execute_pipeline': {
+        // Intercepted by SessionHandler.handle() before this function is called.
+        // This branch satisfies the exhaustiveness check but is unreachable in production.
+        throw new ValidationError(
+          'execute_pipeline must be dispatched via SessionHandler.handle()',
+          'action'
+        );
       }
 
       default: {

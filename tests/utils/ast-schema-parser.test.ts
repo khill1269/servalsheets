@@ -23,8 +23,8 @@ describe('AST Schema Parser', () => {
       const schemaPath = path.join(PROJECT_ROOT, 'src/schemas/session.ts');
       const actions = extractSchemaActions(schemaPath);
 
-      // Session has 26 actions (see src/schemas/annotations.ts)
-      expect(actions.length).toBe(26);
+      // Session has 27 actions (26 + execute_pipeline added in P16 Phase 7)
+      expect(actions.length).toBe(27);
       expect(actions).toContain('set_active');
       expect(actions).toContain('get_active');
       expect(actions).toContain('record_operation');
@@ -111,8 +111,8 @@ describe('AST Schema Parser', () => {
       const handlerPath = path.join(PROJECT_ROOT, 'src/handlers/session.ts');
       const cases = extractHandlerCases(handlerPath);
 
-      // Session has 26 actions
-      expect(cases.length).toBe(26);
+      // Session has 27 actions (26 + execute_pipeline added in P16 Phase 7)
+      expect(cases.length).toBe(27);
       expect(cases).toContain('set_active');
       expect(cases).toContain('get_active');
       expect(cases).toContain('record_operation');

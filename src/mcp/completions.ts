@@ -354,6 +354,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'record_successful_formula',
     'reject_suggestion',
     'get_top_formulas',
+    'execute_pipeline',
   ],
   sheets_templates: [
     'list',
