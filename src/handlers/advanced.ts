@@ -1776,6 +1776,34 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
   private async handleDeleteNamedFunction(
     req: Extract<SheetsAdvancedInput['request'], { action: 'delete_named_function' }>
   ): Promise<AdvancedResponse> {
+    // Snapshot BEFORE confirmation (captures pre-op state; must exist before user approves)
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'delete_named_function',
+        isDestructive: true,
+        spreadsheetId: req.spreadsheetId,
+      },
+      req.safety
+    );
+
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'delete_named_function',
+        `Delete named function "${req.functionName}" from spreadsheet ${req.spreadsheetId}. This action cannot be undone.`
+      );
+
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
+        });
+      }
+    }
+
     // Named function requests exist in Google Sheets API but are not in googleapis types.
     // Cast request items to allow deleteNamedFunction (valid API field, missing from types).
     await this.sheetsApi.spreadsheets.batchUpdate({
@@ -1791,7 +1819,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       },
     });
 
-    return this.success('delete_named_function', {});
+    return this.success('delete_named_function', { snapshotId: snapshot?.snapshotId });
   }
 
   // ============================================================
