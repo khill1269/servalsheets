@@ -81,6 +81,7 @@ import {
 import { parseWithCache } from '../../utils/schema-cache.js';
 import { registerToolsListCompatibilityHandler } from './tools-list-compat.js';
 import { wrapToolMapWithIdempotency } from '../../middleware/idempotency-middleware.js';
+import { registerPipelineDispatch } from '../../services/pipeline-registry.js';
 
 // Wrap input schemas for legacy envelopes during validation.
 // Keep registration schemas unwrapped to avoid MCP SDK tools/list empty schema bug.
@@ -485,12 +486,18 @@ export function createToolHandlerMap(
       );
   }
 
-  // Wrap all handlers with idempotency middleware (feature-flagged)
-  if (getEnv().ENABLE_IDEMPOTENCY) {
-    return wrapToolMapWithIdempotency(map);
-  }
+  // Build final map (with optional idempotency wrapping)
+  const finalMap = getEnv().ENABLE_IDEMPOTENCY ? wrapToolMapWithIdempotency(map) : map;
 
-  return map;
+  // Register pipeline dispatcher so SessionHandler.execute_pipeline can call other tools.
+  // Using a registry module avoids circular imports between tool-handlers ↔ session.
+  registerPipelineDispatch((tool: string, args: Record<string, unknown>) => {
+    const fn = finalMap[tool];
+    if (!fn) return Promise.reject(new Error(`Unknown tool in pipeline: ${tool}`));
+    return fn(args) as Promise<unknown>;
+  });
+
+  return finalMap;
 }
 
 // ============================================================================

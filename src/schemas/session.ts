@@ -253,6 +253,48 @@ const GetTopFormulasActionSchema = CommonFieldsSchema.extend({
   limit: z.number().int().positive().optional().describe('Number of formulas to return'),
 });
 
+// Pipeline step schema (used by execute_pipeline)
+const PipelineStepSchema = z.object({
+  id: z.string().min(1).describe('Unique step identifier — referenced by other steps dependsOn'),
+  tool: z.string().describe('Tool name (e.g. "sheets_data", "sheets_format")'),
+  action: z.string().describe('Action within the tool (e.g. "read", "write", "set_format")'),
+  params: z
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.unknown()),
+        z.record(z.string(), z.unknown()),
+      ])
+    )
+    .describe('Tool parameters (excluding action — added automatically)'),
+  dependsOn: z
+    .array(z.string())
+    .optional()
+    .describe('IDs of steps that must complete before this step runs'),
+});
+
+const ExecutePipelineActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('execute_pipeline')
+    .describe(
+      'Execute a DAG-based multi-step pipeline. READ steps within a wave run in parallel; WRITE steps run sequentially. Use dependsOn to define execution order.'
+    ),
+  steps: z
+    .array(PipelineStepSchema)
+    .min(1)
+    .max(50)
+    .describe('Pipeline steps (max 50). Steps without dependsOn run in the first wave.'),
+  failFast: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Stop execution on first error (default: true). Set false to collect all errors.'),
+});
+
 // ============================================================================
 // Combined Input Schema
 // ============================================================================
@@ -294,6 +336,7 @@ export const SheetsSessionInputSchema = z.object({
     RecordSuccessfulFormulaActionSchema,
     RejectSuggestionActionSchema,
     GetTopFormulasActionSchema,
+    ExecutePipelineActionSchema,
   ]),
 });
 
@@ -385,6 +428,7 @@ const SessionActionSchema = z.enum([
   'record_successful_formula',
   'reject_suggestion',
   'get_top_formulas',
+  'execute_pipeline',
 ]);
 
 // Success responses
@@ -514,6 +558,24 @@ const SessionSuccessSchema = z.object({
       })
     )
     .optional(),
+  // Pipeline execution fields
+  pipelineResults: z
+    .array(
+      z.object({
+        id: z.string(),
+        tool: z.string(),
+        action: z.string(),
+        status: z.enum(['success', 'error', 'skipped']),
+        result: z.unknown().optional(),
+        error: z.string().optional(),
+        durationMs: z.number(),
+      })
+    )
+    .optional(),
+  stepsCompleted: z.coerce.number().optional(),
+  stepsTotal: z.coerce.number().optional(),
+  failedAt: z.string().optional(),
+  pipelineDurationMs: z.coerce.number().optional(),
 });
 
 // Error response
