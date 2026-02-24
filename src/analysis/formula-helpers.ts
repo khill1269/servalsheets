@@ -596,6 +596,150 @@ export function generateOptimizations(
 }
 
 // ============================================================================
+// Formula Upgrade Detection
+// ============================================================================
+
+export interface FormulaUpgrade {
+  cell: string;
+  currentFormula: string;
+  suggestedFormula: string;
+  pattern: string;
+  reason: string;
+  confidence: number;
+  executable: {
+    tool: string;
+    action: string;
+    params: { spreadsheetId: string; range: string; values: string[][] };
+  };
+}
+
+/**
+ * Detect formulas that can be upgraded to modern Google Sheets functions.
+ * Returns executable suggestions with ready-to-dispatch params.
+ */
+export function detectFormulaUpgrades(
+  formulas: Array<{ cell: string; formula: string }>,
+  spreadsheetId: string
+): FormulaUpgrade[] {
+  const upgrades: FormulaUpgrade[] = [];
+
+  for (const { cell, formula } of formulas) {
+    const upper = formula.toUpperCase();
+
+    // 1. IF(ISNA(VLOOKUP(...))) → IFNA(XLOOKUP(...))
+    if (/\bIF\s*\(\s*ISNA\s*\(\s*VLOOKUP/.test(upper)) {
+      upgrades.push({
+        cell,
+        currentFormula: formula,
+        suggestedFormula: formula.replace(
+          /IF\s*\(\s*ISNA\s*\(\s*(VLOOKUP\([^)]+\))\s*\)\s*,\s*([^,]+)\s*,\s*\1\s*\)/i,
+          'IFNA(XLOOKUP($2), $3)'
+        ),
+        pattern: 'IF_ISNA_VLOOKUP_TO_IFNA_XLOOKUP',
+        reason: 'IFNA(XLOOKUP(...)) is cleaner — XLOOKUP handles errors natively without wrapping',
+        confidence: 0.9,
+        executable: {
+          tool: 'sheets_data',
+          action: 'write',
+          params: { spreadsheetId, range: cell, values: [[`=IFNA(XLOOKUP(...), default_value)`]] },
+        },
+      });
+    }
+    // 2. Plain VLOOKUP → XLOOKUP
+    else if (/\bVLOOKUP\s*\(/.test(upper) && !/\bXLOOKUP/.test(upper)) {
+      upgrades.push({
+        cell,
+        currentFormula: formula,
+        suggestedFormula: '=XLOOKUP(lookup_value, lookup_range, result_range, default)',
+        pattern: 'VLOOKUP_TO_XLOOKUP',
+        reason:
+          'XLOOKUP supports bidirectional search, handles errors natively, and does not require sorted data',
+        confidence: 0.85,
+        executable: {
+          tool: 'sheets_data',
+          action: 'write',
+          params: { spreadsheetId, range: cell, values: [['=XLOOKUP(...)']] },
+        },
+      });
+    }
+
+    // 3. Deeply nested IF → IFS
+    const ifMatches = upper.match(/\bIF\s*\(/g);
+    if (ifMatches && ifMatches.length >= 3) {
+      upgrades.push({
+        cell,
+        currentFormula: formula,
+        suggestedFormula: '=IFS(condition1, value1, condition2, value2, ...)',
+        pattern: 'NESTED_IF_TO_IFS',
+        reason: `${ifMatches.length} nested IF levels detected — IFS is flatter, easier to read and maintain`,
+        confidence: 0.8,
+        executable: {
+          tool: 'sheets_data',
+          action: 'write',
+          params: { spreadsheetId, range: cell, values: [['=IFS(...)']] },
+        },
+      });
+    }
+
+    // 4. ARRAYFORMULA wrapping simple filter/unique patterns → native array functions
+    if (/\bARRAYFORMULA\s*\(/.test(upper)) {
+      if (/\bIF\s*\(.*,\s*[A-Z]+\d*:\s*[A-Z]+\d*/.test(upper)) {
+        upgrades.push({
+          cell,
+          currentFormula: formula,
+          suggestedFormula: '=FILTER(range, condition)',
+          pattern: 'ARRAYFORMULA_IF_TO_FILTER',
+          reason:
+            'FILTER is a native array function — no ARRAYFORMULA wrapper needed, better performance',
+          confidence: 0.75,
+          executable: {
+            tool: 'sheets_data',
+            action: 'write',
+            params: { spreadsheetId, range: cell, values: [['=FILTER(...)']] },
+          },
+        });
+      }
+    }
+
+    // 5. INDIRECT/OFFSET → flag as volatile with non-volatile alternative
+    if (/\bINDIRECT\s*\(/.test(upper)) {
+      upgrades.push({
+        cell,
+        currentFormula: formula,
+        suggestedFormula: 'Use INDEX with named ranges instead of INDIRECT',
+        pattern: 'INDIRECT_VOLATILE',
+        reason:
+          'INDIRECT is volatile — recalculates on every edit. INDEX with named ranges is non-volatile and faster',
+        confidence: 0.7,
+        executable: {
+          tool: 'sheets_data',
+          action: 'write',
+          params: { spreadsheetId, range: cell, values: [['=INDEX(...)']] },
+        },
+      });
+    }
+    if (/\bOFFSET\s*\(/.test(upper)) {
+      upgrades.push({
+        cell,
+        currentFormula: formula,
+        suggestedFormula: 'Use INDEX with calculated row/col instead of OFFSET',
+        pattern: 'OFFSET_VOLATILE',
+        reason:
+          'OFFSET is volatile — recalculates on every edit. INDEX is non-volatile and produces same results',
+        confidence: 0.7,
+        executable: {
+          tool: 'sheets_data',
+          action: 'write',
+          params: { spreadsheetId, range: cell, values: [['=INDEX(...)']] },
+        },
+      });
+    }
+  }
+
+  return upgrades;
+}
+
+// ============================================================================
 // Formula Error Detection (from cell VALUES, not just formula text)
 // ============================================================================
 

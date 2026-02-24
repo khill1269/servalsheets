@@ -57,6 +57,12 @@ export class UserProfileManager {
 
   constructor(storageDir = process.env['PROFILE_STORAGE_DIR'] || '/tmp/servalsheets-profiles') {
     this.storageDir = storageDir;
+    if (!process.env['PROFILE_STORAGE_DIR']) {
+      logger.warn(
+        'PROFILE_STORAGE_DIR not set — using /tmp/servalsheets-profiles (volatile, not secure). ' +
+          'Set PROFILE_STORAGE_DIR env var for persistent, secure profile storage.'
+      );
+    }
   }
 
   /**

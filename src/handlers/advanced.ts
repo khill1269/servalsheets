@@ -31,6 +31,20 @@ import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 
 type AdvancedSuccess = Extract<AdvancedResponse, { success: true }>;
 
+/**
+ * Extended SpreadsheetProperties type that includes namedFunctions.
+ * This property exists in the Google Sheets API but is missing from googleapis type definitions.
+ * Pattern: visualize.ts ExtendedBasicChartSeries
+ */
+interface ExtendedSpreadsheetProperties extends sheets_v4.Schema$SpreadsheetProperties {
+  namedFunctions?: Array<{
+    name?: string;
+    functionBody?: string;
+    description?: string;
+    argumentNames?: string[];
+  }>;
+}
+
 export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdvancedOutput> {
   private sheetsApi: sheets_v4.Sheets;
 
@@ -398,6 +412,46 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
   private async handleAddProtectedRange(
     req: Extract<SheetsAdvancedInput['request'], { action: 'add_protected_range' }>
   ): Promise<AdvancedResponse> {
+    if (req.safety?.dryRun) {
+      return this.success('add_protected_range', {}, undefined, true);
+    }
+
+    // Create snapshot before mutating (allows rollback of protection settings)
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'add_protected_range',
+        isDestructive: false,
+        spreadsheetId: req.spreadsheetId,
+      },
+      req.safety
+    );
+
+    // Request confirmation if elicitation available
+    if (this.context.elicitationServer) {
+      try {
+        const confirmation = await confirmDestructiveAction(
+          this.context.elicitationServer,
+          'add_protected_range',
+          `Add protection to range ${req.range} in spreadsheet ${req.spreadsheetId}. This will restrict editing for the specified range.`
+        );
+
+        if (!confirmation.confirmed) {
+          return this.error({
+            code: 'PRECONDITION_FAILED',
+            message: confirmation.reason || 'User cancelled the operation',
+            retryable: false,
+            suggestedFix: 'Review the operation requirements and try again',
+          });
+        }
+      } catch (err) {
+        this.context.logger?.warn(
+          `Elicitation failed for add_protected_range, proceeding with operation`,
+          { error: err }
+        );
+      }
+    }
+
     const gridRange = await this.rangeToGridRange(req.spreadsheetId!, req.range!, this.sheetsApi);
     const request: sheets_v4.Schema$ProtectedRange = {
       range: toGridRange(gridRange),
@@ -420,6 +474,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
     const protectedRange = response.data?.replies?.[0]?.addProtectedRange?.protectedRange;
     return this.success('add_protected_range', {
       protectedRange: protectedRange ? this.mapProtectedRange(protectedRange) : undefined,
+      snapshotId: snapshot?.snapshotId,
     });
   }
 
@@ -1548,8 +1603,9 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       description: p.description ?? '',
     }));
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (this.sheetsApi.spreadsheets.batchUpdate as any)({
+    // Named function requests exist in Google Sheets API but are not in googleapis types.
+    // Cast request items to allow addNamedFunction (valid API field, missing from types).
+    await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: req.spreadsheetId!,
       requestBody: {
         requests: [
@@ -1562,7 +1618,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
                 argumentNames: paramDefs?.map((p) => p.name),
               },
             },
-          },
+          } as sheets_v4.Schema$Request,
         ],
       },
     });
@@ -1585,9 +1641,9 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       fields: 'properties.namedFunctions',
     });
 
-    // namedFunctions is a newer API field not yet in googleapis types; cast to access
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rawFunctions: unknown[] = (result.data.properties as any)?.namedFunctions ?? [];
+    // namedFunctions is a newer API field not yet in googleapis types
+    const rawFunctions: unknown[] =
+      (result.data.properties as ExtendedSpreadsheetProperties)?.namedFunctions ?? [];
 
     const namedFunctions = rawFunctions.map((fn) => {
       const f = fn as {
@@ -1615,8 +1671,8 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       fields: 'properties.namedFunctions',
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rawFunctions: unknown[] = (result.data.properties as any)?.namedFunctions ?? [];
+    const rawFunctions: unknown[] =
+      (result.data.properties as ExtendedSpreadsheetProperties)?.namedFunctions ?? [];
 
     const fn = rawFunctions.find((f) => (f as { name?: string }).name === req.functionName);
 
@@ -1654,8 +1710,8 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       fields: 'properties.namedFunctions',
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rawFunctions: unknown[] = (getResult.data.properties as any)?.namedFunctions ?? [];
+    const rawFunctions: unknown[] =
+      (getResult.data.properties as ExtendedSpreadsheetProperties)?.namedFunctions ?? [];
 
     const existing = rawFunctions.find(
       (f) => (f as { name?: string }).name === req.functionName
@@ -1680,8 +1736,9 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       ? req.parameterDefinitions.map((p) => p.name)
       : (existing.argumentNames ?? []);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (this.sheetsApi.spreadsheets.batchUpdate as any)({
+    // Named function requests exist in Google Sheets API but are not in googleapis types.
+    // Cast request items to allow updateNamedFunction (valid API field, missing from types).
+    await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: req.spreadsheetId!,
       requestBody: {
         requests: [
@@ -1696,7 +1753,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
               oldName: req.functionName!,
               fields: 'name,description,functionBody,argumentNames',
             },
-          },
+          } as sheets_v4.Schema$Request,
         ],
       },
     });
@@ -1714,8 +1771,9 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
   private async handleDeleteNamedFunction(
     req: Extract<SheetsAdvancedInput['request'], { action: 'delete_named_function' }>
   ): Promise<AdvancedResponse> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (this.sheetsApi.spreadsheets.batchUpdate as any)({
+    // Named function requests exist in Google Sheets API but are not in googleapis types.
+    // Cast request items to allow deleteNamedFunction (valid API field, missing from types).
+    await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: req.spreadsheetId!,
       requestBody: {
         requests: [
@@ -1723,7 +1781,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
             deleteNamedFunction: {
               name: req.functionName!,
             },
-          },
+          } as sheets_v4.Schema$Request,
         ],
       },
     });

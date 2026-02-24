@@ -32,6 +32,8 @@ import type {
 } from '../schemas/confirm.js';
 import { getCapabilitiesWithCache } from '../services/capability-cache.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
+import { mapStandaloneError } from './helpers/error-mapping.js';
+import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 
 /**
  * Wizard session storage
@@ -86,26 +88,6 @@ export class ConfirmHandler {
 
   constructor(options: ConfirmHandlerOptions) {
     this.context = options.context;
-  }
-
-  /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
-   */
-  private applyVerbosityFilter(
-    response: ConfirmResponse,
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): ConfirmResponse {
-    if (!response.success || verbosity === 'standard') {
-      return response;
-    }
-
-    if (verbosity === 'minimal') {
-      // For minimal verbosity, strip _meta field
-      const { _meta, ...rest } = response as Record<string, unknown>;
-      return rest as ConfirmResponse;
-    }
-
-    return response;
   }
 
   /**
@@ -405,19 +387,28 @@ export class ConfirmHandler {
           };
           break;
         }
+
+        default: {
+          response = {
+            success: false,
+            error: {
+              code: 'INVALID_PARAMS',
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              message: `Unknown action: ${String((req as any).action)}`,
+              retryable: false,
+            },
+          };
+          break;
+        }
       }
 
       // Apply verbosity filtering (LLM optimization)
-      return { response: this.applyVerbosityFilter(response, verbosity) };
+      return { response: applyVerbosityFilter(response, verbosity) };
     } catch (error) {
       return {
         response: {
           success: false,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: error instanceof Error ? error.message : String(error),
-            retryable: false,
-          },
+          error: mapStandaloneError(error),
         },
       };
     }

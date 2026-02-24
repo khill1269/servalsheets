@@ -228,13 +228,15 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         case 'list_slicers':
           response = await this.handleListSlicers(req as DimensionsListSlicersInput);
           break;
-        default:
+        default: {
+          const _exhaustiveCheck: never = req;
           response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(req as { action: string }).action}`,
+            message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
+        }
       }
 
       // Track context on success
@@ -327,6 +329,41 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
 
   private async handleInsert(input: DimensionsInsertInput): Promise<DimensionsResponse> {
     const count = input.count ?? 1;
+    const isRows = input.dimension === 'ROWS';
+
+    // Create snapshot before mutating (allows rollback)
+    await this.createSafetySnapshot(
+      {
+        operationType: 'insert',
+        isDestructive: false,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+
+    // Request confirmation for larger inserts
+    if (this.context.elicitationServer && count > 10) {
+      try {
+        const confirmation = await confirmDestructiveAction(
+          this.context.elicitationServer,
+          `Insert ${isRows ? 'Rows' : 'Columns'}`,
+          `You are about to insert ${count} ${isRows ? 'rows' : 'columns'} at index ${input.startIndex + 1}. This will shift existing data.`
+        );
+
+        if (!confirmation.confirmed) {
+          return this.error({
+            code: 'PRECONDITION_FAILED',
+            message: `${isRows ? 'Row' : 'Column'} insertion cancelled by user`,
+            retryable: false,
+            suggestedFix: 'Review the operation requirements and try again',
+          });
+        }
+      } catch (err) {
+        this.context.logger?.warn(`Elicitation failed for insert, proceeding with operation`, {
+          error: err,
+        });
+      }
+    }
 
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -486,6 +523,40 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       );
     }
 
+    // Create snapshot before mutating (allows rollback)
+    await this.createSafetySnapshot(
+      {
+        operationType: 'move',
+        isDestructive: false,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+
+    // Request confirmation for move operations
+    if (this.context.elicitationServer) {
+      try {
+        const confirmation = await confirmDestructiveAction(
+          this.context.elicitationServer,
+          `Move ${isRows ? 'Rows' : 'Columns'}`,
+          `You are about to move ${count} ${isRows ? 'rows' : 'columns'} (indices ${input.startIndex + 1}-${input.endIndex}) to index ${input.destinationIndex + 1}. This will reorder existing data.`
+        );
+
+        if (!confirmation.confirmed) {
+          return this.error({
+            code: 'PRECONDITION_FAILED',
+            message: `${isRows ? 'Row' : 'Column'} move cancelled by user`,
+            retryable: false,
+            suggestedFix: 'Review the operation requirements and try again',
+          });
+        }
+      } catch (err) {
+        this.context.logger?.warn(`Elicitation failed for move, proceeding with operation`, {
+          error: err,
+        });
+      }
+    }
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
@@ -567,6 +638,16 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     const count = input.endIndex - input.startIndex;
     const isRows = input.dimension === 'ROWS';
 
+    // Create snapshot before mutating (hide is reversible but snapshot enables rollback)
+    await this.createSafetySnapshot(
+      {
+        operationType: 'hide',
+        isDestructive: false,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
@@ -589,12 +670,43 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
-    return this.success('hide', isRows ? { rowsAffected: count } : { columnsAffected: count });
+    const result = this.success(
+      'hide',
+      isRows ? { rowsAffected: count } : { columnsAffected: count }
+    );
+
+    // Wire session context: track hidden rows/cols
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'hide',
+          spreadsheetId: input.spreadsheetId,
+          description: `Hidden ${count} ${isRows ? 'row(s)' : 'column(s)'} (${input.dimension} ${input.startIndex}–${input.endIndex}) on sheet ${input.sheetId}`,
+          undoable: true,
+          cellsAffected: count,
+        });
+      }
+    } catch {
+      /* non-blocking */
+    }
+
+    return result;
   }
 
   private async handleShow(input: DimensionsShowInput): Promise<DimensionsResponse> {
     const count = input.endIndex - input.startIndex;
     const isRows = input.dimension === 'ROWS';
+
+    // Create snapshot before mutating (show is reversible but snapshot enables rollback)
+    await this.createSafetySnapshot(
+      {
+        operationType: 'show',
+        isDestructive: false,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
 
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -644,10 +756,28 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
-    return this.success(
+    const result = this.success(
       'freeze',
       isRows ? { rowsAffected: input.count } : { columnsAffected: input.count }
     );
+
+    // Wire session context: update sheet schema state with freeze info
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'freeze',
+          spreadsheetId: input.spreadsheetId,
+          description: `Froze ${input.count} ${isRows ? 'row(s)' : 'column(s)'} on sheet ${input.sheetId}`,
+          undoable: true,
+          cellsAffected: input.count,
+        });
+      }
+    } catch {
+      /* non-blocking */
+    }
+
+    return result;
   }
 
   private async handleGroup(input: DimensionsGroupInput): Promise<DimensionsResponse> {
@@ -702,6 +832,40 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
 
   private async handleAppend(input: DimensionsAppendInput): Promise<DimensionsResponse> {
     const isRows = input.dimension === 'ROWS';
+
+    // Create snapshot before mutating (allows rollback)
+    await this.createSafetySnapshot(
+      {
+        operationType: 'append',
+        isDestructive: false,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+
+    // Request confirmation for larger appends
+    if (this.context.elicitationServer && (input.count ?? 1) > 10) {
+      try {
+        const confirmation = await confirmDestructiveAction(
+          this.context.elicitationServer,
+          `Append ${isRows ? 'Rows' : 'Columns'}`,
+          `You are about to append ${input.count} ${isRows ? 'rows' : 'columns'} to the sheet. This will increase the sheet dimensions.`
+        );
+
+        if (!confirmation.confirmed) {
+          return this.error({
+            code: 'PRECONDITION_FAILED',
+            message: `${isRows ? 'Row' : 'Column'} append cancelled by user`,
+            retryable: false,
+            suggestedFix: 'Review the operation requirements and try again',
+          });
+        }
+      } catch (err) {
+        this.context.logger?.warn(`Elicitation failed for append, proceeding with operation`, {
+          error: err,
+        });
+      }
+    }
 
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -898,6 +1062,28 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         ],
       },
     });
+
+    const rangeStr =
+      typeof input.range === 'string' ? input.range : ((input.range as { a1?: string }).a1 ?? '');
+
+    // Wire session context: note that data was sorted
+    try {
+      if (this.context.sessionContext) {
+        const sortDesc = input.sortSpecs
+          .map((s) => `col ${s.columnIndex} ${s.sortOrder ?? 'ASCENDING'}`)
+          .join(', ');
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'sort_range',
+          spreadsheetId: input.spreadsheetId,
+          range: rangeStr,
+          description: `Sorted range ${rangeStr} by: ${sortDesc}`,
+          undoable: true,
+        });
+      }
+    } catch {
+      /* non-blocking */
+    }
 
     return this.success('sort_range', {});
   }
@@ -1187,7 +1373,22 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       }
     }
 
-    return this.success('list_filter_views', { filterViews });
+    // Pagination: use cursor (numeric offset as string) and limit from input
+    const limit = (input as { limit?: number }).limit ?? 50;
+    const offset = (input as { cursor?: string }).cursor
+      ? parseInt((input as { cursor?: string }).cursor!, 10)
+      : 0;
+    const totalCount = filterViews.length;
+    const pagedFilterViews = filterViews.slice(offset, offset + limit);
+    const hasMore = offset + limit < totalCount;
+    const nextCursor = hasMore ? String(offset + limit) : undefined;
+
+    return this.success('list_filter_views', {
+      filterViews: pagedFilterViews,
+      totalCount,
+      hasMore,
+      ...(nextCursor !== undefined && { nextCursor }),
+    });
   }
 
   private async handleGetFilterView(
@@ -1223,6 +1424,28 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
   // Slicer Operations (merged from filter-sort.ts)
   // ============================================================
 
+  /**
+   * Convert Zod-validated filterCriteria to Google Sheets API format.
+   * Our schema uses `condition.values: string[]` for simplicity,
+   * but the API expects `condition.values: {userEnteredValue: string}[]`.
+   */
+  private toApiFilterCriteria(criteria: {
+    hiddenValues?: string[];
+    condition?: { type: string; values?: string[] };
+    visibleBackgroundColor?: Record<string, unknown>;
+    visibleForegroundColor?: Record<string, unknown>;
+  }): sheets_v4.Schema$FilterCriteria {
+    return {
+      ...criteria,
+      condition: criteria.condition
+        ? {
+            type: criteria.condition.type,
+            values: criteria.condition.values?.map((v) => ({ userEnteredValue: v })),
+          }
+        : undefined,
+    } as sheets_v4.Schema$FilterCriteria;
+  }
+
   private async handleCreateSlicer(
     input: DimensionsCreateSlicerInput
   ): Promise<DimensionsResponse> {
@@ -1249,6 +1472,9 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
                   title: input.title,
                   dataRange: toGridRange(dataRange),
                   columnIndex: input.filterColumn,
+                  ...(input.filterCriteria
+                    ? { filterCriteria: this.toApiFilterCriteria(input.filterCriteria) }
+                    : {}),
                 },
                 position: {
                   overlayPosition: {
@@ -1270,7 +1496,8 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
-    const slicerId = batchResponse.data?.replies?.[0]?.addSlicer?.slicer?.slicerId ?? undefined;
+    const replies = 'data' in batchResponse ? batchResponse.data?.replies : undefined;
+    const slicerId = replies?.[0]?.addSlicer?.slicer?.slicerId ?? undefined;
     return this.success('create_slicer', { slicerId });
   }
 
@@ -1284,6 +1511,9 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     const spec: sheets_v4.Schema$SlicerSpec = {
       title: input.title,
       columnIndex: input.filterColumn,
+      ...(input.filterCriteria
+        ? { filterCriteria: this.toApiFilterCriteria(input.filterCriteria) }
+        : {}),
     };
 
     await this.sheetsApi.spreadsheets.batchUpdate({
@@ -1298,6 +1528,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
                 [
                   input.title !== undefined ? 'title' : '',
                   input.filterColumn !== undefined ? 'columnIndex' : '',
+                  input.filterCriteria !== undefined ? 'filterCriteria' : '',
                 ]
                   .filter(Boolean)
                   .join(',') || 'title',

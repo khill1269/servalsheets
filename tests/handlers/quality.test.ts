@@ -313,7 +313,7 @@ describe('QualityHandler', () => {
 
       expect(result.response.success).toBe(false);
       expect((result.response as any).error).toBeDefined();
-      expect((result.response as any).error.code).toBe('INTERNAL_ERROR');
+      expect((result.response as any).error.code).toBe('VALIDATION_ERROR');
     });
   });
 

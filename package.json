@@ -1,6 +1,6 @@
 {
   "name": "servalsheets",
-  "description": "Production-grade Google Sheets MCP server - 22 tools, 328 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features",
+  "description": "Production-grade Google Sheets MCP server - 22 tools, 340 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features",
   "version": "1.7.0",
   "author": {
     "name": "Thomas Lee Cahill",
@@ -169,7 +169,11 @@
   ],
   "license": "MIT",
   "lint-staged": {
-    "*.ts": [
+    "src/**/*.ts": [
+      "eslint --cache --fix",
+      "prettier --write"
+    ],
+    "scripts/**/*.ts": [
       "eslint --cache --fix",
       "prettier --write"
     ],

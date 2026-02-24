@@ -244,6 +244,16 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       case 'detect_spill_ranges':
         return this.handleDetectSpillRanges(request);
 
+      // F2: Cross-spreadsheet federation
+      case 'cross_read':
+        return this.handleCrossRead(request as DataRequest & { action: 'cross_read' });
+      case 'cross_query':
+        return this.handleCrossQuery(request as DataRequest & { action: 'cross_query' });
+      case 'cross_write':
+        return this.handleCrossWrite(request as DataRequest & { action: 'cross_write' });
+      case 'cross_compare':
+        return this.handleCrossCompare(request as DataRequest & { action: 'cross_compare' });
+
       default: {
         // ACTION ALIASES - Common variations that map to existing actions
         // These prevent "Unknown action" errors when LLMs guess action names
@@ -268,7 +278,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         // Unknown action - return error
         return this.error({
           code: 'INVALID_PARAMS',
-          message: `Unknown action: ${action}. Available actions: read, write, append, clear, batch_read, batch_write, batch_clear, find_replace, add_note, get_note, clear_note, set_hyperlink, clear_hyperlink, merge_cells, unmerge_cells, get_merges, cut_paste, copy_paste`,
+          message: `Unknown action: ${action}. Available actions: read, write, append, clear, batch_read, batch_write, batch_clear, find_replace, add_note, get_note, clear_note, set_hyperlink, clear_hyperlink, merge_cells, unmerge_cells, get_merges, cut_paste, copy_paste, cross_read, cross_query, cross_write, cross_compare`,
           retryable: false,
           suggestedFix:
             'Check the parameter format and ensure all required parameters are provided',
@@ -765,6 +775,15 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       const range = matchedValueRange.valueRange?.range ?? '';
       const values = (matchedValueRange.valueRange?.values ?? []) as ValuesArray;
 
+      // Wire session context: update active_range after read
+      try {
+        if (this.context.sessionContext && range) {
+          this.context.sessionContext.setLastRange(range);
+        }
+      } catch {
+        /* non-blocking */
+      }
+
       return this.success('read', {
         range,
         values,
@@ -849,6 +868,14 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
             `To fetch next page, repeat this call with cursor:"${paginationPlan.nextCursor}"`;
         }
       }
+      // Wire session context: update active_range after cached read
+      try {
+        if (this.context.sessionContext && (cachedData.range ?? readRange)) {
+          this.context.sessionContext.setLastRange(cachedData.range ?? readRange);
+        }
+      } catch {
+        /* non-blocking */
+      }
       return this.success('read', result);
     }
 
@@ -877,7 +904,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           valueRenderOption: input.valueRenderOption,
           majorDimension: input.majorDimension,
           dateTimeRenderOption:
-            (input as Record<string, unknown>)['dateTimeRenderOption'] as string ??
+            ((input as Record<string, unknown>)['dateTimeRenderOption'] as string) ??
             (input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'SERIAL_NUMBER' : undefined),
           fields: 'range,values,majorDimension',
         })
@@ -896,9 +923,10 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     });
 
     const values = (responseData.values ?? []) as ValuesArray;
+    const resolvedRange = responseData.range ?? readRange;
     const result: Record<string, unknown> = {
       values,
-      range: responseData.range ?? readRange,
+      range: resolvedRange,
     };
 
     if (responseData.majorDimension) {
@@ -913,6 +941,15 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           `Showing page of ${paginationPlan.totalRows} total rows. ` +
           `To fetch next page, repeat this call with cursor:"${paginationPlan.nextCursor}"`;
       }
+    }
+
+    // Wire session context: update active_range after read
+    try {
+      if (this.context.sessionContext && resolvedRange) {
+        this.context.sessionContext.setLastRange(resolvedRange);
+      }
+    } catch {
+      /* non-blocking */
     }
 
     return this.success('read', result);
@@ -1751,7 +1788,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
             valueRenderOption: input.valueRenderOption,
             majorDimension: input.majorDimension,
             dateTimeRenderOption:
-              (input as Record<string, unknown>)['dateTimeRenderOption'] as string ??
+              ((input as Record<string, unknown>)['dateTimeRenderOption'] as string) ??
               (input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'SERIAL_NUMBER' : undefined),
             fields: 'range,majorDimension,values',
           })
@@ -1878,7 +1915,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           valueRenderOption: input.valueRenderOption,
           majorDimension: input.majorDimension,
           dateTimeRenderOption:
-            (input as Record<string, unknown>)['dateTimeRenderOption'] as string ??
+            ((input as Record<string, unknown>)['dateTimeRenderOption'] as string) ??
             (input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'SERIAL_NUMBER' : undefined),
           fields: 'valueRanges(range,values)',
         });
@@ -1951,7 +1988,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
               valueRenderOption: input.valueRenderOption,
               majorDimension: (input as DataRequest & { majorDimension?: string }).majorDimension,
               dateTimeRenderOption:
-                (input as Record<string, unknown>)['dateTimeRenderOption'] as string ??
+                ((input as Record<string, unknown>)['dateTimeRenderOption'] as string) ??
                 (input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'SERIAL_NUMBER' : undefined),
               fields: 'range,values',
             })
@@ -2011,7 +2048,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         valueRenderOption: input.valueRenderOption,
         majorDimension: input.majorDimension,
         dateTimeRenderOption:
-          (input as Record<string, unknown>)['dateTimeRenderOption'] as string ??
+          ((input as Record<string, unknown>)['dateTimeRenderOption'] as string) ??
           (input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'SERIAL_NUMBER' : undefined),
         fields: 'valueRanges(range,values)',
       });
@@ -2480,11 +2517,55 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     // REPLACE MODE: Replacement provided
     // Check for dryRun
     if (input.safety?.dryRun) {
+      // If sampling is available, provide an AI estimate of match count
+      let aiEstimate: { matchCount: number; confidence: string } | undefined;
+      if (this.context.samplingServer) {
+        try {
+          const samplingResult = await this.context.samplingServer.createMessage({
+            messages: [
+              {
+                role: 'user' as const,
+                content: {
+                  type: 'text' as const,
+                  text: `Estimate how many cells in the spreadsheet '${input.spreadsheetId}' would match the search term "${input.find}". Reply with JSON: {"matchCount": <number>, "confidence": "low"|"medium"|"high"}`,
+                },
+              },
+            ],
+            maxTokens: 128,
+          });
+          const text = Array.isArray(samplingResult.content)
+            ? ((
+                samplingResult.content.find((c) => c.type === 'text') as
+                  | { text: string }
+                  | undefined
+              )?.text ?? '')
+            : ((samplingResult.content as { text?: string }).text ?? '');
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]) as { matchCount?: number; confidence?: string };
+            aiEstimate = {
+              matchCount: typeof parsed.matchCount === 'number' ? parsed.matchCount : 0,
+              confidence: typeof parsed.confidence === 'string' ? parsed.confidence : 'low',
+            };
+          } else {
+            // Non-JSON response: extract a number if present, otherwise default to 0
+            const numMatch = text.match(/\d+/);
+            aiEstimate = {
+              matchCount: numMatch ? parseInt(numMatch[0], 10) : 0,
+              confidence: 'low',
+            };
+          }
+        } catch {
+          // Non-blocking: sampling failure should not block the dry-run response
+        }
+      }
+
       return this.success(
         'find_replace',
         {
           replacementsCount: 0,
           mode: 'replace',
+          ...(aiEstimate !== undefined ? { aiEstimate } : {}),
         },
         undefined,
         true
@@ -2836,6 +2917,16 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   private async handleCopyPaste(
     input: DataRequest & { action: 'copy_paste' }
   ): Promise<DataResponse> {
+    // Simplified: Skip elicitation confirmation to avoid MCP hang issues
+    // CRITICAL: Track confirmation skip for data corruption monitoring
+    this.context.metrics?.recordConfirmationSkip({
+      action: 'sheets_data.copy_paste',
+      reason: 'elicitation_disabled',
+      timestamp: Date.now(),
+      spreadsheetId: input.spreadsheetId,
+      destructive: true,
+    });
+
     const rangeA1 = await this.resolveRangeToA1(input.spreadsheetId, input.source);
     const sourceRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
 
@@ -2891,33 +2982,50 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   private async handleDetectSpillRanges(
     input: Extract<SheetsDataInput['request'], { action: 'detect_spill_ranges' }>
   ): Promise<DataResponse> {
-    // Resolve which sheet to scan
-    let rangeStr: string;
+    // Resolve which sheet to scan (name/range only — no API call yet)
+    let rangeStr: string | undefined;
     if (input.range) {
       rangeStr = await this.resolveRangeToA1(input.spreadsheetId!, input.range);
-    } else if (input.sheetId !== undefined) {
-      const spreadsheet = await this.sheetsApi.spreadsheets.get({
-        spreadsheetId: input.spreadsheetId!,
-        fields: 'sheets.properties',
-      });
-      const sheet = spreadsheet.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);
-      rangeStr = sheet?.properties?.title ?? 'Sheet1';
-    } else {
-      // Default: scan first sheet
-      const spreadsheet = await this.sheetsApi.spreadsheets.get({
-        spreadsheetId: input.spreadsheetId!,
-        fields: 'sheets.properties',
-      });
-      rangeStr = spreadsheet.data.sheets?.[0]?.properties?.title ?? 'Sheet1';
     }
+    // If sheetId or default: resolve via the combined call below
 
-    // Read cell formulas
+    // Single call: fetch sheet properties (to resolve name/size) and grid data together
     const result = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId!,
-      ranges: [rangeStr],
-      fields: 'sheets.data.rowData.values.userEnteredValue',
+      ranges: rangeStr ? [rangeStr] : [],
+      fields:
+        'sheets(properties(sheetId,title,gridProperties),data.rowData.values.userEnteredValue)',
       includeGridData: true,
     });
+
+    // Resolve rangeStr from properties now that we have them
+    if (!rangeStr) {
+      let sheetTitle: string;
+      if (input.sheetId !== undefined) {
+        const sheet = result.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);
+        sheetTitle = sheet?.properties?.title ?? 'Sheet1';
+      } else {
+        sheetTitle = result.data.sheets?.[0]?.properties?.title ?? 'Sheet1';
+      }
+      rangeStr = sheetTitle;
+    }
+
+    // Apply MAX_CELLS_PER_REQUEST cap: warn if the resolved sheet is too large
+    const resolvedSheet =
+      result.data.sheets?.find(
+        (s) =>
+          s.properties?.title === rangeStr || rangeStr?.startsWith(s.properties?.title ?? '\x00')
+      ) ?? result.data.sheets?.[0];
+    const gridProps = resolvedSheet?.properties?.gridProperties;
+    if (gridProps) {
+      const totalCells = (gridProps.rowCount ?? 1000) * (gridProps.columnCount ?? 26);
+      if (totalCells > MAX_CELLS_PER_REQUEST) {
+        // Truncate to first MAX_CELLS_PER_REQUEST rows to keep payload predictable
+        const maxRows = Math.floor(MAX_CELLS_PER_REQUEST / (gridProps.columnCount ?? 26));
+        const sheetTitle = resolvedSheet?.properties?.title ?? 'Sheet1';
+        rangeStr = `${sheetTitle}!A1:${String.fromCharCode(64 + Math.min(gridProps.columnCount ?? 26, 26))}${maxRows}`;
+      }
+    }
 
     const sheetName = rangeStr.split('!')[0];
     const sheetData = result.data.sheets?.[0]?.data?.[0];
@@ -2980,5 +3088,87 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       c = Math.floor(c / 26) - 1;
     } while (c >= 0);
     return `${col}${rowIndex + 1}`;
+  }
+
+  // ==========================================================================
+  // F2: Cross-Spreadsheet Federation
+  // ==========================================================================
+
+  private async handleCrossRead(
+    req: DataRequest & { action: 'cross_read' }
+  ): Promise<DataResponse> {
+    const { crossRead } = await import('../services/cross-spreadsheet.js');
+    const result = await crossRead(
+      this.sheetsApi,
+      req.sources,
+      req.joinKey,
+      req.joinType ?? 'left'
+    );
+
+    // Wire session context: track which external spreadsheets were accessed
+    try {
+      if (this.context.sessionContext) {
+        for (const source of req.sources) {
+          this.context.sessionContext.trackReadOperation(source.spreadsheetId, source.range);
+        }
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_data',
+          action: 'cross_read',
+          spreadsheetId: req.sources[0]?.spreadsheetId ?? '',
+          description: `Cross-read from ${req.sources.length} spreadsheet(s): ${req.sources.map((s) => s.spreadsheetId).join(', ')}`,
+          undoable: false,
+        });
+      }
+    } catch {
+      /* non-blocking */
+    }
+
+    return this.success('cross_read', {
+      rows: result.mergedValues,
+      mergedHeaders: result.mergedHeaders,
+      sourcesRead: result.sourcesRead,
+      crossErrors: result.errors.length > 0 ? result.errors : undefined,
+    });
+  }
+
+  private async handleCrossQuery(
+    req: DataRequest & { action: 'cross_query' }
+  ): Promise<DataResponse> {
+    const { crossQuery } = await import('../services/cross-spreadsheet.js');
+    const result = await crossQuery(this.sheetsApi, req.sources, req.query, req.maxResults ?? 100);
+    return this.success('cross_query', {
+      queryMatches: result.queryMatches,
+      totalSearched: result.totalSearched,
+    });
+  }
+
+  private async handleCrossWrite(
+    req: DataRequest & { action: 'cross_write' }
+  ): Promise<DataResponse> {
+    const { crossWrite } = await import('../services/cross-spreadsheet.js');
+    const result = await crossWrite(
+      this.sheetsApi,
+      req.source,
+      req.destination,
+      req.valueInputOption ?? 'USER_ENTERED'
+    );
+    return this.success('cross_write', {
+      cellsCopied: result.cellsCopied,
+      updatedRange: result.updatedRange,
+    });
+  }
+
+  private async handleCrossCompare(
+    req: DataRequest & { action: 'cross_compare' }
+  ): Promise<DataResponse> {
+    const { crossCompare } = await import('../services/cross-spreadsheet.js');
+    const result = await crossCompare(
+      this.sheetsApi,
+      req.source1,
+      req.source2,
+      req.compareColumns,
+      req.keyColumn
+    );
+    return this.success('cross_compare', { diff: result });
   }
 }

@@ -67,7 +67,11 @@ import {
   convertGoogleAuthError,
 } from './utils/auth-guard.js';
 import { logger as baseLogger } from './utils/logger.js';
-import { createRequestContext, runWithRequestContext } from './utils/request-context.js';
+import {
+  createRequestContext,
+  runWithRequestContext,
+  sendProgress,
+} from './utils/request-context.js';
 import { verifyJsonSchema } from './utils/schema-compat.js';
 import { extractIdempotencyKeyFromHeaders } from './utils/idempotency-key-generator.js';
 import { TOOL_DEFINITIONS } from './mcp/registration/tool-definitions.js';
@@ -293,13 +297,7 @@ export class ServalSheetsServer {
           sheetsApi: this.googleClient.sheets,
           onProgress: (event) => {
             // Send MCP progress notification
-            // Note: stdio transport doesn't support notifications well
-            // This is primarily for HTTP/remote transports
-            baseLogger.debug('Progress', {
-              phase: event.phase,
-              progress: `${event.current}/${event.total}`,
-              message: event.message,
-            });
+            void sendProgress(event.current, event.total, event.message);
           },
         }),
         rangeResolver: new RangeResolver({ sheetsApi: this.googleClient.sheets }),

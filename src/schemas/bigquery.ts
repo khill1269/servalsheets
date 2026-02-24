@@ -2,7 +2,7 @@
  * Tool 18: sheets_bigquery
  * BigQuery and Looker integration via Connected Sheets
  *
- * 14 Actions:
+ * 17 Actions:
  * Connection Management (5): connect, connect_looker, disconnect, list_connections, get_connection
  * Query Operations (4): query, preview, refresh, cancel_refresh
  * Schema Discovery (3): list_datasets, list_tables, get_table_schema
@@ -410,7 +410,7 @@ const CreateScheduledQueryActionSchema = z.object({
     .optional()
     .describe(
       'Service account email to run the scheduled query as (e.g., "sa@project.iam.gserviceaccount.com"). ' +
-      'If omitted, runs as the authenticated user.'
+        'If omitted, runs as the authenticated user.'
     ),
 });
 

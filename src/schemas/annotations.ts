@@ -157,10 +157,10 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     openWorldHint: true, // Google Sheets Watch API
   },
   sheets_dependencies: {
-    title: 'Formula Dependencies',
-    readOnlyHint: true, // Analysis only
-    destructiveHint: false, // No data modification
-    idempotentHint: true, // Same input = same output
+    title: 'Formula Dependencies & Scenario Modeling',
+    readOnlyHint: false, // create_scenario_sheet writes a new sheet
+    destructiveHint: true, // create_scenario_sheet creates new sheets (side effect)
+    idempotentHint: false, // create_scenario_sheet creates new resources
     openWorldHint: true, // Reads formula data from Google Sheets API
   },
   sheets_federation: {
@@ -506,6 +506,198 @@ export const ACTION_ANNOTATIONS: Record<
     whenToUse: 'Reverting the last operation',
     commonMistakes: [
       'Only undoes operations tracked by ServalSheets — not manual user edits in the Sheets UI',
+    ],
+  },
+
+  // F4: SMART SUGGESTIONS (sheets_analyze)
+  'sheets_analyze.suggest_next_actions': {
+    apiCalls: 2,
+    idempotent: true,
+    prerequisites: ['sheets_auth.login'],
+    whenToUse:
+      'Get ranked actionable suggestions for any spreadsheet — returns executable params ready for dispatch',
+    whenNotToUse: 'When you already know what action to take',
+    commonMistakes: [
+      'Suggestions include executable params — verify with user before dispatching destructive ones',
+    ],
+  },
+  'sheets_analyze.auto_enhance': {
+    apiCalls: 5,
+    idempotent: false,
+    prerequisites: ['sheets_auth.login', 'sheets_analyze.suggest_next_actions'],
+    whenToUse:
+      'Auto-apply safe formatting/structure improvements — always preview first with mode:"preview"',
+    whenNotToUse:
+      'When you need data modifications — auto_enhance only applies non-destructive improvements',
+    commonMistakes: ['Always use mode:"preview" first to see proposed changes before mode:"apply"'],
+  },
+
+  // F3: DATA CLEANING (sheets_fix)
+  'sheets_fix.clean': {
+    apiCalls: 3,
+    idempotent: false,
+    prerequisites: ['sheets_auth.login'],
+    whenToUse: 'Auto-detect and fix common data issues (whitespace, types, duplicates, formats)',
+    commonMistakes: [
+      'Always use mode:"preview" first — clean in apply mode writes directly to cells',
+      'Specify rules array to limit which cleaning rules run (default: all auto-detected)',
+    ],
+  },
+  'sheets_fix.standardize_formats': {
+    apiCalls: 3,
+    idempotent: true,
+    prerequisites: ['sheets_auth.login'],
+    whenToUse:
+      'Normalize inconsistent dates, currencies, phone numbers, or percentages in a column',
+    commonMistakes: [
+      'Specify targetFormat per column — e.g., columns: [{column: "B", targetFormat: "iso_date"}]',
+    ],
+  },
+  'sheets_fix.fill_missing': {
+    apiCalls: 3,
+    idempotent: true,
+    prerequisites: ['sheets_auth.login'],
+    whenToUse:
+      'Fill empty cells using statistical strategies (forward, backward, mean, median, mode, constant)',
+    commonMistakes: [
+      'Mean/median strategies only work on numeric columns — use mode or constant for text',
+    ],
+  },
+  'sheets_fix.detect_anomalies': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse: 'Flag statistical outliers in numeric data (IQR, z-score, or modified z-score)',
+    whenNotToUse: 'For non-numeric data quality issues — use sheets_fix.suggest_cleaning instead',
+  },
+  'sheets_fix.suggest_cleaning': {
+    apiCalls: 2,
+    idempotent: true,
+    whenToUse: 'Get AI-powered cleaning recommendations with severity ranking — read-only preview',
+    whenNotToUse:
+      'When you want to actually fix issues — use sheets_fix.clean after reviewing suggestions',
+  },
+
+  // F1: SHEET GENERATOR (sheets_composite)
+  'sheets_composite.generate_sheet': {
+    apiCalls: 8,
+    idempotent: false,
+    prerequisites: ['sheets_auth.login'],
+    whenToUse:
+      'Create a full spreadsheet from a natural language description (structure + formulas + formatting)',
+    whenNotToUse: 'When you need precise control over layout — use setup_sheet instead',
+    commonMistakes: [
+      'Use preview_generation first to verify proposed structure before creating',
+      'Requires MCP Sampling capability for AI-powered generation; falls back to templates without it',
+    ],
+  },
+  'sheets_composite.generate_template': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse:
+      'Generate a reusable template definition from a description (parameterized with {{placeholders}})',
+    whenNotToUse: 'When you need actual data — use generate_sheet instead',
+  },
+  'sheets_composite.preview_generation': {
+    apiCalls: 0,
+    idempotent: true,
+    whenToUse:
+      'Dry-run: preview proposed structure (columns, formulas, formatting) without creating anything',
+  },
+
+  // F5: TIME-TRAVEL (sheets_history)
+  'sheets_history.timeline': {
+    apiCalls: 3,
+    idempotent: true,
+    whenToUse:
+      'View chronological per-cell change history with who/what/when — scope with range and since/until',
+    commonMistakes: [
+      'Large revision ranges are slow — always scope with since/until dates and limit parameter',
+    ],
+  },
+  'sheets_history.diff_revisions': {
+    apiCalls: 3,
+    idempotent: true,
+    whenToUse: 'Cell-level diff between two specific revisions — find exactly what changed',
+    commonMistakes: [
+      'Drive API metadata-only limitation: content-level diff may not be available for all revisions',
+    ],
+  },
+  'sheets_history.restore_cells': {
+    apiCalls: 4,
+    idempotent: false,
+    prerequisites: ['sheets_history.diff_revisions'],
+    whenToUse:
+      'Surgical restore of specific cells from a past revision (not full revision restore)',
+    commonMistakes: [
+      'Creates a snapshot before restoring — use sheets_history.undo to revert if needed',
+      'Requires user confirmation via sheets_confirm',
+    ],
+  },
+
+  // F6: SCENARIO MODELING (sheets_dependencies)
+  'sheets_dependencies.model_scenario': {
+    apiCalls: 4,
+    idempotent: true,
+    whenToUse:
+      'What-if analysis: trace formula cascade when input cells change (e.g., "revenue drops 20%")',
+    commonMistakes: [
+      'Read-only — does NOT modify the spreadsheet. Use create_scenario_sheet to materialize results.',
+    ],
+  },
+  'sheets_dependencies.compare_scenarios': {
+    apiCalls: 8,
+    idempotent: true,
+    whenToUse: 'Side-by-side comparison of multiple what-if scenarios with delta analysis',
+    commonMistakes: [
+      'Each scenario runs model_scenario internally — API calls scale with scenario count',
+    ],
+  },
+  'sheets_dependencies.create_scenario_sheet': {
+    apiCalls: 6,
+    idempotent: false,
+    prerequisites: ['sheets_dependencies.model_scenario'],
+    whenToUse:
+      'Materialize a scenario as a new sheet with highlighted changes and conditional formatting',
+    commonMistakes: [
+      'Creates a new sheet — cannot be undone via sheets_history.undo (use sheets_core.delete_sheet)',
+    ],
+  },
+
+  // F2: CROSS-SPREADSHEET (sheets_data)
+  'sheets_data.cross_read': {
+    apiCalls: 4,
+    idempotent: true,
+    whenToUse:
+      'Read and merge data from multiple spreadsheets in one call — supports join by key column',
+    commonMistakes: [
+      'Each source needs its own spreadsheetId — make sure all are accessible with current auth',
+      'For large sources, use specific ranges to avoid fetching entire sheets',
+    ],
+  },
+  'sheets_data.cross_query': {
+    apiCalls: 5,
+    idempotent: true,
+    whenToUse:
+      'Natural language query across multiple spreadsheets (e.g., "total revenue from Sales joined with costs from Finance")',
+    commonMistakes: [
+      'Requires MCP Sampling for NL interpretation; falls back to cross_read without it',
+    ],
+  },
+  'sheets_data.cross_write': {
+    apiCalls: 4,
+    idempotent: false,
+    whenToUse: 'Copy data between spreadsheets — requires confirmation for destination overwrite',
+    commonMistakes: [
+      'Source and destination ranges must be compatible sizes',
+      'Requires sheets_confirm approval before overwriting existing data',
+    ],
+  },
+  'sheets_data.cross_compare': {
+    apiCalls: 4,
+    idempotent: true,
+    whenToUse: 'Diff two ranges across different spreadsheets — find added/removed/changed rows',
+    commonMistakes: [
+      'Specify compareColumns to align rows by key — without it, comparison is positional',
     ],
   },
 };

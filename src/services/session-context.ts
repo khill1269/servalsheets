@@ -221,6 +221,18 @@ export class SessionContextManager {
   private alerts: Alert[] = [];
   private readonly maxAlerts = 20;
 
+  // Recent background analysis results for suggestion boosting
+  private recentAnalyses = new Map<
+    string,
+    {
+      qualityScore: number;
+      qualityChange: number;
+      range: string;
+      alertTriggered: boolean;
+      timestamp: number;
+    }
+  >();
+
   // User profile management for persistent learning
   private profileManager = new UserProfileManager();
   private currentUserId?: string;
@@ -931,6 +943,53 @@ export class SessionContextManager {
       component: 'session-context',
       count,
     });
+  }
+
+  // ===========================================================================
+  // BACKGROUND ANALYSIS RESULTS (for suggestion engine boosting)
+  // ===========================================================================
+
+  /**
+   * Store a recent background analysis result.
+   * Called by BackgroundAnalyzer after quality checks.
+   * Used by SuggestionEngine to boost relevant suggestions.
+   */
+  setRecentAnalysis(
+    spreadsheetId: string,
+    result: {
+      qualityScore: number;
+      qualityChange: number;
+      range: string;
+      alertTriggered: boolean;
+    }
+  ): void {
+    this.recentAnalyses.set(spreadsheetId, {
+      ...result,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
+   * Get a recent background analysis result (within 5 minutes).
+   * Returns undefined if no recent analysis exists or it has expired.
+   */
+  getRecentAnalysis(spreadsheetId: string):
+    | {
+        qualityScore: number;
+        qualityChange: number;
+        range: string;
+        alertTriggered: boolean;
+        timestamp: number;
+      }
+    | undefined {
+    const result = this.recentAnalyses.get(spreadsheetId);
+    if (!result) return undefined;
+    // Expire after 5 minutes
+    if (Date.now() - result.timestamp > 5 * 60 * 1000) {
+      this.recentAnalyses.delete(spreadsheetId);
+      return undefined;
+    }
+    return result;
   }
 
   // ===========================================================================

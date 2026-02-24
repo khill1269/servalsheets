@@ -143,6 +143,19 @@ export function isRetryableError(error: unknown): boolean {
     );
   }
 
+  // HTTP/2 stream errors detected by message pattern
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (
+      msg.includes('nghttp2_refused_stream') ||
+      msg.includes('stream was closed') ||
+      msg.includes('econnreset') ||
+      msg.includes('socket hang up')
+    ) {
+      return true;
+    }
+  }
+
   // Delegate everything else to serval-core's base detection
   return coreIsRetryableError(error, GOOGLE_SHEETS_RETRY_CONFIG);
 }
@@ -155,7 +168,7 @@ function trackHttp2ErrorByMessage(error: unknown): void {
   if (!(error instanceof Error)) return;
   const msg = error.message.toLowerCase();
   const errObj = error as unknown as Record<string, unknown>;
-  const errCode = typeof errObj.code === 'string' ? errObj.code : '';
+  const errCode = typeof errObj['code'] === 'string' ? errObj['code'] : '';
 
   if (
     msg.includes('goaway') ||

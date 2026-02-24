@@ -424,7 +424,11 @@ const SuggestPivotActionSchema = CommonFieldsSchema.extend({
 });
 
 const PivotUpdateActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('pivot_update').describe('Update an existing pivot table'),
+  action: z
+    .literal('pivot_update')
+    .describe(
+      'Update an existing pivot table. WARNING: Omitting any field (rows/columns/values/filters) will CLEAR that dimension. Fetch current state with pivot_get first, then include ALL dimensions in your update.'
+    ),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.describe('Numeric sheet ID containing the pivot table'),
   rows: z.array(PivotGroupSchema).optional().describe('New row groupings'),
@@ -505,7 +509,7 @@ const VisualizeResponseSchema = z.discriminatedUnion('success', [
       .array(
         z.object({
           chartId: z.coerce.number().int(),
-          chartType: z.string(),
+          chartType: ChartTypeSchema,
           sheetId: z.coerce.number().int(),
           title: z.string().optional(),
           position: ChartPositionSchema,

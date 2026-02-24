@@ -438,6 +438,18 @@ const ListDataValidationsActionSchema = CommonFieldsSchema.extend({
   range: RangeInputSchema.optional().describe(
     'Optional range to limit validation scan (e.g., "A1:Z100"). REQUIRED for sheets >10K cells to prevent timeout. If omitted, scans entire sheet (may timeout on large sheets).'
   ),
+  cursor: z
+    .string()
+    .optional()
+    .describe('Pagination cursor from previous response (numeric offset encoded as string)'),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(500)
+    .optional()
+    .default(50)
+    .describe('Maximum number of validation rules to return (default: 50, max: 500)'),
 });
 
 const AddConditionalFormatRuleActionSchema = CommonFieldsSchema.extend({
@@ -960,6 +972,17 @@ const FormatResponseSchema = z.discriminatedUnion('success', [
       )
       .optional()
       .describe('List of data validation rules'),
+    // Pagination fields (list_data_validations)
+    nextCursor: z
+      .string()
+      .optional()
+      .describe('Cursor for next page (pass as cursor in next request)'),
+    hasMore: z.boolean().optional().describe('True if more results are available'),
+    totalCount: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Total number of validation rules found'),
     rulePreview: z
       .object({
         affectedRanges: z.array(GridRangeSchema).describe('Ranges that would be affected'),

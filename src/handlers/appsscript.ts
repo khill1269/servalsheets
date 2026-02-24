@@ -190,13 +190,15 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         case 'update_trigger':
           response = await this.handleUpdateTrigger(req as AppsScriptUpdateTriggerInput);
           break;
-        default:
+        default: {
+          const _exhaustiveCheck: never = req;
           response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(req as { action: string }).action}`,
+            message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
+        }
       }
 
       // 4. Apply verbosity filtering if needed
@@ -1028,10 +1030,45 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       });
     }
 
+    // MCP SEP-1686: Apps Script runs are always asynchronous from the user's perspective.
+    // ALWAYS create a task entry to allow clients to track execution.
+    let runTaskId: string | undefined;
+    if (this.context.taskStore) {
+      const task = await this.context.taskStore.createTask(
+        { ttl: 3600000 }, // 1 hour TTL
+        'appsscript-run',
+        {
+          method: 'tools/call',
+          params: { name: 'sheets_appsscript', arguments: req },
+        }
+      );
+      runTaskId = task.taskId;
+      await this.context.taskStore.updateTaskStatus(
+        runTaskId,
+        'completed',
+        `Function '${req.functionName}' executed`
+      );
+      logger.info('Task created for appsscript run', {
+        taskId: runTaskId,
+        scriptId: req.scriptId,
+        functionName: req.functionName,
+      });
+    }
+
+    // result.response?.result is typed as `unknown` from the RunResponse interface.
+    // The schema accepts string | number | boolean | null | array | object.
+    // The Apps Script API always returns one of these types at runtime.
     return this.success('run', {
-      result: result.response?.result,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+      result: result.response?.result as
+        | string
+        | number
+        | boolean
+        | null
+        | unknown[]
+        | Record<string, unknown>
+        | undefined,
+      ...(runTaskId !== undefined ? { taskId: runTaskId } : {}),
+    });
   }
 
   private async handleListProcesses(
@@ -1077,10 +1114,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     let path = '/processes:listScriptProcesses';
     if (params.length > 0) path += `?${params.join('&')}`;
 
-    const result = await this.apiRequest<ListProcessesResponse>(
-      'GET',
-      path
-    );
+    const result = await this.apiRequest<ListProcessesResponse>('GET', path);
 
     return this.success('list_processes', {
       processes: (result.processes ?? []).map((p) => ({

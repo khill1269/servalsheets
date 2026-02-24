@@ -26,6 +26,9 @@ import {
   getOperationCount,
   type Checkpoint,
 } from '../utils/checkpoint.js';
+import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
+import { mapStandaloneError } from './helpers/error-mapping.js';
+import { sendProgress } from '../utils/request-context.js';
 
 // ============================================================================
 // HANDLER CLASS
@@ -35,33 +38,13 @@ import {
  * Session handler class for lazy loading
  */
 export class SessionHandler {
-  /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
-   */
-  private applyVerbosityFilter(
-    response: SheetsSessionOutput['response'],
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): SheetsSessionOutput['response'] {
-    if (!response.success || verbosity === 'standard') {
-      return response;
-    }
-
-    if (verbosity === 'minimal') {
-      // For minimal verbosity, strip _meta field
-      const { _meta, ...rest } = response as Record<string, unknown>;
-      return rest as SheetsSessionOutput['response'];
-    }
-
-    return response;
-  }
-
   async handle(input: SheetsSessionInput): Promise<SheetsSessionOutput> {
     const req = unwrapRequest<SheetsSessionInput['request']>(input);
     const result = await handleSheetsSession(input);
 
     // Apply verbosity filtering (LLM optimization)
     const verbosity = req.verbosity ?? 'standard';
-    const filteredResponse = this.applyVerbosityFilter(result.response, verbosity);
+    const filteredResponse = applyVerbosityFilter(result.response, verbosity);
 
     return { response: filteredResponse };
   }
@@ -123,6 +106,9 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
       }
 
       case 'get_context': {
+        // session.getPendingOperation() context field is `Record<string, unknown>`,
+        // while PendingOperationSchema expects a more specific value union. The runtime
+        // value is always compatible — cast the whole return as the output type.
         return {
           response: {
             success: true,
@@ -132,9 +118,8 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             lastOperation: session.getLastOperation(),
             pendingOperation: session.getPendingOperation(),
             suggestedActions: session.suggestNextActions(),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any,
-        };
+          },
+        } as SheetsSessionOutput;
       }
 
       case 'record_operation': {
@@ -295,14 +280,15 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             string | number | boolean | unknown[] | Record<string, unknown> | null
           >,
         });
+        // getPendingOperation() context field is `Record<string, unknown>`, which
+        // the output schema narrows further. Cast the return as the output type.
         return {
           response: {
             success: true,
             action: 'set_pending',
             pending: session.getPendingOperation(),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any,
-        };
+          },
+        } as SheetsSessionOutput;
       }
 
       case 'get_pending': {
@@ -311,9 +297,8 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             success: true,
             action: 'get_pending',
             pending: session.getPendingOperation(),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any,
-        };
+          },
+        } as SheetsSessionOutput;
       }
 
       case 'clear_pending': {
@@ -341,6 +326,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
           };
         }
 
+        await sendProgress(0, 100, 'Saving checkpoint...');
         const { sessionId, description } = req;
         const activeSpreadsheet = session.getActiveSpreadsheet();
         const history = session.getOperationHistory(100);
@@ -357,11 +343,13 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
           sheetNames: activeSpreadsheet?.sheetNames,
           lastRange: activeSpreadsheet?.lastRange,
           context: {},
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          preferences: session.getPreferences() as any as Record<string, unknown>,
+          // UserPreferences is a typed interface; Checkpoint.preferences is
+          // Record<string, unknown>. The runtime values are always compatible.
+          preferences: session.getPreferences() as unknown as Record<string, unknown>,
         };
 
         const filepath = await saveCheckpoint(checkpoint);
+        await sendProgress(100, 100, 'Checkpoint saved');
 
         return {
           response: {
@@ -515,6 +503,9 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
           severity,
         });
 
+        // Alert type from session-context has `actionable` params typed as
+        // Record<string, unknown>, while the output schema uses a specific value union.
+        // The runtime values are always compatible.
         return {
           response: {
             success: true,
@@ -522,9 +513,8 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             alerts,
             count: alerts.length,
             hasCritical: alerts.some((a) => a.severity === 'critical'),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any,
-        };
+          },
+        } as SheetsSessionOutput;
       }
 
       case 'acknowledge_alert': {
@@ -635,11 +625,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
     return {
       response: {
         success: false,
-        error: {
-          code: 'SESSION_ERROR',
-          message: error instanceof Error ? error.message : String(error),
-          retryable: false,
-        },
+        error: mapStandaloneError(error),
       },
     };
   }

@@ -19,7 +19,6 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import * as ts from 'typescript';
 
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT = join(__dirname, '..');
@@ -52,11 +51,11 @@ function writeOrTrack(filePath: string, content: string): void {
 // ============================================================================
 
 const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> = {
-  fix: { count: 1, actions: ['fix'] }, // Single fix action
-  validation: { count: 1, actions: ['validate'] },
-  impact: { count: 1, actions: ['analyze'] },
+  // fix: removed — now uses standard discriminated union (6 actions, F3)
+  // NOTE: analyze and confirm kept as special cases because AST parser over-counts
+  // (finds z.literal in output schemas too, not just input discriminated unions)
   analyze: {
-    count: 16,
+    count: 18,
     actions: [
       'comprehensive',
       'analyze_data',
@@ -74,12 +73,17 @@ const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> =
       'execute_plan',
       'drill_down',
       'generate_actions',
+      // F4: Smart Suggestions
+      'suggest_next_actions',
+      'auto_enhance',
     ],
   },
   confirm: {
     count: 5,
     actions: ['request', 'get_stats', 'wizard_start', 'wizard_step', 'wizard_complete'],
   },
+  validation: { count: 1, actions: ['validate'] }, // No schema file (mapped to quality.ts handler)
+  impact: { count: 1, actions: ['analyze'] }, // No schema file (mapped to quality.ts handler)
   federation: {
     count: 4,
     actions: ['call_remote', 'list_servers', 'get_server_tools', 'validate_connection'],
@@ -555,6 +559,89 @@ writeOrTrack(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 console.log('✅ Generated src/generated/manifest.json');
 
 // ============================================================================
+// SPECIAL_CASE_TOOLS VALIDATION (cross-reference handler switch cases)
+// ============================================================================
+
+function validateSpecialCaseCounts(): boolean {
+  console.log('\n🔍 Validating SPECIAL_CASE_TOOLS against handler switch cases...\n');
+  let allValid = true;
+
+  const handlerMapping: Record<string, string> = {
+    analyze: join(ROOT, 'src/handlers/analyze.ts'),
+    confirm: join(ROOT, 'src/handlers/confirm.ts'),
+    federation: join(ROOT, 'src/handlers/federation.ts'),
+  };
+
+  for (const [toolName, config] of Object.entries(SPECIAL_CASE_TOOLS)) {
+    const handlerPath = handlerMapping[toolName];
+    if (!handlerPath || !existsSync(handlerPath)) {
+      // Virtual tools (validation, impact) don't have dedicated handler files
+      if (toolName === 'validation' || toolName === 'impact') {
+        console.log(
+          `  ⏭️  ${toolName}: virtual tool (mapped to quality.ts), skipping handler check`
+        );
+        continue;
+      }
+      console.warn(`  ⚠️  ${toolName}: handler file not found at ${handlerPath}`);
+      continue;
+    }
+
+    const handlerContent = readFileSync(handlerPath, 'utf-8');
+
+    // Count case 'action_name': patterns in switch statements
+    const casePattern = /^        case\s+['"]([a-z_]+)['"]\s*:/gm;
+    const handlerActions = new Set<string>();
+    let match: RegExpExecArray | null;
+    while ((match = casePattern.exec(handlerContent)) !== null) {
+      handlerActions.add(match[1]);
+    }
+
+    // Check that every declared action has a handler case
+    const missingInHandler: string[] = [];
+    for (const action of config.actions) {
+      if (!handlerActions.has(action)) {
+        missingInHandler.push(action);
+      }
+    }
+
+    // Check for handler cases not in SPECIAL_CASE_TOOLS
+    const extraInHandler: string[] = [];
+    for (const action of handlerActions) {
+      if (!config.actions.includes(action)) {
+        extraInHandler.push(action);
+      }
+    }
+
+    if (missingInHandler.length > 0 || extraInHandler.length > 0) {
+      allValid = false;
+      console.error(
+        `  ❌ ${toolName} (declared: ${config.count}, handler cases: ${handlerActions.size}):`
+      );
+      if (missingInHandler.length > 0) {
+        console.error(`     Missing in handler: ${missingInHandler.join(', ')}`);
+      }
+      if (extraInHandler.length > 0) {
+        console.error(`     Extra in handler (not declared): ${extraInHandler.join(', ')}`);
+      }
+    } else {
+      console.log(
+        `  ✅ ${toolName}: ${config.count} actions match handler (${handlerActions.size} cases)`
+      );
+    }
+  }
+
+  if (allValid) {
+    console.log('\n✅ All SPECIAL_CASE_TOOLS counts match handler implementations\n');
+  } else {
+    console.error('\n❌ SPECIAL_CASE_TOOLS mismatch — update counts or handler switch cases\n');
+  }
+  return allValid;
+}
+
+// Always run special case validation
+const specialCasesValid = validateSpecialCaseCounts();
+
+// ============================================================================
 // VALIDATION MODE: Compare pending writes with existing files
 // ============================================================================
 
@@ -598,8 +685,14 @@ if (VALIDATE_MODE) {
     }
   }
 
-  if (driftFound) {
-    console.error('\n❌ METADATA DRIFT DETECTED — run `npm run gen:metadata` to fix\n');
+  if (driftFound || !specialCasesValid) {
+    if (driftFound) {
+      console.error('\n❌ METADATA DRIFT DETECTED — run `npm run gen:metadata` to fix');
+    }
+    if (!specialCasesValid) {
+      console.error('❌ SPECIAL_CASE_TOOLS MISMATCH — update counts in generate-metadata.ts');
+    }
+    console.error('');
     process.exit(1);
   } else {
     console.log('\n✅ No metadata drift detected — all files are synchronized\n');

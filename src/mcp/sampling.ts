@@ -88,6 +88,20 @@ export interface SamplingServer {
   createMessage(params: CreateMessageRequest['params']): Promise<CreateMessageResult>;
 }
 
+/**
+ * Advisory model preferences per operation type.
+ * These are hints to the client — the client always chooses the final model.
+ * Per MCP 2025-11-25, modelPreferences.hints are advisory, not binding.
+ */
+const DEFAULT_MODEL_HINTS: Record<string, { hints: Array<{ name: string }>; temperature: number }> =
+  {
+    formulaGeneration: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.1 },
+    dataAnalysis: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.5 },
+    chartRecommendation: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
+    formulaExplanation: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.2 },
+    dataIssues: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
+  };
+
 // ============================================================================
 // Capability Detection
 // ============================================================================
@@ -366,10 +380,13 @@ export async function generateFormula(
     prompt += '\n\nReturn ONLY the formula, no explanation.';
   }
 
+  const defaults = DEFAULT_MODEL_HINTS['formulaGeneration']!;
   const result = await server.createMessage({
     messages: [createUserMessage(prompt)],
     systemPrompt: SAMPLING_PROMPTS.formulaGeneration,
     maxTokens,
+    modelPreferences: { hints: defaults.hints },
+    temperature: defaults.temperature,
   });
 
   let formula = extractTextFromResult(result).trim();
@@ -423,10 +440,13 @@ export async function recommendChart(
   "alternatives": ["Alternative1", "Alternative2"]
 }`;
 
+  const chartDefaults = DEFAULT_MODEL_HINTS['chartRecommendation']!;
   const result = await server.createMessage({
     messages: [createUserMessage(prompt)],
     systemPrompt: SAMPLING_PROMPTS.chartRecommendation,
     maxTokens: 300,
+    modelPreferences: { hints: chartDefaults.hints },
+    temperature: chartDefaults.temperature,
   });
 
   const text = extractTextFromResult(result);
@@ -465,10 +485,13 @@ export async function explainFormula(
     ? `Explain this Google Sheets formula in detail, breaking down each part:\n\n${formula}`
     : `Briefly explain what this Google Sheets formula does:\n\n${formula}`;
 
+  const explainDefaults = DEFAULT_MODEL_HINTS['formulaExplanation']!;
   const result = await server.createMessage({
     messages: [createUserMessage(prompt)],
     systemPrompt: SAMPLING_PROMPTS.formulaExplanation,
     maxTokens: options.detailed ? 800 : 300,
+    modelPreferences: { hints: explainDefaults.hints },
+    temperature: explainDefaults.temperature,
   });
 
   return extractTextFromResult(result);

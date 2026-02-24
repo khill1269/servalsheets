@@ -583,4 +583,144 @@ describe('AnalyzeHandler', () => {
       expect(result.response).toBeDefined();
     });
   });
+
+  describe('analyze_performance action', () => {
+    const makePerformanceSheets = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        properties: {
+          sheetId: i,
+          title: `Sheet${i + 1}`,
+          gridProperties: { rowCount: 1000, columnCount: 26 },
+        },
+        data: [{ rowData: [] }],
+        conditionalFormats: [],
+        charts: [],
+      }));
+
+    it('should limit grid-data fetch to default maxSheets (5) when spreadsheet has more sheets', async () => {
+      // First call returns full sheet list (metadata only), second is the grid-data call
+      mockApi.spreadsheets.get
+        .mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'test-id',
+            properties: { title: 'Big Spreadsheet' },
+            sheets: makePerformanceSheets(10),
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'test-id',
+            properties: { title: 'Big Spreadsheet' },
+            sheets: makePerformanceSheets(5),
+          },
+        });
+
+      const result = await handler.handle({
+        action: 'analyze_performance',
+        spreadsheetId: 'test-id',
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.performance).toBeDefined();
+        expect(result.response.message).toContain('truncated');
+      }
+
+      // The second call (grid-data fetch) must include a ranges parameter
+      const calls = (mockApi.spreadsheets.get as ReturnType<typeof vi.fn>).mock.calls;
+      expect(calls.length).toBe(2);
+      const gridDataCall = calls[1][0];
+      expect(gridDataCall.includeGridData).toBe(true);
+      expect(gridDataCall.ranges).toBeDefined();
+      expect(Array.isArray(gridDataCall.ranges)).toBe(true);
+      expect((gridDataCall.ranges as string[]).length).toBeLessThanOrEqual(5);
+    });
+
+    it('should use custom maxSheets when specified', async () => {
+      mockApi.spreadsheets.get
+        .mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'test-id',
+            properties: { title: 'Big Spreadsheet' },
+            sheets: makePerformanceSheets(10),
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'test-id',
+            properties: { title: 'Big Spreadsheet' },
+            sheets: makePerformanceSheets(3),
+          },
+        });
+
+      const result = await handler.handle({
+        action: 'analyze_performance',
+        spreadsheetId: 'test-id',
+        maxSheets: 3,
+      });
+
+      expect(result.response.success).toBe(true);
+
+      const calls = (mockApi.spreadsheets.get as ReturnType<typeof vi.fn>).mock.calls;
+      const gridDataCall = calls[1][0];
+      expect((gridDataCall.ranges as string[]).length).toBeLessThanOrEqual(3);
+    });
+
+    it('should not truncate when sheet count is within maxSheets limit', async () => {
+      mockApi.spreadsheets.get.mockResolvedValue({
+        data: {
+          spreadsheetId: 'test-id',
+          properties: { title: 'Small Spreadsheet' },
+          sheets: makePerformanceSheets(3),
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'analyze_performance',
+        spreadsheetId: 'test-id',
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        // No truncation warning for small spreadsheets
+        expect(result.response.message).not.toContain('truncated');
+      }
+
+      // The grid-data call must still have ranges set (bounded fetch)
+      const calls = (mockApi.spreadsheets.get as ReturnType<typeof vi.fn>).mock.calls;
+      const gridDataCall = calls[calls.length - 1][0];
+      expect(gridDataCall.includeGridData).toBe(true);
+      expect(gridDataCall.ranges).toBeDefined();
+    });
+
+    it('should return performance metrics and recommendations', async () => {
+      mockApi.spreadsheets.get
+        .mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'test-id',
+            properties: { title: 'Test Spreadsheet' },
+            sheets: makePerformanceSheets(2),
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'test-id',
+            properties: { title: 'Test Spreadsheet' },
+            sheets: makePerformanceSheets(2),
+          },
+        });
+
+      const result = await handler.handle({
+        action: 'analyze_performance',
+        spreadsheetId: 'test-id',
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.performance).toBeDefined();
+        expect(result.response.performance!.recommendations).toBeDefined();
+        expect(result.response.duration).toBeDefined();
+      }
+    });
+  });
 });

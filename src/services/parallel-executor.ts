@@ -184,6 +184,9 @@ export class ParallelExecutor {
           this.stats.totalDuration += duration;
           this.stats.totalRetries += retries;
           this.stats.durations.push(duration);
+          if (this.stats.durations.length > 10000) {
+            this.stats.durations.shift();
+          }
           completed++;
 
           if (this.verboseLogging) {
@@ -231,6 +234,9 @@ export class ParallelExecutor {
       this.stats.totalDuration += duration;
       this.stats.totalRetries += retries - 1;
       this.stats.durations.push(duration);
+      if (this.stats.durations.length > 10000) {
+        this.stats.durations.shift();
+      }
       completed++;
       failed++;
 

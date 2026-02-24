@@ -34,11 +34,8 @@ export const EMBEDDED_OAUTH = {
   clientId:
     process.env['OAUTH_CLIENT_ID'] ??
     '928247231183-7unv94dc4rs3vo3tmib9tkcu5mkd8sd1.apps.googleusercontent.com',
-  clientSecret:
-    process.env['OAUTH_CLIENT_SECRET'] ??
-    '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',
-  redirectUri:
-    process.env['OAUTH_REDIRECT_URI'] ?? 'http://localhost:3000/callback',
+  clientSecret: process.env['OAUTH_CLIENT_SECRET'] ?? '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',
+  redirectUri: process.env['OAUTH_REDIRECT_URI'] ?? 'http://localhost:3000/callback',
 };
 
 /**

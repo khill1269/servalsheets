@@ -19,7 +19,7 @@ import {
 // PROTOCOL CONSTANTS
 // ============================================================================
 
-export const MCP_PROTOCOL_VERSION = '2025-11-25';
+export { MCP_PROTOCOL_VERSION } from '../version.js';
 export const SHEETS_API_VERSION = 'v4';
 export const DRIVE_API_VERSION = 'v3';
 
@@ -560,6 +560,22 @@ export const CellFormatSchema = z.object({
       right: BorderSchema.optional(),
     })
     .optional(),
+  textRotation: z
+    .union([
+      z.object({ angle: z.number().int().min(-90).max(90) }),
+      z.object({ vertical: z.boolean() }),
+    ])
+    .optional()
+    .describe('Text rotation: { angle: -90..90 } or { vertical: true }'),
+  padding: z
+    .object({
+      top: z.number().int().min(0).optional(),
+      right: z.number().int().min(0).optional(),
+      bottom: z.number().int().min(0).optional(),
+      left: z.number().int().min(0).optional(),
+    })
+    .optional()
+    .describe('Cell padding in pixels (top, right, bottom, left)'),
 });
 
 /** Grid range (numeric coordinates) */

@@ -159,7 +159,7 @@ export const AnomalyMethodSchema = z.enum(['iqr', 'zscore', 'modified_zscore']);
 export type AnomalyMethod = z.infer<typeof AnomalyMethodSchema>;
 
 // Cell change record (used in cleaning results)
-export const CellChangeSchema = z.object({
+export const CleanCellChangeSchema = z.object({
   row: z.number(),
   col: z.number(),
   cell: z.string().describe('A1 reference (e.g., B5)'),
@@ -168,7 +168,7 @@ export const CellChangeSchema = z.object({
   rule: z.string().describe('Rule that triggered this change'),
 });
 
-export type CellChange = z.infer<typeof CellChangeSchema>;
+export type CleanCellChange = z.infer<typeof CleanCellChangeSchema>;
 
 // Anomaly record
 export const AnomalyRecordSchema = z.object({
@@ -226,7 +226,7 @@ export const SheetsFixResponseSchema = z.discriminatedUnion('success', [
 
     // clean action results
     changes: z
-      .array(CellChangeSchema)
+      .array(CleanCellChangeSchema)
       .optional()
       .describe('Cell-level changes applied or previewed'),
     cleaningSummary: z
@@ -240,7 +240,10 @@ export const SheetsFixResponseSchema = z.discriminatedUnion('success', [
       .describe('Cleaning operation summary'),
 
     // standardize_formats results
-    formatChanges: z.array(CellChangeSchema).optional().describe('Format normalization changes'),
+    formatChanges: z
+      .array(CleanCellChangeSchema)
+      .optional()
+      .describe('Format normalization changes'),
     formatSummary: z
       .object({
         columnsProcessed: z.number(),
@@ -251,7 +254,7 @@ export const SheetsFixResponseSchema = z.discriminatedUnion('success', [
       .describe('Format standardization summary'),
 
     // fill_missing results
-    fillChanges: z.array(CellChangeSchema).optional().describe('Cells that were filled'),
+    fillChanges: z.array(CleanCellChangeSchema).optional().describe('Cells that were filled'),
     fillSummary: z
       .object({
         totalEmpty: z.number(),

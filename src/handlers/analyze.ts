@@ -787,15 +787,32 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
           // Type assertion: refine() ensures spreadsheetId is present
           const perfInput = req as typeof req & {
             spreadsheetId: string;
+            maxSheets?: number;
           };
 
           const startTime = Date.now();
+          const maxSheets = perfInput.maxSheets ?? 5;
 
           try {
-            // Get spreadsheet metadata
+            // Fetch metadata first (lightweight — no grid data) to enumerate sheets
+            const metadataOnly = await this.sheetsApi.spreadsheets.get({
+              spreadsheetId: perfInput.spreadsheetId,
+              includeGridData: false,
+              fields:
+                'spreadsheetId,sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount)))',
+            });
+
+            const allSheets = metadataOnly.data.sheets ?? [];
+            const sheetsToAnalyze = allSheets.slice(0, maxSheets);
+            const ranges = sheetsToAnalyze.map(
+              (s) => `${s.properties?.title ?? 'Sheet1'}!A1:Z1000`
+            );
+
+            // Fetch grid data only for the limited sheet set
             const spreadsheet = await this.sheetsApi.spreadsheets.get({
               spreadsheetId: perfInput.spreadsheetId,
               includeGridData: true,
+              ranges,
               fields:
                 'spreadsheetId,properties,sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount)),data(rowData(values(userEnteredValue))),conditionalFormats,charts)',
             });
@@ -929,7 +946,10 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
                     : 'No major optimizations needed',
               },
               duration,
-              message: `Performance score: ${overallScore}/100 (${recommendations.length} recommendations)`,
+              message:
+                allSheets.length > maxSheets
+                  ? `Performance score: ${overallScore}/100 (${recommendations.length} recommendations). Results truncated to ${sheetsToAnalyze.length} of ${allSheets.length} sheets — pass maxSheets to increase limit (max 50).`
+                  : `Performance score: ${overallScore}/100 (${recommendations.length} recommendations)`,
             };
           } catch (error) {
             logger.error('Failed to analyze performance', {
@@ -1031,6 +1051,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
               analyzeFormulaComplexity,
               detectCircularRefs,
               generateOptimizations,
+              detectFormulaUpgrades,
               detectFormulaErrors,
               calculateFormulaHealth,
             } = await import('../analysis/formula-helpers.js');
@@ -1059,11 +1080,32 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             const optimizationOpportunities =
               formulaInput.includeOptimizations !== false ? generateOptimizations(formulas) : [];
 
+            // Formula upgrade opportunities (VLOOKUP→XLOOKUP, nested IF→IFS, etc.)
+            const upgradeOpportunities =
+              formulaInput.includeOptimizations !== false
+                ? detectFormulaUpgrades(formulas, formulaInput.spreadsheetId)
+                : [];
+
             const duration = Date.now() - startTime;
 
             response = {
               success: true,
               action: 'analyze_formulas',
+              // upgradeOpportunities is a runtime-only extension (not in output schema)
+              // buildToolResponse() serializes all fields regardless of type constraints
+              ...((upgradeOpportunities.length > 0
+                ? {
+                    upgradeOpportunities: upgradeOpportunities.slice(0, 20).map((u) => ({
+                      cell: u.cell,
+                      pattern: u.pattern,
+                      currentFormula: u.currentFormula,
+                      suggestedFormula: u.suggestedFormula,
+                      reason: u.reason,
+                      confidence: u.confidence,
+                      executable: u.executable,
+                    })),
+                  }
+                : {}) as Record<string, never>),
               formulaAnalysis: {
                 totalFormulas: formulas.length,
                 // CRITICAL: Formula health including error detection
@@ -1112,7 +1154,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
               message:
                 formulaErrors.length > 0
                   ? `⚠️ Found ${formulaErrors.length} formula error(s) (${healthSummary.criticalErrors.length} critical). Health: ${healthSummary.healthScore}%. Analyzed ${formulas.length} formulas.`
-                  : `✅ No formula errors. Health: ${healthSummary.healthScore}%. Analyzed ${formulas.length} formulas: ${volatileFormulas.length} volatile, ${optimizationOpportunities.length} optimizations.`,
+                  : `✅ No formula errors. Health: ${healthSummary.healthScore}%. Analyzed ${formulas.length} formulas: ${volatileFormulas.length} volatile, ${optimizationOpportunities.length} optimizations, ${upgradeOpportunities.length} upgrades.`,
             };
           } catch (error) {
             logger.error('Failed to analyze formulas', {
@@ -1903,7 +1945,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
 
             const suggestEngine = new SuggestionEngine({
               scout: new Scout({
-                cache: getCacheAdapter(),
+                cache: getCacheAdapter('suggest'),
                 sheetsApi: this.sheetsApi,
               }),
               actionGenerator: new ActionGenerator(),
@@ -1911,7 +1953,11 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
 
             const suggestResult = await suggestEngine.suggest({
               spreadsheetId: req.spreadsheetId,
-              range: req.range ? this.resolveAnalyzeRange(req.range) : undefined,
+              range: req.range
+                ? this.resolveAnalyzeRange(
+                    req.range as { a1?: string; sheetName?: string; range?: string }
+                  )
+                : undefined,
               maxSuggestions: req.maxSuggestions ?? 5,
               categories: req.categories,
             });
@@ -1919,7 +1965,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             response = {
               success: true,
               action: 'suggest_next_actions',
-              suggestions: suggestResult.suggestions,
+              suggestions: suggestResult.suggestions as unknown as Record<string, unknown>[],
               scoutSummary: suggestResult.scoutSummary,
               totalCandidates: suggestResult.totalCandidates,
               filtered: suggestResult.filtered,
@@ -1951,7 +1997,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
 
             const enhanceEngine = new SuggestionEngine({
               scout: new Scout({
-                cache: getCacheAdapter(),
+                cache: getCacheAdapter('enhance'),
                 sheetsApi: this.sheetsApi,
               }),
               actionGenerator: new ActionGenerator(),
@@ -1959,7 +2005,11 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
 
             const enhanceResult = await enhanceEngine.enhance({
               spreadsheetId: req.spreadsheetId,
-              range: req.range ? this.resolveAnalyzeRange(req.range) : undefined,
+              range: req.range
+                ? this.resolveAnalyzeRange(
+                    req.range as { a1?: string; sheetName?: string; range?: string }
+                  )
+                : undefined,
               categories: req.categories ?? ['formatting', 'structure'],
               mode: req.mode ?? 'preview',
               maxEnhancements: req.maxEnhancements ?? 3,
@@ -1969,7 +2019,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
               success: true,
               action: 'auto_enhance',
               mode: req.mode ?? 'preview',
-              enhancements: enhanceResult.applied,
+              enhancements: enhanceResult.applied as unknown as Record<string, unknown>[],
               enhanceSummary: enhanceResult.summary,
             };
           } catch (error) {
@@ -2456,6 +2506,9 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
 
       // Emit starting progress
       await sendProgress(0, 100, 'Starting comprehensive analysis');
+      if (this.context.abortSignal?.aborted) {
+        throw new Error('Operation cancelled by client');
+      }
 
       // Run comprehensive analysis
       const result = await analyzer.analyze(req.spreadsheetId);

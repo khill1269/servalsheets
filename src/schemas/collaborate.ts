@@ -94,9 +94,47 @@ const ApprovalSchema = z.object({
 });
 
 // ========== INPUT SCHEMA ==========
-// Flattened union for MCP SDK compatibility (35 actions total)
-// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
-// Workaround: Use a single object with all fields optional, validate with refine()
+/**
+ * MCP SDK WORKAROUND — DO NOT REFACTOR without checking SDK version first
+ *
+ * Problem: The MCP SDK (@modelcontextprotocol/sdk v1.26.0) does not correctly handle
+ * z.discriminatedUnion() when the discriminator has many variants. When the SDK converts
+ * a Zod discriminatedUnion schema to JSON Schema (via zodToJsonSchema internally), it
+ * produces an empty or malformed "anyOf" array for large unions. This causes the MCP
+ * client to see an empty schema — all inputs are accepted with no validation, and tool
+ * descriptions lose their parameter metadata entirely.
+ *
+ * Confirmed broken: z.discriminatedUnion('action', [ShareAddSchema, CommentAddSchema, ...])
+ * with 35 variants produces { anyOf: [] } in the SDK's JSON Schema output.
+ *
+ * Current workaround: A single z.object() with ALL fields from all 35 actions as optional
+ * fields, plus z.enum([...35 actions]) for the discriminator, and a .refine() that checks
+ * required fields per-action at runtime. This works correctly but causes:
+ * - ~40% schema bloat (all 35 actions' fields co-exist in one flat object)
+ * - No TypeScript type narrowing (all 35 action branches share the same object type;
+ *   action-specific fields are always typed as optional, never required)
+ * - Manual required-field validation in refine() instead of Zod's built-in discriminated
+ *   union narrowing — more code to maintain, risk of gaps
+ *
+ * Manual type-narrowing helpers are exported below (CollaborateShare*Input, etc.) as a
+ * partial mitigation for the TypeScript narrowing loss.
+ *
+ * Migration path: When @modelcontextprotocol/sdk >= X.Y.Z releases a fix for the
+ * discriminatedUnion → JSON Schema conversion (the anyOf array population bug), replace
+ * this entire flat-object + refine approach with:
+ *
+ *   z.discriminatedUnion('action', [
+ *     ShareAddSchema,       // { action: z.literal('share_add'), spreadsheetId, type, role, ... }
+ *     ShareUpdateSchema,    // { action: z.literal('share_update'), spreadsheetId, permissionId, role }
+ *     // ... 33 more schemas
+ *   ])
+ *
+ * This will also restore full TypeScript type narrowing (each branch becomes a distinct type)
+ * and eliminate the manual refine() required-field logic.
+ *
+ * Regression test: tests/contracts/collaborate-discriminated-union.test.ts
+ * Deviation record: src/schemas/handler-deviations.ts (collaborate entry)
+ */
 
 export const SheetsCollaborateInputSchema = z.object({
   request: z

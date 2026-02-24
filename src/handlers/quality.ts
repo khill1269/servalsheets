@@ -24,6 +24,9 @@ import type {
 } from '../schemas/quality.js';
 import { unwrapRequest } from './base.js';
 import { ValidationError } from '../core/errors.js';
+import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
+import { mapStandaloneError } from './helpers/error-mapping.js';
+import { sendProgress } from '../utils/request-context.js';
 
 export interface QualityHandlerOptions {
   // Options can be added as needed
@@ -32,26 +35,6 @@ export interface QualityHandlerOptions {
 export class QualityHandler {
   constructor(_options: QualityHandlerOptions = {}) {
     // Constructor logic if needed
-  }
-
-  /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
-   */
-  private applyVerbosityFilter(
-    response: QualityResponse,
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): QualityResponse {
-    if (!response.success || verbosity === 'standard') {
-      return response;
-    }
-
-    if (verbosity === 'minimal') {
-      // For minimal verbosity, strip _meta field
-      const { _meta, ...rest } = response as Record<string, unknown>;
-      return rest as QualityResponse;
-    }
-
-    return response;
   }
 
   async handle(input: SheetsQualityInput): Promise<SheetsQualityOutput> {
@@ -72,17 +55,19 @@ export class QualityHandler {
         case 'analyze_impact':
           response = await this.handleAnalyzeImpact(req as QualityAnalyzeImpactInput);
           break;
-        default:
+        default: {
+          const _exhaustiveCheck: never = req;
           throw new ValidationError(
-            `Unknown action: ${(input as { action?: string }).action}`,
+            `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
             'action',
             'validate | detect_conflicts | resolve_conflict | analyze_impact'
           );
+        }
       }
 
       // Apply verbosity filtering (LLM optimization)
       const verbosity = req.verbosity ?? 'standard';
-      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
+      const filteredResponse = applyVerbosityFilter(response, verbosity);
 
       return { response: filteredResponse };
     } catch (error) {
@@ -90,11 +75,7 @@ export class QualityHandler {
       return {
         response: {
           success: false,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: error instanceof Error ? error.message : String(error),
-            retryable: false,
-          },
+          error: mapStandaloneError(error),
         },
       };
     }
@@ -105,12 +86,15 @@ export class QualityHandler {
    */
   private async handleValidate(input: QualityValidateInput): Promise<QualityResponse> {
     const validationEngine = getValidationEngine();
+    const totalRules = input.rules?.length ?? 0;
+    await sendProgress(0, 100, `Validating...${totalRules > 0 ? ` (${totalRules} rules)` : ''}`);
     // Pass rules filter to validation engine - only run specified rules if provided
     const contextWithRules = {
       ...input.context,
       rules: input.rules, // Filter to only these rule IDs if specified
     };
     const report = await validationEngine.validate(input.value, contextWithRules);
+    await sendProgress(100, 100, 'Validation complete');
 
     // Check if dry run mode is enabled
     const isDryRun = input.safety?.dryRun ?? false;
@@ -129,17 +113,21 @@ export class QualityHandler {
         ruleName: e.rule.name,
         severity: e.severity,
         message: e.message,
-        actualValue: e.value,
-        expectedValue: undefined,
+        // e.value is `unknown`; schema accepts the specific value union. Cast via unknown.
+        actualValue: e.value as
+          | string
+          | number
+          | boolean
+          | null
+          | unknown[]
+          | Record<string, unknown>,
         path: e.cell,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      })) as any,
+      })),
       warnings: report.warnings?.map((w) => ({
         ruleId: w.rule.id,
         ruleName: w.rule.name,
         message: w.message,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      })) as any,
+      })),
       duration: report.duration,
       message: report.valid
         ? `Validation passed. ${report.passedChecks}/${report.totalChecks} checks passed.`
@@ -148,17 +136,18 @@ export class QualityHandler {
 
     // Add dry run preview if requested
     if (isDryRun) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (response as any).dryRun = true;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (response as any).validationPreview = {
+      // `dryRun` and `validationPreview` are optional fields on the success branch of
+      // QualityResponse. We narrow to the success variant to assign them without `as any`.
+      const successResponse = response as Extract<QualityResponse, { success: true }>;
+      successResponse.dryRun = true;
+      successResponse.validationPreview = {
         wouldApply: report.valid,
         affectedCells: report.errors.length + report.warnings.length,
         rulesPreview: report.errors.map((e) => ({
           ruleId: e.rule.id,
           condition: e.rule.name,
           cellsAffected: 1,
-        })) as unknown,
+        })),
       };
     }
 
@@ -229,12 +218,12 @@ export class QualityHandler {
         resolved: true,
         resolution: {
           strategy: input.strategy,
-          finalValue: result.changesApplied,
+          // ChangeSet is a typed object; schema accepts Record<string, unknown> here.
+          finalValue: result.changesApplied as unknown as Record<string, unknown>,
           version: result.finalVersion?.version || 0,
         },
         message: `Conflict resolved using strategy: ${input.strategy}`,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any;
+      };
     } else {
       return {
         success: false,

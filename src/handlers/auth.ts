@@ -26,6 +26,8 @@ import { logger } from '../utils/logger.js';
 import open from 'open';
 import { unwrapRequest } from './base.js';
 import { executeWithRetry } from '../utils/retry.js';
+import { mapStandaloneError } from './helpers/error-mapping.js';
+import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { randomBytes } from 'crypto';
 
 /** Module-level CSRF state store with 10-minute TTL */
@@ -86,26 +88,6 @@ export class AuthHandler {
     this.elicitationServer = options.elicitationServer;
   }
 
-  /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
-   */
-  private applyVerbosityFilter(
-    response: AuthResponse,
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): AuthResponse {
-    if (!response.success || verbosity === 'standard') {
-      return response;
-    }
-
-    if (verbosity === 'minimal') {
-      // For minimal verbosity, strip _meta field and instructions
-      const { _meta, instructions: _instructions, ...rest } = response as Record<string, unknown>;
-      return rest as AuthResponse;
-    }
-
-    return response;
-  }
-
   async handle(input: SheetsAuthInput): Promise<SheetsAuthOutput> {
     const req = unwrapRequest<SheetsAuthInput['request']>(input) as SheetsAuthInput['request'] & {
       verbosity?: 'minimal' | 'standard' | 'detailed';
@@ -143,16 +125,12 @@ export class AuthHandler {
       }
 
       // Apply verbosity filtering (LLM optimization)
-      return { response: this.applyVerbosityFilter(response, verbosity) };
+      return { response: applyVerbosityFilter(response, verbosity) };
     } catch (error) {
       return {
         response: {
           success: false,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: error instanceof Error ? error.message : String(error),
-            retryable: false,
-          },
+          error: mapStandaloneError(error),
         },
       };
     }

@@ -94,7 +94,7 @@ export function addAdminRoutes(app: Express, sessionManager?: AdminSessionManage
   });
 
   // API: Deduplication stats
-  app.get('/admin/api/deduplication-stats', (_req: Request, res: Response) => {
+  app.get('/admin/api/deduplication-stats', requireAdminAuth, (_req: Request, res: Response) => {
     const stats = requestDeduplicator.getStats();
     res.json(stats);
   });

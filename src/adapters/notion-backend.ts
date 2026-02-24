@@ -266,7 +266,10 @@ export class NotionBackend implements SpreadsheetBackend {
   // ─── Value Operations ──────────────────────────────────────
 
   async readRange(params: ReadRangeParams): Promise<ReadRangeResult> {
-    const { databaseId, startRow, endRow, startCol, endCol } = this.parseNotionRange(params.documentId, params.range);
+    const { databaseId, startRow, endRow, startCol, endCol } = this.parseNotionRange(
+      params.documentId,
+      params.range
+    );
     const propertyNames = await this.getPropertyOrder(databaseId);
 
     // Query pages with pagination to get the requested row range
@@ -289,7 +292,10 @@ export class NotionBackend implements SpreadsheetBackend {
   }
 
   async writeRange(params: WriteRangeParams): Promise<WriteRangeResult> {
-    const { databaseId, startRow, startCol } = this.parseNotionRange(params.documentId, params.range);
+    const { databaseId, startRow, startCol } = this.parseNotionRange(
+      params.documentId,
+      params.range
+    );
     const propertyNames = await this.getPropertyOrder(databaseId);
 
     // Get existing pages to update
@@ -305,6 +311,7 @@ export class NotionBackend implements SpreadsheetBackend {
       if (!page) continue; // Row doesn't exist yet — skip (use appendRows for new rows)
 
       const rowValues = params.values[rowIdx];
+      if (!rowValues) continue;
       const properties: Record<string, unknown> = {};
 
       for (let colIdx = 0; colIdx < rowValues.length; colIdx++) {
@@ -313,7 +320,7 @@ export class NotionBackend implements SpreadsheetBackend {
 
         properties[propName] = this.buildPropertyValue(
           propName,
-          rowValues[colIdx],
+          rowValues[colIdx] ?? null,
           databaseId
         );
         updatedCells++;
@@ -352,7 +359,7 @@ export class NotionBackend implements SpreadsheetBackend {
 
         properties[propName] = this.buildPropertyValue(
           propName,
-          rowValues[colIdx],
+          rowValues[colIdx] ?? null,
           databaseId
         );
         totalCells++;
@@ -377,7 +384,10 @@ export class NotionBackend implements SpreadsheetBackend {
   }
 
   async clearRange(params: ClearRangeParams): Promise<ClearRangeResult> {
-    const { databaseId, startRow, endRow, startCol, endCol } = this.parseNotionRange(params.documentId, params.range);
+    const { databaseId, startRow, endRow, startCol, endCol } = this.parseNotionRange(
+      params.documentId,
+      params.range
+    );
     const propertyNames = await this.getPropertyOrder(databaseId);
 
     const pages = await this.queryPages(databaseId, endRow);
@@ -444,9 +454,7 @@ export class NotionBackend implements SpreadsheetBackend {
 
   async batchClear(params: BatchClearParams): Promise<BatchClearResult> {
     await Promise.all(
-      params.ranges.map((range) =>
-        this.clearRange({ documentId: params.documentId, range })
-      )
+      params.ranges.map((range) => this.clearRange({ documentId: params.documentId, range }))
     );
 
     return { clearedRanges: params.ranges };
@@ -604,18 +612,18 @@ export class NotionBackend implements SpreadsheetBackend {
       switch (m.type) {
         case 'update_page':
           replies.push(
-            await this.client.pages.update(m.params as NotionUpdatePageParams)
+            await this.client.pages.update(m.params as unknown as NotionUpdatePageParams)
           );
           break;
         case 'create_page':
           replies.push(
-            await this.client.pages.create(m.params as NotionCreatePageParams)
+            await this.client.pages.create(m.params as unknown as NotionCreatePageParams)
           );
           break;
         case 'archive_page':
           replies.push(
             await this.client.pages.update({
-              page_id: m.params.page_id as string,
+              page_id: m.params['page_id'] as string,
               properties: {},
               archived: true,
             })
@@ -670,11 +678,11 @@ export class NotionBackend implements SpreadsheetBackend {
 
     const files: FileMetadata[] = searchResult.results.map((result) => ({
       documentId: result.id,
-      name: ((result as unknown as NotionDatabase).title?.[0]?.plain_text) ?? 'Untitled',
+      name: (result as unknown as NotionDatabase).title?.[0]?.plain_text ?? 'Untitled',
       mimeType: 'application/x-notion-database',
-      modifiedTime: (result as Record<string, unknown>).last_edited_time as string | undefined,
-      createdTime: (result as Record<string, unknown>).created_time as string | undefined,
-      webViewLink: (result as Record<string, unknown>).url as string | undefined,
+      modifiedTime: (result as Record<string, unknown>)['last_edited_time'] as string | undefined,
+      createdTime: (result as Record<string, unknown>)['created_time'] as string | undefined,
+      webViewLink: (result as Record<string, unknown>)['url'] as string | undefined,
     }));
 
     return {
@@ -825,11 +833,7 @@ export class NotionBackend implements SpreadsheetBackend {
    * For the scaffold, we default to rich_text for string values
    * and number for numeric values.
    */
-  private buildPropertyValue(
-    _propName: string,
-    value: CellValue,
-    _databaseId: string
-  ): unknown {
+  private buildPropertyValue(_propName: string, value: CellValue, _databaseId: string): unknown {
     // In production, look up the property type from the schema cache
     // and build the appropriate Notion property value object.
     // For the scaffold, use simple heuristics:
@@ -896,8 +900,8 @@ export class NotionBackend implements SpreadsheetBackend {
       };
     }
 
-    const startCol = this.colLetterToIndex(match[1]);
-    const startRow = parseInt(match[2], 10) - 1; // A1 is 1-based → 0-based
+    const startCol = this.colLetterToIndex(match[1]!);
+    const startRow = parseInt(match[2]!, 10) - 1; // A1 is 1-based → 0-based
     const endCol = match[3] ? this.colLetterToIndex(match[3]) + 1 : startCol + 1;
     const endRow = match[4] ? parseInt(match[4], 10) : startRow + 1;
 

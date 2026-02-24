@@ -19,6 +19,7 @@ import { ValidationError } from '../core/errors.js';
 import { getFederationConfig } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { parseFederationServers } from '../config/federation-config.js';
+import { sendProgress } from '../utils/request-context.js';
 
 /**
  * Federation Handler
@@ -27,6 +28,12 @@ import { parseFederationServers } from '../config/federation-config.js';
  * Supports HTTP and STDIO transports with circuit breaker protection.
  */
 export class FederationHandler {
+  private taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter;
+
+  constructor(taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter) {
+    this.taskStore = taskStore;
+  }
+
   /**
    * Handle federation requests
    */
@@ -85,8 +92,13 @@ export class FederationHandler {
         case 'validate_connection':
           return await this.handleValidateConnection(client, serverName, action);
 
-        default:
-          throw new ValidationError(`Unknown federation action: ${action as string}`, 'federation');
+        default: {
+          const _exhaustiveCheck: never = action;
+          throw new ValidationError(
+            `Unknown federation action: ${String(_exhaustiveCheck)}`,
+            'federation'
+          );
+        }
       }
     } catch (error) {
       const err = error as Error;
@@ -101,10 +113,37 @@ export class FederationHandler {
         response: {
           success: false,
           action,
-          error: err.message,
+          error: 'Remote MCP server returned an error. Check server connectivity and configuration.',
         },
       };
     }
+  }
+
+  /**
+   * MCP SEP-1686: Create a task entry for a federation operation.
+   * Returns the taskId string, or undefined if taskStore is not available.
+   */
+  private async createFederationTask(
+    actionName: string,
+    req: Record<string, unknown>
+  ): Promise<string | undefined> {
+    if (!this.taskStore) {
+      return undefined; // graceful degradation — no task store configured
+    }
+    const task = await this.taskStore.createTask(
+      { ttl: 3600000 }, // 1 hour TTL
+      `federation-${actionName}`,
+      {
+        method: 'tools/call',
+        params: { name: 'sheets_federation', arguments: req },
+      }
+    );
+    logger.info('Task created for federation action', {
+      component: 'federation-handler',
+      action: actionName,
+      taskId: task.taskId,
+    });
+    return task.taskId;
   }
 
   /**
@@ -132,12 +171,20 @@ export class FederationHandler {
       hasInput: !!toolInput,
     });
 
+    await sendProgress(0, 100, `Connecting to remote server: ${serverName}...`);
     const result = await client.callRemoteTool(serverName, toolName, toolInput || {});
+    await sendProgress(100, 100, 'Remote call complete');
 
     logger.info('Remote tool call succeeded', {
       component: 'federation-handler',
       serverName,
       toolName,
+    });
+
+    const taskId = await this.createFederationTask('call-remote', {
+      serverName,
+      toolName,
+      toolInput,
     });
 
     return {
@@ -146,6 +193,7 @@ export class FederationHandler {
         action: 'call_remote',
         remoteServer: serverName,
         data: result,
+        ...(taskId !== undefined ? { taskId } : {}),
       },
     };
   }
@@ -169,11 +217,14 @@ export class FederationHandler {
       serverCount: serverList.length,
     });
 
+    const taskId = await this.createFederationTask('list-servers', {});
+
     return {
       response: {
         success: true,
         action: 'list_servers',
         servers: serverList,
+        ...(taskId !== undefined ? { taskId } : {}),
       },
     };
   }
@@ -203,6 +254,8 @@ export class FederationHandler {
       toolCount: tools.length,
     });
 
+    const taskId = await this.createFederationTask('get-server-tools', { serverName });
+
     return {
       response: {
         success: true,
@@ -213,6 +266,7 @@ export class FederationHandler {
           description?: string;
           inputSchema?: Record<string, unknown>;
         }>,
+        ...(taskId !== undefined ? { taskId } : {}),
       },
     };
   }
@@ -243,12 +297,15 @@ export class FederationHandler {
         serverName,
       });
 
+      const taskId = await this.createFederationTask('validate-connection', { serverName });
+
       return {
         response: {
           success: true,
           action: 'validate_connection',
           remoteServer: serverName,
           data: { connected: true },
+          ...(taskId !== undefined ? { taskId } : {}),
         },
       };
     } catch (error) {
@@ -264,7 +321,7 @@ export class FederationHandler {
           success: false,
           action: 'validate_connection',
           remoteServer: serverName,
-          error: err.message,
+          error: 'Connection validation failed. The remote server may be unavailable or unreachable.',
         },
       };
     }

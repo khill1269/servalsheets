@@ -15,7 +15,7 @@
  * @category Handlers
  */
 
-import { getWebhookManager } from '../services/webhook-manager.js';
+import { getWebhookManager, validateWebhookUrl } from '../services/webhook-manager.js';
 import { getWebhookQueue } from '../services/webhook-queue.js';
 import type {
   SheetsWebhookInput,
@@ -112,19 +112,21 @@ export class WebhookHandler {
             ),
           };
 
-        default:
+        default: {
+          const _exhaustiveCheck: never = req;
           return {
             response: {
               success: false,
               error: {
                 code: 'INVALID_PARAMS',
-                message: `Unknown action: ${(req as { action: string }).action}`,
+                message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
                 retryable: false,
                 suggestedFix:
                   "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
               },
             },
           };
+        }
       }
     } catch (error) {
       logger.error('Webhook handler error', {
@@ -402,6 +404,9 @@ export class WebhookHandler {
     try {
       const channelId = input.channelId ?? `servalsheets-${randomUUID()}`;
       const expiration = Date.now() + (input.expirationMs ?? 43200000);
+
+      // SEC-5: SSRF protection — validate URL before passing to Drive API
+      await validateWebhookUrl(input.webhookUrl);
 
       const response = await this.driveApi.files.watch({
         fileId: input.spreadsheetId,
