@@ -983,7 +983,7 @@ describe('DimensionsHandler', () => {
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'trim_whitespace');
-        expect(result.response).toHaveProperty('cellsChanged', 15);
+        expect(result.response).toHaveProperty('cellsAffected', 15);
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
           spreadsheetId: 'test-sheet-id',
           requestBody: {
@@ -1010,7 +1010,7 @@ describe('DimensionsHandler', () => {
         });
 
         expect(result.response.success).toBe(true);
-        expect(result.response).toHaveProperty('cellsChanged', 0);
+        expect(result.response).toHaveProperty('cellsAffected', 0);
         expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
       });
     });

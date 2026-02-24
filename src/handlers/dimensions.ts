@@ -1096,7 +1096,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     input: DimensionsTrimWhitespaceInput
   ): Promise<DimensionsResponse> {
     if (input.safety?.dryRun) {
-      return this.success('trim_whitespace', { cellsChanged: 0 }, undefined, true);
+      return this.success('trim_whitespace', { cellsAffected: 0 }, undefined, true);
     }
 
     const gridRange = await this.rangeToGridRange(input.spreadsheetId, input.range, this.sheetsApi);
@@ -1114,8 +1114,8 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
-    const cellsChanged = response.data?.replies?.[0]?.trimWhitespace?.cellsChangedCount ?? 0;
-    return this.success('trim_whitespace', { cellsChanged });
+    const cellsAffected = response.data?.replies?.[0]?.trimWhitespace?.cellsChangedCount ?? 0;
+    return this.success('trim_whitespace', { cellsAffected });
   }
 
   private async handleRandomizeRange(
