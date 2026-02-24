@@ -107,9 +107,7 @@ const TimelineActionSchema = CommonFieldsSchema.extend({
 });
 
 const DiffRevisionsActionSchema = CommonFieldsSchema.extend({
-  action: z
-    .literal('diff_revisions')
-    .describe('Compare two revisions to see cell-level changes'),
+  action: z.literal('diff_revisions').describe('Compare two revisions to see cell-level changes'),
   spreadsheetId: z.string().min(1).describe('Spreadsheet ID'),
   revisionId1: z.string().min(1).describe('First revision ID (older)'),
   revisionId2: z.string().min(1).describe('Second revision ID (newer)'),
@@ -130,7 +128,11 @@ const RestoreCellsActionSchema = CommonFieldsSchema.extend({
   safety: z
     .object({
       dryRun: z.boolean().optional().describe('Preview what would be restored without writing'),
-      createSnapshot: z.boolean().optional().default(true).describe('Create backup before restoring'),
+      createSnapshot: z
+        .boolean()
+        .optional()
+        .default(true)
+        .describe('Create backup before restoring'),
     })
     .optional(),
 });
@@ -268,8 +270,16 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
     // F5: diff_revisions response
     diff: z
       .object({
-        revision1: z.object({ id: z.string(), timestamp: z.string().optional(), user: z.string().optional() }),
-        revision2: z.object({ id: z.string(), timestamp: z.string().optional(), user: z.string().optional() }),
+        revision1: z.object({
+          id: z.string(),
+          timestamp: z.string().optional(),
+          user: z.string().optional(),
+        }),
+        revision2: z.object({
+          id: z.string(),
+          timestamp: z.string().optional(),
+          user: z.string().optional(),
+        }),
         cellChanges: z
           .array(
             z.object({
@@ -281,11 +291,13 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
           )
           .optional()
           .describe('Cell-level changes (null if content comparison unavailable)'),
-        summary: z.object({
-          metadataOnly: z.boolean().describe('True if only metadata comparison was possible'),
-          rev1Size: z.coerce.number().optional(),
-          rev2Size: z.coerce.number().optional(),
-        }).optional(),
+        summary: z
+          .object({
+            metadataOnly: z.boolean().describe('True if only metadata comparison was possible'),
+            rev1Size: z.coerce.number().optional(),
+            rev2Size: z.coerce.number().optional(),
+          })
+          .optional(),
       })
       .optional(),
     // F5: restore_cells response
