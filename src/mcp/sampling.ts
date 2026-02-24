@@ -26,6 +26,37 @@ import {
 } from '../services/sampling-context-cache.js';
 
 // ============================================================================
+// ISSUE-117: GDPR consent gate for Sampling calls
+// ============================================================================
+
+/**
+ * Optional consent checker registered at server startup.
+ * Throws if consent is required but not granted.
+ * When null (default), all sampling calls are allowed (backwards-compatible).
+ */
+let _consentChecker: (() => Promise<void>) | null = null;
+
+/**
+ * Register a GDPR consent check callback. Called before every createMessage().
+ * Throw an Error with message 'GDPR_CONSENT_REQUIRED' to block the sampling call.
+ *
+ * @example
+ * registerSamplingConsentChecker(async () => {
+ *   const hasConsent = await profileManager.hasConsent(getCurrentUserId());
+ *   if (!hasConsent) throw new Error('GDPR_CONSENT_REQUIRED: ...');
+ * });
+ */
+export function registerSamplingConsentChecker(checker: () => Promise<void>): void {
+  _consentChecker = checker;
+}
+
+async function assertSamplingConsent(): Promise<void> {
+  if (_consentChecker) {
+    await _consentChecker();
+  }
+}
+
+// ============================================================================
 // Timeout Wrapper (ISSUE-088)
 // ============================================================================
 
@@ -377,6 +408,7 @@ export async function analyzeData(
   options: AnalyzeDataOptions = {}
 ): Promise<string> {
   assertSamplingSupport(server.getClientCapabilities());
+  await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
   const {
     systemPrompt = SAMPLING_PROMPTS.dataAnalysis,
@@ -442,6 +474,7 @@ export async function generateFormula(
   options: GenerateFormulaOptions = {}
 ): Promise<string> {
   assertSamplingSupport(server.getClientCapabilities());
+  await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
   const { includeExplanation = false, maxTokens = 300, style = 'readable' } = options;
 
@@ -509,6 +542,7 @@ export async function recommendChart(
   alternatives: string[];
 }> {
   assertSamplingSupport(server.getClientCapabilities());
+  await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
   let prompt = 'Recommend the best chart type for this data.\n\n';
   prompt += `Data:\n${formatDataForLLM(params.data, { maxRows: 20 })}\n\n`;
@@ -569,6 +603,7 @@ export async function explainFormula(
   options: { detailed?: boolean } = {}
 ): Promise<string> {
   assertSamplingSupport(server.getClientCapabilities());
+  await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
   const prompt = options.detailed
     ? `Explain this Google Sheets formula in detail, breaking down each part:\n\n${formula}`
@@ -607,6 +642,7 @@ export async function identifyDataIssues(
   }>
 > {
   assertSamplingSupport(server.getClientCapabilities());
+  await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
   let prompt = 'Identify data quality issues in this spreadsheet data.\n\n';
   prompt += `Data:\n${formatDataForLLM(params.data, { maxRows: 50 })}\n\n`;

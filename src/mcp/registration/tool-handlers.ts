@@ -814,6 +814,36 @@ export function buildToolResponse(
 // TOOL CALL HANDLER
 // ============================================================================
 
+/**
+ * ISSUE-107: Detect legacy invocation patterns so we can add deprecation metadata.
+ * Returns a human-readable warning string if the client used a legacy pattern, null otherwise.
+ */
+function detectLegacyInvocation(args: unknown): string | null {
+  if (!args || typeof args !== 'object') return null;
+  const record = args as Record<string, unknown>;
+
+  // Pattern 1: flat root-level { action, params: {...} } (old SDK format)
+  if (record['params'] && typeof record['params'] === 'object') {
+    return 'Flat { action, params } invocation detected. Upgrade to { request: { action, ... } } format (MCP 2025-11-25).';
+  }
+
+  // Pattern 2: flat args without request envelope — action at root level
+  if (!record['request'] && typeof record['action'] === 'string') {
+    return 'Flat { action, ... } invocation without request envelope. Upgrade to { request: { action, ... } } format (MCP 2025-11-25).';
+  }
+
+  // Pattern 3: nested request.params (double-wrapped)
+  const req = record['request'];
+  if (req && typeof req === 'object') {
+    const reqRecord = req as Record<string, unknown>;
+    if (reqRecord['params'] && typeof reqRecord['params'] === 'object') {
+      return 'Nested { request: { action, params: {...} } } format. Upgrade to { request: { action, ... } } (flatten params into request).';
+    }
+  }
+
+  return null;
+}
+
 export function normalizeToolArgs(args: unknown): Record<string, unknown> {
   if (!args || typeof args !== 'object') {
     logger.warn(
@@ -1024,8 +1054,38 @@ function createToolCallHandler(
               ...(sheetId && { 'sheet.id': sheetId.toString() }),
             });
 
+            // ISSUE-107: Detect legacy invocation patterns before normalizing
+            const legacyWarning = detectLegacyInvocation(args);
+            if (legacyWarning) {
+              logger.debug('Legacy MCP invocation pattern detected', {
+                tool: tool.name,
+                warning: legacyWarning,
+                requestId,
+              });
+            }
+
             // Execute handler - pass extra context for MCP-native tools
             const handlerResult = await handler(normalizeToolArgs(args), extra);
+
+            // ISSUE-107: Inject protocol version (always) + deprecation warning (if legacy)
+            if (
+              handlerResult &&
+              typeof handlerResult === 'object' &&
+              'response' in handlerResult &&
+              handlerResult.response &&
+              typeof handlerResult.response === 'object'
+            ) {
+              const response = handlerResult.response as Record<string, unknown>;
+              const existingMeta =
+                response['_meta'] && typeof response['_meta'] === 'object'
+                  ? (response['_meta'] as Record<string, unknown>)
+                  : {};
+              response['_meta'] = {
+                ...existingMeta,
+                protocolVersion: '2025-11-25',
+                ...(legacyWarning ? { deprecationWarning: legacyWarning } : {}),
+              };
+            }
 
             // Add result attributes to span
             span.setAttributes({
