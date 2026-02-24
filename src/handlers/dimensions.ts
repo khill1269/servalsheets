@@ -1584,11 +1584,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       fields: 'sheets.slicers,sheets.properties.sheetId',
     });
 
-    const slicers: Array<{
-      slicerId: number;
-      sheetId: number;
-      title?: string;
-    }> = [];
+    const slicers = [];
     for (const sheet of response.data.sheets ?? []) {
       if (input.sheetId !== undefined && sheet.properties?.sheetId !== input.sheetId) continue;
       for (const slicer of sheet.slicers ?? []) {
@@ -1596,6 +1592,13 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
           slicerId: slicer.slicerId ?? 0,
           sheetId: sheet.properties?.sheetId ?? 0,
           title: slicer.spec?.title ?? undefined,
+          // Full slicer spec (ISSUE-180: was previously omitted)
+          columnIndex: slicer.spec?.columnIndex ?? undefined,
+          dataRange: slicer.spec?.dataRange ?? undefined,
+          filterCriteria: slicer.spec?.filterCriteria ?? undefined,
+          horizontalAlignment: slicer.spec?.horizontalAlignment ?? undefined,
+          textFormat: slicer.spec?.textFormat ?? undefined,
+          backgroundColorStyle: slicer.spec?.backgroundColorStyle ?? undefined,
         });
       }
     }
