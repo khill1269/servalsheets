@@ -860,6 +860,8 @@ export class ServalSheetsServer {
           const perRequestContext: HandlerContext = {
             ...this.context,
             requestId: requestContext.requestId,
+            // The MCP SDK automatically handles notifications/cancelled — it aborts this signal
+            // when the client sends a cancellation notification for this requestId (SEP-1724).
             abortSignal: extra?.abortSignal,
             metadataCache, // Session-level metadata cache for N+1 elimination
           };
