@@ -1243,8 +1243,13 @@ export const ExecutableActionSchema = z.object({
     .describe('Tool name (e.g., "sheets_fix", "sheets_data", "sheets_format")'),
   action: z.string().min(1).describe('Action name within the tool'),
   params: z
-    .record(
-      z.string(),
+    .object({
+      spreadsheetId: z
+        .string()
+        .min(1)
+        .describe('Target spreadsheet ID (required for action routing)'),
+    })
+    .catchall(
       z.union([
         z.string(),
         z.number(),
@@ -1255,7 +1260,7 @@ export const ExecutableActionSchema = z.object({
       ])
     )
     .describe(
-      'Complete parameters ready to execute - all values must be concrete (strings, numbers, booleans, arrays, or objects)'
+      'Complete parameters ready to execute - spreadsheetId is required; all other values must be concrete (strings, numbers, booleans, arrays, or objects)'
     ),
 
   // Human-readable context
