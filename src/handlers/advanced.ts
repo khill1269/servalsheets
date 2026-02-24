@@ -1547,6 +1547,8 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       uri?: string;
       displayText?: string;
     }> = [];
+    // ISSUE-124: Track chips that have chipRuns but couldn't be mapped to a known type
+    let skippedChips = 0;
 
     for (const sheet of response.data.sheets ?? []) {
       const sheetId = sheet.properties?.sheetId;
@@ -1569,14 +1571,24 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
               startRow + rowIdx + 1
             );
 
-            // Parse chip using chipRuns API
-            const parsedChip = parseChipRuns(cell ?? {}, cellA1);
+            // Parse chip using chipRuns API (ISSUE-124: catch parse errors)
+            let parsedChip;
+            try {
+              parsedChip = parseChipRuns(cell ?? {}, cellA1);
+            } catch (parseError) {
+              this.context.logger?.warn('chip_parse_failure', {
+                cellA1,
+                error: parseError instanceof Error ? parseError.message : String(parseError),
+              });
+              skippedChips++;
+              continue;
+            }
             if (!parsedChip) continue;
 
             // Filter by type
             if (req.chipType !== 'all' && parsedChip.type !== req.chipType) continue;
 
-            // Only include person, drive, and rich_link chips (exclude unknown)
+            // Only include person, drive, and rich_link chips; count unknown as skipped
             if (
               parsedChip.type === 'person' ||
               parsedChip.type === 'drive' ||
@@ -1587,13 +1599,17 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
                   type: 'person' | 'drive' | 'rich_link';
                 }
               );
+            } else {
+              // ISSUE-124: 'unknown' chip type — log and count as skipped
+              this.context.logger?.warn('chip_unknown_type', { cellA1, type: parsedChip.type });
+              skippedChips++;
             }
           }
         }
       }
     }
 
-    return this.success('list_chips', { chips });
+    return this.success('list_chips', { chips, skippedChips });
   }
 
   // ============================================================
