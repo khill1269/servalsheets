@@ -84,6 +84,62 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   SheetsAppsScriptInput,
   SheetsAppsScriptOutput
 > {
+  // ============================================================================
+  // Shared API response interfaces (class-level to avoid inline duplication)
+  // ============================================================================
+
+  declare private _interfaces: {
+    ProjectResponse: {
+      scriptId: string;
+      title: string;
+      parentId?: string;
+      createTime?: string;
+      updateTime?: string;
+      creator?: { email?: string; name?: string };
+    };
+    ContentResponse: {
+      scriptId: string;
+      files: Array<{
+        name: string;
+        type: 'SERVER_JS' | 'HTML' | 'JSON';
+        source: string;
+        lastModifyUser?: { email?: string; name?: string };
+        createTime?: string;
+        updateTime?: string;
+      }>;
+    };
+    VersionResponse: {
+      versionNumber: number;
+      description?: string;
+      createTime?: string;
+    };
+    DeploymentResponse: {
+      deploymentId: string;
+      deploymentConfig?: {
+        description?: string;
+        manifestFileName?: string;
+        versionNumber?: number;
+        scriptId?: string;
+      };
+      entryPoints?: Array<{
+        entryPointType?: 'EXECUTION_API' | 'WEB_APP' | 'ADD_ON';
+        webApp?: {
+          url?: string;
+          entryPointConfig?: {
+            access?: 'MYSELF' | 'DOMAIN' | 'ANYONE' | 'ANYONE_ANONYMOUS';
+            executeAs?: 'USER_ACCESSING' | 'USER_DEPLOYING';
+          };
+        };
+        executionApi?: {
+          entryPointConfig?: {
+            access?: 'MYSELF' | 'DOMAIN' | 'ANYONE' | 'ANYONE_ANONYMOUS';
+          };
+        };
+      }>;
+      updateTime?: string;
+    };
+  };
+
   private circuitBreaker: CircuitBreaker;
 
   constructor(context: HandlerContext) {
@@ -448,14 +504,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       parentId?: string;
     }
 
-    interface ProjectResponse {
-      scriptId: string;
-      title: string;
-      parentId?: string;
-      createTime?: string;
-      updateTime?: string;
-      creator?: { email?: string; name?: string };
-    }
+    type ProjectResponse = (typeof this._interfaces)['ProjectResponse'];
 
     const body: CreateProjectRequest = {
       title: req.title,
@@ -482,14 +531,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   private async handleGet(req: AppsScriptGetInput): Promise<AppsScriptResponse> {
     logger.info(`Getting Apps Script project: ${req.scriptId}`);
 
-    interface ProjectResponse {
-      scriptId: string;
-      title: string;
-      parentId?: string;
-      createTime?: string;
-      updateTime?: string;
-      creator?: { email?: string; name?: string };
-    }
+    type ProjectResponse = (typeof this._interfaces)['ProjectResponse'];
 
     const result = await this.apiRequest<ProjectResponse>('GET', `/projects/${req.scriptId}`);
 
@@ -508,17 +550,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   private async handleGetContent(req: AppsScriptGetContentInput): Promise<AppsScriptResponse> {
     logger.info(`Getting Apps Script content: ${req.scriptId}`);
 
-    interface ContentResponse {
-      scriptId: string;
-      files: Array<{
-        name: string;
-        type: 'SERVER_JS' | 'HTML' | 'JSON';
-        source: string;
-        lastModifyUser?: { email?: string; name?: string };
-        createTime?: string;
-        updateTime?: string;
-      }>;
-    }
+    type ContentResponse = (typeof this._interfaces)['ContentResponse'];
 
     let path = `/projects/${req.scriptId}/content`;
     if (req.versionNumber) {
@@ -544,17 +576,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   ): Promise<AppsScriptResponse> {
     logger.info(`Updating Apps Script content: ${req.scriptId}`);
 
-    interface ContentResponse {
-      scriptId: string;
-      files: Array<{
-        name: string;
-        type: 'SERVER_JS' | 'HTML' | 'JSON';
-        source: string;
-        lastModifyUser?: { email?: string; name?: string };
-        createTime?: string;
-        updateTime?: string;
-      }>;
-    }
+    type ContentResponse = (typeof this._interfaces)['ContentResponse'];
 
     const body = {
       files: req.files.map((f) => ({
@@ -591,11 +613,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   ): Promise<AppsScriptResponse> {
     logger.info(`Creating version for: ${req.scriptId}`);
 
-    interface VersionResponse {
-      versionNumber: number;
-      description?: string;
-      createTime?: string;
-    }
+    type VersionResponse = (typeof this._interfaces)['VersionResponse'];
 
     const body: { description?: string } = {};
     if (req.description) {
@@ -650,11 +668,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   private async handleGetVersion(req: AppsScriptGetVersionInput): Promise<AppsScriptResponse> {
     logger.info(`Getting version ${req.versionNumber} for: ${req.scriptId}`);
 
-    interface VersionResponse {
-      versionNumber: number;
-      description?: string;
-      createTime?: string;
-    }
+    type VersionResponse = (typeof this._interfaces)['VersionResponse'];
 
     const result = await this.apiRequest<VersionResponse>(
       'GET',
@@ -677,31 +691,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   private async handleDeploy(req: AppsScriptDeployInput): Promise<AppsScriptResponse> {
     logger.info(`Creating deployment for: ${req.scriptId}`);
 
-    interface DeploymentResponse {
-      deploymentId: string;
-      deploymentConfig?: {
-        description?: string;
-        manifestFileName?: string;
-        versionNumber?: number;
-        scriptId?: string;
-      };
-      entryPoints?: Array<{
-        entryPointType?: 'EXECUTION_API' | 'WEB_APP' | 'ADD_ON';
-        webApp?: {
-          url?: string;
-          entryPointConfig?: {
-            access?: 'MYSELF' | 'DOMAIN' | 'ANYONE' | 'ANYONE_ANONYMOUS';
-            executeAs?: 'USER_ACCESSING' | 'USER_DEPLOYING';
-          };
-        };
-        executionApi?: {
-          entryPointConfig?: {
-            access?: 'MYSELF' | 'DOMAIN' | 'ANYONE' | 'ANYONE_ANONYMOUS';
-          };
-        };
-      }>;
-      updateTime?: string;
-    }
+    type DeploymentResponse = (typeof this._interfaces)['DeploymentResponse'];
 
     interface DeploymentConfig {
       scriptId: string;
@@ -811,31 +801,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   ): Promise<AppsScriptResponse> {
     logger.info(`Getting deployment ${req.deploymentId} for: ${req.scriptId}`);
 
-    interface DeploymentResponse {
-      deploymentId: string;
-      deploymentConfig?: {
-        description?: string;
-        manifestFileName?: string;
-        versionNumber?: number;
-        scriptId?: string;
-      };
-      entryPoints?: Array<{
-        entryPointType?: 'EXECUTION_API' | 'WEB_APP' | 'ADD_ON';
-        webApp?: {
-          url?: string;
-          entryPointConfig?: {
-            access?: 'MYSELF' | 'DOMAIN' | 'ANYONE' | 'ANYONE_ANONYMOUS';
-            executeAs?: 'USER_ACCESSING' | 'USER_DEPLOYING';
-          };
-        };
-        executionApi?: {
-          entryPointConfig?: {
-            access?: 'MYSELF' | 'DOMAIN' | 'ANYONE' | 'ANYONE_ANONYMOUS';
-          };
-        };
-      }>;
-      updateTime?: string;
-    }
+    type DeploymentResponse = (typeof this._interfaces)['DeploymentResponse'];
 
     const result = await this.apiRequest<DeploymentResponse>(
       'GET',

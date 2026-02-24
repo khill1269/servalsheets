@@ -16,7 +16,7 @@
 import type { sheets_v4, drive_v3 } from 'googleapis';
 import { Readable } from 'stream';
 import { BaseHandler, type HandlerContext, type HandlerError, unwrapRequest } from './base.js';
-import { ValidationError } from '../core/errors.js';
+import { ServiceError, ValidationError } from '../core/errors.js';
 import {
   CompositeOperationsService,
   type CsvImportResult,
@@ -262,22 +262,23 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     }
 
     const result: CsvImportResult = await withTimeout(
-      () => this.compositeService.importCsv({
-        spreadsheetId: input.spreadsheetId,
-        sheet:
-          input.sheet !== undefined
-            ? typeof input.sheet === 'string'
-              ? input.sheet
-              : input.sheet
-            : undefined,
-        csvData: input.csvData,
-        delimiter: input.delimiter,
-        hasHeader: input.hasHeader,
-        mode: input.mode,
-        newSheetName: input.newSheetName,
-        skipEmptyRows: input.skipEmptyRows,
-        trimValues: input.trimValues,
-      }),
+      () =>
+        this.compositeService.importCsv({
+          spreadsheetId: input.spreadsheetId,
+          sheet:
+            input.sheet !== undefined
+              ? typeof input.sheet === 'string'
+                ? input.sheet
+                : input.sheet
+              : undefined,
+          csvData: input.csvData,
+          delimiter: input.delimiter,
+          hasHeader: input.hasHeader,
+          mode: input.mode,
+          newSheetName: input.newSheetName,
+          skipEmptyRows: input.skipEmptyRows,
+          trimValues: input.trimValues,
+        }),
       env.COMPOSITE_TIMEOUT_MS,
       'import_csv'
     );
@@ -651,18 +652,19 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
     // Create new spreadsheet by uploading XLSX with conversion
     const response = await withTimeout(
-      () => this.driveApi!.files.create({
-        requestBody: {
-          name: input.title ?? 'Imported Spreadsheet',
-          mimeType: 'application/vnd.google-apps.spreadsheet',
-        },
-        media: {
-          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          body: Readable.from(buffer),
-        },
-        fields: 'id,name',
-        supportsAllDrives: true,
-      }),
+      () =>
+        this.driveApi!.files.create({
+          requestBody: {
+            name: input.title ?? 'Imported Spreadsheet',
+            mimeType: 'application/vnd.google-apps.spreadsheet',
+          },
+          media: {
+            mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            body: Readable.from(buffer),
+          },
+          fields: 'id,name',
+          supportsAllDrives: true,
+        }),
       env.COMPOSITE_TIMEOUT_MS,
       'import_xlsx'
     );
@@ -1327,7 +1329,12 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
     await sendProgress(0, 3, 'Designing spreadsheet structure...');
     if (this.context.abortSignal?.aborted) {
-      throw new Error('Operation cancelled by client');
+      throw new ServiceError(
+        'Operation cancelled by client',
+        'OPERATION_CANCELLED',
+        'composite',
+        false
+      );
     }
 
     const definition = await generateDefinition(
@@ -1359,7 +1366,12 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
     await sendProgress(1, 3, 'Creating spreadsheet...');
     if (this.context.abortSignal?.aborted) {
-      throw new Error('Operation cancelled by client');
+      throw new ServiceError(
+        'Operation cancelled by client',
+        'OPERATION_CANCELLED',
+        'composite',
+        false
+      );
     }
 
     const result = await executeDefinition(this.sheetsApi, definition, input.spreadsheetId);

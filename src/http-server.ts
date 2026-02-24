@@ -2180,6 +2180,40 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     }
   });
 
+  // MCP 2025-11-25 spec: DELETE /mcp with Mcp-Session-Id header for session termination
+  app.delete('/mcp', (req: Request, res: Response) => {
+    const sessionId = normalizeSessionHeader(req);
+    if (!sessionId) {
+      res.status(400).json({
+        error: {
+          code: 'INVALID_REQUEST',
+          message: 'Mcp-Session-Id header required for session termination',
+        },
+      });
+      return;
+    }
+
+    const session = sessions.get(sessionId);
+    if (!session) {
+      res.status(404).json({
+        error: {
+          code: 'SESSION_NOT_FOUND',
+          message: `Session ${sessionId} not found`,
+        },
+      });
+      return;
+    }
+
+    if (typeof session.transport.close === 'function') {
+      session.transport.close();
+    }
+    clearEventStore(session.eventStore);
+    sessions.delete(sessionId);
+    sessionsTotal.set(sessions.size);
+    sessionLimiter.unregisterSession(sessionId);
+    res.status(200).json({ success: true, sessionId });
+  });
+
   // Session cleanup endpoint - requires session ownership verification
   app.delete('/session/:sessionId', (req: Request, res: Response) => {
     const sessionId = req.params['sessionId'] as string;

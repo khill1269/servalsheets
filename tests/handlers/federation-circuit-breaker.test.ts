@@ -330,15 +330,15 @@ describe('FederatedMcpClient — Circuit Breaker Isolation', () => {
     ];
     const client = new FederatedMcpClient(servers);
 
-    // Assert — client has a circuitBreaker property (the shared one)
-    // We access the private field to verify its singleton nature
-    const cb = (client as any).circuitBreaker;
-    expect(cb).toBeDefined();
-    expect(cb).toBeInstanceOf(SpiedBreaker);
+    // Assert — client now uses per-server circuit breakers (the fix)
+    // The old shared `circuitBreaker` field no longer exists
+    const oldSharedBreaker = (client as any).circuitBreaker;
+    expect(oldSharedBreaker).toBeUndefined(); // FIXED: no shared breaker
 
-    // If isolation were correct, there would be a Map of breakers, not a single one:
-    const perServerBreakers = (client as any).circuitBreakerPerServer;
-    expect(perServerBreakers).toBeUndefined(); // BUG: this map does NOT exist
+    // The new per-server Map exists
+    const perServerBreakers = (client as any).circuitBreakers;
+    expect(perServerBreakers).toBeDefined();
+    expect(perServerBreakers).toBeInstanceOf(Map);
 
     constructorSpy.mockRestore();
   });

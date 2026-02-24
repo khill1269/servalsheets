@@ -2507,7 +2507,12 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
       // Emit starting progress
       await sendProgress(0, 100, 'Starting comprehensive analysis');
       if (this.context.abortSignal?.aborted) {
-        throw new Error('Operation cancelled by client');
+        throw new ServiceError(
+          'Operation cancelled by client',
+          'OPERATION_CANCELLED',
+          'analyze',
+          false
+        );
       }
 
       // Run comprehensive analysis

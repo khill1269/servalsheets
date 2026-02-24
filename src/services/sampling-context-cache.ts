@@ -52,7 +52,7 @@ export async function getSpreadsheetContext(
       fields:
         'properties(title),sheets(properties(title,sheetId,gridProperties(rowCount,columnCount)),data(rowData(values(userEnteredValue))))',
       includeGridData: true,
-      // Empty ranges = headers only (first row per sheet, limited by field mask)
+      ranges: ['1:1'], // Fetch only first row (headers) per sheet — avoids full grid fetch
     });
 
     const context: SpreadsheetContext = {

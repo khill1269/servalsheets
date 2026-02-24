@@ -1555,15 +1555,14 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     validateBigQuerySql(query);
 
     try {
-      const googleClient = this.context.googleClient;
-      if (!googleClient) {
+      if (!this.context.googleClient) {
         return this.error({
           code: 'UNAUTHENTICATED',
           message: 'Google client not available - authentication required',
           retryable: false,
         });
       }
-      const token = googleClient.oauth2.credentials?.access_token;
+      const token = await this.getFreshAccessToken();
       if (!token) {
         return this.error({
           code: 'UNAUTHENTICATED',
@@ -1602,18 +1601,31 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           status: response.status,
           body: errorBody.substring(0, 200),
         });
-        const safeCode: 'PERMISSION_DENIED' | 'NOT_FOUND' | 'INVALID_PARAMS' | 'QUOTA_EXCEEDED' | 'INTERNAL_ERROR' =
-          response.status === 403 ? 'PERMISSION_DENIED' :
-          response.status === 404 ? 'NOT_FOUND' :
-          response.status === 400 ? 'INVALID_PARAMS' :
-          response.status === 429 ? 'QUOTA_EXCEEDED' :
-          'INTERNAL_ERROR';
+        const safeCode:
+          | 'PERMISSION_DENIED'
+          | 'NOT_FOUND'
+          | 'INVALID_PARAMS'
+          | 'QUOTA_EXCEEDED'
+          | 'INTERNAL_ERROR' =
+          response.status === 403
+            ? 'PERMISSION_DENIED'
+            : response.status === 404
+              ? 'NOT_FOUND'
+              : response.status === 400
+                ? 'INVALID_PARAMS'
+                : response.status === 429
+                  ? 'QUOTA_EXCEEDED'
+                  : 'INTERNAL_ERROR';
         const safeMessage =
-          response.status === 403 ? 'Permission denied. Check BigQuery Data Transfer API is enabled and OAuth scopes include bigquery.' :
-          response.status === 404 ? 'Resource not found. Verify project, location, and transferConfigName.' :
-          response.status === 400 ? 'Invalid request. Check scheduled query configuration and parameters.' :
-          response.status === 429 ? 'Rate limit exceeded. Please wait and retry.' :
-          `Scheduled query operation failed (HTTP ${response.status}). Check BigQuery console.`;
+          response.status === 403
+            ? 'Permission denied. Check BigQuery Data Transfer API is enabled and OAuth scopes include bigquery.'
+            : response.status === 404
+              ? 'Resource not found. Verify project, location, and transferConfigName.'
+              : response.status === 400
+                ? 'Invalid request. Check scheduled query configuration and parameters.'
+                : response.status === 429
+                  ? 'Rate limit exceeded. Please wait and retry.'
+                  : `Scheduled query operation failed (HTTP ${response.status}). Check BigQuery console.`;
         return this.error({
           code: safeCode,
           message: safeMessage,
@@ -1647,15 +1659,14 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     const maxResults = (req['maxResults'] as number) ?? 20;
 
     try {
-      const googleClient = this.context.googleClient;
-      if (!googleClient) {
+      if (!this.context.googleClient) {
         return this.error({
           code: 'UNAUTHENTICATED',
           message: 'Google client not available - authentication required',
           retryable: false,
         });
       }
-      const token = googleClient.oauth2.credentials?.access_token;
+      const token = await this.getFreshAccessToken();
       if (!token) {
         return this.error({
           code: 'UNAUTHENTICATED',
@@ -1677,18 +1688,31 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           status: response.status,
           body: errorBody.substring(0, 200),
         });
-        const safeCode: 'PERMISSION_DENIED' | 'NOT_FOUND' | 'INVALID_PARAMS' | 'QUOTA_EXCEEDED' | 'INTERNAL_ERROR' =
-          response.status === 403 ? 'PERMISSION_DENIED' :
-          response.status === 404 ? 'NOT_FOUND' :
-          response.status === 400 ? 'INVALID_PARAMS' :
-          response.status === 429 ? 'QUOTA_EXCEEDED' :
-          'INTERNAL_ERROR';
+        const safeCode:
+          | 'PERMISSION_DENIED'
+          | 'NOT_FOUND'
+          | 'INVALID_PARAMS'
+          | 'QUOTA_EXCEEDED'
+          | 'INTERNAL_ERROR' =
+          response.status === 403
+            ? 'PERMISSION_DENIED'
+            : response.status === 404
+              ? 'NOT_FOUND'
+              : response.status === 400
+                ? 'INVALID_PARAMS'
+                : response.status === 429
+                  ? 'QUOTA_EXCEEDED'
+                  : 'INTERNAL_ERROR';
         const safeMessage =
-          response.status === 403 ? 'Permission denied. Check BigQuery Data Transfer API is enabled and OAuth scopes include bigquery.' :
-          response.status === 404 ? 'Resource not found. Verify project, location, and transferConfigName.' :
-          response.status === 400 ? 'Invalid request. Check scheduled query configuration and parameters.' :
-          response.status === 429 ? 'Rate limit exceeded. Please wait and retry.' :
-          `Scheduled query operation failed (HTTP ${response.status}). Check BigQuery console.`;
+          response.status === 403
+            ? 'Permission denied. Check BigQuery Data Transfer API is enabled and OAuth scopes include bigquery.'
+            : response.status === 404
+              ? 'Resource not found. Verify project, location, and transferConfigName.'
+              : response.status === 400
+                ? 'Invalid request. Check scheduled query configuration and parameters.'
+                : response.status === 429
+                  ? 'Rate limit exceeded. Please wait and retry.'
+                  : `Scheduled query operation failed (HTTP ${response.status}). Check BigQuery console.`;
         return this.error({
           code: safeCode,
           message: safeMessage,
@@ -1721,15 +1745,14 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     const transferConfigName = req['transferConfigName'] as string;
 
     try {
-      const googleClient = this.context.googleClient;
-      if (!googleClient) {
+      if (!this.context.googleClient) {
         return this.error({
           code: 'UNAUTHENTICATED',
           message: 'Google client not available - authentication required',
           retryable: false,
         });
       }
-      const token = googleClient.oauth2.credentials?.access_token;
+      const token = await this.getFreshAccessToken();
       if (!token) {
         return this.error({
           code: 'UNAUTHENTICATED',
@@ -1739,11 +1762,12 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       }
 
       // SEC-1: Validate GCP resource path format to prevent BOLA attacks
-      const TRANSFER_CONFIG_PATTERN = /^projects\/[^\/]+\/locations\/[^\/]+\/transferConfigs\/[^\/]+$/;
+      const TRANSFER_CONFIG_PATTERN = /^projects\/[^/]+\/locations\/[^/]+\/transferConfigs\/[^/]+$/;
       if (!TRANSFER_CONFIG_PATTERN.test(transferConfigName)) {
         return this.error({
           code: 'INVALID_PARAMS',
-          message: 'transferConfigName must be in format: projects/{project}/locations/{location}/transferConfigs/{id}',
+          message:
+            'transferConfigName must be in format: projects/{project}/locations/{location}/transferConfigs/{id}',
           retryable: false,
         });
       }
@@ -1762,18 +1786,31 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           status: response.status,
           body: errorBody.substring(0, 200),
         });
-        const safeCode: 'PERMISSION_DENIED' | 'NOT_FOUND' | 'INVALID_PARAMS' | 'QUOTA_EXCEEDED' | 'INTERNAL_ERROR' =
-          response.status === 403 ? 'PERMISSION_DENIED' :
-          response.status === 404 ? 'NOT_FOUND' :
-          response.status === 400 ? 'INVALID_PARAMS' :
-          response.status === 429 ? 'QUOTA_EXCEEDED' :
-          'INTERNAL_ERROR';
+        const safeCode:
+          | 'PERMISSION_DENIED'
+          | 'NOT_FOUND'
+          | 'INVALID_PARAMS'
+          | 'QUOTA_EXCEEDED'
+          | 'INTERNAL_ERROR' =
+          response.status === 403
+            ? 'PERMISSION_DENIED'
+            : response.status === 404
+              ? 'NOT_FOUND'
+              : response.status === 400
+                ? 'INVALID_PARAMS'
+                : response.status === 429
+                  ? 'QUOTA_EXCEEDED'
+                  : 'INTERNAL_ERROR';
         const safeMessage =
-          response.status === 403 ? 'Permission denied. Check BigQuery Data Transfer API is enabled and OAuth scopes include bigquery.' :
-          response.status === 404 ? 'Resource not found. Verify project, location, and transferConfigName.' :
-          response.status === 400 ? 'Invalid request. Check scheduled query configuration and parameters.' :
-          response.status === 429 ? 'Rate limit exceeded. Please wait and retry.' :
-          `Scheduled query operation failed (HTTP ${response.status}). Check BigQuery console.`;
+          response.status === 403
+            ? 'Permission denied. Check BigQuery Data Transfer API is enabled and OAuth scopes include bigquery.'
+            : response.status === 404
+              ? 'Resource not found. Verify project, location, and transferConfigName.'
+              : response.status === 400
+                ? 'Invalid request. Check scheduled query configuration and parameters.'
+                : response.status === 429
+                  ? 'Rate limit exceeded. Please wait and retry.'
+                  : `Scheduled query operation failed (HTTP ${response.status}). Check BigQuery console.`;
         return this.error({
           code: safeCode,
           message: safeMessage,
@@ -1789,5 +1826,28 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       logger.error('Failed to delete scheduled query', { err, transferConfigName });
       return this.mapBigQueryError(err);
     }
+  }
+
+  /**
+   * Get a fresh OAuth access token, refreshing if it expires within 60 seconds.
+   * Falls back to the cached token if refresh fails.
+   */
+  private async getFreshAccessToken(): Promise<string | null> {
+    const googleClient = this.context.googleClient;
+    if (!googleClient) return null;
+
+    const credentials = googleClient.oauth2.credentials;
+    const expiryDate = credentials?.expiry_date as number | undefined;
+    const isExpiringSoon = expiryDate !== undefined && expiryDate - Date.now() < 60_000;
+
+    if (isExpiringSoon || !credentials?.access_token) {
+      try {
+        const result = await googleClient.oauth2.getAccessToken();
+        return result?.token ?? credentials?.access_token ?? null;
+      } catch {
+        return credentials?.access_token ?? null;
+      }
+    }
+    return credentials.access_token;
   }
 }

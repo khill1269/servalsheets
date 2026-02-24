@@ -1528,9 +1528,14 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
 
     // Get cell data with chipRuns using optimized field mask
     // Note: includeGridData is expensive but required for chipRuns
+    // Scope to the requested range if provided to avoid fetching all cells
+    const rangeParam = req.range
+      ? [await this.resolveRange(req.spreadsheetId!, req.range)]
+      : undefined;
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: req.spreadsheetId!,
       includeGridData: true,
+      ranges: rangeParam,
       fields: 'sheets(properties.sheetId,data.rowData.values(chipRuns,formattedValue))',
     });
 

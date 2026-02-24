@@ -35,6 +35,7 @@ import { createValidationError } from '../utils/error-factory.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { RangeResolutionError } from '../core/range-resolver.js';
 import { checkSamplingSupport } from '../mcp/sampling.js';
+import { isLLMFallbackAvailable, createMessageWithFallback } from '../services/llm-fallback.js';
 
 // Valid condition types from schema
 type ConditionType =
@@ -674,23 +675,23 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
   private async handleSuggestFormat(
     input: FormatRequest & { action: 'suggest_format' }
   ): Promise<FormatResponse> {
-    // Check if server exists and client supports sampling
+    // Check if LLM fallback is available or server supports sampling
     const samplingSupport = this.context.server
       ? checkSamplingSupport(this.context.server.getClientCapabilities?.())
       : { supported: false };
+    const hasLLMFallback = isLLMFallbackAvailable();
 
-    if (!this.context.server || !samplingSupport.supported) {
+    if (!hasLLMFallback && (!this.context.server || !samplingSupport.supported)) {
       return this.error({
         code: 'FEATURE_UNAVAILABLE',
         message:
-          'Format suggestions require MCP Sampling capability (SEP-1577). Client does not support sampling.',
+          'Format suggestions require MCP Sampling capability (SEP-1577) or LLM API key. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.',
         retryable: false,
         suggestedFix:
           'Enable the feature by setting the appropriate environment variable, or contact your administrator',
       });
     }
 
-    const server = this.context.server;
     const startTime = Date.now();
 
     try {
@@ -782,45 +783,23 @@ Format your response as JSON:
   ]
 }`;
 
-      const samplingRequest = {
-        messages: [
-          {
-            role: 'user' as const,
-            content: {
-              type: 'text' as const,
-              text: prompt,
-            },
-          },
-        ],
-        systemPrompt: `You are an expert in spreadsheet design and data visualization.
+      const systemPrompt = `You are an expert in spreadsheet design and data visualization.
 Analyze spreadsheet content and formatting to suggest improvements for readability and visual hierarchy.
 Consider data types, patterns, and best practices for professional spreadsheet design.
-Always return valid JSON in the exact format requested.`,
-        modelPreferences: {
-          hints: [{ name: 'claude-3-5-sonnet-20241022' }],
-          intelligencePriority: 0.8,
-        },
-        maxTokens: 2048,
-      };
+Always return valid JSON in the exact format requested.`;
 
-      const samplingResult = await server.createMessage(samplingRequest);
+      // Use LLM fallback or MCP sampling
+      const llmResult = await createMessageWithFallback(
+        this.context.server as Parameters<typeof createMessageWithFallback>[0],
+        {
+          messages: [{ role: 'user', content: prompt }],
+          systemPrompt,
+          maxTokens: 2048,
+        }
+      );
       const duration = Date.now() - startTime;
 
-      // Extract JSON from response
-      const contentArray = Array.isArray(samplingResult.content)
-        ? samplingResult.content
-        : [samplingResult.content];
-      const textContent = contentArray.find((c) => c.type === 'text');
-      if (!textContent || textContent.type !== 'text') {
-        return this.error({
-          code: 'INTERNAL_ERROR',
-          message: 'No text content in sampling response',
-          retryable: true,
-          suggestedFix: 'Please try again. If the issue persists, contact support',
-        });
-      }
-
-      const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+      const jsonMatch = llmResult.content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         return this.error({
           code: 'INTERNAL_ERROR',
@@ -830,7 +809,15 @@ Always return valid JSON in the exact format requested.`,
         });
       }
 
-      const parsed = JSON.parse(jsonMatch[0]) as { suggestions?: Array<{ title: string; explanation: string; confidence: number; reasoning: string; formatOptions: Record<string, unknown> }> };
+      const parsed = JSON.parse(jsonMatch[0]) as {
+        suggestions?: Array<{
+          title: string;
+          explanation: string;
+          confidence: number;
+          reasoning: string;
+          formatOptions: Record<string, unknown>;
+        }>;
+      };
       let suggestions = parsed.suggestions ?? [];
 
       // Wire session context: filter out previously rejected suggestions
@@ -846,7 +833,9 @@ Always return valid JSON in the exact format requested.`,
           }
           suggestions = filtered;
         }
-      } catch { /* non-blocking */ }
+      } catch {
+        /* non-blocking */
+      }
 
       // If a samplingServer is available, enrich each suggestion with aiRationale
       if (this.context.samplingServer && suggestions.length > 0) {
@@ -867,8 +856,12 @@ Always return valid JSON in the exact format requested.`,
                   maxTokens: 128,
                 });
                 const rationaleText = Array.isArray(rationaleResult.content)
-                  ? (rationaleResult.content.find((c) => c.type === 'text') as { text: string } | undefined)?.text ?? ''
-                  : (rationaleResult.content as { text?: string }).text ?? '';
+                  ? ((
+                      rationaleResult.content.find((c) => c.type === 'text') as
+                        | { text: string }
+                        | undefined
+                    )?.text ?? '')
+                  : ((rationaleResult.content as { text?: string }).text ?? '');
                 return { ...suggestion, aiRationale: rationaleText.trim() };
               } catch {
                 // Non-blocking: return suggestion unchanged if rationale call fails
@@ -877,7 +870,9 @@ Always return valid JSON in the exact format requested.`,
             })
           );
           suggestions = enriched;
-        } catch { /* non-blocking */ }
+        } catch {
+          /* non-blocking */
+        }
       }
 
       return this.success('suggest_format', {
@@ -2131,8 +2126,7 @@ Always return valid JSON in the exact format requested.`,
       spreadsheetId: input.spreadsheetId,
       ranges,
       includeGridData: true,
-      fields:
-        'sheets(properties(sheetId,gridProperties),data.rowData.values.dataValidation)',
+      fields: 'sheets(properties(sheetId,gridProperties),data.rowData.values.dataValidation)',
     });
 
     const sheet = response.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);

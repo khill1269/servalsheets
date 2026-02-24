@@ -50,7 +50,7 @@ export interface FederationServerConfig {
  */
 export class FederatedMcpClient {
   private clients: Map<string, Client> = new Map();
-  private circuitBreaker: CircuitBreaker;
+  private circuitBreakers: Map<string, CircuitBreaker> = new Map();
   private cache: Map<string, { result: unknown; expiresAt: number }> = new Map();
   private serverConfigs: Map<string, FederationServerConfig> = new Map();
 
@@ -66,16 +66,28 @@ export class FederatedMcpClient {
     private defaultTimeoutMs = 30000,
     private maxConnections = 10
   ) {
-    this.circuitBreaker = new CircuitBreaker({
-      failureThreshold: 5,
-      successThreshold: 2,
-      timeout: defaultTimeoutMs,
-    });
-
     // Build server config lookup map
     for (const server of servers) {
       this.serverConfigs.set(server.name, server);
     }
+  }
+
+  /**
+   * Get or create a per-server circuit breaker
+   * @private
+   */
+  private getCircuitBreaker(serverName: string): CircuitBreaker {
+    let breaker = this.circuitBreakers.get(serverName);
+    if (!breaker) {
+      const config = this.serverConfigs.get(serverName);
+      breaker = new CircuitBreaker({
+        failureThreshold: 5,
+        successThreshold: 2,
+        timeout: config?.timeoutMs ?? this.defaultTimeoutMs,
+      });
+      this.circuitBreakers.set(serverName, breaker);
+    }
+    return breaker;
   }
 
   /**
@@ -198,8 +210,8 @@ export class FederatedMcpClient {
       return cached.result;
     }
 
-    // Call via circuit breaker
-    const result = await this.circuitBreaker.execute(async () => {
+    // Call via per-server circuit breaker
+    const result = await this.getCircuitBreaker(serverName).execute(async () => {
       const client = await this.getClientForServer(serverName);
 
       // Get timeout (server-specific or default)
@@ -333,6 +345,7 @@ export class FederatedMcpClient {
 
     // Clear maps
     this.clients.clear();
+    this.circuitBreakers.clear();
     this.cache.clear();
 
     logger.info('Federated MCP client shutdown complete', {

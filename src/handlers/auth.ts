@@ -29,9 +29,23 @@ import { executeWithRetry } from '../utils/retry.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { randomBytes } from 'crypto';
+import { getSessionContext } from '../services/session-context.js';
 
 /** Module-level CSRF state store with 10-minute TTL */
 const pendingStates = new Map<string, number>();
+
+/** Temporary session state storage keyed by OAuth state token */
+const pendingSessionStates = new Map<string, { exportedState: string; expiresAt: number }>();
+
+/** Clean up expired session state entries */
+function cleanupExpiredSessionStates(): void {
+  const now = Date.now();
+  for (const [key, value] of pendingSessionStates) {
+    if (value.expiresAt < now) {
+      pendingSessionStates.delete(key);
+    }
+  }
+}
 
 function generateOAuthState(): string {
   const state = randomBytes(32).toString('hex');
@@ -216,6 +230,22 @@ export class AuthHandler {
       : baseScopes;
 
     const state = generateOAuthState();
+
+    // Export current session state before OAuth redirect so it can be restored after callback
+    try {
+      cleanupExpiredSessionStates();
+      const exportedState = getSessionContext().exportState();
+      pendingSessionStates.set(state, {
+        exportedState,
+        expiresAt: Date.now() + 15 * 60 * 1000, // 15 min TTL
+      });
+    } catch (err) {
+      // Non-blocking: session state preservation is best-effort
+      logger.warn('Failed to export session state before re-auth', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
     const authUrl = oauthClient.generateAuthUrl({
       access_type: 'offline',
       scope: requestedScopes,
@@ -356,6 +386,20 @@ export class AuthHandler {
           this.startTokenManager(oauthClient);
         }
 
+        // Restore session state from before the OAuth redirect
+        const pendingEntry = pendingSessionStates.get(result.state ?? '');
+        if (pendingEntry) {
+          try {
+            getSessionContext().importState(pendingEntry.exportedState);
+            pendingSessionStates.delete(result.state ?? '');
+            logger.info('Restored session state after re-auth', { component: 'auth' });
+          } catch (err) {
+            logger.warn('Failed to restore session state after re-auth', {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+
         const hasRefreshToken = Boolean(tokens.refresh_token);
         const warning = this.tokenStoreKey
           ? undefined
@@ -485,6 +529,33 @@ export class AuthHandler {
     // Start token manager for proactive refresh (Phase 1, Task 1.1)
     if (tokens.refresh_token) {
       this.startTokenManager(oauthClient);
+    }
+
+    // Restore session state from before the OAuth redirect (manual callback flow)
+    // In the manual flow there's no state token, so restore the most recent non-expired entry
+    try {
+      const now = Date.now();
+      let latestEntry: { exportedState: string; expiresAt: number } | undefined;
+      let latestKey: string | undefined;
+      for (const [key, entry] of pendingSessionStates) {
+        if (entry.expiresAt > now) {
+          if (!latestEntry || entry.expiresAt > latestEntry.expiresAt) {
+            latestEntry = entry;
+            latestKey = key;
+          }
+        }
+      }
+      if (latestEntry && latestKey) {
+        getSessionContext().importState(latestEntry.exportedState);
+        pendingSessionStates.delete(latestKey);
+        logger.info('Restored session state after re-auth (manual callback)', {
+          component: 'auth',
+        });
+      }
+    } catch (err) {
+      logger.warn('Failed to restore session state after re-auth', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
 
     const hasRefreshToken = Boolean(tokens.refresh_token);

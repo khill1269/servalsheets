@@ -2368,15 +2368,31 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   private async handleBatchClear(
     input: DataRequest & { action: 'batch_clear' }
   ): Promise<DataResponse> {
-    // Simplified: Skip elicitation confirmation to avoid MCP hang issues
-    // CRITICAL: Track confirmation skip for data corruption monitoring
-    this.context.metrics?.recordConfirmationSkip({
-      action: 'sheets_data.batch_clear',
-      reason: 'elicitation_disabled',
-      timestamp: Date.now(),
-      spreadsheetId: input.spreadsheetId,
-      destructive: true,
-    });
+    // Request confirmation if elicitation is available; fall back gracefully if not
+    if (this.context.elicitationServer) {
+      const rangeCount = Array.isArray(input.ranges) ? input.ranges.length : 0;
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'batch_clear',
+        `Clear ${rangeCount} range(s) in spreadsheet ${input.spreadsheetId}. All cell values in the specified ranges will be permanently erased. This action cannot be undone.`
+      );
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'OPERATION_CANCELLED',
+          message: confirmation.reason ?? 'Operation cancelled by user',
+          retryable: false,
+        });
+      }
+    } else {
+      // Elicitation unavailable — track the skip and continue
+      this.context.metrics?.recordConfirmationSkip({
+        action: 'sheets_data.batch_clear',
+        reason: 'elicitation_disabled',
+        timestamp: Date.now(),
+        spreadsheetId: input.spreadsheetId,
+        destructive: true,
+      });
+    }
 
     if (input.dataFilters && input.dataFilters.length > 0) {
       if (!this.featureFlags.enableDataFilterBatch) {
@@ -2466,7 +2482,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     // FIND-ONLY MODE: No replacement provided
     if (input.replacement === undefined || input.replacement === null) {
       // Use request deduplication for read
-      const searchRange = resolvedRange ?? 'A:ZZ';
+      // Default to bounded range when none specified — avoids full grid scan
+      const searchRange = resolvedRange ?? 'A1:ZZ10000';
       const renderOption = input.includeFormulas ? 'FORMULA' : 'FORMATTED_VALUE';
       const dedupKey = `values:get:${input.spreadsheetId}:${searchRange}:${renderOption}:ROWS`;
       const response = await this.deduplicatedApiCall(dedupKey, () =>
@@ -2990,12 +3007,22 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     // If sheetId or default: resolve via the combined call below
 
     // Single call: fetch sheet properties (to resolve name/size) and grid data together
+    // IMPORTANT: never pass includeGridData:true with ranges:[] — it fetches the entire grid.
+    // If no range is known yet, fetch metadata only, then re-fetch with a bounded range.
     const result = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId!,
-      ranges: rangeStr ? [rangeStr] : [],
-      fields:
-        'sheets(properties(sheetId,title,gridProperties),data.rowData.values.userEnteredValue)',
-      includeGridData: true,
+      ...(rangeStr
+        ? {
+            ranges: [rangeStr],
+            fields:
+              'sheets(properties(sheetId,title,gridProperties),data.rowData.values.userEnteredValue)',
+            includeGridData: true,
+          }
+        : {
+            // No range yet — fetch metadata only; grid data added below after range is resolved
+            fields: 'sheets(properties(sheetId,title,gridProperties))',
+            includeGridData: false,
+          }),
     });
 
     // Resolve rangeStr from properties now that we have them
@@ -3027,8 +3054,22 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       }
     }
 
+    // If the first call was metadata-only (no range known), fetch grid data now with the
+    // resolved (and potentially bounded) range. This avoids passing includeGridData:true
+    // with ranges:[] which triggers a full-grid fetch.
+    let gridResult = result;
+    if (!result.data.sheets?.[0]?.data) {
+      gridResult = await this.sheetsApi.spreadsheets.get({
+        spreadsheetId: input.spreadsheetId!,
+        ranges: [rangeStr!],
+        fields:
+          'sheets(properties(sheetId,title,gridProperties),data.rowData.values.userEnteredValue)',
+        includeGridData: true,
+      });
+    }
+
     const sheetName = rangeStr.split('!')[0];
-    const sheetData = result.data.sheets?.[0]?.data?.[0];
+    const sheetData = gridResult.data.sheets?.[0]?.data?.[0];
     const rows = sheetData?.rowData ?? [];
 
     // Dynamic array functions that produce spill ranges in Google Sheets
