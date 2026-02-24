@@ -948,7 +948,7 @@ Example workflow:
 
   sheets_webhook: `🔔 WEBHOOK - Event-driven automation and real-time notifications (${ACTION_COUNTS['sheets_webhook']} actions).
 
-**Requires:** Redis backend + HTTPS endpoint that returns 200 OK within 10s.
+**Requires:** Redis backend (set \`REDIS_URL\` env var) + HTTPS endpoint that returns 200 OK within 10s. Without \`REDIS_URL\`, all actions return \`CONFIG_ERROR\`.
 
 **ROUTING - Pick this tool when:**
 > Setting up REAL-TIME notifications for spreadsheet changes
