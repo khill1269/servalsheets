@@ -808,16 +808,19 @@ export function createHttpServer(options: HttpServerOptions = {}): {
 
     if (incomingTraceparent) {
       // Parse: version-traceId-parentId-flags (e.g., "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+      // Validate hex format strictly to prevent log injection (ISSUE-057)
       const parts = incomingTraceparent.split('-');
-      if (parts.length === 4 && parts[0] === '00' && parts[1] && parts[2]) {
-        traceId = parts[1]; // 32 hex chars
-        parentId = parts[2]; // 16 hex chars
+      const isValidTraceId = /^[0-9a-f]{32}$/.test(parts[1] ?? '');
+      const isValidParentId = /^[0-9a-f]{16}$/.test(parts[2] ?? '');
+      if (parts.length === 4 && parts[0] === '00' && isValidTraceId && isValidParentId) {
+        traceId = parts[1]!; // 32 hex chars (validated)
+        parentId = parts[2]!; // 16 hex chars (validated)
       } else {
         // Invalid format, generate new trace
         traceId = randomBytes(16).toString('hex');
         parentId = randomBytes(8).toString('hex');
         logger.warn('Invalid traceparent header, generating new trace', {
-          traceparent: incomingTraceparent,
+          traceparent: incomingTraceparent.slice(0, 100), // truncate to prevent log flooding
         });
       }
     } else {

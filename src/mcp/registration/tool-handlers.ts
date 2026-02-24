@@ -647,13 +647,22 @@ export function buildToolResponse(
     };
   }
 
-  // Strip stack traces from error responses before MCP serialization (security)
+  // Strip stack traces and file paths from error responses before MCP serialization (security)
+  // ISSUE-193: Prevent leaking internal paths (/home, /Users, node_modules) and stacks
   if ('response' in structuredContent) {
     const resp = structuredContent['response'] as Record<string, unknown>;
     if (resp?.['error'] && typeof resp['error'] === 'object') {
       const err = resp['error'] as Record<string, unknown>;
       if (err['details'] && typeof err['details'] === 'object') {
-        delete (err['details'] as Record<string, unknown>)['stack'];
+        const details = err['details'] as Record<string, unknown>;
+        delete details['stack'];
+        // Redact values containing internal filesystem paths
+        const pathPattern = /\/home\/|\/Users\/|node_modules\//;
+        for (const key of Object.keys(details)) {
+          if (typeof details[key] === 'string' && pathPattern.test(details[key] as string)) {
+            details[key] = '[REDACTED_PATH]';
+          }
+        }
       }
       delete err['stackTrace'];
     }
