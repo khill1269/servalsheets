@@ -178,6 +178,11 @@ const CreateProjectActionSchema = z.object({
     .string()
     .optional()
     .describe('Parent file ID to bind script to (Sheets/Docs/Forms/Slides). Omit for standalone.'),
+  runtimeVersion: z
+    .enum(['V8', 'STABLE'])
+    .optional()
+    .default('V8')
+    .describe('Apps Script runtime version (V8 = modern JS, STABLE = legacy Rhino; default: V8)'),
   verbosity: VerbositySchema,
 });
 
