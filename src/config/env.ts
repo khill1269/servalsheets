@@ -247,6 +247,15 @@ function ensureEnv(): Env {
 export function validateEnv(): Env {
   try {
     env = EnvSchema.parse(process.env);
+    // ISSUE-194: Warn when server is exposed on a public interface without RBAC
+    const isPublicHost = env.HOST !== '127.0.0.1' && env.HOST !== 'localhost' && env.HOST !== '::1';
+    if (isPublicHost && !env.ENABLE_RBAC) {
+      logger.warn(
+        'SECURITY: Server is exposed on a public interface with RBAC disabled. ' +
+          'Set ENABLE_RBAC=true or restrict HOST to 127.0.0.1 to prevent unauthorized access.',
+        { host: env.HOST }
+      );
+    }
     return env;
   } catch (error) {
     if (error instanceof z.ZodError) {
