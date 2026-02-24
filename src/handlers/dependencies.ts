@@ -29,6 +29,7 @@ import { withSamplingTimeout } from '../mcp/sampling.js';
 import { logger } from '../utils/logger.js';
 import { executeWithRetry } from '../utils/retry.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
+import { formulaEvaluator, type SheetData } from '../services/formula-evaluator.js';
 
 const ANALYZER_CACHE_MAX = 25;
 const ANALYZER_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
@@ -392,6 +393,69 @@ export class DependenciesHandler {
   // F6: Scenario Modeling (3 actions)
   // ============================================================================
 
+  /**
+   * Load spreadsheet data into HyperFormula evaluator so model_scenario and
+   * compare_scenarios can return predicted values (not just affected addresses).
+   *
+   * Fetches values + formulas in a single batchGet to minimize API calls.
+   */
+  private async loadSheetForEvaluation(spreadsheetId: string, firstSheet: string): Promise<void> {
+    if (formulaEvaluator.isLoaded(spreadsheetId)) return; // already loaded
+
+    try {
+      const [valueResp, formulaResp] = await Promise.all([
+        executeWithRetry(() =>
+          this.sheetsApi.spreadsheets.values.get({
+            spreadsheetId,
+            range: firstSheet,
+            valueRenderOption: 'UNFORMATTED_VALUE',
+          })
+        ),
+        executeWithRetry(() =>
+          this.sheetsApi.spreadsheets.values.get({
+            spreadsheetId,
+            range: firstSheet,
+            valueRenderOption: 'FORMULA',
+          })
+        ),
+      ]);
+
+      const rawValues = (valueResp.data.values ?? []) as (string | number | boolean | null)[][];
+      const rawFormulas = (formulaResp.data.values ?? []) as (string | null)[][];
+
+      const maxRows = Math.max(rawValues.length, rawFormulas.length);
+      const maxCols = Math.max(
+        ...rawValues.map((r) => r.length),
+        ...rawFormulas.map((r) => r.length),
+        0
+      );
+
+      const values: (string | number | boolean | null)[][] = [];
+      const formulas: (string | null)[][] = [];
+
+      for (let r = 0; r < maxRows; r++) {
+        values.push([]);
+        formulas.push([]);
+        for (let c = 0; c < maxCols; c++) {
+          values[r]!.push(rawValues[r]?.[c] ?? null);
+          const f = rawFormulas[r]?.[c];
+          formulas[r]!.push(typeof f === 'string' && f.startsWith('=') ? f : null);
+        }
+      }
+
+      const sheetData: SheetData = {
+        values,
+        formulas,
+        sheetName: firstSheet,
+      };
+
+      await formulaEvaluator.loadSheet(spreadsheetId, sheetData);
+    } catch (error) {
+      // Non-blocking: if load fails, evaluateScenario returns null and we fall back
+      logger.warn('formula_evaluator_load_failed', { spreadsheetId, error });
+    }
+  }
+
   private async handleModelScenario(
     req: ModelScenarioInput
   ): Promise<SheetsDependenciesOutput['response']> {
@@ -404,121 +468,194 @@ export class DependenciesHandler {
     }
 
     // For each input change, trace all dependent cells
-    const cascadeEffects: {
-      cell: string;
-      formula?: string;
-      currentValue?: string | number | null;
-      affectedBy?: string[];
-    }[] = [];
     const allAffected = new Set<string>();
+    const affectedByMap = new Map<string, string[]>(); // cell → which input changes affect it
 
     for (const change of req.changes) {
       const impact = analyzer.analyzeImpact(change.cell);
       for (const dep of impact.allAffectedCells) {
         if (!allAffected.has(dep)) {
           allAffected.add(dep);
-          cascadeEffects.push({
-            cell: dep,
-            affectedBy: [change.cell],
-          });
+          affectedByMap.set(dep, [change.cell]);
+        } else {
+          affectedByMap.get(dep)?.push(change.cell);
         }
       }
     }
 
-    // ISSUE-015: Merge cascade + input UNFORMATTED_VALUE calls into a single batchGet (saves 1 API call)
     const cellRefs = [...allAffected];
-    let valuesPopulated = false;
-    const cascadeRanges =
-      cellRefs.length > 0 && cellRefs.length <= 500
-        ? cellRefs.map((c) => (c.includes('!') ? c : `Sheet1!${c}`))
-        : [];
-    const inputRanges =
-      req.changes.length <= 500
-        ? req.changes.map((c) => (c.cell.includes('!') ? c.cell : `Sheet1!${c.cell}`))
-        : [];
-    const combinedRanges = [...cascadeRanges, ...inputRanges];
 
+    // -----------------------------------------------------------------------
+    // Layer 2: Try HyperFormula evaluation for predicted values
+    // -----------------------------------------------------------------------
+
+    // Load sheet data into evaluator if not already loaded (uses "Sheet1" as default)
+    const firstSheetRange = 'Sheet1';
+    await this.loadSheetForEvaluation(req.spreadsheetId, firstSheetRange);
+
+    const evalResult = await formulaEvaluator.evaluateScenario(req.spreadsheetId, req.changes);
+
+    // Build cascade effects (with predicted values when available)
+    const cascadeEffects: {
+      cell: string;
+      formula?: string;
+      currentValue?: string | number | null;
+      predictedValue?: string | number | null;
+      percentageChange?: number;
+      affectedBy?: string[];
+      evaluationSource?: 'hyperformula' | 'google_api' | 'not_evaluated';
+    }[] = [];
+
+    if (evalResult) {
+      // Use HyperFormula results as primary source
+      const hfByCell = new Map(evalResult.localResults.map((r) => [r.cell, r]));
+
+      for (const cell of cellRefs) {
+        const hf = hfByCell.get(cell);
+        const effect: (typeof cascadeEffects)[number] = {
+          cell,
+          affectedBy: affectedByMap.get(cell),
+        };
+
+        if (hf) {
+          if (hf.formula) effect.formula = hf.formula;
+          const oldV = hf.oldValue;
+          effect.currentValue = typeof oldV === 'boolean' ? String(oldV) : oldV;
+          const newV = hf.newValue;
+          effect.predictedValue = typeof newV === 'boolean' ? String(newV) : newV;
+          if (hf.percentageChange !== undefined) effect.percentageChange = hf.percentageChange;
+          effect.evaluationSource = 'hyperformula';
+        } else if (evalResult.needsGoogleEval.includes(cell)) {
+          effect.evaluationSource = 'google_api';
+        } else {
+          effect.evaluationSource = 'not_evaluated';
+        }
+
+        cascadeEffects.push(effect);
+      }
+    } else {
+      // Fallback: API-based value fetch (original behavior)
+      const cascadeRanges =
+        cellRefs.length > 0 && cellRefs.length <= 500
+          ? cellRefs.map((c) => (c.includes('!') ? c : `Sheet1!${c}`))
+          : [];
+
+      if (cascadeRanges.length > 0) {
+        try {
+          const [valueResult, formulaResult] = await Promise.all([
+            executeWithRetry(() =>
+              this.sheetsApi.spreadsheets.values.batchGet({
+                spreadsheetId: req.spreadsheetId,
+                ranges: cascadeRanges,
+                valueRenderOption: 'UNFORMATTED_VALUE',
+              })
+            ),
+            executeWithRetry(() =>
+              this.sheetsApi.spreadsheets.values.batchGet({
+                spreadsheetId: req.spreadsheetId,
+                ranges: cascadeRanges,
+                valueRenderOption: 'FORMULA',
+              })
+            ),
+          ]);
+
+          for (let i = 0; i < cellRefs.length; i++) {
+            const cell = cellRefs[i]!;
+            const rawVal = valueResult.data.valueRanges?.[i]?.values?.[0]?.[0] ?? null;
+            const currentValue = typeof rawVal === 'boolean' ? String(rawVal) : rawVal;
+            const formula = formulaResult.data.valueRanges?.[i]?.values?.[0]?.[0];
+            cascadeEffects.push({
+              cell,
+              ...(typeof formula === 'string' && formula.startsWith('=') ? { formula } : {}),
+              currentValue,
+              affectedBy: affectedByMap.get(cell),
+              evaluationSource: 'not_evaluated',
+            });
+          }
+        } catch {
+          // OK: Explicit empty — value fetch failed, return addresses only
+          for (const cell of cellRefs) {
+            cascadeEffects.push({ cell, affectedBy: affectedByMap.get(cell) });
+          }
+        }
+      } else {
+        for (const cell of cellRefs) {
+          cascadeEffects.push({ cell, affectedBy: affectedByMap.get(cell) });
+        }
+      }
+    }
+
+    // Build input changes with from/to values
     const inputChanges: {
       cell: string;
       from?: string | number | null;
       to: string | number | boolean | null;
     }[] = [];
 
-    if (combinedRanges.length > 0) {
+    if (evalResult) {
+      // Use pre-change values from HyperFormula
+      for (const change of req.changes) {
+        const hf = evalResult.localResults.find((r) => r.cell === change.cell);
+        const from = hf
+          ? typeof hf.oldValue === 'boolean'
+            ? String(hf.oldValue)
+            : hf.oldValue
+          : undefined;
+        inputChanges.push({
+          cell: change.cell,
+          ...(from !== undefined ? { from } : {}),
+          to: change.newValue,
+        });
+      }
+    } else {
+      // Fetch from API
+      const inputRanges = req.changes.map((c) =>
+        c.cell.includes('!') ? c.cell : `Sheet1!${c.cell}`
+      );
       try {
-        const formulaPromise =
-          cascadeRanges.length > 0
-            ? executeWithRetry(() =>
-                this.sheetsApi.spreadsheets.values.batchGet({
-                  spreadsheetId: req.spreadsheetId,
-                  ranges: cascadeRanges,
-                  valueRenderOption: 'FORMULA',
-                })
-              )
-            : Promise.resolve(null);
-        const [combinedResult, formulaResult] = await Promise.all([
-          executeWithRetry(() =>
-            this.sheetsApi.spreadsheets.values.batchGet({
-              spreadsheetId: req.spreadsheetId,
-              ranges: combinedRanges,
-              valueRenderOption: 'UNFORMATTED_VALUE',
-            })
-          ),
-          formulaPromise,
-        ]);
-
-        // Populate cascade effects from the first cascadeRanges.length results
-        for (let i = 0; i < cascadeEffects.length; i++) {
-          const valRange = combinedResult.data.valueRanges?.[i];
-          const fmtRange = formulaResult?.data.valueRanges?.[i];
-          const effect = cascadeEffects[i];
-          if (effect) {
-            effect.currentValue = valRange?.values?.[0]?.[0] ?? null;
-            const formula = fmtRange?.values?.[0]?.[0];
-            if (typeof formula === 'string' && formula.startsWith('=')) {
-              effect.formula = formula;
-            }
-          }
-        }
-        if (cascadeRanges.length > 0) valuesPopulated = true;
-
-        // Populate input changes from the trailing inputRanges.length results
-        const inputOffset = cascadeRanges.length;
+        const inputResult = await executeWithRetry(() =>
+          this.sheetsApi.spreadsheets.values.batchGet({
+            spreadsheetId: req.spreadsheetId,
+            ranges: inputRanges,
+            valueRenderOption: 'UNFORMATTED_VALUE',
+          })
+        );
         for (let i = 0; i < req.changes.length; i++) {
-          const valRange = combinedResult.data.valueRanges?.[inputOffset + i];
-          const change = req.changes[i];
-          if (change) {
-            const rawFrom = valRange?.values?.[0]?.[0] ?? null;
-            // Coerce boolean to string for schema compatibility (from: string | number | null)
-            const from = typeof rawFrom === 'boolean' ? String(rawFrom) : rawFrom;
-            inputChanges.push({ cell: change.cell, from, to: change.newValue });
-          }
+          const change = req.changes[i]!;
+          const rawFrom = inputResult.data.valueRanges?.[i]?.values?.[0]?.[0] ?? null;
+          const from = typeof rawFrom === 'boolean' ? String(rawFrom) : rawFrom;
+          inputChanges.push({ cell: change.cell, from, to: change.newValue });
         }
       } catch {
-        // OK: Explicit empty — value fetch failed, return addresses only
         for (const c of req.changes) {
           inputChanges.push({ cell: c.cell, to: c.newValue });
         }
       }
-    } else {
-      // No cascade cells or too many input changes — no "from" values
-      for (const c of req.changes) {
-        inputChanges.push({ cell: c.cell, to: c.newValue });
-      }
     }
 
-    const valueSuffix =
-      cellRefs.length > 500
+    // -----------------------------------------------------------------------
+    // Summary
+    // -----------------------------------------------------------------------
+    const predictedCount = evalResult?.localResults.length ?? 0;
+    const googleFallbackCount = evalResult?.needsGoogleEval.length ?? 0;
+    const evaluationNote = evalResult
+      ? ` ${predictedCount} cell(s) with predicted values (HyperFormula)${googleFallbackCount > 0 ? `, ${googleFallbackCount} require Google API evaluation` : ''}.`
+      : cellRefs.length > 500
         ? '. Values not fetched (>500 affected cells — use a narrower scope).'
-        : valuesPopulated
-          ? ''
-          : '. Values could not be fetched.';
+        : '';
 
     // If sampling is available, generate a narrative explanation of the cascade
     let aiNarrative: string | undefined;
     if (this.samplingServer) {
       try {
         const changeDesc = req.changes.map((c) => `${c.cell} → ${String(c.newValue)}`).join(', ');
+
+        // Include top predicted values in the narrative prompt for better context
+        const topPredicted = evalResult?.localResults
+          .slice(0, 5)
+          .map((r) => `${r.cell}: ${String(r.oldValue)} → ${String(r.newValue)}`)
+          .join(', ');
+
         const narrativeResult = await withSamplingTimeout(
           this.samplingServer.createMessage({
             messages: [
@@ -526,7 +663,7 @@ export class DependenciesHandler {
                 role: 'user' as const,
                 content: {
                   type: 'text' as const,
-                  text: `In 1-2 sentences, describe the business impact of changing ${changeDesc} in spreadsheet '${req.spreadsheetId}', which would affect ${allAffected.size} dependent cell(s).`,
+                  text: `In 1-2 sentences, describe the business impact of changing ${changeDesc} in spreadsheet '${req.spreadsheetId}', which would affect ${allAffected.size} dependent cell(s)${topPredicted ? `. Key predicted changes: ${topPredicted}` : ''}.`,
                 },
               },
             ],
@@ -552,7 +689,15 @@ export class DependenciesHandler {
         cascadeEffects,
         summary: {
           cellsAffected: allAffected.size,
-          message: `${req.changes.length} input change(s) would affect ${allAffected.size} dependent cell(s)${valueSuffix}`,
+          message: `${req.changes.length} input change(s) would affect ${allAffected.size} dependent cell(s).${evaluationNote}`,
+          ...(evalResult
+            ? {
+                evaluationEngine: 'hyperformula',
+                cellsWithPredictedValues: predictedCount,
+                cellsNeedingGoogleEval: googleFallbackCount,
+                evaluationDurationMs: evalResult.durationMs,
+              }
+            : {}),
         },
         ...(aiNarrative !== undefined ? { aiNarrative } : {}),
       },
@@ -570,17 +715,11 @@ export class DependenciesHandler {
       analyzerCache.set(req.spreadsheetId, analyzer);
     }
 
-    // ISSUE-016: Pre-batch all scenario ranges to avoid per-scenario batchGet calls inside the loop
-    const scenarioResults: {
-      name: string;
-      cellsAffected: number;
-      affectedCells?: { cell: string; formula?: string; currentValue?: string | number | null }[];
-    }[] = [];
+    // Load sheet into evaluator for predicted-value support
+    await this.loadSheetForEvaluation(req.spreadsheetId, 'Sheet1');
 
-    // Phase 1: Compute affected cells for each scenario and collect all ranges with offsets
+    // Phase 1: Compute affected cells for each scenario
     const perScenario: { name: string; affectedList: string[]; ranges: string[] }[] = [];
-    const allScenarioRanges: string[] = [];
-    const scenarioOffsets: number[] = [];
     for (const scenario of req.scenarios) {
       const affected = new Set<string>();
       for (const change of scenario.changes) {
@@ -594,54 +733,93 @@ export class DependenciesHandler {
         affectedList.length > 0 && affectedList.length <= 500
           ? affectedList.map((c) => (c.includes('!') ? c : `Sheet1!${c}`))
           : [];
-      scenarioOffsets.push(allScenarioRanges.length);
-      allScenarioRanges.push(...ranges);
       perScenario.push({ name: scenario.name, affectedList, ranges });
     }
 
-    // Phase 2: Single batchGet for all scenarios' ranges combined (2 calls instead of 2×N)
-    // Use .catch(() => null) so TypeScript infers the result type from the Promise.all call
-    const batchPair =
-      allScenarioRanges.length > 0
-        ? await Promise.all([
-            executeWithRetry(() =>
-              this.sheetsApi.spreadsheets.values.batchGet({
-                spreadsheetId: req.spreadsheetId,
-                ranges: allScenarioRanges,
-                valueRenderOption: 'UNFORMATTED_VALUE',
-              })
-            ),
-            executeWithRetry(() =>
-              this.sheetsApi.spreadsheets.values.batchGet({
-                spreadsheetId: req.spreadsheetId,
-                ranges: allScenarioRanges,
-                valueRenderOption: 'FORMULA',
-              })
-            ),
-          ]).catch(() => null)
-        : null;
-    const combinedUnformatted = batchPair?.[0] ?? null;
-    const combinedFormula = batchPair?.[1] ?? null;
+    // Phase 2: Evaluate each scenario in parallel (HyperFormula resets state after each)
+    const evalResults = await Promise.allSettled(
+      req.scenarios.map((scenario) =>
+        formulaEvaluator.evaluateScenario(req.spreadsheetId, scenario.changes)
+      )
+    );
 
-    // Phase 3: Assemble results per scenario by slicing the combined response
+    // Phase 3: Assemble results
+    const scenarioResults: {
+      name: string;
+      cellsAffected: number;
+      affectedCells?: {
+        cell: string;
+        formula?: string;
+        currentValue?: string | number | null;
+        predictedValue?: string | number | null;
+        percentageChange?: number;
+      }[];
+      evaluationEngine?: string;
+    }[] = [];
+
     for (let si = 0; si < req.scenarios.length; si++) {
-      const { name, affectedList, ranges } = perScenario[si]!;
-      const offset = scenarioOffsets[si]!;
-      const result: (typeof scenarioResults)[number] = { name, cellsAffected: affectedList.length };
-      if (ranges.length > 0 && combinedUnformatted) {
-        result.affectedCells = affectedList.map((cell, i) => {
-          const entry: { cell: string; formula?: string; currentValue?: string | number | null } = {
+      const { name, affectedList } = perScenario[si]!;
+      const evalSettled = evalResults[si];
+      const evalResult = evalSettled?.status === 'fulfilled' ? evalSettled.value : null;
+
+      const result: (typeof scenarioResults)[number] = {
+        name,
+        cellsAffected: affectedList.length,
+      };
+
+      if (evalResult) {
+        // Use HyperFormula predicted values
+        const hfByCell = new Map(evalResult.localResults.map((r) => [r.cell, r]));
+        result.affectedCells = affectedList.map((cell) => {
+          const hf = hfByCell.get(cell);
+          if (!hf) return { cell } as NonNullable<typeof result.affectedCells>[number];
+          const entry: NonNullable<typeof result.affectedCells>[number] = {
             cell,
-            currentValue:
-              combinedUnformatted.data.valueRanges?.[offset + i]?.values?.[0]?.[0] ?? null,
+            ...(hf.formula ? { formula: hf.formula } : {}),
+            currentValue: typeof hf.oldValue === 'boolean' ? String(hf.oldValue) : hf.oldValue,
+            predictedValue: typeof hf.newValue === 'boolean' ? String(hf.newValue) : hf.newValue,
           };
-          const formula = combinedFormula?.data.valueRanges?.[offset + i]?.values?.[0]?.[0];
-          if (typeof formula === 'string' && formula.startsWith('=')) {
-            entry.formula = formula;
-          }
+          if (hf.percentageChange !== undefined) entry.percentageChange = hf.percentageChange;
           return entry;
         });
+        result.evaluationEngine = 'hyperformula';
+      } else {
+        // Fallback: fetch current values via API for this scenario's affected cells
+        const { ranges } = perScenario[si]!;
+        if (ranges.length > 0) {
+          try {
+            const [valueResp, formulaResp] = await Promise.all([
+              executeWithRetry(() =>
+                this.sheetsApi.spreadsheets.values.batchGet({
+                  spreadsheetId: req.spreadsheetId,
+                  ranges,
+                  valueRenderOption: 'UNFORMATTED_VALUE',
+                })
+              ),
+              executeWithRetry(() =>
+                this.sheetsApi.spreadsheets.values.batchGet({
+                  spreadsheetId: req.spreadsheetId,
+                  ranges,
+                  valueRenderOption: 'FORMULA',
+                })
+              ),
+            ]);
+            result.affectedCells = affectedList.map((cell, i) => {
+              const rawVal = valueResp.data.valueRanges?.[i]?.values?.[0]?.[0] ?? null;
+              const currentValue = typeof rawVal === 'boolean' ? String(rawVal) : rawVal;
+              const formula = formulaResp.data.valueRanges?.[i]?.values?.[0]?.[0];
+              return {
+                cell,
+                ...(typeof formula === 'string' && formula.startsWith('=') ? { formula } : {}),
+                currentValue,
+              };
+            });
+          } catch {
+            // Values unavailable — return addresses only
+          }
+        }
       }
+
       scenarioResults.push(result);
     }
 
