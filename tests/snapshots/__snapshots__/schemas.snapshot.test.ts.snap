@@ -1,5 +1,15 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`Schema Snapshots > Input Schemas > AuditSheetInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/AuditSheetInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "AuditSheetInputSchema": {},
+  },
+}
+`;
+
 exports[`Schema Snapshots > Input Schemas > BulkUpdateInputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/BulkUpdateInputSchema",
@@ -26,6 +36,16 @@ exports[`Schema Snapshots > Input Schemas > CompositeInputSchema should match sn
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "CompositeInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > DataPipelineInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/DataPipelineInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "DataPipelineInputSchema": {},
   },
 }
 `;
@@ -130,6 +150,26 @@ exports[`Schema Snapshots > Input Schemas > ExportXlsxInputSchema should match s
 }
 `;
 
+exports[`Schema Snapshots > Input Schemas > GenerateSheetInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/GenerateSheetInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "GenerateSheetInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > GenerateTemplateInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/GenerateTemplateInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "GenerateTemplateInputSchema": {},
+  },
+}
+`;
+
 exports[`Schema Snapshots > Input Schemas > GetFormResponsesInputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/GetFormResponsesInputSchema",
@@ -166,6 +206,46 @@ exports[`Schema Snapshots > Input Schemas > ImportXlsxInputSchema should match s
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "ImportXlsxInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > InstantiateTemplateInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/InstantiateTemplateInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "InstantiateTemplateInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > MigrateSpreadsheetInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/MigrateSpreadsheetInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "MigrateSpreadsheetInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > PreviewGenerationInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/PreviewGenerationInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "PreviewGenerationInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > PublishReportInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/PublishReportInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "PublishReportInputSchema": {},
   },
 }
 `;
@@ -480,6 +560,16 @@ exports[`Schema Snapshots > Input Schemas > WebhookWatchChangesInputSchema shoul
 }
 `;
 
+exports[`Schema Snapshots > Output Schemas > AuditSheetOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/AuditSheetOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "AuditSheetOutputSchema": {},
+  },
+}
+`;
+
 exports[`Schema Snapshots > Output Schemas > BulkUpdateOutputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/BulkUpdateOutputSchema",
@@ -530,6 +620,16 @@ exports[`Schema Snapshots > Output Schemas > CompositeSuccessOutputSchema should
 }
 `;
 
+exports[`Schema Snapshots > Output Schemas > DataPipelineOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/DataPipelineOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "DataPipelineOutputSchema": {},
+  },
+}
+`;
+
 exports[`Schema Snapshots > Output Schemas > DeduplicateOutputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/DeduplicateOutputSchema",
@@ -556,6 +656,26 @@ exports[`Schema Snapshots > Output Schemas > ExportXlsxOutputSchema should match
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "ExportXlsxOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > GenerateSheetOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/GenerateSheetOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "GenerateSheetOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > GenerateTemplateOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/GenerateTemplateOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "GenerateTemplateOutputSchema": {},
   },
 }
 `;
@@ -596,6 +716,46 @@ exports[`Schema Snapshots > Output Schemas > ImportXlsxOutputSchema should match
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "ImportXlsxOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > InstantiateTemplateOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/InstantiateTemplateOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "InstantiateTemplateOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > MigrateSpreadsheetOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/MigrateSpreadsheetOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "MigrateSpreadsheetOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > PreviewGenerationOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/PreviewGenerationOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "PreviewGenerationOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > PublishReportOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/PublishReportOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "PublishReportOutputSchema": {},
   },
 }
 `;
