@@ -1949,17 +1949,7 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
           action: z.object({
             tool: z.string(),
             action: z.string(),
-            params: z.record(
-              z.string(),
-              z.union([
-                z.string(),
-                z.number(),
-                z.boolean(),
-                z.null(),
-                z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
-                z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
-              ])
-            ),
+            params: z.record(z.string(), z.unknown()),
           }),
         })
       )
@@ -1991,17 +1981,7 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
             action: z.object({
               tool: z.string(),
               action: z.string(),
-              params: z.record(
-                z.string(),
-                z.union([
-                  z.string(),
-                  z.number(),
-                  z.boolean(),
-                  z.null(),
-                  z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
-                  z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
-                ])
-              ),
+              params: z.record(z.string(), z.unknown()),
             }),
           }),
           status: z.enum(['applied', 'skipped', 'failed']),

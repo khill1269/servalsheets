@@ -1965,7 +1965,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             response = {
               success: true,
               action: 'suggest_next_actions',
-              suggestions: suggestResult.suggestions as unknown as Record<string, unknown>[],
+              suggestions: suggestResult.suggestions,
               scoutSummary: suggestResult.scoutSummary,
               totalCandidates: suggestResult.totalCandidates,
               filtered: suggestResult.filtered,
@@ -2019,7 +2019,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
               success: true,
               action: 'auto_enhance',
               mode: req.mode ?? 'preview',
-              enhancements: enhanceResult.applied as unknown as Record<string, unknown>[],
+              enhancements: enhanceResult.applied,
               enhanceSummary: enhanceResult.summary,
             };
           } catch (error) {
