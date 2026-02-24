@@ -27,6 +27,7 @@ import {
   SheetIdSchema,
   RangeInputSchema,
   ChartPositionSchema,
+  ChartTypeSchema,
   LegendPositionSchema,
   ColorSchema,
   SummarizeFunctionSchema,
@@ -358,6 +359,14 @@ const ComprehensiveActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(5)
     .describe('Number of sheets to return per page'),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(500)
+    .optional()
+    .default(50)
+    .describe('Maximum number of items to return per page (default: 50, max: 500)'),
   context: z.string().optional().describe('Additional context for analysis'),
   timeoutMs: z
     .number()
@@ -486,6 +495,16 @@ const AnalyzeQualityActionSchema = CommonFieldsSchema.extend({
 const AnalyzePerformanceActionSchema = CommonFieldsSchema.extend({
   action: z.literal('analyze_performance').describe('Optimization suggestions'),
   range: RangeInputSchema.optional().describe('Range to analyze'),
+  maxSheets: z
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .optional()
+    .default(5)
+    .describe(
+      'Maximum sheets to fetch grid data for (default 5). Prevents unbounded fetches on large spreadsheets.'
+    ),
 });
 
 const AnalyzeFormulasActionSchema = CommonFieldsSchema.extend({
@@ -1017,7 +1036,7 @@ const FormulaSuggestionSchema = z.object({
  * Chart recommendation schema with executable parameters
  */
 const ChartRecommendationSchema = z.object({
-  chartType: z.string(),
+  chartType: ChartTypeSchema,
   suitabilityScore: z.coerce.number().min(0).max(100),
   reasoning: z.string(),
   configuration: z
@@ -1037,7 +1056,7 @@ const ChartRecommendationSchema = z.object({
       params: z.object({
         spreadsheetId: z.string(),
         sheetId: z.coerce.number().int(),
-        chartType: z.string(),
+        chartType: ChartTypeSchema,
         data: z.object({
           sourceRange: RangeInputSchema,
           series: z
@@ -1433,6 +1452,19 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
             reasoning: z.string(),
           })
         ),
+        upgradeOpportunities: z
+          .array(
+            z.object({
+              cell: z.string(),
+              pattern: z.string(),
+              currentFormula: z.string(),
+              suggestedFormula: z.string(),
+              reason: z.string(),
+              confidence: z.coerce.number(),
+              executable: z.boolean().optional(),
+            })
+          )
+          .optional(),
         circularReferences: z
           .array(
             z.object({
@@ -1472,7 +1504,7 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
           .optional(),
         visualizationSuggestion: z
           .object({
-            chartType: z.string(),
+            chartType: ChartTypeSchema,
             reasoning: z.string(),
           })
           .optional(),
@@ -1583,7 +1615,7 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
     visualizations: z
       .array(
         z.object({
-          chartType: z.string(),
+          chartType: ChartTypeSchema,
           suitabilityScore: z.coerce.number(),
           reasoning: z.string(),
           suggestedConfig: z.record(
@@ -1626,6 +1658,11 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
       .optional()
       .describe('Next page cursor for pagination (format: "sheet:N")'),
     hasMore: z.boolean().optional().describe('True if more sheets available'),
+    totalCount: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Total number of items available (comprehensive)'),
     resourceUri: z
       .string()
       .optional()

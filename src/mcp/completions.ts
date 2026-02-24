@@ -91,12 +91,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'delete_trigger',
     'update_trigger',
   ],
-  sheets_auth: [
-    'status',
-    'login',
-    'callback',
-    'logout',
-  ],
+  sheets_auth: ['status', 'login', 'callback', 'logout'],
   sheets_bigquery: [
     'connect',
     'connect_looker',
@@ -165,17 +160,16 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'import_and_format',
     'clone_structure',
     'export_large_dataset',
+    'audit_sheet',
+    'publish_report',
+    'data_pipeline',
+    'instantiate_template',
+    'migrate_spreadsheet',
     'generate_sheet',
     'generate_template',
     'preview_generation',
   ],
-  sheets_confirm: [
-    'request',
-    'get_stats',
-    'wizard_start',
-    'wizard_step',
-    'wizard_complete',
-  ],
+  sheets_confirm: ['request', 'get_stats', 'wizard_start', 'wizard_step', 'wizard_complete'],
   sheets_core: [
     'get',
     'create',
@@ -217,6 +211,10 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'cut_paste',
     'copy_paste',
     'detect_spill_ranges',
+    'cross_read',
+    'cross_query',
+    'cross_write',
+    'cross_compare',
   ],
   sheets_dependencies: [
     'build',
@@ -226,6 +224,9 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'get_dependents',
     'get_stats',
     'export_dot',
+    'model_scenario',
+    'compare_scenarios',
+    'create_scenario_sheet',
   ],
   sheets_dimensions: [
     'insert',
@@ -257,12 +258,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'delete_slicer',
     'list_slicers',
   ],
-  sheets_federation: [
-    'call_remote',
-    'list_servers',
-    'get_server_tools',
-    'validate_connection',
-  ],
+  sheets_federation: ['call_remote', 'list_servers', 'get_server_tools', 'validate_connection'],
   sheets_fix: [
     'fix',
     'clean',
@@ -309,12 +305,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'diff_revisions',
     'restore_cells',
   ],
-  sheets_quality: [
-    'validate',
-    'detect_conflicts',
-    'resolve_conflict',
-    'analyze_impact',
-  ],
+  sheets_quality: ['validate', 'detect_conflicts', 'resolve_conflict', 'analyze_impact'],
   sheets_session: [
     'set_active',
     'get_active',
@@ -353,14 +344,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'preview',
     'import_builtin',
   ],
-  sheets_transaction: [
-    'begin',
-    'queue',
-    'commit',
-    'rollback',
-    'status',
-    'list',
-  ],
+  sheets_transaction: ['begin', 'queue', 'commit', 'rollback', 'status', 'list'],
   sheets_visualize: [
     'chart_create',
     'suggest_chart',
@@ -381,15 +365,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'pivot_get',
     'pivot_refresh',
   ],
-  sheets_webhook: [
-    'register',
-    'unregister',
-    'list',
-    'get',
-    'test',
-    'get_stats',
-    'watch_changes',
-  ],
+  sheets_webhook: ['register', 'unregister', 'list', 'get', 'test', 'get_stats', 'watch_changes'],
 };
 
 /**

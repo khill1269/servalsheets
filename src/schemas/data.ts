@@ -11,6 +11,7 @@ import {
   SpreadsheetIdSchema,
   SheetIdSchema,
   RangeInputSchema,
+  A1NotationSchema,
   DataFilterSchema,
   ValuesArraySchema,
   ValueRenderOptionSchema,
@@ -85,7 +86,7 @@ const ReadActionSchema = CommonFieldsSchema.extend({
     .optional()
     .describe(
       'How dates/times should be rendered when valueRenderOption is UNFORMATTED_VALUE. ' +
-      'SERIAL_NUMBER (default): date as number. FORMATTED_STRING: date as formatted string.'
+        'SERIAL_NUMBER (default): date as number. FORMATTED_STRING: date as formatted string.'
     ),
   majorDimension: MajorDimensionSchema.optional()
     .default('ROWS')
@@ -260,7 +261,7 @@ const BatchReadActionSchema = CommonFieldsSchema.extend({
     .optional()
     .describe(
       'How dates/times should be rendered when valueRenderOption is UNFORMATTED_VALUE. ' +
-      'SERIAL_NUMBER (default): date as number. FORMATTED_STRING: date as formatted string.'
+        'SERIAL_NUMBER (default): date as number. FORMATTED_STRING: date as formatted string.'
     ),
   majorDimension: MajorDimensionSchema.optional().default('ROWS').describe('Major dimension'),
   cursor: z.string().optional().describe('Pagination cursor'),
@@ -399,11 +400,9 @@ const FindReplaceActionSchema = CommonFieldsSchema.extend({
 
 const AddNoteActionSchema = CommonFieldsSchema.extend({
   action: z.literal('add_note').describe('Add or update a note on a cell'),
-  cell: z
-    .string()
-    .describe(
-      "Cell reference in A1 notation (e.g., 'A1' or 'Sheet1!B2'). Also accepts 'range' as alias."
-    ),
+  cell: A1NotationSchema.describe(
+    "Cell reference in A1 notation (e.g., 'A1' or 'Sheet1!B2'). Also accepts 'range' as alias."
+  ),
   note: z
     .string()
     .min(1, 'Note cannot be empty')
@@ -429,7 +428,7 @@ const ClearNoteActionSchema = CommonFieldsSchema.extend({
 
 const SetHyperlinkActionSchema = CommonFieldsSchema.extend({
   action: z.literal('set_hyperlink').describe('Add a clickable hyperlink to a cell'),
-  cell: z.string().describe("Cell reference in A1 notation. Also accepts 'range' as alias."),
+  cell: A1NotationSchema.describe("Cell reference in A1 notation. Also accepts 'range' as alias."),
   url: z
     .string()
     .regex(URL_REGEX, 'Invalid URL format')
@@ -505,6 +504,75 @@ const DetectSpillRangesActionSchema = CommonFieldsSchema.extend({
     .describe('Detect dynamic array / spill range formulas in a sheet'),
   range: RangeInputSchema.optional().describe('Range to scan (omit to scan entire active sheet)'),
   sheetId: z.coerce.number().int().optional().describe('Sheet ID to scan (alternative to range)'),
+});
+
+// ============================================================================
+// F2: Multi-Spreadsheet Federation (4 actions)
+// ============================================================================
+
+const SourceRefSchema = z.object({
+  spreadsheetId: z.string().min(1).describe('Spreadsheet ID'),
+  range: z.string().min(1).describe('Range in A1 notation (e.g. "Sheet1!A1:D100")'),
+  label: z.string().optional().describe('Human-readable label for this source in output'),
+});
+
+const CrossReadActionSchema = z.object({
+  action: z.literal('cross_read').describe('Read and merge data from multiple spreadsheets'),
+  sources: z
+    .array(SourceRefSchema)
+    .min(2)
+    .max(10)
+    .describe('Spreadsheets to read from (2–10 sources)'),
+  joinKey: z
+    .string()
+    .optional()
+    .describe('Header column name to join on — omit to concatenate all rows with a _source column'),
+  joinType: z
+    .enum(['inner', 'left', 'outer'])
+    .optional()
+    .default('left')
+    .describe(
+      'Join type when joinKey is set: inner (matched rows only), left (all primary rows), outer (all rows)'
+    ),
+  verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
+});
+
+const CrossQueryActionSchema = z.object({
+  action: z
+    .literal('cross_query')
+    .describe('Search for rows matching a keyword query across multiple spreadsheets'),
+  sources: z.array(SourceRefSchema).min(1).max(10),
+  query: z.string().min(1).max(500).describe('Search query — matched against all cell values'),
+  maxResults: z.number().int().min(1).max(500).optional().default(100),
+  verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
+});
+
+const CrossWriteActionSchema = z.object({
+  action: z.literal('cross_write').describe('Copy data from one spreadsheet to another'),
+  source: SourceRefSchema.describe('Spreadsheet and range to read from'),
+  destination: z
+    .object({
+      spreadsheetId: z.string().min(1),
+      range: z.string().min(1),
+    })
+    .describe('Spreadsheet and range to write to'),
+  valueInputOption: ValueInputOptionSchema.optional().default('USER_ENTERED'),
+  verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
+});
+
+const CrossCompareActionSchema = z.object({
+  action: z.literal('cross_compare').describe('Diff ranges across two spreadsheets cell by cell'),
+  source1: SourceRefSchema,
+  source2: SourceRefSchema,
+  compareColumns: z
+    .array(z.string())
+    .optional()
+    .describe('Column headers to compare (omit to compare all common columns)'),
+  keyColumn: z
+    .string()
+    .optional()
+    .describe('Column header to use as row key for aligned comparison (omit for row-by-row)'),
+  verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
 });
 
 // ============================================================================
@@ -595,6 +663,12 @@ export const SheetsDataInputSchema = z.object({
 
       // Dynamic array action (1)
       DetectSpillRangesActionSchema, // Detect dynamic array / spill ranges
+
+      // F2: Cross-spreadsheet federation (4)
+      CrossReadActionSchema, // Merge data from multiple spreadsheets
+      CrossQueryActionSchema, // Search across multiple spreadsheets
+      CrossWriteActionSchema, // Copy data between spreadsheets
+      CrossCompareActionSchema, // Diff ranges across two spreadsheets
     ])
   ),
 });
@@ -726,6 +800,50 @@ const DataResponseSchema = z.discriminatedUnion('success', [
     // ========================================================================
     // SHARED RESPONSE FIELDS
     // ========================================================================
+
+    // F2: Cross-spreadsheet results
+    rows: ValuesArraySchema.optional().describe(
+      'Merged dataset from multiple sources (cross_read)'
+    ),
+    mergedHeaders: z.array(z.string()).optional().describe('Column headers for merged dataset'),
+    sourcesRead: z.coerce.number().int().optional().describe('Number of sources successfully read'),
+    crossErrors: z.array(z.string()).optional().describe('Per-source errors (non-fatal)'),
+    queryMatches: z
+      .array(
+        z.object({
+          spreadsheetId: z.string(),
+          label: z.string().optional(),
+          range: z.string(),
+          row: z.coerce.number().int(),
+          matchedValues: z.array(z.string()),
+        })
+      )
+      .optional()
+      .describe('Matching rows across sources (cross_query)'),
+    totalSearched: z.coerce.number().int().optional(),
+    cellsCopied: z.coerce.number().int().optional().describe('Cells written (cross_write)'),
+    diff: z
+      .object({
+        added: z.array(z.array(z.unknown())).optional(),
+        removed: z.array(z.array(z.unknown())).optional(),
+        changed: z
+          .array(
+            z.object({
+              key: z.string(),
+              column: z.string(),
+              source1Value: z.unknown(),
+              source2Value: z.unknown(),
+            })
+          )
+          .optional(),
+        summary: z.object({
+          addedRows: z.coerce.number().int(),
+          removedRows: z.coerce.number().int(),
+          changedCells: z.coerce.number().int(),
+        }),
+      })
+      .optional()
+      .describe('Cell-level diff result (cross_compare)'),
 
     // Safety
     dryRun: z.boolean().optional().describe('True if this was a dry run (no changes made)'),
@@ -902,3 +1020,9 @@ export type DataDetectSpillRangesInput = SheetsDataInput['request'] & {
   action: 'detect_spill_ranges';
   spreadsheetId: string;
 };
+
+// F2: Cross-spreadsheet federation types
+export type DataCrossReadInput = z.infer<typeof CrossReadActionSchema>;
+export type DataCrossQueryInput = z.infer<typeof CrossQueryActionSchema>;
+export type DataCrossWriteInput = z.infer<typeof CrossWriteActionSchema>;
+export type DataCrossCompareInput = z.infer<typeof CrossCompareActionSchema>;

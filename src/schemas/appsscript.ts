@@ -2,7 +2,7 @@
  * Tool 19: sheets_appsscript
  * Google Apps Script API integration for script automation
  *
- * 14 Actions:
+ * 18 Actions:
  * Project Management (4): create, get, get_content, update_content
  * Version Management (3): create_version, list_versions, get_version
  * Deployment Management (4): deploy, list_deployments, get_deployment, undeploy
@@ -365,7 +365,16 @@ const ListProcessesActionSchema = z.object({
     .optional()
     .describe('Filter by process type'),
   processStatus: z
-    .enum(['COMPLETED', 'FAILED', 'RUNNING', 'CANCELED', 'TIMED_OUT', 'UNKNOWN', 'DELAYED', 'PAUSED'])
+    .enum([
+      'COMPLETED',
+      'FAILED',
+      'RUNNING',
+      'CANCELED',
+      'TIMED_OUT',
+      'UNKNOWN',
+      'DELAYED',
+      'PAUSED',
+    ])
     .optional()
     .describe('Filter by status'),
   pageSize: z

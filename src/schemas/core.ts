@@ -70,6 +70,14 @@ const GetActionSchema = CommonFieldsSchema.extend({
     .array(z.string())
     .optional()
     .describe('Specific ranges to fetch if includeGridData=true'),
+}).superRefine((data, ctx) => {
+  if (data.includeGridData === true && (!data.ranges || data.ranges.length === 0)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'ranges is required when includeGridData is true',
+      path: ['ranges'],
+    });
+  }
 });
 
 const CreateActionSchema = CommonFieldsSchema.extend({
@@ -117,6 +125,28 @@ const UpdatePropertiesActionSchema = CommonFieldsSchema.extend({
     .enum(['ON_CHANGE', 'MINUTE', 'HOUR'])
     .optional()
     .describe('Automatic recalculation frequency'),
+  spreadsheetTheme: z
+    .object({
+      primaryFontFamily: z.string().optional().describe('Primary font family for the theme'),
+      themeColors: z
+        .array(
+          z.object({
+            colorType: z.string().describe('Theme color type (e.g., TEXT, BACKGROUND, ACCENT1)'),
+            color: z
+              .object({
+                red: z.number().min(0).max(1).optional(),
+                green: z.number().min(0).max(1).optional(),
+                blue: z.number().min(0).max(1).optional(),
+              })
+              .partial()
+              .describe('RGB color values (0-1 range)'),
+          })
+        )
+        .optional()
+        .describe('Theme color mappings'),
+    })
+    .optional()
+    .describe('Spreadsheet color theme applied across the entire workbook'),
 });
 
 const GetUrlActionSchema = CommonFieldsSchema.extend({

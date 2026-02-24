@@ -34,11 +34,8 @@ export const EMBEDDED_OAUTH = {
   clientId:
     process.env['OAUTH_CLIENT_ID'] ??
     'REDACTED_OAUTH_CLIENT_ID',
-  clientSecret:
-    process.env['OAUTH_CLIENT_SECRET'] ??
-    'REDACTED_OAUTH_CLIENT_SECRET',
-  redirectUri:
-    process.env['OAUTH_REDIRECT_URI'] ?? 'http://localhost:3000/callback',
+  clientSecret: process.env['OAUTH_CLIENT_SECRET'] ?? 'REDACTED_OAUTH_CLIENT_SECRET',
+  redirectUri: process.env['OAUTH_REDIRECT_URI'] ?? 'http://localhost:3000/callback',
 };
 
 /**

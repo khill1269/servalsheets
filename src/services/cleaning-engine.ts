@@ -9,7 +9,7 @@
  */
 
 import type {
-  CellChange,
+  CleanCellChange,
   CleanRule,
   FormatSpec,
   FillStrategy,
@@ -23,7 +23,7 @@ import type {
 export type CellValue = string | number | boolean | null;
 
 export interface CleanResult {
-  changes: CellChange[];
+  changes: CleanCellChange[];
   summary: {
     totalCells: number;
     cellsCleaned: number;
@@ -33,7 +33,7 @@ export interface CleanResult {
 }
 
 export interface FormatResult {
-  changes: CellChange[];
+  changes: CleanCellChange[];
   summary: {
     columnsProcessed: number;
     cellsChanged: number;
@@ -42,7 +42,7 @@ export interface FormatResult {
 }
 
 export interface FillResult {
-  changes: CellChange[];
+  changes: CleanCellChange[];
   summary: {
     totalEmpty: number;
     filled: number;
@@ -64,7 +64,7 @@ export interface AnomalyResult {
 
 export interface ColumnProfile {
   column: string;
-  header: string | null;
+  header: string | undefined;
   type: string;
   nullCount: number;
   uniqueCount: number;
@@ -108,10 +108,10 @@ function letterToCol(letter: string): number {
 /** Parse A1 range to extract start row/col offsets */
 function parseRangeOffset(range: string): { startRow: number; startCol: number } {
   // Extract cell reference (e.g., "Sheet1!A1:Z100" → "A1")
-  const cellPart = range.includes('!') ? range.split('!')[1] : range;
+  const cellPart = range.includes('!') ? (range.split('!')[1] ?? range) : range;
   const match = cellPart.match(/^([A-Z]+)(\d+)/);
   if (!match) return { startRow: 0, startCol: 0 };
-  return { startRow: parseInt(match[2], 10) - 1, startCol: letterToCol(match[1]) };
+  return { startRow: parseInt(match[2]!, 10) - 1, startCol: letterToCol(match[1]!) };
 }
 
 /** Resolve column reference (letter or header name) to column index */
@@ -229,7 +229,7 @@ export class CleaningEngine {
     rangeOffset?: { startRow: number; startCol: number }
   ): Promise<CleanResult> {
     const offset = rangeOffset ?? { startRow: 0, startCol: 0 };
-    const changes: CellChange[] = [];
+    const changes: CleanCellChange[] = [];
     const rulesApplied = new Set<string>();
     const byRule: Record<string, number> = {};
 
@@ -268,7 +268,7 @@ export class CleaningEngine {
 
       for (let c = 0; c < (data[r]?.length ?? 0); c++) {
         totalCells++;
-        const value = data[r][c];
+        const value = data[r]?.[c] ?? null;
 
         for (const ruleId of activeRuleIds) {
           if (ruleId === 'remove_duplicates') continue;
@@ -325,7 +325,7 @@ export class CleaningEngine {
     rangeOffset?: { startRow: number; startCol: number }
   ): Promise<FormatResult> {
     const offset = rangeOffset ?? { startRow: 0, startCol: 0 };
-    const changes: CellChange[] = [];
+    const changes: CleanCellChange[] = [];
     const byFormat: Record<string, number> = {};
     const headers = data[0] ?? [];
     const columnsProcessed = new Set<number>();
@@ -381,7 +381,7 @@ export class CleaningEngine {
     rangeOffset?: { startRow: number; startCol: number }
   ): Promise<FillResult> {
     const offset = rangeOffset ?? { startRow: 0, startCol: 0 };
-    const changes: CellChange[] = [];
+    const changes: CleanCellChange[] = [];
     const byColumn: Record<string, number> = {};
     const headers = data[0] ?? [];
     let totalEmpty = 0;
@@ -412,17 +412,19 @@ export class CleaningEngine {
         .map((cv) => cv.value as number);
 
       for (let i = 0; i < colValues.length; i++) {
-        if (colValues[i].value !== null) continue;
+        const currentItem = colValues[i];
+        if (!currentItem || currentItem.value !== null) continue;
 
         let fillValue: CellValue = null;
-        const r = colValues[i].row;
+        const r = currentItem.row;
 
         switch (strategy) {
           case 'forward': {
             // Find last non-empty value before this index
             for (let j = i - 1; j >= 0; j--) {
-              if (colValues[j].value !== null) {
-                fillValue = colValues[j].value;
+              const jItem = colValues[j];
+              if (jItem && jItem.value !== null) {
+                fillValue = jItem.value;
                 break;
               }
             }
@@ -431,8 +433,9 @@ export class CleaningEngine {
           case 'backward': {
             // Find next non-empty value after this index
             for (let j = i + 1; j < colValues.length; j++) {
-              if (colValues[j].value !== null) {
-                fillValue = colValues[j].value;
+              const jItem = colValues[j];
+              if (jItem && jItem.value !== null) {
+                fillValue = jItem.value;
                 break;
               }
             }
@@ -451,10 +454,12 @@ export class CleaningEngine {
             if (numericValues.length > 0) {
               const sorted = [...numericValues].sort((a, b) => a - b);
               const mid = Math.floor(sorted.length / 2);
+              const midVal = sorted[mid] ?? 0;
+              const midPrevVal = sorted[mid - 1] ?? 0;
               fillValue =
                 sorted.length % 2 !== 0
-                  ? sorted[mid]
-                  : Math.round(((sorted[mid - 1] + sorted[mid]) / 2) * 100) / 100;
+                  ? midVal
+                  : Math.round(((midPrevVal + midVal) / 2) * 100) / 100;
             }
             break;
           }
@@ -610,7 +615,7 @@ export class CleaningEngine {
       for (let c = 0; c < (data[0]?.length ?? 0); c++) {
         let colHits = 0;
         for (let r = 1; r < data.length; r++) {
-          const v = data[r]?.[c];
+          const v = data[r]?.[c] ?? null;
           if (rule.detect(v)) {
             colHits++;
             if (sampleBefore.length < 3) {
@@ -788,7 +793,7 @@ export class CleaningEngine {
 
       columnProfiles.push({
         column: colRef,
-        header: typeof headers[c] === 'string' ? (headers[c] as string) : null,
+        header: typeof headers[c] === 'string' ? (headers[c] as string) : undefined,
         type: dominantType,
         nullCount,
         uniqueCount: uniqueValues.size,
@@ -899,8 +904,8 @@ const ANOMALY_DETECTORS: Record<
 > = {
   iqr: (value, allValues) => {
     const sorted = [...allValues].sort((a, b) => a - b);
-    const q1 = sorted[Math.floor(sorted.length * 0.25)];
-    const q3 = sorted[Math.floor(sorted.length * 0.75)];
+    const q1 = sorted[Math.floor(sorted.length * 0.25)] ?? 0;
+    const q3 = sorted[Math.floor(sorted.length * 0.75)] ?? 0;
     const iqr = q3 - q1;
     if (iqr === 0) return 0;
     return Math.max((q1 - value) / iqr, (value - q3) / iqr, 0);
@@ -915,10 +920,10 @@ const ANOMALY_DETECTORS: Record<
   },
   modified_zscore: (value, allValues) => {
     const sorted = [...allValues].sort((a, b) => a - b);
-    const median = sorted[Math.floor(sorted.length / 2)];
+    const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
     const mad = (() => {
       const deviations = allValues.map((v) => Math.abs(v - median)).sort((a, b) => a - b);
-      return deviations[Math.floor(deviations.length / 2)];
+      return deviations[Math.floor(deviations.length / 2)] ?? 0;
     })();
     if (mad === 0) return 0;
     return Math.abs((0.6745 * (value - median)) / mad);
@@ -953,14 +958,14 @@ function parseAnyDate(str: string): ParsedDate | null {
 
   // YYYY-MM-DD or YYYY/MM/DD
   let m = trimmed.match(/^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/);
-  if (m) return { year: parseInt(m[1]), month: parseInt(m[2]), day: parseInt(m[3]) };
+  if (m) return { year: parseInt(m[1]!), month: parseInt(m[2]!), day: parseInt(m[3]!) };
 
   // MM/DD/YYYY or DD/MM/YYYY (assume MM/DD if month <= 12)
   m = trimmed.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
   if (m) {
-    const a = parseInt(m[1]);
-    const b = parseInt(m[2]);
-    const year = parseInt(m[3]);
+    const a = parseInt(m[1]!);
+    const b = parseInt(m[2]!);
+    const year = parseInt(m[3]!);
     if (a <= 12) return { year, month: a, day: b };
     return { year, month: b, day: a };
   }
@@ -968,9 +973,9 @@ function parseAnyDate(str: string): ParsedDate | null {
   // MM/DD/YY
   m = trimmed.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2})$/);
   if (m) {
-    const yy = parseInt(m[3]);
+    const yy = parseInt(m[3]!);
     const year = yy < 50 ? 2000 + yy : 1900 + yy;
-    return { year, month: parseInt(m[1]), day: parseInt(m[2]) };
+    return { year, month: parseInt(m[1]!), day: parseInt(m[2]!) };
   }
 
   // "Month DD, YYYY" or "Month DD YYYY"
@@ -1001,8 +1006,8 @@ function parseAnyDate(str: string): ParsedDate | null {
       dec: 12,
       december: 12,
     };
-    const month = monthNames[m[1].toLowerCase()];
-    if (month) return { year: parseInt(m[3]), month, day: parseInt(m[2]) };
+    const month = monthNames[m[1]!.toLowerCase()];
+    if (month) return { year: parseInt(m[3]!), month, day: parseInt(m[2]!) };
   }
 
   return null;

@@ -116,6 +116,13 @@ Example: case 'hide_sheet': return this.handleUpdateSheet({ ...params, hidden: t
   //   justification: 'Legacy read action maps to read_range for backward compatibility',
   //   addedDate: 'YYYY-MM-DD',
   // },
+
+  // NOTE: sheets_collaborate has a schema-design workaround (not a handler deviation).
+  // The MCP SDK v1.26.0 bug with z.discriminatedUnion() on large unions means collaborate
+  // uses a flat z.object() + refine() instead. There are NO missing or extra handler cases —
+  // the handler switch still matches the schema 1-for-1.
+  // See: src/schemas/collaborate.ts (workaround comment)
+  // See: tests/contracts/collaborate-discriminated-union.test.ts (regression tests)
 ];
 
 /**

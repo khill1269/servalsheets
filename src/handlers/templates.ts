@@ -94,13 +94,15 @@ export class SheetsTemplatesHandler extends BaseHandler<
         case 'import_builtin':
           response = await this.handleImportBuiltin(req as TemplatesImportBuiltinInput);
           break;
-        default:
+        default: {
+          const _exhaustiveCheck: never = req;
           response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(req as { action: string }).action}`,
+            message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
+        }
       }
 
       // 4. Apply verbosity filtering (LLM optimization)

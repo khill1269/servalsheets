@@ -12,7 +12,7 @@
  *
  * DECLARED CAPABILITIES (via createServerCapabilities):
  * - tools: TOOL_COUNT tools with ACTION_COUNT actions (current consolidated set)
- * - resources: 2 URI templates + 28 registered resources
+ * - resources: 3 URI templates + 28 registered resources
  * - prompts: 38 guided workflows for common operations
  * - completions: Argument autocompletion for prompts/resources
  * - tasks: Background execution with TaskStoreAdapter (SEP-1686)
@@ -269,13 +269,13 @@ export const TOOL_EXECUTION_CONFIG: Record<string, ToolExecution> = {
   // Standard operations - typically fast, no task support needed
   sheets_auth: { taskSupport: 'forbidden' },
   sheets_core: { taskSupport: 'forbidden' },
-  sheets_collaborate: { taskSupport: 'forbidden' },
+  sheets_collaborate: { taskSupport: 'optional' },
   sheets_advanced: { taskSupport: 'forbidden' },
   sheets_transaction: { taskSupport: 'forbidden' },
   sheets_quality: { taskSupport: 'forbidden' },
-  sheets_history: { taskSupport: 'forbidden' },
+  sheets_history: { taskSupport: 'optional' },
   sheets_confirm: { taskSupport: 'forbidden' },
-  sheets_fix: { taskSupport: 'forbidden' },
+  sheets_fix: { taskSupport: 'optional' },
   sheets_session: { taskSupport: 'forbidden' },
 
   // Tier 7: Enterprise tools - potentially long-running, task support enabled
@@ -283,7 +283,7 @@ export const TOOL_EXECUTION_CONFIG: Record<string, ToolExecution> = {
   sheets_bigquery: { taskSupport: 'optional' },
   sheets_templates: { taskSupport: 'optional' },
   sheets_webhook: { taskSupport: 'forbidden' },
-  sheets_dependencies: { taskSupport: 'forbidden' },
+  sheets_dependencies: { taskSupport: 'optional' },
   sheets_federation: { taskSupport: 'optional' }, // Network calls to remote MCP servers
 };
 
@@ -403,7 +403,8 @@ Benefits:
 **Reading data?**
 ├─ 1-2 ranges → \`sheets_data.read\`
 ├─ 3+ ranges → \`sheets_data.batch_read\` (same API cost as single read!)
-└─ Need structure info only → \`sheets_analyze.scout\` (no data, just metadata)
+├─ Need structure info only → \`sheets_analyze.scout\` (no data, just metadata)
+└─ Need data from multiple spreadsheets → \`sheets_data.cross_read\` / \`cross_query\`
 
 **Writing data?**
 ├─ Update existing cells → \`sheets_data.write\`
@@ -451,13 +452,57 @@ Benefits:
 **Checking dependencies before changes?**
 ├─ Impact analysis → \`sheets_dependencies analyze_impact\` (what breaks if I change this?)
 ├─ Formula graph → \`sheets_dependencies build\` (see all formula relationships)
-└─ Circular refs → \`sheets_dependencies detect_cycles\`
+├─ Circular refs → \`sheets_dependencies detect_cycles\`
+└─ What-if analysis → \`sheets_dependencies model_scenario\` (revenue drops 20%? trace all cascading effects)
 
 **Undo or audit changes?**
 ├─ View recent operations → \`sheets_history list\`
 ├─ Undo last change → \`sheets_history undo\`
 ├─ Redo → \`sheets_history redo\`
-└─ Revert to specific point → \`sheets_history revert_to\`
+├─ Revert to specific point → \`sheets_history revert_to\`
+└─ When did data change? → \`sheets_history timeline\` (per-cell change history across sessions)
+
+**Cleaning data?**
+├─ Auto-detect & fix issues → \`sheets_fix.clean\` (preview first with mode:"preview")
+├─ Standardize formats → \`sheets_fix.standardize_formats\` (dates, currencies, phones)
+├─ Fill empty cells → \`sheets_fix.fill_missing\` (forward, backward, mean, median)
+├─ Find outliers → \`sheets_fix.detect_anomalies\`
+└─ Get AI recommendations → \`sheets_fix.suggest_cleaning\`
+
+**Creating a new spreadsheet from scratch?**
+├─ From a description → \`sheets_composite.generate_sheet\` ("Q1 budget tracker")
+├─ Preview first → \`sheets_composite.preview_generation\`
+├─ Save as template → \`sheets_composite.generate_template\`
+└─ Manual setup → \`sheets_composite.setup_sheet\`
+
+**Investigating changes over time?**
+├─ When did data change? → \`sheets_history.timeline\`
+├─ Compare two revisions → \`sheets_history.diff_revisions\`
+├─ Restore specific cells → \`sheets_history.restore_cells\` (surgical, not full revision)
+└─ Undo last operation → \`sheets_history.undo\`
+
+**What-if analysis?**
+├─ Model a scenario → \`sheets_dependencies.model_scenario\` (traces formula cascade)
+├─ Compare scenarios → \`sheets_dependencies.compare_scenarios\`
+└─ Materialize as sheet → \`sheets_dependencies.create_scenario_sheet\`
+
+**Want proactive suggestions?**
+├─ Get ranked suggestions → \`sheets_analyze.suggest_next_actions\`
+└─ Auto-apply safe improvements → \`sheets_analyze.auto_enhance\` (preview first)
+
+**Want to understand a sheet completely?**
+├─ Quick metadata → \`sheets_analyze.scout\` (1 call)
+├─ Deep audit → scout → \`sheets_analyze.comprehensive\` → \`sheets_analyze.suggest_next_actions\`
+├─ Formula health → \`sheets_analyze.analyze_formulas\` (includes upgrade opportunities)
+└─ Architecture review → comprehensive → analyze_formulas → \`sheets_dependencies.build\`
+
+**Want to upgrade legacy formulas?**
+└─ \`sheets_analyze.analyze_formulas\` → check upgradeOpportunities → \`sheets_analyze.generate_formula\` per upgrade → \`sheets_data.write\`
+
+**Building a dashboard?**
+├─ Get chart recommendations → \`sheets_visualize.suggest_chart\`
+├─ Create chart + sparklines → \`sheets_visualize.chart_create\` → \`sheets_format.sparkline_add\`
+└─ Full dashboard → scout → suggest_chart → chart_create → sparkline_add → apply_preset
 
 **5+ operations?**
 ├─ All formatting → \`sheets_format.batch_format\`
@@ -515,6 +560,36 @@ Never leave debug strings (e.g., "test123", task markers, "temp") in production 
 **Automation workflow:**
 \`sheets_appsscript create\` → \`sheets_appsscript deploy\` → \`sheets_webhook register\`
 
+**Data cleaning workflow:**
+\`sheets_fix suggest_cleaning\` → \`sheets_fix clean mode:"preview"\` → \`sheets_fix clean mode:"apply"\`
+
+**Scenario analysis workflow:**
+\`sheets_dependencies build\` → \`sheets_dependencies model_scenario\` → \`sheets_dependencies create_scenario_sheet\`
+
+**Time-travel investigation:**
+\`sheets_history timeline\` → \`sheets_history diff_revisions\` → \`sheets_history restore_cells\`
+
+**AI sheet generation:**
+\`sheets_composite preview_generation\` → \`sheets_composite generate_sheet\` → \`sheets_analyze suggest_next_actions\`
+
+**Full sheet audit:**
+\`sheets_analyze scout\` → \`sheets_analyze comprehensive\` → \`sheets_analyze suggest_next_actions\` → review + apply top suggestions
+
+**Formula modernization:**
+\`sheets_analyze analyze_formulas\` → check upgradeOpportunities in response → \`sheets_analyze generate_formula\` per upgrade → \`sheets_data write\`
+
+**Professional dashboard:**
+\`sheets_analyze scout\` → \`sheets_visualize suggest_chart\` → \`sheets_visualize chart_create\` → \`sheets_format sparkline_add\` → \`sheets_format apply_preset\`
+
+**Data relationship mapping:**
+\`sheets_dependencies build\` → \`sheets_dependencies get_dependencies\` → \`sheets_analyze analyze_formulas\` → \`sheets_analyze detect_patterns\`
+
+**Sheet architecture review:**
+\`sheets_analyze comprehensive\` → \`sheets_composite setup_sheet\` → \`sheets_advanced add_protected_range\` → \`sheets_composite clone_structure\`
+
+**Cross-sheet analysis:**
+\`sheets_data cross_read\` → \`sheets_analyze comprehensive\` → \`sheets_data cross_compare\` → \`sheets_analyze suggest_next_actions\`
+
 ## ❌ ANTI-PATTERNS (What NOT to Do)
 
 - Don't use transactions for single operations — overhead exceeds benefit for <5 ops
@@ -531,6 +606,16 @@ Quick formula tips for common spreadsheet tasks:
 - Dynamic ranges: Use OFFSET+COUNTA or structured table references
 - Error handling: IFERROR wraps, ISBLANK for empty checks
 - Use \`sheets_analyze generate_formula\` to build complex formulas from natural language
+- Use \`sheets_analyze analyze_formulas\` to detect formula upgrade opportunities (VLOOKUP→XLOOKUP, nested IF→IFS, etc.)
+
+## ⚠️ GOOGLE SHEETS API LIMITATIONS
+
+These operations are NOT possible or limited via the REST API v4:
+- **Data bars**: Conditional formatting only supports BooleanRule and GradientRule. Use \`=SPARKLINE(data, {"charttype","bar"})\` formulas instead.
+- **Print setup**: Page orientation, margins, headers/footers require Apps Script (PageSetup). Use \`sheets_appsscript\` to configure.
+- **LAMBDA**: Not available on Frontline, Nonprofits, or legacy G Suite tiers. Use named ranges with regular formulas as fallback.
+- **XLOOKUP**: Lookup range must be a single row or single column. For matrix lookups, use INDEX/MATCH.
+- **Revision content export**: Google Drive API returns metadata for Workspace files, not cell-level historical content. Use \`sheets_history.timeline\` for per-cell change tracking.
 
 ## 🤝 COLLABORATIVE WORKFLOW
 
@@ -583,6 +668,7 @@ All colors use **0-1 scale** (NOT 0-255):
 
 - Read \`servalsheets://index\` to discover all available resources and their URIs
 - Read \`schema://tools/{name}\` before calling tools with complex parameters
+- Read \`sheets:///{spreadsheetId}/context\` for full structural metadata (sheets, charts, named ranges, protection, filters — 1 API call, no cell data)
 - Search \`knowledge:///search?q={query}\` for domain-specific guidance (formulas, API limits, templates)
 - Read \`servalsheets://guides/{topic}\` for optimization guides (quota, batching, caching, error recovery)
 

@@ -59,6 +59,7 @@ export const FULL_ACCESS_SCOPES = [
   'https://www.googleapis.com/auth/script.deployments',
   'https://www.googleapis.com/auth/script.processes',
   'https://www.googleapis.com/auth/script.external_request',
+  'https://www.googleapis.com/auth/script.metrics',
 ] as const;
 
 /**

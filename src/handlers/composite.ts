@@ -45,16 +45,22 @@ import type {
   CompositeGenerateSheetInput,
   CompositeGenerateTemplateInput,
   CompositePreviewGenerationInput,
+  // P14-C1 Composite Workflow types
+  CompositeAuditSheetInput,
+  CompositePublishReportInput,
+  CompositeDataPipelineInput,
+  CompositeInstantiateTemplateInput,
+  CompositeMigrateSpreadsheetInput,
+  PipelineStep,
+  ColumnMapping,
 } from '../schemas/composite.js';
-import {
-  generateDefinition,
-  executeDefinition,
-} from '../services/sheet-generator.js';
+import { generateDefinition, executeDefinition } from '../services/sheet-generator.js';
 import { readDataInChunks, formatBytes } from '../utils/streaming-export.js';
 import type { Intent } from '../core/intent.js';
 import { getRequestLogger, sendProgress } from '../utils/request-context.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import { getEnv } from '../config/env.js';
+import { withTimeout } from '../utils/timeout.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { ScopeValidator, IncrementalScopeRequiredError } from '../security/incremental-scope.js';
 
@@ -182,13 +188,29 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         case 'preview_generation':
           response = await this.handlePreviewGeneration(req as CompositePreviewGenerationInput);
           break;
+        // P14-C1 Composite Workflow actions (5)
+        case 'audit_sheet':
+          response = await this.handleAuditSheet(req as CompositeAuditSheetInput);
+          break;
+        case 'publish_report':
+          response = await this.handlePublishReport(req as CompositePublishReportInput);
+          break;
+        case 'data_pipeline':
+          response = await this.handleDataPipeline(req as CompositeDataPipelineInput);
+          break;
+        case 'instantiate_template':
+          response = await this.handleInstantiateTemplate(req as CompositeInstantiateTemplateInput);
+          break;
+        case 'migrate_spreadsheet':
+          response = await this.handleMigrateSpreadsheet(req as CompositeMigrateSpreadsheetInput);
+          break;
         default: {
           // Exhaustive check - TypeScript ensures this is unreachable
           const _exhaustiveCheck: never = req;
           throw new ValidationError(
             `Unknown action: ${(req as { action: string }).action}`,
             'action',
-            'import_csv | smart_append | bulk_update | deduplicate | export_xlsx | import_xlsx | get_form_responses | setup_sheet | import_and_format | clone_structure | export_large_dataset | generate_sheet | generate_template | preview_generation'
+            'import_csv | smart_append | bulk_update | deduplicate | export_xlsx | import_xlsx | get_form_responses | setup_sheet | import_and_format | clone_structure | export_large_dataset | generate_sheet | generate_template | preview_generation | audit_sheet | publish_report | data_pipeline | instantiate_template | migrate_spreadsheet'
           );
         }
       }
@@ -239,22 +261,26 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       await sendProgress(0, 2, 'Starting CSV import...');
     }
 
-    const result: CsvImportResult = await this.compositeService.importCsv({
-      spreadsheetId: input.spreadsheetId,
-      sheet:
-        input.sheet !== undefined
-          ? typeof input.sheet === 'string'
-            ? input.sheet
-            : input.sheet
-          : undefined,
-      csvData: input.csvData,
-      delimiter: input.delimiter,
-      hasHeader: input.hasHeader,
-      mode: input.mode,
-      newSheetName: input.newSheetName,
-      skipEmptyRows: input.skipEmptyRows,
-      trimValues: input.trimValues,
-    });
+    const result: CsvImportResult = await withTimeout(
+      () => this.compositeService.importCsv({
+        spreadsheetId: input.spreadsheetId,
+        sheet:
+          input.sheet !== undefined
+            ? typeof input.sheet === 'string'
+              ? input.sheet
+              : input.sheet
+            : undefined,
+        csvData: input.csvData,
+        delimiter: input.delimiter,
+        hasHeader: input.hasHeader,
+        mode: input.mode,
+        newSheetName: input.newSheetName,
+        skipEmptyRows: input.skipEmptyRows,
+        trimValues: input.trimValues,
+      }),
+      env.COMPOSITE_TIMEOUT_MS,
+      'import_csv'
+    );
 
     const cellsAffected = result.rowsImported * result.columnsImported;
 
@@ -621,20 +647,25 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
     // Decode base64 content
     const buffer = Buffer.from(input.fileContent, 'base64');
+    const env = getEnv();
 
     // Create new spreadsheet by uploading XLSX with conversion
-    const response = await this.driveApi.files.create({
-      requestBody: {
-        name: input.title ?? 'Imported Spreadsheet',
-        mimeType: 'application/vnd.google-apps.spreadsheet',
-      },
-      media: {
-        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        body: Readable.from(buffer),
-      },
-      fields: 'id,name',
-      supportsAllDrives: true,
-    });
+    const response = await withTimeout(
+      () => this.driveApi!.files.create({
+        requestBody: {
+          name: input.title ?? 'Imported Spreadsheet',
+          mimeType: 'application/vnd.google-apps.spreadsheet',
+        },
+        media: {
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          body: Readable.from(buffer),
+        },
+        fields: 'id,name',
+        supportsAllDrives: true,
+      }),
+      env.COMPOSITE_TIMEOUT_MS,
+      'import_xlsx'
+    );
 
     const spreadsheetId = response.data.id!;
 
@@ -1230,6 +1261,29 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         streamed: result.streamed,
       });
 
+      // MCP SEP-1686: Create task entry for long-running large dataset export
+      let exportTaskId: string | undefined;
+      if (this.context.taskStore) {
+        const task = await this.context.taskStore.createTask(
+          { ttl: 3600000 }, // 1 hour TTL
+          'composite-export-large',
+          {
+            method: 'tools/call',
+            params: { name: 'sheets_composite', arguments: input },
+          }
+        );
+        exportTaskId = task.taskId;
+        await this.context.taskStore.updateTaskStatus(
+          exportTaskId,
+          'completed',
+          `Exported ${result.stats.totalRows} rows`
+        );
+        logger.info('Task created for export_large_dataset', {
+          taskId: exportTaskId,
+          spreadsheetId: input.spreadsheetId,
+        });
+      }
+
       return {
         success: true as const,
         action: 'export_large_dataset' as const,
@@ -1242,6 +1296,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         durationMs: result.stats.durationMs,
         streamed: result.streamed,
         data: formattedData,
+        ...(exportTaskId !== undefined ? { taskId: exportTaskId } : {}),
         _meta: this.generateMeta(
           'export_large_dataset',
           input as unknown as Record<string, unknown>,
@@ -1266,9 +1321,14 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     input: CompositeGenerateSheetInput
   ): Promise<CompositeOutput['response']> {
     const logger = getRequestLogger();
-    logger.info('Generating sheet from description', { description: input.description.slice(0, 80) });
+    logger.info('Generating sheet from description', {
+      description: input.description.slice(0, 80),
+    });
 
     await sendProgress(0, 3, 'Designing spreadsheet structure...');
+    if (this.context.abortSignal?.aborted) {
+      throw new Error('Operation cancelled by client');
+    }
 
     const definition = await generateDefinition(
       input.description,
@@ -1298,12 +1358,11 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     }
 
     await sendProgress(1, 3, 'Creating spreadsheet...');
+    if (this.context.abortSignal?.aborted) {
+      throw new Error('Operation cancelled by client');
+    }
 
-    const result = await executeDefinition(
-      this.sheetsApi,
-      definition,
-      input.spreadsheetId
-    );
+    const result = await executeDefinition(this.sheetsApi, definition, input.spreadsheetId);
 
     await sendProgress(3, 3, 'Complete');
 
@@ -1318,7 +1377,9 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     input: CompositeGenerateTemplateInput
   ): Promise<CompositeOutput['response']> {
     const logger = getRequestLogger();
-    logger.info('Generating template from description', { description: input.description.slice(0, 80) });
+    logger.info('Generating template from description', {
+      description: input.description.slice(0, 80),
+    });
 
     const definition = await generateDefinition(
       input.description,
@@ -1361,6 +1422,651 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     };
   }
 
+  // ============================================================================
+  // P14-C1: New Composite Workflow Handlers (5 actions)
+  // ============================================================================
+
+  /**
+   * audit_sheet — Generate a comprehensive audit report for a spreadsheet.
+   * Counts formulas, blanks, detects empty headers and mixed-type columns.
+   */
+  private async handleAuditSheet(
+    input: CompositeAuditSheetInput
+  ): Promise<CompositeOutput['response']> {
+    const logger = getRequestLogger();
+    logger.info('Starting sheet audit', { spreadsheetId: input.spreadsheetId });
+
+    // 1. Fetch sheet list
+    const spreadsheetInfo = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      fields: 'sheets.properties(sheetId,title)',
+    });
+
+    const allSheets = spreadsheetInfo.data.sheets ?? [];
+    const sheetsToAudit = input.sheetName
+      ? allSheets.filter((s) => s.properties?.title === input.sheetName)
+      : allSheets;
+
+    let totalCells = 0;
+    let formulaCells = 0;
+    let blankCells = 0;
+    let dataCells = 0;
+    const issues: Array<{ type: string; location: string; message: string }> = [];
+
+    for (const sheet of sheetsToAudit) {
+      const sheetTitle = sheet.properties?.title ?? 'Sheet';
+
+      // 2. Fetch grid data for the sheet
+      const valuesResponse = await this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId: input.spreadsheetId,
+        range: sheetTitle,
+        valueRenderOption: 'FORMULA',
+      });
+
+      const rows = valuesResponse.data.values ?? [];
+      if (rows.length === 0) continue;
+
+      // 3. Analyze header row for empty headers
+      const headers = (rows[0] as unknown[]).map((h) => String(h ?? ''));
+      headers.forEach((header, colIdx) => {
+        if (header.trim() === '') {
+          const colLetter = String.fromCharCode(65 + colIdx);
+          issues.push({
+            type: 'empty_header',
+            location: `${sheetTitle}!${colLetter}1`,
+            message: `Column ${colLetter} has an empty header`,
+          });
+        }
+      });
+
+      // 4. Analyze column types for mixed-type detection
+      const colTypes: Map<number, Set<string>> = new Map();
+
+      for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+        const row = rows[rowIdx] as unknown[];
+        for (let colIdx = 0; colIdx < row.length; colIdx++) {
+          const cellValue = row[colIdx];
+          const colLetter = String.fromCharCode(65 + colIdx);
+          const cellAddr = `${sheetTitle}!${colLetter}${rowIdx + 1}`;
+
+          totalCells++;
+
+          if (cellValue === null || cellValue === undefined || cellValue === '') {
+            blankCells++;
+          } else {
+            const strVal = String(cellValue);
+            if (input.includeFormulas !== false && strVal.startsWith('=')) {
+              formulaCells++;
+            } else {
+              dataCells++;
+            }
+
+            // Track column type diversity (skip header row)
+            if (rowIdx > 0) {
+              if (!colTypes.has(colIdx)) colTypes.set(colIdx, new Set());
+              const type = typeof cellValue === 'number' ? 'number' : 'string';
+              colTypes.get(colIdx)!.add(type);
+              if (colTypes.get(colIdx)!.size > 1) {
+                // Mixed types detected — report once per column
+                if (colTypes.get(colIdx)!.size === 2) {
+                  issues.push({
+                    type: 'mixed_types',
+                    location: `${sheetTitle}!${colLetter}:${colLetter}`,
+                    message: `Column "${headers[colIdx] ?? colLetter}" contains mixed data types (numbers and text)`,
+                  });
+                }
+              }
+            }
+          }
+
+          // Simple potential circular ref detection: formula referencing its own column's header
+          if (input.includeFormulas !== false && String(cellValue).startsWith('=') && rowIdx > 0) {
+            const formula = String(cellValue);
+            const colLetter2 = String.fromCharCode(65 + colIdx);
+            // If a formula in column X references the same row in column X (e.g., =A2 in A2)
+            const selfRefPattern = new RegExp(`${colLetter2}${rowIdx + 1}(?![0-9])`, 'i');
+            if (selfRefPattern.test(formula)) {
+              issues.push({
+                type: 'potential_circular_ref',
+                location: cellAddr,
+                message: `Formula at ${cellAddr} may reference itself: ${formula}`,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      success: true as const,
+      action: 'audit_sheet' as const,
+      audit: {
+        totalCells,
+        formulaCells,
+        blankCells,
+        dataCells, // non-blank, non-formula cells
+        sheetsAudited: sheetsToAudit.length,
+        issues,
+      },
+      _meta: this.generateMeta(
+        'audit_sheet',
+        input as unknown as Record<string, unknown>,
+        { totalCells, formulaCells, sheetsAudited: sheetsToAudit.length } as Record<
+          string,
+          unknown
+        >,
+        {}
+      ),
+    };
+  }
+
+  /**
+   * publish_report — Export a sheet/range as a formatted report (pdf, xlsx, csv).
+   */
+  private async handlePublishReport(
+    input: CompositePublishReportInput
+  ): Promise<CompositeOutput['response']> {
+    const logger = getRequestLogger();
+    logger.info('Publishing report', { spreadsheetId: input.spreadsheetId, format: input.format });
+
+    const generatedAt = new Date().toISOString();
+    const title = input.title ?? `Report ${generatedAt.slice(0, 10)}`;
+    const format = input.format ?? 'pdf';
+
+    if (format === 'csv') {
+      // Fetch values and convert to CSV
+      const valuesResponse = await this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId: input.spreadsheetId,
+        range: input.range ?? 'Sheet1',
+        valueRenderOption: 'UNFORMATTED_VALUE',
+      });
+
+      const rows = valuesResponse.data.values ?? [];
+      const csvContent = rows
+        .map((row) =>
+          (row as unknown[])
+            .map((cell) => {
+              const s = String(cell ?? '');
+              if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+                return `"${s.replace(/"/g, '""')}"`;
+              }
+              return s;
+            })
+            .join(',')
+        )
+        .join('\n');
+
+      return {
+        success: true as const,
+        action: 'publish_report' as const,
+        report: {
+          format: 'csv' as const,
+          title,
+          generatedAt,
+          content: csvContent,
+          sizeBytes: Buffer.byteLength(csvContent, 'utf8'),
+        },
+        _meta: this.generateMeta(
+          'publish_report',
+          input as unknown as Record<string, unknown>,
+          { format } as Record<string, unknown>,
+          {}
+        ),
+      };
+    }
+
+    // For xlsx and pdf: use Drive API
+    if (!this.driveApi) {
+      return {
+        success: false,
+        error: {
+          code: 'FEATURE_UNAVAILABLE',
+          message:
+            'Drive API not available for XLSX/PDF export. Ensure OAuth authentication is configured.',
+          retryable: false,
+        },
+      };
+    }
+
+    if (format === 'xlsx') {
+      const metaResponse = await this.driveApi.files.get({
+        fileId: input.spreadsheetId,
+        fields: 'name',
+        supportsAllDrives: true,
+      });
+      const exportResponse = await this.driveApi.files.export(
+        {
+          fileId: input.spreadsheetId,
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+        { responseType: 'arraybuffer' }
+      );
+      const buffer = Buffer.from(exportResponse.data as ArrayBuffer);
+      const base64Content = buffer.toString('base64');
+
+      return {
+        success: true as const,
+        action: 'publish_report' as const,
+        report: {
+          format: 'xlsx' as const,
+          title: title ?? (metaResponse.data.name as string | undefined),
+          generatedAt,
+          content: base64Content,
+          sizeBytes: buffer.length,
+        },
+        _meta: this.generateMeta(
+          'publish_report',
+          input as unknown as Record<string, unknown>,
+          { format } as Record<string, unknown>,
+          {}
+        ),
+      };
+    }
+
+    // PDF format
+    const exportResponse = await this.driveApi.files.export(
+      {
+        fileId: input.spreadsheetId,
+        mimeType: 'application/pdf',
+      },
+      { responseType: 'arraybuffer' }
+    );
+    const buffer = Buffer.from(exportResponse.data as ArrayBuffer);
+    const base64Content = buffer.toString('base64');
+
+    return {
+      success: true as const,
+      action: 'publish_report' as const,
+      report: {
+        format: 'pdf' as const,
+        title,
+        generatedAt,
+        content: base64Content,
+        sizeBytes: buffer.length,
+      },
+      _meta: this.generateMeta(
+        'publish_report',
+        input as unknown as Record<string, unknown>,
+        { format } as Record<string, unknown>,
+        {}
+      ),
+    };
+  }
+
+  /**
+   * data_pipeline — Execute a sequence of data transformation steps on a range.
+   * Supports filter, sort, deduplicate, transform, aggregate steps.
+   */
+  private async handleDataPipeline(
+    input: CompositeDataPipelineInput
+  ): Promise<CompositeOutput['response']> {
+    const logger = getRequestLogger();
+    logger.info('Running data pipeline', {
+      spreadsheetId: input.spreadsheetId,
+      steps: input.steps.length,
+    });
+
+    // 1. Fetch source data
+    const valuesResponse = await this.sheetsApi.spreadsheets.values.get({
+      spreadsheetId: input.spreadsheetId,
+      range: input.sourceRange,
+      valueRenderOption: 'UNFORMATTED_VALUE',
+    });
+
+    const rawRows = valuesResponse.data.values ?? [];
+    if (rawRows.length === 0) {
+      return {
+        success: true as const,
+        action: 'data_pipeline' as const,
+        pipeline: { stepsExecuted: 0, rowsIn: 0, rowsOut: 0, preview: [] },
+      };
+    }
+
+    const headers = (rawRows[0] as unknown[]).map((h) => String(h ?? ''));
+    let dataRows: unknown[][] = (rawRows.slice(1) as unknown[][]).map((r) =>
+      headers.map((_, i) => r[i] ?? null)
+    );
+    const rowsIn = dataRows.length;
+
+    // 2. Execute each step
+    let stepsExecuted = 0;
+    for (const step of input.steps) {
+      dataRows = this.applyPipelineStep(dataRows, headers, step);
+      stepsExecuted++;
+    }
+
+    // 3. Build output (header + data rows)
+    const outputRows: unknown[][] = [headers, ...dataRows];
+    const preview = outputRows.slice(0, 5);
+
+    // 4. Write if outputRange and not dryRun
+    if (input.outputRange && !input.dryRun) {
+      await this.sheetsApi.spreadsheets.values.update({
+        spreadsheetId: input.spreadsheetId,
+        range: input.outputRange,
+        valueInputOption: 'RAW',
+        requestBody: { values: outputRows as unknown[][] },
+      });
+    }
+
+    return {
+      success: true as const,
+      action: 'data_pipeline' as const,
+      pipeline: {
+        stepsExecuted,
+        rowsIn,
+        rowsOut: dataRows.length,
+        preview,
+      },
+      _meta: this.generateMeta(
+        'data_pipeline',
+        input as unknown as Record<string, unknown>,
+        { rowsIn, rowsOut: dataRows.length, stepsExecuted } as Record<string, unknown>,
+        {}
+      ),
+    };
+  }
+
+  /**
+   * Apply a single pipeline transformation step to data rows.
+   * @param rows - Current data rows (no header)
+   * @param headers - Column header names
+   * @param step - Transformation step
+   */
+  private applyPipelineStep(rows: unknown[][], headers: string[], step: PipelineStep): unknown[][] {
+    const config = step.config as Record<string, unknown>;
+    const colIdx = (colName: string): number => {
+      const idx = headers.indexOf(String(colName));
+      return idx >= 0 ? idx : parseInt(String(colName), 10);
+    };
+
+    switch (step.type) {
+      case 'filter': {
+        const col = colIdx(String(config['column'] ?? ''));
+        const value = config['value'];
+        const operator = String(config['operator'] ?? 'equals');
+        return rows.filter((row) => {
+          const cell = row[col];
+          if (operator === 'contains') return String(cell ?? '').includes(String(value ?? ''));
+          return String(cell ?? '') === String(value ?? '');
+        });
+      }
+      case 'sort': {
+        const col = colIdx(String(config['column'] ?? ''));
+        const order = String(config['order'] ?? 'asc');
+        return [...rows].sort((a, b) => {
+          const av = a[col];
+          const bv = b[col];
+          const aNum = Number(av);
+          const bNum = Number(bv);
+          const aVal = isNaN(aNum) ? String(av ?? '') : aNum;
+          const bVal = isNaN(bNum) ? String(bv ?? '') : bNum;
+          if (aVal < bVal) return order === 'asc' ? -1 : 1;
+          if (aVal > bVal) return order === 'asc' ? 1 : -1;
+          return 0;
+        });
+      }
+      case 'deduplicate': {
+        const rawCols = config['columns'];
+        const cols = Array.isArray(rawCols)
+          ? (rawCols as unknown[]).map((c) => colIdx(String(c)))
+          : [colIdx(String(config['column'] ?? ''))];
+        const seen = new Set<string>();
+        return rows.filter((row) => {
+          const key = cols.map((c) => String(row[c] ?? '')).join('\x00');
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      }
+      case 'transform': {
+        const col = colIdx(String(config['column'] ?? ''));
+        const formulaTemplate = String(config['formula'] ?? '');
+        return rows.map((row) => {
+          const newRow = [...row];
+          const currentValue: unknown = row[col];
+          let result = formulaTemplate;
+          headers.forEach((header, i) => {
+            result = result.replace(new RegExp(`\\{${header}\\}`, 'g'), String(row[i] ?? ''));
+          });
+          newRow[col] = result !== formulaTemplate ? result : currentValue;
+          return newRow;
+        });
+      }
+      case 'aggregate': {
+        const groupByCol = colIdx(String(config['groupBy'] ?? ''));
+        const aggCol = colIdx(String(config['column'] ?? ''));
+        const aggregation = String(config['aggregation'] ?? 'sum');
+        const groups = new Map<string, number[]>();
+        for (const row of rows) {
+          const key = String(row[groupByCol] ?? '');
+          if (!groups.has(key)) groups.set(key, []);
+          const num = Number(row[aggCol] ?? 0);
+          if (!isNaN(num)) groups.get(key)!.push(num);
+        }
+        return Array.from(groups.entries()).map(([groupKey, values]) => {
+          const newRow: unknown[] = headers.map(() => null);
+          newRow[groupByCol] = groupKey;
+          if (aggregation === 'sum') newRow[aggCol] = values.reduce((a, b) => a + b, 0);
+          else if (aggregation === 'count') newRow[aggCol] = values.length;
+          else if (aggregation === 'avg')
+            newRow[aggCol] =
+              values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+          else if (aggregation === 'min') newRow[aggCol] = Math.min(...values);
+          else if (aggregation === 'max') newRow[aggCol] = Math.max(...values);
+          return newRow;
+        });
+      }
+      default:
+        return rows;
+    }
+  }
+
+  /**
+   * instantiate_template — Fetch a template spreadsheet and substitute {{variable}} placeholders.
+   */
+  private async handleInstantiateTemplate(
+    input: CompositeInstantiateTemplateInput
+  ): Promise<CompositeOutput['response']> {
+    const logger = getRequestLogger();
+    logger.info('Instantiating template', { templateId: input.templateId });
+
+    // 1. Load template content
+    const templateSheetInfo = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.templateId,
+      fields: 'sheets.properties(sheetId,title)',
+    });
+
+    const templateSheets = templateSheetInfo.data.sheets ?? [];
+    const firstSheet = templateSheets[0];
+    const templateSheetName = firstSheet?.properties?.title ?? 'Sheet1';
+
+    const valuesResponse = await this.sheetsApi.spreadsheets.values.get({
+      spreadsheetId: input.templateId,
+      range: input.targetSheetName ?? templateSheetName,
+      valueRenderOption: 'UNFORMATTED_VALUE',
+    });
+
+    const templateRows = valuesResponse.data.values ?? [];
+
+    // 2. Substitute {{variable}} placeholders
+    let substitutionsApplied = 0;
+    const substitutedRows = templateRows.map((row) =>
+      (row as unknown[]).map((cell) => {
+        if (typeof cell !== 'string') return cell;
+        let result = cell;
+        for (const [varName, varValue] of Object.entries(input.variables)) {
+          const pattern = new RegExp(`\\{\\{${varName}\\}\\}`, 'g');
+          const prev = result;
+          result = result.replace(pattern, varValue);
+          if (result !== prev) substitutionsApplied++;
+        }
+        return result;
+      })
+    );
+
+    // 3. Determine target spreadsheet
+    let targetSpreadsheetId = input.targetSpreadsheetId;
+    let targetSheetName = input.targetSheetName ?? templateSheetName;
+
+    if (!targetSpreadsheetId) {
+      // Create a new spreadsheet
+      const createResponse = await this.sheetsApi.spreadsheets.create({
+        requestBody: {
+          properties: { title: `${templateSheetName} (Instance)` },
+          sheets: [{ properties: { title: targetSheetName } }],
+        },
+      });
+      targetSpreadsheetId = createResponse.data.spreadsheetId!;
+    }
+
+    // 4. Write substituted data
+    const cellsUpdated = substitutedRows.reduce((sum, row) => sum + row.length, 0);
+    await this.sheetsApi.spreadsheets.values.update({
+      spreadsheetId: targetSpreadsheetId,
+      range: `'${targetSheetName}'!A1`,
+      valueInputOption: 'RAW',
+      requestBody: { values: substitutedRows as unknown[][] },
+    });
+
+    return {
+      success: true as const,
+      action: 'instantiate_template' as const,
+      instantiation: {
+        spreadsheetId: targetSpreadsheetId,
+        sheetName: targetSheetName,
+        substitutionsApplied,
+        cellsUpdated,
+      },
+      _meta: this.generateMeta(
+        'instantiate_template',
+        input as unknown as Record<string, unknown>,
+        { substitutionsApplied, cellsUpdated } as Record<string, unknown>,
+        {}
+      ),
+    };
+  }
+
+  /**
+   * migrate_spreadsheet — Migrate data from one spreadsheet to another with column mapping.
+   */
+  private async handleMigrateSpreadsheet(
+    input: CompositeMigrateSpreadsheetInput
+  ): Promise<CompositeOutput['response']> {
+    const logger = getRequestLogger();
+    logger.info('Migrating spreadsheet', {
+      source: input.sourceSpreadsheetId,
+      destination: input.destinationSpreadsheetId,
+    });
+
+    // 1. Fetch source data (with headers)
+    const valuesResponse = await this.sheetsApi.spreadsheets.values.get({
+      spreadsheetId: input.sourceSpreadsheetId,
+      range: input.sourceRange,
+      valueRenderOption: 'UNFORMATTED_VALUE',
+    });
+
+    const rawRows = valuesResponse.data.values ?? [];
+    if (rawRows.length === 0) {
+      return {
+        success: true as const,
+        action: 'migrate_spreadsheet' as const,
+        migration: {
+          rowsMigrated: 0,
+          columnsMapped: input.columnMapping.length,
+          destinationRange: input.destinationRange,
+          preview: [],
+        },
+      };
+    }
+
+    const sourceHeaders = (rawRows[0] as unknown[]).map((h) => String(h ?? ''));
+    const sourceDataRows = rawRows.slice(1) as unknown[][];
+
+    // 2. Build destination column resolver
+    const getSourceColIdx = (colName: string): number => {
+      const byName = sourceHeaders.indexOf(colName);
+      if (byName >= 0) return byName;
+      const byIndex = parseInt(colName, 10);
+      return isNaN(byIndex) ? -1 : byIndex;
+    };
+
+    // 3. Apply column mapping + transforms
+    const destHeaders = input.columnMapping.map((m) => m.destinationColumn);
+    const applyTransform = (value: unknown, transform: ColumnMapping['transform']): unknown => {
+      if (value === null || value === undefined || value === '') return value;
+      const s = String(value);
+      switch (transform) {
+        case 'uppercase':
+          return s.toUpperCase();
+        case 'lowercase':
+          return s.toLowerCase();
+        case 'number': {
+          const n = parseFloat(s);
+          return isNaN(n) ? value : n;
+        }
+        case 'date': {
+          const d = new Date(s);
+          return isNaN(d.getTime()) ? value : d.toISOString();
+        }
+        default:
+          return value;
+      }
+    };
+
+    const migratedRows = sourceDataRows.map((row) =>
+      input.columnMapping.map((mapping) => {
+        const srcIdx = getSourceColIdx(mapping.sourceColumn);
+        const rawValue = srcIdx >= 0 ? row[srcIdx] : null;
+        return applyTransform(rawValue, mapping.transform ?? 'none');
+      })
+    );
+
+    // 4. Build output (header row + data rows)
+    const outputRows: unknown[][] = [destHeaders, ...migratedRows];
+    const preview = migratedRows.slice(0, 3);
+
+    // 5. Write to destination if not dryRun
+    if (!input.dryRun) {
+      if (input.appendMode ?? true) {
+        await this.sheetsApi.spreadsheets.values.append({
+          spreadsheetId: input.destinationSpreadsheetId,
+          range: input.destinationRange,
+          valueInputOption: 'RAW',
+          insertDataOption: 'INSERT_ROWS',
+          requestBody: { values: migratedRows as unknown[][] },
+        });
+      } else {
+        await this.sheetsApi.spreadsheets.values.update({
+          spreadsheetId: input.destinationSpreadsheetId,
+          range: input.destinationRange,
+          valueInputOption: 'RAW',
+          requestBody: { values: outputRows as unknown[][] },
+        });
+      }
+    }
+
+    return {
+      success: true as const,
+      action: 'migrate_spreadsheet' as const,
+      migration: {
+        rowsMigrated: migratedRows.length,
+        columnsMapped: input.columnMapping.length,
+        destinationRange: input.destinationRange,
+        preview,
+      },
+      _meta: this.generateMeta(
+        'migrate_spreadsheet',
+        input as unknown as Record<string, unknown>,
+        { rowsMigrated: migratedRows.length, columnsMapped: input.columnMapping.length } as Record<
+          string,
+          unknown
+        >,
+        { cellsAffected: migratedRows.length * input.columnMapping.length }
+      ),
+    };
+  }
+
   private async handlePreviewGeneration(
     input: CompositePreviewGenerationInput
   ): Promise<CompositeOutput['response']> {
@@ -1381,7 +2087,8 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       0
     );
     const estimatedFormulas = definition.sheets.reduce(
-      (sum, s) => sum + s.columns.filter((c) => c.formula).length * Math.max(s.rows?.length ?? 0, 10),
+      (sum, s) =>
+        sum + s.columns.filter((c) => c.formula).length * Math.max(s.rows?.length ?? 0, 10),
       0
     );
 

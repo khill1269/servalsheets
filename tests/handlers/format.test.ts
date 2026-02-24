@@ -1226,50 +1226,39 @@ describe('FormatHandler', () => {
 
   describe('list_data_validations action', () => {
     it('should list data validations in a range', async () => {
-      // First call: sheet metadata (size check)
-      mockApi.spreadsheets.get
-        .mockResolvedValueOnce({
-          data: {
-            sheets: [
-              {
-                properties: {
-                  sheetId: 0,
-                  gridProperties: { rowCount: 100, columnCount: 10 },
-                },
+      // Single call: sheet metadata (size check) + grid data with validations combined
+      mockApi.spreadsheets.get.mockResolvedValueOnce({
+        data: {
+          sheets: [
+            {
+              properties: {
+                sheetId: 0,
+                gridProperties: { rowCount: 100, columnCount: 10 },
               },
-            ],
-          },
-        })
-        // Second call: grid data with validations
-        .mockResolvedValueOnce({
-          data: {
-            sheets: [
-              {
-                properties: { sheetId: 0 },
-                data: [
-                  {
-                    startRow: 0,
-                    startColumn: 0,
-                    rowData: [
-                      {
-                        values: [
-                          {
-                            dataValidation: {
-                              condition: {
-                                type: 'ONE_OF_LIST',
-                                values: [{ userEnteredValue: 'Yes' }, { userEnteredValue: 'No' }],
-                              },
+              data: [
+                {
+                  startRow: 0,
+                  startColumn: 0,
+                  rowData: [
+                    {
+                      values: [
+                        {
+                          dataValidation: {
+                            condition: {
+                              type: 'ONE_OF_LIST',
+                              values: [{ userEnteredValue: 'Yes' }, { userEnteredValue: 'No' }],
                             },
                           },
-                        ],
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
-          },
-        });
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
 
       const result = await handler.handle({
         action: 'list_data_validations',

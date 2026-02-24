@@ -220,13 +220,15 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         case 'delete_scheduled_query':
           response = await this.handleDeleteScheduledQuery(req);
           break;
-        default:
+        default: {
+          const _exhaustiveCheck: never = req;
           response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(req as { action: string }).action}`,
+            message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
+        }
       }
 
       // 5. Track context after successful operation
@@ -1362,8 +1364,33 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       }
 
       // Streaming inserts don't produce a BigQuery job — no jobId to return
+
+      // MCP SEP-1686: Create task entry for long-running export operation
+      let taskId: string | undefined;
+      if (this.context.taskStore) {
+        const task = await this.context.taskStore.createTask(
+          { ttl: 3600000 }, // 1 hour TTL
+          'bigquery-export',
+          {
+            method: 'tools/call',
+            params: { name: 'sheets_bigquery', arguments: req },
+          }
+        );
+        taskId = task.taskId;
+        await this.context.taskStore.updateTaskStatus(
+          taskId,
+          'completed',
+          `Exported ${successfulRows} rows to BigQuery`
+        );
+        logger.info('Task created for export_to_bigquery', {
+          taskId,
+          spreadsheetId: req.spreadsheetId,
+        });
+      }
+
       return this.success('export_to_bigquery', {
         rowCount: successfulRows,
+        ...(taskId !== undefined ? { taskId } : {}),
         mutation: {
           cellsAffected: totalRows,
           sheetsModified: [],
@@ -1462,6 +1489,29 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         rowCount: rows.length,
       });
 
+      // MCP SEP-1686: Create task entry for long-running import operation
+      let importTaskId: string | undefined;
+      if (this.context.taskStore) {
+        const task = await this.context.taskStore.createTask(
+          { ttl: 3600000 }, // 1 hour TTL
+          'bigquery-import',
+          {
+            method: 'tools/call',
+            params: { name: 'sheets_bigquery', arguments: req },
+          }
+        );
+        importTaskId = task.taskId;
+        await this.context.taskStore.updateTaskStatus(
+          importTaskId,
+          'completed',
+          `Imported ${rows.length} rows from BigQuery`
+        );
+        logger.info('Task created for import_from_bigquery', {
+          taskId: importTaskId,
+          spreadsheetId: req.spreadsheetId,
+        });
+      }
+
       return this.success('import_from_bigquery', {
         rowCount: rows.length,
         columns,
@@ -1470,6 +1520,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         bytesProcessed: queryResult.bytesProcessed,
         cacheHit: queryResult.cacheHit,
         jobId: queryResult.jobId,
+        ...(importTaskId !== undefined ? { taskId: importTaskId } : {}),
         mutation: {
           cellsAffected: values.length * (columns.length || 1),
           sheetsModified: [targetSheetName],
@@ -1545,11 +1596,28 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
+        const errorBody = await response.text();
+        logger.error('BigQuery Data Transfer API error', {
+          action: 'create_scheduled_query',
+          status: response.status,
+          body: errorBody.substring(0, 200),
+        });
+        const safeCode: 'PERMISSION_DENIED' | 'NOT_FOUND' | 'INVALID_PARAMS' | 'QUOTA_EXCEEDED' | 'INTERNAL_ERROR' =
+          response.status === 403 ? 'PERMISSION_DENIED' :
+          response.status === 404 ? 'NOT_FOUND' :
+          response.status === 400 ? 'INVALID_PARAMS' :
+          response.status === 429 ? 'QUOTA_EXCEEDED' :
+          'INTERNAL_ERROR';
+        const safeMessage =
+          response.status === 403 ? 'Permission denied. Check BigQuery Data Transfer API is enabled and OAuth scopes include bigquery.' :
+          response.status === 404 ? 'Resource not found. Verify project, location, and transferConfigName.' :
+          response.status === 400 ? 'Invalid request. Check scheduled query configuration and parameters.' :
+          response.status === 429 ? 'Rate limit exceeded. Please wait and retry.' :
+          `Scheduled query operation failed (HTTP ${response.status}). Check BigQuery console.`;
         return this.error({
-          code: 'INTERNAL_ERROR',
-          message: `Failed to create scheduled query: ${response.status} ${errorText}`,
-          retryable: response.status >= 500,
+          code: safeCode,
+          message: safeMessage,
+          retryable: response.status >= 500 || response.status === 429,
         });
       }
 
@@ -1603,11 +1671,28 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
+        const errorBody = await response.text();
+        logger.error('BigQuery Data Transfer API error', {
+          action: 'list_scheduled_queries',
+          status: response.status,
+          body: errorBody.substring(0, 200),
+        });
+        const safeCode: 'PERMISSION_DENIED' | 'NOT_FOUND' | 'INVALID_PARAMS' | 'QUOTA_EXCEEDED' | 'INTERNAL_ERROR' =
+          response.status === 403 ? 'PERMISSION_DENIED' :
+          response.status === 404 ? 'NOT_FOUND' :
+          response.status === 400 ? 'INVALID_PARAMS' :
+          response.status === 429 ? 'QUOTA_EXCEEDED' :
+          'INTERNAL_ERROR';
+        const safeMessage =
+          response.status === 403 ? 'Permission denied. Check BigQuery Data Transfer API is enabled and OAuth scopes include bigquery.' :
+          response.status === 404 ? 'Resource not found. Verify project, location, and transferConfigName.' :
+          response.status === 400 ? 'Invalid request. Check scheduled query configuration and parameters.' :
+          response.status === 429 ? 'Rate limit exceeded. Please wait and retry.' :
+          `Scheduled query operation failed (HTTP ${response.status}). Check BigQuery console.`;
         return this.error({
-          code: 'INTERNAL_ERROR',
-          message: `Failed to list scheduled queries: ${response.status} ${errorText}`,
-          retryable: response.status >= 500,
+          code: safeCode,
+          message: safeMessage,
+          retryable: response.status >= 500 || response.status === 429,
         });
       }
 
@@ -1653,7 +1738,17 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         });
       }
 
-      const url = `https://bigquerydatatransfer.googleapis.com/v1/${encodeURIComponent(transferConfigName)}`;
+      // SEC-1: Validate GCP resource path format to prevent BOLA attacks
+      const TRANSFER_CONFIG_PATTERN = /^projects\/[^\/]+\/locations\/[^\/]+\/transferConfigs\/[^\/]+$/;
+      if (!TRANSFER_CONFIG_PATTERN.test(transferConfigName)) {
+        return this.error({
+          code: 'INVALID_PARAMS',
+          message: 'transferConfigName must be in format: projects/{project}/locations/{location}/transferConfigs/{id}',
+          retryable: false,
+        });
+      }
+      // Use path directly (validated format); encodeURIComponent on full path breaks slash separators
+      const url = `https://bigquerydatatransfer.googleapis.com/v1/${transferConfigName}`;
 
       const response = await fetch(url, {
         method: 'DELETE',
@@ -1661,11 +1756,28 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
+        const errorBody = await response.text();
+        logger.error('BigQuery Data Transfer API error', {
+          action: 'delete_scheduled_query',
+          status: response.status,
+          body: errorBody.substring(0, 200),
+        });
+        const safeCode: 'PERMISSION_DENIED' | 'NOT_FOUND' | 'INVALID_PARAMS' | 'QUOTA_EXCEEDED' | 'INTERNAL_ERROR' =
+          response.status === 403 ? 'PERMISSION_DENIED' :
+          response.status === 404 ? 'NOT_FOUND' :
+          response.status === 400 ? 'INVALID_PARAMS' :
+          response.status === 429 ? 'QUOTA_EXCEEDED' :
+          'INTERNAL_ERROR';
+        const safeMessage =
+          response.status === 403 ? 'Permission denied. Check BigQuery Data Transfer API is enabled and OAuth scopes include bigquery.' :
+          response.status === 404 ? 'Resource not found. Verify project, location, and transferConfigName.' :
+          response.status === 400 ? 'Invalid request. Check scheduled query configuration and parameters.' :
+          response.status === 429 ? 'Rate limit exceeded. Please wait and retry.' :
+          `Scheduled query operation failed (HTTP ${response.status}). Check BigQuery console.`;
         return this.error({
-          code: 'INTERNAL_ERROR',
-          message: `Failed to delete scheduled query: ${response.status} ${errorText}`,
-          retryable: response.status >= 500,
+          code: safeCode,
+          message: safeMessage,
+          retryable: response.status >= 500 || response.status === 429,
         });
       }
 

@@ -28,10 +28,11 @@ vi.mock('../../src/services/capability-cache.js', async () => {
   };
 });
 
-// Mock session context (for rejection filtering)
+// Mock session context (for rejection filtering + background analysis boosting)
 vi.mock('../../src/services/session-context.js', () => ({
   getSessionContext: vi.fn().mockReturnValue({
     shouldAvoidSuggestion: vi.fn().mockResolvedValue(false),
+    getRecentAnalysis: vi.fn().mockReturnValue(undefined),
   }),
 }));
 

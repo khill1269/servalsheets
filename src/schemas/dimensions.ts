@@ -9,6 +9,7 @@ import {
   SheetIdSchema,
   DimensionSchema,
   RangeInputSchema,
+  A1NotationSchema,
   GridRangeSchema,
   SortOrderSchema,
   ConditionSchema,
@@ -73,15 +74,21 @@ const SortSpecSchema = z.object({
     .describe('Sort order for this column (default: ASCENDING)'),
   foregroundColor: ColorSchema.optional().describe('Sort by cells with this text color'),
   backgroundColor: ColorSchema.optional().describe('Sort by cells with this background color'),
+  foregroundColorStyle: z
+    .object({ rgbColor: ColorSchema })
+    .optional()
+    .describe('Sort by foreground color (ColorStyle variant, preferred over foregroundColor)'),
+  backgroundColorStyle: z
+    .object({ rgbColor: ColorSchema })
+    .optional()
+    .describe('Sort by background color (ColorStyle variant, preferred over backgroundColor)'),
 });
 
 const SlicerPositionSchema = z
   .object({
-    anchorCell: z
-      .string()
-      .describe(
-        'Cell anchor like "P1" or "AB5". Simple cell reference (NOT rowIndex/columnIndex object)'
-      ),
+    anchorCell: A1NotationSchema.describe(
+      'Cell anchor like "P1" or "AB5". Simple cell reference (NOT rowIndex/columnIndex object)'
+    ),
     offsetX: z.coerce.number().min(0, 'Offset X must be non-negative').optional().default(0),
     offsetY: z.coerce.number().min(0, 'Offset Y must be non-negative').optional().default(0),
     width: z.coerce.number().positive('Width must be positive').optional().default(200),
@@ -417,6 +424,18 @@ const ListFilterViewsActionSchema = z.object({
     .optional()
     .default('standard')
     .describe('Response detail level'),
+  cursor: z
+    .string()
+    .optional()
+    .describe('Pagination cursor from previous response (numeric offset encoded as string)'),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(500)
+    .optional()
+    .default(50)
+    .describe('Maximum number of filter views to return (default: 50, max: 500)'),
 });
 
 const GetFilterViewActionSchema = z.object({
@@ -451,6 +470,9 @@ Alternative: Consider sheets_dimensions.create_filter_view for more reliable fil
   position: SlicerPositionSchema.describe(
     'Slicer position. Use simple cell reference like "P1" or "AB5" for anchorCell'
   ),
+  filterCriteria: FilterCriteriaSchema.optional().describe(
+    'Filter criteria for the slicer (hiddenValues, condition, visibleBackgroundColor, visibleForegroundColor)'
+  ),
 });
 
 const UpdateSlicerActionSchema = z.object({
@@ -460,6 +482,9 @@ const UpdateSlicerActionSchema = z.object({
   slicerId: z.coerce.number().int().describe('Slicer ID'),
   title: z.string().optional().describe('New title for the slicer'),
   filterColumn: z.coerce.number().int().min(0).optional().describe('Filter column index'),
+  filterCriteria: FilterCriteriaSchema.optional().describe(
+    'Updated filter criteria for the slicer (hiddenValues, condition, visibleBackgroundColor, visibleForegroundColor)'
+  ),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])
     .optional()
@@ -712,6 +737,13 @@ const DimensionsResponseSchema = z.discriminatedUnion('success', [
       )
       .optional(),
     slicerId: z.coerce.number().int().optional(),
+    // Pagination fields (list_filter_views)
+    nextCursor: z
+      .string()
+      .optional()
+      .describe('Cursor for next page (pass as cursor in next request)'),
+    hasMore: z.boolean().optional().describe('True if more results are available'),
+    totalCount: z.coerce.number().int().optional().describe('Total number of filter views found'),
     // Range utility response fields
     cellsChanged: z
       .number()

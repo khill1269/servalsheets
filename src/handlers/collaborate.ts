@@ -368,13 +368,15 @@ export class CollaborateHandler extends BaseHandler<
           response = await this.handleApprovalCancel(inferredReq as CollaborateApprovalCancelInput);
           break;
 
-        default:
+        default: {
+          const _exhaustiveCheck: never = inferredReq.action;
           response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(inferredReq as { action: string }).action}`,
+            message: `Unknown action: ${String(_exhaustiveCheck)}`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
+        }
       }
 
       // Apply verbosity filtering (LLM optimization) - uses base handler implementation
@@ -600,12 +602,6 @@ export class CollaborateHandler extends BaseHandler<
   private async handleShareGetLink(
     input: CollaborateShareGetLinkInput
   ): Promise<CollaborateResponse> {
-    // Verify the spreadsheet exists before returning a URL
-    await this.sheetsApi!.spreadsheets.get({
-      spreadsheetId: input.spreadsheetId!,
-      fields: 'spreadsheetId',
-    });
-
     const baseUrl = `https://docs.google.com/spreadsheets/d/${input.spreadsheetId}`;
     const sharingLink = `${baseUrl}/edit?usp=sharing`;
     return this.success('share_get_link', { sharingLink });
@@ -626,7 +622,45 @@ export class CollaborateHandler extends BaseHandler<
         'id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor',
     });
 
-    return this.success('comment_add', { comment: this.mapComment(response.data) });
+    // If sampling is available, optionally suggest a reply
+    let aiSuggestedReply: string | null | undefined;
+    if (this.context.samplingServer) {
+      const commentContent = response.data.content ?? input.content ?? '';
+      if (commentContent.includes('?')) {
+        // Comment contains a question — ask sampling for a suggested reply
+        try {
+          const replyResult = await this.context.samplingServer.createMessage({
+            messages: [
+              {
+                role: 'user' as const,
+                content: {
+                  type: 'text' as const,
+                  text: `A collaborator left this comment on a spreadsheet: "${commentContent}"\nSuggest a concise, helpful reply in 1-2 sentences.`,
+                },
+              },
+            ],
+            maxTokens: 256,
+          });
+          const text = Array.isArray(replyResult.content)
+            ? ((replyResult.content.find((c) => c.type === 'text') as { text: string } | undefined)
+                ?.text ?? '')
+            : ((replyResult.content as { text?: string }).text ?? '');
+          aiSuggestedReply = text.trim();
+        } catch {
+          // Non-blocking: sampling failure should not block comment creation
+          aiSuggestedReply = null;
+        }
+      } else {
+        // Sampling available but no question detected
+        aiSuggestedReply = null;
+      }
+    }
+    // When samplingServer is absent, aiSuggestedReply remains undefined (field omitted)
+
+    return this.success('comment_add', {
+      comment: this.mapComment(response.data),
+      ...(aiSuggestedReply !== undefined ? { aiSuggestedReply } : {}),
+    });
   }
 
   private async handleCommentUpdate(

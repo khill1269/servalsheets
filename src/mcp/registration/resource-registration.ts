@@ -202,6 +202,92 @@ export function registerServalSheetsResources(
     }
   );
 
+  // Full context resource — structural metadata for LLM context injection
+  const contextTemplate = new ResourceTemplate('sheets:///{spreadsheetId}/context', {
+    list: undefined,
+    complete: {
+      spreadsheetId: async (value) => completeSpreadsheetId(value),
+    },
+  });
+
+  server.registerResource(
+    'spreadsheet_context',
+    contextTemplate,
+    {
+      title: 'Spreadsheet Full Context',
+      description:
+        'Complete spreadsheet structural metadata: sheets, charts, named ranges, protected ranges, conditional formats, filter views, slicers. Optimized field mask — no cell data.',
+      mimeType: 'application/json',
+    },
+    async (uri, variables) => {
+      const rawSpreadsheetId = variables['spreadsheetId'];
+      const spreadsheetId = Array.isArray(rawSpreadsheetId)
+        ? rawSpreadsheetId[0]
+        : rawSpreadsheetId;
+
+      if (!spreadsheetId || typeof spreadsheetId !== 'string') {
+        return { contents: [] };
+      }
+
+      if (!googleClient) {
+        throw createAuthRequiredError(uri.href);
+      }
+
+      try {
+        const response = await googleClient.sheets.spreadsheets.get({
+          spreadsheetId,
+          fields: [
+            'properties(title,locale,timeZone,defaultFormat)',
+            'sheets(properties,conditionalFormats,charts,protectedRanges,bandedRanges',
+            'filterViews,slicers,merges,basicFilter)',
+            'namedRanges',
+          ].join(','),
+        });
+
+        const data = response.data;
+        const context = {
+          spreadsheetId,
+          title: data.properties?.title,
+          locale: data.properties?.locale,
+          timeZone: data.properties?.timeZone,
+          sheets: (data.sheets || []).map((s) => ({
+            sheetId: s.properties?.sheetId,
+            title: s.properties?.title,
+            rowCount: s.properties?.gridProperties?.rowCount,
+            columnCount: s.properties?.gridProperties?.columnCount,
+            frozenRows: s.properties?.gridProperties?.frozenRowCount || 0,
+            frozenColumns: s.properties?.gridProperties?.frozenColumnCount || 0,
+            chartCount: s.charts?.length || 0,
+            conditionalFormatCount: s.conditionalFormats?.length || 0,
+            protectedRangeCount: s.protectedRanges?.length || 0,
+            filterViewCount: s.filterViews?.length || 0,
+            slicerCount: s.slicers?.length || 0,
+            mergeCount: s.merges?.length || 0,
+            hasBasicFilter: !!s.basicFilter,
+            bandedRangeCount: s.bandedRanges?.length || 0,
+          })),
+          namedRangeCount: data.namedRanges?.length || 0,
+          namedRanges: (data.namedRanges || []).map((nr) => ({
+            name: nr.name,
+            range: nr.range,
+          })),
+        };
+
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'application/json',
+              text: JSON.stringify(context, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        throw createResourceReadError(uri.href, error);
+      }
+    }
+  );
+
   // Register additional data exploration resources
   registerChartResources(server, googleClient?.sheets ?? null);
   registerPivotResources(server, googleClient?.sheets ?? null);

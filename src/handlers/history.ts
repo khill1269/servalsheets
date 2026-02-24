@@ -17,47 +17,37 @@ import type {
   HistoryRestoreCellsInput,
 } from '../schemas/history.js';
 import { unwrapRequest } from './base.js';
-import {
-  getTimeline,
-  diffRevisions,
-  restoreCells,
-} from '../services/revision-timeline.js';
+import { getTimeline, diffRevisions, restoreCells } from '../services/revision-timeline.js';
+import type { ElicitationServer } from '../mcp/elicitation.js';
+import type { SamplingServer } from '../mcp/sampling.js';
+import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
+import { mapStandaloneError } from './helpers/error-mapping.js';
+import { getSessionContext } from '../services/session-context.js';
 
 export interface HistoryHandlerOptions {
   snapshotService?: SnapshotService;
   driveApi?: drive_v3.Drive;
   sheetsApi?: sheets_v4.Sheets;
+  server?: ElicitationServer;
+  taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter;
+  samplingServer?: SamplingServer;
 }
 
 export class HistoryHandler {
   private snapshotService?: SnapshotService;
   private driveApi?: drive_v3.Drive;
   private sheetsApi?: sheets_v4.Sheets;
+  private server?: ElicitationServer;
+  private taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter;
+  private samplingServer?: SamplingServer;
 
   constructor(options: HistoryHandlerOptions = {}) {
     this.snapshotService = options.snapshotService;
     this.driveApi = options.driveApi;
     this.sheetsApi = options.sheetsApi;
-  }
-
-  /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
-   */
-  private applyVerbosityFilter(
-    response: HistoryResponse,
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): HistoryResponse {
-    if (!response.success || verbosity === 'standard') {
-      return response;
-    }
-
-    if (verbosity === 'minimal') {
-      // For minimal verbosity, strip _meta field
-      const { _meta, ...rest } = response as Record<string, unknown>;
-      return rest as HistoryResponse;
-    }
-
-    return response;
+    this.server = options.server;
+    this.taskStore = options.taskStore;
+    this.samplingServer = options.samplingServer;
   }
 
   async handle(input: SheetsHistoryInput): Promise<SheetsHistoryOutput> {
@@ -198,6 +188,30 @@ export class HistoryHandler {
             break;
           }
 
+          // Create safety snapshot before undoing
+          await this.snapshotService.create(req.spreadsheetId!, 'pre-undo backup');
+
+          // Confirm destructive action
+          if (this.server) {
+            const { confirmDestructiveAction } = await import('../mcp/elicitation.js');
+            const confirmation = await confirmDestructiveAction(
+              this.server,
+              'Undo last operation',
+              'Reverts the most recent change to this spreadsheet'
+            );
+            if (!confirmation.confirmed) {
+              response = {
+                success: false,
+                error: {
+                  code: 'OPERATION_CANCELLED',
+                  message: 'Undo cancelled by user',
+                  retryable: false,
+                },
+              };
+              break;
+            }
+          }
+
           try {
             // Restore from snapshot
             const restoredId = await this.snapshotService.restore(operation.snapshotId);
@@ -272,6 +286,30 @@ export class HistoryHandler {
             break;
           }
 
+          // Create safety snapshot before redoing
+          await this.snapshotService.create(req.spreadsheetId!, 'pre-redo backup');
+
+          // Confirm destructive action
+          if (this.server) {
+            const { confirmDestructiveAction } = await import('../mcp/elicitation.js');
+            const confirmation = await confirmDestructiveAction(
+              this.server,
+              'Redo last undone operation',
+              'Re-applies the previously undone change'
+            );
+            if (!confirmation.confirmed) {
+              response = {
+                success: false,
+                error: {
+                  code: 'OPERATION_CANCELLED',
+                  message: 'Redo cancelled by user',
+                  retryable: false,
+                },
+              };
+              break;
+            }
+          }
+
           try {
             // Restore from snapshot
             const restoredId = await this.snapshotService.restore(operation.snapshotId);
@@ -344,6 +382,30 @@ export class HistoryHandler {
             break;
           }
 
+          // Create safety snapshot before reverting
+          await this.snapshotService.create(operation.spreadsheetId!, 'pre-revert backup');
+
+          // Confirm destructive action
+          if (this.server) {
+            const { confirmDestructiveAction } = await import('../mcp/elicitation.js');
+            const confirmation = await confirmDestructiveAction(
+              this.server,
+              `Revert to revision ${req.operationId}`,
+              'All changes after this revision will be lost'
+            );
+            if (!confirmation.confirmed) {
+              response = {
+                success: false,
+                error: {
+                  code: 'OPERATION_CANCELLED',
+                  message: 'Revert cancelled by user',
+                  retryable: false,
+                },
+              };
+              break;
+            }
+          }
+
           try {
             // Restore from snapshot (state before this operation)
             const restoredId = await this.snapshotService.restore(operation.snapshotId);
@@ -397,7 +459,11 @@ export class HistoryHandler {
           if (!this.driveApi) {
             response = {
               success: false,
-              error: { code: 'INTERNAL_ERROR', message: 'Drive API not available for timeline', retryable: false },
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: 'Drive API not available for timeline',
+                retryable: false,
+              },
             };
             break;
           }
@@ -407,10 +473,57 @@ export class HistoryHandler {
             until: timelineReq.until,
             limit: timelineReq.limit,
           });
+
+          // Wire session context: cache timeline for quick follow-up diff_revisions
+          try {
+            const session = getSessionContext();
+            if (entries.length >= 2) {
+              const latestId = (entries[0] as { revisionId?: string }).revisionId;
+              const previousId = (entries[1] as { revisionId?: string }).revisionId;
+              if (latestId && previousId) {
+                session.setPendingOperation({
+                  type: 'timeline',
+                  step: 1,
+                  totalSteps: 2,
+                  context: {
+                    spreadsheetId: timelineReq.spreadsheetId,
+                    latestRevisionId: latestId,
+                    previousRevisionId: previousId,
+                    entryCount: entries.length,
+                    since: timelineReq.since,
+                    until: timelineReq.until,
+                  },
+                });
+              }
+            }
+          } catch {
+            /* non-blocking */
+          }
+
+          // MCP SEP-1686: Drive revision scanning is a long-running operation
+          let timelineTaskId: string | undefined;
+          if (this.taskStore) {
+            const task = await this.taskStore.createTask(
+              { ttl: 3600000 }, // 1 hour TTL
+              'history-timeline',
+              {
+                method: 'tools/call',
+                params: { name: 'sheets_history', arguments: req },
+              }
+            );
+            timelineTaskId = task.taskId;
+            await this.taskStore.updateTaskStatus(
+              timelineTaskId,
+              'completed',
+              `Retrieved ${entries.length} timeline entries`
+            );
+          }
+
           response = {
             success: true,
             action: 'timeline',
             timeline: entries,
+            ...(timelineTaskId !== undefined ? { taskId: timelineTaskId } : {}),
             message: `Found ${entries.length} revision(s)`,
           };
           break;
@@ -420,7 +533,11 @@ export class HistoryHandler {
           if (!this.driveApi) {
             response = {
               success: false,
-              error: { code: 'INTERNAL_ERROR', message: 'Drive API not available for diff', retryable: false },
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: 'Drive API not available for diff',
+                retryable: false,
+              },
             };
             break;
           }
@@ -431,13 +548,52 @@ export class HistoryHandler {
             diffReq.revisionId1,
             diffReq.revisionId2
           );
+
+          // If sampling is available, generate an explanation of the diff
+          let aiExplanation: string | undefined;
+          if (this.samplingServer) {
+            try {
+              const changeCount = diff.cellChanges?.length ?? 0;
+              const sampleChanges = (diff.cellChanges ?? [])
+                .slice(0, 5)
+                .map(
+                  (c: { cell: string; oldValue?: unknown; newValue?: unknown }) =>
+                    `${c.cell}: ${String(c.oldValue ?? '')} → ${String(c.newValue ?? '')}`
+                )
+                .join('; ');
+              const explanationResult = await this.samplingServer.createMessage({
+                messages: [
+                  {
+                    role: 'user' as const,
+                    content: {
+                      type: 'text' as const,
+                      text: `In 1-2 sentences, explain what changed between revision ${diffReq.revisionId1} and ${diffReq.revisionId2} of spreadsheet '${diffReq.spreadsheetId}'. There were ${changeCount} cell change(s)${sampleChanges ? ': ' + sampleChanges : ''}.`,
+                    },
+                  },
+                ],
+                maxTokens: 256,
+              });
+              const text = Array.isArray(explanationResult.content)
+                ? ((
+                    explanationResult.content.find((c) => c.type === 'text') as
+                      | { text: string }
+                      | undefined
+                  )?.text ?? '')
+                : ((explanationResult.content as { text?: string }).text ?? '');
+              aiExplanation = text.trim();
+            } catch {
+              // Non-blocking: sampling failure should not block the diff response
+            }
+          }
+
           response = {
             success: true,
             action: 'diff_revisions',
             diff,
             message: diff.summary.metadataOnly
-              ? 'Metadata comparison only — cell-level diff unavailable for this revision pair'
+              ? 'Cell-level diff unavailable — Google Drive API exports current version only, not historical revisions for Workspace files. Metadata comparison (timestamps, authors) is shown instead. For cell-level change tracking, use sheets_history.timeline which tracks ServalSheets operations.'
               : `Found ${diff.cellChanges?.length ?? 0} cell change(s)`,
+            ...(aiExplanation !== undefined ? { aiExplanation } : {}),
           };
           break;
         }
@@ -446,7 +602,11 @@ export class HistoryHandler {
           if (!this.driveApi || !this.sheetsApi) {
             response = {
               success: false,
-              error: { code: 'INTERNAL_ERROR', message: 'Drive/Sheets API not available for restore', retryable: false },
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: 'Drive/Sheets API not available for restore',
+                retryable: false,
+              },
             };
             break;
           }
@@ -465,7 +625,10 @@ export class HistoryHandler {
           // Create snapshot before restoring
           let snapshotId: string | undefined;
           if (restoreReq.safety?.createSnapshot !== false && this.snapshotService) {
-            snapshotId = await this.snapshotService.create(restoreReq.spreadsheetId, 'Pre-restore backup');
+            snapshotId = await this.snapshotService.create(
+              restoreReq.spreadsheetId,
+              'Pre-restore backup'
+            );
           }
 
           const restored = await restoreCells(
@@ -485,21 +648,23 @@ export class HistoryHandler {
           break;
         }
 
-        default:
+        default: {
+          const _exhaustiveCheck: never = req;
           response = {
             success: false,
             error: {
               code: 'INVALID_PARAMS',
-              message: `Unknown action: ${(req as { action: string }).action}`,
+              message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
               retryable: false,
               suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
             },
           };
+        }
       }
 
       // Apply verbosity filtering (LLM optimization)
       const verbosity = req.verbosity ?? 'standard';
-      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
+      const filteredResponse = applyVerbosityFilter(response, verbosity);
 
       return { response: filteredResponse };
     } catch (error) {
@@ -507,11 +672,7 @@ export class HistoryHandler {
       return {
         response: {
           success: false,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: error instanceof Error ? error.message : String(error),
-            retryable: false,
-          },
+          error: mapStandaloneError(error),
         },
       };
     }

@@ -32,6 +32,7 @@ import { initValidationEngine } from './services/validation-engine.js';
 import { ACTION_COUNT, TOOL_COUNT } from './schemas/action-counts.js';
 import { VERSION, SERVER_INFO, SERVER_ICONS } from './version.js';
 import { logger } from './utils/logger.js';
+import { sendProgress } from './utils/request-context.js';
 import { HealthService } from './server/health.js';
 import { metricsHandler, sessionsTotal } from './observability/metrics.js';
 import { UserRateLimiter, createUserRateLimiterFromEnv } from './services/user-rate-limiter.js';
@@ -197,16 +198,9 @@ async function createMcpServerInstance(
         policyEnforcer: new PolicyEnforcer(),
         snapshotService,
         sheetsApi: googleClient.sheets,
-        onProgress: async (event) => {
+        onProgress: (event) => {
           // Send MCP progress notification over HTTP transport
-          // Note: This requires sessionId and transport to be available in scope
-          // For now, just log progress
-          logger.debug('Operation progress', {
-            phase: event.phase,
-            progress: `${event.current}/${event.total}`,
-            message: event.message,
-            spreadsheetId: event.spreadsheetId,
-          });
+          void sendProgress(event.current, event.total, event.message);
         },
       }),
       rangeResolver: new RangeResolver({ sheetsApi: googleClient.sheets }),
@@ -357,7 +351,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
           styleSrc: ["'self'"],
           connectSrc: ["'self'"],
           imgSrc: ["'self'", 'data:'],
@@ -525,10 +519,6 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       res.status(403).json({
         error: 'FORBIDDEN',
         message: 'Invalid Origin header',
-        details: {
-          received: requestOrigin,
-          allowed: corsOrigins,
-        },
       });
       return;
     }

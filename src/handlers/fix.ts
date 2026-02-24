@@ -23,7 +23,7 @@ import type {
   FillMissingInput,
   DetectAnomaliesInput,
   SuggestCleaningInput,
-  CellChange,
+  CleanCellChange,
 } from '../schemas/fix.js';
 
 export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
@@ -60,16 +60,18 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
           return this.handleDetectAnomalies(req as unknown as DetectAnomaliesInput, verbosity);
         case 'suggest_cleaning':
           return this.handleSuggestCleaning(req as unknown as SuggestCleaningInput, verbosity);
-        default:
+        default: {
+          const _exhaustiveCheck: never = req;
           return {
             response: this.mapError(
               new ValidationError(
-                `Unknown action: ${(req as { action: string }).action}`,
+                `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
                 'action',
                 'fix | clean | standardize_formats | fill_missing | detect_anomalies | suggest_cleaning'
               )
             ),
           };
+        }
       }
     } catch (err) {
       return { response: this.mapError(err) };
@@ -80,7 +82,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
   private async handleFix(
     req: FixRequest & { action: 'fix'; verbosity?: 'minimal' | 'standard' | 'detailed' },
-    verbosity: string
+    verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<SheetsFixOutput> {
     // Type narrow to ensure required fields are present
     if (!req.spreadsheetId || !req.issues) {
@@ -166,7 +168,10 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
   // ─── F3: Clean action ───
 
-  private async handleClean(req: CleanInput, verbosity: string): Promise<SheetsFixOutput> {
+  private async handleClean(
+    req: CleanInput,
+    verbosity: 'minimal' | 'standard' | 'detailed'
+  ): Promise<SheetsFixOutput> {
     if (!req.spreadsheetId || !req.range) {
       return {
         response: this.mapError(new Error('Missing required fields: spreadsheetId and range')),
@@ -196,6 +201,24 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       await this.writeChanges(req.spreadsheetId, req.range, data, result.changes, rangeOffset);
 
       this.trackContextFromRequest({ spreadsheetId: req.spreadsheetId });
+
+      // Wire session context: record applied cleaning rules for learning
+      try {
+        if (this.context.sessionContext && result.summary.rulesApplied.length > 0) {
+          this.context.sessionContext.recordOperation({
+            tool: 'sheets_fix',
+            action: 'clean',
+            spreadsheetId: req.spreadsheetId,
+            range: req.range,
+            description: `Cleaned ${result.summary.cellsCleaned} cell(s) using rules: ${result.summary.rulesApplied.join(', ')}`,
+            undoable: !!snapshot?.revisionId,
+            snapshotId: snapshot?.revisionId,
+            cellsAffected: result.summary.cellsCleaned,
+          });
+        }
+      } catch {
+        /* non-blocking */
+      }
 
       const response = {
         success: true as const,
@@ -229,7 +252,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
   private async handleStandardizeFormats(
     req: StandardizeFormatsInput,
-    verbosity: string
+    verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<SheetsFixOutput> {
     if (!req.spreadsheetId || !req.range || !req.columns) {
       return {
@@ -290,7 +313,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
   private async handleFillMissing(
     req: FillMissingInput,
-    verbosity: string
+    verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<SheetsFixOutput> {
     if (!req.spreadsheetId || !req.range || !req.strategy) {
       return {
@@ -356,7 +379,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
   private async handleDetectAnomalies(
     req: DetectAnomaliesInput,
-    verbosity: string
+    verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<SheetsFixOutput> {
     if (!req.spreadsheetId || !req.range) {
       return {
@@ -396,7 +419,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
   private async handleSuggestCleaning(
     req: SuggestCleaningInput,
-    verbosity: string
+    verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<SheetsFixOutput> {
     if (!req.spreadsheetId || !req.range) {
       return {
@@ -423,6 +446,26 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       recommendations: result.recommendations,
       dataProfile: result.dataProfile,
     };
+
+    // Wire session context: cache recommendations as pending operation for quick follow-up
+    try {
+      if (this.context.sessionContext && result.recommendations.length > 0) {
+        const ruleIds = result.recommendations.map((r) => r.suggestedRule ?? r.id ?? 'unknown');
+        this.context.sessionContext.setPendingOperation({
+          type: 'suggest_cleaning',
+          step: 1,
+          totalSteps: 2,
+          context: {
+            spreadsheetId: req.spreadsheetId,
+            range: req.range,
+            suggestedRuleIds: ruleIds,
+          },
+        });
+      }
+    } catch {
+      /* non-blocking */
+    }
+
     return { response: super.applyVerbosityFilter(response, verbosity) };
   }
 
@@ -489,7 +532,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     spreadsheetId: string,
     range: string,
     originalData: (string | number | boolean | null)[][],
-    changes: CellChange[],
+    changes: CleanCellChange[],
     _rangeOffset: { startRow: number; startCol: number }
   ): Promise<void> {
     // Apply changes to the data grid
@@ -500,11 +543,12 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       const dataRow = change.row - _rangeOffset.startRow;
       const dataCol = change.col - _rangeOffset.startCol;
 
-      if (dataRow >= 0 && dataRow < updatedData.length) {
-        while (updatedData[dataRow].length <= dataCol) {
-          updatedData[dataRow].push(null);
+      const targetRow = updatedData[dataRow];
+      if (dataRow >= 0 && dataRow < updatedData.length && targetRow) {
+        while (targetRow.length <= dataCol) {
+          targetRow.push(null);
         }
-        updatedData[dataRow][dataCol] = change.newValue;
+        targetRow[dataCol] = change.newValue;
       }
     }
 
@@ -524,7 +568,10 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   /**
    * Filter issues based on user preferences
    */
-  private filterIssues(issues: IssueToFix[], filters?: FixRequest['filters']): IssueToFix[] {
+  private filterIssues(
+    issues: IssueToFix[],
+    filters?: Extract<FixRequest, { action: 'fix' }>['filters']
+  ): IssueToFix[] {
     if (!filters) return issues;
 
     let filtered = issues;
@@ -734,18 +781,10 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     _spreadsheetId: string,
     _issue: IssueToFix
   ): Promise<FixOperation[]> {
-    // Requires reading formulas, parsing, and rewriting — placeholder
-    return [
-      {
-        id: `fix_full_column_${Date.now()}`,
-        issueType: 'FULL_COLUMN_REFS',
-        tool: 'sheets_data',
-        action: 'find_replace',
-        parameters: {},
-        estimatedImpact: 'Replace A:A with A2:A500 in formulas',
-        risk: 'medium',
-      },
-    ];
+    // NOT_IMPLEMENTED: Requires formula AST parsing + rewriting (A:A → A2:A500).
+    // Full column refs trigger full grid fetch — significant perf impact — but
+    // automated rewriting needs formula-level analysis to determine safe bounds.
+    return []; // OK: Explicit empty — full column ref rewriting not yet implemented
   }
 
   /**
@@ -755,8 +794,9 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     _spreadsheetId: string,
     _issue: IssueToFix
   ): Promise<FixOperation[]> {
-    // Requires formula parsing and rewriting — placeholder
-    return []; // OK: Explicit empty — not yet implemented
+    // NOT_IMPLEMENTED: Requires formula AST analysis to simplify nested IFERROR chains
+    // (e.g., IFERROR(IFERROR(A,B),C) → IFERROR(A,IFERROR(B,C))) while preserving semantics.
+    return []; // OK: Explicit empty — nested IFERROR simplification not yet implemented
   }
 
   /**
@@ -766,8 +806,10 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     _spreadsheetId: string,
     _sheetName: string
   ): Promise<FixOperation[]> {
-    // Would need to read rules, merge similar ones, delete duplicates — placeholder
-    return []; // OK: Explicit empty — not yet implemented
+    // NOT_IMPLEMENTED: Requires reading all CF rules, identifying overlapping/duplicate
+    // conditions, and merging them without changing visual behavior. Complex rule interaction
+    // analysis needed (priority ordering, stop-if-true semantics).
+    return []; // OK: Explicit empty — conditional format rule deduplication not yet implemented
   }
 
   /**
