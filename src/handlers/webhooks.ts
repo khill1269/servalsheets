@@ -151,6 +151,25 @@ export class WebhookHandler {
   ): Promise<SheetsWebhookOutput['response']> {
     try {
       const manager = getWebhookManager();
+
+      // ISSUE-140: Reject duplicate URL registration to prevent double event delivery
+      try {
+        const existingWebhooks = await manager.list(input.spreadsheetId, true);
+        const duplicate = existingWebhooks.find((w) => w.webhookUrl === input.webhookUrl);
+        if (duplicate) {
+          return {
+            success: false,
+            error: {
+              code: 'FAILED_PRECONDITION',
+              message: `A webhook with URL "${input.webhookUrl}" is already registered for this spreadsheet (existing ID: ${duplicate.webhookId}). Unregister the existing webhook first or use a different URL.`,
+              retryable: false,
+            },
+          };
+        }
+      } catch {
+        // Non-blocking: if duplicate check fails (e.g. Redis unavailable), proceed with registration
+      }
+
       const result = await manager.register(input);
 
       // Notify MCP clients that webhook was registered (Feature 1: Real-Time Notifications)
