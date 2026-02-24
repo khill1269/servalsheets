@@ -1794,9 +1794,13 @@ export class CollaborateHandler extends BaseHandler<
         });
       }
 
-      // Check if user is the requester (allow if requester email is undefined)
+      // Check if user is the requester (allow if requester email or user email is undefined)
       const userEmail = await this.getCurrentUserEmail();
-      if (approval.requester.emailAddress && userEmail !== approval.requester.emailAddress) {
+      if (
+        userEmail &&
+        approval.requester.emailAddress &&
+        userEmail !== approval.requester.emailAddress
+      ) {
         return this.error({
           code: 'PERMISSION_DENIED',
           message: 'Only the requester can cancel an approval',

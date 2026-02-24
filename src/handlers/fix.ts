@@ -11,6 +11,7 @@ import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import { ValidationError } from '../core/errors.js';
 import type { Intent } from '../core/intent.js';
+import { CleaningEngine, parseRangeOffset } from '../services/cleaning-engine.js';
 import type {
   SheetsFixInput,
   SheetsFixOutput,
@@ -48,18 +49,15 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
         case 'fix':
           return this.handleFix(req as FixRequest & { action: 'fix' }, verbosity);
         case 'clean':
-          return this.handleClean(req as unknown as CleanInput, verbosity);
+          return this.handleClean(req as CleanInput, verbosity);
         case 'standardize_formats':
-          return this.handleStandardizeFormats(
-            req as unknown as StandardizeFormatsInput,
-            verbosity
-          );
+          return this.handleStandardizeFormats(req as StandardizeFormatsInput, verbosity);
         case 'fill_missing':
-          return this.handleFillMissing(req as unknown as FillMissingInput, verbosity);
+          return this.handleFillMissing(req as FillMissingInput, verbosity);
         case 'detect_anomalies':
-          return this.handleDetectAnomalies(req as unknown as DetectAnomaliesInput, verbosity);
+          return this.handleDetectAnomalies(req as DetectAnomaliesInput, verbosity);
         case 'suggest_cleaning':
-          return this.handleSuggestCleaning(req as unknown as SuggestCleaningInput, verbosity);
+          return this.handleSuggestCleaning(req as SuggestCleaningInput, verbosity);
         default: {
           const _exhaustiveCheck: never = req;
           return {
@@ -180,8 +178,6 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     const mode = req.mode ?? 'preview';
 
-    // Dynamically import to avoid circular deps and keep handler lean
-    const { CleaningEngine, parseRangeOffset } = await import('../services/cleaning-engine.js');
     const engine = new CleaningEngine();
 
     // Fetch data from the range
@@ -264,7 +260,6 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     const mode = req.mode ?? 'preview';
 
-    const { CleaningEngine, parseRangeOffset } = await import('../services/cleaning-engine.js');
     const engine = new CleaningEngine();
 
     const data = await this.fetchRangeData(req.spreadsheetId, req.range);
@@ -325,7 +320,6 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     const mode = req.mode ?? 'preview';
 
-    const { CleaningEngine, parseRangeOffset } = await import('../services/cleaning-engine.js');
     const engine = new CleaningEngine();
 
     const data = await this.fetchRangeData(req.spreadsheetId, req.range);
@@ -387,7 +381,6 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       };
     }
 
-    const { CleaningEngine, parseRangeOffset } = await import('../services/cleaning-engine.js');
     const engine = new CleaningEngine();
 
     const data = await this.fetchRangeData(req.spreadsheetId, req.range);
@@ -427,7 +420,6 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       };
     }
 
-    const { CleaningEngine, parseRangeOffset } = await import('../services/cleaning-engine.js');
     const engine = new CleaningEngine();
 
     const data = await this.fetchRangeData(req.spreadsheetId, req.range);

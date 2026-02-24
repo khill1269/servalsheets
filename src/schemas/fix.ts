@@ -474,44 +474,22 @@ export type SheetsFixOutput = z.infer<typeof SheetsFixOutputSchema>;
 /** The unwrapped request type (the discriminated union of actions) */
 export type FixRequest = SheetsFixInput['request'];
 
-// Type narrowing helpers for handler methods
-export type FixInput = SheetsFixInput['request'] & {
-  action: 'fix';
-  spreadsheetId: string;
-  issues: IssueToFix[];
-};
-
-export type CleanInput = SheetsFixInput['request'] & {
-  action: 'clean';
-  spreadsheetId: string;
-  range: string;
-};
-
-export type StandardizeFormatsInput = SheetsFixInput['request'] & {
-  action: 'standardize_formats';
-  spreadsheetId: string;
-  range: string;
-  columns: FormatSpec[];
-};
-
-export type FillMissingInput = SheetsFixInput['request'] & {
-  action: 'fill_missing';
-  spreadsheetId: string;
-  range: string;
-  strategy: FillStrategy;
-};
-
-export type DetectAnomaliesInput = SheetsFixInput['request'] & {
-  action: 'detect_anomalies';
-  spreadsheetId: string;
-  range: string;
-};
-
-export type SuggestCleaningInput = SheetsFixInput['request'] & {
-  action: 'suggest_cleaning';
-  spreadsheetId: string;
-  range: string;
-};
+// Type narrowing helpers for handler methods — Extract<> narrows to the exact union variant
+export type FixInput = Extract<SheetsFixInput['request'], { action: 'fix' }>;
+export type CleanInput = Extract<SheetsFixInput['request'], { action: 'clean' }>;
+export type StandardizeFormatsInput = Extract<
+  SheetsFixInput['request'],
+  { action: 'standardize_formats' }
+>;
+export type FillMissingInput = Extract<SheetsFixInput['request'], { action: 'fill_missing' }>;
+export type DetectAnomaliesInput = Extract<
+  SheetsFixInput['request'],
+  { action: 'detect_anomalies' }
+>;
+export type SuggestCleaningInput = Extract<
+  SheetsFixInput['request'],
+  { action: 'suggest_cleaning' }
+>;
 
 // Tool annotations for MCP registration
 import type { ToolAnnotations } from './shared.js';
