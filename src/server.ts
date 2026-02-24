@@ -1093,6 +1093,8 @@ export class ServalSheetsServer {
     })();
 
     await this.resourceRegistrationPromise;
+    // ISSUE-054: Clear resolved promise to free memory (fast path guarded by resourcesRegistered)
+    this.resourceRegistrationPromise = null;
   }
 
   /**
@@ -1220,8 +1222,15 @@ export class ServalSheetsServer {
     // Stop cache cleanup task
     cacheManager.stopCleanupTask();
 
-    // Stop health monitoring
-    await this.healthMonitor.stop();
+    // Stop health monitoring (ISSUE-055: 5s timeout prevents indefinite hang on stuck onStop hooks)
+    await Promise.race([
+      this.healthMonitor.stop(),
+      new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error('Health monitor stop timed out after 5s')), 5000)
+      ),
+    ]).catch((err: Error) => {
+      baseLogger.warn('Health monitor stop did not complete cleanly', { error: err.message });
+    });
     baseLogger.info('Health monitoring stopped');
 
     // Phase 1: Clean up all registered resources (timers, connections, etc.)
