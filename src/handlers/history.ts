@@ -437,6 +437,30 @@ export class HistoryHandler {
         }
 
         case 'clear': {
+          // ISSUE-100: Confirm before clearing history (irreversible — no spreadsheet data lost
+          // but operation log cannot be recovered)
+          if (this.server) {
+            const clearScope = req.spreadsheetId
+              ? `operation history for spreadsheet ${req.spreadsheetId}`
+              : 'all operation history';
+            const confirmation = await confirmDestructiveAction(
+              this.server,
+              'Clear operation history',
+              `Permanently deletes ${clearScope}. The history log cannot be recovered.`
+            );
+            if (!confirmation.confirmed) {
+              response = {
+                success: false,
+                error: {
+                  code: 'OPERATION_CANCELLED',
+                  message: 'Clear cancelled by user',
+                  retryable: false,
+                },
+              };
+              break;
+            }
+          }
+
           let cleared: number;
 
           if (req.spreadsheetId) {
