@@ -127,6 +127,29 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     }
 
     // Apply mode - execute operations
+    // ISSUE-131: Confirm before applying large batches (>5 ops) to avoid unreviewed changes
+    const CLEAN_CONFIRM_THRESHOLD = 5;
+    if (operations.length > CLEAN_CONFIRM_THRESHOLD) {
+      const confirmed = await this.confirmOperation(
+        `Apply ${operations.length} fix operations`,
+        `This will apply ${operations.length} changes to spreadsheet ${req.spreadsheetId}. Review the preview output before proceeding.`,
+        { isDestructive: false, operationType: 'fix_apply_batch' },
+        { skipIfElicitationUnavailable: true }
+      );
+      if (!confirmed) {
+        return {
+          response: {
+            success: false as const,
+            error: {
+              code: 'OPERATION_CANCELLED',
+              message: `Fix apply cancelled by user. ${operations.length} operation(s) were not applied. Run in preview mode first to review changes.`,
+              retryable: false,
+            },
+          },
+        };
+      }
+    }
+
     const snapshot =
       req.safety?.createSnapshot !== false
         ? await this.createSnapshot(req.spreadsheetId)

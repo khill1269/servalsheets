@@ -640,6 +640,19 @@ export class DependenciesHandler {
   private async handleCreateScenarioSheet(
     req: CreateScenarioSheetInput
   ): Promise<SheetsDependenciesOutput['response']> {
+    // ISSUE-135: Cap scenario cell count to prevent oversized batchUpdate payloads
+    const MAX_SCENARIO_CELLS = 10_000;
+    if (req.scenario.changes.length > MAX_SCENARIO_CELLS) {
+      return {
+        success: false,
+        error: {
+          code: 'OPERATION_LIMIT_EXCEEDED',
+          message: `Scenario contains ${req.scenario.changes.length} cell changes, which exceeds the ${MAX_SCENARIO_CELLS}-cell limit. Narrow the output range or split the scenario into smaller batches.`,
+          retryable: false,
+        },
+      };
+    }
+
     const sheetName = req.targetSheet ?? `Scenario - ${req.scenario.name}`;
 
     // Determine which sheet to duplicate as the scenario base
