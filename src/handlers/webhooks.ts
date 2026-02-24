@@ -26,6 +26,7 @@ import { logger } from '../utils/logger.js';
 import { resourceNotifications } from '../resources/notifications.js';
 import type { drive_v3 } from 'googleapis';
 import { randomUUID } from 'crypto';
+import { mapStandaloneError } from './helpers/error-mapping.js';
 
 /**
  * Webhook handler
@@ -134,10 +135,12 @@ export class WebhookHandler {
         error,
       });
 
+      // 16-S4/16-S5: Use structured error mapping for top-level catch
+      const mapped = mapStandaloneError(error);
       return {
         response: {
           success: false,
-          error: this.createErrorDetail(error, 'Unknown error', req.action),
+          error: mapped,
         },
       };
     }

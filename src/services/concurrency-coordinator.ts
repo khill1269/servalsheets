@@ -414,6 +414,12 @@ export class ConcurrencyCoordinator {
 
     this.metrics.limitReachedCount++;
 
+    // ISSUE-113: Reject when the pending queue exceeds 500 to prevent unbounded growth
+    const MAX_PENDING = 500;
+    if (this.waitQueue.length >= MAX_PENDING) {
+      throw new Error(`Concurrency queue full (${MAX_PENDING} pending). Try again later.`);
+    }
+
     return new Promise<string>((resolve) => {
       this.waitQueue.push({
         resolve: () => resolve(this.grantPermit(operationId, source, startTime)),

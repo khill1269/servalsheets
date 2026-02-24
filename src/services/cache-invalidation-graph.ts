@@ -151,13 +151,13 @@ export class CacheInvalidationGraph {
     rules['sheets_format.update_sparkline'] = { invalidates: ['values:*', 'metadata:*'] };
     rules['sheets_format.delete_sparkline'] = { invalidates: ['values:*', 'metadata:*'] };
 
-    // Conditional formatting rules
-    rules['sheets_format.add_rule'] = { invalidates: ['metadata:*'] };
-    rules['sheets_format.update_rule'] = { invalidates: ['metadata:*'] };
-    rules['sheets_format.delete_rule'] = { invalidates: ['metadata:*'] };
-    rules['sheets_format.list_rules'] = { invalidates: [] }; // Read-only
-    rules['sheets_format.clear_rules'] = { invalidates: ['metadata:*'] };
-    rules['sheets_format.reorder_rules'] = { invalidates: ['metadata:*'] };
+    // Conditional formatting rules (16-B3: corrected action names to match handler switch)
+    rules['sheets_format.add_conditional_format_rule'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.rule_add_conditional_format'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.rule_update_conditional_format'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.rule_delete_conditional_format'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.rule_list_conditional_formats'] = { invalidates: [] }; // Read-only
+    rules['sheets_format.generate_conditional_format'] = { invalidates: ['metadata:*'] };
 
     // Data validation
     rules['sheets_format.set_validation'] = { invalidates: ['metadata:*'] };
