@@ -26,6 +26,7 @@ import type {
 } from '../schemas/dependencies.js';
 import type { SamplingServer } from '../mcp/sampling.js';
 import { logger } from '../utils/logger.js';
+import { executeWithRetry } from '../utils/retry.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 
 const ANALYZER_CACHE_MAX = 25;
@@ -430,16 +431,20 @@ export class DependenciesHandler {
       try {
         const ranges = cellRefs.map((c) => (c.includes('!') ? c : `Sheet1!${c}`));
         const [batchResult, formulaResult] = await Promise.all([
-          this.sheetsApi.spreadsheets.values.batchGet({
-            spreadsheetId: req.spreadsheetId,
-            ranges,
-            valueRenderOption: 'UNFORMATTED_VALUE',
-          }),
-          this.sheetsApi.spreadsheets.values.batchGet({
-            spreadsheetId: req.spreadsheetId,
-            ranges,
-            valueRenderOption: 'FORMULA',
-          }),
+          executeWithRetry(() =>
+            this.sheetsApi.spreadsheets.values.batchGet({
+              spreadsheetId: req.spreadsheetId,
+              ranges,
+              valueRenderOption: 'UNFORMATTED_VALUE',
+            })
+          ),
+          executeWithRetry(() =>
+            this.sheetsApi.spreadsheets.values.batchGet({
+              spreadsheetId: req.spreadsheetId,
+              ranges,
+              valueRenderOption: 'FORMULA',
+            })
+          ),
         ]);
         for (let i = 0; i < cascadeEffects.length; i++) {
           const valRange = batchResult.data.valueRanges?.[i];
@@ -470,11 +475,13 @@ export class DependenciesHandler {
         const inputRanges = req.changes.map((c) =>
           c.cell.includes('!') ? c.cell : `Sheet1!${c.cell}`
         );
-        const inputResult = await this.sheetsApi.spreadsheets.values.batchGet({
-          spreadsheetId: req.spreadsheetId,
-          ranges: inputRanges,
-          valueRenderOption: 'UNFORMATTED_VALUE',
-        });
+        const inputResult = await executeWithRetry(() =>
+          this.sheetsApi.spreadsheets.values.batchGet({
+            spreadsheetId: req.spreadsheetId,
+            ranges: inputRanges,
+            valueRenderOption: 'UNFORMATTED_VALUE',
+          })
+        );
         for (let i = 0; i < req.changes.length; i++) {
           const valRange = inputResult.data.valueRanges?.[i];
           const change = req.changes[i];
@@ -587,16 +594,20 @@ export class DependenciesHandler {
         try {
           const ranges = affectedList.map((c) => (c.includes('!') ? c : `Sheet1!${c}`));
           const [batchResult, formulaResult] = await Promise.all([
-            this.sheetsApi.spreadsheets.values.batchGet({
-              spreadsheetId: req.spreadsheetId,
-              ranges,
-              valueRenderOption: 'UNFORMATTED_VALUE',
-            }),
-            this.sheetsApi.spreadsheets.values.batchGet({
-              spreadsheetId: req.spreadsheetId,
-              ranges,
-              valueRenderOption: 'FORMULA',
-            }),
+            executeWithRetry(() =>
+              this.sheetsApi.spreadsheets.values.batchGet({
+                spreadsheetId: req.spreadsheetId,
+                ranges,
+                valueRenderOption: 'UNFORMATTED_VALUE',
+              })
+            ),
+            executeWithRetry(() =>
+              this.sheetsApi.spreadsheets.values.batchGet({
+                spreadsheetId: req.spreadsheetId,
+                ranges,
+                valueRenderOption: 'FORMULA',
+              })
+            ),
           ]);
           result.affectedCells = affectedList.map((cell, i) => {
             const entry: { cell: string; formula?: string; currentValue?: string | number | null } =

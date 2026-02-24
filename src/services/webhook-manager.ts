@@ -24,6 +24,7 @@ import { randomUUID } from 'crypto';
 import dns from 'node:dns';
 import type { GoogleApiClient } from './google-api.js';
 import { logger } from '../utils/logger.js';
+import { redactUrl } from '../utils/redact.js';
 import { recordWebhookRenewal, updateActiveWebhookCount } from '../observability/metrics.js';
 import { DiffEngine, type SpreadsheetState } from '../core/diff-engine.js';
 import { generateWebhookSecret } from '../security/webhook-signature.js';
@@ -306,7 +307,7 @@ export class WebhookManager {
       logger.info('Webhook registered', {
         webhookId,
         spreadsheetId: input.spreadsheetId,
-        webhookUrl: input.webhookUrl,
+        webhookUrl: redactUrl(input.webhookUrl), // ISSUE-215: redact token/key params
         expiresAt: new Date(expiresAt).toISOString(),
       });
 
