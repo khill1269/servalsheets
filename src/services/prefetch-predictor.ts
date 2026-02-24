@@ -62,6 +62,9 @@ export interface PredictorOptions {
  *
  * Learns from operation patterns and prefetches likely next operations
  */
+/** ISSUE-093: Maximum number of distinct sequence patterns to retain. Prevents unbounded growth. */
+const MAX_SEQUENCE_PATTERNS = 1000;
+
 export class PrefetchPredictor {
   private verboseLogging: boolean;
   private minConfidence: number;
@@ -120,6 +123,13 @@ export class PrefetchPredictor {
       const nextKey = this.operationKey(next);
 
       if (!this.sequencePatterns.has(currentKey)) {
+        // ISSUE-093: Evict the oldest entry when the cap is reached
+        if (this.sequencePatterns.size >= MAX_SEQUENCE_PATTERNS) {
+          const oldestKey = this.sequencePatterns.keys().next().value;
+          if (oldestKey !== undefined) {
+            this.sequencePatterns.delete(oldestKey);
+          }
+        }
         this.sequencePatterns.set(currentKey, new Map());
       }
 

@@ -20,6 +20,7 @@ import { getFederationConfig } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { parseFederationServers } from '../config/federation-config.js';
 import { sendProgress } from '../utils/request-context.js';
+import { mapStandaloneError } from './helpers/error-mapping.js';
 
 /**
  * Federation Handler
@@ -101,7 +102,7 @@ export class FederationHandler {
         }
       }
     } catch (error) {
-      const err = error as Error;
+      const err = error instanceof Error ? error : new Error(String(error));
       logger.error('Federation handler error', {
         component: 'federation-handler',
         action,
@@ -109,12 +110,14 @@ export class FederationHandler {
         stack: err.stack,
       });
 
+      // 16-S3/16-S5: Use structured error mapping (FederatedMcpClient wraps
+      // remote calls with per-server circuit breakers; errors surface here)
+      const mapped = mapStandaloneError(error);
       return {
         response: {
           success: false,
           action,
-          error:
-            'Remote MCP server returned an error. Check server connectivity and configuration.',
+          error: `Remote MCP server returned an error: ${mapped.message}`,
         },
       };
     }
