@@ -393,6 +393,14 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         createUnmatched: input.createUnmatched,
       });
     } catch (err) {
+      // ISSUE-184: Log operation context so callers can identify which update set failed
+      const requestLogger = getRequestLogger();
+      requestLogger.error('bulk_update failed', {
+        spreadsheetId: input.spreadsheetId,
+        sheet: input.sheet,
+        keyColumn: input.keyColumn,
+        updateCount: input.updates.length,
+      });
       return this.mapError(err);
     }
 

@@ -966,8 +966,26 @@ Always return valid JSON in the exact format requested.`;
       });
     }
 
+    // ISSUE-182: Warn that chart_add_trendline may not work via REST API
+    logger.warn(
+      'chart_add_trendline called — REST API trendline support is limited; may fail with FEATURE_UNAVAILABLE',
+      {
+        chartId: input.chartId,
+        spreadsheetId: input.spreadsheetId,
+      }
+    );
+
     if (input.safety?.dryRun) {
-      return this.success('chart_add_trendline', { chartId: input.chartId }, undefined, true);
+      return this.success(
+        'chart_add_trendline',
+        {
+          chartId: input.chartId,
+          _deprecationWarning:
+            'chart_add_trendline may be unsupported via REST API. If it fails, add trendlines manually in the Sheets UI or use chart_update with a trendline spec.',
+        },
+        undefined,
+        true
+      );
     }
 
     // Build trendline spec (googleapis types don't include trendline, but the API supports it)
@@ -1039,7 +1057,11 @@ Always return valid JSON in the exact format requested.`;
       throw error;
     }
 
-    return this.success('chart_add_trendline', { chartId: input.chartId });
+    return this.success('chart_add_trendline', {
+      chartId: input.chartId,
+      _deprecationWarning:
+        'chart_add_trendline may be unsupported via REST API. If it fails, add trendlines manually in the Sheets UI or use chart_update with a trendline spec.',
+    });
   }
 
   private async handleChartRemoveTrendline(
