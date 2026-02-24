@@ -113,7 +113,8 @@ export class FederationHandler {
         response: {
           success: false,
           action,
-          error: 'Remote MCP server returned an error. Check server connectivity and configuration.',
+          error:
+            'Remote MCP server returned an error. Check server connectivity and configuration.',
         },
       };
     }
@@ -321,7 +322,8 @@ export class FederationHandler {
           success: false,
           action: 'validate_connection',
           remoteServer: serverName,
-          error: 'Connection validation failed. The remote server may be unavailable or unreachable.',
+          error:
+            'Connection validation failed. The remote server may be unavailable or unreachable.',
         },
       };
     }
