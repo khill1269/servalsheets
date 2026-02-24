@@ -9,6 +9,7 @@
  */
 
 import type { sheets_v4 } from 'googleapis';
+import { executeWithRetry } from '../utils/retry.js';
 
 type CellValue = string | number | boolean | null;
 type Grid = CellValue[][];
@@ -70,11 +71,13 @@ async function fetchRangeGrid(
   spreadsheetId: string,
   range: string
 ): Promise<Grid> {
-  const res = await sheetsApi.spreadsheets.values.get({
-    spreadsheetId,
-    range,
-    valueRenderOption: 'UNFORMATTED_VALUE',
-  });
+  const res = await executeWithRetry(() =>
+    sheetsApi.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+      valueRenderOption: 'UNFORMATTED_VALUE',
+    })
+  );
   const raw = res.data.values ?? [];
   return raw.map((row) =>
     row.map((cell) =>
