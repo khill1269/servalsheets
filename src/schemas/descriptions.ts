@@ -362,11 +362,13 @@ For any spreadsheet you haven't seen before, ALWAYS call action:"comprehensive" 
 Saves 70%+ time vs manual analysis. Gets everything you need to plan your next steps.
 
 **DECISION GUIDE - Which action should I use?**
-→ **First time seeing this sheet?** Use comprehensive (full overview, 2 API calls, 73% faster than manual)
-→ **Just need structure/metadata?** Use scout (1 API call, 0 data transfer, super-fast)
-→ **Analyzing specific data range?** Use analyze_data (quality, patterns, trends)
+→ **Quick overview only (~200ms)?** Use **scout** — 1 API call, metadata + column names, NO data transfer. Fastest.
+→ **Specific category (formulas/quality/structure/performance)?** Use **analyze_data** — category-specific deep dive, just what you need.
+→ **Full audit (30+ sec, 43 categories)?** Use **comprehensive** — metadata + data quality + formula health + recommended actions. START HERE for new sheets.
 → **Need a chart/pivot?** Use suggest_chart or suggest_pivot (get recommendations before creating)
 → **Want formula ideas?** Use generate_formula (describe what you want, Claude generates it)
+
+⚠️ **DO NOT use comprehensive when scout suffices** — comprehensive fetches all data; scout fetches only metadata.
 
 **Use when:** Understanding spreadsheet structure/quality, generating AI insights, detecting patterns, natural language queries, getting proactive improvement suggestions
 **NOT this tool - use instead:**

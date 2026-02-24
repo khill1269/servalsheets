@@ -58,6 +58,9 @@ import type {
 } from '../schemas/index.js';
 import { logger } from '../utils/logger.js';
 
+/** Maximum BigQuery result rows (ISSUE-188: configurable via env var) */
+const MAX_BIGQUERY_RESULT_ROWS = parseInt(process.env['MAX_BIGQUERY_RESULT_ROWS'] ?? '100000', 10);
+
 /**
  * Dangerous SQL patterns that should be blocked in Connected Sheets queries.
  * Connected Sheets executes queries in BigQuery with the user's permissions,
@@ -360,7 +363,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         pageToken = pageResponse.data.pageToken ?? undefined;
 
         // Safety limit: don't fetch more than 100K rows
-        if (allRows.length > 100000) {
+        if (allRows.length > MAX_BIGQUERY_RESULT_ROWS) {
           logger.warn('BigQuery result set truncated at 100K rows', { jobId });
           break;
         }
@@ -459,7 +462,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           allRows = allRows.concat(pageRows);
           pageToken = pageResponse.data.pageToken ?? undefined;
 
-          if (allRows.length > 100000) {
+          if (allRows.length > MAX_BIGQUERY_RESULT_ROWS) {
             logger.warn('BigQuery result set truncated at 100K rows', { jobId });
             break;
           }

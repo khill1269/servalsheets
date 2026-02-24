@@ -407,11 +407,14 @@ Benefits:
 └─ Need data from multiple spreadsheets → \`sheets_data.cross_read\` / \`cross_query\`
 
 **Writing data?**
-├─ Update existing cells → \`sheets_data.write\`
+├─ Update existing cells at KNOWN positions → \`sheets_data.write\` (always prefer this)
+├─ Replace pattern across UNKNOWN positions → \`sheets_data.find_replace\` (pattern-based only!)
 ├─ Add rows at bottom → \`sheets_data.append\` (WARNING: NOT idempotent!)
 ├─ 3+ ranges → \`sheets_data.batch_write\` (70% faster)
 ├─ Match by column headers → \`sheets_composite.smart_append\`
 └─ Import CSV file → \`sheets_composite.import_csv\`
+
+⚠️ **COMMON MISTAKE**: Do NOT use \`find_replace\` when you know the cell address. Use \`write\` instead. \`find_replace\` scans the entire range for a pattern — it is slow and non-deterministic for targeted updates.
 
 **Formatting cells?**
 ├─ 1-2 format changes → Specific action (set_background, set_text_format, etc.)
