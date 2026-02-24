@@ -476,6 +476,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
       }
 
       // Move to folder if specified
+      let folderMoveError: string | null = null;
       if (req.folderId) {
         try {
           await this.driveApi.files.update({
@@ -485,11 +486,12 @@ export class SheetsTemplatesHandler extends BaseHandler<
             supportsAllDrives: true,
           });
         } catch (moveError) {
+          folderMoveError = moveError instanceof Error ? moveError.message : String(moveError);
           logger.warn('Failed to move spreadsheet to folder', {
             folderId: req.folderId,
             error: moveError,
           });
-          // Don't fail the whole operation for this
+          // Don't fail the whole operation for this (ISSUE-186: surface in response)
         }
       }
 
@@ -502,6 +504,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
       return this.success('apply', {
         spreadsheetId,
         spreadsheetUrl,
+        ...(folderMoveError !== null ? { folderMoveError } : {}),
       });
     } catch (error) {
       logger.error('Failed to apply template', { templateId: req.templateId, error });
