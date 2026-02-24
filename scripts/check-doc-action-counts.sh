@@ -25,17 +25,21 @@ NC='\033[0m' # No Color
 echo "🔍 Comprehensive documentation validation..."
 echo ""
 
-# Get source of truth from built files
-if [ ! -d "dist" ]; then
-  echo "❌ dist/ directory not found. Run 'npm run build' first."
+# Get source of truth from TypeScript source (no build required)
+COUNTS_FILE="src/schemas/action-counts.ts"
+
+if [ ! -f "$COUNTS_FILE" ]; then
+  echo "❌ Source file not found: $COUNTS_FILE"
   exit 1
 fi
 
-SOURCE_TOOL_COUNT=$(node -p "require('./dist/schemas/index.js').TOOL_COUNT" 2>/dev/null || echo "0")
-SOURCE_ACTION_COUNT=$(node -p "require('./dist/schemas/index.js').ACTION_COUNT" 2>/dev/null || echo "0")
+# Count tools = number of sheets_* entries in ACTION_COUNTS object
+SOURCE_TOOL_COUNT=$(grep -cE '^\s+sheets_[a-z_]+:' "$COUNTS_FILE" 2>/dev/null || echo "0")
+# Sum action counts = sum of all numeric values in ACTION_COUNTS object
+SOURCE_ACTION_COUNT=$(grep -oE ':\s*[0-9]+,' "$COUNTS_FILE" | grep -oE '[0-9]+' | awk '{sum+=$1} END {print sum}' 2>/dev/null || echo "0")
 
 if [ "$SOURCE_TOOL_COUNT" = "0" ] || [ "$SOURCE_ACTION_COUNT" = "0" ]; then
-  echo "❌ Failed to load constants from dist/schemas/index.js"
+  echo "❌ Failed to parse constants from $COUNTS_FILE"
   exit 1
 fi
 
