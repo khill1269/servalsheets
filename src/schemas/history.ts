@@ -82,6 +82,16 @@ const RedoActionSchema = CommonFieldsSchema.extend({
 const RevertToActionSchema = CommonFieldsSchema.extend({
   action: z.literal('revert_to').describe('Revert to a specific operation in history'),
   operationId: z.string().min(1).describe('Operation ID to revert to'),
+  safety: z
+    .object({
+      dryRun: z
+        .boolean()
+        .optional()
+        .describe(
+          'If true, compute and return the diff of what would be reverted without executing'
+        ),
+    })
+    .optional(),
 });
 
 const ClearActionSchema = CommonFieldsSchema.extend({
@@ -311,6 +321,19 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
       .optional()
       .describe('Cells that were restored'),
     snapshotId: z.string().optional().describe('Backup snapshot ID (for undo)'),
+    // ISSUE-011: dryRun response fields for revert_to
+    dryRun: z.boolean().optional().describe('True when request was a dry run (no changes made)'),
+    wouldRevert: z
+      .object({
+        operationId: z.string(),
+        tool: z.string(),
+        action: z.string(),
+        timestamp: z.coerce.number(),
+        snapshotId: z.string().optional(),
+        spreadsheetId: z.string().optional(),
+      })
+      .optional()
+      .describe('What would be reverted (only present in dryRun responses)'),
     message: z.string().optional(),
     _meta: ResponseMetaSchema.optional(),
   }),

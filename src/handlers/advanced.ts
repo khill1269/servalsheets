@@ -53,6 +53,25 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
     this.sheetsApi = sheetsApi;
   }
 
+  /** Apply cursor-based pagination to an array of items (offset encoded as base64). */
+  private paginateItems<T>(
+    items: T[],
+    cursor: string | undefined,
+    pageSize: number
+  ): { page: T[]; nextCursor: string | undefined; hasMore: boolean; totalCount: number } {
+    const offset = cursor ? parseInt(Buffer.from(cursor, 'base64').toString('utf8'), 10) : 0;
+    const start = isNaN(offset) ? 0 : offset;
+    const page = items.slice(start, start + pageSize);
+    const nextOffset = start + pageSize;
+    const hasMore = nextOffset < items.length;
+    return {
+      page,
+      nextCursor: hasMore ? Buffer.from(String(nextOffset)).toString('base64') : undefined,
+      hasMore,
+      totalCount: items.length,
+    };
+  }
+
   async handle(input: SheetsAdvancedInput): Promise<SheetsAdvancedOutput> {
     // Phase 1, Task 1.4: Infer missing parameters from context
     const req = this.inferRequestParameters(unwrapRequest<SheetsAdvancedInput['request']>(input));
@@ -385,8 +404,18 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       spreadsheetId: req.spreadsheetId!,
       fields: 'namedRanges',
     });
-    const namedRanges = (response.data.namedRanges ?? []).map((n) => this.mapNamedRange(n));
-    return this.success('list_named_ranges', { namedRanges });
+    const allItems = (response.data.namedRanges ?? []).map((n) => this.mapNamedRange(n));
+    const { page, nextCursor, hasMore, totalCount } = this.paginateItems(
+      allItems,
+      req.cursor,
+      req.pageSize ?? 100
+    );
+    return this.success('list_named_ranges', {
+      namedRanges: page,
+      nextCursor,
+      hasMore,
+      totalCount,
+    });
   }
 
   private async handleGetNamedRange(
@@ -578,15 +607,25 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       fields: 'sheets.protectedRanges,sheets.properties(sheetId,title)',
     });
 
-    const ranges: NonNullable<AdvancedSuccess['protectedRanges']> = [];
+    const allItems: NonNullable<AdvancedSuccess['protectedRanges']> = [];
     for (const sheet of response.data.sheets ?? []) {
       if (req.sheetId !== undefined && sheet.properties?.sheetId !== req.sheetId) continue;
       for (const pr of sheet.protectedRanges ?? []) {
-        ranges.push(this.mapProtectedRange(pr));
+        allItems.push(this.mapProtectedRange(pr));
       }
     }
 
-    return this.success('list_protected_ranges', { protectedRanges: ranges });
+    const { page, nextCursor, hasMore, totalCount } = this.paginateItems(
+      allItems,
+      req.cursor,
+      req.pageSize ?? 100
+    );
+    return this.success('list_protected_ranges', {
+      protectedRanges: page,
+      nextCursor,
+      hasMore,
+      totalCount,
+    });
   }
 
   // ============================================================
@@ -929,18 +968,23 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       fields: 'sheets.bandedRanges,sheets.properties.sheetId',
     });
 
-    const bandedRanges: NonNullable<AdvancedSuccess['bandedRanges']> = [];
+    const allItems: NonNullable<AdvancedSuccess['bandedRanges']> = [];
     for (const sheet of response.data.sheets ?? []) {
       if (req.sheetId !== undefined && sheet.properties?.sheetId !== req.sheetId) continue;
       for (const br of sheet.bandedRanges ?? []) {
-        bandedRanges.push({
+        allItems.push({
           bandedRangeId: br.bandedRangeId ?? 0,
           range: this.gridRangeToOutput(br.range ?? { sheetId: sheet.properties?.sheetId ?? 0 }),
         });
       }
     }
 
-    return this.success('list_banding', { bandedRanges });
+    const { page, nextCursor, hasMore, totalCount } = this.paginateItems(
+      allItems,
+      req.cursor,
+      req.pageSize ?? 100
+    );
+    return this.success('list_banding', { bandedRanges: page, nextCursor, hasMore, totalCount });
   }
 
   // ============================================================
@@ -1068,14 +1112,14 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       fields: 'sheets.tables(tableId,range,columnProperties),sheets.properties.sheetId',
     });
 
-    const tables: NonNullable<AdvancedSuccess['tables']> = [];
+    const allItems: NonNullable<AdvancedSuccess['tables']> = [];
     for (const sheet of response.data.sheets ?? []) {
       for (const table of sheet.tables ?? []) {
         const range = table.range;
         const columnCount = table.columnProperties?.length ?? 0;
         const rowCount = range ? (range.endRowIndex ?? 0) - (range.startRowIndex ?? 0) : 0;
 
-        tables.push({
+        allItems.push({
           tableId: table.tableId ?? '',
           tableName: undefined, // Google API doesn't provide table name yet (April 2025)
           range: this.gridRangeToOutput(range ?? { sheetId: sheet.properties?.sheetId ?? 0 }),
@@ -1085,7 +1129,12 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       }
     }
 
-    return this.success('list_tables', { tables });
+    const { page, nextCursor, hasMore, totalCount } = this.paginateItems(
+      allItems,
+      req.cursor,
+      req.pageSize ?? 100
+    );
+    return this.success('list_tables', { tables: page, nextCursor, hasMore, totalCount });
   }
 
   private async handleUpdateTable(
@@ -1609,7 +1658,18 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       }
     }
 
-    return this.success('list_chips', { chips, skippedChips });
+    const { page, nextCursor, hasMore, totalCount } = this.paginateItems(
+      chips,
+      req.cursor,
+      req.pageSize ?? 100
+    );
+    return this.success('list_chips', {
+      chips: page,
+      skippedChips,
+      nextCursor,
+      hasMore,
+      totalCount,
+    });
   }
 
   // ============================================================
@@ -1666,7 +1726,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
     const rawFunctions: unknown[] =
       (result.data.properties as ExtendedSpreadsheetProperties)?.namedFunctions ?? [];
 
-    const namedFunctions = rawFunctions.map((fn) => {
+    const allItems = rawFunctions.map((fn) => {
       const f = fn as {
         name?: string;
         functionBody?: string;
@@ -1681,7 +1741,17 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       };
     });
 
-    return this.success('list_named_functions', { namedFunctions });
+    const { page, nextCursor, hasMore, totalCount } = this.paginateItems(
+      allItems,
+      req.cursor,
+      req.pageSize ?? 100
+    );
+    return this.success('list_named_functions', {
+      namedFunctions: page,
+      nextCursor,
+      hasMore,
+      totalCount,
+    });
   }
 
   private async handleGetNamedFunction(

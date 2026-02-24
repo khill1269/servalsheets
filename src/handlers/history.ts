@@ -384,6 +384,25 @@ export class HistoryHandler {
             break;
           }
 
+          // ISSUE-011: dryRun mode — return what would be reverted without executing
+          if (req.safety?.dryRun) {
+            response = {
+              success: true,
+              action: 'revert_to',
+              dryRun: true,
+              wouldRevert: {
+                operationId: operation.id,
+                tool: operation.tool,
+                action: operation.action,
+                timestamp: new Date(operation.timestamp).getTime(),
+                snapshotId: operation.snapshotId,
+                spreadsheetId: operation.spreadsheetId,
+              },
+              message: `[DRY RUN] Would revert to state before ${operation.tool}.${operation.action} — pass safety.dryRun:false to execute`,
+            };
+            break;
+          }
+
           // Create safety snapshot before reverting
           await this.snapshotService.create(operation.spreadsheetId!, 'pre-revert backup');
 

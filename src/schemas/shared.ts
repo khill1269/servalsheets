@@ -162,8 +162,13 @@ export const A1NotationSchema = z.preprocess(
       (val) => !val.startsWith("'") || /^'([^']|'')*'!/.test(val),
       "Sheet names with single quotes must use '' escaping in A1 notation (e.g., 'Tom''s Sheet'!A1)"
     )
+    .refine((val) => {
+      // Reject unbounded full-column refs like "A:Z" or "Sheet1!A:Z" — triggers full grid fetch
+      const range = val.includes('!') ? val.split('!')[1] : val;
+      return !/^[A-Z]+:[A-Z]+$/.test(range ?? '');
+    }, 'Full column references like "A:Z" are not allowed — use explicit row bounds like "A1:Z1000" to prevent unbounded API fetches')
     .describe(
-      'A1 notation range: "A1" (single cell), "A1:C10" (range), "A:B" (full columns), "1:5" (full rows), "Sheet1!A1:C10" (with sheet name), "\'Sheet Name\'!A1" (quoted sheet name with spaces)'
+      'A1 notation range: "A1" (single cell), "A1:C10" (range), "Sheet1!A1:C10" (with sheet name). Full column refs (A:Z) are rejected — always include row numbers.'
     )
 );
 
@@ -659,32 +664,72 @@ export const DataFilterSchema = z
   });
 
 /** Condition for rules - accepts flexible value formats */
-export const ConditionSchema = z.object({
-  type: ConditionTypeSchema,
-  values: z
-    .preprocess((val) => {
-      // Undefined/null - return undefined
-      if (val === undefined || val === null) return undefined;
+export const ConditionSchema = z
+  .object({
+    type: ConditionTypeSchema,
+    values: z
+      .preprocess((val) => {
+        // Undefined/null - return undefined
+        if (val === undefined || val === null) return undefined;
 
-      // Helper to extract string value from various formats
-      const extractValue = (v: unknown): string => {
-        if (v === null || v === undefined) return '';
-        // Handle Google Sheets API format: { userEnteredValue: "..." }
-        if (typeof v === 'object' && v !== null && 'userEnteredValue' in v) {
-          return String((v as { userEnteredValue: unknown }).userEnteredValue ?? '');
+        // Helper to extract string value from various formats
+        const extractValue = (v: unknown): string => {
+          if (v === null || v === undefined) return '';
+          // Handle Google Sheets API format: { userEnteredValue: "..." }
+          if (typeof v === 'object' && v !== null && 'userEnteredValue' in v) {
+            return String((v as { userEnteredValue: unknown }).userEnteredValue ?? '');
+          }
+          return String(v);
+        };
+
+        // Already an array - convert elements to strings
+        if (Array.isArray(val)) {
+          return val.map(extractValue);
         }
-        return String(v);
-      };
-
-      // Already an array - convert elements to strings
-      if (Array.isArray(val)) {
-        return val.map(extractValue);
+        // Single value - wrap in array
+        return [extractValue(val)];
+      }, z.array(z.string()).optional())
+      .describe('Condition values (single value or array, automatically converted to strings)'),
+  })
+  .superRefine((data, ctx) => {
+    const { type, values } = data;
+    // BETWEEN/NOT_BETWEEN conditions require exactly 2 boundary values
+    const betweenTypes = [
+      'NUMBER_BETWEEN',
+      'NUMBER_NOT_BETWEEN',
+      'DATE_BETWEEN',
+      'DATE_NOT_BETWEEN',
+    ] as const;
+    if (betweenTypes.includes(type as (typeof betweenTypes)[number])) {
+      if (!values || values.length !== 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${type} condition requires exactly 2 values (lower bound and upper bound)`,
+          path: ['values'],
+        });
       }
-      // Single value - wrap in array
-      return [extractValue(val)];
-    }, z.array(z.string()).optional())
-    .describe('Condition values (single value or array, automatically converted to strings)'),
-});
+    }
+    // BLANK/NOT_BLANK conditions require no values
+    if (type === 'BLANK' || type === 'NOT_BLANK') {
+      if (values && values.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${type} condition must have no values`,
+          path: ['values'],
+        });
+      }
+    }
+    // CUSTOM_FORMULA requires a formula starting with '='
+    if (type === 'CUSTOM_FORMULA') {
+      if (!values || values.length === 0 || !values[0]?.startsWith('=')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'CUSTOM_FORMULA condition requires a formula value starting with "="',
+          path: ['values'],
+        });
+      }
+    }
+  });
 
 /** Convert column index to letter (0 = A, 1 = B, 25 = Z, 26 = AA) */
 const indexToColumnLetter = (index: number): string => {

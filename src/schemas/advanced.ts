@@ -137,6 +137,15 @@ const DeleteNamedRangeActionSchema = CommonFieldsSchema.extend({
 
 const ListNamedRangesActionSchema = CommonFieldsSchema.extend({
   action: z.literal('list_named_ranges').describe('List all named ranges'),
+  cursor: z.string().optional().describe('Opaque pagination cursor from previous response'),
+  pageSize: z
+    .number()
+    .int()
+    .positive()
+    .max(500)
+    .optional()
+    .default(100)
+    .describe('Items per page (default: 100, max: 500)'),
 });
 
 const GetNamedRangeActionSchema = CommonFieldsSchema.extend({
@@ -173,6 +182,15 @@ const DeleteProtectedRangeActionSchema = CommonFieldsSchema.extend({
 const ListProtectedRangesActionSchema = CommonFieldsSchema.extend({
   action: z.literal('list_protected_ranges').describe('List all protected ranges'),
   sheetId: SheetIdSchema.optional().describe('Filter by sheet ID'),
+  cursor: z.string().optional().describe('Opaque pagination cursor from previous response'),
+  pageSize: z
+    .number()
+    .int()
+    .positive()
+    .max(500)
+    .optional()
+    .default(100)
+    .describe('Items per page (default: 100, max: 500)'),
 });
 
 // ============================================================================
@@ -228,6 +246,15 @@ const DeleteBandingActionSchema = CommonFieldsSchema.extend({
 const ListBandingActionSchema = CommonFieldsSchema.extend({
   action: z.literal('list_banding').describe('List all banding'),
   sheetId: SheetIdSchema.optional().describe('Filter by sheet ID'),
+  cursor: z.string().optional().describe('Opaque pagination cursor from previous response'),
+  pageSize: z
+    .number()
+    .int()
+    .positive()
+    .max(500)
+    .optional()
+    .default(100)
+    .describe('Items per page (default: 100, max: 500)'),
 });
 
 // ============================================================================
@@ -261,6 +288,15 @@ const DeleteTableActionSchema = CommonFieldsSchema.extend({
 
 const ListTablesActionSchema = CommonFieldsSchema.extend({
   action: z.literal('list_tables').describe('List all tables'),
+  cursor: z.string().optional().describe('Opaque pagination cursor from previous response'),
+  pageSize: z
+    .number()
+    .int()
+    .positive()
+    .max(500)
+    .optional()
+    .default(100)
+    .describe('Items per page (default: 100, max: 500)'),
 });
 
 const UpdateTableActionSchema = CommonFieldsSchema.extend({
@@ -351,6 +387,15 @@ const ListChipsActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default('all')
     .describe('Filter by chip type'),
+  cursor: z.string().optional().describe('Opaque pagination cursor from previous response'),
+  pageSize: z
+    .number()
+    .int()
+    .positive()
+    .max(500)
+    .optional()
+    .default(100)
+    .describe('Items per page (default: 100, max: 500)'),
 });
 
 // ============================================================================
@@ -393,6 +438,15 @@ const CreateNamedFunctionActionSchema = CommonFieldsSchema.extend({
 
 const ListNamedFunctionsActionSchema = CommonFieldsSchema.extend({
   action: z.literal('list_named_functions').describe('List all custom named functions'),
+  cursor: z.string().optional().describe('Opaque pagination cursor from previous response'),
+  pageSize: z
+    .number()
+    .int()
+    .positive()
+    .max(500)
+    .optional()
+    .default(100)
+    .describe('Items per page (default: 100, max: 500)'),
 });
 
 const GetNamedFunctionActionSchema = CommonFieldsSchema.extend({
