@@ -517,11 +517,14 @@ Example: {"action":"validate","value":"test@email.com","rules":["not_empty","val
 
 **TOP 3 ACTIONS:**
 1. validate: {"action":"validate","value":"test@email.com","rules":["not_empty","valid_email"]}
-2. analyze_impact: {"action":"analyze_impact","spreadsheetId":"1ABC...","operation":{"type":"delete_rows","range":"A1:A10"}}
+2. analyze_impact (tool+action form): {"action":"analyze_impact","spreadsheetId":"1ABC...","operation":{"tool":"sheets_data","action":"clear","params":{"spreadsheetId":"1ABC...","range":"Sheet1!A1:A100"}}}
+   analyze_impact (description form): {"action":"analyze_impact","spreadsheetId":"1ABC...","operation":{"description":"delete rows A1:A100"}}
 3. detect_conflicts: {"action":"detect_conflicts","spreadsheetId":"1ABC..."}
 
 **validate rules examples:** not_empty, valid_email, is_number, is_date, min_length, max_length, matches_pattern
-**impact operation types:** delete_rows, delete_columns, clear_range, write_range, create_chart, delete_formula
+**impact operation object:** at least one of \`type\`, \`tool\`, \`action\`, or \`description\` required.
+- Tool+action form: \`{ "tool": "sheets_data", "action": "write", "params": { "spreadsheetId": "...", "range": "Sheet1!A1:B10" } }\`
+- Description form: \`{ "description": "delete column B" }\` (simpler, uses natural language)
 
 **PRE-WRITE WORKFLOW:**
 1. Plan operation (which cells, what values)

@@ -1217,8 +1217,12 @@ export class CollaborateHandler extends BaseHandler<
       const buffer = Buffer.from(response.data as ArrayBuffer);
       const exportData = buffer.toString('base64');
 
+      // ISSUE-183: Include format and revision context alongside exportData for consistent response shape
       return this.success('version_export', {
         exportData,
+        format: format,
+        revisionId: 'head',
+        encoding: 'base64' as const,
       });
     } catch (err) {
       // Check for specific error codes
