@@ -67,7 +67,7 @@ const SortSpecSchema = z.object({
       return val;
     }, z.coerce.number().int().min(0))
     .describe(
-      'Column to sort by: zero-based index (0, 1, 2) or column letter (A, B, C). Examples: 0 or "A" for first column, 2 or "C" for third column.'
+      'Column to sort by: zero-based index (0, 1, 2) or column letter (A, B, C). Examples: 0 or "A" for first column, 2 or "C" for third column. Note: mapped to Google API "dimensionIndex" internally.'
     ),
   sortOrder: SortOrderSchema.optional()
     .default('ASCENDING')
