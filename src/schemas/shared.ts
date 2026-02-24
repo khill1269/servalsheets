@@ -462,6 +462,7 @@ export const ErrorCodeSchema = z.enum([
   'SESSION_NOT_FOUND',
   // Batch/Payload
   'PAYLOAD_TOO_LARGE',
+  'OPERATION_LIMIT_EXCEEDED',
   // MCP-native features (SEP-1036, SEP-1577)
   'ELICITATION_UNAVAILABLE',
   'SAMPLING_UNAVAILABLE',

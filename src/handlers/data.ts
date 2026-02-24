@@ -1610,8 +1610,13 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           spreadsheetId: input.spreadsheetId,
         });
 
-        // Provide helpful error with workaround if timeout
-        if (error instanceof Error && error.message.includes('timed out')) {
+        // Provide helpful error with workaround if timeout (our own timer OR Google DEADLINE_EXCEEDED)
+        // ISSUE-177: check error.code in addition to message to catch Google API DEADLINE_EXCEEDED
+        const isTimeoutError1 =
+          error instanceof Error &&
+          (error.message.includes('timed out') ||
+            (error as { code?: string }).code === 'DEADLINE_EXCEEDED');
+        if (isTimeoutError1) {
           return this.error({
             code: 'DEADLINE_EXCEEDED',
             message: `Clear operation (dataFilter) timed out after ${duration}ms. Consider using a more specific filter.`,
@@ -1705,8 +1710,13 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         spreadsheetId: input.spreadsheetId,
       });
 
-      // Provide helpful error with workaround if timeout
-      if (error instanceof Error && error.message.includes('timed out')) {
+      // Provide helpful error with workaround if timeout (our own timer OR Google DEADLINE_EXCEEDED)
+      // ISSUE-177: check error.code in addition to message to catch Google API DEADLINE_EXCEEDED
+      const isTimeoutError2 =
+        error instanceof Error &&
+        (error.message.includes('timed out') ||
+          (error as { code?: string }).code === 'DEADLINE_EXCEEDED');
+      if (isTimeoutError2) {
         return this.error({
           code: 'DEADLINE_EXCEEDED',
           message: `Clear operation timed out after ${duration}ms.`,

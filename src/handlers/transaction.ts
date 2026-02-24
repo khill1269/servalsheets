@@ -11,7 +11,7 @@ import type {
   TransactionResponse,
 } from '../schemas/transaction.js';
 import { unwrapRequest, type HandlerContext } from './base.js';
-import { ValidationError } from '../core/errors.js';
+import { ValidationError, ServiceError } from '../core/errors.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { sendProgress } from '../utils/request-context.js';
@@ -104,6 +104,17 @@ export class TransactionHandler {
             throw new ValidationError(
               'transactionId and operation are required for queue action',
               'transactionId'
+            );
+          }
+
+          // ISSUE-139: Hard cap on queued operations to prevent unbounded growth
+          const MAX_TRANSACTION_OPS = parseInt(process.env['MAX_TRANSACTION_OPS'] ?? '200', 10);
+          const preTx = transactionManager.getTransaction(req.transactionId);
+          if (preTx.operations.length >= MAX_TRANSACTION_OPS) {
+            throw new ServiceError(
+              `Transaction ${req.transactionId} has reached the maximum of ${MAX_TRANSACTION_OPS} operations. Commit or rollback before adding more.`,
+              'OPERATION_LIMIT_EXCEEDED',
+              'transaction'
             );
           }
 
