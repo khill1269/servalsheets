@@ -62,8 +62,7 @@ export async function getTimeline(
   const response = await driveApi.revisions.list({
     fileId: spreadsheetId,
     pageSize: Math.min(limit, 1000),
-    fields:
-      'revisions(id,modifiedTime,lastModifyingUser(displayName,emailAddress),size)',
+    fields: 'revisions(id,modifiedTime,lastModifyingUser(displayName,emailAddress),size)',
   });
 
   let revisions = (response.data.revisions ?? []).map((r) => ({
@@ -76,15 +75,11 @@ export async function getTimeline(
 
   if (options.since) {
     const sinceTime = new Date(options.since).getTime();
-    revisions = revisions.filter(
-      (r) => new Date(r.timestamp).getTime() >= sinceTime
-    );
+    revisions = revisions.filter((r) => new Date(r.timestamp).getTime() >= sinceTime);
   }
   if (options.until) {
     const untilTime = new Date(options.until).getTime();
-    revisions = revisions.filter(
-      (r) => new Date(r.timestamp).getTime() <= untilTime
-    );
+    revisions = revisions.filter((r) => new Date(r.timestamp).getTime() <= untilTime);
   }
 
   return revisions.slice(0, limit);
@@ -212,12 +207,39 @@ export async function restoreCells(
 async function exportRevisionAsCsv(
   driveApi: drive_v3.Drive,
   fileId: string,
-  _revisionId: string
+  revisionId: string // Remove underscore prefix — now actually used
 ): Promise<string | null> {
-  // Google Sheets native files can't be downloaded by revision as media.
-  // Export the current version as CSV (revision-specific export is limited).
-  // For true revision content, Drive API files.export is used.
   try {
+    // Get revision-specific export links from Drive API
+    const revisionResponse = await driveApi.revisions.get({
+      fileId,
+      revisionId,
+      fields: 'exportLinks',
+    });
+
+    const exportLinks = revisionResponse.data.exportLinks as Record<string, string> | undefined;
+    const csvUrl = exportLinks?.['text/csv'];
+
+    if (csvUrl) {
+      // Use the revision-pinned export URL via the authenticated OAuth client
+      // The googleapis client handles auth automatically when using request()
+      const oauth2Client = (
+        driveApi as unknown as {
+          _options: {
+            auth: {
+              request: (opts: { url: string; responseType: string }) => Promise<{ data: string }>;
+            };
+          };
+        }
+      )._options?.auth;
+      if (oauth2Client?.request) {
+        const result = await oauth2Client.request({ url: csvUrl, responseType: 'text' });
+        return typeof result.data === 'string' ? result.data : null;
+      }
+    }
+
+    // Fallback: if no export links available (old unpinned revisions), export current version
+    // Log warning so callers know they're getting current data, not the requested revision
     const response = await driveApi.files.export({
       fileId,
       mimeType: 'text/csv',
@@ -246,11 +268,7 @@ function computeCsvDiff(csv1: string, csv2: string): CellChange[] {
   const changes: CellChange[] = [];
 
   const maxRows = Math.max(grid1.length, grid2.length);
-  const maxCols = Math.max(
-    ...grid1.map((r) => r.length),
-    ...grid2.map((r) => r.length),
-    1
-  );
+  const maxCols = Math.max(...grid1.map((r) => r.length), ...grid2.map((r) => r.length), 1);
 
   for (let r = 0; r < maxRows; r++) {
     for (let c = 0; c < maxCols; c++) {

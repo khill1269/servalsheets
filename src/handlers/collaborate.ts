@@ -1807,6 +1807,23 @@ export class CollaborateHandler extends BaseHandler<
         });
       }
 
+      // Request confirmation if elicitation available
+      if (this.context.elicitationServer) {
+        const confirmation = await confirmDestructiveAction(
+          this.context.elicitationServer,
+          'approval_cancel',
+          `Cancel approval request (ID: ${input.approvalId}) on spreadsheet ${input.spreadsheetId}. The approval workflow and sheet protection will be removed. This action cannot be undone.`
+        );
+
+        if (!confirmation.confirmed) {
+          return this.error({
+            code: 'OPERATION_CANCELLED',
+            message: confirmation.reason ?? 'Operation cancelled by user',
+            retryable: false,
+          });
+        }
+      }
+
       // Update status
       approval.status = 'cancelled';
 

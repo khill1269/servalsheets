@@ -44,6 +44,8 @@ import { ScopeValidator, IncrementalScopeRequiredError } from '../security/incre
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { createNotFoundError, createValidationError } from '../utils/error-factory.js';
+import { withTimeout } from '../utils/timeout.js';
+import { getEnv } from '../config/env.js';
 
 export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOutput> {
   private sheetsApi: sheets_v4.Sheets;
@@ -683,7 +685,12 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
     };
 
     try {
-      const response = await this.driveApi.files.copy(copyParams);
+      const env = getEnv();
+      const response = await withTimeout(
+        () => this.driveApi!.files.copy(copyParams),
+        env.COMPOSITE_TIMEOUT_MS,
+        'copy_spreadsheet'
+      );
 
       if (!response.data.id) {
         return this.error({
@@ -1020,7 +1027,9 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
     // the output schema's discriminated union type. We build the metadata object and
     // cast it as a whole to the schema's expected type using the approved `unknown`
     // intermediate cast. No data is lost at runtime — this is purely a compile-time fix.
-    type ComprehensiveMeta = NonNullable<Extract<CoreResponse, { success: true }>['comprehensiveMetadata']>;
+    type ComprehensiveMeta = NonNullable<
+      Extract<CoreResponse, { success: true }>['comprehensiveMetadata']
+    >;
     type SheetEntry = NonNullable<ComprehensiveMeta['sheets']>[number];
     const comprehensiveMetadata: ComprehensiveMeta = {
       spreadsheetId: data.spreadsheetId!,

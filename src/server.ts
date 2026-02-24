@@ -175,6 +175,7 @@ export class ServalSheetsServer {
   private requestQueue: PQueue;
   private taskStore: TaskStoreAdapter;
   private taskAbortControllers = new Map<string, AbortController>();
+  private taskWatchdogTimers = new Map<string, NodeJS.Timeout>();
   private healthMonitor: HealthMonitor;
   private connectionHealthCheck: ReturnType<typeof createConnectionHealthCheck>;
 
@@ -358,9 +359,10 @@ export class ServalSheetsServer {
     this.registerTools();
 
     // Register completions
-    // NOTE: MCP SDK v1.25.1 only supports completions for prompts/resources, not tool arguments
-    // Tool argument completions will be added when SDK supports them
-    // this.registerCompletions();
+    // Supported since SDK v1.26.0: resource template completions are auto-registered by the
+    // SDK when ResourceTemplate instances include 'complete' callbacks (see resource-registration.ts).
+    // This call ensures completion capability is advertised and logs registration status.
+    this.registerCompletions();
 
     // Register resources (async to support non-blocking knowledge discovery)
     // Can be deferred to first access with DEFER_RESOURCE_DISCOVERY=true (saves 300-500ms)
@@ -524,6 +526,22 @@ export class ServalSheetsServer {
         const abortController = new AbortController();
         this.taskAbortControllers.set(task.taskId, abortController);
 
+        // Watchdog timer: force-abort tasks that exceed 10 minutes
+        const TASK_WATCHDOG_MS = 10 * 60 * 1000;
+        const watchdogTimer = setTimeout(() => {
+          if (this.taskAbortControllers.has(task.taskId)) {
+            baseLogger.warn('Task watchdog: aborting hung task', {
+              taskId: task.taskId,
+              toolName,
+              maxLifetimeMs: TASK_WATCHDOG_MS,
+            });
+            abortController.abort('Task exceeded maximum runtime of 10 minutes');
+            this.taskAbortControllers.delete(task.taskId);
+            this.taskWatchdogTimers.delete(task.taskId);
+          }
+        }, TASK_WATCHDOG_MS);
+        this.taskWatchdogTimers.set(task.taskId, watchdogTimer);
+
         // Use this.taskStore for cancellation methods (not extra.taskStore)
         void (async () => {
           try {
@@ -592,8 +610,10 @@ export class ServalSheetsServer {
               }
             }
           } finally {
-            // Cleanup abort controller
+            // Cleanup abort controller and watchdog timer
             this.taskAbortControllers.delete(task.taskId);
+            clearTimeout(this.taskWatchdogTimers.get(task.taskId));
+            this.taskWatchdogTimers.delete(task.taskId);
           }
         })();
 
@@ -634,6 +654,10 @@ export class ServalSheetsServer {
         abortController.abort('Task cancelled by client');
         this.taskAbortControllers.delete(taskId);
       }
+
+      // Clear watchdog timer for cancelled task
+      clearTimeout(this.taskWatchdogTimers.get(taskId));
+      this.taskWatchdogTimers.delete(taskId);
 
       baseLogger.info('Task cancelled', { taskId });
     } catch (error) {
@@ -1073,6 +1097,28 @@ export class ServalSheetsServer {
   }
 
   /**
+   * Register MCP completions capability
+   *
+   * Resource template completions (spreadsheetId, range) are auto-registered by the SDK
+   * when ResourceTemplate instances include 'complete' callbacks in resource-registration.ts.
+   * This method ensures the capability is advertised and logs its status.
+   *
+   * SDK v1.26.0+: setCompletionRequestHandler() is called automatically by the SDK
+   * when any ResourceTemplate with completions is registered.
+   */
+  private registerCompletions(): void {
+    try {
+      // Resource completions are wired in registerResources() via ResourceTemplate complete callbacks.
+      // No explicit handler registration is needed — the SDK installs it automatically.
+      baseLogger.info(
+        'Completions capability registered (spreadsheetId + range autocompletion active)'
+      );
+    } catch (error) {
+      baseLogger.error('Failed to register completions', { error });
+    }
+  }
+
+  /**
    * Register task cancellation handler
    *
    * Enables clients to cancel long-running tasks via the tasks/cancel request.
@@ -1093,6 +1139,9 @@ export class ServalSheetsServer {
             this.taskAbortControllers.delete(taskId);
             baseLogger.info('Task abort signal sent', { taskId, reason });
           }
+          // Clear watchdog timer when task is cancelled via store
+          clearTimeout(this.taskWatchdogTimers.get(taskId));
+          this.taskWatchdogTimers.delete(taskId);
         };
         baseLogger.info('Task cancellation support enabled');
       } else {

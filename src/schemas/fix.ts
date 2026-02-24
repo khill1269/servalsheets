@@ -360,7 +360,7 @@ const FixActionSchema = z.object({
 const CleanActionSchema = z.object({
   action: z.literal('clean').describe('Auto-detect and fix common data quality issues'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().describe('A1 range to clean (e.g., "Sheet1!A1:Z100")'),
+  range: z.string().min(1).describe('A1 range to clean (e.g., "Sheet1!A1:Z100")'),
   rules: z
     .array(CleanRuleSchema)
     .optional()
@@ -379,7 +379,7 @@ const StandardizeFormatsActionSchema = z.object({
     .literal('standardize_formats')
     .describe('Normalize date, currency, phone, and text formats in specified columns'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().describe('A1 range to standardize (e.g., "Sheet1!A1:Z100")'),
+  range: z.string().min(1).describe('A1 range to standardize (e.g., "Sheet1!A1:Z100")'),
   columns: z
     .array(FormatSpecSchema)
     .describe(
@@ -397,7 +397,7 @@ const FillMissingActionSchema = z.object({
     .literal('fill_missing')
     .describe('Fill empty cells using a statistical or fixed strategy'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().describe('A1 range to fill (e.g., "Sheet1!A1:Z100")'),
+  range: z.string().min(1).describe('A1 range to fill (e.g., "Sheet1!A1:Z100")'),
   strategy: FillStrategySchema.describe(
     'Fill strategy: forward (last known value), backward (next known value), mean, median, mode (column statistics), constant (user-provided value)'
   ),
@@ -419,7 +419,7 @@ const FillMissingActionSchema = z.object({
 const DetectAnomaliesActionSchema = z.object({
   action: z.literal('detect_anomalies').describe('Flag statistical outliers in numeric columns'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().describe('A1 range to analyze (e.g., "Sheet1!A1:Z100")'),
+  range: z.string().min(1).describe('A1 range to analyze (e.g., "Sheet1!A1:Z100")'),
   method: AnomalyMethodSchema.optional()
     .default('iqr')
     .describe(
@@ -441,7 +441,7 @@ const SuggestCleaningActionSchema = z.object({
     .literal('suggest_cleaning')
     .describe('Profile data and provide AI-powered cleaning recommendations (read-only)'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().describe('A1 range to profile (e.g., "Sheet1!A1:Z100")'),
+  range: z.string().min(1).describe('A1 range to profile (e.g., "Sheet1!A1:Z100")'),
   maxRecommendations: z
     .number()
     .min(1)

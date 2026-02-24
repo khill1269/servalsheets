@@ -28,11 +28,50 @@ import type { SamplingServer } from '../mcp/sampling.js';
 import { logger } from '../utils/logger.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 
+const ANALYZER_CACHE_MAX = 25;
+const ANALYZER_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+interface AnalyzerCacheEntry {
+  analyzer: ImpactAnalyzer;
+  lastUsed: number;
+}
+
+class AnalyzerLRUCache {
+  private map = new Map<string, AnalyzerCacheEntry>();
+
+  get(spreadsheetId: string): ImpactAnalyzer | undefined {
+    const entry = this.map.get(spreadsheetId);
+    if (!entry) return undefined;
+    if (Date.now() - entry.lastUsed > ANALYZER_CACHE_TTL_MS) {
+      this.map.delete(spreadsheetId);
+      return undefined;
+    }
+    // Refresh: delete + re-insert moves to end (insertion-order)
+    entry.lastUsed = Date.now();
+    this.map.delete(spreadsheetId);
+    this.map.set(spreadsheetId, entry);
+    return entry.analyzer;
+  }
+
+  set(spreadsheetId: string, analyzer: ImpactAnalyzer): void {
+    if (this.map.size >= ANALYZER_CACHE_MAX && !this.map.has(spreadsheetId)) {
+      // Evict least-recently-used (first entry)
+      const oldestKey = this.map.keys().next().value;
+      if (oldestKey !== undefined) this.map.delete(oldestKey);
+    }
+    this.map.set(spreadsheetId, { analyzer, lastUsed: Date.now() });
+  }
+
+  clear(): void {
+    this.map.clear();
+  }
+}
+
 /**
- * Dependency analyzer cache
+ * Dependency analyzer cache (LRU, max 25 entries, 30-minute TTL)
  * Maps spreadsheetId -> ImpactAnalyzer
  */
-const analyzerCache = new Map<string, ImpactAnalyzer>();
+const analyzerCache = new AnalyzerLRUCache();
 
 export interface DependenciesHandlerOptions {
   samplingServer?: SamplingServer;

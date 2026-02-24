@@ -294,7 +294,10 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
       }
     }
 
-    const dataRange = await this.toGridRange(resolvedInput.spreadsheetId, resolvedInput.data.sourceRange);
+    const dataRange = await this.toGridRange(
+      resolvedInput.spreadsheetId,
+      resolvedInput.data.sourceRange
+    );
     const position = await this.toOverlayPosition(
       resolvedInput.spreadsheetId,
       resolvedInput.position.anchorCell,
@@ -302,7 +305,12 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
     );
 
     // Route to appropriate chart spec builder based on chart type
-    const chartSpec = this.buildChartSpec(dataRange, resolvedInput.chartType, resolvedInput.data, resolvedInput.options);
+    const chartSpec = this.buildChartSpec(
+      dataRange,
+      resolvedInput.chartType,
+      resolvedInput.data,
+      resolvedInput.options
+    );
 
     const response = await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: resolvedInput.spreadsheetId,
@@ -334,7 +342,9 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
           cellsAffected: 0,
         });
       }
-    } catch { /* non-blocking */ }
+    } catch {
+      /* non-blocking */
+    }
 
     return this.success('chart_create', { chartId });
   }
@@ -629,7 +639,24 @@ Always return valid JSON in the exact format requested.`;
 
     const charts: Array<{
       chartId: number;
-      chartType: 'BAR' | 'LINE' | 'AREA' | 'COLUMN' | 'SCATTER' | 'COMBO' | 'STEPPED_AREA' | 'PIE' | 'DOUGHNUT' | 'TREEMAP' | 'WATERFALL' | 'HISTOGRAM' | 'CANDLESTICK' | 'ORG' | 'RADAR' | 'SCORECARD' | 'BUBBLE';
+      chartType:
+        | 'BAR'
+        | 'LINE'
+        | 'AREA'
+        | 'COLUMN'
+        | 'SCATTER'
+        | 'COMBO'
+        | 'STEPPED_AREA'
+        | 'PIE'
+        | 'DOUGHNUT'
+        | 'TREEMAP'
+        | 'WATERFALL'
+        | 'HISTOGRAM'
+        | 'CANDLESTICK'
+        | 'ORG'
+        | 'RADAR'
+        | 'SCORECARD'
+        | 'BUBBLE';
       sheetId: number;
       title?: string;
       position: {
@@ -649,7 +676,24 @@ Always return valid JSON in the exact format requested.`;
         const overlay = chart.position?.overlayPosition;
         charts.push({
           chartId: chart.chartId ?? 0,
-          chartType: (chart.spec?.basicChart?.chartType ?? 'BAR') as 'BAR' | 'LINE' | 'AREA' | 'COLUMN' | 'SCATTER' | 'COMBO' | 'STEPPED_AREA' | 'PIE' | 'DOUGHNUT' | 'TREEMAP' | 'WATERFALL' | 'HISTOGRAM' | 'CANDLESTICK' | 'ORG' | 'RADAR' | 'SCORECARD' | 'BUBBLE',
+          chartType: (chart.spec?.basicChart?.chartType ?? 'BAR') as
+            | 'BAR'
+            | 'LINE'
+            | 'AREA'
+            | 'COLUMN'
+            | 'SCATTER'
+            | 'COMBO'
+            | 'STEPPED_AREA'
+            | 'PIE'
+            | 'DOUGHNUT'
+            | 'TREEMAP'
+            | 'WATERFALL'
+            | 'HISTOGRAM'
+            | 'CANDLESTICK'
+            | 'ORG'
+            | 'RADAR'
+            | 'SCORECARD'
+            | 'BUBBLE',
           sheetId,
           title: chart.spec?.title ?? undefined,
           position: {
@@ -682,7 +726,24 @@ Always return valid JSON in the exact format requested.`;
             charts: [
               {
                 chartId: chart.chartId ?? 0,
-                chartType: (chart.spec?.basicChart?.chartType ?? 'BAR') as 'BAR' | 'LINE' | 'AREA' | 'COLUMN' | 'SCATTER' | 'COMBO' | 'STEPPED_AREA' | 'PIE' | 'DOUGHNUT' | 'TREEMAP' | 'WATERFALL' | 'HISTOGRAM' | 'CANDLESTICK' | 'ORG' | 'RADAR' | 'SCORECARD' | 'BUBBLE',
+                chartType: (chart.spec?.basicChart?.chartType ?? 'BAR') as
+                  | 'BAR'
+                  | 'LINE'
+                  | 'AREA'
+                  | 'COLUMN'
+                  | 'SCATTER'
+                  | 'COMBO'
+                  | 'STEPPED_AREA'
+                  | 'PIE'
+                  | 'DOUGHNUT'
+                  | 'TREEMAP'
+                  | 'WATERFALL'
+                  | 'HISTOGRAM'
+                  | 'CANDLESTICK'
+                  | 'ORG'
+                  | 'RADAR'
+                  | 'SCORECARD'
+                  | 'BUBBLE',
                 sheetId: overlay?.anchorCell?.sheetId ?? 0,
                 title: chart.spec?.title ?? undefined,
                 position: {
@@ -1276,18 +1337,32 @@ Always return valid JSON in the exact format requested.`;
 
   private async handlePivotUpdate(input: PivotUpdateInput): Promise<VisualizeResponse> {
     const sheetId = input.sheetId;
-    const pivotRange = await this.findPivotRange(input.spreadsheetId, sheetId);
+    // Fetch current pivot to enable merge — prevents silent erasure of omitted fields
+    const currentPivot = await this.getCurrentPivotTable(input.spreadsheetId, sheetId);
 
-    if (!pivotRange) {
+    if (!currentPivot?.source) {
       return this.notFoundError('Pivot on sheet', sheetId);
     }
 
     const pivot: sheets_v4.Schema$PivotTable = {
-      source: pivotRange,
-      rows: input.rows?.map(this.mapPivotGroup),
-      columns: input.columns?.map(this.mapPivotGroup),
-      values: input.values?.map(this.mapPivotValue),
-      filterSpecs: input.filters?.map(this.mapPivotFilter),
+      source: currentPivot.source,
+      // Merge: use input value when provided, otherwise preserve existing field
+      rows:
+        input.rows !== undefined
+          ? input.rows.map(this.mapPivotGroup)
+          : (currentPivot.rows ?? undefined),
+      columns:
+        input.columns !== undefined
+          ? input.columns.map(this.mapPivotGroup)
+          : (currentPivot.columns ?? undefined),
+      values:
+        input.values !== undefined
+          ? input.values.map(this.mapPivotValue)
+          : (currentPivot.values ?? undefined),
+      filterSpecs:
+        input.filters !== undefined
+          ? input.filters.map(this.mapPivotFilter)
+          : (currentPivot.filterSpecs ?? undefined),
     };
 
     if (input.safety?.dryRun) {
@@ -1302,8 +1377,8 @@ Always return valid JSON in the exact format requested.`;
             updateCells: {
               start: {
                 sheetId,
-                rowIndex: pivotRange.startRowIndex ?? 0,
-                columnIndex: pivotRange.startColumnIndex ?? 0,
+                rowIndex: currentPivot.source.startRowIndex ?? 0,
+                columnIndex: currentPivot.source.startColumnIndex ?? 0,
               },
               fields: 'pivotTable',
               rows: [
@@ -1883,24 +1958,39 @@ Always return valid JSON in the exact format requested.`;
     spreadsheetId: string,
     sheetId: number
   ): Promise<sheets_v4.Schema$GridRange | null> {
-    const response = await this.sheetsApi.spreadsheets.get({
-      spreadsheetId,
-      fields: 'sheets.properties,sheets.data.rowData.values.pivotTable',
-    });
+    const pivot = await this.getCurrentPivotTable(spreadsheetId, sheetId);
+    return pivot?.source ?? null;
+  }
 
-    for (const sheet of response.data.sheets ?? []) {
-      if (sheet.properties?.sheetId !== sheetId) continue;
-      for (const data of sheet.data ?? []) {
-        for (const row of data.rowData ?? []) {
-          for (const value of row.values ?? []) {
-            if (value.pivotTable?.source) {
-              return value.pivotTable.source;
+  /**
+   * Fetch the current pivot table definition for a sheet.
+   * Used by handlePivotUpdate to merge existing fields with updated ones,
+   * preventing silent erasure of omitted fields.
+   */
+  private async getCurrentPivotTable(
+    spreadsheetId: string,
+    sheetId: number
+  ): Promise<sheets_v4.Schema$PivotTable | null> {
+    try {
+      const response = await this.sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets.properties,sheets.data.rowData.values.pivotTable',
+      });
+
+      for (const sheet of response.data.sheets ?? []) {
+        if (sheet.properties?.sheetId !== sheetId) continue;
+        for (const data of sheet.data ?? []) {
+          for (const row of data.rowData ?? []) {
+            for (const value of row.values ?? []) {
+              if (value.pivotTable) return value.pivotTable;
             }
           }
         }
       }
+      return null;
+    } catch {
+      return null;
     }
-    return null;
   }
 
   // ============================================================

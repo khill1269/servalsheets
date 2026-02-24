@@ -79,7 +79,7 @@ function isPrivateIPv6(ip: string): boolean {
  * Validates that webhook URLs use HTTPS and don't target internal IP ranges.
  * Includes DNS rebinding protection by resolving hostnames and re-validating.
  */
-async function validateWebhookUrl(urlString: string): Promise<void> {
+export async function validateWebhookUrl(urlString: string): Promise<void> {
   let parsed: URL;
   try {
     parsed = new URL(urlString);

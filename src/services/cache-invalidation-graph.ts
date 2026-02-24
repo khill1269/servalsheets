@@ -462,6 +462,13 @@ export class CacheInvalidationGraph {
     rules['sheets_composite.generate_template'] = { invalidates: [] }; // Saves template only
     rules['sheets_composite.preview_generation'] = { invalidates: [] }; // Dry-run, read-only
 
+    // P14: Composite workflow actions
+    rules['sheets_composite.audit_sheet'] = { invalidates: [] }; // Read-only: generates report, no mutations
+    rules['sheets_composite.publish_report'] = { invalidates: [] }; // Read-only: exports existing data
+    rules['sheets_composite.data_pipeline'] = { invalidates: ['values:*', 'metadata:*'] }; // Write: transforms data
+    rules['sheets_composite.instantiate_template'] = { invalidates: ['values:*', 'metadata:*'] }; // Write: creates new sheet
+    rules['sheets_composite.migrate_spreadsheet'] = { invalidates: ['values:*', 'metadata:*'] }; // Write: copies data
+
     // ========================================================================
     // sheets_session (26 actions) - No cache invalidation
     // ========================================================================
