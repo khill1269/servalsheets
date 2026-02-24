@@ -557,17 +557,18 @@ describe('FormatHandler', () => {
   // ============================================================
 
   describe('suggest_format action', () => {
-    it('should return FEATURE_UNAVAILABLE when server context is not available', async () => {
-      // Handler context has no server → sampling not supported
+    it('should return rule-based suggestions when server context is not available (graceful degradation)', async () => {
+      // ISSUE-170: handler now degrades to rule-based suggestions instead of FEATURE_UNAVAILABLE
+      // when MCP Sampling and LLM fallback are both unavailable
       const result = await handler.handle({
         action: 'suggest_format',
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:D10' },
       });
 
-      expect(result.response.success).toBe(false);
-      if (!result.response.success) {
-        expect(result.response.error.code).toBe('FEATURE_UNAVAILABLE');
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(Array.isArray((result.response as { suggestions?: unknown }).suggestions)).toBe(true);
       }
 
       const parseResult = SheetsFormatOutputSchema.safeParse(result);
