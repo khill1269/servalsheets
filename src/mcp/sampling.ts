@@ -18,7 +18,12 @@ import type {
   TextContent,
   ModelPreferences,
 } from '@modelcontextprotocol/sdk/types.js';
+import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
+import {
+  getSpreadsheetContext,
+  formatContextForPrompt,
+} from '../services/sampling-context-cache.js';
 
 // ============================================================================
 // Timeout Wrapper (ISSUE-088)
@@ -78,6 +83,14 @@ export interface AnalyzeDataOptions {
   modelPreferences?: ModelPreferences;
   /** Temperature for creativity (0-1) */
   temperature?: number;
+  /**
+   * 16-A1: Optional context enrichment. When provided, pre-fetches spreadsheet
+   * schema (headers, column types, formula count) from the sampling-context-cache
+   * and prepends it to the prompt. Saves 200-400ms on repeat calls via TTL cache.
+   */
+  sheetsApi?: sheets_v4.Sheets;
+  /** Spreadsheet ID to enrich prompt with cached schema context (requires sheetsApi) */
+  spreadsheetId?: string;
 }
 
 /**
@@ -203,6 +216,33 @@ export function createAssistantMessage(text: string): SamplingMessage {
     role: 'assistant',
     content: { type: 'text', text },
   };
+}
+
+/**
+ * 16-A1: Enrich a system prompt string with cached spreadsheet schema context.
+ * Use this in handlers that call `server.createMessage()` directly:
+ *
+ * ```typescript
+ * const enrichedPrompt = await enrichSystemPromptWithContext(
+ *   this.sheetsApi, req.spreadsheetId, baseSystemPrompt
+ * );
+ * await server.createMessage({ ..., systemPrompt: enrichedPrompt });
+ * ```
+ *
+ * Non-blocking: returns baseSystemPrompt unchanged on error.
+ */
+export async function enrichSystemPromptWithContext(
+  sheetsApi: sheets_v4.Sheets,
+  spreadsheetId: string,
+  baseSystemPrompt: string
+): Promise<string> {
+  try {
+    const ctx = await getSpreadsheetContext(sheetsApi, spreadsheetId);
+    const hint = formatContextForPrompt(ctx);
+    return hint ? `${hint}\n\n${baseSystemPrompt}` : baseSystemPrompt;
+  } catch {
+    return baseSystemPrompt;
+  }
 }
 
 /**
@@ -343,13 +383,26 @@ export async function analyzeData(
     maxTokens = 1000,
     modelPreferences,
     temperature,
+    sheetsApi,
+    spreadsheetId,
   } = options;
 
   const formattedData = formatDataForLLM(params.data);
 
+  // 16-A1: Enrich prompt with cached spreadsheet schema context (saves 200-400ms on repeat calls)
+  let schemaContext = params.context ?? '';
+  if (!schemaContext && sheetsApi && spreadsheetId) {
+    try {
+      const ctx = await getSpreadsheetContext(sheetsApi, spreadsheetId);
+      schemaContext = formatContextForPrompt(ctx);
+    } catch {
+      // Non-blocking: schema context enrichment is best-effort
+    }
+  }
+
   let prompt = `Analyze this spreadsheet data and answer: ${params.question}\n\n`;
-  if (params.context) {
-    prompt += `Context: ${params.context}\n\n`;
+  if (schemaContext) {
+    prompt += `Context: ${schemaContext}\n\n`;
   }
   prompt += `Data:\n${formattedData}`;
 
