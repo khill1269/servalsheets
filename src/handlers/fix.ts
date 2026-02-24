@@ -12,6 +12,10 @@ import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import { ValidationError } from '../core/errors.js';
 import type { Intent } from '../core/intent.js';
 import { CleaningEngine, parseRangeOffset } from '../services/cleaning-engine.js';
+
+// ISSUE-047: CleaningEngine is stateless — use module-level singleton to avoid
+// recreating the instance (and its pre-compiled rule arrays) on every action call.
+const _cleaningEngine = new CleaningEngine();
 import type {
   SheetsFixInput,
   SheetsFixOutput,
@@ -201,7 +205,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     const mode = req.mode ?? 'preview';
 
-    const engine = new CleaningEngine();
+    const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
     // Fetch data from the range
     const data = await this.fetchRangeData(req.spreadsheetId, req.range);
@@ -283,7 +287,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     const mode = req.mode ?? 'preview';
 
-    const engine = new CleaningEngine();
+    const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
     const data = await this.fetchRangeData(req.spreadsheetId, req.range);
     const rangeOffset = parseRangeOffset(req.range);
@@ -343,7 +347,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     const mode = req.mode ?? 'preview';
 
-    const engine = new CleaningEngine();
+    const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
     const data = await this.fetchRangeData(req.spreadsheetId, req.range);
     const rangeOffset = parseRangeOffset(req.range);
@@ -404,7 +408,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       };
     }
 
-    const engine = new CleaningEngine();
+    const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
     const data = await this.fetchRangeData(req.spreadsheetId, req.range);
     const rangeOffset = parseRangeOffset(req.range);
@@ -443,7 +447,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       };
     }
 
-    const engine = new CleaningEngine();
+    const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
     const data = await this.fetchRangeData(req.spreadsheetId, req.range);
     const rangeOffset = parseRangeOffset(req.range);
