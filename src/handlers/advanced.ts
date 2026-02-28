@@ -28,6 +28,7 @@ import {
 } from '../utils/google-sheets-helpers.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
+import { recordNamedRange } from '../mcp/completions.js';
 
 type AdvancedSuccess = Extract<AdvancedResponse, { success: true }>;
 
@@ -410,6 +411,11 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       req.cursor,
       req.pageSize ?? 100
     );
+    // Wire completions: cache named range names for argument autocompletion (ISSUE-062)
+    for (const nr of page) {
+      if (nr.name) recordNamedRange(nr.name);
+    }
+
     return this.success('list_named_ranges', {
       namedRanges: page,
       nextCursor,

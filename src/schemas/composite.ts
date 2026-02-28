@@ -1131,17 +1131,80 @@ export const PreviewGenerationOutputSchema = z.object({
 });
 
 // ============================================================================
+// Batch Operations Action - Execute multiple actions in a single call
+// ============================================================================
+
+export const BatchOperationRequestSchema = z.object({
+  tool: z.string().min(1).describe('Target tool name (e.g., "sheets_data")'),
+  action: z.string().min(1).describe('Action name (e.g., "write")'),
+  params: z
+    .record(z.string(), z.unknown())
+    .describe('Action-specific parameters (spreadsheetId auto-injected)'),
+});
+
+export const BatchOperationsInputSchema = z.object({
+  action: z.literal('batch_operations').describe('Execute multiple actions in a single tool call'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID (auto-injected into each operation)'),
+  operations: z
+    .array(BatchOperationRequestSchema)
+    .min(1)
+    .max(20)
+    .describe('Operations to execute sequentially (max 20)'),
+  atomic: z
+    .boolean()
+    .default(false)
+    .describe('If true, all operations succeed or all roll back (requires active session)'),
+  stopOnError: z
+    .boolean()
+    .default(true)
+    .describe('If true, halt on first failure; if false, continue and report all results'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+
+export const BatchOperationResultSchema = z.object({
+  index: z.coerce.number().int().min(0).describe('Operation index in request'),
+  tool: z.string().describe('Tool that was called'),
+  action: z.string().describe('Action that was called'),
+  success: z.boolean().describe('Whether this operation succeeded'),
+  data: z.unknown().optional().describe('Operation result (if successful)'),
+  error: z
+    .object({
+      code: z.string(),
+      message: z.string(),
+      retryable: z.boolean().optional(),
+      details: z.record(z.string(), z.unknown()).optional(),
+    })
+    .optional()
+    .describe('Error details (if failed)'),
+});
+
+export const BatchOperationsOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('batch_operations'),
+  total: z.coerce.number().int().min(0).describe('Total operations requested'),
+  succeeded: z.coerce.number().int().min(0).describe('Number of successful operations'),
+  failed: z.coerce.number().int().min(0).describe('Number of failed operations'),
+  results: z.array(BatchOperationResultSchema).describe('Results for each operation'),
+  _meta: ResponseMetaSchema.optional(),
+});
+
+// ============================================================================
 // Combined Composite Input/Output
 // ============================================================================
 
 /**
- * All composite operation inputs (19 actions)
+ * All composite operation inputs (20 actions)
  *
  * Original (7): import_csv, smart_append, bulk_update, deduplicate, export_xlsx, import_xlsx, get_form_responses
  * LLM-Optimized Workflows (3): setup_sheet, import_and_format, clone_structure
  * Streaming (1): export_large_dataset
  * NL Sheet Generator (3): generate_sheet, generate_template, preview_generation
  * P14-C1 Composite Workflows (5): audit_sheet, publish_report, data_pipeline, instantiate_template, migrate_spreadsheet
+ * Orchestration (1): batch_operations
  *
  * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
  * - Better type safety at compile-time
@@ -1174,11 +1237,13 @@ export const CompositeInputSchema = z.object({
     DataPipelineInputSchema,
     InstantiateTemplateInputSchema,
     MigrateSpreadsheetInputSchema,
+    // Orchestration actions (1)
+    BatchOperationsInputSchema,
   ]),
 });
 
 /**
- * Success outputs (19 actions)
+ * Success outputs (20 actions)
  *
  * Using z.union() (not discriminated union) because output schemas
  * are only used for runtime validation, not for LLM guidance.
@@ -1208,6 +1273,8 @@ export const CompositeSuccessOutputSchema = z.union([
   DataPipelineOutputSchema,
   InstantiateTemplateOutputSchema,
   MigrateSpreadsheetOutputSchema,
+  // Orchestration outputs
+  BatchOperationsOutputSchema,
 ]);
 
 /**
@@ -1243,6 +1310,8 @@ export const CompositeResponseSchema = z.discriminatedUnion('success', [
   DataPipelineOutputSchema,
   InstantiateTemplateOutputSchema,
   MigrateSpreadsheetOutputSchema,
+  // Orchestration outputs
+  BatchOperationsOutputSchema,
   CompositeErrorOutputSchema,
 ]);
 
@@ -1439,6 +1508,18 @@ export type CompositeMigrateSpreadsheetInput = CompositeInput['request'] & {
   destinationSpreadsheetId: string;
   destinationRange: string;
   columnMapping: ColumnMapping[];
+};
+
+// Orchestration types
+export type BatchOperationRequest = z.infer<typeof BatchOperationRequestSchema>;
+export type BatchOperationResult = z.infer<typeof BatchOperationResultSchema>;
+export type BatchOperationsInput = z.infer<typeof BatchOperationsInputSchema>;
+export type BatchOperationsOutput = z.infer<typeof BatchOperationsOutputSchema>;
+
+export type CompositeBatchOperationsInput = CompositeInput['request'] & {
+  action: 'batch_operations';
+  spreadsheetId: string;
+  operations: BatchOperationRequest[];
 };
 
 // ============================================================================

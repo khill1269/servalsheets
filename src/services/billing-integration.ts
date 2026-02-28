@@ -24,6 +24,22 @@ export interface BillingConfig {
   autoInvoicing?: boolean;
 }
 
+/**
+ * Runtime bootstrap config for billing integration.
+ *
+ * Keeps startup wiring explicit and safe:
+ * - Disabled by default unless `enabled` is true
+ * - No initialization if Stripe secret is missing
+ */
+export interface BillingBootstrapConfig {
+  enabled: boolean;
+  stripeSecretKey?: string;
+  webhookSecret?: string;
+  currency?: string;
+  billingCycle?: 'monthly' | 'annual';
+  autoInvoicing?: boolean;
+}
+
 export interface SubscriptionInfo {
   tenantId: string;
   stripeCustomerId: string;
@@ -619,4 +635,53 @@ export function createBillingIntegration(config: BillingConfig): BillingIntegrat
 
 export function getBillingIntegration(): BillingIntegration | null {
   return billingIntegrationInstance;
+}
+
+/**
+ * Initialize billing integration from runtime configuration.
+ *
+ * Safe behavior:
+ * - No-op when disabled
+ * - Reuses existing singleton if already initialized
+ * - Logs and returns null on missing/invalid config
+ */
+export function initializeBillingIntegration(
+  config: BillingBootstrapConfig
+): BillingIntegration | null {
+  if (!config.enabled) {
+    return billingIntegrationInstance;
+  }
+
+  if (billingIntegrationInstance) {
+    return billingIntegrationInstance;
+  }
+
+  const secret = config.stripeSecretKey?.trim();
+  if (!secret) {
+    logger.warn('Billing integration enabled but STRIPE_SECRET_KEY is not configured');
+    return null;
+  }
+
+  try {
+    const integration = createBillingIntegration({
+      stripeSecretKey: secret,
+      webhookSecret: config.webhookSecret?.trim() || undefined,
+      currency: config.currency ?? 'usd',
+      billingCycle: config.billingCycle ?? 'monthly',
+      autoInvoicing: config.autoInvoicing ?? true,
+    });
+
+    logger.info('Billing integration initialized', {
+      billingCycle: config.billingCycle ?? 'monthly',
+      autoInvoicing: config.autoInvoicing ?? true,
+      hasWebhookSecret: Boolean(config.webhookSecret),
+    });
+
+    return integration;
+  } catch (error) {
+    logger.error('Billing integration initialization failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }

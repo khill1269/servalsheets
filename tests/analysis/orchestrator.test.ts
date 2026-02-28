@@ -193,7 +193,8 @@ export class TestHandler {
 
           expect(['pattern', 'severity', 'suggestion']).toContain(conflict.conflictType);
           expect(conflict.issues.length).toBeGreaterThanOrEqual(2);
-          expect(conflict.winner).toBeTruthy();
+          expect(typeof conflict.winner).toBe('string');
+          expect(conflict.winner.length).toBeGreaterThan(0);
         }
       }
     });
@@ -285,7 +286,8 @@ export class TestHandler {
         expect(fix).toHaveProperty('file');
         expect(fix).toHaveProperty('issueType');
         expect(fix).toHaveProperty('applied');
-        expect(fix.file).toBeTruthy();
+        expect(typeof fix.file).toBe('string');
+        expect(fix.file.length).toBeGreaterThan(0);
       }
     });
 
@@ -394,7 +396,8 @@ export class TestHandler {
       const findProjectRoot = (orchestrator as any).findProjectRoot.bind(orchestrator);
       const root = findProjectRoot(testFilePath);
 
-      expect(root).toBeTruthy();
+      expect(typeof root).toBe('string');
+      expect(root.length).toBeGreaterThan(0);
       expect(fs.existsSync(path.join(root, 'package.json'))).toBe(true);
     });
 

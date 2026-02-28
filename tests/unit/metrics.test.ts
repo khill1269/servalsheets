@@ -10,7 +10,9 @@ import {
   batchEfficiencyRatio,
   requestQueueDepth,
   cacheEvictions,
+  errorCodeCompatTotal,
   recordError,
+  recordErrorCodeCompatibility,
   recordToolCallLatency,
   updateBatchEfficiency,
   updateRequestQueueDepth,
@@ -27,6 +29,7 @@ describe('Prometheus Metrics', () => {
     register.registerMetric(batchEfficiencyRatio);
     register.registerMetric(requestQueueDepth);
     register.registerMetric(cacheEvictions);
+    register.registerMetric(errorCodeCompatTotal);
   });
 
   describe('New Metrics - errorsByType', () => {
@@ -46,6 +49,43 @@ describe('Prometheus Metrics', () => {
       const metrics = await register.metrics();
       expect(metrics).toContain('tool="sheets"');
       expect(metrics).toContain('action="batchUpdate"');
+    });
+  });
+
+  describe('New Metrics - errorCodeCompatTotal', () => {
+    it('should record known alias mappings with canonical/family labels', async () => {
+      recordErrorCodeCompatibility({
+        reportedCode: 'VALIDATION_ERROR',
+        canonicalCode: 'INVALID_REQUEST',
+        family: 'validation',
+        isAlias: true,
+        isKnown: true,
+      });
+
+      const metrics = await register.metrics();
+      expect(metrics).toContain('servalsheets_error_code_compat_total');
+      expect(metrics).toContain('reported_code="VALIDATION_ERROR"');
+      expect(metrics).toContain('canonical_code="INVALID_REQUEST"');
+      expect(metrics).toContain('family="validation"');
+      expect(metrics).toContain('is_alias="true"');
+      expect(metrics).toContain('is_known="true"');
+    });
+
+    it('should collapse unknown reported codes to prevent label cardinality growth', async () => {
+      recordErrorCodeCompatibility({
+        reportedCode: 'CUSTOM_RUNTIME_ERROR_123',
+        canonicalCode: 'UNKNOWN_ERROR',
+        family: 'unknown',
+        isAlias: false,
+        isKnown: false,
+      });
+
+      const metrics = await register.metrics();
+      expect(metrics).toContain('servalsheets_error_code_compat_total');
+      expect(metrics).toContain('reported_code="UNKNOWN_UNRECOGNIZED"');
+      expect(metrics).toContain('canonical_code="UNKNOWN_ERROR"');
+      expect(metrics).toContain('family="unknown"');
+      expect(metrics).toContain('is_known="false"');
     });
   });
 

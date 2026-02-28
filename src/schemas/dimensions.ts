@@ -14,6 +14,7 @@ import {
   SortOrderSchema,
   ConditionSchema,
   ColorSchema,
+  ColorStyleSchema,
   ErrorDetailSchema,
   SafetyOptionsSchema,
   MutationSummarySchema,
@@ -74,14 +75,12 @@ const SortSpecSchema = z.object({
     .describe('Sort order for this column (default: ASCENDING)'),
   foregroundColor: ColorSchema.optional().describe('Sort by cells with this text color'),
   backgroundColor: ColorSchema.optional().describe('Sort by cells with this background color'),
-  foregroundColorStyle: z
-    .object({ rgbColor: ColorSchema })
-    .optional()
-    .describe('Sort by foreground color (ColorStyle variant, preferred over foregroundColor)'),
-  backgroundColorStyle: z
-    .object({ rgbColor: ColorSchema })
-    .optional()
-    .describe('Sort by background color (ColorStyle variant, preferred over backgroundColor)'),
+  foregroundColorStyle: ColorStyleSchema.optional().describe(
+    'Sort by foreground color (supports theme colors via { themeColor: "ACCENT1" }; preferred over foregroundColor)'
+  ),
+  backgroundColorStyle: ColorStyleSchema.optional().describe(
+    'Sort by background color (supports theme colors via { themeColor: "ACCENT1" }; preferred over backgroundColor)'
+  ),
 });
 
 const SlicerPositionSchema = z
@@ -112,7 +111,7 @@ const InsertDimensionActionSchema = CommonFieldsSchema.extend({
     .boolean()
     .optional()
     .describe('Inherit formatting from before (false = inherit from after)'),
-});
+}).strict();
 
 const DeleteDimensionActionSchema = CommonFieldsSchema.extend({
   action: z.literal('delete').describe('Delete rows or columns'),
@@ -120,7 +119,7 @@ const DeleteDimensionActionSchema = CommonFieldsSchema.extend({
   startIndex: z.coerce.number().int().min(0).describe('Zero-based index of first to delete'),
   endIndex: z.coerce.number().int().min(1).describe('Zero-based index after last, exclusive'),
   allowMissing: z.boolean().optional().describe("Don't error when range doesn't exist"),
-});
+}).strict();
 
 const MoveDimensionActionSchema = CommonFieldsSchema.extend({
   action: z.literal('move').describe('Move rows or columns to a different location'),
@@ -383,6 +382,19 @@ const CreateFilterViewActionSchema = CommonFieldsSchema.extend({
   sortSpecs: z.array(SortSpecSchema).optional().describe('Sort specifications'),
 });
 
+const DuplicateFilterViewActionSchema = z.object({
+  action: z.literal('duplicate_filter_view').describe('Duplicate an existing filter view'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.optional().describe('Optional sheet ID for context'),
+  filterViewId: z.coerce.number().int().describe('Filter view ID to duplicate'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+  safety: SafetyOptionsSchema.optional().describe('Safety options'),
+});
+
 const UpdateFilterViewActionSchema = z.object({
   action: z.literal('update_filter_view').describe('Update a filter view'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
@@ -524,11 +536,11 @@ const ListSlicersActionSchema = z.object({
 /**
  * All dimension, filter, and sort operation inputs
  *
- * CONSOLIDATED (28 actions - reduced from 39):
+ * CONSOLIDATED (29 actions - reduced from 39):
  * - Dimension actions: 11 (merged row/column pairs into single actions)
  * - Filter/sort: 4 actions (v2.0: merged filter_update_filter_criteria into set_basic_filter)
  * - Range utility: 4 actions
- * - Filter views: 5 actions
+ * - Filter views: 6 actions
  * - Slicers: 4 actions
  *
  * LLM Optimization: Single action with dimension parameter vs separate row/column actions
@@ -671,8 +683,9 @@ export const SheetsDimensionsInputSchema = z.object({
       RandomizeRangeActionSchema,
       TextToColumnsActionSchema,
       AutoFillActionSchema,
-      // Filter view actions (5)
+      // Filter view actions (6)
       CreateFilterViewActionSchema,
+      DuplicateFilterViewActionSchema,
       UpdateFilterViewActionSchema,
       DeleteFilterViewActionSchema,
       ListFilterViewsActionSchema,
@@ -779,7 +792,7 @@ export type DimensionsResponse = z.infer<typeof DimensionsResponseSchema>;
 /** The unwrapped request type (the discriminated union of actions) */
 export type DimensionsRequest = SheetsDimensionsInput['request'];
 
-// Type narrowing helpers for handler methods (29 action types - consolidated)
+// Type narrowing helpers for handler methods (30 action types - consolidated)
 // Consolidated dimension actions (11)
 export type DimensionsInsertInput = SheetsDimensionsInput['request'] & {
   action: 'insert';
@@ -930,6 +943,11 @@ export type DimensionsCreateFilterViewInput = SheetsDimensionsInput['request'] &
   spreadsheetId: string;
   sheetId: number;
   title: string;
+};
+export type DimensionsDuplicateFilterViewInput = SheetsDimensionsInput['request'] & {
+  action: 'duplicate_filter_view';
+  spreadsheetId: string;
+  filterViewId: number;
 };
 export type DimensionsUpdateFilterViewInput = SheetsDimensionsInput['request'] & {
   action: 'update_filter_view';

@@ -167,4 +167,185 @@ describe('buildToolResponse non-fatal classification', () => {
 
     expect(result.isError).toBe(true);
   });
+
+  it('adds standardized truncation metadata when payload exceeds token budget', () => {
+    const previousBudget = process.env['MCP_MAX_RESPONSE_BYTES'];
+    process.env['MCP_MAX_RESPONSE_BYTES'] = '512';
+
+    try {
+      const result = buildToolResponse({
+        response: {
+          success: true,
+          payload: 'x'.repeat(6000),
+        },
+      });
+
+      const response = (result.structuredContent as any).response;
+      expect(response.success).toBe(true);
+      expect(response.resourceUri).toBeDefined();
+      expect(response._meta).toMatchObject({
+        truncated: true,
+        originalSizeBytes: expect.any(Number),
+        deliveredSizeBytes: expect.any(Number),
+        retrievalUri: expect.any(String),
+        continuationHint: expect.any(String),
+      });
+      expect(response._meta.retrievalUri).toBe(response.resourceUri);
+      expect(response._meta.continuationHint).toContain('resources/read');
+    } finally {
+      if (previousBudget === undefined) {
+        delete process.env['MCP_MAX_RESPONSE_BYTES'];
+      } else {
+        process.env['MCP_MAX_RESPONSE_BYTES'] = previousBudget;
+      }
+    }
+  });
+});
+
+describe('buildToolResponse error-code compatibility metadata', () => {
+  it('adds canonical metadata when handler returns a legacy alias code', () => {
+    const result = buildToolResponse({
+      response: {
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid field',
+          retryable: false,
+        },
+      },
+    });
+
+    const meta = (result.structuredContent as any).response._meta;
+    expect(meta.errorCode).toBe('VALIDATION_ERROR');
+    expect(meta.errorCodeCanonical).toBe('INVALID_REQUEST');
+    expect(meta.errorCodeFamily).toBe('validation');
+    expect(meta.errorCodeIsAlias).toBe(true);
+  });
+
+  it('falls back to UNKNOWN_ERROR canonical metadata for unknown codes', () => {
+    const result = buildToolResponse({
+      response: {
+        success: false,
+        error: {
+          code: 'CUSTOM_RUNTIME_ERROR',
+          message: 'Unknown custom code',
+          retryable: false,
+        },
+      },
+    });
+
+    const meta = (result.structuredContent as any).response._meta;
+    expect(meta.errorCode).toBe('CUSTOM_RUNTIME_ERROR');
+    expect(meta.errorCodeCanonical).toBe('UNKNOWN_ERROR');
+    expect(meta.errorCodeFamily).toBe('unknown');
+    expect(meta.errorCodeIsAlias).toBeUndefined();
+  });
+});
+
+describe('buildToolResponse pagination metadata standardization', () => {
+  it('adds standardized _meta.pagination from top-level pagination fields', () => {
+    const result = buildToolResponse({
+      response: {
+        success: true,
+        values: [['a']],
+        hasMore: true,
+        nextCursor: 'cursor-abc',
+        totalRows: 125,
+        pageSize: 50,
+      },
+    });
+
+    const response = (result.structuredContent as any).response;
+    expect(response._meta.pagination).toMatchObject({
+      hasMore: true,
+      nextCursor: 'cursor-abc',
+      totalCount: 125,
+      limit: 50,
+    });
+    expect(response.pagination).toMatchObject({
+      hasMore: true,
+      nextCursor: 'cursor-abc',
+      totalCount: 125,
+      limit: 50,
+    });
+  });
+
+  it('normalizes token-based pagination fields', () => {
+    const result = buildToolResponse({
+      response: {
+        success: true,
+        nextPageToken: 'token-next',
+      },
+    });
+
+    expect((result.structuredContent as any).response._meta.pagination).toMatchObject({
+      hasMore: true,
+      nextCursor: 'token-next',
+    });
+  });
+
+  it('preserves explicit _meta.pagination values when already provided', () => {
+    const result = buildToolResponse({
+      response: {
+        success: true,
+        hasMore: true,
+        nextCursor: 'derived-cursor',
+        totalRows: 100,
+        _meta: {
+          pagination: {
+            hasMore: false,
+            totalCount: 999,
+          },
+        },
+      },
+    });
+
+    expect((result.structuredContent as any).response._meta.pagination).toMatchObject({
+      hasMore: false,
+      nextCursor: 'derived-cursor',
+      totalCount: 999,
+    });
+  });
+});
+
+describe('buildToolResponse collection metadata standardization', () => {
+  it('adds standardized _meta.collection for list-like responses', () => {
+    const result = buildToolResponse({
+      response: {
+        success: true,
+        permissions: [{ id: '1' }, { id: '2' }],
+        hasMore: true,
+        nextCursor: 'cursor-next',
+        totalCount: 42,
+      },
+    });
+
+    expect((result.structuredContent as any).response._meta.collection).toMatchObject({
+      itemsField: 'permissions',
+      count: 2,
+      totalCount: 42,
+      hasMore: true,
+      nextCursor: 'cursor-next',
+    });
+  });
+
+  it('preserves explicit _meta.collection values when already provided', () => {
+    const result = buildToolResponse({
+      response: {
+        success: true,
+        items: [{ id: 'a' }],
+        _meta: {
+          collection: {
+            itemsField: 'custom_items',
+            count: 999,
+          },
+        },
+      },
+    });
+
+    expect((result.structuredContent as any).response._meta.collection).toMatchObject({
+      itemsField: 'custom_items',
+      count: 999,
+    });
+  });
 });

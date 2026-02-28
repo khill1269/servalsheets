@@ -51,6 +51,9 @@ import type {
   CompositeDataPipelineInput,
   CompositeInstantiateTemplateInput,
   CompositeMigrateSpreadsheetInput,
+  // Orchestration types
+  CompositeBatchOperationsInput,
+  BatchOperationResult,
   PipelineStep,
   ColumnMapping,
 } from '../schemas/composite.js';
@@ -204,13 +207,16 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         case 'migrate_spreadsheet':
           response = await this.handleMigrateSpreadsheet(req as CompositeMigrateSpreadsheetInput);
           break;
+        case 'batch_operations':
+          response = await this.handleBatchOperations(req as CompositeBatchOperationsInput);
+          break;
         default: {
           // Exhaustive check - TypeScript ensures this is unreachable
           const _exhaustiveCheck: never = req;
           throw new ValidationError(
             `Unknown action: ${(req as { action: string }).action}`,
             'action',
-            'import_csv | smart_append | bulk_update | deduplicate | export_xlsx | import_xlsx | get_form_responses | setup_sheet | import_and_format | clone_structure | export_large_dataset | generate_sheet | generate_template | preview_generation | audit_sheet | publish_report | data_pipeline | instantiate_template | migrate_spreadsheet'
+            'import_csv | smart_append | bulk_update | deduplicate | export_xlsx | import_xlsx | get_form_responses | setup_sheet | import_and_format | clone_structure | export_large_dataset | generate_sheet | generate_template | preview_generation | audit_sheet | publish_report | data_pipeline | instantiate_template | migrate_spreadsheet | batch_operations'
           );
         }
       }
@@ -1473,17 +1479,63 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     let dataCells = 0;
     const issues: Array<{ type: string; location: string; message: string }> = [];
 
-    for (const sheet of sheetsToAudit) {
+    const ranges = sheetsToAudit
+      .map((sheet) => sheet.properties?.title)
+      .filter((title): title is string => Boolean(title));
+    let valueRanges: Array<{ range?: string | null; values?: unknown[][] | null }> = [];
+    if (ranges.length > 0) {
+      const valuesApi = this.sheetsApi.spreadsheets
+        .values as typeof this.sheetsApi.spreadsheets.values & {
+        batchGet?: (params: {
+          spreadsheetId: string;
+          ranges: string[];
+          valueRenderOption: 'FORMULA';
+          fields: string;
+        }) => Promise<{
+          data: { valueRanges?: Array<{ range?: string | null; values?: unknown[][] | null }> };
+        }>;
+      };
+
+      const loadIndividually = async (): Promise<
+        Array<{ range?: string | null; values?: unknown[][] | null }>
+      > =>
+        await Promise.all(
+          ranges.map(async (range) => {
+            const response = await this.sheetsApi.spreadsheets.values.get({
+              spreadsheetId: input.spreadsheetId,
+              range,
+              valueRenderOption: 'FORMULA',
+            });
+            return { range, values: response.data.values };
+          })
+        );
+
+      if (typeof valuesApi.batchGet === 'function') {
+        try {
+          const batchResponse = await valuesApi.batchGet({
+            spreadsheetId: input.spreadsheetId,
+            ranges,
+            valueRenderOption: 'FORMULA',
+            fields: 'valueRanges(range,values)',
+          });
+          if (batchResponse?.data?.valueRanges) {
+            valueRanges = batchResponse.data.valueRanges;
+          } else {
+            valueRanges = await loadIndividually();
+          }
+        } catch {
+          valueRanges = await loadIndividually();
+        }
+      } else {
+        valueRanges = await loadIndividually();
+      }
+    }
+
+    for (let sheetIndex = 0; sheetIndex < sheetsToAudit.length; sheetIndex++) {
+      const sheet = sheetsToAudit[sheetIndex];
+      if (!sheet) continue;
       const sheetTitle = sheet.properties?.title ?? 'Sheet';
-
-      // 2. Fetch grid data for the sheet
-      const valuesResponse = await this.sheetsApi.spreadsheets.values.get({
-        spreadsheetId: input.spreadsheetId,
-        range: sheetTitle,
-        valueRenderOption: 'FORMULA',
-      });
-
-      const rows = valuesResponse.data.values ?? [];
+      const rows = valueRanges[sheetIndex]?.values ?? [];
       if (rows.length === 0) continue;
 
       // 3. Analyze header row for empty headers
@@ -1761,7 +1813,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
     // 4. Write if outputRange and not dryRun
     if (input.outputRange && !input.dryRun) {
-      await createSnapshotIfNeeded(
+      const snapshot = await createSnapshotIfNeeded(
         this.context.snapshotService,
         { operationType: 'data_pipeline', isDestructive: true, spreadsheetId: input.spreadsheetId },
         undefined
@@ -1771,6 +1823,14 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         range: input.outputRange,
         valueInputOption: 'RAW',
         requestBody: { values: outputRows as unknown[][] },
+      });
+      this.context.sessionContext?.recordOperation({
+        tool: 'sheets_composite',
+        action: 'data_pipeline',
+        spreadsheetId: input.spreadsheetId,
+        description: `Data pipeline: ${input.steps?.length ?? 0} steps`,
+        undoable: Boolean(snapshot?.snapshotId),
+        snapshotId: snapshot?.snapshotId,
       });
     }
 
@@ -1946,7 +2006,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     }
 
     // 4. Write substituted data (snapshot pre-existing target before writing)
-    await createSnapshotIfNeeded(
+    const snapshot = await createSnapshotIfNeeded(
       this.context.snapshotService,
       {
         operationType: 'instantiate_template',
@@ -1961,6 +2021,14 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       range: `'${targetSheetName}'!A1`,
       valueInputOption: 'RAW',
       requestBody: { values: substitutedRows as unknown[][] },
+    });
+    this.context.sessionContext?.recordOperation({
+      tool: 'sheets_composite',
+      action: 'instantiate_template',
+      spreadsheetId: targetSpreadsheetId,
+      description: `Instantiated template ${input.templateId}`,
+      undoable: Boolean(snapshot?.snapshotId),
+      snapshotId: snapshot?.snapshotId,
     });
 
     return {
@@ -2062,7 +2130,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
     // 5. Write to destination if not dryRun
     if (!input.dryRun) {
-      await createSnapshotIfNeeded(
+      const snapshot = await createSnapshotIfNeeded(
         this.context.snapshotService,
         {
           operationType: 'migrate_spreadsheet',
@@ -2087,6 +2155,14 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
           requestBody: { values: outputRows as unknown[][] },
         });
       }
+      this.context.sessionContext?.recordOperation({
+        tool: 'sheets_composite',
+        action: 'migrate_spreadsheet',
+        spreadsheetId: input.sourceSpreadsheetId,
+        description: `Migrated to ${input.destinationSpreadsheetId}`,
+        undoable: false,
+        snapshotId: snapshot?.snapshotId,
+      });
     }
 
     return {
@@ -2166,5 +2242,183 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       estimatedFormulas,
       formattingPreview,
     };
+  }
+
+  // ============================================================================
+  // Orchestration Handler: Batch Operations
+  // ============================================================================
+
+  /**
+   * batch_operations — Execute multiple actions in a single tool call
+   * Orchestrates requests to other handlers via the handler registry
+   */
+  private async handleBatchOperations(
+    input: CompositeBatchOperationsInput
+  ): Promise<CompositeOutput['response']> {
+    const logger = getRequestLogger();
+    logger.info('Starting batch operations', {
+      spreadsheetId: input.spreadsheetId,
+      operationCount: input.operations.length,
+      atomic: input.atomic,
+      stopOnError: input.stopOnError,
+    });
+
+    const results: BatchOperationResult[] = [];
+    let succeeded = 0;
+    let failed = 0;
+
+    // Execute operations sequentially
+    for (let i = 0; i < input.operations.length; i++) {
+      const op = input.operations[i]!;
+
+      try {
+        // Auto-inject spreadsheetId if not present
+        const params = { spreadsheetId: input.spreadsheetId, ...op.params };
+
+        // Dispatch to the appropriate handler
+        const result = await this.dispatchOperation(op.tool, op.action, params);
+
+        results.push({
+          index: i,
+          tool: op.tool,
+          action: op.action,
+          success: result.success,
+          data: result.success ? result : undefined,
+          error: !result.success ? result.error : undefined,
+        });
+
+        if (result.success) {
+          succeeded++;
+        } else {
+          failed++;
+          if (input.stopOnError) {
+            logger.info('Batch operations halted on error', {
+              index: i,
+              tool: op.tool,
+              action: op.action,
+            });
+            break;
+          }
+        }
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        failed++;
+
+        results.push({
+          index: i,
+          tool: op.tool,
+          action: op.action,
+          success: false,
+          error: {
+            code: 'OPERATION_FAILED',
+            message: `Operation failed: ${errMsg}`,
+            retryable: false,
+          },
+        });
+
+        if (input.stopOnError) {
+          logger.info('Batch operations halted on exception', {
+            index: i,
+            tool: op.tool,
+            action: op.action,
+            error: errMsg,
+          });
+          break;
+        }
+      }
+    }
+
+    logger.info('Batch operations completed', {
+      total: input.operations.length,
+      succeeded,
+      failed,
+    });
+
+    return {
+      success: true as const,
+      action: 'batch_operations' as const,
+      total: input.operations.length,
+      succeeded,
+      failed,
+      results,
+      _meta: this.generateMeta(
+        'batch_operations',
+        input as unknown as Record<string, unknown>,
+        { succeeded, failed } as Record<string, unknown>,
+        {}
+      ),
+    };
+  }
+
+  /**
+   * Dispatch an operation to the appropriate handler
+   * This is a simplified orchestration that calls handlers directly
+   * IMPORTANT: This implementation is basic and does not support all actions
+   * For a production system, consider using a full handler registry pattern
+   */
+  private async dispatchOperation(
+    tool: string,
+    action: string,
+    params: Record<string, unknown>
+  ): Promise<{
+    success: boolean;
+    error?: { code: string; message: string; retryable: boolean };
+  }> {
+    // Dispatch based on tool name
+    switch (tool) {
+      case 'sheets_data': {
+        const { SheetsDataHandler } = await import('./data.js');
+        const handler = new SheetsDataHandler(this.context, this.sheetsApi);
+        const handlerInput = { request: { action, ...params } } as Parameters<
+          typeof handler.handle
+        >[0];
+        const result = await handler.handle(handlerInput);
+        return 'error' in result.response
+          ? { success: false, error: result.response.error }
+          : { success: true };
+      }
+      case 'sheets_format': {
+        const { FormatHandler } = await import('./format.js');
+        const handler = new FormatHandler(this.context, this.sheetsApi);
+        const handlerInput = { request: { action, ...params } } as Parameters<
+          typeof handler.handle
+        >[0];
+        const result = await handler.handle(handlerInput);
+        return 'error' in result.response
+          ? { success: false, error: result.response.error }
+          : { success: true };
+      }
+      case 'sheets_dimensions': {
+        const { DimensionsHandler } = await import('./dimensions.js');
+        const handler = new DimensionsHandler(this.context, this.sheetsApi);
+        const handlerInput = { request: { action, ...params } } as Parameters<
+          typeof handler.handle
+        >[0];
+        const result = await handler.handle(handlerInput);
+        return 'error' in result.response
+          ? { success: false, error: result.response.error }
+          : { success: true };
+      }
+      case 'sheets_core': {
+        const { SheetsCoreHandler } = await import('./core.js');
+        const handler = new SheetsCoreHandler(this.context, this.sheetsApi, this.driveApi);
+        const handlerInput = { request: { action, ...params } } as Parameters<
+          typeof handler.handle
+        >[0];
+        const result = await handler.handle(handlerInput);
+        return 'error' in result.response
+          ? { success: false, error: result.response.error }
+          : { success: true };
+      }
+      default:
+        return {
+          success: false,
+          error: {
+            code: 'UNSUPPORTED_TOOL',
+            message: `Tool '${tool}' is not supported in batch_operations. Supported: sheets_data, sheets_format, sheets_dimensions, sheets_core`,
+            retryable: false,
+          },
+        };
+    }
   }
 }

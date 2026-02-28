@@ -67,12 +67,19 @@ ADDITIONAL_DOCS=(
 # Files to EXCLUDE (historical records, archived content)
 EXCLUDE_FILES=(
   "CHANGELOG.md"
+  "MCP_AUDIT_REPORT.md"
+  "ISSUES.md"
+  "TASKS.md"
 )
 EXCLUDE_DIRS=(
   "docs/archive/"
   "docs/generated/"
   "docs/releases/"
+  "docs/reference/api/"
   ".plan/"
+  "audit-output/"
+  ".claude/agent-memory/"
+  ".claude/worktrees/"
   "node_modules/"
   "dist/"
   ".git/"
@@ -186,7 +193,7 @@ echo "Scanning for obsolete count references..."
 
 # Known old counts to flag
 OLD_TOOL_COUNTS=("20" "21")
-OLD_ACTION_COUNTS=("272" "291" "293" "294" "298" "299")
+OLD_ACTION_COUNTS=("272" "291" "293" "294" "298" "299" "305" "341")
 
 OBSOLETE_FOUND=0
 
@@ -231,6 +238,23 @@ for old_count in "${OLD_ACTION_COUNTS[@]}"; do
 
   if [ -n "$FOUND" ]; then
     echo -e "${YELLOW}⚠️  Found obsolete count '$old_count actions':${NC}"
+    echo "$FOUND" | head -5
+    OBSOLETE_FOUND=$((OBSOLETE_FOUND + 1))
+    echo ""
+  fi
+done
+
+# Check for obsolete lifecycle patterns from pre-MCP-2025-11-25 APIs
+LIFECYCLE_PATTERNS=("server\\.tool\\(")
+for pattern in "${LIFECYCLE_PATTERNS[@]}"; do
+  FOUND=$(grep -rnE "$pattern" \
+    --include="*.md" \
+    --include="*.ts" \
+    $GREP_EXCLUDES \
+    . 2>/dev/null || true)
+
+  if [ -n "$FOUND" ]; then
+    echo -e "${YELLOW}⚠️  Found obsolete lifecycle pattern '$pattern':${NC}"
     echo "$FOUND" | head -5
     OBSOLETE_FOUND=$((OBSOLETE_FOUND + 1))
     echo ""

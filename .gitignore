@@ -216,3 +216,9 @@ docs/business/*.xlsx
 
 # Tracing env files
 .env.tracing.*
+
+# LibreOffice/MS Office lock files
+.~lock.*
+
+# Claude Code worktrees (temporary isolated branches)
+.claude/worktrees/

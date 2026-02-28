@@ -13,6 +13,7 @@ import {
   getPrefetchPredictor,
   getConnectionPool,
 } from '../../src/utils/infrastructure.js';
+import { waitFor } from '../helpers/wait-for.js';
 
 describe('RequestCoalescer', () => {
   let coalescer: RequestCoalescer;
@@ -156,7 +157,7 @@ describe('PrefetchPredictor', () => {
     testPredictor.storePrefetch('key1', { data: 'test' });
 
     // Wait for expiry
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitFor(20);
 
     const cleared = testPredictor.clearExpired();
     expect(cleared).toBe(1);
@@ -185,7 +186,7 @@ describe('ConnectionPool', () => {
     const createOperation = () => async () => {
       concurrent++;
       maxConcurrent = Math.max(maxConcurrent, concurrent);
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
       concurrent--;
       return 'done';
     };
@@ -205,7 +206,7 @@ describe('ConnectionPool', () => {
     // Create operations that complete quickly but track concurrency
     const createOperation = () => async () => {
       _activeCount++;
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitFor(50);
       _activeCount--;
       return 'done';
     };
@@ -217,7 +218,7 @@ describe('ConnectionPool', () => {
     }
 
     // Check stats immediately after starting
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await waitFor(10);
     const stats = pool.getStats();
     expect(stats.maxConcurrent).toBe(3);
     // Some should be active, some queued

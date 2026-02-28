@@ -314,6 +314,37 @@ describe('SheetsDataHandler', () => {
         );
       });
 
+      it('should apply preview response_format for read action', async () => {
+        const largeValues = Array.from({ length: 40 }, (_, rowIdx) =>
+          Array.from({ length: 15 }, (_, colIdx) => `R${rowIdx + 1}C${colIdx + 1}`)
+        );
+
+        mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+          data: {
+            range: 'Sheet1!A1:O40',
+            values: largeValues,
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'read',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:O40',
+          response_format: 'preview',
+        });
+
+        expect(result.response.success).toBe(true);
+        const response = result.response as any;
+        expect(response.responseFormat).toBe('preview');
+        expect(response.values.length).toBe(25);
+        expect(response.values[0].length).toBe(10);
+        expect(response.rowCount).toBe(40);
+        expect(response.columnCount).toBe(15);
+        expect(response.truncated).toBe(true);
+        expect(response._meta?.truncated).toBe(true);
+        expect(response._meta?.continuationHint).toContain('response_format');
+      });
+
       it('should auto paginate large ranges to respect 10k cell limit', async () => {
         mockContext.rangeResolver.resolve.mockResolvedValueOnce({
           a1Notation: 'Sheet1!A1:Z1000',
@@ -492,6 +523,54 @@ describe('SheetsDataHandler', () => {
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.values.batchGetByDataFilter).toHaveBeenCalled();
+      });
+
+      it('should apply compact response_format for batch_read range values', async () => {
+        const largeValues = Array.from({ length: 260 }, (_, rowIdx) => [`row-${rowIdx + 1}`]);
+        mockContext.rangeResolver.resolve.mockResolvedValueOnce({
+          a1Notation: 'Sheet1!A1:A260',
+          sheetId: 0,
+          sheetName: 'Sheet1',
+          gridRange: {
+            sheetId: 0,
+            startRowIndex: 0,
+            endRowIndex: 260,
+            startColumnIndex: 0,
+            endColumnIndex: 1,
+          },
+          resolution: {
+            method: 'a1_direct',
+            confidence: 1.0,
+            path: '',
+          },
+        });
+
+        mockApi.spreadsheets.values.batchGet.mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'test-id',
+            valueRanges: [
+              {
+                range: 'Sheet1!A1:A260',
+                values: largeValues,
+              },
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'batch_read',
+          spreadsheetId: 'test-id',
+          ranges: ['Sheet1!A1:A260'],
+          response_format: 'compact',
+        });
+
+        expect(result.response.success).toBe(true);
+        const response = result.response as any;
+        expect(response.responseFormat).toBe('compact');
+        expect(response.valueRanges[0].values.length).toBe(200);
+        expect(response.truncated).toBe(true);
+        expect(response._meta?.truncated).toBe(true);
+        expect(response._meta?.continuationHint).toContain('response_format');
       });
 
       it('should batch_write with dataFilters', async () => {

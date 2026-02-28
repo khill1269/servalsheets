@@ -34,6 +34,7 @@ import { getCapabilitiesWithCache } from '../services/capability-cache.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Wizard session storage
@@ -49,6 +50,9 @@ interface WizardSession {
   context?: Record<string, unknown>;
   createdAt: number;
 }
+
+type ServerElicitInputParams = Parameters<NonNullable<HandlerContext['server']>['elicitInput']>[0];
+type ServerElicitFormParams = Extract<ServerElicitInputParams, { requestedSchema: unknown }>;
 
 // In-memory wizard session store (could be upgraded to Redis for production)
 const wizardSessions = new Map<string, WizardSession>();
@@ -103,6 +107,11 @@ export class ConfirmHandler {
       estimatedApiCalls: step.estimatedApiCalls,
       isDestructive: step.isDestructive,
       canUndo: step.canUndo,
+      rationale: step.rationale,
+      expectedOutcome: step.expectedOutcome,
+      estimatedDuration: step.estimatedDuration,
+      optional: step.optional,
+      dependsOn: step.dependsOn,
     };
   }
 
@@ -117,6 +126,7 @@ export class ConfirmHandler {
     };
     const verbosity = req.verbosity ?? 'standard';
     const confirmService = getConfirmationService();
+    const requestActionLabel = String((req as { action?: unknown }).action ?? 'unknown');
 
     try {
       let response: ConfirmResponse;
@@ -163,6 +173,9 @@ export class ConfirmHandler {
             {
               willCreateSnapshot: requestInput.plan.willCreateSnapshot,
               additionalWarnings: requestInput.plan.additionalWarnings,
+              successCriteria: requestInput.plan.successCriteria,
+              rollbackStrategy: requestInput.plan.rollbackStrategy,
+              alternatives: requestInput.plan.alternatives,
             }
           );
 
@@ -174,8 +187,9 @@ export class ConfirmHandler {
           const elicitResult = await this.context.server.elicitInput({
             mode: 'form',
             message: elicitRequest.message,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            requestedSchema: elicitRequest.requestedSchema as any, // Type assertion needed due to strict SDK schema types
+            // Cast through the SDK's form-elicitation param type to align JSON-schema shapes.
+            requestedSchema:
+              elicitRequest.requestedSchema as ServerElicitFormParams['requestedSchema'],
           });
 
           // Process result (convert ElicitResult to the format expected by service)
@@ -393,8 +407,7 @@ export class ConfirmHandler {
             success: false,
             error: {
               code: 'INVALID_PARAMS',
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              message: `Unknown action: ${String((req as any).action)}`,
+              message: `Unknown action: ${requestActionLabel}`,
               retryable: false,
             },
           };
@@ -405,6 +418,10 @@ export class ConfirmHandler {
       // Apply verbosity filtering (LLM optimization)
       return { response: applyVerbosityFilter(response, verbosity) };
     } catch (error) {
+      logger.error('Confirm handler error', {
+        action: req.action,
+        error,
+      });
       return {
         response: {
           success: false,

@@ -135,6 +135,45 @@ describe('ConfirmService', () => {
 
       expect(formatted).toContain('⚠️'); // destructive marker
     });
+
+    it('should include optional plan metadata sections when provided', () => {
+      const plan: OperationPlan = {
+        id: 'test-plan-metadata',
+        title: 'Safe Migration',
+        description: 'Move data to a new layout',
+        steps: [
+          {
+            stepNumber: 1,
+            description: 'Create destination sheet',
+            tool: 'sheets_core',
+            action: 'add_sheet',
+            risk: 'low',
+          },
+        ],
+        overallRisk: 'low',
+        totalApiCalls: 2,
+        estimatedTime: 1,
+        willCreateSnapshot: true,
+        warnings: [],
+        successCriteria: ['All rows copied', 'No formula errors introduced'],
+        rollbackStrategy: 'Restore pre-migration snapshot and delete destination sheet.',
+        alternatives: [
+          {
+            description: 'In-place transformation',
+            reason: 'Higher risk to existing formulas',
+          },
+        ],
+      };
+
+      const formatted = service.formatPlanForDisplay(plan);
+
+      expect(formatted).toContain('### Success Criteria:');
+      expect(formatted).toContain('All rows copied');
+      expect(formatted).toContain('### Rollback Strategy:');
+      expect(formatted).toContain('Restore pre-migration snapshot');
+      expect(formatted).toContain('### Alternatives Considered:');
+      expect(formatted).toContain('In-place transformation');
+    });
   });
 
   describe('Elicitation Request Building', () => {
@@ -500,6 +539,37 @@ describe('ConfirmService', () => {
 
       expect(warnings.length).toBeGreaterThanOrEqual(5);
     });
+
+    it('should include annotation warning for non-idempotent actions', () => {
+      const plan: OperationPlan = {
+        id: 'test',
+        title: 'Test',
+        description: 'Test',
+        steps: [
+          {
+            stepNumber: 1,
+            description: 'Append rows',
+            tool: 'sheets_data',
+            action: 'append',
+            risk: 'medium',
+            estimatedApiCalls: 1,
+          },
+        ],
+        overallRisk: 'medium',
+        totalApiCalls: 1,
+        estimatedTime: 1,
+        willCreateSnapshot: false,
+        warnings: [],
+      };
+
+      const warnings = service.generateWarnings(plan);
+
+      expect(
+        warnings.some((warning) =>
+          warning.includes('Step 1 (sheets_data.append) is non-idempotent')
+        )
+      ).toBe(true);
+    });
   });
 
   describe('Plan Creation Helper', () => {
@@ -569,6 +639,22 @@ describe('ConfirmService', () => {
       const plan = service.createPlan('Test', 'Test', steps);
 
       expect(plan.totalApiCalls).toBe(3); // 3 steps × 1 call each
+    });
+
+    it('should carry optional plan metadata through createPlan', () => {
+      const steps: PlanStep[] = [
+        { stepNumber: 1, description: 'Read', tool: 'sheets_data', action: 'read', risk: 'low' },
+      ];
+
+      const plan = service.createPlan('Test', 'Test', steps, {
+        successCriteria: ['Output sheet exists'],
+        rollbackStrategy: 'Delete output sheet',
+        alternatives: [{ description: 'Manual copy', reason: 'Too slow for large datasets' }],
+      });
+
+      expect(plan.successCriteria).toEqual(['Output sheet exists']);
+      expect(plan.rollbackStrategy).toBe('Delete output sheet');
+      expect(plan.alternatives?.[0]?.description).toBe('Manual copy');
     });
   });
 

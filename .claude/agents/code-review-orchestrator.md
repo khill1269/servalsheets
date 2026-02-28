@@ -9,7 +9,7 @@ tools:
   - Glob
   - Bash
 permissionMode: default
-memory: project
+memory: user
 ---
 
 You are a comprehensive code reviewer for ServalSheets. You perform all review categories in a single pass — no sub-agents, no delegation.

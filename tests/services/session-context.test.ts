@@ -5,10 +5,14 @@
  * These tests ensure NL references like "the spreadsheet" and "undo that" work correctly.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   SessionContextManager,
   type SpreadsheetContext,
+  initSessionRedis,
+  getSessionContext,
+  resetSessionContext,
+  resetSessionRedis,
 } from '../../src/services/session-context.js';
 
 describe('SessionContextManager', () => {
@@ -495,7 +499,8 @@ describe('SessionContextManager', () => {
       });
 
       const exported = manager.exportState();
-      expect(exported).toBeTruthy();
+      expect(exported).toEqual(expect.any(String));
+      expect(exported.length).toBeGreaterThan(0);
 
       // Create new manager and import
       const newManager = new SessionContextManager();
@@ -538,7 +543,8 @@ describe('SessionContextManager', () => {
       });
 
       const exported = manager.exportState();
-      expect(exported).toBeTruthy();
+      expect(exported).toEqual(expect.any(String));
+      expect(exported.length).toBeGreaterThan(0);
       expect(exported.length).toBeLessThan(10_000_000);
     });
 
@@ -737,5 +743,99 @@ describe('SessionContextManager', () => {
       const suggestions = manager.suggestNextActions();
       expect(suggestions.some((s) => s.includes('Format'))).toBe(true);
     });
+  });
+});
+
+// ============================================================================
+// SCALE-01: Redis session persistence (multi-instance continuity)
+// ============================================================================
+
+describe('Redis session persistence (SCALE-01)', () => {
+  let stored: Record<string, string> = {};
+  const mockRedis = {
+    get: vi.fn(async (key: string) => stored[key] ?? null),
+    set: vi.fn(async (key: string, value: string) => {
+      stored[key] = value;
+      return 'OK';
+    }),
+  };
+
+  beforeEach(() => {
+    stored = {};
+    mockRedis.get.mockClear();
+    mockRedis.set.mockClear();
+    resetSessionContext();
+    resetSessionRedis();
+  });
+
+  afterEach(() => {
+    resetSessionContext();
+    resetSessionRedis();
+  });
+
+  it('restores session state from Redis on first getSessionContext() call', async () => {
+    const manager = new SessionContextManager();
+    manager.setActiveSpreadsheet({
+      spreadsheetId: 'sheet-from-redis',
+      title: 'Persisted Sheet',
+      activatedAt: Date.now(),
+      sheetNames: ['Data'],
+    });
+    stored['servalsheets:session:default:state'] = manager.exportState();
+
+    initSessionRedis(mockRedis);
+    const ctx = getSessionContext();
+
+    // Wait for async restore (fire-and-forget)
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(mockRedis.get).toHaveBeenCalledWith('servalsheets:session:default:state');
+    expect(ctx.getActiveSpreadsheet()?.spreadsheetId).toBe('sheet-from-redis');
+  });
+
+  it('does not call Redis when no client is wired', () => {
+    getSessionContext();
+    expect(mockRedis.get).not.toHaveBeenCalled();
+  });
+
+  it('handles Redis restore failure gracefully', async () => {
+    const faultyRedis = {
+      get: vi.fn().mockRejectedValue(new Error('Redis connection refused')),
+      set: vi.fn().mockResolvedValue('OK'),
+    };
+
+    initSessionRedis(faultyRedis);
+    expect(() => getSessionContext()).not.toThrow();
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const ctx = getSessionContext();
+    expect(ctx).toBeDefined();
+  });
+
+  it('round-trips session state through exportState/importState', () => {
+    const manager = new SessionContextManager();
+    manager.setActiveSpreadsheet({
+      spreadsheetId: 'roundtrip-sheet',
+      title: 'Test',
+      activatedAt: Date.now(),
+      sheetNames: ['Sheet1'],
+    });
+    const exported = manager.exportState();
+
+    const restored = new SessionContextManager();
+    restored.importState(exported);
+
+    expect(restored.getActiveSpreadsheet()?.spreadsheetId).toBe('roundtrip-sheet');
+    expect(restored.getActiveSpreadsheet()?.title).toBe('Test');
+  });
+
+  it('SESSION_INSTANCE_ID key uses expected format', () => {
+    // Validate the key format regardless of current env var value
+    // The key is a module-level constant evaluated at import time
+    initSessionRedis(mockRedis);
+    getSessionContext();
+    // Just verify the get was called with a key matching our namespace pattern
+    const callArgs = mockRedis.get.mock.calls[0];
+    expect(callArgs?.[0]).toMatch(/^servalsheets:session:.+:state$/);
   });
 });

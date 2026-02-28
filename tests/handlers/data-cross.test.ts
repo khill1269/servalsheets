@@ -26,32 +26,51 @@ const MOCK_SHEET_B = [
 const createMockSheetsApi = (overrides?: {
   getValues?: ReturnType<typeof vi.fn>;
   updateValues?: ReturnType<typeof vi.fn>;
-}) => ({
-  spreadsheets: {
-    get: vi.fn().mockResolvedValue({ data: { spreadsheetId: 'src-id' } }),
-    values: {
-      get: overrides?.getValues ?? vi.fn().mockResolvedValue({ data: { values: MOCK_SHEET_A } }),
-      update: overrides?.updateValues ?? vi.fn().mockResolvedValue({
-        data: { updatedRange: 'Sheet1!A1:C3', updatedRows: 3, updatedColumns: 3, updatedCells: 9 },
-      }),
-      batchGet: vi.fn().mockResolvedValue({ data: { valueRanges: [] } }),
-      batchUpdate: vi.fn().mockResolvedValue({ data: {} }),
-      batchGetByDataFilter: vi.fn().mockResolvedValue({ data: { valueRanges: [] } }),
-      batchUpdateByDataFilter: vi.fn().mockResolvedValue({ data: {} }),
-      batchClearByDataFilter: vi.fn().mockResolvedValue({ data: {} }),
-      clear: vi.fn().mockResolvedValue({ data: {} }),
-      append: vi.fn().mockResolvedValue({ data: { updates: {} } }),
+}) =>
+  ({
+    spreadsheets: {
+      get: vi.fn().mockResolvedValue({ data: { spreadsheetId: 'src-id' } }),
+      values: {
+        get: overrides?.getValues ?? vi.fn().mockResolvedValue({ data: { values: MOCK_SHEET_A } }),
+        update:
+          overrides?.updateValues ??
+          vi.fn().mockResolvedValue({
+            data: {
+              updatedRange: 'Sheet1!A1:C3',
+              updatedRows: 3,
+              updatedColumns: 3,
+              updatedCells: 9,
+            },
+          }),
+        batchGet: vi.fn().mockResolvedValue({ data: { valueRanges: [] } }),
+        batchUpdate: vi.fn().mockResolvedValue({ data: {} }),
+        batchGetByDataFilter: vi.fn().mockResolvedValue({ data: { valueRanges: [] } }),
+        batchUpdateByDataFilter: vi.fn().mockResolvedValue({ data: {} }),
+        batchClearByDataFilter: vi.fn().mockResolvedValue({ data: {} }),
+        clear: vi.fn().mockResolvedValue({ data: {} }),
+        append: vi.fn().mockResolvedValue({ data: { updates: {} } }),
+      },
+      batchUpdate: vi.fn().mockResolvedValue({ data: { replies: [] } }),
     },
-    batchUpdate: vi.fn().mockResolvedValue({ data: { replies: [] } }),
-  },
-}) as unknown as sheets_v4.Sheets;
+  }) as unknown as sheets_v4.Sheets;
 
 const createMockContext = (): HandlerContext =>
   ({
     requestId: 'test-request',
     timestamp: new Date(),
-    session: { get: vi.fn(), set: vi.fn(), delete: vi.fn(), clear: vi.fn(), has: vi.fn(), keys: vi.fn() },
-    capabilities: { supports: vi.fn(() => true), requireCapability: vi.fn(), getCapability: vi.fn() },
+    session: {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+      clear: vi.fn(),
+      has: vi.fn(),
+      keys: vi.fn(),
+    },
+    capabilities: {
+      supports: vi.fn(() => true),
+      requireCapability: vi.fn(),
+      getCapability: vi.fn(),
+    },
     googleClient: {} as never,
     authService: {
       isAuthenticated: vi.fn().mockReturnValue(true),
@@ -208,6 +227,77 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       // One API call per source
       expect(getValues).toHaveBeenCalledTimes(3);
     });
+
+    it('should use cachedSheetsApi path when available', async () => {
+      const getValues = vi.fn().mockResolvedValue({ data: { values: MOCK_SHEET_A } });
+      mockSheetsApi = createMockSheetsApi({ getValues });
+
+      const cachedGetValues = vi.fn().mockResolvedValue({ values: MOCK_SHEET_A });
+      mockContext = {
+        ...createMockContext(),
+        cachedSheetsApi: {
+          getValues: cachedGetValues,
+        },
+      } as unknown as HandlerContext;
+
+      handler = new SheetsDataHandler(mockContext, mockSheetsApi);
+      const result = await handler.handle({
+        request: {
+          action: 'cross_read',
+          sources: [{ spreadsheetId: 'ss1', range: 'Sheet1!A1:C3' }],
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(cachedGetValues).toHaveBeenCalledWith(
+        'ss1',
+        'Sheet1!A1:C3',
+        expect.objectContaining({ valueRenderOption: 'UNFORMATTED_VALUE' })
+      );
+      expect(getValues).not.toHaveBeenCalled();
+    });
+
+    it('should apply preview response_format for large cross_read results', async () => {
+      const wideHeader = Array.from({ length: 15 }, (_, idx) => `Col${idx + 1}`);
+      const wideRows = Array.from({ length: 30 }, (_, rowIdx) =>
+        Array.from({ length: 15 }, (_, colIdx) => `R${rowIdx + 1}C${colIdx + 1}`)
+      );
+      const largeSheet = [wideHeader, ...wideRows];
+
+      let callCount = 0;
+      const getValues = vi.fn().mockImplementation(() => {
+        callCount++;
+        return Promise.resolve({
+          data: { values: largeSheet },
+        });
+      });
+      mockSheetsApi = createMockSheetsApi({ getValues });
+      handler = new SheetsDataHandler(mockContext, mockSheetsApi);
+
+      const result = await handler.handle({
+        request: {
+          action: 'cross_read',
+          response_format: 'preview',
+          sources: [
+            { spreadsheetId: 'ss1', range: 'Sheet1!A1:O31', label: 'A' },
+            { spreadsheetId: 'ss2', range: 'Sheet1!A1:O31', label: 'B' },
+          ],
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      if (!result.response.success) return;
+      expect(result.response.responseFormat).toBe('preview');
+      expect(result.response.truncated).toBe(true);
+      expect(result.response.rowCount).toBe(60);
+      expect(result.response.returnedRowCount).toBe(25);
+      expect(result.response.columnCount).toBe(16);
+      expect(result.response.returnedColumnCount).toBe(10);
+      expect(result.response.rows?.length).toBe(25);
+      expect(result.response.rows?.[0]?.length).toBe(10);
+      expect(result.response._meta?.truncated).toBe(true);
+      expect(result.response._meta?.continuationHint).toContain('response_format');
+    });
   });
 
   // ==========================================================================
@@ -277,10 +367,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
     });
 
     it('should respect maxResults limit', async () => {
-      const manyRows = [
-        ['Name'],
-        ...Array.from({ length: 20 }, (_, i) => [`Alice_${i}`]),
-      ];
+      const manyRows = [['Name'], ...Array.from({ length: 20 }, (_, i) => [`Alice_${i}`])];
       const getValues = vi.fn().mockResolvedValue({ data: { values: manyRows } });
       mockSheetsApi = createMockSheetsApi({ getValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
@@ -297,6 +384,36 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       expect(result.response.success).toBe(true);
       if (!result.response.success) return;
       expect(result.response.queryMatches?.length).toBeLessThanOrEqual(5);
+    });
+
+    it('should apply compact response_format limit to query matches', async () => {
+      const manyRows = [
+        ['Name'],
+        ...Array.from({ length: 300 }, (_, i) => [`Alice_${i}`]),
+      ];
+      const getValues = vi.fn().mockResolvedValue({ data: { values: manyRows } });
+      mockSheetsApi = createMockSheetsApi({ getValues });
+      handler = new SheetsDataHandler(mockContext, mockSheetsApi);
+
+      const result = await handler.handle({
+        request: {
+          action: 'cross_query',
+          sources: [{ spreadsheetId: 'ss1', range: 'Sheet1!A1:A301' }],
+          query: 'Alice',
+          maxResults: 500,
+          response_format: 'compact',
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      if (!result.response.success) return;
+      expect(result.response.responseFormat).toBe('compact');
+      expect(result.response.totalMatches).toBe(300);
+      expect(result.response.returnedMatches).toBe(200);
+      expect(result.response.truncated).toBe(true);
+      expect(result.response.queryMatches?.length).toBe(200);
+      expect(result.response._meta?.truncated).toBe(true);
+      expect(result.response._meta?.continuationHint).toContain('response_format');
     });
   });
 
@@ -324,7 +441,12 @@ describe('F2: Cross-Spreadsheet Federation', () => {
     it('should call values.get on source and values.update on destination', async () => {
       const getValues = vi.fn().mockResolvedValue({ data: { values: MOCK_SHEET_A } });
       const updateValues = vi.fn().mockResolvedValue({
-        data: { updatedRange: 'DestSheet!A1:C3', updatedRows: 3, updatedColumns: 3, updatedCells: 9 },
+        data: {
+          updatedRange: 'DestSheet!A1:C3',
+          updatedRows: 3,
+          updatedColumns: 3,
+          updatedCells: 9,
+        },
       });
       mockSheetsApi = createMockSheetsApi({ getValues, updateValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
@@ -401,8 +523,14 @@ describe('F2: Cross-Spreadsheet Federation', () => {
     });
 
     it('should detect changed cell values between sources', async () => {
-      const src1 = [['Name', 'Value'], ['Alice', 100]];
-      const src2 = [['Name', 'Value'], ['Alice', 999]]; // Alice changed
+      const src1 = [
+        ['Name', 'Value'],
+        ['Alice', 100],
+      ];
+      const src2 = [
+        ['Name', 'Value'],
+        ['Alice', 999],
+      ]; // Alice changed
       let callCount = 0;
       const getValues = vi.fn().mockImplementation(() => {
         callCount++;
@@ -431,8 +559,15 @@ describe('F2: Cross-Spreadsheet Federation', () => {
     });
 
     it('should do row-by-row comparison when no keyColumn is specified', async () => {
-      const src1 = [['A', 'B'], [1, 2], [3, 4]];
-      const src2 = [['A', 'B'], [1, 2]]; // src2 has one fewer row
+      const src1 = [
+        ['A', 'B'],
+        [1, 2],
+        [3, 4],
+      ];
+      const src2 = [
+        ['A', 'B'],
+        [1, 2],
+      ]; // src2 has one fewer row
       let callCount = 0;
       const getValues = vi.fn().mockImplementation(() => {
         callCount++;
@@ -472,6 +607,40 @@ describe('F2: Cross-Spreadsheet Federation', () => {
 
       // Should return error response since both sources failed
       expect(result.response.success).toBe(false);
+    });
+
+    it('should apply preview response_format to large diff payloads', async () => {
+      const sourceHeader = ['id', 'value'];
+      const src1 = [sourceHeader, ...Array.from({ length: 40 }, (_, i) => [`id-${i + 1}`, i])];
+      const src2 = [sourceHeader, ...Array.from({ length: 40 }, (_, i) => [`id-${i + 1}`, i + 1000])];
+
+      let callCount = 0;
+      const getValues = vi.fn().mockImplementation(() => {
+        callCount++;
+        return Promise.resolve({ data: { values: callCount === 1 ? src1 : src2 } });
+      });
+      mockSheetsApi = createMockSheetsApi({ getValues });
+      handler = new SheetsDataHandler(mockContext, mockSheetsApi);
+
+      const result = await handler.handle({
+        request: {
+          action: 'cross_compare',
+          source1: { spreadsheetId: 'ss1', range: 'Sheet1!A1:B41' },
+          source2: { spreadsheetId: 'ss2', range: 'Sheet1!A1:B41' },
+          keyColumn: 'id',
+          response_format: 'preview',
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      if (!result.response.success) return;
+      expect(result.response.responseFormat).toBe('preview');
+      expect(result.response.truncated).toBe(true);
+      expect(result.response.diff?.summary.changedCells).toBe(40);
+      expect(result.response.diff?.returnedChangedCells).toBe(25);
+      expect(result.response.diff?.changed?.length).toBe(25);
+      expect(result.response._meta?.truncated).toBe(true);
+      expect(result.response._meta?.continuationHint).toContain('response_format');
     });
   });
 });

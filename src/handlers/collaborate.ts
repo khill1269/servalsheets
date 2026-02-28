@@ -2,7 +2,7 @@
  * ServalSheets - Collaborate Handler
  *
  * Consolidated collaboration operations: sharing, comments, version control, and approvals
- * Merges: sharing.ts (8 actions) + comments.ts (10 actions) + versions.ts (10 actions) + approvals (7 actions) = 35 actions
+ * Merges: sharing.ts (8 actions) + comments.ts (10 actions) + versions.ts (10 actions) + approvals (7 actions) + access_proposals (2 actions) = 37 actions
  * MCP Protocol: 2025-11-25
  */
 
@@ -49,6 +49,11 @@ import type {
   CollaborateApprovalListPendingInput,
   CollaborateApprovalDelegateInput,
   CollaborateApprovalCancelInput,
+  CollaborateListAccessProposalsInput,
+  CollaborateResolveAccessProposalInput,
+  CollaborateLabelListInput,
+  CollaborateLabelApplyInput,
+  CollaborateLabelRemoveInput,
   Approval,
 } from '../schemas/index.js';
 import { logger } from '../utils/logger.js';
@@ -58,10 +63,11 @@ import {
   IncrementalScopeRequiredError,
 } from '../security/incremental-scope.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
-import { withSamplingTimeout } from '../mcp/sampling.js';
+import { withSamplingTimeout, assertSamplingConsent } from '../mcp/sampling.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { createNotFoundError, createValidationError } from '../utils/error-factory.js';
 import { parseA1Notation } from '../utils/google-sheets-helpers.js';
+import { driveRateLimiter } from '../utils/drive-rate-limiter.js';
 
 const DRIVE_MIME_TYPES = {
   GOOGLE_SHEETS: 'application/vnd.google-apps.spreadsheet',
@@ -369,6 +375,29 @@ export class CollaborateHandler extends BaseHandler<
           response = await this.handleApprovalCancel(inferredReq as CollaborateApprovalCancelInput);
           break;
 
+        // ========== ACCESS PROPOSAL ACTIONS ==========
+        case 'list_access_proposals':
+          response = await this.handleListAccessProposals(
+            inferredReq as CollaborateListAccessProposalsInput
+          );
+          break;
+        case 'resolve_access_proposal':
+          response = await this.handleResolveAccessProposal(
+            inferredReq as CollaborateResolveAccessProposalInput
+          );
+          break;
+
+        // ========== DRIVE LABEL ACTIONS ==========
+        case 'label_list':
+          response = await this.handleLabelList(inferredReq as CollaborateLabelListInput);
+          break;
+        case 'label_apply':
+          response = await this.handleLabelApply(inferredReq as CollaborateLabelApplyInput);
+          break;
+        case 'label_remove':
+          response = await this.handleLabelRemove(inferredReq as CollaborateLabelRemoveInput);
+          break;
+
         default: {
           const _exhaustiveCheck: never = inferredReq.action;
           response = this.error({
@@ -402,6 +431,7 @@ export class CollaborateHandler extends BaseHandler<
   // ============================================================
 
   private async handleShareAdd(input: CollaborateShareAddInput): Promise<CollaborateResponse> {
+    await driveRateLimiter.acquire();
     const requestBody: drive_v3.Schema$Permission = {
       type: input.type,
       role: input.role,
@@ -427,6 +457,7 @@ export class CollaborateHandler extends BaseHandler<
   private async handleShareUpdate(
     input: CollaborateShareUpdateInput
   ): Promise<CollaborateResponse> {
+    await driveRateLimiter.acquire();
     if (input.role === 'owner') {
       return this.error({
         code: 'VALIDATION_ERROR',
@@ -461,6 +492,7 @@ export class CollaborateHandler extends BaseHandler<
   private async handleShareRemove(
     input: CollaborateShareRemoveInput
   ): Promise<CollaborateResponse> {
+    await driveRateLimiter.acquire();
     if (input.safety?.dryRun) {
       return this.success('share_remove', {}, undefined, true);
     }
@@ -538,6 +570,7 @@ export class CollaborateHandler extends BaseHandler<
   private async handleShareTransferOwnership(
     input: CollaborateShareTransferOwnershipInput
   ): Promise<CollaborateResponse> {
+    await driveRateLimiter.acquire();
     if (input.safety?.dryRun) {
       return this.success('share_transfer_ownership', {}, undefined, true);
     }
@@ -545,6 +578,7 @@ export class CollaborateHandler extends BaseHandler<
     const response = await this.driveApi!.permissions.create({
       fileId: input.spreadsheetId!,
       transferOwnership: true,
+      moveToNewOwnersRoot: true,
       sendNotificationEmail: true,
       requestBody: {
         type: 'user',
@@ -566,13 +600,22 @@ export class CollaborateHandler extends BaseHandler<
   ): Promise<CollaborateResponse> {
     if (!input.enabled) {
       // Disable: delete existing anyone permission if present
-      const list = await this.driveApi!.permissions.list({
-        fileId: input.spreadsheetId!,
-        supportsAllDrives: true,
-        pageSize: 100,
-        fields: 'permissions(id,type)',
-      });
-      const anyone = (list.data.permissions ?? []).find((p) => p.type === 'anyone');
+      const allPermissions: drive_v3.Schema$Permission[] = [];
+      let pageToken: string | undefined;
+
+      do {
+        const list = await this.driveApi!.permissions.list({
+          fileId: input.spreadsheetId!,
+          supportsAllDrives: true,
+          pageSize: 100,
+          pageToken,
+          fields: 'nextPageToken,permissions(id,type)',
+        });
+        allPermissions.push(...(list.data.permissions ?? []));
+        pageToken = list.data.nextPageToken ?? undefined;
+      } while (pageToken);
+
+      const anyone = allPermissions.find((p) => p.type === 'anyone');
       // Only delete if we have a valid permission ID
       if (anyone?.id && !input.safety?.dryRun) {
         await this.driveApi!.permissions.delete({
@@ -590,7 +633,7 @@ export class CollaborateHandler extends BaseHandler<
       requestBody: {
         type: 'anyone',
         role: input.role ?? 'reader',
-        allowFileDiscovery: (input as Record<string, unknown>)['allowFileDiscovery'] === true,
+        allowFileDiscovery: input.allowFileDiscovery === true,
       },
       fields: 'id,type,role,emailAddress,displayName,allowFileDiscovery',
     });
@@ -630,6 +673,7 @@ export class CollaborateHandler extends BaseHandler<
       if (commentContent.includes('?')) {
         // Comment contains a question — ask sampling for a suggested reply
         try {
+          await assertSamplingConsent(); // ISSUE-226: GDPR consent gate
           const replyResult = await withSamplingTimeout(
             this.context.samplingServer.createMessage({
               messages: [
@@ -1566,7 +1610,6 @@ export class CollaborateHandler extends BaseHandler<
           fileId: input.spreadsheetId!,
           requestBody: {
             content: `Approved by ${userEmail}${approval.status === 'approved' ? '. All required approvals received.' : ''}`,
-            anchor: approval.range,
           },
         });
       } catch (error) {
@@ -1628,7 +1671,6 @@ export class CollaborateHandler extends BaseHandler<
           fileId: input.spreadsheetId!,
           requestBody: {
             content: `Rejected by ${userEmail}`,
-            anchor: approval.range,
           },
         });
       } catch (error) {
@@ -1765,7 +1807,6 @@ export class CollaborateHandler extends BaseHandler<
           fileId: input.spreadsheetId!,
           requestBody: {
             content: `Approval delegated from ${userEmail} to ${input.delegateTo}`,
-            anchor: approval.range,
           },
         });
       } catch (error) {
@@ -1867,7 +1908,6 @@ export class CollaborateHandler extends BaseHandler<
           fileId: input.spreadsheetId!,
           requestBody: {
             content: `Approval cancelled by ${userEmail}`,
-            anchor: approval.range,
           },
         });
       } catch (error) {
@@ -2031,5 +2071,211 @@ export class CollaborateHandler extends BaseHandler<
     } catch (error) {
       logger.warn('Failed to remove approval protection', { approvalId, error });
     }
+  }
+
+  // ============================================================
+  // ACCESS PROPOSAL ACTIONS
+  // ============================================================
+
+  private async handleListAccessProposals(
+    input: CollaborateListAccessProposalsInput
+  ): Promise<CollaborateResponse> {
+    // Drive accessproposals API (v3, currently in preview)
+    // Access via type-escaped client to avoid typed-SDK limitation on preview endpoints
+    const driveClient = this.driveApi! as unknown as {
+      accessproposals: {
+        list: (params: {
+          fileId: string;
+          pageSize?: number;
+          pageToken?: string;
+        }) => Promise<{ data: { accessProposals?: unknown[]; nextPageToken?: string } }>;
+      };
+    };
+
+    const listParams: { fileId: string; pageSize?: number; pageToken?: string } = {
+      fileId: input.spreadsheetId!,
+      pageSize: input.pageSize ?? 20,
+    };
+    if (input.pageToken) listParams.pageToken = input.pageToken;
+
+    const response = await driveClient.accessproposals.list(listParams);
+
+    const proposals = response.data.accessProposals ?? [];
+    const nextPageToken = response.data.nextPageToken;
+
+    return this.success('list_access_proposals', {
+      proposals,
+      ...(nextPageToken ? { nextPageToken } : {}),
+    });
+  }
+
+  private async handleResolveAccessProposal(
+    input: CollaborateResolveAccessProposalInput
+  ): Promise<CollaborateResponse> {
+    // Drive accessproposals API (v3, currently in preview)
+    const driveClient = this.driveApi! as unknown as {
+      accessproposals: {
+        resolve: (params: {
+          fileId: string;
+          proposalId: string;
+          requestBody: { action: string; role?: string; sendNotification?: boolean };
+        }) => Promise<unknown>;
+      };
+    };
+
+    const requestBody: { action: string; role?: string; sendNotification?: boolean } = {
+      action: input.decision,
+      sendNotification: input.sendNotification ?? true,
+    };
+    if (input.decision === 'APPROVE' && input.role) {
+      requestBody.role = input.role;
+    }
+
+    await driveClient.accessproposals.resolve({
+      fileId: input.spreadsheetId!,
+      proposalId: input.proposalId!,
+      requestBody,
+    });
+
+    return this.success('resolve_access_proposal', {
+      proposalId: input.proposalId,
+      decision: input.decision,
+    });
+  }
+
+  // ============================================================
+  // DRIVE LABEL ACTIONS
+  // ============================================================
+
+  private async handleLabelList(input: CollaborateLabelListInput): Promise<CollaborateResponse> {
+    // Drive Labels API v2 — labels applied to a file are read via drive.files.get
+    // with the labelInfo field. The Drive API typescript types don't include labelInfo
+    // yet, so we use a type-escaped client to access it.
+    const fileId = (input.fileId ?? input.spreadsheetId)!;
+
+    const driveClient = this.driveApi! as unknown as {
+      files: {
+        get: (params: {
+          fileId: string;
+          fields: string;
+          includeLabels?: string;
+        }) => Promise<{ data: { labelInfo?: { labels?: unknown[] } } }>;
+      };
+    };
+
+    const params: { fileId: string; fields: string; includeLabels?: string } = {
+      fileId,
+      fields: 'labelInfo',
+    };
+    if (input.includeLabels && input.includeLabels.length > 0) {
+      params.includeLabels = input.includeLabels.join(',');
+    }
+
+    const response = await driveClient.files.get(params);
+    const labels = (response.data.labelInfo?.labels ?? []) as Record<string, unknown>[];
+
+    return this.success('label_list', {
+      fileId,
+      labels,
+    });
+  }
+
+  private async handleLabelApply(input: CollaborateLabelApplyInput): Promise<CollaborateResponse> {
+    // Drive Labels API v2 — apply a label using drive.files.modifyLabels (Drive API v3)
+    // The googleapis typescript client doesn't expose modifyLabels in its types yet,
+    // so we use a type-escaped client.
+    const fileId = (input.fileId ?? input.spreadsheetId)!;
+
+    const driveClient = this.driveApi! as unknown as {
+      files: {
+        modifyLabels: (params: {
+          fileId: string;
+          requestBody: {
+            labelModifications: Array<{
+              labelId: string;
+              fieldModifications?: Array<{ fieldId: string; setDateValues?: unknown }>;
+            }>;
+          };
+        }) => Promise<{ data: { modifiedLabels?: unknown[] } }>;
+      };
+    };
+
+    const labelModification: {
+      labelId: string;
+      fieldModifications: Array<{ fieldId: string; setTextValues?: { values: string[] } }>;
+    } = {
+      labelId: input.labelId,
+      fieldModifications: [],
+    };
+
+    // Convert labelFields map to fieldModifications array if provided
+    if (input.labelFields) {
+      for (const [fieldId, value] of Object.entries(input.labelFields)) {
+        labelModification.fieldModifications.push({
+          fieldId,
+          setTextValues: { values: [String(value)] },
+        });
+      }
+    }
+
+    await driveClient.files.modifyLabels({
+      fileId,
+      requestBody: {
+        labelModifications: [labelModification],
+      },
+    });
+
+    return this.success(
+      'label_apply',
+      {
+        fileId,
+        labelId: input.labelId,
+      },
+      undefined,
+      true
+    );
+  }
+
+  private async handleLabelRemove(
+    input: CollaborateLabelRemoveInput
+  ): Promise<CollaborateResponse> {
+    // Drive Labels API v2 — remove a label using drive.files.modifyLabels with removeLabel: true
+    const fileId = (input.fileId ?? input.spreadsheetId)!;
+
+    const driveClient = this.driveApi! as unknown as {
+      files: {
+        modifyLabels: (params: {
+          fileId: string;
+          requestBody: {
+            labelModifications: Array<{
+              labelId: string;
+              removeLabel?: boolean;
+            }>;
+          };
+        }) => Promise<{ data: unknown }>;
+      };
+    };
+
+    await driveClient.files.modifyLabels({
+      fileId,
+      requestBody: {
+        labelModifications: [
+          {
+            labelId: input.labelId,
+            removeLabel: true,
+          },
+        ],
+      },
+    });
+
+    return this.success(
+      'label_remove',
+      {
+        fileId,
+        labelId: input.labelId,
+      },
+      undefined,
+      true
+    );
   }
 }

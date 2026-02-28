@@ -21,6 +21,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { getTracer } from '../utils/tracing.js';
 import { getConcurrencyCoordinator } from './concurrency-coordinator.js';
 
 export interface ParallelExecutorOptions {
@@ -96,8 +97,8 @@ export class ParallelExecutor {
   };
 
   constructor(options: ParallelExecutorOptions = {}) {
-    // Default concurrency increased to 20 to better utilize Google Sheets API quotas
-    const DEFAULT_CONCURRENCY = 20;
+    // Default concurrency: 5 per-user (quota-safe default; set PARALLEL_CONCURRENCY to increase)
+    const DEFAULT_CONCURRENCY = 5;
 
     // Support PARALLEL_CONCURRENCY environment variable
     const envConcurrency = process.env['PARALLEL_CONCURRENCY']
@@ -131,7 +132,12 @@ export class ParallelExecutor {
     tasks: ParallelTask<T>[],
     onProgress?: (progress: ParallelProgress) => void
   ): Promise<ParallelResult<T>[]> {
+    const span = getTracer().startSpan('parallel-executor.executeAll', {
+      kind: 'internal',
+      attributes: { 'tasks.count': tasks.length, 'executor.concurrency': this.concurrency },
+    });
     if (tasks.length === 0) {
+      span.end();
       return [];
     }
 
@@ -184,8 +190,8 @@ export class ParallelExecutor {
           this.stats.totalDuration += duration;
           this.stats.totalRetries += retries;
           this.stats.durations.push(duration);
-          if (this.stats.durations.length > 10000) {
-            this.stats.durations.shift();
+          if (this.stats.durations.length > 10500) {
+            this.stats.durations = this.stats.durations.slice(-10000);
           }
           completed++;
 
@@ -234,8 +240,8 @@ export class ParallelExecutor {
       this.stats.totalDuration += duration;
       this.stats.totalRetries += retries - 1;
       this.stats.durations.push(duration);
-      if (this.stats.durations.length > 10000) {
-        this.stats.durations.shift();
+      if (this.stats.durations.length > 10500) {
+        this.stats.durations = this.stats.durations.slice(-10000);
       }
       completed++;
       failed++;
@@ -274,6 +280,7 @@ export class ParallelExecutor {
     // Final progress report
     reportProgress();
 
+    span.end();
     return results;
   }
 

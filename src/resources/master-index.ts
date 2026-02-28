@@ -43,11 +43,17 @@ function getResourceCategories(): Record<string, ResourceCategory> {
       whenToUse: 'When you need to read spreadsheet data, metadata, charts, or pivot tables',
     },
     schema: {
-      description: 'Tool schemas for understanding available actions',
-      count: TOOL_COUNT,
-      uriPattern: 'schema://tools/{toolName}',
-      examples: ['schema://tools', 'schema://tools/sheets_data', 'schema://tools/sheets_analyze'],
-      whenToUse: 'When you need to understand tool parameters and actions before calling',
+      description: 'Tool schemas and per-action guidance for understanding available actions',
+      count: TOOL_COUNT * 2 + 2,
+      uriPattern: 'schema://tools/{toolName} | schema://actions/{toolName}',
+      examples: [
+        'schema://tools',
+        'schema://tools/sheets_data',
+        'schema://actions',
+        'schema://actions/sheets_data',
+      ],
+      whenToUse:
+        'When you need tool parameters or action-level guidance (idempotency, pitfalls, alternatives) before calling',
     },
     knowledge: {
       description: 'AI knowledge base: formulas, templates, patterns, best practices',

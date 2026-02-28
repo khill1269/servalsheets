@@ -161,23 +161,25 @@ describe('Schema-Handler Alignment', () => {
     it('should have correct action counts per tool', () => {
       const expectedCounts: Record<string, number> = {
         advanced: 31,
-        analyze: 18,
+        agent: 8,
+        analyze: 19,
         appsscript: 18,
         auth: 4,
         bigquery: 17,
-        collaborate: 35,
-        composite: 19,
+        collaborate: 40,
+        composite: 20,
+        compute: 10,
         confirm: 5,
         core: 19,
         data: 23,
         dependencies: 10,
-        dimensions: 28,
+        dimensions: 29,
         federation: 4,
         fix: 6,
         format: 24,
         history: 10,
         quality: 4,
-        session: 26,
+        session: 27,
         templates: 8,
         transaction: 6,
         visualize: 18,
@@ -198,11 +200,17 @@ describe('Schema-Handler Alignment', () => {
   describe('Deviations validation', () => {
     it('should have valid deviation structure', () => {
       ACCEPTABLE_DEVIATIONS.forEach((deviation) => {
-        expect(deviation.tool).toBeTruthy();
-        expect(deviation.reason).toBeTruthy();
-        expect(deviation.justification).toBeTruthy();
+        expect(typeof deviation.tool).toBe('string');
+        expect(deviation.tool.length).toBeGreaterThan(0);
+        expect(typeof deviation.reason).toBe('string');
+        expect(deviation.reason.length).toBeGreaterThan(0);
+        expect(typeof deviation.justification).toBe('string');
+        expect(deviation.justification.length).toBeGreaterThan(0);
         expect(deviation.addedDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-        expect(deviation.extraCases || deviation.missingCases).toBeTruthy();
+        expect(
+          (deviation.extraCases && deviation.extraCases.length > 0) ||
+            (deviation.missingCases && deviation.missingCases.length > 0)
+        ).toBe(true);
       });
     });
 

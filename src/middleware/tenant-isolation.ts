@@ -6,7 +6,11 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { tenantContextService, TenantContext } from '../services/tenant-context.js';
+import {
+  tenantContextService,
+  TenantContext,
+  TenantQuotaExceededError,
+} from '../services/tenant-context.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -74,6 +78,19 @@ export function tenantIsolationMiddleware() {
 
       next();
     } catch (error) {
+      if (error instanceof TenantQuotaExceededError) {
+        logger.warn('Tenant quota exceeded', {
+          tenantId: error.tenantId,
+          limit: error.limit,
+          path: req.path,
+        });
+        res.status(429).json({
+          error: 'Too Many Requests',
+          message: `Hourly API quota exceeded for tenant ${error.tenantId}`,
+        });
+        return;
+      }
+
       logger.error('Tenant isolation middleware error', { error });
       res.status(500).json({
         error: 'Internal Server Error',
@@ -102,28 +119,35 @@ export function validateSpreadsheetAccess() {
         return;
       }
 
-      // Extract spreadsheetId from request
-      const spreadsheetId = extractSpreadsheetId(req);
-      if (!spreadsheetId) {
+      // Extract spreadsheetIds from request payload/query/params
+      const spreadsheetIds = extractSpreadsheetIds(req);
+      if (spreadsheetIds.length === 0) {
         // No spreadsheet ID in request, skip validation
         next();
         return;
       }
 
-      // Validate access
-      const hasAccess = await tenantContextService.validateSpreadsheetAccess(
-        req.tenantContext.tenantId,
-        spreadsheetId
+      const tenantId = req.tenantContext.tenantId;
+
+      // Validate access for all spreadsheet IDs found in request
+      const accessChecks = await Promise.all(
+        spreadsheetIds.map((spreadsheetId) =>
+          tenantContextService.validateSpreadsheetAccess(tenantId, spreadsheetId)
+        )
+      );
+      const deniedSpreadsheetId = spreadsheetIds.find(
+        (_id, index) => accessChecks[index] === false
       );
 
-      if (!hasAccess) {
+      if (deniedSpreadsheetId) {
         logger.warn('Unauthorized spreadsheet access attempt', {
-          tenantId: req.tenantContext.tenantId,
-          spreadsheetId,
+          tenantId,
+          spreadsheetId: deniedSpreadsheetId,
+          spreadsheetIds,
         });
         res.status(403).json({
           error: 'Forbidden',
-          message: 'You do not have access to this spreadsheet',
+          message: 'You do not have access to one or more requested spreadsheets',
         });
         return;
       }
@@ -140,37 +164,85 @@ export function validateSpreadsheetAccess() {
 }
 
 /**
- * Extract spreadsheet ID from request
+ * Extract spreadsheet IDs from request
  *
  * Checks multiple locations:
  * - req.body.spreadsheetId
  * - req.body.request.spreadsheetId
+ * - req.body.params.arguments.request.spreadsheetId (MCP JSON-RPC)
+ * - req.body.params.arguments.spreadsheetId (MCP JSON-RPC)
  * - req.params.spreadsheetId
  * - req.query.spreadsheetId
  */
-function extractSpreadsheetId(req: Request): string | null {
-  // Check body
-  if (req.body?.['spreadsheetId']) {
-    return String(req.body['spreadsheetId']);
-  }
+function extractSpreadsheetIds(req: Request): string[] {
+  const spreadsheetIds = new Set<string>();
 
-  // Check nested body (legacy envelope format)
-  if (req.body?.['request']?.['spreadsheetId']) {
-    return String(req.body['request']['spreadsheetId']);
-  }
+  collectSpreadsheetIds(req.body, spreadsheetIds);
 
   // Check params
-  if (req.params?.['spreadsheetId']) {
-    return String(req.params['spreadsheetId']);
+  if (typeof req.params?.['spreadsheetId'] === 'string') {
+    const value = req.params['spreadsheetId'].trim();
+    if (value) spreadsheetIds.add(value);
   }
 
   // Check query
   const querySpreadsheetId = req.query?.['spreadsheetId'];
-  if (querySpreadsheetId && typeof querySpreadsheetId === 'string') {
-    return querySpreadsheetId;
+  if (typeof querySpreadsheetId === 'string') {
+    const value = querySpreadsheetId.trim();
+    if (value) spreadsheetIds.add(value);
   }
 
-  return null;
+  const querySpreadsheetIds = req.query?.['spreadsheetIds'];
+  if (Array.isArray(querySpreadsheetIds)) {
+    for (const value of querySpreadsheetIds) {
+      if (typeof value !== 'string') continue;
+      const trimmed = value.trim();
+      if (trimmed) spreadsheetIds.add(trimmed);
+    }
+  }
+
+  return Array.from(spreadsheetIds);
+}
+
+function collectSpreadsheetIds(value: unknown, output: Set<string>, depth = 0): void {
+  const MAX_DEPTH = 8;
+  if (depth > MAX_DEPTH || value === null || value === undefined) {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectSpreadsheetIds(item, output, depth + 1);
+    }
+    return;
+  }
+
+  if (typeof value !== 'object') {
+    return;
+  }
+
+  for (const [key, entry] of Object.entries(value)) {
+    if ((key === 'spreadsheetId' || key === 'spreadsheet_id') && typeof entry === 'string') {
+      const spreadsheetId = entry.trim();
+      if (spreadsheetId) {
+        output.add(spreadsheetId);
+      }
+      continue;
+    }
+
+    if ((key === 'spreadsheetIds' || key === 'spreadsheet_ids') && Array.isArray(entry)) {
+      for (const item of entry) {
+        if (typeof item !== 'string') continue;
+        const spreadsheetId = item.trim();
+        if (spreadsheetId) {
+          output.add(spreadsheetId);
+        }
+      }
+      continue;
+    }
+
+    collectSpreadsheetIds(entry, output, depth + 1);
+  }
 }
 
 /**

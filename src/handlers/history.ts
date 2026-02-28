@@ -21,10 +21,12 @@ import { getTimeline, diffRevisions, restoreCells } from '../services/revision-t
 import type { ElicitationServer } from '../mcp/elicitation.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import type { SamplingServer } from '../mcp/sampling.js';
-import { withSamplingTimeout } from '../mcp/sampling.js';
+import { withSamplingTimeout, assertSamplingConsent } from '../mcp/sampling.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
+import { recordRevisionId } from '../mcp/completions.js';
 import { getSessionContext } from '../services/session-context.js';
+import { logger } from '../utils/logger.js';
 
 export interface HistoryHandlerOptions {
   snapshotService?: SnapshotService;
@@ -564,6 +566,12 @@ export class HistoryHandler {
             );
           }
 
+          // Wire completions: cache revision IDs for argument autocompletion (ISSUE-062)
+          for (const entry of entries) {
+            const revId = (entry as unknown as Record<string, unknown>)['revisionId'];
+            if (typeof revId === 'string') recordRevisionId(revId);
+          }
+
           response = {
             success: true,
             action: 'timeline',
@@ -606,6 +614,7 @@ export class HistoryHandler {
                     `${c.cell}: ${String(c.oldValue ?? '')} → ${String(c.newValue ?? '')}`
                 )
                 .join('; ');
+              await assertSamplingConsent(); // ISSUE-226: GDPR consent gate
               const explanationResult = await withSamplingTimeout(
                 this.samplingServer.createMessage({
                   messages: [
@@ -738,6 +747,10 @@ export class HistoryHandler {
       return { response: filteredResponse };
     } catch (error) {
       // Catch-all for unexpected errors
+      logger.error('History handler error', {
+        action: req.action,
+        error,
+      });
       return {
         response: {
           success: false,

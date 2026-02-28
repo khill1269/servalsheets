@@ -17,6 +17,7 @@ import {
   loadBaseline,
   generateReport,
 } from './performance-baseline.js';
+import { waitFor } from '../helpers/wait-for.js';
 
 // Import handler factory for testing
 import { createHandlers } from '../../src/handlers/index.js';
@@ -358,7 +359,7 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
     it('should measure WebSocket message handling latency', async () => {
       // Mock WebSocket message handling
       const mockWebSocketHandler = async () => {
-        await new Promise((resolve) => setTimeout(resolve, 1));
+        await waitFor(1);
         return { success: true };
       };
 
@@ -375,7 +376,7 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
     it('should measure WebSocket connection overhead', async () => {
       // Mock connection establishment
       const mockConnect = async () => {
-        await new Promise((resolve) => setTimeout(resolve, 2));
+        await waitFor(2);
         return { connected: true };
       };
 
@@ -394,7 +395,7 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
     it('should measure plugin initialization time', async () => {
       // Mock plugin initialization
       const mockPluginInit = async () => {
-        await new Promise((resolve) => setTimeout(resolve, 5));
+        await waitFor(5);
         return { initialized: true };
       };
 
@@ -411,7 +412,7 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
     it('should measure plugin execution time', async () => {
       // Mock plugin execution
       const mockPluginExec = async () => {
-        await new Promise((resolve) => setTimeout(resolve, 3));
+        await waitFor(3);
         return { result: 'success' };
       };
 

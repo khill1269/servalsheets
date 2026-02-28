@@ -40,6 +40,8 @@ describe('TransactionHandler', () => {
       resetStats: vi.fn(),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
+      getWalRecoveryReport: vi.fn().mockResolvedValue({ enabled: false, orphanedTransactions: [] }),
+      discardOrphanedTransaction: vi.fn().mockResolvedValue(undefined),
     } as any;
 
     // Mock getTransactionManager to return our mock

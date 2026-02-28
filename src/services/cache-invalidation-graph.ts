@@ -21,7 +21,7 @@
  */
 
 import { logger } from '../utils/logger.js';
-import { TOOL_ACTIONS } from '../mcp/completions.js';
+import { TOOL_ACTIONS } from '../schemas/index.js';
 
 /**
  * Cache invalidation rule
@@ -153,6 +153,8 @@ export class CacheInvalidationGraph {
 
     // Conditional formatting rules (16-B3: corrected action names to match handler switch)
     rules['sheets_format.add_conditional_format_rule'] = { invalidates: ['metadata:*'] };
+    // Legacy alias retained for compatibility in tests/older clients
+    rules['sheets_format.add_rule'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.rule_add_conditional_format'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.rule_update_conditional_format'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.rule_delete_conditional_format'] = { invalidates: ['metadata:*'] };
@@ -581,6 +583,32 @@ export class CacheInvalidationGraph {
     rules['sheets_federation.unregister_server'] = { invalidates: [] };
     rules['sheets_federation.list_servers'] = { invalidates: [] };
     rules['sheets_federation.call_remote'] = { invalidates: [] };
+
+    // ========================================================================
+    // sheets_compute (10 actions) - All read-only, no cache invalidation
+    // ========================================================================
+    rules['sheets_compute.evaluate'] = { invalidates: [] };
+    rules['sheets_compute.aggregate'] = { invalidates: [] };
+    rules['sheets_compute.statistical'] = { invalidates: [] };
+    rules['sheets_compute.regression'] = { invalidates: [] };
+    rules['sheets_compute.forecast'] = { invalidates: [] };
+    rules['sheets_compute.matrix_op'] = { invalidates: [] };
+    rules['sheets_compute.pivot_compute'] = { invalidates: [] };
+    rules['sheets_compute.custom_function'] = { invalidates: [] };
+    rules['sheets_compute.batch_compute'] = { invalidates: [] };
+    rules['sheets_compute.explain_formula'] = { invalidates: [] };
+
+    // ========================================================================
+    // sheets_agent (8 actions) - Mixed: planning/status read-only, execute mutates
+    // ========================================================================
+    rules['sheets_agent.plan'] = { invalidates: [] };
+    rules['sheets_agent.execute'] = { invalidates: ['values:*', 'metadata:*'] };
+    rules['sheets_agent.execute_step'] = { invalidates: ['values:*', 'metadata:*'] };
+    rules['sheets_agent.observe'] = { invalidates: [] };
+    rules['sheets_agent.rollback'] = { invalidates: ['values:*', 'metadata:*'] };
+    rules['sheets_agent.get_status'] = { invalidates: [] };
+    rules['sheets_agent.list_plans'] = { invalidates: [] };
+    rules['sheets_agent.resume'] = { invalidates: ['values:*', 'metadata:*'] };
 
     // ========================================================================
     // Auto-generate rules for any schema actions not manually defined above.

@@ -32,7 +32,6 @@ const NO_SPREADSHEET_TOOLS = new Set([
   'sheets_auth',
   'sheets_session',
   'sheets_confirm',
-  'sheets_history',
   'sheets_transaction',
   'sheets_quality',
   'sheets_federation',
@@ -130,6 +129,22 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     },
     detect_spill_ranges: {
       requiredFields: ['spreadsheetId'],
+    },
+    cross_read: {
+      validInput: { sources: [{ spreadsheetId: 'id1', range: 'Sheet1!A1:D10' }, { spreadsheetId: 'id2', range: 'Sheet1!A1:D10' }] },
+      requiredFields: ['sources'],
+    },
+    cross_query: {
+      validInput: { sources: [{ spreadsheetId: 'id1', range: 'Sheet1!A1:D10' }], query: 'revenue' },
+      requiredFields: ['sources', 'query'],
+    },
+    cross_write: {
+      validInput: { source: { spreadsheetId: 'id1', range: 'Sheet1!A1:D10' }, destination: { spreadsheetId: 'id2', range: 'Sheet1!A1' } },
+      requiredFields: ['source', 'destination'],
+    },
+    cross_compare: {
+      validInput: { source1: { spreadsheetId: 'id1', range: 'Sheet1!A1:D10' }, source2: { spreadsheetId: 'id2', range: 'Sheet1!A1:D10' } },
+      requiredFields: ['source1', 'source2'],
     },
   },
 
@@ -374,6 +389,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { range: 'Sheet1!A1:D10', title: 'My Filter' },
       requiredFields: ['spreadsheetId', 'range'],
     },
+    duplicate_filter_view: {
+      validInput: { filterViewId: 123 },
+      requiredFields: ['spreadsheetId', 'filterViewId'],
+    },
     update_filter_view: {
       validInput: { filterViewId: 123 },
       requiredFields: ['spreadsheetId', 'filterViewId'],
@@ -598,6 +617,26 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { approvalId: 'a1' },
       requiredFields: ['spreadsheetId', 'approvalId'],
     },
+    list_access_proposals: {
+      validInput: {},
+      requiredFields: ['spreadsheetId'],
+    },
+    resolve_access_proposal: {
+      validInput: { proposalId: 'p1', decision: 'APPROVE', role: 'reader' },
+      requiredFields: ['spreadsheetId', 'proposalId', 'decision'],
+    },
+    label_list: {
+      validInput: {},
+      requiredFields: ['spreadsheetId'],
+    },
+    label_apply: {
+      validInput: { labelId: 'label123' },
+      requiredFields: ['spreadsheetId', 'labelId'],
+    },
+    label_remove: {
+      validInput: { labelId: 'label123' },
+      requiredFields: ['spreadsheetId', 'labelId'],
+    },
   },
 
   sheets_advanced: {
@@ -782,6 +821,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['suggestion'],
     },
     get_top_formulas: { requiredFields: [] },
+    execute_pipeline: {
+      validInput: { steps: [{ id: 'step1', tool: 'sheets_data', action: 'read', params: { spreadsheetId: 'test-id', range: 'A1:B10' } }] },
+      requiredFields: ['steps'],
+    },
   },
 
   sheets_transaction: {
@@ -847,6 +890,17 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['operationId'],
     },
     clear: { requiredFields: [] },
+    timeline: {
+      requiredFields: ['spreadsheetId'],
+    },
+    diff_revisions: {
+      validInput: { revisionId1: 'rev1', revisionId2: 'rev2' },
+      requiredFields: ['spreadsheetId', 'revisionId1', 'revisionId2'],
+    },
+    restore_cells: {
+      validInput: { revisionId: 'rev1', cells: ['A1', 'B2'] },
+      requiredFields: ['spreadsheetId', 'revisionId', 'cells'],
+    },
   },
 
   sheets_confirm: {
@@ -873,6 +927,26 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     fix: {
       validInput: { spreadsheetId: 'test-id', issues: [] },
       requiredFields: ['spreadsheetId'],
+    },
+    clean: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D100' },
+      requiredFields: ['spreadsheetId', 'range'],
+    },
+    standardize_formats: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D100', columns: [{ column: 'A', targetFormat: 'iso_date' }] },
+      requiredFields: ['spreadsheetId', 'range', 'columns'],
+    },
+    fill_missing: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D100', strategy: 'forward' },
+      requiredFields: ['spreadsheetId', 'range', 'strategy'],
+    },
+    detect_anomalies: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D100' },
+      requiredFields: ['spreadsheetId', 'range'],
+    },
+    suggest_cleaning: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D100' },
+      requiredFields: ['spreadsheetId', 'range'],
     },
   },
 
@@ -941,6 +1015,12 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { spreadsheetId: 'test-id', intent: 'fix_critical' },
       requiredFields: ['spreadsheetId', 'intent'],
     },
+    suggest_next_actions: {
+      requiredFields: ['spreadsheetId'],
+    },
+    auto_enhance: {
+      requiredFields: ['spreadsheetId'],
+    },
   },
 
   sheets_composite: {
@@ -987,6 +1067,36 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     export_large_dataset: {
       validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:Z1000' },
       requiredFields: ['spreadsheetId', 'range'],
+    },
+    generate_sheet: {
+      validInput: { description: 'Q1 budget tracker with revenue and expenses' },
+      requiredFields: ['description'],
+    },
+    generate_template: {
+      validInput: { description: 'Employee onboarding checklist' },
+      requiredFields: ['description'],
+    },
+    preview_generation: {
+      validInput: { description: 'Sales pipeline tracker' },
+      requiredFields: ['description'],
+    },
+    audit_sheet: {
+      requiredFields: ['spreadsheetId'],
+    },
+    publish_report: {
+      requiredFields: ['spreadsheetId'],
+    },
+    data_pipeline: {
+      validInput: { spreadsheetId: 'test-id', sourceRange: 'Sheet1!A1:D100', steps: [{ type: 'filter', config: { column: 'A', operator: 'equals', value: 'x' } }] },
+      requiredFields: ['spreadsheetId', 'sourceRange', 'steps'],
+    },
+    instantiate_template: {
+      validInput: { templateId: 'tmpl1', variables: { companyName: 'Acme Corp' } },
+      requiredFields: ['templateId', 'variables'],
+    },
+    migrate_spreadsheet: {
+      validInput: { sourceSpreadsheetId: 'src-id', sourceRange: 'Sheet1!A1:D100', destinationSpreadsheetId: 'dest-id', destinationRange: 'Sheet1!A1', columnMapping: [{ sourceColumn: 'Name', destinationColumn: 'Name' }] },
+      requiredFields: ['sourceSpreadsheetId', 'sourceRange', 'destinationSpreadsheetId', 'destinationRange', 'columnMapping'],
     },
   },
 
@@ -1221,6 +1331,18 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     export_dot: {
       validInput: { spreadsheetId: 'test-id' },
       requiredFields: ['spreadsheetId'],
+    },
+    model_scenario: {
+      validInput: { spreadsheetId: 'test-id', changes: [{ cell: 'B2', newValue: 80000 }] },
+      requiredFields: ['spreadsheetId', 'changes'],
+    },
+    compare_scenarios: {
+      validInput: { spreadsheetId: 'test-id', scenarios: [{ name: 'Base', changes: [{ cell: 'B2', newValue: 100000 }] }, { name: 'Optimistic', changes: [{ cell: 'B2', newValue: 120000 }] }] },
+      requiredFields: ['spreadsheetId', 'scenarios'],
+    },
+    create_scenario_sheet: {
+      validInput: { spreadsheetId: 'test-id', scenario: { name: 'Optimistic', changes: [{ cell: 'B2', newValue: 120000 }] } },
+      requiredFields: ['spreadsheetId', 'scenario'],
     },
   },
 

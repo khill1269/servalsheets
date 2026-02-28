@@ -439,6 +439,15 @@ Benefits:
 ├─ Comments → \`sheets_collaborate comment_add\` / comment_list / comment_resolve
 └─ Version history → \`sheets_collaborate version_list_revisions\`
 
+**sheets_advanced actions? (ISSUE-210: 31 actions across 7 domains)**
+├─ Named ranges → \`add_named_range\`, \`update_named_range\`, \`delete_named_range\`, \`list_named_ranges\`, \`get_named_range\`
+├─ Protected ranges → \`add_protected_range\`, \`update_protected_range\`, \`delete_protected_range\`, \`list_protected_ranges\`
+├─ Metadata (developer) → \`set_metadata\`, \`get_metadata\`, \`delete_metadata\`
+├─ Banding (row colors) → \`add_banding\`, \`update_banding\`, \`delete_banding\`, \`list_banding\`
+├─ Tables → \`create_table\`, \`delete_table\`, \`list_tables\`, \`update_table\`, \`rename_table_column\`, \`set_table_column_properties\`
+├─ Smart chips → \`add_person_chip\`, \`add_drive_chip\`, \`add_rich_link_chip\`, \`list_chips\`
+└─ Named functions → \`list_named_functions\`, \`get_named_function\`, \`create_named_function\`, \`update_named_function\`, \`delete_named_function\`
+
 **Enterprise & automation?**
 ├─ BigQuery integration → \`sheets_bigquery\` (connect, query, import_from_bigquery)
 ├─ Apps Script → \`sheets_appsscript\` (run scripts, deploy, trigger management)
@@ -493,11 +502,14 @@ Benefits:
 ├─ Get ranked suggestions → \`sheets_analyze.suggest_next_actions\`
 └─ Auto-apply safe improvements → \`sheets_analyze.auto_enhance\` (preview first)
 
-**Want to understand a sheet completely?**
-├─ Quick metadata → \`sheets_analyze.scout\` (1 call)
-├─ Deep audit → scout → \`sheets_analyze.comprehensive\` → \`sheets_analyze.suggest_next_actions\`
-├─ Formula health → \`sheets_analyze.analyze_formulas\` (includes upgrade opportunities)
-└─ Architecture review → comprehensive → analyze_formulas → \`sheets_dependencies.build\`
+**Want to understand a sheet completely? (ISSUE-209: choose the right entry point)**
+├─ "What's in this sheet?" (fast) → \`sheets_analyze.scout\` (structure only, ~200ms, 1 API call)
+├─ "Analyze only one aspect" → \`sheets_analyze.analyze_data\` with category:"formulas"|"data"|"structure"|"performance"|"quality"
+├─ "Full audit of everything" → \`sheets_analyze.comprehensive\` (all categories, 2 API calls, use after scout)
+├─ Formula health specifically → \`sheets_analyze.analyze_formulas\` (upgrade opportunities, errors)
+└─ Architecture review → \`sheets_analyze.comprehensive\` → \`sheets_analyze.analyze_formulas\` → \`sheets_dependencies.build\`
+
+⚠️ **HIERARCHY**: scout → analyze_data (targeted) OR comprehensive (full). Never call comprehensive without scout first — it needs context. Never use analyze_data when you only need metadata (use scout).
 
 **Want to upgrade legacy formulas?**
 └─ \`sheets_analyze.analyze_formulas\` → check upgradeOpportunities → \`sheets_analyze.generate_formula\` per upgrade → \`sheets_data.write\`
@@ -507,14 +519,87 @@ Benefits:
 ├─ Create chart + sparklines → \`sheets_visualize.chart_create\` → \`sheets_format.sparkline_add\`
 └─ Full dashboard → scout → suggest_chart → chart_create → sparkline_add → apply_preset
 
+**Running formulas/statistics/regression/forecasting server-side?**
+└─ \`sheets_compute\` (evaluate expressions, run statistical analysis, forecast)
+
+**Multi-step autonomous plan/execute/rollback workflows?**
+└─ \`sheets_agent\` (plan, execute steps, handle errors, rollback on failure)
+
 **5+ operations?**
 ├─ All formatting → \`sheets_format.batch_format\`
 ├─ Mixed operations → \`sheets_transaction\` (begin → queue → commit)
 └─ Sheet from scratch → \`sheets_composite.setup_sheet\`
 
+## 🗺️ QUICK ROUTING MATRIX
+
+When the user's intent is CLEAR, skip analysis and route directly:
+
+| User Says | Route Directly To |
+|-----------|------------------|
+| "write/append/clear/read" | sheets_data |
+| "format/color/border/font" | sheets_format |
+| "share/comment/permission" | sheets_collaborate |
+| "create/delete/copy sheet" | sheets_core |
+| "undo/redo/history/revert" | sheets_history |
+| "insert/delete rows/columns" | sheets_dimensions |
+| "chart/graph/visualization" | sheets_visualize |
+| "import/export CSV/XLSX" | sheets_composite |
+| "formula dependencies/impact" | sheets_dependencies |
+| "clean/fix/standardize" | sheets_fix |
+| "compute/calculate/regression/forecast/statistics" | sheets_compute |
+| "run plan/agent/autonomous pipeline/multi-step" | sheets_agent |
+
+ONLY use sheets_analyze when the user's request is exploratory or analytical.
+
+## 🔀 DISAMBIGUATION: Same Name, Different Tool
+
+"list" → What are you listing?
+  - Spreadsheets in Drive → sheets_core.list
+  - Sheets/tabs in a spreadsheet → sheets_core.list_sheets
+  - Named ranges → sheets_advanced.list_named_ranges
+  - Charts → sheets_visualize.chart_list
+  - Comments → sheets_collaborate.comment_list
+  - Templates → sheets_templates.list
+  - Webhooks → sheets_webhook.list
+  - Transactions → sheets_transaction.list
+  - Data validations → sheets_format.list_data_validations
+  - Filter views → sheets_dimensions.list_filter_views
+
+"delete" → What are you deleting?
+  - Rows/columns → sheets_dimensions.delete
+  - A sheet tab → sheets_core.delete_sheet
+  - A named range → sheets_advanced.delete_named_range
+  - A chart → sheets_visualize.chart_delete
+  - A comment → sheets_collaborate.comment_delete
+  - Data validation → sheets_format.clear_data_validation
+  - A filter view → sheets_dimensions.delete_filter_view
+  - A template → sheets_templates.delete
+  - A webhook → sheets_webhook.unregister
+
+"create" → What are you creating?
+  - New spreadsheet → sheets_core.create
+  - New sheet/tab → sheets_core.add_sheet
+  - New chart → sheets_visualize.chart_create
+  - New template → sheets_templates.create
+  - New named range → sheets_advanced.add_named_range
+  - New filter view → sheets_dimensions.create_filter_view
+  - New Apps Script → sheets_appsscript.create
+
+"get" → What are you getting?
+  - Spreadsheet metadata → sheets_core.get
+  - Cell data → sheets_data.read
+  - Sheet properties → sheets_core.get_sheet
+  - Chart details → sheets_visualize.chart_get
+  - Comment → sheets_collaborate.comment_get
+  - Named range → sheets_advanced.get_named_range
+
 ## ⚡ CRITICAL RULES (Avoid Common Mistakes)
 
-1. **START with sheets_analyze** — For any new spreadsheet, ALWAYS call \`sheets_analyze action:"comprehensive"\` or \`action:"scout"\` FIRST. Gives you structure, data types, quality, and recommended actions. Prevents 70%+ of mistakes. Skip this = wasted effort.
+1. **Use sheets_analyze.scout ONLY when:**
+   - User hasn't specified exact range/sheet
+   - Operation requires understanding sheet structure (e.g., 'find duplicates', 'summarize data')
+   - User asks 'what's in this spreadsheet?'
+   **SKIP scout when user provides:** specific cell/range, exact action ('write A1'), or structural command ('add sheet', 'delete sheet', 'share with').
 2. **append is NOT idempotent** — Never retry on timeout. It will duplicate data.
 3. **Always include sheet name** in ranges: \`"Sheet1!A1:D10"\` not \`"A1:D10"\`
 4. **NEVER type emoji sheet names manually** — Always copy sheet names from \`sheets_core.list_sheets\` response. Emoji characters may look identical but have different Unicode (📊 U+1F4CA vs 📈 U+1F4C8). Quote sheet names with spaces or emoji: \`"'📊 Dashboard'!A1"\`
@@ -522,6 +607,7 @@ Benefits:
 6. **batch_format max 100** operations per call
 7. **Use verbosity:"minimal"** to save tokens when you don't need full response
 8. **Use sheets_transaction for 5+ operations** — Saves 80-95% API calls and ensures atomicity. Example: Updating 50 rows = 1 transaction call instead of 50 individual writes. Don't use for 1-4 operations (overhead exceeds benefit)
+9. **\`find_replace\` is for patterns, NOT targeted updates** (ISSUE-208) — If you know the cell address, use \`data.write\`. \`find_replace\` scans the entire range for a regex pattern — slow, non-deterministic for single-cell updates, and may match unintended cells. Rule: "Do I know WHERE to write?" → write. "Do I need to search?" → find_replace.
 
 ## 🔁 ERROR RECOVERY
 
@@ -601,6 +687,38 @@ Never leave debug strings (e.g., "test123", task markers, "temp") in production 
 - Don't skip sheets_analyze before complex operations — 70%+ of mistakes are preventable
 - Don't hardcode sheet names — always get from list_sheets (emoji/unicode issues)
 
+## 📝 EXAMPLES: Common Requests → Correct Tool Calls
+
+**"Write 'Hello' in cell A1"** → sheets_data action:"write" range:"Sheet1!A1" values:[["Hello"]]
+  (NOT append — write targets a specific cell)
+
+**"Add these rows to the bottom"** → sheets_data action:"append" range:"Sheet1" values:[["row1"],["row2"]]
+  (NOT write — append finds the last row automatically)
+
+**"Add a new sheet called Sales"** → sheets_core action:"add_sheet" title:"Sales"
+  (NOT sheets_dimensions.insert — that inserts rows/columns, not sheets)
+
+**"Insert 3 rows above row 5"** → sheets_dimensions action:"insert" dimension:"ROWS" startIndex:4 endIndex:7
+  (NOT sheets_core — core manages sheets/tabs, dimensions manages rows/columns. Indices are 0-based.)
+
+**"Make the header row bold with blue background"** → sheets_format action:"batch_format" requests:[{range:"Sheet1!1:1", format:{textFormat:{bold:true}}, backgroundColor:{red:0.2,green:0.4,blue:0.8}}]
+  (Use batch_format for multiple format changes in one call)
+
+**"Highlight cells above 1000 in red"** → sheets_format action:"add_conditional_format_rule" range:"Sheet1!B2:B100" rulePreset:"custom" condition:{type:"NUMBER_GREATER", values:["1000"]} format:{backgroundColor:{red:1,green:0.8,blue:0.8}}
+  (NOT set_data_validation — that restricts input, conditional formatting changes appearance)
+
+**"Share with alice@company.com as editor"** → sheets_collaborate action:"share_add" email:"alice@company.com" role:"writer"
+  (Role is "writer" not "editor" — Google Drive API terminology)
+
+**"Import data.csv into a new sheet"** → sheets_composite action:"import_csv" source:"data.csv" createNewSheet:true
+  (NOT sheets_data.write — import_csv handles parsing, headers, and type detection)
+
+**"Show formula dependencies for cell D5"** → sheets_dependencies action:"get_dependents" spreadsheetId:"..." cell:"Sheet1!D5"
+  (NOT sheets_analyze — analyze examines the whole sheet, dependencies traces specific cell relationships)
+
+**"Undo the last change"** → sheets_history action:"undo"
+  (NOT sheets_history.revert_to — undo reverses the last operation, revert_to restores to a specific revision)
+
 ## 📐 FORMULA EXPERTISE
 
 Quick formula tips for common spreadsheet tasks:
@@ -638,7 +756,14 @@ For multi-step operations that affect shared spreadsheets:
 | SPREADSHEET_NOT_FOUND | Invalid spreadsheetId | Verify ID from URL |
 | SHEET_NOT_FOUND | Sheet name doesn't exist | Use sheets_core action:"list_sheets" |
 | INVALID_RANGE | Bad A1 notation | Check format: "A1:B10" or "Sheet1!A1" |
-| QUOTA_EXCEEDED | Too many requests | Wait 60 seconds, use batch operations |
+| QUOTA_EXCEEDED | Too many requests | Wait 60 seconds, use batch operations with smaller chunks |
+| INVALID_ARGUMENT | Bad parameter format/value | Check param types, use sheets_analyze.scout for validation |
+| CONFLICT | Concurrent modification detected | Use sheets_quality.detect_conflicts, then resolve_conflict |
+| TIMEOUT | Request took too long | Reduce range size, use batch_read with smaller chunks |
+| AUTH_EXPIRED | Credentials no longer valid | Run sheets_auth.login to refresh token |
+| RATE_LIMITED | Too many rapid requests | Use exponential backoff, check sheets_session.get_context |
+| NOT_FOUND (chart) | Chart ID doesn't exist | Use sheets_visualize.chart_list to verify chart IDs |
+| NOT_FOUND (range) | Named range doesn't exist | Use sheets_advanced.list_named_ranges |
 | PROTECTED_RANGE | Range is protected | Use sheets_advanced to check protection |
 
 **General recovery pattern:**
@@ -671,6 +796,7 @@ All colors use **0-1 scale** (NOT 0-255):
 
 - Read \`servalsheets://index\` to discover all available resources and their URIs
 - Read \`schema://tools/{name}\` before calling tools with complex parameters
+- Read \`schema://actions/{name}\` for action-level guidance (idempotency, pitfalls, alternatives)
 - Read \`sheets:///{spreadsheetId}/context\` for full structural metadata (sheets, charts, named ranges, protection, filters — 1 API call, no cell data)
 - Search \`knowledge:///search?q={query}\` for domain-specific guidance (formulas, API limits, templates)
 - Read \`servalsheets://guides/{topic}\` for optimization guides (quota, batching, caching, error recovery)
@@ -691,6 +817,8 @@ read its full schema resource to see all available actions and parameters:
 
 - \`schema://tools\` - Index of all ${TOOL_COUNT} tools
 - \`schema://tools/{toolName}\` - Full input/output schema for a specific tool
+- \`schema://actions\` - Index of action guidance resources
+- \`schema://actions/{toolName}\` - Action-level guidance for a specific tool
 
 **When to read schemas:**
 - First time using a tool in this conversation

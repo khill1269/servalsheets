@@ -11,11 +11,13 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { resourceNotifications } from '../../src/resources/notifications.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { waitFor } from '../helpers/wait-for.js';
 
 // Mock McpServer
 const createMockServer = (): McpServer =>
   ({
     sendResourceListChanged: vi.fn(),
+    sendToolListChanged: vi.fn(),
     // Add other required McpServer methods as stubs
     setLoggingLevel: vi.fn(),
     request: vi.fn(),
@@ -42,7 +44,7 @@ describe('Feature 1: Real-Time Notifications', () => {
       resourceNotifications.notifyResourceListChanged('test change');
 
       // Wait for debounce
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       expect(mockServer.sendResourceListChanged).toHaveBeenCalledOnce();
     });
@@ -54,7 +56,7 @@ describe('Feature 1: Real-Time Notifications', () => {
       resourceNotifications.notifyResourceListChanged('change 3');
 
       // Wait for debounce
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       // Should only send one notification despite 3 calls
       expect(mockServer.sendResourceListChanged).toHaveBeenCalledOnce();
@@ -63,7 +65,7 @@ describe('Feature 1: Real-Time Notifications', () => {
     it('should notify when analysis result is added', async () => {
       resourceNotifications.notifyAnalysisAdded('analysis-123');
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       expect(mockServer.sendResourceListChanged).toHaveBeenCalledOnce();
     });
@@ -71,7 +73,7 @@ describe('Feature 1: Real-Time Notifications', () => {
     it('should notify when cache is invalidated', async () => {
       resourceNotifications.notifyCacheInvalidated();
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       expect(mockServer.sendResourceListChanged).toHaveBeenCalledOnce();
     });
@@ -79,7 +81,7 @@ describe('Feature 1: Real-Time Notifications', () => {
     it('should notify when transaction state changes', async () => {
       resourceNotifications.notifyTransactionStateChanged('txn-456', 'committed');
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       expect(mockServer.sendResourceListChanged).toHaveBeenCalledOnce();
     });
@@ -87,7 +89,7 @@ describe('Feature 1: Real-Time Notifications', () => {
     it('should notify when operation history is updated', async () => {
       resourceNotifications.notifyHistoryUpdated(5);
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       expect(mockServer.sendResourceListChanged).toHaveBeenCalledOnce();
     });
@@ -104,6 +106,33 @@ describe('Feature 1: Real-Time Notifications', () => {
     it('should report initialization status correctly', () => {
       expect(resourceNotifications.isInitialized()).toBe(true);
     });
+
+    it('should emit tools/list_changed only when tool set changes', async () => {
+      const notifications = new (resourceNotifications.constructor as {
+        new (): {
+          setServer: (server: McpServer) => void;
+          syncToolList: (
+            toolNames: readonly string[],
+            options?: { reason?: string; emitOnFirstSet?: boolean }
+          ) => void;
+        };
+      })();
+      notifications.setServer(mockServer);
+
+      notifications.syncToolList(['sheets_auth', 'sheets_data'], { emitOnFirstSet: false });
+      await waitFor(100);
+      expect((mockServer as any).sendToolListChanged).not.toHaveBeenCalled();
+
+      notifications.syncToolList(['sheets_auth', 'sheets_data', 'sheets_session'], {
+        reason: 'runtime update',
+      });
+      await waitFor(100);
+      expect((mockServer as any).sendToolListChanged).toHaveBeenCalledTimes(1);
+
+      notifications.syncToolList(['sheets_auth', 'sheets_data', 'sheets_session']);
+      await waitFor(100);
+      expect((mockServer as any).sendToolListChanged).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('Webhook Integration', () => {
@@ -115,7 +144,7 @@ describe('Feature 1: Real-Time Notifications', () => {
       const spreadsheetId = 'test-sheet-123';
       resourceNotifications.notifyResourceListChanged(`spreadsheet changed: ${spreadsheetId}`);
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       expect(mockServer.sendResourceListChanged).toHaveBeenCalledOnce();
     });
@@ -129,7 +158,7 @@ describe('Feature 1: Real-Time Notifications', () => {
         `webhook delivered: ${eventType} for ${webhookId.slice(0, 8)}`
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       expect(mockServer.sendResourceListChanged).toHaveBeenCalledOnce();
     });
@@ -138,7 +167,7 @@ describe('Feature 1: Real-Time Notifications', () => {
       // This tests the integration point in webhooks.ts handler
       resourceNotifications.notifyResourceListChanged('webhook registered');
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       expect(mockServer.sendResourceListChanged).toHaveBeenCalledOnce();
     });
@@ -157,7 +186,7 @@ describe('Feature 1: Real-Time Notifications', () => {
         resourceNotifications.notifyResourceListChanged('test');
       }).not.toThrow();
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
     });
   });
 
@@ -166,14 +195,14 @@ describe('Feature 1: Real-Time Notifications', () => {
       resourceNotifications.notifyResourceListChanged('change 1');
 
       // Wait for first notification to send
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       expect(mockServer.sendResourceListChanged).toHaveBeenCalledTimes(1);
 
       // Send another notification after debounce period
       resourceNotifications.notifyResourceListChanged('change 2');
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       expect(mockServer.sendResourceListChanged).toHaveBeenCalledTimes(2);
     });
@@ -184,7 +213,7 @@ describe('Feature 1: Real-Time Notifications', () => {
       resourceNotifications.notifyResourceListChanged('test');
 
       // Wait for notification
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       const elapsed = Date.now() - startTime;
 

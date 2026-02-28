@@ -14,6 +14,8 @@ import {
   getMetricsCollector,
   applyQuotaDelay,
   resetTestInfrastructure,
+  getLiveApiClient,
+  spreadsheetPool,
 } from './setup/index.js';
 import { validatePreTestConditions, getTestIsolationGuard } from './guards/index.js';
 import { shouldRunIntegrationTests, loadTestCredentials } from '../helpers/credential-loader.js';
@@ -74,6 +76,20 @@ beforeAll(async () => {
   // Initialize metrics collector
   const metrics = getMetricsCollector();
   metrics.startRun('live-api-tests');
+
+  // Pre-warm the spreadsheet pool so test files can borrow instead of create+delete
+  // Pool of 2 gives enough buffer for sequential test execution (maxWorkers: 1)
+  try {
+    const sharedClient = await getLiveApiClient({ trackMetrics: true });
+    await spreadsheetPool.initialize(sharedClient, { maxSize: 2, populateData: false });
+    console.log(`🏊 Spreadsheet pool ready (${spreadsheetPool.getStats().total} spreadsheets)\n`);
+  } catch (err) {
+    // Non-fatal — tests will fall back to creating their own spreadsheets
+    console.warn(
+      '⚠️  Spreadsheet pool init failed, tests will create individual spreadsheets:',
+      err instanceof Error ? err.message : err
+    );
+  }
 
   // Display configuration
   console.log('📋 Test Configuration:');
@@ -151,6 +167,19 @@ afterAll(async () => {
 
   // End metrics run
   metrics.endRun();
+
+  // Clean up pool spreadsheets
+  if (spreadsheetPool.isInitialized()) {
+    try {
+      const poolStats = spreadsheetPool.getStats();
+      const result = await spreadsheetPool.cleanup();
+      console.log(
+        `🏊 Pool cleanup: ${result.deleted}/${poolStats.total} spreadsheets deleted\n`
+      );
+    } catch {
+      // Ignore pool cleanup errors
+    }
+  }
 
   // Reset infrastructure for next run
   resetTestInfrastructure();

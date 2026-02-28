@@ -69,6 +69,36 @@ type ConditionType =
   | 'CUSTOM_FORMULA'
   | 'BOOLEAN';
 
+/** ISSUE-179: Preset color palette — single source of truth for all apply_preset colors */
+const PRESET_COLORS = {
+  headerBg: { red: 0.2, green: 0.4, blue: 0.6 },
+  headerText: { red: 1, green: 1, blue: 1 },
+  altRowFirst: { red: 1, green: 1, blue: 1 },
+  altRowSecond: { red: 0.95, green: 0.95, blue: 0.95 },
+  totalRowBg: { red: 0.9, green: 0.9, blue: 0.9 },
+  totalRowBorder: { red: 0, green: 0, blue: 0 },
+  positiveHighlight: { red: 0.85, green: 0.95, blue: 0.85 },
+  negativeHighlight: { red: 0.95, green: 0.85, blue: 0.85 },
+} as const;
+
+const ELICITABLE_RULE_PRESETS = [
+  'highlight_duplicates',
+  'highlight_blanks',
+  'highlight_errors',
+  'color_scale_green_red',
+  'data_bars',
+  'top_10_percent',
+  'bottom_10_percent',
+] as const;
+
+type ElicitableRulePreset = (typeof ELICITABLE_RULE_PRESETS)[number];
+
+function isElicitableRulePreset(value: unknown): value is ElicitableRulePreset {
+  return (
+    typeof value === 'string' && (ELICITABLE_RULE_PRESETS as readonly string[]).includes(value)
+  );
+}
+
 // Fix 1.4: Format operation batching queue
 interface QueuedFormatOperation {
   request: FormatRequest;
@@ -89,6 +119,14 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
   constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets) {
     super('sheets_format', context);
     this.sheetsApi = sheetsApi;
+  }
+
+  /**
+   * Formatting operations touch every addressed cell in the target range.
+   * Use exact range size instead of sparsity-adjusted estimates for response counts.
+   */
+  private exactCellCount(range: sheets_v4.Schema$GridRange): number {
+    return estimateCellCount(range, { sparsityFactor: 1 });
   }
 
   /**
@@ -615,6 +653,11 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
       cellFormat.backgroundColor = format.backgroundColor;
       fields.push('backgroundColor');
     }
+    // ISSUE-079: Theme color support — backgroundColorStyle preferred when provided
+    if (format.backgroundColorStyle) {
+      cellFormat['backgroundColorStyle'] = format.backgroundColorStyle;
+      fields.push('backgroundColorStyle');
+    }
     if (format.textFormat) {
       cellFormat.textFormat = format.textFormat;
       fields.push('textFormat');
@@ -668,7 +711,7 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
     });
 
     return this.success('set_format', {
-      cellsFormatted: estimateCellCount(googleRange),
+      cellsFormatted: this.exactCellCount(googleRange),
     });
   }
 
@@ -689,6 +732,9 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
 
     const startTime = Date.now();
 
+    // Declared outside try so catch block can use pre-fetched data for graceful fallback
+    let gridData: sheets_v4.Schema$GridData | undefined;
+
     try {
       // Convert range to A1 notation string
       const rangeStr =
@@ -707,7 +753,7 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
       });
 
       const sheet = response.data.sheets?.[0];
-      const gridData = sheet?.data?.[0];
+      gridData = sheet?.data?.[0];
       if (!gridData || !gridData.rowData || gridData.rowData.length === 0) {
         return this.error({
           code: 'INVALID_PARAMS',
@@ -877,6 +923,21 @@ Always return valid JSON in the exact format requested.`;
         }
       }
 
+      // Wire session context: record current sheet context for follow-up suggestions (ISSUE-154)
+      try {
+        if (this.context.sessionContext && suggestions.length > 0) {
+          this.context.sessionContext.recordOperation({
+            tool: 'sheets_format',
+            action: 'suggest_format',
+            spreadsheetId: input.spreadsheetId,
+            description: `Generated ${suggestions.length} format suggestions for ${input.range ?? 'spreadsheet'}`,
+            undoable: false,
+          });
+        }
+      } catch {
+        /* non-blocking */
+      }
+
       return this.success('suggest_format', {
         suggestions,
         _meta: {
@@ -885,6 +946,11 @@ Always return valid JSON in the exact format requested.`;
         },
       });
     } catch (error) {
+      // Graceful fallback: if data was already fetched before LLM failure, use it for
+      // rule-based suggestions instead of returning an error or making a redundant API call
+      if (gridData?.rowData) {
+        return this.handleSuggestFormatRuleBased(input, gridData.rowData);
+      }
       return this.error({
         code: 'INTERNAL_ERROR',
         message: `Format suggestion failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -896,25 +962,33 @@ Always return valid JSON in the exact format requested.`;
 
   /** Rule-based format suggestion fallback when LLM/Sampling is unavailable (ISSUE-170) */
   private async handleSuggestFormatRuleBased(
-    input: FormatRequest & { action: 'suggest_format' }
+    input: FormatRequest & { action: 'suggest_format' },
+    prefetchedRows?: sheets_v4.Schema$RowData[]
   ): Promise<FormatResponse> {
-    // Fetch a sample of data to detect patterns
-    const rangeStr =
-      typeof input.range === 'string'
-        ? input.range
-        : input.range && 'a1' in input.range
-          ? input.range.a1
-          : 'A1:Z10';
+    let rows: sheets_v4.Schema$RowData[];
 
-    const response = await this.sheetsApi.spreadsheets.get({
-      spreadsheetId: input.spreadsheetId,
-      ranges: [rangeStr],
-      includeGridData: true,
-      fields: 'sheets.data.rowData.values(formattedValue,effectiveValue)',
-    });
+    if (prefetchedRows) {
+      // Use pre-fetched rows to avoid redundant API call
+      rows = prefetchedRows;
+    } else {
+      // Fetch a sample of data to detect patterns
+      const rangeStr =
+        typeof input.range === 'string'
+          ? input.range
+          : input.range && 'a1' in input.range
+            ? input.range.a1
+            : 'A1:Z10';
 
-    const sheet = response.data.sheets?.[0];
-    const rows = sheet?.data?.[0]?.rowData ?? [];
+      const response = await this.sheetsApi.spreadsheets.get({
+        spreadsheetId: input.spreadsheetId,
+        ranges: [rangeStr],
+        includeGridData: true,
+        fields: 'sheets.data.rowData.values(formattedValue,effectiveValue)',
+      });
+
+      const sheet = response.data.sheets?.[0];
+      rows = sheet?.data?.[0]?.rowData ?? [];
+    }
 
     const suggestions: Array<{
       title: string;
@@ -1016,7 +1090,7 @@ Always return valid JSON in the exact format requested.`;
     });
 
     return this.success('set_background', {
-      cellsFormatted: estimateCellCount(googleRange),
+      cellsFormatted: this.exactCellCount(googleRange),
     });
   }
 
@@ -1047,7 +1121,7 @@ Always return valid JSON in the exact format requested.`;
     });
 
     return this.success('set_text_format', {
-      cellsFormatted: estimateCellCount(googleRange),
+      cellsFormatted: this.exactCellCount(googleRange),
     });
   }
 
@@ -1078,7 +1152,7 @@ Always return valid JSON in the exact format requested.`;
     });
 
     return this.success('set_number_format', {
-      cellsFormatted: estimateCellCount(googleRange),
+      cellsFormatted: this.exactCellCount(googleRange),
     });
   }
 
@@ -1133,7 +1207,7 @@ Always return valid JSON in the exact format requested.`;
     });
 
     return this.success('set_alignment', {
-      cellsFormatted: estimateCellCount(googleRange),
+      cellsFormatted: this.exactCellCount(googleRange),
     });
   }
 
@@ -1162,7 +1236,7 @@ Always return valid JSON in the exact format requested.`;
     });
 
     return this.success('set_borders', {
-      cellsFormatted: estimateCellCount(googleRange),
+      cellsFormatted: this.exactCellCount(googleRange),
     });
   }
 
@@ -1175,7 +1249,7 @@ Always return valid JSON in the exact format requested.`;
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
     const googleRange = toGridRange(gridRange);
-    const estimatedCells = estimateCellCount(googleRange);
+    const estimatedCells = this.exactCellCount(googleRange);
 
     // Request confirmation for destructive operation if elicitation is supported
     if (this.context.elicitationServer && estimatedCells > 500) {
@@ -1235,7 +1309,7 @@ Always return valid JSON in the exact format requested.`;
     });
 
     return this.success('clear_format', {
-      cellsFormatted: estimateCellCount(googleRange),
+      cellsFormatted: this.exactCellCount(googleRange),
       snapshotId: snapshot?.snapshotId,
     });
   }
@@ -1255,10 +1329,10 @@ Always return valid JSON in the exact format requested.`;
             range: googleRange,
             cell: {
               userEnteredFormat: {
-                backgroundColor: { red: 0.2, green: 0.4, blue: 0.6 },
+                backgroundColor: PRESET_COLORS.headerBg,
                 textFormat: {
                   bold: true,
-                  foregroundColor: { red: 1, green: 1, blue: 1 },
+                  foregroundColor: PRESET_COLORS.headerText,
                 },
                 horizontalAlignment: 'CENTER',
               },
@@ -1274,8 +1348,8 @@ Always return valid JSON in the exact format requested.`;
             bandedRange: {
               range: googleRange,
               rowProperties: {
-                firstBandColor: { red: 1, green: 1, blue: 1 },
-                secondBandColor: { red: 0.95, green: 0.95, blue: 0.95 },
+                firstBandColor: PRESET_COLORS.altRowFirst,
+                secondBandColor: PRESET_COLORS.altRowSecond,
               },
             },
           },
@@ -1288,12 +1362,12 @@ Always return valid JSON in the exact format requested.`;
             range: googleRange,
             cell: {
               userEnteredFormat: {
-                backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 },
+                backgroundColor: PRESET_COLORS.totalRowBg,
                 textFormat: { bold: true },
                 borders: {
                   top: {
                     style: 'SOLID_MEDIUM',
-                    color: { red: 0, green: 0, blue: 0 },
+                    color: PRESET_COLORS.totalRowBorder,
                   },
                 },
               },
@@ -1356,7 +1430,7 @@ Always return valid JSON in the exact format requested.`;
                   values: [{ userEnteredValue: '0' }],
                 },
                 format: {
-                  backgroundColor: { red: 0.85, green: 0.95, blue: 0.85 },
+                  backgroundColor: PRESET_COLORS.positiveHighlight,
                 },
               },
             },
@@ -1376,7 +1450,7 @@ Always return valid JSON in the exact format requested.`;
                   values: [{ userEnteredValue: '0' }],
                 },
                 format: {
-                  backgroundColor: { red: 0.95, green: 0.85, blue: 0.85 },
+                  backgroundColor: PRESET_COLORS.negativeHighlight,
                 },
               },
             },
@@ -1392,7 +1466,7 @@ Always return valid JSON in the exact format requested.`;
     });
 
     return this.success('apply_preset', {
-      cellsFormatted: estimateCellCount(googleRange),
+      cellsFormatted: this.exactCellCount(googleRange),
     });
   }
 
@@ -1518,22 +1592,38 @@ Always return valid JSON in the exact format requested.`;
       const rangeA1 = await this.resolveRange(input.spreadsheetId, rangeInput);
       const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
       const googleRange = toGridRange(gridRange);
-      totalCellsFormatted += estimateCellCount(googleRange);
+      totalCellsFormatted += this.exactCellCount(googleRange);
 
       switch (opType) {
         case 'background': {
-          const color = op['color'] as sheets_v4.Schema$Color;
-          if (color) {
-            requests.push({
-              repeatCell: {
-                range: googleRange,
-                cell: { userEnteredFormat: { backgroundColor: color } },
-                fields: 'userEnteredFormat.backgroundColor',
-              },
-            });
+          // Support both legacy Color and modern ColorStyle formats
+          const colorInput = op['color'] || op['colorStyle'];
+
+          if (typeof colorInput === 'object' && colorInput !== null) {
+            const colorRecord = colorInput as Record<string, unknown>;
+            // If it's already a ColorStyle (has rgbColor or themeColor), use directly
+            if ('rgbColor' in colorRecord || 'themeColor' in colorRecord) {
+              const backgroundColorStyle = colorInput as sheets_v4.Schema$ColorStyle;
+              requests.push({
+                repeatCell: {
+                  range: googleRange,
+                  cell: { userEnteredFormat: { backgroundColorStyle } },
+                  fields: 'userEnteredFormat.backgroundColorStyle',
+                },
+              });
+            } else {
+              const backgroundColor = colorInput as sheets_v4.Schema$Color;
+              requests.push({
+                repeatCell: {
+                  range: googleRange,
+                  cell: { userEnteredFormat: { backgroundColor } },
+                  fields: 'userEnteredFormat.backgroundColor',
+                },
+              });
+            }
           } else {
             skippedOps.push(
-              `Operation ${opIdx}: type 'background' requires 'color' (e.g. {red:1, green:0, blue:0})`
+              `Operation ${opIdx}: type 'background' requires 'color' or 'colorStyle' (e.g. {red:1, green:0, blue:0} or {rgbColor:{red:1,green:0,blue:0}} or {themeColor:"ACCENT1"})`
             );
           }
           break;
@@ -1627,9 +1717,23 @@ Always return valid JSON in the exact format requested.`;
           if (format) {
             const cellFormat: sheets_v4.Schema$CellFormat = {};
             const fields: string[] = [];
-            if (format['backgroundColor']) {
-              cellFormat.backgroundColor = format['backgroundColor'] as sheets_v4.Schema$Color;
-              fields.push('backgroundColor');
+            if (format['backgroundColorStyle'] || format['backgroundColor']) {
+              const bgInput = format['backgroundColorStyle'] || format['backgroundColor'];
+              const bgRecord = bgInput as Record<string, unknown>;
+              if (
+                typeof bgInput === 'object' &&
+                bgInput !== null &&
+                ('rgbColor' in bgRecord || 'themeColor' in bgRecord)
+              ) {
+                cellFormat.backgroundColorStyle = bgInput as sheets_v4.Schema$ColorStyle;
+                fields.push('backgroundColorStyle');
+              } else {
+                const backgroundColorStyle: sheets_v4.Schema$ColorStyle = {
+                  rgbColor: bgInput as sheets_v4.Schema$Color,
+                };
+                cellFormat.backgroundColorStyle = backgroundColorStyle;
+                fields.push('backgroundColorStyle');
+              }
             }
             if (format['textFormat']) {
               cellFormat.textFormat = format['textFormat'] as sheets_v4.Schema$TextFormat;
@@ -2218,7 +2322,41 @@ Always return valid JSON in the exact format requested.`;
 
     const ranges = rangeStr ? [rangeStr] : []; // Empty = entire sheet
 
-    // Single call: fetch grid properties (for size check) and data validations together
+    // When no range is specified, pre-check sheet dimensions before fetching grid data.
+    // This avoids downloading 100K+ cells just to reject an oversized request.
+    if (!rangeStr) {
+      const metaResponse = await this.sheetsApi.spreadsheets.get({
+        spreadsheetId: input.spreadsheetId,
+        includeGridData: false,
+        fields: 'sheets(properties(sheetId,gridProperties))',
+      });
+      const metaSheet = metaResponse.data.sheets?.find(
+        (s) => s.properties?.sheetId === input.sheetId
+      );
+      if (!metaSheet?.properties?.gridProperties) {
+        return this.error({
+          code: 'SHEET_NOT_FOUND',
+          message: `Sheet with ID ${input.sheetId} not found`,
+          retryable: false,
+          suggestedFix: 'Verify the sheet name or ID is correct',
+        });
+      }
+      const rowCount = metaSheet.properties.gridProperties.rowCount ?? 1000;
+      const colCount = metaSheet.properties.gridProperties.columnCount ?? 26;
+      const totalCells = rowCount * colCount;
+      if (totalCells > 10000) {
+        return this.error({
+          code: 'INVALID_PARAMS',
+          message: `Sheet has ${totalCells.toLocaleString()} cells (${rowCount}×${colCount}). Provide 'range' parameter to prevent timeout.`,
+          resolution: `Specify a range parameter to limit scan area (e.g., range: "A1:Z100"). For best performance, use ranges <10K cells.`,
+          retryable: false,
+          suggestedFix:
+            'Check the parameter format and ensure all required parameters are provided',
+        });
+      }
+    }
+
+    // Fetch grid properties + data validations (size already validated above when no range)
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       ranges,
@@ -2233,21 +2371,6 @@ Always return valid JSON in the exact format requested.`;
         message: `Sheet with ID ${input.sheetId} not found`,
         retryable: false,
         suggestedFix: 'Verify the sheet name or ID is correct',
-      });
-    }
-
-    const rowCount = sheet.properties.gridProperties.rowCount ?? 1000;
-    const colCount = sheet.properties.gridProperties.columnCount ?? 26;
-    const totalCells = rowCount * colCount;
-
-    // Require range parameter for large sheets to prevent timeout
-    if (!input.range && totalCells > 10000) {
-      return this.error({
-        code: 'INVALID_PARAMS',
-        message: `Sheet has ${totalCells.toLocaleString()} cells (${rowCount}×${colCount}). Provide 'range' parameter to prevent timeout.`,
-        resolution: `Specify a range parameter to limit scan area (e.g., range: "A1:Z100"). For best performance, use ranges <10K cells.`,
-        retryable: false,
-        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -2349,11 +2472,13 @@ Always return valid JSON in the exact format requested.`;
           },
         });
         if (elicitResult.action === 'accept' && elicitResult.content?.['rulePreset']) {
-          resolvedInput = {
-            ...input,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            rulePreset: elicitResult.content['rulePreset'] as any,
-          };
+          const rulePreset = elicitResult.content['rulePreset'];
+          if (isElicitableRulePreset(rulePreset)) {
+            resolvedInput = {
+              ...input,
+              rulePreset,
+            };
+          }
         }
       } catch {
         // non-blocking — proceed with default

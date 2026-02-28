@@ -204,19 +204,19 @@ Full audit scope: Google Sheets API feature coverage vs ServalSheets implementat
 
 Batched into Claude Code tasks by parallel-safety and schema dependencies:
 
-| Batch               | Task | Issues                                                    | Schema?                                      |
-| ------------------- | ---- | --------------------------------------------------------- | -------------------------------------------- |
-| Wave 1A             | #14  | ISSUE-088, 16-B5                                          | No — run in parallel                         |
-| Wave 1B             | #15  | ISSUE-096, ISSUE-049, ISSUE-041, ISSUE-200, 16-B4         | No — run in parallel                         |
-| Wave 1C             | #16  | ISSUE-013, ISSUE-099, 16-S1, 16-S2, ISSUE-136             | No — run in parallel                         |
-| Wave 1D             | #17  | ISSUE-093, ISSUE-113, 16-B1/B2/B3, 16-S3/S4/S5, ISSUE-211 | No — run in parallel                         |
-| Wave 1E             | #18  | ISSUE-071 (npm audit)                                     | No — after Wave 1                            |
-| Wave 2 + 16-C2      | #19  | ISSUE-039/011/145/204 + 6 more paginations                | **Yes** — schema:commit required             |
-| Wave 3 + P16-Phase3 | #20  | ISSUE-015/016/019 + 16-A1-A6                              | No                                           |
-| Wave 4 + Wave 5     | #21  | ISSUE-090/102/117/214 + ISSUE-066/107/119                 | No                                           |
-| Wave 6 + P16-Phase5 | #22  | ISSUE-085/101/161/162/169 + 16-U1-U5                      | No                                           |
-| P16-Phase6          | #23  | 16-F1-F6                                                  | Blocked (license)                            |
-| P16-Phase7          | #24  | 16-P1-P4                                                  | **Yes** — schema:commit for execute_pipeline |
+| Batch               | Task | Issues                                                    | Schema?                                      | Status      |
+| ------------------- | ---- | --------------------------------------------------------- | -------------------------------------------- | ----------- |
+| Wave 1A             | #14  | ISSUE-088, 16-B5                                          | No — run in parallel                         |             |
+| Wave 1B             | #15  | ISSUE-096, ISSUE-049, ISSUE-041, ISSUE-200, 16-B4         | No — run in parallel                         |             |
+| Wave 1C             | #16  | ISSUE-013, ISSUE-099, 16-S1, 16-S2, ISSUE-136             | No — run in parallel                         |             |
+| Wave 1D             | #17  | ISSUE-093, ISSUE-113, 16-B1/B2/B3, 16-S3/S4/S5, ISSUE-211 | No — run in parallel                         |             |
+| Wave 1E             | #18  | ISSUE-071 (npm audit)                                     | No — after Wave 1                            |             |
+| Wave 2 + 16-C2      | #19  | ISSUE-039/011/145/204 + 6 more paginations                | **Yes** — schema:commit required             |             |
+| Wave 3 + P16-Phase3 | #20  | ISSUE-015/016/019 + 16-A1-A6                              | No                                           |             |
+| Wave 4 + Wave 5     | #21  | ISSUE-090/102/117/214 + ISSUE-066/107/119                 | No                                           | completed   |
+| Wave 6 + P16-Phase5 | #22  | ISSUE-085/101/161/162/169 + 16-U1-U5                      | No                                           | completed   |
+| P16-Phase6          | #23  | 16-F1-F6                                                  | Blocked (license)                            | in_progress |
+| P16-Phase7          | #24  | 16-P1-P4                                                  | **Yes** — schema:commit for execute_pipeline |             |
 
 Deferred (requires architecture decision): ISSUE-094 (persistent idempotency), ISSUE-086 (formula locale), ISSUE-075 (@serval/core publish), ISSUE-147 (server-side mutex), ISSUE-168 (error path coverage), ISSUE-173/174/175 (enterprise auth/semantic search).
 

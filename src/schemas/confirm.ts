@@ -64,6 +64,18 @@ const PlanStepSchema = z.object({
     .optional()
     .default(false)
     .describe('Whether this step can be undone (default: false)'),
+  rationale: z.string().optional().describe('Optional rationale for why this step is needed'),
+  expectedOutcome: z.string().optional().describe('Expected outcome from this step'),
+  estimatedDuration: z.coerce
+    .number()
+    .positive()
+    .optional()
+    .describe('Estimated step duration in seconds'),
+  optional: z.boolean().optional().default(false).describe('Whether this step can be skipped'),
+  dependsOn: z
+    .array(z.coerce.number().int().positive())
+    .optional()
+    .describe('Step numbers that this step depends on'),
 });
 
 /**
@@ -82,6 +94,20 @@ const OperationPlanSchema = z.object({
     .default(true)
     .describe('Whether to create a snapshot before execution'),
   additionalWarnings: z.array(z.string()).optional().describe('Additional warnings to display'),
+  successCriteria: z
+    .array(z.string())
+    .optional()
+    .describe('Success criteria that define completion quality'),
+  rollbackStrategy: z.string().optional().describe('Rollback strategy if execution fails'),
+  alternatives: z
+    .array(
+      z.object({
+        description: z.string().describe('Alternative approach'),
+        reason: z.string().optional().describe('Why this alternative was not selected'),
+      })
+    )
+    .optional()
+    .describe('Alternative approaches considered before selecting this plan'),
 });
 
 /**
@@ -268,7 +294,7 @@ const ConfirmResponseSchema = z.discriminatedUnion('success', [
     // For wizard actions
     wizard: WizardStateSchema.optional(),
     nextStep: WizardStepDefSchema.optional(),
-    message: z.string().optional(),
+    message: z.string().default(''),
     _meta: ResponseMetaSchema.optional(),
   }),
   z.object({

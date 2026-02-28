@@ -22,7 +22,7 @@
 import { describe, it, beforeAll, afterAll, expect } from 'vitest';
 import { spawn, ChildProcess } from 'child_process';
 import { createInterface } from 'readline';
-import { setTimeout as sleep } from 'timers/promises';
+import { waitFor } from '../helpers/wait-for.js';
 
 // Test configuration
 const TEST_CONFIG = {
@@ -108,7 +108,7 @@ class ServerProcess {
   async stop(): Promise<void> {
     if (this.process && !this.process.killed) {
       this.process.kill('SIGTERM');
-      await sleep(2000);
+      await waitFor(2000);
       if (!this.process.killed) {
         this.process.kill('SIGKILL');
       }
@@ -311,7 +311,7 @@ describe.skipIf(!ENABLE_LOAD)('Load Testing - 1000+ Concurrent Requests', () => 
 
     console.log('\n🚀 Starting HTTP server for load testing...');
     await server.start();
-    await sleep(3000); // Additional warm-up time
+    await waitFor(3000); // Additional warm-up time
     console.log('✅ Server ready\n');
   }, 60000);
 
@@ -375,7 +375,7 @@ describe.skipIf(!ENABLE_LOAD)('Load Testing - 1000+ Concurrent Requests', () => 
     'should handle 500 concurrent write operations (5 min)',
     async () => {
       console.log('✍️  Testing 500 concurrent write operations...');
-      await sleep(TEST_CONFIG.coolDownSeconds * 1000);
+      await waitFor(TEST_CONFIG.coolDownSeconds * 1000);
 
       const start = Date.now();
       const metrics = await executor.testWriteOperations(500, 5 * 60 * 1000);
@@ -411,7 +411,7 @@ describe.skipIf(!ENABLE_LOAD)('Load Testing - 1000+ Concurrent Requests', () => 
     'should handle 1000 concurrent mixed workload (10 min)',
     async () => {
       console.log('🔀 Testing 1000 concurrent mixed operations...');
-      await sleep(TEST_CONFIG.coolDownSeconds * 1000);
+      await waitFor(TEST_CONFIG.coolDownSeconds * 1000);
 
       const start = Date.now();
       const metrics = await executor.testMixedWorkload(1000, 10 * 60 * 1000);
@@ -447,7 +447,7 @@ describe.skipIf(!ENABLE_LOAD)('Load Testing - 1000+ Concurrent Requests', () => 
     'should sustain 100 concurrent requests for 60 minutes',
     async () => {
       console.log('⏱️  Testing sustained load (100 concurrent, 60 min)...');
-      await sleep(TEST_CONFIG.coolDownSeconds * 1000);
+      await waitFor(TEST_CONFIG.coolDownSeconds * 1000);
 
       const start = Date.now();
       const metrics = await executor.testMixedWorkload(100, 60 * 60 * 1000);

@@ -2,7 +2,7 @@
 
 ![Audit Score](https://img.shields.io/badge/audit-130.83%25-brightgreen)
 
-Production-grade Google Sheets MCP Server with 22 tools, 341 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 25 tools, 377 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
@@ -92,7 +92,7 @@ On first run, ServalSheets will guide you through Google OAuth authentication.
 
 ### Core Capabilities
 
-- **22 Tools, 340 Actions**: Comprehensive Google Sheets API v4 coverage
+- **22 Tools, 342 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Compliant**: Full protocol compliance with structured outputs
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
@@ -103,7 +103,7 @@ On first run, ServalSheets will guide you through Google OAuth authentication.
 Full compliance with Model Context Protocol 2025-11-25:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.26.0
-- ✅ **Tools**: 22 tools with 341 actions using discriminated unions
+- ✅ **Tools**: 25 tools with 377 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -354,7 +354,7 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ## Tools Reference
 
-### Tool Summary (22 tools, 341 actions)
+### Tool Summary (25 tools, 377 actions)
 
 | Tool                  | Actions | Description                                                        |
 | --------------------- | ------- | ------------------------------------------------------------------ |
@@ -1102,7 +1102,7 @@ npm run start:remote
 
 ```
 src/
-├── schemas/           # Zod schemas for all 22 tools
+├── schemas/           # Zod schemas for all 25 tools
 ├── core/              # Core infrastructure
 │   ├── intent.ts          # Intent types and mappings
 │   ├── batch-compiler.ts  # Compiles intents to API requests
@@ -1207,7 +1207,7 @@ graph TB
 
 ## Schema Architecture: Discriminated Unions
 
-ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 22 tools and 341 actions. This architecture provides:
+ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 25 tools and 377 actions. This architecture provides:
 
 ### Pattern Overview
 
@@ -1235,7 +1235,7 @@ const SheetsAuthInputSchema = z.object({
 
 ### Tool Structure
 
-All 22 tools follow this pattern:
+All 25 tools follow this pattern:
 
 ```
 Tool: sheets_[category]
@@ -2048,7 +2048,7 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 | Feature          | Status  | Version    | Implementation                              |
 | ---------------- | ------- | ---------- | ------------------------------------------- |
 | **JSON-RPC 2.0** | ✅ Full | 2.0        | @modelcontextprotocol/sdk v1.26.0           |
-| **Tools**        | ✅ Full | 2025-11-25 | 22 tools, 341 actions, discriminated unions |
+| **Tools**        | ✅ Full | 2025-11-25 | 25 tools, 377 actions, discriminated unions |
 | **Resources**    | ✅ Full | 2025-11-25 | 6 URI templates + 7 knowledge resources     |
 | **Prompts**      | ✅ Full | 2025-11-25 | 6 guided workflows with arguments           |
 | **Completions**  | ✅ Full | 2025-11-25 | Argument autocompletion                     |
@@ -2061,9 +2061,9 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 
 ### Feature Checklist
 
-#### Tools (22 tools ✅)
+#### Tools (25 tools ✅)
 
-**Implemented & Tested** (all 22 tools):
+**Implemented & Tested** (all 25 tools):
 
 ```
 ✅ sheets_auth (4 actions) - OAuth, login, logout, status
@@ -2298,7 +2298,7 @@ Test Suites: 78 ✅
 Coverage: 92% ✅
 
 By Component:
-├─ Tools: 1200 tests (22 tools × ~55 tests each)
+├─ Tools: 1200 tests (25 tools × ~55 tests each)
 ├─ Schemas: 340 tests (validation, discriminated unions)
 ├─ Error Handling: 150 tests (all error types)
 ├─ Performance: 71 tests (batching, caching, rate limits)

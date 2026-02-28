@@ -17,6 +17,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { RedisTaskStore } from '../../src/core/task-store.js';
 import type { TaskStatus } from '../../src/core/task-store.js';
+import { waitFor } from '../helpers/wait-for.js';
 
 // Check if Redis is available BEFORE tests register
 const redisUrl = process.env['REDIS_URL'] || 'redis://localhost:6379';
@@ -120,7 +121,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       const task = await store.createTask({ ttl: 100 }); // 100ms
 
       // Wait for Redis to expire the key
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       const retrieved = await store.getTask(task.taskId);
       expect(retrieved).toBeNull();
@@ -158,7 +159,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       const originalTimestamp = task.lastUpdatedAt;
 
       // Wait a bit
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       await store.updateTaskStatus(task.taskId, 'working', 'In progress...');
 
@@ -280,9 +281,9 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
 
     it('should sort tasks by creation time (newest first)', async () => {
       const task1 = await store.createTask();
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
       const task2 = await store.createTask();
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
       const task3 = await store.createTask();
 
       const tasks = await store.getAllTasks();
@@ -303,7 +304,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       await store.createTask({ ttl: 60000 });
 
       // Wait for short task to expire
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       const tasks = await store.getAllTasks();
       expect(tasks).toHaveLength(1);
@@ -393,7 +394,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       await store.createTask({ ttl: 60000 }); // long-lived
 
       // Wait for short tasks to expire
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       const cleaned = await store.cleanupExpiredTasks();
 

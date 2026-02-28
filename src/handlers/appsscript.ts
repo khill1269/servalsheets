@@ -84,6 +84,11 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   SheetsAppsScriptInput,
   SheetsAppsScriptOutput
 > {
+  // ISSUE-203: Track concurrent run() executions (Google Apps Script limit: 20/user)
+  // Static so the limit applies across all handler instances (one per MCP request)
+  private static activeRunExecutions = 0;
+  private static readonly MAX_CONCURRENT_RUNS = 15; // 15/20 — buffer below Google's limit
+
   // ============================================================================
   // Shared API response interfaces (class-level to avoid inline duplication)
   // ============================================================================
@@ -716,10 +721,19 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       deploymentConfig.versionNumber = req.versionNumber;
     }
 
+    if (!deploymentConfig.versionNumber) {
+      logger.warn(
+        'Deploying Apps Script to HEAD version (volatile). Specify versionNumber for a stable, pinned deployment.',
+        { scriptId: req.scriptId }
+      );
+    }
+
+    // Per Apps Script API: request body is a Deployment resource with deploymentConfig nested
+    // https://developers.google.com/apps-script/api/reference/rest/v1/projects.deployments/create
     const result = await this.apiRequest<DeploymentResponse>(
       'POST',
       `/projects/${req.scriptId}/deployments`,
-      deploymentConfig
+      { deploymentConfig }
     );
 
     // Extract web app URL if available
@@ -848,6 +862,22 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         retryable: false,
       });
     }
+
+    // ISSUE-203: Enforce Apps Script concurrent execution limit (Google limit: 20/user)
+    if (
+      SheetsAppsScriptHandler.activeRunExecutions >= SheetsAppsScriptHandler.MAX_CONCURRENT_RUNS
+    ) {
+      return this.error({
+        code: 'QUOTA_EXCEEDED',
+        message:
+          `Apps Script concurrent execution limit reached ` +
+          `(${SheetsAppsScriptHandler.activeRunExecutions}/${SheetsAppsScriptHandler.MAX_CONCURRENT_RUNS} slots in use). ` +
+          `Wait for current executions to complete before retrying.`,
+        retryable: true,
+        retryAfterMs: 30000,
+      });
+    }
+
     logger.info(`Running function ${req.functionName} in: ${req.scriptId}`);
 
     // Safety gate: dryRun returns early without executing
@@ -931,6 +961,9 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       };
     }
 
+    // ISSUE-203: Claim a concurrency slot — released in finally block
+    SheetsAppsScriptHandler.activeRunExecutions++;
+
     const body: RunRequest = {
       function: req.functionName,
     };
@@ -994,13 +1027,29 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       }
     }
 
-    // Check for execution error
+    // Check for execution error — decrement slot before returning (ISSUE-203)
     if (result.error) {
       const scriptError = result.error.details?.find((d) => d['@type']?.includes('ScriptError'));
+      SheetsAppsScriptHandler.activeRunExecutions--;
+
+      const rawMessage = scriptError?.errorMessage ?? result.error.message ?? 'Unknown error';
+
+      // ISSUE-205: Detect BigQuery Advanced Service not enabled and return actionable error.
+      // Apps Script throws "BigQuery is not defined" (ReferenceError) when the BigQuery
+      // Advanced Service is not enabled in the Apps Script project settings.
+      const isBigQueryServiceMissing =
+        /BigQuery\s+is\s+not\s+defined/i.test(rawMessage) ||
+        (/BigQuery/i.test(rawMessage) && /not defined|undefined|ReferenceError/i.test(rawMessage));
+
+      const errorMessage = isBigQueryServiceMissing
+        ? `${rawMessage}\n\nThe BigQuery Advanced Service is not enabled for this script. ` +
+          `To fix: open the script in Apps Script Editor → Services (+) → Add "BigQuery API". ` +
+          `Then retry your function call.`
+        : rawMessage;
 
       return this.success('run', {
         executionError: {
-          errorMessage: scriptError?.errorMessage ?? result.error.message ?? 'Unknown error',
+          errorMessage,
           errorType: scriptError?.errorType ?? undefined,
           scriptStackTraceElements: scriptError?.scriptStackTraceElements ?? undefined,
         },
@@ -1010,26 +1059,31 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     // MCP SEP-1686: Apps Script runs are always asynchronous from the user's perspective.
     // ALWAYS create a task entry to allow clients to track execution.
     let runTaskId: string | undefined;
-    if (this.context.taskStore) {
-      const task = await this.context.taskStore.createTask(
-        { ttl: 3600000 }, // 1 hour TTL
-        'appsscript-run',
-        {
-          method: 'tools/call',
-          params: { name: 'sheets_appsscript', arguments: req },
-        }
-      );
-      runTaskId = task.taskId;
-      await this.context.taskStore.updateTaskStatus(
-        runTaskId,
-        'completed',
-        `Function '${req.functionName}' executed`
-      );
-      logger.info('Task created for appsscript run', {
-        taskId: runTaskId,
-        scriptId: req.scriptId,
-        functionName: req.functionName,
-      });
+    try {
+      if (this.context.taskStore) {
+        const task = await this.context.taskStore.createTask(
+          { ttl: 3600000 }, // 1 hour TTL
+          'appsscript-run',
+          {
+            method: 'tools/call',
+            params: { name: 'sheets_appsscript', arguments: req },
+          }
+        );
+        runTaskId = task.taskId;
+        await this.context.taskStore.updateTaskStatus(
+          runTaskId,
+          'completed',
+          `Function '${req.functionName}' executed`
+        );
+        logger.info('Task created for appsscript run', {
+          taskId: runTaskId,
+          scriptId: req.scriptId,
+          functionName: req.functionName,
+        });
+      }
+    } finally {
+      // ISSUE-203: Always release the concurrency slot when execution completes
+      SheetsAppsScriptHandler.activeRunExecutions--;
     }
 
     // result.response?.result is typed as `unknown` from the RunResponse interface.

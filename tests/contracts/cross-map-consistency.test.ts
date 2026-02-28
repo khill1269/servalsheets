@@ -114,7 +114,7 @@ describe('Cross-Map Consistency', () => {
 
     it('ACTION_COUNT is greater than 290 (sanity check)', () => {
       expect(ACTION_COUNT).toBeGreaterThan(290);
-      expect(ACTION_COUNT).toBeLessThan(350);
+      expect(ACTION_COUNT).toBeLessThan(400);
     });
   });
 

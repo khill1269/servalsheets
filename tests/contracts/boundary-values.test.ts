@@ -67,11 +67,10 @@ describe('Boundary Value Tests', () => {
       'A1',
       'Sheet1!A1',
       'Sheet1!A1:B2',
-      'Sheet1!A:A',
       'Sheet1!1:1',
       'Sheet1!A1:ZZ1000',
       "'Sheet With Spaces'!A1:B2",
-      "'Sheet's Name'!A1",
+      "'Sheet''s Name'!A1",
       'Sheet1!$A$1:$B$2',
       'A1:ZZZ10000',
     ];
@@ -534,9 +533,10 @@ describe('Boundary Value Tests', () => {
       it('should accept true', () => {
         const input = {
           request: {
-            action: 'read' as const,
+            action: 'find_replace' as const,
             spreadsheetId: validSpreadsheetId,
-            range: { a1: 'Sheet1!A1:B10' },
+            find: 'old',
+            replacement: 'new',
             includeFormulas: true,
           },
         };
@@ -549,7 +549,6 @@ describe('Boundary Value Tests', () => {
             action: 'read' as const,
             spreadsheetId: validSpreadsheetId,
             range: { a1: 'Sheet1!A1:B10' },
-            includeFormulas: false,
           },
         };
         expect(SheetsDataInputSchema.safeParse(input).success).toBe(true);

@@ -965,6 +965,57 @@ const AutoEnhanceActionSchema = CommonFieldsSchema.extend({
     .describe('Maximum enhancements to apply (default 3)'),
 });
 
+// ===== ACTION DISCOVERY - Meta-tool for finding actions by natural language =====
+
+/**
+ * Discovery result for a single action
+ */
+export const ActionDiscoveryMatchSchema = z.object({
+  tool: z.string().describe('Tool name (e.g., sheets_data, sheets_format)'),
+  action: z.string().describe('Action name (e.g., read, write)'),
+  confidence: z.number().min(0).max(1).describe('Match confidence score 0-1'),
+  description: z.string().describe('What this action does'),
+  whenToUse: z.string().optional().describe('When to use this action'),
+});
+
+/**
+ * Discover Action - Find actions using natural language search
+ *
+ * DESIGN: This is a meta-tool that helps Claude find the right action
+ * when they're not sure what to use. Instead of guessing, the user can ask:
+ * "How do I merge cells?" → discover_action finds sheets_dimensions.merge
+ * "I want to combine two spreadsheets" → discover_action finds sheets_data.cross_read
+ *
+ * Powered by ACTION_ANNOTATIONS which contains 69+ annotated actions
+ * with whenToUse descriptions that get indexed for search.
+ */
+const DiscoverActionActionSchema = z.object({
+  action: z
+    .literal('discover_action')
+    .describe(
+      'Find the right action using natural language. Ask in plain English: "merge cells", "combine spreadsheets", "find duplicates", etc.'
+    ),
+  query: z
+    .string()
+    .min(2)
+    .describe(
+      'Natural language search query (e.g., "merge cells", "combine data", "find missing values"). Be specific about what you want to do.'
+    ),
+  category: z
+    .enum(['data', 'format', 'analysis', 'structure', 'collaboration', 'automation', 'all'])
+    .optional()
+    .default('all')
+    .describe('Optional category filter for faster results'),
+  maxResults: z
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .optional()
+    .default(5)
+    .describe('Maximum results to return (default 5, max 10)'),
+});
+
 /**
  * All analysis operation inputs
  *
@@ -999,6 +1050,8 @@ export const SheetsAnalyzeInputSchema = z.object({
     // Smart suggestions actions (2) - F4
     SuggestNextActionsActionSchema,
     AutoEnhanceActionSchema,
+    // Meta-tools (1)
+    DiscoverActionActionSchema,
   ]),
 });
 
@@ -2001,6 +2054,23 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
       .describe('Enhancement summary counts'),
     mode: z.enum(['preview', 'apply']).optional().describe('Enhancement mode (preview or apply)'),
 
+    // discover_action results (meta-tool for finding actions)
+    query: z.string().optional().describe('Original search query'),
+    category: z.string().optional().describe('Category filter used'),
+    matches: z
+      .array(
+        z.object({
+          tool: z.string().describe('Tool name (e.g., sheets_data)'),
+          action: z.string().describe('Action name (e.g., read)'),
+          confidence: z.number().min(0).max(1).describe('Match confidence score'),
+          description: z.string().describe('What this action does'),
+          whenToUse: z.string().optional().describe('When to use this action'),
+        })
+      )
+      .optional()
+      .describe('List of matching actions ranked by relevance'),
+    matchCount: z.number().int().min(0).optional().describe('Total number of matches found'),
+
     // Common
     duration: z.coerce.number().optional(),
     message: z.string().optional(),
@@ -2092,6 +2162,13 @@ export type DrillDownInput = SheetsAnalyzeInput['request'] & {
 export type GenerateActionsInput = SheetsAnalyzeInput['request'] & {
   action: 'generate_actions';
   spreadsheetId: string;
+};
+
+export type DiscoverActionInput = SheetsAnalyzeInput['request'] & {
+  action: 'discover_action';
+  query: string;
+  category?: string;
+  maxResults?: number;
 };
 
 // Analysis intent and depth exports

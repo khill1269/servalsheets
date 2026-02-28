@@ -14,6 +14,7 @@
  * const approved = await service.request(plan, { riskLevel: 'high', timeout: 30000 });
  * if (approved) executeOperation();
  */
+import { getActionAnnotation } from '../schemas/annotations.js';
 
 /**
  * Risk level for operations
@@ -40,6 +41,21 @@ export interface PlanStep {
   isDestructive?: boolean;
   /** Whether this step can be undone */
   canUndo?: boolean;
+  /** Optional rationale for why the step is needed */
+  rationale?: string;
+  /** Expected outcome from this step */
+  expectedOutcome?: string;
+  /** Estimated step duration in seconds */
+  estimatedDuration?: number;
+  /** Whether this step can be skipped */
+  optional?: boolean;
+  /** Step dependencies by step number */
+  dependsOn?: number[];
+}
+
+export interface PlanAlternative {
+  description: string;
+  reason?: string;
 }
 
 /**
@@ -64,6 +80,12 @@ export interface OperationPlan {
   willCreateSnapshot: boolean;
   /** Warnings to display */
   warnings: string[];
+  /** Optional plan success criteria */
+  successCriteria?: string[];
+  /** Optional rollback strategy summary */
+  rollbackStrategy?: string;
+  /** Alternative approaches considered */
+  alternatives?: PlanAlternative[];
 }
 
 /**
@@ -156,6 +178,29 @@ class ConfirmationService {
       lines.push('### ⚠️ Warnings:');
       for (const warning of plan.warnings) {
         lines.push(`- ${warning}`);
+      }
+    }
+
+    if (plan.successCriteria && plan.successCriteria.length > 0) {
+      lines.push('');
+      lines.push('### Success Criteria:');
+      for (const criterion of plan.successCriteria) {
+        lines.push(`- ${criterion}`);
+      }
+    }
+
+    if (plan.rollbackStrategy) {
+      lines.push('');
+      lines.push('### Rollback Strategy:');
+      lines.push(`- ${plan.rollbackStrategy}`);
+    }
+
+    if (plan.alternatives && plan.alternatives.length > 0) {
+      lines.push('');
+      lines.push('### Alternatives Considered:');
+      for (const alternative of plan.alternatives) {
+        const reason = alternative.reason ? ` (${alternative.reason})` : '';
+        lines.push(`- ${alternative.description}${reason}`);
       }
     }
 
@@ -336,7 +381,24 @@ class ConfirmationService {
       warnings.push('This plan has CRITICAL risk level - review carefully');
     }
 
-    return warnings;
+    for (const step of plan.steps) {
+      const annotation = getActionAnnotation(step.tool, step.action);
+      if (!annotation) continue;
+
+      if (annotation.idempotent === false) {
+        warnings.push(
+          `Step ${step.stepNumber} (${step.tool}.${step.action}) is non-idempotent; retries can duplicate effects`
+        );
+      }
+
+      if (annotation.batchAlternative && (step.estimatedApiCalls ?? 1) >= 3) {
+        warnings.push(
+          `Step ${step.stepNumber} can be optimized with ${annotation.batchAlternative}`
+        );
+      }
+    }
+
+    return Array.from(new Set(warnings));
   }
 
   /**
@@ -349,6 +411,9 @@ class ConfirmationService {
     options: {
       willCreateSnapshot?: boolean;
       additionalWarnings?: string[];
+      successCriteria?: string[];
+      rollbackStrategy?: string;
+      alternatives?: PlanAlternative[];
     } = {}
   ): OperationPlan {
     const id = `plan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -366,9 +431,14 @@ class ConfirmationService {
       estimatedTime,
       willCreateSnapshot: options.willCreateSnapshot ?? true,
       warnings: [],
+      successCriteria: options.successCriteria,
+      rollbackStrategy: options.rollbackStrategy,
+      alternatives: options.alternatives,
     };
 
-    plan.warnings = [...this.generateWarnings(plan), ...(options.additionalWarnings ?? [])];
+    plan.warnings = Array.from(
+      new Set([...this.generateWarnings(plan), ...(options.additionalWarnings ?? [])])
+    );
 
     return plan;
   }

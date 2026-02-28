@@ -137,34 +137,52 @@ export const MAX_SORT_SPECS = 255;
 // ============================================================================
 
 /**
- * Read requests per minute per user
+ * Read requests per minute per project
  * @see https://developers.google.com/sheets/api/limits
  */
-export const READ_REQUESTS_PER_MINUTE = 300;
+export const READ_REQUESTS_PER_MINUTE_PER_PROJECT = 300;
 
 /**
- * Write requests per minute per user
+ * Write requests per minute per project
  * @see https://developers.google.com/sheets/api/limits
  */
-export const WRITE_REQUESTS_PER_MINUTE = 300;
+export const WRITE_REQUESTS_PER_MINUTE_PER_PROJECT = 300;
 
 /**
- * Read requests per 100 seconds per user.
- * @deprecated Google Sheets API quotas are enforced per-minute (60 req/min/user),
- * not per-100-seconds. This constant is not referenced by any rate limiter.
- * Retained for backward compatibility only.
+ * Read requests per minute per user per project
  * @see https://developers.google.com/sheets/api/limits
  */
-export const READ_REQUESTS_PER_100_SECONDS = 500;
+export const READ_REQUESTS_PER_MINUTE_PER_USER = 60;
 
 /**
- * Write requests per 100 seconds per user.
- * @deprecated Google Sheets API quotas are enforced per-minute (60 req/min/user),
- * not per-100-seconds. This constant is not referenced by any rate limiter.
- * Retained for backward compatibility only.
+ * Write requests per minute per user per project
  * @see https://developers.google.com/sheets/api/limits
  */
-export const WRITE_REQUESTS_PER_100_SECONDS = 500;
+export const WRITE_REQUESTS_PER_MINUTE_PER_USER = 60;
+
+/**
+ * @deprecated Use READ_REQUESTS_PER_MINUTE_PER_PROJECT.
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const READ_REQUESTS_PER_MINUTE = READ_REQUESTS_PER_MINUTE_PER_PROJECT;
+
+/**
+ * @deprecated Use WRITE_REQUESTS_PER_MINUTE_PER_PROJECT.
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const WRITE_REQUESTS_PER_MINUTE = WRITE_REQUESTS_PER_MINUTE_PER_PROJECT;
+
+/**
+ * Legacy 100-second quota window constants retained for compatibility.
+ *
+ * Google publishes per-minute quotas for Sheets API; these aliases map
+ * to the current per-user-per-minute values to avoid stale numeric limits.
+ *
+ * @deprecated Use READ_REQUESTS_PER_MINUTE_PER_USER and WRITE_REQUESTS_PER_MINUTE_PER_USER.
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const READ_REQUESTS_PER_100_SECONDS = READ_REQUESTS_PER_MINUTE_PER_USER;
+export const WRITE_REQUESTS_PER_100_SECONDS = WRITE_REQUESTS_PER_MINUTE_PER_USER;
 
 // ============================================================================
 // GRID DIMENSION LIMITS
@@ -260,8 +278,12 @@ export const GOOGLE_SHEETS_LIMITS = {
   maxSortSpecs: MAX_SORT_SPECS,
 
   // API Rate Limits
-  readRequestsPerMinute: READ_REQUESTS_PER_MINUTE,
-  writeRequestsPerMinute: WRITE_REQUESTS_PER_MINUTE,
+  readRequestsPerMinute: READ_REQUESTS_PER_MINUTE_PER_PROJECT,
+  writeRequestsPerMinute: WRITE_REQUESTS_PER_MINUTE_PER_PROJECT,
+  readRequestsPerMinutePerProject: READ_REQUESTS_PER_MINUTE_PER_PROJECT,
+  writeRequestsPerMinutePerProject: WRITE_REQUESTS_PER_MINUTE_PER_PROJECT,
+  readRequestsPerMinutePerUser: READ_REQUESTS_PER_MINUTE_PER_USER,
+  writeRequestsPerMinutePerUser: WRITE_REQUESTS_PER_MINUTE_PER_USER,
   readRequestsPer100Seconds: READ_REQUESTS_PER_100_SECONDS,
   writeRequestsPer100Seconds: WRITE_REQUESTS_PER_100_SECONDS,
 

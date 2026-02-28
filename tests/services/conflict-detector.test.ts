@@ -17,6 +17,7 @@ import type {
   ConflictResolution,
   ConflictDetectorConfig,
 } from '../../src/types/conflict.js';
+import { waitFor } from '../helpers/wait-for.js';
 
 // Mock Google API client
 const createMockGoogleClient = (): {
@@ -80,7 +81,7 @@ describe('ConflictDetector', () => {
       );
 
       // Wait briefly to allow time progression
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       // Mock API to return different data (represents a concurrent edit by another user)
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
@@ -161,7 +162,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       // Mock API to return different data with recent timestamp
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
@@ -197,7 +198,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
         data: {
@@ -453,7 +454,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
         data: {
@@ -484,7 +485,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
         data: {
@@ -529,7 +530,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
         data: {
@@ -592,7 +593,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
         data: {
@@ -633,7 +634,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
         data: {
@@ -704,7 +705,7 @@ describe('ConflictDetector', () => {
         [['data']]
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       // Act & Assert
       await expect(
@@ -728,7 +729,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing to ensure cache is different
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       const apiError = new Error('API connection failed');
       mockGoogleClient.sheets.spreadsheets.values.get.mockRejectedValue(apiError);
@@ -756,7 +757,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       // Mock API - when called, return different data to trigger conflict detection
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
@@ -783,7 +784,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
         data: { values: [['new']] },

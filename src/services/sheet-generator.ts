@@ -8,13 +8,20 @@
  */
 
 import type { sheets_v4 } from 'googleapis';
-import type { SamplingServer } from '../mcp/sampling.js';
-import { analyzeData } from '../mcp/sampling.js';
+import type {
+  ClientCapabilities,
+  CreateMessageRequest,
+  CreateMessageResult,
+  CreateMessageResultWithTools,
+  SamplingMessage,
+  TextContent,
+} from '@modelcontextprotocol/sdk/types.js';
 import type {
   GeneratedSheetDefinition,
   GeneratedColumn,
   GeneratedFormatting,
 } from '../schemas/composite.js';
+import { getRequestContext } from '../utils/request-context.js';
 import { logger } from '../utils/logger.js';
 
 export interface SheetDefinition {
@@ -39,6 +46,92 @@ export interface ExecutionResult {
   formulasApplied: number;
   formattingApplied: boolean;
   definition: SheetDefinition;
+}
+
+/**
+ * Minimal Sampling server contract used by this service.
+ * Structural-compatible with the MCP Sampling server interface.
+ */
+export interface SamplingServer {
+  getClientCapabilities(): ClientCapabilities | undefined;
+  createMessage(
+    params: CreateMessageRequest['params']
+  ): Promise<CreateMessageResult | CreateMessageResultWithTools>;
+}
+
+/** Default sampling timeout in ms (respects request deadline when available). */
+const SAMPLING_TIMEOUT_MS = parseInt(process.env['SAMPLING_TIMEOUT_MS'] ?? '30000', 10);
+
+function withSamplingTimeout<T>(promise: Promise<T>): Promise<T> {
+  const ctx = getRequestContext();
+  const effectiveTimeout = ctx
+    ? Math.min(SAMPLING_TIMEOUT_MS, Math.max(0, ctx.deadline - Date.now()))
+    : SAMPLING_TIMEOUT_MS;
+
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`Sampling request timed out after ${effectiveTimeout}ms`)),
+      effectiveTimeout
+    );
+
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
+function assertSamplingSupport(clientCapabilities: ClientCapabilities | undefined): void {
+  if (!clientCapabilities?.sampling) {
+    throw new Error('Client does not support sampling capability');
+  }
+}
+
+function createUserMessage(text: string): SamplingMessage {
+  return {
+    role: 'user',
+    content: { type: 'text', text },
+  };
+}
+
+function extractTextFromResult(result: CreateMessageResult | CreateMessageResultWithTools): string {
+  const content = Array.isArray(result.content) ? result.content : [result.content];
+  return content
+    .filter((block): block is TextContent => block.type === 'text')
+    .map((block) => block.text)
+    .join('\n');
+}
+
+async function analyzeDataWithSampling(
+  server: SamplingServer,
+  params: {
+    data: unknown[][];
+    question: string;
+  },
+  options: {
+    systemPrompt: string;
+    maxTokens: number;
+  }
+): Promise<string> {
+  assertSamplingSupport(server.getClientCapabilities());
+  const formattedData = JSON.stringify(params.data.slice(0, 20));
+  const userPrompt = `Analyze this spreadsheet data and answer: ${params.question}\n\nData:\n${formattedData}`;
+
+  const result = await withSamplingTimeout(
+    server.createMessage({
+      messages: [createUserMessage(userPrompt)],
+      systemPrompt: options.systemPrompt,
+      maxTokens: options.maxTokens,
+    })
+  );
+
+  return extractTextFromResult(result);
 }
 
 const GENERATION_SYSTEM_PROMPT = `You are a spreadsheet architect. Given a natural language description, generate a JSON spreadsheet definition.
@@ -109,7 +202,7 @@ async function generateWithSampling(
 
   const prompt = `Create a spreadsheet for: ${description}${styleHint}${contextHint}`;
 
-  const result = await analyzeData(
+  const result = await analyzeDataWithSampling(
     samplingServer,
     { data: [[]], question: prompt },
     {

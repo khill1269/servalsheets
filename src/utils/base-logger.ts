@@ -10,7 +10,7 @@
  * - logger.ts (imports base-logger, lazy-loads request-context)
  */
 
-import winston from 'winston';
+import * as winston from 'winston';
 import { getServiceContextFlat } from './logger-context.js';
 import { redactObject } from './redact.js';
 

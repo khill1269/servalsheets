@@ -74,8 +74,9 @@ export async function initializePerformanceOptimizations(
   const requestMerger = new RequestMerger({ enabled: true, windowMs: 50, maxWindowSize: 100 });
 
   // Initialize parallel executor for concurrent batch operations (40% faster batch ops)
+  // Concurrency capped at 5 (quota-safe default from remediation phase 1 — ISSUE-233)
   const parallelExecutor = new ParallelExecutor({
-    concurrency: 20,
+    concurrency: parseInt(process.env['PARALLEL_CONCURRENCY'] ?? '5', 10),
     retryOnError: true,
     maxRetries: 3,
   });

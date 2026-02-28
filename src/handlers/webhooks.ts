@@ -27,6 +27,7 @@ import { resourceNotifications } from '../resources/notifications.js';
 import type { drive_v3 } from 'googleapis';
 import { randomUUID } from 'crypto';
 import { mapStandaloneError } from './helpers/error-mapping.js';
+import { recordWebhookId } from '../mcp/completions.js';
 
 /**
  * Webhook handler
@@ -221,6 +222,11 @@ export class WebhookHandler {
     try {
       const manager = getWebhookManager();
       const webhooks = await manager.list(input.spreadsheetId, input.active);
+
+      // Wire completions: cache webhook IDs for argument autocompletion (ISSUE-062)
+      for (const wh of webhooks) {
+        if (wh.webhookId) recordWebhookId(wh.webhookId);
+      }
 
       return {
         success: true,

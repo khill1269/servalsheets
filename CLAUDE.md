@@ -12,7 +12,7 @@ Feature roadmap (P4 differentiators): @docs/development/FEATURE_PLAN.md
 
 ## Project Overview
 
-ServalSheets is a production-grade MCP server for Google Sheets with 22 tools and 340 actions.
+ServalSheets is a production-grade MCP server for Google Sheets with 25 tools and 377 actions.
 Runtime: Node.js + TypeScript (strict). See `src/schemas/index.ts` for authoritative counts.
 
 ### Core Pipeline
@@ -107,6 +107,31 @@ Always run `wc -l file.ts`. Never use "~", "approximately", or "around".
 Tests need `{ request: { action: 'read_range', ... } }` not `{ action: 'read_range', ... }`.
 See `normalizeToolArgs()` in `tool-handlers.ts:81-118`.
 
+### 7. Test Quality Anti-Patterns (ISSUE-237)
+
+```typescript
+// ❌ Tautological — always passes regardless of actual value
+expect([true, false]).toContain(response.success);
+// ✅ Assert the specific expected value
+expect(response.success).toBe(false);
+
+// ❌ Non-deterministic — different results each run
+const largeData = Array.from({ length: 1000 }, (_, i) => [Math.random(), new Date()]);
+// ✅ Deterministic — reproducible across all runs
+const largeData = Array.from({ length: 1000 }, (_, i) => [(i + 1) * 10, '2024-01-15']);
+```
+
+### 8. Stale Hardcoded Action Names (ISSUE-231, P7-B1)
+
+When renaming an action (e.g. `write_range` → `write`), also update:
+
+- `MUTATION_ACTIONS` in `src/middleware/audit-middleware.ts`
+- `AUTH_EXEMPT_ACTIONS` in `src/server.ts`
+- Cache invalidation rules in `src/services/cache-invalidation-graph.ts`
+- `scripts/check-integration-wiring.mjs` guards
+
+Run `npm run check:integration-wiring` after any action rename to catch mismatches.
+
 ## Key Files
 
 - `src/server.ts` — MCP server entrypoint
@@ -163,8 +188,12 @@ if (!result.response) throw new ResponseValidationError(); // Shape check
 
 **Step 1:** Schema in `src/schemas/{tool}.ts` — add to discriminated union
 **Step 2:** Handler in `src/handlers/{tool}.ts` — add case + private method
-**Step 3:** Test in `tests/handlers/{tool}.test.ts` — success + error paths
+**Step 3:** Test in `tests/handlers/{tool}.test.ts` — success + error paths (no `Math.random()`, no tautological assertions)
 **Step 4:** `npm run schema:commit`
+**Step 5 (if mutating):** Add action name to `MUTATION_ACTIONS` in `src/middleware/audit-middleware.ts`
+**Step 6 (always):** Add cache invalidation rule in `src/services/cache-invalidation-graph.ts` (use `invalidates: []` for read-only)
+**Step 7 (if session-context wired):** Write back with `sessionContext.recordOperation()` — not just read/filter
+**Step 8 (if new error code):** Add code to `ErrorCodeSchema` in `src/schemas/shared.ts` before using it in handlers
 
 ## Source of Truth
 

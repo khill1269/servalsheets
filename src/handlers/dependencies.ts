@@ -25,7 +25,7 @@ import type {
   CreateScenarioSheetInput,
 } from '../schemas/dependencies.js';
 import type { SamplingServer } from '../mcp/sampling.js';
-import { withSamplingTimeout } from '../mcp/sampling.js';
+import { withSamplingTimeout, assertSamplingConsent } from '../mcp/sampling.js';
 import { logger } from '../utils/logger.js';
 import { executeWithRetry } from '../utils/retry.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
@@ -656,6 +656,7 @@ export class DependenciesHandler {
           .map((r) => `${r.cell}: ${String(r.oldValue)} → ${String(r.newValue)}`)
           .join(', ');
 
+        await assertSamplingConsent(); // ISSUE-226: GDPR consent gate
         const narrativeResult = await withSamplingTimeout(
           this.samplingServer.createMessage({
             messages: [

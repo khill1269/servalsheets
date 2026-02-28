@@ -10,6 +10,7 @@ import {
   getLiveApiClient,
   applyQuotaDelay,
   TEMPLATE_UNICODE,
+  getTemplateData,
   generateTestId,
   standardAfterEach,
 } from '../setup/index.js';
@@ -351,8 +352,8 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
 
       await applyQuotaDelay();
 
-      // Use the full Unicode template
-      const templateData = TEMPLATE_UNICODE.data;
+      // Use the full Unicode template with headers
+      const templateData = getTemplateData(TEMPLATE_UNICODE); // includes header row
 
       await client.writeData(testSpreadsheetId, 'Sheet1!A1', templateData);
 
@@ -366,12 +367,12 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
         `Sheet1!A1:${String.fromCharCode(64 + expectedCols)}${expectedRows}`
       );
 
-      // Verify data integrity
+      // Verify data integrity (headers + data rows)
       expect(result.values.length).toBe(expectedRows);
 
-      // Check headers preserved
+      // Check headers preserved: ['Language', 'Greeting', 'Sample Text', 'Numbers', 'Special']
       expect(result.values[0][0]).toBe('Language');
-      expect(result.values[0][1]).toBe('Sample Text');
+      expect(result.values[0][2]).toBe('Sample Text');
     }, 120000);
   });
 

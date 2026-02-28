@@ -84,8 +84,8 @@ describe('Deferred Schema Mode', () => {
   });
 
   describe('Tool definitions integrity', () => {
-    it('should have 22 tools regardless of deferred mode', () => {
-      expect(TOOL_DEFINITIONS.length).toBe(22);
+    it('should have 24 tools regardless of deferred mode', () => {
+      expect(TOOL_DEFINITIONS.length).toBe(24);
     });
 
     it('should have non-empty descriptions regardless of deferred mode', () => {

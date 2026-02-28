@@ -227,3 +227,30 @@ export const CreateVisualizationPromptArgsSchema: PromptArgsShape = {
 export const AnalyzeWithHistoryPromptArgsSchema: PromptArgsShape = {
   spreadsheetId: c(z.string(), completeSpreadsheetId),
 };
+
+// P4-P14 feature prompts (ISSUE-236)
+export const GenerateSheetPromptArgsSchema: PromptArgsShape = {
+  description: z.string().describe('Natural language description of the spreadsheet to create'),
+  style: z
+    .enum(['minimal', 'professional', 'dashboard'])
+    .optional()
+    .describe('Visual style preset'),
+};
+
+export const CleanDataAutomatedPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string(), completeSpreadsheetId),
+  range: c(z.string().optional(), completeRange),
+};
+
+export const ScenarioModelingPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string(), completeSpreadsheetId),
+  scenario: z.string().describe('Description of the what-if scenario (e.g. "revenue drops 20%")'),
+};
+
+export const SmartSuggestionsPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string(), completeSpreadsheetId),
+};
+
+export const CrossSheetFederationPromptArgsSchema: PromptArgsShape = {
+  spreadsheetIds: z.string().describe('Comma-separated spreadsheet IDs to join or compare'),
+};

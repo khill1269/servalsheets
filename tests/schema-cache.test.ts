@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SchemaCache, getSchemaCache, resetSchemaCache } from '../src/services/schema-cache.js';
 import type { DiscoverySchema } from '../src/services/discovery-client.js';
+import { waitFor } from './helpers/wait-for.js';
 
 // Detect sandboxed environments where unlink/rmSync fails with EPERM
 let canDeleteFiles = true;
@@ -88,7 +89,7 @@ describe('SchemaCache', () => {
       await cache.set('sheets', 'v4', mockSchema, 1);
 
       // Wait for expiration
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       const retrieved = await cache.get('sheets', 'v4');
 
@@ -101,7 +102,7 @@ describe('SchemaCache', () => {
       await shortTTLCache.set('sheets', 'v4', mockSchema);
 
       // Wait for expiration
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       const retrieved = await shortTTLCache.get('sheets', 'v4');
 
@@ -150,7 +151,7 @@ describe('SchemaCache', () => {
       await shortTTLCache.set('drive', 'v3', { ...mockSchema, id: 'drive:v3' });
 
       // Wait for expiration
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       const cleaned = await cache.cleanupExpired();
 
@@ -195,7 +196,7 @@ describe('SchemaCache', () => {
       await shortTTLCache.set('sheets', 'v4', mockSchema);
 
       // Wait for expiration
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       const stats = await cache.getCacheStats();
 
@@ -217,7 +218,7 @@ describe('SchemaCache', () => {
       await cache.set('sheets', 'v4', mockSchema);
 
       // Wait a bit
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       await cache.set('drive', 'v3', { ...mockSchema, id: 'drive:v3' });
 
@@ -246,7 +247,7 @@ describe('SchemaCache', () => {
       await shortTTLCache.set('sheets', 'v4', mockSchema);
 
       // Wait for expiration
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       const list = await cache.list();
 
@@ -258,7 +259,7 @@ describe('SchemaCache', () => {
       await cache.set('sheets', 'v4', mockSchema);
 
       // Wait a bit
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       await cache.set('drive', 'v3', { ...mockSchema, id: 'drive:v3' });
 

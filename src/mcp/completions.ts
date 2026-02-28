@@ -14,8 +14,8 @@ import type { CompleteResult } from '@modelcontextprotocol/sdk/types.js';
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
- * Total: 340 actions across 22 tools (Tier 7: templates, bigquery, appsscript, federation)
- * Note: sheets_analyze has 16 actions (comprehensive + targeted + progressive analyses)
+ * Total: 377 actions across 25 tools (includes agent, compute, and connectors tool families)
+ * Note: sheets_analyze has 18 actions (comprehensive + targeted + progressive analyses)
  */
 export const TOOL_ACTIONS: Record<string, string[]> = {
   sheets_advanced: [
@@ -51,6 +51,16 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'update_named_function',
     'delete_named_function',
   ],
+  sheets_agent: [
+    'plan',
+    'execute',
+    'execute_step',
+    'observe',
+    'rollback',
+    'get_status',
+    'list_plans',
+    'resume',
+  ],
   sheets_analyze: [
     'comprehensive',
     'analyze_data',
@@ -70,6 +80,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'generate_actions',
     'suggest_next_actions',
     'auto_enhance',
+    'discover_action',
   ],
   sheets_appsscript: [
     'create',
@@ -152,6 +163,11 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'approval_list_pending',
     'approval_delegate',
     'approval_cancel',
+    'list_access_proposals',
+    'resolve_access_proposal',
+    'label_list',
+    'label_apply',
+    'label_remove',
   ],
   sheets_composite: [
     'import_csv',
@@ -173,6 +189,19 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'generate_sheet',
     'generate_template',
     'preview_generation',
+    'batch_operations',
+  ],
+  sheets_compute: [
+    'evaluate',
+    'aggregate',
+    'statistical',
+    'regression',
+    'forecast',
+    'matrix_op',
+    'pivot_compute',
+    'custom_function',
+    'batch_compute',
+    'explain_formula',
   ],
   sheets_confirm: [
     'request',
@@ -180,6 +209,18 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'wizard_start',
     'wizard_step',
     'wizard_complete',
+  ],
+  sheets_connectors: [
+    'list_connectors',
+    'configure',
+    'query',
+    'batch_query',
+    'subscribe',
+    'unsubscribe',
+    'list_subscriptions',
+    'transform',
+    'status',
+    'discover',
   ],
   sheets_core: [
     'get',
@@ -260,6 +301,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'text_to_columns',
     'auto_fill',
     'create_filter_view',
+    'duplicate_filter_view',
     'update_filter_view',
     'delete_filter_view',
     'list_filter_views',
@@ -848,3 +890,101 @@ export const EMPTY_COMPLETION: CompleteResult = {
     hasMore: false,
   },
 };
+
+// ============================================================================
+// ISSUE-062: 6 Missing MCP Completions
+// ============================================================================
+
+/** Simple bounded LRU set for recently-seen entity values */
+class EntityCache {
+  private values: Map<string, number> = new Map(); // value → lastAccess
+  constructor(private maxSize = 100) {}
+
+  add(value: string): void {
+    this.values.set(value, Date.now());
+    if (this.values.size > this.maxSize) {
+      const sorted = Array.from(this.values.entries()).sort((a, b) => b[1] - a[1]);
+      this.values = new Map(sorted.slice(0, this.maxSize));
+    }
+  }
+
+  getCompletions(partial: string): string[] {
+    if (!partial || typeof partial !== 'string') {
+      return Array.from(this.values.keys()).slice(0, 20);
+    }
+    const lower = partial.toLowerCase();
+    return Array.from(this.values.entries())
+      .filter(([v]) => v.toLowerCase().includes(lower))
+      .sort((a, b) => b[1] - a[1])
+      .map(([v]) => v)
+      .slice(0, 20);
+  }
+}
+
+const sheetNameCache = new EntityCache(200);
+const templateIdCache = new EntityCache(50);
+const chartIdCache = new EntityCache(100);
+const namedRangeCache = new EntityCache(100);
+const webhookIdCache = new EntityCache(50);
+const revisionIdCache = new EntityCache(50);
+
+/** Record a sheet name observed in a response (call from core/data handlers) */
+export function recordSheetName(name: string): void {
+  if (name && typeof name === 'string') sheetNameCache.add(name);
+}
+
+/** Record a template ID observed in a response */
+export function recordTemplateId(id: string): void {
+  if (id && typeof id === 'string') templateIdCache.add(id);
+}
+
+/** Record a chart ID observed in a response */
+export function recordChartId(id: string | number): void {
+  const s = String(id);
+  if (s) chartIdCache.add(s);
+}
+
+/** Record a named range name observed in a response */
+export function recordNamedRange(name: string): void {
+  if (name && typeof name === 'string') namedRangeCache.add(name);
+}
+
+/** Record a webhook ID observed in a response */
+export function recordWebhookId(id: string): void {
+  if (id && typeof id === 'string') webhookIdCache.add(id);
+}
+
+/** Record a revision ID observed in a response */
+export function recordRevisionId(id: string): void {
+  if (id && typeof id === 'string') revisionIdCache.add(id);
+}
+
+/** Complete sheet names from recently-seen values */
+export function completeSheetName(partial: string): string[] {
+  return sheetNameCache.getCompletions(partial);
+}
+
+/** Complete template IDs from recently-seen values */
+export function completeTemplateId(partial: string): string[] {
+  return templateIdCache.getCompletions(partial);
+}
+
+/** Complete chart IDs from recently-seen values */
+export function completeChartId(partial: string): string[] {
+  return chartIdCache.getCompletions(partial);
+}
+
+/** Complete named range names from recently-seen values */
+export function completeNamedRange(partial: string): string[] {
+  return namedRangeCache.getCompletions(partial);
+}
+
+/** Complete webhook IDs from recently-seen values */
+export function completeWebhookId(partial: string): string[] {
+  return webhookIdCache.getCompletions(partial);
+}
+
+/** Complete revision IDs from recently-seen values */
+export function completeRevisionId(partial: string): string[] {
+  return revisionIdCache.getCompletions(partial);
+}

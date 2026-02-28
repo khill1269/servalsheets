@@ -1662,8 +1662,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             let scoutResult: ScoutResult;
             if (req.scoutResult) {
               // Use provided scout result (convert from record)
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              scoutResult = req.scoutResult as any as ScoutResult;
+              scoutResult = req.scoutResult as unknown as ScoutResult;
             } else {
               // Run scout first
               const cache = getCacheAdapter('analysis');
@@ -1890,8 +1889,9 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
                   reversible: a.reversible,
                   requiresConfirmation: a.requiresConfirmation,
                   category: a.category,
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                })) as any,
+                })) as unknown as NonNullable<
+                  NonNullable<Extract<AnalyzeResponse, { success: true }>['actionPlan']>['actions']
+                >,
               },
               message: `Generated ${result.actions.length} actions from ${result.summary.totalFindings} findings`,
             };
@@ -2043,6 +2043,39 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
           }
           break;
         }
+
+        case 'discover_action': {
+          logger.info('Discover action (meta-tool)', { query: req.query, category: req.category });
+          try {
+            const { discoverActions } = await import('../services/action-discovery.js');
+
+            const matches = discoverActions(req.query, req.category, req.maxResults ?? 5);
+
+            response = {
+              success: true,
+              action: 'discover_action',
+              query: req.query,
+              category: req.category ?? 'all',
+              matches,
+              matchCount: matches.length,
+            };
+          } catch (error) {
+            logger.error('discover_action failed', {
+              query: req.query,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            response = {
+              success: false,
+              error: {
+                code: 'DISCOVERY_FAILED',
+                message: 'Action discovery failed. Please try a different search query.',
+                retryable: true,
+              },
+            };
+          }
+          break;
+        }
+
         default: {
           // Exhaustive check - should never reach here with discriminated union
           const _exhaustiveCheck: never = req;
@@ -2546,8 +2579,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
         resourceUri: result.resourceUri,
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return result as any;
+      return result as unknown as AnalyzeResponse;
     } catch (error) {
       logger.error('Comprehensive analysis failed', {
         error: error instanceof Error ? error.message : String(error),

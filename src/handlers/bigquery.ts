@@ -1018,9 +1018,15 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
 
       // Inject LIMIT if not present to prevent unbounded preview queries
       const maxRows = req.maxRows ?? 10;
-      const previewQuery = /\bLIMIT\s+\d+/i.test(req.query)
+      const strippedForLimitCheck = req.query
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/--[^\n]*/g, '');
+      const previewQuery = /\bLIMIT\s+\d+/i.test(strippedForLimitCheck)
         ? req.query
         : `${req.query.replace(/;?\s*$/, '')} LIMIT ${maxRows}`;
+
+      // Re-validate the assembled query (LIMIT injection could expose DML in edge cases)
+      validateBigQuerySql(previewQuery);
 
       // Use async job pattern for reliable execution
       const result = await this.executeQueryWithJobPolling(bigquery, {

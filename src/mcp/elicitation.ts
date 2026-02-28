@@ -66,7 +66,22 @@ export interface EnumSchema {
   oneOf?: Array<{ const: string; title: string }>;
 }
 
-export type PrimitiveSchema = StringSchema | NumberSchema | BooleanSchema | EnumSchema;
+export interface MultiSelectEnumSchema {
+  type: 'array';
+  items: { type: 'string'; enum: string[] } | { anyOf: Array<{ const: string; title: string }> };
+  minItems?: number;
+  maxItems?: number;
+  default?: string[];
+  title?: string;
+  description?: string;
+}
+
+export type PrimitiveSchema =
+  | StringSchema
+  | NumberSchema
+  | BooleanSchema
+  | EnumSchema
+  | MultiSelectEnumSchema;
 
 /**
  * Form elicitation request parameters

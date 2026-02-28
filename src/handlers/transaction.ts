@@ -15,6 +15,7 @@ import { ValidationError, ServiceError } from '../core/errors.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { sendProgress } from '../utils/request-context.js';
+import { logger } from '../utils/logger.js';
 
 export interface TransactionHandlerOptions {
   context?: HandlerContext;
@@ -292,11 +293,22 @@ export class TransactionHandler {
             `Failed: ${summary.byStatus.failed}`,
           ].join(' | ');
 
+          // DR-01: Include WAL orphan info for crash recovery awareness
+          const walReport = await transactionManager.getWalRecoveryReport();
+
           response = {
             success: true,
             action: 'list',
             transactions,
-            message: `Found ${transactions.length} active transaction(s). ${summaryMessage}`,
+            walEnabled: walReport.enabled,
+            walOrphans:
+              walReport.orphanedTransactions.length > 0
+                ? walReport.orphanedTransactions
+                : undefined,
+            message:
+              walReport.orphanedTransactions.length > 0
+                ? `Found ${transactions.length} active transaction(s). ${summaryMessage} | WAL: ${walReport.orphanedTransactions.length} orphaned transaction(s) from crash — call rollback with each transactionId to discard`
+                : `Found ${transactions.length} active transaction(s). ${summaryMessage}`,
             _meta:
               transactions.length > 0
                 ? {
@@ -340,6 +352,10 @@ export class TransactionHandler {
       return { response: filteredResponse };
     } catch (error) {
       // Catch-all for unexpected errors
+      logger.error('Transaction handler error', {
+        action: req.action,
+        error,
+      });
       return {
         response: {
           success: false,

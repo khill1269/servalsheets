@@ -107,6 +107,7 @@ export interface HandlerContext {
     warn: (message: string, ...args: unknown[]) => void;
     error: (message: string, ...args: unknown[]) => void;
   };
+  costTracker?: import('../services/cost-tracker.js').CostTracker; // Per-tenant API call tracking (ENABLE_COST_TRACKING)
   abortSignal?: AbortSignal;
   requestId?: string;
 }
@@ -320,13 +321,13 @@ export abstract class BaseHandler<TInput, TOutput> {
    *
    * @param method - API method name (e.g., 'spreadsheets.values.get')
    * @param apiCall - The API call function to execute
-   * @param context - Optional context for enhanced tracing (spreadsheetId, range, etc.)
+   * @param context - Optional context for enhanced tracing (spreadsheetId, action, range, etc.)
    * @returns Promise resolving to the API call result
    */
   protected async instrumentedApiCall<T>(
     method: string,
     apiCall: () => Promise<T>,
-    context?: { spreadsheetId?: string; range?: string; sheetName?: string }
+    context?: { spreadsheetId?: string; action?: string; range?: string; sheetName?: string }
   ): Promise<T> {
     const startTime = Date.now();
 
@@ -342,6 +343,10 @@ export abstract class BaseHandler<TInput, TOutput> {
         // Add context attributes to span for better tracing
         if (context?.spreadsheetId) {
           span.setAttribute('spreadsheet.id', context.spreadsheetId);
+          span.setAttribute('spreadsheetId', context.spreadsheetId);
+        }
+        if (context?.action) {
+          span.setAttribute('action', context.action);
         }
         if (context?.range) {
           span.setAttribute('range', context.range);
@@ -356,6 +361,11 @@ export abstract class BaseHandler<TInput, TOutput> {
           recordGoogleApiCall(method, 'success', duration);
           return result;
         } catch (error) {
+          if (error instanceof Error) {
+            span.recordException(error);
+          } else {
+            span.setStatus('error', String(error));
+          }
           const duration = (Date.now() - startTime) / 1000;
           recordGoogleApiCall(method, 'error', duration);
           throw error;
@@ -1242,11 +1252,19 @@ export abstract class BaseHandler<TInput, TOutput> {
       'sheets(properties,conditionalFormats,protectedRanges,charts,filterViews,basicFilter,merges)',
     ].join(',');
 
-    const response = await sheetsApi.spreadsheets.get({
-      spreadsheetId,
-      includeGridData: false,
-      fields,
-    });
+    const response = await this.instrumentedApiCall(
+      'spreadsheets.get',
+      () =>
+        sheetsApi.spreadsheets.get({
+          spreadsheetId,
+          includeGridData: false,
+          fields,
+        }),
+      {
+        spreadsheetId,
+        action: 'fetch_comprehensive_metadata',
+      }
+    );
 
     // Cache for 5 minutes
     cacheManager.set(cacheKey, response.data, {
@@ -1286,10 +1304,18 @@ export abstract class BaseHandler<TInput, TOutput> {
     const MAX_SHEETS_FOR_GRID_DATA = 50;
 
     try {
-      const metadata = await sheetsApi.spreadsheets.get({
-        spreadsheetId,
-        fields: 'sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)))',
-      });
+      const metadata = await this.instrumentedApiCall(
+        'spreadsheets.get',
+        () =>
+          sheetsApi.spreadsheets.get({
+            spreadsheetId,
+            fields: 'sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)))',
+          }),
+        {
+          spreadsheetId,
+          action: 'validate_grid_data_size',
+        }
+      );
 
       const sheets = sheetId
         ? (metadata.data.sheets ?? []).filter((s) => s.properties?.sheetId === sheetId)
@@ -1410,10 +1436,18 @@ export abstract class BaseHandler<TInput, TOutput> {
           false
         );
       }
-      const response = await sheetsApi.spreadsheets.get({
-        spreadsheetId,
-        fields: 'sheets.properties',
-      });
+      const response = await this.instrumentedApiCall(
+        'spreadsheets.get',
+        () =>
+          sheetsApi.spreadsheets.get({
+            spreadsheetId,
+            fields: 'sheets.properties',
+          }),
+        {
+          spreadsheetId,
+          action: 'resolve_sheet_id',
+        }
+      );
       metadata = response.data;
 
       // Cache for 5 minutes

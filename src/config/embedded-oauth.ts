@@ -33,10 +33,37 @@
 export const EMBEDDED_OAUTH = {
   clientId:
     process.env['OAUTH_CLIENT_ID'] ??
+    // cspell:disable-next-line -- random OAuth client ID characters
     'REDACTED_OAUTH_CLIENT_ID',
-  clientSecret: process.env['OAUTH_CLIENT_SECRET'] ?? 'REDACTED_OAUTH_CLIENT_SECRET',
+  clientSecret: process.env['OAUTH_CLIENT_SECRET'] ?? 'REPLACE_WITH_REAL_OAUTH_CLIENT_SECRET',
   redirectUri: process.env['OAUTH_REDIRECT_URI'] ?? 'http://localhost:3000/callback',
 };
+
+/**
+ * Warn when using default embedded credentials.
+ * Desktop-app embedded credentials (PKCE-based) are safe for STDIO distribution,
+ * but any deployment should set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET to use
+ * their own registered credentials.
+ */
+export function warnIfDefaultCredentialsInHttpMode(): void {
+  const usingDefaults = !process.env['OAUTH_CLIENT_SECRET'];
+  if (!usingDefaults) return;
+
+  const isHttpMode = process.env['MCP_HTTP_MODE'] === 'true' || process.env['PORT'] !== undefined;
+  if (isHttpMode) {
+    console.warn(
+      '[ServalSheets] WARNING: Using default embedded OAuth credentials in HTTP server mode. ' +
+        'Set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET in your environment for production deployments.'
+    );
+  } else {
+    // STDIO/desktop mode: lower-severity notice. Default credentials work for development
+    // and personal use. For a published app, register your own OAuth client.
+    console.warn(
+      '[ServalSheets] INFO: Using default embedded OAuth credentials. ' +
+        'Set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET to use your own registered credentials.'
+    );
+  }
+}
 
 /**
  * Check if the embedded credentials have been configured

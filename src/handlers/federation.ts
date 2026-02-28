@@ -22,6 +22,12 @@ import { parseFederationServers } from '../config/federation-config.js';
 import { sendProgress } from '../utils/request-context.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 
+function sanitizeFederationErrorMessage(message: string): string {
+  // Drop multiline stack tail and redact common local filesystem path patterns.
+  const firstLine = message.split('\n')[0] ?? message;
+  return firstLine.replace(/\/home\/|\/Users\/|node_modules\//g, '[REDACTED_PATH]');
+}
+
 /**
  * Federation Handler
  *
@@ -107,7 +113,6 @@ export class FederationHandler {
         component: 'federation-handler',
         action,
         error: err.message,
-        stack: err.stack,
       });
 
       // 16-S3/16-S5: Use structured error mapping (FederatedMcpClient wraps
@@ -117,7 +122,7 @@ export class FederationHandler {
         response: {
           success: false,
           action,
-          error: `Remote MCP server returned an error: ${mapped.message}`,
+          error: `Remote MCP server returned an error: ${sanitizeFederationErrorMessage(mapped.message)}`,
         },
       };
     }

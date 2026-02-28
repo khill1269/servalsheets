@@ -9,7 +9,7 @@ tools:
   - Glob
   - Bash
 permissionMode: default
-memory: project
+memory: user
 ---
 
 You are a debug specialist who traces execution through ServalSheets' 4-layer pipeline to find the exact origin of failures.

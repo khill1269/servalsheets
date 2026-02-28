@@ -88,9 +88,9 @@ describe('Tool Routing - Annotation Consistency', () => {
       .map(([name]) => name);
 
     // sheets_quality and sheets_history call Google API (resolve_conflict, undo/redo)
+    // sheets_dependencies calls Google API (model_scenario fetches live values, post-P13)
     // so they are NOT local-only
     expect(localTools).toContain('sheets_session');
-    expect(localTools).toContain('sheets_dependencies');
     expect(localTools).toContain('sheets_confirm');
   });
 });

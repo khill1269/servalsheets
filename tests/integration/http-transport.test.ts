@@ -15,6 +15,11 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
 import { VERSION } from '../../src/version.js';
 import { createHttpServer, type HttpServerOptions } from '../../src/http-server.js';
+import { logger } from '../../src/utils/logger.js';
+import {
+  getOrCreateSessionContext,
+  removeSessionContext,
+} from '../../src/services/session-context.js';
 import type { Express } from 'express';
 import net from 'node:net';
 
@@ -34,8 +39,11 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
   let server: ReturnType<typeof createHttpServer>;
   let httpServer: ReturnType<Express['listen']>;
   let agent: ReturnType<typeof request>;
+  const previousLegacySse = process.env['ENABLE_LEGACY_SSE'];
 
   beforeAll(async () => {
+    process.env['ENABLE_LEGACY_SSE'] = 'true';
+
     // Create HTTP server for testing
     const options: HttpServerOptions = {
       port: 0, // Use random port
@@ -61,6 +69,12 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
   });
 
   afterAll(async () => {
+    if (previousLegacySse === undefined) {
+      delete process.env['ENABLE_LEGACY_SSE'];
+    } else {
+      process.env['ENABLE_LEGACY_SSE'] = previousLegacySse;
+    }
+
     if (httpServer) {
       await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     }
@@ -80,6 +94,7 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
       });
       sessions.clear();
     }
+    await server.stop?.();
   });
 
   describe('Health and Info Endpoints', () => {
@@ -110,6 +125,74 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
       expect(typeof response.body.actions).toBe('number');
       expect(response.body.tools).toBeGreaterThan(0);
       expect(response.body.actions).toBeGreaterThan(0);
+    });
+
+    it('should not expose oauth issuer/client metadata or session counts in readiness health', async () => {
+      const oauthServer = createHttpServer({
+        port: 0,
+        host: '127.0.0.1',
+        corsOrigins: ['http://localhost:3000'],
+        rateLimitMax: 1000,
+        trustProxy: false,
+        enableOAuth: true,
+        oauthConfig: {
+          issuer: 'https://issuer.example.com',
+          clientId: 'oauth-client-id',
+          clientSecret: 'oauth-client-secret',
+          jwtSecret: 'x'.repeat(32),
+          stateSecret: 'y'.repeat(32),
+          allowedRedirectUris: ['http://localhost:3000/callback'],
+          googleClientId: 'google-client-id',
+          googleClientSecret: 'google-client-secret',
+          accessTokenTtl: 3600,
+          refreshTokenTtl: 86400,
+        },
+      });
+
+      const oauthApp = oauthServer.app as Express;
+      const oauthHttpServer = await new Promise<ReturnType<Express['listen']>>(
+        (resolve, reject) => {
+          const listener = oauthApp.listen(0, '127.0.0.1', () => resolve(listener));
+          listener.on('error', reject);
+        }
+      );
+      const address = oauthHttpServer.address();
+      if (!address || typeof address === 'string') {
+        throw new Error('OAuth test server failed to start');
+      }
+
+      const oauthAgent = request(`http://127.0.0.1:${address.port}`);
+      const response = await oauthAgent.get('/health/ready').expect('Content-Type', /json/);
+
+      expect([200, 503]).toContain(response.status);
+      expect(response.body.oauth).toBeDefined();
+      expect(response.body.oauth).toMatchObject({
+        enabled: true,
+        configured: true,
+      });
+      expect(response.body.oauth).not.toHaveProperty('issuer');
+      expect(response.body.oauth).not.toHaveProperty('clientId');
+
+      expect(response.body.sessions).toBeDefined();
+      expect(response.body.sessions).toHaveProperty('hasAuthentication');
+      expect(typeof response.body.sessions.hasAuthentication).toBe('boolean');
+      expect(response.body.sessions).not.toHaveProperty('active');
+
+      await new Promise<void>((resolve) => oauthHttpServer.close(() => resolve()));
+      const oauthSessions = oauthServer.sessions as Map<
+        string,
+        { transport?: { close?: () => void }; taskStore?: { dispose?: () => void } }
+      >;
+      oauthSessions.forEach((session) => {
+        if (typeof session.transport?.close === 'function') {
+          session.transport.close();
+        }
+        if (typeof session.taskStore?.dispose === 'function') {
+          session.taskStore.dispose();
+        }
+      });
+      oauthSessions.clear();
+      await oauthServer.stop?.();
     });
   });
 
@@ -214,6 +297,26 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
 
       // Error format may vary - check for error indication
       expect(response.body.error).toBeDefined();
+    });
+
+    it('should remove session-scoped context when deleting a session', async () => {
+      const sessionId = 'test-session-context-cleanup';
+      const initialContext = getOrCreateSessionContext(sessionId);
+
+      const sessions = server.sessions as Map<
+        string,
+        { transport?: { close?: () => void }; taskStore?: { dispose?: () => void } }
+      >;
+      sessions.set(sessionId, {
+        transport: { close: vi.fn() },
+        taskStore: { dispose: vi.fn() },
+      });
+
+      await agent.delete(`/session/${sessionId}`).expect(200);
+
+      const recreatedContext = getOrCreateSessionContext(sessionId);
+      expect(recreatedContext).not.toBe(initialContext);
+      removeSessionContext(sessionId);
     });
   });
 
@@ -382,6 +485,77 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
       // Should work without token (limited functionality)
       // May return 200, 406, or 426 (Upgrade Required for WebSocket transport)
       expect([200, 406, 426]).toContain(response.status);
+    });
+  });
+
+  describe('MCP Logging Bridge', () => {
+    it('should forward logger output after logging/setLevel via MCP notifications', async () => {
+      const initializeRequest = {
+        jsonrpc: '2.0',
+        id: 9001,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-11-25',
+          capabilities: {},
+          clientInfo: {
+            name: 'logging-bridge-test-client',
+            version: '1.0.0',
+          },
+        },
+      };
+
+      const initResponse = await agent
+        .post('/mcp')
+        .set('Content-Type', 'application/json')
+        .set('Accept', 'application/json, text/event-stream')
+        .send(initializeRequest)
+        .expect(200);
+
+      const sessionIdHeader =
+        initResponse.headers['mcp-session-id'] ?? initResponse.headers['x-session-id'];
+      const sessionId = Array.isArray(sessionIdHeader) ? sessionIdHeader[0] : sessionIdHeader;
+      expect(typeof sessionId).toBe('string');
+      expect(sessionId).toBeTruthy();
+
+      const sessions = server.sessions as Map<
+        string,
+        {
+          mcpServer: {
+            server: {
+              sendLoggingMessage: (message: unknown) => Promise<void>;
+            };
+          };
+        }
+      >;
+      const session = sessions.get(sessionId as string);
+      expect(session).toBeDefined();
+
+      const sendLoggingMessageSpy = vi
+        .spyOn(session!.mcpServer.server, 'sendLoggingMessage')
+        .mockResolvedValue(undefined);
+
+      await agent
+        .post('/mcp')
+        .set('Content-Type', 'application/json')
+        .set('Accept', 'application/json, text/event-stream')
+        .set('Mcp-Session-Id', sessionId as string)
+        .send({
+          jsonrpc: '2.0',
+          id: 9002,
+          method: 'logging/setLevel',
+          params: { level: 'debug' },
+        })
+        .expect(200);
+
+      logger.info('http-logging-bridge-regression-test');
+
+      await vi.waitFor(() => {
+        expect(sendLoggingMessageSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            logger: 'servalsheets',
+          })
+        );
+      });
     });
   });
 });

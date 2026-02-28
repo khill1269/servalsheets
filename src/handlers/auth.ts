@@ -9,7 +9,7 @@ import type { OAuth2Client } from 'google-auth-library';
 import type { GoogleApiClient } from '../services/google-api.js';
 import { getRecommendedScopes } from '../config/oauth-scopes.js';
 import { EncryptedFileTokenStore } from '../services/token-store.js';
-import { getDefaultTokenStorePath } from '../utils/auth-paths.js';
+import { getDefaultTokenStorePath, sanitizeTokenStorePath } from '../utils/auth-paths.js';
 import { getOAuthEnvConfig } from '../utils/oauth-config.js';
 import type {
   SheetsAuthInput,
@@ -94,10 +94,9 @@ export class AuthHandler {
     this.oauthClientSecret = options.oauthClientSecret ?? envConfig.clientSecret;
     this.redirectUri =
       options.redirectUri ?? envConfig.redirectUri ?? 'http://localhost:3000/callback';
-    this.tokenStorePath =
-      options.tokenStorePath ??
-      process.env['GOOGLE_TOKEN_STORE_PATH'] ??
-      getDefaultTokenStorePath();
+    this.tokenStorePath = sanitizeTokenStorePath(
+      options.tokenStorePath ?? process.env['GOOGLE_TOKEN_STORE_PATH'] ?? getDefaultTokenStorePath()
+    );
     this.tokenStoreKey = options.tokenStoreKey ?? process.env['ENCRYPTION_KEY'];
     this.elicitationServer = options.elicitationServer;
   }
@@ -141,6 +140,10 @@ export class AuthHandler {
       // Apply verbosity filtering (LLM optimization)
       return { response: applyVerbosityFilter(response, verbosity) };
     } catch (error) {
+      logger.error('Auth handler error', {
+        action: req.action,
+        error,
+      });
       return {
         response: {
           success: false,
@@ -387,11 +390,11 @@ export class AuthHandler {
         }
 
         // Restore session state from before the OAuth redirect
-        const pendingEntry = pendingSessionStates.get(result.state ?? '');
+        const pendingEntry = result.state ? pendingSessionStates.get(result.state) : undefined;
         if (pendingEntry) {
           try {
             getSessionContext().importState(pendingEntry.exportedState);
-            pendingSessionStates.delete(result.state ?? '');
+            if (result.state) pendingSessionStates.delete(result.state);
             logger.info('Restored session state after re-auth', { component: 'auth' });
           } catch (err) {
             logger.warn('Failed to restore session state after re-auth', {
@@ -505,6 +508,20 @@ export class AuthHandler {
 
     // Use granted scope from Google, or fall back to client's current scopes
     const callbackScope = tokens.scope ?? (this.googleClient?.scopes?.join(' ') || undefined);
+
+    // Validate that the critical Sheets scope was granted
+    if (callbackScope) {
+      const grantedScopes = callbackScope.split(' ');
+      const hasSheetsScope =
+        grantedScopes.includes('https://www.googleapis.com/auth/spreadsheets') ||
+        grantedScopes.includes('https://www.googleapis.com/auth/spreadsheets.readonly');
+      if (!hasSheetsScope) {
+        logger.warn('OAuth callback: Google Sheets scope not granted — some operations will fail', {
+          component: 'auth-handler',
+          grantedScopes,
+        });
+      }
+    }
 
     if (this.tokenStoreKey) {
       const tokenStore = new EncryptedFileTokenStore(this.tokenStorePath!, this.tokenStoreKey);

@@ -24,6 +24,7 @@
 
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
+import { getTracer } from '../utils/tracing.js';
 import { columnLetterToIndex, indexToColumnLetter } from '../utils/google-sheets-helpers.js';
 
 /**
@@ -70,6 +71,7 @@ interface RequestGroup {
   spreadsheetId: string;
   requests: PendingRequest[];
   timer: NodeJS.Timeout;
+  createdAt: number;
 }
 
 /**
@@ -115,6 +117,7 @@ export class RequestMerger {
   private windowMs: number;
   private maxWindowSize: number;
   private mergeAdjacent: boolean;
+  private cleanupInterval: NodeJS.Timeout | null = null;
 
   // Request queues per spreadsheet
   private pendingGroups = new Map<string, RequestGroup>();
@@ -139,6 +142,20 @@ export class RequestMerger {
       maxWindowSize: this.maxWindowSize,
       mergeAdjacent: this.mergeAdjacent,
     });
+
+    // Evict stale groups that never flushed (e.g., timer fired but group was never resolved)
+    this.cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      for (const [id, group] of this.pendingGroups) {
+        if (now - group.createdAt > 60_000) {
+          clearTimeout(group.timer);
+          for (const request of group.requests) {
+            request.reject(new Error('RequestMerger: group timed out after 60s'));
+          }
+          this.pendingGroups.delete(id);
+        }
+      }
+    }, 30_000);
   }
 
   /**
@@ -192,6 +209,7 @@ export class RequestMerger {
         group = {
           spreadsheetId,
           requests: [request],
+          createdAt: Date.now(),
           timer: setTimeout(() => {
             this.flushGroup(sheetsApi, spreadsheetId);
           }, this.windowMs),
@@ -201,10 +219,14 @@ export class RequestMerger {
         // Add to existing group
         group.requests.push(request);
 
-        // Flush immediately if window is full
+        // Flush immediately if window is full.
+        // Remove from map synchronously before the async flush so that
+        // concurrent mergeRead() calls create a new group rather than
+        // appending to one already being dispatched.
         if (group.requests.length >= this.maxWindowSize) {
           clearTimeout(group.timer);
-          this.flushGroup(sheetsApi, spreadsheetId);
+          this.pendingGroups.delete(spreadsheetId);
+          void this.flushGroup(sheetsApi, spreadsheetId, group.requests);
         }
       }
     });
@@ -213,16 +235,26 @@ export class RequestMerger {
   /**
    * Flush a request group - merge and execute
    */
-  private async flushGroup(sheetsApi: sheets_v4.Sheets, spreadsheetId: string): Promise<void> {
-    const group = this.pendingGroups.get(spreadsheetId);
-    if (!group || group.requests.length === 0) {
+  private async flushGroup(
+    sheetsApi: sheets_v4.Sheets,
+    spreadsheetId: string,
+    capturedRequests?: PendingRequest[]
+  ): Promise<void> {
+    const span = getTracer().startSpan('request-merger.flushGroup', {
+      kind: 'internal',
+      attributes: {
+        'spreadsheet.id': spreadsheetId,
+        'requests.count': capturedRequests?.length ?? 0,
+      },
+    });
+    // Use pre-captured requests (window-full path) or read from map (timer path)
+    const requests = capturedRequests ?? this.pendingGroups.get(spreadsheetId)?.requests;
+    if (!requests || requests.length === 0) {
       return;
     }
 
-    // Remove from pending
+    // Remove from pending (no-op when called via the window-full path)
     this.pendingGroups.delete(spreadsheetId);
-
-    const { requests } = group;
     this.stats.windowSizes.push(requests.length);
     if (this.stats.windowSizes.length > 1000)
       this.stats.windowSizes = this.stats.windowSizes.slice(-1000);
@@ -242,6 +274,8 @@ export class RequestMerger {
       for (const request of requests) {
         request.reject(error instanceof Error ? error : new Error('Request merge failed'));
       }
+    } finally {
+      span.end();
     }
   }
 
@@ -478,6 +512,10 @@ export class RequestMerger {
    * Clean up resources
    */
   destroy(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
     // Clear all pending timers
     for (const group of this.pendingGroups.values()) {
       clearTimeout(group.timer);

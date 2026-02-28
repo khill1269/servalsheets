@@ -10,7 +10,7 @@
  * - logger.ts (this file - imports base-logger, lazy-loads request-context)
  */
 
-import winston from 'winston';
+import * as winston from 'winston';
 import { baseLogger } from './base-logger.js';
 
 /**
