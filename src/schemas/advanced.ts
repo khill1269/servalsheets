@@ -646,6 +646,10 @@ const AdvancedResponseSchema = z.discriminatedUnion('success', [
         })
       )
       .optional(),
+    // Pagination fields (list actions: list_named_ranges, list_protected_ranges, list_banding, list_tables, list_named_functions, list_chips)
+    nextCursor: z.string().optional().describe('Cursor for next page — pass as cursor in subsequent request'),
+    hasMore: z.boolean().optional().describe('True if more results are available'),
+    totalCount: z.number().int().optional().describe('Total number of items (before pagination)'),
     // Common fields
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),

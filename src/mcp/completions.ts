@@ -15,7 +15,7 @@ import type { CompleteResult } from '@modelcontextprotocol/sdk/types.js';
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
  * Total: 377 actions across 25 tools (includes agent, compute, and connectors tool families)
- * Note: sheets_analyze has 18 actions (comprehensive + targeted + progressive analyses)
+ * Note: sheets_analyze has 19 actions (comprehensive + targeted + progressive analyses)
  */
 export const TOOL_ACTIONS: Record<string, string[]> = {
   sheets_advanced: [
