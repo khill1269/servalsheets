@@ -1,25 +1,25 @@
 # ServalSheets — Complete Codebase Context
 
-> Persistent reference for coding sessions. Covers all 22 tools (340 actions), MCP compliance,
+> Persistent reference for coding sessions. Covers all 25 tools (377 actions), MCP compliance,
 > Google API patterns, anti-patterns, and architecture decisions.
-> Updated: Session 37, 2026-02-23.
+> Updated: Session 46, 2026-02-28.
 
 ## Quick Reference
 
-| Metric               | Value                         | Source                       |
-| -------------------- | ----------------------------- | ---------------------------- |
-| Tools                | 22                            | src/schemas/action-counts.ts |
-| Actions              | 340                           | src/schemas/action-counts.ts |
-| Version              | 1.7.0                         | package.json                 |
-| MCP Protocol         | 2025-11-25                    | src/version.ts:14            |
-| Contract Tests       | 2253/2253 pass                | npm run test:fast            |
-| Handler Architecture | 13 BaseHandler + 9 Standalone | src/handlers/                |
+| Metric               | Value                          | Source                       |
+| -------------------- | ------------------------------ | ---------------------------- |
+| Tools                | 25                             | src/schemas/action-counts.ts |
+| Actions              | 377                            | src/schemas/action-counts.ts |
+| Version              | 1.7.0                          | package.json                 |
+| MCP Protocol         | 2025-11-25                     | src/version.ts:14            |
+| Contract Tests       | 2376/2376 pass                 | npm run test:fast            |
+| Handler Architecture | 13 BaseHandler + 12 Standalone | src/handlers/                |
 
 ---
 
 ## Handler Architecture
 
-### BaseHandler Subclasses (13 tools)
+### BaseHandler Subclasses (13 tools, unchanged)
 
 These extend `BaseHandler<Input, Output>` and get: intent batching, snapshot support,
 verbosity filtering, scope validation, progress reporting, error mapping.
@@ -29,18 +29,18 @@ verbosity filtering, scope validation, progress reporting, error mapping.
 | sheets_core        | SheetsCoreHandler       | handlers/core.ts (2013 lines)        | 19      | Google Sheets + Drive API          |
 | sheets_data        | SheetsDataHandler       | handlers/data.ts (2979 lines)        | 23      | CachedSheetsApi, ParallelExecutor  |
 | sheets_format      | SheetsFormatHandler     | handlers/format.ts (3128 lines)      | 24      | BatchCompiler (intent system)      |
-| sheets_dimensions  | SheetsDimensionsHandler | handlers/dimensions.ts (1439 lines)  | 28      | BatchCompiler                      |
+| sheets_dimensions  | SheetsDimensionsHandler | handlers/dimensions.ts (1439 lines)  | 29      | BatchCompiler                      |
 | sheets_advanced    | AdvancedHandler         | handlers/advanced.ts (1766 lines)    | 31      | BatchCompiler                      |
 | sheets_visualize   | VisualizeHandler        | handlers/visualize.ts (1865 lines)   | 18      | Sampling (chart suggestions)       |
-| sheets_collaborate | CollaborateHandler      | handlers/collaborate.ts (1943 lines) | 35      | Drive API (sharing)                |
-| sheets_composite   | CompositeHandler        | handlers/composite.ts (1242 lines)   | 19      | CompositeOperationsService         |
-| sheets_analyze     | AnalyzeHandler          | handlers/analyze.ts (2625 lines)     | 18      | Sampling, BackgroundAnalyzer       |
+| sheets_collaborate | CollaborateHandler      | handlers/collaborate.ts (1943 lines) | 40      | Drive API (sharing)                |
+| sheets_composite   | CompositeHandler        | handlers/composite.ts (1242 lines)   | 20      | CompositeOperationsService         |
+| sheets_analyze     | AnalyzeHandler          | handlers/analyze.ts (2625 lines)     | 19      | Sampling, BackgroundAnalyzer       |
 | sheets_fix         | FixHandler              | handlers/fix.ts (557 lines)          | 6       | CleaningEngine, quality validators |
 | sheets_templates   | SheetsTemplatesHandler  | handlers/templates.ts                | 8       | Drive appDataFolder                |
 | sheets_bigquery    | SheetsBigQueryHandler   | handlers/bigquery.ts                 | 17      | BigQuery API, circuit breaker      |
 | sheets_appsscript  | SheetsAppsScriptHandler | handlers/appsscript.ts               | 18      | Apps Script API, circuit breaker   |
 
-### Standalone Handlers (9 tools)
+### Standalone Handlers (12 tools)
 
 These implement `handle()` directly without BaseHandler. They manage their own error
 handling, verbosity filtering, and service access.
@@ -52,10 +52,13 @@ handling, verbosity filtering, and service access.
 | sheets_dependencies | DependenciesHandler                    | handlers/dependencies.ts (377 lines) | 10      | ImpactAnalyzer (cached), ScenarioEngine            |
 | sheets_quality      | QualityHandler                         | handlers/quality.ts (309 lines)      | 4       | ValidationEngine, ConflictDetector                 |
 | sheets_history      | HistoryHandler                         | handlers/history.ts                  | 10      | HistoryService, SnapshotService, TimeTravelService |
-| sheets_session      | SessionHandler + handleSheetsSession() | handlers/session.ts (646 lines)      | 26      | SessionContextManager                              |
+| sheets_session      | SessionHandler + handleSheetsSession() | handlers/session.ts (646 lines)      | 27      | SessionContextManager                              |
 | sheets_transaction  | TransactionHandler                     | handlers/transaction.ts              | 6       | TransactionManager                                 |
 | sheets_federation   | FederationHandler                      | handlers/federation.ts (272 lines)   | 4       | FederatedMcpClient                                 |
 | sheets_webhook      | WebhookHandler                         | handlers/webhooks.ts                 | 7       | WebhookManager, Redis                              |
+| sheets_agent        | AgentHandler                           | handlers/agent.ts                    | 8       | AgentEngine (plan/execute/rollback)                |
+| sheets_compute      | ComputeHandler                         | handlers/compute.ts                  | 10      | ComputeEngine (stats, regression, forecast)        |
+| sheets_connectors   | ConnectorsHandler                      | handlers/connectors.ts               | 10      | ConnectorManager (external API connector registry) |
 
 ---
 
@@ -86,7 +89,7 @@ Client → MCP Request (STDIO/HTTP/Streamable HTTP)
 
 ---
 
-## All 340 Actions by Tool
+## All 377 Actions by Tool
 
 ### sheets_auth (4) — Standalone
 
@@ -114,11 +117,11 @@ Client → MCP Request (STDIO/HTTP/Streamable HTTP)
 `clear_data_validation`, `list_data_validations`, `generate_conditional_format`,
 `sparkline_add`, `sparkline_get`, `sparkline_clear`, `suggest_format`, `set_rich_text`
 
-### sheets_dimensions (28) — BaseHandler
+### sheets_dimensions (29) — BaseHandler
 
 `insert`, `delete`, `move`, `resize`, `hide`, `show`, `append`, `freeze`, `group`, `ungroup`,
 `trim_whitespace`, `text_to_columns`, `randomize_range`, `set_basic_filter`, `clear_basic_filter`,
-`get_basic_filter`, `sort_range`, `create_filter_view`, `update_filter_view`,
+`get_basic_filter`, `sort_range`, `create_filter_view`, `duplicate_filter_view`, `update_filter_view`,
 `delete_filter_view`, `list_filter_views`, `get_filter_view`, `create_slicer`, `update_slicer`,
 `delete_slicer`, `list_slicers`, `auto_fill`, `auto_resize`
 
@@ -140,7 +143,7 @@ Client → MCP Request (STDIO/HTTP/Streamable HTTP)
 `pivot_create`, `pivot_update`, `pivot_delete`, `pivot_list`, `pivot_get`, `pivot_refresh`,
 `suggest_chart`, `suggest_pivot`
 
-### sheets_collaborate (35) — BaseHandler
+### sheets_collaborate (40) — BaseHandler
 
 `share_add`, `share_update`, `share_remove`, `share_list`, `share_get`,
 `share_transfer_ownership`, `share_set_link`, `share_get_link`, `comment_add`,
@@ -150,22 +153,24 @@ Client → MCP Request (STDIO/HTTP/Streamable HTTP)
 `version_keep_revision`, `version_create_snapshot`, `version_list_snapshots`,
 `version_restore_snapshot`, `version_delete_snapshot`, `version_compare`, `version_export`,
 `approval_create`, `approval_approve`, `approval_reject`, `approval_get_status`,
-`approval_list_pending`, `approval_delegate`, `approval_cancel`
+`approval_list_pending`, `approval_delegate`, `approval_cancel`,
+`list_access_proposals`, `resolve_access_proposal`, `label_list`, `label_apply`, `label_remove`
 
-### sheets_composite (19) — BaseHandler
+### sheets_composite (20) — BaseHandler
 
 `import_csv`, `import_xlsx`, `smart_append`, `bulk_update`, `deduplicate`, `export_xlsx`,
 `get_form_responses`, `setup_sheet`, `import_and_format`, `clone_structure`,
 `export_large_dataset`, `generate_sheet`, `generate_template`, `preview_generation`,
-`audit_sheet`, `publish_report`, `data_pipeline`, `instantiate_template`, `migrate_spreadsheet`
+`audit_sheet`, `publish_report`, `data_pipeline`, `instantiate_template`, `migrate_spreadsheet`,
+`batch_operations`
 
-### sheets_analyze (18) — BaseHandler
+### sheets_analyze (19) — BaseHandler
 
 `comprehensive`, `analyze_data`, `analyze_formulas`, `analyze_structure`,
 `analyze_performance`, `analyze_quality`, `detect_patterns`, `drill_down`,
 `explain_analysis`, `generate_actions`, `generate_formula`, `plan`, `execute_plan`,
 `query_natural_language`, `suggest_visualization`, `scout`,
-`suggest_next_actions`, `auto_enhance`
+`suggest_next_actions`, `auto_enhance`, `discover_action`
 
 ### sheets_confirm (5) — Standalone
 
@@ -189,14 +194,14 @@ Client → MCP Request (STDIO/HTTP/Streamable HTTP)
 `list`, `get`, `stats`, `undo`, `redo`, `revert_to`, `clear`,
 `timeline`, `diff_revisions`, `restore_cells`
 
-### sheets_session (26) — Standalone
+### sheets_session (27) — Standalone
 
 `set_active`, `get_active`, `get_context`, `record_operation`, `get_last_operation`,
 `get_history`, `find_by_reference`, `update_preferences`, `get_preferences`,
 `update_profile_preferences`, `set_pending`, `get_pending`, `clear_pending`,
 `save_checkpoint`, `load_checkpoint`, `list_checkpoints`, `delete_checkpoint`, `reset`,
 `acknowledge_alert`, `clear_alerts`, `get_alerts`, `set_user_id`, `get_profile`,
-`record_successful_formula`, `reject_suggestion`, `get_top_formulas`
+`record_successful_formula`, `reject_suggestion`, `get_top_formulas`, `execute_pipeline`
 
 ### sheets_templates (8) — BaseHandler
 
@@ -213,6 +218,20 @@ Client → MCP Request (STDIO/HTTP/Streamable HTTP)
 ### sheets_webhook (7) — Standalone
 
 `register`, `unregister`, `list`, `get`, `test`, `get_stats`, `watch_changes`
+
+### sheets_agent (8) — Standalone
+
+`plan`, `execute`, `execute_step`, `observe`, `rollback`, `get_status`, `list_plans`, `resume`
+
+### sheets_compute (10) — Standalone
+
+`evaluate`, `aggregate`, `statistical`, `regression`, `forecast`,
+`matrix_op`, `pivot_compute`, `custom_function`, `batch_compute`, `explain_formula`
+
+### sheets_connectors (10) — Standalone
+
+`list_connectors`, `configure`, `query`, `batch_query`, `subscribe`, `unsubscribe`,
+`list_subscriptions`, `transform`, `status`, `discover`
 
 ### sheets_bigquery (17) — BaseHandler
 
@@ -237,7 +256,7 @@ Client → MCP Request (STDIO/HTTP/Streamable HTTP)
 | STDIO Transport        | ✅     | server.ts                                 | McpServer + StdioServerTransport         |
 | HTTP/SSE Transport     | ✅     | http-server.ts                            | Express + SSEServerTransport             |
 | Streamable HTTP        | ✅     | mcp/event-store.ts                        | InMemoryEventStore, cursor-based replay  |
-| Tool Registration      | ✅     | server.ts:400-456                         | 22 tools, discriminated union schemas    |
+| Tool Registration      | ✅     | server.ts:400-456                         | 25 tools, discriminated union schemas    |
 | Resources              | ✅     | mcp/registration/resource-registration.ts | 2 URI templates + knowledge resources    |
 | Prompts                | ✅     | mcp/registration/prompt-registration.ts   | 38 guided workflows                      |
 | Sampling (SEP-1577)    | ✅     | mcp/sampling.ts (960 lines)               | AI analysis, formula gen, chart suggest  |
@@ -246,7 +265,7 @@ Client → MCP Request (STDIO/HTTP/Streamable HTTP)
 | Logging                | ✅     | handlers/logging.ts                       | Dynamic log level via MCP request        |
 | Progress               | ⚠️     | server.ts:294-299                         | Logged but not streamed as notifications |
 | Completions            | ✅     | mcp/completions.ts                        | spreadsheetId + range autocompletion     |
-| Icons (SEP-973)        | ✅     | mcp/features-2025-11-25.ts:76-231         | SVG icons for 16/22 tools                |
+| Icons (SEP-973)        | ✅     | mcp/features-2025-11-25.ts:76-231         | SVG icons for 25/25 tools                |
 | Server Instructions    | ✅     | mcp/features-2025-11-25.ts                | LLM context for tool usage               |
 
 ### Sampling Usage Patterns
@@ -328,7 +347,7 @@ Actions with interactive wizard flows when key params are absent:
 
 | Action                        | Tool               | Wizard                                                                                   |
 | ----------------------------- | ------------------ | ---------------------------------------------------------------------------------------- |
-| `chart_create`                | sheets_visualize   | 2-step: chart type (BAR/LINE/PIE/COLUMN/SCATTER/AREA) → chart title                      |
+| `chart_create`                | sheets_visualize   | 2-step: chart type (all ChartTypeSchema options) → chart title                            |
 | `add_conditional_format_rule` | sheets_format      | 1-step: rule preset (highlight_duplicates, color_scale, data_bars, top_10_percent, etc.) |
 | `create`                      | sheets_core        | 1-step: spreadsheet title (defaults to "Untitled Spreadsheet")                           |
 | `begin`                       | sheets_transaction | 1-step: transaction description for audit trail                                          |
@@ -430,7 +449,7 @@ Per-task retry: 3 attempts with exponential backoff
 4. Return success response     → Track in history service
 ```
 
-**Destructive action count**: ~36 across 22 tools
+**Destructive action count**: ~36 across 25 tools
 **Confirmation count**: ~25 handlers use confirmDestructiveAction()
 **Snapshot count**: ~20 handlers call createSnapshotIfNeeded()
 
@@ -456,7 +475,7 @@ Per-task retry: 3 attempts with exponential backoff
 | ENABLE_PREFETCH               | ON      | Predictive data loading   | Active                               |
 | ENABLE_RBAC                   | OFF     | Role-based access         | Needs config                         |
 | ENABLE_TENANT_ISOLATION       | OFF     | Multi-tenant              | Needs API keys                       |
-| ENABLE_COST_TRACKING          | OFF     | Per-request costs         | Flag disconnected (code always runs) |
+| ENABLE_COST_TRACKING          | OFF     | Per-request costs         | Active when enabled (tenant-attributed) |
 
 ---
 
@@ -525,7 +544,7 @@ Interface validated across 4 platform types with zero modifications needed.
 
 | Item                            | Status                         | Action                     |
 | ------------------------------- | ------------------------------ | -------------------------- |
-| ENABLE_COST_TRACKING flag       | Flag defined but never checked | Wire conditional or remove |
+| ENABLE_COST_TRACKING flag       | Checked in tool/server paths   | Extend beyond API-call counters |
 | src/handlers/optimization.ts    | Possible unused utilities      | Verify usage or remove     |
 | Scaffold backends (3)           | Intentional P3 scaffolds       | Keep                       |
 | 0 TODOs/FIXMEs in src/          | Clean                          | —                          |
@@ -627,7 +646,7 @@ return { response: { success: false, error: { code, message, details } } };
 
 ---
 
-## Completed Features (P4-P14)
+## Historical Feature Milestones (P4-P14)
 
 Full specs: `docs/development/FEATURE_PLAN.md`
 
@@ -676,4 +695,4 @@ Full specs: `docs/development/FEATURE_PLAN.md`
 
 - audit_sheet, publish_report, data_pipeline, instantiate_template, migrate_spreadsheet
 
-Total: 315 → 340 actions, 22 tools unchanged.
+Historical total through P14: 315 → 340 actions (before P15+ additions).

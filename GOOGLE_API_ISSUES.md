@@ -38,7 +38,7 @@ Priority: **P0** = correctness/data-loss risk | **P1** = significant performance
 **Source:** Google docs → "Partial response / fields parameter"
 
 **Finding:**
-`src/utils/field-mask-injection.ts` and `src/config/action-field-masks.ts` exist and map all 305 actions to optimal field masks. However, `data.ts` — the highest-traffic handler — does **not call `injectFieldMask()`** anywhere.
+`src/utils/field-mask-injection.ts` and `src/config/action-field-masks.ts` exist and map all 342 actions to optimal field masks. However, `data.ts` — the highest-traffic handler — does **not call `injectFieldMask()`** anywhere.
 
 Confirmed via:
 
@@ -362,7 +362,7 @@ These areas were audited and are compliant with Google best practices:
 | Token refresh proactive                   | `src/services/token-manager.ts`       | Refreshes 5 min before expiry                       |
 | ETag caching on reads                     | `src/services/etag-cache.ts`          | Avoids redundant reads on unchanged data            |
 | Inbound gzip compression                  | `src/http-server.ts:379`              | `compression()` middleware, threshold 1KB           |
-| Field mask constants defined              | `src/config/action-field-masks.ts`    | All 305 actions mapped (even if not all wired in)   |
+| Field mask constants defined              | `src/config/action-field-masks.ts`    | All 342 actions mapped (even if not all wired in)   |
 | Batch request limit constant              | `src/config/google-limits.ts:101`     | `BATCH_REQUEST_LIMIT = 100` per Google docs         |
 | BigQuery SQL injection guard              | `src/handlers/bigquery.ts:58+`        | Blocks dangerous SQL patterns                       |
 | AppsScript service account block          | `src/handlers/appsscript.ts`          | Documented + noted in handler                       |

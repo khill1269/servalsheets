@@ -32,7 +32,7 @@ This project uses:
 - **Protocol Version:** MCP 2025-11-25 (reference: `src/version.ts:14`)
 - **SDK Version:** @modelcontextprotocol/sdk 1.26.0
 - **Transport Modes:** STDIO (`src/server.ts`), HTTP/SSE (`src/http-server.ts`), Remote OAuth (`src/remote-server.ts`)
-- **Tool Count:** 22 tools with 305 actions (reference: `src/schemas/index.ts:63`)
+- **Tool Count:** 22 tools with 342 actions (reference: `src/schemas/index.ts:63`)
 - **Response Pattern:** Handlers return `{ response: { success, data } }` → `buildToolResponse()` converts to MCP `CallToolResult`
 
 ## Core Responsibilities

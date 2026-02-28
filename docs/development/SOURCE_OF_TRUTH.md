@@ -21,7 +21,7 @@ tags: [sheets, prometheus]
 | Metric           | Source File                    | Line              | Current Value | Verification Command                                            |
 | ---------------- | ------------------------------ | ----------------- | ------------- | --------------------------------------------------------------- |
 | **TOOL_COUNT**   | `src/schemas/action-counts.ts` | exported constant | `22`          | `grep "export const TOOL_COUNT" src/schemas/action-counts.ts`   |
-| **ACTION_COUNT** | `src/schemas/action-counts.ts` | exported constant | `340`         | `grep "export const ACTION_COUNT" src/schemas/action-counts.ts` |
+| **ACTION_COUNT** | `src/schemas/action-counts.ts` | exported constant | `342`         | `grep "export const ACTION_COUNT" src/schemas/action-counts.ts` |
 
 **Verification:**
 
@@ -30,7 +30,7 @@ tags: [sheets, prometheus]
 npm run check:drift
 
 # Output should show:
-# ✅ Total: 22 tools, 341 actions
+# ✅ Total: 25 tools, 377 actions
 ```
 
 **⚠️ CRITICAL:** Never hardcode `53` or `188` or any other outdated values. Always verify from source.
@@ -122,13 +122,13 @@ Run `wc -l <file>` to get exact counts. **Do not estimate.**
 | `sheets_transaction`  | 6       | `src/schemas/transaction.ts`  |
 | `sheets_visualize`    | 18      | `src/schemas/visualize.ts`    |
 | `sheets_webhook`      | 7       | `src/schemas/webhook.ts`      |
-| **TOTAL**             | **340** | —                             |
+| **TOTAL**             | **342** | —                             |
 
 **Verification:**
 
 ```bash
 npm run check:drift | grep "Total:"
-# Output: ✅ Total: 22 tools, 341 actions
+# Output: ✅ Total: 25 tools, 377 actions
 ```
 
 ---
@@ -207,8 +207,8 @@ Evidence: <file:line> OR <command → output>
 ✅ **Good:**
 
 ```
-Claim: ServalSheets has 341 actions
-Evidence: src/schemas/action-counts.ts exports ACTION_COUNT = 340
+Claim: ServalSheets has 377 actions
+Evidence: src/schemas/action-counts.ts exports ACTION_COUNT = 377
 Command: grep "export const ACTION_COUNT" src/schemas/action-counts.ts
 Output: export const ACTION_COUNT = Object.values(ACTION_COUNTS).reduce((sum, count) => sum + count, 0);
 ```
@@ -254,7 +254,7 @@ npm run verify
 
 ```
 TOOL_COUNT:         22
-ACTION_COUNT:       340
+ACTION_COUNT:       342
 MCP_PROTOCOL:       2025-11-25
 ZOD_VERSION:        4.3.5
 SDK_VERSION:        ^1.25.2
@@ -300,11 +300,11 @@ Build Status:
 Q: How many actions does ServalSheets have?
 A: Let me verify...
 
-Command: grep "export const ACTION_COUNT" src/schemas/index.ts
-Output: export const ACTION_COUNT = 298;
+Command: grep "export const ACTION_COUNT" src/schemas/action-counts.ts
+Output: export const ACTION_COUNT = Object.values(ACTION_COUNTS).reduce((sum, count) => sum + count, 0);
 
-ServalSheets has 341 actions across 22 tools.
-Evidence: src/schemas/action-counts.ts exports ACTION_COUNT = 340
+ServalSheets has 377 actions across 25 tools.
+Evidence: src/schemas/action-counts.ts exports ACTION_COUNT = 377
 ```
 
 ---
