@@ -474,13 +474,13 @@ You should see **22 tools** available:
 18. `sheets_bigquery` - BigQuery Connected Sheets (Tier 7)
 19. `sheets_appsscript` - Apps Script automation (Tier 7)
 
-**Total**: 22 tools, 305 actions
+**Total**: 22 tools, 342 actions
 
 To see the current action breakdown, run:
 
 ```bash
 npm run check:drift | grep "Total:"
-# Output: ✅ Total: 22 tools, 305 actions
+# Output: ✅ Total: 22 tools, 342 actions
 ```
 
 ## 🎯 Example Tasks

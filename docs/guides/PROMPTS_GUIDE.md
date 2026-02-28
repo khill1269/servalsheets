@@ -26,7 +26,7 @@ Invoke with:
 
 What it shows:
 
-- Overview of 22 tools and 305 actions
+- Overview of 22 tools and 342 actions
 - Quick start with test spreadsheet
 - What ServalSheets can do
 - Safety features

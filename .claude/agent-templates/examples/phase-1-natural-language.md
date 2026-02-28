@@ -80,7 +80,7 @@ Task(
   Design intent classifier architecture using docs/analysis/handler-patterns.md:
 
   Requirements:
-  1. Map natural language → action names (305 actions)
+  1. Map natural language → action names (342 actions)
   2. 70%+ accuracy on common queries
   3. <100ms latency (p95)
   4. No ML dependencies (rules-based)
@@ -237,7 +237,7 @@ Cmd+G Cmd+A  # Or: npm run gates
 git add .
 git commit -m "feat(discovery): add natural language intent classifier
 
-Implements intent classification for 305 actions across 22 tools.
+Implements intent classification for 342 actions across 22 tools.
 
 Features:
 - 3-stage pipeline (normalize, expand, fuzzy match)

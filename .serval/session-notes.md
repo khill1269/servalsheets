@@ -5,7 +5,69 @@
 
 ## Current Phase
 
-P7-P15 Quality Hardening — ALL tasks complete. 335 → 340 actions (22 tools). Documentation sweep done. Ready for release.
+Definitive Improvement Plan — COMPLETE. 25 tools, 377 actions, 2416/2416 tests, 0 TS errors. All 6 waves implemented (W1 foundation, W2.2 errorRecovery annotations, W3 API compliance, W4 Drive Labels API, W5.2 eval suite, W6 sheets_connectors). Ready to commit and push.
+
+## What Was Just Completed (Session 46+, 2026-02-27)
+
+- **Phase 8.6c [DONE]**: Added `sheets_connectors` entry to `src/schemas/action-metadata.ts` with metadata for all 10 actions (list_connectors, configure, query, batch_query, subscribe, unsubscribe, list_subscriptions, transform, status, discover)
+- **Phase 8.6d [VERIFIED]**: Handler registration already complete — `handlers/index.ts` (lazy loader line 221-224), `tool-handlers.ts` (routing line 535), `tool-definitions.ts` (line 408)
+- **Phase 8.6e [VERIFIED]**: Full wiring verification across 11 metadata files — all confirmed present. 2378/2379 tests pass (1 pre-existing env-specific timeout in background-refresh.test.ts)
+- **Connector architecture**: ConnectorsHandler is standalone (no Google API deps), imports singleton `connectorManager` from `connector-manager.ts`. No server.ts changes needed — no initialization required.
+- **Cache/audit**: Correctly excluded — connector actions don't mutate Google Sheets data, so no cache invalidation rules or MUTATION_ACTIONS entries needed.
+- **Files changed**: `src/schemas/action-metadata.ts` (added sheets_connectors block with 10 actions), `.serval/session-notes.md`
+
+## What Was Just Completed (Session 41, 2026-02-25)
+
+- **ISSUE-226 [DONE]**: GDPR consent gate — completed the remaining 2 of 4 handlers:
+  - `history.ts:611`: Added `await assertSamplingConsent()` before `createMessage()` in `diff_revisions`
+  - `dependencies.ts:660`: Added `await assertSamplingConsent()` before `createMessage()` in `model_scenario`
+  - Added `assertSamplingConsent` to import in both files
+- **ISSUE-234 [DONE]**: Added 5 `ACTION_ANNOTATIONS` entries for P14 composite actions to `annotations.ts`:
+  - `audit_sheet`, `publish_report`, `data_pipeline`, `instantiate_template`, `migrate_spreadsheet`
+  - Ran `npm run schema:commit` → ✅ (2367/2367 pass)
+- **ISSUE-237 [PARTIAL]**: Fixed `tests/handlers/fix-cleaning.test.ts`:
+  - Line 321: Tautological `expect([true, false]).toContain(...)` → `expect(response.response.success).toBe(false)`
+  - Line 382: `Math.random()` and `new Date()` → deterministic values `(i+1)*10` and `'2024-01-15'`
+  - Note: "bare format" concern was a false alarm — `unwrapRequest()` handles both formats
+- **ISSUE-228 [FALSE ALARM]**: `sampling-context-cache.ts` IS imported/used — `sampling.ts:27,279,436` and `tool-handlers.ts:37`
+- **ISSUE-239 [FALSE ALARM]**: `tests/helpers/wait-for.ts` has 17 callers across test suite
+
+- **24 issues verified as already fixed** (no code changes needed):
+  - ISSUE-012, 017, 018, 021, 023, 028, 029, 033, 034, 035, 042, 044, 045, 047, 049, 050, 052, 054, 055, 057, 115, 115b, 119, and updated STATUS counts in ISSUES.md
+
+- **ISSUES.md updated**: 240 total, 59 [DONE], 58 [FIXED-PRE], 2 [FALSE ALARM], 121 open
+
+- **Files changed**: `history.ts`, `dependencies.ts`, `annotations.ts` (schema:commit), `fix-cleaning.test.ts`, `ISSUES.md`, `.serval/session-notes.md`, `.serval/state.md` (auto-gen)
+
+## What Was Just Completed (Session 40, 2026-02-25)
+
+- **Second 12-agent audit pass — COMPLETE**:
+  - 12 issues confirmed fixed (ISSUE-022, 064, 153, 155, 156, 160, 177, 185, 186, 211, 216, 217) → marked [DONE]
+  - ISSUE-211 regression was a false alarm — 2367/2367 tests confirm it's fixed
+  - 8 new issues discovered (ISSUE-232 through ISSUE-239) and documented with file:line + fix specs
+- **Implementation wave — COMPLETE** (9 issues fixed):
+  - **ISSUE-230** (BLOCKER): annotations.ts MM git state resolved → staged cleanly
+  - **ISSUE-227** (MEDIUM): Added `CHECKPOINTS_DISABLED` + `CHECKPOINT_NOT_FOUND` to `ErrorCodeSchema` in shared.ts → `schema:commit` passed
+  - **ISSUE-231** (HIGH): Audit middleware `MUTATION_ACTIONS` + `PERMISSION_ACTIONS` updated to real action names (`write`, `append`, `share_add`, etc.); `MutationEvent` + `PermissionEvent` types fixed in audit-logger.ts
+  - **ISSUE-224** (HIGH): `AUTH_EXEMPT_ACTIONS` now reads action using envelope-aware extraction (`args.request?.action ?? args.action`) before normalization
+  - **ISSUE-232** (CRITICAL): `registerSamplingConsentChecker()` wired in both server.ts and http-server.ts; permissive by default, strict mode via `ENABLE_SAMPLING_CONSENT=strict`
+  - **ISSUE-223** (CRITICAL): Hardcoded OAuth secret replaced with `REPLACE_WITH_REAL_OAUTH_CLIENT_SECRET` placeholder; `isEmbeddedOAuthConfigured()` now correctly returns false for placeholder
+  - **ISSUE-225** (HIGH): `taskStore` added to HTTP HandlerContext in http-server.ts:244; Task IDs now emitted via HTTP transport
+  - **ISSUE-229** (MEDIUM): ETag 304 detection fixed: `error.code === 304` → `is304NotModified(error)` (uses `error.status === 304` from etag-helpers.ts); import added
+  - **ISSUE-233** (HIGH): `perf-init.ts` ParallelExecutor now reads `PARALLEL_CONCURRENCY` env var (default 5); no longer hardcodes dangerous concurrency:20
+- **Gate baseline**: TypeScript 0 errors | 2367/2367 tests pass | schema:commit ✅ | drift check ✅
+
+## What Was Just Completed (Session 39, 2026-02-24)
+
+- **Remediation Phase 1 gate pipeline fixes — COMPLETE**:
+  - Fixed 9 stale/incorrect tests that blocked G2 gate
+  - Fixed security: sanitizeTokenStorePath (path traversal), OAuth scope validation, email PII redaction
+  - Fixed performance: request-recorder opt-in, cache-manager 10K cap, parallel-executor concurrency 20→5, sampling deadline-aware
+  - Fixed API: format.ts preflight guard, comprehensive.ts scoped includeGridData, visualize.ts pivot_get scoped
+  - Fixed http-server.ts: null guard for session.securityContext in DELETE handler (was returning 500)
+  - All tests: 2354/2354 unit, 1068/1068 integration+compliance
+  - **Gate status**: G0✅ G1✅ G2✅ (G3-G5 pending final run)
+- **Files changed**: tests/integration/ (5 files), tests/compliance/ (2 files), src/utils/auth-paths.ts, src/handlers/auth.ts, src/middleware/redaction.ts, src/handlers/format.ts, src/analysis/comprehensive.ts, src/handlers/visualize.ts, src/services/request-recorder.ts, src/utils/cache-manager.ts, src/services/parallel-executor.ts, src/mcp/sampling.ts, src/http-server.ts (13 src files)
 
 ## What Was Just Completed (Session 38, 2026-02-23)
 
@@ -344,7 +406,7 @@ P7-P15 Quality Hardening — ALL tasks complete. 335 → 340 actions (22 tools).
 - NotionBackend adapter at `src/adapters/notion-backend.ts` (924 lines, scaffold)
 - AirtableBackend adapter at `src/adapters/airtable-backend.ts` (924 lines, scaffold)
 - Multi-LLM exporter Phase 3 complete
-- 22 tools with 325 actions (source: `src/schemas/action-counts.ts`)
+- 24 tools with 362 actions (source: `src/schemas/action-counts.ts`)
 - CleaningEngine at `src/services/cleaning-engine.ts` (~600 lines, stateless)
 
 ## Session History

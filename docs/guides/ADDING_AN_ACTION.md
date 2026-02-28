@@ -546,7 +546,7 @@ Modified:
 ```bash
 ❌ Metadata drift detected in 2 files:
   - src/schemas/index.ts (expected ACTION_COUNT = 300, found 299)
-  - package.json (expected "300 actions", found "305 actions")
+  - package.json (expected "300 actions", found "342 actions")
 ```
 
 **Cause:** Didn't run `npm run schema:commit`
