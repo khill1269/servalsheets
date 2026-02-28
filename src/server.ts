@@ -7,7 +7,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
 import { SetLevelRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
@@ -35,7 +35,12 @@ import {
   TOOL_ICONS,
   TOOL_EXECUTION_CONFIG,
 } from './mcp/features-2025-11-25.js';
-import { recordToolCall, updateQueueMetrics } from './observability/metrics.js';
+import {
+  recordToolCall,
+  updateQueueMetrics,
+  quotaWarningsTotal,
+  recordSelfCorrection,
+} from './observability/metrics.js';
 
 import {
   BatchCompiler,
@@ -57,6 +62,8 @@ import { initValidationEngine } from './services/validation-engine.js';
 import { initWebhookManager } from './services/webhook-manager.js';
 import { initWebhookQueue } from './services/webhook-queue.js';
 import { createHandlers, type HandlerContext, type Handlers } from './handlers/index.js';
+import { getCostTracker } from './services/cost-tracker.js';
+import { initializeBillingIntegration } from './services/billing-integration.js';
 import { GoogleSheetsBackend } from './adapters/index.js';
 import { AuthHandler } from './handlers/auth.js';
 import { handleLoggingSetLevel } from './handlers/logging.js';
@@ -74,7 +81,7 @@ import {
 } from './utils/request-context.js';
 import { verifyJsonSchema } from './utils/schema-compat.js';
 import { extractIdempotencyKeyFromHeaders } from './utils/idempotency-key-generator.js';
-import { TOOL_DEFINITIONS } from './mcp/registration/tool-definitions.js';
+import { TOOL_DEFINITIONS, isToolCallAuthExempt } from './mcp/registration/tool-definitions.js';
 import { createToolHandlerMap, buildToolResponse } from './mcp/registration/tool-handlers.js';
 import { registerServalSheetsResources } from './mcp/registration/resource-registration.js';
 import { registerServalSheetsPrompts } from './mcp/registration/prompt-registration.js';
@@ -105,6 +112,7 @@ import {
   registerKnowledgeIndexResource,
   registerKnowledgeSearchResource,
   initializeResourceNotifications,
+  resourceNotifications,
   registerConnectionHealthResource,
   registerRestartHealthResource,
   registerCostDashboardResources,
@@ -121,8 +129,52 @@ import {
 import { parseWithCache } from './utils/schema-cache.js';
 import { startKeepalive } from './utils/keepalive.js';
 import { cleanupAllResources } from './utils/resource-cleanup.js';
+import { disposeTemporaryResourceStore } from './resources/temporary-storage.js';
 import { startHeapWatchdog } from './utils/heap-watchdog.js';
-import { DEFER_SCHEMAS } from './config/constants.js';
+import { DEFER_SCHEMAS, STAGED_REGISTRATION } from './config/constants.js';
+import { toolStageManager } from './mcp/registration/tool-stage-manager.js';
+import { getEnv } from './config/env.js';
+import { resolveCostTrackingTenantId } from './utils/tenant-identification.js';
+import { warnIfDefaultCredentialsInHttpMode } from './config/embedded-oauth.js';
+import { registerSamplingConsentChecker } from './mcp/sampling.js';
+
+const MCP_LOG_SEVERITY: Record<LoggingLevel, number> = {
+  emergency: 0,
+  alert: 1,
+  critical: 2,
+  error: 3,
+  warning: 4,
+  notice: 5,
+  info: 6,
+  debug: 7,
+};
+
+const WINSTON_TO_MCP_LOG_LEVEL: Record<string, LoggingLevel> = {
+  error: 'error',
+  warn: 'warning',
+  info: 'info',
+  http: 'info',
+  verbose: 'debug',
+  debug: 'debug',
+  silly: 'debug',
+};
+
+function normalizeMcpLogLevel(winstonLevel: string): LoggingLevel {
+  return WINSTON_TO_MCP_LOG_LEVEL[winstonLevel] ?? 'info';
+}
+
+function shouldForwardMcpLog(winstonLevel: string, requestedLevel: LoggingLevel): boolean {
+  const messageLevel = normalizeMcpLogLevel(winstonLevel);
+  return MCP_LOG_SEVERITY[messageLevel] <= MCP_LOG_SEVERITY[requestedLevel];
+}
+
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
 
 /**
  * Extract action from args, checking up to 3 levels deep for nested request objects
@@ -155,6 +207,49 @@ function extractActionFromArgs(args: unknown): string {
   return 'unknown';
 }
 
+function getSingleHeaderValue(
+  headers: Record<string, string | string[] | undefined>,
+  headerName: string
+): string | undefined {
+  const raw = headers[headerName];
+  if (Array.isArray(raw)) {
+    return raw[0];
+  }
+  return raw;
+}
+
+function extractPrincipalIdFromHeaders(
+  headers: Record<string, string | string[] | undefined> | undefined
+): string | undefined {
+  if (!headers) {
+    return undefined;
+  }
+
+  const candidateHeaders = ['x-user-id', 'x-session-id', 'x-client-id'] as const;
+  for (const header of candidateHeaders) {
+    const value = getSingleHeaderValue(headers, header)?.trim();
+    if (value) {
+      return value;
+    }
+  }
+  return undefined; // OK: no principal header found — caller treats undefined as anonymous
+}
+
+const SELF_CORRECTION_WINDOW_MS = 5 * 60 * 1000;
+const recentToolFailures = new Map<string, { action: string; timestampMs: number }>();
+
+function buildSelfCorrectionKey(principalId: string, toolName: string): string {
+  return `${principalId}:${toolName}`;
+}
+
+function pruneOldSelfCorrectionFailures(nowMs: number): void {
+  for (const [key, value] of recentToolFailures.entries()) {
+    if (nowMs - value.timestampMs > SELF_CORRECTION_WINDOW_MS) {
+      recentToolFailures.delete(key);
+    }
+  }
+}
+
 export interface ServalSheetsServerOptions {
   name?: string;
   version?: string;
@@ -179,6 +274,9 @@ export class ServalSheetsServer {
   private taskWatchdogTimers = new Map<string, NodeJS.Timeout>();
   private healthMonitor: HealthMonitor;
   private connectionHealthCheck: ReturnType<typeof createConnectionHealthCheck>;
+  private requestedMcpLogLevel: LoggingLevel | null = null;
+  private loggingBridgeInstalled = false;
+  private forwardingMcpLog = false;
 
   // Cached handler map (rebuilt only when handlers change)
   private cachedHandlerMap: Record<
@@ -251,6 +349,10 @@ export class ServalSheetsServer {
    * Initialize the server
    */
   async initialize(): Promise<void> {
+    const envConfig = getEnv();
+    const costTrackingEnabled =
+      envConfig.ENABLE_COST_TRACKING || envConfig.ENABLE_BILLING_INTEGRATION;
+
     // Always create AuthHandler (it works even without googleClient)
     this.authHandler = new AuthHandler({
       googleClient: null, // Will be set after googleClient is created
@@ -313,6 +415,7 @@ export class ServalSheetsServer {
         queryOptimizer, // Phase 3B: Adaptive query optimization (-25% avg latency)
         prefetchingSystem, // Pattern-based prefetching (80% latency reduction on sequential ops)
         snapshotService, // Pass to context for HistoryHandler undo/revert (Task 1.3)
+        ...(costTrackingEnabled ? { costTracker: getCostTracker() } : {}),
         auth: {
           // Use getter to always read live value from GoogleApiClient
           // This ensures re-auth with broader scopes takes effect immediately
@@ -330,6 +433,14 @@ export class ServalSheetsServer {
         requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
         taskStore: this.taskStore, // For task-based execution (SEP-1686)
       };
+
+      // QUOTA-01: Subscribe to CostTracker alerts and emit Prometheus metric at 80% quota
+      this.context.costTracker?.on('alert', (alert: { type: string; tenantId: string }) => {
+        if (alert.type === 'limit_approaching') {
+          quotaWarningsTotal.inc({ tenantId: alert.tenantId });
+          baseLogger.warn('API quota approaching monthly limit', { tenantId: alert.tenantId });
+        }
+      });
 
       const handlers = createHandlers({
         context: this.context,
@@ -355,6 +466,15 @@ export class ServalSheetsServer {
       initWebhookQueue(null); // No Redis by default - would need to add Redis client
       initWebhookManager(null, this.googleClient, webhookEndpoint);
     }
+
+    initializeBillingIntegration({
+      enabled: envConfig.ENABLE_BILLING_INTEGRATION,
+      stripeSecretKey: envConfig.STRIPE_SECRET_KEY,
+      webhookSecret: envConfig.STRIPE_WEBHOOK_SECRET,
+      currency: envConfig.BILLING_CURRENCY,
+      billingCycle: envConfig.BILLING_CYCLE,
+      autoInvoicing: envConfig.BILLING_AUTO_INVOICING,
+    });
 
     // Register all tools
     this.registerTools();
@@ -396,10 +516,11 @@ export class ServalSheetsServer {
   }
 
   /**
-   * Register all 22 tools with proper annotations
+   * Register a set of tool definitions with the MCP server.
+   * Extracted to support both initial registration and stage-based advancement.
    */
-  private registerTools(): void {
-    for (const tool of TOOL_DEFINITIONS) {
+  private registerToolSet(tools: readonly (typeof TOOL_DEFINITIONS)[number][]): void {
+    for (const tool of tools) {
       // Prepare schemas for SDK registration with caching (P0-2 optimization)
       // Caching saves 8-40ms at startup by avoiding redundant schema transformations
       const inputSchemaForRegistration = prepareSchemaForRegistrationCached(
@@ -510,9 +631,48 @@ export class ServalSheetsServer {
         }
       );
     }
+  }
+
+  /**
+   * Register tools with stage-based loading support.
+   *
+   * When SERVAL_STAGED_REGISTRATION=true:
+   * - Stage 1 tools are registered immediately (auth, core, session, analyze, confirm)
+   * - Stage 2 tools (data, format, dimensions, etc.) are registered after spreadsheet active
+   * - Stage 3 tools (remaining) are registered on demand
+   * - Each stage transition emits notifications/tools/list_changed
+   *
+   * When disabled (default): all tools are registered at once (backwards-compatible).
+   */
+  private registerTools(): void {
+    // Initialize stage manager with all definitions and registration callback
+    toolStageManager.initialize(TOOL_DEFINITIONS, (newTools) => this.registerToolSet(newTools));
+
+    // Register initial tools (all tools if staging disabled, Stage 1 if enabled)
+    const initialTools = toolStageManager.getInitialTools();
+    this.registerToolSet(initialTools);
+    toolStageManager.markRegistered(initialTools.map((t) => t.name));
+
+    if (STAGED_REGISTRATION) {
+      baseLogger.info('Staged tool registration enabled', {
+        stage: 1,
+        initialTools: initialTools.length,
+        totalAvailable: TOOL_DEFINITIONS.length,
+      });
+    }
 
     // Override tools/list to safely serialize schemas with transforms/pipes.
     registerToolsListCompatibilityHandler(this._server);
+
+    if (getEnv().ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS) {
+      resourceNotifications.syncToolList(
+        initialTools.map((tool) => tool.name),
+        {
+          emitOnFirstSet: false,
+          reason: 'tool registration updated',
+        }
+      );
+    }
   }
 
   private createToolTaskHandler(toolName: string): ToolTaskHandler<AnySchema> {
@@ -530,8 +690,8 @@ export class ServalSheetsServer {
         const abortController = new AbortController();
         this.taskAbortControllers.set(task.taskId, abortController);
 
-        // Watchdog timer: force-abort tasks that exceed 10 minutes
-        const TASK_WATCHDOG_MS = 10 * 60 * 1000;
+        // Watchdog timer: force-abort tasks that exceed configured max runtime
+        const TASK_WATCHDOG_MS = getEnv().TASK_WATCHDOG_MS;
         const watchdogTimer = setTimeout(() => {
           if (this.taskAbortControllers.has(task.taskId)) {
             baseLogger.warn('Task watchdog: aborting hung task', {
@@ -539,7 +699,9 @@ export class ServalSheetsServer {
               toolName,
               maxLifetimeMs: TASK_WATCHDOG_MS,
             });
-            abortController.abort('Task exceeded maximum runtime of 10 minutes');
+            abortController.abort(
+              `Task exceeded maximum runtime of ${(TASK_WATCHDOG_MS / 60000).toFixed(1)} minutes`
+            );
             this.taskAbortControllers.delete(task.taskId);
             this.taskWatchdogTimers.delete(task.taskId);
           }
@@ -562,7 +724,9 @@ export class ServalSheetsServer {
                   },
                 },
               });
-              await this.taskStore.storeTaskResult(task.taskId, 'cancelled', cancelResult);
+              // C11: SDK storeTaskResult only accepts 'completed'|'failed'; use 'failed' for
+              // cancelled tasks (cancelResult.content carries code:'TASK_CANCELLED' for callers)
+              await this.taskStore.storeTaskResult(task.taskId, 'failed', cancelResult);
               return;
             }
 
@@ -592,7 +756,9 @@ export class ServalSheetsServer {
                 },
               });
               try {
-                await this.taskStore.storeTaskResult(task.taskId, 'cancelled', cancelResult);
+                // C11: SDK storeTaskResult only accepts 'completed'|'failed'; use 'failed' for
+                // cancelled tasks (cancelResult.content carries code:'TASK_CANCELLED' for callers)
+                await this.taskStore.storeTaskResult(task.taskId, 'failed', cancelResult);
               } catch (storeError) {
                 baseLogger.error('Failed to store cancelled task result', { toolName, storeError });
               }
@@ -700,6 +866,8 @@ export class ServalSheetsServer {
       const headers = (extra as { headers?: Record<string, string | string[] | undefined> })
         ?.headers;
       const idempotencyKey = headers ? extractIdempotencyKeyFromHeaders(headers) : undefined;
+      const costTrackingTenantId = resolveCostTrackingTenantId({ headers });
+      const principalId = extractPrincipalIdFromHeaders(headers) ?? 'anonymous';
 
       const requestContext = createRequestContext({
         sendNotification: extra?.sendNotification,
@@ -710,6 +878,7 @@ export class ServalSheetsServer {
         parentSpanId: (extra as { parentSpanId?: string })?.parentSpanId,
         // Idempotency key from X-Idempotency-Key header
         idempotencyKey,
+        principalId,
       });
       return runWithRequestContext(requestContext, async () => {
         const logger = requestContext.logger;
@@ -757,16 +926,13 @@ export class ServalSheetsServer {
             return buildToolResponse(result);
           }
 
-          // Local-only tools that work without Google authentication
-          // These operate purely on in-memory state and never call Google APIs
-          const AUTH_EXEMPT_TOOLS = new Set(['sheets_session', 'sheets_confirm']);
-          const AUTH_EXEMPT_ACTIONS: Record<string, Set<string>> = {
-            sheets_history: new Set(['list', 'get', 'stats']),
-          };
-          const rawAction = (args as Record<string, unknown>)['action'] as string | undefined;
-          const isExempt =
-            AUTH_EXEMPT_TOOLS.has(toolName) ||
-            (rawAction !== undefined && AUTH_EXEMPT_ACTIONS[toolName]?.has(rawAction));
+          // Local-only actions that are explicitly auth-exempt in tool registration metadata.
+          // Extract action from request envelope first, then fallback to flat legacy args.
+          const rawArgs = args as Record<string, unknown>;
+          const rawAction = ((rawArgs['request'] as Record<string, unknown> | undefined)?.[
+            'action'
+          ] ?? rawArgs['action']) as string | undefined;
+          const isExempt = isToolCallAuthExempt(toolName, rawAction);
 
           // For all other tools, check authentication first
           if (!isExempt) {
@@ -810,6 +976,21 @@ export class ServalSheetsServer {
                 },
               },
             });
+          }
+
+          // Stage-based tool registration: auto-advance stages as needed
+          if (STAGED_REGISTRATION) {
+            // Auto-advance to Stage 2 when a spreadsheetId is seen or set_active is called
+            if (
+              toolStageManager.currentStage < 2 &&
+              (rawAction === 'set_active' ||
+                rawArgs['spreadsheetId'] ||
+                (rawArgs['request'] as Record<string, unknown> | undefined)?.['spreadsheetId'])
+            ) {
+              toolStageManager.advanceToStage(2);
+            }
+            // Auto-advance to required stage if tool not yet registered
+            toolStageManager.ensureToolAvailable(toolName);
           }
 
           // Route to appropriate handler (cached — handlers don't change between requests)
@@ -887,12 +1068,21 @@ export class ServalSheetsServer {
 
             // OPTIMIZATION: Clear metadata cache after request completes
             metadataCache?.clear();
+
+            // COST-01: Record per-tool API call when cost tracking is enabled
+            perRequestContext.costTracker?.trackApiCall(costTrackingTenantId, 'sheets');
           }
 
           const duration = (Date.now() - startTime) / 1000;
 
           // Get action from args if available (check up to 3 levels deep)
           const action = extractActionFromArgs(args);
+          const nowMs = Date.now();
+          pruneOldSelfCorrectionFailures(nowMs);
+          const correctionKey = buildSelfCorrectionKey(
+            requestContext.principalId ?? 'anonymous',
+            toolName
+          );
 
           const response =
             typeof result === 'object' && result !== null
@@ -914,9 +1104,15 @@ export class ServalSheetsServer {
             });
             // Record failed tool call
             recordToolCall(toolName, action, 'error', duration);
+            recentToolFailures.set(correctionKey, { action, timestampMs: nowMs });
           } else {
             // Record successful tool call
             recordToolCall(toolName, action, 'success', duration);
+            const priorFailure = recentToolFailures.get(correctionKey);
+            if (priorFailure && nowMs - priorFailure.timestampMs <= SELF_CORRECTION_WINDOW_MS) {
+              recordSelfCorrection(toolName, priorFailure.action, action);
+              recentToolFailures.delete(correctionKey);
+            }
           }
 
           return buildToolResponse(result);
@@ -928,6 +1124,12 @@ export class ServalSheetsServer {
 
           // Record error metric
           recordToolCall(toolName, action, 'error', duration);
+          pruneOldSelfCorrectionFailures(Date.now());
+          const correctionKey = buildSelfCorrectionKey(
+            requestContext.principalId ?? 'anonymous',
+            toolName
+          );
+          recentToolFailures.set(correctionKey, { action, timestampMs: Date.now() });
 
           // Check if this is a Google authentication error
           // If so, convert it to a user-friendly auth error with clear instructions
@@ -1057,6 +1259,16 @@ export class ServalSheetsServer {
     // Initialize resource change notifications (MCP notifications/resources/list_changed)
     // Enables clients to be notified when dynamic resources change (e.g., analysis results)
     initializeResourceNotifications(this._server);
+
+    if (getEnv().ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS) {
+      resourceNotifications.syncToolList(
+        TOOL_DEFINITIONS.map((tool) => tool.name),
+        {
+          emitOnFirstSet: false,
+          reason: 'resource initialization completed',
+        }
+      );
+    }
   }
 
   /**
@@ -1160,6 +1372,78 @@ export class ServalSheetsServer {
     }
   }
 
+  private installLoggingBridge(): void {
+    if (this.loggingBridgeInstalled) {
+      return;
+    }
+
+    this.loggingBridgeInstalled = true;
+    const originalLog = baseLogger.log.bind(baseLogger);
+
+    baseLogger.log = ((levelOrEntry: unknown, message?: unknown, ...meta: unknown[]) => {
+      const result = (originalLog as (...args: unknown[]) => unknown)(
+        levelOrEntry,
+        message,
+        ...meta
+      );
+      this.forwardLogMessage(levelOrEntry, message, meta);
+      return result;
+    }) as typeof baseLogger.log;
+  }
+
+  private forwardLogMessage(levelOrEntry: unknown, message: unknown, meta: unknown[]): void {
+    if (!this.requestedMcpLogLevel || this.forwardingMcpLog) {
+      return;
+    }
+
+    let level = 'info';
+    let text = '';
+    let data: unknown = message;
+
+    if (typeof levelOrEntry === 'string') {
+      level = levelOrEntry;
+      if (typeof message === 'string') {
+        text = message;
+      } else if (message !== undefined) {
+        text = safeStringify(message);
+      }
+      data = meta.length === 0 ? message : meta.length === 1 ? meta[0] : meta;
+    } else if (typeof levelOrEntry === 'object' && levelOrEntry !== null) {
+      const entry = levelOrEntry as Record<string, unknown>;
+      if (typeof entry['level'] !== 'string') {
+        return;
+      }
+      level = entry['level'];
+      if (typeof entry['message'] === 'string') {
+        text = entry['message'];
+      } else if (entry['message'] !== undefined) {
+        text = safeStringify(entry['message']);
+      }
+      data = entry;
+    } else {
+      return;
+    }
+
+    if (!shouldForwardMcpLog(level, this.requestedMcpLogLevel)) {
+      return;
+    }
+
+    const mcpLevel = normalizeMcpLogLevel(level);
+    this.forwardingMcpLog = true;
+    void this._server.server
+      .sendLoggingMessage({
+        level: mcpLevel,
+        logger: 'servalsheets',
+        data: { message: text, meta: data },
+      })
+      .catch(() => {
+        // Best-effort bridge: avoid recursive logging on notification failure.
+      })
+      .finally(() => {
+        this.forwardingMcpLog = false;
+      });
+  }
+
   /**
    * Register logging handler for dynamic log level control
    *
@@ -1172,6 +1456,9 @@ export class ServalSheetsServer {
         async (request: z.infer<typeof SetLevelRequestSchema>) => {
           // Extract level from request params
           const level = request.params.level;
+
+          this.requestedMcpLogLevel = level;
+          this.installLoggingBridge();
 
           // Call the handler
           const response = await handleLoggingSetLevel({ level });
@@ -1202,17 +1489,35 @@ export class ServalSheetsServer {
     baseLogger.info('ServalSheets: Shutting down...');
 
     // Wait for queue to drain (with timeout)
+    const pendingAtShutdown = this.requestQueue.size;
     baseLogger.info('Waiting for request queue to drain', {
-      queueSize: this.requestQueue.size,
+      queueSize: pendingAtShutdown,
       pendingCount: this.requestQueue.pending,
     });
 
+    let timedOut = false;
     await Promise.race([
       this.requestQueue.onIdle(),
-      new Promise((resolve) => setTimeout(resolve, 10000)), // 10s max
+      new Promise<void>((resolve) =>
+        setTimeout(() => {
+          timedOut = true;
+          resolve();
+        }, 10000)
+      ), // 10s max
     ]);
 
-    baseLogger.info('Request queue drained');
+    // ISSUE-056: if drain timed out, clear remaining queued (not yet started) items
+    // to prevent orphaned requests from executing after shutdown completes.
+    if (timedOut && this.requestQueue.size > 0) {
+      const orphaned = this.requestQueue.size;
+      this.requestQueue.clear();
+      baseLogger.warn('Request queue drain timed out — cleared orphaned waiting requests', {
+        orphaned,
+        stillRunning: this.requestQueue.pending,
+      });
+    } else {
+      baseLogger.info('Request queue drained');
+    }
 
     // Clear range resolver cache
     if (this.context?.rangeResolver) {
@@ -1288,6 +1593,9 @@ export class ServalSheetsServer {
 
     // Dispose task store (stops cleanup interval)
     this.taskStore.dispose();
+
+    // Dispose temporary resource store (stops cleanup interval)
+    disposeTemporaryResourceStore();
 
     // Clear references
     this.googleClient = null;
@@ -1450,6 +1758,20 @@ export class ServalSheetsServer {
 export async function createServalSheetsServer(
   options: ServalSheetsServerOptions = {}
 ): Promise<ServalSheetsServer> {
+  // C1: Warn when using default embedded OAuth credentials (works for both STDIO and HTTP modes)
+  warnIfDefaultCredentialsInHttpMode();
+
+  // ISSUE-232: Wire GDPR sampling consent checker. When ENABLE_SAMPLING_CONSENT=strict, sampling
+  // calls that lack explicit user consent will be blocked. Default: permissive (logs warning only).
+  registerSamplingConsentChecker(async () => {
+    if (process.env['ENABLE_SAMPLING_CONSENT'] === 'strict') {
+      throw new Error(
+        'GDPR consent required before AI sampling. Set ENABLE_SAMPLING_CONSENT=true to enable.'
+      );
+    }
+    // Non-strict: sampling is allowed; operators can override with a stricter checker.
+  });
+
   // Create task store if not provided - uses createTaskStore() for Redis support
   if (!options.taskStore) {
     const { createTaskStore } = await import('./core/task-store-factory.js');
@@ -1500,6 +1822,13 @@ export async function createServalSheetsServer(
     } else {
       initETagCache();
       baseLogger.info('ETag cache initialized (L1 memory-only)');
+    }
+
+    // SCALE-01: Wire Redis-backed session store when SESSION_STORE_TYPE=redis
+    if (process.env['SESSION_STORE_TYPE'] === 'redis') {
+      const { initSessionRedis } = await import('./services/session-context.js');
+      initSessionRedis(redis);
+      baseLogger.info('Session store initialized with Redis backend');
     }
   } else {
     const { initCapabilityCacheService } = await import('./services/capability-cache.js');

@@ -51,8 +51,10 @@ describe.skipIf(SKIP_E2E)('E2E: Basic CRUD Operations', () => {
 
       for (const tool of tools) {
         // Every tool must have these fields
-        expect(tool.name).toBeTruthy();
-        expect(tool.description).toBeTruthy();
+        expect(typeof tool.name).toBe('string');
+        expect(tool.name.length).toBeGreaterThan(0);
+        expect(typeof tool.description).toBe('string');
+        expect(tool.description.length).toBeGreaterThan(0);
         expect(tool.inputSchema).toBeDefined();
 
         // Validate inputSchema is valid JSON Schema
@@ -257,8 +259,10 @@ describe.skipIf(SKIP_E2E)('E2E: Basic CRUD Operations', () => {
 
       // Verify resource structure
       for (const resource of resources) {
-        expect(resource.uri).toBeTruthy();
-        expect(resource.name).toBeTruthy();
+        expect(typeof resource.uri).toBe('string');
+        expect(resource.uri.length).toBeGreaterThan(0);
+        expect(typeof resource.name).toBe('string');
+        expect(resource.name.length).toBeGreaterThan(0);
       }
     });
 
@@ -284,8 +288,10 @@ describe.skipIf(SKIP_E2E)('E2E: Basic CRUD Operations', () => {
 
       // Verify prompt structure
       for (const prompt of prompts) {
-        expect(prompt.name).toBeTruthy();
-        expect(prompt.description).toBeTruthy();
+        expect(typeof prompt.name).toBe('string');
+        expect(prompt.name.length).toBeGreaterThan(0);
+        expect(typeof prompt.description).toBe('string');
+        expect(prompt.description.length).toBeGreaterThan(0);
       }
     });
   });

@@ -607,7 +607,9 @@ describe('Handler Chain Integration', () => {
         expect(validated.success).toBe(true);
       });
 
-      it('should accept column-only range', () => {
+      it('should reject column-only range (unbounded fetch prevention)', () => {
+        // Column-only ranges like "A:C" are rejected by A1NotationSchema to prevent
+        // unbounded API fetches. Use explicit row bounds like "A1:C10000" instead.
         const input = {
           request: {
             action: 'read' as const,
@@ -617,7 +619,7 @@ describe('Handler Chain Integration', () => {
         };
 
         const validated = SheetsDataInputSchema.safeParse(input);
-        expect(validated.success).toBe(true);
+        expect(validated.success).toBe(false);
       });
 
       it('should accept row-only range', () => {

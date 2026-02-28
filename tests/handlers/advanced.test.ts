@@ -1055,6 +1055,7 @@ describe('AdvancedHandler', () => {
       const result = await handler.handle({
         action: 'list_chips',
         spreadsheetId: 'sheet-id',
+        range: 'Sheet1!A1:Z100',
         chipType: 'all',
       });
 

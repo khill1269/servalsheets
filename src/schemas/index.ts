@@ -48,6 +48,9 @@ export * from './appsscript.js'; // Apps Script automation (Tier 7)
 export * from './webhook.js'; // Webhook notifications
 export * from './dependencies.js'; // Formula dependency analysis
 export * from './federation.js'; // MCP server federation (Feature 3)
+export * from './compute.js'; // Computation engine (Phase 5)
+export * from './agent.js'; // Agent loop (Phase 6)
+export * from './connectors.js'; // Live data connectors (Wave 6)
 
 // Action-level metadata for AI cost-aware decision making
 export * from './action-metadata.js';

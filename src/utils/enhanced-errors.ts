@@ -855,10 +855,8 @@ export function enhanceStartupError(error: unknown): ErrorDetail {
       process.env['NODE_ENV'] === 'production'
         ? undefined
         : {
+            // C2: Omit stack, nodeVersion, platform from API responses — log internally only
             originalError: err.message,
-            stack: err.stack,
-            nodeVersion: process.version,
-            platform: process.platform,
           },
   });
 }

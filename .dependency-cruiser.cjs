@@ -36,6 +36,16 @@ module.exports = {
           '^src/server\\.ts$',
           '^src/http-server\\.ts$',
           '^src/remote-server\\.ts$',
+          // Dynamic worker entrypoints loaded by file path at runtime
+          '^src/workers/(worker-runner|formula-parser-worker|analysis-worker)\\.ts$',
+          // Test/tooling modules intentionally imported from tests/scripts only
+          '^src/utils/(schema-inspection|infrastructure|ast-schema-parser)\\.ts$',
+          '^src/services/confirmation-policy\\.ts$',
+          '^src/schemas/handler-deviations\\.ts$',
+          '^src/middleware/schema-version\\.ts$',
+          '^src/mcp/response-builder\\.ts$',
+          // Static asset served by admin routes (not module-imported)
+          '^src/admin/dashboard\\.js$',
         ],
       },
       to: {},

@@ -1,6 +1,6 @@
 {
   "name": "servalsheets",
-  "description": "Production-grade Google Sheets MCP server - 22 tools, 341 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features",
+  "description": "Production-grade Google Sheets MCP server - 25 tools, 377 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features",
   "version": "1.7.0",
   "author": {
     "name": "Thomas Lee Cahill",
@@ -17,8 +17,7 @@
   },
   "dependencies": {
     "@apollo/server": "^5.4.0",
-    "@graphql-tools/schema": "^10.0.31",
-    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@serval/core": "workspace:*",
     "better-sqlite3": "^12.6.2",
     "chalk": "^5.6.2",
@@ -31,8 +30,6 @@
     "express-rate-limit": "^8.2.1",
     "googleapis": "^171.4.0",
     "graphql": "^16.12.0",
-    "graphql-scalars": "^1.25.0",
-    "graphql-tag": "^2.12.6",
     "helmet": "^8.1.0",
     "hyperformula": "^3.2.0",
     "ioredis": "^5.9.3",
@@ -44,7 +41,6 @@
     "stripe": "^17.5.0",
     "uuid": "^13.0.0",
     "winston": "^3.19.0",
-    "ws": "^8.18.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -130,6 +126,14 @@
       "types": "./dist/oauth-provider.d.ts",
       "import": "./dist/oauth-provider.js"
     },
+    "./utils/webhook-verification": {
+      "types": "./dist/utils/webhook-verification.d.ts",
+      "import": "./dist/utils/webhook-verification.js"
+    },
+    "./security/webhook-signature": {
+      "types": "./dist/security/webhook-signature.d.ts",
+      "import": "./dist/security/webhook-signature.js"
+    },
     "./schemas": {
       "types": "./dist/schemas/index.d.ts",
       "import": "./dist/schemas/index.js"
@@ -171,11 +175,11 @@
   "license": "MIT",
   "lint-staged": {
     "src/**/*.ts": [
-      "eslint --cache --fix",
+      "node --max-old-space-size=4096 node_modules/.bin/eslint --cache --fix",
       "prettier --write"
     ],
     "scripts/**/*.ts": [
-      "eslint --cache --fix",
+      "node --max-old-space-size=4096 node_modules/.bin/eslint --cache --fix",
       "prettier --write"
     ],
     "*.{json,md}": [
@@ -254,11 +258,14 @@
     "check:dead-code": "knip --production",
     "check:debug-prints": "bash scripts/check-debug-prints.sh",
     "check:file-sizes": "bash scripts/check-file-sizes.sh",
+    "check:integration-wiring": "node scripts/check-integration-wiring.mjs",
     "check:doc-action-counts": "bash scripts/check-doc-action-counts.sh",
     "check:doc-counts": "tsx scripts/sync-doc-counts.ts --check",
     "check:drift": "bash scripts/check-metadata-drift.sh",
+    "check:fields-mask": "node --import tsx scripts/check-sheets-fields-mask.ts",
     "check:metadata-strict": "tsx scripts/check-metadata-strict.ts",
     "check:placeholders": "bash scripts/no-placeholders.sh",
+    "check:source-dist-consistency": "node --import tsx scripts/check-source-dist-consistency.ts",
     "check:silent-fallbacks": "bash scripts/check-silent-fallbacks.sh",
     "ci": "npm run clean && turbo run build verify && npm run validate:server-json && npm run smoke",
     "ci:legacy": "npm run clean && npm run build && npm run verify:legacy && npm run validate:server-json && npm run smoke",
@@ -272,7 +279,8 @@
     "coverage:report": "vitest run --coverage --reporter=json-summary && node scripts/generate-coverage-badge.mjs",
     "dashboard:generate": "tsx scripts/generate-dashboard.ts",
     "dead-code": "ts-prune --ignore 'src/(index|cli|server|http-server|remote-server).ts|.*.test.ts' --error",
-    "dead-code:report": "ts-prune --ignore 'src/(index|cli|server|http-server|remote-server).ts|.*.test.ts'",
+    "dead-code:report": "node scripts/dead-code-triage.mjs",
+    "dead-code:report:raw": "ts-prune --ignore 'src/(index|cli|server|http-server|remote-server).ts|src/.*/index.ts|packages/serval-core/dist/.*|.*.test.ts'",
     "demo:generate": "bash scripts/demo/generate-demo.sh",
     "demo:record": "bash scripts/demo/record-demo.sh",
     "deps:check": "syncpack lint",
@@ -410,8 +418,8 @@
     "test:health": "tsx scripts/test-health-monitoring.ts",
     "test:integration": "TEST_HTTP_INTEGRATION=true vitest run tests/integration tests/contracts tests/server",
     "test:integration:real": "TEST_REAL_API=true vitest tests/integration/",
-    "test:live": "TEST_REAL_API=true vitest run tests/live-api",
-    "test:live:fast": "TEST_REAL_API=true vitest run tests/live-api/tools",
+    "test:live": "TEST_REAL_API=true vitest run --config tests/config/vitest.config.live.ts",
+    "test:live:fast": "TEST_REAL_API=true vitest run --config tests/config/vitest.config.live.ts tests/live-api/tools",
     "test:llm": "vitest run tests/handlers/analyze.test.ts",
     "test:load": "vitest run tests/load --config tests/config/vitest.config.load.ts",
     "test:load:script": "bash scripts/run-load-tests.sh",
@@ -447,16 +455,17 @@
     "tools:start:google-docs": "node tools/google-docs-server/dist/index.js",
     "tools:start:test-intelligence": "node tools/test-intelligence-server/dist/index.js",
     "tools:start:gcloud": "node tools/gcloud-console-server/dist/index.js",
-    "validate:alignment": "tsx scripts/validate-schema-handler-alignment.ts",
-    "validate:all": "npm run check:drift && npm run validate:actions && npm run check:architecture && npm run lint",
+    "validate:alignment": "node --import tsx scripts/validate-schema-handler-alignment.ts",
+    "validate:all": "npm run check:drift && npm run validate:actions && npm run check:architecture && npm run check:integration-wiring && npm run lint",
     "validate:audit": "bash scripts/verify-audit-claims.sh",
-    "validate:compliance": "tsx scripts/validate-api-mcp-compliance.ts",
+    "validate:compliance": "node --import tsx scripts/validate-api-mcp-compliance.ts",
     "validate:dead-code": "bash scripts/verify-dead-code-claims.sh",
     "validate:mcp-protocol": "bash scripts/validate-mcp-protocol.sh",
     "validate:server-json": "node scripts/validate-server-json.mjs",
     "validate:server-json-extended": "tsx scripts/validate-server-json-extended.ts",
     "verify": "npm-run-all --parallel check:drift check:placeholders check:doc-action-counts typecheck lint format:check && npm run validate:alignment && npm run test:fast",
     "verify:safe": "npm-run-all --parallel check:drift check:placeholders check:doc-action-counts typecheck format:check && npm run validate:alignment && npm run test:fast",
+    "verify:release": "bash scripts/verify-release-readiness.sh",
     "verify:build": "npm run build && npm run validate:server-json && npm run smoke && echo 'Build OK'",
     "verify:legacy": "npm-run-all --parallel check:drift check:placeholders typecheck lint format:check && npm test",
     "watch:all": "bash scripts/watch-all.sh",

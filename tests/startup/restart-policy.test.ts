@@ -20,6 +20,7 @@ import {
   getRestartState,
   formatBackoffDelay,
 } from '../../src/startup/restart-policy.js';
+import { waitFor } from '../helpers/wait-for.js';
 
 // Mock logger
 vi.mock('../../src/utils/logger.js', () => ({
@@ -54,7 +55,7 @@ describe('Restart Policy', () => {
     it.skip('should return 0 delay after successful startup — requires SUCCESS_THRESHOLD_MS env override before module load', async () => {
       // Record a successful startup
       await recordStartupAttempt();
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
       await recordSuccessfulStartup();
 
       // Next startup should have no delay
@@ -76,9 +77,9 @@ describe('Restart Policy', () => {
     it('should increase backoff with more failures', async () => {
       // Record multiple failures
       await recordStartupAttempt();
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
       await recordStartupAttempt();
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
       await recordStartupAttempt();
 
       const state = await getRestartState();
@@ -122,7 +123,7 @@ describe('Restart Policy', () => {
       await recordStartupAttempt();
 
       // Wait long enough to be considered successful (> SUCCESS_THRESHOLD_MS)
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       // Record success
       await recordSuccessfulStartup();
@@ -145,7 +146,7 @@ describe('Restart Policy', () => {
 
     it.skip('should record lastSuccessfulStart timestamp — requires SUCCESS_THRESHOLD_MS env override before module load', async () => {
       await recordStartupAttempt();
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       const before = Date.now();
       await recordSuccessfulStartup();
@@ -280,7 +281,7 @@ describe('Restart Policy', () => {
       for (let i = 0; i < 5; i++) {
         await recordStartupAttempt();
         // Wait a bit to ensure backoff would trigger
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        await waitFor(10);
       }
 
       // The delays should grow exponentially
@@ -311,7 +312,7 @@ describe('Restart Policy', () => {
       expect(delay1).toBeGreaterThanOrEqual(0);
 
       // After waiting and recording another attempt
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitFor(50);
       await recordStartupAttempt();
 
       // Delay should increase
@@ -328,7 +329,7 @@ describe('Restart Policy', () => {
       expect(state.consecutiveFailures).toBe(2);
 
       // Simulate successful run
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
       await recordSuccessfulStartup();
 
       state = await getRestartState();

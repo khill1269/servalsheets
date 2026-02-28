@@ -46,8 +46,34 @@ import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { checkSamplingSupport } from '../mcp/sampling.js';
 import { isLLMFallbackAvailable, createMessageWithFallback } from '../services/llm-fallback.js';
 import { logger } from '../utils/logger.js';
+import { recordChartId } from '../mcp/completions.js';
 
 type VisualizeSuccess = Extract<VisualizeResponse, { success: true }>;
+
+const ELICITABLE_CHART_TYPES = [
+  'BAR',
+  'LINE',
+  'PIE',
+  'COLUMN',
+  'SCATTER',
+  'AREA',
+  'COMBO',
+  'STEPPED_AREA',
+  'DOUGHNUT',
+  'RADAR',
+  'BUBBLE',
+  'CANDLESTICK',
+  'HISTOGRAM',
+  'ORG',
+  'TREEMAP',
+  'WATERFALL',
+  'SCORECARD',
+] as const;
+type ElicitableChartType = (typeof ELICITABLE_CHART_TYPES)[number];
+
+function isElicitableChartType(value: unknown): value is ElicitableChartType {
+  return typeof value === 'string' && (ELICITABLE_CHART_TYPES as readonly string[]).includes(value);
+}
 
 /**
  * Extended BasicChartSeries type that includes trendline and dataLabel properties.
@@ -247,8 +273,27 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
               chartType: {
                 type: 'string',
                 title: 'Chart type',
-                description: 'Choose the type of chart to create',
-                enum: ['BAR', 'LINE', 'PIE', 'COLUMN', 'SCATTER', 'AREA'],
+                description:
+                  'Choose the type of chart to create. Basic: BAR (horizontal bars), LINE (trend over time), PIE (proportions), COLUMN (vertical bars), SCATTER (correlation), AREA (cumulative trend). Advanced: COMBO (mixed bar+line), STEPPED_AREA (staircase area), DOUGHNUT (pie with hole), RADAR (multi-axis web), BUBBLE (3-variable scatter), CANDLESTICK (stock price OHLC), HISTOGRAM (frequency distribution), ORG (hierarchy/org chart), TREEMAP (hierarchical rectangles), WATERFALL (running total with positive/negative), SCORECARD (single KPI metric display)',
+                enum: [
+                  'BAR',
+                  'LINE',
+                  'PIE',
+                  'COLUMN',
+                  'SCATTER',
+                  'AREA',
+                  'COMBO',
+                  'STEPPED_AREA',
+                  'DOUGHNUT',
+                  'RADAR',
+                  'BUBBLE',
+                  'CANDLESTICK',
+                  'HISTOGRAM',
+                  'ORG',
+                  'TREEMAP',
+                  'WATERFALL',
+                  'SCORECARD',
+                ],
                 default: 'BAR',
               },
             },
@@ -256,8 +301,10 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
           },
         });
         if (elicitResult.action === 'accept' && elicitResult.content?.['chartType']) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          resolvedInput = { ...input, chartType: elicitResult.content['chartType'] as any };
+          const chartType = elicitResult.content['chartType'];
+          if (isElicitableChartType(chartType)) {
+            resolvedInput = { ...input, chartType };
+          }
 
           // Step 2: Ask for chart title
           try {
@@ -707,6 +754,11 @@ Always return valid JSON in the exact format requested.`;
           },
         });
       }
+    }
+
+    // Wire completions: cache chart IDs for argument autocompletion (ISSUE-062)
+    for (const chart of charts) {
+      if (chart.chartId) recordChartId(chart.chartId);
     }
 
     return this.success('chart_list', { charts });
@@ -1530,7 +1582,23 @@ Always return valid JSON in the exact format requested.`;
   }
 
   private async handlePivotGet(input: PivotGetInput): Promise<VisualizeResponse> {
-    // Validate spreadsheet size before loading full grid data
+    // Validate spreadsheet size before loading full grid data.
+    // Also fetch sheet title so we can scope the subsequent includeGridData call.
+    const metaResponse = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      fields: 'sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)))',
+    });
+    const metaSheets = metaResponse.data.sheets ?? [];
+    const targetSheet = metaSheets.find((s) => s.properties?.sheetId === input.sheetId);
+    if (!targetSheet?.properties?.title) {
+      return this.error({
+        code: 'SHEET_NOT_FOUND',
+        message: `Sheet with ID ${input.sheetId} not found`,
+        retryable: false,
+        suggestedFix: 'Verify the sheet ID is correct',
+      }) as VisualizeResponse;
+    }
+
     const sizeError = await this.validateGridDataSize(
       input.spreadsheetId,
       this.sheetsApi,
@@ -1538,9 +1606,12 @@ Always return valid JSON in the exact format requested.`;
     );
     if (sizeError) return sizeError as VisualizeResponse;
 
+    // Scope to the target sheet only to avoid fetching the entire workbook
+    const sheetTitle = targetSheet.properties.title;
+    const scopedRange = `'${sheetTitle.replace(/'/g, "''")}'`;
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
-      // Don't use ranges with sheetId - filter from response instead
+      ranges: [scopedRange],
       includeGridData: true,
       fields:
         'sheets.data.rowData.values.pivotTable,sheets.properties.sheetId,sheets.properties.title',
@@ -1673,6 +1744,52 @@ Always return valid JSON in the exact format requested.`;
         ...(chartType && ['BAR', 'COLUMN', 'AREA', 'STEPPED_AREA'].includes(chartType)
           ? { stackedType: options?.stacked ? 'STACKED' : 'NOT_STACKED' }
           : {}),
+        // ISSUE-198: Axis configuration — title and view window (min/max bounds)
+        // Merge legacy axisTitle with new axes config; axes takes precedence for titles
+        ...(() => {
+          const axisList: sheets_v4.Schema$BasicChartAxis[] = [];
+
+          const hTitle = options?.axes?.horizontal?.title ?? options?.axisTitle?.horizontal;
+          const vTitle = options?.axes?.vertical?.title ?? options?.axisTitle?.vertical;
+          const hMin = options?.axes?.horizontal?.min;
+          const hMax = options?.axes?.horizontal?.max;
+          const vMin = options?.axes?.vertical?.min;
+          const vMax = options?.axes?.vertical?.max;
+
+          // For BAR charts, horizontal axis maps to BOTTOM_AXIS; for others, LEFT_AXIS is vertical
+          const hPosition = chartType === 'BAR' ? 'LEFT_AXIS' : 'BOTTOM_AXIS';
+          const vPosition = chartType === 'BAR' ? 'BOTTOM_AXIS' : 'LEFT_AXIS';
+
+          // The googleapis Schema$BasicChartAxis type is incomplete — viewWindowMode and
+          // viewWindow exist in the API but are missing from the TS types. Cast to any for
+          // these properties while keeping position and title type-safe.
+          type FullAxis = sheets_v4.Schema$BasicChartAxis & {
+            viewWindowMode?: string;
+            viewWindow?: { minValue?: number; maxValue?: number };
+          };
+
+          if (hTitle !== undefined || hMin !== undefined || hMax !== undefined) {
+            const hAxis: FullAxis = { position: hPosition };
+            if (hTitle) hAxis.title = hTitle;
+            if (hMin !== undefined || hMax !== undefined) {
+              hAxis.viewWindowMode = 'EXPLICIT';
+              hAxis.viewWindow = { minValue: hMin, maxValue: hMax };
+            }
+            axisList.push(hAxis as sheets_v4.Schema$BasicChartAxis);
+          }
+
+          if (vTitle !== undefined || vMin !== undefined || vMax !== undefined) {
+            const vAxis: FullAxis = { position: vPosition };
+            if (vTitle) vAxis.title = vTitle;
+            if (vMin !== undefined || vMax !== undefined) {
+              vAxis.viewWindowMode = 'EXPLICIT';
+              vAxis.viewWindow = { minValue: vMin, maxValue: vMax };
+            }
+            axisList.push(vAxis as sheets_v4.Schema$BasicChartAxis);
+          }
+
+          return axisList.length > 0 ? { axis: axisList } : {};
+        })(),
       },
     };
   }

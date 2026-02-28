@@ -38,6 +38,7 @@ import type {
 import { TemplateStore } from '../services/template-store.js';
 import { logger } from '../utils/logger.js';
 import { ScopeValidator, IncrementalScopeRequiredError } from '../security/incremental-scope.js';
+import { recordTemplateId } from '../mcp/completions.js';
 
 export class SheetsTemplatesHandler extends BaseHandler<
   SheetsTemplatesInput,
@@ -184,6 +185,11 @@ export class SheetsTemplatesHandler extends BaseHandler<
       }
 
       const allTemplates = [...userTemplates, ...builtinTemplates];
+
+      // Wire completions: cache template IDs for argument autocompletion (ISSUE-062)
+      for (const t of allTemplates) {
+        if (t.id) recordTemplateId(t.id);
+      }
 
       return this.success('list', {
         templates: allTemplates,

@@ -24,7 +24,8 @@ describe('ProtocolTracer', () => {
         range: 'Sheet1!A1:B10',
       });
 
-      expect(traceId).toBeTruthy();
+      expect(traceId).toEqual(expect.any(String));
+      expect(traceId.length).toBeGreaterThan(0);
       const trace = tracer.getTrace(traceId);
       expect(trace).toBeDefined();
       expect(trace?.correlationId).toBe('corr-123');

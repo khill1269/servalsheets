@@ -70,6 +70,12 @@ const CommonFieldsSchema = z.object({
 // VALUE ACTION SCHEMAS (8 actions)
 // ============================================================================
 
+const ResponseFormatSchema = z
+  .enum(['full', 'compact', 'preview'])
+  .describe(
+    'Response format profile for read-heavy actions: full (complete payload), compact (reduced token usage), preview (small sample for quick inspection)'
+  );
+
 const ReadActionSchema = CommonFieldsSchema.extend({
   action: z.literal('read').describe('Read cell values from a range'),
   range: RangeInputSchema.optional().describe(
@@ -107,23 +113,28 @@ const ReadActionSchema = CommonFieldsSchema.extend({
     .max(10000)
     .optional()
     .describe('Maximum number of rows per page (default: 1000, max: 10000)'),
-}).superRefine((val, ctx) => {
-  // Exactly ONE of range or dataFilter must be provided
-  if (!val.range && !val.dataFilter) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either range or dataFilter for read',
-      path: ['range'],
-    });
-  }
-  if (val.range && val.dataFilter) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either range or dataFilter (not both) for read',
-      path: ['dataFilter'],
-    });
-  }
-});
+  response_format: ResponseFormatSchema.optional()
+    .default('full')
+    .describe('Output size profile for returned values (full, compact, preview)'),
+})
+  .superRefine((val, ctx) => {
+    // Exactly ONE of range or dataFilter must be provided
+    if (!val.range && !val.dataFilter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either range or dataFilter for read',
+        path: ['range'],
+      });
+    }
+    if (val.range && val.dataFilter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either range or dataFilter (not both) for read',
+        path: ['dataFilter'],
+      });
+    }
+  })
+  .strict();
 
 const WriteActionSchema = CommonFieldsSchema.extend({
   action: z
@@ -145,23 +156,25 @@ const WriteActionSchema = CommonFieldsSchema.extend({
     .default(false)
     .describe('Return the written values for verification'),
   diffOptions: DiffOptionsSchema.optional().describe('Diff generation options'),
-}).superRefine((val, ctx) => {
-  // Exactly ONE of range or dataFilter must be provided
-  if (!val.range && !val.dataFilter) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either range or dataFilter for write',
-      path: ['range'],
-    });
-  }
-  if (val.range && val.dataFilter) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either range or dataFilter (not both) for write',
-      path: ['dataFilter'],
-    });
-  }
-});
+})
+  .superRefine((val, ctx) => {
+    // Exactly ONE of range or dataFilter must be provided
+    if (!val.range && !val.dataFilter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either range or dataFilter for write',
+        path: ['range'],
+      });
+    }
+    if (val.range && val.dataFilter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either range or dataFilter (not both) for write',
+        path: ['dataFilter'],
+      });
+    }
+  })
+  .strict();
 
 const AppendActionSchema = CommonFieldsSchema.extend({
   action: z.literal('append').describe('Append rows after the last row of data in a range'),
@@ -174,15 +187,17 @@ const AppendActionSchema = CommonFieldsSchema.extend({
   insertDataOption: InsertDataOptionSchema.optional()
     .default('INSERT_ROWS')
     .describe('Whether to overwrite or insert rows (INSERT_ROWS or OVERWRITE)'),
-}).superRefine((val, ctx) => {
-  if (!val.range && !val.tableId) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either range or tableId for append',
-      path: ['range'],
-    });
-  }
-});
+})
+  .superRefine((val, ctx) => {
+    if (!val.range && !val.tableId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either range or tableId for append',
+        path: ['range'],
+      });
+    }
+  })
+  .strict();
 
 const ClearActionSchema = CommonFieldsSchema.extend({
   action: z.literal('clear').describe('Clear cell values from a range (keeps formatting)'),
@@ -197,23 +212,25 @@ const ClearActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(false)
     .describe('Show what would change without applying'),
-}).superRefine((val, ctx) => {
-  // Exactly ONE of range or dataFilter must be provided
-  if (!val.range && !val.dataFilter) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either range or dataFilter for clear',
-      path: ['range'],
-    });
-  }
-  if (val.range && val.dataFilter) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either range or dataFilter (not both) for clear',
-      path: ['dataFilter'],
-    });
-  }
-});
+})
+  .superRefine((val, ctx) => {
+    // Exactly ONE of range or dataFilter must be provided
+    if (!val.range && !val.dataFilter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either range or dataFilter for clear',
+        path: ['range'],
+      });
+    }
+    if (val.range && val.dataFilter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either range or dataFilter (not both) for clear',
+        path: ['dataFilter'],
+      });
+    }
+  })
+  .strict();
 
 const BatchWriteEntrySchema = z
   .object({
@@ -266,24 +283,29 @@ const BatchReadActionSchema = CommonFieldsSchema.extend({
   majorDimension: MajorDimensionSchema.optional().default('ROWS').describe('Major dimension'),
   cursor: z.string().optional().describe('Pagination cursor'),
   pageSize: z.coerce.number().int().positive().max(10000).optional().describe('Rows per page'),
-}).superRefine((val, ctx) => {
-  const hasRanges = Boolean(val.ranges && val.ranges.length > 0);
-  const hasFilters = Boolean(val.dataFilters && val.dataFilters.length > 0);
-  if (!hasRanges && !hasFilters) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either ranges or dataFilters for batch_read',
-      path: ['ranges'],
-    });
-  }
-  if (hasRanges && hasFilters) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either ranges or dataFilters, not both, for batch_read',
-      path: ['dataFilters'],
-    });
-  }
-});
+  response_format: ResponseFormatSchema.optional()
+    .default('full')
+    .describe('Output size profile for returned ranges (full, compact, preview)'),
+})
+  .superRefine((val, ctx) => {
+    const hasRanges = Boolean(val.ranges && val.ranges.length > 0);
+    const hasFilters = Boolean(val.dataFilters && val.dataFilters.length > 0);
+    if (!hasRanges && !hasFilters) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either ranges or dataFilters for batch_read',
+        path: ['ranges'],
+      });
+    }
+    if (hasRanges && hasFilters) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either ranges or dataFilters, not both, for batch_read',
+        path: ['dataFilters'],
+      });
+    }
+  })
+  .strict();
 
 const BatchWriteActionSchema = CommonFieldsSchema.extend({
   action: z.literal('batch_write').describe('Write to multiple ranges in a single API call'),
@@ -297,17 +319,19 @@ const BatchWriteActionSchema = CommonFieldsSchema.extend({
     .describe('How input data should be interpreted'),
   includeValuesInResponse: z.boolean().optional().default(false).describe('Return written values'),
   diffOptions: DiffOptionsSchema.optional().describe('Diff generation options'),
-}).superRefine((val, ctx) => {
-  const hasRanges = val.data.some((entry) => entry.range !== undefined);
-  const hasFilters = val.data.some((entry) => entry.dataFilter !== undefined);
-  if (hasRanges && hasFilters) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Do not mix range-based and dataFilter-based entries in batch_write',
-      path: ['data'],
-    });
-  }
-});
+})
+  .superRefine((val, ctx) => {
+    const hasRanges = val.data.some((entry) => entry.range !== undefined);
+    const hasFilters = val.data.some((entry) => entry.dataFilter !== undefined);
+    if (hasRanges && hasFilters) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Do not mix range-based and dataFilter-based entries in batch_write',
+        path: ['data'],
+      });
+    }
+  })
+  .strict();
 
 const BatchClearActionSchema = CommonFieldsSchema.extend({
   action: z.literal('batch_clear').describe('Clear multiple ranges in a single API call'),
@@ -411,7 +435,7 @@ const AddNoteActionSchema = CommonFieldsSchema.extend({
       `Note exceeds Google Sheets limit of ${CELL_NOTE_MAX_LENGTH} characters`
     )
     .describe('Note/comment text to add to the cell (max 50,000 chars)'),
-});
+}).strict();
 
 const GetNoteActionSchema = CommonFieldsSchema.extend({
   action: z.literal('get_note').describe('Get the note text from a cell'),
@@ -534,6 +558,9 @@ const CrossReadActionSchema = z.object({
     .describe(
       'Join type when joinKey is set: inner (matched rows only), left (all primary rows), outer (all rows)'
     ),
+  response_format: ResponseFormatSchema.optional()
+    .default('full')
+    .describe('Output size profile for merged rows (full, compact, preview)'),
   verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
 });
 
@@ -544,6 +571,9 @@ const CrossQueryActionSchema = z.object({
   sources: z.array(SourceRefSchema).min(1).max(10),
   query: z.string().min(1).max(500).describe('Search query — matched against all cell values'),
   maxResults: z.number().int().min(1).max(500).optional().default(100),
+  response_format: ResponseFormatSchema.optional()
+    .default('full')
+    .describe('Output size profile for query matches (full, compact, preview)'),
   verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
 });
 
@@ -572,6 +602,9 @@ const CrossCompareActionSchema = z.object({
     .string()
     .optional()
     .describe('Column header to use as row key for aligned comparison (omit for row-by-row)'),
+  response_format: ResponseFormatSchema.optional()
+    .default('full')
+    .describe('Output size profile for diff payload (full, compact, preview)'),
   verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
 });
 
@@ -688,8 +721,28 @@ const DataResponseSchema = z.discriminatedUnion('success', [
 
     // Read results
     values: ValuesArraySchema.optional().describe('2D array of cell values (for read actions)'),
+    rowCount: z.coerce.number().int().optional().describe('Total rows in the source result set'),
+    columnCount: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Total columns in the source result set'),
+    returnedRowCount: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Rows returned after response_format shaping'),
+    returnedColumnCount: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Columns returned after response_format shaping'),
     range: z.string().optional().describe('A1 notation range that was operated on'),
     majorDimension: z.string().optional().describe('Major dimension of the data'),
+    responseFormat: z
+      .enum(['full', 'compact', 'preview'])
+      .optional()
+      .describe('Applied response_format profile'),
 
     // Pagination (MCP 2025-11-25)
     nextCursor: z.string().optional().describe('Cursor for next page (null = no more data)'),
@@ -821,6 +874,20 @@ const DataResponseSchema = z.discriminatedUnion('success', [
       .optional()
       .describe('Matching rows across sources (cross_query)'),
     totalSearched: z.coerce.number().int().optional(),
+    totalMatches: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Total query matches before response_format shaping'),
+    returnedMatches: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Query matches returned after response_format shaping'),
+    _responseFormatHint: z
+      .string()
+      .optional()
+      .describe('Guidance for fetching full data when response_format truncates payload'),
     cellsCopied: z.coerce.number().int().optional().describe('Cells written (cross_write)'),
     diff: z
       .object({
@@ -836,6 +903,21 @@ const DataResponseSchema = z.discriminatedUnion('success', [
             })
           )
           .optional(),
+        returnedAddedRows: z.coerce
+          .number()
+          .int()
+          .optional()
+          .describe('Added rows returned after response_format shaping'),
+        returnedRemovedRows: z.coerce
+          .number()
+          .int()
+          .optional()
+          .describe('Removed rows returned after response_format shaping'),
+        returnedChangedCells: z.coerce
+          .number()
+          .int()
+          .optional()
+          .describe('Changed cells returned after response_format shaping'),
         summary: z.object({
           addedRows: z.coerce.number().int(),
           removedRows: z.coerce.number().int(),

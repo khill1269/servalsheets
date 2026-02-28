@@ -8,6 +8,8 @@
 import { z } from 'zod';
 import { logger } from '../utils/logger.js';
 
+const ONE_HOUR_MS = 60 * 60 * 1000;
+
 /**
  * Tenant metadata schema
  */
@@ -46,6 +48,16 @@ export interface TenantContext {
     hourly: number;
     concurrent: number;
   };
+}
+
+export class TenantQuotaExceededError extends Error {
+  constructor(
+    public readonly tenantId: string,
+    public readonly limit: number
+  ) {
+    super(`Hourly API quota exceeded for tenant ${tenantId}`);
+    this.name = 'TenantQuotaExceededError';
+  }
 }
 
 /**
@@ -119,6 +131,8 @@ class InMemoryTenantStorage implements TenantStorage {
 export class TenantContextService {
   private storage: TenantStorage;
   private apiKeyMap: Map<string, string> = new Map(); // apiKey -> tenantId
+  private hourlyUsage: Map<string, { windowStartMs: number; count: number }> = new Map();
+  private spreadsheetAccessMap: Map<string, Set<string>> = new Map(); // tenantId -> spreadsheetIds
 
   constructor(storage?: TenantStorage) {
     this.storage = storage || new InMemoryTenantStorage();
@@ -152,12 +166,15 @@ export class TenantContextService {
     }
 
     // Return tenant context
+    const currentHourlyUsage = this.getCurrentHourlyUsage(tenantId);
+    const configuredHourlyLimit = metadata.settings.maxApiCallsPerHour ?? Infinity;
+
     return {
       tenantId,
       metadata,
       apiKey,
       quotaRemaining: {
-        hourly: metadata.settings.maxApiCallsPerHour || Infinity,
+        hourly: Math.max(0, configuredHourlyLimit - currentHourlyUsage),
         concurrent: metadata.settings.maxConcurrentRequests || Infinity,
       },
     };
@@ -222,6 +239,7 @@ export class TenantContextService {
         this.apiKeyMap.delete(apiKey);
       }
     }
+    this.spreadsheetAccessMap.delete(tenantId);
 
     logger.info('Tenant deleted', { tenantId });
   }
@@ -289,9 +307,71 @@ export class TenantContextService {
    * @returns True if tenant has access
    */
   async validateSpreadsheetAccess(tenantId: string, spreadsheetId: string): Promise<boolean> {
-    // Default: allows all access. Override with database-backed tenant-spreadsheet mapping.
-    logger.debug('Validating spreadsheet access', { tenantId, spreadsheetId });
-    return true; // For now, allow all access
+    const isolationEnabled = process.env['ENABLE_TENANT_ISOLATION'] === 'true';
+    const allowUnmapped =
+      process.env['TENANT_ALLOW_UNMAPPED_SPREADSHEET_ACCESS'] === undefined
+        ? !isolationEnabled
+        : process.env['TENANT_ALLOW_UNMAPPED_SPREADSHEET_ACCESS'] === 'true';
+
+    if (!isolationEnabled) {
+      logger.debug('Tenant isolation disabled, allowing spreadsheet access', {
+        tenantId,
+        spreadsheetId,
+      });
+      return true;
+    }
+
+    const allowedSheets = this.spreadsheetAccessMap.get(tenantId);
+    if (!allowedSheets || allowedSheets.size === 0) {
+      logger.debug('Tenant has no explicit spreadsheet mapping', {
+        tenantId,
+        spreadsheetId,
+        allowUnmapped,
+      });
+      return allowUnmapped;
+    }
+
+    const hasAccess = allowedSheets.has(spreadsheetId);
+    logger.debug('Validated spreadsheet access against tenant mapping', {
+      tenantId,
+      spreadsheetId,
+      hasAccess,
+      mappedCount: allowedSheets.size,
+    });
+    return hasAccess;
+  }
+
+  /**
+   * Grant tenant access to a spreadsheet.
+   *
+   * Intended for admin provisioning flows and tests.
+   */
+  grantSpreadsheetAccess(tenantId: string, spreadsheetId: string): void {
+    let set = this.spreadsheetAccessMap.get(tenantId);
+    if (!set) {
+      set = new Set<string>();
+      this.spreadsheetAccessMap.set(tenantId, set);
+    }
+    set.add(spreadsheetId);
+  }
+
+  /**
+   * Revoke tenant access to a spreadsheet.
+   */
+  revokeSpreadsheetAccess(tenantId: string, spreadsheetId: string): void {
+    const set = this.spreadsheetAccessMap.get(tenantId);
+    if (!set) return;
+    set.delete(spreadsheetId);
+    if (set.size === 0) {
+      this.spreadsheetAccessMap.delete(tenantId);
+    }
+  }
+
+  /**
+   * Replace the full spreadsheet allowlist for a tenant.
+   */
+  setSpreadsheetAccess(tenantId: string, spreadsheetIds: string[]): void {
+    this.spreadsheetAccessMap.set(tenantId, new Set(spreadsheetIds));
   }
 
   /**
@@ -300,8 +380,49 @@ export class TenantContextService {
    * @param tenantId Tenant ID
    */
   async recordApiCall(tenantId: string): Promise<void> {
-    // Default: logs only. Override with actual quota tracking for production.
-    logger.debug('API call recorded', { tenantId });
+    const tenant = await this.storage.get(tenantId);
+    if (!tenant || tenant.status !== 'active') {
+      logger.warn('Cannot record API call for inactive tenant', { tenantId });
+      return;
+    }
+
+    const hourlyLimit = tenant.settings.maxApiCallsPerHour;
+    const usage = this.getOrCreateHourlyUsageCounter(tenantId);
+
+    if (hourlyLimit !== undefined && usage.count >= hourlyLimit) {
+      logger.warn('Tenant hourly API quota exceeded', {
+        tenantId,
+        limit: hourlyLimit,
+        usage: usage.count,
+      });
+      throw new TenantQuotaExceededError(tenantId, hourlyLimit);
+    }
+
+    usage.count += 1;
+    logger.debug('API call recorded', {
+      tenantId,
+      usage: usage.count,
+      hourlyLimit: hourlyLimit ?? 'unlimited',
+    });
+  }
+
+  private getCurrentHourlyUsage(tenantId: string): number {
+    const usage = this.getOrCreateHourlyUsageCounter(tenantId);
+    return usage.count;
+  }
+
+  private getOrCreateHourlyUsageCounter(tenantId: string): {
+    windowStartMs: number;
+    count: number;
+  } {
+    const now = Date.now();
+    const existing = this.hourlyUsage.get(tenantId);
+    if (!existing || now - existing.windowStartMs >= ONE_HOUR_MS) {
+      const resetCounter = { windowStartMs: now, count: 0 };
+      this.hourlyUsage.set(tenantId, resetCounter);
+      return resetCounter;
+    }
+    return existing;
   }
 }
 

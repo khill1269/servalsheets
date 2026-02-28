@@ -31,6 +31,7 @@ import {
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { sendProgress } from '../utils/request-context.js';
+import { logger } from '../utils/logger.js';
 
 // ============================================================================
 // HANDLER CLASS
@@ -708,6 +709,10 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
       }
     }
   } catch (error) {
+    logger.error('Session handler error', {
+      action,
+      error,
+    });
     return {
       response: {
         success: false,

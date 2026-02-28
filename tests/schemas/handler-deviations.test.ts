@@ -7,7 +7,9 @@
 import { describe, test, expect } from 'vitest';
 import {
   ACCEPTABLE_DEVIATIONS,
+  KNOWN_PROTOCOL_DEVIATIONS,
   getToolDeviation,
+  getProtocolDeviation,
   isCaseDeviationDocumented,
   getToolsWithDeviations,
   validateDeviation,
@@ -21,10 +23,13 @@ describe('Handler Deviations Structure', () => {
 
   test('each deviation has required fields', () => {
     for (const deviation of ACCEPTABLE_DEVIATIONS) {
-      expect(deviation.tool).toBeTruthy();
-      expect(deviation.reason).toBeTruthy();
-      expect(deviation.justification).toBeTruthy();
-      expect(deviation.addedDate).toBeTruthy();
+      expect(typeof deviation.tool).toBe('string');
+      expect(deviation.tool.length).toBeGreaterThan(0);
+      expect(typeof deviation.reason).toBe('string');
+      expect(deviation.reason.length).toBeGreaterThan(0);
+      expect(typeof deviation.justification).toBe('string');
+      expect(deviation.justification.length).toBeGreaterThan(0);
+      expect(typeof deviation.addedDate).toBe('string');
       expect(deviation.addedDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     }
   });
@@ -104,6 +109,31 @@ describe('getToolsWithDeviations', () => {
   test('includes core tool', () => {
     const tools = getToolsWithDeviations();
     expect(tools).toContain('core');
+  });
+});
+
+describe('Protocol deviations registry', () => {
+  test('ISSUE-255 non-fatal tool error deviation is documented', () => {
+    const deviation = getProtocolDeviation('ISSUE-255');
+    expect(deviation).toBeDefined();
+    expect(deviation?.area).toBe('mcp');
+    expect(deviation?.behavior).toMatch(/isError/i);
+    expect(deviation?.control).toMatch(/MCP_NON_FATAL_TOOL_ERRORS=false/);
+  });
+
+  test('protocol deviation entries have required audit fields', () => {
+    for (const deviation of KNOWN_PROTOCOL_DEVIATIONS) {
+      expect(typeof deviation.id).toBe('string');
+      expect(deviation.id.length).toBeGreaterThan(0);
+      expect(typeof deviation.specExpectation).toBe('string');
+      expect(deviation.specExpectation.length).toBeGreaterThan(20);
+      expect(typeof deviation.actualBehavior).toBe('string');
+      expect(deviation.actualBehavior.length).toBeGreaterThan(20);
+      expect(typeof deviation.rationale).toBe('string');
+      expect(deviation.rationale.length).toBeGreaterThan(20);
+      expect(typeof deviation.addedDate).toBe('string');
+      expect(deviation.addedDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
   });
 });
 

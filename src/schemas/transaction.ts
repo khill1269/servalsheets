@@ -178,6 +178,22 @@ const TransactionResponseSchema = z.discriminatedUnion('success', [
       )
       .optional()
       .describe('List of active transactions'),
+    walOrphans: z
+      .array(
+        z.object({
+          transactionId: z.string(),
+          spreadsheetId: z.string().optional(),
+          snapshotId: z.string().optional(),
+          queuedOperations: z.number().int().min(0),
+          lastEventType: z.string(),
+          lastEventTimestamp: z.number(),
+        })
+      )
+      .optional()
+      .describe(
+        'Orphaned transactions from WAL crash recovery — call rollback to discard each one'
+      ),
+    walEnabled: z.boolean().optional().describe('Whether WAL crash recovery is active'),
     _meta: ResponseMetaSchema.optional(),
   }),
   z.object({

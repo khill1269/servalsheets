@@ -24,6 +24,7 @@ import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
 import { logger } from '../utils/logger.js';
 import PQueue from 'p-queue';
 import { getConcurrencyCoordinator } from './concurrency-coordinator.js';
+import { FIELD_MASKS } from '../constants/field-masks.js';
 
 export interface PrefetchOptions {
   /** Enable/disable prefetching (default: true) */
@@ -380,6 +381,7 @@ export class PrefetchingSystem {
         this.sheetsApi.spreadsheets.get({
           spreadsheetId: task.spreadsheetId,
           includeGridData: false,
+          fields: FIELD_MASKS.SPREADSHEET_WITH_SHEETS,
         })
       );
 
@@ -761,6 +763,7 @@ export class PrefetchingSystem {
         const response = await this.sheetsApi.spreadsheets.get({
           spreadsheetId: task.spreadsheetId,
           includeGridData: false,
+          fields: FIELD_MASKS.SPREADSHEET_WITH_SHEETS,
         });
 
         // Update cache

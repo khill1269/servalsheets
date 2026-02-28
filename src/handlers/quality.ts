@@ -27,6 +27,7 @@ import { ValidationError } from '../core/errors.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { sendProgress } from '../utils/request-context.js';
+import { logger } from '../utils/logger.js';
 
 export interface QualityHandlerOptions {
   // Options can be added as needed
@@ -72,6 +73,10 @@ export class QualityHandler {
       return { response: filteredResponse };
     } catch (error) {
       // Catch-all for unexpected errors
+      logger.error('Quality handler error', {
+        action: req.action,
+        error,
+      });
       return {
         response: {
           success: false,
@@ -164,7 +169,7 @@ export class QualityHandler {
     // Add dry run preview if requested
     if (isDryRun) {
       // `dryRun` and `validationPreview` are optional fields on the success branch of
-      // QualityResponse. We narrow to the success variant to assign them without `as any`.
+      // QualityResponse. We narrow to the success variant before assignment.
       const successResponse = response as Extract<QualityResponse, { success: true }>;
       successResponse.dryRun = true;
       successResponse.validationPreview = {

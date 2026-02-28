@@ -5,9 +5,9 @@
  * Enables cross-session learning and personalized experiences.
  */
 
-import crypto from 'crypto';
-import fs from 'fs/promises';
-import path from 'path';
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import { logger } from '../utils/logger.js';
 
 // ============================================================================
@@ -20,8 +20,8 @@ const ENCRYPTION_KEY_HEX = process.env['PROFILE_ENCRYPTION_KEY'];
 function encryptProfileData(plaintext: string): string {
   if (!ENCRYPTION_KEY_HEX) return plaintext;
   const key = Buffer.from(ENCRYPTION_KEY_HEX, 'hex');
-  const iv = crypto.randomBytes(12); // 96-bit IV for GCM
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const iv = randomBytes(12); // 96-bit IV for GCM
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
   const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   const authTag = cipher.getAuthTag();
   return JSON.stringify({
@@ -43,7 +43,7 @@ function decryptProfileData(input: string): string {
     };
     if (v !== 1) throw new Error(`Unsupported encryption version: ${String(v)}`);
     const key = Buffer.from(ENCRYPTION_KEY_HEX, 'hex');
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64'));
+    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64'));
     decipher.setAuthTag(Buffer.from(tag, 'base64'));
     return decipher.update(Buffer.from(data, 'base64'), undefined, 'utf8') + decipher.final('utf8');
   } catch {

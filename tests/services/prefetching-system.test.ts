@@ -15,6 +15,7 @@ import type { sheets_v4 } from 'googleapis';
 import { cacheManager } from '../../src/utils/cache-manager.js';
 import { getAccessPatternTracker } from '../../src/services/access-pattern-tracker.js';
 import { resetSingleton } from '../helpers/singleton-reset.js';
+import { FIELD_MASKS } from '../../src/constants/field-masks.js';
 
 describe('PrefetchingSystem', () => {
   let prefetchingSystem: PrefetchingSystem;
@@ -561,6 +562,43 @@ describe('PrefetchingSystem', () => {
       // Should have attempted refresh
       const stats = prefetchingSystem.getStats();
       expect(stats.totalRefreshes).toBeGreaterThanOrEqual(0);
+    });
+
+    it('uses a fields mask for basic metadata prefetch fallback', async () => {
+      (prefetchingSystem as any).queuePrefetch({
+        spreadsheetId: 'test-sheet-123',
+        confidence: 0.7,
+        reason: 'unit-test-fallback',
+        priority: 5,
+      });
+
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(mockSpreadsheetsGet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          spreadsheetId: 'test-sheet-123',
+          includeGridData: false,
+          fields: FIELD_MASKS.SPREADSHEET_WITH_SHEETS,
+        })
+      );
+    });
+
+    it('uses a fields mask for basic metadata refresh fallback', async () => {
+      await (prefetchingSystem as any).refreshCacheEntry({
+        cacheKey: 'test-sheet-123&type="metadata"',
+        spreadsheetId: 'test-sheet-123',
+        priority: 1,
+        lastAccessed: Date.now(),
+        accessCount: 1,
+      });
+
+      expect(mockSpreadsheetsGet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          spreadsheetId: 'test-sheet-123',
+          includeGridData: false,
+          fields: FIELD_MASKS.SPREADSHEET_WITH_SHEETS,
+        })
+      );
     });
   });
 

@@ -506,13 +506,13 @@ describe.skipIf(skipTests)('Large Scale Data Tests', () => {
 
         const finalState = quotaManager.getState();
 
-        // Quota should have been consumed
+        // Quota should have been consumed (current usage should be >= initial usage)
         console.log(
-          `Quota used: Reads ${initialState.estimatedReadsRemaining - finalState.estimatedReadsRemaining}, Writes ${initialState.estimatedWritesRemaining - finalState.estimatedWritesRemaining}`
+          `Quota used: Reads +${finalState.estimatedReadsCurrent - initialState.estimatedReadsCurrent}, Writes +${finalState.estimatedWritesCurrent - initialState.estimatedWritesCurrent}`
         );
 
-        expect(finalState.estimatedReadsRemaining).toBeLessThanOrEqual(
-          initialState.estimatedReadsRemaining
+        expect(finalState.estimatedReadsCurrent).toBeGreaterThanOrEqual(
+          initialState.estimatedReadsCurrent
         );
       },
       LARGE_SCALE_CONFIG.MEDIUM_TIMEOUT

@@ -53,9 +53,8 @@ export class RequestRecorder {
   private enabled: boolean;
 
   constructor(dbPath?: string) {
-    this.enabled =
-      process.env['RECORD_REQUESTS'] === 'true' ||
-      (process.env['NODE_ENV'] !== 'production' && process.env['RECORD_REQUESTS'] !== 'false');
+    // Opt-in only: recording requires explicit RECORD_REQUESTS=true
+    this.enabled = process.env['RECORD_REQUESTS'] === 'true';
 
     if (!this.enabled) {
       logger.info('Request recording disabled');

@@ -22,6 +22,7 @@
 
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
+import { getTracer } from '../utils/tracing.js';
 import { getConcurrencyCoordinator } from './concurrency-coordinator.js';
 import { extractSheetName } from '../utils/range-helpers.js';
 import {
@@ -360,10 +361,14 @@ export class BatchingSystem {
         this.startBatchTimer(batchKey);
       }
 
-      // Execute immediately if batch size limit reached
+      // Execute immediately if batch size limit reached.
+      // Remove from pendingBatches synchronously before the async call so that
+      // any concurrent execute() calls create a new batch rather than appending
+      // to one that is already being dispatched.
       if (batch.length >= this.maxBatchSize) {
         this.cancelBatchTimer(batchKey);
-        void this.executeBatch(batchKey);
+        this.pendingBatches.delete(batchKey);
+        void this.executeBatch(batchKey, batch);
       }
 
       if (this.verboseLogging) {
@@ -416,13 +421,17 @@ export class BatchingSystem {
   /**
    * Execute a batch of operations
    */
-  private async executeBatch(batchKey: string): Promise<void> {
-    const operations = this.pendingBatches.get(batchKey);
+  private async executeBatch(
+    batchKey: string,
+    capturedBatch?: BatchableOperation[]
+  ): Promise<void> {
+    // Use pre-captured batch (size-limit path) or read from map (timer path)
+    const operations = capturedBatch ?? this.pendingBatches.get(batchKey);
     if (!operations || operations.length === 0) {
       return;
     }
 
-    // Remove from pending
+    // Remove from pending (no-op if already removed by size-limit path)
     this.pendingBatches.delete(batchKey);
     this.cancelBatchTimer(batchKey);
 
@@ -476,6 +485,14 @@ export class BatchingSystem {
     }
 
     const startTime = Date.now();
+    const span = getTracer().startSpan('batching-system.executeSingleBatch', {
+      kind: 'internal',
+      attributes: {
+        'batch.size': operations.length,
+        'batch.key': batchKey,
+        'batch.type': operations[0]?.type ?? 'unknown',
+      },
+    });
 
     try {
       // Merge operations based on type
@@ -535,6 +552,8 @@ export class BatchingSystem {
       // Reject all operations in the batch
       const err = error instanceof Error ? error : new Error(String(error));
       operations.forEach((op) => op.reject(err));
+    } finally {
+      span.end();
     }
   }
 
@@ -720,6 +739,7 @@ export class BatchingSystem {
 
   /**
    * Execute batch using batchUpdate (for format/cell/sheet operations)
+   * Automatically chunks requests if they exceed maxBatchSize
    */
   private async executeBatchBatchUpdate(operations: BatchableOperation[]): Promise<void> {
     const spreadsheetId = operations[0]!.spreadsheetId;
@@ -728,22 +748,61 @@ export class BatchingSystem {
     // Merge all requests
     const requests = operations.flatMap((op) => op.params.requests || [op.params.request]);
 
-    // Phase 1: Acquire global permit before batch update
-    const response = await coordinator.execute('BatchingSystem', async () =>
-      this.sheetsApi.spreadsheets.batchUpdate({
-        spreadsheetId,
-        requestBody: {
-          requests,
-        },
-      })
-    );
+    // Chunk requests if needed to respect maxBatchSize limit
+    const chunks = this.chunkArray(requests, this.maxBatchSize);
 
-    // Resolve all operations with the full response
-    // Note: Individual operation results are in responses array
-    operations.forEach((op, index) => {
-      const opResponse = response.data.replies?.[index];
-      op.resolve(opResponse);
-    });
+    if (chunks.length === 1) {
+      // Single chunk - execute normally
+      const response = await coordinator.execute('BatchingSystem', async () =>
+        this.sheetsApi.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            requests,
+          },
+        })
+      );
+
+      // Resolve all operations with the full response
+      operations.forEach((op, index) => {
+        const opResponse = response.data.replies?.[index];
+        op.resolve(opResponse);
+      });
+    } else {
+      // Multiple chunks - execute sequentially and collect all responses
+      const allResponses: unknown[] = [];
+      for (const chunk of chunks) {
+        const response = await coordinator.execute('BatchingSystem', async () =>
+          this.sheetsApi.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+              requests: chunk,
+            },
+          })
+        );
+
+        // Collect responses from this chunk
+        if (response.data.replies) {
+          allResponses.push(...response.data.replies);
+        }
+      }
+
+      // Resolve operations with chunked responses
+      operations.forEach((op, index) => {
+        const opResponse = allResponses[index];
+        op.resolve(opResponse);
+      });
+    }
+  }
+
+  /**
+   * Utility: Split array into chunks of specified size
+   */
+  private chunkArray<T>(array: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+    for (let i = 0; i < array.length; i += size) {
+      chunks.push(array.slice(i, i + size));
+    }
+    return chunks;
   }
 
   /**

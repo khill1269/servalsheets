@@ -9,6 +9,7 @@
  */
 
 import type { sheets_v4 } from 'googleapis';
+import type { CachedSheetsApi } from './cached-sheets-api.js';
 import { executeWithRetry } from '../utils/retry.js';
 
 type CellValue = string | number | boolean | null;
@@ -68,17 +69,24 @@ export interface DiffResult {
 
 async function fetchRangeGrid(
   sheetsApi: sheets_v4.Sheets,
+  cachedApi: CachedSheetsApi | undefined,
   spreadsheetId: string,
   range: string
 ): Promise<Grid> {
-  const res = await executeWithRetry(() =>
-    sheetsApi.spreadsheets.values.get({
-      spreadsheetId,
-      range,
-      valueRenderOption: 'UNFORMATTED_VALUE',
-    })
-  );
-  const raw = res.data.values ?? [];
+  const response = cachedApi
+    ? await cachedApi.getValues(spreadsheetId, range, {
+        valueRenderOption: 'UNFORMATTED_VALUE',
+      })
+    : (
+        await executeWithRetry(() =>
+          sheetsApi.spreadsheets.values.get({
+            spreadsheetId,
+            range,
+            valueRenderOption: 'UNFORMATTED_VALUE',
+          })
+        )
+      ).data;
+  const raw = response.values ?? [];
   return raw.map((row) =>
     row.map((cell) =>
       cell === '' || cell === undefined || cell === null ? null : (cell as CellValue)
@@ -86,9 +94,13 @@ async function fetchRangeGrid(
   );
 }
 
-async function fetchSource(sheetsApi: sheets_v4.Sheets, source: DataSource): Promise<FetchResult> {
+async function fetchSource(
+  sheetsApi: sheets_v4.Sheets,
+  cachedApi: CachedSheetsApi | undefined,
+  source: DataSource
+): Promise<FetchResult> {
   try {
-    const data = await fetchRangeGrid(sheetsApi, source.spreadsheetId, source.range);
+    const data = await fetchRangeGrid(sheetsApi, cachedApi, source.spreadsheetId, source.range);
     const headers = (data[0] ?? []).map((h) => String(h ?? ''));
     const rows = data.slice(1);
     return { source, headers, rows };
@@ -114,9 +126,10 @@ export async function crossRead(
   sheetsApi: sheets_v4.Sheets,
   sources: DataSource[],
   joinKey?: string,
-  joinType: 'inner' | 'left' | 'outer' = 'left'
+  joinType: 'inner' | 'left' | 'outer' = 'left',
+  cachedApi?: CachedSheetsApi
 ): Promise<CrossReadResult> {
-  const results = await Promise.all(sources.map((s) => fetchSource(sheetsApi, s)));
+  const results = await Promise.all(sources.map((s) => fetchSource(sheetsApi, cachedApi, s)));
   const successful = results.filter((r) => !r.error);
   const errors = results
     .filter((r) => r.error)
@@ -232,9 +245,10 @@ export async function crossQuery(
   sheetsApi: sheets_v4.Sheets,
   sources: DataSource[],
   query: string,
-  maxResults = 100
+  maxResults = 100,
+  cachedApi?: CachedSheetsApi
 ): Promise<CrossQueryResult> {
-  const results = await Promise.all(sources.map((s) => fetchSource(sheetsApi, s)));
+  const results = await Promise.all(sources.map((s) => fetchSource(sheetsApi, cachedApi, s)));
   const queryLower = query.toLowerCase();
   const queryMatches: CrossQueryResult['queryMatches'] = [];
   let totalSearched = 0;
@@ -273,10 +287,11 @@ export async function crossWrite(
   sheetsApi: sheets_v4.Sheets,
   source: DataSource,
   destination: { spreadsheetId: string; range: string },
-  valueInputOption = 'USER_ENTERED'
+  valueInputOption = 'USER_ENTERED',
+  cachedApi?: CachedSheetsApi
 ): Promise<CrossWriteResult> {
   // Read source
-  const data = await fetchRangeGrid(sheetsApi, source.spreadsheetId, source.range);
+  const data = await fetchRangeGrid(sheetsApi, cachedApi, source.spreadsheetId, source.range);
 
   // Write to destination
   const res = await sheetsApi.spreadsheets.values.update({
@@ -303,11 +318,12 @@ export async function crossCompare(
   source1: DataSource,
   source2: DataSource,
   compareColumns?: string[],
-  keyColumn?: string
+  keyColumn?: string,
+  cachedApi?: CachedSheetsApi
 ): Promise<DiffResult> {
   const [f1, f2] = await Promise.all([
-    fetchSource(sheetsApi, source1),
-    fetchSource(sheetsApi, source2),
+    fetchSource(sheetsApi, cachedApi, source1),
+    fetchSource(sheetsApi, cachedApi, source2),
   ]);
 
   if (f1.error) throw new Error(`Source 1 fetch failed: ${f1.error}`);

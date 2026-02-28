@@ -136,6 +136,41 @@ describe('FormatHandler', () => {
       expect(call.requestBody.requests[0].repeatCell.fields).toContain('backgroundColor');
       expect(call.requestBody.requests[0].repeatCell.fields).toContain('textFormat');
     });
+
+    it('should report exact cellsFormatted count for A1:E1', async () => {
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: {} });
+      mockContext.rangeResolver.resolve = vi.fn().mockResolvedValue({
+        a1Notation: 'Sheet1!A1:E1',
+        sheetId: 0,
+        sheetName: 'Sheet1',
+        gridRange: {
+          sheetId: 0,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: 5,
+        },
+        resolution: {
+          method: 'a1_direct',
+          confidence: 1.0,
+          path: '',
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'set_format',
+        spreadsheetId: 'test-id',
+        range: { a1: 'Sheet1!A1:E1' },
+        format: {
+          backgroundColor: { red: 0.2, green: 0.4, blue: 0.6 },
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.cellsFormatted).toBe(5);
+      }
+    });
   });
 
   describe('set_background action', () => {

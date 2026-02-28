@@ -4,13 +4,13 @@
  * Handles sheets_dimensions tool (row/column operations, filtering, and sorting)
  * MCP Protocol: 2025-11-25
  *
- * 28 Actions (LLM Optimized - reduced from 39):
+ * 29 Actions (LLM Optimized - reduced from 39):
  * Consolidated dimension operations (11):
  * - insert, delete, move, resize, auto_resize, hide, show, freeze, group, ungroup, append
  *   (all accept dimension: 'ROWS' | 'COLUMNS' parameter)
  * Filter/Sort (4): set_basic_filter, clear_basic_filter, get_basic_filter, sort_range
  * Range utility (4): trim_whitespace, randomize_range, text_to_columns, auto_fill
- * Filter views (5): create_filter_view, update_filter_view, delete_filter_view, list_filter_views, get_filter_view
+ * Filter views (6): create_filter_view, duplicate_filter_view, update_filter_view, delete_filter_view, list_filter_views, get_filter_view
  * Slicers (4): create_slicer, update_slicer, delete_slicer, list_slicers
  */
 
@@ -44,8 +44,9 @@ import type {
   DimensionsRandomizeRangeInput,
   DimensionsTextToColumnsInput,
   DimensionsAutoFillInput,
-  // Filter view types (5)
+  // Filter view types (6)
   DimensionsCreateFilterViewInput,
+  DimensionsDuplicateFilterViewInput,
   DimensionsUpdateFilterViewInput,
   DimensionsDeleteFilterViewInput,
   DimensionsListFilterViewsInput,
@@ -203,6 +204,11 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
           break;
         case 'create_filter_view':
           response = await this.handleCreateFilterView(req as DimensionsCreateFilterViewInput);
+          break;
+        case 'duplicate_filter_view':
+          response = await this.handleDuplicateFilterView(
+            req as DimensionsDuplicateFilterViewInput
+          );
           break;
         case 'update_filter_view':
           response = await this.handleUpdateFilterView(req as DimensionsUpdateFilterViewInput);
@@ -1261,6 +1267,33 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     const filterViewId = response.data?.replies?.[0]?.addFilterView?.filter?.filterViewId;
     return this.success('create_filter_view', {
       filterViewId: filterViewId ?? undefined,
+    });
+  }
+
+  private async handleDuplicateFilterView(
+    input: DimensionsDuplicateFilterViewInput
+  ): Promise<DimensionsResponse> {
+    if (input.safety?.dryRun) {
+      return this.success('duplicate_filter_view', {}, undefined, true);
+    }
+
+    const response = await this.sheetsApi.spreadsheets.batchUpdate({
+      spreadsheetId: input.spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            duplicateFilterView: {
+              filterId: input.filterViewId,
+            },
+          },
+        ],
+      },
+    });
+
+    const duplicatedFilterViewId =
+      response.data?.replies?.[0]?.duplicateFilterView?.filter?.filterViewId;
+    return this.success('duplicate_filter_view', {
+      filterViewId: duplicatedFilterViewId ?? undefined,
     });
   }
 

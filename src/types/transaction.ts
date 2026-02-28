@@ -485,6 +485,9 @@ export interface TransactionConfig {
 
   /** Google API client for batch operations */
   googleClient?: GoogleApiClient;
+
+  /** Optional transaction WAL directory for crash recovery */
+  walDir?: string;
 }
 
 /**

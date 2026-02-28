@@ -33,6 +33,10 @@
 
 import { z, type ZodTypeAny } from 'zod';
 
+type DefCarrier = ZodTypeAny & {
+  _def?: Record<string, unknown>;
+};
+
 /**
  * Recursively unwraps wrapper schemas to get the base type
  *
@@ -79,8 +83,7 @@ export function unwrapSchema(schema: ZodTypeAny): ZodTypeAny {
 
       // Check if .in is a transform (preprocess case)
       // ZodTransform has _def.type === 'transform'
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- No public API for type check
-      const inIsTransform = (pipeIn as any)?._def?.type === 'transform';
+      const inIsTransform = (pipeIn as unknown as DefCarrier)._def?.['type'] === 'transform';
 
       // For preprocess, use .out (the target schema); for transform, use .in (the input schema)
       current = inIsTransform ? pipeOut : pipeIn;
@@ -89,22 +92,32 @@ export function unwrapSchema(schema: ZodTypeAny): ZodTypeAny {
 
     // Unwrap readonly
     if (current instanceof z.ZodReadonly) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- No public API for readonly innerType
-      current = (current as any)._def.innerType;
+      const innerType = (
+        (current as unknown as DefCarrier)._def as { innerType?: ZodTypeAny } | undefined
+      )?.innerType;
+      if (!innerType) break;
+      current = innerType;
       continue;
     }
 
     // Unwrap catch
     if (current instanceof z.ZodCatch) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- No public API for catch innerType
-      current = (current as any)._def.innerType;
+      const innerType = (
+        (current as unknown as DefCarrier)._def as { innerType?: ZodTypeAny } | undefined
+      )?.innerType;
+      if (!innerType) break;
+      current = innerType;
       continue;
     }
 
     // Unwrap effects (preprocess, transform)
     // Note: ZodEffects is not exported in Zod v4, so we check _def.typeName and _def.schema
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- No public API for effects detection
-    const def = (current as any)._def;
+    const def = (current as unknown as DefCarrier)._def as
+      | {
+          typeName?: unknown;
+          schema?: unknown;
+        }
+      | undefined;
     if (
       def &&
       typeof def === 'object' &&
@@ -230,8 +243,10 @@ export function getDiscriminator(schema: ZodTypeAny): string | null {
   if (unwrapped instanceof z.ZodDiscriminatedUnion) {
     // Minimal _def access (unavoidable - no public API)
     // This is safe because the discriminator is a core stable property
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- No public API for discriminator field
-    return (unwrapped as any)._def.discriminator;
+    const discriminator = (
+      (unwrapped as unknown as DefCarrier)._def as { discriminator?: unknown } | undefined
+    )?.discriminator;
+    return typeof discriminator === 'string' ? discriminator : null;
   }
 
   return null;
@@ -259,8 +274,9 @@ export function getDiscriminatedUnionOptions(schema: ZodTypeAny): ZodTypeAny[] |
 
   if (unwrapped instanceof z.ZodDiscriminatedUnion) {
     // Minimal _def access (unavoidable - no public API)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- No public API for union options
-    return (unwrapped as any)._def.options;
+    const options = ((unwrapped as unknown as DefCarrier)._def as { options?: unknown } | undefined)
+      ?.options;
+    return Array.isArray(options) ? (options as ZodTypeAny[]) : null;
   }
 
   return null;

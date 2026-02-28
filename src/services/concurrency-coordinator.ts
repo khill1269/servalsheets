@@ -443,7 +443,18 @@ export class ConcurrencyCoordinator {
     // ISSUE-113: Reject when the pending queue exceeds 500 to prevent unbounded growth
     const MAX_PENDING = 500;
     if (this.waitQueue.length >= MAX_PENDING) {
-      throw new Error(`Concurrency queue full (${MAX_PENDING} pending). Try again later.`);
+      // ISSUE-149: Include retryAfterMs hint for LLM clients
+      const avgWaitMs = this.metrics.averageWaitTimeMs || 5000;
+      const estimatedRetryAfterMs = Math.max(
+        5000,
+        Math.ceil((this.waitQueue.length * avgWaitMs) / this.config.maxConcurrent)
+      );
+      const queueErr = new Error(
+        `Concurrency queue full (${MAX_PENDING} pending). ` +
+          `Retry after approximately ${Math.ceil(estimatedRetryAfterMs / 1000)}s.`
+      );
+      (queueErr as Error & { retryAfterMs: number }).retryAfterMs = estimatedRetryAfterMs;
+      throw queueErr;
     }
 
     return new Promise<string>((resolve) => {

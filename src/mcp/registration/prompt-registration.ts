@@ -43,6 +43,11 @@ import {
   UltimateAnalysisPromptArgsSchema,
   CreateVisualizationPromptArgsSchema,
   AnalyzeWithHistoryPromptArgsSchema,
+  GenerateSheetPromptArgsSchema,
+  CleanDataAutomatedPromptArgsSchema,
+  ScenarioModelingPromptArgsSchema,
+  SmartSuggestionsPromptArgsSchema,
+  CrossSheetFederationPromptArgsSchema,
 } from '../../schemas/prompts.js';
 
 // ============================================================================
@@ -4610,6 +4615,279 @@ Summary:
 - Parallel edit reconciliation
 
 Please proceed with this comparison and provide a detailed diff report.`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  // === P4-P14 FEATURE PROMPTS (ISSUE-236) ===
+
+  server.registerPrompt(
+    'generate_sheet_from_description',
+    {
+      description: '🪄 Generate a complete spreadsheet from a natural language description',
+      argsSchema: GenerateSheetPromptArgsSchema,
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async ({ description, style }: any) => {
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `🪄 Sheet Generation Workflow
+
+**Goal:** Create a spreadsheet from this description: "${description}"
+**Style:** ${style ?? 'professional'}
+
+## Step 1: Preview (Dry Run)
+Use sheets_composite action "preview_generation" to see proposed structure without creating:
+\`\`\`json
+{"action":"preview_generation","description":"${description}"}
+\`\`\`
+
+## Step 2: Review proposed structure
+- Review the columns, formulas, formatting, and sample data
+- Confirm it matches your intent before creating
+
+## Step 3: Generate
+Use sheets_composite action "generate_sheet" to create the spreadsheet:
+\`\`\`json
+{"action":"generate_sheet","description":"${description}","style":"${style ?? 'professional'}"}
+\`\`\`
+
+## Step 4: Enhance (optional)
+After creation, use sheets_analyze action "suggest_next_actions" to get improvement recommendations:
+\`\`\`json
+{"action":"suggest_next_actions","spreadsheetId":"<from step 3>"}
+\`\`\`
+
+The generator uses AI (MCP Sampling) to design structure and formulas. For complex sheets, describe the columns, data types, and calculations you need.`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'automated_data_cleaning',
+    {
+      description: '🧹 Auto-detect and fix data quality issues in a range',
+      argsSchema: CleanDataAutomatedPromptArgsSchema,
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async ({ spreadsheetId, range }: any) => {
+      const rangeStr = range ?? 'full sheet';
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `🧹 Automated Data Cleaning Workflow
+
+**Spreadsheet:** ${spreadsheetId}
+**Range:** ${rangeStr}
+
+## Step 1: Get AI Recommendations
+Use sheets_fix action "suggest_cleaning" to identify issues:
+\`\`\`json
+{"action":"suggest_cleaning","spreadsheetId":"${spreadsheetId}"${range ? `,"range":"${range}"` : ''}}
+\`\`\`
+
+## Step 2: Preview Changes
+Use sheets_fix action "clean" in preview mode to see what will change:
+\`\`\`json
+{"action":"clean","spreadsheetId":"${spreadsheetId}"${range ? `,"range":"${range}"` : ''},"mode":"preview"}
+\`\`\`
+
+## Step 3: Review & Apply
+If the preview looks good, apply the fixes:
+\`\`\`json
+{"action":"clean","spreadsheetId":"${spreadsheetId}"${range ? `,"range":"${range}"` : ''},"mode":"apply"}
+\`\`\`
+
+## Step 4: Standardize Formats (optional)
+For date/currency/phone inconsistencies, use:
+\`\`\`json
+{"action":"standardize_formats","spreadsheetId":"${spreadsheetId}"${range ? `,"range":"${range}"` : ''},"columns":[{"column":"A","targetFormat":"iso_date"}]}
+\`\`\`
+
+**Built-in rules:** trim_whitespace, normalize_case, fix_dates, fix_numbers, fix_booleans, remove_duplicates, fix_emails, fix_phones, fix_urls, fix_currency`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'what_if_scenario_modeling',
+    {
+      description: '📊 Model a what-if scenario and trace cascading formula effects',
+      argsSchema: ScenarioModelingPromptArgsSchema,
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async ({ spreadsheetId, scenario }: any) => {
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `📊 What-If Scenario Modeling Workflow
+
+**Spreadsheet:** ${spreadsheetId}
+**Scenario:** "${scenario}"
+
+## Step 1: Understand Dependencies
+Use sheets_dependencies action "build" to map formula relationships:
+\`\`\`json
+{"action":"build","spreadsheetId":"${spreadsheetId}"}
+\`\`\`
+
+## Step 2: Identify Input Cells
+Determine which cells to change for this scenario. Example for "revenue drops 20%":
+- Find the revenue input cell (e.g., B2)
+- New value = current value × 0.8
+
+## Step 3: Model the Scenario
+Use sheets_dependencies action "model_scenario" to trace all cascading effects:
+\`\`\`json
+{"action":"model_scenario","spreadsheetId":"${spreadsheetId}","changes":[{"cell":"Sheet1!B2","newValue":80000}]}
+\`\`\`
+
+## Step 4: Compare Multiple Scenarios (optional)
+\`\`\`json
+{"action":"compare_scenarios","spreadsheetId":"${spreadsheetId}","scenarios":[{"name":"Base Case","changes":[]},{"name":"${scenario}","changes":[{"cell":"Sheet1!B2","newValue":80000}]}]}
+\`\`\`
+
+## Step 5: Materialize as Sheet (optional)
+Create a side-by-side comparison sheet without modifying the original:
+\`\`\`json
+{"action":"create_scenario_sheet","spreadsheetId":"${spreadsheetId}","scenario":{"name":"${scenario}","changes":[{"cell":"Sheet1!B2","newValue":80000}]}}
+\`\`\``,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'smart_suggestions_copilot',
+    {
+      description: '💡 Get proactive AI suggestions for improving a spreadsheet',
+      argsSchema: SmartSuggestionsPromptArgsSchema,
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async ({ spreadsheetId }: any) => {
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `💡 Smart Suggestions (Copilot) Workflow
+
+**Spreadsheet:** ${spreadsheetId}
+
+## Step 1: Quick Scan
+Use sheets_analyze action "scout" to understand structure (fast, 1 API call):
+\`\`\`json
+{"action":"scout","spreadsheetId":"${spreadsheetId}"}
+\`\`\`
+
+## Step 2: Get Ranked Suggestions
+Use sheets_analyze action "suggest_next_actions" for AI-powered recommendations:
+\`\`\`json
+{"action":"suggest_next_actions","spreadsheetId":"${spreadsheetId}","maxSuggestions":5}
+\`\`\`
+
+Each suggestion includes:
+- Title and description
+- Confidence score (0-1)
+- Category (formulas, formatting, structure, data_quality, visualization)
+- Ready-to-execute params — copy them directly into the next tool call
+
+## Step 3: Apply Safe Improvements Automatically (optional)
+Use sheets_analyze action "auto_enhance" in preview mode first:
+\`\`\`json
+{"action":"auto_enhance","spreadsheetId":"${spreadsheetId}","mode":"preview"}
+\`\`\`
+Then apply:
+\`\`\`json
+{"action":"auto_enhance","spreadsheetId":"${spreadsheetId}","mode":"apply"}
+\`\`\`
+
+## Step 4: Reject Unwanted Suggestions
+If a suggestion doesn't apply, reject it so it won't repeat:
+\`\`\`json
+{"action":"reject_suggestion","spreadsheetId":"${spreadsheetId}","suggestionId":"<id from step 2>"}
+\`\`\``,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'cross_spreadsheet_federation',
+    {
+      description: '🔗 Query and join data across multiple spreadsheets',
+      argsSchema: CrossSheetFederationPromptArgsSchema,
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async ({ spreadsheetIds }: any) => {
+      const ids = spreadsheetIds.split(',').map((s: string) => s.trim());
+      const sourcesJson = JSON.stringify(
+        ids.map((id: string) => ({ spreadsheetId: id, range: 'Sheet1!A1:Z1000' }))
+      );
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `🔗 Cross-Spreadsheet Federation Workflow
+
+**Sources:** ${spreadsheetIds}
+
+## Step 1: Read from Multiple Spreadsheets
+Use sheets_data action "cross_read" to fetch and merge data:
+\`\`\`json
+{"action":"cross_read","sources":${sourcesJson}}
+\`\`\`
+
+To join on a common key (e.g., customer ID in column A):
+\`\`\`json
+{"action":"cross_read","sources":${sourcesJson},"joinKey":"A","joinType":"inner"}
+\`\`\`
+
+## Step 2: Natural Language Query (optional)
+Use sheets_data action "cross_query" for plain-language questions:
+\`\`\`json
+{"action":"cross_query","sources":${sourcesJson},"query":"Show total revenue by month from the Sales sheet joined with region from the CRM sheet"}
+\`\`\`
+
+## Step 3: Compare Two Spreadsheets
+Use sheets_data action "cross_compare" to diff two sources:
+\`\`\`json
+{"action":"cross_compare","source1":{"spreadsheetId":"${ids[0] ?? 'ID_A'}","range":"Sheet1!A1:Z1000"},"source2":{"spreadsheetId":"${ids[1] ?? 'ID_B'}","range":"Sheet1!A1:Z1000"},"compareColumns":["A"]}
+\`\`\`
+
+## Step 4: Write Results to a New Spreadsheet (optional)
+Use sheets_data action "cross_write" to copy merged data:
+\`\`\`json
+{"action":"cross_write","source":{"spreadsheetId":"${ids[0] ?? 'SOURCE_ID'}","range":"Sheet1!A1:Z1000"},"destination":{"spreadsheetId":"DEST_ID","range":"Sheet1!A1"}}
+\`\`\`
+
+**Tip:** All cross-spreadsheet operations use parallel fetching for speed and ETag caching to avoid redundant API calls.`,
             },
           },
         ],

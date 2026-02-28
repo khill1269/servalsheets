@@ -266,6 +266,7 @@ class TracerImpl {
     options: {
       kind?: SpanKind;
       attributes?: SpanAttributes;
+      parent?: SpanContext;
     } = {}
   ): Promise<T> {
     if (!this.enabled) {
@@ -300,6 +301,7 @@ class TracerImpl {
     options: {
       kind?: SpanKind;
       attributes?: SpanAttributes;
+      parent?: SpanContext;
     } = {}
   ): T {
     if (!this.enabled) {
@@ -533,7 +535,8 @@ export function startOperationSpan(operation: string, attributes?: SpanAttribute
 export async function withToolSpan<T>(
   toolName: string,
   fn: (span: SpanImpl) => Promise<T>,
-  attributes?: SpanAttributes
+  attributes?: SpanAttributes,
+  parent?: SpanContext
 ): Promise<T> {
   return getTracer().withSpan(`tool.${toolName}`, fn, {
     kind: 'server',
@@ -541,6 +544,7 @@ export async function withToolSpan<T>(
       'tool.name': toolName,
       ...attributes,
     },
+    parent,
   });
 }
 

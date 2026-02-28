@@ -19,7 +19,7 @@ import {
 // PROTOCOL CONSTANTS
 // ============================================================================
 
-export { MCP_PROTOCOL_VERSION } from '../version.js';
+export { MCP_PROTOCOL_VERSION } from '../constants/protocol.js';
 export const SHEETS_API_VERSION = 'v4';
 export const DRIVE_API_VERSION = 'v3';
 
@@ -109,6 +109,36 @@ export const ColorSchema = z
   }))
   .describe(
     'Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, "#FF0000", "red"'
+  );
+
+// ISSUE-079: Theme color support for Google Sheets dynamic theming
+/** ThemeColorType enum — colors that update automatically with the spreadsheet theme */
+export const ThemeColorTypeSchema = z
+  .enum([
+    'TEXT',
+    'BACKGROUND',
+    'ACCENT1',
+    'ACCENT2',
+    'ACCENT3',
+    'ACCENT4',
+    'ACCENT5',
+    'ACCENT6',
+    'LINK',
+  ])
+  .describe(
+    'Theme color that updates with the spreadsheet theme. Values: TEXT, BACKGROUND, ACCENT1-6, LINK'
+  );
+
+/** ColorStyle — either an explicit RGB color or a theme color reference */
+export const ColorStyleSchema = z
+  .union([
+    z.object({ rgbColor: ColorSchema }).describe('Explicit RGB color'),
+    z
+      .object({ themeColor: ThemeColorTypeSchema })
+      .describe('Theme color (auto-updates with spreadsheet theme)'),
+  ])
+  .describe(
+    'Color as explicit RGB { rgbColor: {red,green,blue} } or theme reference { themeColor: "ACCENT1" }'
   );
 
 /** Cell value types */
@@ -466,6 +496,9 @@ export const ErrorCodeSchema = z.enum([
   'TRANSACTION_EXPIRED',
   // HTTP Transport
   'SESSION_NOT_FOUND',
+  // Session checkpoints (sheets_session.save_checkpoint / load_checkpoint)
+  'CHECKPOINTS_DISABLED',
+  'CHECKPOINT_NOT_FOUND',
   // Batch/Payload
   'PAYLOAD_TOO_LARGE',
   'OPERATION_LIMIT_EXCEEDED',
@@ -474,9 +507,30 @@ export const ErrorCodeSchema = z.enum([
   'SAMPLING_UNAVAILABLE',
   // Discovery & Replay
   'FORBIDDEN',
+  'DISCOVERY_FAILED', // Action discovery in discover_action failed
   'REPLAY_FAILED',
   // Generic
   'UNKNOWN_ERROR',
+  // Connectors
+  'INVALID_ACTION',
+  'CONNECTOR_ERROR',
+]);
+
+export const ErrorCodeFamilySchema = z.enum([
+  'protocol',
+  'validation',
+  'authentication',
+  'authorization',
+  'quota',
+  'not_found',
+  'conflict',
+  'precondition',
+  'transport',
+  'service',
+  'feature',
+  'session',
+  'data',
+  'unknown',
 ]);
 
 // ============================================================================
@@ -492,6 +546,9 @@ export const BorderSchema = z.object({
 /** Text format */
 export const TextFormatSchema = z.object({
   foregroundColor: ColorSchema.optional(),
+  foregroundColorStyle: ColorStyleSchema.optional().describe(
+    'Text color as ColorStyle (preferred over foregroundColor; supports theme colors)'
+  ),
   fontFamily: z.string().optional(),
   fontSize: z.number().positive().optional(),
   bold: z.boolean().optional(),
@@ -568,6 +625,9 @@ export const NumberFormatSchema = z
 /** Cell format */
 export const CellFormatSchema = z.object({
   backgroundColor: ColorSchema.optional(),
+  backgroundColorStyle: ColorStyleSchema.optional().describe(
+    'Background color as ColorStyle (preferred over backgroundColor; supports theme colors)'
+  ),
   textFormat: TextFormatSchema.optional(),
   horizontalAlignment: HorizontalAlignSchema.optional(),
   verticalAlignment: VerticalAlignSchema.optional(),
@@ -842,6 +902,7 @@ export const SafetyOptionsSchema = z.object({
   sanitizeFormulas: z
     .boolean()
     .optional()
+    .default(true)
     .describe(
       'When true, reject cell values containing dangerous data-exfiltration formulas (IMPORTDATA, IMPORTRANGE, IMPORTFEED, IMPORTHTML, IMPORTXML, GOOGLEFINANCE, QUERY). Returns FORMULA_INJECTION_BLOCKED error if detected.'
     ),
@@ -1231,6 +1292,64 @@ export const ResponseMetaSchema = z.object({
     })
     .optional()
     .describe('Summary statistics for list-type responses'),
+  pagination: z
+    .object({
+      hasMore: z.boolean().describe('True when additional pages are available'),
+      nextCursor: z
+        .string()
+        .optional()
+        .describe('Opaque cursor/page token to request the next page'),
+      totalCount: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe('Total number of matching records when known'),
+      count: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe('Number of records returned in the current page'),
+      offset: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe('Offset used for this page when offset-based pagination is used'),
+      limit: z.number().int().positive().optional().describe('Page size used for this response'),
+    })
+    .optional()
+    .describe('Standardized pagination metadata envelope'),
+  collection: z
+    .object({
+      itemsField: z
+        .string()
+        .min(1)
+        .describe('Field name on response containing the current page item array'),
+      count: z
+        .number()
+        .int()
+        .nonnegative()
+        .describe('Number of items in the current response page'),
+      totalCount: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe('Total matching item count when known'),
+      hasMore: z.boolean().optional().describe('True when more pages are available'),
+      nextCursor: z.string().optional().describe('Cursor/token for the next page'),
+      offset: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe('Offset used for this page when offset-based paging applies'),
+      limit: z.number().int().positive().optional().describe('Page size used for this response'),
+    })
+    .optional()
+    .describe('Standardized list envelope metadata'),
   // ISSUE-107: Protocol version surfacing + deprecation guidance
   protocolVersion: z
     .string()
@@ -1242,6 +1361,43 @@ export const ResponseMetaSchema = z.object({
     .describe(
       'Present when the client used a legacy invocation pattern. Contains migration guidance.'
     ),
+  errorCode: ErrorCodeSchema.optional().describe(
+    'Original error code reported by the handler when success=false'
+  ),
+  errorCodeCanonical: ErrorCodeSchema.optional().describe(
+    'Compatibility canonical error code used for taxonomy consolidation'
+  ),
+  errorCodeFamily: ErrorCodeFamilySchema.optional().describe(
+    'Coarse error-code family for analytics and migration-safe client handling'
+  ),
+  errorCodeIsAlias: z
+    .boolean()
+    .optional()
+    .describe('True when errorCode differs from errorCodeCanonical'),
+  truncated: z
+    .boolean()
+    .optional()
+    .describe('True when response payload was truncated and full data is available elsewhere'),
+  originalSizeBytes: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe('Original serialized response size before truncation'),
+  deliveredSizeBytes: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe('Serialized size of the delivered truncated payload'),
+  retrievalUri: z
+    .string()
+    .optional()
+    .describe('Resource URI for retrieving full non-truncated payload'),
+  continuationHint: z
+    .string()
+    .optional()
+    .describe('Machine-readable hint describing how to continue retrieval'),
 });
 
 // ============================================================================
@@ -1265,6 +1421,8 @@ export interface ToolExecution {
 // ============================================================================
 
 export type Color = z.infer<typeof ColorSchema>;
+export type ThemeColorType = z.infer<typeof ThemeColorTypeSchema>;
+export type ColorStyle = z.infer<typeof ColorStyleSchema>;
 export type CellValue = z.infer<typeof CellValueSchema>;
 export type ValuesArray = z.infer<typeof ValuesArraySchema>;
 export type GridRange = z.infer<typeof GridRangeSchema>;

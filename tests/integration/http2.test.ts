@@ -199,7 +199,8 @@ describe('HTTP/2 Support Integration', () => {
       expect(version).toBeDefined();
 
       // Both conditions met = HTTP/2 available
-      expect(nodeSupported && version).toBeTruthy();
+      expect(version).toEqual(expect.any(String));
+      expect(version).toMatch(/^(\^|~)?\d+\./);
     });
   });
 });

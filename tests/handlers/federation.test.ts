@@ -455,6 +455,29 @@ describe('FederationHandler', () => {
       }
     });
 
+    it('should sanitize multiline and path-like remote errors', async () => {
+      mockFederationClient.callRemoteTool.mockRejectedValue(
+        new Error('Remote failure\nat /Users/test/project/node_modules/pkg/index.js:10:2')
+      );
+
+      const result = await handler.handle({
+        request: {
+          action: 'call_remote',
+          serverName: 'test-server',
+          toolName: 'secure_tool',
+          toolInput: {},
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error).toContain('Remote MCP server');
+        expect(result.response.error).not.toContain('/Users/');
+        expect(result.response.error).not.toContain('node_modules/');
+        expect(result.response.error).not.toContain('\n');
+      }
+    });
+
     it('should handle invalid response schemas', async () => {
       mockFederationClient.listRemoteTools.mockResolvedValue([
         { invalid: 'schema' }, // Missing required 'name' field

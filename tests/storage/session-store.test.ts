@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { waitFor } from '../helpers/wait-for.js';
 
 // Mock dependencies
 vi.mock('../../src/utils/logger.js', () => ({
@@ -82,7 +83,7 @@ describe('MemorySessionStore', () => {
       expect(immediate).toBeDefined();
 
       // Wait for expiration
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       const expired = await shortTtlStore.get('expiring-key');
       expect(expired).toBeUndefined();
@@ -96,7 +97,7 @@ describe('MemorySessionStore', () => {
       const immediate = await store.get('custom-ttl');
       expect(immediate).toBeDefined();
 
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await waitFor(150);
 
       const expired = await store.get('custom-ttl');
       expect(expired).toBeUndefined();
@@ -140,7 +141,7 @@ describe('MemorySessionStore', () => {
 
       await shortTtlStore.set('expiring', { data: 'test' });
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       const exists = await shortTtlStore.has('expiring');
       expect(exists).toBe(false);
@@ -185,7 +186,7 @@ describe('MemorySessionStore', () => {
       await shortTtlStore.set('expiring', { data: 'test' });
       await shortTtlStore.set('not-expiring', { data: 'test' }, { ttlMs: 60000 });
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       // Trigger cleanup
       await shortTtlStore.cleanup();
@@ -220,7 +221,7 @@ describe('MemorySessionStore', () => {
       await shortTtlStore.set('expiring2', { data: '2' });
       await shortTtlStore.set('not-expiring', { data: '3' }, { ttlMs: 60000 });
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       const removedCount = await shortTtlStore.cleanup();
 
@@ -269,12 +270,12 @@ describe('MemorySessionStore', () => {
 
       await shortTtlStore.set('refresh-key', { data: '1' });
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitFor(50);
 
       // Update the entry (should reset TTL)
       await shortTtlStore.set('refresh-key', { data: '2' });
 
-      await new Promise((resolve) => setTimeout(resolve, 75));
+      await waitFor(75);
 
       // Should still exist because TTL was reset
       const result = await shortTtlStore.get('refresh-key');

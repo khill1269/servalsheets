@@ -17,9 +17,10 @@
 import type { sheets_v4 } from 'googleapis';
 import { getETagCache } from './etag-cache.js';
 import { getCacheInvalidationGraph } from './cache-invalidation-graph.js';
-import { extractETag } from '../utils/etag-helpers.js';
+import { extractETag, is304NotModified } from '../utils/etag-helpers.js';
 import { logger } from '../utils/logger.js';
 import { cacheHitsTotal, cacheMissesTotal } from '../observability/metrics.js';
+import { getTracer } from '../utils/tracing.js';
 
 /**
  * Statistics for cached API operations
@@ -64,6 +65,10 @@ export class CachedSheetsApi {
       fields?: string;
     } = {}
   ): Promise<sheets_v4.Schema$Spreadsheet> {
+    const span = getTracer().startSpan('cached-sheets-api.getSpreadsheet', {
+      kind: 'internal',
+      attributes: { 'spreadsheet.id': spreadsheetId },
+    });
     this.stats.totalRequests++;
 
     const cacheKey = {
@@ -103,7 +108,7 @@ export class CachedSheetsApi {
           return response.data;
         } catch (error: unknown) {
           // Check for 304 Not Modified
-          if (error && typeof error === 'object' && 'code' in error && error.code === 304) {
+          if (is304NotModified(error)) {
             this.stats.cacheHits++;
             cacheHitsTotal.inc({ namespace: 'etag' });
             const cachedData = (await this.cache.getCachedData(
@@ -115,6 +120,7 @@ export class CachedSheetsApi {
                 spreadsheetId,
                 quotaSaved: true,
               });
+              span.end();
               return cachedData;
             }
 
@@ -138,6 +144,7 @@ export class CachedSheetsApi {
         spreadsheetId,
         savedApiCall: true,
       });
+      span.end();
       return cached;
     }
 
@@ -155,6 +162,7 @@ export class CachedSheetsApi {
     const etag = extractETag(response) || `cached-${Date.now()}`;
     await this.cache.setETag(cacheKey, etag, response.data);
 
+    span.end();
     return response.data;
   }
 
@@ -175,6 +183,10 @@ export class CachedSheetsApi {
       majorDimension?: 'ROWS' | 'COLUMNS';
     } = {}
   ): Promise<sheets_v4.Schema$ValueRange> {
+    const span = getTracer().startSpan('cached-sheets-api.getValues', {
+      kind: 'internal',
+      attributes: { 'spreadsheet.id': spreadsheetId, range: range },
+    });
     this.stats.totalRequests++;
 
     const cacheKey = {
@@ -216,7 +228,7 @@ export class CachedSheetsApi {
           return response.data;
         } catch (error: unknown) {
           // Check for 304 Not Modified
-          if (error && typeof error === 'object' && 'code' in error && error.code === 304) {
+          if (is304NotModified(error)) {
             this.stats.cacheHits++;
             cacheHitsTotal.inc({ namespace: 'etag' });
             const cachedData = (await this.cache.getCachedData(
@@ -229,6 +241,7 @@ export class CachedSheetsApi {
                 range,
                 quotaSaved: true,
               });
+              span.end();
               return cachedData;
             }
 
@@ -251,6 +264,7 @@ export class CachedSheetsApi {
         range,
         savedApiCall: true,
       });
+      span.end();
       return cached;
     }
 
@@ -269,6 +283,7 @@ export class CachedSheetsApi {
     const etag = extractETag(response) || `cached-${Date.now()}`;
     await this.cache.setETag(cacheKey, etag, response.data);
 
+    span.end();
     return response.data;
   }
 
@@ -288,6 +303,10 @@ export class CachedSheetsApi {
       majorDimension?: 'ROWS' | 'COLUMNS';
     } = {}
   ): Promise<sheets_v4.Schema$BatchGetValuesResponse> {
+    const span = getTracer().startSpan('cached-sheets-api.batchGetValues', {
+      kind: 'internal',
+      attributes: { 'spreadsheet.id': spreadsheetId, 'ranges.count': ranges.length },
+    });
     this.stats.totalRequests++;
 
     // De-duplicate ranges to avoid fetching same range multiple times
@@ -324,8 +343,10 @@ export class CachedSheetsApi {
       });
       // Map cached results back to original order if duplicates existed
       if (duplicatesEliminated > 0) {
+        span.end();
         return this.remapBatchResults(cached, ranges, uniqueRanges);
       }
+      span.end();
       return cached;
     }
 
@@ -345,9 +366,11 @@ export class CachedSheetsApi {
 
     // Map results back to original order if duplicates existed
     if (duplicatesEliminated > 0) {
+      span.end();
       return this.remapBatchResults(response.data, ranges, uniqueRanges);
     }
 
+    span.end();
     return response.data;
   }
 

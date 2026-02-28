@@ -89,6 +89,18 @@ import {
   SheetsFederationInputSchema,
   SheetsFederationOutputSchema,
   SHEETS_FEDERATION_ANNOTATIONS,
+  // Phase 5: Computation Engine
+  SheetsComputeInputSchema,
+  SheetsComputeOutputSchema,
+  SHEETS_COMPUTE_ANNOTATIONS,
+  // Phase 6: Agent Loop
+  SheetsAgentInputSchema,
+  SheetsAgentOutputSchema,
+  SHEETS_AGENT_ANNOTATIONS,
+  // Wave 6: Live Data Connectors
+  SheetsConnectorsInputSchema,
+  SheetsConnectorsOutputSchema,
+  SHEETS_CONNECTORS_ANNOTATIONS,
   // LLM-optimized descriptions
   TOOL_DESCRIPTIONS,
   TOOL_DESCRIPTIONS_MINIMAL,
@@ -124,6 +136,22 @@ export interface ToolDefinition {
   readonly inputSchema: ZodTypeAny;
   readonly outputSchema: ZodTypeAny;
   readonly annotations: ToolAnnotations;
+  /**
+   * Authentication policy used by transport layers.
+   * Defaults to `{ requiresAuth: true }` when omitted.
+   */
+  readonly authPolicy?: ToolAuthPolicy;
+}
+
+export interface ToolAuthPolicy {
+  /**
+   * When false, this tool can be called without Google auth.
+   */
+  readonly requiresAuth?: boolean;
+  /**
+   * Per-action auth exemptions for tools that are mostly authenticated.
+   */
+  readonly exemptActions?: readonly string[];
 }
 
 // ============================================================================
@@ -160,6 +188,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     inputSchema: SheetsAuthInputSchema,
     outputSchema: SheetsAuthOutputSchema,
     annotations: SHEETS_AUTH_ANNOTATIONS,
+    authPolicy: { requiresAuth: false },
   },
   {
     name: 'sheets_core',
@@ -240,6 +269,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     inputSchema: SheetsHistoryInputSchema,
     outputSchema: SheetsHistoryOutputSchema,
     annotations: SHEETS_HISTORY_ANNOTATIONS,
+    authPolicy: { exemptActions: ['list', 'get', 'stats'] },
   },
   // ============================================================================
   // MCP-NATIVE TOOLS (Elicitation & Sampling)
@@ -251,6 +281,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     inputSchema: SheetsConfirmInputSchema,
     outputSchema: SheetsConfirmOutputSchema,
     annotations: SHEETS_CONFIRM_ANNOTATIONS,
+    authPolicy: { requiresAuth: false },
   },
   {
     name: 'sheets_analyze',
@@ -283,6 +314,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     inputSchema: SheetsSessionInputSchema,
     outputSchema: SheetsSessionOutputSchema,
     annotations: SHEETS_SESSION_ANNOTATIONS,
+    authPolicy: { requiresAuth: false },
   },
   // ============================================================================
   // TIER 7 ENTERPRISE TOOLS
@@ -347,6 +379,39 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     outputSchema: SheetsFederationOutputSchema,
     annotations: SHEETS_FEDERATION_ANNOTATIONS,
   },
+  // ============================================================================
+  // PHASE 5: COMPUTATION ENGINE
+  // ============================================================================
+  {
+    name: 'sheets_compute',
+    title: 'Computation Engine',
+    description: getDescription('sheets_compute'),
+    inputSchema: SheetsComputeInputSchema,
+    outputSchema: SheetsComputeOutputSchema,
+    annotations: SHEETS_COMPUTE_ANNOTATIONS,
+  },
+  // ============================================================================
+  // PHASE 6: AGENT LOOP
+  // ============================================================================
+  {
+    name: 'sheets_agent',
+    title: 'Agentic Execution',
+    description: getDescription('sheets_agent'),
+    inputSchema: SheetsAgentInputSchema,
+    outputSchema: SheetsAgentOutputSchema,
+    annotations: SHEETS_AGENT_ANNOTATIONS,
+  },
+  // ============================================================================
+  // WAVE 6: LIVE DATA CONNECTORS
+  // ============================================================================
+  {
+    name: 'sheets_connectors',
+    title: 'Live Data Connectors',
+    description: getDescription('sheets_connectors'),
+    inputSchema: SheetsConnectorsInputSchema,
+    outputSchema: SheetsConnectorsOutputSchema,
+    annotations: SHEETS_CONNECTORS_ANNOTATIONS,
+  },
 ] as const;
 
 // ============================================================================
@@ -409,4 +474,36 @@ export function getLazyToolDefinitions(): readonly ToolDefinition[] {
  */
 export function getToolDefinition(name: string): ToolDefinition | undefined {
   return TOOL_DEFINITIONS.find((t) => t.name === name);
+}
+
+const EMPTY_ACTION_LIST: readonly string[] = [];
+const DEFAULT_TOOL_AUTH_POLICY: Readonly<Required<ToolAuthPolicy>> = {
+  requiresAuth: true,
+  exemptActions: EMPTY_ACTION_LIST,
+};
+
+/**
+ * Resolve auth policy for a tool (with defaults applied).
+ */
+export function getToolAuthPolicy(toolName: string): Readonly<Required<ToolAuthPolicy>> {
+  const definition = getToolDefinition(toolName);
+  if (!definition?.authPolicy) {
+    return DEFAULT_TOOL_AUTH_POLICY;
+  }
+
+  return {
+    requiresAuth: definition.authPolicy.requiresAuth ?? true,
+    exemptActions: definition.authPolicy.exemptActions ?? EMPTY_ACTION_LIST,
+  };
+}
+
+/**
+ * Whether a specific tool call is exempt from authentication.
+ */
+export function isToolCallAuthExempt(toolName: string, action?: string): boolean {
+  const policy = getToolAuthPolicy(toolName);
+  if (!policy.requiresAuth) {
+    return true;
+  }
+  return Boolean(action && policy.exemptActions.includes(action));
 }

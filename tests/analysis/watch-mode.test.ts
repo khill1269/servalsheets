@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { WatchMode } from '../../scripts/analysis/watch-mode.js';
+import { waitFor } from '../helpers/wait-for.js';
 
 describe('WatchMode', () => {
   const testDir = path.join(__dirname, '../fixtures/watch-test');
@@ -93,7 +94,7 @@ describe('WatchMode', () => {
       watcher['handleFileChange'](testFile, 'changed');
 
       // Wait for debounce
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await waitFor(150);
 
       // Should only analyze once
       expect(analysisCount).toBeLessThanOrEqual(1);
@@ -113,7 +114,7 @@ describe('WatchMode', () => {
       expect(analysisTriggered).toBe(false);
 
       // Should trigger after debounce time
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      await waitFor(60);
       expect(analysisTriggered).toBe(true);
     });
   });
@@ -129,7 +130,7 @@ describe('WatchMode', () => {
 
       watcher['handleFileChange'](testFile, 'added');
 
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      await waitFor(60);
       expect(detectedChange).toBe(true);
     });
 
@@ -143,7 +144,7 @@ describe('WatchMode', () => {
 
       watcher['handleFileChange'](testFile, 'changed');
 
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      await waitFor(60);
       expect(detectedChange).toBe(true);
     });
 
@@ -158,7 +159,7 @@ describe('WatchMode', () => {
       const jsFile = path.join(testDir, 'test.js');
       watcher['handleFileChange'](jsFile, 'changed');
 
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      await waitFor(60);
       expect(analysisTriggered).toBe(false);
     });
   });
@@ -172,7 +173,7 @@ describe('WatchMode', () => {
 
       watcher['handleFileChange'](testFile, 'changed');
 
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      await waitFor(60);
 
       // Should be in queue
       expect(watcher['analysisQueue']).toContain(testFile);
@@ -185,10 +186,10 @@ describe('WatchMode', () => {
 
       // Add same file multiple times
       watcher['handleFileChange'](testFile, 'changed');
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      await waitFor(60);
 
       watcher['handleFileChange'](testFile, 'changed');
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      await waitFor(60);
 
       // Should only appear once in queue
       const count = watcher['analysisQueue'].filter((f) => f === testFile).length;
@@ -201,7 +202,7 @@ describe('WatchMode', () => {
       const processedFiles: string[] = [];
       watcher['analyzeFile'] = vi.fn(async (file: string) => {
         processedFiles.push(file);
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        await waitFor(10);
       });
 
       // Queue multiple files
@@ -212,7 +213,7 @@ describe('WatchMode', () => {
       fs.writeFileSync(file2, 'export const b = 2;');
 
       watcher['handleFileChange'](file1, 'changed');
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      await waitFor(60);
 
       watcher['isAnalyzing'] = true;
       watcher['analysisQueue'].push(file2);
@@ -221,7 +222,7 @@ describe('WatchMode', () => {
       // Trigger queue processing
       watcher['handleFileChange'](file1, 'changed');
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       // Both files should be processed
       expect(processedFiles.length).toBeGreaterThanOrEqual(1);

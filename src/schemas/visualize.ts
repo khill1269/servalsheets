@@ -156,6 +156,13 @@ const ChartDataSchema = z.object({
     .optional(),
 });
 
+// ISSUE-198: Per-axis configuration (min/max/title) for BasicChart types
+const ChartAxisConfigSchema = z.object({
+  title: z.string().optional().describe('Axis title label'),
+  min: z.number().optional().describe('Minimum value for axis (sets viewWindowMode to EXPLICIT)'),
+  max: z.number().optional().describe('Maximum value for axis (sets viewWindowMode to EXPLICIT)'),
+});
+
 const ChartOptionsSchema = z.object({
   title: z.string().optional(),
   subtitle: z.string().optional(),
@@ -165,12 +172,26 @@ const ChartOptionsSchema = z.object({
   pieHole: z.coerce.number().min(0).max(1).optional(),
   stacked: z.boolean().optional(),
   lineSmooth: z.boolean().optional(),
+  /** @deprecated Use axes.horizontal.title and axes.vertical.title instead */
   axisTitle: z
     .object({
       horizontal: z.string().optional(),
       vertical: z.string().optional(),
     })
-    .optional(),
+    .optional()
+    .describe('Axis titles (deprecated: use axes.horizontal.title / axes.vertical.title)'),
+  // ISSUE-198: Full axis configuration with min/max bounds
+  axes: z
+    .object({
+      horizontal: ChartAxisConfigSchema.optional().describe(
+        'Horizontal (X / BOTTOM_AXIS) configuration'
+      ),
+      vertical: ChartAxisConfigSchema.optional().describe('Vertical (Y / LEFT_AXIS) configuration'),
+    })
+    .optional()
+    .describe(
+      'Axis configuration. Example: { axes: { vertical: { title: "Revenue", min: 0, max: 1000000 } } }'
+    ),
 });
 
 // ============================================================================

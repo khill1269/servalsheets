@@ -10,6 +10,16 @@ exports[`Schema Snapshots > Input Schemas > AuditSheetInputSchema should match s
 }
 `;
 
+exports[`Schema Snapshots > Input Schemas > BatchOperationsInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/BatchOperationsInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "BatchOperationsInputSchema": {},
+  },
+}
+`;
+
 exports[`Schema Snapshots > Input Schemas > BulkUpdateInputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/BulkUpdateInputSchema",
@@ -280,6 +290,16 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
 }
 `;
 
+exports[`Schema Snapshots > Input Schemas > SheetsAgentInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsAgentInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsAgentInputSchema": {},
+  },
+}
+`;
+
 exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/SheetsAnalyzeInputSchema",
@@ -326,6 +346,16 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "SheetsCollaborateInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsComputeInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsComputeInputSchema": {},
   },
 }
 `;
@@ -570,6 +600,16 @@ exports[`Schema Snapshots > Output Schemas > AuditSheetOutputSchema should match
 }
 `;
 
+exports[`Schema Snapshots > Output Schemas > BatchOperationsOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/BatchOperationsOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "BatchOperationsOutputSchema": {},
+  },
+}
+`;
+
 exports[`Schema Snapshots > Output Schemas > BulkUpdateOutputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/BulkUpdateOutputSchema",
@@ -780,6 +820,16 @@ exports[`Schema Snapshots > Output Schemas > SheetsAdvancedOutputSchema should m
 }
 `;
 
+exports[`Schema Snapshots > Output Schemas > SheetsAgentOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsAgentOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsAgentOutputSchema": {},
+  },
+}
+`;
+
 exports[`Schema Snapshots > Output Schemas > SheetsAnalyzeOutputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/SheetsAnalyzeOutputSchema",
@@ -826,6 +876,16 @@ exports[`Schema Snapshots > Output Schemas > SheetsCollaborateOutputSchema shoul
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "SheetsCollaborateOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsComputeOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsComputeOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsComputeOutputSchema": {},
   },
 }
 `;

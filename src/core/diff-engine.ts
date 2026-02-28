@@ -10,6 +10,7 @@ import { createHash } from 'crypto';
 import type { DiffResult, DiffOptions, CellValue } from '../schemas/shared.js';
 import PQueue from 'p-queue';
 import { logger } from '../utils/logger.js';
+import { FIELD_MASKS } from '../constants/field-masks.js';
 
 type CellChangeRecord = {
   cell: string;
@@ -93,6 +94,7 @@ export class DiffEngine {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId,
       includeGridData: false,
+      fields: FIELD_MASKS.SPREADSHEET_WITH_SHEETS,
     });
 
     const shouldCaptureSamples = targetTier !== 'METADATA';

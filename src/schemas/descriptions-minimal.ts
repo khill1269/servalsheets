@@ -55,4 +55,10 @@ export const TOOL_DESCRIPTIONS_MINIMAL: Record<string, string> = {
   sheets_dependencies: `🔗 DEPENDENCIES - Formula graph (7 actions). build, analyze_impact, detect_cycles, export_dot.`,
 
   sheets_federation: `🌐 FEDERATION - Call external MCP servers (4 actions). call_remote, list_servers, get_server_tools, validate_connection. Requires MCP_FEDERATION_SERVERS env var.`,
+
+  sheets_compute: `🧮 COMPUTE - Server-side computation engine (10 actions). evaluate, aggregate, statistical, regression, forecast, matrix_op, pivot_compute, custom_function, batch_compute, explain_formula. Read-only.`,
+
+  sheets_agent: `🤖 AGENT - Autonomous multi-step execution (8 actions). plan, execute, execute_step, observe, rollback, get_status, list_plans, resume. Checkpoint-based rollback.`,
+
+  sheets_connectors: `🔌 CONNECTORS - Pull live external data into Sheets (10 actions). query, batch_query, transform, subscribe, configure. Supports Finnhub, FRED, Alpha Vantage, Polygon, REST APIs.`,
 };

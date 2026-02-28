@@ -15,8 +15,8 @@ jobs:
     name: Publish Package
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      id-token: write # Required for provenance
+      contents: write  # Required for uploading SBOM to GitHub release
+      id-token: write  # Required for npm provenance + cosign keyless signing
 
     steps:
       - name: Checkout code
@@ -55,3 +55,24 @@ jobs:
         run: npm publish --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # SC-01: Generate signed SBOM and attach to GitHub release
+      - name: Generate SBOM (CycloneDX)
+        if: ${{ github.event_name == 'release' }}
+        run: npx --yes @cyclonedx/cyclonedx-npm --output-format json --output-file sbom.json
+
+      - name: Install cosign
+        if: ${{ github.event_name == 'release' }}
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.4.1'
+
+      - name: Sign SBOM with Sigstore (keyless)
+        if: ${{ github.event_name == 'release' }}
+        run: cosign sign-blob --yes sbom.json --output-signature sbom.json.sig
+
+      - name: Attach signed SBOM to GitHub release
+        if: ${{ github.event_name == 'release' }}
+        run: gh release upload ${{ github.event.release.tag_name }} sbom.json sbom.json.sig --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

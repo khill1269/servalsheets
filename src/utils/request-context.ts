@@ -53,6 +53,11 @@ export interface RequestContext {
   timeoutMs: number;
   deadline: number;
   /**
+   * Stable caller identity when available (session/user/client).
+   * Used for per-principal caching and correction metrics.
+   */
+  principalId?: string;
+  /**
    * MCP progress notification function
    * Available when client requests progress updates via _meta.progressToken
    */
@@ -86,6 +91,7 @@ export function createRequestContext(options?: {
   requestId?: string;
   logger?: Logger;
   timeoutMs?: number;
+  principalId?: string;
   sendNotification?: (notification: ServerNotification) => Promise<void>;
   progressToken?: string | number;
   traceId?: string;
@@ -115,6 +121,7 @@ export function createRequestContext(options?: {
     logger,
     timeoutMs,
     deadline: Date.now() + timeoutMs,
+    principalId: options?.principalId,
     sendNotification: options?.sendNotification,
     progressToken: options?.progressToken,
     traceId: options?.traceId,

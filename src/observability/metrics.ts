@@ -21,6 +21,20 @@ export const toolCallDuration = new Histogram({
   buckets: [0.1, 0.5, 1, 2, 5, 10, 30],
 });
 
+export const selfCorrectionsTotal = new Counter({
+  name: 'servalsheets_self_corrections_total',
+  help: 'Failed tool calls followed by a successful corrected call',
+  labelNames: ['tool', 'from_action', 'to_action'],
+  registers: [register],
+});
+
+export const errorCodeCompatTotal = new Counter({
+  name: 'servalsheets_error_code_compat_total',
+  help: 'Error code occurrences by reported/canonical/family compatibility mapping',
+  labelNames: ['reported_code', 'canonical_code', 'family', 'is_alias', 'is_known'],
+  registers: [register],
+});
+
 // Google API metrics
 export const googleApiCallsTotal = new Counter({
   name: 'servalsheets_google_api_calls_total',
@@ -220,6 +234,14 @@ export const otlpExportDurationHistogram = new Histogram({
   registers: [register],
 });
 
+// QUOTA-01: API quota warning metric
+export const quotaWarningsTotal = new Counter({
+  name: 'servalsheets_quota_warnings_total',
+  help: 'Total API quota warnings emitted when usage reaches 80% of monthly limit',
+  labelNames: ['tenantId'],
+  registers: [register],
+});
+
 // Restart policy metrics (Phase 0, Priority 4)
 export const restartConsecutiveFailuresGauge = new Gauge({
   name: 'servalsheets_restart_consecutive_failures',
@@ -280,6 +302,15 @@ export const concurrencyAdjustmentsTotal = new Counter({
 export const quotaUtilizationGauge = new Gauge({
   name: 'servalsheets_quota_utilization_percentage',
   help: 'Current quota utilization as percentage (0-100)',
+  labelNames: ['tenantId', 'operation', 'window'],
+  registers: [register],
+});
+
+// QUOTA-01: Threshold-level alerts (80%/95%) with operation + window breakdown
+export const quotaThresholdAlertsTotal = new Counter({
+  name: 'servalsheets_quota_threshold_alerts_total',
+  help: 'Total quota threshold alerts fired (80% or 95% of limit)',
+  labelNames: ['tenantId', 'operation', 'window', 'threshold'],
   registers: [register],
 });
 
@@ -328,10 +359,24 @@ export function recordConcurrencyAdjustment(
 }
 
 /**
- * Helper: Record quota utilization
+ * Helper: Record quota utilization with optional labels
  */
-export function recordQuotaUtilization(utilizationPercentage: number): void {
-  quotaUtilizationGauge.set(utilizationPercentage);
+export function recordQuotaUtilization(
+  utilizationPercentage: number,
+  labels?: { tenantId?: string; operation?: string; window?: string }
+): void {
+  if (labels) {
+    quotaUtilizationGauge.set(
+      {
+        tenantId: labels.tenantId ?? '',
+        operation: labels.operation ?? '',
+        window: labels.window ?? '',
+      },
+      utilizationPercentage
+    );
+  } else {
+    quotaUtilizationGauge.set({ tenantId: '', operation: '', window: '' }, utilizationPercentage);
+  }
 }
 
 // Batch efficiency ratio
@@ -402,6 +447,36 @@ export function recordToolCall(
 ): void {
   toolCallsTotal.inc({ tool, action, status });
   toolCallDuration.observe({ tool, action }, durationSeconds);
+}
+
+/**
+ * Record an inferred self-correction sequence: error followed by success.
+ */
+export function recordSelfCorrection(tool: string, fromAction: string, toAction: string): void {
+  selfCorrectionsTotal.inc({
+    tool,
+    from_action: fromAction,
+    to_action: toAction,
+  });
+}
+
+/**
+ * Record error-code compatibility mapping for consolidation telemetry.
+ */
+export function recordErrorCodeCompatibility(params: {
+  reportedCode: string;
+  canonicalCode: string;
+  family: string;
+  isAlias: boolean;
+  isKnown: boolean;
+}): void {
+  errorCodeCompatTotal.inc({
+    reported_code: params.isKnown ? params.reportedCode : 'UNKNOWN_UNRECOGNIZED',
+    canonical_code: params.canonicalCode,
+    family: params.family,
+    is_alias: String(params.isAlias),
+    is_known: String(params.isKnown),
+  });
 }
 
 /**
@@ -693,4 +768,141 @@ export function updateMcpConnectionHealth(
   mcpConnectionActivityDelaySeconds.set(timeSinceLastActivityMs / 1000);
   mcpConnectionDisconnectWarnings.inc(disconnectWarnings);
   mcpConnectionUptimeSeconds.set(uptimeSeconds);
+}
+
+// ============================================================================
+// P4-P14 FEATURE INSTRUMENTATION (ISSUE-235)
+// ============================================================================
+
+export const suggestionsTotal = new Counter({
+  name: 'servalsheets_suggestions_total',
+  help: 'Total suggest_next_actions and auto_enhance calls (F4 Smart Suggestions)',
+  labelNames: ['action', 'status'] as const,
+  registers: [register],
+});
+
+export const cleaningOperationsTotal = new Counter({
+  name: 'servalsheets_cleaning_operations_total',
+  help: 'Total data cleaning operations (F3 Automated Data Cleaning)',
+  labelNames: ['action', 'mode', 'status'] as const,
+  registers: [register],
+});
+
+export const generationRequestsTotal = new Counter({
+  name: 'servalsheets_generation_requests_total',
+  help: 'Total sheet generation requests (F1 Natural Language Sheet Generator)',
+  labelNames: ['action', 'status'] as const,
+  registers: [register],
+});
+
+export const scenarioModelsTotal = new Counter({
+  name: 'servalsheets_scenario_models_total',
+  help: 'Total scenario modeling operations (F6 Scenario Modeling)',
+  labelNames: ['action', 'status'] as const,
+  registers: [register],
+});
+
+export const crossSpreadsheetOpsTotal = new Counter({
+  name: 'servalsheets_cross_spreadsheet_ops_total',
+  help: 'Total cross-spreadsheet federation operations (F2 Multi-Spreadsheet Federation)',
+  labelNames: ['action', 'status'] as const,
+  registers: [register],
+});
+
+export const timeTravelOpsTotal = new Counter({
+  name: 'servalsheets_time_travel_ops_total',
+  help: 'Total time-travel history operations (F5 Time-Travel Debugger)',
+  labelNames: ['action', 'status'] as const,
+  registers: [register],
+});
+
+export const compositeWorkflowsTotal = new Counter({
+  name: 'servalsheets_composite_workflows_total',
+  help: 'Total composite workflow actions (P14: audit_sheet, publish_report, data_pipeline, etc.)',
+  labelNames: ['action', 'status'] as const,
+  registers: [register],
+});
+
+export const samplingRequestsTotal = new Counter({
+  name: 'servalsheets_sampling_requests_total',
+  help: 'Total MCP Sampling requests sent to client (P13 SEP-1577)',
+  labelNames: ['action', 'status'] as const,
+  registers: [register],
+});
+
+export const elicitationRequestsTotal = new Counter({
+  name: 'servalsheets_elicitation_requests_total',
+  help: 'Total MCP Elicitation wizard flows initiated (P13 SEP-1036)',
+  labelNames: ['action', 'outcome'] as const,
+  registers: [register],
+});
+
+/**
+ * Record a P4 Smart Suggestions operation.
+ */
+export function recordSuggestionOp(action: string, status: 'success' | 'error'): void {
+  suggestionsTotal.inc({ action, status });
+}
+
+/**
+ * Record a P3 Data Cleaning operation.
+ */
+export function recordCleaningOp(
+  action: string,
+  mode: 'preview' | 'apply' | 'unknown',
+  status: 'success' | 'error'
+): void {
+  cleaningOperationsTotal.inc({ action, mode, status });
+}
+
+/**
+ * Record a P1 Sheet Generation request.
+ */
+export function recordGenerationRequest(action: string, status: 'success' | 'error'): void {
+  generationRequestsTotal.inc({ action, status });
+}
+
+/**
+ * Record a F6 Scenario Modeling operation.
+ */
+export function recordScenarioModel(action: string, status: 'success' | 'error'): void {
+  scenarioModelsTotal.inc({ action, status });
+}
+
+/**
+ * Record a F2 Cross-Spreadsheet Federation operation.
+ */
+export function recordCrossSpreadsheetOp(action: string, status: 'success' | 'error'): void {
+  crossSpreadsheetOpsTotal.inc({ action, status });
+}
+
+/**
+ * Record a F5 Time-Travel history operation.
+ */
+export function recordTimeTravelOp(action: string, status: 'success' | 'error'): void {
+  timeTravelOpsTotal.inc({ action, status });
+}
+
+/**
+ * Record a P14 composite workflow action.
+ */
+export function recordCompositeWorkflow(action: string, status: 'success' | 'error'): void {
+  compositeWorkflowsTotal.inc({ action, status });
+}
+
+/**
+ * Record a P13 MCP Sampling request sent to the client.
+ */
+export function recordSamplingRequest(action: string, status: 'success' | 'error'): void {
+  samplingRequestsTotal.inc({ action, status });
+}
+
+/**
+ * Record a P13 MCP Elicitation wizard flow.
+ */
+export function recordElicitationRequest(
+  action: string,
+  outcome: 'accepted' | 'declined' | 'unavailable' | 'error'
+): void {
+  elicitationRequestsTotal.inc({ action, outcome });
 }

@@ -39,9 +39,9 @@ export interface FormulaEvalResult {
 /**
  * Google Formula Evaluation Service
  *
- * Requires `deploymentId` — the Apps Script deployment ID for the target
- * spreadsheet's evaluation script. Create via `sheets_appsscript.deploy` if
- * not already deployed.
+ * Requires `scriptId` — the Apps Script project ID for the target
+ * spreadsheet's evaluation script. Create via `sheets_appsscript.create` and
+ * deploy via `sheets_appsscript.deploy` if not already deployed.
  */
 export class GoogleFormulaService {
   constructor(
@@ -54,7 +54,7 @@ export class GoogleFormulaService {
    * function on the target spreadsheet.
    *
    * Falls back gracefully with an informative message if:
-   * - No deployment ID provided
+   * - No Apps Script project ID provided
    * - Apps Script API unavailable
    * - Rate limit exceeded
    *
@@ -62,15 +62,16 @@ export class GoogleFormulaService {
    */
   async evaluateBatch(
     spreadsheetId: string,
-    deploymentId: string | undefined,
+    scriptId: string | undefined,
     requests: FormulaEvalRequest[]
   ): Promise<FormulaEvalResult[]> {
-    if (!deploymentId) {
-      logger.debug('google_formula_service_no_deployment', { spreadsheetId });
+    if (!scriptId) {
+      logger.debug('google_formula_service_no_script', { spreadsheetId });
       return requests.map((r) => ({
         ...r,
         value: null,
-        error: 'No Apps Script deployment — deploy evaluator script via sheets_appsscript.deploy',
+        error:
+          'No Apps Script scriptId configured — create/deploy evaluator script via sheets_appsscript',
       }));
     }
 
@@ -80,7 +81,7 @@ export class GoogleFormulaService {
     const allResults: FormulaEvalResult[] = [];
     for (let i = 0; i < requests.length; i += MAX_FORMULAS_PER_BATCH) {
       const batch = requests.slice(i, i + MAX_FORMULAS_PER_BATCH);
-      const batchResults = await this.evaluateSingleBatch(spreadsheetId, deploymentId, batch);
+      const batchResults = await this.evaluateSingleBatch(spreadsheetId, scriptId, batch);
       allResults.push(...batchResults);
     }
 
@@ -89,13 +90,13 @@ export class GoogleFormulaService {
 
   private async evaluateSingleBatch(
     spreadsheetId: string,
-    deploymentId: string,
+    scriptId: string,
     requests: FormulaEvalRequest[]
   ): Promise<FormulaEvalResult[]> {
     try {
       const response = await executeWithRetry(async () =>
         this.scriptApi.scripts.run({
-          scriptId: deploymentId,
+          scriptId,
           requestBody: {
             function: EVAL_SCRIPT_FUNCTION,
             parameters: [

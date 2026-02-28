@@ -126,8 +126,10 @@ describe.skipIf(SKIP_E2E)('E2E: MCP Protocol Compliance', () => {
 
       for (const tool of tools) {
         // Required by MCP 2025-11-25
-        expect(tool.name).toBeTruthy();
-        expect(tool.description).toBeTruthy();
+        expect(typeof tool.name).toBe('string');
+        expect(tool.name.length).toBeGreaterThan(0);
+        expect(typeof tool.description).toBe('string');
+        expect(tool.description.length).toBeGreaterThan(0);
         expect(tool.inputSchema).toBeDefined();
         expect(tool.inputSchema.type).toBe('object');
         expect(tool.inputSchema.properties).toBeDefined();
@@ -248,8 +250,10 @@ describe.skipIf(SKIP_E2E)('E2E: MCP Protocol Compliance', () => {
       expect(resources.length).toBeGreaterThan(0);
 
       for (const resource of resources) {
-        expect(resource.uri).toBeTruthy();
-        expect(resource.name).toBeTruthy();
+        expect(typeof resource.uri).toBe('string');
+        expect(resource.uri.length).toBeGreaterThan(0);
+        expect(typeof resource.name).toBe('string');
+        expect(resource.name.length).toBeGreaterThan(0);
 
         // Optional fields
         if ('description' in resource) {
@@ -292,7 +296,8 @@ describe.skipIf(SKIP_E2E)('E2E: MCP Protocol Compliance', () => {
       expect(prompts.length).toBeGreaterThan(0);
 
       for (const prompt of prompts) {
-        expect(prompt.name).toBeTruthy();
+        expect(typeof prompt.name).toBe('string');
+        expect(prompt.name.length).toBeGreaterThan(0);
 
         // Optional fields
         if ('description' in prompt) {

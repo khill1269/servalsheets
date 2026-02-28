@@ -24,6 +24,8 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().positive().max(65535).default(3000),
   // HIGH-003 FIX: Default to 127.0.0.1 for security (0.0.0.0 exposes to entire network)
   HOST: z.string().default('127.0.0.1'),
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
 
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
@@ -62,7 +64,8 @@ const EnvSchema = z.object({
   ENABLE_DATAFILTER_BATCH: z.coerce.boolean().default(true),
   ENABLE_TABLE_APPENDS: z.coerce.boolean().default(true),
   ENABLE_PAYLOAD_VALIDATION: z.coerce.boolean().default(true),
-  ENABLE_LEGACY_SSE: z.coerce.boolean().default(true),
+  ENABLE_LEGACY_SSE: z.coerce.boolean().default(false),
+  ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS: z.coerce.boolean().default(false),
   ENABLE_AGGRESSIVE_FIELD_MASKS: z.coerce.boolean().default(true), // Priority 8: 40-60% payload reduction
   ENABLE_CONDITIONAL_REQUESTS: z.coerce.boolean().default(true), // Priority 9: ETag-based conditional reads (10-20% quota savings)
   // HTTP/2 connection health management (prevents GOAWAY errors)
@@ -108,6 +111,12 @@ const EnvSchema = z.object({
   OTEL_EXPORT_INTERVAL_MS: z.coerce.number().int().positive().default(5000), // 5 seconds
   OTEL_EXPORT_MAX_QUEUE_SIZE: z.coerce.number().int().positive().default(1000),
 
+  // Dedicated Prometheus metrics server (optional)
+  // When enabled, serves metrics on a separate port via src/server/metrics-server.ts
+  ENABLE_METRICS_SERVER: z.coerce.boolean().default(false),
+  METRICS_PORT: z.coerce.number().int().positive().max(65535).default(9090),
+  METRICS_HOST: z.string().default('127.0.0.1'),
+
   // Circuit Breaker
   CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().default(5),
   CIRCUIT_BREAKER_SUCCESS_THRESHOLD: z.coerce.number().int().positive().default(2),
@@ -121,6 +130,7 @@ const EnvSchema = z.object({
   // Use these to configure timeouts for specific actions that naturally take longer
   COMPOSITE_TIMEOUT_MS: z.coerce.number().positive().default(120000), // 2 minutes for CSV/XLSX imports
   LARGE_PAYLOAD_TIMEOUT_MS: z.coerce.number().positive().default(60000), // 1 minute for large data operations
+  TASK_WATCHDOG_MS: z.coerce.number().int().positive().default(600000), // 10 minutes
 
   // Graceful shutdown
   GRACEFUL_SHUTDOWN_TIMEOUT_MS: z.coerce.number().positive().default(10000), // 10 seconds
@@ -143,8 +153,8 @@ const EnvSchema = z.object({
   STREAMABLE_HTTP_EVENT_MAX_EVENTS: z.coerce.number().int().positive().default(5000),
 
   // OAuth Server Configuration (for remote server)
-  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters').optional(),
-  STATE_SECRET: z.string().min(32, 'STATE_SECRET must be at least 32 characters').optional(),
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be ≥32 chars when OAuth enabled').optional(),
+  STATE_SECRET: z.string().min(32, 'STATE_SECRET must be ≥32 chars when OAuth enabled').optional(),
   OAUTH_CLIENT_SECRET: z.string().optional(),
   OAUTH_ISSUER: z.string().default('https://servalsheets.example.com'),
   OAUTH_CLIENT_ID: z.string().default('servalsheets'),
@@ -199,17 +209,30 @@ const EnvSchema = z.object({
 
   // Incremental consent (SaaS deployments)
   INCREMENTAL_CONSENT_ENABLED: z.coerce.boolean().default(false),
+  SAMPLING_CONSENT_CACHE_TTL_MS: z.coerce.number().int().nonnegative().default(30000),
 
   // Enterprise feature flags
   // RBAC and Tenant Isolation require infrastructure (role config, API keys) — keep opt-in
   ENABLE_RBAC: z.coerce.boolean().default(false),
   // Audit logging: non-critical (try/catch wrapped), adds compliance visibility
   ENABLE_AUDIT_LOGGING: z.coerce.boolean().default(true),
+  AUDIT_LOG_ENCRYPTION_KEY: z.string().optional(),
+  AUDIT_HMAC_SECRET: z.string().optional(),
+  AUDIT_LOG_DIR: z.string().optional(),
+  AUDIT_LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
+  TRANSACTION_WAL_DIR: z.string().optional(),
   ENABLE_TENANT_ISOLATION: z.coerce.boolean().default(false),
   // Idempotency: makes all tool calls retry-safe via key-based dedup
   ENABLE_IDEMPOTENCY: z.coerce.boolean().default(true),
   // Cost tracking: useful for SaaS/multi-tenant, adds per-request overhead — keep opt-in
   ENABLE_COST_TRACKING: z.coerce.boolean().default(false),
+  // Billing integration (Stripe): disabled by default, runtime-initialized when enabled
+  ENABLE_BILLING_INTEGRATION: z.coerce.boolean().default(false),
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  BILLING_CURRENCY: z.string().default('usd'),
+  BILLING_CYCLE: z.enum(['monthly', 'annual']).default('monthly'),
+  BILLING_AUTO_INVOICING: z.coerce.boolean().default(true),
 
   // Predictive Prefetching (80% latency reduction on sequential operations)
   // Intelligently prefetches data based on access patterns (adjacent ranges, predicted next access)
@@ -254,6 +277,36 @@ export function validateEnv(): Env {
         'SECURITY: Server is exposed on a public interface with RBAC disabled. ' +
           'Set ENABLE_RBAC=true or restrict HOST to 127.0.0.1 to prevent unauthorized access.',
         { host: env.HOST }
+      );
+    }
+    if (env.ENABLE_TENANT_ISOLATION && !env.ENABLE_RBAC) {
+      logger.warn(
+        'SECURITY: ENABLE_TENANT_ISOLATION=true while ENABLE_RBAC=false. ' +
+          'Enable RBAC to enforce per-tenant authorization boundaries in multi-tenant mode.'
+      );
+    }
+
+    if (env.ENABLE_BILLING_INTEGRATION && !env.STRIPE_SECRET_KEY) {
+      logger.warn(
+        'ENABLE_BILLING_INTEGRATION=true but STRIPE_SECRET_KEY is missing. Billing startup will be skipped.'
+      );
+    }
+    if (
+      env.ENABLE_AUDIT_LOGGING &&
+      env.NODE_ENV === 'production' &&
+      !env.AUDIT_LOG_ENCRYPTION_KEY
+    ) {
+      logger.warn(
+        'SECURITY: ENABLE_AUDIT_LOGGING=true in production without AUDIT_LOG_ENCRYPTION_KEY. ' +
+          'Audit logs will be stored unencrypted at rest.',
+        { nodeEnv: env.NODE_ENV }
+      );
+    }
+    const transactionsEnabled = process.env['TRANSACTIONS_ENABLED'] !== 'false';
+    if (transactionsEnabled && env.NODE_ENV === 'production' && !env.TRANSACTION_WAL_DIR) {
+      logger.warn(
+        'DURABILITY: Transactions are enabled in production without TRANSACTION_WAL_DIR. ' +
+          'In-flight transaction recovery after process crashes will be unavailable.'
       );
     }
     return env;
@@ -371,6 +424,22 @@ export function getTracingConfig(): { enabled: boolean; sampleRate: number } {
   return {
     enabled: current.TRACING_ENABLED,
     sampleRate: current.TRACING_SAMPLE_RATE,
+  };
+}
+
+/**
+ * Get dedicated metrics server configuration
+ */
+export function getMetricsServerConfig(): {
+  enabled: boolean;
+  port: number;
+  host: string;
+} {
+  const current = ensureEnv();
+  return {
+    enabled: current.ENABLE_METRICS_SERVER,
+    port: current.METRICS_PORT,
+    host: current.METRICS_HOST,
   };
 }
 

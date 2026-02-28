@@ -37,6 +37,7 @@ import type {
   CoreBatchUpdateSheetsInput,
   CoreClearSheetInput,
   CoreMoveSheetInput,
+  ResponseMeta,
 } from '../schemas/index.js';
 import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
 import { CACHE_TTL_SPREADSHEET } from '../config/constants.js';
@@ -46,6 +47,9 @@ import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { createNotFoundError, createValidationError } from '../utils/error-factory.js';
 import { withTimeout } from '../utils/timeout.js';
 import { getEnv } from '../config/env.js';
+import { recordSheetName } from '../mcp/completions.js';
+
+type ResponseFormat = 'full' | 'compact' | 'preview';
 
 export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOutput> {
   private sheetsApi: sheets_v4.Sheets;
@@ -120,6 +124,222 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
     }
   }
 
+  private getResponseFormatItemLimit(responseFormat: ResponseFormat): number | null {
+    if (responseFormat === 'preview') {
+      return 10;
+    }
+    if (responseFormat === 'compact') {
+      return 50;
+    }
+    return null;
+  }
+
+  private shapeListByResponseFormat<T>(
+    items: T[],
+    responseFormat: ResponseFormat
+  ): {
+    items: T[];
+    originalCount: number;
+    returnedCount: number;
+    truncated: boolean;
+  } {
+    const originalCount = items.length;
+    const limit = this.getResponseFormatItemLimit(responseFormat);
+    if (!limit) {
+      return {
+        items,
+        originalCount,
+        returnedCount: originalCount,
+        truncated: false,
+      };
+    }
+
+    const shapedItems = items.slice(0, limit);
+    return {
+      items: shapedItems,
+      originalCount,
+      returnedCount: shapedItems.length,
+      truncated: originalCount > limit,
+    };
+  }
+
+  private applyGetResponseFormat(
+    responseData: Record<string, unknown>,
+    responseFormat: ResponseFormat
+  ): Record<string, unknown> {
+    const spreadsheetRaw = responseData['spreadsheet'];
+    if (!spreadsheetRaw || typeof spreadsheetRaw !== 'object') {
+      return { ...responseData, responseFormat: responseFormat };
+    }
+
+    const spreadsheet = spreadsheetRaw as Record<string, unknown>;
+    const sheets = Array.isArray(spreadsheet['sheets'])
+      ? (spreadsheet['sheets'] as SheetInfo[])
+      : ([] as SheetInfo[]);
+    const shaped = this.shapeListByResponseFormat(sheets, responseFormat);
+
+    const formatted: Record<string, unknown> = {
+      ...responseData,
+      spreadsheet: {
+        ...spreadsheet,
+        sheets: shaped.items,
+      },
+      responseFormat: responseFormat,
+      totalSheets: shaped.originalCount,
+      returnedSheets: shaped.returnedCount,
+    };
+
+    if (shaped.truncated) {
+      formatted['truncated'] = true;
+      formatted['_responseFormatHint'] =
+        `response_format="${responseFormat}" returned ${shaped.returnedCount} of ${shaped.originalCount} sheets. ` +
+        'Use response_format:"full" for complete sheet metadata.';
+    }
+
+    return formatted;
+  }
+
+  private applyBatchGetResponseFormat(
+    responseData: Record<string, unknown>,
+    responseFormat: ResponseFormat
+  ): Record<string, unknown> {
+    const spreadsheets = Array.isArray(responseData['spreadsheets'])
+      ? (responseData['spreadsheets'] as Record<string, unknown>[])
+      : ([] as Record<string, unknown>[]);
+    const shaped = this.shapeListByResponseFormat(spreadsheets, responseFormat);
+
+    const formatted: Record<string, unknown> = {
+      ...responseData,
+      spreadsheets: shaped.items,
+      responseFormat: responseFormat,
+      totalSpreadsheets: shaped.originalCount,
+      returnedSpreadsheets: shaped.returnedCount,
+    };
+
+    if (shaped.truncated) {
+      formatted['truncated'] = true;
+      formatted['_responseFormatHint'] =
+        `response_format="${responseFormat}" returned ${shaped.returnedCount} of ${shaped.originalCount} spreadsheets. ` +
+        'Use response_format:"full" for complete batch metadata.';
+    }
+
+    return formatted;
+  }
+
+  private applyListResponseFormat(
+    responseData: Record<string, unknown>,
+    responseFormat: ResponseFormat
+  ): Record<string, unknown> {
+    const spreadsheets = Array.isArray(responseData['spreadsheets'])
+      ? (responseData['spreadsheets'] as Record<string, unknown>[])
+      : ([] as Record<string, unknown>[]);
+    const shaped = this.shapeListByResponseFormat(spreadsheets, responseFormat);
+
+    const formatted: Record<string, unknown> = {
+      ...responseData,
+      spreadsheets: shaped.items,
+      responseFormat: responseFormat,
+      totalSpreadsheets: shaped.originalCount,
+      returnedSpreadsheets: shaped.returnedCount,
+    };
+
+    if (shaped.truncated) {
+      formatted['truncated'] = true;
+      formatted['_responseFormatHint'] =
+        `response_format="${responseFormat}" returned ${shaped.returnedCount} of ${shaped.originalCount} spreadsheets. ` +
+        'Use response_format:"full" for complete listing results.';
+    }
+
+    return formatted;
+  }
+
+  private applyListSheetsResponseFormat(
+    responseData: Record<string, unknown>,
+    responseFormat: ResponseFormat
+  ): Record<string, unknown> {
+    const sheets = Array.isArray(responseData['sheets'])
+      ? (responseData['sheets'] as SheetInfo[])
+      : ([] as SheetInfo[]);
+    const shaped = this.shapeListByResponseFormat(sheets, responseFormat);
+
+    const formatted: Record<string, unknown> = {
+      ...responseData,
+      sheets: shaped.items,
+      responseFormat: responseFormat,
+      totalSheets: shaped.originalCount,
+      returnedSheets: shaped.returnedCount,
+    };
+
+    if (shaped.truncated) {
+      formatted['truncated'] = true;
+      formatted['_responseFormatHint'] =
+        `response_format="${responseFormat}" returned ${shaped.returnedCount} of ${shaped.originalCount} sheets. ` +
+        'Use response_format:"full" for complete sheet list.';
+    }
+
+    return formatted;
+  }
+
+  private buildResponseFormatMeta(
+    action: string,
+    responseData: Record<string, unknown>
+  ): ResponseMeta {
+    const baseMeta = this.generateMeta(action, responseData, responseData);
+    if (responseData['truncated'] !== true) {
+      return baseMeta;
+    }
+
+    return {
+      ...baseMeta,
+      truncated: true,
+      continuationHint:
+        typeof responseData['_responseFormatHint'] === 'string'
+          ? responseData['_responseFormatHint']
+          : 'Use response_format:"full" to retrieve complete data.',
+    };
+  }
+
+  /**
+   * Resolve Drive shortcut IDs to their target spreadsheet IDs.
+   * Falls back to the original ID when Drive API is unavailable or lookup fails.
+   */
+  private async resolveSpreadsheetShortcutId(spreadsheetId: string): Promise<string> {
+    if (!this.driveApi) {
+      return spreadsheetId;
+    }
+
+    try {
+      const file = await this.driveApi.files.get({
+        fileId: spreadsheetId,
+        fields: 'id,mimeType,shortcutDetails(targetId,targetMimeType)',
+        supportsAllDrives: true,
+      });
+
+      const mimeType = file.data.mimeType;
+      const targetId = file.data.shortcutDetails?.targetId;
+      const targetMimeType = file.data.shortcutDetails?.targetMimeType;
+
+      if (
+        mimeType === 'application/vnd.google-apps.shortcut' &&
+        targetId &&
+        (!targetMimeType || targetMimeType === 'application/vnd.google-apps.spreadsheet')
+      ) {
+        this.context.logger?.info?.('Resolved spreadsheet shortcut ID', {
+          shortcutId: spreadsheetId,
+          targetSpreadsheetId: targetId,
+        });
+        return targetId;
+      }
+    } catch (error) {
+      this.context.logger?.warn?.('Shortcut resolution skipped due Drive lookup failure', {
+        spreadsheetId,
+        error: String(error),
+      });
+    }
+
+    return spreadsheetId;
+  }
+
   async handle(input: SheetsCoreInput): Promise<SheetsCoreOutput> {
     // Extract the request from the wrapper
     const rawReq = unwrapRequest<SheetsCoreInput['request']>(input);
@@ -131,7 +351,14 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
 
     try {
       // Infer missing parameters from context
-      const req = this.inferRequestParameters(rawReq) as CoreRequest;
+      let req = this.inferRequestParameters(rawReq) as CoreRequest;
+
+      if ('spreadsheetId' in req && typeof req.spreadsheetId === 'string') {
+        const resolvedSpreadsheetId = await this.resolveSpreadsheetShortcutId(req.spreadsheetId);
+        if (resolvedSpreadsheetId !== req.spreadsheetId) {
+          req = { ...req, spreadsheetId: resolvedSpreadsheetId } as CoreRequest;
+        }
+      }
 
       // Phase 0: Validate scopes for the operation
       const operation = `sheets_core.${req.action}`;
@@ -418,6 +645,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
    * Get spreadsheet metadata
    */
   private async handleGet(input: CoreGetInput): Promise<CoreResponse> {
+    const responseFormat = input.response_format ?? 'full';
     const params: sheets_v4.Params$Resource$Spreadsheets$Get = {
       spreadsheetId: input.spreadsheetId,
       includeGridData: input.includeGridData ?? false,
@@ -474,16 +702,51 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       });
     }
 
-    return this.success('get', {
-      spreadsheet: {
-        spreadsheetId: data.spreadsheetId,
-        title: data.properties?.title ?? '',
-        url: data.spreadsheetUrl ?? undefined,
-        locale: data.properties?.locale ?? undefined,
-        timeZone: data.properties?.timeZone ?? undefined,
-        sheets,
+    // I18N-02: Propagate locale/timeZone from API response into session context
+    // so format/data handlers can read it via this.context.sessionContext?.getActiveSpreadsheet()?.locale
+    if (this.context.sessionContext) {
+      const current = this.context.sessionContext.getActiveSpreadsheet();
+      if (current?.spreadsheetId === data.spreadsheetId) {
+        // Update existing entry with locale/timeZone from the API
+        this.context.sessionContext.setActiveSpreadsheet({
+          ...current,
+          locale: data.properties?.locale ?? current.locale,
+          timeZone: data.properties?.timeZone ?? current.timeZone,
+        });
+      } else if (!current) {
+        // Auto-activate when no spreadsheet is active
+        this.context.sessionContext.setActiveSpreadsheet({
+          spreadsheetId: data.spreadsheetId,
+          title: data.properties?.title ?? '',
+          sheetNames: sheets.map((s) => s.title),
+          activatedAt: Date.now(),
+          locale: data.properties?.locale ?? undefined,
+          timeZone: data.properties?.timeZone ?? undefined,
+        });
+      }
+    }
+
+    const responseData = this.applyGetResponseFormat(
+      {
+        spreadsheet: {
+          spreadsheetId: data.spreadsheetId,
+          title: data.properties?.title ?? '',
+          url: data.spreadsheetUrl ?? undefined,
+          locale: data.properties?.locale ?? undefined,
+          timeZone: data.properties?.timeZone ?? undefined,
+          sheets,
+        },
       },
-    });
+      responseFormat
+    );
+
+    return this.success(
+      'get',
+      responseData,
+      undefined,
+      undefined,
+      this.buildResponseFormatMeta('get', responseData)
+    );
   }
 
   /**
@@ -747,6 +1010,14 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       properties.autoRecalc = input.autoRecalc;
       fields.push('autoRecalc');
     }
+    if (input.iterativeCalculationSettings !== undefined) {
+      (properties as Record<string, unknown>)['iterativeCalculationSettings'] = {
+        enableIterativeCalculation: true,
+        maxIterations: input.iterativeCalculationSettings.maxIterations,
+        convergenceThreshold: input.iterativeCalculationSettings.convergenceThreshold,
+      };
+      fields.push('iterativeCalculationSettings');
+    }
     if (input.spreadsheetTheme !== undefined) {
       (properties as Record<string, unknown>)['spreadsheetTheme'] = input.spreadsheetTheme;
       fields.push('spreadsheetTheme');
@@ -798,6 +1069,15 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         url: updated.spreadsheetUrl ?? undefined,
         locale: updated.properties?.locale ?? undefined,
         timeZone: updated.properties?.timeZone ?? undefined,
+        iterativeCalculationSettings: (updated.properties as Record<string, unknown>)?.[
+          'iterativeCalculationSettings'
+        ] as
+          | {
+              enableIterativeCalculation?: boolean;
+              maxIterations?: number;
+              convergenceThreshold?: number;
+            }
+          | undefined,
       },
     });
   }
@@ -817,12 +1097,15 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
    * Batch get multiple spreadsheets
    */
   private async handleBatchGet(input: CoreBatchGetInput): Promise<CoreResponse> {
+    const responseFormat = input.response_format ?? 'full';
     const results = await Promise.all(
       input.spreadsheetIds.map(async (id) => {
         try {
+          const resolvedSpreadsheetId = await this.resolveSpreadsheetShortcutId(id);
+
           // Try cache first (5min TTL)
           const cacheKey = createCacheKey('spreadsheet:batch_get', {
-            spreadsheetId: id,
+            spreadsheetId: resolvedSpreadsheetId,
           });
           const cached = cacheManager.get<sheets_v4.Schema$Spreadsheet>(cacheKey, 'spreadsheet');
 
@@ -830,7 +1113,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
             cached ??
             (await (async () => {
               const response = await this.sheetsApi.spreadsheets.get({
-                spreadsheetId: id,
+                spreadsheetId: resolvedSpreadsheetId,
                 fields: 'spreadsheetId,properties,spreadsheetUrl,sheets.properties',
               });
               const result = response.data;
@@ -852,7 +1135,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
 
           // Use fallback to input ID if response missing spreadsheetId
           return {
-            spreadsheetId: data.spreadsheetId ?? id,
+            spreadsheetId: data.spreadsheetId ?? resolvedSpreadsheetId,
             title: data.properties?.title ?? '',
             url: data.spreadsheetUrl ?? undefined,
             locale: data.properties?.locale ?? undefined,
@@ -873,7 +1156,18 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       })
     );
 
-    return this.success('batch_get', { spreadsheets: results });
+    const responseData = this.applyBatchGetResponseFormat(
+      { spreadsheets: results },
+      responseFormat
+    );
+
+    return this.success(
+      'batch_get',
+      responseData,
+      undefined,
+      undefined,
+      this.buildResponseFormatMeta('batch_get', responseData)
+    );
   }
 
   /**
@@ -1073,6 +1367,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
    * List user's spreadsheets
    */
   private async handleList(input: CoreListInput): Promise<CoreResponse> {
+    const responseFormat = input.response_format ?? 'full';
     if (!this.driveApi) {
       return this.error({
         code: 'INTERNAL_ERROR',
@@ -1128,9 +1423,15 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
           lastModifiedBy: file.lastModifyingUser?.emailAddress ?? undefined,
         }));
 
-      return this.success('list', {
-        spreadsheets,
-      });
+      const responseData = this.applyListResponseFormat({ spreadsheets }, responseFormat);
+
+      return this.success(
+        'list',
+        responseData,
+        undefined,
+        undefined,
+        this.buildResponseFormatMeta('list', responseData)
+      );
     } catch (err) {
       // Ensure errors from Drive API are properly caught and mapped
       return this.mapError(err);
@@ -1496,6 +1797,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
    * List all sheets/tabs in a spreadsheet
    */
   private async handleListSheets(input: CoreListSheetsInput): Promise<CoreResponse> {
+    const responseFormat = input.response_format ?? 'full';
     // Use request deduplication
     const dedupKey = `spreadsheet:get:${input.spreadsheetId}:sheets.properties`;
     const response = await this.deduplicatedApiCall(dedupKey, () =>
@@ -1515,7 +1817,20 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       tabColor: this.convertTabColor(s.properties?.tabColor, s.properties?.tabColorStyle),
     }));
 
-    return this.success('list_sheets', { sheets });
+    // Wire completions: cache sheet names for argument autocompletion (ISSUE-062)
+    for (const sheet of sheets) {
+      if (sheet.title) recordSheetName(sheet.title);
+    }
+
+    const responseData = this.applyListSheetsResponseFormat({ sheets }, responseFormat);
+
+    return this.success(
+      'list_sheets',
+      responseData,
+      undefined,
+      undefined,
+      this.buildResponseFormatMeta('list_sheets', responseData)
+    );
   }
 
   /**

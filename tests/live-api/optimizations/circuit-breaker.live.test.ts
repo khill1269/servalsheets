@@ -99,7 +99,8 @@ describeOrSkip('Circuit Breaker Live Verification', () => {
 
       expect(breaker.getState()).toBe('open');
 
-      await new Promise((resolve) => setTimeout(resolve, 1100));
+      // Wait 1500ms (50% buffer over 1000ms reset timeout) for reliable transition
+      await new Promise((resolve) => setTimeout(resolve, 1500));
 
       const result = await breaker.execute(async () => 'recovered');
       expect(result).toBe('recovered');
@@ -116,7 +117,8 @@ describeOrSkip('Circuit Breaker Live Verification', () => {
         }
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1100));
+      // Wait 1500ms (50% buffer over 1000ms reset timeout) for reliable transition
+      await new Promise((resolve) => setTimeout(resolve, 1500));
 
       await breaker.execute(async () => 'success1');
       await breaker.execute(async () => 'success2');

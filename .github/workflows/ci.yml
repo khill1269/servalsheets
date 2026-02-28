@@ -124,6 +124,9 @@ jobs:
       - name: Check architecture
         run: npm run check:architecture
 
+      - name: Check integration wiring
+        run: npm run check:integration-wiring
+
       - name: Format check
         run: npx turbo run format:check
 

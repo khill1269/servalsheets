@@ -19,6 +19,7 @@ import { getWebhookManager } from './webhook-manager.js';
 import { recordWebhookDelivery } from '../observability/metrics.js';
 import { signWebhookPayload } from '../security/webhook-signature.js';
 import { resourceNotifications } from '../resources/notifications.js';
+import { getCostTracker } from './cost-tracker.js';
 
 /**
  * Webhook worker configuration
@@ -211,6 +212,13 @@ export class WebhookWorker {
             'success',
             durationSeconds
           );
+
+          // COST-01: Track webhook delivery for billing/usage
+          try {
+            getCostTracker().trackFeatureUsage('system', 'webhooksDelivered');
+          } catch {
+            // Cost tracking is non-critical
+          }
 
           logger.info('Webhook delivered successfully', {
             workerId,

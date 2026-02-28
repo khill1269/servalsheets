@@ -35,6 +35,12 @@ const CommonFieldsSchema = z.object({
     ),
 });
 
+const ResponseFormatSchema = z
+  .enum(['full', 'compact', 'preview'])
+  .describe(
+    'Response format profile for read-heavy metadata actions: full (complete payload), compact (reduced token usage), preview (small sample for quick inspection)'
+  );
+
 const SheetSpecSchema = z.object({
   title: z.string().describe('Sheet/tab title'),
   rowCount: z
@@ -61,6 +67,9 @@ const SheetSpecSchema = z.object({
 const GetActionSchema = CommonFieldsSchema.extend({
   action: z.literal('get').describe('Get spreadsheet metadata'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  response_format: ResponseFormatSchema.optional()
+    .default('full')
+    .describe('Output size profile for returned metadata (full, compact, preview)'),
   includeGridData: z
     .boolean()
     .optional()
@@ -70,15 +79,17 @@ const GetActionSchema = CommonFieldsSchema.extend({
     .array(z.string())
     .optional()
     .describe('Specific ranges to fetch if includeGridData=true'),
-}).superRefine((data, ctx) => {
-  if (data.includeGridData === true && (!data.ranges || data.ranges.length === 0)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'ranges is required when includeGridData is true',
-      path: ['ranges'],
-    });
-  }
-});
+})
+  .superRefine((data, ctx) => {
+    if (data.includeGridData === true && (!data.ranges || data.ranges.length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'ranges is required when includeGridData is true',
+        path: ['ranges'],
+      });
+    }
+  })
+  .strict();
 
 const CreateActionSchema = CommonFieldsSchema.extend({
   action: z.literal('create').describe('Create a new spreadsheet'),
@@ -98,14 +109,14 @@ const CreateActionSchema = CommonFieldsSchema.extend({
     .optional()
     .describe('Time zone like America/New_York'),
   sheets: z.array(SheetSpecSchema).optional().describe('Initial sheets/tabs to create'),
-});
+}).strict();
 
 const CopyActionSchema = CommonFieldsSchema.extend({
   action: z.literal('copy').describe('Copy an entire spreadsheet'),
   spreadsheetId: SpreadsheetIdSchema.describe('Source spreadsheet ID'),
   newTitle: z.string().optional().describe('Title for the copied spreadsheet'),
   destinationFolderId: z.string().optional().describe('Google Drive folder ID to copy into'),
-});
+}).strict();
 
 const UpdatePropertiesActionSchema = CommonFieldsSchema.extend({
   action: z.literal('update_properties').describe('Update spreadsheet properties'),
@@ -147,6 +158,23 @@ const UpdatePropertiesActionSchema = CommonFieldsSchema.extend({
     })
     .optional()
     .describe('Spreadsheet color theme applied across the entire workbook'),
+  iterativeCalculationSettings: z
+    .object({
+      maxIterations: z
+        .number()
+        .int()
+        .min(1)
+        .max(10000)
+        .optional()
+        .describe('Maximum number of iterations for circular reference resolution'),
+      convergenceThreshold: z
+        .number()
+        .min(0)
+        .optional()
+        .describe('Convergence threshold for iterative calculation (0-1 range)'),
+    })
+    .optional()
+    .describe('Configure iteration settings for circular references in formulas'),
 });
 
 const GetUrlActionSchema = CommonFieldsSchema.extend({
@@ -163,6 +191,9 @@ const BatchGetActionSchema = CommonFieldsSchema.extend({
     .describe(
       'Fetch metadata from multiple spreadsheets at once. Pass an array of spreadsheetIds. This is NOT for reading multiple ranges from one spreadsheet (use sheets_data:batch_read for that).'
     ),
+  response_format: ResponseFormatSchema.optional()
+    .default('full')
+    .describe('Output size profile for returned spreadsheet list (full, compact, preview)'),
   spreadsheetIds: z
     .array(SpreadsheetIdSchema)
     .min(1)
@@ -194,6 +225,9 @@ const GetComprehensiveActionSchema = CommonFieldsSchema.extend({
 
 const ListActionSchema = CommonFieldsSchema.extend({
   action: z.literal('list').describe('List user spreadsheets from Google Drive'),
+  response_format: ResponseFormatSchema.optional()
+    .default('full')
+    .describe('Output size profile for returned spreadsheet list (full, compact, preview)'),
   maxResults: z
     .number()
     .int()
@@ -301,6 +335,9 @@ const CopySheetToActionSchema = CommonFieldsSchema.extend({
 const ListSheetsActionSchema = CommonFieldsSchema.extend({
   action: z.literal('list_sheets').describe('List all sheets/tabs in a spreadsheet'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  response_format: ResponseFormatSchema.optional()
+    .default('full')
+    .describe('Output size profile for returned sheet list (full, compact, preview)'),
 });
 
 const GetSheetActionSchema = CommonFieldsSchema.extend({
@@ -437,6 +474,39 @@ const CoreResponseSchema = z.discriminatedUnion('success', [
     // Sheet responses
     sheet: SheetInfoSchema.optional(),
     sheets: z.array(SheetInfoSchema).optional(),
+    responseFormat: z
+      .enum(['full', 'compact', 'preview'])
+      .optional()
+      .describe('Applied response_format profile'),
+    truncated: z.boolean().optional().describe('True when response_format returned a partial list'),
+    _responseFormatHint: z
+      .string()
+      .optional()
+      .describe('Guidance for fetching complete metadata when response_format truncates payload'),
+    totalSheets: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe('Total sheets before response_format shaping'),
+    returnedSheets: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe('Sheets returned after response_format shaping'),
+    totalSpreadsheets: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe('Total spreadsheets before response_format shaping'),
+    returnedSpreadsheets: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe('Spreadsheets returned after response_format shaping'),
     copiedSheetId: z.coerce.number().int().optional(),
     /** True if delete was called but sheet was already missing (with allowMissing=true) */
     alreadyDeleted: z.boolean().optional(),

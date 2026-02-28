@@ -59,7 +59,7 @@ export interface PreTestValidationOptions {
 }
 
 const DEFAULT_OPTIONS: Required<PreTestValidationOptions> = {
-  requiredEnvVars: ['TEST_REAL_API', 'TEST_SPREADSHEET_ID'],
+  requiredEnvVars: ['TEST_REAL_API'],
   minReadQuota: 10,
   minWriteQuota: 5,
   checkCredentials: true,
@@ -205,12 +205,13 @@ export class PreTestValidator {
         });
       }
 
-      // Check for test spreadsheet
+      // Check for test spreadsheet (warning only — tests create their own spreadsheets)
       if (!credentials.testSpreadsheet?.id) {
-        errors.push({
+        warnings.push({
           code: 'CRED_NO_SPREADSHEET',
-          message:
-            'No test spreadsheet ID configured. Set TEST_SPREADSHEET_ID environment variable.',
+          message: 'No pre-existing test spreadsheet ID configured.',
+          suggestion:
+            'Set TEST_SPREADSHEET_ID if you want to use a persistent test spreadsheet. Tests create their own spreadsheets when this is not set.',
         });
       }
 

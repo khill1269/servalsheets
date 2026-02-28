@@ -33,14 +33,10 @@ export default defineConfig({
     },
     // Extended timeouts for API calls
     testTimeout: 60000,
-    hookTimeout: 30000,
+    hookTimeout: 60000,
     // Disable parallel execution to respect rate limits
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    maxWorkers: 1,
     // Retry configuration for flaky tests
     retry: 1,
     // Reporter configuration

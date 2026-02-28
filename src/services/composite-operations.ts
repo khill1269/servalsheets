@@ -267,7 +267,7 @@ export class CompositeOperationsService {
       await this.sheetsApi.spreadsheets.values.append({
         spreadsheetId,
         range: writeRange,
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: 'RAW', // CSV data is never formulas — RAW prevents formula injection
         insertDataOption: 'INSERT_ROWS',
         requestBody: { values: rows },
       });
@@ -275,7 +275,7 @@ export class CompositeOperationsService {
       await this.sheetsApi.spreadsheets.values.update({
         spreadsheetId,
         range,
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: 'RAW', // CSV data is never formulas — RAW prevents formula injection
         requestBody: { values: rows },
       });
     }
@@ -375,7 +375,7 @@ export class CompositeOperationsService {
       await this.sheetsApi.spreadsheets.values.update({
         spreadsheetId,
         range: `'${targetSheet.title}'!${newHeaderStart}1:${newHeaderEnd}1`,
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: 'RAW',
         requestBody: { values: [columnsCreated] },
       });
     }
@@ -419,7 +419,7 @@ export class CompositeOperationsService {
     const response = await this.sheetsApi.spreadsheets.values.append({
       spreadsheetId,
       range: `'${targetSheet.title}'!A:${endCol}`,
-      valueInputOption: 'USER_ENTERED',
+      valueInputOption: 'RAW',
       insertDataOption: 'INSERT_ROWS',
       requestBody: { values: rows },
     });
@@ -552,7 +552,7 @@ export class CompositeOperationsService {
       await this.sheetsApi.spreadsheets.values.batchUpdate({
         spreadsheetId,
         requestBody: {
-          valueInputOption: 'USER_ENTERED',
+          valueInputOption: 'RAW',
           data: batchData,
         },
       });
@@ -564,7 +564,7 @@ export class CompositeOperationsService {
       await this.sheetsApi.spreadsheets.values.append({
         spreadsheetId,
         range: `'${targetSheet.title}'!A:${endCol}`,
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
         requestBody: { values: rowsToCreate },
       });

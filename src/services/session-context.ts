@@ -54,7 +54,7 @@
 
 import { logger } from '../utils/logger.js';
 import { UserProfileManager, type UserProfile } from './user-profile-manager.js';
-import { UnderstandingStore } from '../analysis/understanding-store.js';
+import { UnderstandingStore } from './understanding-store.js';
 
 // ============================================================================
 // TYPES
@@ -71,6 +71,10 @@ export interface SpreadsheetContext {
   sheetNames: string[];
   /** Last accessed range */
   lastRange?: string;
+  /** I18N-01: Spreadsheet locale (e.g. 'en_US', 'fr_FR') — from core.get properties */
+  locale?: string;
+  /** I18N-02: Spreadsheet time zone (e.g. 'America/New_York') — from core.get properties */
+  timeZone?: string;
 }
 
 export interface OperationRecord {
@@ -967,6 +971,11 @@ export class SessionContextManager {
       ...result,
       timestamp: Date.now(),
     });
+    // SCALE-01: Cap at 50 entries to prevent unbounded growth before Redis serialization
+    if (this.recentAnalyses.size > 50) {
+      const oldest = this.recentAnalyses.keys().next().value;
+      if (oldest !== undefined) this.recentAnalyses.delete(oldest);
+    }
   }
 
   /**
@@ -1125,24 +1134,107 @@ export class SessionContextManager {
 /** Session TTL in ms — configurable via SESSION_TTL_MS env var (default: 24h) */
 const SESSION_TTL_MS = parseInt(process.env['SESSION_TTL_MS'] ?? String(24 * 60 * 60 * 1000), 10);
 
+/** Redis session store key — namespaced by SESSION_INSTANCE_ID for multi-instance deployments */
+const SESSION_REDIS_KEY = `servalsheets:session:${process.env['SESSION_INSTANCE_ID'] ?? 'default'}:state`;
+
 let sessionContext: SessionContextManager | null = null;
+const sessionContexts = new Map<string, SessionContextManager>();
+
+// SCALE-01: Duck-typed Redis client interface (compatible with 'redis' npm package)
+interface RedisSessionClient {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string, options: { EX: number }): Promise<unknown>;
+}
+
+let sessionRedisClient: RedisSessionClient | null = null;
+
+/**
+ * SCALE-01: Wire a Redis client for session persistence.
+ * Call from server.ts after Redis is connected when SESSION_STORE_TYPE=redis.
+ */
+export function initSessionRedis(client: RedisSessionClient): void {
+  sessionRedisClient = client;
+  logger.info('Session Redis client initialized', { component: 'session-context' });
+}
 
 /**
  * Get or create the session context manager singleton.
- * Evicts the session if it has not been active within SESSION_TTL_MS.
+ * When SESSION_STORE_TYPE=redis: saves state on expiry, restores on creation.
  */
 export function getSessionContext(): SessionContextManager {
   if (!sessionContext) {
     sessionContext = new SessionContextManager();
+    // SCALE-01: Restore from Redis asynchronously (fire-and-forget; state is valid in-memory)
+    if (sessionRedisClient) {
+      void sessionRedisClient
+        .get(SESSION_REDIS_KEY)
+        .then((stored) => {
+          if (stored && sessionContext) {
+            sessionContext.importState(stored);
+            logger.info('Session state restored from Redis', { component: 'session-context' });
+          }
+        })
+        .catch((err: unknown) => {
+          logger.warn('Failed to restore session from Redis', {
+            component: 'session-context',
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+    }
   } else if (Date.now() - sessionContext.getState().lastActivityAt > SESSION_TTL_MS) {
     logger.info('Session expired — creating new SessionContextManager', {
       component: 'session-context',
       idleMs: Date.now() - sessionContext.getState().lastActivityAt,
       ttlMs: SESSION_TTL_MS,
     });
+    // SCALE-01: Persist expired session to Redis before evicting
+    if (sessionRedisClient) {
+      const serialized = sessionContext.exportState();
+      const ttlSeconds = Math.ceil(SESSION_TTL_MS / 1000);
+      void sessionRedisClient
+        .set(SESSION_REDIS_KEY, serialized, { EX: ttlSeconds })
+        .catch((err: unknown) => {
+          logger.warn('Failed to persist session to Redis on expiry', {
+            component: 'session-context',
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+    }
     sessionContext = new SessionContextManager();
   }
   return sessionContext;
+}
+
+/**
+ * Get or create a session-scoped context manager.
+ * Used by HTTP transport to isolate context per authenticated MCP session.
+ */
+export function getOrCreateSessionContext(sessionId: string): SessionContextManager {
+  const existing = sessionContexts.get(sessionId);
+  if (existing) {
+    const idleMs = Date.now() - existing.getState().lastActivityAt;
+    if (idleMs <= SESSION_TTL_MS) {
+      return existing;
+    }
+    logger.info('Session expired — creating new SessionContextManager', {
+      component: 'session-context',
+      sessionId,
+      idleMs,
+      ttlMs: SESSION_TTL_MS,
+    });
+  }
+
+  const created = new SessionContextManager();
+  sessionContexts.set(sessionId, created);
+  return created;
+}
+
+/**
+ * Remove a session-scoped context manager.
+ * Called when HTTP sessions close.
+ */
+export function removeSessionContext(sessionId: string): void {
+  sessionContexts.delete(sessionId);
 }
 
 /**
@@ -1150,6 +1242,15 @@ export function getSessionContext(): SessionContextManager {
  */
 export function resetSessionContext(): void {
   sessionContext = new SessionContextManager();
+  sessionContexts.clear();
+}
+
+/**
+ * Reset the Redis client (for testing only)
+ * @internal
+ */
+export function resetSessionRedis(): void {
+  sessionRedisClient = null;
 }
 
 // ============================================================================
@@ -1159,5 +1260,7 @@ export function resetSessionContext(): void {
 export const SessionContext = {
   SessionContextManager,
   getSessionContext,
+  getOrCreateSessionContext,
+  removeSessionContext,
   resetSessionContext,
 };

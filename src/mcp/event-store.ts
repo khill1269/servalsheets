@@ -63,6 +63,13 @@ export class InMemoryEventStore implements EventStore {
     this.prune();
     const lastIndex = this.order.indexOf(lastEventId);
     if (lastIndex === -1) {
+      // ISSUE-146: Log expired/unknown cursor so operators can observe reconnect frequency.
+      // Returning '' signals the MCP client to re-initialize from current state.
+      logger.warn('event_store_cursor_expired', {
+        eventId: lastEventId,
+        storeSize: this.order.length,
+        hint: 'Client must re-initialize; cursor was evicted from FIFO buffer or is unknown',
+      });
       return '';
     }
 
@@ -183,6 +190,11 @@ export class RedisEventStore implements EventStore {
   ): Promise<StreamId> {
     const parsed = this.parseEventId(lastEventId);
     if (!parsed) {
+      // ISSUE-146: Malformed event ID — log and signal client to re-initialize
+      logger.warn('event_store_cursor_malformed', {
+        eventId: lastEventId,
+        hint: 'Event ID could not be parsed; client must re-initialize',
+      });
       return '';
     }
 
@@ -191,12 +203,24 @@ export class RedisEventStore implements EventStore {
     const eventsKey = this.getEventsKey(parsed.streamId);
     const lastScore = await RedisEventStore.client!.zScore(eventsKey, lastEventId);
     if (lastScore === null) {
+      // ISSUE-146: Cursor evicted from Redis (TTL expired) — log so operators can tune TTL
+      logger.warn('event_store_cursor_expired', {
+        eventId: lastEventId,
+        streamId: parsed.streamId,
+        hint: 'Cursor evicted from Redis; client must re-initialize. Consider increasing event TTL.',
+      });
       return '';
     }
 
     const eventKey = this.getEventKey(parsed.streamId, parsed.sequence);
     const lastExists = await RedisEventStore.client!.exists(eventKey);
     if (!lastExists) {
+      // ISSUE-146: Event data evicted even though score exists (TTL skew) — log for diagnostics
+      logger.warn('event_store_event_data_missing', {
+        eventId: lastEventId,
+        streamId: parsed.streamId,
+        hint: 'Event score exists but event data is missing; possible TTL skew between score and data',
+      });
       return '';
     }
 

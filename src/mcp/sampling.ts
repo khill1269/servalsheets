@@ -13,6 +13,7 @@ import type {
   ClientCapabilities,
   CreateMessageRequest,
   CreateMessageResult,
+  CreateMessageResultWithTools,
   SamplingMessage,
   Tool,
   TextContent,
@@ -20,10 +21,13 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js';
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
+import { getRequestContext } from '../utils/request-context.js';
+import { getEnv } from '../config/env.js';
 import {
   getSpreadsheetContext,
   formatContextForPrompt,
 } from '../services/sampling-context-cache.js';
+import { compressContext, formatCompressedContext } from '../services/context-compressor.js';
 
 // ============================================================================
 // ISSUE-117: GDPR consent gate for Sampling calls
@@ -35,6 +39,7 @@ import {
  * When null (default), all sampling calls are allowed (backwards-compatible).
  */
 let _consentChecker: (() => Promise<void>) | null = null;
+const _consentCache = new Map<string, { expiresAt: number; errorMessage?: string }>();
 
 /**
  * Register a GDPR consent check callback. Called before every createMessage().
@@ -50,9 +55,53 @@ export function registerSamplingConsentChecker(checker: () => Promise<void>): vo
   _consentChecker = checker;
 }
 
-async function assertSamplingConsent(): Promise<void> {
-  if (_consentChecker) {
+function getConsentCacheKey(): string {
+  const context = getRequestContext();
+  return context?.principalId ?? context?.requestId ?? 'global';
+}
+
+function purgeExpiredConsentEntries(nowMs: number): void {
+  for (const [key, entry] of _consentCache.entries()) {
+    if (entry.expiresAt <= nowMs) {
+      _consentCache.delete(key);
+    }
+  }
+}
+
+export function clearSamplingConsentCache(): void {
+  _consentCache.clear();
+}
+
+export async function assertSamplingConsent(): Promise<void> {
+  if (!_consentChecker) {
+    return;
+  }
+
+  const ttlMs = getEnv().SAMPLING_CONSENT_CACHE_TTL_MS;
+  if (ttlMs <= 0) {
     await _consentChecker();
+    return;
+  }
+
+  const nowMs = Date.now();
+  purgeExpiredConsentEntries(nowMs);
+
+  const cacheKey = getConsentCacheKey();
+  const cached = _consentCache.get(cacheKey);
+  if (cached && cached.expiresAt > nowMs) {
+    if (cached.errorMessage) {
+      throw new Error(cached.errorMessage);
+    }
+    return;
+  }
+
+  try {
+    await _consentChecker();
+    _consentCache.set(cacheKey, { expiresAt: nowMs + ttlMs });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    _consentCache.set(cacheKey, { expiresAt: nowMs + ttlMs, errorMessage: message });
+    throw error;
   }
 }
 
@@ -65,13 +114,20 @@ const SAMPLING_TIMEOUT_MS = parseInt(process.env['SAMPLING_TIMEOUT_MS'] ?? '3000
 
 /**
  * Wrap a sampling request with a configurable timeout.
- * Rejects with a descriptive error if the request exceeds SAMPLING_TIMEOUT_MS.
+ * Respects the current request deadline so sampling never outlasts its parent request.
+ * Rejects with a descriptive error if the request exceeds the effective timeout.
  */
 export function withSamplingTimeout<T>(promise: Promise<T>): Promise<T> {
+  // Use the remaining request deadline if available, capped at SAMPLING_TIMEOUT_MS
+  const ctx = getRequestContext();
+  const effectiveTimeout = ctx
+    ? Math.min(SAMPLING_TIMEOUT_MS, Math.max(0, ctx.deadline - Date.now()))
+    : SAMPLING_TIMEOUT_MS;
+
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(
-      () => reject(new Error(`Sampling request timed out after ${SAMPLING_TIMEOUT_MS}ms`)),
-      SAMPLING_TIMEOUT_MS
+      () => reject(new Error(`Sampling request timed out after ${effectiveTimeout}ms`)),
+      effectiveTimeout
     );
     promise.then(
       (v) => {
@@ -159,7 +215,9 @@ export interface AgenticResult {
  */
 export interface SamplingServer {
   getClientCapabilities(): ClientCapabilities | undefined;
-  createMessage(params: CreateMessageRequest['params']): Promise<CreateMessageResult>;
+  createMessage(
+    params: CreateMessageRequest['params']
+  ): Promise<CreateMessageResult | CreateMessageResultWithTools>;
 }
 
 /**
@@ -221,7 +279,9 @@ export function assertSamplingToolsSupport(
 /**
  * Extract text content from sampling result
  */
-export function extractTextFromResult(result: CreateMessageResult): string {
+export function extractTextFromResult(
+  result: CreateMessageResult | CreateMessageResultWithTools
+): string {
   const content = Array.isArray(result.content) ? result.content : [result.content];
   return content
     .filter((block): block is TextContent => block.type === 'text')
@@ -285,9 +345,24 @@ export function formatDataForLLM(
     maxRows?: number;
     includeRowNumbers?: boolean;
     format?: 'json' | 'csv' | 'markdown';
+    /** Use context compression for large datasets (default: true) */
+    compress?: boolean;
   } = {}
 ): string {
-  const { maxRows = 100, includeRowNumbers = true, format = 'markdown' } = options;
+  const { maxRows = 100, includeRowNumbers = true, format = 'markdown', compress = true } = options;
+
+  // Context compression for large datasets (80-96% token reduction)
+  // Threshold: 200+ rows triggers compression instead of naive truncation
+  if (compress && data.length > 200) {
+    const compressed = compressContext(data, {
+      strategy: 'auto',
+      maxSampleRows: Math.min(maxRows, 15),
+      maxColumns: 20,
+      includeTypes: true,
+      includeStats: true,
+    });
+    return formatCompressedContext(compressed);
+  }
 
   const truncatedData = data.slice(0, maxRows);
   const wasTruncated = data.length > maxRows;
@@ -1054,7 +1129,7 @@ export async function* streamAgenticOperation(
   let iterationCount = 0;
   const maxIterations = 10;
 
-  const params = createAgenticRequest(task, context);
+  let params = createAgenticRequest(task, context);
 
   while (continueLoop && iterationCount < maxIterations) {
     iterationCount++;
@@ -1062,9 +1137,15 @@ export async function* streamAgenticOperation(
     const result = await withSamplingTimeout(server.createMessage(params));
 
     // Process content
-    const content = Array.isArray(result.content) ? result.content : [result.content];
+    const contentBlocks = Array.isArray(result.content) ? result.content : [result.content];
 
-    for (const block of content) {
+    // Preserve assistant turn in conversation history for subsequent iterations
+    params = {
+      ...params,
+      messages: [...params.messages, { role: 'assistant', content: result.content }],
+    };
+
+    for (const block of contentBlocks) {
       if (block.type === 'text') {
         yield { type: 'text', data: block.text };
       } else if (block.type === 'tool_use') {
@@ -1074,24 +1155,52 @@ export async function* streamAgenticOperation(
         };
 
         // Execute tool
-        const toolResult = await toolHandler(block.name, block.input as Record<string, unknown>);
+        const actionResult = await toolHandler(block.name, block.input as Record<string, unknown>);
 
-        yield { type: 'tool_result', data: toolResult.result };
+        yield { type: 'tool_result', data: actionResult.result };
 
         actions.push({
           type: block.name,
           target: JSON.stringify(block.input),
-          details: JSON.stringify(toolResult.result),
+          details: JSON.stringify(actionResult.result),
         });
 
-        if (!toolResult.continue) {
+        const serializedResult = (() => {
+          try {
+            return JSON.stringify(actionResult.result);
+          } catch {
+            return String(actionResult.result);
+          }
+        })();
+
+        params = {
+          ...params,
+          messages: [
+            ...params.messages,
+            {
+              role: 'user',
+              content: {
+                type: 'tool_result',
+                toolUseId: block.id,
+                content: [{ type: 'text', text: serializedResult }],
+              },
+            },
+          ],
+        };
+
+        if (!actionResult.continue) {
           continueLoop = false;
         }
       }
     }
 
     // Check stop reason
-    if (result.stopReason === 'end_turn' || result.stopReason === 'stop_sequence') {
+    if (
+      result.stopReason === 'endTurn' ||
+      result.stopReason === 'stopSequence' ||
+      result.stopReason === 'maxTokens' ||
+      result.stopReason === 'toolUse'
+    ) {
       continueLoop = false;
     }
   }
@@ -1110,4 +1219,11 @@ export async function* streamAgenticOperation(
 // Exports
 // ============================================================================
 
-export type { CreateMessageRequest, CreateMessageResult, SamplingMessage, Tool, ModelPreferences };
+export type {
+  CreateMessageRequest,
+  CreateMessageResult,
+  CreateMessageResultWithTools,
+  SamplingMessage,
+  Tool,
+  ModelPreferences,
+};

@@ -181,9 +181,16 @@ export const SheetsCollaborateInputSchema = z.object({
           'approval_list_pending',
           'approval_delegate',
           'approval_cancel',
+          // Access proposal actions (2)
+          'list_access_proposals',
+          'resolve_access_proposal',
+          // Drive Label actions (3)
+          'label_list',
+          'label_apply',
+          'label_remove',
         ])
         .describe(
-          'The collaboration operation to perform (sharing, comments, version control, or approvals)'
+          'The collaboration operation to perform (sharing, comments, version control, approvals, or access proposals)'
         ),
 
       // Common field - spreadsheetId (required for all actions)
@@ -412,6 +419,43 @@ export const SheetsCollaborateInputSchema = z.object({
         .optional()
         .describe('Email address to delegate approval to (required for: approval_delegate)'),
 
+      // ========== ACCESS PROPOSAL FIELDS ==========
+      // Fields for list_access_proposals and resolve_access_proposal actions
+      proposalId: z
+        .string()
+        .optional()
+        .describe(
+          'The proposal ID from list_access_proposals (required for: resolve_access_proposal)'
+        ),
+
+      decision: z
+        .enum(['APPROVE', 'DENY'])
+        .optional()
+        .describe('The resolution decision (required for: resolve_access_proposal)'),
+
+      // ========== DRIVE LABEL FIELDS ==========
+      // Fields for label_list, label_apply, label_remove actions
+      fileId: z
+        .string()
+        .optional()
+        .describe(
+          'The spreadsheet/Drive file ID (required for: label_list, label_apply, label_remove; defaults to spreadsheetId if omitted)'
+        ),
+      labelId: z
+        .string()
+        .optional()
+        .describe(
+          'The Drive Label ID to apply or remove (required for: label_apply, label_remove)'
+        ),
+      includeLabels: z
+        .array(z.string())
+        .optional()
+        .describe('Filter to specific label IDs in results (label_list only)'),
+      labelFields: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe('Label field values to set when applying a label (label_apply only)'),
+
       // Safety options for all mutation operations
       safety: SafetyOptionsSchema.optional().describe(
         'Safety options like dryRun (applies to all destructive operations)'
@@ -504,6 +548,20 @@ export const SheetsCollaborateInputSchema = z.object({
           case 'approval_delegate':
             return !!data.spreadsheetId && !!data.approvalId && !!data.delegateTo;
 
+          // Access proposal actions
+          case 'list_access_proposals':
+            return !!data.spreadsheetId;
+          case 'resolve_access_proposal':
+            return !!data.spreadsheetId && !!data.proposalId && !!data.decision;
+
+          // Drive Label actions
+          case 'label_list':
+            return !!(data.fileId ?? data.spreadsheetId);
+          case 'label_apply':
+            return !!(data.fileId ?? data.spreadsheetId) && !!data.labelId;
+          case 'label_remove':
+            return !!(data.fileId ?? data.spreadsheetId) && !!data.labelId;
+
           default:
             return false;
         }
@@ -547,6 +605,10 @@ const CollaborateResponseSchema = z.discriminatedUnion('success', [
     // Approval response fields
     approval: ApprovalSchema.optional(),
     approvals: z.array(ApprovalSchema).optional(),
+    // Drive Label response fields
+    labels: z.array(z.record(z.string(), z.unknown())).optional(),
+    labelId: z.string().optional(),
+    fileId: z.string().optional(),
     // Common response fields
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
@@ -620,6 +682,7 @@ export type CollaborateShareSetLinkInput = SheetsCollaborateInput['request'] & {
   action: 'share_set_link';
   spreadsheetId: string;
   enabled: boolean;
+  allowFileDiscovery?: boolean;
 };
 export type CollaborateShareGetLinkInput = SheetsCollaborateInput['request'] & {
   action: 'share_get_link';
@@ -766,4 +829,41 @@ export type CollaborateApprovalCancelInput = SheetsCollaborateInput['request'] &
   action: 'approval_cancel';
   spreadsheetId: string;
   approvalId: string;
+};
+
+// Access proposal action types (2)
+export type CollaborateListAccessProposalsInput = SheetsCollaborateInput['request'] & {
+  action: 'list_access_proposals';
+  spreadsheetId: string;
+  pageToken?: string;
+  pageSize?: number;
+};
+export type CollaborateResolveAccessProposalInput = SheetsCollaborateInput['request'] & {
+  action: 'resolve_access_proposal';
+  spreadsheetId: string;
+  proposalId: string;
+  decision: 'APPROVE' | 'DENY';
+  role?: 'reader' | 'commenter' | 'writer';
+  sendNotification?: boolean;
+};
+
+// Drive Label action types (3)
+export type CollaborateLabelListInput = SheetsCollaborateInput['request'] & {
+  action: 'label_list';
+  fileId?: string;
+  spreadsheetId?: string;
+  includeLabels?: string[];
+};
+export type CollaborateLabelApplyInput = SheetsCollaborateInput['request'] & {
+  action: 'label_apply';
+  fileId?: string;
+  spreadsheetId?: string;
+  labelId: string;
+  labelFields?: Record<string, unknown>;
+};
+export type CollaborateLabelRemoveInput = SheetsCollaborateInput['request'] & {
+  action: 'label_remove';
+  fileId?: string;
+  spreadsheetId?: string;
+  labelId: string;
 };

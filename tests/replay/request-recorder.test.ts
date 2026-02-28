@@ -11,8 +11,12 @@ const TEST_DB_PATH = resolve(process.cwd(), '.data', 'test-requests.db');
 
 describe('RequestRecorder', () => {
   let recorder: RequestRecorder;
+  let originalRecordRequests: string | undefined;
 
   beforeEach(() => {
+    originalRecordRequests = process.env['RECORD_REQUESTS'];
+    process.env['RECORD_REQUESTS'] = 'true';
+
     // Clean up test database if it exists
     if (existsSync(TEST_DB_PATH)) {
       unlinkSync(TEST_DB_PATH);
@@ -23,6 +27,12 @@ describe('RequestRecorder', () => {
 
   afterEach(() => {
     recorder.close();
+
+    if (originalRecordRequests === undefined) {
+      delete process.env['RECORD_REQUESTS'];
+    } else {
+      process.env['RECORD_REQUESTS'] = originalRecordRequests;
+    }
 
     // Clean up test database
     if (existsSync(TEST_DB_PATH)) {

@@ -12,6 +12,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import compression from 'compression';
 import { randomUUID, randomBytes, createHash } from 'crypto';
+import type { Server as NodeHttpServer } from 'node:http';
 import { fileURLToPath } from 'url';
 import { resolve, join } from 'path';
 import { readFileSync, existsSync } from 'fs';
@@ -19,11 +20,17 @@ import * as swaggerUi from 'swagger-ui-express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { SetLevelRequestSchema, isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import {
+  SetLevelRequestSchema,
+  isInitializeRequest,
+  type LoggingLevel,
+} from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
 import { OAuthProvider } from './oauth-provider.js';
 import { validateEnv, env, getEnv } from './config/env.js';
+import { warnIfDefaultCredentialsInHttpMode } from './config/embedded-oauth.js';
+import { registerSamplingConsentChecker } from './mcp/sampling.js';
 import { createGoogleApiClient, GoogleApiClient } from './services/google-api.js';
 import { initTransactionManager } from './services/transaction-manager.js';
 import { initConflictDetector } from './services/conflict-detector.js';
@@ -34,10 +41,13 @@ import { VERSION, SERVER_INFO, SERVER_ICONS } from './version.js';
 import { logger } from './utils/logger.js';
 import { sendProgress } from './utils/request-context.js';
 import { HealthService } from './server/health.js';
+import { startMetricsServer, stopMetricsServer } from './server/metrics-server.js';
 import { metricsHandler, sessionsTotal } from './observability/metrics.js';
 import { UserRateLimiter, createUserRateLimiterFromEnv } from './services/user-rate-limiter.js';
 import { responseRedactionMiddleware } from './middleware/redaction.js';
 import { circuitBreakerRegistry } from './services/circuit-breaker-registry.js';
+import { MetricsExporter } from './services/metrics-exporter.js';
+import { getMetricsService } from './services/metrics.js';
 import {
   BatchCompiler,
   RateLimiter,
@@ -75,15 +85,20 @@ import {
   registerKnowledgeIndexResource,
   registerKnowledgeSearchResource,
   initializeResourceNotifications,
+  resourceNotifications,
 } from './resources/index.js';
 import { getTraceAggregator } from './services/trace-aggregator.js';
 import { getRequestRecorder } from './services/request-recorder.js';
+import { getCostTracker } from './services/cost-tracker.js';
+import { initializeBillingIntegration } from './services/billing-integration.js';
 import { extractVersionFromRequest, addDeprecationHeaders } from './versioning/schema-manager.js';
 import { addGraphQLEndpoint } from './graphql/index.js';
 import { addAdminRoutes, requireAdminAuth, type AdminSessionManager } from './admin/index.js';
+import { cacheManager } from './utils/cache-manager.js';
 import { registerServalSheetsPrompts } from './mcp/registration/prompt-registration.js';
 import { registerServalSheetsResources } from './mcp/registration/resource-registration.js';
 import { registerServalSheetsTools } from './mcp/registration/tool-handlers.js';
+import { TOOL_DEFINITIONS } from './mcp/registration/tool-definitions.js';
 import { createServerCapabilities, SERVER_INSTRUCTIONS } from './mcp/features-2025-11-25.js';
 import { InMemoryEventStore, RedisEventStore } from './mcp/event-store.js';
 import {
@@ -104,6 +119,8 @@ import {
   createResourceIndicatorValidator,
 } from './security/index.js';
 import { getWebhookManager, getWebhookQueue } from './services/index.js';
+import { initializeRbacManager } from './services/rbac-manager.js';
+import { getOrCreateSessionContext, removeSessionContext } from './services/session-context.js';
 
 export interface HttpServerOptions {
   port?: number;
@@ -133,16 +150,127 @@ const DEFAULT_PORT = 3000;
 // HIGH-003 FIX: Default to localhost for security (0.0.0.0 exposes to entire network)
 // Override with HOST=0.0.0.0 in production if external access needed
 const DEFAULT_HOST = '127.0.0.1';
-const DEFAULT_RATE_LIMIT_WINDOW_MS = 60000;
-const DEFAULT_RATE_LIMIT_MAX = 100;
+
+const MCP_LOG_SEVERITY: Record<LoggingLevel, number> = {
+  emergency: 0,
+  alert: 1,
+  critical: 2,
+  error: 3,
+  warning: 4,
+  notice: 5,
+  info: 6,
+  debug: 7,
+};
+
+const WINSTON_TO_MCP_LOG_LEVEL: Record<string, LoggingLevel> = {
+  error: 'error',
+  warn: 'warning',
+  info: 'info',
+  http: 'info',
+  verbose: 'debug',
+  debug: 'debug',
+  silly: 'debug',
+};
+
+let httpRequestedMcpLogLevel: LoggingLevel | null = null;
+let httpLoggingBridgeInstalled = false;
+let httpForwardingMcpLog = false;
+let httpLoggingServer: McpServer | null = null;
+
+function normalizeMcpLogLevel(winstonLevel: string): LoggingLevel {
+  return WINSTON_TO_MCP_LOG_LEVEL[winstonLevel] ?? 'info';
+}
+
+function shouldForwardMcpLog(winstonLevel: string, requestedLevel: LoggingLevel): boolean {
+  const messageLevel = normalizeMcpLogLevel(winstonLevel);
+  return MCP_LOG_SEVERITY[messageLevel] <= MCP_LOG_SEVERITY[requestedLevel];
+}
+
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function installHttpLoggingBridge(): void {
+  if (httpLoggingBridgeInstalled) {
+    return;
+  }
+
+  httpLoggingBridgeInstalled = true;
+  const originalLog = logger.log.bind(logger);
+
+  logger.log = ((levelOrEntry: unknown, message?: unknown, ...meta: unknown[]) => {
+    const result = (originalLog as (...args: unknown[]) => unknown)(levelOrEntry, message, ...meta);
+
+    if (!httpRequestedMcpLogLevel || httpForwardingMcpLog || !httpLoggingServer) {
+      return result;
+    }
+
+    let level = 'info';
+    let text = '';
+    let data: unknown = message;
+
+    if (typeof levelOrEntry === 'string') {
+      level = levelOrEntry;
+      if (typeof message === 'string') {
+        text = message;
+      } else if (message !== undefined) {
+        text = safeStringify(message);
+      }
+      data = meta.length === 0 ? message : meta.length === 1 ? meta[0] : meta;
+    } else if (typeof levelOrEntry === 'object' && levelOrEntry !== null) {
+      const entry = levelOrEntry as Record<string, unknown>;
+      if (typeof entry['level'] !== 'string') {
+        return result;
+      }
+      level = entry['level'];
+      if (typeof entry['message'] === 'string') {
+        text = entry['message'];
+      } else if (entry['message'] !== undefined) {
+        text = safeStringify(entry['message']);
+      }
+      data = entry;
+    } else {
+      return result;
+    }
+
+    if (!shouldForwardMcpLog(level, httpRequestedMcpLogLevel)) {
+      return result;
+    }
+
+    httpForwardingMcpLog = true;
+    void httpLoggingServer.server
+      .sendLoggingMessage({
+        level: normalizeMcpLogLevel(level),
+        logger: 'servalsheets',
+        data: { message: text, meta: data },
+      })
+      .catch(() => {
+        // Best-effort bridge: avoid recursive logging on notification failure.
+      })
+      .finally(() => {
+        httpForwardingMcpLog = false;
+      });
+
+    return result;
+  }) as typeof logger.log;
+}
 
 // Monkey-patches removed: All schemas now use flattened z.object() pattern
 // which works natively with MCP SDK v1.25.x - no patches required!
 
 async function createMcpServerInstance(
   googleToken?: string,
-  googleRefreshToken?: string
+  googleRefreshToken?: string,
+  sessionId?: string
 ): Promise<{ mcpServer: McpServer; taskStore: TaskStoreAdapter }> {
+  const envConfig = getEnv();
+  const costTrackingEnabled =
+    envConfig.ENABLE_COST_TRACKING || envConfig.ENABLE_BILLING_INTEGRATION;
+
   // Create task store for SEP-1686 support - uses createTaskStore() for Redis support
   const { createTaskStore } = await import('./core/task-store-factory.js');
   const taskStore = await createTaskStore();
@@ -213,6 +341,7 @@ async function createMcpServerInstance(
       accessPatternTracker, // Phase 3: Access pattern learning for smarter predictions
       queryOptimizer, // Phase 3B: Adaptive query optimization (-25% avg latency)
       snapshotService, // Pass to context for HistoryHandler undo/revert (Task 1.3)
+      ...(costTrackingEnabled ? { costTracker: getCostTracker() } : {}),
       auth: {
         // Use getters to always read live values from GoogleApiClient
         // This ensures re-auth with broader scopes takes effect immediately
@@ -226,6 +355,8 @@ async function createMcpServerInstance(
       samplingServer: mcpServer.server, // Pass underlying Server instance for sampling
       server: mcpServer.server, // Pass Server instance for elicitation/sampling (SEP-1036, SEP-1577)
       requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
+      ...(sessionId ? { sessionContext: getOrCreateSessionContext(sessionId) } : {}),
+      taskStore, // ISSUE-225: Pass taskStore so Task IDs are emitted via HTTP transport (SEP-1686)
     };
 
     handlers = createHandlers({
@@ -234,6 +365,15 @@ async function createMcpServerInstance(
       driveApi: googleClient.drive,
     });
   }
+
+  initializeBillingIntegration({
+    enabled: envConfig.ENABLE_BILLING_INTEGRATION,
+    stripeSecretKey: envConfig.STRIPE_SECRET_KEY,
+    webhookSecret: envConfig.STRIPE_WEBHOOK_SECRET,
+    currency: envConfig.BILLING_CURRENCY,
+    billingCycle: envConfig.BILLING_CYCLE,
+    autoInvoicing: envConfig.BILLING_AUTO_INVOICING,
+  });
 
   await registerServalSheetsTools(mcpServer, handlers, { googleClient });
   registerServalSheetsResources(mcpServer, googleClient);
@@ -295,12 +435,24 @@ async function createMcpServerInstance(
 
   // Initialize resource change notifications
   initializeResourceNotifications(mcpServer);
+  if (envConfig.ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS) {
+    resourceNotifications.syncToolList(
+      TOOL_DEFINITIONS.map((tool) => tool.name),
+      {
+        emitOnFirstSet: false,
+        reason: 'http transport resources initialized',
+      }
+    );
+  }
 
   // Register logging handler
   mcpServer.server.setRequestHandler(
     SetLevelRequestSchema,
     async (request: z.infer<typeof SetLevelRequestSchema>) => {
       const level = request.params.level;
+      httpRequestedMcpLogLevel = level;
+      httpLoggingServer = mcpServer;
+      installHttpLoggingBridge();
       const response = await handleLoggingSetLevel({ level });
       logger.info('Log level changed via logging/setLevel', {
         previousLevel: response.previousLevel,
@@ -324,13 +476,22 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   stop: () => Promise<void> | undefined;
   sessions: unknown;
 } {
+  const envConfig = getEnv();
+
+  const configuredCorsOrigins = envConfig.CORS_ORIGINS.split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+
   const port = options.port ?? DEFAULT_PORT;
   const host = options.host ?? DEFAULT_HOST;
-  const corsOrigins = options.corsOrigins ?? ['https://claude.ai', 'https://claude.com'];
-  const rateLimitWindowMs = options.rateLimitWindowMs ?? DEFAULT_RATE_LIMIT_WINDOW_MS;
-  const rateLimitMax = options.rateLimitMax ?? DEFAULT_RATE_LIMIT_MAX;
+  const corsOrigins =
+    options.corsOrigins ??
+    (configuredCorsOrigins.length > 0
+      ? configuredCorsOrigins
+      : ['https://claude.ai', 'https://claude.com']);
+  const rateLimitWindowMs = options.rateLimitWindowMs ?? envConfig.RATE_LIMIT_WINDOW_MS;
+  const rateLimitMax = options.rateLimitMax ?? envConfig.RATE_LIMIT_MAX;
   const trustProxy = options.trustProxy ?? false;
-  const envConfig = getEnv();
   const legacySseEnabled = envConfig.ENABLE_LEGACY_SSE;
   const eventStoreRedisUrl = envConfig.REDIS_URL;
   const eventStoreTtlMs = envConfig.STREAMABLE_HTTP_EVENT_TTL_MS;
@@ -390,14 +551,13 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   app.use((req: Request, res: Response, next: NextFunction) => {
     const versionSelection = extractVersionFromRequest(req);
     addDeprecationHeaders(res, versionSelection);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Express Request augmentation
-    (req as any).schemaVersion = versionSelection.selectedVersion;
+    req.schemaVersion = versionSelection.selectedVersion;
     next();
   });
 
   // Request recording middleware (P3-6)
   // Records all tool calls to SQLite for replay and debugging
-  // Controlled by RECORD_REQUESTS env var (default: true)
+  // Controlled by RECORD_REQUESTS env var (opt-in: set true to enable)
   const recorder = getRequestRecorder();
   app.use((req: Request, res: Response, next: NextFunction) => {
     const startTime = Date.now();
@@ -690,6 +850,13 @@ export function createHttpServer(options: HttpServerOptions = {}): {
           logger.info('Per-user rate limiter initialized with Redis', {
             redisUrl: redisUrl.replace(/:[^:]*@/, ':***@'), // Mask credentials
           });
+
+          // SCALE-01: Wire Redis-backed session store when SESSION_STORE_TYPE=redis
+          if (process.env['SESSION_STORE_TYPE'] === 'redis') {
+            const { initSessionRedis } = await import('./services/session-context.js');
+            initSessionRedis(redis);
+            logger.info('Session store initialized with Redis backend (HTTP mode)');
+          }
         } catch (error) {
           logger.error('Failed to initialize Redis for rate limiting', { error });
           logger.warn('Continuing without per-user rate limiting');
@@ -700,6 +867,21 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   if (!redisUrl) {
     logger.debug('REDIS_URL not set, per-user rate limiting disabled');
   }
+
+  // Initialize RBAC manager when RBAC middleware is enabled so built-in roles are loaded
+  // before the first permission check.
+  const initializeRbac = async (): Promise<void> => {
+    if (!envConfig.ENABLE_RBAC) {
+      return;
+    }
+    try {
+      await initializeRbacManager();
+      logger.info('RBAC manager initialized');
+    } catch (error) {
+      logger.error('Failed to initialize RBAC manager', { error });
+      throw error;
+    }
+  };
 
   // Per-user rate limiting middleware (if Redis available)
   app.use(async (req: Request, res: Response, next: NextFunction) => {
@@ -769,6 +951,13 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   // Tenant Isolation (must be before RBAC - tenant context needed for RBAC decisions)
   if (envConfig.ENABLE_TENANT_ISOLATION) {
     let tenantMw: Promise<typeof import('./middleware/tenant-isolation.js')> | null = null;
+    let tenantIsolationHandler:
+      | ((req: Request, res: Response, next: NextFunction) => Promise<void> | void)
+      | null = null;
+    let spreadsheetAccessHandler:
+      | ((req: Request, res: Response, next: NextFunction) => Promise<void> | void)
+      | null = null;
+
     app.use((req: Request, res: Response, next: NextFunction) => {
       if (!tenantMw) {
         tenantMw = import('./middleware/tenant-isolation.js');
@@ -776,7 +965,16 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       }
       void tenantMw
         .then((mod) => {
-          mod.tenantIsolationMiddleware()(req, res, next);
+          tenantIsolationHandler ??= mod.tenantIsolationMiddleware();
+          spreadsheetAccessHandler ??= mod.validateSpreadsheetAccess();
+
+          tenantIsolationHandler(req, res, (error?: unknown) => {
+            if (error) {
+              next(error);
+              return;
+            }
+            spreadsheetAccessHandler!(req, res, next);
+          });
         })
         .catch(next);
     });
@@ -848,7 +1046,11 @@ export function createHttpServer(options: HttpServerOptions = {}): {
 
   // Well-known discovery endpoints (RFC 8615)
   // These must be registered before rate limiting exemption or after with explicit allow
-  registerWellKnownHandlers(app);
+  registerWellKnownHandlers(app, {
+    corsOrigins,
+    rateLimitMax,
+    legacySseEnabled,
+  });
 
   // Liveness probe - Is the server running?
   app.get('/health/live', async (_req: Request, res: Response) => {
@@ -865,11 +1067,8 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       oauth?: {
         enabled: boolean;
         configured: boolean;
-        issuer?: string;
-        clientId?: string;
       };
       sessions?: {
-        active: number;
         hasAuthentication: boolean;
       };
     } = { ...baseHealth };
@@ -879,17 +1078,16 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       health.oauth = {
         enabled: true,
         configured: Boolean(
-          options.oauthConfig.googleClientId && options.oauthConfig.googleClientSecret
+          options.oauthConfig.clientId &&
+          options.oauthConfig.clientSecret &&
+          !options.oauthConfig.clientSecret.includes('REPLACE_WITH')
         ),
-        issuer: options.oauthConfig.issuer,
-        clientId: options.oauthConfig.clientId,
       };
     }
 
     // Add active session info
     health.sessions = {
-      active: sessions.size,
-      hasAuthentication: sessions.size > 0, // Sessions are created with auth tokens
+      hasAuthentication: sessions.size > 0,
     };
 
     // Return 200 for healthy/degraded, 503 for unhealthy
@@ -1664,6 +1862,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         sessions.delete(id);
         sessionsTotal.set(sessions.size);
         sessionLimiter.unregisterSession(id);
+        removeSessionContext(id);
         clearEventStore(session.eventStore);
         if (typeof session.transport.close === 'function') {
           session.transport.close();
@@ -1672,6 +1871,26 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       }
     }
   }, 60000);
+
+  const cleanupSessions = (): void => {
+    for (const [sessionId, session] of sessions.entries()) {
+      try {
+        session.taskStore.dispose();
+        clearEventStore(session.eventStore);
+
+        if (typeof session.transport.close === 'function') {
+          session.transport.close();
+        }
+      } catch (error) {
+        logger.error('Error cleaning up session during HTTP server stop', { sessionId, error });
+      } finally {
+        sessions.delete(sessionId);
+        sessionLimiter.unregisterSession(sessionId);
+        removeSessionContext(sessionId);
+      }
+    }
+    sessionsTotal.set(sessions.size);
+  };
 
   // Resource Indicator validation (RFC 8707) - validates tokens if present
   const serverUrl = process.env['SERVER_URL'] || `http://${host}:${port}`;
@@ -1879,7 +2098,11 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         const eventStore = createEventStore(sessionId);
 
         // Create and connect MCP server with task store
-        const { mcpServer, taskStore } = await createMcpServerInstance(googleToken);
+        const { mcpServer, taskStore } = await createMcpServerInstance(
+          googleToken,
+          undefined,
+          sessionId
+        );
         await mcpServer.connect(transport);
         sessions.set(sessionId, {
           transport,
@@ -1900,6 +2123,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
           sessions.delete(sessionId);
           sessionsTotal.set(sessions.size);
           sessionLimiter.unregisterSession(sessionId);
+          removeSessionContext(sessionId);
           if (typeof transport.close === 'function') {
             transport.close();
           }
@@ -2117,7 +2341,11 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         // Create security context for session binding
         const securityContext = createSecurityContext(req, googleToken || '');
 
-        const { mcpServer, taskStore } = await createMcpServerInstance(googleToken);
+        const { mcpServer, taskStore } = await createMcpServerInstance(
+          googleToken,
+          undefined,
+          newSessionId
+        );
         sessions.set(newSessionId, {
           transport: newTransport,
           mcpServer,
@@ -2132,6 +2360,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
           sessions.delete(newSessionId);
           sessionsTotal.set(sessions.size);
           sessionLimiter.unregisterSession(newSessionId);
+          removeSessionContext(newSessionId);
           clearEventStore(eventStore);
         };
 
@@ -2214,6 +2443,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     sessions.delete(sessionId);
     sessionsTotal.set(sessions.size);
     sessionLimiter.unregisterSession(sessionId);
+    removeSessionContext(sessionId);
     res.status(200).json({ success: true, sessionId });
   });
 
@@ -2235,20 +2465,23 @@ export function createHttpServer(options: HttpServerOptions = {}): {
 
     if (session) {
       // Verify caller is the session owner via security context (token + user-agent match)
-      const callerToken = req.headers.authorization?.startsWith('Bearer ')
-        ? req.headers.authorization.slice(7)
-        : '';
-      const currentContext = createSecurityContext(req, callerToken);
-      const securityCheck = verifySecurityContext(session.securityContext, currentContext);
+      // Skip check if securityContext is absent (legacy or test sessions without binding)
+      if (session.securityContext) {
+        const callerToken = req.headers.authorization?.startsWith('Bearer ')
+          ? req.headers.authorization.slice(7)
+          : '';
+        const currentContext = createSecurityContext(req, callerToken);
+        const securityCheck = verifySecurityContext(session.securityContext, currentContext);
 
-      if (!securityCheck.valid) {
-        res.status(403).json({
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Session ownership verification failed',
-          },
-        });
-        return;
+        if (!securityCheck.valid) {
+          res.status(403).json({
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Session ownership verification failed',
+            },
+          });
+          return;
+        }
       }
 
       if (typeof session.transport.close === 'function') {
@@ -2258,6 +2491,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       sessions.delete(sessionId);
       sessionsTotal.set(sessions.size);
       sessionLimiter.unregisterSession(sessionId);
+      removeSessionContext(sessionId);
       res.json({ success: true, message: 'Session terminated' });
     } else {
       res.status(404).json({
@@ -2623,6 +2857,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   });
 
   let httpServer: ReturnType<typeof app.listen> | null = null;
+  let dedicatedMetricsServer: NodeHttpServer | null = null;
 
   // Register shutdown callback to close HTTP server
   onShutdown(async () => {
@@ -2639,6 +2874,21 @@ export function createHttpServer(options: HttpServerOptions = {}): {
           }
         });
       });
+    }
+  });
+
+  // Register shutdown callback to close dedicated metrics server
+  onShutdown(async () => {
+    if (!dedicatedMetricsServer) {
+      return;
+    }
+    logger.info('Closing dedicated metrics server...');
+    try {
+      await stopMetricsServer(dedicatedMetricsServer);
+      dedicatedMetricsServer = null;
+    } catch (error) {
+      logger.error('Error closing dedicated metrics server', { error });
+      throw error;
     }
   });
 
@@ -2660,6 +2910,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
           session.transport.close();
         }
         sessions.delete(sessionId);
+        removeSessionContext(sessionId);
       } catch (error) {
         logger.error('Error closing transport', { sessionId, error });
       }
@@ -2775,7 +3026,16 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   return {
     app,
     start: async () => {
-      await rateLimiterReady;
+      await Promise.all([rateLimiterReady, initializeRbac()]);
+      warnIfDefaultCredentialsInHttpMode();
+      // ISSUE-232: Wire GDPR sampling consent checker for HTTP transport
+      registerSamplingConsentChecker(async () => {
+        if (process.env['ENABLE_SAMPLING_CONSENT'] === 'strict') {
+          throw new Error(
+            'GDPR consent required before AI sampling. Set ENABLE_SAMPLING_CONSENT=true to enable.'
+          );
+        }
+      });
       await new Promise<void>((resolve) => {
         httpServer = app.listen(port, host, () => {
           logger.info(`ServalSheets HTTP server listening on ${host}:${port}`);
@@ -2790,14 +3050,43 @@ export function createHttpServer(options: HttpServerOptions = {}): {
           resolve();
         });
       });
+
+      if (envConfig.ENABLE_METRICS_SERVER) {
+        if (envConfig.METRICS_PORT === port && envConfig.METRICS_HOST === host) {
+          throw new Error(
+            'METRICS_PORT/METRICS_HOST cannot match main HTTP server bind address. ' +
+              'Use a dedicated metrics port.'
+          );
+        }
+
+        const exporter = new MetricsExporter(getMetricsService(), cacheManager);
+        dedicatedMetricsServer = await startMetricsServer({
+          port: envConfig.METRICS_PORT,
+          host: envConfig.METRICS_HOST,
+          exporter,
+        });
+
+        logger.info('Dedicated metrics server enabled', {
+          host: envConfig.METRICS_HOST,
+          port: envConfig.METRICS_PORT,
+        });
+      }
     },
     stop: async () => {
+      clearInterval(sessionCleanupInterval);
+      cleanupSessions();
+
+      if (dedicatedMetricsServer) {
+        await stopMetricsServer(dedicatedMetricsServer);
+        dedicatedMetricsServer = null;
+      }
       if (httpServer) {
         return new Promise<void>((resolve, reject) => {
           httpServer!.close((err) => {
             if (err) {
               reject(err);
             } else {
+              httpServer = null;
               resolve();
             }
           });
@@ -2824,6 +3113,12 @@ export async function startHttpServer(options: HttpServerOptions = {}): Promise<
 export async function startRemoteServer(options: { port?: number } = {}): Promise<void> {
   // Validate environment variables
   validateEnv();
+
+  if (!env.JWT_SECRET || !env.STATE_SECRET) {
+    throw new Error(
+      'JWT_SECRET and STATE_SECRET must be set (≥32 chars) when using OAuth mode. Generate with: openssl rand -base64 32'
+    );
+  }
 
   // Load OAuth config from environment
   const oauthConfig = {

@@ -44,6 +44,12 @@ export type { WebhookHandler } from './webhooks.js';
 export type { DependenciesHandler } from './dependencies.js';
 // Federation handler (Feature 3)
 export type { FederationHandler } from './federation.js';
+// Computation engine (Phase 5)
+export type { ComputeHandler } from './compute.js';
+// Agent loop (Phase 6)
+export type { AgentHandler } from './agent.js';
+// Live data connectors (Wave 6)
+export type { ConnectorsHandler } from './connectors.js';
 
 import type { sheets_v4, drive_v3 } from 'googleapis';
 import type { bigquery_v2 } from 'googleapis';
@@ -88,6 +94,12 @@ export interface Handlers {
   dependencies: import('./dependencies.js').DependenciesHandler;
   // Federation handler (Feature 3)
   federation: import('./federation.js').FederationHandler;
+  // Computation engine (Phase 5)
+  compute: import('./compute.js').ComputeHandler;
+  // Agent loop (Phase 6)
+  agent: import('./agent.js').AgentHandler;
+  // Live data connectors (Wave 6)
+  connectors: import('./connectors.js').ConnectorsHandler;
 }
 
 /**
@@ -194,6 +206,21 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     async federation() {
       const { FederationHandler } = await import('./federation.js');
       return new FederationHandler(options.context.taskStore);
+    },
+    // Computation engine (Phase 5)
+    async compute() {
+      const { ComputeHandler } = await import('./compute.js');
+      return new ComputeHandler(options.sheetsApi);
+    },
+    // Agent loop (Phase 6)
+    async agent() {
+      const { AgentHandler } = await import('./agent.js');
+      return new AgentHandler();
+    },
+    // Live data connectors (Wave 6)
+    async connectors() {
+      const { ConnectorsHandler } = await import('./connectors.js');
+      return new ConnectorsHandler();
     },
   };
 

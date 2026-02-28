@@ -31,10 +31,10 @@ import { getBackgroundAnalyzer } from '../services/background-analyzer.js';
 
 // Type alias for the request union
 type DataRequest = SheetsDataInput['request'];
-import type { ValuesArray } from '../schemas/index.js';
+import type { ResponseMeta, ValuesArray } from '../schemas/index.js';
 import type { RangeInput } from '../schemas/shared.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
-import { withSamplingTimeout } from '../mcp/sampling.js';
+import { withSamplingTimeout, assertSamplingConsent } from '../mcp/sampling.js';
 import { validateHyperlinkUrl } from '../utils/url.js';
 import {
   validateValuesPayload,
@@ -56,6 +56,7 @@ const DEFAULT_READ_PAGE_SIZE = 1000;
 const MAX_CELLS_PER_REQUEST = 10_000;
 // Fix 2.3: Auto-chunk large batch operations to prevent timeouts (e.g., 29-range batch → 3 chunks of 10)
 const MAX_BATCH_RANGES = 50;
+type ResponseFormat = 'full' | 'compact' | 'preview';
 
 /**
  * Main handler for sheets_data tool
@@ -201,7 +202,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
    */
   private async executeAction(request: DataRequest): Promise<DataResponse> {
     // Handler supports aliases (set_note→add_note, merge→merge_cells, etc.)
-    // Use 'as any' on alias cases since they don't match schema types
+    // Alias cases are handled here even when they don't map 1:1 to schema action literals
     switch (request.action) {
       // Values operations
       case 'read':
@@ -260,20 +261,22 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         // These prevent "Unknown action" errors when LLMs guess action names
         const action = (request as { action: string }).action;
         if (action === 'set_note' || action === 'notes') {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return this.handleAddNote(request as any);
+          return this.handleAddNote(request as unknown as DataRequest & { action: 'add_note' });
         }
         if (action === 'add_hyperlink' || action === 'hyperlink' || action === 'hyperlinks') {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return this.handleSetHyperlink(request as any);
+          return this.handleSetHyperlink(
+            request as unknown as DataRequest & { action: 'set_hyperlink' }
+          );
         }
         if (action === 'merge') {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return this.handleMergeCells(request as any);
+          return this.handleMergeCells(
+            request as unknown as DataRequest & { action: 'merge_cells' }
+          );
         }
         if (action === 'unmerge') {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return this.handleUnmergeCells(request as any);
+          return this.handleUnmergeCells(
+            request as unknown as DataRequest & { action: 'unmerge_cells' }
+          );
         }
 
         // Unknown action - return error
@@ -459,6 +462,187 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
 
   private encodeCursor(offset: number): string {
     return Buffer.from(String(offset)).toString('base64');
+  }
+
+  private getResponseFormatLimits(
+    responseFormat: ResponseFormat
+  ): { maxRows: number; maxCols: number } | null {
+    if (responseFormat === 'preview') {
+      return { maxRows: 25, maxCols: 10 };
+    }
+    if (responseFormat === 'compact') {
+      return { maxRows: 200, maxCols: 30 };
+    }
+    return null;
+  }
+
+  private getResponseFormatItemLimit(responseFormat: ResponseFormat): number | null {
+    if (responseFormat === 'preview') {
+      return 25;
+    }
+    if (responseFormat === 'compact') {
+      return 200;
+    }
+    return null;
+  }
+
+  private shapeValuesByResponseFormat(
+    values: ValuesArray,
+    responseFormat: ResponseFormat
+  ): {
+    values: ValuesArray;
+    originalRowCount: number;
+    originalColumnCount: number;
+    returnedRowCount: number;
+    returnedColumnCount: number;
+    truncated: boolean;
+  } {
+    const originalRowCount = values.length;
+    const originalColumnCount = values.reduce(
+      (max, row) => Math.max(max, Array.isArray(row) ? row.length : 0),
+      0
+    );
+    const limits = this.getResponseFormatLimits(responseFormat);
+
+    if (!limits) {
+      return {
+        values,
+        originalRowCount,
+        originalColumnCount,
+        returnedRowCount: originalRowCount,
+        returnedColumnCount: originalColumnCount,
+        truncated: false,
+      };
+    }
+
+    const shapedValues = values.slice(0, limits.maxRows).map((row) => row.slice(0, limits.maxCols));
+    const returnedColumnCount = shapedValues.reduce((max, row) => Math.max(max, row.length), 0);
+    const truncated = originalRowCount > limits.maxRows || originalColumnCount > limits.maxCols;
+
+    return {
+      values: shapedValues,
+      originalRowCount,
+      originalColumnCount,
+      returnedRowCount: shapedValues.length,
+      returnedColumnCount,
+      truncated,
+    };
+  }
+
+  private applyReadResponseFormat(
+    responseData: Record<string, unknown>,
+    responseFormat: ResponseFormat
+  ): Record<string, unknown> {
+    const rawValues = Array.isArray(responseData['values'])
+      ? (responseData['values'] as ValuesArray)
+      : [];
+    const shaped = this.shapeValuesByResponseFormat(rawValues, responseFormat);
+    const formatted: Record<string, unknown> = {
+      ...responseData,
+      values: shaped.values,
+      rowCount: shaped.originalRowCount,
+      columnCount: shaped.originalColumnCount,
+      returnedRowCount: shaped.returnedRowCount,
+      returnedColumnCount: shaped.returnedColumnCount,
+      responseFormat: responseFormat,
+    };
+
+    if (shaped.truncated) {
+      formatted['truncated'] = true;
+      formatted['_responseFormatHint'] =
+        `response_format="${responseFormat}" returned ${shaped.returnedRowCount}x${shaped.returnedColumnCount} ` +
+        `of ${shaped.originalRowCount}x${shaped.originalColumnCount}. Use response_format:"full" for complete data.`;
+    }
+
+    return formatted;
+  }
+
+  private applyBatchReadResponseFormat(
+    responseData: Record<string, unknown>,
+    responseFormat: ResponseFormat
+  ): Record<string, unknown> {
+    const rawValueRanges = responseData['valueRanges'];
+    if (!Array.isArray(rawValueRanges)) {
+      return { ...responseData, responseFormat: responseFormat };
+    }
+
+    let truncatedRanges = 0;
+    const formattedRanges = rawValueRanges.map((entry) => {
+      const item = (entry ?? {}) as Record<string, unknown>;
+      const values = Array.isArray(item['values']) ? (item['values'] as ValuesArray) : [];
+      const shaped = this.shapeValuesByResponseFormat(values, responseFormat);
+
+      if (shaped.truncated) {
+        truncatedRanges++;
+      }
+
+      return {
+        ...item,
+        values: shaped.values,
+      };
+    });
+
+    const formatted: Record<string, unknown> = {
+      ...responseData,
+      valueRanges: formattedRanges,
+      responseFormat: responseFormat,
+    };
+
+    if (truncatedRanges > 0) {
+      formatted['truncated'] = true;
+      formatted['_responseFormatHint'] =
+        `response_format="${responseFormat}" truncated ${truncatedRanges} range(s). ` +
+        'Use response_format:"full" for complete values.';
+    }
+
+    return formatted;
+  }
+
+  private shapeListByResponseFormat<T>(
+    items: T[],
+    responseFormat: ResponseFormat
+  ): {
+    items: T[];
+    originalCount: number;
+    returnedCount: number;
+    truncated: boolean;
+  } {
+    const originalCount = items.length;
+    const limit = this.getResponseFormatItemLimit(responseFormat);
+    if (!limit) {
+      return {
+        items,
+        originalCount,
+        returnedCount: originalCount,
+        truncated: false,
+      };
+    }
+    const shapedItems = items.slice(0, limit);
+    return {
+      items: shapedItems,
+      originalCount,
+      returnedCount: shapedItems.length,
+      truncated: originalCount > limit,
+    };
+  }
+
+  private buildResponseFormatMeta(
+    action: string,
+    responseData: Record<string, unknown>
+  ): ResponseMeta {
+    const baseMeta = this.generateMeta(action, responseData, responseData);
+    if (responseData['truncated'] !== true) {
+      return baseMeta;
+    }
+
+    return {
+      ...baseMeta,
+      truncated: true,
+      continuationHint:
+        typeof responseData['_responseFormatHint'] === 'string'
+          ? responseData['_responseFormatHint']
+          : 'Use response_format:"full" to retrieve complete data.',
+    };
   }
 
   /**
@@ -750,6 +934,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   // =============================================================================
 
   private async handleRead(input: DataRequest & { action: 'read' }): Promise<DataResponse> {
+    const responseFormat = input.response_format ?? 'full';
     // NEW: DataFilter path (uses batch API with single filter)
     if (input.dataFilter) {
       if (!this.featureFlags.enableDataFilterBatch) {
@@ -808,12 +993,22 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         /* non-blocking */
       }
 
-      return this.success('read', {
-        range,
-        values,
-        rowCount: values.length,
-        columnCount: values.length > 0 ? Math.max(...values.map((row) => row.length)) : 0,
-      });
+      const responseData = this.applyReadResponseFormat(
+        {
+          range,
+          values,
+          rowCount: values.length,
+          columnCount: values.length > 0 ? Math.max(...values.map((row) => row.length)) : 0,
+        },
+        responseFormat
+      );
+      return this.success(
+        'read',
+        responseData,
+        undefined,
+        undefined,
+        this.buildResponseFormatMeta('read', responseData)
+      );
     }
 
     // EXISTING: Traditional range-based path
@@ -900,7 +1095,14 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       } catch {
         /* non-blocking */
       }
-      return this.success('read', result);
+      const responseData = this.applyReadResponseFormat(result, responseFormat);
+      return this.success(
+        'read',
+        responseData,
+        undefined,
+        undefined,
+        this.buildResponseFormatMeta('read', responseData)
+      );
     }
 
     // Cache miss - fetch from API
@@ -976,12 +1178,19 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       /* non-blocking */
     }
 
-    return this.success('read', result);
+    const responseDataWithFormat = this.applyReadResponseFormat(result, responseFormat);
+    return this.success(
+      'read',
+      responseDataWithFormat,
+      undefined,
+      undefined,
+      this.buildResponseFormatMeta('read', responseDataWithFormat)
+    );
   }
 
   private async handleWrite(input: DataRequest & { action: 'write' }): Promise<DataResponse> {
     // ISSUE-214: Formula injection guard
-    if (input.safety?.sanitizeFormulas) {
+    if (input.safety?.sanitizeFormulas !== false) {
       const injected = this.checkFormulaInjection(input.values as unknown[][]);
       if (injected) {
         return this.error({
@@ -1228,7 +1437,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
 
   private async handleAppend(input: DataRequest & { action: 'append' }): Promise<DataResponse> {
     // ISSUE-214: Formula injection guard
-    if (input.safety?.sanitizeFormulas) {
+    if (input.safety?.sanitizeFormulas !== false) {
       const injected = this.checkFormulaInjection(input.values as unknown[][]);
       if (injected) {
         return this.error({
@@ -1789,6 +1998,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   private async handleBatchRead(
     input: DataRequest & { action: 'batch_read' }
   ): Promise<DataResponse> {
+    const responseFormat = input.response_format ?? 'full';
     // Pagination enabled: check for cursor or pageSize fields
     const wantsPagination = Boolean(input.cursor || input.pageSize);
 
@@ -1837,8 +2047,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           `Reading range ${i + 1}/${paginationPlan.rangesToFetch.length} in current page`
         );
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const resolvedRange = await this.resolveRangeToA1(input.spreadsheetId, range as any);
+        const resolvedRange = await this.resolveRangeToA1(input.spreadsheetId, range);
         const dedupKey = `values:get:${input.spreadsheetId}:${resolvedRange}:${input.valueRenderOption ?? 'FORMATTED_VALUE'}:${input.majorDimension ?? 'ROWS'}`;
 
         const response = await this.deduplicatedApiCall(dedupKey, () =>
@@ -1877,7 +2086,14 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           `To fetch next page, repeat this call with cursor:"${paginationPlan.nextCursor}"`;
       }
 
-      return this.success('batch_read', responseData);
+      const formattedResponse = this.applyBatchReadResponseFormat(responseData, responseFormat);
+      return this.success(
+        'batch_read',
+        formattedResponse,
+        undefined,
+        undefined,
+        this.buildResponseFormatMeta('batch_read', formattedResponse)
+      );
     }
 
     if (input.dataFilters && input.dataFilters.length > 0) {
@@ -1906,14 +2122,24 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         },
       });
 
-      return this.success('batch_read', {
-        valueRanges: (response.data.valueRanges ?? []).map(
-          (mvr: sheets_v4.Schema$MatchedValueRange) => ({
-            range: mvr.valueRange?.range ?? '',
-            values: (mvr.valueRange?.values ?? []) as ValuesArray,
-          })
-        ),
-      });
+      const formattedResponse = this.applyBatchReadResponseFormat(
+        {
+          valueRanges: (response.data.valueRanges ?? []).map(
+            (mvr: sheets_v4.Schema$MatchedValueRange) => ({
+              range: mvr.valueRange?.range ?? '',
+              values: (mvr.valueRange?.values ?? []) as ValuesArray,
+            })
+          ),
+        },
+        responseFormat
+      );
+      return this.success(
+        'batch_read',
+        formattedResponse,
+        undefined,
+        undefined,
+        this.buildResponseFormatMeta('batch_read', formattedResponse)
+      );
     }
 
     const ranges = await Promise.all(
@@ -1996,11 +2222,21 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         rangesRetrieved: allValueRanges.length,
       });
 
-      return this.success('batch_read', {
-        valueRanges: allValueRanges,
-        _chunked: true,
-        _chunkCount: chunks.length,
-      });
+      const formattedResponse = this.applyBatchReadResponseFormat(
+        {
+          valueRanges: allValueRanges,
+          _chunked: true,
+          _chunkCount: chunks.length,
+        },
+        responseFormat
+      );
+      return this.success(
+        'batch_read',
+        formattedResponse,
+        undefined,
+        undefined,
+        this.buildResponseFormatMeta('batch_read', formattedResponse)
+      );
     }
 
     // Try cached API first for better performance (30-50% API savings)
@@ -2013,13 +2249,23 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         });
 
         if (cachedResult && cachedResult.valueRanges) {
-          return this.success('batch_read', {
-            valueRanges: cachedResult.valueRanges.map((vr: sheets_v4.Schema$ValueRange) => ({
-              range: vr.range ?? '',
-              values: (vr.values ?? []) as ValuesArray,
-            })),
-            _cached: true,
-          });
+          const formattedResponse = this.applyBatchReadResponseFormat(
+            {
+              valueRanges: cachedResult.valueRanges.map((vr: sheets_v4.Schema$ValueRange) => ({
+                range: vr.range ?? '',
+                values: (vr.values ?? []) as ValuesArray,
+              })),
+              _cached: true,
+            },
+            responseFormat
+          );
+          return this.success(
+            'batch_read',
+            formattedResponse,
+            undefined,
+            undefined,
+            this.buildResponseFormatMeta('batch_read', formattedResponse)
+          );
         }
       } catch (_cacheError) {
         // Fall through to direct API call on cache error
@@ -2149,12 +2395,22 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       });
     }
 
-    return this.success('batch_read', {
-      valueRanges: valueRanges.map((vr: sheets_v4.Schema$ValueRange) => ({
-        range: vr.range ?? '',
-        values: (vr.values ?? []) as ValuesArray,
-      })),
-    });
+    const formattedResponse = this.applyBatchReadResponseFormat(
+      {
+        valueRanges: valueRanges.map((vr: sheets_v4.Schema$ValueRange) => ({
+          range: vr.range ?? '',
+          values: (vr.values ?? []) as ValuesArray,
+        })),
+      },
+      responseFormat
+    );
+    return this.success(
+      'batch_read',
+      formattedResponse,
+      undefined,
+      undefined,
+      this.buildResponseFormatMeta('batch_read', formattedResponse)
+    );
   }
 
   private async handleBatchWrite(
@@ -2598,6 +2854,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       let aiEstimate: { matchCount: number; confidence: string } | undefined;
       if (this.context.samplingServer) {
         try {
+          await assertSamplingConsent(); // ISSUE-226: GDPR consent gate
           const samplingResult = await withSamplingTimeout(
             this.context.samplingServer.createMessage({
               messages: [
@@ -3200,12 +3457,14 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   private async handleCrossRead(
     req: DataRequest & { action: 'cross_read' }
   ): Promise<DataResponse> {
+    const responseFormat = req.response_format ?? 'full';
     const { crossRead } = await import('../services/cross-spreadsheet.js');
     const result = await crossRead(
       this.sheetsApi,
       req.sources,
       req.joinKey,
-      req.joinType ?? 'left'
+      req.joinType ?? 'left',
+      this.context.cachedSheetsApi
     );
 
     // Wire session context: track which external spreadsheets were accessed
@@ -3226,23 +3485,74 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       /* non-blocking */
     }
 
-    return this.success('cross_read', {
-      rows: result.mergedValues,
-      mergedHeaders: result.mergedHeaders,
+    const shapedRows = this.shapeValuesByResponseFormat(
+      result.mergedValues as ValuesArray,
+      responseFormat
+    );
+    const mergedHeaders = result.mergedHeaders.slice(0, shapedRows.returnedColumnCount);
+    const responseData: Record<string, unknown> = {
+      rows: shapedRows.values,
+      mergedHeaders,
       sourcesRead: result.sourcesRead,
       crossErrors: result.errors.length > 0 ? result.errors : undefined,
-    });
+      responseFormat,
+      rowCount: shapedRows.originalRowCount,
+      returnedRowCount: shapedRows.returnedRowCount,
+      columnCount: shapedRows.originalColumnCount,
+      returnedColumnCount: shapedRows.returnedColumnCount,
+    };
+
+    if (shapedRows.truncated) {
+      responseData['truncated'] = true;
+      responseData['_responseFormatHint'] =
+        `response_format="${responseFormat}" returned ${shapedRows.returnedRowCount}x${shapedRows.returnedColumnCount} ` +
+        `of ${shapedRows.originalRowCount}x${shapedRows.originalColumnCount}. Use response_format:"full" for complete rows.`;
+    }
+
+    return this.success(
+      'cross_read',
+      responseData,
+      undefined,
+      undefined,
+      this.buildResponseFormatMeta('cross_read', responseData)
+    );
   }
 
   private async handleCrossQuery(
     req: DataRequest & { action: 'cross_query' }
   ): Promise<DataResponse> {
+    const responseFormat = req.response_format ?? 'full';
     const { crossQuery } = await import('../services/cross-spreadsheet.js');
-    const result = await crossQuery(this.sheetsApi, req.sources, req.query, req.maxResults ?? 100);
-    return this.success('cross_query', {
-      queryMatches: result.queryMatches,
+    const result = await crossQuery(
+      this.sheetsApi,
+      req.sources,
+      req.query,
+      req.maxResults ?? 100,
+      this.context.cachedSheetsApi
+    );
+    const shapedMatches = this.shapeListByResponseFormat(result.queryMatches, responseFormat);
+    const responseData: Record<string, unknown> = {
+      queryMatches: shapedMatches.items,
       totalSearched: result.totalSearched,
-    });
+      responseFormat,
+      totalMatches: shapedMatches.originalCount,
+      returnedMatches: shapedMatches.returnedCount,
+    };
+
+    if (shapedMatches.truncated) {
+      responseData['truncated'] = true;
+      responseData['_responseFormatHint'] =
+        `response_format="${responseFormat}" returned ${shapedMatches.returnedCount} of ${shapedMatches.originalCount} matches. ` +
+        'Use response_format:"full" for complete queryMatches.';
+    }
+
+    return this.success(
+      'cross_query',
+      responseData,
+      undefined,
+      undefined,
+      this.buildResponseFormatMeta('cross_query', responseData)
+    );
   }
 
   private async handleCrossWrite(
@@ -3253,7 +3563,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       this.sheetsApi,
       req.source,
       req.destination,
-      req.valueInputOption ?? 'USER_ENTERED'
+      req.valueInputOption ?? 'USER_ENTERED',
+      this.context.cachedSheetsApi
     );
     return this.success('cross_write', {
       cellsCopied: result.cellsCopied,
@@ -3264,14 +3575,56 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   private async handleCrossCompare(
     req: DataRequest & { action: 'cross_compare' }
   ): Promise<DataResponse> {
+    const responseFormat = req.response_format ?? 'full';
     const { crossCompare } = await import('../services/cross-spreadsheet.js');
     const result = await crossCompare(
       this.sheetsApi,
       req.source1,
       req.source2,
       req.compareColumns,
-      req.keyColumn
+      req.keyColumn,
+      this.context.cachedSheetsApi
     );
-    return this.success('cross_compare', { diff: result });
+    const shapedAdded = this.shapeValuesByResponseFormat(
+      result.added as ValuesArray,
+      responseFormat
+    );
+    const shapedRemoved = this.shapeValuesByResponseFormat(
+      result.removed as ValuesArray,
+      responseFormat
+    );
+    const shapedChanged = this.shapeListByResponseFormat(result.changed, responseFormat);
+    const isTruncated = shapedAdded.truncated || shapedRemoved.truncated || shapedChanged.truncated;
+
+    const responseData: Record<string, unknown> = {
+      diff: {
+        ...result,
+        added: shapedAdded.values,
+        removed: shapedRemoved.values,
+        changed: shapedChanged.items,
+        returnedAddedRows: shapedAdded.returnedRowCount,
+        returnedRemovedRows: shapedRemoved.returnedRowCount,
+        returnedChangedCells: shapedChanged.returnedCount,
+      },
+      responseFormat,
+    };
+
+    if (isTruncated) {
+      responseData['truncated'] = true;
+      responseData['_responseFormatHint'] =
+        `response_format="${responseFormat}" returned diff subsets ` +
+        `(added ${shapedAdded.returnedRowCount}/${result.summary.addedRows}, ` +
+        `removed ${shapedRemoved.returnedRowCount}/${result.summary.removedRows}, ` +
+        `changed ${shapedChanged.returnedCount}/${result.summary.changedCells}). ` +
+        'Use response_format:"full" for complete diff payloads.';
+    }
+
+    return this.success(
+      'cross_compare',
+      responseData,
+      undefined,
+      undefined,
+      this.buildResponseFormatMeta('cross_compare', responseData)
+    );
   }
 }

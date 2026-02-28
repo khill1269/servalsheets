@@ -705,6 +705,20 @@ describe('ConfirmHandler', () => {
       expect(parseResult.success).toBe(true);
     });
 
+    it('should apply default empty message for success responses missing message', () => {
+      const parsed = SheetsConfirmOutputSchema.parse({
+        response: {
+          success: true,
+          action: 'request',
+        },
+      });
+
+      expect(parsed.response.success).toBe(true);
+      if (parsed.response.success) {
+        expect(parsed.response.message).toBe('');
+      }
+    });
+
     it('should validate output schema for errors', async () => {
       const contextWithoutServer = createMockContext({ server: undefined });
       const handlerWithoutServer = new ConfirmHandler({ context: contextWithoutServer });

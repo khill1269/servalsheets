@@ -124,7 +124,7 @@ const SetFormatActionSchema = CommonFieldsSchema.extend({
   format: CellFormatSchema.describe(
     'Complete cell format specification (background, text, borders, etc.)'
   ),
-});
+}).strict();
 
 const SuggestFormatActionSchema = CommonFieldsSchema.extend({
   action: z.literal('suggest_format').describe('Get AI-powered format suggestions'),
@@ -137,7 +137,7 @@ const SuggestFormatActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(3)
     .describe('Number of format suggestions to return (default: 3)'),
-});
+}).strict();
 
 const SetBackgroundActionSchema = CommonFieldsSchema.extend({
   action: z.literal('set_background').describe('Set background color'),

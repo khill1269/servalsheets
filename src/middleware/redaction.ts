@@ -57,6 +57,13 @@ const REDACTION_PATTERNS: Array<{
       /(?<=(?:Error|at|stack|trace|caused by)[^\n]{0,200})[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi,
     replacement: '[EMAIL_REDACTED]',
   },
+  // Email addresses inside error/message/log fields (prevent PII in error responses)
+  {
+    name: 'error_field_email',
+    pattern:
+      /(?<="(?:error|message|description|details|reason|cause|info|warning|hint)"\s*:\s*"[^"]{0,500})[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi,
+    replacement: '[EMAIL_REDACTED]',
+  },
   // JWT tokens (header.payload.signature, each part is base64url)
   {
     name: 'jwt_token',

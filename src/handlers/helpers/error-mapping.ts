@@ -19,22 +19,49 @@ import {
   ServiceError,
   ConfigError,
 } from '../../core/errors.js';
-import { ServalError } from '@serval/core';
+import { ServalError, CircuitBreakerError } from '@serval/core';
 
 /**
  * Maps an unknown caught value to a structured ErrorDetail with a valid ErrorCode.
  *
  * Priority:
  * 1. Typed ServalSheets errors → use their specific code
- * 2. Generic Error → INTERNAL_ERROR, retryable=true
- * 3. Non-Error throw → INTERNAL_ERROR, String()-ified message
+ * 2. CircuitBreakerError → UNAVAILABLE with retryAfterMs (ISSUE-149)
+ * 3. Queue-full errors → RESOURCE_EXHAUSTED with retryAfterMs (ISSUE-149)
+ * 4. Generic Error → INTERNAL_ERROR, retryable=true
+ * 5. Non-Error throw → INTERNAL_ERROR, String()-ified message
  */
 export function mapStandaloneError(error: unknown): {
   code: ErrorDetail['code'];
   message: string;
   details?: Record<string, unknown>;
   retryable: boolean;
+  retryAfterMs?: number;
 } {
+  // CircuitBreakerError → UNAVAILABLE with retryAfterMs (ISSUE-149)
+  if (error instanceof CircuitBreakerError) {
+    return {
+      code: 'UNAVAILABLE',
+      message: error.message,
+      retryable: true,
+      retryAfterMs: Math.max(0, error.nextAttemptTime - Date.now()),
+    };
+  }
+
+  // Queue-full errors from ConcurrencyCoordinator → RESOURCE_EXHAUSTED with retryAfterMs (ISSUE-149)
+  if (
+    error instanceof Error &&
+    error.message.includes('Concurrency queue full') &&
+    typeof (error as Error & { retryAfterMs?: number }).retryAfterMs === 'number'
+  ) {
+    return {
+      code: 'RESOURCE_EXHAUSTED',
+      message: error.message,
+      retryable: true,
+      retryAfterMs: (error as Error & { retryAfterMs: number }).retryAfterMs,
+    };
+  }
+
   // ValidationError → VALIDATION_ERROR
   if (error instanceof ValidationError) {
     return {

@@ -18,7 +18,7 @@
 import { describe, it, beforeAll, afterAll, expect, vi } from 'vitest';
 import { spawn, ChildProcess } from 'child_process';
 import { createInterface } from 'readline';
-import { setTimeout as sleep } from 'timers/promises';
+import { waitFor } from '../helpers/wait-for.js';
 import { EventEmitter } from 'events';
 
 // Test configuration
@@ -59,7 +59,7 @@ class NetworkChaos {
       switch (failureType) {
         case 0:
           // Connection timeout
-          await sleep(60000); // Exceed typical timeout
+          await waitFor(60000); // Exceed typical timeout
           throw new Error('ETIMEDOUT: Connection timeout');
 
         case 1:
@@ -165,7 +165,7 @@ class GoogleApiChaos {
    * Inject slow response
    */
   async simulateSlowResponse(delayMs: number): Promise<Response> {
-    await sleep(delayMs);
+    await waitFor(delayMs);
     return new Response(JSON.stringify({ spreadsheetId: 'test', sheets: [] }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -190,7 +190,7 @@ class SystemChaos {
     try {
       for (let i = 0; i < 50; i++) {
         arrays.push(new Array(chunkSize).fill(Math.random()));
-        await sleep(100); // Gradual pressure
+        await waitFor(100); // Gradual pressure
       }
     } catch (error) {
       // Expected: RangeError or out of memory
@@ -262,7 +262,7 @@ class ChaosServerProcess {
   async stop(): Promise<void> {
     if (this.process && !this.process.killed) {
       this.process.kill('SIGTERM');
-      await sleep(2000);
+      await waitFor(2000);
       if (!this.process.killed) {
         this.process.kill('SIGKILL');
       }
@@ -337,12 +337,12 @@ class ChaosTestExecutor {
         }
       }
 
-      await sleep(100);
+      await waitFor(100);
     }
 
     // Reset chaos and test recovery
     this.networkChaos.setErrorRate(0);
-    await sleep(30000); // Wait 30s for recovery
+    await waitFor(30000); // Wait 30s for recovery
 
     let recoveredSuccessfully = false;
     try {
@@ -404,7 +404,7 @@ class ChaosTestExecutor {
         attempts.push({ timestamp: Date.now(), delay });
 
         // Wait for retry (should respect exponential backoff)
-        await sleep(500 * Math.pow(2, i));
+        await waitFor(500 * Math.pow(2, i));
       } catch (error) {
         break;
       }
@@ -524,7 +524,7 @@ describe.skipIf(!ENABLE_CHAOS)('Chaos Engineering - Resilience Testing', () => {
 
     console.log('\n🌪️  Starting chaos engineering tests...');
     await server.start();
-    await sleep(3000);
+    await waitFor(3000);
     console.log('✅ Server ready for chaos\n');
   }, 60000);
 
@@ -618,7 +618,7 @@ describe.skipIf(!ENABLE_CHAOS)('Chaos Engineering - Resilience Testing', () => {
     for (let i = 0; i < 5; i++) {
       const response = await fetch(`${executor['baseUrl']}/health`).catch(() => null);
       responses.push(response?.ok ?? false);
-      await sleep(2000);
+      await waitFor(2000);
     }
 
     await saturationPromise;

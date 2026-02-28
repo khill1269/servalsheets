@@ -1207,9 +1207,12 @@ export class ComprehensiveAnalyzer {
     });
 
     // ── 11. DUPLICATE_ROW ──
-    const rowStrings = dataRows.map((row) => JSON.stringify(row));
-    const uniqueRows = new Set(rowStrings);
-    const duplicateCount = rowStrings.length - uniqueRows.size;
+    // Use delimiter-joined fingerprint instead of JSON.stringify for O(n) vs O(n*m) perf
+    const rowFingerprints = dataRows.map((row) =>
+      Array.isArray(row) ? row.map((cell) => String(cell ?? '')).join('\x00') : String(row)
+    );
+    const uniqueRows = new Set(rowFingerprints);
+    const duplicateCount = rowFingerprints.length - uniqueRows.size;
     if (duplicateCount > 0) {
       issues.push({
         type: 'DUPLICATE_ROW',
@@ -1560,8 +1563,13 @@ export class ComprehensiveAnalyzer {
       logger.debug('Formula data cache miss - fetching', { spreadsheetId });
 
       try {
+        // Scope includeGridData to only the sheets being analyzed to avoid fetching the
+        // entire workbook. Using sheet names as ranges (e.g. "'Sheet1'") tells the API to
+        // include grid data only for those sheets; the field mask further limits to formulas.
+        const sheetRanges = sheetAnalyses.map((a) => `'${a.sheetName.replace(/'/g, "''")}'`);
         const apiResponse = await this.sheetsApi.spreadsheets.get({
           spreadsheetId,
+          ranges: sheetRanges.length > 0 ? sheetRanges : undefined,
           includeGridData: true,
           // Optimized field mask: fetch only formulas, not effectiveValue
           fields: 'sheets(properties.sheetId,data.rowData.values.userEnteredValue.formulaValue)',

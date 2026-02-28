@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { waitFor } from '../helpers/wait-for.js';
 
 // Mock googleapis before importing the module
 vi.mock('googleapis', () => {
@@ -429,7 +430,7 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       client.recordCallResult(false);
 
       // Wait a bit for async reset to start
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       expect(client).toBeDefined();
     });
@@ -445,11 +446,11 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       client.recordCallResult(false);
 
       // Should not trigger reset yet
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitFor(50);
 
       // 5th failure should trigger
       client.recordCallResult(false);
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       expect(client).toBeDefined();
     });
@@ -482,7 +483,7 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       client = new GoogleApiClient();
 
       // Wait for idle timeout
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await waitFor(150);
 
       // Should trigger proactive reset
       await client.ensureHealthyConnection();
@@ -495,14 +496,14 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       client = new GoogleApiClient();
 
       // Wait less than custom timeout
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
       await client.ensureHealthyConnection();
 
       // Should not trigger reset yet
       expect(client).toBeDefined();
 
       // Wait past custom timeout
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await waitFor(150);
       await client.ensureHealthyConnection();
 
       // Should trigger reset now
@@ -520,7 +521,7 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       }
 
       // Wait for async reset
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       // Next success should work normally
       client.recordCallResult(true);
@@ -537,7 +538,7 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       }
 
       // Wait for resets to process
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await waitFor(300);
 
       // Should handle gracefully (only one reset should run)
       expect(client).toBeDefined();
@@ -557,7 +558,7 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       await client.initialize();
 
       // Wait for at least one keepalive cycle
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      await waitFor(250);
 
       expect(client).toBeDefined();
     });
@@ -603,7 +604,7 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       client.recordCallResult(false);
 
       // Wait for reset
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       // Simulate successful reconnection
       client.recordCallResult(true);
@@ -638,7 +639,7 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       client.recordCallResult(true); // Reset again
 
       // Should never trigger threshold
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       expect(client).toBeDefined();
     });
