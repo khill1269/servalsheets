@@ -8,7 +8,13 @@
 export * from './types.js';
 
 // Connector manager (singleton)
-export { ConnectorManager, connectorManager, applyTransform } from './connector-manager.js';
+export {
+  ConnectorManager,
+  connectorManager,
+  applyTransform,
+  registerBuiltinConnectors,
+  initializeBuiltinConnectors,
+} from './connector-manager.js';
 
 // Built-in connectors
 export { FinnhubConnector } from './finnhub.js';

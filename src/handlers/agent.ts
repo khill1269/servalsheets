@@ -29,10 +29,15 @@ export class AgentHandler {
       if (!handler) {
         throw new Error(`Unknown tool: ${tool}`);
       }
-      // Call handle with the request envelope
-      const result = await handler.handle({
+
+      // Dynamic dispatch across heterogeneous tool input schemas.
+      // Agent steps are runtime-planned, so we pass through as an envelope.
+      const dynamicHandler = handler as unknown as {
+        handle: (input: { request: Record<string, unknown> }) => Promise<unknown>;
+      };
+      const result = await dynamicHandler.handle({
         request: { action, ...params },
-      } as unknown as Parameters<typeof handler.handle>[0]);
+      });
       return result;
     };
   }

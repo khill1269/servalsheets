@@ -1122,8 +1122,8 @@ Set MCP_FEDERATION_SERVERS environment variable with JSON array:
 2. batch_query: {"action":"batch_query","queries":[{"connectorId":"fred","endpoint":"series/observations","params":{"seriesId":"UNRATE"}},{"connectorId":"finnhub","endpoint":"stock/quote","params":{"symbol":"MSFT"}}]} -> Multi-source data
 3. subscribe: {"action":"subscribe","connectorId":"finnhub","endpoint":"stock/quote","params":{"symbol":"AAPL"},"schedule":{"interval":"hourly"},"destination":{"spreadsheetId":"abc","range":"Sheet1!A1"}} -> Auto-refresh
 
-**SAFETY:** [Safe mutation] write_to_sheet and refresh overwrite a target range. Use preview or query first.
-**PATTERN:** list_connectors → configure (if needed) → query or batch_query → write data to sheet.`,
+**SAFETY:** query/batch_query/transform are read operations against external APIs. subscribe/unsubscribe only manage connector subscriptions.
+**PATTERN:** list_connectors → configure (if needed) → discover or status → query/batch_query/transform.`,
 };
 
 // Type export for other modules

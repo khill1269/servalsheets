@@ -137,6 +137,7 @@ import { getEnv } from './config/env.js';
 import { resolveCostTrackingTenantId } from './utils/tenant-identification.js';
 import { warnIfDefaultCredentialsInHttpMode } from './config/embedded-oauth.js';
 import { registerSamplingConsentChecker } from './mcp/sampling.js';
+import { initializeBuiltinConnectors, connectorManager } from './connectors/connector-manager.js';
 
 const MCP_LOG_SEVERITY: Record<LoggingLevel, number> = {
   emergency: 0,
@@ -466,6 +467,10 @@ export class ServalSheetsServer {
       initWebhookQueue(null); // No Redis by default - would need to add Redis client
       initWebhookManager(null, this.googleClient, webhookEndpoint);
     }
+
+    // Register built-in data connectors once at startup so sheets_connectors has
+    // a non-empty catalog without any manual bootstrap calls.
+    initializeBuiltinConnectors();
 
     initializeBillingIntegration({
       enabled: envConfig.ENABLE_BILLING_INTEGRATION,
@@ -1590,6 +1595,10 @@ export class ServalSheetsServer {
     } catch (error) {
       baseLogger.warn('Error during service cleanup', { error });
     }
+
+    // Dispose connector framework resources (subscription timers + connector state).
+    await connectorManager.dispose();
+    baseLogger.debug('ConnectorManager disposed');
 
     // Dispose task store (stops cleanup interval)
     this.taskStore.dispose();

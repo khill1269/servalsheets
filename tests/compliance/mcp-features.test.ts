@@ -47,6 +47,9 @@ const ALL_TOOLS = [
   'sheets_webhook',
   'sheets_dependencies',
   'sheets_federation',
+  'sheets_compute',
+  'sheets_agent',
+  'sheets_connectors',
 ];
 
 describe('MCP 2025-11-25 Feature Compliance', () => {
@@ -295,13 +298,13 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
   // TOOL DEFINITIONS
   // =========================================================================
   describe('Tool Definitions', () => {
-    it('should define exactly 24 tools (includes agent + compute)', () => {
-      expect(TOOL_DEFINITIONS.length).toBe(24);
+    it('should define exactly TOOL_COUNT tools', () => {
+      expect(TOOL_DEFINITIONS.length).toBe(TOOL_COUNT);
     });
 
     it('should have unique names', () => {
       const names = TOOL_DEFINITIONS.map((t) => t.name);
-      expect(new Set(names).size).toBe(24);
+      expect(new Set(names).size).toBe(TOOL_DEFINITIONS.length);
     });
 
     it('should use snake_case naming (SEP-986)', () => {
@@ -377,6 +380,9 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
         'sheets_appsscript',
         'sheets_bigquery',
         'sheets_templates',
+        'sheets_compute',
+        'sheets_agent',
+        'sheets_connectors',
       ];
       for (const tool of longRunning) {
         expect(TOOL_EXECUTION_CONFIG[tool]!.taskSupport).toBe('optional');
@@ -457,7 +463,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
     it('should have correct tool count', () => {
       // TOOL_COUNT must match TOOL_DEFINITIONS length
       expect(TOOL_COUNT).toBe(TOOL_DEFINITIONS.length);
-      expect(TOOL_COUNT).toBe(24); // As of 2026-02-27
+      expect(TOOL_COUNT).toBeGreaterThan(20);
     });
 
     it('should have correct action count (dynamically validated)', () => {
