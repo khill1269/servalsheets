@@ -11,6 +11,7 @@ import { prepareSchemaForRegistration } from '../../src/mcp/registration/schema-
 import { TOOL_DEFINITIONS } from '../../src/mcp/registration/tool-definitions.js';
 import { DEFER_SCHEMAS, DEFER_DESCRIPTIONS } from '../../src/config/constants.js';
 import { zodSchemaToJsonSchema } from '../../src/utils/schema-compat.js';
+import { TOOL_COUNT } from '../../src/schemas/index.js';
 
 describe('Deferred Schema Mode', () => {
   describe('Schema preparation', () => {
@@ -84,8 +85,8 @@ describe('Deferred Schema Mode', () => {
   });
 
   describe('Tool definitions integrity', () => {
-    it('should have 24 tools regardless of deferred mode', () => {
-      expect(TOOL_DEFINITIONS.length).toBe(24);
+    it('should match TOOL_COUNT regardless of deferred mode', () => {
+      expect(TOOL_DEFINITIONS.length).toBe(TOOL_COUNT);
     });
 
     it('should have non-empty descriptions regardless of deferred mode', () => {

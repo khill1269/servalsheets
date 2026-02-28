@@ -347,6 +347,7 @@ export type SheetsConnectorsOutput = z.infer<typeof SheetsConnectorsOutputSchema
 // ============================================================================
 
 export const SHEETS_CONNECTORS_ANNOTATIONS: ToolAnnotations = {
+  title: 'Live Data Connectors',
   readOnlyHint: false,
   destructiveHint: false,
   openWorldHint: true,

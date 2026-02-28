@@ -370,6 +370,16 @@ exports[`Schema Snapshots > Input Schemas > SheetsConfirmInputSchema should matc
 }
 `;
 
+exports[`Schema Snapshots > Input Schemas > SheetsConnectorsInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsConnectorsInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsConnectorsInputSchema": {},
+  },
+}
+`;
+
 exports[`Schema Snapshots > Input Schemas > SheetsCoreInputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/SheetsCoreInputSchema",
@@ -896,6 +906,16 @@ exports[`Schema Snapshots > Output Schemas > SheetsConfirmOutputSchema should ma
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "SheetsConfirmOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsConnectorsOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsConnectorsOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsConnectorsOutputSchema": {},
   },
 }
 `;
