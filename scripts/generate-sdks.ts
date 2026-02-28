@@ -400,7 +400,7 @@ console.log(result.response.values);
 - ✅ Fully typed with TypeScript
 - ✅ Automatic retries with exponential backoff
 - ✅ Built-in error handling
-- ✅ IntelliSense support for all 305 actions
+- ✅ IntelliSense support for all 342 actions
 - ✅ Streaming support for large datasets
 
 ## Documentation
@@ -656,7 +656,7 @@ print(result["response"]["values"])
 - ✅ Type hints with Python 3.8+
 - ✅ Automatic retries with exponential backoff
 - ✅ Built-in error handling
-- ✅ Support for all 305 actions
+- ✅ Support for all 342 actions
 
 ## Documentation
 
