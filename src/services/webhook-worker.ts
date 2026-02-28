@@ -20,6 +20,7 @@ import { recordWebhookDelivery } from '../observability/metrics.js';
 import { signWebhookPayload } from '../security/webhook-signature.js';
 import { resourceNotifications } from '../resources/notifications.js';
 import { getCostTracker } from './cost-tracker.js';
+import { CircuitBreaker, CircuitBreakerError } from '../utils/circuit-breaker.js';
 
 /**
  * Webhook worker configuration
@@ -42,6 +43,30 @@ export class WebhookWorker {
   private config: WebhookWorkerConfig;
   private running: boolean = false;
   private workers: Promise<void>[] = [];
+  /** Per-URL circuit breakers — prevent hammering consistently-failing endpoints */
+  private readonly urlBreakers = new Map<string, CircuitBreaker>();
+
+  private getOrCreateBreaker(url: string): CircuitBreaker {
+    // Key on origin (scheme+host+port) to share breaker across multiple webhooks on same host
+    let origin: string;
+    try {
+      origin = new URL(url).origin;
+    } catch {
+      origin = url; // fallback for non-standard URLs
+    }
+    if (!this.urlBreakers.has(origin)) {
+      this.urlBreakers.set(
+        origin,
+        new CircuitBreaker({
+          name: `webhook:${origin}`,
+          failureThreshold: 5, // open after 5 network failures
+          successThreshold: 2, // close after 2 successes
+          timeout: 60000, // reset after 60s
+        })
+      );
+    }
+    return this.urlBreakers.get(origin)!;
+  }
 
   constructor(config?: Partial<WebhookWorkerConfig>) {
     this.config = {
@@ -163,24 +188,27 @@ export class WebhookWorker {
         }
       }
 
-      // Send HTTP POST request
+      // Send HTTP POST request (with per-URL circuit breaker to prevent hammering dead endpoints)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.config.timeoutMs);
 
       try {
-        const response = await fetch(job.webhookUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': 'ServalSheets-Webhook/1.0',
-            'X-Webhook-Signature': signature || 'none',
-            'X-Webhook-Delivery': job.deliveryId,
-            'X-Webhook-Event': job.eventType,
-          },
-          body: payloadStr,
-          signal: controller.signal,
-          redirect: 'error', // SSRF protection: prevent redirect-based attacks
-        });
+        const breaker = this.getOrCreateBreaker(job.webhookUrl);
+        const response = await breaker.execute(() =>
+          fetch(job.webhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'ServalSheets-Webhook/1.0',
+              'X-Webhook-Signature': signature || 'none',
+              'X-Webhook-Delivery': job.deliveryId,
+              'X-Webhook-Event': job.eventType,
+            },
+            body: payloadStr,
+            signal: controller.signal,
+            redirect: 'error', // SSRF protection: prevent redirect-based attacks
+          })
+        );
 
         clearTimeout(timeoutId);
 
@@ -261,6 +289,20 @@ export class WebhookWorker {
         }
       } catch (fetchError) {
         clearTimeout(timeoutId);
+
+        // Circuit open — endpoint consistently failing, skip and let queue retry later
+        if (fetchError instanceof CircuitBreakerError) {
+          const queue = getWebhookQueue();
+          await queue.markFailure(job, `Circuit open: ${fetchError.message}`);
+          logger.warn('Webhook delivery skipped (circuit open)', {
+            workerId,
+            deliveryId: job.deliveryId,
+            webhookId: job.webhookId,
+            webhookUrl: job.webhookUrl,
+            attemptCount: job.attemptCount + 1,
+          });
+          return;
+        }
 
         // Network or timeout error
         const error = fetchError instanceof Error ? fetchError.message : 'Unknown fetch error';

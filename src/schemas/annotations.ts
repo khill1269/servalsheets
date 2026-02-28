@@ -179,7 +179,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   },
   sheets_connectors: {
     title: 'Live Data Connectors',
-    readOnlyHint: false, // query writes cache; subscribe writes to sheets
+    readOnlyHint: false, // configure/subscribe mutate connector state
     destructiveHint: false, // no destructive operations
     idempotentHint: false, // live data changes on each call
     openWorldHint: true, // calls external APIs (Finnhub, FRED, Polygon, etc.)
@@ -946,9 +946,12 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     commonMistakes: ['Plan execution may modify data — use dryRun:true first to preview'],
   },
   'sheets_analyze.discover_action': {
-    apiCalls: 2,
+    apiCalls: 0,
     idempotent: true,
-    whenToUse: 'Discovering next steps based on current data state',
+    whenToUse:
+      'When unsure which action or tool to use; performs semantic search across all registered actions',
+    whenNotToUse: 'When you already know the exact tool+action to call directly',
+    commonMistakes: ['Using discover_action instead of calling a known action directly'],
   },
 
   // CONFIRM TOOL (all actions)
@@ -2497,7 +2500,8 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     apiCalls: 1,
     idempotent: true,
     whenToUse: 'Providing API credentials for Finnhub, FRED, Alpha Vantage, or Polygon',
-    whenNotToUse: 'Open-Meteo and Generic REST do not require configuration',
+    whenNotToUse:
+      'For connectors that already use authType:"none" and are already configured',
   },
   'sheets_connectors.query': {
     apiCalls: 1,

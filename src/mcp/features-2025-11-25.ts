@@ -228,6 +228,27 @@ export const TOOL_ICONS: Record<string, Icon[]> = {
       sizes: ['24x24'],
     },
   ],
+  sheets_compute: [
+    {
+      src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIj48cGF0aCBkPSJtMyAxNyA2LTYgNCA0IDgtOCIvPjxwYXRoIGQ9Ik0xNyA3aDR2NCIvPjwvc3ZnPg==',
+      mimeType: 'image/svg+xml',
+      sizes: ['24x24'],
+    },
+  ],
+  sheets_agent: [
+    {
+      src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIj48cmVjdCB4PSIzIiB5PSI0IiB3aWR0aD0iMTgiIGhlaWdodD0iMTQiIHJ4PSIyIi8+PHBhdGggZD0iTTggMTRsMi0yIDIgMiA0LTQiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjIiIHI9IjEiLz48L3N2Zz4=',
+      mimeType: 'image/svg+xml',
+      sizes: ['24x24'],
+    },
+  ],
+  sheets_connectors: [
+    {
+      src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIj48cGF0aCBkPSJNNyA3bTItMmgtNGEyIDIgMCAwIDAtMiAydjRhMiAyIDAgMCAwIDIgMmg0YTIgMiAwIDAgMCAyLTJ2LTRhMiAyIDAgMCAwLTItMnoiLz48cGF0aCBkPSJNMTcgMTdtMi0yaC00YTIgMiAwIDAgMC0yIDJ2NGEyIDIgMCAwIDAgMiAyaDRhMiAyIDAgMCAwIDItMnYtNGEyIDIgMCAwIDAtMi0yeiIvPjxwYXRoIGQ9Ik0xMCA4aDRhMiAyIDAgMCAxIDIgMnY0Ii8+PC9zdmc+',
+      mimeType: 'image/svg+xml',
+      sizes: ['24x24'],
+    },
+  ],
 };
 
 // ============================================================================
@@ -285,6 +306,9 @@ export const TOOL_EXECUTION_CONFIG: Record<string, ToolExecution> = {
   sheets_webhook: { taskSupport: 'forbidden' },
   sheets_dependencies: { taskSupport: 'optional' },
   sheets_federation: { taskSupport: 'optional' }, // Network calls to remote MCP servers
+  sheets_compute: { taskSupport: 'optional' },
+  sheets_agent: { taskSupport: 'optional' },
+  sheets_connectors: { taskSupport: 'optional' },
 };
 
 // ============================================================================
@@ -455,6 +479,9 @@ Benefits:
 ├─ Templates → \`sheets_templates\` (list, apply, create reusable patterns)
 └─ Federation → \`sheets_federation\` (call_remote, list_servers, cross-service workflows)
 
+**Live external API data?**
+└─ \`sheets_connectors\` (list connectors, configure, query/batch_query, subscribe)
+
 **Large datasets (>10K rows)?**
 ├─ Use \`sheets_data.batch_read\` with pagination (cursor-based)
 ├─ Use \`sheets_bigquery\` for SQL queries on connected data
@@ -519,6 +546,13 @@ Benefits:
 ├─ Create chart + sparklines → \`sheets_visualize.chart_create\` → \`sheets_format.sparkline_add\`
 └─ Full dashboard → scout → suggest_chart → chart_create → sparkline_add → apply_preset
 
+**Auditing, reporting, or migrating spreadsheets?**
+├─ Full quality + formula + structure audit → \`sheets_composite.audit_sheet\`
+├─ Publish formatted report to a new sheet/file → \`sheets_composite.publish_report\`
+├─ Build a recurring data pipeline (fetch → transform → write) → \`sheets_composite.data_pipeline\`
+├─ Create a sheet from a saved template with custom values → \`sheets_composite.instantiate_template\`
+└─ Move data between spreadsheets with structure preservation → \`sheets_composite.migrate_spreadsheet\`
+
 **Running formulas/statistics/regression/forecasting server-side?**
 └─ \`sheets_compute\` (evaluate expressions, run statistical analysis, forecast)
 
@@ -548,6 +582,12 @@ When the user's intent is CLEAR, skip analysis and route directly:
 | "clean/fix/standardize" | sheets_fix |
 | "compute/calculate/regression/forecast/statistics" | sheets_compute |
 | "run plan/agent/autonomous pipeline/multi-step" | sheets_agent |
+| "external API/live data/connector/market data/weather" | sheets_connectors |
+| "audit/report/analyze quality/health check" | sheets_composite.audit_sheet |
+| "publish report/export findings/generate summary" | sheets_composite.publish_report |
+| "data pipeline/recurring import/scheduled transform" | sheets_composite.data_pipeline |
+| "instantiate template/apply template with values" | sheets_composite.instantiate_template |
+| "migrate/move data between spreadsheets/transfer" | sheets_composite.migrate_spreadsheet |
 
 ONLY use sheets_analyze when the user's request is exploratory or analytical.
 
@@ -678,6 +718,15 @@ Never leave debug strings (e.g., "test123", task markers, "temp") in production 
 
 **Cross-sheet analysis:**
 \`sheets_data cross_read\` → \`sheets_analyze comprehensive\` → \`sheets_data cross_compare\` → \`sheets_analyze suggest_next_actions\`
+
+**Spreadsheet quality audit:**
+\`sheets_composite audit_sheet\` → review findings → \`sheets_composite publish_report\`
+
+**Data pipeline with live data:**
+\`sheets_connectors configure\` → \`sheets_composite data_pipeline\` → \`sheets_format batch_format\`
+
+**Spreadsheet migration:**
+\`sheets_analyze scout\` (source) → \`sheets_composite migrate_spreadsheet\` → \`sheets_analyze scout\` (verify destination)
 
 ## ❌ ANTI-PATTERNS (What NOT to Do)
 
