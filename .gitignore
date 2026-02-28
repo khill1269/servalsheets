@@ -13,6 +13,16 @@ dist/
 .jscpd/
 jscpd-report.json
 
+# Ephemeral research/audit docs (created by sub-agents, not for version control)
+API_AUDIT_INDEX.md
+COMPETITIVE_GAP_DEEP_DIVE.md
+GOOGLE_API_TACTICAL_FINDINGS.md
+PHASE6_SPECIFICATION.md
+PHASE_1B_INTEGRATION_GUIDE.md
+PHASE_1B_QUICK_REFERENCE.md
+.serval/audit-findings-wave1.md
+.serval/corrections.md
+
 # IDE
 .idea/
 .vscode/
