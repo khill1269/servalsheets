@@ -8,17 +8,31 @@
  * Actions (10):
  * - list_connectors, configure, query, batch_query, subscribe,
  *   unsubscribe, list_subscriptions, transform, status, discover
+ *
+ * P5.3: Added AI-powered connector discovery via MCP Sampling
  */
 
 import { logger } from '../utils/logger.js';
-import { connectorManager } from '../connectors/connector-manager.js';
+import { connectorManager } from '../resources/connectors-runtime.js';
 import type { SheetsConnectorsInput, SheetsConnectorsOutput } from '../schemas/connectors.js';
+import type { SamplingServer } from '../mcp/sampling.js';
+import { generateAIInsight } from '../mcp/sampling.js';
 
 // ============================================================================
 // Handler
 // ============================================================================
 
+export interface ConnectorsHandlerOptions {
+  samplingServer?: SamplingServer;
+}
+
 export class ConnectorsHandler {
+  private samplingServer?: SamplingServer;
+
+  constructor(options?: ConnectorsHandlerOptions) {
+    this.samplingServer = options?.samplingServer;
+  }
+
   async handle(input: SheetsConnectorsInput): Promise<SheetsConnectorsOutput> {
     const { request } = input;
     const { action } = request;
@@ -270,13 +284,27 @@ export class ConnectorsHandler {
       };
     }
 
-    // List all endpoints
+    // List all endpoints with AI-powered recommendation
     const result = await connectorManager.discover(req.connectorId);
+
+    // AI-powered connector recommendation
+    let aiRecommendation: string | undefined;
+    if (this.samplingServer) {
+      aiRecommendation = await generateAIInsight(
+        this.samplingServer,
+        'connectorDiscovery',
+        `Which endpoints from connector "${req.connectorId}" would be most useful? What data can each provide?`,
+        { connectorId: req.connectorId, endpoints: result.endpoints },
+        { maxTokens: 400 }
+      );
+    }
+
     return {
       response: {
         success: true,
         action: 'discover',
         endpoints: result.endpoints,
+        ...(aiRecommendation ? { aiRecommendation } : {}),
       },
     };
   }

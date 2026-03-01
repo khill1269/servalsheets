@@ -14,7 +14,7 @@ import type { CompleteResult } from '@modelcontextprotocol/sdk/types.js';
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
- * Total: 377 actions across 25 tools (includes agent, compute, and connectors tool families)
+ * Total: 391 actions across 25 tools (includes agent, compute, and connectors tool families)
  * Note: sheets_analyze has 19 actions (comprehensive + targeted + progressive analyses)
  */
 export const TOOL_ACTIONS: Record<string, string[]> = {
@@ -101,6 +101,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'list_triggers',
     'delete_trigger',
     'update_trigger',
+    'install_serval_function',
   ],
   sheets_auth: [
     'status',
@@ -202,6 +203,12 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'custom_function',
     'batch_compute',
     'explain_formula',
+    'sql_query',
+    'sql_join',
+    'python_eval',
+    'pandas_profile',
+    'sklearn_model',
+    'matplotlib_chart',
   ],
   sheets_confirm: [
     'request',
@@ -396,6 +403,10 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'record_successful_formula',
     'reject_suggestion',
     'get_top_formulas',
+    'schedule_create',
+    'schedule_list',
+    'schedule_cancel',
+    'schedule_run_now',
     'execute_pipeline',
   ],
   sheets_templates: [
@@ -444,6 +455,9 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'test',
     'get_stats',
     'watch_changes',
+    'subscribe_workspace',
+    'unsubscribe_workspace',
+    'list_workspace_subscriptions',
   ],
 };
 

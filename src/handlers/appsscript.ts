@@ -36,6 +36,7 @@ import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { executeWithRetry } from '../utils/retry.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
+import { randomBytes } from 'crypto';
 import type {
   SheetsAppsScriptInput,
   SheetsAppsScriptOutput,
@@ -59,6 +60,7 @@ import type {
   AppsScriptListTriggersInput,
   AppsScriptDeleteTriggerInput,
   AppsScriptUpdateTriggerInput,
+  AppsScriptInstallServalFunctionInput,
 } from '../schemas/index.js';
 import { logger } from '../utils/logger.js';
 
@@ -250,6 +252,11 @@ export class SheetsAppsScriptHandler extends BaseHandler<
           break;
         case 'update_trigger':
           response = await this.handleUpdateTrigger(req as AppsScriptUpdateTriggerInput);
+          break;
+        case 'install_serval_function':
+          response = await this.handleInstallServalFunction(
+            req as AppsScriptInstallServalFunctionInput
+          );
           break;
         default: {
           const _exhaustiveCheck: never = req;
@@ -1305,6 +1312,131 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
         'Use update_content to modify trigger code in the script project.',
       retryable: false,
+    });
+  }
+
+  // ============================================================================
+  // SERVAL() Formula Installer (Phase 5)
+  // ============================================================================
+
+  /**
+   * Install the SERVAL() formula function into a spreadsheet via a bound Apps Script project.
+   * Generates an HMAC secret, builds the Apps Script source, creates a bound project,
+   * and pushes the function code.
+   */
+  private async handleInstallServalFunction(
+    req: AppsScriptInstallServalFunctionInput
+  ): Promise<AppsScriptResponse> {
+    logger.info('Installing SERVAL() function', { spreadsheetId: req.spreadsheetId });
+
+    const hmacSecret = randomBytes(32).toString('hex');
+    const defaultModel = req.defaultModel ?? 'claude-sonnet-4-6';
+    const callbackBaseUrlRaw =
+      req.callbackUrl ?? process.env['SERVAL_CALLBACK_URL'] ?? process.env['SERVALSHEETS_BASE_URL'];
+    if (!callbackBaseUrlRaw) {
+      return this.error({
+        code: 'CONFIG_ERROR',
+        message:
+          'SERVAL callback URL is required. Provide request.callbackUrl or set SERVAL_CALLBACK_URL.',
+        retryable: false,
+      });
+    }
+    const callbackUrl = callbackBaseUrlRaw.replace(/\/+$/, '');
+
+    // Build the Apps Script source
+    const scriptSource = `
+function SERVAL(prompt, range, model) {
+  var CALLBACK_URL = '${callbackUrl}/api/serval-formula';
+  var HMAC_SECRET = PropertiesService.getScriptProperties().getProperty('SERVAL_HMAC_SECRET');
+  if (!HMAC_SECRET) {
+    PropertiesService.getScriptProperties().setProperty('SERVAL_HMAC_SECRET', '${hmacSecret}');
+    HMAC_SECRET = '${hmacSecret}';
+  }
+  var spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
+  var rangeValues = range ? (Array.isArray(range) ? range : [[range]]) : null;
+  var body = JSON.stringify({
+    requests: [{ prompt: String(prompt), range_values: rangeValues, model: model || '${defaultModel}' }],
+    spreadsheetId: spreadsheetId,
+    timestamp: Date.now()
+  });
+  var sig = Utilities.computeHmacSha256Signature(body, HMAC_SECRET);
+  var sigHex = sig.map(function(b) { return ('0' + (b & 0xff).toString(16)).slice(-2); }).join('');
+  var response = UrlFetchApp.fetch(CALLBACK_URL, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'X-Serval-Signature': sigHex, 'X-Serval-SpreadsheetId': spreadsheetId },
+    payload: body,
+    muteHttpExceptions: true
+  });
+  if (response.getResponseCode() !== 200) return '#ERROR!';
+  var result = JSON.parse(response.getContentText());
+  return result.results && result.results[0] ? (result.results[0].text || result.results[0].values || '#NODATA') : '#NODATA';
+}
+`.trim();
+
+    // Create bound Apps Script project
+    interface CreateProjectResponse {
+      scriptId: string;
+      title: string;
+      parentId?: string;
+      createTime?: string;
+      updateTime?: string;
+    }
+
+    const project = await this.apiRequest<CreateProjectResponse>('POST', '/projects', {
+      title: 'SERVAL Formula Functions',
+      parentId: req.spreadsheetId,
+    });
+
+    const scriptId = project.scriptId;
+
+    // Push the SERVAL function source
+    interface UpdateContentResponse {
+      files: Array<{ name: string; type: string; source: string }>;
+    }
+
+    await this.apiRequest<UpdateContentResponse>('PUT', `/projects/${scriptId}/content`, {
+      files: [
+        {
+          name: 'SERVAL',
+          type: 'SERVER_JS',
+          source: scriptSource,
+        },
+      ],
+    });
+
+    // Register the HMAC secret in formula-callback service for validation
+    try {
+      const { registerSpreadsheetSecret } = await import('../services/formula-callback.js');
+      registerSpreadsheetSecret(
+        req.spreadsheetId,
+        hmacSecret,
+        req.rateLimit ?? { requestsPerMinute: 100 },
+        req.cacheTtlSeconds ?? 300
+      );
+    } catch {
+      // Non-blocking — secret registration is best-effort at install time
+      logger.warn('Could not register SERVAL HMAC secret in formula-callback service', {
+        spreadsheetId: req.spreadsheetId,
+      });
+    }
+
+    const installedAt = new Date().toISOString();
+    logger.info('SERVAL() function installed', { scriptId, spreadsheetId: req.spreadsheetId });
+
+    return this.success('install_serval_function', {
+      scriptId,
+      functionName: 'SERVAL',
+      callbackUrl: `${callbackUrl}/api/serval-formula`,
+      hmacSecret,
+      installedAt,
+      project: {
+        scriptId,
+        title: 'SERVAL Formula Functions',
+        parentId: req.spreadsheetId,
+        createTime: project.createTime ?? installedAt,
+        updateTime: project.updateTime ?? installedAt,
+      },
     });
   }
 }

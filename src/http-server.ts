@@ -2854,6 +2854,99 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     }
   });
 
+  // Workspace Events push notification endpoint (Phase 4)
+  app.post('/webhook/workspace-events', (req: Request, res: Response) => {
+    const event = req.body as Record<string, unknown>;
+    const eventId =
+      (event['id'] as string | undefined) ?? (event['messageId'] as string | undefined);
+    logger.info('Received Workspace Events push notification', { eventId });
+
+    // Acknowledge immediately and process asynchronously.
+    res.status(200).json({ received: true });
+
+    void (async () => {
+      try {
+        const webhookManager = getWebhookManager();
+        await webhookManager.handleWorkspaceEvent(event);
+      } catch (error) {
+        logger.warn('Workspace event processing skipped', {
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
+    })();
+  });
+
+  // SERVAL() formula callback endpoint (Phase 5)
+  app.post('/api/serval-formula', async (req: Request, res: Response) => {
+    try {
+      const body = JSON.stringify(req.body);
+      const spreadsheetId = req.headers['x-serval-spreadsheetid'] as string;
+      const signature = req.headers['x-serval-signature'] as string;
+
+      if (!spreadsheetId || !signature) {
+        res.status(401).json({ error: 'Missing authentication headers' });
+        return;
+      }
+
+      const {
+        validateHmacSignature,
+        validateRequestTimestamp,
+        checkAndRecordReplay,
+        checkRateLimit,
+        processBatchFormula,
+      } = await import('./services/formula-callback.js');
+
+      const batchRequest = req.body as {
+        requests?: unknown;
+        spreadsheetId?: unknown;
+        timestamp?: unknown;
+      };
+
+      if (
+        !batchRequest ||
+        !Array.isArray(batchRequest.requests) ||
+        typeof batchRequest.spreadsheetId !== 'string' ||
+        typeof batchRequest.timestamp !== 'number'
+      ) {
+        res.status(400).json({ error: 'Invalid request payload' });
+        return;
+      }
+
+      if (batchRequest.spreadsheetId !== spreadsheetId) {
+        res.status(403).json({ error: 'Spreadsheet header mismatch' });
+        return;
+      }
+
+      if (!validateRequestTimestamp(batchRequest.timestamp)) {
+        res.status(401).json({ error: 'Stale or invalid request timestamp' });
+        return;
+      }
+
+      if (!validateHmacSignature(body, spreadsheetId, signature)) {
+        res.status(401).json({ error: 'Invalid signature' });
+        return;
+      }
+
+      if (!checkAndRecordReplay(spreadsheetId, signature)) {
+        res.status(409).json({ error: 'Replay request rejected' });
+        return;
+      }
+
+      if (!checkRateLimit(spreadsheetId)) {
+        res.status(429).json({ error: 'Rate limit exceeded' });
+        return;
+      }
+
+      const results = await processBatchFormula(
+        batchRequest as Parameters<typeof processBatchFormula>[0]
+      );
+      res.status(200).json({ results });
+    } catch (err) {
+      logger.error('SERVAL formula callback error', { error: String(err) });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Error handler
   app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
     logger.error('HTTP server error', {

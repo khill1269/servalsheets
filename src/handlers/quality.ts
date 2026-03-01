@@ -28,14 +28,18 @@ import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { sendProgress } from '../utils/request-context.js';
 import { logger } from '../utils/logger.js';
+import { generateAIInsight } from '../mcp/sampling.js';
+import type { SamplingServer } from '../mcp/sampling.js';
 
 export interface QualityHandlerOptions {
-  // Options can be added as needed
+  samplingServer?: SamplingServer;
 }
 
 export class QualityHandler {
-  constructor(_options: QualityHandlerOptions = {}) {
-    // Constructor logic if needed
+  private samplingServer?: SamplingServer;
+
+  constructor(options: QualityHandlerOptions = {}) {
+    this.samplingServer = options.samplingServer;
   }
 
   async handle(input: SheetsQualityInput): Promise<SheetsQualityOutput> {
@@ -133,6 +137,22 @@ export class QualityHandler {
       return response;
     }
 
+    // Generate AI insight for validation failures
+    let aiInsight: string | undefined;
+    if (report.errors.length > 0 && this.samplingServer) {
+      const errorSummary = report.errors
+        .slice(0, 5)
+        .map((e) => `${e.rule.name}: ${e.message}`)
+        .join('\n');
+      aiInsight = await generateAIInsight(
+        this.samplingServer,
+        'dataCleaning',
+        `Explain these validation failures and recommend specific fixes for each`,
+        errorSummary,
+        { maxTokens: 400 }
+      );
+    }
+
     const response: QualityResponse = {
       success: true,
       action: 'validate',
@@ -164,6 +184,7 @@ export class QualityHandler {
       })),
       duration: report.duration,
       message: `Validation passed. ${report.passedChecks}/${report.totalChecks} checks passed.`,
+      ...(aiInsight !== undefined ? { aiInsight } : {}),
     };
 
     // Add dry run preview if requested
@@ -198,6 +219,19 @@ export class QualityHandler {
     // Phase 1 Fix: Add explicit warning that this is a limited implementation
     // Future: Query active conflicts from detector's internal state
     // For now, return empty list with warning
+
+    // Generate AI insight for conflict resolution strategy (even with no active conflicts)
+    let aiInsight: string | undefined;
+    if (this.samplingServer) {
+      aiInsight = await generateAIInsight(
+        this.samplingServer,
+        'dataAnalysis',
+        'Analyze these conflicts and recommend the best resolution strategy for each',
+        'No active conflicts detected. Conflict detection is limited to automatic checks during write operations.',
+        { maxTokens: 300 }
+      );
+    }
+
     return {
       success: true,
       action: 'detect_conflicts',
@@ -214,6 +248,7 @@ export class QualityHandler {
         },
       ],
       message: 'Conflict detection service available. No active conflicts found.',
+      ...(aiInsight !== undefined ? { aiInsight } : {}),
     };
   }
 

@@ -143,6 +143,7 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
         sheetsApi: options.sheetsApi,
         server: options.context.server,
         taskStore: options.context.taskStore,
+        googleClient: options.context.googleClient ?? undefined,
       });
     },
     // New MCP-native handlers
@@ -164,7 +165,11 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     },
     async session() {
       const { SessionHandler } = await import('./session.js');
-      return new SessionHandler();
+      const handler = new SessionHandler();
+      if (options.context.scheduler) {
+        handler.setScheduler(options.context.scheduler);
+      }
+      return handler;
     },
     // Wave 1 consolidated handlers
     async core() {
@@ -195,7 +200,14 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     // Webhook handler
     async webhooks() {
       const { createWebhookHandler } = await import('./webhooks.js');
-      return createWebhookHandler();
+      const { WorkspaceEventsService } = await import('../services/workspace-events.js');
+      const workspaceEventsService = options.context.googleClient
+        ? new WorkspaceEventsService(options.context.googleClient)
+        : undefined;
+      return createWebhookHandler({
+        driveApi: options.driveApi,
+        workspaceEventsService,
+      });
     },
     // Dependencies handler
     async dependencies() {
@@ -210,7 +222,10 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     // Computation engine (Phase 5)
     async compute() {
       const { ComputeHandler } = await import('./compute.js');
-      return new ComputeHandler(options.sheetsApi);
+      return new ComputeHandler(options.sheetsApi, {
+        samplingServer: options.context.samplingServer,
+        duckdbEngine: options.context.duckdbEngine,
+      });
     },
     // Agent loop (Phase 6)
     async agent() {
@@ -220,7 +235,7 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     // Live data connectors (Wave 6)
     async connectors() {
       const { ConnectorsHandler } = await import('./connectors.js');
-      return new ConnectorsHandler();
+      return new ConnectorsHandler({ samplingServer: options.context.samplingServer });
     },
   };
 

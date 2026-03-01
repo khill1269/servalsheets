@@ -15,6 +15,145 @@
  */
 
 // ============================================================================
+// Modern Google Sheets Function Registry
+// ============================================================================
+
+/**
+ * Registry of modern Google Sheets functions (Lambda, Dynamic Arrays, Modern Lookups)
+ * Supports recognition, validation, and explanation.
+ */
+export const MODERN_FUNCTION_REGISTRY: Record<
+  string,
+  {
+    minArgs: number;
+    maxArgs: number;
+    description: string;
+    category: 'lambda' | 'dynamic_array' | 'lookup' | 'utility';
+    introduced?: string; // Approximate date introduced
+    volatility?: 'volatile' | 'stable';
+  }
+> = {
+  LAMBDA: {
+    minArgs: 2,
+    maxArgs: 253,
+    description: 'Creates a custom function with named parameters',
+    category: 'lambda',
+    introduced: '2021',
+    volatility: 'stable',
+  },
+  LET: {
+    minArgs: 3,
+    maxArgs: 253,
+    description: 'Assigns names to values for reuse throughout a formula',
+    category: 'lambda',
+    introduced: '2021',
+    volatility: 'stable',
+  },
+  MAP: {
+    minArgs: 2,
+    maxArgs: 253,
+    description: 'Applies a LAMBDA function to each value in one or more arrays',
+    category: 'lambda',
+    introduced: '2021',
+    volatility: 'stable',
+  },
+  REDUCE: {
+    minArgs: 3,
+    maxArgs: 3,
+    description: 'Reduces an array to a single accumulated value using a LAMBDA function',
+    category: 'lambda',
+    introduced: '2021',
+    volatility: 'stable',
+  },
+  SCAN: {
+    minArgs: 3,
+    maxArgs: 3,
+    description: 'Scans an array and produces intermediate results using a LAMBDA function',
+    category: 'lambda',
+    introduced: '2021',
+    volatility: 'stable',
+  },
+  MAKEARRAY: {
+    minArgs: 3,
+    maxArgs: 3,
+    description: 'Creates an array of specified dimensions using a LAMBDA function',
+    category: 'lambda',
+    introduced: '2021',
+    volatility: 'stable',
+  },
+  BYROW: {
+    minArgs: 2,
+    maxArgs: 2,
+    description: 'Applies a LAMBDA function to each row of a range and returns an array',
+    category: 'lambda',
+    introduced: '2021',
+    volatility: 'stable',
+  },
+  BYCOL: {
+    minArgs: 2,
+    maxArgs: 2,
+    description: 'Applies a LAMBDA function to each column of a range and returns an array',
+    category: 'lambda',
+    introduced: '2021',
+    volatility: 'stable',
+  },
+  XLOOKUP: {
+    minArgs: 3,
+    maxArgs: 6,
+    description:
+      'Searches a range and returns a matching item. Modern replacement for VLOOKUP/HLOOKUP',
+    category: 'lookup',
+    introduced: '2019',
+    volatility: 'stable',
+  },
+  XMATCH: {
+    minArgs: 2,
+    maxArgs: 4,
+    description:
+      'Returns the relative position of a value in a range. Modern replacement for MATCH',
+    category: 'lookup',
+    introduced: '2019',
+    volatility: 'stable',
+  },
+  FILTER: {
+    minArgs: 2,
+    maxArgs: 3,
+    description:
+      'Filter a range based on a boolean condition array. Returns only rows/columns where the condition is TRUE.',
+    category: 'dynamic_array',
+    introduced: '2023',
+    volatility: 'stable',
+  },
+  SORT: {
+    minArgs: 1,
+    maxArgs: 4,
+    description:
+      'Sort rows of a range by specified columns. Supports ascending/descending and multi-column sort.',
+    category: 'dynamic_array',
+    introduced: '2023',
+    volatility: 'stable',
+  },
+  SORTBY: {
+    minArgs: 2,
+    maxArgs: 6,
+    description:
+      'Sort a range by corresponding values in another range. More flexible than SORT for complex ordering.',
+    category: 'dynamic_array',
+    introduced: '2023',
+    volatility: 'stable',
+  },
+  SEQUENCE: {
+    minArgs: 1,
+    maxArgs: 4,
+    description:
+      'Generate a sequence of numbers arranged in rows and columns. Parameters: rows, columns, start, step.',
+    category: 'dynamic_array',
+    introduced: '2023',
+    volatility: 'stable',
+  },
+};
+
+// ============================================================================
 // Type Definitions
 // ============================================================================
 
@@ -131,6 +270,76 @@ export interface OptimizationSuggestion {
   suggestedFormula: string;
   reasoning: string;
   estimatedSpeedup: string;
+}
+
+// ============================================================================
+// Modern Function Validation
+// ============================================================================
+
+/**
+ * Validate a function call against modern Google Sheets function registry
+ * Returns error details if validation fails, null if valid
+ */
+export function validateModernFunction(
+  functionName: string,
+  argCount: number
+): { valid: boolean; error?: string } {
+  const upper = functionName.toUpperCase();
+  const spec = MODERN_FUNCTION_REGISTRY[upper];
+
+  if (!spec) {
+    return { valid: true }; // Not a modern function, don't validate
+  }
+
+  if (argCount < spec.minArgs) {
+    return {
+      valid: false,
+      error: `${upper} requires at least ${spec.minArgs} argument(s), got ${argCount}`,
+    };
+  }
+
+  if (argCount > spec.maxArgs) {
+    return {
+      valid: false,
+      error: `${upper} accepts at most ${spec.maxArgs} argument(s), got ${argCount}`,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Check if a function is a modern Google Sheets function
+ */
+export function isModernFunction(functionName: string): boolean {
+  return functionName.toUpperCase() in MODERN_FUNCTION_REGISTRY;
+}
+
+/**
+ * Get metadata for a modern function
+ */
+export function getModernFunctionInfo(
+  functionName: string
+): (typeof MODERN_FUNCTION_REGISTRY)[keyof typeof MODERN_FUNCTION_REGISTRY] | null {
+  return MODERN_FUNCTION_REGISTRY[functionName.toUpperCase()] ?? null;
+}
+
+/**
+ * Count modern function usage in a formula
+ */
+export function countModernFunctions(formula: string): Record<string, number> {
+  const counts: Record<string, number> = {};
+  const functionPattern = /\b([A-Z_]+)\s*\(/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = functionPattern.exec(formula)) !== null) {
+    const fnName = match[1] ?? '';
+    if (isModernFunction(fnName)) {
+      counts[fnName] = (counts[fnName] ?? 0) + 1;
+    }
+  }
+
+  return counts;
 }
 
 // ============================================================================
@@ -324,6 +533,15 @@ export function analyzeFormulaComplexity(cell: string, formula: string): Formula
     suggestions.push('Very long formula - break into intermediate calculations');
   }
 
+  // Check for modern function usage
+  const modernFuncs = countModernFunctions(formula);
+  if (Object.keys(modernFuncs).length > 0) {
+    const modernList = Object.keys(modernFuncs).join(', ');
+    suggestions.push(
+      `Using modern functions (${modernList}) - ensure Google Sheets version is current`
+    );
+  }
+
   return {
     cell,
     formula,
@@ -390,22 +608,22 @@ export function detectCircularRefs(
 
     const deps = dependencies.get(node);
     if (deps) {
-      for (const dep of deps) {
+      deps.forEach((dep) => {
         if (hasCycle(dep, [...path])) {
           // Continue to find all cycles
         }
-      }
+      });
     }
 
     recStack.delete(node);
     return false;
   }
 
-  for (const cell of dependencies.keys()) {
+  dependencies.forEach((_, cell) => {
     if (!visited.has(cell)) {
       hasCycle(cell, []);
     }
-  }
+  });
 
   return circularRefs;
 }

@@ -167,6 +167,7 @@ export interface McpServerCard {
     elicitation?: boolean | { form?: boolean; url?: boolean };
     completions?: boolean;
     logging?: boolean;
+    progress?: boolean;
   };
   /** Authentication requirements */
   authentication?: {
@@ -374,6 +375,7 @@ function composeMcpServerCard(
       },
       completions: true,
       logging: true,
+      progress: true,
     },
     authentication: {
       required: true,

@@ -14,7 +14,7 @@ export default [
       'scripts/demo/',
       'scripts/measure-*.ts',
       'scripts/generate-metadata.ts',
-      'src/__tests__/**',
+      'src/**/__tests__/**',
       'src/services/discovery-client.ts',
       'src/services/schema-cache.ts',
       'src/services/schema-validator.ts',

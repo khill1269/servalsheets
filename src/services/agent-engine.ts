@@ -12,6 +12,106 @@
  */
 
 import { randomUUID } from 'crypto';
+import { writeFile, readFile, mkdir, unlink } from 'fs/promises';
+import { existsSync } from 'fs';
+import path from 'path';
+import { logger } from '../utils/logger.js';
+import { getRequestContext } from '../utils/request-context.js';
+
+interface SamplingTextContent {
+  type: 'text';
+  text: string;
+}
+
+interface SamplingMessage {
+  role: 'user' | 'assistant';
+  content: SamplingTextContent;
+}
+
+interface SamplingCreateMessageResult {
+  content:
+    | SamplingTextContent
+    | SamplingTextContent[]
+    | Array<{
+        type: string;
+        text?: string;
+      }>;
+}
+
+export interface SamplingServer {
+  createMessage(params: {
+    messages: SamplingMessage[];
+    systemPrompt?: string;
+    maxTokens?: number;
+    modelPreferences?: { hints?: Array<{ name: string }> };
+    temperature?: number;
+  }): Promise<SamplingCreateMessageResult>;
+}
+
+type ConsentChecker = (() => Promise<void>) | undefined;
+let _consentChecker: ConsentChecker;
+const SAMPLING_TIMEOUT_MS = parseInt(process.env['SAMPLING_TIMEOUT_MS'] ?? '30000', 10);
+
+function withSamplingTimeout<T>(promise: Promise<T>): Promise<T> {
+  const context = getRequestContext();
+  const effectiveTimeout = context
+    ? Math.min(SAMPLING_TIMEOUT_MS, Math.max(0, context.deadline - Date.now()))
+    : SAMPLING_TIMEOUT_MS;
+
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`Sampling request timed out after ${effectiveTimeout}ms`)),
+      effectiveTimeout
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
+async function assertSamplingConsent(): Promise<void> {
+  if (!_consentChecker) return;
+  await _consentChecker();
+}
+
+function createUserMessage(text: string): SamplingMessage {
+  return {
+    role: 'user',
+    content: { type: 'text', text },
+  };
+}
+
+function extractTextFromResult(result: SamplingCreateMessageResult): string {
+  const content = Array.isArray(result.content) ? result.content : [result.content];
+  return content
+    .filter((block): block is { type: string; text?: string } => block?.type === 'text')
+    .map((block) => block.text ?? '')
+    .join('\n')
+    .trim();
+}
+
+function getModelHint(operationType: string): {
+  hints: Array<{ name: string }>;
+  temperature: number;
+} {
+  if (operationType === 'agentPlanning') {
+    return {
+      hints: [{ name: 'claude-sonnet-4-latest' }],
+      temperature: 0.2,
+    };
+  }
+  return {
+    hints: [{ name: 'claude-3-5-haiku-latest' }],
+    temperature: 0.3,
+  };
+}
 
 // ============================================================================
 // Types
@@ -66,6 +166,287 @@ export type ExecuteHandlerFn = (
 ) => Promise<unknown>;
 
 // ============================================================================
+// Workflow Templates (P2.2)
+// ============================================================================
+
+export interface WorkflowTemplate {
+  name: string;
+  description: string;
+  steps: Array<{
+    tool: string;
+    action: string;
+    description: string;
+    paramTemplate: Record<string, string>;
+  }>;
+}
+
+const WORKFLOW_TEMPLATES: Record<string, WorkflowTemplate> = {
+  'setup-new-sheet': {
+    name: 'Setup New Sheet',
+    description: 'Create a professional spreadsheet with headers, formatting, and frozen rows',
+    steps: [
+      {
+        tool: 'sheets_data',
+        action: 'write',
+        description: 'Write headers',
+        paramTemplate: { range: 'A1' },
+      },
+      {
+        tool: 'sheets_format',
+        action: 'set_format',
+        description: 'Format header row bold',
+        paramTemplate: { range: 'A1:Z1' },
+      },
+      {
+        tool: 'sheets_dimensions',
+        action: 'freeze',
+        description: 'Freeze header row',
+        paramTemplate: { position: '1', dimension: 'ROWS' },
+      },
+      {
+        tool: 'sheets_dimensions',
+        action: 'auto_resize',
+        description: 'Auto-resize columns',
+        paramTemplate: { dimension: 'COLUMNS' },
+      },
+    ],
+  },
+  'data-quality-check': {
+    name: 'Data Quality Check',
+    description: 'Run comprehensive data quality analysis and suggest fixes',
+    steps: [
+      {
+        tool: 'sheets_analyze',
+        action: 'scout',
+        description: 'Quick scan of sheet structure',
+        paramTemplate: {},
+      },
+      {
+        tool: 'sheets_fix',
+        action: 'suggest_cleaning',
+        description: 'Detect data quality issues',
+        paramTemplate: {},
+      },
+      {
+        tool: 'sheets_fix',
+        action: 'detect_anomalies',
+        description: 'Find statistical outliers',
+        paramTemplate: {},
+      },
+      {
+        tool: 'sheets_analyze',
+        action: 'suggest_next_actions',
+        description: 'Recommend improvements',
+        paramTemplate: {},
+      },
+    ],
+  },
+  'monthly-report': {
+    name: 'Monthly Report',
+    description: 'Generate a formatted monthly report with charts and summary',
+    steps: [
+      {
+        tool: 'sheets_data',
+        action: 'read',
+        description: 'Read source data',
+        paramTemplate: {},
+      },
+      {
+        tool: 'sheets_compute',
+        action: 'aggregate',
+        description: 'Compute summary statistics',
+        paramTemplate: {},
+      },
+      {
+        tool: 'sheets_visualize',
+        action: 'chart_create',
+        description: 'Create summary chart',
+        paramTemplate: { chartType: 'BAR' },
+      },
+      {
+        tool: 'sheets_format',
+        action: 'apply_preset',
+        description: 'Apply professional formatting',
+        paramTemplate: { preset: 'professional' },
+      },
+    ],
+  },
+  'import-and-clean': {
+    name: 'Import and Clean',
+    description: 'Import CSV data, clean it, and format for analysis',
+    steps: [
+      {
+        tool: 'sheets_composite',
+        action: 'import_csv',
+        description: 'Import CSV data',
+        paramTemplate: {},
+      },
+      {
+        tool: 'sheets_fix',
+        action: 'clean',
+        description: 'Auto-clean common data issues',
+        paramTemplate: {},
+      },
+      {
+        tool: 'sheets_fix',
+        action: 'standardize_formats',
+        description: 'Standardize date and number formats',
+        paramTemplate: {},
+      },
+      {
+        tool: 'sheets_dimensions',
+        action: 'auto_resize',
+        description: 'Resize columns to fit',
+        paramTemplate: { dimension: 'COLUMNS' },
+      },
+      {
+        tool: 'sheets_dimensions',
+        action: 'freeze',
+        description: 'Freeze header row',
+        paramTemplate: { position: '1', dimension: 'ROWS' },
+      },
+    ],
+  },
+  'scenario-analysis': {
+    name: 'Scenario Analysis',
+    description: 'Build dependency graph and model what-if scenarios',
+    steps: [
+      {
+        tool: 'sheets_dependencies',
+        action: 'build',
+        description: 'Build formula dependency graph',
+        paramTemplate: {},
+      },
+      {
+        tool: 'sheets_dependencies',
+        action: 'detect_cycles',
+        description: 'Check for circular references',
+        paramTemplate: {},
+      },
+      {
+        tool: 'sheets_dependencies',
+        action: 'model_scenario',
+        description: 'Model scenario impact',
+        paramTemplate: {},
+      },
+    ],
+  },
+  'dedup-and-sort': {
+    name: 'Deduplicate and Sort',
+    description: 'Remove duplicates, sort data, and apply formatting',
+    steps: [
+      {
+        tool: 'sheets_composite',
+        action: 'deduplicate',
+        description: 'Remove duplicate rows',
+        paramTemplate: {},
+      },
+      {
+        tool: 'sheets_dimensions',
+        action: 'sort_range',
+        description: 'Sort data by key column',
+        paramTemplate: {},
+      },
+      {
+        tool: 'sheets_format',
+        action: 'apply_preset',
+        description: 'Apply clean formatting',
+        paramTemplate: { preset: 'clean' },
+      },
+    ],
+  },
+};
+
+// ============================================================================
+// Plan Persistence (P2.3)
+// ============================================================================
+
+const PLAN_STORAGE_DIR =
+  process.env['AGENT_PLAN_DIR'] || path.join(process.cwd(), '.serval', 'plans');
+
+async function ensurePlanDir(): Promise<void> {
+  if (!existsSync(PLAN_STORAGE_DIR)) {
+    await mkdir(PLAN_STORAGE_DIR, { recursive: true });
+  }
+}
+
+async function persistPlan(plan: PlanState): Promise<void> {
+  try {
+    await ensurePlanDir();
+    const filePath = path.join(PLAN_STORAGE_DIR, `${plan.planId}.json`);
+    await writeFile(filePath, JSON.stringify(plan, null, 2), 'utf-8');
+  } catch (err) {
+    logger.debug('Failed to persist plan', {
+      planId: plan.planId,
+      error: err instanceof Error ? err.message : 'unknown',
+    });
+  }
+}
+
+async function loadPersistedPlans(): Promise<void> {
+  try {
+    await ensurePlanDir();
+    const { readdir } = await import('fs/promises');
+    const files = await readdir(PLAN_STORAGE_DIR);
+    for (const file of files) {
+      if (!file.endsWith('.json')) continue;
+      try {
+        const content = await readFile(path.join(PLAN_STORAGE_DIR, file), 'utf-8');
+        const plan = JSON.parse(content) as PlanState;
+        if (plan.planId && !planStore.has(plan.planId)) {
+          planStore.set(plan.planId, plan);
+        }
+      } catch {
+        // Skip corrupt files
+      }
+    }
+  } catch (err) {
+    logger.debug('Failed to load persisted plans', {
+      error: err instanceof Error ? err.message : 'unknown',
+    });
+  }
+}
+
+async function deletePersistedPlan(planId: string): Promise<void> {
+  try {
+    const filePath = path.join(PLAN_STORAGE_DIR, `${planId}.json`);
+    await unlink(filePath);
+  } catch {
+    // File may not exist
+  }
+}
+
+/**
+ * Initialize the plan store by loading previously persisted plans.
+ * Call this during server startup.
+ */
+export async function initializePlanStore(): Promise<void> {
+  await loadPersistedPlans();
+}
+
+// ============================================================================
+// Sampling Server (AI-powered plan generation)
+// ============================================================================
+
+let _samplingServer: SamplingServer | undefined;
+
+/**
+ * Register the sampling server for AI-powered plan generation.
+ * Optional — if not provided, falls back to regex-based planning.
+ */
+export function setAgentSamplingServer(server: SamplingServer | undefined): void {
+  _samplingServer = server;
+}
+
+/**
+ * Optional consent checker invoked before AI sampling requests.
+ * Keeps consent enforcement pluggable without coupling service layer to MCP internals.
+ */
+export function setAgentSamplingConsentChecker(checker: ConsentChecker): void {
+  _consentChecker = checker;
+}
+
+// ============================================================================
 // Plan Store
 // ============================================================================
 
@@ -83,6 +464,104 @@ function evictOldestPlan(): void {
     if (oldest) {
       planStore.delete(oldest.key);
     }
+  }
+}
+
+// ============================================================================
+// AI-Powered Plan Generation
+// ============================================================================
+
+/**
+ * Use MCP Sampling to generate semantically intelligent execution steps.
+ * Falls back to undefined if sampling is unavailable or fails.
+ */
+async function aiParsePlan(
+  description: string,
+  spreadsheetId?: string,
+  context?: string,
+  maxSteps?: number
+): Promise<ExecutionStep[] | undefined> {
+  if (!_samplingServer) return undefined;
+
+  try {
+    await assertSamplingConsent();
+
+    const systemPrompt = `You are a task planning expert for spreadsheet operations.
+Given a user's description, generate a step-by-step execution plan.
+Each step must reference a specific ServalSheets tool and action (e.g., sheets_data.read, sheets_format.set_format).
+Include required parameters for each step. Order steps by dependency.
+Return a JSON array of plan steps: [{ tool, action, params, description }].
+
+Available tools and their key actions:
+- sheets_data: read, write, append, clear, find_replace, cross_read, cross_query, cross_write, cross_compare
+- sheets_format: set_format, set_background, set_text_format, set_number_format, apply_preset, set_borders, clear_format, batch_format, set_rich_text
+- sheets_dimensions: sort_range, freeze, insert, delete, auto_resize, hide, show, group, ungroup, set_basic_filter, clear_basic_filter
+- sheets_visualize: chart_create, chart_update, pivot_create, pivot_update, suggest_chart, suggest_pivot
+- sheets_analyze: comprehensive, scout, analyze_data, detect_patterns, suggest_next_actions, auto_enhance, discover_action
+- sheets_fix: clean, standardize_formats, fill_missing, detect_anomalies, suggest_cleaning, fix
+- sheets_compute: aggregate, statistical, forecast, regression, evaluate
+- sheets_composite: import_csv, deduplicate, setup_sheet, generate_sheet, import_xlsx, export_xlsx, bulk_update, data_pipeline
+- sheets_history: timeline, diff_revisions, restore_cells, undo, redo
+- sheets_dependencies: build, model_scenario, compare_scenarios, analyze_impact
+- sheets_core: create, get, add_sheet, delete_sheet, list, update_properties
+
+Return ONLY valid JSON array, no markdown code blocks, no explanation.
+Maximum ${maxSteps || 10} steps.`;
+
+    let prompt = `Plan steps for: "${description}"`;
+    if (spreadsheetId) prompt += `\nTarget spreadsheet ID: ${spreadsheetId}`;
+    if (context) prompt += `\nAdditional context: ${context}`;
+
+    const modelHint = getModelHint('agentPlanning');
+    const result = await withSamplingTimeout(
+      _samplingServer.createMessage({
+        messages: [createUserMessage(prompt)],
+        systemPrompt,
+        maxTokens: 1500,
+        modelPreferences: { hints: modelHint.hints },
+        temperature: modelHint.temperature,
+      })
+    );
+
+    const text = extractTextFromResult(result);
+    if (!text) return undefined; // OK: LLM sampling may return empty on failure
+
+    // Parse JSON from response, handling markdown code blocks
+    const jsonStr = text
+      .replace(/```json?\n?/g, '')
+      .replace(/```/g, '')
+      .trim();
+    const parsed = JSON.parse(jsonStr);
+
+    if (!Array.isArray(parsed)) return undefined; // OK: Validation guard for LLM output format
+
+    return parsed.slice(0, maxSteps || 10).map(
+      (
+        step: {
+          tool?: string;
+          action?: string;
+          params?: Record<string, unknown>;
+          description?: string;
+        },
+        i: number
+      ) => ({
+        stepId: `step-${i + 1}`,
+        tool: String(step.tool || 'sheets_analyze'),
+        action: String(step.action || 'comprehensive'),
+        params: {
+          ...(typeof step.params === 'object' && step.params ? step.params : {}),
+          ...(spreadsheetId ? { spreadsheetId } : {}),
+        },
+        description: String(step.description || `Step ${i + 1}`),
+        dependsOn: i > 0 ? [`step-${i}`] : undefined,
+      })
+    );
+  } catch (err) {
+    logger.debug('AI plan generation failed, falling back to regex', {
+      description: description.slice(0, 100),
+      reason: err instanceof Error ? err.message : 'unknown',
+    });
+    return undefined;
   }
 }
 
@@ -201,8 +680,71 @@ function parseDescription(
 }
 
 /**
- * Compile a natural language description into a plan.
+ * Compile a natural language description into a plan using AI if available.
+ * Tries AI-powered planning first, falls back to regex-based planning if AI unavailable or fails.
  * Returns PlanState in 'draft' status with generated steps.
+ */
+export async function compilePlanAI(
+  description: string,
+  maxSteps: number = 10,
+  spreadsheetId?: string,
+  context?: string
+): Promise<PlanState> {
+  const planId = randomUUID();
+  const now = new Date().toISOString();
+
+  // Try AI-powered planning first
+  let steps: ExecutionStep[] | undefined;
+  try {
+    const aiSteps = await aiParsePlan(description, spreadsheetId, context, maxSteps);
+    if (aiSteps && aiSteps.length > 0) {
+      steps = aiSteps;
+    }
+  } catch (err) {
+    logger.debug('AI plan compilation error', {
+      description: description.slice(0, 100),
+      reason: err instanceof Error ? err.message : 'unknown',
+    });
+  }
+
+  // Fall back to regex-based planning if AI failed
+  if (!steps || steps.length === 0) {
+    const parsedSteps = parseDescription(description).slice(0, maxSteps);
+    steps = parsedSteps.map((step, idx) => ({
+      stepId: `${planId}-step-${idx}`,
+      tool: step.tool,
+      action: step.action,
+      description: step.label,
+      params: {
+        ...(spreadsheetId && { spreadsheetId }),
+        ...(context && { context }),
+      },
+    }));
+  }
+
+  const plan: PlanState = {
+    planId,
+    description,
+    steps,
+    status: 'draft',
+    results: [],
+    checkpoints: [],
+    createdAt: now,
+    updatedAt: now,
+    currentStepIndex: 0,
+  };
+
+  evictOldestPlan();
+  planStore.set(planId, plan);
+  persistPlan(plan).catch(() => {});
+
+  return plan;
+}
+
+/**
+ * Compile a natural language description into a plan (regex-based only).
+ * Returns PlanState in 'draft' status with generated steps.
+ * Use compilePlanAI() for AI-powered planning that falls back to regex.
  */
 export function compilePlan(
   description: string,
@@ -240,8 +782,65 @@ export function compilePlan(
 
   evictOldestPlan();
   planStore.set(planId, plan);
+  persistPlan(plan).catch(() => {});
 
   return plan;
+}
+
+/**
+ * Compile a plan from a pre-built workflow template.
+ * Returns PlanState in 'draft' status with template steps.
+ */
+export function compileFromTemplate(
+  templateName: string,
+  spreadsheetId: string,
+  overrides?: Record<string, unknown>
+): PlanState | undefined {
+  const template = WORKFLOW_TEMPLATES[templateName];
+  if (!template) return undefined;
+
+  const planId = `plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const steps: ExecutionStep[] = template.steps.map((step, i) => ({
+    stepId: `step-${i + 1}`,
+    tool: step.tool,
+    action: step.action,
+    description: step.description,
+    params: { spreadsheetId, ...step.paramTemplate, ...(overrides || {}) },
+    dependsOn: i > 0 ? [`step-${i}`] : undefined,
+  }));
+
+  const plan: PlanState = {
+    planId,
+    description: `${template.name}: ${template.description}`,
+    steps,
+    status: 'draft',
+    results: [],
+    checkpoints: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    currentStepIndex: 0,
+  };
+
+  if (planStore.size >= MAX_PLANS) evictOldestPlan();
+  planStore.set(planId, plan);
+  persistPlan(plan).catch(() => {});
+
+  return plan;
+}
+
+/**
+ * List all available workflow templates with their metadata.
+ */
+export function listTemplates(): Array<{
+  name: string;
+  description: string;
+  stepCount: number;
+}> {
+  return Object.entries(WORKFLOW_TEMPLATES).map(([_key, t]) => ({
+    name: t.name,
+    description: t.description,
+    stepCount: t.steps.length,
+  }));
 }
 
 // ============================================================================
@@ -309,6 +908,7 @@ export async function executePlan(
       plan.currentStepIndex = i + 1;
       plan.updatedAt = new Date().toISOString();
       planStore.set(planId, plan);
+      persistPlan(plan).catch(() => {});
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
 
@@ -325,6 +925,7 @@ export async function executePlan(
       plan.error = error;
       plan.updatedAt = new Date().toISOString();
       planStore.set(planId, plan);
+      persistPlan(plan).catch(() => {});
       return plan;
     }
   }
@@ -332,6 +933,7 @@ export async function executePlan(
   plan.status = 'completed';
   plan.updatedAt = new Date().toISOString();
   planStore.set(planId, plan);
+  persistPlan(plan).catch(() => {});
   return plan;
 }
 
@@ -376,6 +978,7 @@ export async function executeStep(
     }
     plan.updatedAt = new Date().toISOString();
     planStore.set(planId, plan);
+    persistPlan(plan).catch(() => {});
 
     return stepResult;
   } catch (err) {
@@ -392,6 +995,7 @@ export async function executeStep(
     plan.error = error;
     plan.updatedAt = new Date().toISOString();
     planStore.set(planId, plan);
+    persistPlan(plan).catch(() => {});
 
     return stepResult;
   }
@@ -426,6 +1030,7 @@ export function createCheckpoint(
   plan.checkpoints.push(checkpoint);
   plan.updatedAt = new Date().toISOString();
   planStore.set(planId, plan);
+  persistPlan(plan).catch(() => {});
 
   return checkpoint;
 }
@@ -457,6 +1062,7 @@ export function rollbackToPlan(planId: string, checkpointId: string): PlanState 
   plan.error = undefined;
   plan.updatedAt = new Date().toISOString();
   planStore.set(planId, plan);
+  persistPlan(plan).catch(() => {});
 
   return plan;
 }
@@ -530,12 +1136,30 @@ export async function resumePlan(
  * Delete a plan from the store.
  */
 export function deletePlan(planId: string): boolean {
-  return planStore.delete(planId);
+  const deleted = planStore.delete(planId);
+  if (deleted) {
+    deletePersistedPlan(planId).catch(() => {});
+  }
+  return deleted;
 }
 
 /**
  * Clear all plans from the store.
  */
-export function clearAllPlans(): void {
+export async function clearAllPlans(): Promise<void> {
   planStore.clear();
+  try {
+    await ensurePlanDir();
+    const { readdir } = await import('fs/promises');
+    const files = await readdir(PLAN_STORAGE_DIR);
+    for (const file of files) {
+      if (file.endsWith('.json')) {
+        await unlink(path.join(PLAN_STORAGE_DIR, file)).catch(() => {});
+      }
+    }
+  } catch (err) {
+    logger.debug('Failed to clear persisted plans', {
+      error: err instanceof Error ? err.message : 'unknown',
+    });
+  }
 }

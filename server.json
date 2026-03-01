@@ -2,7 +2,7 @@
   "$schema": "https://cdn.jsdelivr.net/npm/@anthropic-ai/mcp-registry@latest/dist/registry-schema.json",
   "name": "io.github.khill1269/servalsheets",
   "version": "1.7.0",
-  "description": "Production-grade Google Sheets MCP server with 25 tools and 377 actions",
+  "description": "Production-grade Google Sheets MCP server with 25 tools and 391 actions",
   "icons": [
     {
       "src": "https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/serval-icon.png",
@@ -29,7 +29,7 @@
       "transport": {
         "type": "stdio"
       },
-      "description": "Production-grade Google Sheets MCP server - 25 tools, 377 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
+      "description": "Production-grade Google Sheets MCP server - 25 tools, 391 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
     }
   ],
   "tools": [
@@ -111,7 +111,7 @@
     },
     {
       "name": "sheets_appsscript",
-      "description": "appsscript operations (18 actions)",
+      "description": "appsscript operations (19 actions)",
       "actions": [
         "create",
         "get",
@@ -130,7 +130,8 @@
         "create_trigger",
         "list_triggers",
         "delete_trigger",
-        "update_trigger"
+        "update_trigger",
+        "install_serval_function"
       ]
     },
     {
@@ -240,7 +241,7 @@
     },
     {
       "name": "sheets_compute",
-      "description": "compute operations (10 actions)",
+      "description": "compute operations (16 actions)",
       "actions": [
         "evaluate",
         "aggregate",
@@ -251,7 +252,13 @@
         "pivot_compute",
         "custom_function",
         "batch_compute",
-        "explain_formula"
+        "explain_formula",
+        "sql_query",
+        "sql_join",
+        "python_eval",
+        "pandas_profile",
+        "sklearn_model",
+        "matplotlib_chart"
       ]
     },
     {
@@ -466,7 +473,7 @@
     },
     {
       "name": "sheets_session",
-      "description": "session operations (27 actions)",
+      "description": "session operations (31 actions)",
       "actions": [
         "set_active",
         "get_active",
@@ -494,6 +501,10 @@
         "record_successful_formula",
         "reject_suggestion",
         "get_top_formulas",
+        "schedule_create",
+        "schedule_list",
+        "schedule_cancel",
+        "schedule_run_now",
         "execute_pipeline"
       ]
     },
@@ -549,7 +560,7 @@
     },
     {
       "name": "sheets_webhook",
-      "description": "webhook operations (7 actions)",
+      "description": "webhook operations (10 actions)",
       "actions": [
         "register",
         "unregister",
@@ -557,7 +568,10 @@
         "get",
         "test",
         "get_stats",
-        "watch_changes"
+        "watch_changes",
+        "subscribe_workspace",
+        "unsubscribe_workspace",
+        "list_workspace_subscriptions"
       ]
     }
   ],
@@ -571,7 +585,7 @@
   ],
   "metadata": {
     "toolCount": 25,
-    "actionCount": 377,
+    "actionCount": 391,
     "categories": [
       "Core Operations (5 tools): auth, core, data, format, dimensions",
       "Visualizations (1 tool): visualize",

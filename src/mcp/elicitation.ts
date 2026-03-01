@@ -601,6 +601,419 @@ export async function elicitDataImport(server: ElicitationServer): Promise<{
   return null;
 }
 
+/**
+ * Elicit sort settings for sheets_dimensions.sort_range
+ */
+export async function elicitSortSettings(server: ElicitationServer): Promise<{
+  column: string;
+  direction: 'ASCENDING' | 'DESCENDING';
+  hasHeaders: boolean;
+} | null> {
+  const schema: FormElicitParams['requestedSchema'] = {
+    type: 'object',
+    properties: {
+      column: stringField({
+        title: 'Column to sort by',
+        description: 'Column letter or name (e.g., "A" or "Date")',
+      }),
+      direction: selectField({
+        title: 'Sort direction',
+        options: [
+          { value: 'ASCENDING', label: 'A → Z (ascending)' },
+          { value: 'DESCENDING', label: 'Z → A (descending)' },
+        ],
+        default: 'ASCENDING',
+      }),
+      hasHeaders: booleanField({
+        title: 'First row contains headers',
+        description: 'Exclude the header row from sorting',
+        default: true,
+      }),
+    },
+    required: ['column', 'direction'],
+  };
+
+  const result = await safeElicit<{
+    column: string;
+    direction: 'ASCENDING' | 'DESCENDING';
+    hasHeaders?: boolean;
+  } | null>(
+    server,
+    {
+      mode: 'form',
+      message: 'Configure sort settings:',
+      requestedSchema: schema,
+    },
+    null
+  );
+
+  if (result) {
+    return {
+      column: result.column,
+      direction: result.direction,
+      hasHeaders: result.hasHeaders ?? true,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Elicit filter settings for sheets_dimensions.set_basic_filter
+ */
+export async function elicitFilterSettings(server: ElicitationServer): Promise<{
+  column: string;
+  operator: 'eq' | 'neq' | 'gt' | 'lt' | 'contains';
+  value: string;
+} | null> {
+  const schema: FormElicitParams['requestedSchema'] = {
+    type: 'object',
+    properties: {
+      column: stringField({
+        title: 'Column to filter',
+        description: 'Column letter or name (e.g., "A" or "Status")',
+      }),
+      operator: selectField({
+        title: 'Filter condition',
+        options: [
+          { value: 'eq', label: 'equals' },
+          { value: 'neq', label: 'not equal to' },
+          { value: 'gt', label: 'greater than' },
+          { value: 'lt', label: 'less than' },
+          { value: 'contains', label: 'contains' },
+        ],
+        default: 'eq',
+      }),
+      value: stringField({
+        title: 'Filter value',
+        description: 'Value to filter by',
+      }),
+    },
+    required: ['column', 'operator', 'value'],
+  };
+
+  const result = await safeElicit<{
+    column: string;
+    operator: 'eq' | 'neq' | 'gt' | 'lt' | 'contains';
+    value: string;
+  } | null>(
+    server,
+    {
+      mode: 'form',
+      message: 'Set up a basic filter:',
+      requestedSchema: schema,
+    },
+    null
+  );
+
+  if (result) {
+    return {
+      column: result.column,
+      operator: result.operator,
+      value: result.value,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Elicit chart settings for sheets_visualize.chart_create
+ */
+export async function elicitChartSettings(server: ElicitationServer): Promise<{
+  chartType: string;
+  title: string;
+  legendPosition: string;
+} | null> {
+  const schema: FormElicitParams['requestedSchema'] = {
+    type: 'object',
+    properties: {
+      chartType: selectField({
+        title: 'Chart type',
+        options: [
+          { value: 'BAR', label: 'Bar Chart' },
+          { value: 'LINE', label: 'Line Chart' },
+          { value: 'PIE', label: 'Pie Chart' },
+          { value: 'COLUMN', label: 'Column Chart' },
+          { value: 'SCATTER', label: 'Scatter Plot' },
+          { value: 'AREA', label: 'Area Chart' },
+        ],
+      }),
+      title: stringField({
+        title: 'Chart title',
+        description: 'Name for this chart',
+        maxLength: 255,
+      }),
+      legendPosition: selectField({
+        title: 'Legend position',
+        options: [
+          { value: 'TOP', label: 'Top' },
+          { value: 'BOTTOM', label: 'Bottom' },
+          { value: 'LEFT', label: 'Left' },
+          { value: 'RIGHT', label: 'Right' },
+          { value: 'NONE', label: 'Hidden' },
+        ],
+        default: 'BOTTOM',
+      }),
+    },
+    required: ['chartType', 'title'],
+  };
+
+  const result = await safeElicit<{
+    chartType: string;
+    title: string;
+    legendPosition?: string;
+  } | null>(
+    server,
+    {
+      mode: 'form',
+      message: 'Create a new chart:',
+      requestedSchema: schema,
+    },
+    null
+  );
+
+  if (result) {
+    return {
+      chartType: result.chartType,
+      title: result.title,
+      legendPosition: result.legendPosition || 'BOTTOM',
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Elicit formula goal for sheets_analyze.generate_formula
+ */
+export async function elicitFormulaGoal(server: ElicitationServer): Promise<{
+  goal: string;
+  targetCell: string;
+  inputRange: string;
+} | null> {
+  const schema: FormElicitParams['requestedSchema'] = {
+    type: 'object',
+    properties: {
+      goal: stringField({
+        title: 'What should the formula calculate?',
+        description: 'e.g., "Sum of revenue minus costs" or "Percentage change from Q1 to Q2"',
+        maxLength: 500,
+      }),
+      targetCell: stringField({
+        title: 'Cell to place the formula',
+        description: 'A1 reference (e.g., "E5" or "Summary!B10")',
+      }),
+      inputRange: stringField({
+        title: 'Range of input data',
+        description: 'Range containing the data to calculate on (e.g., "A1:D100")',
+      }),
+    },
+    required: ['goal', 'targetCell', 'inputRange'],
+  };
+
+  const result = await safeElicit<{
+    goal: string;
+    targetCell: string;
+    inputRange: string;
+  } | null>(
+    server,
+    {
+      mode: 'form',
+      message: 'Generate a formula:',
+      requestedSchema: schema,
+    },
+    null
+  );
+
+  if (result) {
+    return {
+      goal: result.goal,
+      targetCell: result.targetCell,
+      inputRange: result.inputRange,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Elicit cleaning scope for sheets_fix.clean
+ */
+export async function elicitCleaningScope(server: ElicitationServer): Promise<{
+  range: string;
+  mode: 'preview' | 'apply';
+  aggressiveness: 'conservative' | 'moderate' | 'aggressive';
+} | null> {
+  const schema: FormElicitParams['requestedSchema'] = {
+    type: 'object',
+    properties: {
+      range: stringField({
+        title: 'Range to clean',
+        description: 'A1 reference (e.g., "A1:Z100" or entire sheet)',
+        default: 'A:Z',
+      }),
+      mode: selectField({
+        title: 'What do you want to do?',
+        options: [
+          { value: 'preview', label: 'Preview changes first' },
+          { value: 'apply', label: 'Apply changes now' },
+        ],
+        default: 'preview',
+      }),
+      aggressiveness: selectField({
+        title: 'Cleaning intensity',
+        description: 'How aggressively should we clean?',
+        options: [
+          { value: 'conservative', label: 'Conservative - Only fix obvious issues' },
+          { value: 'moderate', label: 'Moderate - Standard cleaning rules' },
+          { value: 'aggressive', label: 'Aggressive - Fix potential issues too' },
+        ],
+        default: 'moderate',
+      }),
+    },
+    required: ['range', 'mode'],
+  };
+
+  const result = await safeElicit<{
+    range?: string;
+    mode: 'preview' | 'apply';
+    aggressiveness?: 'conservative' | 'moderate' | 'aggressive';
+  } | null>(
+    server,
+    {
+      mode: 'form',
+      message: 'Configure data cleaning:',
+      requestedSchema: schema,
+    },
+    null
+  );
+
+  if (result) {
+    return {
+      range: result.range || 'A:Z',
+      mode: result.mode,
+      aggressiveness: result.aggressiveness || 'moderate',
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Elicit scenario setup for sheets_dependencies.model_scenario
+ */
+export async function elicitScenarioSetup(server: ElicitationServer): Promise<{
+  scenarioName: string;
+  description: string;
+  targetMetric: string;
+} | null> {
+  const schema: FormElicitParams['requestedSchema'] = {
+    type: 'object',
+    properties: {
+      scenarioName: stringField({
+        title: 'Scenario name',
+        description: 'e.g., "Revenue Down 20%" or "Best Case 2026"',
+        maxLength: 100,
+      }),
+      description: stringField({
+        title: 'What-if scenario description',
+        description: 'Describe the scenario (e.g., "Revenue drops 20%, costs stay flat")',
+        maxLength: 500,
+      }),
+      targetMetric: stringField({
+        title: 'Key metric to track',
+        description:
+          'Cell reference or name of the metric you want to monitor (e.g., "Profit Margin" or "B25")',
+      }),
+    },
+    required: ['scenarioName', 'description', 'targetMetric'],
+  };
+
+  const result = await safeElicit<{
+    scenarioName: string;
+    description: string;
+    targetMetric: string;
+  } | null>(
+    server,
+    {
+      mode: 'form',
+      message: 'Set up a what-if scenario:',
+      requestedSchema: schema,
+    },
+    null
+  );
+
+  if (result) {
+    return {
+      scenarioName: result.scenarioName,
+      description: result.description,
+      targetMetric: result.targetMetric,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Elicit pipeline configuration for sheets_composite.data_pipeline
+ */
+export async function elicitPipelineConfig(server: ElicitationServer): Promise<{
+  sourceName: string;
+  outputFormat: 'same_sheet' | 'new_sheet' | 'new_spreadsheet';
+  scheduleHint: string;
+} | null> {
+  const schema: FormElicitParams['requestedSchema'] = {
+    type: 'object',
+    properties: {
+      sourceName: stringField({
+        title: 'Data source description',
+        description: 'e.g., "Sales data" or "Customer feedback CSV from Typeform"',
+        maxLength: 200,
+      }),
+      outputFormat: selectField({
+        title: 'Where should the pipeline output go?',
+        options: [
+          { value: 'same_sheet', label: 'Same sheet (replace or append)' },
+          { value: 'new_sheet', label: 'New sheet in this spreadsheet' },
+          { value: 'new_spreadsheet', label: 'New spreadsheet' },
+        ],
+        default: 'new_sheet',
+      }),
+      scheduleHint: stringField({
+        title: 'How often should this run?',
+        description: 'e.g., "Daily", "Weekly", "On demand", or leave blank',
+        maxLength: 100,
+      }),
+    },
+    required: ['sourceName', 'outputFormat'],
+  };
+
+  const result = await safeElicit<{
+    sourceName: string;
+    outputFormat: 'same_sheet' | 'new_sheet' | 'new_spreadsheet';
+    scheduleHint?: string;
+  } | null>(
+    server,
+    {
+      mode: 'form',
+      message: 'Configure data pipeline:',
+      requestedSchema: schema,
+    },
+    null
+  );
+
+  if (result) {
+    return {
+      sourceName: result.sourceName,
+      outputFormat: result.outputFormat,
+      scheduleHint: result.scheduleHint || '',
+    };
+  }
+
+  return null;
+}
+
 // ============================================================================
 // URL Elicitation (OAuth and External Auth)
 // ============================================================================

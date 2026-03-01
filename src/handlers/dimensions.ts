@@ -1052,16 +1052,78 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
   // ============================================================
 
   private async handleSortRange(input: DimensionsSortRangeInput): Promise<DimensionsResponse> {
-    const gridRange = await this.rangeToGridRange(input.spreadsheetId, input.range, this.sheetsApi);
+    let resolvedInput = input;
+
+    // Wizard: If range is provided but sortSpecs is missing, elicit sort direction
+    if (resolvedInput.range && (!resolvedInput.sortSpecs || resolvedInput.sortSpecs.length === 0)) {
+      if (this.context?.server?.elicitInput) {
+        try {
+          const wizard = await this.context.server.elicitInput({
+            message: 'Range ready to sort. Which direction?',
+            requestedSchema: {
+              type: 'object',
+              properties: {
+                direction: {
+                  type: 'string',
+                  title: 'Sort direction',
+                  description: 'Sort ascending (A→Z) or descending (Z→A)?',
+                  enum: ['ASCENDING', 'DESCENDING'],
+                },
+              },
+            },
+          });
+          const wizardContent = wizard?.content as Record<string, unknown> | undefined;
+          const direction =
+            wizardContent?.['direction'] === 'ASCENDING' ||
+            wizardContent?.['direction'] === 'DESCENDING'
+              ? wizardContent['direction']
+              : undefined;
+          if (wizard?.action === 'accept' && direction) {
+            // Create default sort spec for first column with chosen direction
+            resolvedInput = {
+              ...resolvedInput,
+              sortSpecs: [
+                {
+                  columnIndex: 0,
+                  sortOrder: direction,
+                },
+              ],
+            };
+          }
+        } catch {
+          // Elicitation not available — use default ascending if still missing
+          if (!resolvedInput.sortSpecs || resolvedInput.sortSpecs.length === 0) {
+            resolvedInput = {
+              ...resolvedInput,
+              sortSpecs: [{ columnIndex: 0, sortOrder: 'ASCENDING' as const }],
+            };
+          }
+        }
+      }
+    }
+
+    // Fallback: ensure sortSpecs is always defined
+    if (!resolvedInput.sortSpecs || resolvedInput.sortSpecs.length === 0) {
+      resolvedInput = {
+        ...resolvedInput,
+        sortSpecs: [{ columnIndex: 0, sortOrder: 'ASCENDING' as const }],
+      };
+    }
+
+    const gridRange = await this.rangeToGridRange(
+      resolvedInput.spreadsheetId,
+      resolvedInput.range,
+      this.sheetsApi
+    );
 
     await this.sheetsApi.spreadsheets.batchUpdate({
-      spreadsheetId: input.spreadsheetId,
+      spreadsheetId: resolvedInput.spreadsheetId,
       requestBody: {
         requests: [
           {
             sortRange: {
               range: toGridRange(gridRange),
-              sortSpecs: input.sortSpecs.map((spec) => ({
+              sortSpecs: resolvedInput.sortSpecs.map((spec) => ({
                 dimensionIndex: spec.columnIndex,
                 sortOrder: spec.sortOrder ?? 'ASCENDING',
                 foregroundColor: spec.foregroundColor,
@@ -1074,18 +1136,20 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     });
 
     const rangeStr =
-      typeof input.range === 'string' ? input.range : ((input.range as { a1?: string }).a1 ?? '');
+      typeof resolvedInput.range === 'string'
+        ? resolvedInput.range
+        : ((resolvedInput.range as { a1?: string }).a1 ?? '');
 
     // Wire session context: note that data was sorted
     try {
       if (this.context.sessionContext) {
-        const sortDesc = input.sortSpecs
+        const sortDesc = resolvedInput.sortSpecs
           .map((s) => `col ${s.columnIndex} ${s.sortOrder ?? 'ASCENDING'}`)
           .join(', ');
         this.context.sessionContext.recordOperation({
           tool: 'sheets_dimensions',
           action: 'sort_range',
-          spreadsheetId: input.spreadsheetId,
+          spreadsheetId: resolvedInput.spreadsheetId,
           range: rangeStr,
           description: `Sorted range ${rangeStr} by: ${sortDesc}`,
           undoable: true,

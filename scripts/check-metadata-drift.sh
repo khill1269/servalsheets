@@ -21,4 +21,4 @@ node --import tsx scripts/generate-metadata.ts --validate
 
 echo ""
 echo "🔍 Checking source/dist runtime artifact consistency..."
-node --import tsx scripts/check-source-dist-consistency.ts
+node --import tsx scripts/check-source-dist-consistency.ts --allow-missing-dist

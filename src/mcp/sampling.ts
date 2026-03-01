@@ -232,7 +232,44 @@ const DEFAULT_MODEL_HINTS: Record<string, { hints: Array<{ name: string }>; temp
     chartRecommendation: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
     formulaExplanation: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.2 },
     dataIssues: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
+    scenarioNarrative: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.4 },
+    cleaningStrategy: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.3 },
+    structureDesign: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.5 },
+    queryInterpretation: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.2 },
+    anomalyExplanation: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
+    templateSuggestion: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.4 },
+    pipelineDesign: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.3 },
+    diffNarrative: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
+    connectorDiscovery: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
+    agentPlanning: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.2 },
   };
+
+/**
+ * Adaptive model selection based on action type and data size.
+ * Returns model hints and temperature for a given operation context.
+ *
+ * Rules:
+ * - Analysis/narrative actions → Sonnet (deeper reasoning)
+ * - Simple classification/summary → Haiku (speed)
+ * - Large data (>1000 cells) → Sonnet (better at scale)
+ * - Write-path operations → Haiku (speed matters for UX)
+ */
+export function getModelHint(
+  operationType: string,
+  dataSize?: number
+): { hints: Array<{ name: string }>; temperature: number } {
+  const knownHint = DEFAULT_MODEL_HINTS[operationType];
+  if (knownHint) {
+    if (dataSize && dataSize > 1000 && knownHint.hints[0]?.name.includes('haiku')) {
+      return { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: knownHint.temperature };
+    }
+    return knownHint;
+  }
+  if (dataSize && dataSize > 1000) {
+    return { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.4 };
+  }
+  return { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 };
+}
 
 // ============================================================================
 // Capability Detection
@@ -456,6 +493,61 @@ Explain why your recommendation fits the data.`,
 Explain formulas in simple terms.
 Break down complex formulas into steps.
 Provide examples of how each part works.`,
+
+  scenarioNarrative: `You are a financial modeling expert explaining what-if scenarios.
+Explain the cascade of changes in plain language — how one change propagates through formulas.
+Highlight the most impactful downstream effects and quantify percentage changes.
+Flag any cells where the impact exceeds 20% as high-risk.`,
+
+  cleaningStrategy: `You are a data quality engineer advising on data cleaning.
+Given the column profiles and sample data, recommend which cleaning rules to apply and in what order.
+Prioritize rules that fix the most issues. Explain why each rule matters.
+Flag ambiguous cases (e.g., date formats that could be MM/DD or DD/MM).`,
+
+  structureDesign: `You are a spreadsheet architect designing sheet structures.
+Given a natural language description, design a complete spreadsheet with:
+- Column headers with appropriate types (text, number, currency, date, percentage)
+- Formulas for calculated columns (use Google Sheets syntax)
+- Conditional formatting rules for key metrics
+- Sample data rows that demonstrate the structure
+Return a JSON object with sheets, columns, formulas, and formatting.`,
+
+  queryInterpretation: `You are a data query translator.
+Convert natural language questions into structured query operations.
+Identify: which columns to filter, sort criteria, aggregation functions, join keys.
+Return a JSON object with: filters, sort, aggregations, joinConfig.
+Always explain your interpretation so the user can verify.`,
+
+  anomalyExplanation: `You are a statistical analyst explaining data anomalies.
+For each flagged outlier, explain: what makes it unusual, possible causes, and whether it's likely a data error or a genuine extreme value.
+Reference the column context and surrounding values.
+Suggest whether to fix, investigate, or keep each anomaly.`,
+
+  templateSuggestion: `You are a productivity consultant recommending spreadsheet templates.
+Based on the user's description, suggest which template category fits best.
+Recommend specific column structures and formulas for their use case.
+Consider industry-specific conventions and best practices.`,
+
+  pipelineDesign: `You are a data pipeline architect.
+Design a sequence of transformation steps to move data from source to destination.
+Each step should reference a specific ServalSheets action (tool.action format).
+Include validation checks between steps and rollback strategies.`,
+
+  diffNarrative: `You are a change management analyst reviewing spreadsheet modifications.
+Summarize what changed between revisions in plain language.
+Group related changes together (e.g., "Updated all Q2 projections").
+Highlight potentially problematic changes (deleted formulas, large value swings).`,
+
+  connectorDiscovery: `You are a data integration specialist.
+Given a user's data need description, recommend which data connector to use.
+Explain what data each connector provides and how to configure it.
+If multiple connectors could work, rank them by relevance and ease of setup.`,
+
+  agentPlanning: `You are a task planning expert for spreadsheet operations.
+Given a natural language description of what the user wants to accomplish, generate a step-by-step execution plan.
+Each step must reference a specific ServalSheets tool and action (e.g., sheets_data.read, sheets_format.set_format).
+Include required parameters for each step. Order steps by dependency.
+Return a JSON array of plan steps: [{ tool, action, params, description }].`,
 };
 
 // ============================================================================
@@ -1213,6 +1305,72 @@ export async function* streamAgenticOperation(
     actions,
     success: true,
   };
+}
+
+// ============================================================================
+// AI Insight Helper (P1 Sampling Explosion)
+// ============================================================================
+
+/**
+ * Generate an AI insight for any handler action. Gracefully returns undefined
+ * if sampling is unavailable, consent is denied, or the call times out.
+ * This is the standard pattern for adding sampling to handler actions.
+ *
+ * @param server - SamplingServer from handler context (may be undefined)
+ * @param promptType - Key from SAMPLING_PROMPTS (e.g., 'scenarioNarrative')
+ * @param question - The specific question to answer
+ * @param data - Relevant data to include in the prompt
+ * @param options - Optional overrides for maxTokens, temperature, etc.
+ * @returns AI-generated insight string, or undefined if unavailable
+ */
+export async function generateAIInsight(
+  server: SamplingServer | undefined,
+  promptType: keyof typeof SAMPLING_PROMPTS,
+  question: string,
+  data?: unknown,
+  options?: { maxTokens?: number; context?: string }
+): Promise<string | undefined> {
+  if (!server) return undefined;
+
+  try {
+    assertSamplingSupport(server.getClientCapabilities());
+    await assertSamplingConsent();
+
+    const systemPrompt = SAMPLING_PROMPTS[promptType] ?? SAMPLING_PROMPTS.dataAnalysis;
+    const modelHint = getModelHint(promptType);
+
+    let prompt = question;
+    if (data) {
+      const formattedData =
+        Array.isArray(data) && Array.isArray(data[0])
+          ? formatDataForLLM(data as unknown[][])
+          : typeof data === 'string'
+            ? data
+            : JSON.stringify(data, null, 2).slice(0, 4000);
+      prompt += `\n\nData:\n${formattedData}`;
+    }
+    if (options?.context) {
+      prompt += `\n\nContext: ${options.context}`;
+    }
+
+    const result = await withSamplingTimeout(
+      server.createMessage({
+        messages: [createUserMessage(prompt)],
+        systemPrompt,
+        maxTokens: options?.maxTokens ?? 500,
+        modelPreferences: { hints: modelHint.hints },
+        temperature: modelHint.temperature,
+      })
+    );
+
+    return extractTextFromResult(result);
+  } catch (err) {
+    logger.debug('AI insight generation skipped', {
+      promptType,
+      reason: err instanceof Error ? err.message : 'unknown',
+    });
+    return undefined;
+  }
 }
 
 // ============================================================================

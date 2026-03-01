@@ -34,7 +34,8 @@ type DataRequest = SheetsDataInput['request'];
 import type { ResponseMeta, ValuesArray } from '../schemas/index.js';
 import type { RangeInput } from '../schemas/shared.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
-import { withSamplingTimeout, assertSamplingConsent } from '../mcp/sampling.js';
+import { withSamplingTimeout, assertSamplingConsent, generateAIInsight } from '../mcp/sampling.js';
+import { validateSamplingOutput } from '../services/sampling-validator.js';
 import { validateHyperlinkUrl } from '../utils/url.js';
 import {
   validateValuesPayload,
@@ -2840,12 +2841,46 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   private async handleFindReplace(
     input: DataRequest & { action: 'find_replace' }
   ): Promise<DataResponse> {
-    const resolvedRange = input.range
-      ? await this.resolveRangeToA1(input.spreadsheetId, input.range)
+    let resolvedInput = input;
+
+    // Wizard: If find is provided but replacement is missing, elicit replacement
+    if (
+      resolvedInput.find &&
+      (resolvedInput.replacement === undefined || resolvedInput.replacement === null) &&
+      this.context?.server?.elicitInput
+    ) {
+      try {
+        const wizard = await this.context.server.elicitInput({
+          message: `Search term "${resolvedInput.find}" found. What should replacements be?`,
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              replacement: {
+                type: 'string',
+                title: 'Replacement text',
+                description: 'Text to replace matches with (leave empty for delete)',
+              },
+            },
+          },
+        });
+        const wizardContent = wizard?.content as Record<string, unknown> | undefined;
+        if (wizard?.action === 'accept' && wizardContent?.['replacement'] !== undefined) {
+          resolvedInput = {
+            ...resolvedInput,
+            replacement: String(wizardContent['replacement']),
+          };
+        }
+      } catch {
+        // Elicitation not available — continue without replacement (find-only mode)
+      }
+    }
+
+    const resolvedRange = resolvedInput.range
+      ? await this.resolveRangeToA1(resolvedInput.spreadsheetId, resolvedInput.range)
       : undefined;
 
     // FIND-ONLY MODE: No replacement provided
-    if (input.replacement === undefined || input.replacement === null) {
+    if (resolvedInput.replacement === undefined || resolvedInput.replacement === null) {
       // Use request deduplication for read
       // Default to bounded range when none specified — avoids full grid scan
       const searchRange = resolvedRange ?? 'A1:ZZ10000';
@@ -2867,7 +2902,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         row: number;
         column: number;
       }> = [];
-      const query = input.matchCase ? input.find : input.find.toLowerCase();
+      const query = resolvedInput.matchCase ? resolvedInput.find : resolvedInput.find.toLowerCase();
       const limit = input.limit ?? 100;
 
       for (let row = 0; row < values.length && matches.length < limit; row++) {
@@ -2876,9 +2911,9 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
 
         for (let col = 0; col < rowData.length && matches.length < limit; col++) {
           const cellValue = String(rowData[col] ?? '');
-          const compareValue = input.matchCase ? cellValue : cellValue.toLowerCase();
+          const compareValue = resolvedInput.matchCase ? cellValue : cellValue.toLowerCase();
 
-          const isMatch = input.matchEntireCell
+          const isMatch = resolvedInput.matchEntireCell
             ? compareValue === query
             : compareValue.includes(query);
 
@@ -2898,7 +2933,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
 
     // REPLACE MODE: Replacement provided
     // Check for dryRun
-    if (input.safety?.dryRun) {
+    if (resolvedInput.safety?.dryRun) {
       // If sampling is available, provide an AI estimate of match count
       let aiEstimate: { matchCount: number; confidence: string } | undefined;
       if (this.context.samplingServer) {
@@ -2911,7 +2946,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
                   role: 'user' as const,
                   content: {
                     type: 'text' as const,
-                    text: `Estimate how many cells in the spreadsheet '${input.spreadsheetId}' would match the search term "${input.find}". Reply with JSON: {"matchCount": <number>, "confidence": "low"|"medium"|"high"}`,
+                    text: `Estimate how many cells in the spreadsheet '${resolvedInput.spreadsheetId}' would match the search term "${resolvedInput.find}". Reply with JSON: {"matchCount": <number>, "confidence": "low"|"medium"|"high"}`,
                   },
                 },
               ],
@@ -2927,11 +2962,20 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
             : ((samplingResult.content as { text?: string }).text ?? '');
           const jsonMatch = text.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]) as { matchCount?: number; confidence?: string };
-            aiEstimate = {
-              matchCount: typeof parsed.matchCount === 'number' ? parsed.matchCount : 0,
-              confidence: typeof parsed.confidence === 'string' ? parsed.confidence : 'low',
-            };
+            const validated = validateSamplingOutput('find_replace_estimate', jsonMatch[0]);
+            if (validated !== null) {
+              aiEstimate = {
+                matchCount: validated.estimatedReplacements,
+                confidence: String(validated.confidence ?? 'low'),
+              };
+            } else {
+              // Validation failed — fall back to numeric extraction
+              const numMatch = text.match(/\d+/);
+              aiEstimate = {
+                matchCount: numMatch ? parseInt(numMatch[0], 10) : 0,
+                confidence: 'low',
+              };
+            }
           } else {
             // Non-JSON response: extract a number if present, otherwise default to 0
             const numMatch = text.match(/\d+/);
@@ -2959,29 +3003,61 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
 
     // Build findReplace request - Google API requires allSheets=true if set, or omit it for range-based search
     const findReplaceRequest: sheets_v4.Schema$FindReplaceRequest = {
-      find: input.find,
-      replacement: input.replacement,
-      matchCase: input.matchCase,
-      matchEntireCell: input.matchEntireCell,
-      searchByRegex: input.searchByRegex,
-      includeFormulas: input.includeFormulas,
+      find: resolvedInput.find,
+      replacement: resolvedInput.replacement,
+      matchCase: resolvedInput.matchCase,
+      matchEntireCell: resolvedInput.matchEntireCell,
+      searchByRegex: resolvedInput.searchByRegex,
+      includeFormulas: resolvedInput.includeFormulas,
     };
 
     // Only set allSheets OR range, not both (Google API constraint)
     if (resolvedRange) {
       // Search within specific range - parse to GridRange
-      const gridRange = await this.a1ToGridRange(input.spreadsheetId, resolvedRange);
+      const gridRange = await this.a1ToGridRange(resolvedInput.spreadsheetId, resolvedRange);
       findReplaceRequest.range = toGridRange(gridRange);
     } else {
       // Search all sheets (default when no range specified)
       findReplaceRequest.allSheets = true;
     }
 
+    // Wire AI-powered impact prediction before the actual replacement
+    let aiImpactPrediction: string | undefined;
+    if (this.context.samplingServer) {
+      try {
+        await assertSamplingConsent(); // ISSUE-226: GDPR consent gate
+        const predictionResult = await withSamplingTimeout(
+          this.context.samplingServer.createMessage({
+            messages: [
+              {
+                role: 'user' as const,
+                content: {
+                  type: 'text' as const,
+                  text: `Predict the impact of this find-and-replace operation:\n- Find: "${resolvedInput.find}"\n- Replace with: "${resolvedInput.replacement}"\n- Match case: ${resolvedInput.matchCase}\n- Entire cell: ${resolvedInput.matchEntireCell}\n- Search by regex: ${resolvedInput.searchByRegex}\n\nWhat could go wrong? Identify risks (e.g., partial matches breaking formulas, unintended replacements).`,
+                },
+              },
+            ],
+            maxTokens: 256,
+          })
+        );
+        const text = Array.isArray(predictionResult.content)
+          ? ((
+              predictionResult.content.find((c) => c.type === 'text') as
+                | { text: string }
+                | undefined
+            )?.text ?? '')
+          : ((predictionResult.content as { text?: string }).text ?? '');
+        aiImpactPrediction = text.trim();
+      } catch {
+        // Non-blocking: sampling failure should not block the replacement
+      }
+    }
+
     // Direct API call
     // Protected with circuit breaker to prevent cascade failures during API degradation
     const response = await this.withCircuitBreaker('batchUpdate.findReplace', () =>
       this.sheetsApi.spreadsheets.batchUpdate({
-        spreadsheetId: input.spreadsheetId,
+        spreadsheetId: resolvedInput.spreadsheetId,
         requestBody: {
           requests: [
             {
@@ -2998,6 +3074,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     return this.success('find_replace', {
       replacementsCount,
       mode: 'replace',
+      ...(aiImpactPrediction !== undefined ? { aiImpactPrediction } : {}),
     });
   }
 
@@ -3600,6 +3677,30 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         'Use response_format:"full" for complete queryMatches.';
     }
 
+    // AI interpretation (T2): Explain how the query was translated to operations
+    let interpretation: string | undefined;
+    try {
+      if (this.context.samplingServer) {
+        interpretation = await generateAIInsight(
+          this.context.samplingServer,
+          'queryInterpretation',
+          'Interpret this natural language query and explain how it was translated to data operations',
+          {
+            query: req.query,
+            sourcesCount: req.sources.length,
+            matchesFound: shapedMatches.originalCount,
+            summary: `Query found ${shapedMatches.originalCount} matches across ${req.sources.length} sources`,
+          }
+        );
+      }
+    } catch {
+      /* non-blocking - interpretation is optional */
+    }
+
+    if (interpretation) {
+      responseData['interpretation'] = interpretation;
+    }
+
     return this.success(
       'cross_query',
       responseData,
@@ -3645,13 +3746,14 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     req: DataRequest & { action: 'cross_compare' }
   ): Promise<DataResponse> {
     const responseFormat = req.response_format ?? 'full';
+    const compareColumns = req.compareColumns;
     await this.sendProgress(0, 1, `Comparing data between spreadsheets`);
     const { crossCompare } = await import('../services/cross-spreadsheet.js');
     const result = await crossCompare(
       this.sheetsApi,
       req.source1,
       req.source2,
-      req.compareColumns,
+      compareColumns,
       req.keyColumn,
       this.context.cachedSheetsApi
     );
@@ -3687,6 +3789,30 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         `removed ${shapedRemoved.returnedRowCount}/${result.summary.removedRows}, ` +
         `changed ${shapedChanged.returnedCount}/${result.summary.changedCells}). ` +
         'Use response_format:"full" for complete diff payloads.';
+    }
+
+    // AI narrative (T2): Summarize key differences found in the comparison
+    let narrative: string | undefined;
+    try {
+      if (this.context.samplingServer) {
+        const summaryText = `Added: ${result.summary.addedRows} rows, Removed: ${result.summary.removedRows} rows, Changed: ${result.summary.changedCells} cells`;
+        narrative = await generateAIInsight(
+          this.context.samplingServer,
+          'dataAnalysis',
+          'Summarize the key differences found in this cross-spreadsheet comparison',
+          {
+            summary: summaryText,
+            compareColumns: compareColumns?.length ?? 0,
+            comparedChanges: result.summary.changedCells,
+          }
+        );
+      }
+    } catch {
+      /* non-blocking - narrative is optional */
+    }
+
+    if (narrative) {
+      responseData['narrative'] = narrative;
     }
 
     return this.success(

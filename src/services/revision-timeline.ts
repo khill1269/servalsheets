@@ -3,10 +3,12 @@
  *
  * Drive Revisions API integration for chronological change history,
  * cell-level diffs between revisions, and surgical cell restore.
+ * Phase 3: Drive Activity API for WHO/WHEN attribution.
  */
 
 import type { drive_v3, sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
+import type { GoogleApiClient } from './google-api.js';
 
 export interface TimelineEntry {
   revisionId: string;
@@ -14,6 +16,12 @@ export interface TimelineEntry {
   user?: string;
   displayName?: string;
   sizeBytes?: number;
+  activityType?: string;
+}
+
+export interface TimelineResult {
+  entries: TimelineEntry[];
+  activityAvailable: boolean;
 }
 
 export interface RevisionRef {
@@ -46,6 +54,48 @@ export interface RestoreResult {
 }
 
 /**
+ * Get Drive Activity events for WHO/WHEN attribution.
+ */
+export async function getActivityEvents(
+  googleClient: GoogleApiClient,
+  fileId: string,
+  startTime?: string,
+  endTime?: string
+): Promise<Array<{ timestamp: string; actor: string; actionType: string }>> {
+  try {
+    const driveActivityApi = googleClient.driveActivity;
+    if (!driveActivityApi) return [];
+
+    const filter = startTime
+      ? `time >= "${startTime}"${endTime ? ` AND time <= "${endTime}"` : ''}`
+      : undefined;
+
+    const response = await driveActivityApi.activity.query({
+      requestBody: {
+        itemName: `items/${fileId}`,
+        filter,
+        pageSize: 100,
+      },
+    });
+
+    const activities = response.data.activities ?? [];
+    return activities.map((activity) => {
+      const actor = activity.actors?.[0];
+      const actorEmail =
+        actor?.user?.knownUser?.personName ??
+        actor?.impersonation?.impersonatedUser?.knownUser?.personName ??
+        'unknown';
+      const timestamp = activity.timestamp ?? activity.timeRange?.startTime ?? '';
+      const actionType = Object.keys(activity.primaryActionDetail ?? {})[0] ?? 'edit';
+      return { timestamp, actor: actorEmail, actionType };
+    });
+  } catch {
+    // Drive Activity API may not be authorized — graceful degradation
+    return [];
+  }
+}
+
+/**
  * Get chronological revision timeline for a spreadsheet.
  */
 export async function getTimeline(
@@ -55,6 +105,7 @@ export async function getTimeline(
     since?: string;
     until?: string;
     limit?: number;
+    googleClient?: GoogleApiClient;
   } = {}
 ): Promise<TimelineEntry[]> {
   const limit = options.limit ?? 50;
@@ -71,6 +122,7 @@ export async function getTimeline(
     user: r.lastModifyingUser?.emailAddress ?? undefined,
     displayName: r.lastModifyingUser?.displayName ?? undefined,
     sizeBytes: r.size ? Number(r.size) : undefined,
+    activityType: undefined as string | undefined,
   }));
 
   if (options.since) {
@@ -82,7 +134,38 @@ export async function getTimeline(
     revisions = revisions.filter((r) => new Date(r.timestamp).getTime() <= untilTime);
   }
 
-  return revisions.slice(0, limit);
+  const sliced = revisions.slice(0, limit);
+
+  // Merge Drive Activity events for richer WHO/WHEN attribution
+  if (options.googleClient && sliced.length > 0) {
+    try {
+      const activityEvents = await getActivityEvents(
+        options.googleClient,
+        spreadsheetId,
+        options.since,
+        options.until
+      );
+
+      if (activityEvents.length > 0) {
+        // Match activity events to revisions by proximity in time (within 60 seconds)
+        for (const entry of sliced) {
+          const entryTime = new Date(entry.timestamp).getTime();
+          const match = activityEvents.find((a) => {
+            const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+            return Math.abs(aTime - entryTime) < 60_000;
+          });
+          if (match) {
+            if (!entry.user) entry.user = match.actor;
+            entry.activityType = match.actionType;
+          }
+        }
+      }
+    } catch {
+      // Non-blocking: activity enrichment is best-effort
+    }
+  }
+
+  return sliced;
 }
 
 /**

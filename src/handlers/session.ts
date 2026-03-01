@@ -9,6 +9,7 @@
 import type { SheetsSessionInput, SheetsSessionOutput } from '../schemas/session.js';
 import { PipelineExecutor, type PipelineStep } from '../services/pipeline-executor.js';
 import { getPipelineDispatch } from '../services/pipeline-registry.js';
+import type { SchedulerService } from '../services/scheduler.js';
 import {
   getSessionContext,
   type SpreadsheetContext,
@@ -34,6 +35,60 @@ import { sendProgress } from '../utils/request-context.js';
 import { logger } from '../utils/logger.js';
 
 // ============================================================================
+// MODULE-LEVEL SCHEDULER REGISTRY
+// ============================================================================
+
+/** Module-level scheduler instance — set via SessionHandler.setScheduler() */
+let _scheduler: SchedulerService | null = null;
+
+// ============================================================================
+// FUZZY MATCHING HELPERS
+// ============================================================================
+
+/**
+ * Normalize reference type aliases
+ * Maps informal names to canonical types
+ */
+function normalizeReferenceType(typeAlias: string): string {
+  const normalized = typeAlias.toLowerCase().trim();
+
+  // Type alias mapping
+  const aliases: Record<string, string> = {
+    sheet: 'spreadsheet',
+    sheets: 'spreadsheet',
+    tab: 'sheet',
+    tabs: 'sheet',
+    doc: 'spreadsheet',
+    document: 'spreadsheet',
+    docs: 'spreadsheet',
+    workbook: 'spreadsheet',
+    workbooks: 'spreadsheet',
+    file: 'spreadsheet',
+  };
+
+  return aliases[normalized] ?? typeAlias;
+}
+
+/**
+ * Convert match score (0.0-1.0) to human-readable confidence level
+ */
+function getConfidenceLevel(score: number): 'exact' | 'high' | 'medium' | 'low' {
+  if (score >= 0.9) return 'exact';
+  if (score >= 0.7) return 'high';
+  if (score >= 0.5) return 'medium';
+  return 'low';
+}
+
+/**
+ * Strip matchScore from result object for response
+ * (matchScore is internal; response should not expose implementation details)
+ */
+function stripMatchScore<T extends { matchScore: number }>(obj: T): Omit<T, 'matchScore'> {
+  const { matchScore: _, ...rest } = obj;
+  return rest as Omit<T, 'matchScore'>;
+}
+
+// ============================================================================
 // HANDLER CLASS
 // ============================================================================
 
@@ -43,6 +98,11 @@ import { logger } from '../utils/logger.js';
 export class SessionHandler {
   /** Lazily-initialized pipeline executor (populated on first execute_pipeline call). */
   private pipeline: PipelineExecutor | null = null;
+
+  /** Register a SchedulerService so schedule_* actions are available. */
+  setScheduler(scheduler: SchedulerService): void {
+    _scheduler = scheduler;
+  }
 
   async handle(input: SheetsSessionInput): Promise<SheetsSessionOutput> {
     const req = unwrapRequest<SheetsSessionInput['request']>(input);
@@ -280,24 +340,46 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
         }
 
         // Type assertion: refine() validates these are defined for find_by_reference action
-        if (referenceType === 'spreadsheet') {
-          const spreadsheet = session.findSpreadsheetByReference(reference);
+        // Normalize reference type aliases (sheet → spreadsheet, tab → sheet, etc.)
+        const normalizedType = normalizeReferenceType(referenceType || 'spreadsheet');
+
+        if (normalizedType === 'spreadsheet') {
+          const match = session.findSpreadsheetByReference(reference);
+          const confidence = match ? getConfidenceLevel(match.matchScore) : null;
           return {
             response: {
               success: true,
               action: 'find_by_reference',
-              found: spreadsheet !== null,
-              spreadsheet,
+              found: match !== null,
+              ...(match && {
+                spreadsheet: stripMatchScore(match),
+                confidence,
+                matchScore: match.matchScore,
+              }),
+              ...(match &&
+                match.matchScore < 0.7 && {
+                  warning: `Fuzzy matched (${Math.round(match.matchScore * 100)}% confidence). Did you mean "${match.title}"?`,
+                }),
             },
           };
         } else {
-          const operation = session.findOperationByReference(reference);
+          // referenceType === 'sheet' or other operation types
+          const match = session.findOperationByReference(reference);
+          const confidence = match ? getConfidenceLevel(match.matchScore) : null;
           return {
             response: {
               success: true,
               action: 'find_by_reference',
-              found: operation !== null,
-              operation,
+              found: match !== null,
+              ...(match && {
+                operation: stripMatchScore(match),
+                confidence,
+                matchScore: match.matchScore,
+              }),
+              ...(match &&
+                match.matchScore < 0.7 && {
+                  warning: `Fuzzy matched (${Math.round(match.matchScore * 100)}% confidence). Did you mean "${match.action}"?`,
+                }),
             },
           };
         }
@@ -690,6 +772,110 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             success: true,
             action: 'get_top_formulas' as const,
             formulas,
+          },
+        };
+      }
+
+      case 'schedule_create': {
+        if (!_scheduler) {
+          return {
+            response: {
+              success: false as const,
+              error: {
+                code: 'NOT_FOUND' as const,
+                message: 'Scheduler service not available',
+                retryable: false,
+              },
+            },
+          };
+        }
+        const job = await _scheduler.create({
+          spreadsheetId: req.spreadsheetId,
+          cronExpression: req.cronExpression,
+          description: req.description,
+          action: { tool: req.tool, actionName: req.actionName, params: req.params },
+          enabled: true,
+        });
+        return {
+          response: {
+            success: true as const,
+            action: 'schedule_create' as const,
+            jobId: job.id,
+            message: `Scheduled job created: ${job.id}`,
+          },
+        };
+      }
+
+      case 'schedule_list': {
+        if (!_scheduler) {
+          return {
+            response: {
+              success: false as const,
+              error: {
+                code: 'NOT_FOUND' as const,
+                message: 'Scheduler service not available',
+                retryable: false,
+              },
+            },
+          };
+        }
+        const jobs = _scheduler.list(req.spreadsheetId);
+        return {
+          response: {
+            success: true as const,
+            action: 'schedule_list' as const,
+            jobs: jobs.map((j) => ({
+              ...j,
+              tool: j.action.tool,
+              actionName: j.action.actionName,
+            })),
+          },
+        };
+      }
+
+      case 'schedule_cancel': {
+        if (!_scheduler) {
+          return {
+            response: {
+              success: false as const,
+              error: {
+                code: 'NOT_FOUND' as const,
+                message: 'Scheduler service not available',
+                retryable: false,
+              },
+            },
+          };
+        }
+        await _scheduler.cancel(req.jobId);
+        return {
+          response: {
+            success: true as const,
+            action: 'schedule_cancel' as const,
+            jobId: req.jobId,
+          },
+        };
+      }
+
+      case 'schedule_run_now': {
+        if (!_scheduler) {
+          return {
+            response: {
+              success: false as const,
+              error: {
+                code: 'NOT_FOUND' as const,
+                message: 'Scheduler service not available',
+                retryable: false,
+              },
+            },
+          };
+        }
+        await _scheduler.runNow(req.jobId);
+        return {
+          response: {
+            success: true as const,
+            action: 'schedule_run_now' as const,
+            jobId: req.jobId,
+            message: 'Job triggered successfully',
           },
         };
       }

@@ -10,6 +10,24 @@
 
 import type { sheets_v4 } from 'googleapis';
 import { executeWithRetry } from '../utils/retry.js';
+import {
+  computeCorrelation,
+  computeEigenvaluesQR,
+  computeMedian,
+  computeMode,
+  computeMovingWindow,
+  computePercentile,
+  computeRank,
+  computeStddev,
+  computeVariance,
+  determinant,
+  invertMatrix,
+  linearRegression,
+  matrixMultiply,
+  polynomialRegression,
+  predictValue,
+  transpose,
+} from './compute-engine-math.js';
 // logger imported for future use in compute engine
 
 // ============================================================================
@@ -35,6 +53,11 @@ export interface StatisticalOptions {
   columns?: string[];
   percentiles: number[];
   includeCorrelations: boolean;
+  movingWindowConfig?: {
+    windowSize: number;
+    operation: 'average' | 'median' | 'sum';
+    column: string;
+  };
 }
 
 export interface ColumnStats {
@@ -51,6 +74,12 @@ export interface ColumnStats {
   kurtosis?: number | null;
   percentiles?: Record<string, number>;
   nullCount?: number;
+  movingWindow?: number[];
+}
+
+export interface CorrelationMatrix {
+  columns: string[];
+  matrix: number[][];
 }
 
 export interface RegressionOptions {
@@ -264,6 +293,7 @@ export function computeStatistics(
 ): {
   statistics: Record<string, ColumnStats>;
   correlations?: Record<string, Record<string, number>>;
+  correlationMatrix?: CorrelationMatrix;
 } {
   const headers = (data[0] || []).map(String);
   const targetCols = options.columns
@@ -319,6 +349,16 @@ export function computeStatistics(
       kurtosis = m4 / Math.pow(stddev, 4) - 3; // excess kurtosis
     }
 
+    // Moving window statistics if configured
+    let movingWindow: number[] | undefined;
+    if (options.movingWindowConfig && options.movingWindowConfig.column === colName) {
+      movingWindow = computeMovingWindow(
+        values,
+        options.movingWindowConfig.windowSize,
+        options.movingWindowConfig.operation
+      );
+    }
+
     statistics[colName] = {
       count: values.length,
       mean,
@@ -333,22 +373,31 @@ export function computeStatistics(
       kurtosis,
       percentiles,
       nullCount,
+      ...(movingWindow !== undefined ? { movingWindow } : {}),
     };
   }
 
   let correlations: Record<string, Record<string, number>> | undefined;
+  let correlationMatrix: CorrelationMatrix | undefined;
   if (options.includeCorrelations && Object.keys(columnData).length > 1) {
-    correlations = {};
+    const correlationMap: Record<string, Record<string, number>> = {};
     const colNames = Object.keys(columnData);
     for (const a of colNames) {
-      correlations[a] = {};
+      correlationMap[a] = {};
       for (const b of colNames) {
-        correlations[a]![b] = computeCorrelation(columnData[a]!, columnData[b]!);
+        correlationMap[a][b] = computeCorrelation(columnData[a]!, columnData[b]!);
       }
     }
+    correlations = correlationMap;
+    // Also provide structured matrix format
+    const matrix = colNames.map((a) => {
+      const row = correlationMap[a];
+      return colNames.map((b) => row?.[b] ?? 0);
+    });
+    correlationMatrix = { columns: colNames, matrix };
   }
 
-  return { statistics, correlations };
+  return { statistics, correlations, correlationMatrix };
 }
 
 // ============================================================================
@@ -542,8 +591,6 @@ function selectBestMethod(
 }
 
 // ============================================================================
-// Matrix Operations
-// ============================================================================
 
 export function matrixOp(
   matrix: number[][],
@@ -577,19 +624,7 @@ export function matrixOp(
     case 'eigenvalues': {
       if (matrix.length !== matrix[0]?.length)
         throw new Error('Eigenvalues requires a square matrix');
-      // Simple power iteration for 2x2 or return diagonal for diagonal matrices
-      if (matrix.length === 2) {
-        const a = matrix[0]![0]!,
-          b = matrix[0]![1]!,
-          c = matrix[1]![0]!,
-          d = matrix[1]![1]!;
-        const trace = a + d;
-        const det = a * d - b * c;
-        const disc = Math.sqrt(Math.max(trace * trace - 4 * det, 0));
-        return { eigenvalues: [(trace + disc) / 2, (trace - disc) / 2] };
-      }
-      // For larger matrices, return diagonal elements as approximation
-      return { eigenvalues: matrix.map((row, i) => row[i]!) };
+      return { eigenvalues: computeEigenvaluesQR(matrix) };
     }
     default:
       throw new Error(`Unsupported matrix operation: ${operation}`);
@@ -621,7 +656,70 @@ export function computePivot(data: CellValue[][], options: PivotOptions): PivotR
     fn: v.function,
   }));
 
-  // Group rows
+  // Multi-value pivot: if column indices specified, group by row + column key
+  if (options.columns && options.columns.length > 0) {
+    const colIndices = options.columns.map((c) => resolveColumnIndex(headers, c));
+    const groups = new Map<string, Map<string, CellValue[][]>>();
+
+    // Group by (rowKey, colKey)
+    for (const row of rows) {
+      const rowKey = rowIndices.map((i) => String(row[i] ?? '')).join('|');
+      const colKey = colIndices.map((i) => String(row[i] ?? '')).join('|');
+
+      if (!groups.has(rowKey)) groups.set(rowKey, new Map());
+      const colMap = groups.get(rowKey)!;
+      if (!colMap.has(colKey)) colMap.set(colKey, []);
+      colMap.get(colKey)!.push(row);
+    }
+
+    // Get unique column keys (sorted)
+    const uniqueColKeys = Array.from(
+      new Set(Array.from(groups.values()).flatMap((m) => Array.from(m.keys())))
+    ).sort();
+
+    // Build headers: row keys + (colKey | valueFunc) for each column
+    const pivotHeaders = [...options.rows];
+    for (const colKey of uniqueColKeys) {
+      for (const spec of valueSpecs) {
+        const colName = colKey === '' ? '(empty)' : colKey;
+        pivotHeaders.push(`${colName} | ${spec.fn}(${headers[spec.colIdx]})`);
+      }
+    }
+
+    // Build pivot rows
+    const pivotRows: Array<Array<string | number | null>> = [];
+    const totals: Record<string, number> = {};
+
+    const uniqueRowKeys = Array.from(new Set(Array.from(groups.keys()).map((k) => k))).sort();
+
+    for (const rowKey of uniqueRowKeys) {
+      const keyParts = rowKey.split('|');
+      const row: Array<string | number | null> = [...keyParts];
+      const colMap: Map<string, CellValue[][]> =
+        groups.get(rowKey) ?? new Map<string, CellValue[][]>();
+
+      for (const colKey of uniqueColKeys) {
+        const groupRows = colMap.get(colKey) || [];
+        for (const spec of valueSpecs) {
+          const values = groupRows
+            .map((r) => r[spec.colIdx])
+            .filter((v): v is number => typeof v === 'number');
+          const aggResult = computeAggFn(values, spec.fn, groupRows);
+          row.push(aggResult);
+
+          const colName = colKey === '' ? '(empty)' : colKey;
+          const totalKey = `${colName} | ${spec.fn}(${headers[spec.colIdx]})`;
+          totals[totalKey] = (totals[totalKey] || 0) + (aggResult || 0);
+        }
+      }
+
+      pivotRows.push(row);
+    }
+
+    return { headers: pivotHeaders, rows: pivotRows, totals };
+  }
+
+  // Standard pivot: single-value group by row key only
   const groups = new Map<string, CellValue[][]>();
   for (const row of rows) {
     const key = rowIndices.map((i) => String(row[i] ?? '')).join('|');
@@ -660,353 +758,4 @@ export function computePivot(data: CellValue[][], options: PivotOptions): PivotR
   return { headers: pivotHeaders, rows: pivotRows, totals };
 }
 
-// ============================================================================
-// Formula Explanation
-// ============================================================================
-
-export function explainFormula(formula: string): {
-  summary: string;
-  functions: Array<{ name: string; description: string; arguments: string[] }>;
-  references: Array<{ ref: string }>;
-  complexity: 'simple' | 'moderate' | 'complex';
-} {
-  const cleaned = formula.startsWith('=') ? formula.slice(1) : formula;
-
-  // Extract function calls
-  const fnRegex = /([A-Z_]+)\s*\(/g;
-  const functions: Array<{ name: string; description: string; arguments: string[] }> = [];
-  const seenFns = new Set<string>();
-  let match;
-  while ((match = fnRegex.exec(cleaned)) !== null) {
-    const fnName = match[1]!;
-    if (!seenFns.has(fnName)) {
-      seenFns.add(fnName);
-      functions.push({
-        name: fnName,
-        description: FUNCTION_DESCRIPTIONS[fnName] || `Google Sheets function: ${fnName}`,
-        arguments: extractFunctionArgs(cleaned, match.index! + fnName.length),
-      });
-    }
-  }
-
-  // Extract cell references
-  const refRegex = /(?:(?:[A-Za-z_]\w*!)?\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?)/g;
-  const references: Array<{ ref: string }> = [];
-  const seenRefs = new Set<string>();
-  while ((match = refRegex.exec(cleaned)) !== null) {
-    if (!seenRefs.has(match[0])) {
-      seenRefs.add(match[0]);
-      references.push({ ref: match[0] });
-    }
-  }
-
-  const nestLevel = (cleaned.match(/\(/g) || []).length;
-  const complexity = nestLevel <= 1 ? 'simple' : nestLevel <= 3 ? 'moderate' : 'complex';
-
-  const summary =
-    functions.length === 0
-      ? `Simple expression: ${cleaned}`
-      : `Uses ${functions.map((f) => f.name).join(', ')} with ${references.length} cell reference(s)`;
-
-  return { summary, functions, references, complexity };
-}
-
-function extractFunctionArgs(formula: string, startIdx: number): string[] {
-  let depth = 0;
-  let current = '';
-  const args: string[] = [];
-  for (let i = startIdx; i < formula.length; i++) {
-    const ch = formula[i];
-    if (ch === '(') {
-      depth++;
-      if (depth === 1) continue;
-    }
-    if (ch === ')') {
-      depth--;
-      if (depth === 0) {
-        if (current.trim()) args.push(current.trim());
-        break;
-      }
-    }
-    if (ch === ',' && depth === 1) {
-      args.push(current.trim());
-      current = '';
-      continue;
-    }
-    if (depth >= 1) current += ch;
-  }
-  return args;
-}
-
-// ============================================================================
-// Helper Math Functions
-// ============================================================================
-
-function computeMedian(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 !== 0 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
-}
-
-function computeMode(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const counts = new Map<number, number>();
-  for (const v of values) counts.set(v, (counts.get(v) || 0) + 1);
-  let maxCount = 0;
-  let mode: number | null = null;
-  for (const [val, count] of counts) {
-    if (count > maxCount) {
-      maxCount = count;
-      mode = val;
-    }
-  }
-  return maxCount > 1 ? mode : null;
-}
-
-function computeStddev(values: number[], population: boolean): number | null {
-  const v = computeVariance(values, population);
-  return v !== null ? Math.sqrt(v) : null;
-}
-
-function computeVariance(values: number[], population: boolean): number | null {
-  if (values.length < (population ? 1 : 2)) return null;
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  const sumSq = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0);
-  return sumSq / (population ? values.length : values.length - 1);
-}
-
-function computePercentile(sorted: number[], p: number): number {
-  if (sorted.length === 0) return 0;
-  if (sorted.length === 1) return sorted[0]!;
-  const idx = (p / 100) * (sorted.length - 1);
-  const lower = Math.floor(idx);
-  const upper = Math.ceil(idx);
-  if (lower === upper) return sorted[lower]!;
-  return sorted[lower]! + (sorted[upper]! - sorted[lower]!) * (idx - lower);
-}
-
-function computeCorrelation(x: number[], y: number[]): number {
-  const n = Math.min(x.length, y.length);
-  if (n < 2) return 0;
-  const xMean = x.slice(0, n).reduce((a, b) => a + b, 0) / n;
-  const yMean = y.slice(0, n).reduce((a, b) => a + b, 0) / n;
-  let num = 0,
-    denX = 0,
-    denY = 0;
-  for (let i = 0; i < n; i++) {
-    const dx = x[i]! - xMean;
-    const dy = y[i]! - yMean;
-    num += dx * dy;
-    denX += dx * dx;
-    denY += dy * dy;
-  }
-  const den = Math.sqrt(denX * denY);
-  return den > 0 ? num / den : 0;
-}
-
-function linearRegression(x: number[], y: number[]): [number, number] {
-  const n = Math.min(x.length, y.length);
-  let sumX = 0,
-    sumY = 0,
-    sumXY = 0,
-    sumX2 = 0;
-  for (let i = 0; i < n; i++) {
-    sumX += x[i]!;
-    sumY += y[i]!;
-    sumXY += x[i]! * y[i]!;
-    sumX2 += x[i]! * x[i]!;
-  }
-  const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-  const intercept = (sumY - slope * sumX) / n;
-  return [slope, intercept];
-}
-
-function polynomialRegression(x: number[], y: number[], degree: number): number[] {
-  // Solve using normal equations (X^T * X) * coeffs = X^T * y
-  const n = x.length;
-  const X: number[][] = [];
-  for (let i = 0; i < n; i++) {
-    const row: number[] = [];
-    for (let j = 0; j <= degree; j++) row.push(Math.pow(x[i]!, j));
-    X.push(row);
-  }
-  const XT = transpose(X);
-  const XTX = matrixMultiply(XT, X);
-  const XTy = matrixMultiply(
-    XT,
-    y.map((v) => [v])
-  );
-  try {
-    const inv = invertMatrix(XTX);
-    const coeffs = matrixMultiply(inv, XTy);
-    return coeffs.map((row) => row[0]!);
-  } catch {
-    // Fallback to linear if matrix is singular
-    const [slope, intercept] = linearRegression(x, y);
-    return [intercept, slope];
-  }
-}
-
-function predictValue(x: number, coefficients: number[], type: string, _degree: number): number {
-  switch (type) {
-    case 'linear':
-      return coefficients[0]! * x + coefficients[1]!;
-    case 'polynomial':
-      return coefficients.reduce((sum, c, i) => sum + c * Math.pow(x, i), 0);
-    case 'exponential':
-      return coefficients[0]! * Math.exp(coefficients[1]! * x);
-    case 'logarithmic':
-      return coefficients[0]! * Math.log(Math.max(x, 0.001)) + coefficients[1]!;
-    case 'power':
-      return coefficients[0]! * Math.pow(Math.max(x, 0.001), coefficients[1]!);
-    default:
-      return 0;
-  }
-}
-
-function transpose(m: number[][]): number[][] {
-  if (m.length === 0) return [];
-  const rows = m.length;
-  const cols = m[0]!.length;
-  const result: number[][] = Array.from({ length: cols }, () => Array(rows).fill(0) as number[]);
-  for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) result[j]![i] = m[i]![j]!;
-  return result;
-}
-
-function matrixMultiply(a: number[][], b: number[][]): number[][] {
-  const rowsA = a.length,
-    colsA = a[0]?.length || 0,
-    colsB = b[0]?.length || 0;
-  if (colsA !== b.length)
-    throw new Error(`Matrix dimensions incompatible: ${rowsA}x${colsA} * ${b.length}x${colsB}`);
-  const result: number[][] = Array.from({ length: rowsA }, () => Array(colsB).fill(0) as number[]);
-  for (let i = 0; i < rowsA; i++)
-    for (let j = 0; j < colsB; j++)
-      for (let k = 0; k < colsA; k++) result[i]![j]! += a[i]![k]! * b[k]![j]!;
-  return result;
-}
-
-function determinant(m: number[][]): number {
-  const n = m.length;
-  if (n === 1) return m[0]![0]!;
-  if (n === 2) return m[0]![0]! * m[1]![1]! - m[0]![1]! * m[1]![0]!;
-  let det = 0;
-  for (let j = 0; j < n; j++) {
-    const sub: number[][] = [];
-    for (let i = 1; i < n; i++) {
-      sub.push([...m[i]!.slice(0, j), ...m[i]!.slice(j + 1)]);
-    }
-    det += Math.pow(-1, j) * m[0]![j]! * determinant(sub);
-  }
-  return det;
-}
-
-function invertMatrix(m: number[][]): number[][] {
-  const n = m.length;
-  // Augmented matrix [M | I]
-  const aug: number[][] = m.map((row, i) => {
-    const identity = Array(n).fill(0) as number[];
-    identity[i] = 1;
-    return [...row, ...identity];
-  });
-  // Gauss-Jordan elimination
-  for (let i = 0; i < n; i++) {
-    let maxRow = i;
-    for (let k = i + 1; k < n; k++) {
-      if (Math.abs(aug[k]![i]!) > Math.abs(aug[maxRow]![i]!)) maxRow = k;
-    }
-    [aug[i], aug[maxRow]] = [aug[maxRow]!, aug[i]!];
-    const pivot = aug[i]![i]!;
-    if (Math.abs(pivot) < 1e-10) throw new Error('Matrix is singular (not invertible)');
-    for (let j = 0; j < 2 * n; j++) aug[i]![j]! /= pivot;
-    for (let k = 0; k < n; k++) {
-      if (k === i) continue;
-      const factor = aug[k]![i]!;
-      for (let j = 0; j < 2 * n; j++) aug[k]![j]! -= factor * aug[i]![j]!;
-    }
-  }
-  return aug.map((row) => row.slice(n));
-}
-
-function computeRank(m: number[][]): number {
-  // Row echelon form
-  const rows = m.length;
-  const cols = m[0]?.length || 0;
-  const aug = m.map((row) => [...row]);
-  let rank = 0;
-  for (let col = 0; col < cols && rank < rows; col++) {
-    let maxRow = rank;
-    for (let row = rank + 1; row < rows; row++) {
-      if (Math.abs(aug[row]![col]!) > Math.abs(aug[maxRow]![col]!)) maxRow = row;
-    }
-    if (Math.abs(aug[maxRow]![col]!) < 1e-10) continue;
-    [aug[rank], aug[maxRow]] = [aug[maxRow]!, aug[rank]!];
-    for (let row = rank + 1; row < rows; row++) {
-      const factor = aug[row]![col]! / aug[rank]![col]!;
-      for (let j = col; j < cols; j++) aug[row]![j]! -= factor * aug[rank]![j]!;
-    }
-    rank++;
-  }
-  return rank;
-}
-
-// ============================================================================
-// Function Descriptions (for explain_formula)
-// ============================================================================
-
-const FUNCTION_DESCRIPTIONS: Record<string, string> = {
-  SUM: 'Adds all numbers in a range',
-  AVERAGE: 'Returns the arithmetic mean of values',
-  COUNT: 'Counts cells containing numbers',
-  COUNTA: 'Counts non-empty cells',
-  IF: 'Returns one value if true, another if false',
-  VLOOKUP:
-    'Looks up a value in the first column and returns a value in the same row from a specified column',
-  HLOOKUP: 'Horizontal lookup across the first row of a range',
-  INDEX: 'Returns the value at a given position in a range',
-  MATCH: 'Returns the relative position of an item in a range',
-  SUMIF: 'Sums values that meet a condition',
-  SUMIFS: 'Sums values that meet multiple conditions',
-  COUNTIF: 'Counts cells that meet a condition',
-  COUNTIFS: 'Counts cells that meet multiple conditions',
-  AVERAGEIF: 'Averages values that meet a condition',
-  MIN: 'Returns the smallest value',
-  MAX: 'Returns the largest value',
-  ROUND: 'Rounds a number to a specified number of digits',
-  CONCATENATE: 'Joins text strings together',
-  LEFT: 'Returns characters from the start of a string',
-  RIGHT: 'Returns characters from the end of a string',
-  MID: 'Returns characters from the middle of a string',
-  LEN: 'Returns the length of a string',
-  TRIM: 'Removes leading and trailing whitespace',
-  IFERROR: 'Returns a specified value if an expression results in an error',
-  ARRAYFORMULA: 'Enables a formula to work on arrays of values',
-  UNIQUE: 'Returns unique values from a range',
-  FILTER: 'Filters a range based on conditions',
-  SORT: 'Sorts a range by specified columns',
-  QUERY: 'Runs a Google Visualization API Query Language query',
-  IMPORTRANGE: 'Imports data from another spreadsheet',
-  SPARKLINE: 'Creates a miniature chart within a cell',
-  ABS: 'Returns the absolute value',
-  SQRT: 'Returns the square root',
-  POWER: 'Returns a number raised to a power',
-  LOG: 'Returns the logarithm of a number',
-  LN: 'Returns the natural logarithm',
-  EXP: 'Returns e raised to a power',
-  MOD: 'Returns the remainder of division',
-  CEILING: 'Rounds up to nearest multiple',
-  FLOOR: 'Rounds down to nearest multiple',
-  MEDIAN: 'Returns the median value',
-  MODE: 'Returns the most frequent value',
-  STDEV: 'Returns the sample standard deviation',
-  VAR: 'Returns the sample variance',
-  CORREL: 'Returns the correlation coefficient between two datasets',
-  FORECAST: 'Predicts a future value using linear regression',
-  TREND: 'Returns values along a linear trend',
-  GROWTH: 'Returns values along an exponential growth trend',
-  TRANSPOSE: 'Transposes rows and columns',
-  MMULT: 'Multiplies two matrices',
-  MINVERSE: 'Returns the inverse of a matrix',
-  MDETERM: 'Returns the determinant of a matrix',
-};
+export { explainFormula } from './compute-engine-math.js';

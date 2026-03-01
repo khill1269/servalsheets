@@ -38,6 +38,11 @@ import {
 } from '../types/conflict.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
 import { BoundedCache } from '../utils/bounded-cache.js';
+import {
+  createInitialConflictDetectorStats,
+  getConflictDetectorEnvConfig,
+  normalizeConflictDetectorConfig,
+} from './conflict-detector-config.js';
 
 /**
  * Conflict Detector - Detects and resolves multi-user conflicts
@@ -57,38 +62,8 @@ export class ConflictDetector {
 
   constructor(config: ConflictDetectorConfig = {}) {
     this.googleClient = config.googleClient;
-    this.config = {
-      enabled: config.enabled ?? true,
-      checkBeforeWrite: config.checkBeforeWrite ?? true,
-      autoResolve: config.autoResolve ?? false,
-      defaultResolution: config.defaultResolution ?? 'manual',
-      versionCacheTtl: config.versionCacheTtl ?? 300000, // 5 minutes
-      maxVersionsToCache: config.maxVersionsToCache ?? 1000,
-      optimisticLocking: config.optimisticLocking ?? false,
-      conflictCheckTimeoutMs: config.conflictCheckTimeoutMs ?? 5000,
-      verboseLogging: config.verboseLogging ?? false,
-    };
-
-    this.stats = {
-      totalChecks: 0,
-      conflictsDetected: 0,
-      conflictsResolved: 0,
-      conflictsAutoResolved: 0,
-      conflictsManuallyResolved: 0,
-      detectionRate: 0,
-      resolutionSuccessRate: 0,
-      avgResolutionTime: 0,
-      resolutionsByStrategy: {
-        overwrite: 0,
-        merge: 0,
-        cancel: 0,
-        manual: 0,
-        last_write_wins: 0,
-        first_write_wins: 0,
-      },
-      cacheHitRate: 0,
-      versionsTracked: 0,
-    };
+    this.config = normalizeConflictDetectorConfig(config);
+    this.stats = createInitialConflictDetectorStats();
 
     // Phase 1.4: Initialize bounded caches
     this.versionCache = new BoundedCache<string, VersionCacheEntry>({
@@ -768,26 +743,7 @@ export class ConflictDetector {
    * Reset statistics
    */
   resetStats(): void {
-    this.stats = {
-      totalChecks: 0,
-      conflictsDetected: 0,
-      conflictsResolved: 0,
-      conflictsAutoResolved: 0,
-      conflictsManuallyResolved: 0,
-      detectionRate: 0,
-      resolutionSuccessRate: 0,
-      avgResolutionTime: 0,
-      resolutionsByStrategy: {
-        overwrite: 0,
-        merge: 0,
-        cancel: 0,
-        manual: 0,
-        last_write_wins: 0,
-        first_write_wins: 0,
-      },
-      cacheHitRate: 0,
-      versionsTracked: 0,
-    };
+    this.stats = createInitialConflictDetectorStats();
   }
 
   /**
@@ -817,19 +773,7 @@ export function initConflictDetector(
   googleClient?: ConflictDetectorConfig['googleClient']
 ): ConflictDetector {
   if (!conflictDetectorInstance) {
-    conflictDetectorInstance = new ConflictDetector({
-      enabled: process.env['CONFLICT_DETECTION_ENABLED'] !== 'false',
-      checkBeforeWrite: process.env['CONFLICT_CHECK_BEFORE_WRITE'] !== 'false',
-      autoResolve: process.env['CONFLICT_AUTO_RESOLVE'] === 'true',
-      defaultResolution:
-        (process.env['CONFLICT_DEFAULT_RESOLUTION'] as ResolutionStrategy) || 'manual',
-      versionCacheTtl: parseInt(process.env['CONFLICT_VERSION_CACHE_TTL'] || '300000'),
-      maxVersionsToCache: parseInt(process.env['CONFLICT_MAX_VERSIONS_TO_CACHE'] || '1000'),
-      optimisticLocking: process.env['CONFLICT_OPTIMISTIC_LOCKING'] === 'true',
-      conflictCheckTimeoutMs: parseInt(process.env['CONFLICT_CHECK_TIMEOUT_MS'] || '5000'),
-      verboseLogging: process.env['CONFLICT_VERBOSE'] === 'true',
-      googleClient,
-    });
+    conflictDetectorInstance = new ConflictDetector(getConflictDetectorEnvConfig(googleClient));
   }
   return conflictDetectorInstance;
 }

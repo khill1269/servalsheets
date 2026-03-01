@@ -12,6 +12,7 @@ import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import { ValidationError } from '../core/errors.js';
 import type { Intent } from '../core/intent.js';
 import { CleaningEngine, parseRangeOffset } from '../services/cleaning-engine.js';
+import { generateAIInsight, withSamplingTimeout, assertSamplingConsent } from '../mcp/sampling.js';
 
 // ISSUE-047: CleaningEngine is stateless — use module-level singleton to avoid
 // recreating the instance (and its pre-compiled rule arrays) on every action call.
@@ -197,33 +198,77 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     req: CleanInput,
     verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<SheetsFixOutput> {
-    if (!req.spreadsheetId || !req.range) {
+    let resolvedInput = req;
+
+    // Wizard: If no specific rules are provided, elicit cleaning mode
+    if (
+      (!resolvedInput.rules || resolvedInput.rules.length === 0) &&
+      this.context?.server?.elicitInput
+    ) {
+      try {
+        const wizard = await this.context.server.elicitInput({
+          message: 'Ready to clean data. Preview first or apply directly?',
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              mode: {
+                type: 'string',
+                title: 'Cleaning mode',
+                description: 'Preview changes first (safe) or apply directly?',
+                enum: ['preview', 'apply'],
+              },
+            },
+          },
+        });
+        const wizardContent = wizard?.content as Record<string, unknown> | undefined;
+        const mode =
+          wizardContent?.['mode'] === 'preview' || wizardContent?.['mode'] === 'apply'
+            ? wizardContent['mode']
+            : undefined;
+        if (wizard?.action === 'accept' && mode) {
+          resolvedInput = { ...resolvedInput, mode };
+        }
+      } catch {
+        // Elicitation not available — default to preview mode
+        if (!resolvedInput.mode) {
+          resolvedInput = { ...resolvedInput, mode: 'preview' as const };
+        }
+      }
+    }
+
+    if (!resolvedInput.spreadsheetId || !resolvedInput.range) {
       return {
         response: this.mapError(new Error('Missing required fields: spreadsheetId and range')),
       };
     }
 
-    const mode = req.mode ?? 'preview';
+    const mode = resolvedInput.mode ?? 'preview';
 
     const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
     // Fetch data from the range
-    const data = await this.fetchRangeData(req.spreadsheetId, req.range);
-    const rangeOffset = parseRangeOffset(req.range);
+    const data = await this.fetchRangeData(resolvedInput.spreadsheetId, resolvedInput.range);
+    const rangeOffset = parseRangeOffset(resolvedInput.range);
 
     // Run cleaning
-    const result = await engine.clean(data, req.rules, rangeOffset);
+    const result = await engine.clean(data, resolvedInput.rules, rangeOffset);
 
     // Apply mode: write changes back
     if (mode === 'apply' && result.changes.length > 0) {
       const snapshot =
-        req.safety?.createSnapshot !== false
-          ? await this.createSnapshot(req.spreadsheetId)
+        resolvedInput.safety?.createSnapshot !== false
+          ? await this.createSnapshot(resolvedInput.spreadsheetId)
           : undefined;
 
-      await this.writeChanges(req.spreadsheetId, req.range, data, result.changes, rangeOffset);
+      await this.writeChanges(
+        resolvedInput.spreadsheetId,
+        resolvedInput.range,
+        data,
+        result.changes,
+        rangeOffset
+      );
 
-      this.trackContextFromRequest({ spreadsheetId: req.spreadsheetId });
+      this.trackContextFromRequest({ spreadsheetId: resolvedInput.spreadsheetId });
 
       // Wire session context: record applied cleaning rules for learning
       try {
@@ -231,8 +276,8 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
           this.context.sessionContext.recordOperation({
             tool: 'sheets_fix',
             action: 'clean',
-            spreadsheetId: req.spreadsheetId,
-            range: req.range,
+            spreadsheetId: resolvedInput.spreadsheetId,
+            range: resolvedInput.range,
             description: `Cleaned ${result.summary.cellsCleaned} cell(s) using rules: ${result.summary.rulesApplied.join(', ')}`,
             undoable: !!snapshot?.revisionId,
             snapshotId: snapshot?.revisionId,
@@ -257,6 +302,35 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       return { response: super.applyVerbosityFilter(response, verbosity) };
     }
 
+    // Wire AI-powered cleaning recommendation after completion (both modes)
+    let aiRecommendation: string | undefined;
+    if (this.context.samplingServer && result.changes.length > 0) {
+      try {
+        await assertSamplingConsent(); // ISSUE-226: GDPR consent gate
+        const recResult = await withSamplingTimeout(
+          this.context.samplingServer.createMessage({
+            messages: [
+              {
+                role: 'user' as const,
+                content: {
+                  type: 'text' as const,
+                  text: `Evaluate these data cleaning results:\n- Rules applied: ${result.summary.rulesApplied.join(', ')}\n- Cells cleaned: ${result.summary.cellsCleaned}\n- Total changes: ${result.changes.length}\n\nRecommend any follow-up cleaning steps or optimizations.`,
+                },
+              },
+            ],
+            maxTokens: 256,
+          })
+        );
+        const text = Array.isArray(recResult.content)
+          ? ((recResult.content.find((c) => c.type === 'text') as { text: string } | undefined)
+              ?.text ?? '')
+          : ((recResult.content as { text?: string }).text ?? '');
+        aiRecommendation = text.trim();
+      } catch {
+        // Non-blocking: sampling failure should not block the response
+      }
+    }
+
     // Preview mode
     const response = {
       success: true as const,
@@ -267,6 +341,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       message: `Preview: ${result.summary.cellsCleaned} cell(s) would be cleaned using ${result.summary.rulesApplied.length} rule(s). Use mode="apply" to execute.`,
       changes: result.changes,
       cleaningSummary: result.summary,
+      ...(aiRecommendation !== undefined ? { aiRecommendation } : {}),
     };
     return { response: super.applyVerbosityFilter(response, verbosity) };
   }
@@ -335,6 +410,35 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       return { response: super.applyVerbosityFilter(response, verbosity) };
     }
 
+    // Wire AI detection of ambiguous format conversions after completion
+    let aiWarnings: string | undefined;
+    if (this.context.samplingServer && result.changes.length > 0) {
+      try {
+        await assertSamplingConsent(); // ISSUE-226: GDPR consent gate
+        const warnResult = await withSamplingTimeout(
+          this.context.samplingServer.createMessage({
+            messages: [
+              {
+                role: 'user' as const,
+                content: {
+                  type: 'text' as const,
+                  text: `Identify ambiguous format conversions that might produce incorrect results:\n- Format specs: ${req.columns.map((c) => `${c.column}→${c.targetFormat}`).join(', ')}\n- Cells changed: ${result.summary.cellsChanged}\n- Columns processed: ${result.summary.columnsProcessed}\n\nWarn about date ambiguities (MM/DD vs DD/MM), locale mismatches, or potential data loss.`,
+                },
+              },
+            ],
+            maxTokens: 256,
+          })
+        );
+        const text = Array.isArray(warnResult.content)
+          ? ((warnResult.content.find((c) => c.type === 'text') as { text: string } | undefined)
+              ?.text ?? '')
+          : ((warnResult.content as { text?: string }).text ?? '');
+        aiWarnings = text.trim();
+      } catch {
+        // Non-blocking: sampling failure should not block the response
+      }
+    }
+
     const response = {
       success: true as const,
       mode: 'preview' as const,
@@ -344,6 +448,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       message: `Preview: ${result.summary.cellsChanged} cell(s) would be standardized across ${result.summary.columnsProcessed} column(s). Use mode="apply" to execute.`,
       formatChanges: result.changes,
       formatSummary: result.summary,
+      ...(aiWarnings !== undefined ? { aiWarnings } : {}),
     };
     return { response: super.applyVerbosityFilter(response, verbosity) };
   }
@@ -417,6 +522,35 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       return { response: super.applyVerbosityFilter(response, verbosity) };
     }
 
+    // Wire AI-powered fill strategy evaluation after completion
+    let aiEvaluation: string | undefined;
+    if (this.context.samplingServer && result.changes.length > 0) {
+      try {
+        await assertSamplingConsent(); // ISSUE-226: GDPR consent gate
+        const evalResult = await withSamplingTimeout(
+          this.context.samplingServer.createMessage({
+            messages: [
+              {
+                role: 'user' as const,
+                content: {
+                  type: 'text' as const,
+                  text: `Evaluate the fill strategy used for missing data:\n- Strategy: ${req.strategy}\n- Cells filled: ${result.summary.filled} of ${result.summary.totalEmpty}\n- Columns affected: ${Object.keys(result.summary.byColumn).length}\n\nWas this the best approach? Suggest better strategies if applicable (e.g., use median instead of mean for skewed data, use forward-fill for time series).`,
+                },
+              },
+            ],
+            maxTokens: 256,
+          })
+        );
+        const text = Array.isArray(evalResult.content)
+          ? ((evalResult.content.find((c) => c.type === 'text') as { text: string } | undefined)
+              ?.text ?? '')
+          : ((evalResult.content as { text?: string }).text ?? '');
+        aiEvaluation = text.trim();
+      } catch {
+        // Non-blocking: sampling failure should not block the response
+      }
+    }
+
     const response = {
       success: true as const,
       mode: 'preview' as const,
@@ -426,6 +560,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       message: `Preview: ${result.summary.filled} of ${result.summary.totalEmpty} empty cell(s) would be filled using "${req.strategy}" strategy. Use mode="apply" to execute.`,
       fillChanges: result.changes,
       fillSummary: result.summary,
+      ...(aiEvaluation !== undefined ? { aiEvaluation } : {}),
     };
     return { response: super.applyVerbosityFilter(response, verbosity) };
   }
@@ -455,6 +590,21 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       rangeOffset
     );
 
+    // Wire AI insight: explain anomaly causes
+    let aiInsight: string | undefined;
+    if (result.anomalies.length > 0) {
+      const sampleAnomalies = result.anomalies
+        .slice(0, 10)
+        .map((a) => `${a.cell}: ${a.value} (${a.score?.toFixed(2) ?? '?'})`)
+        .join('; ');
+      aiInsight = await generateAIInsight(
+        this.context.samplingServer,
+        'anomalyExplanation',
+        'Explain why these values are anomalies and what might have caused them',
+        sampleAnomalies
+      );
+    }
+
     // detect_anomalies is always read-only (no apply mode)
     const response = {
       success: true as const,
@@ -465,6 +615,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       message: `Found ${result.summary.anomaliesFound} anomaly(ies) across ${Object.keys(result.summary.byColumn).length} column(s) using ${result.summary.method} method (threshold: ${result.summary.threshold}).`,
       anomalies: result.anomalies,
       anomalySummary: result.summary,
+      ...(aiInsight !== undefined ? { aiInsight } : {}),
     };
     return { response: super.applyVerbosityFilter(response, verbosity) };
   }
@@ -488,6 +639,21 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     const result = await engine.suggestCleaning(data, req.maxRecommendations ?? 10, rangeOffset);
 
+    // Wire AI insight: recommend cleaning strategy
+    let aiInsight: string | undefined;
+    if (result.recommendations.length > 0) {
+      const columnsWithNulls = result.dataProfile.columnProfiles.filter(
+        (c) => c.nullCount > 0
+      ).length;
+      const profileSummary = `${result.dataProfile.totalRows} rows, ${result.dataProfile.totalColumns} columns, null rate ${result.dataProfile.nullRate}. Columns with missing values: ${columnsWithNulls}.`;
+      aiInsight = await generateAIInsight(
+        this.context.samplingServer,
+        'cleaningStrategy',
+        'Based on the data profile, recommend the optimal cleaning strategy and rule priority order',
+        profileSummary
+      );
+    }
+
     // suggest_cleaning is always read-only
     const response = {
       success: true as const,
@@ -498,6 +664,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       message: `Found ${result.recommendations.length} cleaning recommendation(s) after profiling ${result.dataProfile.totalRows} row(s) across ${result.dataProfile.totalColumns} column(s).`,
       recommendations: result.recommendations,
       dataProfile: result.dataProfile,
+      ...(aiInsight !== undefined ? { aiInsight } : {}),
     };
 
     // Wire session context: cache recommendations as pending operation for quick follow-up

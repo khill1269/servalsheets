@@ -21,6 +21,9 @@ export const WebhookActionsSchema = z.enum([
   'test',
   'get_stats',
   'watch_changes',
+  'subscribe_workspace',
+  'unsubscribe_workspace',
+  'list_workspace_subscriptions',
 ]);
 
 /**
@@ -130,6 +133,40 @@ export const WebhookWatchChangesInputSchema = z.object({
 });
 
 /**
+ * Workspace Events subscribe input — uses Google Workspace Events API via Pub/Sub
+ * Note: Workspace Events API delivers via Pub/Sub, not HTTP endpoints directly.
+ */
+export const WebhookSubscribeWorkspaceInputSchema = z.object({
+  action: z.literal('subscribe_workspace'),
+  spreadsheetId: z.string().min(1),
+  notificationEndpoint: z
+    .string()
+    .min(1)
+    .describe(
+      'Pub/Sub topic to receive Workspace Events (format: projects/{project}/topics/{topic})'
+    ),
+});
+
+/**
+ * Workspace Events unsubscribe input
+ */
+export const WebhookUnsubscribeWorkspaceInputSchema = z.object({
+  action: z.literal('unsubscribe_workspace'),
+  subscriptionId: z.string().min(1).describe('Subscription ID returned by subscribe_workspace'),
+});
+
+/**
+ * Workspace Events list subscriptions input
+ */
+export const WebhookListWorkspaceSubscriptionsInputSchema = z.object({
+  action: z.literal('list_workspace_subscriptions'),
+  spreadsheetId: z
+    .string()
+    .optional()
+    .describe('Filter by spreadsheet ID (omit for all subscriptions)'),
+});
+
+/**
  * Webhook request (discriminated union)
  */
 const WebhookRequestSchema = z.discriminatedUnion('action', [
@@ -140,6 +177,9 @@ const WebhookRequestSchema = z.discriminatedUnion('action', [
   WebhookTestInputSchema,
   WebhookStatsInputSchema,
   WebhookWatchChangesInputSchema,
+  WebhookSubscribeWorkspaceInputSchema,
+  WebhookUnsubscribeWorkspaceInputSchema,
+  WebhookListWorkspaceSubscriptionsInputSchema,
 ]);
 
 /**
@@ -329,6 +369,13 @@ export type WebhookGetInput = z.infer<typeof WebhookGetInputSchema>;
 export type WebhookTestInput = z.infer<typeof WebhookTestInputSchema>;
 export type WebhookStatsInput = z.infer<typeof WebhookStatsInputSchema>;
 export type WebhookWatchChangesInput = z.infer<typeof WebhookWatchChangesInputSchema>;
+export type WebhookSubscribeWorkspaceInput = z.infer<typeof WebhookSubscribeWorkspaceInputSchema>;
+export type WebhookUnsubscribeWorkspaceInput = z.infer<
+  typeof WebhookUnsubscribeWorkspaceInputSchema
+>;
+export type WebhookListWorkspaceSubscriptionsInput = z.infer<
+  typeof WebhookListWorkspaceSubscriptionsInputSchema
+>;
 export type WebhookRegisterResponse = z.infer<typeof WebhookRegisterResponseSchema>;
 export type WebhookInfo = z.infer<typeof WebhookInfoSchema>;
 export type WebhookDelivery = z.infer<typeof WebhookDeliverySchema>;

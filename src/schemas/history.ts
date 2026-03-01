@@ -273,10 +273,15 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
           user: z.string().optional().describe('Email of user who made the change'),
           displayName: z.string().optional(),
           sizeBytes: z.coerce.number().optional(),
+          activityType: z.string().optional().describe('Drive Activity API event type (Phase 3)'),
         })
       )
       .optional()
       .describe('Chronological list of revisions'),
+    activityAvailable: z
+      .boolean()
+      .optional()
+      .describe('True if Drive Activity API provided WHO/WHEN attribution data'),
     // F5: diff_revisions response
     diff: z
       .object({

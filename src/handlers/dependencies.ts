@@ -25,7 +25,7 @@ import type {
   CreateScenarioSheetInput,
 } from '../schemas/dependencies.js';
 import type { SamplingServer } from '../mcp/sampling.js';
-import { withSamplingTimeout, assertSamplingConsent } from '../mcp/sampling.js';
+import { withSamplingTimeout, assertSamplingConsent, generateAIInsight } from '../mcp/sampling.js';
 import { logger } from '../utils/logger.js';
 import { executeWithRetry } from '../utils/retry.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
@@ -253,9 +253,25 @@ export class DependenciesHandler {
 
       const circularDependencies = analyzer.detectCircularDependencies();
 
+      // Generate AI insight explaining impact of circular references
+      let aiInsight: string | undefined;
+      if (this.samplingServer && circularDependencies.length > 0) {
+        const cycleDesc = circularDependencies
+          .slice(0, 5)
+          .map((c) => `Cycle: ${c.chain}`)
+          .join('; ');
+        aiInsight = await generateAIInsight(
+          this.samplingServer,
+          'dataAnalysis',
+          'Explain the impact of these circular references and how to break them',
+          cycleDesc,
+          { maxTokens: 400 }
+        );
+      }
+
       return {
         success: true,
-        data: { circularDependencies },
+        data: { circularDependencies, ...(aiInsight !== undefined ? { aiInsight } : {}) },
       };
     } catch (error) {
       return {
@@ -346,9 +362,22 @@ export class DependenciesHandler {
 
       const stats = analyzer.getStats();
 
+      // Generate AI insight summarizing dependency health
+      let aiInsight: string | undefined;
+      if (this.samplingServer) {
+        const statsStr = `Total cells: ${stats.totalCells}, Formula cells: ${stats.formulaCells}, Dependencies: ${stats.totalDependencies}, Max depth: ${stats.maxDepth}`;
+        aiInsight = await generateAIInsight(
+          this.samplingServer,
+          'dataAnalysis',
+          'Summarize the health of this dependency graph — are there concerning patterns?',
+          statsStr,
+          { maxTokens: 300 }
+        );
+      }
+
       return {
         success: true,
-        data: stats,
+        data: { ...stats, ...(aiInsight !== undefined ? { aiInsight } : {}) },
       };
     } catch (error) {
       return {
@@ -824,6 +853,21 @@ export class DependenciesHandler {
       scenarioResults.push(result);
     }
 
+    // Generate AI ranking and trade-off analysis
+    let aiRanking: string | undefined;
+    if (this.samplingServer && scenarioResults.length > 1) {
+      const scenarioSummary = scenarioResults
+        .map((s) => `"${s.name}": ${s.cellsAffected} cells affected`)
+        .join(', ');
+      aiRanking = await generateAIInsight(
+        this.samplingServer,
+        'scenarioNarrative',
+        `Rank these scenarios by impact and explain the trade-offs`,
+        scenarioSummary,
+        { maxTokens: 400 }
+      );
+    }
+
     return {
       success: true,
       data: {
@@ -832,6 +876,7 @@ export class DependenciesHandler {
         message:
           `Compared ${req.scenarios.length} scenarios. ` +
           scenarioResults.map((s) => `"${s.name}": ${s.cellsAffected} cells affected`).join('; '),
+        ...(aiRanking !== undefined ? { aiRanking } : {}),
       },
     };
   }

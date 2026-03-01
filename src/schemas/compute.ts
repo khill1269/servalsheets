@@ -261,6 +261,116 @@ const ExplainFormulaActionSchema = CommonFieldsSchema.extend({
 }).strict();
 
 // ============================================================================
+// Phase 1: DuckDB SQL Analytics
+// ============================================================================
+
+const SqlQueryActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('sql_query')
+    .describe('Execute SQL analytics query on spreadsheet data using DuckDB'),
+  tables: z
+    .array(
+      z.object({
+        name: z
+          .string()
+          .regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/)
+          .describe('SQL table alias for this range'),
+        range: A1NotationSchema,
+        hasHeaders: z.boolean().default(true).describe('Whether first row contains column headers'),
+      })
+    )
+    .min(1)
+    .max(10)
+    .describe('Sheet ranges to register as SQL tables'),
+  sql: z.string().min(1).max(10000).describe('SQL query to execute against registered tables'),
+  timeoutMs: z
+    .number()
+    .min(1000)
+    .max(60000)
+    .default(30000)
+    .describe('Query timeout in milliseconds'),
+}).strict();
+
+const SqlJoinActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('sql_join').describe('Join two ranges using SQL JOIN semantics via DuckDB'),
+  left: z.object({
+    range: A1NotationSchema,
+    alias: z.string().default('left').describe('SQL alias for left table'),
+  }),
+  right: z.object({
+    range: A1NotationSchema,
+    alias: z.string().default('right').describe('SQL alias for right table'),
+  }),
+  on: z.string().describe('JOIN condition (e.g., "left.id = right.id")'),
+  select: z.string().optional().describe('SELECT clause (default: *)'),
+  joinType: z.enum(['inner', 'left', 'right', 'full']).default('inner'),
+  timeoutMs: z.number().min(1000).max(60000).default(30000),
+}).strict();
+
+// ============================================================================
+// Phase 2: Pyodide Python Bridge
+// ============================================================================
+
+const PythonEvalActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('python_eval').describe('Run Python code on spreadsheet data via Pyodide WASM'),
+  range: A1NotationSchema,
+  code: z
+    .string()
+    .min(1)
+    .max(50000)
+    .describe(
+      'Python code to execute. Data available as `data` (list of lists) and `df` (pandas DataFrame if hasHeaders=true)'
+    ),
+  hasHeaders: z.boolean().default(true),
+  timeoutMs: z.number().min(1000).max(120000).default(60000),
+}).strict();
+
+const PandasProfileActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('pandas_profile')
+    .describe('Generate statistical profile of spreadsheet data using pandas'),
+  range: A1NotationSchema,
+  hasHeaders: z.boolean().default(true),
+  includeCorrelations: z.boolean().default(true),
+}).strict();
+
+const SklearnModelActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('sklearn_model').describe('Train a scikit-learn ML model on spreadsheet data'),
+  range: A1NotationSchema,
+  targetColumn: z.string().describe('Column name to predict'),
+  featureColumns: z
+    .array(z.string())
+    .optional()
+    .describe('Columns to use as features (default: all except target)'),
+  modelType: z.enum([
+    'linear_regression',
+    'logistic_regression',
+    'kmeans',
+    'random_forest',
+    'ridge',
+  ]),
+  testSize: z
+    .number()
+    .min(0.1)
+    .max(0.5)
+    .default(0.2)
+    .describe('Fraction of data to use for testing'),
+}).strict();
+
+const MatplotlibChartActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('matplotlib_chart')
+    .describe('Generate a matplotlib chart from spreadsheet data, returned as base64 PNG'),
+  range: A1NotationSchema,
+  chartType: z.enum(['line', 'bar', 'scatter', 'heatmap', 'histogram', 'boxplot']),
+  xColumn: z.string().optional(),
+  yColumns: z.array(z.string()).optional(),
+  title: z.string().optional(),
+  width: z.number().default(800),
+  height: z.number().default(600),
+}).strict();
+
+// ============================================================================
 // Combined Input Schema
 // ============================================================================
 
@@ -308,6 +418,14 @@ export const SheetsComputeInputSchema = z.object({
       CustomFunctionActionSchema,
       BatchComputeActionSchema,
       ExplainFormulaActionSchema,
+      // Phase 1: DuckDB SQL Analytics
+      SqlQueryActionSchema,
+      SqlJoinActionSchema,
+      // Phase 2: Pyodide Python Bridge
+      PythonEvalActionSchema,
+      PandasProfileActionSchema,
+      SklearnModelActionSchema,
+      MatplotlibChartActionSchema,
     ])
   ),
 });
@@ -342,6 +460,16 @@ const ComputeResponseSchema = z.discriminatedUnion('success', [
       )
       .optional()
       .describe('Grouped aggregation results (when groupBy is specified)'),
+    movingWindow: z
+      .object({
+        type: z.string(),
+        windowSize: z.number(),
+        values: z.array(z.number()),
+        originalCount: z.number(),
+        resultCount: z.number(),
+      })
+      .optional()
+      .describe('Moving window aggregation result'),
     rowCount: z.number().optional().describe('Total rows processed'),
     // STATISTICAL response
     statistics: z
@@ -369,6 +497,13 @@ const ComputeResponseSchema = z.discriminatedUnion('success', [
       .record(z.string(), z.record(z.string(), z.number()))
       .optional()
       .describe('Correlation matrix between columns'),
+    correlationMatrix: z
+      .object({
+        columns: z.array(z.string()),
+        matrix: z.array(z.array(z.number())),
+      })
+      .optional()
+      .describe('Structured correlation matrix format'),
     // REGRESSION response
     coefficients: z.array(z.number()).optional().describe('Regression coefficients'),
     rSquared: z.number().optional().describe('R-squared (coefficient of determination)'),
@@ -461,6 +596,39 @@ const ComputeResponseSchema = z.discriminatedUnion('success', [
       })
       .optional()
       .describe('Formula explanation with function breakdown and references'),
+    // SQL_QUERY / SQL_JOIN response fields
+    sqlColumns: z.array(z.string()).optional().describe('Column names from SQL result'),
+    sqlRows: z.array(z.array(z.unknown())).optional().describe('Data rows from SQL result'),
+    sqlExecutionMs: z.number().optional().describe('DuckDB query execution time in milliseconds'),
+    rowsReturned: z.number().optional().describe('Number of rows in SQL result'),
+    // PYTHON_EVAL response fields
+    pythonResult: z.unknown().optional().describe('Python execution result value'),
+    pythonOutput: z.string().optional().describe('Captured stdout from Python execution'),
+    pythonExecutionMs: z.number().optional().describe('Python execution time in milliseconds'),
+    // PANDAS_PROFILE response fields
+    profileStats: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe('Per-column statistics from pandas'),
+    // SKLEARN_MODEL response fields
+    modelMetrics: z
+      .object({
+        accuracy: z.number().optional(),
+        r2: z.number().optional(),
+        mse: z.number().optional(),
+        mae: z.number().optional(),
+      })
+      .optional()
+      .describe('Model evaluation metrics'),
+    featureImportances: z
+      .record(z.string(), z.number())
+      .optional()
+      .describe('Feature importance scores (random_forest only)'),
+    // MATPLOTLIB_CHART response fields
+    chartImage: z
+      .string()
+      .optional()
+      .describe('Base64 PNG image data URI (data:image/png;base64,...)'),
     // Common
     computationTimeMs: z.number().optional().describe('Time taken for computation in milliseconds'),
     message: z.string().optional(),
@@ -502,4 +670,16 @@ export type ComputeCustomFunctionInput = SheetsComputeInput['request'] & {
 export type ComputeBatchInput = SheetsComputeInput['request'] & { action: 'batch_compute' };
 export type ComputeExplainFormulaInput = SheetsComputeInput['request'] & {
   action: 'explain_formula';
+};
+// Phase 1: DuckDB
+export type ComputeSqlQueryInput = SheetsComputeInput['request'] & { action: 'sql_query' };
+export type ComputeSqlJoinInput = SheetsComputeInput['request'] & { action: 'sql_join' };
+// Phase 2: Pyodide
+export type ComputePythonEvalInput = SheetsComputeInput['request'] & { action: 'python_eval' };
+export type ComputePandasProfileInput = SheetsComputeInput['request'] & {
+  action: 'pandas_profile';
+};
+export type ComputeSklearnModelInput = SheetsComputeInput['request'] & { action: 'sklearn_model' };
+export type ComputeMatplotlibChartInput = SheetsComputeInput['request'] & {
+  action: 'matplotlib_chart';
 };

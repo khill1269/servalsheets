@@ -318,6 +318,11 @@ const ConnectorsResponsePayloadSchema = z.object({
       })
     )
     .optional(),
+  // AI-powered connector discovery recommendation (P5.3)
+  aiRecommendation: z
+    .string()
+    .optional()
+    .describe('AI-generated insight about which endpoints would be most useful'),
   schema: z
     .object({
       endpoint: z.string(),

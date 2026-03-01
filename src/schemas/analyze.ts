@@ -1389,6 +1389,7 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
+    aiInsight: z.string().optional().describe('Optional AI-generated narrative insight'),
 
     // analyze_data results
     summary: z.string().optional(),

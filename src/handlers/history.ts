@@ -21,21 +21,15 @@ import { getTimeline, diffRevisions, restoreCells } from '../services/revision-t
 import type { ElicitationServer } from '../mcp/elicitation.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import type { SamplingServer } from '../mcp/sampling.js';
-import { withSamplingTimeout, assertSamplingConsent } from '../mcp/sampling.js';
+import { withSamplingTimeout, assertSamplingConsent, generateAIInsight } from '../mcp/sampling.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { recordRevisionId } from '../mcp/completions.js';
 import { getSessionContext } from '../services/session-context.js';
 import { logger } from '../utils/logger.js';
+import type { HistoryHandlerOptions } from '../types/history-handler-options.js';
 
-export interface HistoryHandlerOptions {
-  snapshotService?: SnapshotService;
-  driveApi?: drive_v3.Drive;
-  sheetsApi?: sheets_v4.Sheets;
-  server?: ElicitationServer;
-  taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter;
-  samplingServer?: SamplingServer;
-}
+export type { HistoryHandlerOptions } from '../types/history-handler-options.js';
 
 export class HistoryHandler {
   private snapshotService?: SnapshotService;
@@ -44,6 +38,7 @@ export class HistoryHandler {
   private server?: ElicitationServer;
   private taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter;
   private samplingServer?: SamplingServer;
+  private googleClient?: import('../services/google-api.js').GoogleApiClient;
 
   constructor(options: HistoryHandlerOptions = {}) {
     this.snapshotService = options.snapshotService;
@@ -52,6 +47,7 @@ export class HistoryHandler {
     this.server = options.server;
     this.taskStore = options.taskStore;
     this.samplingServer = options.samplingServer;
+    this.googleClient = options.googleClient;
   }
 
   async handle(input: SheetsHistoryInput): Promise<SheetsHistoryOutput> {
@@ -519,7 +515,9 @@ export class HistoryHandler {
             since: timelineReq.since,
             until: timelineReq.until,
             limit: timelineReq.limit,
+            googleClient: this.googleClient,
           });
+          const activityAvailable = entries.some((e) => e.activityType !== undefined);
 
           // Wire session context: cache timeline for quick follow-up diff_revisions
           try {
@@ -572,11 +570,36 @@ export class HistoryHandler {
             if (typeof revId === 'string') recordRevisionId(revId);
           }
 
+          // Wire AI insight: narrate change history
+          let aiNarrative: string | undefined;
+          if (entries.length > 0) {
+            const timelineSummary = entries
+              .slice(0, 10)
+              .map((e) => {
+                const entry = e as unknown as Record<string, unknown>;
+                const ts = entry['timestamp']
+                  ? new Date(entry['timestamp'] as string).toISOString()
+                  : '?';
+                const author = entry['author'] ? ` (${entry['author']})` : '';
+                const desc = entry['description'] ?? entry['summary'] ?? 'unknown change';
+                return `${ts}: ${desc}${author}`;
+              })
+              .join('; ');
+            aiNarrative = await generateAIInsight(
+              this.samplingServer,
+              'diffNarrative',
+              'Narrate this change timeline — what story does it tell about how this spreadsheet evolved?',
+              timelineSummary
+            );
+          }
+
           response = {
             success: true,
             action: 'timeline',
             timeline: entries,
+            activityAvailable,
             ...(timelineTaskId !== undefined ? { taskId: timelineTaskId } : {}),
+            ...(aiNarrative !== undefined ? { aiNarrative } : {}),
             message: `Found ${entries.length} revision(s)`,
           };
           break;
@@ -642,6 +665,23 @@ export class HistoryHandler {
             }
           }
 
+          // Wire AI insight: explain why changes matter
+          let aiNarrative: string | undefined;
+          if (diff.cellChanges && diff.cellChanges.length > 0) {
+            const changeSummary = (
+              diff.cellChanges as Array<{ cell: string; oldValue?: unknown; newValue?: unknown }>
+            )
+              .slice(0, 8)
+              .map((c) => `${c.cell}: ${String(c.oldValue ?? '')} → ${String(c.newValue ?? '')}`)
+              .join('; ');
+            aiNarrative = await generateAIInsight(
+              this.samplingServer,
+              'diffNarrative',
+              'Explain what changed between these revisions and why it matters',
+              changeSummary
+            );
+          }
+
           response = {
             success: true,
             action: 'diff_revisions',
@@ -650,6 +690,7 @@ export class HistoryHandler {
               ? 'Cell-level diff unavailable — Google Drive API exports current version only, not historical revisions for Workspace files. Metadata comparison (timestamps, authors) is shown instead. For cell-level change tracking, use sheets_history.timeline which tracks ServalSheets operations.'
               : `Found ${diff.cellChanges?.length ?? 0} cell change(s)`,
             ...(aiExplanation !== undefined ? { aiExplanation } : {}),
+            ...(aiNarrative !== undefined ? { aiNarrative } : {}),
           };
           break;
         }
