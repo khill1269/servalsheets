@@ -34,7 +34,7 @@ import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import { createValidationError } from '../utils/error-factory.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { RangeResolutionError } from '../core/range-resolver.js';
-import { checkSamplingSupport, withSamplingTimeout } from '../mcp/sampling.js';
+import { checkSamplingSupport, withSamplingTimeout, generateAIInsight } from '../mcp/sampling.js';
 import { isLLMFallbackAvailable, createMessageWithFallback } from '../services/llm-fallback.js';
 
 // Valid condition types from schema
@@ -943,8 +943,28 @@ Always return valid JSON in the exact format requested.`;
         /* non-blocking */
       }
 
+      // AI explanation (T2): Generate AI narrative explaining WHY these formats improve readability
+      let explanation: string | undefined;
+      try {
+        if (this.context.samplingServer && suggestions.length > 0) {
+          const suggestionsText = suggestions
+            .slice(0, 3)
+            .map((s) => `${s.title}: ${s.explanation}`)
+            .join('; ');
+          explanation = await generateAIInsight(
+            this.context.samplingServer,
+            'dataAnalysis',
+            `Explain why these format suggestions improve readability and data comprehension: ${suggestionsText}`,
+            { column_count: sampleRows[0]?.values?.length ?? 0, row_count: sampleRows.length }
+          );
+        }
+      } catch {
+        /* non-blocking - explanation is optional */
+      }
+
       return this.success('suggest_format', {
         suggestions,
+        explanation,
         _meta: {
           duration,
           timestamp: new Date().toISOString(),

@@ -11,12 +11,12 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_advanced: 31,
   sheets_agent: 8,
   sheets_analyze: 19,
-  sheets_appsscript: 18,
+  sheets_appsscript: 19,
   sheets_auth: 4,
   sheets_bigquery: 17,
   sheets_collaborate: 40,
   sheets_composite: 20,
-  sheets_compute: 10,
+  sheets_compute: 16,
   sheets_confirm: 5,
   sheets_connectors: 10,
   sheets_core: 19,
@@ -28,11 +28,11 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_format: 24,
   sheets_history: 10,
   sheets_quality: 4,
-  sheets_session: 27,
+  sheets_session: 31,
   sheets_templates: 8,
   sheets_transaction: 6,
   sheets_visualize: 18,
-  sheets_webhook: 7,
+  sheets_webhook: 10,
 };
 
 /**

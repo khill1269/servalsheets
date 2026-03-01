@@ -10,13 +10,18 @@ import {
   resumePlan,
   type ExecuteHandlerFn,
 } from '../services/agent-engine.js';
-import type { Handlers } from './index.js';
+
+interface AgentToolHandler {
+  handle: (input: { request: Record<string, unknown> }) => Promise<unknown>;
+}
+
+type AgentHandlerRegistry = Record<string, AgentToolHandler>;
 
 export class AgentHandler {
-  private handlers?: Handlers;
+  private handlers?: AgentHandlerRegistry;
   private executeHandler: ExecuteHandlerFn;
 
-  constructor(handlers?: Handlers) {
+  constructor(handlers?: AgentHandlerRegistry) {
     this.handlers = handlers;
     // Create executeHandler that dispatches to actual tool handlers
     this.executeHandler = async (tool: string, action: string, params: Record<string, unknown>) => {
@@ -24,18 +29,13 @@ export class AgentHandler {
         throw new Error('No handlers available for agent execution');
       }
       // Map tool name to handler key
-      const handlerKey = tool.replace('sheets_', '') as keyof Handlers;
+      const handlerKey = tool.replace('sheets_', '');
       const handler = this.handlers[handlerKey];
       if (!handler) {
         throw new Error(`Unknown tool: ${tool}`);
       }
 
-      // Dynamic dispatch across heterogeneous tool input schemas.
-      // Agent steps are runtime-planned, so we pass through as an envelope.
-      const dynamicHandler = handler as unknown as {
-        handle: (input: { request: Record<string, unknown> }) => Promise<unknown>;
-      };
-      const result = await dynamicHandler.handle({
+      const result = await handler.handle({
         request: { action, ...params },
       });
       return result;

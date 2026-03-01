@@ -23,6 +23,8 @@ import {
   docs_v1,
   slides_v1,
   drivelabels_v2,
+  driveactivity_v2,
+  workspaceevents_v1,
 } from 'googleapis';
 import type { OAuth2Client } from 'google-auth-library';
 import { executeWithRetry, type RetryOptions } from '../utils/retry.js';
@@ -220,6 +222,8 @@ export class GoogleApiClient {
   private _bigquery: bigquery_v2.Bigquery | null = null;
   private _docs: docs_v1.Docs | null = null;
   private _slides: slides_v1.Slides | null = null;
+  private _driveActivity: driveactivity_v2.Driveactivity | null = null;
+  private _workspaceEvents: workspaceevents_v1.Workspaceevents | null = null;
   private options: GoogleApiClientOptions;
   private _scopes: string[];
   private retryOptions?: RetryOptions;
@@ -434,6 +438,12 @@ export class GoogleApiClient {
       version: 'v2',
       auth: this.auth,
     });
+
+    // Drive Activity API for WHO/WHEN change attribution
+    this._driveActivity = google.driveactivity({ version: 'v2', auth: this.auth });
+
+    // Workspace Events API for push notification subscriptions
+    this._workspaceEvents = google.workspaceevents({ version: 'v1', auth: this.auth });
 
     logger.info('Google API clients initialized', {
       http2Enabled: enableHTTP2,
@@ -1134,6 +1144,20 @@ export class GoogleApiClient {
    */
   get slides(): slides_v1.Slides | null {
     return this._slides;
+  }
+
+  /**
+   * Get Drive Activity API client (optional, returns null if not initialized)
+   */
+  get driveActivity(): driveactivity_v2.Driveactivity | null {
+    return this._driveActivity;
+  }
+
+  /**
+   * Get Workspace Events API client (optional, returns null if not initialized)
+   */
+  get workspaceEvents(): workspaceevents_v1.Workspaceevents | null {
+    return this._workspaceEvents;
   }
 
   /**

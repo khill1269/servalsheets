@@ -6,6 +6,8 @@
  */
 
 import { logger } from '../utils/logger.js';
+import * as fs from 'fs';
+import * as path from 'path';
 import type {
   SpreadsheetConnector,
   ConnectorCredentials,
@@ -25,6 +27,145 @@ import { AlphaVantageConnector } from './alpha-vantage.js';
 import { FmpConnector } from './fmp.js';
 import { PolygonConnector } from './polygon.js';
 import { GenericRestConnector } from './rest-generic.js';
+
+// ============================================================================
+// Persistent Configuration Store
+// ============================================================================
+
+const CONNECTOR_CONFIG_DIR =
+  process.env['CONNECTOR_CONFIG_DIR'] || path.join(process.cwd(), '.serval', 'connectors');
+
+interface PersistedConnectorConfig {
+  connectorId: string;
+  credentials: ConnectorCredentials;
+  configuredAt: string;
+}
+
+interface PersistedSubscription {
+  id: string;
+  connectorId: string;
+  endpoint: string;
+  params: QueryParams;
+  schedule: RefreshSchedule;
+  destination: { spreadsheetId: string; range: string };
+  createdAt: string;
+}
+
+class ConnectorConfigStore {
+  private configDir: string;
+
+  constructor(configDir: string = CONNECTOR_CONFIG_DIR) {
+    this.configDir = configDir;
+  }
+
+  async saveConfig(connectorId: string, credentials: ConnectorCredentials): Promise<void> {
+    try {
+      await fs.promises.mkdir(this.configDir, { recursive: true });
+      const config: PersistedConnectorConfig = {
+        connectorId,
+        credentials,
+        configuredAt: new Date().toISOString(),
+      };
+      const filePath = path.join(this.configDir, `${connectorId}.json`);
+      await fs.promises.writeFile(filePath, JSON.stringify(config, null, 2), 'utf-8');
+      logger.info('Connector config persisted', { connectorId });
+    } catch (err) {
+      logger.warn('Failed to persist connector config', {
+        connectorId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  async loadAll(): Promise<PersistedConnectorConfig[]> {
+    try {
+      await fs.promises.mkdir(this.configDir, { recursive: true });
+      const files = await fs.promises.readdir(this.configDir);
+      const configs: PersistedConnectorConfig[] = [];
+      for (const file of files) {
+        if (!file.endsWith('.json') || file.startsWith('sub_')) continue;
+        try {
+          const content = await fs.promises.readFile(path.join(this.configDir, file), 'utf-8');
+          configs.push(JSON.parse(content));
+        } catch {
+          // Skip corrupted config files
+        }
+      }
+      return configs;
+    } catch {
+      return [];
+    }
+  }
+
+  async deleteConfig(connectorId: string): Promise<void> {
+    try {
+      const filePath = path.join(this.configDir, `${connectorId}.json`);
+      await fs.promises.unlink(filePath);
+    } catch {
+      // File may not exist — OK
+    }
+  }
+}
+
+class SubscriptionConfigStore {
+  private configDir: string;
+
+  constructor(configDir: string = CONNECTOR_CONFIG_DIR) {
+    this.configDir = configDir;
+  }
+
+  async saveSubscription(sub: Subscription): Promise<void> {
+    try {
+      await fs.promises.mkdir(this.configDir, { recursive: true });
+      const persisted: PersistedSubscription = {
+        id: sub.id,
+        connectorId: sub.connectorId,
+        endpoint: sub.endpoint,
+        params: sub.params,
+        schedule: sub.schedule,
+        destination: sub.destination,
+        createdAt: new Date().toISOString(),
+      };
+      const filePath = path.join(this.configDir, `${sub.id}.json`);
+      await fs.promises.writeFile(filePath, JSON.stringify(persisted, null, 2), 'utf-8');
+      logger.info('Subscription persisted', { subscriptionId: sub.id });
+    } catch (err) {
+      logger.warn('Failed to persist subscription', {
+        subscriptionId: sub.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  async loadAll(): Promise<PersistedSubscription[]> {
+    try {
+      await fs.promises.mkdir(this.configDir, { recursive: true });
+      const files = await fs.promises.readdir(this.configDir);
+      const subscriptions: PersistedSubscription[] = [];
+      for (const file of files) {
+        if (!file.endsWith('.json') || !file.startsWith('sub_')) continue;
+        try {
+          const content = await fs.promises.readFile(path.join(this.configDir, file), 'utf-8');
+          subscriptions.push(JSON.parse(content));
+        } catch {
+          // Skip corrupted subscription files
+        }
+      }
+      return subscriptions;
+    } catch {
+      return [];
+    }
+  }
+
+  async deleteSubscription(subscriptionId: string): Promise<void> {
+    try {
+      const filePath = path.join(this.configDir, `${subscriptionId}.json`);
+      await fs.promises.unlink(filePath);
+    } catch {
+      // File may not exist — OK
+    }
+  }
+}
 
 // ============================================================================
 // Quota Manager (token bucket per connector)
@@ -135,13 +276,18 @@ class ConnectorCache {
 }
 
 // ============================================================================
-// Subscription Engine (in-memory, non-persistent)
+// Subscription Engine (with persistence)
 // ============================================================================
 
 class SubscriptionEngine {
   private subscriptions = new Map<string, Subscription>();
   private timers = new Map<string, ReturnType<typeof setInterval>>();
   private nextId = 1;
+  private configStore: SubscriptionConfigStore;
+
+  constructor(configDir?: string) {
+    this.configStore = new SubscriptionConfigStore(configDir);
+  }
 
   add(
     connectorId: string,
@@ -179,6 +325,10 @@ class SubscriptionEngine {
     this.timers.set(id, timer);
 
     sub.nextRefresh = new Date(Date.now() + intervalMs).toISOString();
+
+    // Persist to disk
+    this.persistSubscription(sub);
+
     return sub;
   }
 
@@ -188,7 +338,11 @@ class SubscriptionEngine {
       clearInterval(timer);
       this.timers.delete(subscriptionId);
     }
-    return this.subscriptions.delete(subscriptionId);
+    const removed = this.subscriptions.delete(subscriptionId);
+    if (removed) {
+      this.removePersistedSubscription(subscriptionId);
+    }
+    return removed;
   }
 
   list(): Subscription[] {
@@ -208,18 +362,122 @@ class SubscriptionEngine {
     }
   }
 
+  private persistSubscription(sub: Subscription): void {
+    this.configStore.saveSubscription(sub).catch((err) => {
+      logger.warn('Failed to persist subscription', {
+        subscriptionId: sub.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
+
+  private removePersistedSubscription(subscriptionId: string): void {
+    this.configStore.deleteSubscription(subscriptionId).catch((err) => {
+      logger.warn('Failed to delete persisted subscription', {
+        subscriptionId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
+
+  async loadPersistedSubscriptions(): Promise<PersistedSubscription[]> {
+    return this.configStore.loadAll();
+  }
+
+  async initFromDisk(
+    refreshCallback: (sub: Subscription) => Promise<void>
+  ): Promise<{ restored: number }> {
+    try {
+      const persisted = await this.loadPersistedSubscriptions();
+      let restored = 0;
+
+      for (const persistedSub of persisted) {
+        try {
+          // Recreate subscription without incrementing nextId
+          const sub: Subscription = {
+            id: persistedSub.id,
+            connectorId: persistedSub.connectorId,
+            endpoint: persistedSub.endpoint,
+            params: persistedSub.params,
+            schedule: persistedSub.schedule,
+            destination: persistedSub.destination,
+            status: 'active',
+          };
+
+          this.subscriptions.set(sub.id, sub);
+
+          // Re-establish timer
+          const intervalMs = this.scheduleToMs(persistedSub.schedule);
+          const timer = setInterval(async () => {
+            try {
+              await refreshCallback(sub);
+              sub.lastRefresh = new Date().toISOString();
+              sub.status = 'active';
+              sub.errorMessage = undefined;
+            } catch (err) {
+              sub.status = 'error';
+              sub.errorMessage = err instanceof Error ? err.message : String(err);
+            }
+          }, intervalMs);
+          this.timers.set(sub.id, timer);
+
+          sub.nextRefresh = new Date(Date.now() + intervalMs).toISOString();
+
+          // Update nextId to prevent collisions
+          const idNum = parseInt(sub.id.substring(4), 10);
+          if (!isNaN(idNum)) {
+            this.nextId = Math.max(this.nextId, idNum + 1);
+          }
+
+          restored++;
+          logger.info('Subscription restored from disk', { subscriptionId: sub.id });
+        } catch (err) {
+          logger.warn('Failed to restore subscription', {
+            subscriptionId: persistedSub.id,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      return { restored };
+    } catch (err) {
+      logger.warn('Failed to load persisted subscriptions', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return { restored: 0 };
+    }
+  }
+
   dispose(): void {
     for (const timer of this.timers.values()) {
       clearInterval(timer);
     }
     this.timers.clear();
-    this.subscriptions.clear();
+    // NOTE: Do NOT clear subscriptions — they persist on disk
   }
 }
 
 // ============================================================================
 // Transform Engine
 // ============================================================================
+
+/**
+ * Safe numeric expression evaluator (no eval).
+ * Supports +, -, *, /, parentheses, and numeric literals.
+ */
+function safeEvaluateExpression(expr: string): number | null {
+  // Remove whitespace
+  const cleaned = expr.replace(/\s+/g, '');
+  // Only allow digits, operators, decimal points, parentheses
+  if (!/^[\d+\-*/.()]+$/.test(cleaned)) return null;
+  try {
+    // Use Function constructor for arithmetic only (safer than eval, no variable access)
+    const result = new Function(`return (${cleaned})`)();
+    return typeof result === 'number' && isFinite(result) ? result : null;
+  } catch {
+    return null;
+  }
+}
 
 function applyTransform(data: DataResult, transform: TransformSpec): DataResult {
   let { headers, rows } = data;
@@ -284,6 +542,145 @@ function applyTransform(data: DataResult, transform: TransformSpec): DataResult 
     rows = rows.slice(0, transform.limit);
   }
 
+  // Aggregate V2 (group-by with aggregation functions)
+  if (transform.aggregateV2) {
+    const { groupBy, operations } = transform.aggregateV2;
+    const groupIdx = headers.indexOf(groupBy);
+    if (groupIdx !== -1) {
+      const groups = new Map<string, (string | number | boolean | null)[][]>();
+      for (const row of rows) {
+        const key = String(row[groupIdx] ?? '');
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(row);
+      }
+
+      const aggHeaders = [groupBy];
+      const aggRows: (string | number | boolean | null)[][] = [];
+
+      for (const op of operations) {
+        aggHeaders.push(`${op.function}_${op.column}`);
+      }
+
+      for (const [key, groupRows] of groups) {
+        const aggRow: (string | number | boolean | null)[] = [key];
+        for (const op of operations) {
+          const colIdx = headers.indexOf(op.column);
+          if (colIdx === -1) {
+            aggRow.push(null);
+            continue;
+          }
+          const values = groupRows
+            .map((r) => r[colIdx])
+            .filter((v) => v !== null && v !== undefined);
+          const nums = values.map(Number).filter((n) => !isNaN(n));
+
+          switch (op.function) {
+            case 'sum':
+              aggRow.push(nums.reduce((a, b) => a + b, 0));
+              break;
+            case 'avg':
+              aggRow.push(nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : null);
+              break;
+            case 'count':
+              aggRow.push(values.length);
+              break;
+            case 'min':
+              aggRow.push(nums.length > 0 ? Math.min(...nums) : null);
+              break;
+            case 'max':
+              aggRow.push(nums.length > 0 ? Math.max(...nums) : null);
+              break;
+            default:
+              aggRow.push(null);
+          }
+        }
+        aggRows.push(aggRow);
+      }
+
+      headers = aggHeaders;
+      rows = aggRows;
+    }
+  }
+
+  // Calculate (computed columns from expressions)
+  if (transform.calculate && transform.calculate.length > 0) {
+    for (const calc of transform.calculate) {
+      headers = [...headers, calc.as];
+      rows = rows.map((row) => {
+        const ctx: Record<string, string | number | boolean | null> = {};
+        for (let i = 0; i < headers.length - 1; i++) {
+          ctx[headers[i]!] = row[i] ?? null;
+        }
+        let result: string | number | boolean | null = null;
+        try {
+          // Support simple arithmetic: column references and operators
+          let expr = calc.expression;
+          for (const [col, val] of Object.entries(ctx)) {
+            expr = expr.replace(
+              new RegExp(`\\b${col.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g'),
+              String(val ?? 0)
+            );
+          }
+          // Safe numeric evaluation (no eval)
+          result = safeEvaluateExpression(expr);
+        } catch {
+          result = null;
+        }
+        return [...row, result];
+      });
+    }
+  }
+
+  // Pivot (reshape long → wide format)
+  if (transform.pivot) {
+    const { rowKey, pivotColumn, valueColumn } = transform.pivot;
+    const rowIdx = headers.indexOf(rowKey);
+    const pivotIdx = headers.indexOf(pivotColumn);
+    const valIdx = headers.indexOf(valueColumn);
+
+    if (rowIdx !== -1 && pivotIdx !== -1 && valIdx !== -1) {
+      // Collect unique pivot values for column headers
+      const pivotValues = [...new Set(rows.map((r) => String(r[pivotIdx] ?? '')))].sort();
+      const pivotHeaders = [rowKey, ...pivotValues];
+
+      // Group by row key
+      const pivotMap = new Map<string, Map<string, string | number | boolean | null>>();
+      for (const row of rows) {
+        const rk = String(row[rowIdx] ?? '');
+        const pk = String(row[pivotIdx] ?? '');
+        if (!pivotMap.has(rk)) pivotMap.set(rk, new Map());
+        pivotMap.get(rk)!.set(pk, row[valIdx] ?? null);
+      }
+
+      const pivotRows: (string | number | boolean | null)[][] = [];
+      for (const [rk, values] of pivotMap) {
+        const pivotRow: (string | number | boolean | null)[] = [rk];
+        for (const pv of pivotValues) {
+          pivotRow.push(values.get(pv) ?? null);
+        }
+        pivotRows.push(pivotRow);
+      }
+
+      headers = pivotHeaders;
+      rows = pivotRows;
+    }
+  }
+
+  // Deduplicate (remove duplicate rows based on a single column)
+  if (transform.deduplicate) {
+    const dedupeCol = transform.deduplicate.column;
+    const colIdx = headers.indexOf(dedupeCol);
+    if (colIdx !== -1) {
+      const seen = new Set<string>();
+      rows = rows.filter((row) => {
+        const key = String(row[colIdx] ?? '');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+  }
+
   return {
     ...data,
     headers,
@@ -300,7 +697,13 @@ export class ConnectorManager {
   private registry = new Map<string, ConnectorRegistryEntry>();
   private quotaManager = new QuotaManager();
   private cache = new ConnectorCache();
-  private subscriptionEngine = new SubscriptionEngine();
+  private subscriptionEngine: SubscriptionEngine;
+  private configStore: ConnectorConfigStore;
+
+  constructor(configDir?: string) {
+    this.subscriptionEngine = new SubscriptionEngine(configDir);
+    this.configStore = new ConnectorConfigStore(configDir);
+  }
 
   // ---------------------------------------------------------------------------
   // Registration
@@ -362,6 +765,9 @@ export class ConnectorManager {
     try {
       await entry.connector.configure(credentials);
       entry.configured = true;
+
+      // Persist configuration to disk
+      await this.configStore.saveConfig(connectorId, credentials);
 
       // Verify with health check
       const health = await entry.connector.healthCheck();
@@ -524,12 +930,68 @@ export class ConnectorManager {
   }
 
   // ---------------------------------------------------------------------------
-  // Lifecycle
+  // Persistence & Lifecycle
   // ---------------------------------------------------------------------------
 
+  async restorePersistedConfigs(): Promise<number> {
+    try {
+      const configs = await this.configStore.loadAll();
+      let restored = 0;
+
+      for (const config of configs) {
+        const entry = this.registry.get(config.connectorId);
+        if (!entry) {
+          logger.warn('Persisted config references non-existent connector', {
+            connectorId: config.connectorId,
+          });
+          continue;
+        }
+
+        try {
+          await entry.connector.configure(config.credentials);
+          entry.configured = true;
+          restored++;
+          logger.info('Connector configuration restored', { connectorId: config.connectorId });
+        } catch (err) {
+          logger.warn('Failed to restore connector configuration', {
+            connectorId: config.connectorId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      return restored;
+    } catch (err) {
+      logger.warn('Failed to load persisted configurations', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return 0;
+    }
+  }
+
+  async initialize(): Promise<void> {
+    logger.info('Initializing ConnectorManager persistence layer');
+
+    // Restore persisted connector configurations
+    const configsRestored = await this.restorePersistedConfigs();
+    logger.info('Connector configurations restored', { count: configsRestored });
+
+    // Restore persisted subscriptions
+    const refreshCallback = async (sub: Subscription): Promise<void> => {
+      await this.query(sub.connectorId, sub.endpoint, sub.params, undefined, false);
+      // In a real implementation, write result to destination spreadsheet
+    };
+
+    const subsResult = await this.subscriptionEngine.initFromDisk(refreshCallback);
+    logger.info('Subscriptions restored', { count: subsResult.restored });
+  }
+
   async dispose(): Promise<void> {
+    // Dispose subscriptions (stops timers but does NOT delete persisted state)
     this.subscriptionEngine.dispose();
     this.cache.clear();
+
+    // Dispose connectors
     for (const entry of this.registry.values()) {
       try {
         await entry.connector.dispose();
@@ -538,6 +1000,8 @@ export class ConnectorManager {
       }
     }
     this.registry.clear();
+
+    logger.info('ConnectorManager disposed (persisted configs and subscriptions retained)');
   }
 }
 

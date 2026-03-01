@@ -182,6 +182,14 @@ export interface TransformSpec {
     function: 'sum' | 'avg' | 'min' | 'max' | 'count';
     groupBy?: string;
   }[];
+  // P5.4: New transform types
+  aggregateV2?: {
+    groupBy: string;
+    operations: Array<{ column: string; function: 'sum' | 'avg' | 'count' | 'min' | 'max' }>;
+  };
+  calculate?: Array<{ expression: string; as: string }>;
+  pivot?: { rowKey: string; pivotColumn: string; valueColumn: string };
+  deduplicate?: { column: string };
 }
 
 // ============================================================================

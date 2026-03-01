@@ -108,6 +108,8 @@ export interface HandlerContext {
     error: (message: string, ...args: unknown[]) => void;
   };
   costTracker?: import('../services/cost-tracker.js').CostTracker; // Per-tenant API call tracking (ENABLE_COST_TRACKING)
+  duckdbEngine?: import('../services/duckdb-engine.js').DuckDBEngine; // DuckDB in-process SQL analytics (Phase 1)
+  scheduler?: import('../services/scheduler.js').SchedulerService; // Scheduled recurring workflows (Phase 6)
   abortSignal?: AbortSignal;
   requestId?: string;
 }

@@ -62,10 +62,12 @@ import { readDataInChunks, formatBytes } from '../utils/streaming-export.js';
 import type { Intent } from '../core/intent.js';
 import { getRequestLogger, sendProgress } from '../utils/request-context.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import { generateAIInsight } from '../mcp/sampling.js';
 import { getEnv } from '../config/env.js';
 import { withTimeout } from '../utils/timeout.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { ScopeValidator, IncrementalScopeRequiredError } from '../security/incremental-scope.js';
+import { dispatchCompositeOperation } from '../resources/composite-operation-dispatcher.js';
 
 // ============================================================================
 // Handler
@@ -257,6 +259,39 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
   private async handleImportCsv(
     input: CompositeImportCsvInput
   ): Promise<CompositeOutput['response']> {
+    let resolvedInput = input;
+
+    // Wizard: If csvData is provided but delimiter is missing, elicit delimiter
+    if (resolvedInput.csvData && !resolvedInput.delimiter && this.context?.server?.elicitInput) {
+      try {
+        const wizard = await this.context.server.elicitInput({
+          message: 'CSV data detected. What delimiter separates fields?',
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              delimiter: {
+                type: 'string',
+                title: 'CSV delimiter',
+                description: 'Character separating fields (comma, semicolon, tab, or pipe)',
+                enum: [',', ';', '\t', '|'],
+              },
+            },
+          },
+        });
+        const wizardContent = wizard?.content as Record<string, unknown> | undefined;
+        const delimiter =
+          typeof wizardContent?.['delimiter'] === 'string' ? wizardContent['delimiter'] : undefined;
+        if (wizard?.action === 'accept' && delimiter) {
+          resolvedInput = { ...resolvedInput, delimiter };
+        }
+      } catch {
+        // Elicitation not available — continue with default comma delimiter
+        if (!resolvedInput.delimiter) {
+          resolvedInput = { ...resolvedInput, delimiter: ',' };
+        }
+      }
+    }
+
     // BUG-025 FIX: CSV imports can take >30s on large files (>10K rows)
     // This operation processes large amounts of data and naturally exceeds MCP's 30s timeout
     // For long-running imports, set COMPOSITE_TIMEOUT_MS env var to extend timeout
@@ -270,20 +305,20 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     const result: CsvImportResult = await withTimeout(
       () =>
         this.compositeService.importCsv({
-          spreadsheetId: input.spreadsheetId,
+          spreadsheetId: resolvedInput.spreadsheetId,
           sheet:
-            input.sheet !== undefined
-              ? typeof input.sheet === 'string'
-                ? input.sheet
-                : input.sheet
+            resolvedInput.sheet !== undefined
+              ? typeof resolvedInput.sheet === 'string'
+                ? resolvedInput.sheet
+                : resolvedInput.sheet
               : undefined,
-          csvData: input.csvData,
-          delimiter: input.delimiter,
-          hasHeader: input.hasHeader,
-          mode: input.mode,
-          newSheetName: input.newSheetName,
-          skipEmptyRows: input.skipEmptyRows,
-          trimValues: input.trimValues,
+          csvData: resolvedInput.csvData,
+          delimiter: resolvedInput.delimiter ?? ',',
+          hasHeader: resolvedInput.hasHeader,
+          mode: resolvedInput.mode,
+          newSheetName: resolvedInput.newSheetName,
+          skipEmptyRows: resolvedInput.skipEmptyRows,
+          trimValues: resolvedInput.trimValues,
         }),
       env.COMPOSITE_TIMEOUT_MS,
       'import_csv'
@@ -296,7 +331,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     }
 
     // Fix: Invalidate sheet cache after CSV import (may create new sheet)
-    this.context.sheetResolver?.invalidate(input.spreadsheetId);
+    this.context.sheetResolver?.invalidate(resolvedInput.spreadsheetId);
 
     return this.success('import_csv', {
       ...result,
@@ -433,13 +468,52 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
   private async handleDeduplicate(
     input: CompositeDeduplicateInput
   ): Promise<CompositeOutput['response']> {
+    let resolvedInput = input;
+
+    // Wizard: If range is provided but keyColumns is missing, elicit key column
+    if (
+      resolvedInput.sheet &&
+      (!resolvedInput.keyColumns || resolvedInput.keyColumns.length === 0)
+    ) {
+      if (this.context?.server?.elicitInput) {
+        try {
+          const wizard = await this.context.server.elicitInput({
+            message: 'Which column(s) identify duplicates? (Column letter like A, or header name)',
+            requestedSchema: {
+              type: 'object',
+              properties: {
+                keyColumn: {
+                  type: 'string',
+                  title: 'Key column',
+                  description: 'Column letter (A, B, C...) or header name (Email, ID, Name...)',
+                },
+              },
+            },
+          });
+          const wizardContent = wizard?.content as Record<string, unknown> | undefined;
+          const keyColumn =
+            typeof wizardContent?.['keyColumn'] === 'string'
+              ? wizardContent['keyColumn']
+              : undefined;
+          if (wizard?.action === 'accept' && keyColumn) {
+            resolvedInput = {
+              ...resolvedInput,
+              keyColumns: [keyColumn],
+            };
+          }
+        } catch {
+          // Elicitation not available — continue without specific key columns
+        }
+      }
+    }
+
     // Safety check: preview mode (dry-run equivalent)
-    if (input.preview) {
+    if (resolvedInput.preview) {
       const result: DeduplicateResult = await this.compositeService.deduplicate({
-        spreadsheetId: input.spreadsheetId,
-        sheet: input.sheet,
-        keyColumns: input.keyColumns,
-        keep: input.keep,
+        spreadsheetId: resolvedInput.spreadsheetId,
+        sheet: resolvedInput.sheet,
+        keyColumns: resolvedInput.keyColumns,
+        keep: resolvedInput.keep,
         preview: true,
       });
 
@@ -456,7 +530,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
             : undefined,
         _meta: this.generateMeta(
           'deduplicate',
-          input as unknown as Record<string, unknown>,
+          resolvedInput as unknown as Record<string, unknown>,
           result as unknown as Record<string, unknown>,
           { cellsAffected: result.rowsDeleted }
         ),
@@ -464,7 +538,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     }
 
     // Safety check: dry-run mode
-    if (input.safety?.dryRun) {
+    if (resolvedInput.safety?.dryRun) {
       return {
         success: true as const,
         action: 'deduplicate' as const,
@@ -474,7 +548,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         rowsDeleted: 0,
         _meta: this.generateMeta(
           'deduplicate',
-          input as unknown as Record<string, unknown>,
+          resolvedInput as unknown as Record<string, unknown>,
           {} as Record<string, unknown>,
           { cellsAffected: 0 }
         ),
@@ -483,10 +557,10 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
     // First run in preview mode to get count
     const previewResult: DeduplicateResult = await this.compositeService.deduplicate({
-      spreadsheetId: input.spreadsheetId,
-      sheet: input.sheet,
-      keyColumns: input.keyColumns,
-      keep: input.keep,
+      spreadsheetId: resolvedInput.spreadsheetId,
+      sheet: resolvedInput.sheet,
+      keyColumns: resolvedInput.keyColumns,
+      keep: resolvedInput.keep,
       preview: true,
     });
 
@@ -495,7 +569,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       const confirmation = await confirmDestructiveAction(
         this.context.elicitationServer,
         'deduplicate',
-        `Remove ${previewResult.duplicatesFound} duplicate rows from spreadsheet ${input.spreadsheetId}. Keeping ${input.keep || 'first'} occurrence of each duplicate. This action cannot be undone.`
+        `Remove ${previewResult.duplicatesFound} duplicate rows from spreadsheet ${resolvedInput.spreadsheetId}. Keeping ${resolvedInput.keep || 'first'} occurrence of each duplicate. This action cannot be undone.`
       );
 
       if (!confirmation.confirmed) {
@@ -516,10 +590,10 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       {
         operationType: 'deduplicate',
         isDestructive: true,
-        spreadsheetId: input.spreadsheetId,
+        spreadsheetId: resolvedInput.spreadsheetId,
         affectedRows: previewResult.duplicatesFound,
       },
-      input.safety
+      resolvedInput.safety
     );
 
     // Send progress notification for long-running dedupe
@@ -530,10 +604,10 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
     // Execute the actual deduplication (reuse preview scan to skip redundant API fetch)
     const result: DeduplicateResult = await this.compositeService.deduplicate({
-      spreadsheetId: input.spreadsheetId,
-      sheet: input.sheet,
-      keyColumns: input.keyColumns,
-      keep: input.keep,
+      spreadsheetId: resolvedInput.spreadsheetId,
+      sheet: resolvedInput.sheet,
+      keyColumns: resolvedInput.keyColumns,
+      keep: resolvedInput.keep,
       preview: false,
       _preComputedDuplicateRows: previewResult._duplicateRowSet,
       _preComputedTotalRows: previewResult.totalRows,
@@ -1609,6 +1683,25 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       }
     }
 
+    // Generate AI insight summarizing audit findings
+    let aiSummary: string | undefined;
+    if (this.context.samplingServer && issues.length > 0) {
+      const issueTypes = new Map<string, number>();
+      for (const issue of issues) {
+        issueTypes.set(issue.type, (issueTypes.get(issue.type) ?? 0) + 1);
+      }
+      const issueDesc = Array.from(issueTypes.entries())
+        .map(([type, count]) => `${count} ${type}`)
+        .join(', ');
+      aiSummary = await generateAIInsight(
+        this.context.samplingServer,
+        'dataAnalysis',
+        `Summarize the audit findings and prioritize the most critical issues: ${issueDesc}`,
+        `Total cells: ${totalCells}, Formulas: ${formulaCells}, Blank: ${blankCells}, Issues found: ${issues.length}`,
+        { maxTokens: 400 }
+      );
+    }
+
     return {
       success: true as const,
       action: 'audit_sheet' as const,
@@ -1619,6 +1712,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         dataCells, // non-blank, non-formula cells
         sheetsAudited: sheetsToAudit.length,
         issues,
+        ...(aiSummary !== undefined ? { aiSummary } : {}),
       },
       _meta: this.generateMeta(
         'audit_sheet',
@@ -1668,6 +1762,27 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         )
         .join('\n');
 
+      // Generate AI narrative for CSV report
+      let aiNarrative: string | undefined;
+      if (this.context.samplingServer && rows.length > 0) {
+        const sampleData = rows.slice(0, Math.min(3, rows.length));
+        const dataPreview = sampleData
+          .map((row) =>
+            (row as unknown[])
+              .slice(0, 5)
+              .map((v) => String(v ?? ''))
+              .join(' | ')
+          )
+          .join('; ');
+        aiNarrative = await generateAIInsight(
+          this.context.samplingServer,
+          'dataAnalysis',
+          `Generate a narrative summary for this report`,
+          `Title: ${title}, Rows: ${rows.length}, Columns: ${(rows[0] as unknown[]).length}. Sample: ${dataPreview}`,
+          { maxTokens: 400 }
+        );
+      }
+
       return {
         success: true as const,
         action: 'publish_report' as const,
@@ -1677,6 +1792,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
           generatedAt,
           content: csvContent,
           sizeBytes: Buffer.byteLength(csvContent, 'utf8'),
+          ...(aiNarrative !== undefined ? { aiNarrative } : {}),
         },
         _meta: this.generateMeta(
           'publish_report',
@@ -1834,6 +1950,21 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       });
     }
 
+    // Generate AI evaluation of pipeline design
+    let aiEvaluation: string | undefined;
+    if (this.context.samplingServer) {
+      const stepTypes = input.steps.map((s) => s.type).join(', ');
+      const reductionPercent =
+        rowsIn > 0 ? Math.round(((rowsIn - dataRows.length) / rowsIn) * 100) : 0;
+      aiEvaluation = await generateAIInsight(
+        this.context.samplingServer,
+        'pipelineDesign',
+        `Evaluate this data pipeline and suggest optimizations`,
+        `Steps: ${stepTypes}. Input rows: ${rowsIn}, output rows: ${dataRows.length} (${reductionPercent}% reduction).`,
+        { maxTokens: 300 }
+      );
+    }
+
     return {
       success: true as const,
       action: 'data_pipeline' as const,
@@ -1842,6 +1973,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         rowsIn,
         rowsOut: dataRows.length,
         preview,
+        ...(aiEvaluation !== undefined ? { aiEvaluation } : {}),
       },
       _meta: this.generateMeta(
         'data_pipeline',
@@ -2276,7 +2408,14 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         const params = { spreadsheetId: input.spreadsheetId, ...op.params };
 
         // Dispatch to the appropriate handler
-        const result = await this.dispatchOperation(op.tool, op.action, params);
+        const result = await dispatchCompositeOperation({
+          context: this.context,
+          sheetsApi: this.sheetsApi,
+          driveApi: this.driveApi,
+          tool: op.tool,
+          action: op.action,
+          params,
+        });
 
         results.push({
           index: i,
@@ -2348,77 +2487,5 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         {}
       ),
     };
-  }
-
-  /**
-   * Dispatch an operation to the appropriate handler
-   * This is a simplified orchestration that calls handlers directly
-   * IMPORTANT: This implementation is basic and does not support all actions
-   * For a production system, consider using a full handler registry pattern
-   */
-  private async dispatchOperation(
-    tool: string,
-    action: string,
-    params: Record<string, unknown>
-  ): Promise<{
-    success: boolean;
-    error?: { code: string; message: string; retryable: boolean };
-  }> {
-    // Dispatch based on tool name
-    switch (tool) {
-      case 'sheets_data': {
-        const { SheetsDataHandler } = await import('./data.js');
-        const handler = new SheetsDataHandler(this.context, this.sheetsApi);
-        const handlerInput = { request: { action, ...params } } as Parameters<
-          typeof handler.handle
-        >[0];
-        const result = await handler.handle(handlerInput);
-        return 'error' in result.response
-          ? { success: false, error: result.response.error }
-          : { success: true };
-      }
-      case 'sheets_format': {
-        const { FormatHandler } = await import('./format.js');
-        const handler = new FormatHandler(this.context, this.sheetsApi);
-        const handlerInput = { request: { action, ...params } } as Parameters<
-          typeof handler.handle
-        >[0];
-        const result = await handler.handle(handlerInput);
-        return 'error' in result.response
-          ? { success: false, error: result.response.error }
-          : { success: true };
-      }
-      case 'sheets_dimensions': {
-        const { DimensionsHandler } = await import('./dimensions.js');
-        const handler = new DimensionsHandler(this.context, this.sheetsApi);
-        const handlerInput = { request: { action, ...params } } as Parameters<
-          typeof handler.handle
-        >[0];
-        const result = await handler.handle(handlerInput);
-        return 'error' in result.response
-          ? { success: false, error: result.response.error }
-          : { success: true };
-      }
-      case 'sheets_core': {
-        const { SheetsCoreHandler } = await import('./core.js');
-        const handler = new SheetsCoreHandler(this.context, this.sheetsApi, this.driveApi);
-        const handlerInput = { request: { action, ...params } } as Parameters<
-          typeof handler.handle
-        >[0];
-        const result = await handler.handle(handlerInput);
-        return 'error' in result.response
-          ? { success: false, error: result.response.error }
-          : { success: true };
-      }
-      default:
-        return {
-          success: false,
-          error: {
-            code: 'UNSUPPORTED_TOOL',
-            message: `Tool '${tool}' is not supported in batch_operations. Supported: sheets_data, sheets_format, sheets_dimensions, sheets_core`,
-            retryable: false,
-          },
-        };
-    }
   }
 }

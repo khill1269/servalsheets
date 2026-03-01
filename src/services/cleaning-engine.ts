@@ -17,7 +17,7 @@ import type {
   AnomalyRecord,
   CleaningRecommendation,
 } from '../schemas/fix.js';
-
+import { ANOMALY_DETECTORS, BUILT_IN_RULES, FORMAT_CONVERTERS } from './cleaning-engine-rules.js';
 // ─── Types ───
 
 export type CellValue = string | number | boolean | null;
@@ -130,97 +130,6 @@ function resolveColumnIndex(ref: string, headers: CellValue[]): number {
 // ─── Cleaning Engine ───
 
 export class CleaningEngine {
-  // ─── Built-in cleaning rules ───
-
-  private static readonly BUILT_IN_RULES: Record<
-    string,
-    {
-      detect: (value: CellValue) => boolean;
-      fix: (value: CellValue) => CellValue;
-      description: string;
-    }
-  > = {
-    trim_whitespace: {
-      detect: (v) => typeof v === 'string' && v !== v.trim(),
-      fix: (v) => (typeof v === 'string' ? v.trim() : v),
-      description: 'Remove leading/trailing whitespace',
-    },
-    normalize_case: {
-      detect: (v) =>
-        typeof v === 'string' &&
-        v.length > 1 &&
-        v !== v.toLowerCase() &&
-        v !== v.toUpperCase() &&
-        v !== toTitleCase(v),
-      fix: (v) => (typeof v === 'string' ? toTitleCase(v) : v),
-      description: 'Normalize to title case',
-    },
-    fix_dates: {
-      detect: (v) => typeof v === 'string' && isAmbiguousDate(v),
-      fix: (v) => (typeof v === 'string' ? normalizeDate(v) : v),
-      description: 'Normalize date formats to YYYY-MM-DD',
-    },
-    fix_numbers: {
-      detect: (v) =>
-        typeof v === 'string' && v.trim() !== '' && !isNaN(parseFloat(v.replace(/[,$%]/g, ''))),
-      fix: (v) => {
-        if (typeof v !== 'string') return v;
-        const cleaned = v.replace(/[$,\s]/g, '');
-        if (cleaned.endsWith('%')) return parseFloat(cleaned) / 100;
-        return parseFloat(cleaned);
-      },
-      description: 'Convert text numbers to numeric values',
-    },
-    fix_booleans: {
-      detect: (v) => typeof v === 'string' && /^(yes|no|true|false|1|0|y|n)$/i.test(v.trim()),
-      fix: (v) => {
-        if (typeof v !== 'string') return v;
-        return /^(yes|true|1|y)$/i.test(v.trim());
-      },
-      description: 'Normalize boolean-like values to TRUE/FALSE',
-    },
-    remove_duplicates: {
-      // This is handled specially at the row level, not per-cell
-      detect: () => false,
-      fix: (v) => v,
-      description: 'Remove exact duplicate rows',
-    },
-    fix_emails: {
-      detect: (v) =>
-        typeof v === 'string' && v.includes('@') && (v !== v.toLowerCase().trim() || /\s/.test(v)),
-      fix: (v) => (typeof v === 'string' ? v.toLowerCase().trim() : v),
-      description: 'Lowercase and trim email addresses',
-    },
-    fix_phones: {
-      detect: (v) =>
-        typeof v === 'string' && /[\d\s\-().+]{7,}/.test(v) && v.replace(/\D/g, '').length >= 7,
-      fix: (v) => {
-        if (typeof v !== 'string') return v;
-        const digits = v.replace(/\D/g, '');
-        if (digits.length === 10)
-          return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-        if (digits.length === 11 && digits[0] === '1')
-          return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
-        return `+${digits}`;
-      },
-      description: 'Normalize phone numbers',
-    },
-    fix_urls: {
-      detect: (v) =>
-        typeof v === 'string' && /^(www\.|[a-z0-9-]+\.(com|org|net|io|dev|co))/i.test(v.trim()),
-      fix: (v) => (typeof v === 'string' && !v.startsWith('http') ? `https://${v.trim()}` : v),
-      description: 'Add https:// to URLs missing protocol',
-    },
-    fix_currency: {
-      detect: (v) => typeof v === 'string' && /^\s*[$€£¥]\s*[\d,.]+\s*$/.test(v),
-      fix: (v) => {
-        if (typeof v !== 'string') return v;
-        return parseFloat(v.replace(/[^0-9.-]/g, ''));
-      },
-      description: 'Strip currency symbols and convert to number',
-    },
-  };
-
   // ─── clean ───
 
   async clean(
@@ -236,7 +145,7 @@ export class CleaningEngine {
     // Determine which rules to apply
     const activeRuleIds = rules
       ? rules.filter((r) => r.enabled !== false).map((r) => r.id)
-      : Object.keys(CleaningEngine.BUILT_IN_RULES);
+      : Object.keys(BUILT_IN_RULES);
 
     // Skip header row (row 0)
     const startRow = data.length > 0 ? 1 : 0;
@@ -273,7 +182,7 @@ export class CleaningEngine {
         for (const ruleId of activeRuleIds) {
           if (ruleId === 'remove_duplicates') continue;
 
-          const rule = CleaningEngine.BUILT_IN_RULES[ruleId];
+          const rule = BUILT_IN_RULES[ruleId];
           if (!rule) continue;
 
           // Check column filter from user-provided rules
@@ -473,12 +382,12 @@ export class CleaningEngine {
               else counts.set(key, { value: cv.value, count: 1 });
             }
             let maxCount = 0;
-            for (const entry of counts.values()) {
+            counts.forEach((entry) => {
               if (entry.count > maxCount) {
                 maxCount = entry.count;
                 fillValue = entry.value;
               }
-            }
+            });
             break;
           }
           case 'constant': {
@@ -604,7 +513,7 @@ export class CleaningEngine {
     const dataProfile = this.profileData(data, offset);
 
     // Run each built-in rule as a detector and count hits
-    for (const [ruleId, rule] of Object.entries(CleaningEngine.BUILT_IN_RULES)) {
+    for (const [ruleId, rule] of Object.entries(BUILT_IN_RULES)) {
       if (ruleId === 'remove_duplicates') continue; // Handle separately
 
       let hitCount = 0;
@@ -809,215 +718,5 @@ export class CleaningEngine {
     };
   }
 }
-
-// ─── Format converters ───
-
-const FORMAT_CONVERTERS: Record<string, (value: CellValue) => CellValue> = {
-  iso_date: (v) => (typeof v === 'string' ? normalizeDate(v) : v),
-  us_date: (v) => {
-    if (typeof v !== 'string') return v;
-    const d = parseAnyDate(v);
-    return d
-      ? `${String(d.month).padStart(2, '0')}/${String(d.day).padStart(2, '0')}/${d.year}`
-      : v;
-  },
-  eu_date: (v) => {
-    if (typeof v !== 'string') return v;
-    const d = parseAnyDate(v);
-    return d
-      ? `${String(d.day).padStart(2, '0')}/${String(d.month).padStart(2, '0')}/${d.year}`
-      : v;
-  },
-  currency_usd: (v) => {
-    const n =
-      typeof v === 'number'
-        ? v
-        : typeof v === 'string'
-          ? parseFloat(v.replace(/[^0-9.-]/g, ''))
-          : NaN;
-    return isNaN(n) ? v : `$${n.toFixed(2)}`;
-  },
-  currency_eur: (v) => {
-    const n =
-      typeof v === 'number'
-        ? v
-        : typeof v === 'string'
-          ? parseFloat(v.replace(/[^0-9.-]/g, ''))
-          : NaN;
-    return isNaN(n) ? v : `€${n.toFixed(2)}`;
-  },
-  currency_gbp: (v) => {
-    const n =
-      typeof v === 'number'
-        ? v
-        : typeof v === 'string'
-          ? parseFloat(v.replace(/[^0-9.-]/g, ''))
-          : NaN;
-    return isNaN(n) ? v : `£${n.toFixed(2)}`;
-  },
-  number_plain: (v) => {
-    if (typeof v === 'number') return v;
-    if (typeof v !== 'string') return v;
-    const n = parseFloat(v.replace(/[^0-9.-]/g, ''));
-    return isNaN(n) ? v : n;
-  },
-  percentage: (v) => {
-    if (typeof v === 'number') return v <= 1 ? `${(v * 100).toFixed(1)}%` : `${v.toFixed(1)}%`;
-    if (typeof v !== 'string') return v;
-    const n = parseFloat(v.replace(/[^0-9.-]/g, ''));
-    if (isNaN(n)) return v;
-    return n <= 1 ? `${(n * 100).toFixed(1)}%` : `${n.toFixed(1)}%`;
-  },
-  phone_e164: (v) => {
-    if (typeof v !== 'string') return v;
-    const digits = v.replace(/\D/g, '');
-    if (digits.length === 10) return `+1${digits}`;
-    if (digits.length === 11 && digits[0] === '1') return `+${digits}`;
-    return digits.length >= 7 ? `+${digits}` : v;
-  },
-  phone_national: (v) => {
-    if (typeof v !== 'string') return v;
-    const digits = v.replace(/\D/g, '');
-    if (digits.length === 10)
-      return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-    if (digits.length === 11 && digits[0] === '1')
-      return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
-    return v;
-  },
-  email_lowercase: (v) => (typeof v === 'string' ? v.toLowerCase().trim() : v),
-  url_https: (v) => (typeof v === 'string' && !v.startsWith('http') ? `https://${v.trim()}` : v),
-  title_case: (v) => (typeof v === 'string' ? toTitleCase(v) : v),
-  upper_case: (v) => (typeof v === 'string' ? v.toUpperCase() : v),
-  lower_case: (v) => (typeof v === 'string' ? v.toLowerCase() : v),
-  boolean: (v) => {
-    if (typeof v === 'boolean') return v;
-    if (typeof v !== 'string') return v;
-    return /^(yes|true|1|y)$/i.test(v.trim());
-  },
-};
-
-// ─── Anomaly detection functions ───
-
-const ANOMALY_DETECTORS: Record<
-  AnomalyMethod,
-  (value: number, allValues: number[], threshold: number) => number
-> = {
-  iqr: (value, allValues) => {
-    const sorted = [...allValues].sort((a, b) => a - b);
-    const q1 = sorted[Math.floor(sorted.length * 0.25)] ?? 0;
-    const q3 = sorted[Math.floor(sorted.length * 0.75)] ?? 0;
-    const iqr = q3 - q1;
-    if (iqr === 0) return 0;
-    return Math.max((q1 - value) / iqr, (value - q3) / iqr, 0);
-  },
-  zscore: (value, allValues) => {
-    const mean = allValues.reduce((a, b) => a + b, 0) / allValues.length;
-    const std = Math.sqrt(
-      allValues.reduce((sum, v) => sum + (v - mean) ** 2, 0) / allValues.length
-    );
-    if (std === 0) return 0;
-    return Math.abs((value - mean) / std);
-  },
-  modified_zscore: (value, allValues) => {
-    const sorted = [...allValues].sort((a, b) => a - b);
-    const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
-    const mad = (() => {
-      const deviations = allValues.map((v) => Math.abs(v - median)).sort((a, b) => a - b);
-      return deviations[Math.floor(deviations.length / 2)] ?? 0;
-    })();
-    if (mad === 0) return 0;
-    return Math.abs((0.6745 * (value - median)) / mad);
-  },
-};
-
-// ─── String helpers ───
-
-function toTitleCase(str: string): string {
-  return str.replace(
-    /\w\S*/g,
-    (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase()
-  );
-}
-
-function isAmbiguousDate(str: string): boolean {
-  return (
-    /^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$/.test(str.trim()) ||
-    /^\d{4}[/.-]\d{1,2}[/.-]\d{1,2}$/.test(str.trim()) ||
-    /^[A-Za-z]+ \d{1,2},? \d{4}$/.test(str.trim())
-  );
-}
-
-interface ParsedDate {
-  year: number;
-  month: number;
-  day: number;
-}
-
-function parseAnyDate(str: string): ParsedDate | null {
-  const trimmed = str.trim();
-
-  // YYYY-MM-DD or YYYY/MM/DD
-  let m = trimmed.match(/^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/);
-  if (m) return { year: parseInt(m[1]!), month: parseInt(m[2]!), day: parseInt(m[3]!) };
-
-  // MM/DD/YYYY or DD/MM/YYYY (assume MM/DD if month <= 12)
-  m = trimmed.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
-  if (m) {
-    const a = parseInt(m[1]!);
-    const b = parseInt(m[2]!);
-    const year = parseInt(m[3]!);
-    if (a <= 12) return { year, month: a, day: b };
-    return { year, month: b, day: a };
-  }
-
-  // MM/DD/YY
-  m = trimmed.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2})$/);
-  if (m) {
-    const yy = parseInt(m[3]!);
-    const year = yy < 50 ? 2000 + yy : 1900 + yy;
-    return { year, month: parseInt(m[1]!), day: parseInt(m[2]!) };
-  }
-
-  // "Month DD, YYYY" or "Month DD YYYY"
-  m = trimmed.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
-  if (m) {
-    const monthNames: Record<string, number> = {
-      jan: 1,
-      january: 1,
-      feb: 2,
-      february: 2,
-      mar: 3,
-      march: 3,
-      apr: 4,
-      april: 4,
-      may: 5,
-      jun: 6,
-      june: 6,
-      jul: 7,
-      july: 7,
-      aug: 8,
-      august: 8,
-      sep: 9,
-      september: 9,
-      oct: 10,
-      october: 10,
-      nov: 11,
-      november: 11,
-      dec: 12,
-      december: 12,
-    };
-    const month = monthNames[m[1]!.toLowerCase()];
-    if (month) return { year: parseInt(m[3]!), month, day: parseInt(m[2]!) };
-  }
-
-  return null;
-}
-
-function normalizeDate(str: string): string {
-  const d = parseAnyDate(str);
-  if (!d) return str;
-  return `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`;
-}
-
 // Export parseRangeOffset for handler use
 export { parseRangeOffset };

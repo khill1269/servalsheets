@@ -486,6 +486,40 @@ const UpdateTriggerActionSchema = z.object({
   verbosity: VerbositySchema,
 });
 
+// SERVAL() formula installer schema
+const InstallServalFunctionActionSchema = z.object({
+  action: z
+    .literal('install_serval_function')
+    .describe(
+      'Install the SERVAL() formula function into a spreadsheet via a bound Apps Script project, enabling AI-powered formula cells'
+    ),
+  spreadsheetId: z.string().min(1).describe('Spreadsheet to install SERVAL() into'),
+  callbackUrl: z
+    .string()
+    .url()
+    .optional()
+    .describe(
+      'Public ServalSheets base URL (for example https://mcp.example.com). If omitted, SERVAL_CALLBACK_URL env var is used.'
+    ),
+  defaultModel: z
+    .enum(['claude-sonnet-4-6', 'claude-opus-4-6'])
+    .default('claude-sonnet-4-6')
+    .describe('Default Claude model for SERVAL() formula calls'),
+  cacheTtlSeconds: z
+    .number()
+    .min(0)
+    .max(3600)
+    .default(300)
+    .describe('Result cache TTL in seconds (0 = no cache)'),
+  rateLimit: z
+    .object({
+      requestsPerMinute: z.number().min(1).max(1000).default(100),
+    })
+    .optional()
+    .describe('Per-spreadsheet rate limiting configuration'),
+  verbosity: VerbositySchema,
+});
+
 // ============================================================================
 // Input Schema (discriminated union wrapped in request)
 // ============================================================================
@@ -514,6 +548,8 @@ const AppsScriptRequestSchema = z.discriminatedUnion('action', [
   ListTriggersActionSchema,
   DeleteTriggerActionSchema,
   UpdateTriggerActionSchema,
+  // SERVAL Formula
+  InstallServalFunctionActionSchema,
 ]);
 
 export const SheetsAppsScriptInputSchema = z.object({
@@ -579,6 +615,12 @@ const AppsScriptResponseSchema = z.discriminatedUnion('success', [
       .describe('Usage metrics'),
     // Pagination
     nextPageToken: z.string().optional().describe('Token for next page of results'),
+    // SERVAL formula installer results
+    scriptId: z.string().optional().describe('Bound Apps Script project ID'),
+    functionName: z.string().optional().describe('Installed function name (SERVAL)'),
+    callbackUrl: z.string().optional().describe('ServalSheets callback URL for formula execution'),
+    hmacSecret: z.string().optional().describe('HMAC secret for request signing'),
+    installedAt: z.string().optional().describe('ISO timestamp when function was installed'),
     // Standard fields
     _meta: ResponseMetaSchema.optional().describe('Response metadata'),
   }),
@@ -657,4 +699,7 @@ export type AppsScriptDeleteTriggerInput = SheetsAppsScriptInput['request'] & {
 };
 export type AppsScriptUpdateTriggerInput = SheetsAppsScriptInput['request'] & {
   action: 'update_trigger';
+};
+export type AppsScriptInstallServalFunctionInput = SheetsAppsScriptInput['request'] & {
+  action: 'install_serval_function';
 };

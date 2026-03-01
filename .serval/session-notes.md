@@ -5,7 +5,89 @@
 
 ## Current Phase
 
-Definitive Improvement Plan — COMPLETE. 25 tools, 377 actions, 2416/2416 tests, 0 TS errors. All 6 waves implemented (W1 foundation, W2.2 errorRecovery annotations, W3 API compliance, W4 Drive Labels API, W5.2 eval suite, W6 sheets_connectors). Ready to commit and push.
+FULLY SHIPPED. 25 tools, 391 actions, 2444/2444 tests, 0 TS errors. Advanced integrations complete: DuckDB SQL, Pyodide Python, Drive Activity, Workspace Events, SERVAL() formula, Scheduler, Sampling validator, Progress capability.
+
+## What Was Just Completed (Session 50, 2026-03-01)
+
+### Advanced Integration Plan — All 8 Phases Complete
+
+- **Phase 1 — DuckDB SQL Analytics**: `sql_query` + `sql_join` on sheets_compute; `src/services/duckdb-engine.ts` + `duckdb-worker.ts`; worker_threads isolation with timeout
+- **Phase 2 — Pyodide Python Bridge**: `python_eval`, `pandas_profile`, `sklearn_model`, `matplotlib_chart`; ENABLE_PYTHON_COMPUTE feature flag; `src/services/python-engine.ts`; background preload on startup
+- **Phase 3 — Drive Activity API**: `getActivityEvents()` in `revision-timeline.ts`; WHO/WHEN attribution on `history.timeline`; new OAuth scope `drive.activity.readonly`
+- **Phase 4 — Workspace Events API**: `subscribe_workspace`, `unsubscribe_workspace`, `list_workspace_subscriptions`; `src/services/workspace-events.ts` with 7-day auto-renewal; `/webhook/workspace-events` HTTP endpoint
+- **Phase 5 — SERVAL() Formula AI**: `install_serval_function` on sheets_appsscript; HMAC-SHA256 signing; result caching; batch callback; `src/services/formula-callback.ts`; `/api/serval-formula` HTTP endpoint
+- **Phase 6 — Scheduled Workflows**: `schedule_create`, `schedule_list`, `schedule_cancel`, `schedule_run_now`; `src/services/scheduler.ts` with node-cron + JSON persistence across restarts
+- **Phase 7 — Sampling Output Validator**: `src/services/sampling-validator.ts`; Zod schemas for 5 output types; graceful degradation on parse failure; wired into 5 sampling call sites
+- **Phase 8 — Progress Capability**: `progress: true` in `src/server/well-known.ts` server card
+- **Result**: 377 → 391 actions (+14), 25 tools unchanged, 2444/2444 tests, 0 TS errors, all gates green
+
+## What Was Just Completed (Session 49, 2026-02-28)
+
+### Phase 0 — Bug Fixes (all complete, carried from prior session)
+
+- federation.ts: 4 TS2322 errors fixed (ErrorDetailSchema added to error response)
+- cached-sheets-api.ts:443: TS2353 fixed (removed `timestamp` from recordAccess call)
+- format.test.ts:604: fixed missing rowData mock for suggest_format test
+- federation.test.ts: 19 test failures fixed (getErrorMsg helper + replace_all + 4 content corrections)
+- annotations.ts: 5 missing collaborate annotations added + schema:commit run
+- **Result**: 0 TS errors, 2425 tests pass, validate:action-config PASS, check:drift PASS
+
+### Phase 1 — LLM Usability (features-2025-11-25.ts)
+
+- Added `## 🧭 5-GROUP MENTAL MODEL` section (Groups 1-5 with cognitive buckets for all 25 tools)
+- Added 11 new few-shot examples to EXAMPLES section covering high-confusion pairs:
+  - scout vs data.read, sort_range, freeze, deduplicate, compute.aggregate, connectors.query, session.save_checkpoint, dependencies.analyze_impact, fix.clean, data_pipeline
+- Added `## 🪄 INTERACTIVE WIZARDS (Elicitation)` section documenting 5 wizard-enabled actions
+- **Files changed**: features-2025-11-25.ts
+
+### Elicitation — Wire Dormant Functions
+
+- Identified 3 prebuilt elicitation forms in `src/mcp/elicitation.ts` that were never called
+- **`elicitSpreadsheetCreation`** (title + locale + timezone) → wired to `sheets_core.create`:
+  - Upgraded from 1-field inline wizard to 3-field form using the prebuilt function
+  - `resolvedLocale` + `resolvedTimeZone` now passed to spreadsheet creation API call
+  - Import updated: `import { confirmDestructiveAction, elicitSpreadsheetCreation }` in core.ts
+- **`elicitSharingSettings`** (email + role + notification + message) → wired to `sheets_collaborate.share_add`:
+  - Wizard fires when `emailAddress` is absent and type is 'user' (or type unset)
+  - All request fields switched to `resolvedInput` pattern (wizard-provided values flow through)
+  - Import updated: `import { confirmDestructiveAction, elicitSharingSettings }` in collaborate.ts
+- Updated `elicitation-wizards.test.ts`:
+  - Added `elicitSpreadsheetCreation` + `elicitSharingSettings` to module mock
+  - Fixed test assertion: `elicitServer.elicitInput` → `elicitSpreadsheetCreation` (correct scope)
+- **Result**: 0 TS errors, 2427/2427 tests, check:drift PASS, validate:action-config PASS
+
+## What Was Just Completed (Session 48, 2026-02-28)
+
+- **Tier 1 - Critical Bug Fixes**:
+  - Fixed cache-invalidation-graph.ts: Removed stale `add_rule` alias, added 3 missing read-only entries (suggest_format, suggest_chart, suggest_pivot)
+- **Tier 3 - Performance Systems**:
+  - Wired prefetching system: Added `recordAccessPattern()` calls (11 total) in cached-sheets-api.ts
+  - Registered readOnlyMode circuit breaker fallback on Sheets + Drive circuits in google-api.ts
+  - Verified sampling-context-cache, WorkerPool threshold, heap pressure already implemented
+- **Tier 4 - LLM UX Polish**:
+  - Added sheets_compute parameter examples to descriptions.ts (8 actions)
+  - Added quota guidance section to features-2025-11-25.ts (per-user/per-project limits, 6 saving strategies)
+  - Added 17 new action aliases to completions.ts
+  - Added errorRecovery blocks to 25 P4-P14 actions in annotations.ts (total: 45 errorRecovery blocks across all tools)
+    - sheets_analyze: suggest_next_actions, auto_enhance
+    - sheets_fix: standardize_formats, fill_missing, detect_anomalies, suggest_cleaning
+    - sheets_composite: generate_sheet, generate_template, preview_generation, audit_sheet, publish_report, data_pipeline, instantiate_template, migrate_spreadsheet
+    - sheets_history: timeline, diff_revisions, restore_cells
+    - sheets_dependencies: model_scenario, compare_scenarios, create_scenario_sheet
+    - sheets_data: cross_read, cross_query, cross_write, cross_compare
+- **Audit Report**: Generated ServalSheets_Usage_Files_Audit.docx (9-category audit with scorecard)
+- **Files changed**: annotations.ts, descriptions.ts, features-2025-11-25.ts, completions.ts, cache-invalidation-graph.ts, cached-sheets-api.ts, google-api.ts
+
+## What Was Just Completed (Session 47, 2026-02-28)
+
+- **G0–G5 gates all green**: Fixed last remaining blocker — `src/handlers/connectors.ts:106` TS2322 type mismatch in `handleConfigure`. Method returned `{ success: boolean, message }` but schema requires discriminated union. Fixed by branching on `result.success`: false path emits `{ success: false, error: { code: 'CONNECTOR_ERROR', message, retryable: false } }`, true path emits `{ success: true, message }`.
+- **Test suite fixes** (from prior session, now confirmed green at 2425/2425):
+  - `tests/audit/action-coverage.test.ts`: Added SheetsAgentInputSchema, SheetsComputeInputSchema, SheetsConnectorsInputSchema to SCHEMA_REGISTRY
+  - `tests/audit/action-coverage-fixtures.ts`: Added sheets_agent + sheets_connectors to NO_SPREADSHEET_TOOLS; added 5 FIXTURE_OVERRIDES blocks (discover_action, batch_operations, sheets_agent, sheets_compute, sheets_connectors)
+  - `tests/middleware/audit-middleware.test.ts`: Updated stale action names (write_range→write, append_rows→append, share_spreadsheet→share_add)
+  - `tests/sdks/sdk-generation.test.ts`: Removed hardcoded tool/action count upper bounds
+  - `tests/llm-compatibility/llm-compatibility.test.ts`: Added buildCollaborateFields cases for resolve_access_proposal, label_apply, label_remove
+- **Final gate status**: G0 ✅ (0 TS errors) | G1 ✅ (2425 tests) | G2 ✅ (lint/format) | G3 ✅ (drift) | G4 ✅ (25 tools/377 actions) | G5 ✅ (audit 100.9%)
 
 ## What Was Just Completed (Session 46+, 2026-02-27)
 

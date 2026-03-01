@@ -61,6 +61,8 @@ import { initImpactAnalyzer } from './services/impact-analyzer.js';
 import { initValidationEngine } from './services/validation-engine.js';
 import { initWebhookManager } from './services/webhook-manager.js';
 import { initWebhookQueue } from './services/webhook-queue.js';
+import { DuckDBEngine } from './services/duckdb-engine.js';
+import { SchedulerService } from './services/scheduler.js';
 import { createHandlers, type HandlerContext, type Handlers } from './handlers/index.js';
 import { getCostTracker } from './services/cost-tracker.js';
 import { initializeBillingIntegration } from './services/billing-integration.js';
@@ -387,6 +389,23 @@ export class ServalSheetsServer {
       // Create reusable context and handlers
       // Local ref for closure capture in getter below
       const _googleClient = this.googleClient;
+      const duckdbEngine = new DuckDBEngine();
+      const scheduler = new SchedulerService(
+        process.env['DATA_DIR'] ?? '/tmp/servalsheets',
+        async (job) => {
+          const result = await this.handleToolCall(job.action.tool, {
+            request: {
+              action: job.action.actionName,
+              ...job.action.params,
+            },
+          });
+
+          const isError = (result as { isError?: boolean }).isError === true;
+          if (isError) {
+            throw new Error(`Scheduled job ${job.id} failed for ${job.action.tool}`);
+          }
+        }
+      );
 
       // Create platform-agnostic backend adapter (wraps GoogleApiClient)
       const backend = new GoogleSheetsBackend(_googleClient);
@@ -416,6 +435,8 @@ export class ServalSheetsServer {
         queryOptimizer, // Phase 3B: Adaptive query optimization (-25% avg latency)
         prefetchingSystem, // Pattern-based prefetching (80% latency reduction on sequential ops)
         snapshotService, // Pass to context for HistoryHandler undo/revert (Task 1.3)
+        duckdbEngine, // Advanced SQL compute engine (Phase 1)
+        scheduler, // Scheduled workflows (Phase 6)
         ...(costTrackingEnabled ? { costTracker: getCostTracker() } : {}),
         auth: {
           // Use getter to always read live value from GoogleApiClient
@@ -451,6 +472,18 @@ export class ServalSheetsServer {
       });
       this.handlers = handlers;
       this.cachedHandlerMap = null; // Invalidate cached handler map
+
+      if (envConfig.ENABLE_PYTHON_COMPUTE) {
+        void import('./services/python-engine.js')
+          .then(({ preloadPyodide }) => {
+            preloadPyodide();
+          })
+          .catch((error) => {
+            baseLogger.warn('Pyodide preload skipped due to initialization error', {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          });
+      }
 
       // Removed: initWorkflowEngine (Claude orchestrates natively via MCP)
       // Removed: initPlanningAgent, initInsightsService (replaced by MCP-native Elicitation/Sampling)
@@ -1575,6 +1608,11 @@ export class ServalSheetsServer {
       if (this.context?.requestMerger) {
         this.context.requestMerger.destroy();
         baseLogger.debug('RequestMerger destroyed');
+      }
+
+      if (this.context?.scheduler) {
+        this.context.scheduler.dispose();
+        baseLogger.debug('SchedulerService disposed');
       }
 
       // Destroy BatchingSystem singleton (batch window timers)

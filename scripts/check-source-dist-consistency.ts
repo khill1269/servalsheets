@@ -14,6 +14,10 @@ import { TOOL_ACTIONS as SOURCE_TOOL_ACTIONS } from '../src/mcp/completions.js';
 type CountMap = Record<string, number>;
 type ActionMap = Record<string, string[]>;
 
+function hasArg(flag: string): boolean {
+  return process.argv.includes(flag);
+}
+
 function sumCounts(map: CountMap): number {
   return Object.values(map).reduce((sum, count) => sum + count, 0);
 }
@@ -56,6 +60,7 @@ function getDeclaredCompletionsTotal(filePath: string): number | null {
 }
 
 async function main(): Promise<void> {
+  const allowMissingDist = hasArg('--allow-missing-dist');
   const distActionCountsPath = resolve('dist/schemas/action-counts.js');
   const distCompletionsPath = resolve('dist/mcp/completions.js');
   const srcCompletionsPath = resolve('src/mcp/completions.ts');
@@ -63,6 +68,11 @@ async function main(): Promise<void> {
   const errors: string[] = [];
 
   if (!existsSync(distActionCountsPath) || !existsSync(distCompletionsPath)) {
+    if (allowMissingDist) {
+      console.warn('⚠️  Source/dist consistency skipped: dist artifacts are missing.');
+      console.warn('   Run: npm run build (or use strict mode without --allow-missing-dist)');
+      return;
+    }
     console.error('❌ Source/dist consistency failed: dist artifacts are missing.');
     console.error('   Run: npm run build');
     process.exit(1);

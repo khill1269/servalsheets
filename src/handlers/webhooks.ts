@@ -17,6 +17,7 @@
 
 import { getWebhookManager, validateWebhookUrl } from '../services/webhook-manager.js';
 import { getWebhookQueue } from '../services/webhook-queue.js';
+import { WorkspaceEventsService } from '../services/workspace-events.js';
 import type {
   SheetsWebhookInput,
   SheetsWebhookOutput,
@@ -38,9 +39,14 @@ import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js'
 export class WebhookHandler {
   private driveApi?: drive_v3.Drive;
   private deliveryCircuitBreaker: CircuitBreaker;
+  private workspaceEventsService?: WorkspaceEventsService;
 
-  constructor(options?: { driveApi?: drive_v3.Drive }) {
+  constructor(options?: {
+    driveApi?: drive_v3.Drive;
+    workspaceEventsService?: WorkspaceEventsService;
+  }) {
     this.driveApi = options?.driveApi;
+    this.workspaceEventsService = options?.workspaceEventsService;
 
     // 16-S4: Initialize circuit breaker for webhook delivery operations
     const circuitConfig = getCircuitBreakerConfig();
@@ -140,6 +146,84 @@ export class WebhookHandler {
               req as import('../schemas/webhook.js').WebhookWatchChangesInput
             ),
           };
+
+        case 'subscribe_workspace': {
+          if (!this.workspaceEventsService) {
+            return {
+              response: {
+                success: false as const,
+                error: {
+                  code: 'NOT_FOUND' as const,
+                  message: 'Workspace Events service not available',
+                  retryable: false,
+                },
+              },
+            };
+          }
+          const subId = await this.workspaceEventsService.createSubscription(
+            req.spreadsheetId,
+            req.notificationEndpoint
+          );
+          return {
+            response: {
+              success: true as const,
+              data: {
+                success: true,
+                message: `Subscription created: ${subId}`,
+                subscriptionId: subId,
+              } as unknown as import('../schemas/webhook.js').WebhookRegisterResponse,
+            },
+          };
+        }
+
+        case 'unsubscribe_workspace': {
+          if (!this.workspaceEventsService) {
+            return {
+              response: {
+                success: false as const,
+                error: {
+                  code: 'NOT_FOUND' as const,
+                  message: 'Workspace Events service not available',
+                  retryable: false,
+                },
+              },
+            };
+          }
+          await this.workspaceEventsService.deleteSubscription(req.subscriptionId);
+          return {
+            response: {
+              success: true as const,
+              data: {
+                success: true,
+                message: `Subscription deleted: ${req.subscriptionId}`,
+              } as unknown as import('../schemas/webhook.js').WebhookRegisterResponse,
+            },
+          };
+        }
+
+        case 'list_workspace_subscriptions': {
+          if (!this.workspaceEventsService) {
+            return {
+              response: {
+                success: false as const,
+                error: {
+                  code: 'NOT_FOUND' as const,
+                  message: 'Workspace Events service not available',
+                  retryable: false,
+                },
+              },
+            };
+          }
+          const subs = this.workspaceEventsService.listSubscriptions(req.spreadsheetId);
+          return {
+            response: {
+              success: true as const,
+              data: {
+                subscriptions: subs,
+              } as unknown as import('../schemas/webhook.js').WebhookRegisterResponse,
+            },
+          };
+        }
 
         default: {
           const _exhaustiveCheck: never = req;
@@ -513,6 +597,9 @@ export class WebhookHandler {
 /**
  * Create webhook handler
  */
-export function createWebhookHandler(options?: { driveApi?: drive_v3.Drive }): WebhookHandler {
+export function createWebhookHandler(options?: {
+  driveApi?: drive_v3.Drive;
+  workspaceEventsService?: WorkspaceEventsService;
+}): WebhookHandler {
   return new WebhookHandler(options);
 }

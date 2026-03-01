@@ -70,6 +70,9 @@ export const FULL_ACCESS_SCOPES = [
   // Drive Labels (for sheets_collaborate.label_list, label_apply, label_remove)
   'https://www.googleapis.com/auth/drive.labels.readonly',
   'https://www.googleapis.com/auth/drive.labels',
+
+  // Drive Activity (for WHO/WHEN attribution in sheets_history.timeline)
+  'https://www.googleapis.com/auth/drive.activity.readonly',
 ] as const;
 
 /**

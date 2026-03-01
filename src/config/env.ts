@@ -242,6 +242,21 @@ const EnvSchema = z.object({
   PREFETCH_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.5),
   PREFETCH_CONCURRENCY: z.coerce.number().int().positive().default(2),
   PREFETCH_BACKGROUND_REFRESH: z.coerce.boolean().default(true),
+
+  // Python Compute (Pyodide WASM — Phase 2)
+  // Disabled by default: first load is ~10-20 seconds (WASM download + package install).
+  // Set ENABLE_PYTHON_COMPUTE=true to activate python_eval, pandas_profile,
+  // sklearn_model, and matplotlib_chart actions in sheets_compute.
+  ENABLE_PYTHON_COMPUTE: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true')
+    .default(false)
+    .describe('Enable Pyodide-based Python compute (WASM, first load ~10-20s)'),
+  PYODIDE_CACHE_DIR: z
+    .string()
+    .optional()
+    .describe('Directory to cache Pyodide WASM files (improves cold start)'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

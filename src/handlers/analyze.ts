@@ -48,6 +48,7 @@ import { buildA1Notation } from '../utils/google-sheets-helpers.js';
 import { Scout, type ScoutResult } from '../analysis/scout.js';
 import { ConfidenceScorer, type ComprehensiveAnalysisData } from '../analysis/confidence-scorer.js';
 import { ElicitationEngine } from '../analysis/elicitation-engine.js';
+import { generateAIInsight } from '../mcp/sampling.js';
 import { FlowOrchestrator } from '../analysis/flow-orchestrator.js';
 import { getSessionContext } from '../services/session-context.js';
 import { Planner, type AnalysisPlan } from '../analysis/planner.js';
@@ -456,12 +457,22 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
               }
             );
 
+            // Add AI rationale for chart recommendations
+            const topCharts = chartRecommendations?.slice(0, 2);
+            const aiInsightViz = await generateAIInsight(
+              this.context.samplingServer,
+              'chartRecommendation',
+              'Explain why these visualization types best represent this data',
+              topCharts
+            );
+
             response = {
               success: true,
               action: 'suggest_visualization',
               chartRecommendations,
               dataAssessment: parsed.dataAssessment,
               duration,
+              aiInsight: aiInsightViz,
               message: `${chartRecommendations?.length ?? 0} chart type(s) recommended with executable params`,
             };
           } catch (error) {
@@ -611,6 +622,19 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
 
             const duration = Date.now() - startTime;
 
+            // Add AI insight explaining the patterns
+            const patternSummary = {
+              anomalies: anomalies.slice(0, 3),
+              trends: trends.slice(0, 3),
+              correlations: correlations.slice(0, 3),
+            };
+            const aiInsight = await generateAIInsight(
+              this.context.samplingServer,
+              'dataAnalysis',
+              'Explain these detected patterns and their business significance',
+              patternSummary
+            );
+
             response = {
               success: true,
               action: 'detect_patterns',
@@ -635,6 +659,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
                 },
               },
               duration,
+              aiInsight,
               message: `Found ${anomalies.length} anomalies, ${trends.length} trends, ${correlations.length} correlations`,
             };
           } catch (error) {
@@ -1466,11 +1491,20 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
                   ? samplingResult.content.text
                   : 'Unable to extract explanation from response';
 
+            // Enhance with AI narrative summary
+            const aiInsightExplain = await generateAIInsight(
+              this.context.samplingServer,
+              'dataAnalysis',
+              'Provide a clear, executive-summary narrative of these analysis findings',
+              explainInput.analysisResult
+            );
+
             response = {
               success: true,
               action: 'explain_analysis',
               explanation,
               duration,
+              aiInsight: aiInsightExplain,
               message: 'Analysis explained successfully',
             };
           } catch (error) {
@@ -1567,6 +1601,22 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             });
             const scoutResult: ScoutResult = await scoutInstance.scout(req.spreadsheetId);
 
+            // Add AI summary of scout findings
+            const scoutSummary = {
+              sizeCategory: scoutResult.indicators.sizeCategory,
+              sheetCount: scoutResult.sheets.length,
+              hasFormulas: scoutResult.indicators.hasFormulas,
+              hasVisualizations: scoutResult.indicators.hasVisualizations,
+              recommendations: scoutResult.recommendations.slice(0, 3),
+              detectedIntent: scoutResult.detectedIntent,
+            };
+            const aiInsightScout = await generateAIInsight(
+              this.context.samplingServer,
+              'dataAnalysis',
+              'Summarize the key findings from this quick scan and highlight anything that needs attention',
+              scoutSummary
+            );
+
             // Map to expected schema format
             response = {
               success: true,
@@ -1629,6 +1679,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
                 },
               },
               duration: scoutResult.latencyMs,
+              aiInsight: aiInsightScout,
               message: `Scout complete: ${scoutResult.indicators.sizeCategory} spreadsheet with ${scoutResult.sheets.length} sheet(s). Detected intent: ${scoutResult.detectedIntent}`,
             };
 
@@ -1845,6 +1896,19 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
                 break;
             }
 
+            // Add AI guidance for next steps in drill-down
+            const drillDownContext = {
+              targetType,
+              targetId,
+              spreadsheetId: req.spreadsheetId,
+            };
+            const aiInsightDrill = await generateAIInsight(
+              this.context.samplingServer,
+              'dataAnalysis',
+              'Based on this drill-down analysis, suggest the most promising next direction to explore',
+              drillDownContext
+            );
+
             // Return drill-down result in schema format
             response = {
               success: true,
@@ -1867,6 +1931,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
                   'Use sheets_analyze:detect_patterns to find related patterns',
                 ],
               },
+              aiInsight: aiInsightDrill,
               message: `Drill-down result for ${targetType}: ${targetId}`,
             };
           } catch (drillError) {
@@ -2507,6 +2572,58 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
     req: ComprehensiveInput,
     _verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<AnalyzeResponse> {
+    let resolvedReq = req;
+
+    // Wizard: If spreadsheetId is provided but focus is missing, elicit focus area
+    if (
+      resolvedReq.spreadsheetId &&
+      (!('focus' in resolvedReq) || !resolvedReq.focus) &&
+      this.context?.server?.elicitInput
+    ) {
+      try {
+        const wizard = await this.context.server.elicitInput({
+          message: 'Which aspect of the spreadsheet should I focus on?',
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              focus: {
+                type: 'string',
+                title: 'Analysis focus',
+                description:
+                  'What to analyze: data quality, formulas, structure, performance, or everything?',
+                enum: ['data_quality', 'formulas', 'structure', 'performance', 'everything'],
+              },
+            },
+          },
+        });
+        const wizardContent = wizard?.content as Record<string, unknown> | undefined;
+        const focusChoice =
+          typeof wizardContent?.['focus'] === 'string' ? wizardContent['focus'] : undefined;
+        if (wizard?.action === 'accept' && focusChoice) {
+          if (focusChoice !== 'everything') {
+            const analysesByChoice: Record<
+              string,
+              Array<'quality' | 'formulas' | 'patterns' | 'performance' | 'structure'>
+            > = {
+              data_quality: ['quality'],
+              formulas: ['formulas'],
+              structure: ['structure'],
+              performance: ['performance'],
+            };
+            const analyses = analysesByChoice[focusChoice];
+            if (analyses) {
+              resolvedReq = {
+                ...resolvedReq,
+                focus: { analyses },
+              };
+            }
+          }
+        }
+      } catch {
+        // Elicitation not available — keep request without focus constraints
+      }
+    }
+
     // Heap pressure gate (ISSUE-115): reject expensive analysis when memory is critical
     if (isHeapCritical()) {
       return this.error({
@@ -2519,19 +2636,22 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
     }
 
     // QUICK SCAN MODE: Override settings for fast initial assessment
-    const isQuickScan = 'quickScan' in req && req.quickScan === true;
+    const isQuickScan = 'quickScan' in resolvedReq && resolvedReq.quickScan === true;
 
     logger.info('Comprehensive analysis requested', {
-      spreadsheetId: req.spreadsheetId,
-      sheetId: req.sheetId,
+      spreadsheetId: resolvedReq.spreadsheetId,
+      sheetId: resolvedReq.sheetId,
       quickScan: isQuickScan,
-      cursor: 'cursor' in req ? req.cursor : undefined,
-      pageSize: 'pageSize' in req ? req.pageSize : undefined,
+      cursor: 'cursor' in resolvedReq ? resolvedReq.cursor : undefined,
+      pageSize: 'pageSize' in resolvedReq ? resolvedReq.pageSize : undefined,
     });
 
     // Check if this should be task-based (long-running operation)
     // Estimate if analysis will take >10s based on spreadsheet size
-    const shouldUseTask = await this.shouldUseTaskForComprehensive(req.spreadsheetId, req.sheetId);
+    const shouldUseTask = await this.shouldUseTaskForComprehensive(
+      resolvedReq.spreadsheetId,
+      resolvedReq.sheetId
+    );
 
     if (shouldUseTask && this.context.taskStore) {
       // Create task for long-running analysis
@@ -2540,17 +2660,17 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
         'analyze-comprehensive',
         {
           method: 'tools/call',
-          params: { name: 'sheets_analyze', arguments: req },
+          params: { name: 'sheets_analyze', arguments: resolvedReq },
         }
       );
 
       logger.info('Creating task for comprehensive analysis', {
         taskId: task.taskId,
-        spreadsheetId: req.spreadsheetId,
+        spreadsheetId: resolvedReq.spreadsheetId,
       });
 
       // Run analysis in background
-      void this.runComprehensiveAnalysisTask(task.taskId, req).catch((error) => {
+      void this.runComprehensiveAnalysisTask(task.taskId, resolvedReq).catch((error) => {
         logger.error('Background comprehensive analysis failed', {
           taskId: task.taskId,
           error: error instanceof Error ? error.message : String(error),
@@ -2575,13 +2695,13 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
     const analyzer = new ComprehensiveAnalyzer(this.sheetsApi, {
       includeFormulas: isQuickScan
         ? false
-        : 'includeFormulas' in req
-          ? (req.includeFormulas as boolean)
+        : 'includeFormulas' in resolvedReq
+          ? (resolvedReq.includeFormulas as boolean)
           : true,
       includeVisualizations: isQuickScan
         ? false
-        : 'includeVisualizations' in req
-          ? (req.includeVisualizations as boolean)
+        : 'includeVisualizations' in resolvedReq
+          ? (resolvedReq.includeVisualizations as boolean)
           : true,
       includePerformance: isQuickScan
         ? false
