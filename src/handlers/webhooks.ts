@@ -28,15 +28,42 @@ import type { drive_v3 } from 'googleapis';
 import { randomUUID } from 'crypto';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { recordWebhookId } from '../mcp/completions.js';
+import { CircuitBreaker } from '../utils/circuit-breaker.js';
+import { getCircuitBreakerConfig } from '../config/env.js';
+import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 
 /**
  * Webhook handler
  */
 export class WebhookHandler {
   private driveApi?: drive_v3.Drive;
+  private deliveryCircuitBreaker: CircuitBreaker;
 
   constructor(options?: { driveApi?: drive_v3.Drive }) {
     this.driveApi = options?.driveApi;
+
+    // 16-S4: Initialize circuit breaker for webhook delivery operations
+    const circuitConfig = getCircuitBreakerConfig();
+    this.deliveryCircuitBreaker = new CircuitBreaker({
+      ...circuitConfig,
+      name: 'webhook-delivery',
+      failureThreshold: 10, // More lenient than general API breaker
+    });
+
+    // Register fallback strategy for delivery circuit breaker
+    this.deliveryCircuitBreaker.registerFallback({
+      name: 'webhook-delivery-unavailable-fallback',
+      priority: 1,
+      shouldUse: () => true,
+      execute: async () => {
+        throw new Error(
+          'Webhook delivery service temporarily unavailable due to repeated delivery failures. Try again in 30 seconds.'
+        );
+      },
+    });
+
+    // Register with global registry
+    circuitBreakerRegistry.register('webhook-delivery', this.deliveryCircuitBreaker);
   }
 
   private createErrorDetail(
@@ -276,6 +303,7 @@ export class WebhookHandler {
 
   /**
    * Send test webhook delivery
+   * 16-S4: Wrapped with circuit breaker protection
    */
   private async handleTest(
     input: Extract<SheetsWebhookInput['request'], { action: 'test' }>
@@ -296,8 +324,12 @@ export class WebhookHandler {
         };
       }
 
+      // 16-S4: Wrap webhook delivery with circuit breaker
+      const queue = await this.deliveryCircuitBreaker.execute(async () => {
+        return getWebhookQueue();
+      });
+
       // Enqueue test delivery
-      const queue = getWebhookQueue();
       const deliveryId = await queue.enqueue({
         webhookId: webhook.webhookId,
         webhookUrl: webhook.webhookUrl,

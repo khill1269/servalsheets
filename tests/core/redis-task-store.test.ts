@@ -15,6 +15,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import net from 'node:net';
 import { RedisTaskStore } from '../../src/core/task-store.js';
 import type { TaskStatus } from '../../src/core/task-store.js';
 import { waitFor } from '../helpers/wait-for.js';
@@ -22,17 +23,43 @@ import { waitFor } from '../helpers/wait-for.js';
 // Check if Redis is available BEFORE tests register
 const redisUrl = process.env['REDIS_URL'] || 'redis://localhost:6379';
 
-// Check Redis availability with top-level await
-let redisAvailable = false;
-try {
-  const testStore = new RedisTaskStore(redisUrl, 'test:availability:');
-  await testStore.createTask();
-  await testStore.disconnect();
-  redisAvailable = true;
-  console.log('[RedisTaskStore Tests] Redis connection successful');
-} catch (error) {
-  console.log('[RedisTaskStore Tests] Redis not available:', (error as Error).message);
-  redisAvailable = false;
+async function isRedisReachable(url: string, timeoutMs: number = 750): Promise<boolean> {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'redis:' && parsed.protocol !== 'rediss:') {
+      return false;
+    }
+
+    const host = parsed.hostname || 'localhost';
+    const port = parsed.port ? Number(parsed.port) : 6379;
+    if (!Number.isFinite(port) || port <= 0) {
+      return false;
+    }
+
+    return await new Promise<boolean>((resolve) => {
+      const socket = net.createConnection({ host, port });
+
+      const done = (value: boolean): void => {
+        socket.removeAllListeners();
+        socket.destroy();
+        resolve(value);
+      };
+
+      socket.setTimeout(timeoutMs);
+      socket.once('connect', () => done(true));
+      socket.once('timeout', () => done(false));
+      socket.once('error', () => done(false));
+    });
+  } catch {
+    return false;
+  }
+}
+
+const redisAvailable = await isRedisReachable(redisUrl);
+if (redisAvailable) {
+  console.log('[RedisTaskStore Tests] Redis host reachable');
+} else {
+  console.log('[RedisTaskStore Tests] Redis not reachable, skipping tests');
 }
 
 describe.skipIf(!redisAvailable)('RedisTaskStore', () => {

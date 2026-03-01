@@ -35,6 +35,8 @@ const NO_SPREADSHEET_TOOLS = new Set([
   'sheets_transaction',
   'sheets_quality',
   'sheets_federation',
+  'sheets_agent',
+  'sheets_connectors',
 ]);
 
 // Actions within spreadsheet-requiring tools that don't need spreadsheetId
@@ -1021,6 +1023,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     auto_enhance: {
       requiredFields: ['spreadsheetId'],
     },
+    discover_action: {
+      validInput: { query: 'find action for merging data' },
+      requiredFields: ['query'],
+    },
   },
 
   sheets_composite: {
@@ -1097,6 +1103,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     migrate_spreadsheet: {
       validInput: { sourceSpreadsheetId: 'src-id', sourceRange: 'Sheet1!A1:D100', destinationSpreadsheetId: 'dest-id', destinationRange: 'Sheet1!A1', columnMapping: [{ sourceColumn: 'Name', destinationColumn: 'Name' }] },
       requiredFields: ['sourceSpreadsheetId', 'sourceRange', 'destinationSpreadsheetId', 'destinationRange', 'columnMapping'],
+    },
+    batch_operations: {
+      validInput: { spreadsheetId: 'test-id', operations: [{ tool: 'sheets_data', action: 'read', params: { range: 'Sheet1!A1:B2' } }] },
+      requiredFields: ['spreadsheetId', 'operations'],
     },
   },
 
@@ -1359,6 +1369,124 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     validate_connection: {
       validInput: { serverName: 'srv1' },
       requiredFields: ['serverName'],
+    },
+  },
+
+  sheets_agent: {
+    plan: {
+      validInput: { description: 'Add a profit margin column to the data sheet' },
+      requiredFields: ['description'],
+    },
+    execute: {
+      validInput: { planId: 'plan-123' },
+      requiredFields: ['planId'],
+    },
+    execute_step: {
+      validInput: { planId: 'plan-123', stepId: 'step-1' },
+      requiredFields: ['planId', 'stepId'],
+    },
+    observe: {
+      validInput: { planId: 'plan-123' },
+      requiredFields: ['planId'],
+    },
+    rollback: {
+      validInput: { planId: 'plan-123', checkpointId: 'ckpt-1' },
+      requiredFields: ['planId', 'checkpointId'],
+    },
+    get_status: {
+      validInput: { planId: 'plan-123' },
+      requiredFields: ['planId'],
+    },
+    list_plans: {
+      requiredFields: [],
+    },
+    resume: {
+      validInput: { planId: 'plan-123' },
+      requiredFields: ['planId'],
+    },
+  },
+
+  sheets_compute: {
+    evaluate: {
+      validInput: { spreadsheetId: 'test-id', formula: '=SUM(A1:A10)' },
+      requiredFields: ['spreadsheetId', 'formula'],
+    },
+    aggregate: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:A100', functions: ['sum', 'average'] },
+      requiredFields: ['spreadsheetId', 'range', 'functions'],
+    },
+    statistical: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D100' },
+      requiredFields: ['spreadsheetId', 'range'],
+    },
+    regression: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:B100', xColumn: 'A', yColumn: 'B' },
+      requiredFields: ['spreadsheetId', 'range', 'xColumn', 'yColumn'],
+    },
+    forecast: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:B24', dateColumn: 'A', valueColumn: 'B', periods: 6 },
+      requiredFields: ['spreadsheetId', 'range', 'dateColumn', 'valueColumn', 'periods'],
+    },
+    matrix_op: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:C3', operation: 'transpose' },
+      requiredFields: ['spreadsheetId', 'range', 'operation'],
+    },
+    pivot_compute: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D100', rows: ['Category'], values: [{ column: 'Revenue', function: 'sum' }] },
+      requiredFields: ['spreadsheetId', 'range', 'rows', 'values'],
+    },
+    custom_function: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:C100', expression: 'ROUND($Revenue * $TaxRate, 2)' },
+      requiredFields: ['spreadsheetId', 'range', 'expression'],
+    },
+    batch_compute: {
+      validInput: { spreadsheetId: 'test-id', computations: [{ id: 'c1', type: 'aggregate', params: { range: 'Sheet1!A1:A10', functions: ['sum'] } }] },
+      requiredFields: ['spreadsheetId', 'computations'],
+    },
+    explain_formula: {
+      validInput: { spreadsheetId: 'test-id', formula: '=VLOOKUP(A2, Sheet2!A:C, 3, FALSE)' },
+      requiredFields: ['spreadsheetId', 'formula'],
+    },
+  },
+
+  sheets_connectors: {
+    list_connectors: {
+      requiredFields: [],
+    },
+    configure: {
+      validInput: { connectorId: 'finnhub', credentials: { type: 'api_key', apiKey: 'test-key' } },
+      requiredFields: ['connectorId', 'credentials'],
+    },
+    query: {
+      validInput: { connectorId: 'finnhub', endpoint: 'stock/quote' },
+      requiredFields: ['connectorId', 'endpoint'],
+    },
+    batch_query: {
+      validInput: { queries: [{ connectorId: 'finnhub', endpoint: 'stock/quote' }] },
+      requiredFields: ['queries'],
+    },
+    subscribe: {
+      validInput: { connectorId: 'finnhub', endpoint: 'stock/quote', schedule: { interval: 'hourly' }, destination: { spreadsheetId: 'test-id', range: 'Sheet1!A1' } },
+      requiredFields: ['connectorId', 'endpoint', 'schedule', 'destination'],
+    },
+    unsubscribe: {
+      validInput: { subscriptionId: 'sub-123' },
+      requiredFields: ['subscriptionId'],
+    },
+    list_subscriptions: {
+      requiredFields: [],
+    },
+    transform: {
+      validInput: { connectorId: 'finnhub', endpoint: 'stock/quote', transform: { limit: 10 } },
+      requiredFields: ['connectorId', 'endpoint', 'transform'],
+    },
+    status: {
+      validInput: { connectorId: 'finnhub' },
+      requiredFields: ['connectorId'],
+    },
+    discover: {
+      validInput: { connectorId: 'finnhub' },
+      requiredFields: ['connectorId'],
     },
   },
 };

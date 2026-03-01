@@ -588,8 +588,49 @@ When the user's intent is CLEAR, skip analysis and route directly:
 | "data pipeline/recurring import/scheduled transform" | sheets_composite.data_pipeline |
 | "instantiate template/apply template with values" | sheets_composite.instantiate_template |
 | "migrate/move data between spreadsheets/transfer" | sheets_composite.migrate_spreadsheet |
+| "analyze/understand/explore/summarize sheet" | sheets_analyze |
+| "named range/protected range/table/metadata/chips" | sheets_advanced |
+| "template/save pattern/reuse layout" | sheets_templates |
+| "what if/scenario/model impact" | sheets_dependencies.model_scenario |
+| "validate/check quality/detect conflicts" | sheets_quality |
+| "session/preferences/checkpoint/context" | sheets_session |
+| "webhook/watch changes/event notification" | sheets_webhook |
+| "transaction/atomic batch/multi-op commit" | sheets_transaction |
+| "remote MCP/cross-server/federation" | sheets_federation |
+| "apps script/trigger/deploy/run function" | sheets_appsscript |
+| "bigquery/connected sheets/external query" | sheets_bigquery |
+| "confirm/wizard/approve/elicit input" | sheets_confirm |
+| "authenticate/login/oauth/token" | sheets_auth |
 
 ONLY use sheets_analyze when the user's request is exploratory or analytical.
+
+## 🧭 5-GROUP MENTAL MODEL (Start Here Before Picking a Tool)
+
+When the user's intent is ambiguous, classify it into one of 5 groups first, then drill into the specific tool. This avoids the most common tool-selection errors.
+
+**GROUP 1 — Data I/O** (move data in or out; read, write, import, export, compute)
+→ \`sheets_data\` · \`sheets_composite\` · \`sheets_compute\` · \`sheets_connectors\`
+→ Use when: "read", "write", "append", "import", "export", "calculate", "fetch", "get stock price"
+
+**GROUP 2 — Appearance** (how the sheet looks; formatting, charts, layout, sizing)
+→ \`sheets_format\` · \`sheets_visualize\` · \`sheets_dimensions\`
+→ Use when: "format", "color", "bold", "chart", "freeze", "sort", "hide", "resize", "filter"
+
+**GROUP 3 — Spreadsheet Structure** (files, sheets, sharing, named ranges, protection)
+→ \`sheets_core\` · \`sheets_collaborate\` · \`sheets_advanced\` · \`sheets_templates\`
+→ Use when: "create spreadsheet", "add sheet", "share", "protect", "named range", "label"
+
+**GROUP 4 — Analysis & Quality** (understand data; fix issues; trace dependencies)
+→ \`sheets_analyze\` · \`sheets_fix\` · \`sheets_quality\` · \`sheets_dependencies\`
+→ Use when: "analyze", "what's in", "find issues", "clean", "dependencies", "what-if scenario"
+
+**GROUP 5 — Automation & Workflow** (orchestrate; automate; track state; integrate)
+→ \`sheets_history\` · \`sheets_session\` · \`sheets_transaction\` · \`sheets_agent\`
+→ \`sheets_auth\` · \`sheets_confirm\` · \`sheets_webhook\` · \`sheets_appsscript\`
+→ \`sheets_bigquery\` · \`sheets_federation\`
+→ Use when: "undo", "automate", "trigger", "run script", "transaction", "authenticate"
+
+**Tiebreaker rule**: If two groups seem to fit, pick GROUP 1 (Data I/O) for anything involving cell values, GROUP 2 for anything involving appearance only.
 
 ## 🔀 DISAMBIGUATION: Same Name, Different Tool
 
@@ -664,6 +705,30 @@ ONLY use sheets_analyze when the user's request is exploratory or analytical.
 **⚠️ DEBUG ARTIFACT WARNING:**
 Never leave debug strings (e.g., "test123", task markers, "temp") in production cells. Always verify final values before completing operations.
 
+## 🔧 MCP 2025-11-25 PROTOCOL FEATURES
+
+**Sampling (SEP-1577)** — AI analysis happens automatically when you call:
+\`sheets_analyze.generate_formula\`, \`sheets_visualize.suggest_chart\`, \`sheets_fix.suggest_cleaning\`,
+\`sheets_dependencies.model_scenario\`, \`sheets_history.diff_revisions\`, \`sheets_collaborate.comment_add\`.
+You do NOT invoke sampling directly — the server requests AI analysis from the client transparently.
+If the client doesn't support sampling, these operations degrade gracefully to rule-based logic.
+
+**Elicitation (SEP-1036)** — Destructive operations may open user approval dialogs:
+\`sheets_core.delete_sheet\`, \`sheets_dimensions.delete\`, \`sheets_history.revert_to\`, bulk overwrites.
+The server uses \`sheets_confirm\` internally. If the client doesn't support elicitation, the server
+falls back to \`safety.dryRun\` parameter — always set \`dryRun: true\` first for destructive ops.
+
+**Tasks (SEP-1686)** — Long-running operations emit Task IDs for background tracking:
+\`sheets_bigquery.export_to_bigquery\`, \`sheets_bigquery.import_from_bigquery\`, \`sheets_appsscript.run\`,
+\`sheets_composite.export_large_dataset\`, \`sheets_history.timeline\`, \`sheets_federation.*\`.
+When a Task ID is returned, clients can cancel, track progress, or query status without blocking.
+
+**Transactions** — For 5+ operations, use atomic batching:
+1. \`sheets_transaction begin\` (description for audit trail)
+2. \`sheets_transaction queue\` (operation: {tool, action, params}) — repeat for each op
+3. \`sheets_transaction commit\` — executes all queued ops in a single API call (80-95% savings)
+4. On failure: \`sheets_transaction rollback\` restores pre-transaction state
+
 ## 💡 COMMON PATTERNS (Copy-Paste Ready)
 
 **Pattern: Format a data table**
@@ -728,6 +793,57 @@ Never leave debug strings (e.g., "test123", task markers, "temp") in production 
 **Spreadsheet migration:**
 \`sheets_analyze scout\` (source) → \`sheets_composite migrate_spreadsheet\` → \`sheets_analyze scout\` (verify destination)
 
+**Federation / Remote MCP Workflows:**
+\`sheets_federation list_servers\` → \`sheets_federation get_server_tools\` → \`sheets_federation call_remote\` (execute action on remote MCP) → \`sheets_data cross_read\` (optionally fetch results back)
+
+**LLM Continuity Pattern (Session Context):**
+\`sheets_session set_active\` (establish context) → \`sheets_data read\` (records last read range) → \`sheets_session record_operation\` (track changes) → \`sheets_session get_context\` (retrieve for follow-ups) → use returned context in next action descriptions
+
+## 🪄 INTERACTIVE WIZARDS (Elicitation)
+
+When a supporting MCP client is connected, these actions launch **interactive forms** to collect missing parameters. If the client doesn't support elicitation, parameters use safe defaults and the action proceeds without interruption.
+
+| Action | What the Wizard Asks |
+|--------|---------------------|
+| \`sheets_core.create\` | Spreadsheet title + locale + timezone (3-field form) |
+| \`sheets_collaborate.share_add\` | Recipient email + permission role + notification settings |
+| \`sheets_visualize.chart_create\` | Chart type (bar/line/pie/...) → chart title (2-step) |
+| \`sheets_format.add_conditional_format_rule\` | Rule preset (highlight_duplicates, color_scale, data_bars, ...) |
+| \`sheets_transaction.begin\` | Transaction description for audit trail |
+
+**Any destructive action** (delete_sheet, clear, bulk overwrite) shows a confirmation form before executing.
+
+**Usage tip**: You can omit parameters for wizard-enabled actions and let the user fill them interactively. Example: call \`sheets_core.create\` with no title — the user will be prompted.
+
+## 📏 RANGE STRATEGY (How to Fetch Data Efficiently)
+
+**PRIORITY ORDER — always use the highest-applicable strategy:**
+
+| Priority | Strategy | When to Use | API Cost | Example |
+|----------|----------|-------------|----------|---------|
+| 1 | **User-provided range** | User specifies cells/range | 1 call | \`sheets_data.read range:"Sheet1!A1:D50"\` |
+| 2 | **Metadata-first** | No range specified, need actual data bounds | 2 calls (meta + data) | \`sheets_analyze.scout\` → \`sheets_data.read\` with discovered bounds |
+| 3 | **Scout + targeted** | Exploratory analysis | 1-2 calls | \`sheets_analyze.scout\` returns structure → use returned sheet dimensions |
+| 4 | **Tiered retrieval** | Full analysis workflows | 1-4 calls (progressive) | \`sheets_analyze.comprehensive\` auto-tiers |
+| 5 | **Bounded fallback** | Metadata fetch failed | 1 call | A1:Z1000 (26K cells max) |
+
+**NEVER do these:**
+- ❌ Fetch A1:ZZ10000 (260K cells) — always resolve bounds first
+- ❌ Use \`includeGridData: true\` without a \`ranges\` parameter — fetches ALL formatting for ALL cells
+- ❌ Use full-column references like \`A:Z\` — triggers full grid scan up to max rows
+- ❌ Skip field masks on \`spreadsheets.get()\` — metadata calls should use \`fields\` parameter
+
+**ALWAYS do these:**
+- ✅ Include sheet name in ranges: \`"Sheet1!A1:D50"\` not \`"A1:D50"\`
+- ✅ Use \`sheets_analyze.scout\` first when range is unknown — it returns actual rowCount/columnCount
+- ✅ Use \`verbosity:"minimal"\` for reads where you only need values, not metadata
+- ✅ Use \`batch_read\` for 3+ ranges — same API cost as individual reads, processed in parallel
+- ✅ Cap analysis ranges: 10K rows max for data reads, 1K rows max for formatting scans
+
+**Dynamic range resolution pattern (best practice):**
+1. \`sheets_analyze.scout spreadsheetId:"..."\` → returns \`{ sheets: [{ rowCount: 500, columnCount: 8 }] }\`
+2. \`sheets_data.read range:"Sheet1!A1:H500"\` ← bounded to actual data
+
 ## ❌ ANTI-PATTERNS (What NOT to Do)
 
 - Don't use transactions for single operations — overhead exceeds benefit for <5 ops
@@ -735,6 +851,7 @@ Never leave debug strings (e.g., "test123", task markers, "temp") in production 
 - Don't retry append on timeout — it's NOT idempotent, you'll duplicate data
 - Don't skip sheets_analyze before complex operations — 70%+ of mistakes are preventable
 - Don't hardcode sheet names — always get from list_sheets (emoji/unicode issues)
+- Don't pass \`includeGridData: true\` to \`spreadsheets.get()\` without explicit \`ranges\` — fetches ALL cell data
 
 ## 📝 EXAMPLES: Common Requests → Correct Tool Calls
 
@@ -767,6 +884,36 @@ Never leave debug strings (e.g., "test123", task markers, "temp") in production 
 
 **"Undo the last change"** → sheets_history action:"undo"
   (NOT sheets_history.revert_to — undo reverses the last operation, revert_to restores to a specific revision)
+
+**"What's in this spreadsheet? / How many rows?"** → sheets_analyze action:"scout" spreadsheetId:"..."
+  (NOT sheets_data.read — scout returns structure metadata (sheet names, row/column counts, detected types) in 1 API call with no cell data fetched)
+
+**"Read the Sales data from A1 to D50"** → sheets_data action:"read" range:"Sheet1!A1:D50"
+  (NOT sheets_analyze.scout — you already know the range; scout is only for when range is unknown or structure is needed)
+
+**"Sort this table by Date descending"** → sheets_dimensions action:"sort_range" range:"Sheet1!A1:D100" sortOrder:[{dimensionIndex:0,sortOrder:"DESCENDING"}]
+  (NOT sheets_data.write — sort_range is a server-side in-place sort; no data reading or re-writing needed)
+
+**"Freeze the header row"** → sheets_dimensions action:"freeze" frozenRowCount:1
+  (NOT sheets_format — freeze is a sheet-level view property, not cell formatting; set frozenColumnCount:1 in the same call to freeze both simultaneously)
+
+**"Remove duplicate rows"** → sheets_composite action:"deduplicate" spreadsheetId:"..." sheetName:"Sheet1"
+  (NOT sheets_data.find_replace — deduplicate does full row-level comparison with preview mode; find_replace only matches text patterns in individual cells)
+
+**"Calculate the average of B2:B100 server-side"** → sheets_compute action:"aggregate" spreadsheetId:"..." range:"Sheet1!B2:B100" function:"AVERAGE"
+  (NOT sheets_data.read + manual math — compute runs server-side; returns result without transferring all the data to the client)
+
+**"Get the current stock price for AAPL"** → sheets_connectors action:"query" connectorId:"alpha-vantage" params:{symbol:"AAPL",function:"GLOBAL_QUOTE"}
+  (NOT sheets_data — connectors fetches live external API data; sheets_data only reads existing cell values)
+
+**"Save a checkpoint before bulk changes so I can restore quickly"** → sheets_session action:"save_checkpoint" label:"before-bulk-update"
+  (NOT sheets_history — session checkpoints are in-session fast restore points; history tracks all past operations including cross-session)
+
+**"What cells break if I change B5? Show me the impact"** → sheets_dependencies action:"analyze_impact" spreadsheetId:"..." cell:"Sheet1!B5"
+  (NOT sheets_analyze — dependencies traces the specific formula dependency graph for a cell; analyze examines whole-sheet data quality)
+
+**"Clean all the data in this sheet — fix dates, trim whitespace, remove duplicates"** → sheets_fix action:"clean" spreadsheetId:"..." range:"Sheet1!A1:Z1000" mode:"preview"
+  (NOT manual find_replace loops — clean auto-detects and fixes 10+ issue types in one pass; use mode:"preview" first to review changes before applying)
 
 ## 📐 FORMULA EXPERTISE
 
@@ -831,8 +978,23 @@ Before destructive operations (delete, clear, overwrite):
 
 ## 💰 QUOTA & MONITORING
 
-Quotas: 60 req/min/user, 300 req/min/project. Check \`_meta.quotaStatus\` in responses — if low, use batch/transaction ops.
-Check \`sheets_session action:"get_alerts"\` every 10-15 operations for quality drops, formula errors, or quota warnings.
+**Quota Limits (Google Sheets API v4):**
+- Per-user quota: 60 requests per minute
+- Per-project quota: 300 requests per minute
+- Check \`_meta.quotaStatus\` in responses — if low, use batch/transaction ops.
+
+**Quota-Saving Strategies:**
+1. **Use batch operations** — sheets_data.batch_write (100 cells) ≈ sheets_data.write (1 cell) in quota cost
+2. **Enable field masks** — Only fetch needed fields (spreadsheetId,properties(title) vs full metadata)
+3. **Leverage local caching** — Same read within 5 minutes returns cached result (ETag 304)
+4. **Prefer read operations** — Reads are cheaper than writes; design queries to minimize mutations
+5. **Use composite operations** — sheets_composite.import_csv (1 API call) vs manual parse+write (3+ calls)
+6. **Batch computations** — sheets_compute.batch_compute (3 operations) ≈ 3 separate calls
+
+**Monitoring:**
+- Check \`sheets_session action:"get_alerts"\` every 10-15 operations for quota warnings
+- Track quota remaining via \`_meta.quotaRemaining\` before large operations
+- Contact Google Cloud Support if quota limits insufficient for workload
 
 ## 🎨 COLOR FORMAT
 

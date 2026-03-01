@@ -976,6 +976,8 @@ export const ActionDiscoveryMatchSchema = z.object({
   confidence: z.number().min(0).max(1).describe('Match confidence score 0-1'),
   description: z.string().describe('What this action does'),
   whenToUse: z.string().optional().describe('When to use this action'),
+  whenNotToUse: z.string().optional().describe('When to avoid this action'),
+  commonMistake: z.string().optional().describe('Top common mistake to avoid'),
 });
 
 /**
@@ -986,7 +988,7 @@ export const ActionDiscoveryMatchSchema = z.object({
  * "How do I merge cells?" → discover_action finds sheets_dimensions.merge
  * "I want to combine two spreadsheets" → discover_action finds sheets_data.cross_read
  *
- * Powered by ACTION_ANNOTATIONS which contains 69+ annotated actions
+ * Powered by ACTION_ANNOTATIONS which contains all registered actions
  * with whenToUse descriptions that get indexed for search.
  */
 const DiscoverActionActionSchema = z.object({
@@ -2065,11 +2067,29 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
           confidence: z.number().min(0).max(1).describe('Match confidence score'),
           description: z.string().describe('What this action does'),
           whenToUse: z.string().optional().describe('When to use this action'),
+          whenNotToUse: z.string().optional().describe('When to avoid this action'),
+          commonMistake: z.string().optional().describe('Top common mistake to avoid'),
         })
       )
       .optional()
       .describe('List of matching actions ranked by relevance'),
     matchCount: z.number().int().min(0).optional().describe('Total number of matches found'),
+    needsClarification: z
+      .boolean()
+      .optional()
+      .describe('True when the query is ambiguous and should be clarified'),
+    clarificationReason: z
+      .enum(['no_matches', 'underspecified_query', 'low_confidence', 'close_competition'])
+      .optional()
+      .describe('Why clarification is needed'),
+    clarificationQuestion: z
+      .string()
+      .optional()
+      .describe('Question to ask the user to disambiguate intent'),
+    clarificationOptions: z
+      .array(z.string())
+      .optional()
+      .describe('Suggested options for disambiguation'),
 
     // Common
     duration: z.coerce.number().optional(),

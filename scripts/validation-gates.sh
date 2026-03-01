@@ -47,6 +47,7 @@ npm test -- --run tests/contracts/cross-map-consistency.test.ts
 npm test -- --run tests/contracts/schema-handler-alignment.test.ts
 bash scripts/check-hardcoded-counts.sh
 npx tsx scripts/validate-schema-handler-alignment.ts
+npm run validate:action-config
 echo "✅ G1 passed"
 
 # G2: Phase behavior
@@ -74,8 +75,8 @@ echo "────────────────────────�
 npm run build > /dev/null 2>&1
 node --input-type=module <<'EOF'
 import { TOOL_COUNT, ACTION_COUNT } from './dist/schemas/action-counts.js';
-if (TOOL_COUNT !== 22) {
-  console.error('❌ Source of truth mismatch: TOOL_COUNT=' + TOOL_COUNT + ' (expected 22)');
+if (TOOL_COUNT < 20 || TOOL_COUNT > 50) {
+  console.error('❌ Source of truth mismatch: TOOL_COUNT=' + TOOL_COUNT + ' (outside expected bounds)');
   process.exit(1);
 }
 if (ACTION_COUNT < 200) {

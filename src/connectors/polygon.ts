@@ -501,7 +501,7 @@ export class PolygonConnector implements SpreadsheetConnector {
     };
   }
 
-  private meta(endpoint: string, rowCount: number) {
+  private meta(endpoint: string, rowCount: number): DataResult['metadata'] {
     return {
       source: 'polygon',
       endpoint,

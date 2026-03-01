@@ -102,9 +102,18 @@ export class ConnectorsHandler {
     req: Extract<SheetsConnectorsInput['request'], { action: 'configure' }>
   ): Promise<SheetsConnectorsOutput> {
     const result = await connectorManager.configure(req.connectorId, req.credentials);
+    if (!result.success) {
+      return {
+        response: {
+          success: false as const,
+          action: 'configure',
+          error: { code: 'CONNECTOR_ERROR' as const, message: result.message, retryable: false },
+        },
+      };
+    }
     return {
       response: {
-        success: result.success,
+        success: true as const,
         action: 'configure',
         message: result.message,
       },

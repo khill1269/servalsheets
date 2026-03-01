@@ -10,6 +10,8 @@
  * - Quota savings opportunities
  */
 
+import { TOOL_ACTIONS } from '../mcp/completions.js';
+
 export interface ActionMetadata {
   /** Is this a read-only operation? */
   readOnly: boolean;
@@ -32,7 +34,7 @@ export interface ActionMetadata {
 /**
  * Complete action metadata for all actions (count derived from ACTION_COUNT)
  */
-export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
+const RAW_ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
   sheets_advanced: {
     add_named_range: {
       readOnly: false,
@@ -2728,3 +2730,172 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
     },
   },
 };
+
+function isReadOnlyAction(actionName: string): boolean {
+  return (
+    actionName.startsWith('get') ||
+    actionName.startsWith('list') ||
+    actionName.startsWith('read') ||
+    actionName.startsWith('status') ||
+    actionName.startsWith('preview') ||
+    actionName.startsWith('analyze') ||
+    actionName.startsWith('detect') ||
+    actionName.startsWith('discover') ||
+    actionName.startsWith('scout') ||
+    actionName.startsWith('explain') ||
+    actionName.startsWith('compare') ||
+    actionName.startsWith('query_natural_language')
+  );
+}
+
+function isDestructiveAction(actionName: string): boolean {
+  return (
+    actionName.startsWith('delete') ||
+    actionName.startsWith('remove') ||
+    actionName.startsWith('clear') ||
+    actionName.startsWith('rollback') ||
+    actionName.startsWith('revert') ||
+    actionName.startsWith('restore') ||
+    actionName.startsWith('undeploy') ||
+    actionName.startsWith('migrate')
+  );
+}
+
+function isDynamicAction(toolName: string, actionName: string): boolean {
+  return (
+    actionName.startsWith('batch_') ||
+    actionName === 'comprehensive' ||
+    actionName === 'audit_sheet' ||
+    actionName === 'publish_report' ||
+    actionName === 'data_pipeline' ||
+    actionName === 'generate_sheet' ||
+    actionName === 'generate_template' ||
+    actionName.startsWith('execute') ||
+    actionName === 'rollback' ||
+    actionName === 'resume' ||
+    toolName === 'sheets_composite'
+  );
+}
+
+function inferApiCalls(toolName: string, actionName: string): number | 'dynamic' {
+  if (toolName === 'sheets_session' || toolName === 'sheets_confirm') {
+    return 0;
+  }
+
+  if (
+    toolName === 'sheets_connectors' &&
+    [
+      'list_connectors',
+      'configure',
+      'subscribe',
+      'unsubscribe',
+      'list_subscriptions',
+      'transform',
+    ].includes(actionName)
+  ) {
+    return 0;
+  }
+
+  if (isDynamicAction(toolName, actionName)) {
+    return 'dynamic';
+  }
+
+  return 1;
+}
+
+function inferIdempotent(actionName: string, readOnly: boolean, destructive: boolean): boolean {
+  if (readOnly) {
+    return true;
+  }
+
+  if (actionName.startsWith('create') || actionName.startsWith('add') || actionName === 'append') {
+    return false;
+  }
+
+  if (actionName.startsWith('run') || actionName.startsWith('execute')) {
+    return false;
+  }
+
+  if (destructive) {
+    return true;
+  }
+
+  if (actionName.startsWith('update') || actionName.startsWith('set')) {
+    return true;
+  }
+
+  return false;
+}
+
+function inferTypicalLatency(
+  apiCalls: number | 'dynamic',
+  readOnly: boolean,
+  toolName: string
+): string {
+  if (apiCalls === 0) {
+    return '<100ms';
+  }
+
+  if (apiCalls === 'dynamic') {
+    return toolName === 'sheets_analyze' || toolName === 'sheets_agent' ? '1-30s' : '1-10s';
+  }
+
+  return readOnly ? '200-800ms' : '300-1200ms';
+}
+
+function buildDefaultActionMetadata(toolName: string, actionName: string): ActionMetadata {
+  const readOnly = isReadOnlyAction(actionName);
+  const destructive = isDestructiveAction(actionName);
+  const apiCalls = inferApiCalls(toolName, actionName);
+
+  const metadata: ActionMetadata = {
+    readOnly,
+    apiCalls,
+    quotaCost: apiCalls === 'dynamic' ? 'dynamic' : apiCalls,
+    requiresConfirmation:
+      destructive &&
+      (actionName.startsWith('delete') ||
+        actionName.startsWith('remove') ||
+        actionName.startsWith('clear') ||
+        actionName.startsWith('rollback') ||
+        actionName.startsWith('revert') ||
+        actionName.startsWith('restore')),
+    destructive,
+    idempotent: inferIdempotent(actionName, readOnly, destructive),
+    typicalLatency: inferTypicalLatency(apiCalls, readOnly, toolName),
+  };
+
+  if (actionName.startsWith('batch_')) {
+    metadata.savings = 'Batch operation reduces round trips by combining multiple requests';
+  }
+
+  return metadata;
+}
+
+function normalizeActionMetadata(
+  raw: Record<string, Record<string, ActionMetadata>>
+): Record<string, Record<string, ActionMetadata>> {
+  const normalized: Record<string, Record<string, ActionMetadata>> = {};
+
+  for (const [toolName, actions] of Object.entries(TOOL_ACTIONS)) {
+    const rawToolMetadata = raw[toolName] ?? {};
+    normalized[toolName] = {};
+
+    for (const actionName of actions) {
+      normalized[toolName][actionName] =
+        rawToolMetadata[actionName] ?? buildDefaultActionMetadata(toolName, actionName);
+    }
+  }
+
+  return normalized;
+}
+
+/**
+ * Complete action metadata for all actions, normalized against TOOL_ACTIONS.
+ * - Missing action entries are backfilled with deterministic defaults.
+ * - Stale entries for removed/renamed actions are excluded.
+ */
+export const ACTION_METADATA: Record<
+  string,
+  Record<string, ActionMetadata>
+> = normalizeActionMetadata(RAW_ACTION_METADATA);

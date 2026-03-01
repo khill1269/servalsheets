@@ -718,33 +718,19 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
   private async handleSuggestFormat(
     input: FormatRequest & { action: 'suggest_format' }
   ): Promise<FormatResponse> {
-    // Check if LLM fallback is available or server supports sampling
-    const samplingSupport = this.context.server
-      ? checkSamplingSupport(this.context.server.getClientCapabilities?.())
-      : { supported: false };
-    const hasLLMFallback = isLLMFallbackAvailable();
-
-    // When neither LLM fallback nor sampling is available, use pattern-based suggestions
-    // (ISSUE-170: previously returned FEATURE_UNAVAILABLE hard error instead of degrading gracefully)
-    if (!hasLLMFallback && (!this.context.server || !samplingSupport.supported)) {
-      return this.handleSuggestFormatRuleBased(input);
-    }
-
     const startTime = Date.now();
 
-    // Declared outside try so catch block can use pre-fetched data for graceful fallback
+    // FIRST: Fetch range data BEFORE checking LLM availability
+    // This avoids double API calls: use the same fetch for both AI and rule-based paths
+    const rangeStr =
+      typeof input.range === 'string'
+        ? input.range
+        : input.range && 'a1' in input.range
+          ? input.range.a1
+          : 'A1';
+
     let gridData: sheets_v4.Schema$GridData | undefined;
-
     try {
-      // Convert range to A1 notation string
-      const rangeStr =
-        typeof input.range === 'string'
-          ? input.range
-          : input.range && 'a1' in input.range
-            ? input.range.a1
-            : 'A1';
-
-      // Fetch data and current formatting from the specified range
       const response = await this.sheetsApi.spreadsheets.get({
         spreadsheetId: input.spreadsheetId,
         ranges: [rangeStr],
@@ -763,7 +749,30 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
             'Check the parameter format and ensure all required parameters are provided',
         });
       }
+    } catch (error) {
+      return this.error({
+        code: 'INTERNAL_ERROR',
+        message: `Failed to fetch range data: ${error instanceof Error ? error.message : String(error)}`,
+        retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
+      });
+    }
 
+    // SECOND: Check if LLM fallback is available or server supports sampling
+    const samplingSupport = this.context.server
+      ? checkSamplingSupport(this.context.server.getClientCapabilities?.())
+      : { supported: false };
+    const hasLLMFallback = isLLMFallbackAvailable();
+
+    // When neither LLM fallback nor sampling is available, use pattern-based suggestions
+    // (ISSUE-170: previously returned FEATURE_UNAVAILABLE hard error instead of degrading gracefully)
+    // NOW: Pass the pre-fetched gridData to avoid a second API call
+    if (!hasLLMFallback && (!this.context.server || !samplingSupport.supported)) {
+      return this.handleSuggestFormatRuleBased(input, gridData.rowData);
+    }
+
+    // THIRD: Proceed with AI/Sampling path using pre-fetched data
+    try {
       // Extract sample data and current formats
       const sampleRows = gridData.rowData.slice(0, 10);
       const sampleData = sampleRows.map(
@@ -842,12 +851,8 @@ Always return valid JSON in the exact format requested.`;
 
       const jsonMatch = llmResult.content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        return this.error({
-          code: 'INTERNAL_ERROR',
-          message: 'Could not parse format suggestions from AI response',
-          retryable: true,
-          suggestedFix: 'Please try again. If the issue persists, contact support',
-        });
+        // Graceful degradation: if AI output is not parseable JSON, fall back to rules.
+        return this.handleSuggestFormatRuleBased(input, gridData.rowData);
       }
 
       const parsed = JSON.parse(jsonMatch[0]) as {
@@ -945,21 +950,11 @@ Always return valid JSON in the exact format requested.`;
           timestamp: new Date().toISOString(),
         },
       });
-    } catch (error) {
-      // Graceful fallback: if data was already fetched before LLM failure, use it for
-      // rule-based suggestions instead of returning an error or making a redundant API call
-      if (gridData?.rowData) {
-        return this.handleSuggestFormatRuleBased(input, gridData.rowData);
-      }
-      return this.error({
-        code: 'INTERNAL_ERROR',
-        message: `Format suggestion failed: ${error instanceof Error ? error.message : String(error)}`,
-        retryable: true,
-        suggestedFix: 'Please try again. If the issue persists, contact support',
-      });
+    } catch {
+      // Graceful fallback: use pre-fetched grid data for rule-based suggestions
+      return this.handleSuggestFormatRuleBased(input, gridData.rowData);
     }
   }
-
   /** Rule-based format suggestion fallback when LLM/Sampling is unavailable (ISSUE-170) */
   private async handleSuggestFormatRuleBased(
     input: FormatRequest & { action: 'suggest_format' },
@@ -971,13 +966,30 @@ Always return valid JSON in the exact format requested.`;
       // Use pre-fetched rows to avoid redundant API call
       rows = prefetchedRows;
     } else {
-      // Fetch a sample of data to detect patterns
-      const rangeStr =
-        typeof input.range === 'string'
-          ? input.range
-          : input.range && 'a1' in input.range
-            ? input.range.a1
-            : 'A1:Z10';
+      // Resolve range: user-provided or metadata-driven sample
+      let rangeStr: string;
+      if (typeof input.range === 'string') {
+        rangeStr = input.range;
+      } else if (input.range && 'a1' in input.range) {
+        rangeStr = input.range.a1 ?? 'A1:Z10';
+      } else {
+        // Metadata-driven: fetch actual bounds for a 10-row sample
+        try {
+          const metaResp = await this.sheetsApi.spreadsheets.get({
+            spreadsheetId: input.spreadsheetId,
+            fields: 'sheets(properties(title,gridProperties(columnCount)))',
+          });
+          const firstSheet = metaResp.data.sheets?.[0];
+          const colCount = Math.min(firstSheet?.properties?.gridProperties?.columnCount ?? 26, 100);
+          const colLetter = String.fromCharCode(64 + Math.min(colCount, 26)); // A-Z for single letter
+          const title = firstSheet?.properties?.title ?? 'Sheet1';
+          const escaped = title.replace(/'/g, "''");
+          rangeStr = `'${escaped}'!A1:${colLetter}10`;
+        } catch {
+          // Bounded fallback: 10 rows × 26 columns (was hardcoded A1:Z10, now same size but explicit)
+          rangeStr = 'A1:Z10';
+        }
+      }
 
       const response = await this.sheetsApi.spreadsheets.get({
         spreadsheetId: input.spreadsheetId,
@@ -1581,6 +1593,11 @@ Always return valid JSON in the exact format requested.`;
     const skippedOps: string[] = [];
 
     for (let opIdx = 0; opIdx < operations.length; opIdx++) {
+      await this.sendProgress(
+        opIdx,
+        operations.length,
+        `Preparing format operation ${opIdx + 1}/${operations.length}`
+      );
       const op = operations[opIdx]!;
       const opType = op['type'] as string;
       const rawRange = op['range'];
@@ -1931,6 +1948,20 @@ Always return valid JSON in the exact format requested.`;
       spreadsheetId: input.spreadsheetId,
       requestBody: { requests },
     });
+
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_format',
+          action: 'batch_format',
+          spreadsheetId: input.spreadsheetId,
+          description: `Batch formatted ${totalCellsFormatted} cell(s) with ${requests.length} operation(s)`,
+          undoable: false,
+        });
+      }
+    } catch {
+      /* non-blocking */
+    }
 
     return this.success('batch_format', {
       cellsFormatted: totalCellsFormatted,

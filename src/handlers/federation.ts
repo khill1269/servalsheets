@@ -21,11 +21,36 @@ import { logger } from '../utils/logger.js';
 import { parseFederationServers } from '../config/federation-config.js';
 import { sendProgress } from '../utils/request-context.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
+import { CircuitBreaker } from '../utils/circuit-breaker.js';
+import { getCircuitBreakerConfig } from '../config/env.js';
+import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 
 function sanitizeFederationErrorMessage(message: string): string {
   // Drop multiline stack tail and redact common local filesystem path patterns.
   const firstLine = message.split('\n')[0] ?? message;
   return firstLine.replace(/\/home\/|\/Users\/|node_modules\//g, '[REDACTED_PATH]');
+}
+
+function buildFederationError(
+  error: unknown,
+  options?: {
+    prefixRemoteMessage?: boolean;
+    overrideMessage?: string;
+  }
+): {
+  error: string;
+  errorDetail: ReturnType<typeof mapStandaloneError>;
+} {
+  const mapped = mapStandaloneError(error);
+  const sanitizedMessage = sanitizeFederationErrorMessage(mapped.message);
+  const baseMessage = options?.overrideMessage ?? sanitizedMessage;
+
+  return {
+    error: options?.prefixRemoteMessage
+      ? `Remote MCP server returned an error: ${baseMessage}`
+      : baseMessage,
+    errorDetail: mapped,
+  };
 }
 
 /**
@@ -36,9 +61,33 @@ function sanitizeFederationErrorMessage(message: string): string {
  */
 export class FederationHandler {
   private taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter;
+  private circuitBreaker: CircuitBreaker;
 
   constructor(taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter) {
     this.taskStore = taskStore;
+
+    // 16-S3: Initialize circuit breaker for federation operations
+    const circuitConfig = getCircuitBreakerConfig();
+    this.circuitBreaker = new CircuitBreaker({
+      ...circuitConfig,
+      name: 'federation-mcp-calls',
+    });
+
+    // Register fallback strategy for federation circuit breaker
+    this.circuitBreaker.registerFallback({
+      name: 'federation-unavailable-fallback',
+      priority: 1,
+      shouldUse: () => true,
+      execute: async () => {
+        throw new ValidationError(
+          'Remote MCP servers temporarily unavailable due to repeated connection failures. Try again in 30 seconds.',
+          'federation'
+        );
+      },
+    });
+
+    // Register with global registry
+    circuitBreakerRegistry.register('federation-mcp-calls', this.circuitBreaker);
   }
 
   /**
@@ -58,12 +107,18 @@ export class FederationHandler {
     // Check if federation is enabled
     const config = getFederationConfig();
     if (!config.enabled) {
+      const federationError = buildFederationError(
+        new ValidationError(
+          'Federation is not enabled. Set MCP_FEDERATION_ENABLED=true in your environment configuration.',
+          'federation'
+        )
+      );
       return {
         response: {
           success: false,
           action,
-          error:
-            'Federation is not enabled. Set MCP_FEDERATION_ENABLED=true in your environment configuration.',
+          error: federationError.error,
+          errorDetail: federationError.errorDetail,
         },
       };
     }
@@ -71,12 +126,18 @@ export class FederationHandler {
     // Parse server configurations
     const servers = parseFederationServers(config.serversJson);
     if (servers.length === 0 && action !== 'list_servers') {
+      const federationError = buildFederationError(
+        new ValidationError(
+          'No federation servers configured. Set MCP_FEDERATION_SERVERS with JSON server array.',
+          'federation'
+        )
+      );
       return {
         response: {
           success: false,
           action,
-          error:
-            'No federation servers configured. Set MCP_FEDERATION_SERVERS with JSON server array.',
+          error: federationError.error,
+          errorDetail: federationError.errorDetail,
         },
       };
     }
@@ -115,14 +176,14 @@ export class FederationHandler {
         error: err.message,
       });
 
-      // 16-S3/16-S5: Use structured error mapping (FederatedMcpClient wraps
-      // remote calls with per-server circuit breakers; errors surface here)
-      const mapped = mapStandaloneError(error);
+      // 16-S5: Use structured error mapping
+      const federationError = buildFederationError(error, { prefixRemoteMessage: true });
       return {
         response: {
           success: false,
           action,
-          error: `Remote MCP server returned an error: ${sanitizeFederationErrorMessage(mapped.message)}`,
+          error: federationError.error,
+          errorDetail: federationError.errorDetail,
         },
       };
     }
@@ -157,6 +218,7 @@ export class FederationHandler {
 
   /**
    * Handle call_remote action
+   * 16-S3: Wrapped with circuit breaker protection
    */
   private async handleCallRemote(
     client: Awaited<ReturnType<typeof getFederationClient>>,
@@ -181,7 +243,12 @@ export class FederationHandler {
     });
 
     await sendProgress(0, 100, `Connecting to remote server: ${serverName}...`);
-    const result = await client.callRemoteTool(serverName, toolName, toolInput || {});
+
+    // 16-S3: Wrap remote call with circuit breaker
+    const result = await this.circuitBreaker.execute(async () => {
+      return await client.callRemoteTool(serverName, toolName, toolInput || {});
+    });
+
     await sendProgress(100, 100, 'Remote call complete');
 
     logger.info('Remote tool call succeeded', {
@@ -240,6 +307,7 @@ export class FederationHandler {
 
   /**
    * Handle get_server_tools action
+   * 16-S3: Wrapped with circuit breaker protection
    */
   private async handleGetServerTools(
     client: Awaited<ReturnType<typeof getFederationClient>>,
@@ -255,7 +323,10 @@ export class FederationHandler {
       serverName,
     });
 
-    const tools = await client.listRemoteTools(serverName);
+    // 16-S3: Wrap remote call with circuit breaker
+    const tools = await this.circuitBreaker.execute(async () => {
+      return await client.listRemoteTools(serverName);
+    });
 
     logger.info('Retrieved remote server tools', {
       component: 'federation-handler',
@@ -282,6 +353,7 @@ export class FederationHandler {
 
   /**
    * Handle validate_connection action
+   * 16-S3: Wrapped with circuit breaker protection
    */
   private async handleValidateConnection(
     client: Awaited<ReturnType<typeof getFederationClient>>,
@@ -299,7 +371,10 @@ export class FederationHandler {
 
     try {
       // Try to list tools as a connection test
-      await client.listRemoteTools(serverName);
+      // 16-S3: Wrap remote call with circuit breaker
+      await this.circuitBreaker.execute(async () => {
+        return await client.listRemoteTools(serverName);
+      });
 
       logger.info('Connection validation succeeded', {
         component: 'federation-handler',
@@ -325,13 +400,25 @@ export class FederationHandler {
         error: err.message,
       });
 
+      const federationError = buildFederationError(
+        new ValidationError(
+          'Connection validation failed. The remote server may be unavailable or unreachable.',
+          'federation'
+        ),
+        {
+          // Keep this exact phrase for existing contract tests.
+          overrideMessage:
+            'Connection validation failed. The remote server may be unavailable or unreachable.',
+        }
+      );
+
       return {
         response: {
           success: false,
           action: 'validate_connection',
           remoteServer: serverName,
-          error:
-            'Connection validation failed. The remote server may be unavailable or unreachable.',
+          error: federationError.error,
+          errorDetail: federationError.errorDetail,
         },
       };
     }

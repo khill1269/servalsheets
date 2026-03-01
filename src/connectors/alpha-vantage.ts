@@ -416,7 +416,7 @@ export class AlphaVantageConnector implements SpreadsheetConnector {
     };
   }
 
-  private meta(endpoint: string, rowCount: number) {
+  private meta(endpoint: string, rowCount: number): DataResult['metadata'] {
     return {
       source: 'alpha_vantage',
       endpoint,

@@ -746,6 +746,29 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     if ((req as { access?: string }).access) ignoredParams.push('access');
     if ((req as { executeAs?: string }).executeAs) ignoredParams.push('executeAs');
 
+    // MCP SEP-1686: Create task entry for deployment tracking
+    let deployTaskId: string | undefined;
+    if (this.context.taskStore) {
+      try {
+        const task = await this.context.taskStore.createTask(
+          { ttl: 3600000 }, // 1 hour TTL
+          'appsscript-deploy',
+          {
+            method: 'tools/call',
+            params: { name: 'sheets_appsscript', arguments: req },
+          }
+        );
+        deployTaskId = task.taskId;
+        await this.context.taskStore.updateTaskStatus(
+          deployTaskId,
+          'completed',
+          `Deployed script ${req.scriptId}`
+        );
+      } catch {
+        /* non-blocking — task tracking failure must not break deployment */
+      }
+    }
+
     return this.success('deploy', {
       deployment: {
         deploymentId: result.deploymentId,
@@ -755,6 +778,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         updateTime: result.updateTime ?? undefined,
       },
       webAppUrl: webAppUrl ?? undefined,
+      ...(deployTaskId !== undefined ? { taskId: deployTaskId } : {}),
       ...(ignoredParams.length > 0 && {
         warning: `The following parameters are not supported by the Deployments API and were ignored: ${ignoredParams.join(', ')}. To configure these settings, update appsscript.json via the update_content action before deploying.`,
       }),

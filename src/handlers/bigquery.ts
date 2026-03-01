@@ -78,6 +78,7 @@ const DANGEROUS_SQL_PATTERNS = [
   /\bGRANT\b/i,
   /\bREVOKE\b/i,
   /\bEXECUTE\s+IMMEDIATE\b/i,
+  /\bCALL\s+\w/i,
 ];
 
 function validateBigQuerySql(query: string): void {

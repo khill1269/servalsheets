@@ -294,12 +294,14 @@ export async function crossWrite(
   const data = await fetchRangeGrid(sheetsApi, cachedApi, source.spreadsheetId, source.range);
 
   // Write to destination
-  const res = await sheetsApi.spreadsheets.values.update({
-    spreadsheetId: destination.spreadsheetId,
-    range: destination.range,
-    valueInputOption,
-    requestBody: { values: data },
-  });
+  const res = await executeWithRetry(() =>
+    sheetsApi.spreadsheets.values.update({
+      spreadsheetId: destination.spreadsheetId,
+      range: destination.range,
+      valueInputOption,
+      requestBody: { values: data },
+    })
+  );
 
   const cellsCopied = data.reduce((sum, row) => sum + row.filter((c) => c !== null).length, 0);
 

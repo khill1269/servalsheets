@@ -42,7 +42,7 @@ import type {
 import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
 import { CACHE_TTL_SPREADSHEET } from '../config/constants.js';
 import { ScopeValidator, IncrementalScopeRequiredError } from '../security/incremental-scope.js';
-import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import { confirmDestructiveAction, elicitSpreadsheetCreation } from '../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { createNotFoundError, createValidationError } from '../utils/error-factory.js';
 import { withTimeout } from '../utils/timeout.js';
@@ -790,27 +790,17 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       });
     }
 
-    // Elicitation wizard: ask for spreadsheet name when title is absent
+    // Elicitation wizard: collect title + locale + timezone when title is absent
     let resolvedTitle: string = input.title;
+    let resolvedLocale: string | undefined = input.locale;
+    let resolvedTimeZone: string | undefined = input.timeZone;
     if (!resolvedTitle && this.context.server) {
       try {
-        const elicitResult = await this.context.server.elicitInput({
-          mode: 'form',
-          message: 'What would you like to name your new spreadsheet?',
-          requestedSchema: {
-            type: 'object',
-            properties: {
-              title: {
-                type: 'string',
-                title: 'Spreadsheet name',
-                description: 'Name for your new spreadsheet',
-                default: 'Untitled Spreadsheet',
-              },
-            },
-          },
-        });
-        if (elicitResult.action === 'accept' && elicitResult.content?.['title']) {
-          resolvedTitle = elicitResult.content['title'] as string;
+        const wizardResult = await elicitSpreadsheetCreation(this.context.server);
+        if (wizardResult) {
+          resolvedTitle = wizardResult.title;
+          resolvedLocale = wizardResult.locale;
+          resolvedTimeZone = wizardResult.timeZone;
         }
       } catch {
         // non-blocking — proceed with default
@@ -841,10 +831,10 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
 
     const spreadsheetProps: sheets_v4.Schema$SpreadsheetProperties = {
       title: resolvedTitle,
-      locale: input.locale ?? 'en_US',
+      locale: resolvedLocale ?? 'en_US',
     };
-    if (input.timeZone) {
-      spreadsheetProps.timeZone = input.timeZone;
+    if (resolvedTimeZone) {
+      spreadsheetProps.timeZone = resolvedTimeZone;
     }
 
     const requestBody: sheets_v4.Schema$Spreadsheet = {

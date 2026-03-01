@@ -62,7 +62,7 @@ import {
   ScopeCategory,
   IncrementalScopeRequiredError,
 } from '../security/incremental-scope.js';
-import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import { confirmDestructiveAction, elicitSharingSettings } from '../mcp/elicitation.js';
 import { withSamplingTimeout, assertSamplingConsent } from '../mcp/sampling.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { createNotFoundError, createValidationError } from '../utils/error-factory.js';
@@ -431,19 +431,40 @@ export class CollaborateHandler extends BaseHandler<
   // ============================================================
 
   private async handleShareAdd(input: CollaborateShareAddInput): Promise<CollaborateResponse> {
+    // Elicitation wizard: collect email + role + notification settings when email is absent
+    let resolvedInput = input;
+    if (!input.emailAddress && (input.type === 'user' || !input.type) && this.context.server) {
+      try {
+        const spreadsheetTitle = input.spreadsheetId ?? 'this spreadsheet';
+        const wizardResult = await elicitSharingSettings(this.context.server, spreadsheetTitle);
+        if (wizardResult) {
+          resolvedInput = {
+            ...input,
+            type: input.type ?? 'user',
+            emailAddress: wizardResult.email,
+            role: wizardResult.role,
+            sendNotification: wizardResult.sendNotification,
+            emailMessage: wizardResult.message,
+          } as CollaborateShareAddInput;
+        }
+      } catch {
+        // non-blocking — proceed with provided input
+      }
+    }
+
     await driveRateLimiter.acquire();
     const requestBody: drive_v3.Schema$Permission = {
-      type: input.type,
-      role: input.role,
+      type: resolvedInput.type,
+      role: resolvedInput.role,
     };
-    if (input.emailAddress) requestBody.emailAddress = input.emailAddress;
-    if (input.domain) requestBody.domain = input.domain;
-    if (input.expirationTime) requestBody.expirationTime = input.expirationTime;
+    if (resolvedInput.emailAddress) requestBody.emailAddress = resolvedInput.emailAddress;
+    if (resolvedInput.domain) requestBody.domain = resolvedInput.domain;
+    if (resolvedInput.expirationTime) requestBody.expirationTime = resolvedInput.expirationTime;
 
     const response = await this.driveApi!.permissions.create({
-      fileId: input.spreadsheetId!,
-      sendNotificationEmail: input.sendNotification ?? true,
-      emailMessage: input.emailMessage,
+      fileId: resolvedInput.spreadsheetId!,
+      sendNotificationEmail: resolvedInput.sendNotification ?? true,
+      emailMessage: resolvedInput.emailMessage,
       requestBody,
       fields: 'id,type,role,emailAddress,displayName',
       supportsAllDrives: true,

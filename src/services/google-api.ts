@@ -29,7 +29,7 @@ import { executeWithRetry, type RetryOptions } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
 import { EncryptedFileTokenStore, type TokenStore, type StoredTokens } from './token-store.js';
 import { HybridTokenStore } from './keychain-store.js';
-import { CircuitBreaker } from '../utils/circuit-breaker.js';
+import { CircuitBreaker, FallbackStrategies } from '../utils/circuit-breaker.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
 import { circuitBreakerRegistry } from './circuit-breaker-registry.js';
 import PQueue from 'p-queue';
@@ -287,6 +287,21 @@ export class GoogleApiClient {
     this.docsCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-docs-api' });
     this.slidesCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-slides-api' });
 
+    // 16-A6: Register readOnlyMode fallback strategies on circuit breakers
+    // When Sheets/Drive circuit is open, gracefully degrade to read-only responses
+    // This prevents cascading failures during API outages by serving cached data
+    this.sheetsCircuit.registerFallback(
+      FallbackStrategies.readOnlyMode(
+        { success: false, error: 'Google Sheets API temporarily unavailable - read-only mode' },
+        30 // priority
+      )
+    );
+    this.driveCircuit.registerFallback(
+      FallbackStrategies.readOnlyMode(
+        { success: false, error: 'Google Drive API temporarily unavailable - read-only mode' },
+        30
+      )
+    );
     // Register circuit breakers for monitoring
     circuitBreakerRegistry.register(
       'google-sheets-api',

@@ -304,6 +304,23 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
       this.trackContextFromRequest({ spreadsheetId: req.spreadsheetId });
 
+      try {
+        if (this.context.sessionContext) {
+          this.context.sessionContext.recordOperation({
+            tool: 'sheets_fix',
+            action: 'standardize_formats',
+            spreadsheetId: req.spreadsheetId,
+            range: req.range,
+            description: `Standardized ${result.summary.cellsChanged} cell(s) across ${result.summary.columnsProcessed} column(s)`,
+            undoable: !!snapshot?.revisionId,
+            snapshotId: snapshot?.revisionId,
+            cellsAffected: result.summary.cellsChanged,
+          });
+        }
+      } catch {
+        /* non-blocking */
+      }
+
       const response = {
         success: true as const,
         mode: 'apply' as const,
@@ -368,6 +385,23 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       await this.writeChanges(req.spreadsheetId, req.range, data, result.changes, rangeOffset);
 
       this.trackContextFromRequest({ spreadsheetId: req.spreadsheetId });
+
+      try {
+        if (this.context.sessionContext) {
+          this.context.sessionContext.recordOperation({
+            tool: 'sheets_fix',
+            action: 'fill_missing',
+            spreadsheetId: req.spreadsheetId,
+            range: req.range,
+            description: `Filled ${result.summary.filled} missing cell(s) using ${req.strategy} strategy`,
+            undoable: !!snapshot?.revisionId,
+            snapshotId: snapshot?.revisionId,
+            cellsAffected: result.summary.filled,
+          });
+        }
+      } catch {
+        /* non-blocking */
+      }
 
       const response = {
         success: true as const,

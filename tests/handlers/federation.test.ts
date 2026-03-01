@@ -8,6 +8,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { FederationHandler } from '../../src/handlers/federation.js';
 
+/** Extract a string message from either a plain string or a structured ErrorDetail object */
+function getErrorMsg(error: unknown): string {
+  if (typeof error === 'string') return error;
+  if (error && typeof (error as Record<string, unknown>)['message'] === 'string') {
+    return (error as Record<string, unknown>)['message'] as string;
+  }
+  return String(error);
+}
+
 // Mock federation client
 const mockFederationClient = {
   callRemoteTool: vi.fn(),
@@ -114,7 +123,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Remote MCP server');
+        expect(getErrorMsg(result.response.error)).toContain('serverName');
       }
     });
 
@@ -128,7 +137,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Remote MCP server');
+        expect(getErrorMsg(result.response.error)).toContain('toolName');
       }
     });
 
@@ -146,7 +155,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Remote MCP server');
+        expect(getErrorMsg(result.response.error)).toContain('Remote MCP server');
       }
     });
   });
@@ -210,7 +219,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Remote MCP server');
+        expect(getErrorMsg(result.response.error)).toContain('serverName');
       }
     });
   });
@@ -248,7 +257,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Connection validation failed');
+        expect(getErrorMsg(result.response.error)).toContain('Connection validation failed');
         expect(result.response.remoteServer).toBe('test-server');
       }
     });
@@ -262,7 +271,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Remote MCP server');
+        expect(getErrorMsg(result.response.error)).toContain('serverName');
       }
     });
   });
@@ -283,7 +292,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('not enabled');
+        expect(getErrorMsg(result.response.error)).toContain('not enabled');
       }
     });
   });
@@ -319,7 +328,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Remote MCP server');
+        expect(getErrorMsg(result.response.error)).toContain('Remote MCP server');
       }
     });
 
@@ -339,7 +348,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Remote MCP server');
+        expect(getErrorMsg(result.response.error)).toContain('Remote MCP server');
       }
     });
   });
@@ -361,7 +370,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Remote MCP server');
+        expect(getErrorMsg(result.response.error)).toContain('Remote MCP server');
       }
     });
 
@@ -431,7 +440,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Remote MCP server');
+        expect(getErrorMsg(result.response.error)).toContain('Remote MCP server');
       }
     });
 
@@ -451,7 +460,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Remote MCP server');
+        expect(getErrorMsg(result.response.error)).toContain('Remote MCP server');
       }
     });
 
@@ -471,10 +480,10 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Remote MCP server');
-        expect(result.response.error).not.toContain('/Users/');
-        expect(result.response.error).not.toContain('node_modules/');
-        expect(result.response.error).not.toContain('\n');
+        expect(getErrorMsg(result.response.error)).toContain('Remote MCP server');
+        expect(getErrorMsg(result.response.error)).not.toContain('/Users/');
+        expect(getErrorMsg(result.response.error)).not.toContain('node_modules/');
+        expect(getErrorMsg(result.response.error)).not.toContain('\n');
       }
     });
 
@@ -533,7 +542,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Remote MCP server');
+        expect(getErrorMsg(result.response.error)).toContain('Remote MCP server');
       }
     });
 
@@ -551,7 +560,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Remote MCP server');
+        expect(getErrorMsg(result.response.error)).toContain('Remote MCP server');
       }
     });
 
@@ -571,7 +580,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Remote MCP server');
+        expect(getErrorMsg(result.response.error)).toContain('Remote MCP server');
       }
     });
 
@@ -592,7 +601,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('No federation servers configured');
+        expect(getErrorMsg(result.response.error)).toContain('No federation servers configured');
       }
     });
   });
@@ -633,7 +642,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Remote MCP server');
+        expect(getErrorMsg(result.response.error)).toContain('Remote MCP server');
       }
     });
 
@@ -653,7 +662,7 @@ describe('FederationHandler', () => {
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
-        expect(result.response.error).toContain('Remote MCP server');
+        expect(getErrorMsg(result.response.error)).toContain('Remote MCP server');
       }
     });
 

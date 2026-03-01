@@ -2,7 +2,7 @@
  * Shared auth path helpers.
  */
 
-import { homedir } from 'os';
+import { homedir, tmpdir } from 'os';
 import { join, resolve, isAbsolute } from 'path';
 
 export function getDefaultTokenStorePath(): string {
@@ -16,5 +16,10 @@ export function getDefaultTokenStorePath(): string {
 export function sanitizeTokenStorePath(rawPath: string): string {
   // resolve() collapses any ../.. traversal sequences into an absolute path
   const resolved = isAbsolute(rawPath) ? resolve(rawPath) : resolve(process.cwd(), rawPath);
+  // Defense-in-depth: constrain to home or temp directory to prevent access to /etc, /proc, etc.
+  const allowedPrefixes = [homedir(), tmpdir()];
+  if (!allowedPrefixes.some((prefix) => resolved.startsWith(prefix))) {
+    throw new Error(`Token store path must be within home or temp directory. Got: ${resolved}`);
+  }
   return resolved;
 }

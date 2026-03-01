@@ -9,6 +9,7 @@
  */
 
 import { z } from 'zod';
+import { ErrorDetailSchema } from './shared.js';
 
 /**
  * Federation action enum
@@ -77,8 +78,10 @@ const FederationErrorResponseSchema = z.object({
   action: FederationActionSchema,
   /** Remote server name (if applicable) */
   remoteServer: z.string().optional(),
-  /** Error message */
+  /** Human-readable error message for backwards compatibility */
   error: z.string(),
+  /** Optional structured error detail for advanced clients */
+  errorDetail: ErrorDetailSchema.optional(),
 });
 
 export const SheetsFederationOutputSchema = z.object({
