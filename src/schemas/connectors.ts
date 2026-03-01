@@ -224,120 +224,128 @@ export type SheetsConnectorsInput = z.infer<typeof SheetsConnectorsInputSchema>;
 // Output Schema
 // ============================================================================
 
-export const SheetsConnectorsOutputSchema = z.object({
-  response: z.object({
-    success: z.boolean(),
-    action: z.string(),
-    // list_connectors
-    connectors: z
-      .array(
-        z.object({
-          id: z.string(),
-          name: z.string(),
-          description: z.string(),
-          authType: z.string(),
-          configured: z.boolean(),
-          healthy: z.boolean().optional(),
-        })
-      )
-      .optional(),
-    // query / transform
-    headers: z.array(z.string()).optional(),
-    rows: z.array(z.array(z.unknown())).optional(),
-    metadata: z
-      .object({
-        source: z.string().optional(),
-        endpoint: z.string().optional(),
-        fetchedAt: z.string().optional(),
-        rowCount: z.number().optional(),
-        cached: z.boolean().optional(),
-        quotaUsed: z.number().optional(),
+const ConnectorsResponsePayloadSchema = z.object({
+  action: z.string(),
+  // list_connectors
+  connectors: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        description: z.string(),
+        authType: z.string(),
+        configured: z.boolean(),
+        healthy: z.boolean().optional(),
       })
-      .optional(),
-    // batch_query
-    results: z.array(z.unknown()).optional(),
-    // subscribe
-    subscription: z
-      .object({
+    )
+    .optional(),
+  // query / transform
+  headers: z.array(z.string()).optional(),
+  rows: z.array(z.array(z.unknown())).optional(),
+  metadata: z
+    .object({
+      source: z.string().optional(),
+      endpoint: z.string().optional(),
+      fetchedAt: z.string().optional(),
+      rowCount: z.number().optional(),
+      cached: z.boolean().optional(),
+      quotaUsed: z.number().optional(),
+    })
+    .optional(),
+  // batch_query
+  results: z.array(z.unknown()).optional(),
+  // subscribe
+  subscription: z
+    .object({
+      id: z.string(),
+      connectorId: z.string(),
+      endpoint: z.string(),
+      status: z.string(),
+      nextRefresh: z.string().optional(),
+    })
+    .optional(),
+  // unsubscribe
+  removed: z.boolean().optional(),
+  // list_subscriptions
+  subscriptions: z
+    .array(
+      z.object({
         id: z.string(),
         connectorId: z.string(),
         endpoint: z.string(),
         status: z.string(),
+        lastRefresh: z.string().optional(),
         nextRefresh: z.string().optional(),
       })
-      .optional(),
-    // unsubscribe
-    removed: z.boolean().optional(),
-    // list_subscriptions
-    subscriptions: z
-      .array(
-        z.object({
-          id: z.string(),
-          connectorId: z.string(),
-          endpoint: z.string(),
-          status: z.string(),
-          lastRefresh: z.string().optional(),
-          nextRefresh: z.string().optional(),
-        })
-      )
-      .optional(),
-    // status
-    id: z.string().optional(),
-    name: z.string().optional(),
-    configured: z.boolean().optional(),
-    health: z
-      .object({
-        healthy: z.boolean(),
-        latencyMs: z.number(),
-        message: z.string().optional(),
-        lastChecked: z.string(),
-      })
-      .optional()
-      .nullable(),
-    quota: z
-      .object({
-        used: z.number(),
-        limit: z.number(),
-      })
-      .optional(),
-    // discover
-    endpoints: z
-      .array(
-        z.object({
-          id: z.string(),
-          name: z.string(),
-          description: z.string(),
-          category: z.string(),
-          params: z.array(
-            z.object({
-              name: z.string(),
-              type: z.string(),
-              required: z.boolean(),
-              description: z.string(),
-              example: z.string().optional(),
-            })
-          ),
-        })
-      )
-      .optional(),
-    schema: z
-      .object({
-        endpoint: z.string(),
-        columns: z.array(
+    )
+    .optional(),
+  // status
+  id: z.string().optional(),
+  name: z.string().optional(),
+  configured: z.boolean().optional(),
+  health: z
+    .object({
+      healthy: z.boolean(),
+      latencyMs: z.number(),
+      message: z.string().optional(),
+      lastChecked: z.string(),
+    })
+    .optional()
+    .nullable(),
+  quota: z
+    .object({
+      used: z.number(),
+      limit: z.number(),
+    })
+    .optional(),
+  // discover
+  endpoints: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        description: z.string(),
+        category: z.string(),
+        params: z.array(
           z.object({
             name: z.string(),
             type: z.string(),
-            description: z.string().optional(),
+            required: z.boolean(),
+            description: z.string(),
+            example: z.string().optional(),
           })
         ),
       })
-      .optional(),
-    // configure
-    message: z.string().optional(),
-    // error
-    error: ErrorDetailSchema.optional(),
-    _meta: ResponseMetaSchema.optional(),
-  }),
+    )
+    .optional(),
+  schema: z
+    .object({
+      endpoint: z.string(),
+      columns: z.array(
+        z.object({
+          name: z.string(),
+          type: z.string(),
+          description: z.string().optional(),
+        })
+      ),
+    })
+    .optional(),
+  // configure
+  message: z.string().optional(),
+  _meta: ResponseMetaSchema.optional(),
+});
+
+export const SheetsConnectorsOutputSchema = z.object({
+  response: z.discriminatedUnion('success', [
+    ConnectorsResponsePayloadSchema.extend({
+      success: z.literal(true),
+      error: ErrorDetailSchema.optional(),
+    }),
+    ConnectorsResponsePayloadSchema.partial({ action: true }).extend({
+      success: z.literal(false),
+      error: ErrorDetailSchema,
+    }),
+  ]),
 });
 
 export type SheetsConnectorsOutput = z.infer<typeof SheetsConnectorsOutputSchema>;

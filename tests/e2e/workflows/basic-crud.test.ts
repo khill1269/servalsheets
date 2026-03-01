@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTestHttpClient } from '../mcp-client-simulator.js';
 import type { MCPHttpClient } from '../mcp-client-simulator.js';
+import { TOOL_COUNT } from '../../../src/schemas/action-counts.js';
 
 const TEST_SPREADSHEET_ID = process.env['TEST_SPREADSHEET_ID'];
 const SKIP_E2E = !TEST_SPREADSHEET_ID || process.env['TEST_E2E'] !== 'true';
@@ -33,10 +34,10 @@ describe.skipIf(SKIP_E2E)('E2E: Basic CRUD Operations', () => {
   });
 
   describe('Tool Discovery', () => {
-    it('should list all 22 tools', async () => {
+    it('should list all tools', async () => {
       const tools = await client.listTools();
 
-      expect(tools).toHaveLength(22);
+      expect(tools).toHaveLength(TOOL_COUNT);
 
       // Verify essential tools exist
       const toolNames = tools.map((t) => t.name);

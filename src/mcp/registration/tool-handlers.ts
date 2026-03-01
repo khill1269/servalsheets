@@ -50,6 +50,7 @@ import {
   wrapInputSchemaForLegacyRequest,
 } from './schema-helpers.js';
 import type { ToolDefinition } from './tool-definitions.js';
+import { redactSensitiveData } from '../../middleware/redaction.js';
 import { ACTIVE_TOOL_DEFINITIONS } from './tool-definitions.js';
 import {
   extractAction,
@@ -1110,8 +1111,10 @@ export function buildToolResponse(
   const COMPACT_THRESHOLD = 50 * 1024; // 50KB
   const compactStr = JSON.stringify(structuredContent);
   const sizeBytes = Buffer.byteLength(compactStr, 'utf8');
-  const responseStr =
+  const rawResponseStr =
     sizeBytes > COMPACT_THRESHOLD ? compactStr : JSON.stringify(structuredContent, null, 2);
+  // Redact sensitive data (tokens, API keys, emails) from STDIO and HTTP text content
+  const responseStr = redactSensitiveData(rawResponseStr).output;
 
   // Token budget enforcement: truncate responses exceeding ~25K tokens
   // This prevents overwhelming LLM context windows in MCP clients like Claude

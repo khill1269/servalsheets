@@ -21,6 +21,7 @@ import { extractETag, is304NotModified } from '../utils/etag-helpers.js';
 import { logger } from '../utils/logger.js';
 import { cacheHitsTotal, cacheMissesTotal } from '../observability/metrics.js';
 import { getTracer } from '../utils/tracing.js';
+import { getAccessPatternTracker } from './access-pattern-tracker.js';
 
 /**
  * Statistics for cached API operations
@@ -40,6 +41,7 @@ export interface CachedApiStats {
 export class CachedSheetsApi {
   private sheetsApi: sheets_v4.Sheets;
   private cache = getETagCache();
+  private accessTracker = getAccessPatternTracker();
   private stats = {
     totalRequests: 0,
     cacheHits: 0,
@@ -120,6 +122,8 @@ export class CachedSheetsApi {
                 spreadsheetId,
                 quotaSaved: true,
               });
+              // 16-A3/A4: Record access pattern for prefetching
+              this.recordAccessPattern(spreadsheetId, 'metadata');
               span.end();
               return cachedData;
             }
@@ -144,6 +148,8 @@ export class CachedSheetsApi {
         spreadsheetId,
         savedApiCall: true,
       });
+      // 16-A3/A4: Record access pattern for prefetching
+      this.recordAccessPattern(spreadsheetId, 'metadata');
       span.end();
       return cached;
     }
@@ -162,6 +168,8 @@ export class CachedSheetsApi {
     const etag = extractETag(response) || `cached-${Date.now()}`;
     await this.cache.setETag(cacheKey, etag, response.data);
 
+    // 16-A3/A4: Record access pattern after API call
+    this.recordAccessPattern(spreadsheetId, 'metadata');
     span.end();
     return response.data;
   }
@@ -241,6 +249,8 @@ export class CachedSheetsApi {
                 range,
                 quotaSaved: true,
               });
+              // 16-A3/A4: Record access pattern for prefetching
+              this.recordAccessPattern(spreadsheetId, range);
               span.end();
               return cachedData;
             }
@@ -264,6 +274,8 @@ export class CachedSheetsApi {
         range,
         savedApiCall: true,
       });
+      // 16-A3/A4: Record access pattern for prefetching
+      this.recordAccessPattern(spreadsheetId, range);
       span.end();
       return cached;
     }
@@ -283,6 +295,8 @@ export class CachedSheetsApi {
     const etag = extractETag(response) || `cached-${Date.now()}`;
     await this.cache.setETag(cacheKey, etag, response.data);
 
+    // 16-A3/A4: Record access pattern after API call
+    this.recordAccessPattern(spreadsheetId, range);
     span.end();
     return response.data;
   }
@@ -341,6 +355,8 @@ export class CachedSheetsApi {
         rangeCount: uniqueRanges.length,
         savedApiCall: true,
       });
+      // 16-A3/A4: Record access patterns for each range
+      uniqueRanges.forEach((r) => this.recordAccessPattern(spreadsheetId, r));
       // Map cached results back to original order if duplicates existed
       if (duplicatesEliminated > 0) {
         span.end();
@@ -363,6 +379,9 @@ export class CachedSheetsApi {
     // Cache with real ETag if available, otherwise use timestamp
     const etag = extractETag(response) || `cached-${Date.now()}`;
     await this.cache.setETag(cacheKey, etag, response.data);
+
+    // 16-A3/A4: Record access patterns for each range
+    uniqueRanges.forEach((r) => this.recordAccessPattern(spreadsheetId, r));
 
     // Map results back to original order if duplicates existed
     if (duplicatesEliminated > 0) {
@@ -410,6 +429,27 @@ export class CachedSheetsApi {
       ...response,
       valueRanges: remappedValueRanges,
     };
+  }
+
+  /**
+   * 16-A3/A4: Record access pattern for predictive prefetching
+   *
+   * Tracks spreadsheet/sheet/range sequences to enable pattern-based prefetching.
+   * Non-blocking: errors are logged but don't affect the cache operation.
+   */
+  private recordAccessPattern(spreadsheetId: string, range: string): void {
+    try {
+      this.accessTracker.recordAccess({
+        spreadsheetId,
+        range,
+        action: 'read',
+      });
+    } catch (error) {
+      // Non-blocking: access tracking is best-effort optimization
+      logger.debug('Failed to record access pattern', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /**

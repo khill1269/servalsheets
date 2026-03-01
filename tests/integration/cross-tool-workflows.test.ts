@@ -418,7 +418,7 @@ describe('Workflow: Template-Based Creation', () => {
       request: {
         action: 'copy' as const,
         spreadsheetId: templateId,
-        title: 'Invoice #12345',
+        newTitle: 'Invoice #12345',
       },
     };
 

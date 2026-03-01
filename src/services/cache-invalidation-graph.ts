@@ -153,13 +153,14 @@ export class CacheInvalidationGraph {
 
     // Conditional formatting rules (16-B3: corrected action names to match handler switch)
     rules['sheets_format.add_conditional_format_rule'] = { invalidates: ['metadata:*'] };
-    // Legacy alias retained for compatibility in tests/older clients
-    rules['sheets_format.add_rule'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.rule_add_conditional_format'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.rule_update_conditional_format'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.rule_delete_conditional_format'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.rule_list_conditional_formats'] = { invalidates: [] }; // Read-only
     rules['sheets_format.generate_conditional_format'] = { invalidates: ['metadata:*'] };
+
+    // Format suggestions (read-only)
+    rules['sheets_format.suggest_format'] = { invalidates: [] }; // Read-only
 
     // Data validation
     rules['sheets_format.set_validation'] = { invalidates: ['metadata:*'] };
@@ -233,6 +234,10 @@ export class CacheInvalidationGraph {
     rules['sheets_visualize.list_pivots'] = { invalidates: [] };
     rules['sheets_visualize.get_pivot'] = { invalidates: [] };
     rules['sheets_visualize.refresh_pivot'] = { invalidates: ['values:*'] }; // Refreshes computed values
+
+    // AI-powered suggestions (read-only)
+    rules['sheets_visualize.suggest_chart'] = { invalidates: [] }; // Read-only
+    rules['sheets_visualize.suggest_pivot'] = { invalidates: [] }; // Read-only
 
     // Slicer operations (belong to sheets_dimensions, not sheets_visualize)
     rules['sheets_dimensions.create_slicer'] = { invalidates: ['metadata:*'] };

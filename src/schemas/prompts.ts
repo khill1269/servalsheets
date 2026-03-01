@@ -254,3 +254,75 @@ export const SmartSuggestionsPromptArgsSchema: PromptArgsShape = {
 export const CrossSheetFederationPromptArgsSchema: PromptArgsShape = {
   spreadsheetIds: z.string().describe('Comma-separated spreadsheet IDs to join or compare'),
 };
+
+// P14+ composite workflow prompts (Tier 4 UX)
+export const AuditSheetPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string(), completeSpreadsheetId),
+  focusAreas: z
+    .string()
+    .optional()
+    .describe('Focus areas to audit: quality, formulas, structure, performance (comma-separated)'),
+};
+
+export const PublishReportPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string(), completeSpreadsheetId),
+  reportType: z
+    .enum(['summary', 'detailed', 'executive'])
+    .optional()
+    .describe('Report detail level'),
+  targetSheet: z.string().optional().describe('Where to publish (new sheet name or spreadsheetId)'),
+};
+
+export const DataPipelinePromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string(), completeSpreadsheetId),
+  sourceType: z.enum(['csv', 'json', 'api', 'other_sheet']).optional().describe('Data source type'),
+  transformations: z.string().optional().describe('ETL transformations to apply'),
+  frequency: z
+    .enum(['once', 'hourly', 'daily', 'weekly', 'monthly'])
+    .optional()
+    .describe('Execution frequency'),
+};
+
+export const InstantiateTemplatePromptArgsSchema: PromptArgsShape = {
+  templateId: z.string().optional().describe('Template spreadsheet ID'),
+  templateName: z.string().optional().describe('Predefined template name'),
+  values: z.string().optional().describe('Parameter values to instantiate (JSON format)'),
+  targetSpreadsheetId: z.string().optional().describe('Where to create the instance'),
+};
+
+export const MigrateSpreadsheetPromptArgsSchema: PromptArgsShape = {
+  sourceSpreadsheetId: c(z.string(), completeSpreadsheetId),
+  targetSpreadsheetId: c(z.string().optional(), completeSpreadsheetId),
+  migrationType: z
+    .enum(['full', 'selective', 'structure_only'])
+    .optional()
+    .describe('What to migrate: all sheets, selected sheets, or structure only'),
+  preserveFormatting: z.boolean().optional().describe('Keep formatting in target (default: true)'),
+};
+
+export const CrossSheetAnalysisPromptArgsSchema: PromptArgsShape = {
+  spreadsheetIds: z
+    .array(c(z.string(), completeSpreadsheetId))
+    .or(z.string())
+    .describe('Spreadsheet IDs to analyze (array or comma-separated string)'),
+  operation: z
+    .enum(['join', 'compare', 'merge', 'deduplicate'])
+    .optional()
+    .describe('Analysis operation'),
+  joinKey: z.string().optional().describe('Column name to join on'),
+};
+
+export const ScenarioWhatIfPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string(), completeSpreadsheetId),
+  scenarios: z
+    .array(z.string())
+    .or(z.string())
+    .optional()
+    .describe(
+      'Scenario descriptions (array or comma-separated). Example: "revenue drops 20%, cost increases 10%"'
+    ),
+  compareMode: z
+    .enum(['side_by_side', 'delta_only', 'full_cascade'])
+    .optional()
+    .describe('How to display results'),
+};

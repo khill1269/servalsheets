@@ -2574,6 +2574,11 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         logger?.info(`Processing write chunk ${i + 1}/${chunks.length}`, {
           chunkSize: chunk.length,
         });
+        await this.sendProgress(
+          i + 1,
+          chunks.length,
+          `Writing chunk ${i + 1}/${chunks.length} (${chunk.length} ranges)`
+        );
 
         const response = await this.withCircuitBreaker('values.batchUpdate', () =>
           this.sheetsApi.spreadsheets.values.batchUpdate({
@@ -2618,6 +2623,20 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
             warnings,
           }
         : undefined;
+
+      try {
+        if (this.context.sessionContext) {
+          this.context.sessionContext.recordOperation({
+            tool: 'sheets_data',
+            action: 'batch_write',
+            spreadsheetId: input.spreadsheetId,
+            description: `Batch write to ${input.data.length} range(s), ${totalUpdatedCells} cells`,
+            undoable: false,
+          });
+        }
+      } catch {
+        /* non-blocking */
+      }
 
       return this.success('batch_write', responseData, undefined, undefined, meta);
     }
@@ -2677,6 +2696,21 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           warnings,
         }
       : undefined;
+
+    try {
+      if (this.context.sessionContext) {
+        const cellsWritten = response.data.totalUpdatedCells ?? 0;
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_data',
+          action: 'batch_write',
+          spreadsheetId: input.spreadsheetId,
+          description: `Batch write to ${data.length} range(s), ${cellsWritten} cells`,
+          undoable: false,
+        });
+      }
+    } catch {
+      /* non-blocking */
+    }
 
     return this.success('batch_write', responseData, undefined, undefined, meta);
   }
@@ -2772,6 +2806,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
 
     // Direct API call - no confirmation, no snapshot (simplified for reliability)
     // Protected with circuit breaker to prevent cascade failures during API degradation
+    await this.sendProgress(0, 1, `Clearing ${ranges.length} range(s)`);
     const response = await this.withCircuitBreaker('values.batchClear', () =>
       this.sheetsApi.spreadsheets.values.batchClear({
         spreadsheetId: input.spreadsheetId,
@@ -2782,6 +2817,20 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
 
     // Invalidate ETag cache after mutation
     getETagCache().invalidateSpreadsheet(input.spreadsheetId);
+
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_data',
+          action: 'batch_clear',
+          spreadsheetId: input.spreadsheetId,
+          description: `Batch cleared ${ranges.length} range(s)`,
+          undoable: false,
+        });
+      }
+    } catch {
+      /* non-blocking */
+    }
 
     return this.success('batch_clear', {
       clearedRanges: response.data.clearedRanges ?? ranges,
@@ -3458,6 +3507,11 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     req: DataRequest & { action: 'cross_read' }
   ): Promise<DataResponse> {
     const responseFormat = req.response_format ?? 'full';
+    await this.sendProgress(
+      0,
+      req.sources.length,
+      `Reading from ${req.sources.length} spreadsheet(s)`
+    );
     const { crossRead } = await import('../services/cross-spreadsheet.js');
     const result = await crossRead(
       this.sheetsApi,
@@ -3558,6 +3612,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   private async handleCrossWrite(
     req: DataRequest & { action: 'cross_write' }
   ): Promise<DataResponse> {
+    await this.sendProgress(0, 1, `Copying data between spreadsheets`);
     const { crossWrite } = await import('../services/cross-spreadsheet.js');
     const result = await crossWrite(
       this.sheetsApi,
@@ -3566,6 +3621,20 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       req.valueInputOption ?? 'USER_ENTERED',
       this.context.cachedSheetsApi
     );
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_data',
+          action: 'cross_write',
+          spreadsheetId: req.destination.spreadsheetId,
+          description: `Cross-write: copied ${result.cellsCopied} cells from ${req.source.spreadsheetId}`,
+          undoable: false,
+        });
+      }
+    } catch {
+      /* non-blocking */
+    }
+
     return this.success('cross_write', {
       cellsCopied: result.cellsCopied,
       updatedRange: result.updatedRange,
@@ -3576,6 +3645,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     req: DataRequest & { action: 'cross_compare' }
   ): Promise<DataResponse> {
     const responseFormat = req.response_format ?? 'full';
+    await this.sendProgress(0, 1, `Comparing data between spreadsheets`);
     const { crossCompare } = await import('../services/cross-spreadsheet.js');
     const result = await crossCompare(
       this.sheetsApi,

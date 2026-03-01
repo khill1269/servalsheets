@@ -265,4 +265,4 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] clear_pending
 - [ ] reset
 
-## Total: 22 tools, 342 actions
+## Total: 25 tools, 377 actions

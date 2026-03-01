@@ -49,6 +49,9 @@ import { SheetsAppsScriptInputSchema } from '../../src/schemas/appsscript.js';
 import { SheetsWebhookInputSchema } from '../../src/schemas/webhook.js';
 import { SheetsDependenciesInputSchema } from '../../src/schemas/dependencies.js';
 import { SheetsFederationInputSchema } from '../../src/schemas/federation.js';
+import { SheetsAgentInputSchema } from '../../src/schemas/agent.js';
+import { SheetsComputeInputSchema } from '../../src/schemas/compute.js';
+import { SheetsConnectorsInputSchema } from '../../src/schemas/connectors.js';
 
 const SCHEMA_REGISTRY: Record<string, z.ZodTypeAny> = {
   sheets_auth: SheetsAuthInputSchema,
@@ -73,6 +76,9 @@ const SCHEMA_REGISTRY: Record<string, z.ZodTypeAny> = {
   sheets_webhook: SheetsWebhookInputSchema,
   sheets_dependencies: SheetsDependenciesInputSchema,
   sheets_federation: SheetsFederationInputSchema,
+  sheets_agent: SheetsAgentInputSchema,
+  sheets_compute: SheetsComputeInputSchema,
+  sheets_connectors: SheetsConnectorsInputSchema,
 };
 
 // ─── Top-Level Inventory Tests ──────────────────────────────

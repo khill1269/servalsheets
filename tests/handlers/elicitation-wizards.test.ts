@@ -44,6 +44,17 @@ vi.mock('../../src/mcp/elicitation.js', () => ({
   confirmDestructiveAction: vi.fn().mockResolvedValue({ confirmed: true }),
   safeElicit: vi.fn(),
   checkElicitationSupport: vi.fn().mockReturnValue({ supported: true, form: true, url: false }),
+  elicitSpreadsheetCreation: vi.fn().mockResolvedValue({
+    title: 'My New Spreadsheet',
+    locale: 'en_US',
+    timeZone: 'America/New_York',
+  }),
+  elicitSharingSettings: vi.fn().mockResolvedValue({
+    email: 'test@example.com',
+    role: 'writer',
+    sendNotification: true,
+    message: undefined,
+  }),
 }));
 
 vi.mock('../../src/utils/safety-helpers.js', () => ({
@@ -101,6 +112,7 @@ import { SheetsCoreHandler } from '../../src/handlers/core.js';
 import { TransactionHandler } from '../../src/handlers/transaction.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4 } from 'googleapis';
+import { elicitSpreadsheetCreation } from '../../src/mcp/elicitation.js';
 
 // ---------------------------------------------------------------------------
 // Mock factories
@@ -348,7 +360,7 @@ describe('SheetsCoreHandler — create elicitation wizard', () => {
       },
     } as any);
 
-    expect(elicitServer.elicitInput).toHaveBeenCalled();
+    expect(elicitSpreadsheetCreation).toHaveBeenCalledWith(elicitServer);
     const response = result.response as any;
     expect(response.success).toBe(true);
     expect(response.action).toBe('create');

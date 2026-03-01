@@ -955,7 +955,6 @@ const chartIdCache = new EntityCache(100);
 const namedRangeCache = new EntityCache(100);
 const webhookIdCache = new EntityCache(50);
 const revisionIdCache = new EntityCache(50);
-const sheetIdCache = new EntityCache(100);
 
 /** Record a sheet name observed in a response (call from core/data handlers) */
 export function recordSheetName(name: string): void {
@@ -1016,15 +1015,4 @@ export function completeWebhookId(partial: string): string[] {
 /** Complete revision IDs from recently-seen values */
 export function completeRevisionId(partial: string): string[] {
   return revisionIdCache.getCompletions(partial);
-}
-
-/** Record a sheet ID (numeric) observed in a response (call from core/dimensions handlers) */
-export function recordSheetId(id: number | string): void {
-  const s = String(id);
-  if (s && /^\d+$/.test(s)) sheetIdCache.add(s);
-}
-
-/** Complete sheet IDs from recently-seen numeric values */
-export function completeSheetId(partial: string): string[] {
-  return sheetIdCache.getCompletions(partial);
 }

@@ -194,15 +194,66 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
   }
 
   /**
-   * Read data from spreadsheet
+   * Read data from spreadsheet.
+   *
+   * Uses metadata-driven range resolution when no range is specified:
+   * 1. Fetches sheet metadata to determine actual data bounds (rowCount, columnCount)
+   * 2. Constructs a bounded range from the metadata
+   * 3. Caps at 10,000 rows × 100 columns to prevent runaway fetches
+   *
+   * This replaces the previous hardcoded 'A1:ZZ10000' default which fetched 260K cells.
    */
   private async readData(spreadsheetId: string, range?: string): Promise<unknown[][]> {
+    let effectiveRange = range;
+
+    if (!effectiveRange) {
+      // Metadata-driven: fetch actual sheet bounds first (cheap API call with field mask)
+      try {
+        const metaResponse = await this.sheetsApi.spreadsheets.get({
+          spreadsheetId,
+          fields: 'sheets(properties(title,gridProperties(rowCount,columnCount)))',
+        });
+        const firstSheet = metaResponse.data.sheets?.[0];
+        if (firstSheet?.properties?.gridProperties) {
+          const { rowCount, columnCount } = firstSheet.properties.gridProperties;
+          // Cap at 10,000 rows × 100 columns to prevent runaway fetches
+          const maxRows = Math.min(rowCount ?? 1000, 10000);
+          const maxCols = Math.min(columnCount ?? 26, 100);
+          const colLetter = this.columnIndexToLetter(maxCols - 1);
+          const sheetTitle = firstSheet.properties.title ?? 'Sheet1';
+          const escapedTitle = sheetTitle.replace(/'/g, "''");
+          effectiveRange = `'${escapedTitle}'!A1:${colLetter}${maxRows}`;
+        }
+      } catch {
+        // Fallback: if metadata fetch fails, use a bounded default
+        logger.warn('Failed to fetch sheet metadata for range resolution, using bounded default');
+      }
+      // Final fallback: bounded default (was A1:ZZ10000 = 260K cells, now A1:Z1000 = 26K cells)
+      if (!effectiveRange) {
+        effectiveRange = 'A1:Z1000';
+      }
+    }
+
     const response = await this.sheetsApi.spreadsheets.values.get({
       spreadsheetId,
-      range: range ?? 'A1:ZZ10000',
+      range: effectiveRange,
       valueRenderOption: 'FORMATTED_VALUE',
     });
     return response.data.values ?? [];
+  }
+
+  /**
+   * Convert column index (0-based) to A1 notation letter(s).
+   * 0 → A, 25 → Z, 26 → AA, etc.
+   */
+  private columnIndexToLetter(index: number): string {
+    let result = '';
+    let i = index;
+    while (i >= 0) {
+      result = String.fromCharCode((i % 26) + 65) + result;
+      i = Math.floor(i / 26) - 1;
+    }
+    return result;
   }
 
   /**
@@ -2047,9 +2098,11 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
         case 'discover_action': {
           logger.info('Discover action (meta-tool)', { query: req.query, category: req.category });
           try {
-            const { discoverActions } = await import('../services/action-discovery.js');
+            const { discoverActions, analyzeDiscoveryQuery } =
+              await import('../services/action-discovery.js');
 
             const matches = discoverActions(req.query, req.category, req.maxResults ?? 5);
+            const guidance = analyzeDiscoveryQuery(req.query, matches);
 
             response = {
               success: true,
@@ -2058,6 +2111,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
               category: req.category ?? 'all',
               matches,
               matchCount: matches.length,
+              ...guidance,
             };
           } catch (error) {
             logger.error('discover_action failed', {

@@ -706,7 +706,6 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       'localhost',
       '127.0.0.1',
       '::1',
-      '0.0.0.0',
       ...(process.env['SERVAL_ALLOWED_HOSTS']?.split(',').map((h) => h.trim().toLowerCase()) ?? []),
     ]);
 
@@ -2434,6 +2433,26 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         },
       });
       return;
+    }
+
+    // Verify caller is the session owner via security context (token + user-agent match)
+    // Skip check if securityContext is absent (legacy or test sessions without binding)
+    if (session.securityContext) {
+      const callerToken = req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.slice(7)
+        : '';
+      const currentContext = createSecurityContext(req, callerToken);
+      const securityCheck = verifySecurityContext(session.securityContext, currentContext);
+
+      if (!securityCheck.valid) {
+        res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Session ownership verification failed',
+          },
+        });
+        return;
+      }
     }
 
     if (typeof session.transport.close === 'function') {

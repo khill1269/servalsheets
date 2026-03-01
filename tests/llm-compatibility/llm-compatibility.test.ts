@@ -368,6 +368,11 @@ function buildCollaborateFields(action: string, mode: BuildMode): Record<string,
       return base;
     case 'approval_delegate':
       return { ...base, approvalId: asString('approval_123'), delegateTo: SAMPLE_EMAIL };
+    case 'resolve_access_proposal':
+      return { ...base, proposalId: asString('proposal_123'), decision: 'APPROVE' as const };
+    case 'label_apply':
+    case 'label_remove':
+      return { ...base, labelId: asString('label_123') };
     default:
       return base;
   }

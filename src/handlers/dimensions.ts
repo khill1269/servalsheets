@@ -58,7 +58,11 @@ import type {
   DimensionsListSlicersInput,
 } from '../schemas/index.js';
 import { parseCellReference, toGridRange } from '../utils/google-sheets-helpers.js';
-import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import {
+  confirmDestructiveAction,
+  safeElicit,
+  FILTER_SETTINGS_SCHEMA,
+} from '../mcp/elicitation.js';
 import { getBackgroundAnalyzer } from '../services/background-analyzer.js';
 import { getBackgroundAnalysisConfig } from '../config/env.js';
 
@@ -1239,6 +1243,73 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
   private async handleCreateFilterView(
     input: DimensionsCreateFilterViewInput
   ): Promise<DimensionsResponse> {
+    let resolvedTitle = input.title;
+    let resolvedCriteria = input.criteria;
+
+    // Interactive wizard: collect filter settings when title is absent
+    if (!resolvedTitle && this.context.server) {
+      try {
+        const wizardResult = await safeElicit(
+          this.context.server,
+          {
+            mode: 'form',
+            message: 'Configure your filter view: enter a name and optionally a column filter',
+            requestedSchema: FILTER_SETTINGS_SCHEMA,
+          },
+          null
+        );
+        if (wizardResult) {
+          const wiz = wizardResult as {
+            filterName?: string;
+            columnToFilter: string;
+            filterType: string;
+            filterValue?: string;
+          };
+          if (wiz.filterName) resolvedTitle = wiz.filterName;
+          if (wiz.columnToFilter && wiz.filterType && !resolvedCriteria) {
+            // Convert column letter to 0-based index (A=0, B=1, ...)
+            const colIndex =
+              wiz.columnToFilter
+                .toUpperCase()
+                .trim()
+                .split('')
+                .reduce((acc, ch) => acc * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+            const typeMap: Record<string, string> = {
+              equals: 'TEXT_EQ',
+              contains: 'TEXT_CONTAINS',
+              greater_than: 'NUMBER_GREATER',
+              less_than: 'NUMBER_LESS',
+              between: 'NUMBER_BETWEEN',
+              is_empty: 'BLANK',
+              is_not_empty: 'NOT_BLANK',
+            };
+            const conditionType = (typeMap[wiz.filterType] ?? 'TEXT_CONTAINS') as
+              | 'TEXT_EQ'
+              | 'TEXT_CONTAINS'
+              | 'NUMBER_GREATER'
+              | 'NUMBER_LESS'
+              | 'NUMBER_BETWEEN'
+              | 'BLANK'
+              | 'NOT_BLANK';
+            const noValueTypes = new Set<string>(['BLANK', 'NOT_BLANK']);
+            resolvedCriteria = {
+              [colIndex]: {
+                condition: {
+                  type: conditionType,
+                  ...(noValueTypes.has(conditionType) || !wiz.filterValue
+                    ? {}
+                    : { values: [wiz.filterValue] }),
+                },
+              },
+            };
+          }
+        }
+      } catch {
+        // non-blocking: wizard failure does not prevent filter creation
+      }
+      if (!resolvedTitle) resolvedTitle = 'Filter View';
+    }
+
     const gridRange = input.range
       ? await this.rangeToGridRange(input.spreadsheetId, input.range, this.sheetsApi)
       : { sheetId: input.sheetId };
@@ -1250,9 +1321,9 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
           {
             addFilterView: {
               filter: {
-                title: input.title,
+                title: resolvedTitle ?? input.title,
                 range: toGridRange(gridRange),
-                criteria: input.criteria ? this.mapCriteria(input.criteria) : undefined,
+                criteria: resolvedCriteria ? this.mapCriteria(resolvedCriteria) : undefined,
                 sortSpecs: input.sortSpecs?.map((spec) => ({
                   dimensionIndex: spec.columnIndex,
                   sortOrder: spec.sortOrder ?? 'ASCENDING',

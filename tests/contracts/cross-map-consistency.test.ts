@@ -139,6 +139,14 @@ describe('Cross-Map Consistency', () => {
         ).toBeGreaterThan(0);
       }
     });
+
+    it('ACTION_METADATA action keys exactly match TOOL_ACTIONS per tool', () => {
+      for (const [toolName, actions] of Object.entries(TOOL_ACTIONS)) {
+        const metadataActions = Object.keys(ACTION_METADATA[toolName] ?? {}).sort();
+        const expectedActions = [...actions].sort();
+        expect(metadataActions).toEqual(expectedActions);
+      }
+    });
   });
 
   // =========================================================================

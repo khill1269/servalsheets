@@ -592,6 +592,42 @@ describe('FormatHandler', () => {
   // ============================================================
 
   describe('suggest_format action', () => {
+    beforeEach(() => {
+      // suggest_format fetches grid data (includeGridData:true) before checking sampling support.
+      // Override the global mock (which only returns sheet properties) with rowData.
+      mockApi.spreadsheets.get.mockResolvedValue({
+        data: {
+          sheets: [
+            {
+              properties: { sheetId: 0, title: 'Sheet1' },
+              data: [
+                {
+                  rowData: [
+                    {
+                      values: [
+                        { formattedValue: 'Name' },
+                        { formattedValue: 'Revenue' },
+                        { formattedValue: 'Cost' },
+                        { formattedValue: 'Margin' },
+                      ],
+                    },
+                    {
+                      values: [
+                        { formattedValue: 'Acme' },
+                        { effectiveValue: { numberValue: 50000 } },
+                        { effectiveValue: { numberValue: 30000 } },
+                        { effectiveValue: { numberValue: 0.4 } },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+    });
+
     it('should return rule-based suggestions when server context is not available (graceful degradation)', async () => {
       // ISSUE-170: handler now degrades to rule-based suggestions instead of FEATURE_UNAVAILABLE
       // when MCP Sampling and LLM fallback are both unavailable

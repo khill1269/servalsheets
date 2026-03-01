@@ -47,6 +47,7 @@ const EnvSchema = z.object({
   CACHE_ENABLED: z.coerce.boolean().default(true),
   CACHE_MAX_SIZE_MB: z.coerce.number().positive().default(100),
   CACHE_TTL_MS: z.coerce.number().positive().default(300000), // 5 minutes
+  ETAG_CACHE_MAX_ENTRIES: z.coerce.number().int().positive().default(1000),
 
   // Distributed Cache (Redis L2)
   // Enables Redis L2 cache for data responses (metadata, values)
@@ -155,7 +156,7 @@ const EnvSchema = z.object({
   // OAuth Server Configuration (for remote server)
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be ≥32 chars when OAuth enabled').optional(),
   STATE_SECRET: z.string().min(32, 'STATE_SECRET must be ≥32 chars when OAuth enabled').optional(),
-  OAUTH_CLIENT_SECRET: z.string().optional(),
+  OAUTH_CLIENT_SECRET: z.string().min(16, 'OAUTH_CLIENT_SECRET must be ≥16 chars').optional(),
   OAUTH_ISSUER: z.string().default('https://servalsheets.example.com'),
   OAUTH_CLIENT_ID: z.string().default('servalsheets'),
   // Claude/Anthropic Directory required callback URLs + localhost for development

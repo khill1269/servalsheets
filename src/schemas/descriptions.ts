@@ -1037,10 +1037,15 @@ Set MCP_FEDERATION_SERVERS environment variable with JSON array:
 [Pivot] pivot_compute (server-side pivot with custom aggregations)
 [Utility] custom_function (evaluate expressions over ranges), explain_formula (plain-language formula explanation)
 
-**TOP 3 ACTIONS:**
-1. aggregate: {"action":"aggregate","spreadsheetId":"abc","range":"Sheet1!A1:D100","function":"sum","columns":["B","C"],"groupBy":"A"} -> Sum columns grouped by category
-2. statistical: {"action":"statistical","spreadsheetId":"abc","range":"Sheet1!A1:B50","includeCorrelations":true} -> Full descriptive stats with correlations
-3. forecast: {"action":"forecast","spreadsheetId":"abc","range":"Sheet1!A1:B24","periods":6,"method":"auto"} -> Forecast 6 periods ahead
+**PARAMETER EXAMPLES:**
+• evaluate: {"action":"evaluate","expression":"=SUM(B2:B100)*1.1","range":"Sheet1!B2:B100"} → Multiply sum by 10%
+• aggregate: {"action":"aggregate","range":"Sheet1!A1:D100","function":"sum","columns":["B","C"],"groupBy":"A"} → Sum revenue/cost by region
+• statistical: {"action":"statistical","range":"Sheet1!B2:B100","includeCorrelations":true,"includePercentiles":true} → Stats with P25/P75
+• regression: {"action":"regression","range":"Sheet1!A1:B50","type":"linear","confidenceLevel":0.95} → Linear trend with R²
+• forecast: {"action":"forecast","range":"Sheet1!A1:B50","periods":12,"method":"exponential_smoothing"} → 12-month forecast
+• matrix_op: {"action":"matrix_op","range":"Sheet1!A1:D4","operation":"transpose"} → Swap rows/columns
+• pivot_compute: {"action":"pivot_compute","dataRange":"Sheet1!A1:D100","rowFields":["Category"],"valueFields":[{"field":"Amount","function":"sum"}]} → Pivot by category
+• batch_compute: {"action":"batch_compute","operations":[{"operation":"sum","range":"B2:B100"},{"operation":"avg","range":"C2:C100"}]} → Multiple computations
 
 **SAFETY:** [Read-only] All actions are read-only computations. No data is modified.
 **PERFORMANCE:** Computations run server-side, avoiding round-trips. Use batch_compute for 3+ operations.`,

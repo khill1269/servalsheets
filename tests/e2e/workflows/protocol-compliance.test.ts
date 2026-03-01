@@ -15,6 +15,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTestHttpClient } from '../mcp-client-simulator.js';
 import type { MCPHttpClient } from '../mcp-client-simulator.js';
+import { TOOL_COUNT } from '../../../src/schemas/action-counts.js';
 
 const SKIP_E2E = process.env['TEST_E2E'] !== 'true';
 
@@ -106,10 +107,10 @@ describe.skipIf(SKIP_E2E)('E2E: MCP Protocol Compliance', () => {
   });
 
   describe('Tool Registration Format', () => {
-    it('should register exactly 22 tools', async () => {
+    it('should register exactly TOOL_COUNT tools', async () => {
       const tools = await client.listTools();
 
-      expect(tools).toHaveLength(22);
+      expect(tools).toHaveLength(TOOL_COUNT);
     });
 
     it('should follow tool naming convention (snake_case)', async () => {

@@ -322,7 +322,7 @@ export class McpBridgeConnector implements SpreadsheetConnector {
     this.requestCount++;
   }
 
-  private meta(endpoint: string, rowCount: number) {
+  private meta(endpoint: string, rowCount: number): DataResult['metadata'] {
     return {
       source: this.id,
       endpoint,

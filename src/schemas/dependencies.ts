@@ -333,7 +333,7 @@ export const SheetsDependenciesOutputSchema = z.object({
 export const SHEETS_DEPENDENCIES_ANNOTATIONS = {
   title: 'Formula Dependencies & Scenario Modeling',
   readOnlyHint: false, // create_scenario_sheet writes a new sheet
-  destructiveHint: false,
+  destructiveHint: true, // create_scenario_sheet creates a new sheet (side effect)
   idempotentHint: false, // create_scenario_sheet creates new resources
   openWorldHint: true, // Reads from Google Sheets API
 };

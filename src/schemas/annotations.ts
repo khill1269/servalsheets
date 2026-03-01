@@ -1192,6 +1192,54 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     idempotent: true,
     whenToUse: 'Canceling an approval request',
   },
+  'sheets_collaborate.list_access_proposals': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse: 'View pending access requests from users who want permission to this spreadsheet.',
+    commonMistakes: [
+      'Confusing with share_list which shows existing permissions, not pending requests.',
+    ],
+    errorRecovery: {
+      PERMISSION_DENIED: 'You must be an owner or editor to view access proposals.',
+    },
+  },
+  'sheets_collaborate.resolve_access_proposal': {
+    apiCalls: 1,
+    idempotent: false,
+    whenToUse: 'Approve or deny a pending access request by its proposal ID.',
+    commonMistakes: ['Call list_access_proposals first to get the proposalId.'],
+    errorRecovery: {
+      NOT_FOUND: 'Proposal may have expired or already been resolved.',
+    },
+  },
+  'sheets_collaborate.label_list': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse:
+      'Retrieve all Drive labels applied to this spreadsheet for classification or compliance.',
+    commonMistakes: ['Requires Drive Labels API enabled in the GCP project.'],
+    errorRecovery: {
+      PERMISSION_DENIED: 'Drive Labels API must be enabled and user must have read access.',
+    },
+  },
+  'sheets_collaborate.label_apply': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse: 'Apply a Drive label to classify this spreadsheet (e.g., confidential, department).',
+    commonMistakes: ['Get labelId from label_list — do not guess label IDs.'],
+    errorRecovery: {
+      INVALID_PARAMS: 'Verify labelId exists via label_list before applying.',
+    },
+  },
+  'sheets_collaborate.label_remove': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse: 'Remove a Drive label previously applied to this spreadsheet.',
+    commonMistakes: ['Label must currently be applied — confirm with label_list first.'],
+    errorRecovery: {
+      NOT_FOUND: 'Label may not be applied. Confirm with label_list before removing.',
+    },
+  },
 
   // COLLABORATE TOOL
   'sheets_collaborate.share_add': {
@@ -1443,6 +1491,10 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     commonMistakes: [
       'Suggestions include executable params — verify with user before dispatching destructive ones',
     ],
+    errorRecovery: {
+      SHEET_NOT_FOUND: 'Verify spreadsheetId with sheets_core.get first',
+      PERMISSION_DENIED: 'Requires at least read access to the spreadsheet',
+    },
   },
   'sheets_analyze.auto_enhance': {
     apiCalls: 5,
@@ -1453,6 +1505,10 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     whenNotToUse:
       'When you need data modifications — auto_enhance only applies non-destructive improvements',
     commonMistakes: ['Always use mode:"preview" first to see proposed changes before mode:"apply"'],
+    errorRecovery: {
+      SHEET_NOT_FOUND: 'Verify spreadsheetId with sheets_core.get first',
+      ENHANCEMENT_FAILED: 'Run suggest_next_actions to get fresh suggestions, then retry',
+    },
   },
 
   // F3: DATA CLEANING (sheets_fix)
@@ -1485,6 +1541,10 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     commonMistakes: [
       'Specify targetFormat per column — e.g., columns: [{column: "B", targetFormat: "iso_date"}]',
     ],
+    errorRecovery: {
+      INVALID_RANGE: 'Use bounded range like Sheet1!A1:Z1000, not column-only refs like A:Z',
+      PARSE_ERROR: 'Some values may not be parseable — run detect_anomalies first to identify them',
+    },
   },
   'sheets_fix.fill_missing': {
     apiCalls: 3,
@@ -1495,12 +1555,20 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     commonMistakes: [
       'Mean/median strategies only work on numeric columns — use mode or constant for text',
     ],
+    errorRecovery: {
+      INVALID_RANGE: 'Use bounded range like Sheet1!A1:Z1000, not column-only refs like A:Z',
+      NO_DATA: 'Range contains no data — verify with sheets_data.read first',
+    },
   },
   'sheets_fix.detect_anomalies': {
     apiCalls: 1,
     idempotent: true,
     whenToUse: 'Flag statistical outliers in numeric data (IQR, z-score, or modified z-score)',
     whenNotToUse: 'For non-numeric data quality issues — use sheets_fix.suggest_cleaning instead',
+    errorRecovery: {
+      NO_NUMERIC_DATA: 'Anomaly detection requires numeric columns — check column types first',
+      INVALID_RANGE: 'Use bounded range like Sheet1!A1:Z1000',
+    },
   },
   'sheets_fix.suggest_cleaning': {
     apiCalls: 2,
@@ -1508,6 +1576,10 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     whenToUse: 'Get AI-powered cleaning recommendations with severity ranking — read-only preview',
     whenNotToUse:
       'When you want to actually fix issues — use sheets_fix.clean after reviewing suggestions',
+    errorRecovery: {
+      SHEET_NOT_FOUND: 'Call sheets_core.list_sheets first to verify sheet name',
+      SAMPLING_UNAVAILABLE: 'Falls back to rule-based suggestions without MCP Sampling',
+    },
   },
 
   // F1: SHEET GENERATOR (sheets_composite)
@@ -1522,6 +1594,12 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
       'Use preview_generation first to verify proposed structure before creating',
       'Requires MCP Sampling capability for AI-powered generation; falls back to templates without it',
     ],
+    errorRecovery: {
+      SAMPLING_UNAVAILABLE:
+        'Falls back to template-based generation (financial, tracker, inventory, generic)',
+      QUOTA_EXCEEDED: 'Reduce description complexity or use preview_generation to verify first',
+      PERMISSION_DENIED: 'Requires write access — check auth with sheets_auth.status',
+    },
   },
   'sheets_composite.generate_template': {
     apiCalls: 1,
@@ -1529,12 +1607,18 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     whenToUse:
       'Generate a reusable template definition from a description (parameterized with {{placeholders}})',
     whenNotToUse: 'When you need actual data — use generate_sheet instead',
+    errorRecovery: {
+      SAMPLING_UNAVAILABLE: 'Falls back to built-in template patterns',
+    },
   },
   'sheets_composite.preview_generation': {
     apiCalls: 0,
     idempotent: true,
     whenToUse:
       'Dry-run: preview proposed structure (columns, formulas, formatting) without creating anything',
+    errorRecovery: {
+      SAMPLING_UNAVAILABLE: 'Falls back to built-in template preview',
+    },
   },
 
   // F5: TIME-TRAVEL (sheets_history)
@@ -1546,6 +1630,10 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     commonMistakes: [
       'Large revision ranges are slow — always scope with since/until dates and limit parameter',
     ],
+    errorRecovery: {
+      REVISION_NOT_FOUND: 'Drive API may limit revision access — narrow the since/until window',
+      PERMISSION_DENIED: 'Requires read access to Drive revision history',
+    },
   },
   'sheets_history.diff_revisions': {
     apiCalls: 3,
@@ -1554,6 +1642,11 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     commonMistakes: [
       'Drive API metadata-only limitation: content-level diff may not be available for all revisions',
     ],
+    errorRecovery: {
+      REVISION_NOT_FOUND: 'Use sheets_history.timeline to get valid revision IDs first',
+      METADATA_ONLY:
+        'Drive API limitation — revision content may not be available for old revisions',
+    },
   },
   'sheets_history.restore_cells': {
     apiCalls: 4,
@@ -1565,6 +1658,11 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
       'Creates a snapshot before restoring — use sheets_history.undo to revert if needed',
       'Requires user confirmation via sheets_confirm',
     ],
+    errorRecovery: {
+      REVISION_NOT_FOUND: 'Use sheets_history.diff_revisions to verify revision ID exists',
+      CELL_NOT_FOUND: 'Cell reference may not exist in that revision — check with diff_revisions',
+      CONFIRMATION_DECLINED: 'User declined restore — no changes were made',
+    },
   },
 
   // DEPENDENCIES TOOL (additional actions)
@@ -1616,6 +1714,12 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     commonMistakes: [
       'Read-only — does NOT modify the spreadsheet. Use create_scenario_sheet to materialize results.',
     ],
+    errorRecovery: {
+      NO_FORMULAS:
+        'Spreadsheet has no formulas — build dependency graph first with sheets_dependencies.build',
+      UNSUPPORTED_FUNCTION:
+        'Some formulas cannot be simulated — result shows dependency chain instead of computed values',
+    },
   },
   'sheets_dependencies.compare_scenarios': {
     apiCalls: 8,
@@ -1624,6 +1728,10 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     commonMistakes: [
       'Each scenario runs model_scenario internally — API calls scale with scenario count',
     ],
+    errorRecovery: {
+      QUOTA_EXCEEDED: 'Reduce number of scenarios or narrow the cell change set per scenario',
+      NO_FORMULAS: 'Build dependency graph first with sheets_dependencies.build',
+    },
   },
   'sheets_dependencies.create_scenario_sheet': {
     apiCalls: 6,
@@ -1634,6 +1742,10 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     commonMistakes: [
       'Creates a new sheet — cannot be undone via sheets_history.undo (use sheets_core.delete_sheet)',
     ],
+    errorRecovery: {
+      SHEET_ALREADY_EXISTS: 'Target sheet name already exists — provide a unique targetSheet name',
+      PERMISSION_DENIED: 'Requires write access to the spreadsheet',
+    },
   },
 
   // DATA TOOL (additional actions)
@@ -1714,6 +1826,12 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
       'Each source needs its own spreadsheetId — make sure all are accessible with current auth',
       'For large sources, use specific ranges to avoid fetching entire sheets',
     ],
+    errorRecovery: {
+      PERMISSION_DENIED:
+        'Check auth for each source spreadsheet individually with sheets_auth.status',
+      SHEET_NOT_FOUND: 'Verify each source spreadsheetId/range with sheets_core.get',
+      NETWORK_ERROR: 'Transient failure — retry automatically with executeWithRetry',
+    },
   },
   'sheets_data.cross_query': {
     apiCalls: 5,
@@ -1723,6 +1841,11 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     commonMistakes: [
       'Requires MCP Sampling for NL interpretation; falls back to cross_read without it',
     ],
+    errorRecovery: {
+      SAMPLING_UNAVAILABLE:
+        'Falls back to cross_read without NL interpretation — provide explicit ranges',
+      PERMISSION_DENIED: 'Check auth for each source spreadsheet individually',
+    },
   },
   'sheets_data.cross_write': {
     apiCalls: 4,
@@ -1732,6 +1855,11 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
       'Source and destination ranges must be compatible sizes',
       'Requires sheets_confirm approval before overwriting existing data',
     ],
+    errorRecovery: {
+      CONFIRMATION_DECLINED: 'User declined overwrite — no changes made',
+      SIZE_MISMATCH: 'Resize destination range to match source data dimensions',
+      PERMISSION_DENIED: 'Requires write access to destination spreadsheet',
+    },
   },
   'sheets_data.cross_compare': {
     apiCalls: 4,
@@ -1740,6 +1868,10 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     commonMistakes: [
       'Specify compareColumns to align rows by key — without it, comparison is positional',
     ],
+    errorRecovery: {
+      PERMISSION_DENIED: 'Check auth for both source spreadsheets',
+      NO_DATA: 'One or both ranges are empty — verify with sheets_data.read first',
+    },
   },
 
   // P14: COMPOSITE WORKFLOWS (sheets_composite)
@@ -1753,6 +1885,11 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
       'Read-only — produces an audit report but does NOT modify the spreadsheet',
       'For large sheets, scoping to a specific range reduces API calls significantly',
     ],
+    errorRecovery: {
+      SHEET_NOT_FOUND: 'Verify spreadsheetId with sheets_core.get first',
+      PERMISSION_DENIED:
+        'Requires at least read access plus Drive revision access for change history',
+    },
   },
   'sheets_composite.publish_report': {
     apiCalls: 5,
@@ -1763,6 +1900,11 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     commonMistakes: [
       'Sharing requires Drive API permissions — ensure auth includes drive.file scope',
     ],
+    errorRecovery: {
+      PERMISSION_DENIED:
+        'Auth must include drive.file scope for sharing — re-login with broader scopes',
+      EXPORT_FAILED: 'Try a smaller range or simpler format (XLSX vs PDF)',
+    },
   },
   'sheets_composite.data_pipeline': {
     apiCalls: 8,
@@ -1774,6 +1916,12 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
       'Use dryRun mode first to preview transformations before committing',
       'Large datasets should use specific ranges to avoid memory issues',
     ],
+    errorRecovery: {
+      STEP_FAILED:
+        'Pipeline creates snapshot before writing — use sheets_history.undo to revert partial writes',
+      QUOTA_EXCEEDED: 'Reduce range size or number of transformation steps',
+      PERMISSION_DENIED: 'Requires write access to destination range',
+    },
   },
   'sheets_composite.instantiate_template': {
     apiCalls: 4,
@@ -1782,6 +1930,11 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     whenToUse:
       'Create a new spreadsheet from a saved template with variable substitution ({{placeholders}})',
     whenNotToUse: 'When the template has no placeholders — use sheets_core.copy instead',
+    errorRecovery: {
+      TEMPLATE_NOT_FOUND: 'List available templates with sheets_templates.list first',
+      MISSING_VARIABLES:
+        'Check required {{placeholders}} with sheets_templates.get and provide all variables',
+    },
   },
   'sheets_composite.migrate_spreadsheet': {
     apiCalls: 10,
@@ -1793,6 +1946,11 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
       'Creates a snapshot of the destination before writing — use sheets_history.undo to revert',
       'Named ranges and protected ranges are NOT migrated automatically',
     ],
+    errorRecovery: {
+      PERMISSION_DENIED: 'Requires write access to destination and read access to source',
+      SHEET_NOT_FOUND: 'Verify both source and destination spreadsheetIds with sheets_core.get',
+      SNAPSHOT_FAILED: 'Destination snapshot failed — migration aborted safely, no changes made',
+    },
   },
   'sheets_composite.batch_operations': {
     apiCalls: 10,
@@ -2500,8 +2658,7 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     apiCalls: 1,
     idempotent: true,
     whenToUse: 'Providing API credentials for Finnhub, FRED, Alpha Vantage, or Polygon',
-    whenNotToUse:
-      'For connectors that already use authType:"none" and are already configured',
+    whenNotToUse: 'For connectors that already use authType:"none" and are already configured',
   },
   'sheets_connectors.query': {
     apiCalls: 1,
