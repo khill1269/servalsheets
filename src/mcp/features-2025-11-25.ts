@@ -31,7 +31,7 @@
  */
 
 import type { ServerCapabilities, Icon, ToolExecution } from '@modelcontextprotocol/sdk/types.js';
-import { DEFER_SCHEMAS } from '../config/constants.js';
+import { DEFER_SCHEMAS, STAGED_REGISTRATION } from '../config/constants.js';
 import { TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
 
 // ============================================================================
@@ -50,7 +50,7 @@ import { TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
  * - Prompts (6 guided workflows)
  * - Knowledge Resources (formulas, colors, formats)
  * - listChanged notifications (auto-registered by McpServer)
- * - SEP-973 Icons (SVG icons for 16 tools; icon set is partial)
+ * - SEP-973 Icons (SVG icons for all 25 tools)
  * - Server Instructions (LLM context guidance)
  * - SEP-1686 Tasks (SDK-compatible TaskStoreAdapter with listTasks)
  * - Logging capability (winston logger + MCP logging/setLevel)
@@ -366,6 +366,11 @@ export function createServerCapabilities(): ServerCapabilities {
     // Add entries here when adopting future experimental MCP features.
     experimental: {},
 
+    // When staged registration is enabled, we emit tools/list_changed after each stage.
+    // Declare this so clients know to re-fetch the tool list on notification.
+    // When disabled, all tools register at once — no notification needed.
+    ...(STAGED_REGISTRATION ? { tools: { listChanged: true } } : {}),
+
     // Note: tools, prompts, resources capabilities are auto-registered by McpServer
     // when using registerTool(), registerPrompt(), registerResource()
   };
@@ -673,6 +678,30 @@ When the user's intent is ambiguous, classify it into one of 5 groups first, the
   - Chart details → sheets_visualize.chart_get
   - Comment → sheets_collaborate.comment_get
   - Named range → sheets_advanced.get_named_range
+
+"update" → What are you updating?
+  - Cell values → sheets_data.write
+  - Sheet properties (name, color, visibility) → sheets_core.update_sheet
+  - Spreadsheet title/locale → sheets_core.update_properties
+  - Chart appearance → sheets_visualize.chart_update
+  - Permission role → sheets_collaborate.share_update
+  - Named range bounds → sheets_advanced.update_named_range
+  - Dimension sizes (row height, column width) → sheets_dimensions.resize
+
+"import" → What are you importing?
+  - CSV file → sheets_composite.import_csv
+  - Excel XLSX file → sheets_composite.import_xlsx
+  - Built-in template → sheets_templates.import_builtin
+  - Data from BigQuery → sheets_bigquery.import_from_bigquery
+  - Data from external API → sheets_connectors.query
+
+"analyze" → What do you want to analyze?
+  - Cell values and data quality → sheets_analyze.analyze_data
+  - Formulas and upgrade opportunities → sheets_analyze.analyze_formulas
+  - Sheet structure and layout → sheets_analyze.analyze_structure
+  - Performance bottlenecks → sheets_analyze.analyze_performance
+  - Formula dependency impact for a specific cell → sheets_dependencies.analyze_impact
+  - Data validation conflicts → sheets_quality.analyze_impact
 
 ## ⚡ CRITICAL RULES (Avoid Common Mistakes)
 

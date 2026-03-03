@@ -15,7 +15,7 @@
 | F6        | Scenario Modeling                | No (extend `sheets_dependencies`) | 3                  | 4-5 src/           | Dependency graph + sampling        |
 | **Total** |                                  | **0 new tools**                   | **20 new actions** |                    | 315 → 335 actions                  |
 
-**Design principle**: Extend existing tools rather than creating new ones. This keeps the 22-tool surface stable, avoids client-side discovery changes, and leverages existing schema validation + handler infrastructure.
+**Design principle**: Extend existing tools rather than creating new ones. This keeps the 25-tool surface stable, avoids client-side discovery changes, and leverages existing schema validation + handler infrastructure.
 
 ---
 

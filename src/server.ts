@@ -8,8 +8,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { CallToolResult, LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
-import { SetLevelRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
 import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import type {
   ToolTaskHandler,
@@ -39,7 +37,6 @@ import {
   recordToolCall,
   updateQueueMetrics,
   quotaWarningsTotal,
-  recordSelfCorrection,
 } from './observability/metrics.js';
 
 import {
@@ -68,7 +65,6 @@ import { getCostTracker } from './services/cost-tracker.js';
 import { initializeBillingIntegration } from './services/billing-integration.js';
 import { GoogleSheetsBackend } from './adapters/index.js';
 import { AuthHandler } from './handlers/auth.js';
-import { handleLoggingSetLevel } from './handlers/logging.js';
 import {
   checkAuth,
   buildAuthErrorResponse,
@@ -84,42 +80,11 @@ import {
 import { verifyJsonSchema } from './utils/schema-compat.js';
 import { extractIdempotencyKeyFromHeaders } from './utils/idempotency-key-generator.js';
 import { TOOL_DEFINITIONS, isToolCallAuthExempt } from './mcp/registration/tool-definitions.js';
-import { createToolHandlerMap, buildToolResponse } from './mcp/registration/tool-handlers.js';
-import { registerServalSheetsResources } from './mcp/registration/resource-registration.js';
-import { registerServalSheetsPrompts } from './mcp/registration/prompt-registration.js';
+import { buildToolResponse } from './mcp/registration/tool-handlers.js';
 import { prepareSchemaForRegistrationCached } from './mcp/registration/schema-helpers.js';
 import { registerToolsListCompatibilityHandler } from './mcp/registration/tools-list-compat.js';
 import { recordSpreadsheetId } from './mcp/completions.js';
-import {
-  registerKnowledgeResources,
-  registerDeferredKnowledgeResources,
-  registerHistoryResources,
-  registerCacheResources,
-  registerTransactionResources,
-  registerConflictResources,
-  registerImpactResources,
-  registerValidationResources,
-  registerMetricsResources,
-  registerConfirmResources,
-  registerAnalyzeResources,
-  registerReferenceResources,
-  registerGuideResources,
-  registerDecisionResources,
-  registerExamplesResources,
-  registerPatternResources,
-  registerSheetResources,
-  registerSchemaResources,
-  registerDiscoveryResources,
-  registerMasterIndexResource,
-  registerKnowledgeIndexResource,
-  registerKnowledgeSearchResource,
-  initializeResourceNotifications,
-  resourceNotifications,
-  registerConnectionHealthResource,
-  registerRestartHealthResource,
-  registerCostDashboardResources,
-  registerTimeTravelResources,
-} from './resources/index.js';
+import { resourceNotifications } from './resources/notifications.js';
 import { cacheManager } from './utils/cache-manager.js';
 import { requestDeduplicator } from './utils/request-deduplication.js';
 import {
@@ -128,130 +93,39 @@ import {
   createConnectionHealthCheck,
   type HealthMonitor,
 } from './server/index.js';
-import { parseWithCache } from './utils/schema-cache.js';
-import { startKeepalive } from './utils/keepalive.js';
 import { cleanupAllResources } from './utils/resource-cleanup.js';
 import { disposeTemporaryResourceStore } from './resources/temporary-storage.js';
 import { startHeapWatchdog } from './utils/heap-watchdog.js';
-import { DEFER_SCHEMAS, STAGED_REGISTRATION } from './config/constants.js';
+import { STAGED_REGISTRATION } from './config/constants.js';
 import { toolStageManager } from './mcp/registration/tool-stage-manager.js';
 import { getEnv } from './config/env.js';
 import { resolveCostTrackingTenantId } from './utils/tenant-identification.js';
-import { warnIfDefaultCredentialsInHttpMode } from './config/embedded-oauth.js';
-import { registerSamplingConsentChecker } from './mcp/sampling.js';
 import { initializeBuiltinConnectors, connectorManager } from './connectors/connector-manager.js';
-
-const MCP_LOG_SEVERITY: Record<LoggingLevel, number> = {
-  emergency: 0,
-  alert: 1,
-  critical: 2,
-  error: 3,
-  warning: 4,
-  notice: 5,
-  info: 6,
-  debug: 7,
-};
-
-const WINSTON_TO_MCP_LOG_LEVEL: Record<string, LoggingLevel> = {
-  error: 'error',
-  warn: 'warning',
-  info: 'info',
-  http: 'info',
-  verbose: 'debug',
-  debug: 'debug',
-  silly: 'debug',
-};
-
-function normalizeMcpLogLevel(winstonLevel: string): LoggingLevel {
-  return WINSTON_TO_MCP_LOG_LEVEL[winstonLevel] ?? 'info';
-}
-
-function shouldForwardMcpLog(winstonLevel: string, requestedLevel: LoggingLevel): boolean {
-  const messageLevel = normalizeMcpLogLevel(winstonLevel);
-  return MCP_LOG_SEVERITY[messageLevel] <= MCP_LOG_SEVERITY[requestedLevel];
-}
-
-function safeStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-}
-
-/**
- * Extract action from args, checking up to 3 levels deep for nested request objects
- * Fixes: 13% of calls showing as "unknown" due to shallow extraction
- */
-function extractActionFromArgs(args: unknown): string {
-  if (typeof args !== 'object' || args === null) {
-    return 'unknown';
-  }
-
-  const record = args as Record<string, unknown>;
-
-  // Check top-level action field
-  if (typeof record['action'] === 'string' && record['action']) {
-    return record['action'];
-  }
-
-  // Check nested request objects (up to 3 levels)
-  let current: unknown = record['request'];
-  for (let depth = 0; depth < 3 && current; depth++) {
-    if (typeof current === 'object' && current !== null) {
-      const nested = current as Record<string, unknown>;
-      if (typeof nested['action'] === 'string' && nested['action']) {
-        return nested['action'];
-      }
-      current = nested['request'];
-    }
-  }
-
-  return 'unknown';
-}
-
-function getSingleHeaderValue(
-  headers: Record<string, string | string[] | undefined>,
-  headerName: string
-): string | undefined {
-  const raw = headers[headerName];
-  if (Array.isArray(raw)) {
-    return raw[0];
-  }
-  return raw;
-}
-
-function extractPrincipalIdFromHeaders(
-  headers: Record<string, string | string[] | undefined> | undefined
-): string | undefined {
-  if (!headers) {
-    return undefined;
-  }
-
-  const candidateHeaders = ['x-user-id', 'x-session-id', 'x-client-id'] as const;
-  for (const header of candidateHeaders) {
-    const value = getSingleHeaderValue(headers, header)?.trim();
-    if (value) {
-      return value;
-    }
-  }
-  return undefined; // OK: no principal header found — caller treats undefined as anonymous
-}
-
-const SELF_CORRECTION_WINDOW_MS = 5 * 60 * 1000;
-const recentToolFailures = new Map<string, { action: string; timestampMs: number }>();
-
-function buildSelfCorrectionKey(principalId: string, toolName: string): string {
-  return `${principalId}:${toolName}`;
-}
-
-function pruneOldSelfCorrectionFailures(nowMs: number): void {
-  for (const [key, value] of recentToolFailures.entries()) {
-    if (nowMs - value.timestampMs > SELF_CORRECTION_WINDOW_MS) {
-      recentToolFailures.delete(key);
-    }
-  }
-}
+import {
+  extractActionFromArgs,
+  extractPrincipalIdFromHeaders,
+} from './server-utils/request-extraction.js';
+import {
+  recordToolExecutionException,
+  recordToolExecutionResult,
+} from './server-runtime/tool-call-metrics.js';
+import {
+  handlePreInitExemptToolCall,
+  handleSheetsAuthToolCall,
+} from './server-runtime/preinit-tool-routing.js';
+import { dispatchServerToolCall } from './server-runtime/handler-dispatch.js';
+import { forwardServerLogMessage, installServerLoggingBridge } from './server-runtime/logging-bridge.js';
+import {
+  ensureServerCompletionsRegistered,
+  ensureServerResourcesRegistered,
+  registerServerPrompts,
+  registerServerResources,
+} from './server-runtime/resource-registration.js';
+import { prepareServerBootstrap } from './server-runtime/bootstrap.js';
+import {
+  registerServerLoggingSetLevelHandler,
+  registerServerTaskCancelHandler,
+} from './server-runtime/control-plane-registration.js';
 
 export interface ServalSheetsServerOptions {
   name?: string;
@@ -951,17 +825,11 @@ export class ServalSheetsServer {
         try {
           // Handle sheets_auth separately - it works even without full initialization
           if (toolName === 'sheets_auth') {
-            if (!this.authHandler) {
-              // Create a basic auth handler if not initialized
-              this.authHandler = new AuthHandler({});
-            }
-            const { SheetsAuthInputSchema } = await import('./schemas/auth.js');
-            const result = await this.authHandler.handle(
-              parseWithCache(SheetsAuthInputSchema, args, 'SheetsAuthInput')
-            );
+            const authResult = await handleSheetsAuthToolCall(this.authHandler, args);
+            this.authHandler = authResult.authHandler;
             const duration = (Date.now() - startTime) / 1000;
             recordToolCall(toolName, 'auth', 'success', duration);
-            return buildToolResponse(result);
+            return buildToolResponse(authResult.result);
           }
 
           // Local-only actions that are explicitly auth-exempt in tool registration metadata.
@@ -984,23 +852,9 @@ export class ServalSheetsServer {
           if (!this.handlers) {
             // Pre-auth path: serve local-only tools without full handler initialization
             if (isExempt) {
-              if (toolName === 'sheets_session') {
-                const { SessionHandler } = await import('./handlers/session.js');
-                const { SheetsSessionInputSchema } = await import('./schemas/session.js');
-                const handler = new SessionHandler();
-                const result = await handler.handle(
-                  parseWithCache(SheetsSessionInputSchema, args, 'SheetsSessionInput')
-                );
-                return buildToolResponse(result);
-              }
-              if (toolName === 'sheets_history') {
-                const { HistoryHandler } = await import('./handlers/history.js');
-                const { SheetsHistoryInputSchema } = await import('./schemas/history.js');
-                const handler = new HistoryHandler({});
-                const result = await handler.handle(
-                  parseWithCache(SheetsHistoryInputSchema, args, 'SheetsHistoryInput')
-                );
-                return buildToolResponse(result);
+              const preInitResult = await handlePreInitExemptToolCall(toolName, args);
+              if (preInitResult) {
+                return buildToolResponse(preInitResult);
               }
             }
             return buildToolResponse({
@@ -1016,158 +870,51 @@ export class ServalSheetsServer {
             });
           }
 
-          // Stage-based tool registration: auto-advance stages as needed
-          if (STAGED_REGISTRATION) {
-            // Auto-advance to Stage 2 when a spreadsheetId is seen or set_active is called
-            if (
-              toolStageManager.currentStage < 2 &&
-              (rawAction === 'set_active' ||
-                rawArgs['spreadsheetId'] ||
-                (rawArgs['request'] as Record<string, unknown> | undefined)?.['spreadsheetId'])
-            ) {
-              toolStageManager.advanceToStage(2);
-            }
-            // Auto-advance to required stage if tool not yet registered
-            toolStageManager.ensureToolAvailable(toolName);
-          }
-
-          // Route to appropriate handler (cached — handlers don't change between requests)
-          this.cachedHandlerMap ??= createToolHandlerMap(
-            this.handlers,
-            this.authHandler ?? undefined
-          );
-          const handlerMap = this.cachedHandlerMap;
-
-          const handler = handlerMap[toolName];
-          if (!handler) {
-            return buildToolResponse({
-              response: {
-                success: false,
-                error: {
-                  code: 'METHOD_NOT_FOUND',
-                  message: `Handler for ${toolName} not yet implemented`,
-                  retryable: false,
-                  suggestedFix: 'This tool is planned for a future release',
-                  alternatives: [
-                    {
-                      tool: 'sheets_data',
-                      action: 'read',
-                      description: 'Use sheets_data for basic read/write operations',
-                    },
-                  ],
-                },
-              },
-            });
-          }
-
-          // Create per-request context with requestId for tracing
-          if (!this.context) {
-            return buildToolResponse({
-              response: {
-                success: false,
-                error: {
-                  code: 'INTERNAL_ERROR',
-                  message: 'Server context not initialized',
-                  retryable: false,
-                },
-              },
-            });
-          }
-
-          // OPTIMIZATION: Create session-level metadata cache (N+1 elimination)
-          const { createMetadataCache } = await import('./services/metadata-cache.js');
-          const metadataCache = this.googleClient?.sheets
-            ? createMetadataCache(this.googleClient.sheets)
-            : undefined;
-
-          const perRequestContext: HandlerContext = {
-            ...this.context,
+          const dispatchResult = await dispatchServerToolCall({
+            toolName,
+            args,
+            extra: extra as (Record<string, unknown> & { abortSignal?: AbortSignal }) | undefined,
+            rawArgs,
+            rawAction,
+            handlers: this.handlers,
+            authHandler: this.authHandler,
+            cachedHandlerMap: this.cachedHandlerMap,
+            context: this.context,
+            googleClient: this.googleClient,
             requestId: requestContext.requestId,
-            // The MCP SDK automatically handles notifications/cancelled — it aborts this signal
-            // when the client sends a cancellation notification for this requestId (SEP-1724).
-            abortSignal: extra?.abortSignal,
-            metadataCache, // Session-level metadata cache for N+1 elimination
-          };
-
-          // Start keepalive to prevent Claude Desktop timeouts during long operations
-          const keepalive = startKeepalive({
-            operationName: toolName,
-            debug: process.env['DEBUG_KEEPALIVE'] === 'true',
+            costTrackingTenantId,
           });
-
-          // Pass full extra to handler (includes elicit/sample for MCP-native tools, plus context)
-          // Wrap with try/finally to ensure keepalive stops even if handler throws
-          let result;
-          try {
-            result = await handler(args, { ...extra, context: perRequestContext });
-          } finally {
-            // Stop keepalive when handler completes
-            keepalive.stop();
-
-            // OPTIMIZATION: Clear metadata cache after request completes
-            metadataCache?.clear();
-
-            // COST-01: Record per-tool API call when cost tracking is enabled
-            perRequestContext.costTracker?.trackApiCall(costTrackingTenantId, 'sheets');
+          this.cachedHandlerMap = dispatchResult.handlerMap;
+          if (dispatchResult.kind === 'error') {
+            return dispatchResult.response;
           }
 
           const duration = (Date.now() - startTime) / 1000;
 
           // Get action from args if available (check up to 3 levels deep)
           const action = extractActionFromArgs(args);
-          const nowMs = Date.now();
-          pruneOldSelfCorrectionFailures(nowMs);
-          const correctionKey = buildSelfCorrectionKey(
-            requestContext.principalId ?? 'anonymous',
-            toolName
-          );
+          recordToolExecutionResult({
+            toolName,
+            action,
+            durationSeconds: duration,
+            result: dispatchResult.result,
+            principalId: requestContext.principalId ?? 'anonymous',
+            warn: (message, meta) => logger.warn(message, meta),
+          });
 
-          const response =
-            typeof result === 'object' && result !== null
-              ? (result as { response?: { success?: boolean; error?: unknown } }).response
-              : undefined;
-          const isError =
-            response?.success === false ||
-            (typeof result === 'object' &&
-              result !== null &&
-              'success' in result &&
-              (result as { success?: boolean }).success === false);
-
-          if (isError) {
-            const errorDetail =
-              response?.success === false ? response.error : (result as { error?: unknown }).error;
-            logger.warn('Tool call failed', {
-              tool: toolName,
-              error: errorDetail,
-            });
-            // Record failed tool call
-            recordToolCall(toolName, action, 'error', duration);
-            recentToolFailures.set(correctionKey, { action, timestampMs: nowMs });
-          } else {
-            // Record successful tool call
-            recordToolCall(toolName, action, 'success', duration);
-            const priorFailure = recentToolFailures.get(correctionKey);
-            if (priorFailure && nowMs - priorFailure.timestampMs <= SELF_CORRECTION_WINDOW_MS) {
-              recordSelfCorrection(toolName, priorFailure.action, action);
-              recentToolFailures.delete(correctionKey);
-            }
-          }
-
-          return buildToolResponse(result);
+          return buildToolResponse(dispatchResult.result);
         } catch (error) {
           const duration = (Date.now() - startTime) / 1000;
           const action = extractActionFromArgs(args);
 
           logger.error('Tool call threw exception', { tool: toolName, error });
 
-          // Record error metric
-          recordToolCall(toolName, action, 'error', duration);
-          pruneOldSelfCorrectionFailures(Date.now());
-          const correctionKey = buildSelfCorrectionKey(
-            requestContext.principalId ?? 'anonymous',
-            toolName
-          );
-          recentToolFailures.set(correctionKey, { action, timestampMs: Date.now() });
+          recordToolExecutionException({
+            toolName,
+            action,
+            durationSeconds: duration,
+            principalId: requestContext.principalId ?? 'anonymous',
+          });
 
           // Check if this is a Google authentication error
           // If so, convert it to a user-friendly auth error with clear instructions
@@ -1195,118 +942,17 @@ export class ServalSheetsServer {
 
   /**
    * Register resources
+   * Idempotent: safe to call multiple times (guards against double-registration)
    */
   private async registerResources(): Promise<void> {
-    registerServalSheetsResources(this._server, this.googleClient);
-
-    // Register knowledge resources
-    // Deferred mode: register URI template only, load files on-demand (saves ~800KB context)
-    // Eager mode: discover all files at startup and register individual URIs
-    // Auto-enabled for STDIO when DEFER_SCHEMAS is active; override with DISABLE_KNOWLEDGE_RESOURCES
-    const useDeferred = process.env['DISABLE_KNOWLEDGE_RESOURCES'] === 'true' || DEFER_SCHEMAS;
-    if (useDeferred) {
-      registerDeferredKnowledgeResources(this._server);
-    } else {
-      await registerKnowledgeResources(this._server);
+    if (this.resourcesRegistered) {
+      return; // Already registered — prevent SDK "already registered" errors
     }
-
-    // Register operation history resources (Phase 1, Task 1.3)
-    registerHistoryResources(this._server);
-
-    // Register time travel debugger resources (checkpoint blame analysis)
-    registerTimeTravelResources(this._server);
-
-    // Register cache statistics resources (Phase 1, Task 1.5)
-    registerCacheResources(this._server);
-
-    // Removed: registerWorkflowResources (Claude orchestrates natively via MCP)
-
-    // Only register Phase 4 resources if Google client was initialized
-    // These features require an active Google API connection
-    if (this.googleClient) {
-      // Register transaction resources (Phase 4, Task 4.1)
-      registerTransactionResources(this._server);
-
-      // Register conflict resources (Phase 4, Task 4.2)
-      registerConflictResources(this._server);
-
-      // Register impact resources (Phase 4, Task 4.3)
-      registerImpactResources(this._server);
-
-      // Register validation resources (Phase 4, Task 4.4)
-      registerValidationResources(this._server);
-
-      // Register metrics resources (Phase 6, Task 6.1)
-      registerMetricsResources(this._server);
-
-      // Register discovery resources (Phase 4 - Observability)
-      registerDiscoveryResources(this._server);
-    }
-
-    // Register MCP-native resources (Elicitation & Sampling)
-    registerConfirmResources(this._server); // Confirmation via Elicitation (SEP-1036)
-    registerAnalyzeResources(this._server); // AI analysis via Sampling (SEP-1577)
-
-    // Register dynamic sheet discovery (MCP 2025-11-25 Resource Templates)
-    if (this.googleClient && this.context) {
-      registerSheetResources(this._server, this.context);
-    }
-
-    // Register static reference resources (LLM reference documentation)
-    registerReferenceResources(this._server); // Colors, formulas, formats, API limits
-
-    // Register performance guide resources (Phase 6)
-    registerGuideResources(this._server); // Quota optimization, batching, caching, error recovery
-
-    // Register decision tree resources (Phase 6)
-    registerDecisionResources(this._server); // Transaction, confirmation, tool selection, read vs batch_read
-
-    // Register examples library resources (Phase 6)
-    registerExamplesResources(this._server); // Basic operations, batch, transactions, composite workflows, analysis
-
-    // Register workflow patterns resources (UASEV+R protocol demonstrations)
-    registerPatternResources(this._server); // Real-world patterns showing optimal tool usage per workflow phase
-
-    // Register schema resources for deferred loading (SERVAL_DEFER_SCHEMAS=true)
-    // These resources expose full tool schemas on-demand when using minimal registration
-    registerSchemaResources(this._server);
-
-    // Register cost dashboard resources (billing integration)
-    registerCostDashboardResources(this._server);
-
-    // Register connection health resource (Phase 0, Priority 1)
-    // Exposes real-time connection health statistics for monitoring
-    registerConnectionHealthResource(this._server);
-
-    // Register restart policy health resource (Phase 0, Priority 4)
-    // Exposes restart policy state and backoff monitoring
-    registerRestartHealthResource(this._server);
-
-    // Register master index resource (servalsheets://index)
-    // Entry point for Claude to discover all available resources
-    registerMasterIndexResource(this._server);
-
-    // Register knowledge index resource (knowledge:///index)
-    // Provides semantic index of all knowledge files with usage guidance
-    registerKnowledgeIndexResource(this._server);
-
-    // Register knowledge search resource (knowledge:///search?q={query})
-    // Enables fuzzy search across all knowledge files
-    registerKnowledgeSearchResource(this._server);
-
-    // Initialize resource change notifications (MCP notifications/resources/list_changed)
-    // Enables clients to be notified when dynamic resources change (e.g., analysis results)
-    initializeResourceNotifications(this._server);
-
-    if (getEnv().ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS) {
-      resourceNotifications.syncToolList(
-        TOOL_DEFINITIONS.map((tool) => tool.name),
-        {
-          emitOnFirstSet: false,
-          reason: 'resource initialization completed',
-        }
-      );
-    }
+    await registerServerResources({
+      server: this._server,
+      googleClient: this.googleClient,
+      context: this.context,
+    });
   }
 
   /**
@@ -1317,41 +963,25 @@ export class ServalSheetsServer {
    * Thread-safe: multiple concurrent calls will only register once.
    */
   private async ensureResourcesRegistered(): Promise<void> {
-    // Fast path: resources already registered
-    if (this.resourcesRegistered) {
-      return;
-    }
-
-    // If registration is in progress, wait for it
-    if (this.resourceRegistrationPromise) {
-      await this.resourceRegistrationPromise;
-      return;
-    }
-
-    // Start registration (only one caller will enter this block)
-    this.resourceRegistrationPromise = (async () => {
-      try {
-        baseLogger.info('Lazy-loading resources on first access');
-        await this.registerResources();
-        this.resourcesRegistered = true;
-        baseLogger.info('Resources registered successfully');
-      } catch (error) {
-        baseLogger.error('Failed to register resources', { error });
-        this.resourceRegistrationPromise = null; // Allow retry
-        throw error;
-      }
-    })();
-
-    await this.resourceRegistrationPromise;
-    // ISSUE-054: Clear resolved promise to free memory (fast path guarded by resourcesRegistered)
-    this.resourceRegistrationPromise = null;
+    await ensureServerResourcesRegistered({
+      resourcesRegistered: this.resourcesRegistered,
+      resourceRegistrationPromise: this.resourceRegistrationPromise,
+      registerResources: () => this.registerResources(),
+      setResourcesRegistered: (value) => {
+        this.resourcesRegistered = value;
+      },
+      setResourceRegistrationPromise: (value) => {
+        this.resourceRegistrationPromise = value;
+      },
+      log: baseLogger,
+    });
   }
 
   /**
    * Register prompts
    */
   private registerPrompts(): void {
-    registerServalSheetsPrompts(this._server);
+    registerServerPrompts(this._server);
   }
 
   /**
@@ -1365,15 +995,7 @@ export class ServalSheetsServer {
    * when any ResourceTemplate with completions is registered.
    */
   private registerCompletions(): void {
-    try {
-      // Resource completions are wired in registerResources() via ResourceTemplate complete callbacks.
-      // No explicit handler registration is needed — the SDK installs it automatically.
-      baseLogger.info(
-        'Completions capability registered (spreadsheetId + range autocompletion active)'
-      );
-    } catch (error) {
-      baseLogger.error('Failed to register completions', { error });
-    }
+    ensureServerCompletionsRegistered(baseLogger);
   }
 
   /**
@@ -1383,103 +1005,41 @@ export class ServalSheetsServer {
    * MCP 2025-11-25: Task-based execution support
    */
   private registerTaskCancelHandler(): void {
-    try {
-      // Wire the cancel callback: when the SDK's TaskStore.cancelTask() is called
-      // (via tasks/cancel protocol request), abort the running operation's AbortController
-      const underlyingStore = this.taskStore.getUnderlyingStore();
-      if ('onTaskCancelled' in underlyingStore) {
-        (
-          underlyingStore as { onTaskCancelled?: (taskId: string, reason: string) => void }
-        ).onTaskCancelled = (taskId, reason) => {
-          const abortController = this.taskAbortControllers.get(taskId);
-          if (abortController) {
-            abortController.abort(reason);
-            this.taskAbortControllers.delete(taskId);
-            baseLogger.info('Task abort signal sent', { taskId, reason });
-          }
-          // Clear watchdog timer when task is cancelled via store
-          clearTimeout(this.taskWatchdogTimers.get(taskId));
-          this.taskWatchdogTimers.delete(taskId);
-        };
-        baseLogger.info('Task cancellation support enabled');
-      } else {
-        baseLogger.warn('Task cancellation not available (store does not support onTaskCancelled)');
-      }
-    } catch (error) {
-      baseLogger.error('Failed to register task cancel handler', { error });
-    }
+    registerServerTaskCancelHandler({
+      taskStore: this.taskStore,
+      taskAbortControllers: this.taskAbortControllers,
+      taskWatchdogTimers: this.taskWatchdogTimers,
+      log: baseLogger,
+    });
   }
 
   private installLoggingBridge(): void {
-    if (this.loggingBridgeInstalled) {
-      return;
-    }
-
-    this.loggingBridgeInstalled = true;
-    const originalLog = baseLogger.log.bind(baseLogger);
-
-    baseLogger.log = ((levelOrEntry: unknown, message?: unknown, ...meta: unknown[]) => {
-      const result = (originalLog as (...args: unknown[]) => unknown)(
-        levelOrEntry,
-        message,
-        ...meta
-      );
-      this.forwardLogMessage(levelOrEntry, message, meta);
-      return result;
-    }) as typeof baseLogger.log;
+    installServerLoggingBridge({
+      loggingBridgeInstalled: this.loggingBridgeInstalled,
+      setLoggingBridgeInstalled: (value) => {
+        this.loggingBridgeInstalled = value;
+      },
+      getRequestedMcpLogLevel: () => this.requestedMcpLogLevel,
+      getForwardingMcpLog: () => this.forwardingMcpLog,
+      setForwardingMcpLog: (value) => {
+        this.forwardingMcpLog = value;
+      },
+      server: this._server,
+    });
   }
 
   private forwardLogMessage(levelOrEntry: unknown, message: unknown, meta: unknown[]): void {
-    if (!this.requestedMcpLogLevel || this.forwardingMcpLog) {
-      return;
-    }
-
-    let level = 'info';
-    let text = '';
-    let data: unknown = message;
-
-    if (typeof levelOrEntry === 'string') {
-      level = levelOrEntry;
-      if (typeof message === 'string') {
-        text = message;
-      } else if (message !== undefined) {
-        text = safeStringify(message);
-      }
-      data = meta.length === 0 ? message : meta.length === 1 ? meta[0] : meta;
-    } else if (typeof levelOrEntry === 'object' && levelOrEntry !== null) {
-      const entry = levelOrEntry as Record<string, unknown>;
-      if (typeof entry['level'] !== 'string') {
-        return;
-      }
-      level = entry['level'];
-      if (typeof entry['message'] === 'string') {
-        text = entry['message'];
-      } else if (entry['message'] !== undefined) {
-        text = safeStringify(entry['message']);
-      }
-      data = entry;
-    } else {
-      return;
-    }
-
-    if (!shouldForwardMcpLog(level, this.requestedMcpLogLevel)) {
-      return;
-    }
-
-    const mcpLevel = normalizeMcpLogLevel(level);
-    this.forwardingMcpLog = true;
-    void this._server.server
-      .sendLoggingMessage({
-        level: mcpLevel,
-        logger: 'servalsheets',
-        data: { message: text, meta: data },
-      })
-      .catch(() => {
-        // Best-effort bridge: avoid recursive logging on notification failure.
-      })
-      .finally(() => {
-        this.forwardingMcpLog = false;
-      });
+    forwardServerLogMessage({
+      levelOrEntry,
+      message,
+      meta,
+      requestedMcpLogLevel: this.requestedMcpLogLevel,
+      forwardingMcpLog: this.forwardingMcpLog,
+      setForwardingMcpLog: (value) => {
+        this.forwardingMcpLog = value;
+      },
+      server: this._server,
+    });
   }
 
   /**
@@ -1488,33 +1048,16 @@ export class ServalSheetsServer {
    * Enables clients to adjust server log verbosity via logging/setLevel request.
    */
   private registerLogging(): void {
-    try {
-      this._server.server.setRequestHandler(
-        SetLevelRequestSchema,
-        async (request: z.infer<typeof SetLevelRequestSchema>) => {
-          // Extract level from request params
-          const level = request.params.level;
-
-          this.requestedMcpLogLevel = level;
-          this.installLoggingBridge();
-
-          // Call the handler
-          const response = await handleLoggingSetLevel({ level });
-
-          baseLogger.info('Log level changed via logging/setLevel', {
-            previousLevel: response.previousLevel,
-            newLevel: response.newLevel,
-          });
-
-          // OK: Explicit empty - MCP logging/setLevel returns empty object per protocol
-          return {};
-        }
-      );
-
-      baseLogger.info('Logging handler registered (logging/setLevel)');
-    } catch (error) {
-      baseLogger.error('Failed to register logging handler', { error });
-    }
+    registerServerLoggingSetLevelHandler({
+      server: this._server,
+      setRequestedMcpLogLevel: (level) => {
+        this.requestedMcpLogLevel = level;
+      },
+      installLoggingBridge: () => {
+        this.installLoggingBridge();
+      },
+      log: baseLogger,
+    });
   }
 
   /**
@@ -1805,88 +1348,7 @@ export class ServalSheetsServer {
 export async function createServalSheetsServer(
   options: ServalSheetsServerOptions = {}
 ): Promise<ServalSheetsServer> {
-  // C1: Warn when using default embedded OAuth credentials (works for both STDIO and HTTP modes)
-  warnIfDefaultCredentialsInHttpMode();
-
-  // ISSUE-232: Wire GDPR sampling consent checker. When ENABLE_SAMPLING_CONSENT=strict, sampling
-  // calls that lack explicit user consent will be blocked. Default: permissive (logs warning only).
-  registerSamplingConsentChecker(async () => {
-    if (process.env['ENABLE_SAMPLING_CONSENT'] === 'strict') {
-      throw new Error(
-        'GDPR consent required before AI sampling. Set ENABLE_SAMPLING_CONSENT=true to enable.'
-      );
-    }
-    // Non-strict: sampling is allowed; operators can override with a stricter checker.
-  });
-
-  // Create task store if not provided - uses createTaskStore() for Redis support
-  if (!options.taskStore) {
-    const { createTaskStore } = await import('./core/task-store-factory.js');
-    options.taskStore = await createTaskStore();
-  }
-
-  // Initialize capability cache service with Redis if available
-  const redisUrl = process.env['REDIS_URL'];
-  const isProduction = process.env['NODE_ENV'] === 'production';
-  const allowMemorySessions = process.env['ALLOW_MEMORY_SESSIONS'] === 'true';
-
-  // Enforce Redis in production for distributed cache and session persistence
-  // Unless ALLOW_MEMORY_SESSIONS=true for local testing
-  if (isProduction && !redisUrl && !allowMemorySessions) {
-    throw new Error(
-      'Redis is required in production mode. Set REDIS_URL environment variable.\n' +
-        'Example: REDIS_URL=redis://localhost:6379\n' +
-        'For development/testing, set NODE_ENV=development\n' +
-        'For local production testing, set ALLOW_MEMORY_SESSIONS=true'
-    );
-  }
-
-  if (isProduction && allowMemorySessions && !redisUrl) {
-    baseLogger.warn(
-      'Running production without Redis (ALLOW_MEMORY_SESSIONS=true). ' +
-        'Cache and sessions are memory-only. Not recommended for real production.'
-    );
-  }
-
-  if (redisUrl) {
-    const { createClient } = await import('redis');
-    const { initCapabilityCacheService } = await import('./services/capability-cache.js');
-    const { initETagCache } = await import('./services/etag-cache.js');
-    const { getDistributedCacheConfig } = await import('./config/env.js');
-
-    const redis = createClient({ url: redisUrl });
-    await redis.connect();
-
-    // Initialize capability cache with Redis
-    initCapabilityCacheService(redis);
-    baseLogger.info('Capability cache service initialized with Redis');
-
-    // Initialize ETag cache with Redis (if enabled)
-    const cacheConfig = getDistributedCacheConfig();
-    if (cacheConfig.enabled) {
-      initETagCache(redis);
-      baseLogger.info('ETag cache initialized with Redis L2 (distributed caching enabled)');
-    } else {
-      initETagCache();
-      baseLogger.info('ETag cache initialized (L1 memory-only)');
-    }
-
-    // SCALE-01: Wire Redis-backed session store when SESSION_STORE_TYPE=redis
-    if (process.env['SESSION_STORE_TYPE'] === 'redis') {
-      const { initSessionRedis } = await import('./services/session-context.js');
-      initSessionRedis(redis);
-      baseLogger.info('Session store initialized with Redis backend');
-    }
-  } else {
-    const { initCapabilityCacheService } = await import('./services/capability-cache.js');
-    const { initETagCache } = await import('./services/etag-cache.js');
-
-    initCapabilityCacheService();
-    baseLogger.info('Capability cache service initialized (memory-only)');
-
-    initETagCache();
-    baseLogger.info('ETag cache initialized (L1 memory-only)');
-  }
+  await prepareServerBootstrap(options);
 
   const server = new ServalSheetsServer(options);
   await server.start();

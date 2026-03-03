@@ -670,7 +670,7 @@ describe('SheetsDataHandler', () => {
         expect((result.response as any).snapshotId).toBeUndefined();
       });
 
-      it('should proceed even when elicitation returns cancel because confirmation is disabled', async () => {
+      it('should cancel clear when elicitation returns cancel for large ranges', async () => {
         // Use a range > 100 cells to trigger confirmation
         mockContext.rangeResolver = {
           resolve: vi.fn().mockResolvedValue({
@@ -712,8 +712,10 @@ describe('SheetsDataHandler', () => {
           range: 'Sheet1!A1:Z10',
         });
 
+        // With destructive confirmation wired, cancellation should be respected
         expect(result.response.success).toBe(true);
-        expect(mockApi.spreadsheets.values.clear).toHaveBeenCalled();
+        expect((result.response as any)._cancelled).toBe(true);
+        expect(mockApi.spreadsheets.values.clear).not.toHaveBeenCalled();
       });
 
       it('should support dryRun mode', async () => {

@@ -527,7 +527,7 @@ Result: 3 requests → 2 API calls (33% savings)
 | Schema Validation | 101-111 | Per-tool schema parse time |
 | Invalid Input Rejection | 115-125 | Error path performance |
 | Broad Validation | 129-147 | 3 actions per tool (90+ samples) |
-| Full Action Sweep | 151-169 | All 342 actions validated |
+| Full Action Sweep | 151-169 | All 391 actions validated |
 | Response Building | 173-228 | Response serialization |
 | JSON Serialization | 232-266 | MCP output bottleneck |
 | Schema Registry Lookup | 270-285 | Tool name → schema mapping |

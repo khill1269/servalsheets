@@ -15,6 +15,7 @@
  */
 
 import type { sheets_v4 } from 'googleapis';
+import type { RequestMerger } from './request-merger.js';
 import { getETagCache } from './etag-cache.js';
 import { getCacheInvalidationGraph } from './cache-invalidation-graph.js';
 import { extractETag, is304NotModified } from '../utils/etag-helpers.js';
@@ -40,6 +41,7 @@ export interface CachedApiStats {
  */
 export class CachedSheetsApi {
   private sheetsApi: sheets_v4.Sheets;
+  private requestMerger?: RequestMerger;
   private cache = getETagCache();
   private accessTracker = getAccessPatternTracker();
   private stats = {
@@ -48,8 +50,9 @@ export class CachedSheetsApi {
     cacheMisses: 0,
   };
 
-  constructor(sheetsApi: sheets_v4.Sheets) {
+  constructor(sheetsApi: sheets_v4.Sheets, requestMerger?: RequestMerger) {
     this.sheetsApi = sheetsApi;
+    this.requestMerger = requestMerger;
   }
 
   /**
@@ -283,22 +286,33 @@ export class CachedSheetsApi {
     // Cache miss - fetch from API
     this.stats.cacheMisses++;
     cacheMissesTotal.inc({ namespace: 'local' });
-    const response = await this.sheetsApi.spreadsheets.values.get({
-      spreadsheetId,
-      range,
-      valueRenderOption: options.valueRenderOption,
-      dateTimeRenderOption: options.dateTimeRenderOption,
-      majorDimension: options.majorDimension,
-    });
 
-    // Cache with real ETag if available, otherwise use timestamp
-    const etag = extractETag(response) || `cached-${Date.now()}`;
-    await this.cache.setETag(cacheKey, etag, response.data);
+    // Use RequestMerger for overlapping range optimization (20-40% API savings)
+    // Falls back to direct call when dateTimeRenderOption is set (merger doesn't support it)
+    let valueData: sheets_v4.Schema$ValueRange;
+    if (this.requestMerger && !options.dateTimeRenderOption) {
+      valueData = await this.requestMerger.mergeRead(this.sheetsApi, spreadsheetId, range, {
+        valueRenderOption: options.valueRenderOption,
+        majorDimension: options.majorDimension,
+      });
+    } else {
+      const response = await this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId,
+        range,
+        valueRenderOption: options.valueRenderOption,
+        dateTimeRenderOption: options.dateTimeRenderOption,
+        majorDimension: options.majorDimension,
+      });
+      // Cache with real ETag if available
+      const etag = extractETag(response) || `cached-${Date.now()}`;
+      await this.cache.setETag(cacheKey, etag, response.data);
+      valueData = response.data;
+    }
 
     // 16-A3/A4: Record access pattern after API call
     this.recordAccessPattern(spreadsheetId, range);
     span.end();
-    return response.data;
+    return valueData;
   }
 
   /**
@@ -546,9 +560,12 @@ let instance: CachedSheetsApi | null = null;
 /**
  * Get or create cached Sheets API singleton
  */
-export function getCachedSheetsApi(sheetsApi: sheets_v4.Sheets): CachedSheetsApi {
+export function getCachedSheetsApi(
+  sheetsApi: sheets_v4.Sheets,
+  requestMerger?: RequestMerger
+): CachedSheetsApi {
   if (!instance) {
-    instance = new CachedSheetsApi(sheetsApi);
+    instance = new CachedSheetsApi(sheetsApi, requestMerger);
   }
   return instance;
 }

@@ -128,6 +128,7 @@ test-replay.jsonl
 # Documentation - Auto-generated (TypeDoc)
 docs/generated/
 docs/.vitepress/dist/
+docs/development/complete-file-audit/
 
 # Analysis reports (Word/Excel documents)
 reports/

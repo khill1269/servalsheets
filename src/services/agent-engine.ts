@@ -15,6 +15,7 @@ import { randomUUID } from 'crypto';
 import { writeFile, readFile, mkdir, unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
+import { assertSamplingConsent as assertGlobalSamplingConsent } from '../mcp/sampling.js';
 import { logger } from '../utils/logger.js';
 import { getRequestContext } from '../utils/request-context.js';
 
@@ -77,8 +78,11 @@ function withSamplingTimeout<T>(promise: Promise<T>): Promise<T> {
 }
 
 async function assertSamplingConsent(): Promise<void> {
-  if (!_consentChecker) return;
-  await _consentChecker();
+  if (_consentChecker) {
+    await _consentChecker();
+    return;
+  }
+  await assertGlobalSamplingConsent();
 }
 
 function createUserMessage(text: string): SamplingMessage {

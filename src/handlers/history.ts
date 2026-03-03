@@ -27,6 +27,7 @@ import { mapStandaloneError } from './helpers/error-mapping.js';
 import { recordRevisionId } from '../mcp/completions.js';
 import { getSessionContext } from '../services/session-context.js';
 import { logger } from '../utils/logger.js';
+import { sendProgress } from '../utils/request-context.js';
 import type { HistoryHandlerOptions } from '../types/history-handler-options.js';
 
 export type { HistoryHandlerOptions } from '../types/history-handler-options.js';
@@ -511,12 +512,14 @@ export class HistoryHandler {
             break;
           }
           const timelineReq = req as HistoryTimelineInput;
+          await sendProgress(0, 2, 'Scanning revision history...');
           const entries = await getTimeline(this.driveApi, timelineReq.spreadsheetId, {
             since: timelineReq.since,
             until: timelineReq.until,
             limit: timelineReq.limit,
             googleClient: this.googleClient,
           });
+          await sendProgress(1, 2, `Found ${entries.length} revision entries`);
           const activityAvailable = entries.some((e) => e.activityType !== undefined);
 
           // Wire session context: cache timeline for quick follow-up diff_revisions

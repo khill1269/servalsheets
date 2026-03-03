@@ -69,7 +69,7 @@ import { logger } from '../utils/logger.js';
  * Tool actions that trigger audit logging.
  * Names must match the actual action keys dispatched by handler switch statements.
  */
-const MUTATION_ACTIONS = new Set<MutationEvent['action']>([
+export const MUTATION_ACTIONS = new Set<MutationEvent['action']>([
   // sheets_data — direct data writes
   'write',
   'append',

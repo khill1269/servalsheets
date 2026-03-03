@@ -15,8 +15,8 @@
  * - src/schemas/handler-deviations.ts - Documented acceptable deviations
  *
  * Expected Results:
- * - 21/22 tools: Perfect alignment (0 deviations)
- * - 1/22 tools: Alignment with documented deviations (sheets_core)
+ * - 24/25 tools: Perfect alignment (0 deviations)
+ * - 1/25 tools: Alignment with documented deviations (sheets_core)
  * - 0 undocumented deviations allowed
  */
 
@@ -33,13 +33,16 @@ const PROJECT_ROOT = path.resolve(__dirname, '../..');
 
 const TOOLS = [
   'advanced',
+  'agent',
   'analyze',
   'appsscript',
   'auth',
   'bigquery',
   'collaborate',
   'composite',
+  'compute',
   'confirm',
+  'connectors',
   'core',
   'data',
   'dependencies',
@@ -252,7 +255,7 @@ describe('Schema-Handler Alignment', () => {
       });
 
       // Assert expectations
-      expect(perfectAlignment).toBeGreaterThanOrEqual(21); // At least 21/22 perfect
+      expect(perfectAlignment).toBeGreaterThanOrEqual(24); // At least 24/25 perfect
       expect(toolsWithDeviations).toBeLessThanOrEqual(1); // At most 1 with deviations
     });
   });

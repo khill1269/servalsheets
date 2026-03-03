@@ -723,4 +723,80 @@ describe('AnalyzeHandler', () => {
       }
     });
   });
+
+  describe('analyze_formulas action', () => {
+    it('should emit progress notifications for multi-sheet formula scans', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      (mockContext.server as Record<string, unknown>).notification = notification;
+
+      mockApi.spreadsheets.get
+        .mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'test-id',
+            properties: { title: 'Test Spreadsheet' },
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  gridProperties: { rowCount: 100, columnCount: 10 },
+                },
+              },
+              {
+                properties: {
+                  sheetId: 1,
+                  title: 'Sheet2',
+                  gridProperties: { rowCount: 100, columnCount: 10 },
+                },
+              },
+            ],
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                properties: { title: 'Sheet1' },
+                data: [
+                  {
+                    rowData: [
+                      {
+                        values: [{ userEnteredValue: { formulaValue: '=SUM(A2:A10)' } }],
+                      },
+                    ],
+                  },
+                ],
+              },
+              {
+                properties: { title: 'Sheet2' },
+                data: [
+                  {
+                    rowData: [
+                      {
+                        values: [{ userEnteredValue: { formulaValue: '=AVERAGE(B2:B10)' } }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        });
+
+      const result = await handler.handle({
+        action: 'analyze_formulas',
+        spreadsheetId: 'test-id',
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({
+          progress: 0,
+          total: 2,
+        }),
+      });
+    });
+  });
 });

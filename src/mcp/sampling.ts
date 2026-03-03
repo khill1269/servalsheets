@@ -1167,6 +1167,7 @@ Original question: ${params.question}
 
 Provide a cohesive summary that synthesizes insights from all chunks.`;
 
+  await assertSamplingConsent(); // ISSUE-117: consent gate for summary generation
   const summary = await withSamplingTimeout(
     server.createMessage({
       messages: [createUserMessage(summaryPrompt)],
@@ -1215,6 +1216,7 @@ export async function* streamAgenticOperation(
   undefined
 > {
   assertSamplingToolsSupport(server.getClientCapabilities());
+  await assertSamplingConsent(); // ISSUE-117: consent gate for agentic sampling loop
 
   const actions: AgenticResult['actions'] = [];
   let continueLoop = true;

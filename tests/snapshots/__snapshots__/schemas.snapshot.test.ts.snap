@@ -550,6 +550,16 @@ exports[`Schema Snapshots > Input Schemas > WebhookListInputSchema should match 
 }
 `;
 
+exports[`Schema Snapshots > Input Schemas > WebhookListWorkspaceSubscriptionsInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/WebhookListWorkspaceSubscriptionsInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "WebhookListWorkspaceSubscriptionsInputSchema": {},
+  },
+}
+`;
+
 exports[`Schema Snapshots > Input Schemas > WebhookRegisterInputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/WebhookRegisterInputSchema",
@@ -570,6 +580,16 @@ exports[`Schema Snapshots > Input Schemas > WebhookStatsInputSchema should match
 }
 `;
 
+exports[`Schema Snapshots > Input Schemas > WebhookSubscribeWorkspaceInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/WebhookSubscribeWorkspaceInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "WebhookSubscribeWorkspaceInputSchema": {},
+  },
+}
+`;
+
 exports[`Schema Snapshots > Input Schemas > WebhookTestInputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/WebhookTestInputSchema",
@@ -586,6 +606,16 @@ exports[`Schema Snapshots > Input Schemas > WebhookUnregisterInputSchema should 
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "WebhookUnregisterInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > WebhookUnsubscribeWorkspaceInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/WebhookUnsubscribeWorkspaceInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "WebhookUnsubscribeWorkspaceInputSchema": {},
   },
 }
 `;

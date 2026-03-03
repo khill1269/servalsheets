@@ -449,7 +449,7 @@ MCP_DEBUG=true npm start
 npm run inspect
 
 # Use web UI to:
-# - Browse all 24 tools
+# - Browse all 25 tools
 # - View input/output schemas
 # - Execute tool calls
 # - See raw MCP messages

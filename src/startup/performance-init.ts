@@ -67,11 +67,11 @@ export async function initializePerformanceOptimizations(
   // Initialize batching system for time-window operation batching
   const batchingSystem = initBatchingSystem(sheetsApi);
 
-  // Initialize cached Sheets API for ETag-based caching (30-50% API savings)
-  const cachedSheetsApi = getCachedSheetsApi(sheetsApi);
-
-  // Initialize request merger for overlapping read request optimization (20-40% API savings)
+  // Initialize request merger first so CachedSheetsApi can use it (20-40% API savings)
   const requestMerger = new RequestMerger({ enabled: true, windowMs: 50, maxWindowSize: 100 });
+
+  // Initialize cached Sheets API with RequestMerger for overlapping range optimization
+  const cachedSheetsApi = getCachedSheetsApi(sheetsApi, requestMerger);
 
   // Initialize parallel executor for concurrent batch operations (40% faster batch ops)
   // Concurrency capped at 5 (quota-safe default from remediation phase 1 — ISSUE-233)

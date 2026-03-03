@@ -67,9 +67,17 @@ export function is304NotModified(response: unknown): boolean {
     return false;
   }
 
-  // Check for 304 status code
-  const status = (response as { status?: number }).status;
-  return status === 304;
+  const r = response as {
+    status?: number;
+    response?: { status?: number };
+    code?: string | number;
+  };
+  // Primary: .status getter (gaxios v4+ returns response.status via getter)
+  // Fallback: .response.status (reliable across all gaxios versions)
+  // Final: .code as string "304" (older gaxios sets error.code = HTTP status string)
+  const status = r.status ?? r.response?.status;
+  const code = r.code;
+  return status === 304 || code === '304' || code === 304;
 }
 
 /**

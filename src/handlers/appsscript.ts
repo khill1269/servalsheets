@@ -63,6 +63,7 @@ import type {
   AppsScriptInstallServalFunctionInput,
 } from '../schemas/index.js';
 import { logger } from '../utils/logger.js';
+import { sendProgress } from '../utils/request-context.js';
 
 // Apps Script API base URL
 const APPS_SCRIPT_API_BASE = 'https://script.googleapis.com/v1';
@@ -421,7 +422,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
           'UNAVAILABLE',
           'AppsScript',
           true,
-          { statusCode: 429, path, retryAfterMs, code: 'RATE_LIMIT' }
+          { statusCode: 429, path, retryAfterMs, code: 'RATE_LIMITED' }
         );
       }
 
@@ -937,6 +938,8 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       });
     }
 
+    await sendProgress(0, 2, `Executing Apps Script function '${req.functionName}'...`);
+
     // Pre-flight token check: Refresh if expiring within 360 seconds (6 minutes)
     // This prevents mid-execution auth failures for long-running scripts
     const googleClient = this.context.googleClient;
@@ -1086,6 +1089,8 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         },
       });
     }
+
+    await sendProgress(2, 2, `Function '${req.functionName}' completed`);
 
     // MCP SEP-1686: Apps Script runs are always asynchronous from the user's perspective.
     // ALWAYS create a task entry to allow clients to track execution.

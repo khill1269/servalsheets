@@ -276,27 +276,29 @@ export const WrapStrategySchema = z
     'Text wrapping: WRAP (wraps to fit column width), CLIP (truncates at cell edge), OVERFLOW_CELL (extends into adjacent empty cells)'
   );
 
-export const BorderStyleSchema = z.enum([
-  'NONE',
-  'DOTTED',
-  'DASHED',
-  'SOLID',
-  'SOLID_MEDIUM',
-  'SOLID_THICK',
-  'DOUBLE',
-]);
+export const BorderStyleSchema = z
+  .enum(['NONE', 'DOTTED', 'DASHED', 'SOLID', 'SOLID_MEDIUM', 'SOLID_THICK', 'DOUBLE'])
+  .describe('Cell border style (e.g., SOLID, DASHED, DOTTED, DOUBLE, NONE).');
 
-export const MergeTypeSchema = z.enum(['MERGE_ALL', 'MERGE_COLUMNS', 'MERGE_ROWS']);
+export const MergeTypeSchema = z
+  .enum(['MERGE_ALL', 'MERGE_COLUMNS', 'MERGE_ROWS'])
+  .describe(
+    'Cell merge type: MERGE_ALL (all cells), MERGE_COLUMNS (by column), MERGE_ROWS (by row).'
+  );
 
-export const PasteTypeSchema = z.enum([
-  'PASTE_NORMAL',
-  'PASTE_VALUES',
-  'PASTE_FORMAT',
-  'PASTE_NO_BORDERS',
-  'PASTE_FORMULA',
-  'PASTE_DATA_VALIDATION',
-  'PASTE_CONDITIONAL_FORMATTING',
-]);
+export const PasteTypeSchema = z
+  .enum([
+    'PASTE_NORMAL',
+    'PASTE_VALUES',
+    'PASTE_FORMAT',
+    'PASTE_NO_BORDERS',
+    'PASTE_FORMULA',
+    'PASTE_DATA_VALIDATION',
+    'PASTE_CONDITIONAL_FORMATTING',
+  ])
+  .describe(
+    'Paste type: PASTE_NORMAL (all), PASTE_VALUES (values only), PASTE_FORMAT (format only), PASTE_FORMULA (formulas only).'
+  );
 
 export const ChartTypeSchema = z
   .preprocess(
@@ -330,22 +332,24 @@ export const LegendPositionSchema = z
   )
   .describe('Legend position for charts. Case-insensitive.');
 
-export const SummarizeFunctionSchema = z.enum([
-  'SUM',
-  'COUNTA',
-  'COUNT',
-  'COUNTUNIQUE',
-  'AVERAGE',
-  'MAX',
-  'MIN',
-  'MEDIAN',
-  'PRODUCT',
-  'STDEV',
-  'STDEVP',
-  'VAR',
-  'VARP',
-  'CUSTOM',
-]);
+export const SummarizeFunctionSchema = z
+  .enum([
+    'SUM',
+    'COUNTA',
+    'COUNT',
+    'COUNTUNIQUE',
+    'AVERAGE',
+    'MAX',
+    'MIN',
+    'MEDIAN',
+    'PRODUCT',
+    'STDEV',
+    'STDEVP',
+    'VAR',
+    'VARP',
+    'CUSTOM',
+  ])
+  .describe('Aggregation function for pivot table values (e.g., SUM, AVERAGE, COUNT, MAX, MIN).');
 
 export const SortOrderSchema = z
   .preprocess(
@@ -354,167 +358,184 @@ export const SortOrderSchema = z
   )
   .describe('Sort order: ASCENDING or DESCENDING. Case-insensitive.');
 
-export const PermissionRoleSchema = z.enum([
-  'owner',
-  'organizer',
-  'fileOrganizer',
-  'writer',
-  'commenter',
-  'reader',
-]);
+export const PermissionRoleSchema = z
+  .enum(['owner', 'organizer', 'fileOrganizer', 'writer', 'commenter', 'reader'])
+  .describe(
+    'Drive permission role: reader (view), commenter (comment), writer (edit), owner (full control).'
+  );
 
-export const PermissionTypeSchema = z.enum(['user', 'group', 'domain', 'anyone']);
+export const PermissionTypeSchema = z
+  .enum(['user', 'group', 'domain', 'anyone'])
+  .describe(
+    'Drive permission type: user (email), group (Google group), domain (whole domain), anyone (public).'
+  );
 
-export const ConditionTypeSchema = z.enum([
-  // Number
-  'NUMBER_GREATER',
-  'NUMBER_GREATER_THAN_EQ',
-  'NUMBER_LESS',
-  'NUMBER_LESS_THAN_EQ',
-  'NUMBER_EQ',
-  'NUMBER_NOT_EQ',
-  'NUMBER_BETWEEN',
-  'NUMBER_NOT_BETWEEN',
-  // Text
-  'TEXT_CONTAINS',
-  'TEXT_NOT_CONTAINS',
-  'TEXT_STARTS_WITH',
-  'TEXT_ENDS_WITH',
-  'TEXT_EQ',
-  'TEXT_IS_EMAIL',
-  'TEXT_IS_URL',
-  // Date
-  'DATE_EQ',
-  'DATE_BEFORE',
-  'DATE_AFTER',
-  'DATE_ON_OR_BEFORE',
-  'DATE_ON_OR_AFTER',
-  'DATE_BETWEEN',
-  'DATE_NOT_BETWEEN',
-  'DATE_IS_VALID',
-  // Other
-  'BLANK',
-  'NOT_BLANK',
-  'CUSTOM_FORMULA',
-  'ONE_OF_LIST',
-  'ONE_OF_RANGE',
-  'BOOLEAN',
-  'TEXT_NOT_EQ',
-  'DATE_NOT_EQ',
-  'FILTER_EXPRESSION',
-]);
+export const ConditionTypeSchema = z
+  .enum([
+    // Number
+    'NUMBER_GREATER',
+    'NUMBER_GREATER_THAN_EQ',
+    'NUMBER_LESS',
+    'NUMBER_LESS_THAN_EQ',
+    'NUMBER_EQ',
+    'NUMBER_NOT_EQ',
+    'NUMBER_BETWEEN',
+    'NUMBER_NOT_BETWEEN',
+    // Text
+    'TEXT_CONTAINS',
+    'TEXT_NOT_CONTAINS',
+    'TEXT_STARTS_WITH',
+    'TEXT_ENDS_WITH',
+    'TEXT_EQ',
+    'TEXT_IS_EMAIL',
+    'TEXT_IS_URL',
+    // Date
+    'DATE_EQ',
+    'DATE_BEFORE',
+    'DATE_AFTER',
+    'DATE_ON_OR_BEFORE',
+    'DATE_ON_OR_AFTER',
+    'DATE_BETWEEN',
+    'DATE_NOT_BETWEEN',
+    'DATE_IS_VALID',
+    // Other
+    'BLANK',
+    'NOT_BLANK',
+    'CUSTOM_FORMULA',
+    'ONE_OF_LIST',
+    'ONE_OF_RANGE',
+    'BOOLEAN',
+    'TEXT_NOT_EQ',
+    'DATE_NOT_EQ',
+    'FILTER_EXPRESSION',
+  ])
+  .describe(
+    'Conditional format condition type (e.g., NUMBER_GREATER, TEXT_CONTAINS, DATE_BEFORE, CUSTOM_FORMULA, BLANK).'
+  );
 
 // ============================================================================
 // ERROR CODES
 // ============================================================================
 
-export const ErrorCodeSchema = z.enum([
-  // MCP Standard (5 codes)
-  'PARSE_ERROR',
-  'INVALID_REQUEST',
-  'METHOD_NOT_FOUND',
-  'INVALID_PARAMS',
-  'INTERNAL_ERROR',
-  // Authentication & Authorization (5 codes)
-  'UNAUTHENTICATED',
-  'PERMISSION_DENIED',
-  'INVALID_CREDENTIALS',
-  'INSUFFICIENT_PERMISSIONS',
-  'INCREMENTAL_SCOPE_REQUIRED', // Phase 0: OAuth incremental consent
-  // Quota & Rate Limiting (3 codes)
-  'QUOTA_EXCEEDED',
-  'RATE_LIMITED',
-  'RESOURCE_EXHAUSTED',
-  // Spreadsheet Errors (8 codes)
-  'SPREADSHEET_NOT_FOUND',
-  'SPREADSHEET_TOO_LARGE',
-  'SHEET_NOT_FOUND',
-  'INVALID_SHEET_ID',
-  'DUPLICATE_SHEET_NAME',
-  'INVALID_RANGE',
-  'RANGE_NOT_FOUND',
-  'PROTECTED_RANGE',
-  // Data & Formula Errors (5 codes)
-  'FORMULA_ERROR',
-  'CIRCULAR_REFERENCE',
-  'INVALID_DATA_VALIDATION',
-  'MERGE_CONFLICT',
-  'FORMULA_INJECTION_BLOCKED', // ISSUE-214: dangerous import/query formula rejected
-  // Feature-Specific Errors (7 codes)
-  'CONDITIONAL_FORMAT_ERROR',
-  'PIVOT_TABLE_ERROR',
-  'CHART_ERROR',
-  'FILTER_VIEW_ERROR',
-  'NAMED_RANGE_ERROR',
-  'DEVELOPER_METADATA_ERROR',
-  'DIMENSION_ERROR',
-  // Operation Errors (7 codes)
-  'BATCH_UPDATE_ERROR',
-  'TRANSACTION_ERROR',
-  'ABORTED',
-  'DEADLINE_EXCEEDED',
-  'CANCELLED',
-  'OPERATION_CANCELLED', // Phase 1.3: User cancelled operation via elicitation
-  'DATA_LOSS',
-  // Network & Service Errors (6 codes)
-  'UNAVAILABLE',
-  'CONNECTION_ERROR', // HTTP/2 GOAWAY, stream errors, connection resets
-  'UNIMPLEMENTED',
-  'UNKNOWN',
-  'OUT_OF_RANGE',
-  'FAILED_PRECONDITION',
-  // Safety Rails (3 codes)
-  'PRECONDITION_FAILED',
-  'EFFECT_SCOPE_EXCEEDED',
-  'EXPLICIT_RANGE_REQUIRED',
-  'AMBIGUOUS_RANGE',
-  // Features
-  'FEATURE_UNAVAILABLE',
-  'FEATURE_DEGRADED',
-  // Auth & configuration
-  'AUTHENTICATION_REQUIRED',
-  'AUTH_ERROR',
-  'CONFIG_ERROR',
-  'VALIDATION_ERROR',
-  // Resource/handler lifecycle
-  'NOT_FOUND',
-  'NOT_IMPLEMENTED',
-  'HANDLER_LOAD_ERROR',
-  // Session limits
-  'TOO_MANY_SESSIONS',
-  // Data integrity
-  'DATA_ERROR',
-  'VERSION_MISMATCH',
-  'NO_DATA',
-  // Service lifecycle
-  'SERVICE_NOT_INITIALIZED',
-  'SERVICE_NOT_ENABLED', // BUG FIX 0.9: For GCP API not enabled errors
-  'SNAPSHOT_CREATION_FAILED',
-  'SNAPSHOT_RESTORE_FAILED',
-  // Transactions
-  'TRANSACTION_CONFLICT',
-  'TRANSACTION_EXPIRED',
-  // HTTP Transport
-  'SESSION_NOT_FOUND',
-  // Session checkpoints (sheets_session.save_checkpoint / load_checkpoint)
-  'CHECKPOINTS_DISABLED',
-  'CHECKPOINT_NOT_FOUND',
-  // Batch/Payload
-  'PAYLOAD_TOO_LARGE',
-  'OPERATION_LIMIT_EXCEEDED',
-  // MCP-native features (SEP-1036, SEP-1577)
-  'ELICITATION_UNAVAILABLE',
-  'SAMPLING_UNAVAILABLE',
-  // Discovery & Replay
-  'FORBIDDEN',
-  'DISCOVERY_FAILED', // Action discovery in discover_action failed
-  'REPLAY_FAILED',
-  // Generic
-  'UNKNOWN_ERROR',
-  // Connectors
-  'INVALID_ACTION',
-  'CONNECTOR_ERROR',
-]);
+export const ErrorCodeSchema = z
+  .enum([
+    // MCP Standard (5 codes)
+    'PARSE_ERROR',
+    'INVALID_REQUEST',
+    'METHOD_NOT_FOUND',
+    'INVALID_PARAMS',
+    'INTERNAL_ERROR',
+    // Authentication & Authorization (5 codes)
+    'UNAUTHENTICATED',
+    'PERMISSION_DENIED',
+    'INVALID_CREDENTIALS',
+    'INSUFFICIENT_PERMISSIONS',
+    'INCREMENTAL_SCOPE_REQUIRED', // Phase 0: OAuth incremental consent
+    // Quota & Rate Limiting (3 codes)
+    'QUOTA_EXCEEDED',
+    'RATE_LIMITED',
+    'RESOURCE_EXHAUSTED',
+    // Spreadsheet Errors (8 codes)
+    'SPREADSHEET_NOT_FOUND',
+    'SPREADSHEET_TOO_LARGE',
+    'SHEET_NOT_FOUND',
+    'INVALID_SHEET_ID',
+    'DUPLICATE_SHEET_NAME',
+    'INVALID_RANGE',
+    'RANGE_NOT_FOUND',
+    'PROTECTED_RANGE',
+    // Data & Formula Errors (5 codes)
+    'FORMULA_ERROR',
+    'CIRCULAR_REFERENCE',
+    'INVALID_DATA_VALIDATION',
+    'MERGE_CONFLICT',
+    'FORMULA_INJECTION_BLOCKED', // ISSUE-214: dangerous import/query formula rejected
+    // Feature-Specific Errors (7 codes)
+    'CONDITIONAL_FORMAT_ERROR',
+    'PIVOT_TABLE_ERROR',
+    'CHART_ERROR',
+    'FILTER_VIEW_ERROR',
+    'NAMED_RANGE_ERROR',
+    'DEVELOPER_METADATA_ERROR',
+    'DIMENSION_ERROR',
+    // Operation Errors (8 codes)
+    'BATCH_UPDATE_ERROR',
+    'TRANSACTION_ERROR',
+    'ABORTED',
+    'DEADLINE_EXCEEDED',
+    'CANCELLED',
+    'OPERATION_CANCELLED', // Phase 1.3: User cancelled operation via elicitation
+    'OPERATION_FAILED', // Generic operation failure (composite, agent)
+    'DATA_LOSS',
+    // Network & Service Errors (6 codes)
+    'UNAVAILABLE',
+    'CONNECTION_ERROR', // HTTP/2 GOAWAY, stream errors, connection resets
+    'UNIMPLEMENTED',
+    'UNKNOWN',
+    'OUT_OF_RANGE',
+    'FAILED_PRECONDITION',
+    // Safety Rails (3 codes)
+    'PRECONDITION_FAILED',
+    'EFFECT_SCOPE_EXCEEDED',
+    'EXPLICIT_RANGE_REQUIRED',
+    'AMBIGUOUS_RANGE',
+    // Features
+    'FEATURE_UNAVAILABLE',
+    'FEATURE_DEGRADED',
+    // Auth & configuration
+    'AUTHENTICATION_REQUIRED',
+    'AUTH_ERROR',
+    'CONFIG_ERROR',
+    'VALIDATION_ERROR',
+    // Resource/handler lifecycle
+    'NOT_FOUND',
+    'NOT_IMPLEMENTED',
+    'HANDLER_LOAD_ERROR',
+    // Session limits
+    'TOO_MANY_SESSIONS',
+    // Data integrity
+    'DATA_ERROR',
+    'VERSION_MISMATCH',
+    'NO_DATA',
+    // Service lifecycle
+    'SERVICE_NOT_INITIALIZED',
+    'SERVICE_NOT_ENABLED', // BUG FIX 0.9: For GCP API not enabled errors
+    'SNAPSHOT_CREATION_FAILED',
+    'SNAPSHOT_RESTORE_FAILED',
+    // Transactions
+    'TRANSACTION_CONFLICT',
+    'TRANSACTION_EXPIRED',
+    // HTTP Transport
+    'SESSION_NOT_FOUND',
+    // Session checkpoints (sheets_session.save_checkpoint / load_checkpoint)
+    'CHECKPOINTS_DISABLED',
+    'CHECKPOINT_NOT_FOUND',
+    // Batch/Payload
+    'PAYLOAD_TOO_LARGE',
+    'OPERATION_LIMIT_EXCEEDED',
+    // MCP-native features (SEP-1036, SEP-1577)
+    'ELICITATION_UNAVAILABLE',
+    'SAMPLING_UNAVAILABLE',
+    // Discovery & Replay
+    'FORBIDDEN',
+    'DISCOVERY_FAILED', // Action discovery in discover_action failed
+    'REPLAY_FAILED',
+    // Generic
+    'UNKNOWN_ERROR',
+    // Connectors
+    'INVALID_ACTION',
+    'CONNECTOR_ERROR',
+    // Session errors
+    'SESSION_ERROR',
+  ])
+  .describe(
+    'Structured error code for tool call failures. ' +
+      'PERMISSION_DENIED: credentials expired — call sheets_auth.login. ' +
+      'QUOTA_EXCEEDED: rate-limited — wait 60s and retry. ' +
+      'INVALID_PARAMS: check required fields and A1 range format. ' +
+      'SHEET_NOT_FOUND: call sheets_core.list_sheets to verify names. ' +
+      'AUTHENTICATION_REQUIRED: no active session — call sheets_auth.login first.'
+  );
 
 export const ErrorCodeFamilySchema = z.enum([
   'protocol',

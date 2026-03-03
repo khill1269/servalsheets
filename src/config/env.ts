@@ -221,7 +221,7 @@ const EnvSchema = z.object({
   AUDIT_HMAC_SECRET: z.string().optional(),
   AUDIT_LOG_DIR: z.string().optional(),
   AUDIT_LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
-  TRANSACTION_WAL_DIR: z.string().optional(),
+  TRANSACTION_WAL_DIR: z.string().default('.serval/wal'),
   ENABLE_TENANT_ISOLATION: z.coerce.boolean().default(false),
   // Idempotency: makes all tool calls retry-safe via key-based dedup
   ENABLE_IDEMPOTENCY: z.coerce.boolean().default(true),

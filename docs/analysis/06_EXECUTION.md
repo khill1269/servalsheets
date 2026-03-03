@@ -133,7 +133,7 @@ echo "Test files: $(find tests -name '*.ts' | wc -l)"
 
 ### Category 88: Tool Registration
 
-- [ ] 22 tools registered
+- [ ] 25 tools registered
 - [ ] All have descriptions
 - [ ] All have schemas
 - [ ] All have annotations
