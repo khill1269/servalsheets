@@ -827,6 +827,32 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { steps: [{ id: 'step1', tool: 'sheets_data', action: 'read', params: { spreadsheetId: 'test-id', range: 'A1:B10' } }] },
       requiredFields: ['steps'],
     },
+    schedule_create: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        cronExpression: '0 9 * * 1-5',
+        description: 'Weekday data refresh',
+        tool: 'sheets_data',
+        actionName: 'read',
+        params: { spreadsheetId: 'test-id', range: 'Sheet1!A1:B10' },
+      },
+      requiredFields: [
+        'spreadsheetId',
+        'cronExpression',
+        'description',
+        'tool',
+        'actionName',
+        'params',
+      ],
+    },
+    schedule_cancel: {
+      validInput: { jobId: 'job-123' },
+      requiredFields: ['jobId'],
+    },
+    schedule_run_now: {
+      validInput: { jobId: 'job-123' },
+      requiredFields: ['jobId'],
+    },
   },
 
   sheets_transaction: {
@@ -1311,6 +1337,17 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { spreadsheetId: 'test-id', webhookUrl: 'https://example.com/hook' },
       requiredFields: ['spreadsheetId', 'webhookUrl'],
     },
+    subscribe_workspace: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        notificationEndpoint: 'projects/test-project/topics/test-topic',
+      },
+      requiredFields: ['spreadsheetId', 'notificationEndpoint'],
+    },
+    unsubscribe_workspace: {
+      validInput: { subscriptionId: 'sub-123' },
+      requiredFields: ['subscriptionId'],
+    },
   },
 
   sheets_dependencies: {
@@ -1446,6 +1483,55 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     explain_formula: {
       validInput: { spreadsheetId: 'test-id', formula: '=VLOOKUP(A2, Sheet2!A:C, 3, FALSE)' },
       requiredFields: ['spreadsheetId', 'formula'],
+    },
+    sql_query: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        tables: [{ name: 'sales', range: 'Sheet1!A1:D100', hasHeaders: true }],
+        sql: 'SELECT * FROM sales LIMIT 10',
+      },
+      requiredFields: ['spreadsheetId', 'tables', 'sql'],
+    },
+    sql_join: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        left: { range: 'Sheet1!A1:C100', alias: 'left' },
+        right: { range: 'Sheet2!A1:C100', alias: 'right' },
+        on: 'left.id = right.id',
+      },
+      requiredFields: ['spreadsheetId', 'left', 'right', 'on'],
+    },
+    python_eval: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:C50',
+        code: 'result = len(data)',
+      },
+      requiredFields: ['spreadsheetId', 'range', 'code'],
+    },
+    pandas_profile: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:C50',
+      },
+      requiredFields: ['spreadsheetId', 'range'],
+    },
+    sklearn_model: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:D100',
+        targetColumn: 'revenue',
+        modelType: 'linear_regression',
+      },
+      requiredFields: ['spreadsheetId', 'range', 'targetColumn', 'modelType'],
+    },
+    matplotlib_chart: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:C50',
+        chartType: 'line',
+      },
+      requiredFields: ['spreadsheetId', 'range', 'chartType'],
     },
   },
 

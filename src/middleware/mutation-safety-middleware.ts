@@ -1,0 +1,130 @@
+/**
+ * Shared mutation safety checks.
+ *
+ * Centralizes formula-injection guardrails for all mutation entry points by
+ * scanning normalized request payloads for dangerous exfiltration formulas.
+ */
+
+import { isLikelyMutationAction } from './write-lock-middleware.js';
+
+const DANGEROUS_FORMULA_PATTERN =
+  /^[=+\-@].*(?:IMPORTDATA|IMPORTRANGE|IMPORTFEED|IMPORTHTML|IMPORTXML|GOOGLEFINANCE|QUERY)\s*\(/i;
+
+const FORMULA_CANDIDATE_KEYS = new Set(['values', 'replacement', 'formula', 'formulaValue']);
+
+export interface MutationSafetyViolation {
+  path: string;
+  preview: string;
+}
+
+function previewFormula(value: string): string {
+  return value.length <= 60 ? value : `${value.slice(0, 57)}...`;
+}
+
+function isSanitizeOptOut(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  const safety = record['safety'];
+  if (!safety || typeof safety !== 'object') return false;
+  return (safety as Record<string, unknown>)['sanitizeFormulas'] === false;
+}
+
+function scanFormulaCandidate(
+  value: unknown,
+  path: string,
+  visited: WeakSet<object>,
+  depth: number
+): MutationSafetyViolation | null {
+  if (depth > 12 || value == null) return null;
+
+  if (typeof value === 'string') {
+    if (DANGEROUS_FORMULA_PATTERN.test(value)) {
+      return { path, preview: previewFormula(value) };
+    }
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const violation = scanFormulaCandidate(value[i], `${path}[${i}]`, visited, depth + 1);
+      if (violation) return violation;
+    }
+    return null;
+  }
+
+  if (typeof value === 'object') {
+    if (visited.has(value)) return null;
+    visited.add(value);
+
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      const violation = scanFormulaCandidate(entry, `${path}.${key}`, visited, depth + 1);
+      if (violation) return violation;
+    }
+  }
+
+  return null;
+}
+
+function scanMutationRequest(
+  value: unknown,
+  path: string,
+  parentKey: string | undefined,
+  visited: WeakSet<object>,
+  depth: number
+): MutationSafetyViolation | null {
+  if (depth > 12 || value == null) return null;
+
+  // Branch-level opt out: allows deliberate formula payloads in scoped nested operations.
+  if (isSanitizeOptOut(value)) return null;
+
+  if (parentKey && FORMULA_CANDIDATE_KEYS.has(parentKey)) {
+    return scanFormulaCandidate(value, path, visited, depth + 1);
+  }
+
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const violation = scanMutationRequest(
+        value[i],
+        `${path}[${i}]`,
+        parentKey,
+        visited,
+        depth + 1
+      );
+      if (violation) return violation;
+    }
+    return null;
+  }
+
+  if (typeof value === 'object') {
+    if (visited.has(value)) return null;
+    visited.add(value);
+
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      const violation = scanMutationRequest(entry, `${path}.${key}`, key, visited, depth + 1);
+      if (violation) return violation;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Detect dangerous formulas in mutation payloads.
+ *
+ * Returns first violation found, or null when payload passes safety checks.
+ */
+export function detectMutationSafetyViolation(
+  normalizedArgs: Record<string, unknown>
+): MutationSafetyViolation | null {
+  const request = normalizedArgs['request'];
+  if (!request || typeof request !== 'object') return null;
+
+  const req = request as Record<string, unknown>;
+  const action = req['action'];
+  if (typeof action !== 'string' || !isLikelyMutationAction(action)) return null;
+
+  // Top-level opt-out preserves existing behavior for explicit advanced use.
+  if (isSanitizeOptOut(req)) return null;
+
+  return scanMutationRequest(req, 'request', undefined, new WeakSet<object>(), 0);
+}

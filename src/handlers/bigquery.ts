@@ -57,6 +57,7 @@ import type {
   BigQueryImportInput,
 } from '../schemas/index.js';
 import { logger } from '../utils/logger.js';
+import { sendProgress } from '../utils/request-context.js';
 
 /** Maximum BigQuery result rows (ISSUE-188: configurable via env var) */
 const MAX_BIGQUERY_RESULT_ROWS = parseInt(process.env['MAX_BIGQUERY_RESULT_ROWS'] ?? '100000', 10);
@@ -1325,11 +1326,13 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         });
       }
 
+      const totalChunks = Math.ceil(totalRows / CHUNK_SIZE);
+      await sendProgress(0, totalChunks, `Exporting ${totalRows} rows to BigQuery...`);
+
       // Process rows in chunks
       for (let i = 0; i < totalRows; i += CHUNK_SIZE) {
         const chunk = rows.slice(i, Math.min(i + CHUNK_SIZE, totalRows));
         const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
-        const totalChunks = Math.ceil(totalRows / CHUNK_SIZE);
 
         logger.debug('Inserting chunk', {
           chunkNumber,
@@ -1361,6 +1364,12 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           });
           allInsertErrors.push(...chunkErrors);
         }
+
+        await sendProgress(
+          chunkNumber,
+          totalChunks,
+          `Exported chunk ${chunkNumber}/${totalChunks}`
+        );
       }
 
       const successfulRows = totalRows - allInsertErrors.length;
@@ -1431,6 +1440,8 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         },
       }));
 
+      await sendProgress(0, 3, 'Running BigQuery query...');
+
       // Use async job pattern with pagination for reliable large query execution
       const queryResult = await this.executeQueryWithJobPolling(bigquery, {
         projectId: req.projectId,
@@ -1444,6 +1455,8 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         parameterMode: queryParameters ? 'NAMED' : undefined,
         queryParameters,
       });
+
+      await sendProgress(1, 3, `Query returned ${queryResult.rows.length} rows`);
 
       const columns = queryResult.columns;
       const rows = queryResult.rows;
@@ -1481,6 +1494,8 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         targetSheetName =
           addSheetResponse.data?.replies?.[0]?.addSheet?.properties?.title ?? targetSheetName;
       }
+
+      await sendProgress(2, 3, `Writing ${rows.length} rows to sheet...`);
 
       // Write data to sheet
       const range = `${targetSheetName}!${startCell}`;

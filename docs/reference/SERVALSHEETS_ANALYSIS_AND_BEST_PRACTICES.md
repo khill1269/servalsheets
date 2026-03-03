@@ -27,7 +27,7 @@ ServalSheets is an **exceptionally well-architected** MCP server that already im
 | MCP Protocol Compliance | ✅ Excellent    | 96% (26/28)                                  |
 | Security Implementation | ✅ Excellent    | OAuth 2.1, PKCE, HMAC                        |
 | Architecture            | ✅ Excellent    | 3-layer context, clean separation            |
-| Tool Design             | ✅ Excellent    | 22 tools, 342 actions, discriminated unions  |
+| Tool Design             | ✅ Excellent    | 25 tools, 391 actions, discriminated unions  |
 | Documentation           | ✅ Excellent    | Comprehensive SKILL.md, API docs             |
 | Testing                 | ⚠️ Good         | Unit + Integration, needs more E2E           |
 | Skill Format            | ⚠️ Needs Update | Sync required between local and Claude skill |
@@ -44,7 +44,7 @@ ServalSheets is an **exceptionally well-architected** MCP server that already im
 
 #### ServalSheets Implementation ✅ EXCELLENT
 
-ServalSheets groups 342 actions into **21 logical tool categories** using discriminated unions:
+ServalSheets groups 391 actions into **25 logical tool categories** using discriminated unions:
 
 ```
 sheets_auth       → Authentication (4 actions)
@@ -95,7 +95,7 @@ const SheetsDataSchema = z.discriminatedUnion('action', [
 
 **Features:**
 
-- All 22 tools have `inputSchema` and `outputSchema`
+- All 25 tools have `inputSchema` and `outputSchema`
 - Discriminated unions for type-safe action routing
 - JSON Schema 2020-12 compliant (SEP-1613)
 - Runtime validation with detailed error messages
@@ -321,7 +321,7 @@ This design:
 
 ### 2.1 High Priority: Skill Synchronization
 
-**Issue:** The skill loaded by Claude at `/mnt/skills/user/google-sheets-expert/` contains outdated information ("111 tools") that doesn't match the actual implementation (22 tools, 342 actions).
+**Issue:** The skill loaded by Claude at `/mnt/skills/user/google-sheets-expert/` contains outdated information ("111 tools") that doesn't match the actual implementation (25 tools, 391 actions).
 
 **Recommendation:**
 
@@ -391,7 +391,7 @@ Based on this analysis, I recommend the following skill structure:
 google-sheets-expert/
 ├── SKILL.md                    # Main skill file (updated)
 └── references/
-    ├── tool-guide.md           # Complete 22 tools, 342 actions reference
+    ├── tool-guide.md           # Complete 25 tools, 391 actions reference
     ├── patterns.md             # Workflow templates
     ├── formulas.md             # Google Sheets functions
     └── best-practices.md       # Data standards
@@ -425,7 +425,7 @@ description: |
 
 | Best Practice          | Industry Standard    | ServalSheets                 | Status     |
 | ---------------------- | -------------------- | ---------------------------- | ---------- |
-| Tool count             | 5-20 focused tools   | 22 tools                     | ✅ Optimal |
+| Tool count             | 5-20 focused tools   | 25 tools                     | ✅ Optimal |
 | Action grouping        | Discriminated unions | ✅ Implemented               | ✅         |
 | Schema validation      | Strict + typed       | Zod v4 + JSON Schema 2020-12 | ✅         |
 | OAuth 2.1              | Mandatory for HTTP   | ✅ Full implementation       | ✅         |

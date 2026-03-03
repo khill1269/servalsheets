@@ -226,7 +226,7 @@ Cmd+G Cmd+A  → All gates (G0-G4)
 
 **Output (Generated - DO NOT edit manually):**
 
-- `package.json` - Updates description with `"22 tools, 342 actions"`
+- `package.json` - Updates description with `"25 tools, 391 actions"`
 - `src/schemas/index.ts` - Updates `TOOL_COUNT` and `ACTION_COUNT` constants
 - `src/schemas/annotations.ts` - Updates `ACTION_COUNTS` object
 - `src/mcp/completions.ts` - Updates `TOOL_ACTIONS` object
@@ -248,7 +248,7 @@ npm run gen:metadata
 # 📊 Analyzing 16 schema files...
 #   📝 advanced.ts → 19 actions [add_named_range, update_named_range, ...]
 #   ...
-# ✅ Total: 22 tools, 342 actions
+# ✅ Total: 25 tools, 391 actions
 # ✅ Updated src/schemas/index.ts constants
 # ✅ Updated src/schemas/annotations.ts ACTION_COUNTS
 # ✅ Updated src/mcp/completions.ts TOOL_ACTIONS
@@ -290,7 +290,7 @@ npm run gen:metadata
 npm run validate:actions
 
 # Success:
-# ✅ All 22 tools validated
+# ✅ All 25 tools validated
 # ✅ Schema/handler alignment: 100%
 # ✅ 0 undocumented deviations
 
@@ -338,9 +338,9 @@ const mismatches = compareActions(actions, handlerActions, deviations);
 
 ```bash
 # Matches:
-"22 tools"           # Hardcoded count
-"342 actions"        # Hardcoded count
-"Currently 24 tools" # Potentially stale
+"25 tools"           # Hardcoded count
+"391 actions"        # Hardcoded count
+"Currently 25 tools" # Potentially stale
 "All 22 handlers"    # Hardcoded count
 
 # Ignores:
@@ -362,7 +362,7 @@ bash scripts/check-hardcoded-counts.sh
 # ❌ Found hardcoded counts in 3 files:
 #
 # README.md:42
-#   "ServalSheets provides 22 tools with 342 actions"
+#   "ServalSheets provides 25 tools with 391 actions"
 #   → Should reference: src/schemas/index.ts:63
 #
 # docs/guides/QUICKSTART.md:18
@@ -497,7 +497,7 @@ npm run check:drift
 
 # Failure output:
 # ❌ Metadata drift detected in 2 files:
-#   - package.json (expected 342 actions, found 53)
+#   - package.json (expected 391 actions, found 53)
 #   - src/schemas/index.ts (expected ACTION_COUNT = 207, found 53)
 # Run 'npm run gen:metadata' to fix
 ```

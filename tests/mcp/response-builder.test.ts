@@ -162,6 +162,7 @@ describe('Error Response Builder', () => {
       unknown
     >;
     const error = response['error'] as Record<string, unknown>;
+    expect(error['code']).toBe('RATE_LIMITED');
     expect(error['retryable']).toBe(true);
   });
 
@@ -345,6 +346,7 @@ describe('Response Templates', () => {
       unknown
     >;
     const error = response['error'] as Record<string, unknown>;
+    expect(error['code']).toBe('RATE_LIMITED');
     expect(error['retryable']).toBe(true);
     expect(error['retryAfterMs']).toBe(60000);
   });

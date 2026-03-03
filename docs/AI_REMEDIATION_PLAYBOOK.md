@@ -16,7 +16,7 @@ version: 1.7.0
 > - `ISSUES.md` — 234 individually tracked issues with file:line references and fix instructions
 > - `docs/PRODUCTION_AUDIT.md` — 20-category quality assessment with scores, grades, and priority tiers
 > - `CLAUDE.md` — Project rules, verification commands, coding conventions
-> - `docs/development/CODEBASE_CONTEXT.md` — Full architecture reference (342 actions, 22 tools)
+> - `docs/development/CODEBASE_CONTEXT.md` — Full architecture reference (391 actions, 25 tools)
 > - `docs/development/FEATURE_PLAN.md` — Feature specs for P4 additions
 >
 > **Execution Model:** 7 phases, each with discovery → planning → implementation → verification gates.
@@ -50,7 +50,7 @@ Paste this at the start of every Claude Code session:
 ```
 @CLAUDE.md @.serval/state.md @.serval/session-notes.md @docs/development/CODEBASE_CONTEXT.md
 
-You are remediating ServalSheets, a production MCP server (22 tools, 342 actions).
+You are remediating ServalSheets, a production MCP server (25 tools, 391 actions).
 Two reference documents drive this work:
 - ISSUES.md: 234 tracked issues with file:line refs and fix instructions
 - docs/PRODUCTION_AUDIT.md: 20-category quality audit with scores
@@ -766,7 +766,7 @@ NC-15: NEVER put >100 operations in single batchUpdate
 NC-16: NEVER call Google API directly — wrap in executeWithRetry()
 NC-17: NEVER run npm run verify in low memory — use verify:safe
 NC-18: NEVER batch git commits — one per logical unit
-NC-19: NEVER load all 22 handlers at session start
+NC-19: NEVER load all 25 handlers at session start
 NC-20: sheetId=0 IS VALID — use === undefined, not !sheetId
 ```
 

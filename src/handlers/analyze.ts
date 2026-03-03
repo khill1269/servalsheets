@@ -12,17 +12,9 @@
 import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, unwrapRequest, type HandlerContext } from './base.js';
 import type { Intent } from '../core/intent.js';
-import { DataError, ServiceError } from '../core/errors.js';
+import { DataError } from '../core/errors.js';
 import { logger } from '../utils/logger.js';
-import { isHeapCritical } from '../utils/heap-watchdog.js';
-import {
-  getSamplingAnalysisService,
-  buildAnalysisSamplingRequest,
-  buildFormulaSamplingRequest,
-  buildChartSamplingRequest,
-  parseAnalysisResponse,
-  type AnalysisType,
-} from '../services/sampling-analysis.js';
+import { buildFormulaSamplingRequest } from '../services/sampling-analysis.js';
 import {
   createMessageWithFallback,
   isLLMFallbackAvailable,
@@ -35,30 +27,32 @@ import type {
   ComprehensiveInput,
 } from '../schemas/analyze.js';
 import { getCapabilitiesWithCache } from '../services/capability-cache.js';
-import { getCacheAdapter } from '../utils/cache-adapter.js';
-import { TieredRetrieval } from '../analysis/tiered-retrieval.js';
-import { AnalysisRouter } from '../analysis/router.js';
-import {
-  ComprehensiveAnalyzer,
-  type ComprehensiveResult as _ComprehensiveResult,
-} from '../analysis/comprehensive.js';
 import { storeAnalysisResult } from '../resources/analyze.js';
-import { createNotFoundError } from '../utils/error-factory.js';
-import { buildA1Notation } from '../utils/google-sheets-helpers.js';
-import { Scout, type ScoutResult } from '../analysis/scout.js';
+import { type ScoutResult } from '../analysis/scout.js';
 import { ConfidenceScorer, type ComprehensiveAnalysisData } from '../analysis/confidence-scorer.js';
-import { ElicitationEngine } from '../analysis/elicitation-engine.js';
-import { generateAIInsight } from '../mcp/sampling.js';
-import { FlowOrchestrator } from '../analysis/flow-orchestrator.js';
 import { getSessionContext } from '../services/session-context.js';
-import { Planner, type AnalysisPlan } from '../analysis/planner.js';
+import { handleSuggestVisualizationAction } from './analyze-actions/suggest-visualization.js';
+import { handleAnalyzeStructureAction } from './analyze-actions/structure.js';
+import { handleDetectPatternsAction } from './analyze-actions/patterns.js';
+import { handleAnalyzeQualityAction } from './analyze-actions/quality.js';
+import { handleAnalyzePerformanceAction } from './analyze-actions/performance.js';
+import { handleAnalyzeFormulasAction } from './analyze-actions/formulas.js';
+import { handleExplainAnalysisAction } from './analyze-actions/explain.js';
+import { handleQueryNaturalLanguageAction } from './analyze-actions/query-natural-language.js';
 import {
-  ActionGenerator,
-  type GenerateActionsResult,
-  type AnalysisFinding,
-} from '../analysis/action-generator.js';
-import { sendProgress } from '../utils/request-context.js';
-import { withSamplingTimeout } from '../mcp/sampling.js';
+  handlePlanAction,
+  handleExecutePlanAction,
+  handleDrillDownAction,
+  handleGenerateActionsAction,
+} from './analyze-actions/plan-execute.js';
+import {
+  handleSuggestNextActionsAction,
+  handleAutoEnhanceAction,
+  handleDiscoverActionAction,
+} from './analyze-actions/suggestions.js';
+import { handleScoutAction } from './analyze-actions/scout.js';
+import { handleAnalyzeDataAction } from './analyze-actions/analyze-data.js';
+import { handleComprehensiveAction } from './analyze-actions/comprehensive.js';
 
 export interface AnalyzeHandlerOptions {
   context: HandlerContext;
@@ -160,38 +154,6 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
     });
     const match = response.data.sheets?.find((sheet) => sheet.properties?.title === sheetName);
     return match?.properties?.sheetId ?? 0;
-  }
-
-  /**
-   * Map action name to step type for plan schema
-   */
-  private mapActionToStepType(
-    action: string
-  ): 'quality' | 'formulas' | 'patterns' | 'performance' | 'structure' | 'visualizations' {
-    const mapping: Record<
-      string,
-      'quality' | 'formulas' | 'patterns' | 'performance' | 'structure' | 'visualizations'
-    > = {
-      analyze_quality: 'quality',
-      analyze_formulas: 'formulas',
-      detect_patterns: 'patterns',
-      analyze_performance: 'performance',
-      analyze_structure: 'structure',
-      suggest_visualization: 'visualizations',
-      comprehensive: 'quality',
-      analyze_data: 'patterns',
-    };
-    return mapping[action] ?? 'quality';
-  }
-
-  /**
-   * Map priority number to schema priority
-   */
-  private mapPriorityToSchema(priority: number): 'critical' | 'high' | 'medium' | 'low' {
-    if (priority <= 1) return 'critical';
-    if (priority <= 3) return 'high';
-    if (priority <= 6) return 'medium';
-    return 'low';
   }
 
   /**
@@ -346,7 +308,12 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
           const analyzeInput = req as typeof req & {
             spreadsheetId: string;
           };
-          response = await this.handleAnalyzeData(analyzeInput, verbosity);
+          response = await handleAnalyzeDataAction(analyzeInput, {
+            sheetsApi: this.sheetsApi,
+            hasSampling: !!this.context.server,
+            checkSamplingCapability: () => this.checkSamplingCapability(),
+            createAIMessage: (samplingRequest) => this.createAIMessage(samplingRequest),
+          });
           break;
         }
 
@@ -366,130 +333,16 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             spreadsheetId: string;
             range: { a1: string } | { sheetName: string; range?: string };
           };
-
-          // Check sampling capability
-          const samplingError3 = await this.checkSamplingCapability();
-          if (samplingError3) {
-            response = samplingError3;
-            break;
-          }
-
-          const _server3 = this.context.server!;
-          const startTime = Date.now();
-
-          // Read the data
-          const rangeStr = this.resolveAnalyzeRange(chartInput.range);
-          const sheetName = this.getSheetNameFromRange(rangeStr);
-          const sheetId = await this.resolveSheetId(chartInput.spreadsheetId, sheetName);
-          const anchorCell = sheetName ? buildA1Notation(sheetName, 0, 0) : 'A1';
-          const data = await this.readData(chartInput.spreadsheetId, rangeStr);
-
-          if (data.length === 0) {
-            response = {
-              success: false,
-              error: {
-                code: 'NO_DATA',
-                message: 'No data found in the specified range',
-                retryable: false,
-              },
-            };
-            break;
-          }
-
-          // Build sampling request
-          const samplingRequest = buildChartSamplingRequest(data, {
-            goal: chartInput.goal,
-            preferredTypes: chartInput.preferredTypes,
+          response = await handleSuggestVisualizationAction(chartInput, {
+            checkSamplingCapability: () => this.checkSamplingCapability(),
+            resolveAnalyzeRange: (range) => this.resolveAnalyzeRange(range),
+            getSheetNameFromRange: (range) => this.getSheetNameFromRange(range),
+            resolveSheetId: (spreadsheetId, sheetName) =>
+              this.resolveSheetId(spreadsheetId, sheetName),
+            readData: (spreadsheetId, range) => this.readData(spreadsheetId, range),
+            createAIMessage: (samplingRequest) => this.createAIMessage(samplingRequest),
+            samplingServer: this.context.samplingServer,
           });
-
-          // Call LLM via MCP Sampling or LLM fallback
-          const contentText = await this.createAIMessage(samplingRequest);
-          const duration = Date.now() - startTime;
-
-          try {
-            const jsonMatch = contentText.match(/\{[\s\S]*\}/);
-            if (!jsonMatch)
-              throw new DataError(
-                'No JSON in response - model returned invalid format',
-                'DATA_ERROR',
-                false
-              );
-            const parsed = JSON.parse(jsonMatch[0]);
-
-            // Build chart recommendations with executable params
-            const chartRecommendations = parsed.recommendations?.map(
-              (r: Record<string, unknown>) => {
-                const config = r['configuration'] as Record<string, unknown> | undefined;
-
-                // Build executable params for sheets_visualize:chart_create
-                const executionParams = {
-                  tool: 'sheets_visualize' as const,
-                  action: 'chart_create' as const,
-                  params: {
-                    spreadsheetId: chartInput.spreadsheetId,
-                    sheetId,
-                    chartType: String(r['chartType'] || 'LINE'),
-                    data: {
-                      sourceRange: { a1: rangeStr ?? 'A:ZZ' },
-                    },
-                    position: {
-                      anchorCell,
-                    },
-                    options: {
-                      title: String(config?.['title'] || `${r['chartType']} Chart`),
-                      legendPosition: 'BOTTOM_LEGEND',
-                      axisTitle: {
-                        horizontal: String(config?.['categories'] || ''),
-                        vertical: 'Values',
-                      },
-                    },
-                  },
-                };
-
-                return {
-                  chartType: r['chartType'],
-                  suitabilityScore: r['suitabilityScore'],
-                  reasoning: r['reasoning'],
-                  configuration: r['configuration'],
-                  insights: r['insights'],
-                  executionParams,
-                };
-              }
-            );
-
-            // Add AI rationale for chart recommendations
-            const topCharts = chartRecommendations?.slice(0, 2);
-            const aiInsightViz = await generateAIInsight(
-              this.context.samplingServer,
-              'chartRecommendation',
-              'Explain why these visualization types best represent this data',
-              topCharts
-            );
-
-            response = {
-              success: true,
-              action: 'suggest_visualization',
-              chartRecommendations,
-              dataAssessment: parsed.dataAssessment,
-              duration,
-              aiInsight: aiInsightViz,
-              message: `${chartRecommendations?.length ?? 0} chart type(s) recommended with executable params`,
-            };
-          } catch (error) {
-            logger.error('Failed to parse chart recommendation response', {
-              component: 'analyze-handler',
-              action: 'suggest_visualization',
-              error: error instanceof Error ? error.message : String(error),
-            });
-            response = {
-              success: false,
-              error: {
-                code: 'PARSE_ERROR',
-                message: 'Failed to parse chart recommendation response',
-                retryable: true,
-              },
-            };
-          }
           break;
         }
 
@@ -503,180 +356,13 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
               | { semantic: unknown }
               | { grid: unknown };
           };
-
-          // Check if server is available
-          if (!this.context.server) {
-            response = {
-              success: false,
-              error: {
-                code: 'SAMPLING_UNAVAILABLE',
-                message:
-                  'MCP Sampling is not available. detect_patterns requires an LLM via Sampling.',
-                retryable: false,
-              },
-            };
-            break;
-          }
-
-          const startTime = Date.now();
-
-          // Read the data
-          const convertedPatternRange = this.convertRangeInput(patternInput.range);
-          const rangeStr = this.resolveAnalyzeRange(convertedPatternRange);
-          const data = await this.readData(patternInput.spreadsheetId, rangeStr);
-
-          if (data.length === 0) {
-            response = {
-              success: false,
-              error: {
-                code: 'NO_DATA',
-                message: 'No data found in the specified range',
-                retryable: false,
-              },
-            };
-            break;
-          }
-
-          // Check if dataset is large enough to benefit from worker pool
-          // 16-A2: Lowered threshold from 10000 → 1000 rows to engage worker pool earlier
-          const rowCount = data.length;
-          const useWorkerPool = rowCount > 1000;
-
-          try {
-            let anomalies: Array<{
-              cell: string;
-              value: number;
-              expected: string;
-              deviation: string;
-              zScore: string;
-            }>;
-            let trends: Array<{
-              column: number;
-              trend: 'increasing' | 'decreasing' | 'stable';
-              changeRate: string;
-              confidence: number;
-            }>;
-            let correlations: Array<{
-              columns: number[];
-              correlation: string;
-              strength: string;
-            }>;
-
-            if (useWorkerPool) {
-              // Offload to worker thread for large datasets (10K+ rows)
-              logger.info('Using worker pool for large dataset analysis', {
-                component: 'analyze-handler',
-                action: 'detect_patterns',
-                rowCount,
-              });
-
-              const { getWorkerPool } = await import('../services/worker-pool.js');
-              const { fileURLToPath } = await import('url');
-              const { dirname, resolve } = await import('path');
-
-              const __filename = fileURLToPath(import.meta.url);
-              const __dirname = dirname(__filename);
-              const workerScriptPath = resolve(__dirname, '../workers/analysis-worker.js');
-
-              const pool = getWorkerPool();
-              pool.registerWorker('analysis', workerScriptPath);
-
-              // Run full analysis in worker thread
-              const workerResult = await pool.execute<
-                {
-                  operation: 'fullAnalysis';
-                  data: unknown[][];
-                },
-                {
-                  trends: typeof trends;
-                  anomalies: typeof anomalies;
-                  correlations: typeof correlations;
-                  rowCount: number;
-                  columnCount: number;
-                  duration: number;
-                }
-              >('analysis', {
-                operation: 'fullAnalysis',
-                data,
-              });
-
-              anomalies = workerResult.anomalies;
-              trends = workerResult.trends;
-              correlations = workerResult.correlations;
-
-              logger.info('Worker pool analysis completed', {
-                component: 'analyze-handler',
-                action: 'detect_patterns',
-                rowCount,
-                workerDuration: workerResult.duration,
-              });
-            } else {
-              // Use inline helpers for smaller datasets (< 10K rows)
-              const { detectAnomalies, analyzeTrends, analyzeCorrelationsData } =
-                await import('../analysis/helpers.js');
-
-              anomalies = detectAnomalies(data);
-              trends = analyzeTrends(data);
-              correlations = analyzeCorrelationsData(data);
-            }
-
-            const duration = Date.now() - startTime;
-
-            // Add AI insight explaining the patterns
-            const patternSummary = {
-              anomalies: anomalies.slice(0, 3),
-              trends: trends.slice(0, 3),
-              correlations: correlations.slice(0, 3),
-            };
-            const aiInsight = await generateAIInsight(
-              this.context.samplingServer,
-              'dataAnalysis',
-              'Explain these detected patterns and their business significance',
-              patternSummary
-            );
-
-            response = {
-              success: true,
-              action: 'detect_patterns',
-              patterns: {
-                anomalies: anomalies.map((a) => ({
-                  location: a.cell,
-                  value: a.value,
-                  severity:
-                    parseFloat(a.zScore) > 3 ? 'high' : parseFloat(a.zScore) > 2 ? 'medium' : 'low',
-                  expectedRange: a.expected,
-                })),
-                trends: trends.map((t) => ({
-                  column: `Column ${t.column + 1}`,
-                  direction: t.trend,
-                  confidence: t.confidence,
-                  description: `${t.trend} trend in Column ${t.column + 1} (change: ${t.changeRate})`,
-                })),
-                correlations: {
-                  // Each entry: [col_i, col_j, pearson_coefficient]
-                  matrix: correlations.map((c) => [...c.columns, parseFloat(c.correlation)]),
-                  columns: correlations.map((c) => `Columns ${c.columns.join(' & ')}`),
-                },
-              },
-              duration,
-              aiInsight,
-              message: `Found ${anomalies.length} anomalies, ${trends.length} trends, ${correlations.length} correlations`,
-            };
-          } catch (error) {
-            logger.error('Failed to detect patterns', {
-              component: 'analyze-handler',
-              action: 'detect_patterns',
-              error: error instanceof Error ? error.message : String(error),
-            });
-            response = {
-              success: false,
-              error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Failed to detect patterns',
-                retryable: true,
-              },
-            };
-          }
+          response = await handleDetectPatternsAction(patternInput, {
+            hasServer: !!this.context.server,
+            samplingServer: this.context.samplingServer,
+            convertRangeInput: (range) => this.convertRangeInput(range),
+            resolveAnalyzeRange: (range) => this.resolveAnalyzeRange(range),
+            readData: (spreadsheetId, range) => this.readData(spreadsheetId, range),
+          });
           break;
         }
 
@@ -685,74 +371,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
           const structureInput = req as typeof req & {
             spreadsheetId: string;
           };
-
-          const startTime = Date.now();
-
-          try {
-            // Get spreadsheet structure using existing API
-            const spreadsheet = await this.sheetsApi.spreadsheets.get({
-              spreadsheetId: structureInput.spreadsheetId,
-              fields:
-                'spreadsheetId,properties,sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount))),namedRanges(namedRangeId,name,range)',
-            });
-
-            const sheets = spreadsheet.data.sheets ?? [];
-            const namedRanges = spreadsheet.data.namedRanges ?? [];
-
-            // Build sheetId → title lookup (sheetId is NOT an array index)
-            const sheetTitleById = new Map<number, string>(
-              sheets
-                .filter((s) => s.properties?.sheetId != null)
-                .map((s) => [s.properties!.sheetId!, s.properties?.title ?? 'Untitled'])
-            );
-
-            // Calculate totals
-            const totalRows = sheets.reduce(
-              (sum, sheet) => sum + (sheet.properties?.gridProperties?.rowCount ?? 0),
-              0
-            );
-            const totalColumns = sheets.reduce(
-              (sum, sheet) => sum + (sheet.properties?.gridProperties?.columnCount ?? 0),
-              0
-            );
-
-            const structure = {
-              sheets: sheets.length,
-              totalRows,
-              totalColumns,
-              namedRanges: namedRanges.map((nr) => ({
-                name: nr.name ?? 'Unnamed',
-                range:
-                  nr.range?.startRowIndex !== undefined && nr.range.startRowIndex !== null
-                    ? `${sheetTitleById.get(nr.range.sheetId ?? 0) ?? 'Sheet1'}!R${nr.range.startRowIndex + 1}C${(nr.range.startColumnIndex ?? 0) + 1}:R${nr.range.endRowIndex ?? 0}C${nr.range.endColumnIndex ?? 0}`
-                    : 'Unknown',
-              })),
-            };
-
-            const duration = Date.now() - startTime;
-
-            response = {
-              success: true,
-              action: 'analyze_structure',
-              structure,
-              duration,
-              message: `Analyzed structure: ${structure.sheets} sheets, ${structure.totalRows} total rows, ${structure.namedRanges?.length ?? 0} named ranges`,
-            };
-          } catch (error) {
-            logger.error('Failed to analyze structure', {
-              component: 'analyze-handler',
-              action: 'analyze_structure',
-              error: error instanceof Error ? error.message : String(error),
-            });
-            response = {
-              success: false,
-              error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Failed to analyze structure',
-                retryable: true,
-              },
-            };
-          }
+          response = await handleAnalyzeStructureAction(structureInput, this.sheetsApi);
           break;
         }
 
@@ -766,99 +385,11 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
               | { semantic: unknown }
               | { grid: unknown };
           };
-
-          const startTime = Date.now();
-
-          try {
-            // Read the data
-            const convertedQualityRange = this.convertRangeInput(qualityInput.range);
-            const rangeStr = this.resolveAnalyzeRange(convertedQualityRange);
-            const data = await this.readData(qualityInput.spreadsheetId, rangeStr);
-
-            if (data.length === 0) {
-              response = {
-                success: false,
-                error: {
-                  code: 'NO_DATA',
-                  message: 'No data found in the specified range',
-                  retryable: false,
-                },
-              };
-              break;
-            }
-
-            // Use helpers from analysis/helpers.ts for quality analysis
-            const { checkColumnQuality, detectDataType } = await import('../analysis/helpers.js');
-
-            const headers = data[0]?.map(String) ?? [];
-            const dataRows = data.slice(1);
-
-            // Analyze each column
-            const columnResults = headers.map((header, colIndex) => {
-              const columnData = dataRows.map((row) => row[colIndex]);
-              const dataType = detectDataType(columnData);
-              const quality = checkColumnQuality(columnData, dataType);
-
-              return {
-                column: header,
-                dataType,
-                completeness: quality.completeness,
-                consistency: quality.consistency,
-                issues: quality.issues,
-              };
-            });
-
-            // Calculate overall metrics
-            const avgCompleteness =
-              columnResults.reduce((sum, col) => sum + col.completeness, 0) / columnResults.length;
-            const avgConsistency =
-              columnResults.reduce((sum, col) => sum + col.consistency, 0) / columnResults.length;
-            const overallScore = (avgCompleteness + avgConsistency) / 2;
-
-            // Build issues array
-            const issues = columnResults.flatMap((col) =>
-              col.issues.map((issue) => ({
-                type: 'MIXED_DATA_TYPES' as const,
-                severity: 'medium' as const,
-                location: col.column,
-                description: issue,
-                autoFixable: false,
-                fixTool: undefined,
-                fixAction: undefined,
-              }))
-            );
-
-            const duration = Date.now() - startTime;
-
-            response = {
-              success: true,
-              action: 'analyze_quality',
-              dataQuality: {
-                score: overallScore,
-                completeness: avgCompleteness,
-                consistency: avgConsistency,
-                accuracy: Math.round(avgConsistency), // Type consistency as accuracy proxy
-                issues,
-                summary: `Quality score: ${overallScore.toFixed(1)}% (${issues.length} issues found)`,
-              },
-              duration,
-              message: `Quality score: ${overallScore.toFixed(1)}%`,
-            };
-          } catch (error) {
-            logger.error('Failed to analyze quality', {
-              component: 'analyze-handler',
-              action: 'analyze_quality',
-              error: error instanceof Error ? error.message : String(error),
-            });
-            response = {
-              success: false,
-              error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Failed to analyze quality',
-                retryable: true,
-              },
-            };
-          }
+          response = await handleAnalyzeQualityAction(qualityInput, {
+            convertRangeInput: (range) => this.convertRangeInput(range),
+            resolveAnalyzeRange: (range) => this.resolveAnalyzeRange(range),
+            readData: (spreadsheetId, range) => this.readData(spreadsheetId, range),
+          });
           break;
         }
 
@@ -868,183 +399,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             spreadsheetId: string;
             maxSheets?: number;
           };
-
-          const startTime = Date.now();
-          const maxSheets = perfInput.maxSheets ?? 5;
-
-          try {
-            // Fetch metadata first (lightweight — no grid data) to enumerate sheets
-            const metadataOnly = await this.sheetsApi.spreadsheets.get({
-              spreadsheetId: perfInput.spreadsheetId,
-              includeGridData: false,
-              fields:
-                'spreadsheetId,sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount)))',
-            });
-
-            const allSheets = metadataOnly.data.sheets ?? [];
-            const sheetsToAnalyze = allSheets.slice(0, maxSheets);
-            const ranges = sheetsToAnalyze.map(
-              (s) => `${s.properties?.title ?? 'Sheet1'}!A1:Z1000`
-            );
-
-            // Fetch grid data only for the limited sheet set
-            const spreadsheet = await this.sheetsApi.spreadsheets.get({
-              spreadsheetId: perfInput.spreadsheetId,
-              includeGridData: true,
-              ranges,
-              fields:
-                'spreadsheetId,properties,sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount)),data(rowData(values(userEnteredValue))),conditionalFormats,charts)',
-            });
-
-            const sheets = spreadsheet.data.sheets ?? [];
-
-            // Analyze performance characteristics
-            const performance = {
-              totalCells: sheets.reduce((sum, sheet) => {
-                const rows = sheet.properties?.gridProperties?.rowCount ?? 0;
-                const cols = sheet.properties?.gridProperties?.columnCount ?? 0;
-                return sum + rows * cols;
-              }, 0),
-              largeSheets: sheets
-                .filter((sheet) => {
-                  const rows = sheet.properties?.gridProperties?.rowCount ?? 0;
-                  const cols = sheet.properties?.gridProperties?.columnCount ?? 0;
-                  return rows * cols > 50000;
-                })
-                .map((sheet) => sheet.properties?.title ?? 'Untitled'),
-              complexFormulas: sheets.reduce(
-                (sum, sheet) =>
-                  sum +
-                  (sheet.data?.[0]?.rowData?.filter((row) =>
-                    row.values?.some((cell) => cell.userEnteredValue?.formulaValue)
-                  ).length ?? 0),
-                0
-              ),
-              conditionalFormats: sheets.reduce(
-                (sum, sheet) => sum + (sheet.conditionalFormats?.length ?? 0),
-                0
-              ),
-              charts: sheets.reduce((sum, sheet) => sum + (sheet.charts?.length ?? 0), 0),
-            };
-
-            const recommendations: Array<{
-              type:
-                | 'VOLATILE_FORMULAS'
-                | 'EXCESSIVE_FORMULAS'
-                | 'LARGE_RANGES'
-                | 'CIRCULAR_REFERENCES'
-                | 'INEFFICIENT_STRUCTURE'
-                | 'TOO_MANY_SHEETS';
-              severity: 'low' | 'medium' | 'high';
-              description: string;
-              estimatedImpact: string;
-              recommendation: string;
-              executableFix?: {
-                tool: string;
-                action: string;
-                params: Record<string, unknown>;
-                description: string;
-              };
-            }> = [];
-
-            if (performance.totalCells > 1000000) {
-              recommendations.push({
-                type: 'LARGE_RANGES',
-                severity: 'high',
-                description: `Spreadsheet has ${performance.totalCells.toLocaleString()} cells`,
-                estimatedImpact: 'Slow load times, high memory usage',
-                recommendation: 'Consider splitting into multiple smaller spreadsheets',
-                executableFix: {
-                  tool: 'sheets_core',
-                  action: 'create',
-                  params: {
-                    title: `${perfInput.spreadsheetId}-split`,
-                    sheets: [{ title: 'Sheet1', rowCount: 1000, columnCount: 26 }],
-                  },
-                  description: 'Create a new spreadsheet for splitting data',
-                },
-              });
-            }
-            if (performance.largeSheets.length > 0) {
-              recommendations.push({
-                type: 'INEFFICIENT_STRUCTURE',
-                severity: 'medium',
-                description: `Large sheets detected: ${performance.largeSheets.join(', ')}`,
-                estimatedImpact: 'Slower sheet switching and rendering',
-                recommendation: 'Archive or split large sheets',
-              });
-            }
-            if (performance.conditionalFormats > 50) {
-              recommendations.push({
-                type: 'INEFFICIENT_STRUCTURE',
-                severity: 'medium',
-                description: `${performance.conditionalFormats} conditional format rules`,
-                estimatedImpact: 'Increased rendering time',
-                recommendation: 'Consolidate or remove unused conditional formats',
-                executableFix: {
-                  tool: 'sheets_format',
-                  action: 'rule_list_conditional_formats',
-                  params: {
-                    spreadsheetId: perfInput.spreadsheetId,
-                  },
-                  description: 'List all conditional formats to review and consolidate',
-                },
-              });
-            }
-            if (performance.charts > 20) {
-              recommendations.push({
-                type: 'INEFFICIENT_STRUCTURE',
-                severity: 'low',
-                description: `${performance.charts} charts present`,
-                estimatedImpact: 'Slower initial load',
-                recommendation: 'Consider moving charts to separate dashboard sheets',
-              });
-            }
-
-            // Calculate overall performance score (0-100)
-            const overallScore = Math.max(
-              0,
-              100 -
-                ((performance.totalCells > 1000000 ? 30 : 0) +
-                  performance.largeSheets.length * 10 +
-                  (performance.conditionalFormats > 50 ? 20 : 0) +
-                  (performance.charts > 20 ? 10 : 0))
-            );
-
-            const duration = Date.now() - startTime;
-
-            response = {
-              success: true,
-              action: 'analyze_performance',
-              performance: {
-                overallScore,
-                recommendations,
-                estimatedImprovementPotential:
-                  recommendations.length > 0
-                    ? `${recommendations.length} optimization${recommendations.length > 1 ? 's' : ''} available`
-                    : 'No major optimizations needed',
-              },
-              duration,
-              message:
-                allSheets.length > maxSheets
-                  ? `Performance score: ${overallScore}/100 (${recommendations.length} recommendations). Results truncated to ${sheetsToAnalyze.length} of ${allSheets.length} sheets — pass maxSheets to increase limit (max 50).`
-                  : `Performance score: ${overallScore}/100 (${recommendations.length} recommendations)`,
-            };
-          } catch (error) {
-            logger.error('Failed to analyze performance', {
-              component: 'analyze-handler',
-              action: 'analyze_performance',
-              error: error instanceof Error ? error.message : String(error),
-            });
-            response = {
-              success: false,
-              error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Failed to analyze performance',
-                retryable: true,
-              },
-            };
-          }
+          response = await handleAnalyzePerformanceAction(perfInput, this.sheetsApi);
           break;
         }
 
@@ -1056,200 +411,11 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             includeOptimizations?: boolean;
             includeComplexity?: boolean;
           };
-
-          const startTime = Date.now();
-
-          try {
-            // Get metadata
-            const tieredRetrieval = new TieredRetrieval({
-              cache: getCacheAdapter('analysis'),
-              sheetsApi: this.sheetsApi,
-            });
-
-            // Get metadata to know which sheets to analyze
-            const metadata = await tieredRetrieval.getMetadata(formulaInput.spreadsheetId);
-
-            // Extract all formulas from sheets using Google Sheets API
-            // ENHANCED: Now includes effectiveValue and formattedValue to detect #REF! and other errors
-            const formulas: Array<{
-              cell: string;
-              formula: string;
-              value?: string | number | boolean | null;
-              formattedValue?: string;
-            }> = [];
-
-            // Fetch formulas from ALL sheets in a single API call (fix N+1 pattern)
-            const allRanges = metadata.sheets.map((s) => `'${s.title}'`);
-            const batchResponse = await this.sheetsApi.spreadsheets.get({
-              spreadsheetId: formulaInput.spreadsheetId,
-              ranges: allRanges,
-              includeGridData: true,
-              fields:
-                'sheets(data(rowData(values(userEnteredValue,effectiveValue,formattedValue))),properties(title))',
-            });
-
-            for (const sheetData of batchResponse.data.sheets ?? []) {
-              const sheetTitle = sheetData.properties?.title ?? 'Untitled';
-              for (const gridData of sheetData.data ?? []) {
-                if (!gridData.rowData) continue;
-                for (let rowIdx = 0; rowIdx < gridData.rowData.length; rowIdx++) {
-                  const row = gridData.rowData[rowIdx];
-                  if (!row?.values) continue;
-                  for (let colIdx = 0; colIdx < row.values.length; colIdx++) {
-                    const cell = row.values[colIdx];
-                    if (cell?.userEnteredValue?.formulaValue) {
-                      const cellA1 = `${String.fromCharCode(65 + colIdx)}${rowIdx + 1}`;
-                      const effectiveValue = cell.effectiveValue;
-                      let value: string | number | boolean | null = null;
-                      if (effectiveValue) {
-                        if (effectiveValue.errorValue) {
-                          value = effectiveValue.errorValue.type || '#ERROR!';
-                        } else if (effectiveValue.stringValue !== undefined) {
-                          value = effectiveValue.stringValue;
-                        } else if (effectiveValue.numberValue !== undefined) {
-                          value = effectiveValue.numberValue;
-                        } else if (effectiveValue.boolValue !== undefined) {
-                          value = effectiveValue.boolValue;
-                        }
-                      }
-                      formulas.push({
-                        cell: `${sheetTitle}!${cellA1}`,
-                        formula: cell.userEnteredValue.formulaValue,
-                        value,
-                        formattedValue: cell.formattedValue || undefined,
-                      });
-                    }
-                  }
-                }
-              }
-            }
-
-            // Import formula analysis functions
-            const {
-              findVolatileFormulas,
-              analyzeFormulaComplexity,
-              detectCircularRefs,
-              generateOptimizations,
-              detectFormulaUpgrades,
-              detectFormulaErrors,
-              calculateFormulaHealth,
-            } = await import('../analysis/formula-helpers.js');
-
-            // CRITICAL: Detect formula errors from cell values (not just formula text)
-            const formulaErrors = detectFormulaErrors(formulas);
-            const healthSummary = calculateFormulaHealth(formulas.length, formulaErrors);
-
-            // Analyze formulas
-            const volatileFormulas = findVolatileFormulas(formulas);
-            const circularRefs = detectCircularRefs(formulas);
-
-            // Complexity analysis
-            const complexityScores = formulas.map((f) =>
-              analyzeFormulaComplexity(f.cell, f.formula)
-            );
-
-            const complexityDistribution = {
-              simple: complexityScores.filter((c) => c.category === 'simple').length,
-              moderate: complexityScores.filter((c) => c.category === 'moderate').length,
-              complex: complexityScores.filter((c) => c.category === 'complex').length,
-              very_complex: complexityScores.filter((c) => c.category === 'very_complex').length,
-            };
-
-            // Optimization suggestions
-            const optimizationOpportunities =
-              formulaInput.includeOptimizations !== false ? generateOptimizations(formulas) : [];
-
-            // Formula upgrade opportunities (VLOOKUP→XLOOKUP, nested IF→IFS, etc.)
-            const upgradeOpportunities =
-              formulaInput.includeOptimizations !== false
-                ? detectFormulaUpgrades(formulas, formulaInput.spreadsheetId)
-                : [];
-
-            const duration = Date.now() - startTime;
-
-            response = {
-              success: true,
-              action: 'analyze_formulas',
-              // upgradeOpportunities is a runtime-only extension (not in output schema)
-              // buildToolResponse() serializes all fields regardless of type constraints
-              ...((upgradeOpportunities.length > 0
-                ? {
-                    upgradeOpportunities: upgradeOpportunities.slice(0, 20).map((u) => ({
-                      cell: u.cell,
-                      pattern: u.pattern,
-                      currentFormula: u.currentFormula,
-                      suggestedFormula: u.suggestedFormula,
-                      reason: u.reason,
-                      confidence: u.confidence,
-                      executable: u.executable,
-                    })),
-                  }
-                : {}) as Record<string, never>),
-              formulaAnalysis: {
-                totalFormulas: formulas.length,
-                // CRITICAL: Formula health including error detection
-                healthScore: healthSummary.healthScore,
-                healthyFormulas: healthSummary.healthyFormulas,
-                errorCount: healthSummary.errorCount,
-                errorsByType: healthSummary.errorsByType,
-                // Critical errors shown first (sorted by severity)
-                formulaErrors:
-                  formulaErrors.length > 0
-                    ? formulaErrors.slice(0, 50).map((e) => ({
-                        cell: e.cell,
-                        formula: e.formula,
-                        errorType: e.errorType,
-                        errorValue: e.errorValue,
-                        severity: e.severity,
-                        suggestion: e.suggestion,
-                        possibleCauses: e.possibleCauses,
-                      }))
-                    : undefined,
-                complexityDistribution,
-                volatileFormulas: volatileFormulas.slice(0, 20).map((v) => ({
-                  cell: v.cell,
-                  formula: v.formula,
-                  volatileFunctions: v.volatileFunctions,
-                  impact: v.impact,
-                  suggestion: v.suggestion,
-                })),
-                optimizationOpportunities: optimizationOpportunities.slice(0, 20).map((o) => ({
-                  type: o.type,
-                  priority: o.priority,
-                  affectedCells: o.affectedCells,
-                  currentFormula: o.currentFormula,
-                  suggestedFormula: o.suggestedFormula,
-                  reasoning: o.reasoning,
-                })),
-                circularReferences:
-                  circularRefs.length > 0
-                    ? circularRefs.map((c) => ({
-                        cells: c.cells,
-                        chain: c.chain,
-                      }))
-                    : undefined,
-              },
-              duration,
-              message:
-                formulaErrors.length > 0
-                  ? `⚠️ Found ${formulaErrors.length} formula error(s) (${healthSummary.criticalErrors.length} critical). Health: ${healthSummary.healthScore}%. Analyzed ${formulas.length} formulas.`
-                  : `✅ No formula errors. Health: ${healthSummary.healthScore}%. Analyzed ${formulas.length} formulas: ${volatileFormulas.length} volatile, ${optimizationOpportunities.length} optimizations, ${upgradeOpportunities.length} upgrades.`,
-            };
-          } catch (error) {
-            logger.error('Failed to analyze formulas', {
-              component: 'analyze-handler',
-              action: 'analyze_formulas',
-              error: error instanceof Error ? error.message : String(error),
-            });
-            response = {
-              success: false,
-              error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Failed to analyze formulas',
-                retryable: true,
-              },
-            };
-          }
+          response = await handleAnalyzeFormulasAction(formulaInput, {
+            sheetsApi: this.sheetsApi,
+            sendProgress: (current: number, total: number, message?: string) =>
+              this.sendProgress(current, total, message),
+          });
           break;
         }
 
@@ -1261,166 +427,11 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             sheetId?: number;
             conversationId?: string;
           };
-
-          // Check sampling capability
-          const samplingError4 = await this.checkSamplingCapability();
-          if (samplingError4) {
-            response = samplingError4;
-            break;
-          }
-
-          const server4 = this.context.server!;
-          const startTime = Date.now();
-
-          try {
-            // Get metadata and sample data
-            const tieredRetrieval = new TieredRetrieval({
-              cache: getCacheAdapter('analysis'),
-              sheetsApi: this.sheetsApi,
-            });
-
-            const metadata = await tieredRetrieval.getMetadata(nlInput.spreadsheetId);
-            const sampleData = await tieredRetrieval.getSample(nlInput.spreadsheetId);
-
-            // Get target sheet
-            const targetSheet = nlInput.sheetId
-              ? metadata.sheets.find((s) => s.sheetId === nlInput.sheetId)
-              : metadata.sheets[0];
-
-            if (!targetSheet) {
-              response = {
-                success: false,
-                error: createNotFoundError({
-                  resourceType: 'sheet',
-                  resourceId: nlInput.sheetId ? String(nlInput.sheetId) : 'first sheet',
-                  searchSuggestion: 'Use sheets_core action "list_sheets" to see available sheets',
-                  parentResourceId: nlInput.spreadsheetId,
-                }),
-              };
-              break;
-            }
-
-            // Import conversational helpers
-            const { detectQueryIntent, buildNLQuerySamplingRequest, validateQuery } =
-              await import('../analysis/conversational-helpers.js');
-            const { inferSchema } = await import('../analysis/structure-helpers.js');
-
-            // Get sample data for target sheet
-            const sheetSample = sampleData.sampleData.rows || [];
-            const schema = inferSchema(sheetSample, 0);
-
-            // Build conversation context
-            // For first query, previousQueries is empty. Multi-turn conversation support
-            // will be added when conversationId is provided via session storage integration.
-            const context = {
-              spreadsheetId: nlInput.spreadsheetId,
-              sheetName: targetSheet.title,
-              schema,
-              previousQueries: [],
-              dataSnapshot: {
-                sampleRows: sheetSample,
-                rowCount: targetSheet.rowCount,
-                columnCount: targetSheet.columnCount,
-              },
-            };
-
-            // Detect intent
-            const intent = detectQueryIntent(nlInput.query, schema);
-
-            // Validate query
-            const validation = validateQuery(nlInput.query, context);
-            if (!validation.valid) {
-              response = {
-                success: false,
-                error: {
-                  code: 'VALIDATION_ERROR',
-                  message: validation.reason || 'Invalid query',
-                  retryable: false,
-                },
-              };
-              break;
-            }
-
-            // Build sampling request
-            const samplingRequest = buildNLQuerySamplingRequest(nlInput.query, context);
-
-            // Call LLM via MCP Sampling
-            let samplingResult;
-            try {
-              samplingResult = await withSamplingTimeout(server4.createMessage(samplingRequest));
-            } catch (samplingError) {
-              logger.error('MCP Sampling call failed for query_natural_language', {
-                component: 'analyze-handler',
-                action: 'query_natural_language',
-                error:
-                  samplingError instanceof Error ? samplingError.message : String(samplingError),
-              });
-              response = {
-                success: false,
-                error: {
-                  code: 'FEATURE_UNAVAILABLE',
-                  message:
-                    'MCP Sampling capability failed. This feature requires a compatible MCP client with Sampling support (MCP 2025-11-25+).',
-                  retryable: false,
-                  suggestedFix:
-                    'Ensure your MCP client supports the Sampling capability or provide an LLM API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY).',
-                },
-              };
-              break;
-            }
-
-            // Parse response
-            const contentText =
-              typeof samplingResult.content === 'string'
-                ? samplingResult.content
-                : samplingResult.content.type === 'text'
-                  ? samplingResult.content.text
-                  : '';
-
-            const jsonMatch = contentText.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {
-              throw new DataError(
-                'No JSON in response - model returned invalid format',
-                'DATA_ERROR',
-                false
-              );
-            }
-            const parsed = JSON.parse(jsonMatch[0]);
-
-            const duration = Date.now() - startTime;
-
-            response = {
-              success: true,
-              action: 'query_natural_language',
-              queryResult: {
-                query: nlInput.query,
-                answer: parsed.answer || 'No answer provided',
-                intent: {
-                  type: intent.type,
-                  confidence: intent.confidence,
-                },
-                data: parsed.data,
-                visualizationSuggestion: parsed.visualizationSuggestion,
-                followUpQuestions: parsed.followUpQuestions || [],
-              },
-              duration,
-              message: `Query processed: ${intent.type} (${intent.confidence}% confidence)`,
-            };
-          } catch (error) {
-            logger.error('Failed to process natural language query', {
-              component: 'analyze-handler',
-              action: 'query_natural_language',
-              error: error instanceof Error ? error.message : String(error),
-            });
-            response = {
-              success: false,
-              error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Failed to process natural language query',
-                retryable: true,
-              },
-            };
-          }
+          response = await handleQueryNaturalLanguageAction(nlInput, {
+            checkSamplingCapability: () => this.checkSamplingCapability(),
+            server: this.context.server!,
+            sheetsApi: this.sheetsApi,
+          });
           break;
         }
 
@@ -1430,104 +441,27 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             analysisResult?: Record<string, unknown>;
             question?: string;
           };
-
-          // Check sampling capability (both server and client support)
-          const samplingErrorExplain = await this.checkSamplingCapability();
-          if (samplingErrorExplain) {
-            response = samplingErrorExplain;
-            break;
-          }
-
-          // Server is guaranteed to be available after sampling check
-          const serverExplain = this.context.server!;
-          const startTime = Date.now();
-
-          try {
-            // Build a sampling request to explain the analysis
-            const questionText = explainInput.question
-              ? `${explainInput.question}\n\nContext: ${JSON.stringify(explainInput.analysisResult, null, 2)}`
-              : `Please explain this analysis result in simple terms:\n\n${JSON.stringify(explainInput.analysisResult, null, 2)}`;
-
-            const samplingRequest = buildAnalysisSamplingRequest([[questionText]], {
-              spreadsheetId: req.spreadsheetId || '',
-              analysisTypes: ['summary' as const],
-              maxTokens: 1000,
-            });
-
-            // Call LLM via MCP Sampling
-            let samplingResult;
-            try {
-              samplingResult = await withSamplingTimeout(
-                serverExplain.createMessage(samplingRequest)
-              );
-            } catch (samplingError) {
-              logger.error('MCP Sampling call failed for explain_analysis', {
-                component: 'analyze-handler',
-                action: 'explain_analysis',
-                error:
-                  samplingError instanceof Error ? samplingError.message : String(samplingError),
-              });
-              response = {
-                success: false,
-                error: {
-                  code: 'FEATURE_UNAVAILABLE',
-                  message:
-                    'MCP Sampling capability failed. This feature requires a compatible MCP client with Sampling support (MCP 2025-11-25+).',
-                  retryable: false,
-                  suggestedFix:
-                    'Ensure your MCP client supports the Sampling capability or provide an LLM API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY).',
-                },
-              };
-              break;
+          response = await handleExplainAnalysisAction(
+            {
+              analysisResult: explainInput.analysisResult,
+              question: explainInput.question,
+              spreadsheetId: req.spreadsheetId,
+            },
+            {
+              checkSamplingCapability: () => this.checkSamplingCapability(),
+              server: this.context.server!,
+              samplingServer: this.context.samplingServer,
             }
-
-            const duration = Date.now() - startTime;
-
-            // Extract text from response
-            const explanation =
-              typeof samplingResult.content === 'string'
-                ? samplingResult.content
-                : samplingResult.content.type === 'text'
-                  ? samplingResult.content.text
-                  : 'Unable to extract explanation from response';
-
-            // Enhance with AI narrative summary
-            const aiInsightExplain = await generateAIInsight(
-              this.context.samplingServer,
-              'dataAnalysis',
-              'Provide a clear, executive-summary narrative of these analysis findings',
-              explainInput.analysisResult
-            );
-
-            response = {
-              success: true,
-              action: 'explain_analysis',
-              explanation,
-              duration,
-              aiInsight: aiInsightExplain,
-              message: 'Analysis explained successfully',
-            };
-          } catch (error) {
-            logger.error('Failed to explain analysis', {
-              component: 'analyze-handler',
-              action: 'explain_analysis',
-              error: error instanceof Error ? error.message : String(error),
-            });
-            response = {
-              success: false,
-              error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Failed to explain analysis',
-                retryable: true,
-              },
-            };
-          }
+          );
           break;
         }
 
         case 'comprehensive': {
           // Type assertion: refine() ensures spreadsheetId is present for 'comprehensive' action
-          response = await this.handleComprehensive(req as ComprehensiveInput, verbosity);
+          response = await handleComprehensiveAction(req as ComprehensiveInput, {
+            sheetsApi: this.sheetsApi,
+            context: this.context,
+          });
 
           // Intelligence cluster: confidence scoring for comprehensive results (non-critical)
           if (response.success) {
@@ -1589,609 +523,116 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
         // ===== PROGRESSIVE ANALYSIS ACTIONS (5 actions) =====
 
         case 'scout': {
-          logger.info('Scout action - quick metadata scan', { spreadsheetId: req.spreadsheetId });
-          try {
-            const cache = getCacheAdapter('analysis');
-            const scoutInstance = new Scout({
-              cache,
-              sheetsApi: this.sheetsApi,
-              includeColumnTypes: req.includeColumnTypes ?? true,
-              includeQuickIndicators: req.includeQuickIndicators ?? true,
-              detectIntent: req.detectIntent ?? true,
-            });
-            const scoutResult: ScoutResult = await scoutInstance.scout(req.spreadsheetId);
-
-            // Add AI summary of scout findings
-            const scoutSummary = {
-              sizeCategory: scoutResult.indicators.sizeCategory,
-              sheetCount: scoutResult.sheets.length,
-              hasFormulas: scoutResult.indicators.hasFormulas,
-              hasVisualizations: scoutResult.indicators.hasVisualizations,
-              recommendations: scoutResult.recommendations.slice(0, 3),
-              detectedIntent: scoutResult.detectedIntent,
-            };
-            const aiInsightScout = await generateAIInsight(
-              this.context.samplingServer,
-              'dataAnalysis',
-              'Summarize the key findings from this quick scan and highlight anything that needs attention',
-              scoutSummary
-            );
-
-            // Map to expected schema format
-            response = {
-              success: true,
-              action: 'scout',
-              scout: {
-                spreadsheet: {
-                  id: scoutResult.spreadsheetId,
-                  title: scoutResult.title,
-                },
-                sheets: scoutResult.sheets.map((sheet) => ({
-                  sheetId: sheet.sheetId,
-                  title: sheet.title,
-                  rowCount: sheet.rowCount,
-                  columnCount: sheet.columnCount,
-                  estimatedCells: sheet.estimatedCells,
-                  columns: [], // Column type detection requires sample data
-                  flags: {
-                    hasHeaders: true, // Default assumption
-                    hasFormulas: scoutResult.indicators.hasFormulas,
-                    hasCharts: scoutResult.indicators.hasVisualizations,
-                    hasPivots: false,
-                    hasFilters: false,
-                    hasProtection: scoutResult.indicators.hasDataQuality,
-                    isEmpty: sheet.rowCount <= 1,
-                    isLarge: sheet.estimatedCells > 100000,
-                  },
-                })),
-                totals: {
-                  sheets: scoutResult.sheets.length,
-                  rows: scoutResult.sheets.reduce((sum, s) => sum + s.rowCount, 0),
-                  columns: scoutResult.sheets.reduce((sum, s) => sum + s.columnCount, 0),
-                  estimatedCells: scoutResult.indicators.estimatedCells,
-                  namedRanges: 0,
-                },
-                quickIndicators: {
-                  emptySheets: scoutResult.sheets.filter((s) => s.rowCount <= 1).length,
-                  largeSheets: scoutResult.sheets.filter((s) => s.estimatedCells > 100000).length,
-                  potentialIssues: scoutResult.recommendations,
-                },
-                suggestedAnalyses: [
-                  {
-                    type: 'quality' as const,
-                    priority: 'high' as const,
-                    reason: 'Assess data quality and completeness',
-                    estimatedDuration: '2-5s',
-                  },
-                ],
-                detectedIntent: {
-                  likely: (scoutResult.detectedIntent === 'quick' ||
-                  scoutResult.detectedIntent === 'auto'
-                    ? 'understand'
-                    : scoutResult.detectedIntent) as
-                    | 'optimize'
-                    | 'clean'
-                    | 'visualize'
-                    | 'understand'
-                    | 'audit',
-                  confidence: Math.round(scoutResult.intentConfidence * 100),
-                  signals: [scoutResult.intentReason],
-                },
-              },
-              duration: scoutResult.latencyMs,
-              aiInsight: aiInsightScout,
-              message: `Scout complete: ${scoutResult.indicators.sizeCategory} spreadsheet with ${scoutResult.sheets.length} sheet(s). Detected intent: ${scoutResult.detectedIntent}`,
-            };
-
-            // Intelligence cluster: confidence scoring + elicitation (non-critical)
-            try {
-              const scorer = new ConfidenceScorer();
-              const store = getSessionContext().understandingStore;
-              const engine = new ElicitationEngine();
-
-              const assessment = scorer.scoreFromScout(scoutResult);
-              store.initFromScout(
-                scoutResult.spreadsheetId,
-                scoutResult.title,
-                scoutResult.sheets.map((s) => ({ sheetId: s.sheetId, title: s.title })),
-                assessment
-              );
-
-              (response as Record<string, unknown>)['confidence'] = {
-                overallScore: assessment.overallScore,
-                level: assessment.overallLevel,
-                dimensions: assessment.dimensions.map((d) => ({
-                  dimension: d.dimension,
-                  score: d.score,
-                  level: d.level,
-                  gaps: d.gaps,
-                })),
-                gaps: assessment.topGaps.map((g) => g.gap),
-              };
-
-              const elicitation = engine.generate(assessment);
-              if (elicitation.shouldElicit) {
-                (response as Record<string, unknown>)['elicitation'] = {
-                  shouldElicit: true,
-                  questions: elicitation.questions
-                    .slice(0, elicitation.recommendedBatchSize)
-                    .map((q) => ({
-                      id: q.id,
-                      question: q.question,
-                      reason: q.reason,
-                      type: q.type,
-                      options: q.options,
-                      priority: q.priority,
-                    })),
-                  projectedBoost:
-                    elicitation.projectedConfidenceAfterElicitation - assessment.overallScore,
-                };
-              }
-            } catch (intelligenceErr) {
-              logger.warn('Intelligence cluster scoring failed (non-critical)', {
-                spreadsheetId: req.spreadsheetId,
-                error:
-                  intelligenceErr instanceof Error
-                    ? intelligenceErr.message
-                    : String(intelligenceErr),
-              });
-            }
-          } catch (error) {
-            logger.error('Scout failed', {
-              spreadsheetId: req.spreadsheetId,
-              error: error instanceof Error ? error.message : String(error),
-            });
-            response = {
-              success: false,
-              error: {
-                code: 'INTERNAL_ERROR',
-                message:
-                  'Scout analysis failed. The AI analysis service may be temporarily unavailable. Please try again.',
-                retryable: true,
-              },
-            };
-          }
+          // Type assertion: refine() ensures spreadsheetId is present
+          const scoutInput = req as typeof req & {
+            spreadsheetId: string;
+            includeColumnTypes?: boolean;
+            includeQuickIndicators?: boolean;
+            detectIntent?: boolean;
+          };
+          response = await handleScoutAction(scoutInput, {
+            sheetsApi: this.sheetsApi,
+            samplingServer: this.context.samplingServer,
+          });
           break;
         }
 
         case 'plan': {
-          logger.info('Plan action - AI-assisted analysis planning', {
-            spreadsheetId: req.spreadsheetId,
-            intent: req.intent,
-          });
-          try {
-            // First run scout if no scout result provided
-            let scoutResult: ScoutResult;
-            if (req.scoutResult) {
-              // Use provided scout result (convert from record)
-              scoutResult = req.scoutResult as unknown as ScoutResult;
-            } else {
-              // Run scout first
-              const cache = getCacheAdapter('analysis');
-              const scoutInstance = new Scout({
-                cache,
-                sheetsApi: this.sheetsApi,
-              });
-              scoutResult = await scoutInstance.scout(req.spreadsheetId);
-            }
-
-            // Create planner and generate plan
-            const planner = new Planner({
-              maxSteps: 10,
-              includeOptional: true,
-            });
-            const plan: AnalysisPlan = planner.createPlan(
-              scoutResult,
-              undefined,
-              req.intent as ScoutResult['detectedIntent'] | undefined
-            );
-
-            // Map plan steps to schema format
-            const mappedSteps = plan.steps.map((step, idx) => ({
-              order: idx + 1,
-              type: this.mapActionToStepType(step.action),
-              priority: this.mapPriorityToSchema(step.sequence),
-              target: step.params['sheetId']
-                ? { sheets: [step.params['sheetId'] as number] }
-                : step.params['range']
-                  ? { range: step.params['range'] as string }
-                  : undefined,
-              estimatedDuration: `${Math.round(step.estimatedLatencyMs / 1000)}s`,
-              reason: step.description,
-              outputs: [step.title],
-            }));
-
-            response = {
-              success: true,
-              action: 'plan',
-              plan: {
-                id: plan.planId,
-                intent: plan.intent,
-                steps: mappedSteps,
-                estimatedTotalDuration: `${Math.round(plan.totalEstimatedLatencyMs / 1000)}s`,
-                estimatedApiCalls: plan.steps.length,
-                confidenceScore: Math.round(scoutResult.intentConfidence * 100),
-                rationale: plan.description,
-                skipped: [],
-              },
-              duration: Date.now() - plan.metadata.createdAt,
-              message: `Analysis plan created: ${plan.steps.length} steps, ~${Math.round(plan.totalEstimatedLatencyMs / 1000)}s estimated`,
-            };
-          } catch (error) {
-            logger.error('Plan creation failed', {
-              spreadsheetId: req.spreadsheetId,
-              error: error instanceof Error ? error.message : String(error),
-            });
-            response = {
-              success: false,
-              error: {
-                code: 'INTERNAL_ERROR',
-                message:
-                  'Plan creation failed. The AI analysis service may be temporarily unavailable. Please try again.',
-                retryable: true,
-              },
-            };
-          }
+          // Type assertion: refine() ensures spreadsheetId is present
+          const planInput = req as typeof req & {
+            spreadsheetId: string;
+            intent?: ScoutResult['detectedIntent'];
+            scoutResult?: unknown;
+          };
+          response = await handlePlanAction(planInput, this.sheetsApi);
           break;
         }
 
         case 'execute_plan': {
-          logger.info('Execute plan action', {
-            spreadsheetId: req.spreadsheetId,
-            steps: req.plan.steps.length,
-          });
-          // Execute plan steps - provide step results structure for LLM to track execution
-          const planSteps = req.plan.steps || [];
-          const stepResults = planSteps.map((step, idx) => ({
-            stepIndex: idx,
-            type: step.type,
-            status: 'completed' as const, // LLM will track actual status
-            duration: 0, // Actual duration tracked by LLM
-            findings: {},
-            issuesFound: 0,
-          }));
-
-          response = {
-            success: true,
-            action: 'execute_plan',
-            stepResults,
-            summary: `Plan ready: ${planSteps.length} steps to execute`,
-            message: `Plan ready for execution: ${planSteps.length} steps. Execute each step sequentially using sheets_analyze with the specified action.`,
+          // Type assertion: refine() ensures spreadsheetId and plan are present
+          const executePlanInput = req as typeof req & {
+            spreadsheetId: string;
+            plan: {
+              steps: Array<{ type: string }>;
+            };
           };
+          response = await handleExecutePlanAction(executePlanInput);
           break;
         }
 
         case 'drill_down': {
-          logger.info('Drill down action', {
-            spreadsheetId: req.spreadsheetId,
-            targetType: req.target.type,
-          });
-          try {
-            // Map drill-down target to appropriate analysis
-            const targetType = req.target.type;
-            let targetId = '';
-
-            // Extract target ID based on type
-            switch (targetType) {
-              case 'issue':
-                targetId = (req.target as { issueId: string }).issueId;
-                break;
-              case 'sheet':
-                targetId = String((req.target as { sheetIndex: number }).sheetIndex);
-                break;
-              case 'column':
-                targetId = (req.target as { column: string }).column;
-                break;
-              case 'formula':
-                targetId = (req.target as { cell: string }).cell;
-                break;
-              case 'pattern':
-                targetId = (req.target as { patternId: string }).patternId;
-                break;
-              case 'anomaly':
-                targetId = (req.target as { anomalyId: string }).anomalyId;
-                break;
-              case 'correlation':
-                targetId = (req.target as { columns: string[] }).columns.join('-');
-                break;
-            }
-
-            // Add AI guidance for next steps in drill-down
-            const drillDownContext = {
-              targetType,
-              targetId,
-              spreadsheetId: req.spreadsheetId,
-            };
-            const aiInsightDrill = await generateAIInsight(
-              this.context.samplingServer,
-              'dataAnalysis',
-              'Based on this drill-down analysis, suggest the most promising next direction to explore',
-              drillDownContext
-            );
-
-            // Return drill-down result in schema format
-            response = {
-              success: true,
-              action: 'drill_down',
-              drillDownResult: {
-                targetType,
-                targetId,
-                context: {
-                  spreadsheetId: req.spreadsheetId,
-                  limit: req.limit,
-                },
-                details: {
-                  type: targetType,
-                  id: targetId,
-                  analysisReady: true,
-                },
-                relatedItems: [],
-                suggestions: [
-                  `Run sheets_analyze:analyze_${targetType === 'sheet' ? 'structure' : targetType === 'formula' ? 'formulas' : 'quality'} for detailed analysis`,
-                  'Use sheets_analyze:detect_patterns to find related patterns',
-                ],
-              },
-              aiInsight: aiInsightDrill,
-              message: `Drill-down result for ${targetType}: ${targetId}`,
-            };
-          } catch (drillError) {
-            logger.error('Drill-down analysis failed', {
-              error: drillError instanceof Error ? drillError.message : String(drillError),
-            });
-            response = {
-              success: false,
-              error: {
-                code: 'INTERNAL_ERROR',
-                message:
-                  'Drill-down analysis failed. The AI analysis service may be temporarily unavailable. Please try again.',
-                retryable: true,
-              },
-            };
-          }
+          // Type assertion: refine() ensures spreadsheetId and target are present
+          const drillDownInput = req as typeof req & {
+            spreadsheetId: string;
+            target:
+              | { type: 'issue'; issueId: string }
+              | { type: 'sheet'; sheetIndex: number }
+              | { type: 'column'; column: string }
+              | { type: 'formula'; cell: string }
+              | { type: 'pattern'; patternId: string }
+              | { type: 'anomaly'; anomalyId: string }
+              | { type: 'correlation'; columns: string[] };
+            limit?: number;
+          };
+          response = await handleDrillDownAction(drillDownInput, this.context.samplingServer);
           break;
         }
 
         case 'generate_actions': {
-          logger.info('Generate actions', { spreadsheetId: req.spreadsheetId, intent: req.intent });
-          try {
-            // Convert analysis findings to action generator format
-            const analysisFindings: AnalysisFinding[] = [];
-
-            if (req.findings) {
-              // Extract findings from provided data
-              const findingsData = req.findings as Record<string, unknown>;
-              if (findingsData['issues'] && Array.isArray(findingsData['issues'])) {
-                for (const issue of findingsData['issues']) {
-                  const issueObj = issue as Record<string, unknown>;
-                  analysisFindings.push({
-                    id: `issue_${analysisFindings.length}`,
-                    type: 'issue',
-                    severity:
-                      (issueObj['severity'] as 'info' | 'warning' | 'error' | 'critical') ??
-                      'warning',
-                    title: (issueObj['title'] as string) ?? 'Issue',
-                    description: (issueObj['description'] as string) ?? '',
-                    location: issueObj['location'] as AnalysisFinding['location'],
-                    data: issueObj['data'] as Record<string, unknown>,
-                  });
-                }
-              }
-            }
-
-            // Generate actions
-            const generator = new ActionGenerator();
-            const result: GenerateActionsResult = generator.generateActions({
-              spreadsheetId: req.spreadsheetId,
-              findings: analysisFindings,
-              maxActions: req.maxActions ?? 10,
-            });
-
-            // Map to schema format
-            response = {
-              success: true,
-              action: 'generate_actions',
-              actionPlan: {
-                totalActions: result.actions.length,
-                estimatedTotalImpact: `${result.summary.actionableFindings} issues addressed`,
-                actions: result.actions.map((a) => ({
-                  id: a.id,
-                  priority: a.priority,
-                  tool: a.tool,
-                  action: a.action,
-                  params: a.params,
-                  title: a.title,
-                  description: a.description,
-                  risk: a.risk,
-                  reversible: a.reversible,
-                  requiresConfirmation: a.requiresConfirmation,
-                  category: a.category,
-                })) as unknown as NonNullable<
-                  NonNullable<Extract<AnalyzeResponse, { success: true }>['actionPlan']>['actions']
-                >,
-              },
-              message: `Generated ${result.actions.length} actions from ${result.summary.totalFindings} findings`,
-            };
-
-            // Intelligence cluster: suggest multi-tool chains based on current understanding
-            try {
-              const orchestrator = new FlowOrchestrator();
-              const store = getSessionContext().understandingStore;
-              const summary = store.getSummary(req.spreadsheetId);
-              const suggestions = orchestrator.suggestMultiToolChains(summary, {
-                tool: 'sheets_analyze',
-                action: 'generate_actions',
-              });
-              if (suggestions.length > 0) {
-                (response as Record<string, unknown>)['suggestedFlows'] = suggestions.map((s) => ({
-                  title: s.title,
-                  reason: s.reason,
-                  steps: s.toolChain.map((t) => `${t.tool}.${t.action}`),
-                  confidence: s.confidence,
-                }));
-              }
-            } catch (intelligenceErr) {
-              logger.warn('Intelligence cluster flow suggestions failed (non-critical)', {
-                spreadsheetId: req.spreadsheetId,
-                error:
-                  intelligenceErr instanceof Error
-                    ? intelligenceErr.message
-                    : String(intelligenceErr),
-              });
-            }
-          } catch (error) {
-            logger.error('Generate actions failed', {
-              spreadsheetId: req.spreadsheetId,
-              error: error instanceof Error ? error.message : String(error),
-            });
-            response = {
-              success: false,
-              error: {
-                code: 'INTERNAL_ERROR',
-                message:
-                  'Action generation failed. The AI analysis service may be temporarily unavailable. Please try again.',
-                retryable: true,
-              },
-            };
-          }
+          // Type assertion: refine() ensures spreadsheetId is present
+          const generateActionsInput = req as typeof req & {
+            spreadsheetId: string;
+            intent?: string;
+            findings?: unknown;
+            maxActions?: number;
+          };
+          response = await handleGenerateActionsAction(generateActionsInput);
           break;
         }
 
         case 'suggest_next_actions': {
-          logger.info('Suggest next actions', { spreadsheetId: req.spreadsheetId });
-          try {
-            const { SuggestionEngine } = await import('../analysis/suggestion-engine.js');
-            const { Scout } = await import('../analysis/scout.js');
-            const { ActionGenerator } = await import('../analysis/action-generator.js');
-            const { getCacheAdapter } = await import('../utils/cache-adapter.js');
-
-            const suggestEngine = new SuggestionEngine({
-              scout: new Scout({
-                cache: getCacheAdapter('suggest'),
-                sheetsApi: this.sheetsApi,
-              }),
-              actionGenerator: new ActionGenerator(),
-            });
-
-            const suggestResult = await suggestEngine.suggest({
-              spreadsheetId: req.spreadsheetId,
-              range: req.range
-                ? this.resolveAnalyzeRange(
-                    req.range as { a1?: string; sheetName?: string; range?: string }
-                  )
-                : undefined,
-              maxSuggestions: req.maxSuggestions ?? 5,
-              categories: req.categories,
-            });
-
-            response = {
-              success: true,
-              action: 'suggest_next_actions',
-              suggestions: suggestResult.suggestions,
-              scoutSummary: suggestResult.scoutSummary,
-              totalCandidates: suggestResult.totalCandidates,
-              filtered: suggestResult.filtered,
-            };
-          } catch (error) {
-            logger.error('suggest_next_actions failed', {
-              spreadsheetId: req.spreadsheetId,
-              error: error instanceof Error ? error.message : String(error),
-            });
-            response = {
-              success: false,
-              error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Suggestion generation failed. Please try again.',
-                retryable: true,
-              },
-            };
-          }
+          // Type assertion: refine() ensures spreadsheetId is present
+          const suggestInput = req as typeof req & {
+            spreadsheetId: string;
+            range?: { a1?: string; sheetName?: string; range?: string };
+            maxSuggestions?: number;
+            categories?: Array<
+              'formulas' | 'formatting' | 'structure' | 'data_quality' | 'visualization'
+            >;
+          };
+          response = await handleSuggestNextActionsAction(suggestInput, {
+            sheetsApi: this.sheetsApi,
+            resolveAnalyzeRange: (range) => this.resolveAnalyzeRange(range),
+          });
           break;
         }
 
         case 'auto_enhance': {
-          logger.info('Auto enhance', { spreadsheetId: req.spreadsheetId, mode: req.mode });
-          try {
-            const { SuggestionEngine } = await import('../analysis/suggestion-engine.js');
-            const { Scout } = await import('../analysis/scout.js');
-            const { ActionGenerator } = await import('../analysis/action-generator.js');
-            const { getCacheAdapter } = await import('../utils/cache-adapter.js');
-
-            const enhanceEngine = new SuggestionEngine({
-              scout: new Scout({
-                cache: getCacheAdapter('enhance'),
-                sheetsApi: this.sheetsApi,
-              }),
-              actionGenerator: new ActionGenerator(),
-            });
-
-            const enhanceResult = await enhanceEngine.enhance({
-              spreadsheetId: req.spreadsheetId,
-              range: req.range
-                ? this.resolveAnalyzeRange(
-                    req.range as { a1?: string; sheetName?: string; range?: string }
-                  )
-                : undefined,
-              categories: req.categories ?? ['formatting', 'structure'],
-              mode: req.mode ?? 'preview',
-              maxEnhancements: req.maxEnhancements ?? 3,
-            });
-
-            response = {
-              success: true,
-              action: 'auto_enhance',
-              mode: req.mode ?? 'preview',
-              enhancements: enhanceResult.applied,
-              enhanceSummary: enhanceResult.summary,
-            };
-          } catch (error) {
-            logger.error('auto_enhance failed', {
-              spreadsheetId: req.spreadsheetId,
-              error: error instanceof Error ? error.message : String(error),
-            });
-            response = {
-              success: false,
-              error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Auto-enhancement failed. Please try again.',
-                retryable: true,
-              },
-            };
-          }
+          // Type assertion: refine() ensures spreadsheetId is present
+          const enhanceInput = req as typeof req & {
+            spreadsheetId: string;
+            range?: { a1?: string; sheetName?: string; range?: string };
+            categories?: Array<
+              'formulas' | 'formatting' | 'structure' | 'data_quality' | 'visualization'
+            >;
+            mode?: 'preview' | 'apply';
+            maxEnhancements?: number;
+          };
+          response = await handleAutoEnhanceAction(enhanceInput, {
+            sheetsApi: this.sheetsApi,
+            resolveAnalyzeRange: (range) => this.resolveAnalyzeRange(range),
+          });
           break;
         }
 
         case 'discover_action': {
-          logger.info('Discover action (meta-tool)', { query: req.query, category: req.category });
-          try {
-            const { discoverActions, analyzeDiscoveryQuery } =
-              await import('../services/action-discovery.js');
-
-            const matches = discoverActions(req.query, req.category, req.maxResults ?? 5);
-            const guidance = analyzeDiscoveryQuery(req.query, matches);
-
-            response = {
-              success: true,
-              action: 'discover_action',
-              query: req.query,
-              category: req.category ?? 'all',
-              matches,
-              matchCount: matches.length,
-              ...guidance,
-            };
-          } catch (error) {
-            logger.error('discover_action failed', {
-              query: req.query,
-              error: error instanceof Error ? error.message : String(error),
-            });
-            response = {
-              success: false,
-              error: {
-                code: 'DISCOVERY_FAILED',
-                message: 'Action discovery failed. Please try a different search query.',
-                retryable: true,
-              },
-            };
-          }
+          // Type assertion: refine() ensures query is present
+          const discoverInput = req as typeof req & {
+            query: string;
+            category?: string;
+            maxResults?: number;
+          };
+          response = await handleDiscoverActionAction(discoverInput);
           break;
         }
 
@@ -2248,524 +689,6 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             message: error instanceof Error ? error.message : String(error),
             retryable: false,
           },
-        },
-      };
-    }
-  }
-
-  /**
-   * Handle analyze_data action
-   * Performs intelligent routing between fast, AI, and streaming analysis paths
-   */
-  private async handleAnalyzeData(
-    req: SheetsAnalyzeInput['request'] & { spreadsheetId: string },
-    _verbosity: 'minimal' | 'standard' | 'detailed'
-  ): Promise<AnalyzeResponse> {
-    const startTime = Date.now();
-    const analysisService = getSamplingAnalysisService();
-
-    // PHASE 1 P0: Intelligent Routing with Tiered Retrieval
-    // Create tiered retrieval instance
-    const tieredRetrieval = new TieredRetrieval({
-      cache: getCacheAdapter('analysis'),
-      sheetsApi: this.sheetsApi,
-      defaultSampleSize: 100,
-      maxSampleSize: 500,
-    });
-
-    // Get metadata first (fast, ~0.3s, cached 5min)
-    const metadata = await tieredRetrieval.getMetadata(req.spreadsheetId);
-
-    // Route to optimal execution path
-    const router = new AnalysisRouter({
-      hasSampling: !!this.context.server,
-      hasTasks: true, // P1: Task support now enabled (taskSupport: "optional")
-    });
-    const decision = router.route({ request: req } as SheetsAnalyzeInput, metadata);
-
-    logger.info('Analysis routing decision', {
-      spreadsheetId: req.spreadsheetId,
-      path: decision.path,
-      reason: decision.reason,
-      estimatedDuration: decision.estimatedDuration,
-    });
-
-    // Execute based on routing decision
-    switch (decision.path) {
-      case 'fast': {
-        // Fast path: Traditional statistics without LLM
-        // Use tiered retrieval - sample data is sufficient for fast analysis (95%+ accuracy)
-        const sheetId = 'sheetId' in req ? req.sheetId : undefined;
-        const sampleResult = await tieredRetrieval.getSample(
-          req.spreadsheetId,
-          sheetId as number | undefined,
-          100 // Default sample size
-        );
-
-        // Extract sample data
-        const data = sampleResult.sampleData.rows;
-        if (!data || data.length === 0) {
-          return {
-            success: false,
-            error: {
-              code: 'NO_DATA',
-              message: 'No data found in the specified range',
-              retryable: false,
-            },
-          };
-        }
-
-        logger.info('Fast path using tier 3 (sample)', {
-          sampleSize: sampleResult.sampleData.sampleSize,
-          totalRows: sampleResult.sampleData.totalRows,
-          samplingMethod: sampleResult.sampleData.samplingMethod,
-        });
-
-        // Use helper functions for fast statistical analysis
-        const { analyzeTrends, detectAnomalies, analyzeCorrelationsData } =
-          await import('../analysis/helpers.js');
-
-        const trends = analyzeTrends(data);
-        const anomalies = detectAnomalies(data);
-        const correlations = analyzeCorrelationsData(data);
-
-        const duration = Date.now() - startTime;
-
-        return {
-          success: true,
-          action: 'analyze_data',
-          summary: `Fast statistical analysis complete (sample: ${sampleResult.sampleData.sampleSize}/${sampleResult.sampleData.totalRows} rows). Found ${anomalies.length} anomalies, ${trends.length} trends, and ${correlations.length} correlations.`,
-          analyses: [
-            {
-              type: 'summary',
-              confidence: 'high',
-              findings: [
-                `Analyzed ${data.length} rows with ${data[0]?.length ?? 0} columns (sample of ${sampleResult.sampleData.totalRows} total rows)`,
-                `Detected ${anomalies.length} anomalies`,
-                `Identified ${trends.length} trend patterns`,
-                `Found ${correlations.length} correlations`,
-              ],
-              details: `Fast path statistical analysis using traditional algorithms on tier 3 sample: trends=${trends.length}, anomalies=${anomalies.length}, correlations=${correlations.length}`,
-            },
-          ],
-          overallQualityScore: 85, // Basic quality score
-          topInsights: [
-            `${anomalies.length} anomalies detected in sample`,
-            `${trends.length} trend patterns identified`,
-            `${correlations.length} correlations found`,
-          ],
-          duration,
-          message: `Fast path analysis completed in ${duration}ms using tier 3 sample (${sampleResult.sampleData.sampleSize} rows)`,
-        };
-      }
-
-      case 'ai': {
-        // AI path: LLM-powered analysis via MCP Sampling
-        const samplingError = await this.checkSamplingCapability();
-        if (samplingError) {
-          return samplingError;
-        }
-
-        // Server is guaranteed to be available after sampling check
-        const _server = this.context.server!;
-
-        // Use tiered retrieval - sample for medium datasets, full for explicit requests
-        const sheetId = 'sheetId' in req ? req.sheetId : undefined;
-
-        // Determine which tier to use based on request
-        const useFullData =
-          'analysisTypes' in req &&
-          Array.isArray(req.analysisTypes) &&
-          req.analysisTypes.includes('quality'); // Quality analysis benefits from full data
-
-        const dataResult = useFullData
-          ? await tieredRetrieval.getFull(req.spreadsheetId, sheetId as number | undefined)
-          : await tieredRetrieval.getSample(
-              req.spreadsheetId,
-              sheetId as number | undefined,
-              200 // Larger sample for AI analysis
-            );
-
-        // Extract data (sample or full)
-        const data = useFullData
-          ? 'fullData' in dataResult
-            ? dataResult.fullData.values
-            : []
-          : 'sampleData' in dataResult
-            ? dataResult.sampleData.rows
-            : [];
-
-        if (!data || data.length === 0) {
-          return {
-            success: false,
-            error: {
-              code: 'NO_DATA',
-              message: 'No data found in the specified range',
-              retryable: false,
-            },
-          };
-        }
-
-        logger.info(`AI path using tier ${useFullData ? '4 (full)' : '3 (sample)'}`, {
-          dataSize: data.length,
-          useFullData,
-        });
-
-        // Build sampling request
-        const targetSheet =
-          sheetId !== undefined
-            ? metadata.sheets.find((s) => s.sheetId === sheetId)
-            : metadata.sheets[0];
-        const sheetName = targetSheet?.title;
-
-        const samplingRequest = buildAnalysisSamplingRequest(data, {
-          spreadsheetId: req.spreadsheetId,
-          sheetName,
-          range: undefined, // Tiered retrieval handles range
-          analysisTypes: ('analysisTypes' in req ? req.analysisTypes : undefined) as AnalysisType[],
-          context: 'context' in req ? req.context : undefined,
-          maxTokens: 'maxTokens' in req ? req.maxTokens : undefined,
-        });
-
-        // Call LLM via MCP Sampling or LLM fallback
-        const contentText = await this.createAIMessage(samplingRequest);
-        const duration = Date.now() - startTime;
-
-        // Parse the response
-        const parsed = parseAnalysisResponse(contentText);
-
-        if (!parsed.success || !parsed.result) {
-          const types = ('analysisTypes' in req ? req.analysisTypes : undefined) as AnalysisType[];
-          if (types) {
-            analysisService.recordFailure(types);
-          }
-          return {
-            success: false,
-            error: {
-              code: 'PARSE_ERROR',
-              message: parsed.error ?? 'Failed to parse analysis response',
-              retryable: true,
-            },
-          };
-        }
-
-        const types = ('analysisTypes' in req ? req.analysisTypes : undefined) as AnalysisType[];
-        if (types) {
-          analysisService.recordSuccess(types, duration);
-        }
-
-        return {
-          success: true,
-          action: 'analyze_data',
-          summary: parsed.result.summary,
-          analyses: parsed.result.analyses.map((a) => ({
-            type: a.type as AnalysisType,
-            confidence: a.confidence as 'high' | 'medium' | 'low',
-            findings: a.findings,
-            details: a.details,
-            affectedCells: a.affectedCells,
-            recommendations: a.recommendations,
-          })),
-          overallQualityScore: parsed.result.overallQualityScore,
-          topInsights: parsed.result.topInsights,
-          duration,
-          message: `AI path analysis complete (tier ${useFullData ? '4' : '3'}): ${parsed.result.analyses.length} finding(s) with ${parsed.result.topInsights.length} key insight(s)`,
-        };
-      }
-
-      case 'streaming': {
-        // Streaming path: Task-based chunked processing
-        // Full implementation using StreamingAnalyzer
-        logger.info('Streaming path selected - chunked processing', {
-          decision,
-        });
-
-        const sheetId = 'sheetId' in req ? req.sheetId : undefined;
-
-        // Import StreamingAnalyzer
-        const { StreamingAnalyzer } = await import('../analysis/streaming.js');
-
-        const streamingAnalyzer = new StreamingAnalyzer(
-          this.sheetsApi,
-          tieredRetrieval,
-          1000 // 1000 rows per chunk
-        );
-
-        // Execute streaming analysis with progress tracking
-        const streamingResult = await streamingAnalyzer.execute(
-          req.spreadsheetId,
-          sheetId as number | undefined,
-          metadata,
-          async (chunk) => {
-            // Progress callback - send to client via MCP progress notifications
-            const progressPercent = ((chunk.rowsProcessed / chunk.totalRows) * 100).toFixed(1);
-            logger.info('Streaming progress', {
-              chunkIndex: chunk.chunkIndex,
-              totalChunks: chunk.totalChunks,
-              progress: `${progressPercent}%`,
-              partialResults: chunk.partialResults,
-            });
-
-            // Send MCP progress notification to client (if supported)
-            await sendProgress(
-              chunk.chunkIndex,
-              chunk.totalChunks,
-              `Processing chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks} (${progressPercent}% - ${chunk.rowsProcessed}/${chunk.totalRows} rows)`
-            );
-          }
-        );
-
-        const duration = Date.now() - startTime;
-
-        logger.info('Streaming analysis complete', {
-          totalRowsProcessed: streamingResult.totalRowsProcessed,
-          totalChunks: streamingResult.totalChunks,
-          duration: streamingResult.duration,
-        });
-
-        return {
-          success: true,
-          action: 'analyze_data',
-          executionPath: 'streaming',
-          summary: `Streaming analysis complete: processed ${streamingResult.totalRowsProcessed} rows in ${streamingResult.totalChunks} chunks. Found ${streamingResult.aggregatedResults.anomalies} anomalies, ${streamingResult.aggregatedResults.trends} trends, ${streamingResult.aggregatedResults.correlations} correlations.`,
-          analyses: [
-            {
-              type: 'summary',
-              confidence: 'high',
-              findings: [
-                `Processed ${streamingResult.totalRowsProcessed} rows using chunked streaming (${streamingResult.totalChunks} chunks)`,
-                `Detected ${streamingResult.aggregatedResults.anomalies} anomalies`,
-                `Identified ${streamingResult.aggregatedResults.trends} trend patterns`,
-                `Found ${streamingResult.aggregatedResults.correlations} correlations`,
-                `Null cells: ${streamingResult.aggregatedResults.nullCount}`,
-                `Duplicate rows: ${streamingResult.aggregatedResults.duplicateCount}`,
-              ],
-              details: `Streaming analysis on large dataset: trends=${streamingResult.aggregatedResults.trends}, anomalies=${streamingResult.aggregatedResults.anomalies}, correlations=${streamingResult.aggregatedResults.correlations}, chunks=${streamingResult.totalChunks}`,
-            },
-          ],
-          overallQualityScore: Math.max(
-            50,
-            100 -
-              Math.floor(
-                (streamingResult.aggregatedResults.nullCount / streamingResult.totalRowsProcessed) *
-                  100
-              )
-          ),
-          topInsights: [
-            `${streamingResult.aggregatedResults.anomalies} anomalies detected across all chunks`,
-            `${streamingResult.aggregatedResults.trends} trend patterns identified`,
-            `${streamingResult.aggregatedResults.duplicateCount} duplicate rows found`,
-            `Processed ${streamingResult.totalRowsProcessed} rows in ${(streamingResult.duration / 1000).toFixed(1)}s`,
-          ],
-          duration,
-          message: `Streaming analysis complete: ${streamingResult.totalRowsProcessed} rows processed in ${streamingResult.totalChunks} chunks (${(duration / 1000).toFixed(1)}s)`,
-        };
-      }
-    }
-  }
-
-  /**
-   * Handle comprehensive analysis action
-   * Complete analysis with pagination, task support, and resource URIs
-   */
-  private async handleComprehensive(
-    req: ComprehensiveInput,
-    _verbosity: 'minimal' | 'standard' | 'detailed'
-  ): Promise<AnalyzeResponse> {
-    let resolvedReq = req;
-
-    // Wizard: If spreadsheetId is provided but focus is missing, elicit focus area
-    if (
-      resolvedReq.spreadsheetId &&
-      (!('focus' in resolvedReq) || !resolvedReq.focus) &&
-      this.context?.server?.elicitInput
-    ) {
-      try {
-        const wizard = await this.context.server.elicitInput({
-          message: 'Which aspect of the spreadsheet should I focus on?',
-          requestedSchema: {
-            type: 'object',
-            properties: {
-              focus: {
-                type: 'string',
-                title: 'Analysis focus',
-                description:
-                  'What to analyze: data quality, formulas, structure, performance, or everything?',
-                enum: ['data_quality', 'formulas', 'structure', 'performance', 'everything'],
-              },
-            },
-          },
-        });
-        const wizardContent = wizard?.content as Record<string, unknown> | undefined;
-        const focusChoice =
-          typeof wizardContent?.['focus'] === 'string' ? wizardContent['focus'] : undefined;
-        if (wizard?.action === 'accept' && focusChoice) {
-          if (focusChoice !== 'everything') {
-            const analysesByChoice: Record<
-              string,
-              Array<'quality' | 'formulas' | 'patterns' | 'performance' | 'structure'>
-            > = {
-              data_quality: ['quality'],
-              formulas: ['formulas'],
-              structure: ['structure'],
-              performance: ['performance'],
-            };
-            const analyses = analysesByChoice[focusChoice];
-            if (analyses) {
-              resolvedReq = {
-                ...resolvedReq,
-                focus: { analyses },
-              };
-            }
-          }
-        }
-      } catch {
-        // Elicitation not available — keep request without focus constraints
-      }
-    }
-
-    // Heap pressure gate (ISSUE-115): reject expensive analysis when memory is critical
-    if (isHeapCritical()) {
-      return this.error({
-        code: 'RESOURCE_EXHAUSTED',
-        message:
-          'Server heap memory is critically full (>90%). Comprehensive analysis rejected to prevent OOM crash. Try again after current operations complete.',
-        retryable: true,
-        suggestedFix: 'Wait a few seconds and retry. If the issue persists, restart the server.',
-      });
-    }
-
-    // QUICK SCAN MODE: Override settings for fast initial assessment
-    const isQuickScan = 'quickScan' in resolvedReq && resolvedReq.quickScan === true;
-
-    logger.info('Comprehensive analysis requested', {
-      spreadsheetId: resolvedReq.spreadsheetId,
-      sheetId: resolvedReq.sheetId,
-      quickScan: isQuickScan,
-      cursor: 'cursor' in resolvedReq ? resolvedReq.cursor : undefined,
-      pageSize: 'pageSize' in resolvedReq ? resolvedReq.pageSize : undefined,
-    });
-
-    // Check if this should be task-based (long-running operation)
-    // Estimate if analysis will take >10s based on spreadsheet size
-    const shouldUseTask = await this.shouldUseTaskForComprehensive(
-      resolvedReq.spreadsheetId,
-      resolvedReq.sheetId
-    );
-
-    if (shouldUseTask && this.context.taskStore) {
-      // Create task for long-running analysis
-      const task = await this.context.taskStore.createTask(
-        { ttl: 3600000 }, // 1 hour TTL
-        'analyze-comprehensive',
-        {
-          method: 'tools/call',
-          params: { name: 'sheets_analyze', arguments: resolvedReq },
-        }
-      );
-
-      logger.info('Creating task for comprehensive analysis', {
-        taskId: task.taskId,
-        spreadsheetId: resolvedReq.spreadsheetId,
-      });
-
-      // Run analysis in background
-      void this.runComprehensiveAnalysisTask(task.taskId, resolvedReq).catch((error) => {
-        logger.error('Background comprehensive analysis failed', {
-          taskId: task.taskId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      });
-
-      // Return task immediately
-      return {
-        success: true,
-        action: 'comprehensive',
-        message: `Large analysis started - check task ${task.taskId} for progress (estimated time: 30-60s)`,
-        taskId: task.taskId,
-        taskStatus: task.status,
-        summary: 'Analysis running in background...',
-        topInsights: [],
-      } as AnalyzeResponse;
-    }
-
-    // Run synchronously for smaller analyses
-    // Create comprehensive analyzer with pagination support
-    // QUICK SCAN MODE: Override settings for faster analysis
-    const analyzer = new ComprehensiveAnalyzer(this.sheetsApi, {
-      includeFormulas: isQuickScan
-        ? false
-        : 'includeFormulas' in resolvedReq
-          ? (resolvedReq.includeFormulas as boolean)
-          : true,
-      includeVisualizations: isQuickScan
-        ? false
-        : 'includeVisualizations' in resolvedReq
-          ? (resolvedReq.includeVisualizations as boolean)
-          : true,
-      includePerformance: isQuickScan
-        ? false
-        : 'includePerformance' in req
-          ? (req.includePerformance as boolean)
-          : true,
-      forceFullData: 'forceFullData' in req ? (req.forceFullData as boolean) : false,
-      samplingThreshold: isQuickScan
-        ? 1000
-        : 'samplingThreshold' in req
-          ? (req.samplingThreshold as number)
-          : 10000,
-      sampleSize: isQuickScan ? 100 : 'sampleSize' in req ? (req.sampleSize as number) : 100,
-      sheetId: req.sheetId,
-      context: 'context' in req ? req.context : undefined,
-      cursor: 'cursor' in req ? (req.cursor as string) : undefined,
-      pageSize: 'pageSize' in req ? (req.pageSize as number) : undefined,
-      // Issue #3 fix: Pass timeout setting
-      timeoutMs: isQuickScan ? 15000 : 'timeoutMs' in req ? (req.timeoutMs as number) : 30000,
-    });
-
-    try {
-      // Import sendProgress for progress tracking
-      const { sendProgress } = await import('../utils/request-context.js');
-
-      // Emit starting progress
-      await sendProgress(0, 100, 'Starting comprehensive analysis');
-      if (this.context.abortSignal?.aborted) {
-        throw new ServiceError(
-          'Operation cancelled by client',
-          'OPERATION_CANCELLED',
-          'analyze',
-          false
-        );
-      }
-
-      // Run comprehensive analysis
-      const result = await analyzer.analyze(req.spreadsheetId);
-
-      // Emit completion progress
-      await sendProgress(100, 100, 'Comprehensive analysis complete');
-
-      // ComprehensiveResult matches AnalyzeResponse schema (comprehensive fields added)
-      logger.info('Comprehensive analysis complete', {
-        spreadsheetId: req.spreadsheetId,
-        sheetCount: result.sheets.length,
-        totalIssues: result.aggregate.totalIssues,
-        hasMore: result.hasMore ?? false,
-        resourceUri: result.resourceUri,
-      });
-
-      return result as unknown as AnalyzeResponse;
-    } catch (error) {
-      logger.error('Comprehensive analysis failed', {
-        error: error instanceof Error ? error.message : String(error),
-        spreadsheetId: req.spreadsheetId,
-      });
-
-      return {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Comprehensive analysis failed',
-          retryable: true,
         },
       };
     }
@@ -2859,142 +782,6 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
           retryable: true,
         },
       };
-    }
-  }
-
-  /**
-   * Check if comprehensive analysis should use task-based execution
-   * Based on estimated execution time (>10s for large spreadsheets)
-   */
-  private async shouldUseTaskForComprehensive(
-    spreadsheetId: string,
-    sheetId?: number | string
-  ): Promise<boolean> {
-    try {
-      // Get spreadsheet metadata to estimate size
-      const metadata = await this.sheetsApi.spreadsheets.get({
-        spreadsheetId,
-        fields: 'sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)))',
-      });
-
-      if (!metadata.data.sheets) {
-        return false;
-      }
-
-      // Calculate total cells
-      const sheets = sheetId
-        ? metadata.data.sheets.filter((s) => s.properties?.sheetId === sheetId)
-        : metadata.data.sheets;
-
-      const totalCells = sheets.reduce(
-        (sum, s) =>
-          sum +
-          (s.properties?.gridProperties?.rowCount || 0) *
-            (s.properties?.gridProperties?.columnCount || 0),
-        0
-      );
-
-      const sheetCount = sheets.length;
-
-      // Use task if:
-      // - >10 sheets OR (lowered from 20 - Issue #3 timeout fix)
-      // - >100K cells OR (lowered from 1M - Issue #3 timeout fix)
-      // - >10K rows in any sheet (lowered from 50K - Issue #3 timeout fix)
-      const hasLargeSheet = sheets.some(
-        (s) => (s.properties?.gridProperties?.rowCount || 0) > 10000
-      );
-
-      const shouldUseTask = sheetCount > 10 || totalCells > 100000 || hasLargeSheet;
-
-      logger.info('Task decision for comprehensive analysis', {
-        spreadsheetId,
-        sheetCount,
-        totalCells,
-        hasLargeSheet,
-        shouldUseTask,
-      });
-
-      return shouldUseTask;
-    } catch (error) {
-      logger.warn('Failed to estimate spreadsheet size for task decision', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return false; // Default to synchronous
-    }
-  }
-
-  /**
-   * Run comprehensive analysis as a background task
-   */
-  private async runComprehensiveAnalysisTask(
-    taskId: string,
-    input: ComprehensiveInput
-  ): Promise<void> {
-    const taskStore = this.context.taskStore;
-    if (!taskStore) {
-      throw new ServiceError(
-        'Task store not available',
-        'SERVICE_NOT_INITIALIZED',
-        'TaskStore',
-        false
-      );
-    }
-
-    try {
-      // Update task status to working
-      await taskStore.updateTaskStatus(taskId, 'working', 'Analyzing spreadsheet...');
-
-      // Create analyzer
-      const analyzer = new ComprehensiveAnalyzer(this.sheetsApi, {
-        includeFormulas: 'includeFormulas' in input ? (input.includeFormulas as boolean) : true,
-        includeVisualizations:
-          'includeVisualizations' in input ? (input.includeVisualizations as boolean) : true,
-        includePerformance:
-          'includePerformance' in input ? (input.includePerformance as boolean) : true,
-        forceFullData: 'forceFullData' in input ? (input.forceFullData as boolean) : false,
-        samplingThreshold:
-          'samplingThreshold' in input ? (input.samplingThreshold as number) : 10000,
-        sampleSize: 'sampleSize' in input ? (input.sampleSize as number) : 100,
-        sheetId: input.sheetId,
-        context: input.context,
-        cursor: 'cursor' in input ? (input.cursor as string) : undefined,
-        pageSize: 'pageSize' in input ? (input.pageSize as number) : undefined,
-      });
-
-      // Run analysis
-      const result = await analyzer.analyze(input.spreadsheetId);
-
-      // Store result
-      await taskStore.storeTaskResult(taskId, 'completed', {
-        content: [
-          {
-            type: 'text',
-            text: `Comprehensive analysis complete: ${result.aggregate.totalIssues} issues found, quality score ${result.aggregate.overallQualityScore.toFixed(0)}%`,
-          },
-        ],
-        structuredContent: result,
-      });
-
-      logger.info('Comprehensive analysis task completed', {
-        taskId,
-        spreadsheetId: input.spreadsheetId,
-        sheetCount: result.sheets.length,
-      });
-    } catch (error) {
-      logger.error('Comprehensive analysis task failed', {
-        taskId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-
-      await taskStore.storeTaskResult(taskId, 'failed', {
-        content: [
-          {
-            type: 'text',
-            text: `Analysis failed: ${error instanceof Error ? error.message : String(error)}`,
-          },
-        ],
-        isError: true,
-      });
     }
   }
 }

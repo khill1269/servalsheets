@@ -608,6 +608,32 @@ describe('SheetsCoreHandler', () => {
           })
         );
       });
+
+      it('should emit progress notifications for large batch_get requests', async () => {
+        const notification = vi.fn().mockResolvedValue(undefined);
+        (mockContext as any).server = { notification };
+        handler = new SheetsCoreHandler(
+          mockContext,
+          mockApi as any as sheets_v4.Sheets,
+          mockDriveApi as any as drive_v3.Drive
+        );
+
+        const spreadsheetIds = Array.from({ length: 20 }, (_, i) => `id-${i + 1}`);
+        const result = await handler.handle({
+          action: 'batch_get',
+          spreadsheetIds,
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(notification).toHaveBeenCalled();
+        expect(notification.mock.calls[0]?.[0]).toMatchObject({
+          method: 'notifications/progress',
+          params: expect.objectContaining({
+            total: 20,
+            progress: 0,
+          }),
+        });
+      });
     });
 
     describe('get_comprehensive action', () => {

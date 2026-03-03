@@ -158,9 +158,9 @@ describe('Deferred Schema Mode', () => {
         totalSize += JSON.stringify(outputJson).length;
       }
 
-      // 22 tools: flat input schemas (~23KB) + minimal output schemas (~5KB) ≈ ~28KB
-      // With action enums and property descriptions, budget is ~50KB
-      expect(totalSize).toBeLessThan(50_000);
+      // 25 tools, 391 actions: flat input schemas (~26KB) + minimal output schemas (~6KB) ≈ ~32KB
+      // With action enums and property descriptions, budget is ~55KB
+      expect(totalSize).toBeLessThan(55_000);
     });
   });
 });

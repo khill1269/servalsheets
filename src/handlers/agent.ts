@@ -1,4 +1,5 @@
 import type { SheetsAgentInput, SheetsAgentOutput } from '../schemas/agent.js';
+import { HandlerLoadError } from '../core/errors.js';
 import {
   compilePlan,
   executePlan,
@@ -26,13 +27,15 @@ export class AgentHandler {
     // Create executeHandler that dispatches to actual tool handlers
     this.executeHandler = async (tool: string, action: string, params: Record<string, unknown>) => {
       if (!this.handlers) {
-        throw new Error('No handlers available for agent execution');
+        throw new HandlerLoadError('No handlers available for agent execution', 'AgentHandler');
       }
       // Map tool name to handler key
       const handlerKey = tool.replace('sheets_', '');
       const handler = this.handlers[handlerKey];
       if (!handler) {
-        throw new Error(`Unknown tool: ${tool}`);
+        throw new HandlerLoadError(`Handler not found for tool: ${tool}`, tool, {
+          availableTools: Object.keys(this.handlers),
+        });
       }
 
       const result = await handler.handle({

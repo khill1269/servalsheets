@@ -40,6 +40,12 @@ import type {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RedisClient = any;
 
+/**
+ * Webhook durability architecture decision (P19-05):
+ * webhook lifecycle state is Redis-backed and Redis is a hard runtime requirement.
+ */
+export const WEBHOOK_DURABILITY_MODE = 'redis_required' as const;
+
 /** Non-blocking SCAN replacement for redis.keys() */
 async function scanRedisKeys(redis: RedisClient, pattern: string): Promise<string[]> {
   const keys: string[] = [];
@@ -104,6 +110,7 @@ export class WebhookManager {
     logger.info('Webhook manager initialized', {
       redisAvailable: redis !== null,
       webhookEndpoint,
+      durabilityMode: WEBHOOK_DURABILITY_MODE,
     });
   }
 

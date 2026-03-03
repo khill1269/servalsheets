@@ -30,8 +30,8 @@ All verification checks are currently passing.
 
 | Metric     | Value | Source                          |
 | ---------- | ----- | ------------------------------- |
-| Tools      | 22    | `src/schemas/action-counts.ts`  |
-| Actions    | 340   | `src/schemas/action-counts.ts`  |
+| Tools      | 25    | `src/schemas/action-counts.ts`  |
+| Actions    | 391   | `src/schemas/action-counts.ts`  |
 | Version    | 1.7.0 | `package.json`                  |
 | Protocol   | MCP 2025-11-25 | `src/version.ts`       |
 

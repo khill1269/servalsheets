@@ -34,7 +34,7 @@ tags: [mcp]
 
 | Feature                    | Status | File                                       | Test Command                    |
 | -------------------------- | ------ | ------------------------------------------ | ------------------------------- |
-| 22 tools registered        | ✅     | `src/mcp/registration/tool-definitions.ts` | `npm run check:drift`           |
+| 25 tools registered        | ✅     | `src/mcp/registration/tool-definitions.ts` | `npm run check:drift`           |
 | inputSchema for all tools  | ✅     | `src/schemas/*.ts`                         | `npm run test -- schemas`       |
 | outputSchema for all tools | ✅     | `src/schemas/*.ts`                         | `npm run test -- schemas`       |
 | Discriminated unions       | ✅     | `src/schemas/*.ts`                         | `npm run test -- contracts`     |
@@ -222,16 +222,16 @@ npx @anthropic/mcp-inspector --stdio "node dist/cli.js"
 
 | Feature           | Status | Evidence                                     |
 | ----------------- | ------ | -------------------------------------------- |
-| snake_case naming | ✅     | All 22 tools: sheets_auth, sheets_core, etc. |
+| snake_case naming | ✅     | All 25 tools: sheets_auth, sheets_core, etc. |
 
 ### 4.2 Annotation Hints
 
 | Hint            | Status | File               | Verification |
 | --------------- | ------ | ------------------ | ------------ |
-| readOnlyHint    | ✅     | `src/schemas/*.ts` | All 22 tools |
-| destructiveHint | ✅     | `src/schemas/*.ts` | All 22 tools |
-| idempotentHint  | ✅     | `src/schemas/*.ts` | All 22 tools |
-| openWorldHint   | ✅     | `src/schemas/*.ts` | All 22 tools |
+| readOnlyHint    | ✅     | `src/schemas/*.ts` | All 25 tools |
+| destructiveHint | ✅     | `src/schemas/*.ts` | All 25 tools |
+| idempotentHint  | ✅     | `src/schemas/*.ts` | All 25 tools |
+| openWorldHint   | ✅     | `src/schemas/*.ts` | All 25 tools |
 
 **Verification Script:**
 

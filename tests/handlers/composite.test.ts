@@ -10,6 +10,12 @@ import { CompositeHandler } from '../../src/handlers/composite.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4, drive_v3 } from 'googleapis';
 
+const mockDispatchCompositeOperation = vi.hoisted(() => vi.fn());
+
+vi.mock('../../src/resources/composite-operation-dispatcher.js', () => ({
+  dispatchCompositeOperation: mockDispatchCompositeOperation,
+}));
+
 describe('Composite Handler', () => {
   let handler: CompositeHandler;
   let handlerWithDrive: CompositeHandler;
@@ -1326,6 +1332,43 @@ describe('Composite Handler', () => {
       const result = await handler.handle(input as any);
 
       expect(result.response).toHaveProperty('action');
+    });
+  });
+
+  // ============================================================================
+  // BATCH_OPERATIONS Tests
+  // ============================================================================
+
+  describe('batch_operations action', () => {
+    it('should emit progress notifications for multi-operation batches', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      (mockContext as Record<string, unknown>).server = { notification };
+      handler = new CompositeHandler(mockContext, mockSheetsApi);
+
+      mockDispatchCompositeOperation
+        .mockResolvedValueOnce({ success: true })
+        .mockResolvedValueOnce({ success: true });
+
+      const result = await handler.handle({
+        action: 'batch_operations',
+        spreadsheetId: 'test123',
+        operations: [
+          { tool: 'sheets_core', action: 'get', params: {} },
+          { tool: 'sheets_data', action: 'read', params: { range: 'Sheet1!A1:B2' } },
+        ],
+        stopOnError: false,
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      expect(mockDispatchCompositeOperation).toHaveBeenCalledTimes(2);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({
+          progress: 0,
+          total: 2,
+        }),
+      });
     });
   });
 

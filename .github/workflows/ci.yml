@@ -230,13 +230,13 @@ jobs:
           timeout_minutes: 20
           max_attempts: 2
           retry_wait_seconds: 30
-          command: npm test -- --run --shard=${{ matrix.shard }}/${{ matrix.total_shards }}
+          command: npm run test:integration -- --shard=${{ matrix.shard }}/${{ matrix.total_shards }}
 
   # Build after all tests pass
   build:
     name: Build & Package
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test-fast, test-integration]
 
     steps:
       - name: Checkout code

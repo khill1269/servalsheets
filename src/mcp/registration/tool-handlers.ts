@@ -99,6 +99,9 @@ import { registerPipelineDispatch } from '../../services/pipeline-registry.js';
 import { suggestFix } from '../../services/error-fix-suggester.js';
 import { getRecommendedActions } from '../../services/action-recommender.js';
 import { getErrorCodeCompatibility } from '../../utils/error-code-compat.js';
+import { withWriteLock } from '../../middleware/write-lock-middleware.js';
+import { checkRateLimit } from '../../middleware/rate-limit-middleware.js';
+import { detectMutationSafetyViolation } from '../../middleware/mutation-safety-middleware.js';
 
 // Wrap input schemas for legacy envelopes during validation.
 // Keep registration schemas unwrapped to avoid MCP SDK tools/list empty schema bug.
@@ -1496,8 +1499,47 @@ function createToolCallHandler(
             }
 
             try {
+              // Per-user rate limiting (token bucket, configured via RATE_LIMIT_*)
+              const principalId = requestContext.principalId ?? 'anonymous';
+              const rateCheck = checkRateLimit(principalId);
+              if (!rateCheck.allowed) {
+                return {
+                  response: {
+                    success: false,
+                    error: {
+                      code: 'RATE_LIMITED',
+                      message: `Rate limit exceeded. Retry after ${rateCheck.retryAfterMs}ms.`,
+                      retryable: true,
+                      retryAfterMs: rateCheck.retryAfterMs,
+                    },
+                  },
+                };
+              }
+
               // Execute handler - pass extra context for MCP-native tools
-              const handlerResult = await handler(normalizeToolArgs(args), extra);
+              // Write lock: serialize mutations per spreadsheetId (reads bypass)
+              const normalizedArgs = normalizeToolArgs(args);
+              const mutationSafetyViolation = detectMutationSafetyViolation(normalizedArgs);
+              if (mutationSafetyViolation) {
+                return {
+                  response: {
+                    success: false,
+                    error: {
+                      code: 'FORMULA_INJECTION_BLOCKED',
+                      message:
+                        `Dangerous formula detected at ${mutationSafetyViolation.path}: ` +
+                        `${mutationSafetyViolation.preview}. ` +
+                        'Set safety.sanitizeFormulas=false to allow.',
+                      retryable: false,
+                      suggestedFix:
+                        'Remove formulas containing IMPORTDATA, IMPORTRANGE, IMPORTFEED, IMPORTHTML, IMPORTXML, GOOGLEFINANCE, or QUERY from mutation payloads.',
+                    },
+                  },
+                };
+              }
+              const handlerResult = await withWriteLock(normalizedArgs, () =>
+                handler(normalizedArgs, extra)
+              );
 
               // ISSUE-107: Inject protocol version (always) + deprecation warning (if legacy)
               if (

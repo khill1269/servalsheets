@@ -8,7 +8,7 @@
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { GoogleApiClient } from '../../services/google-api.js';
-import { completeRange, completeSpreadsheetId } from '../completions.js';
+import { completeAction, completeRange, completeSpreadsheetId, TOOL_ACTIONS } from '../completions.js';
 import { registerChartResources } from '../../resources/charts.js';
 import { registerPivotResources } from '../../resources/pivots.js';
 import { registerQualityResources } from '../../resources/quality.js';
@@ -17,6 +17,9 @@ import { createAuthRequiredError, createResourceReadError } from '../../utils/mc
 // ============================================================================
 // RESOURCES REGISTRATION
 // ============================================================================
+
+// Guard against double-registration (SDK throws if a resource template name is reused)
+const registeredServers = new WeakSet<McpServer>();
 
 /**
  * Registers ServalSheets resources with the MCP server
@@ -33,6 +36,10 @@ export function registerServalSheetsResources(
   server: McpServer,
   googleClient: GoogleApiClient | null
 ): void {
+  if (registeredServers.has(server)) {
+    return; // Already registered on this server instance
+  }
+  registeredServers.add(server);
   const spreadsheetTemplate = new ResourceTemplate('sheets:///{spreadsheetId}', {
     list: undefined,
     complete: {
@@ -285,6 +292,35 @@ export function registerServalSheetsResources(
       } catch (error) {
         throw createResourceReadError(uri.href, error);
       }
+    }
+  );
+
+  // Action completion template — enables completeAction() via MCP completion protocol.
+  // Clients can request completions for sheets://tools/{toolName}/actions/{action} URIs.
+  // The action completer reads toolName from the completion context (MCP 2025-11-25 context.arguments).
+  const toolActionTemplate = new ResourceTemplate('sheets://tools/{toolName}/actions/{action}', {
+    list: undefined,
+    complete: {
+      toolName: async (value) =>
+        Object.keys(TOOL_ACTIONS).filter((t) => t.startsWith(value || '')),
+      action: async (value, context) => {
+        const ctx = context as { arguments?: Record<string, string> } | undefined;
+        const toolName = ctx?.arguments?.['toolName'] ?? '';
+        return completeAction(toolName, value || '');
+      },
+    },
+  });
+
+  server.registerResource(
+    'tool_action',
+    toolActionTemplate,
+    {
+      title: 'Tool Action',
+      description: 'ServalSheets tool action reference. Use for action name autocompletion.',
+      mimeType: 'application/json',
+    },
+    async (_uri, _variables) => {
+      return { contents: [] }; // completions-only resource; no read content
     }
   );
 

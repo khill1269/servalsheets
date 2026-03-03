@@ -15,7 +15,11 @@
  * @category Handlers
  */
 
-import { getWebhookManager, validateWebhookUrl } from '../services/webhook-manager.js';
+import {
+  getWebhookManager,
+  validateWebhookUrl,
+  WEBHOOK_DURABILITY_MODE,
+} from '../services/webhook-manager.js';
 import { getWebhookQueue } from '../services/webhook-queue.js';
 import { WorkspaceEventsService } from '../services/workspace-events.js';
 import type {
@@ -28,6 +32,7 @@ import { resourceNotifications } from '../resources/notifications.js';
 import type { drive_v3 } from 'googleapis';
 import { randomUUID } from 'crypto';
 import { mapStandaloneError } from './helpers/error-mapping.js';
+import { ServiceError } from '../core/errors.js';
 import { recordWebhookId } from '../mcp/completions.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
@@ -62,8 +67,12 @@ export class WebhookHandler {
       priority: 1,
       shouldUse: () => true,
       execute: async () => {
-        throw new Error(
-          'Webhook delivery service temporarily unavailable due to repeated delivery failures. Try again in 30 seconds.'
+        throw new ServiceError(
+          'Webhook delivery service temporarily unavailable due to repeated delivery failures',
+          'UNAVAILABLE',
+          'webhook-delivery',
+          true,
+          { resetTimeMs: 30000, reason: 'repeated_delivery_failures' }
         );
       },
     });
@@ -93,6 +102,7 @@ export class WebhookHandler {
         details: {
           action,
           dependency: 'redis',
+          durabilityMode: WEBHOOK_DURABILITY_MODE,
           originalError: message,
         },
         retryable: false,

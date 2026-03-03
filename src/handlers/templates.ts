@@ -363,6 +363,17 @@ export class SheetsTemplatesHandler extends BaseHandler<
         templateData = template;
       }
 
+      const totalSheets = templateData.sheets.length;
+      const shouldReportProgress = totalSheets >= 2;
+      const totalProgressSteps = totalSheets + 2;
+      if (shouldReportProgress) {
+        await this.sendProgress(
+          0,
+          totalProgressSteps,
+          `Applying template (0/${totalProgressSteps} steps)...`
+        );
+      }
+
       // Build spreadsheet create request
       const createRequest: sheets_v4.Schema$Spreadsheet = {
         properties: {
@@ -408,9 +419,17 @@ export class SheetsTemplatesHandler extends BaseHandler<
 
       const spreadsheetId = response.data.spreadsheetId;
       const spreadsheetUrl = response.data.spreadsheetUrl;
+      if (shouldReportProgress) {
+        await this.sendProgress(
+          1,
+          totalProgressSteps,
+          `Spreadsheet created (1/${totalProgressSteps} steps)`
+        );
+      }
 
       // Apply headers if defined
       const requests: sheets_v4.Schema$Request[] = [];
+      let processedSheets = 0;
       for (let i = 0; i < templateData.sheets.length; i++) {
         const sheet = templateData.sheets[i];
         if (!sheet) continue;
@@ -457,6 +476,15 @@ export class SheetsTemplatesHandler extends BaseHandler<
             });
           }
         }
+
+        processedSheets += 1;
+        if (shouldReportProgress && (processedSheets % 2 === 0 || processedSheets === totalSheets)) {
+          await this.sendProgress(
+            1 + processedSheets,
+            totalProgressSteps,
+            `Prepared ${processedSheets}/${totalSheets} sheet(s) from template...`
+          );
+        }
       }
 
       // Add named ranges if defined
@@ -499,6 +527,14 @@ export class SheetsTemplatesHandler extends BaseHandler<
           });
           // Don't fail the whole operation for this (ISSUE-186: surface in response)
         }
+      }
+
+      if (shouldReportProgress) {
+        await this.sendProgress(
+          totalProgressSteps,
+          totalProgressSteps,
+          `Template application complete (${totalProgressSteps}/${totalProgressSteps})`
+        );
       }
 
       logger.info('Applied template', {

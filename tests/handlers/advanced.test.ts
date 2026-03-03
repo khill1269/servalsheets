@@ -1066,5 +1066,67 @@ describe('AdvancedHandler', () => {
         expect(result.response.chips?.length).toBe(3);
       }
     });
+
+    it('emits progress notifications when scanning chips across multiple sheets', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      mockContext.server = { notification } as unknown as HandlerContext['server'];
+      handler = new AdvancedHandler(mockContext, mockSheetsApi as unknown as sheets_v4.Sheets);
+
+      const sizeCheckResponse = {
+        data: {
+          sheets: [
+            {
+              properties: {
+                sheetId: 0,
+                title: 'Sheet1',
+                gridProperties: { rowCount: 100, columnCount: 26 },
+              },
+            },
+            {
+              properties: {
+                sheetId: 1,
+                title: 'Sheet2',
+                gridProperties: { rowCount: 100, columnCount: 26 },
+              },
+            },
+          ],
+        },
+      };
+      const chipDataResponse = {
+        data: {
+          sheets: [
+            {
+              properties: { sheetId: 0, title: 'Sheet1' },
+              data: [{ startRow: 0, startColumn: 0, rowData: [{ values: [] }] }],
+            },
+            {
+              properties: { sheetId: 1, title: 'Sheet2' },
+              data: [{ startRow: 0, startColumn: 0, rowData: [{ values: [] }] }],
+            },
+          ],
+        },
+      };
+
+      mockSheetsApi.spreadsheets.get
+        .mockResolvedValueOnce(sizeCheckResponse)
+        .mockResolvedValueOnce(chipDataResponse);
+
+      const result = await handler.handle({
+        action: 'list_chips',
+        spreadsheetId: 'sheet-id',
+        range: 'Sheet1!A1:Z100',
+        chipType: 'all',
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({
+          progress: 0,
+          total: 2,
+        }),
+      });
+    });
   });
 });

@@ -28,6 +28,7 @@ import type { SamplingServer } from '../mcp/sampling.js';
 import { withSamplingTimeout, assertSamplingConsent, generateAIInsight } from '../mcp/sampling.js';
 import { logger } from '../utils/logger.js';
 import { executeWithRetry } from '../utils/retry.js';
+import { sendProgress } from '../utils/request-context.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { formulaEvaluator, type SheetData } from '../services/formula-evaluator.js';
 
@@ -499,6 +500,17 @@ export class DependenciesHandler {
     // For each input change, trace all dependent cells
     const allAffected = new Set<string>();
     const affectedByMap = new Map<string, string[]>(); // cell → which input changes affect it
+    const totalProgressSteps = req.changes.length + 3;
+    const shouldReportProgress = req.changes.length >= 2;
+    let completedProgressSteps = 0;
+
+    if (shouldReportProgress) {
+      await sendProgress(
+        0,
+        totalProgressSteps,
+        `Modeling scenario impact (0/${totalProgressSteps} steps)...`
+      );
+    }
 
     for (const change of req.changes) {
       const impact = analyzer.analyzeImpact(change.cell);
@@ -508,6 +520,17 @@ export class DependenciesHandler {
           affectedByMap.set(dep, [change.cell]);
         } else {
           affectedByMap.get(dep)?.push(change.cell);
+        }
+      }
+
+      if (shouldReportProgress) {
+        completedProgressSteps += 1;
+        if (completedProgressSteps % 2 === 0 || completedProgressSteps === req.changes.length) {
+          await sendProgress(
+            completedProgressSteps,
+            totalProgressSteps,
+            `Analyzed dependency impact for ${completedProgressSteps}/${req.changes.length} change(s)...`
+          );
         }
       }
     }
@@ -523,6 +546,14 @@ export class DependenciesHandler {
     await this.loadSheetForEvaluation(req.spreadsheetId, firstSheetRange);
 
     const evalResult = await formulaEvaluator.evaluateScenario(req.spreadsheetId, req.changes);
+    if (shouldReportProgress) {
+      completedProgressSteps += 1;
+      await sendProgress(
+        completedProgressSteps,
+        totalProgressSteps,
+        `Evaluated formulas for scenario changes (${completedProgressSteps}/${totalProgressSteps})...`
+      );
+    }
 
     // Build cascade effects (with predicted values when available)
     const cascadeEffects: {
@@ -662,6 +693,15 @@ export class DependenciesHandler {
       }
     }
 
+    if (shouldReportProgress) {
+      completedProgressSteps += 1;
+      await sendProgress(
+        completedProgressSteps,
+        totalProgressSteps,
+        `Prepared scenario output summary (${completedProgressSteps}/${totalProgressSteps})...`
+      );
+    }
+
     // -----------------------------------------------------------------------
     // Summary
     // -----------------------------------------------------------------------
@@ -711,6 +751,14 @@ export class DependenciesHandler {
       }
     }
 
+    if (shouldReportProgress) {
+      await sendProgress(
+        totalProgressSteps,
+        totalProgressSteps,
+        `Scenario modeling complete (${totalProgressSteps}/${totalProgressSteps})`
+      );
+    }
+
     return {
       success: true,
       data: {
@@ -747,6 +795,18 @@ export class DependenciesHandler {
 
     // Load sheet into evaluator for predicted-value support
     await this.loadSheetForEvaluation(req.spreadsheetId, 'Sheet1');
+    const scenarioCount = req.scenarios.length;
+    const totalProgressSteps = scenarioCount * 2 + 2;
+    const shouldReportProgress = scenarioCount >= 2;
+    let completedProgressSteps = 0;
+
+    if (shouldReportProgress) {
+      await sendProgress(
+        0,
+        totalProgressSteps,
+        `Comparing scenarios (0/${totalProgressSteps} steps)...`
+      );
+    }
 
     // Phase 1: Compute affected cells for each scenario
     const perScenario: { name: string; affectedList: string[]; ranges: string[] }[] = [];
@@ -764,6 +824,17 @@ export class DependenciesHandler {
           ? affectedList.map((c) => (c.includes('!') ? c : `Sheet1!${c}`))
           : [];
       perScenario.push({ name: scenario.name, affectedList, ranges });
+
+      if (shouldReportProgress) {
+        completedProgressSteps += 1;
+        if (completedProgressSteps % 2 === 0 || completedProgressSteps === scenarioCount) {
+          await sendProgress(
+            completedProgressSteps,
+            totalProgressSteps,
+            `Computed affected cells for ${completedProgressSteps}/${scenarioCount} scenario(s)...`
+          );
+        }
+      }
     }
 
     // Phase 2: Evaluate each scenario in parallel (HyperFormula resets state after each)
@@ -772,6 +843,14 @@ export class DependenciesHandler {
         formulaEvaluator.evaluateScenario(req.spreadsheetId, scenario.changes)
       )
     );
+    if (shouldReportProgress) {
+      completedProgressSteps += 1;
+      await sendProgress(
+        completedProgressSteps,
+        totalProgressSteps,
+        `Evaluated scenario formulas (${completedProgressSteps}/${totalProgressSteps})...`
+      );
+    }
 
     // Phase 3: Assemble results
     const scenarioResults: {
@@ -851,6 +930,17 @@ export class DependenciesHandler {
       }
 
       scenarioResults.push(result);
+
+      if (shouldReportProgress) {
+        completedProgressSteps += 1;
+        if (completedProgressSteps % 2 === 0 || completedProgressSteps === totalProgressSteps - 1) {
+          await sendProgress(
+            completedProgressSteps,
+            totalProgressSteps,
+            `Assembled results for ${si + 1}/${scenarioCount} scenario(s)...`
+          );
+        }
+      }
     }
 
     // Generate AI ranking and trade-off analysis
@@ -865,6 +955,14 @@ export class DependenciesHandler {
         `Rank these scenarios by impact and explain the trade-offs`,
         scenarioSummary,
         { maxTokens: 400 }
+      );
+    }
+
+    if (shouldReportProgress) {
+      await sendProgress(
+        totalProgressSteps,
+        totalProgressSteps,
+        `Scenario comparison complete (${totalProgressSteps}/${totalProgressSteps})`
       );
     }
 

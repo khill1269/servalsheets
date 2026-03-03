@@ -8,7 +8,7 @@ version: 1.7.0
 
 # ServalSheets — Complete Production Audit Report
 
-> **Project:** ServalSheets MCP Server v1.7.0 | 22 tools, 342 actions
+> **Project:** ServalSheets MCP Server v1.7.0 | 25 tools, 391 actions
 > **Audited:** February 25, 2026
 > **Method:** 7+ parallel analysis agents scanning source files with file:line references
 > **Scope:** 20 production-readiness categories (8 Phase 1 + 12 Phase 2)
@@ -197,7 +197,7 @@ This remains below 100/100 due to unresolved structural categories (quota unific
 #### Strengths
 
 - **2253 tests across 296 files** — unit, handler, contract, integration, live API, performance, e2e, compliance, safety
-- **Schema-handler alignment test** — AST-based verification of all 22 tools / 342 actions
+- **Schema-handler alignment test** — AST-based verification of all 25 tools / 391 actions
 - **Realistic Google API mocks** — response structures match actual v4 types
 - **Contract tests guarantee** schema shape across all actions
 
@@ -222,7 +222,7 @@ This remains below 100/100 due to unresolved structural categories (quota unific
 | STDIO Transport | ✅ | `src/server.ts:8-9` |
 | HTTP/SSE Transport | ✅ | `src/http-server.ts:20` |
 | Streamable HTTP | ✅ | `src/http-server.ts:21` + event store |
-| Tool Registration (22 tools) | ✅ | Schema discriminated unions |
+| Tool Registration (25 tools) | ✅ | Schema discriminated unions |
 | Resources (3 URI templates) | ✅ | `src/mcp/registration/resource-registration.ts` |
 | Prompts (38+ workflows) | ✅ | `src/mcp/registration/prompt-registration.ts` |
 | Sampling (SEP-1577) | ✅ | 5 actions use AI analysis |
@@ -230,14 +230,14 @@ This remains below 100/100 due to unresolved structural categories (quota unific
 | Tasks (SEP-1686) | ✅ | 7 long-running ops emit task IDs |
 | Completions | ✅ | spreadsheetId + range autocompletion |
 | Logging | ✅ | Dynamic log level via MCP request |
-| Icons (SEP-973) | ✅ | SVG icons for 16/22 tools |
+| Icons (SEP-973) | ✅ | SVG icons for 25/25 tools |
 | Server Instructions | ✅ | LLM decision trees, chaining workflows |
 
 #### Issues
 
 | ID | Severity | Finding | Location |
 |----|----------|---------|----------|
-| MCP-01 | LOW | Icons only cover 16/22 tools (missing: templates, bigquery, appsscript, webhook, federation, dependencies) | `src/mcp/features-2025-11-25.ts:76-231` |
+| MCP-01 | LOW | Icons cover all 25/25 tools | `src/mcp/features-2025-11-25.ts:76-231` |
 
 ---
 
@@ -344,10 +344,10 @@ This remains below 100/100 due to unresolved structural categories (quota unific
 #### Strengths
 
 - **Discriminated union schemas** — new actions added to unions, never removed (`src/schemas/*.ts`)
-- **315 → 342 actions** added across 6 sessions without breaking changes
+- **315 → 391 actions** added across 6 sessions without breaking changes
 - **normalizeToolArgs()** — legacy envelope wrapping support (`tool-handlers.ts:85-124`)
 - **Schema versioning middleware** — recent addition (`cd250a3`)
-- **Zero tool removals** — all 22 tools stable since v1.0
+- **Zero tool removals** — all 25 tools stable since v1.0
 
 #### Issues
 
@@ -535,7 +535,7 @@ This remains below 100/100 due to unresolved structural categories (quota unific
 
 | ID | Severity | Finding | Location |
 |----|----------|---------|----------|
-| PLUG-01 | HIGH | No plugin loading system — all 22 tools hardcoded at startup | `src/server.ts:1435-1503`, `src/mcp/registration/tool-definitions.ts:200-350` |
+| PLUG-01 | HIGH | No plugin loading system — all 25 tools hardcoded at startup | `src/server.ts:1435-1503`, `src/mcp/registration/tool-definitions.ts:200-350` |
 | PLUG-02 | HIGH | No custom handler registration API — requires source code fork | `src/handlers/index.ts:108-189` |
 | PLUG-03 | HIGH | Discriminated unions cannot be extended without editing schema files | `src/schemas/index.ts` |
 | PLUG-04 | MEDIUM | No pre/post tool execution hooks — webhook events only | `src/services/webhook-manager.ts` |
@@ -643,7 +643,7 @@ This remains below 100/100 due to unresolved structural categories (quota unific
 | ID | Fix | Effort |
 |----|-----|--------|
 | ARCH-02 | Wire handlers to use context.backend instead of googleClient | High |
-| MCP-01 | Add icons for remaining 6/22 tools | Low |
+| MCP-01 | Icons complete — all 25/25 tools covered | Low |
 | PLUG-01 | Design plugin system for custom tool registration | Epic |
 | I18N-02 | Propagate spreadsheet locale to handler number/date formatting | Medium |
 | I18N-03 | Implement end-to-end RTL support | High |

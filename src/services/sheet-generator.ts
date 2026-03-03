@@ -21,6 +21,7 @@ import type {
   GeneratedColumn,
   GeneratedFormatting,
 } from '../schemas/composite.js';
+import { assertSamplingConsent } from '../mcp/sampling.js';
 import { getRequestContext } from '../utils/request-context.js';
 import { logger } from '../utils/logger.js';
 import { generateFallback } from './sheet-generator-fallback.js';
@@ -112,6 +113,7 @@ async function analyzeDataWithSampling(
   }
 ): Promise<string> {
   assertSamplingSupport(server.getClientCapabilities());
+  await assertSamplingConsent();
   const formattedData = JSON.stringify(params.data.slice(0, 20));
   const userPrompt = `Analyze this spreadsheet data and answer: ${params.question}\n\nData:\n${formattedData}`;
 

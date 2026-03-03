@@ -38,6 +38,8 @@ module.exports = {
           '^src/remote-server\\.ts$',
           // Dynamic worker entrypoints loaded by file path at runtime
           '^src/workers/(worker-runner|formula-parser-worker|analysis-worker)\\.ts$',
+          // DuckDB worker loaded via new URL('./duckdb-worker.js', import.meta.url) — not a static import
+          '^src/services/duckdb-worker\\.ts$',
           // Test/tooling modules intentionally imported from tests/scripts only
           '^src/utils/(schema-inspection|infrastructure|ast-schema-parser)\\.ts$',
           '^src/services/confirmation-policy\\.ts$',

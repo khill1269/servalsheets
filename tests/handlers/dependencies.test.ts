@@ -11,6 +11,7 @@ import {
   createDependenciesHandler,
   clearAnalyzerCache,
 } from '../../src/handlers/dependencies.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 const unwrapResponse = <T extends { response?: unknown }>(result: T) =>
   'response' in result ? (result as { response?: unknown }).response : result;
@@ -640,6 +641,40 @@ describe('DependenciesHandler', () => {
       expect(result.data.summary.message).toContain('2 input change(s)');
     });
 
+    it('should emit progress notifications for multi-change scenarios', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'deps-model-scenario-progress',
+        progressToken: 'deps-model-scenario-progress',
+        sendNotification: notification,
+      });
+
+      const result = await runWithRequestContext(requestContext, async () =>
+        unwrapResponse(
+          await handler.handle({
+            request: {
+              action: 'model_scenario',
+              spreadsheetId: '1ABC',
+              changes: [
+                { cell: 'Sheet1!A1', newValue: 100 },
+                { cell: 'Sheet1!B1', newValue: 200 },
+              ],
+            },
+          })
+        )
+      );
+
+      expect(result.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({
+          progress: 0,
+          progressToken: 'deps-model-scenario-progress',
+        }),
+      });
+    });
+
     it('should not duplicate cascade effects for overlapping dependencies', async () => {
       await handler.handle({ request: { action: 'build', spreadsheetId: '1ABC' } });
 
@@ -731,6 +766,40 @@ describe('DependenciesHandler', () => {
       expect(result.data.message).toContain('Stretch');
       expect(result.data.message).toContain('Worst Case');
     });
+
+    it('should emit progress notifications for multi-scenario comparisons', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'deps-compare-scenarios-progress',
+        progressToken: 'deps-compare-scenarios-progress',
+        sendNotification: notification,
+      });
+
+      const result = await runWithRequestContext(requestContext, async () =>
+        unwrapResponse(
+          await handler.handle({
+            request: {
+              action: 'compare_scenarios',
+              spreadsheetId: '1ABC',
+              scenarios: [
+                { name: 'Best Case', changes: [{ cell: 'Sheet1!A1', newValue: 120 }] },
+                { name: 'Worst Case', changes: [{ cell: 'Sheet1!A1', newValue: 20 }] },
+              ],
+            },
+          })
+        )
+      );
+
+      expect(result.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({
+          progress: 0,
+          progressToken: 'deps-compare-scenarios-progress',
+        }),
+      });
+    });
   });
 
   describe('create_scenario_sheet Action', () => {
@@ -738,7 +807,9 @@ describe('DependenciesHandler', () => {
       // Mock batchUpdate for duplicateSheet
       mockSheetsApi.spreadsheets.batchUpdate = vi.fn().mockResolvedValue({
         data: {
-          replies: [{ duplicateSheet: { properties: { sheetId: 42, title: 'Scenario - Optimistic' } } }],
+          replies: [
+            { duplicateSheet: { properties: { sheetId: 42, title: 'Scenario - Optimistic' } } },
+          ],
         },
       });
       // Mock values.batchUpdate for writing scenario changes
@@ -837,9 +908,7 @@ describe('DependenciesHandler', () => {
     });
 
     it('should handle API error during sheet duplication', async () => {
-      mockSheetsApi.spreadsheets.batchUpdate.mockRejectedValueOnce(
-        new Error('Quota exceeded')
-      );
+      mockSheetsApi.spreadsheets.batchUpdate.mockRejectedValueOnce(new Error('Quota exceeded'));
 
       const result = unwrapResponse(
         await handler.handle({
