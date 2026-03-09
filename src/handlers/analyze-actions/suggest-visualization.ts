@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { SamplingServer } from '../../mcp/sampling.js';
 import { generateAIInsight } from '../../mcp/sampling.js';
 import type { AnalyzeResponse } from '../../schemas/analyze.js';
@@ -148,7 +149,7 @@ export async function handleSuggestVisualizationAction(
     return {
       success: false,
       error: {
-        code: 'NO_DATA',
+        code: ErrorCodes.NO_DATA,
         message: 'No data found in the specified range',
         retryable: false,
       },
@@ -315,7 +316,7 @@ export async function handleSuggestVisualizationAction(
     return {
       success: false,
       error: {
-        code: 'PARSE_ERROR',
+        code: ErrorCodes.PARSE_ERROR,
         message: 'Failed to parse chart recommendation response',
         retryable: true,
       },

@@ -143,6 +143,30 @@ describe('Response Compaction Performance', () => {
     expect(inner['spanId']).toBeUndefined();
   });
 
+  it('should preserve protocol-level _meta on wrapped MCP responses', () => {
+    const response = {
+      response: {
+        success: true,
+        action: 'write',
+        message: 'Wrote 10 cells',
+        _meta: { costEstimate: 5 },
+      },
+      _meta: {
+        traceId: 'trace_123',
+        requestId: 'req_456',
+        spanId: 'span_789',
+      },
+    };
+
+    const compacted = compactResponse(response) as {
+      response: Record<string, unknown>;
+      _meta?: Record<string, unknown>;
+    };
+
+    expect(compacted.response['_meta']).toBeUndefined();
+    expect(compacted._meta).toEqual(response._meta);
+  });
+
   it('should preserve essential fields', () => {
     const response = {
       response: {

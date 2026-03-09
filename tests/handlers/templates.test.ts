@@ -8,6 +8,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SheetsTemplatesHandler } from '../../src/handlers/templates.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 describe('SheetsTemplatesHandler', () => {
   let handler: SheetsTemplatesHandler;
@@ -520,8 +524,11 @@ describe('SheetsTemplatesHandler', () => {
 
     it('should emit progress notifications for multi-sheet template application', async () => {
       const notification = vi.fn().mockResolvedValue(undefined);
-      mockContext.server = { notification } as unknown as HandlerContext['server'];
-      handler = new SheetsTemplatesHandler(mockContext, mockSheetsApi, mockDriveApi);
+      const requestContext = createRequestContext({
+        requestId: 'templates-apply-progress',
+        progressToken: 'templates-apply-progress',
+        sendNotification: notification,
+      });
 
       mockDriveApi.files.get
         .mockResolvedValueOnce({
@@ -553,13 +560,15 @@ describe('SheetsTemplatesHandler', () => {
           },
         });
 
-      const result = await handler.handle({
-        request: {
-          action: 'apply',
-          templateId: 'template-1',
-          title: 'My Multi Sheet Template',
-        },
-      });
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          request: {
+            action: 'apply',
+            templateId: 'template-1',
+            title: 'My Multi Sheet Template',
+          },
+        })
+      );
 
       expect(result.response.success).toBe(true);
       expect(notification).toHaveBeenCalled();

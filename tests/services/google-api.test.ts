@@ -7,6 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { waitFor } from '../helpers/wait-for.js';
+import { google } from 'googleapis';
 
 // Mock googleapis before importing the module
 vi.mock('googleapis', () => {
@@ -55,6 +56,15 @@ vi.mock('googleapis', () => {
       }),
       slides: vi.fn().mockReturnValue({
         presentations: { get: vi.fn(), create: vi.fn(), batchUpdate: vi.fn() },
+      }),
+      drivelabels: vi.fn().mockReturnValue({
+        labels: { get: vi.fn(), list: vi.fn() },
+      }),
+      driveactivity: vi.fn().mockReturnValue({
+        activity: { query: vi.fn() },
+      }),
+      workspaceevents: vi.fn().mockReturnValue({
+        subscriptions: { create: vi.fn(), delete: vi.fn(), get: vi.fn(), list: vi.fn() },
       }),
     },
   };
@@ -226,6 +236,89 @@ describe('GoogleApiClient', () => {
       await client.initialize();
 
       expect(client.sheets).toBeDefined();
+    });
+  });
+
+  describe('shared drive write throttling', () => {
+    it('uses Drive metadata instead of spreadsheet ID heuristics for shared drive writes', async () => {
+      client = new GoogleApiClient({
+        accessToken: 'test-access-token',
+      });
+      await client.initialize();
+
+      const driveApi = vi.mocked(google.drive).mock.results.at(-1)?.value as {
+        files: { get: ReturnType<typeof vi.fn> };
+      };
+      const waitSpy = vi.spyOn(client, 'waitForSharedDriveWriteToken').mockResolvedValue(12);
+
+      driveApi.files.get.mockResolvedValue({ data: { driveId: 'shared-drive-123' } });
+
+      await client.sheets.spreadsheets.values.update({
+        spreadsheetId: 'sheet-123',
+        range: 'Sheet1!A1',
+        valueInputOption: 'RAW',
+        requestBody: { values: [['x']] },
+      });
+
+      expect(driveApi.files.get).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fileId: 'sheet-123',
+          fields: 'driveId',
+          supportsAllDrives: true,
+        })
+      );
+      expect(waitSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('caches shared drive membership lookups per spreadsheet', async () => {
+      client = new GoogleApiClient({
+        accessToken: 'test-access-token',
+      });
+      await client.initialize();
+
+      const driveApi = vi.mocked(google.drive).mock.results.at(-1)?.value as {
+        files: { get: ReturnType<typeof vi.fn> };
+      };
+
+      driveApi.files.get.mockResolvedValue({ data: { driveId: 'shared-drive-123' } });
+
+      await client.sheets.spreadsheets.values.update({
+        spreadsheetId: 'sheet-123',
+        range: 'Sheet1!A1',
+        valueInputOption: 'RAW',
+        requestBody: { values: [['x']] },
+      });
+      await client.sheets.spreadsheets.values.update({
+        spreadsheetId: 'sheet-123',
+        range: 'Sheet1!A2',
+        valueInputOption: 'RAW',
+        requestBody: { values: [['y']] },
+      });
+
+      expect(driveApi.files.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not throttle writes when Drive metadata shows a personal drive file', async () => {
+      client = new GoogleApiClient({
+        accessToken: 'test-access-token',
+      });
+      await client.initialize();
+
+      const driveApi = vi.mocked(google.drive).mock.results.at(-1)?.value as {
+        files: { get: ReturnType<typeof vi.fn> };
+      };
+      const waitSpy = vi.spyOn(client, 'waitForSharedDriveWriteToken').mockResolvedValue(12);
+
+      driveApi.files.get.mockResolvedValue({ data: {} });
+
+      await client.sheets.spreadsheets.values.update({
+        spreadsheetId: 'sheet-123',
+        range: 'Sheet1!A1',
+        valueInputOption: 'RAW',
+        requestBody: { values: [['x']] },
+      });
+
+      expect(waitSpy).not.toHaveBeenCalled();
     });
   });
 

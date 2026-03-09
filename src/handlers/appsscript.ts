@@ -29,11 +29,13 @@
  * MCP Protocol: 2025-11-25
  */
 
+import { ErrorCodes } from './error-codes.js';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import { AuthenticationError, ServiceError } from '../core/errors.js';
 import type { Intent } from '../core/intent.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { executeWithRetry } from '../utils/retry.js';
+import { getRequestAbortSignal } from '../utils/request-context.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import { randomBytes } from 'crypto';
@@ -262,7 +264,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         default: {
           const _exhaustiveCheck: never = req;
           response = this.error({
-            code: 'INVALID_PARAMS',
+            code: ErrorCodes.INVALID_PARAMS,
             message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
@@ -365,10 +367,11 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         return await this.circuitBreaker.execute(async () => {
           // Merge retry signal + manual timeout signal + MCP cancellation signal (ISSUE-119)
           const fetchController = new AbortController();
+          const requestAbortSignal = getRequestAbortSignal() ?? this.context.abortSignal;
           signal.addEventListener('abort', () => fetchController.abort(signal.reason));
           // ISSUE-119: Wire context abortSignal so client cancellation (notifications/cancelled)
           // terminates the long-running Apps Script HTTP request immediately.
-          this.context.abortSignal?.addEventListener('abort', () =>
+          requestAbortSignal?.addEventListener('abort', () =>
             fetchController.abort('MCP request cancelled by client')
           );
 
@@ -399,7 +402,11 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       {
         timeoutMs,
         retryable: (error) => {
-          // Don't retry API-level ServiceErrors — circuit breaker handles those
+          // Don't retry API-level ServiceErrors — circuit breaker handles those.
+          // NOTE: 429 rate limits from Apps Script are ServiceError(UNAVAILABLE, RATE_LIMITED)
+          // and are not retried here because retrying would trip the circuit breaker (threshold=3)
+          // before backoff completes, producing a plain Error instead of the typed ServiceError.
+          // The correct fix requires the circuit breaker to not count 429s as failures — deferred.
           if (error instanceof ServiceError) return false;
           const code =
             typeof (error as { code?: unknown }).code === 'string'
@@ -422,7 +429,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
           'UNAVAILABLE',
           'AppsScript',
           true,
-          { statusCode: 429, path, retryAfterMs, code: 'RATE_LIMITED' }
+          { statusCode: 429, path, retryAfterMs, code: ErrorCodes.RATE_LIMITED }
         );
       }
 
@@ -754,29 +761,6 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     if ((req as { access?: string }).access) ignoredParams.push('access');
     if ((req as { executeAs?: string }).executeAs) ignoredParams.push('executeAs');
 
-    // MCP SEP-1686: Create task entry for deployment tracking
-    let deployTaskId: string | undefined;
-    if (this.context.taskStore) {
-      try {
-        const task = await this.context.taskStore.createTask(
-          { ttl: 3600000 }, // 1 hour TTL
-          'appsscript-deploy',
-          {
-            method: 'tools/call',
-            params: { name: 'sheets_appsscript', arguments: req },
-          }
-        );
-        deployTaskId = task.taskId;
-        await this.context.taskStore.updateTaskStatus(
-          deployTaskId,
-          'completed',
-          `Deployed script ${req.scriptId}`
-        );
-      } catch {
-        /* non-blocking — task tracking failure must not break deployment */
-      }
-    }
-
     return this.success('deploy', {
       deployment: {
         deploymentId: result.deploymentId,
@@ -786,7 +770,6 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         updateTime: result.updateTime ?? undefined,
       },
       webAppUrl: webAppUrl ?? undefined,
-      ...(deployTaskId !== undefined ? { taskId: deployTaskId } : {}),
       ...(ignoredParams.length > 0 && {
         warning: `The following parameters are not supported by the Deployments API and were ignored: ${ignoredParams.join(', ')}. To configure these settings, update appsscript.json via the update_content action before deploying.`,
       }),
@@ -886,10 +869,11 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   // ============================================================================
 
   private async handleRun(req: AppsScriptRunInput): Promise<AppsScriptResponse> {
+    const requestAbortSignal = getRequestAbortSignal() ?? this.context.abortSignal;
     // ISSUE-119: Check for pre-flight cancellation (client may have cancelled before we started)
-    if (this.context.abortSignal?.aborted) {
+    if (requestAbortSignal?.aborted) {
       return this.error({
-        code: 'CANCELLED',
+        code: ErrorCodes.CANCELLED,
         message: 'Request cancelled by client.',
         retryable: false,
       });
@@ -900,7 +884,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       SheetsAppsScriptHandler.activeRunExecutions >= SheetsAppsScriptHandler.MAX_CONCURRENT_RUNS
     ) {
       return this.error({
-        code: 'QUOTA_EXCEEDED',
+        code: ErrorCodes.QUOTA_EXCEEDED,
         message:
           `Apps Script concurrent execution limit reached ` +
           `(${SheetsAppsScriptHandler.activeRunExecutions}/${SheetsAppsScriptHandler.MAX_CONCURRENT_RUNS} slots in use). ` +
@@ -932,7 +916,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     );
     if (!confirmed) {
       return this.error({
-        code: 'OPERATION_CANCELLED',
+        code: ErrorCodes.OPERATION_CANCELLED,
         message: 'Execution cancelled by user.',
         retryable: false,
       });
@@ -1092,35 +1076,8 @@ export class SheetsAppsScriptHandler extends BaseHandler<
 
     await sendProgress(2, 2, `Function '${req.functionName}' completed`);
 
-    // MCP SEP-1686: Apps Script runs are always asynchronous from the user's perspective.
-    // ALWAYS create a task entry to allow clients to track execution.
-    let runTaskId: string | undefined;
-    try {
-      if (this.context.taskStore) {
-        const task = await this.context.taskStore.createTask(
-          { ttl: 3600000 }, // 1 hour TTL
-          'appsscript-run',
-          {
-            method: 'tools/call',
-            params: { name: 'sheets_appsscript', arguments: req },
-          }
-        );
-        runTaskId = task.taskId;
-        await this.context.taskStore.updateTaskStatus(
-          runTaskId,
-          'completed',
-          `Function '${req.functionName}' executed`
-        );
-        logger.info('Task created for appsscript run', {
-          taskId: runTaskId,
-          scriptId: req.scriptId,
-          functionName: req.functionName,
-        });
-      }
-    } finally {
-      // ISSUE-203: Always release the concurrency slot when execution completes
-      SheetsAppsScriptHandler.activeRunExecutions--;
-    }
+    // ISSUE-203: Always release the concurrency slot when execution completes
+    SheetsAppsScriptHandler.activeRunExecutions--;
 
     // result.response?.result is typed as `unknown` from the RunResponse interface.
     // The schema accepts string | number | boolean | null | array | object.
@@ -1134,7 +1091,6 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         | unknown[]
         | Record<string, unknown>
         | undefined,
-      ...(runTaskId !== undefined ? { taskId: runTaskId } : {}),
     });
   }
 
@@ -1264,7 +1220,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     _req: AppsScriptCreateTriggerInput
   ): Promise<AppsScriptResponse> {
     return this.error({
-      code: 'NOT_IMPLEMENTED',
+      code: ErrorCodes.NOT_IMPLEMENTED,
       message:
         'Trigger management requires in-script ScriptApp.newTrigger(). ' +
         'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
@@ -1278,7 +1234,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
    */
   private async handleListTriggers(_req: AppsScriptListTriggersInput): Promise<AppsScriptResponse> {
     return this.error({
-      code: 'NOT_IMPLEMENTED',
+      code: ErrorCodes.NOT_IMPLEMENTED,
       message:
         'Trigger management requires in-script ScriptApp APIs. ' +
         'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
@@ -1294,7 +1250,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     _req: AppsScriptDeleteTriggerInput
   ): Promise<AppsScriptResponse> {
     return this.error({
-      code: 'NOT_IMPLEMENTED',
+      code: ErrorCodes.NOT_IMPLEMENTED,
       message:
         'Trigger management requires in-script ScriptApp APIs. ' +
         'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
@@ -1311,7 +1267,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     _req: AppsScriptUpdateTriggerInput
   ): Promise<AppsScriptResponse> {
     return this.error({
-      code: 'NOT_IMPLEMENTED',
+      code: ErrorCodes.NOT_IMPLEMENTED,
       message:
         'Trigger management requires in-script ScriptApp APIs. ' +
         'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
@@ -1340,7 +1296,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       req.callbackUrl ?? process.env['SERVAL_CALLBACK_URL'] ?? process.env['SERVALSHEETS_BASE_URL'];
     if (!callbackBaseUrlRaw) {
       return this.error({
-        code: 'CONFIG_ERROR',
+        code: ErrorCodes.CONFIG_ERROR,
         message:
           'SERVAL callback URL is required. Provide request.callbackUrl or set SERVAL_CALLBACK_URL.',
         retryable: false,
@@ -1348,14 +1304,17 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     }
     const callbackUrl = callbackBaseUrlRaw.replace(/\/+$/, '');
 
-    // Build the Apps Script source
+    // Build the Apps Script source.
+    // SECURITY: The HMAC secret is NEVER embedded in the script source — it is registered
+    // server-side only (via registerSpreadsheetSecret below). The script reads the secret
+    // exclusively from ScriptProperties, which must be set via the Apps Script IDE or the
+    // serval_setup() helper function pushed alongside this script.
     const scriptSource = `
 function SERVAL(prompt, range, model) {
   var CALLBACK_URL = '${callbackUrl}/api/serval-formula';
   var HMAC_SECRET = PropertiesService.getScriptProperties().getProperty('SERVAL_HMAC_SECRET');
   if (!HMAC_SECRET) {
-    PropertiesService.getScriptProperties().setProperty('SERVAL_HMAC_SECRET', '${hmacSecret}');
-    HMAC_SECRET = '${hmacSecret}';
+    return '#NOT_INITIALIZED: Run serval_setup() in the Apps Script IDE to complete installation.';
   }
   var spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
   var rangeValues = range ? (Array.isArray(range) ? range : [[range]]) : null;
@@ -1376,6 +1335,18 @@ function SERVAL(prompt, range, model) {
   if (response.getResponseCode() !== 200) return '#ERROR!';
   var result = JSON.parse(response.getContentText());
   return result.results && result.results[0] ? (result.results[0].text || result.results[0].values || '#NODATA') : '#NODATA';
+}
+
+/**
+ * Run this function once from the Apps Script IDE to complete installation.
+ * Paste the hmacSecret value from the install_serval_function response when prompted.
+ */
+function serval_setup() {
+  var secret = Browser.inputBox('SERVAL Setup', 'Paste the SERVAL HMAC secret from the installation response:', Browser.Buttons.OK_CANCEL);
+  if (secret && secret !== 'cancel') {
+    PropertiesService.getScriptProperties().setProperty('SERVAL_HMAC_SECRET', secret);
+    Browser.msgBox('SERVAL setup complete. The SERVAL() formula is ready to use.');
+  }
 }
 `.trim();
 
@@ -1410,7 +1381,7 @@ function SERVAL(prompt, range, model) {
       ],
     });
 
-    // Register the HMAC secret in formula-callback service for validation
+    // Register the HMAC secret server-side only — never embedded in script source
     try {
       const { registerSpreadsheetSecret } = await import('../services/formula-callback.js');
       registerSpreadsheetSecret(
@@ -1433,7 +1404,11 @@ function SERVAL(prompt, range, model) {
       scriptId,
       functionName: 'SERVAL',
       callbackUrl: `${callbackUrl}/api/serval-formula`,
+      // hmacSecret returned to caller so they can complete setup via serval_setup() in IDE
+      // SECURITY: this value is shown once — store it securely
       hmacSecret,
+      setupInstructions:
+        'Open the Apps Script IDE for this spreadsheet, run serval_setup(), and paste this hmacSecret when prompted.',
       installedAt,
       project: {
         scriptId,

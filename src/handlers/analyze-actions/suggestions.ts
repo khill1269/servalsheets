@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { SuggestionCategory } from '../../analysis/suggestion-engine.js';
 import type { AnalyzeResponse } from '../../schemas/analyze.js';
@@ -26,9 +27,11 @@ type DiscoverActionRequest = {
 
 export interface SuggestionsDeps {
   sheetsApi: sheets_v4.Sheets;
-  resolveAnalyzeRange: (
-    range?: { a1?: string; sheetName?: string; range?: string }
-  ) => string | undefined;
+  resolveAnalyzeRange: (range?: {
+    a1?: string;
+    sheetName?: string;
+    range?: string;
+  }) => string | undefined;
 }
 
 /**
@@ -78,7 +81,7 @@ export async function handleSuggestNextActionsAction(
     return {
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: 'Suggestion generation failed. Please try again.',
         retryable: true,
       },
@@ -133,7 +136,7 @@ export async function handleAutoEnhanceAction(
     return {
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: 'Auto-enhancement failed. Please try again.',
         retryable: true,
       },
@@ -151,9 +154,8 @@ export async function handleDiscoverActionAction(
   logger.info('Discover action (meta-tool)', { query: input.query, category: input.category });
 
   try {
-    const { discoverActions, analyzeDiscoveryQuery } = await import(
-      '../../services/action-discovery.js'
-    );
+    const { discoverActions, analyzeDiscoveryQuery } =
+      await import('../../services/action-discovery.js');
 
     const matches = discoverActions(input.query, input.category, input.maxResults ?? 5);
     const guidance = analyzeDiscoveryQuery(input.query, matches);
@@ -175,7 +177,7 @@ export async function handleDiscoverActionAction(
     return {
       success: false,
       error: {
-        code: 'DISCOVERY_FAILED',
+        code: ErrorCodes.DISCOVERY_FAILED,
         message: 'Action discovery failed. Please try a different search query.',
         retryable: true,
       },

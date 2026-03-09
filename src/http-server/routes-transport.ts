@@ -8,11 +8,14 @@ import type { TaskStoreAdapter } from '../core/index.js';
 import type { InMemoryEventStore, RedisEventStore } from '../mcp/event-store.js';
 import { sessionsTotal } from '../observability/metrics.js';
 import type { OAuthProvider } from '../oauth-provider.js';
+import { extractIdempotencyKeyFromHeaders } from '../utils/idempotency-key-generator.js';
 import {
   createResourceIndicatorValidator,
   optionalResourceIndicatorMiddleware,
 } from '../security/index.js';
 import { removeSessionContext } from '../services/session-context.js';
+import { extractPrincipalIdFromHeaders } from '../server-utils/request-extraction.js';
+import { createRequestContext, runWithRequestContext } from '../utils/request-context.js';
 import { sessionLimiter } from '../utils/session-limiter.js';
 import { logger } from '../utils/logger.js';
 import {
@@ -28,6 +31,7 @@ export interface HttpTransportSession {
   transport: SSEServerTransport | StreamableHTTPServerTransport;
   mcpServer: McpServer;
   taskStore: TaskStoreAdapter;
+  disposeRuntime?: () => void;
   eventStore?: InMemoryEventStore | RedisEventStore;
   securityContext: SessionSecurityContext; // Security binding to prevent hijacking
   lastActivity: number; // Timestamp of last request for idle eviction
@@ -49,7 +53,7 @@ export function registerHttpTransportRoutes(params: {
     googleToken?: string,
     googleRefreshToken?: string,
     sessionId?: string
-  ) => Promise<{ mcpServer: McpServer; taskStore: TaskStoreAdapter }>;
+  ) => Promise<{ mcpServer: McpServer; taskStore: TaskStoreAdapter; disposeRuntime: () => void }>;
 }): {
   sessionCleanupInterval: NodeJS.Timeout;
   cleanupSessions: () => void;
@@ -69,48 +73,108 @@ export function registerHttpTransportRoutes(params: {
     createMcpServerInstance,
   } = params;
 
+  const getHeaderValue = (value: string | string[] | undefined): string | undefined =>
+    Array.isArray(value) ? value[0] : value;
+
+  const withHttpRequestContext = async <T>(req: Request, fn: () => Promise<T>): Promise<T> => {
+    const requestContext = createRequestContext({
+      requestId: getHeaderValue(req.headers['x-request-id']),
+      traceId: getHeaderValue(req.headers['x-trace-id']),
+      spanId: getHeaderValue(req.headers['x-span-id']),
+      parentSpanId: getHeaderValue(req.headers['x-parent-span-id']),
+      principalId: extractPrincipalIdFromHeaders(req.headers),
+      idempotencyKey: extractIdempotencyKeyFromHeaders(req.headers),
+    });
+
+    return await runWithRequestContext(requestContext, fn);
+  };
+
+  const disposeSession = (
+    sessionId: string,
+    options?: {
+      closeTransport?: boolean;
+      reason?: string;
+    }
+  ): boolean => {
+    const session = sessions.get(sessionId);
+    if (!session) {
+      return false;
+    }
+
+    sessions.delete(sessionId);
+    sessionsTotal.set(sessions.size);
+    sessionLimiter.unregisterSession(sessionId);
+    removeSessionContext(sessionId);
+
+    try {
+      session.disposeRuntime?.();
+    } catch (error) {
+      logger.error('Failed to dispose session runtime', { sessionId, error });
+    }
+
+    try {
+      session.taskStore.dispose();
+    } catch (error) {
+      logger.error('Failed to dispose session task store', { sessionId, error });
+    }
+
+    clearSessionEventStore(session.eventStore);
+
+    if (options?.closeTransport !== false && typeof session.transport.close === 'function') {
+      try {
+        session.transport.close();
+      } catch (error) {
+        logger.error('Failed to close session transport', { sessionId, error });
+      }
+    }
+
+    if (options?.reason) {
+      logger.info(options.reason, { sessionId });
+    }
+
+    return true;
+  };
+
   // Idle session cleanup (prevents memory leak from abandoned sessions)
   const sessionCleanupInterval = setInterval(() => {
     const now = Date.now();
     for (const [id, session] of sessions) {
       if (now - session.lastActivity > sessionTimeoutMs) {
-        sessions.delete(id);
-        sessionsTotal.set(sessions.size);
-        sessionLimiter.unregisterSession(id);
-        removeSessionContext(id);
-        clearSessionEventStore(session.eventStore);
-        if (typeof session.transport.close === 'function') {
-          session.transport.close();
-        }
-        logger.info('Evicted idle session', { sessionId: id });
+        disposeSession(id, {
+          reason: 'Evicted idle session',
+        });
       }
     }
   }, 60000);
 
   const cleanupSessions = (): void => {
-    for (const [sessionId, session] of sessions.entries()) {
-      try {
-        session.taskStore.dispose();
-        clearSessionEventStore(session.eventStore);
-
-        if (typeof session.transport.close === 'function') {
-          session.transport.close();
-        }
-      } catch (error) {
-        logger.error('Error cleaning up session during HTTP server stop', { sessionId, error });
-      } finally {
-        sessions.delete(sessionId);
-        sessionLimiter.unregisterSession(sessionId);
-        removeSessionContext(sessionId);
-      }
+    for (const sessionId of [...sessions.keys()]) {
+      disposeSession(sessionId);
     }
-    sessionsTotal.set(sessions.size);
   };
 
-  // Resource Indicator validation (RFC 8707) - validates tokens if present
-  const serverUrl = process.env['SERVER_URL'] || `http://${host}:${port}`;
-  const resourceValidator = createResourceIndicatorValidator(serverUrl);
-  const validateResourceIndicator = optionalResourceIndicatorMiddleware(resourceValidator);
+  function getRequestServerUrl(req: Request): string {
+    if (process.env['SERVER_URL']) {
+      return process.env['SERVER_URL'];
+    }
+
+    const protocol = req.protocol || 'http';
+    const requestHost = req.get('host');
+    if (requestHost) {
+      return `${protocol}://${requestHost}`;
+    }
+
+    return `http://${host}:${port}`;
+  }
+
+  // Resource Indicator validation (RFC 8707) - validate against the actual request origin.
+  // This keeps dynamic-port test servers and proxied deployments aligned with the audience
+  // clients must request in bearer tokens.
+  const validateResourceIndicator: express.RequestHandler = async (req, res, next) => {
+    const validator = createResourceIndicatorValidator(getRequestServerUrl(req));
+    const middleware = optionalResourceIndicatorMiddleware(validator);
+    await middleware(req, res, next);
+  };
 
   // SSE endpoint for Server-Sent Events transport
   // Add OAuth validation middleware if OAuth is enabled
@@ -302,7 +366,7 @@ export function registerHttpTransportRoutes(params: {
         });
 
         // Create and connect MCP server with task store
-        const { mcpServer, taskStore } = await createMcpServerInstance(
+        const { mcpServer, taskStore, disposeRuntime } = await createMcpServerInstance(
           googleToken,
           undefined,
           sessionId
@@ -312,6 +376,7 @@ export function registerHttpTransportRoutes(params: {
           transport,
           mcpServer,
           taskStore,
+          disposeRuntime,
           securityContext,
           eventStore,
           lastActivity: Date.now(),
@@ -320,13 +385,9 @@ export function registerHttpTransportRoutes(params: {
 
         // Cleanup on disconnect
         req.on('close', () => {
-          sessions.delete(sessionId);
-          sessionsTotal.set(sessions.size);
-          sessionLimiter.unregisterSession(sessionId);
-          removeSessionContext(sessionId);
-          if (typeof transport.close === 'function') {
-            transport.close();
-          }
+          disposeSession(sessionId, {
+            closeTransport: false,
+          });
         });
       } catch (error) {
         res
@@ -388,7 +449,9 @@ export function registerHttpTransportRoutes(params: {
 
         try {
           if (transport instanceof SSEServerTransport) {
-            await transport.handlePostMessage(req, res);
+            await withHttpRequestContext(req, async () => {
+              await transport.handlePostMessage(req, res);
+            });
           } else {
             res
               .status(400)
@@ -545,7 +608,7 @@ export function registerHttpTransportRoutes(params: {
         // Create security context for session binding
         const securityContext = createSessionSecurityContext(req, googleToken || '');
 
-        const { mcpServer, taskStore } = await createMcpServerInstance(
+        const { mcpServer, taskStore, disposeRuntime } = await createMcpServerInstance(
           googleToken,
           undefined,
           newSessionId
@@ -554,6 +617,7 @@ export function registerHttpTransportRoutes(params: {
           transport: newTransport,
           mcpServer,
           taskStore,
+          disposeRuntime,
           eventStore,
           securityContext,
           lastActivity: Date.now(),
@@ -561,11 +625,9 @@ export function registerHttpTransportRoutes(params: {
         sessionsTotal.set(sessions.size);
 
         newTransport.onclose = () => {
-          sessions.delete(newSessionId);
-          sessionsTotal.set(sessions.size);
-          sessionLimiter.unregisterSession(newSessionId);
-          removeSessionContext(newSessionId);
-          clearSessionEventStore(eventStore);
+          disposeSession(newSessionId, {
+            closeTransport: false,
+          });
         };
 
         await mcpServer.connect(newTransport as unknown as Parameters<typeof mcpServer.connect>[0]);
@@ -596,7 +658,9 @@ export function registerHttpTransportRoutes(params: {
       }
 
       if (transport instanceof StreamableHTTPServerTransport) {
-        await transport.handleRequest(req, res, isPost ? req.body : undefined);
+        await withHttpRequestContext(req, async () => {
+          await transport.handleRequest(req, res, isPost ? req.body : undefined);
+        });
       }
     } catch (error) {
       res.status(500).json({
@@ -658,14 +722,7 @@ export function registerHttpTransportRoutes(params: {
       }
     }
 
-    if (typeof session.transport.close === 'function') {
-      session.transport.close();
-    }
-    clearSessionEventStore(session.eventStore);
-    sessions.delete(sessionId);
-    sessionsTotal.set(sessions.size);
-    sessionLimiter.unregisterSession(sessionId);
-    removeSessionContext(sessionId);
+    disposeSession(sessionId);
     res.status(200).json({ success: true, sessionId });
   });
 
@@ -706,14 +763,7 @@ export function registerHttpTransportRoutes(params: {
         }
       }
 
-      if (typeof session.transport.close === 'function') {
-        session.transport.close();
-      }
-      clearSessionEventStore(session.eventStore);
-      sessions.delete(sessionId);
-      sessionsTotal.set(sessions.size);
-      sessionLimiter.unregisterSession(sessionId);
-      removeSessionContext(sessionId);
+      disposeSession(sessionId);
       res.json({ success: true, message: 'Session terminated' });
     } else {
       res.status(404).json({

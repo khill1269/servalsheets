@@ -10,6 +10,10 @@ import { SheetsCoreHandler } from '../../src/handlers/core.js';
 import { SheetsCoreOutputSchema } from '../../src/schemas/core.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4, drive_v3 } from 'googleapis';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 // Mock Google Sheets API
 const createMockSheetsApi = () => ({
@@ -611,18 +615,19 @@ describe('SheetsCoreHandler', () => {
 
       it('should emit progress notifications for large batch_get requests', async () => {
         const notification = vi.fn().mockResolvedValue(undefined);
-        (mockContext as any).server = { notification };
-        handler = new SheetsCoreHandler(
-          mockContext,
-          mockApi as any as sheets_v4.Sheets,
-          mockDriveApi as any as drive_v3.Drive
-        );
+        const requestContext = createRequestContext({
+          requestId: 'core-batch-get-progress',
+          progressToken: 'core-batch-get-progress',
+          sendNotification: notification,
+        });
 
         const spreadsheetIds = Array.from({ length: 20 }, (_, i) => `id-${i + 1}`);
-        const result = await handler.handle({
-          action: 'batch_get',
-          spreadsheetIds,
-        });
+        const result = await runWithRequestContext(requestContext, () =>
+          handler.handle({
+            action: 'batch_get',
+            spreadsheetIds,
+          })
+        );
 
         expect(result.response.success).toBe(true);
         expect(notification).toHaveBeenCalled();
@@ -653,6 +658,106 @@ describe('SheetsCoreHandler', () => {
 
         const parseResult = SheetsCoreOutputSchema.safeParse(result);
         expect(parseResult.success).toBe(true);
+      });
+    });
+
+    describe('describe_workbook action', () => {
+      it('should return structured workbook summary', async () => {
+        // resolveSpreadsheetShortcutId() calls files.get before the action runs — queue a no-op response
+        mockDriveApi.files.get.mockResolvedValueOnce({
+          data: { id: 'test-spreadsheet-id', mimeType: 'application/vnd.google-apps.spreadsheet' },
+        });
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'test-spreadsheet-id',
+            properties: { title: 'My Budget', locale: 'en_US', timeZone: 'America/New_York' },
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  gridProperties: { rowCount: 1000, columnCount: 26 },
+                },
+                data: [
+                  {
+                    rowData: [
+                      {
+                        values: [
+                          { formattedValue: '100', userEnteredValue: { numberValue: 100 } },
+                          { formattedValue: '=A1*2', userEnteredValue: { formulaValue: '=A1*2' } },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        });
+        mockDriveApi.files.get.mockResolvedValueOnce({
+          data: {
+            modifiedTime: '2024-06-01T12:00:00Z',
+            owners: [{ emailAddress: 'owner@example.com' }],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'describe_workbook',
+          spreadsheetId: 'test-spreadsheet-id',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'describe_workbook');
+        const summary = (result.response as any).workbookSummary;
+        expect(summary).toBeDefined();
+        expect(summary.title).toBe('My Budget');
+        expect(summary.sheetCount).toBe(1);
+        expect(summary.sheets).toHaveLength(1);
+        expect(summary.sheets[0].name).toBe('Sheet1');
+        expect(summary.sheets[0].formulaCount).toBe(1);
+        expect(summary.sheets[0].nonEmptyCells).toBe(2);
+        expect(summary.sheets[0].isEmpty).toBe(false);
+        expect(summary.totalFormulaCount).toBe(1);
+        // Drive API call is optional but should work when driveApi is passed
+        expect(mockDriveApi.files.get).toHaveBeenCalledWith({
+          fileId: 'test-spreadsheet-id',
+          fields: 'modifiedTime,owners(emailAddress)',
+        });
+        expect(summary.lastModifiedTime).toBe('2024-06-01T12:00:00Z');
+        expect(summary.ownerEmail).toBe('owner@example.com');
+
+        const parseResult = SheetsCoreOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should return isEmpty true for sheets with no data', async () => {
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'empty-sheet-id',
+            properties: { title: 'Empty' },
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  gridProperties: { rowCount: 1000, columnCount: 26 },
+                },
+                data: [],
+              },
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'describe_workbook',
+          spreadsheetId: 'empty-sheet-id',
+        });
+
+        expect(result.response.success).toBe(true);
+        const summary = (result.response as any).workbookSummary;
+        expect(summary.sheets[0].isEmpty).toBe(true);
+        expect(summary.sheets[0].formulaCount).toBe(0);
+        expect(summary.totalCells).toBe(0);
       });
     });
 

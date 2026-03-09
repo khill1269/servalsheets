@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { AnalyzeResponse } from '../../schemas/analyze.js';
 import { buildAnalysisSamplingRequest } from '../../services/sampling-analysis.js';
 import {
@@ -49,7 +50,7 @@ export async function handleExplainAnalysisAction(
     let samplingResult;
     try {
       await assertSamplingConsent();
-      samplingResult = await withSamplingTimeout(deps.server.createMessage(samplingRequest));
+      samplingResult = await withSamplingTimeout(() => deps.server.createMessage(samplingRequest));
     } catch (samplingError) {
       logger.error('MCP Sampling call failed for explain_analysis', {
         component: 'analyze-handler',
@@ -59,7 +60,7 @@ export async function handleExplainAnalysisAction(
       return {
         success: false,
         error: {
-          code: 'FEATURE_UNAVAILABLE',
+          code: ErrorCodes.FEATURE_UNAVAILABLE,
           message:
             'MCP Sampling capability failed. This feature requires a compatible MCP client with Sampling support (MCP 2025-11-25+).',
           retryable: false,
@@ -103,7 +104,7 @@ export async function handleExplainAnalysisAction(
     return {
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: 'Failed to explain analysis',
         retryable: true,
       },

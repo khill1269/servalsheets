@@ -16,7 +16,7 @@ export default {
       'meta',
       {
         property: 'og:description',
-        content: 'Production-grade Google Sheets MCP Server with 305 actions',
+        content: 'Production-grade Google Sheets MCP Server with 25 tools and 397 actions',
       },
     ],
   ],
@@ -38,7 +38,7 @@ export default {
         ],
       },
       {
-        text: 'v1.6.0',
+        text: 'v1.7.0',
         items: [
           { text: 'Changelog', link: '/CHANGELOG' },
           { text: 'GitHub', link: 'https://github.com/khill1269/servalsheets' },

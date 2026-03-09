@@ -12,7 +12,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { MultiAgentReport, AnalysisIssue } from './multi-agent-analysis.js';
+import type { AnalysisIssue } from './multi-agent-analysis.js';
+import type { OrchestratorReport as RawOrchestratorReport } from './orchestrator.js';
 
 // ============================================================================
 // REPORT FORMATS
@@ -20,7 +21,7 @@ import type { MultiAgentReport, AnalysisIssue } from './multi-agent-analysis.js'
 
 export type ReportFormat = 'json' | 'html' | 'markdown';
 
-export interface OrchestratorReport {
+export interface NormalizedReport {
   timestamp: string;
   overallScore: number;
   agents: AgentSummary[];
@@ -43,7 +44,7 @@ export class ReportGenerator {
   /**
    * Generate report in specified format
    */
-  generateReport(report: OrchestratorReport, format: ReportFormat): string {
+  generateReport(report: NormalizedReport, format: ReportFormat): string {
     switch (format) {
       case 'json':
         return this.generateJSON(report);
@@ -62,7 +63,7 @@ export class ReportGenerator {
   /**
    * Generate JSON report (machine-readable)
    */
-  private generateJSON(report: OrchestratorReport): string {
+  private generateJSON(report: NormalizedReport): string {
     const summary = {
       timestamp: report.timestamp,
       score: report.overallScore,
@@ -93,7 +94,7 @@ export class ReportGenerator {
   /**
    * Generate HTML report (browser-viewable)
    */
-  private generateHTML(report: OrchestratorReport): string {
+  private generateHTML(report: NormalizedReport): string {
     const critical = report.issues.filter((i) => i.severity === 'critical').length;
     const high = report.issues.filter((i) => i.severity === 'high').length;
     const medium = report.issues.filter((i) => i.severity === 'medium').length;
@@ -237,7 +238,7 @@ export class ReportGenerator {
   /**
    * Generate Markdown report (human-readable, GitHub-friendly)
    */
-  private generateMarkdown(report: OrchestratorReport): string {
+  private generateMarkdown(report: NormalizedReport): string {
     const critical = report.issues.filter((i) => i.severity === 'critical').length;
     const high = report.issues.filter((i) => i.severity === 'high').length;
     const medium = report.issues.filter((i) => i.severity === 'medium').length;
@@ -337,6 +338,63 @@ export class ReportGenerator {
   }
 }
 
+function isNormalizedReport(report: unknown): report is NormalizedReport {
+  return (
+    typeof report === 'object' &&
+    report !== null &&
+    'overallScore' in report &&
+    'agents' in report &&
+    'issues' in report
+  );
+}
+
+function isRawOrchestratorReport(report: unknown): report is RawOrchestratorReport {
+  return (
+    typeof report === 'object' &&
+    report !== null &&
+    'agentReports' in report &&
+    'validatedFindings' in report &&
+    'summary' in report
+  );
+}
+
+function calculateScore(report: RawOrchestratorReport): number {
+  const penalty =
+    report.summary.criticalIssues * 25 +
+    report.summary.highIssues * 10 +
+    report.summary.mediumIssues * 4 +
+    report.summary.lowIssues;
+
+  return Math.max(0, 100 - penalty);
+}
+
+function normalizeReport(report: unknown): NormalizedReport {
+  if (isNormalizedReport(report)) {
+    return report;
+  }
+
+  if (isRawOrchestratorReport(report)) {
+    const issues = report.validatedFindings
+      .filter((finding) => !finding.isFalsePositive)
+      .map((finding) => finding.issue);
+
+    return {
+      timestamp: report.timestamp,
+      overallScore: calculateScore(report),
+      agents: report.agentReports.map((agent) => ({
+        name: agent.agentName,
+        status: agent.status,
+        issues: agent.dimensionReports.flatMap((dimension) => dimension.issues),
+      })),
+      issues,
+      autoFixesApplied: report.autoFixesApplied.filter((fix) => fix.applied).length,
+      duration: report.duration,
+    };
+  }
+
+  throw new Error('Unsupported analysis report format');
+}
+
 // ============================================================================
 // CLI INTERFACE
 // ============================================================================
@@ -374,7 +432,7 @@ async function main() {
   }
 
   // Read report
-  const reportData = JSON.parse(fs.readFileSync(inputFile, 'utf-8'));
+  const reportData = normalizeReport(JSON.parse(fs.readFileSync(inputFile, 'utf-8')));
 
   // Generate report
   const generator = new ReportGenerator();

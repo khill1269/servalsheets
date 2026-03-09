@@ -2,6 +2,7 @@
  * Read / Write / Append / Clear action handlers for sheets_data.
  */
 
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { DataResponse, SheetsDataInput } from '../../schemas/data.js';
 import type { ValuesArray } from '../../schemas/index.js';
@@ -40,7 +41,7 @@ export async function handleRead(
         action: 'read',
       });
       return ha.makeError({
-        code: 'FEATURE_UNAVAILABLE',
+        code: ErrorCodes.FEATURE_UNAVAILABLE,
         message: 'DataFilter reads are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
         retryable: false,
         suggestedFix: 'Enable the feature by setting the appropriate environment variable',
@@ -60,7 +61,7 @@ export async function handleRead(
     const valueRanges = response.data.valueRanges ?? [];
     if (valueRanges.length === 0) {
       return ha.makeError({
-        code: 'NOT_FOUND',
+        code: ErrorCodes.NOT_FOUND,
         message: 'No data matched the provided DataFilter',
         retryable: false,
         suggestedFix:
@@ -71,7 +72,7 @@ export async function handleRead(
     const matchedValueRange = valueRanges[0];
     if (!matchedValueRange) {
       return ha.makeError({
-        code: 'NO_DATA',
+        code: ErrorCodes.NO_DATA,
         message: 'No data found matching the filter',
         retryable: false,
       });
@@ -280,7 +281,7 @@ export async function handleWrite(
     const injected = checkFormulaInjection(input.values as unknown[][]);
     if (injected) {
       return ha.makeError({
-        code: 'FORMULA_INJECTION_BLOCKED',
+        code: ErrorCodes.FORMULA_INJECTION_BLOCKED,
         message: `Dangerous formula detected at ${injected}. Set safety.sanitizeFormulas=false to allow, or remove the formula.`,
         retryable: false,
         suggestedFix:
@@ -301,7 +302,7 @@ export async function handleWrite(
   if (input.dataFilter) {
     if (!ha.featureFlags.enableDataFilterBatch) {
       return ha.makeError({
-        code: 'FEATURE_UNAVAILABLE',
+        code: ErrorCodes.FEATURE_UNAVAILABLE,
         message: 'DataFilter writes are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
         retryable: false,
         suggestedFix: 'Enable the feature by setting the appropriate environment variable',
@@ -312,7 +313,9 @@ export async function handleWrite(
       const warnings = buildPayloadWarnings(ha, 'write', payloadValidation);
       const meta = warnings
         ? {
-            ...ha.generateMeta('write', input as Record<string, unknown>, { updatedCells: cellCount }),
+            ...ha.generateMeta('write', input as Record<string, unknown>, {
+              updatedCells: cellCount,
+            }),
             warnings,
           }
         : undefined;
@@ -357,8 +360,7 @@ export async function handleWrite(
     };
 
     if (response.data.responses && response.data.responses.length > 0) {
-      responseData['updatedRange'] =
-        response.data.responses[0]?.['updatedRange'] ?? '(dataFilter)';
+      responseData['updatedRange'] = response.data.responses[0]?.['updatedRange'] ?? '(dataFilter)';
     }
 
     const warnings = buildPayloadWarnings(ha, 'write', payloadValidation);
@@ -379,19 +381,15 @@ export async function handleWrite(
     const warnings = buildPayloadWarnings(ha, 'write', payloadValidation);
     const meta = warnings
       ? {
-          ...ha.generateMeta(
-            'write',
-            input as Record<string, unknown>,
-            {
-              updatedCells: cellCount,
-              updatedRows: input.values.length,
-              updatedColumns:
-                input.values.length > 0
-                  ? Math.max(...input.values.map((row: unknown[]) => row.length))
-                  : 0,
-              updatedRange: range,
-            }
-          ),
+          ...ha.generateMeta('write', input as Record<string, unknown>, {
+            updatedCells: cellCount,
+            updatedRows: input.values.length,
+            updatedColumns:
+              input.values.length > 0
+                ? Math.max(...input.values.map((row: unknown[]) => row.length))
+                : 0,
+            updatedRange: range,
+          }),
           warnings,
         }
       : undefined;
@@ -415,8 +413,8 @@ export async function handleWrite(
 
   if (ha.context.batchingSystem) {
     try {
-      const result =
-        await ha.context.batchingSystem.execute<sheets_v4.Schema$UpdateValuesResponse>({
+      const result = await ha.context.batchingSystem.execute<sheets_v4.Schema$UpdateValuesResponse>(
+        {
           id: uuidv4(),
           type: 'values:update',
           spreadsheetId: input.spreadsheetId,
@@ -425,7 +423,8 @@ export async function handleWrite(
             values: input.values,
             valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
           },
-        });
+        }
+      );
 
       getETagCache().invalidateSpreadsheet(input.spreadsheetId);
 
@@ -554,7 +553,7 @@ export async function handleAppend(
     const injected = checkFormulaInjection(input.values as unknown[][]);
     if (injected) {
       return ha.makeError({
-        code: 'FORMULA_INJECTION_BLOCKED',
+        code: ErrorCodes.FORMULA_INJECTION_BLOCKED,
         message: `Dangerous formula detected at ${injected}. Set safety.sanitizeFormulas=false to allow, or remove the formula.`,
         retryable: false,
         suggestedFix:
@@ -613,7 +612,7 @@ export async function handleAppend(
         action: 'append',
       });
       return ha.makeError({
-        code: 'FEATURE_UNAVAILABLE',
+        code: ErrorCodes.FEATURE_UNAVAILABLE,
         message: 'Table appends are disabled. Set ENABLE_TABLE_APPENDS=true to enable.',
         retryable: false,
         suggestedFix:
@@ -651,17 +650,11 @@ export async function handleAppend(
         const analysisConfig = getBackgroundAnalysisConfig();
         if (analysisConfig.enabled && cellCount >= analysisConfig.minCells) {
           const analyzer = getBackgroundAnalyzer();
-          analyzer.analyzeInBackground(
-            input.spreadsheetId,
-            range ?? 'A1',
-            cellCount,
-            ha.api,
-            {
-              qualityThreshold: 70,
-              minCellsChanged: analysisConfig.minCells,
-              debounceMs: analysisConfig.debounceMs,
-            }
-          );
+          analyzer.analyzeInBackground(input.spreadsheetId, range ?? 'A1', cellCount, ha.api, {
+            qualityThreshold: 70,
+            minCellsChanged: analysisConfig.minCells,
+            debounceMs: analysisConfig.debounceMs,
+          });
         }
 
         const warnings = buildPayloadWarnings(ha, 'append', payloadValidation);
@@ -676,12 +669,9 @@ export async function handleAppend(
 
         return ha.makeSuccess('append', responseData, undefined, undefined, meta);
       } catch (err) {
-        ha.context.logger?.warn(
-          'Batching failed for table append, falling back to direct API',
-          {
-            error: err instanceof Error ? err.message : String(err),
-          }
-        );
+        ha.context.logger?.warn('Batching failed for table append, falling back to direct API', {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
 
@@ -710,26 +700,18 @@ export async function handleAppend(
       updatedCells: cellCount,
       updatedRows: input.values.length,
       updatedColumns:
-        input.values.length > 0
-          ? Math.max(...input.values.map((row: unknown[]) => row.length))
-          : 0,
+        input.values.length > 0 ? Math.max(...input.values.map((row: unknown[]) => row.length)) : 0,
       ...(range ? { updatedRange: range } : {}),
     };
 
     const analysisConfig = getBackgroundAnalysisConfig();
     if (analysisConfig.enabled && cellCount >= analysisConfig.minCells) {
       const analyzer = getBackgroundAnalyzer();
-      analyzer.analyzeInBackground(
-        input.spreadsheetId,
-        range ?? 'A1',
-        cellCount,
-        ha.api,
-        {
-          qualityThreshold: 70,
-          minCellsChanged: analysisConfig.minCells,
-          debounceMs: analysisConfig.debounceMs,
-        }
-      );
+      analyzer.analyzeInBackground(input.spreadsheetId, range ?? 'A1', cellCount, ha.api, {
+        qualityThreshold: 70,
+        minCellsChanged: analysisConfig.minCells,
+        debounceMs: analysisConfig.debounceMs,
+      });
     }
 
     const warnings = buildPayloadWarnings(ha, 'append', payloadValidation);
@@ -747,7 +729,7 @@ export async function handleAppend(
 
   if (!range) {
     return ha.makeError({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: 'Range is required when tableId is not provided for append',
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -756,8 +738,8 @@ export async function handleAppend(
 
   if (ha.context.batchingSystem) {
     try {
-      const result =
-        await ha.context.batchingSystem.execute<sheets_v4.Schema$AppendValuesResponse>({
+      const result = await ha.context.batchingSystem.execute<sheets_v4.Schema$AppendValuesResponse>(
+        {
           id: uuidv4(),
           type: 'values:append',
           spreadsheetId: input.spreadsheetId,
@@ -767,7 +749,8 @@ export async function handleAppend(
             valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
             insertDataOption: input.insertDataOption ?? 'INSERT_ROWS',
           },
-        });
+        }
+      );
 
       getETagCache().invalidateSpreadsheet(input.spreadsheetId);
 
@@ -903,7 +886,7 @@ export async function handleClear(
         action: 'clear',
       });
       return ha.makeError({
-        code: 'FEATURE_UNAVAILABLE',
+        code: ErrorCodes.FEATURE_UNAVAILABLE,
         message: 'DataFilter clears are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
         retryable: false,
         suggestedFix: 'Enable the feature by setting the appropriate environment variable',
@@ -943,8 +926,7 @@ export async function handleClear(
         new Promise<never>((_, reject) => {
           const timeoutMs = parseInt(process.env['GOOGLE_API_TIMEOUT_MS'] ?? '60000', 10);
           setTimeout(
-            () =>
-              reject(new Error(`Clear operation timed out after ${timeoutMs / 1000} seconds`)),
+            () => reject(new Error(`Clear operation timed out after ${timeoutMs / 1000} seconds`)),
             timeoutMs
           );
         }),
@@ -958,7 +940,7 @@ export async function handleClear(
       const clearedRanges = response.data.clearedRanges ?? [];
       if (clearedRanges.length === 0) {
         return ha.makeError({
-          code: 'NOT_FOUND',
+          code: ErrorCodes.NOT_FOUND,
           message: 'No data matched the provided DataFilter for clear',
           retryable: false,
           suggestedFix:
@@ -969,17 +951,11 @@ export async function handleClear(
       const analysisConfig = getBackgroundAnalysisConfig();
       if (analysisConfig.enabled && clearedRanges.length > 0) {
         const analyzer = getBackgroundAnalyzer();
-        analyzer.analyzeInBackground(
-          input.spreadsheetId,
-          clearedRanges[0]!,
-          100,
-          ha.api,
-          {
-            qualityThreshold: 70,
-            minCellsChanged: analysisConfig.minCells,
-            debounceMs: analysisConfig.debounceMs,
-          }
-        );
+        analyzer.analyzeInBackground(input.spreadsheetId, clearedRanges[0]!, 100, ha.api, {
+          qualityThreshold: 70,
+          minCellsChanged: analysisConfig.minCells,
+          debounceMs: analysisConfig.debounceMs,
+        });
       }
 
       // Record operation in session context for LLM follow-up references
@@ -1016,7 +992,7 @@ export async function handleClear(
           (error as { code?: string }).code === 'DEADLINE_EXCEEDED');
       if (isTimeoutError) {
         return ha.makeError({
-          code: 'DEADLINE_EXCEEDED',
+          code: ErrorCodes.DEADLINE_EXCEEDED,
           message: `Clear operation (dataFilter) timed out after ${duration}ms. Consider using a more specific filter.`,
           retryable: false,
           suggestedFix: 'Try using a more specific dataFilter or clearing by A1 range instead',
@@ -1034,7 +1010,7 @@ export async function handleClear(
   // Traditional range-based path
   if (!input.range) {
     return ha.makeError({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: 'Range is required for clear operation',
       retryable: false,
     });
@@ -1075,17 +1051,11 @@ export async function handleClear(
     if (analysisConfig.enabled) {
       const clearedRange = response.data.clearedRange ?? range;
       const analyzer = getBackgroundAnalyzer();
-      analyzer.analyzeInBackground(
-        input.spreadsheetId,
-        clearedRange,
-        100,
-        ha.api,
-        {
-          qualityThreshold: 70,
-          minCellsChanged: analysisConfig.minCells,
-          debounceMs: analysisConfig.debounceMs,
-        }
-      );
+      analyzer.analyzeInBackground(input.spreadsheetId, clearedRange, 100, ha.api, {
+        qualityThreshold: 70,
+        minCellsChanged: analysisConfig.minCells,
+        debounceMs: analysisConfig.debounceMs,
+      });
     }
 
     // Record operation in session context for LLM follow-up references
@@ -1122,7 +1092,7 @@ export async function handleClear(
         (error as { code?: string }).code === 'DEADLINE_EXCEEDED');
     if (isTimeoutError) {
       return ha.makeError({
-        code: 'DEADLINE_EXCEEDED',
+        code: ErrorCodes.DEADLINE_EXCEEDED,
         message: `Clear operation timed out after ${duration}ms.`,
         retryable: false,
         suggestedFix:

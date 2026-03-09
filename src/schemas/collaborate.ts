@@ -749,6 +749,8 @@ export type CollaborateCommentDeleteReplyInput = SheetsCollaborateInput['request
 export type CollaborateVersionListRevisionsInput = SheetsCollaborateInput['request'] & {
   action: 'version_list_revisions';
   spreadsheetId: string;
+  pageSize?: number;
+  afterRevisionId?: string;
 };
 export type CollaborateVersionGetRevisionInput = SheetsCollaborateInput['request'] & {
   action: 'version_get_revision';

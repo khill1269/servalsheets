@@ -21,11 +21,7 @@ export async function handleCrossRead(
   req: DataRequest & { action: 'cross_read' }
 ): Promise<DataResponse> {
   const responseFormat = (req.response_format ?? 'full') as ResponseFormat;
-  await ha.sendProgress(
-    0,
-    req.sources.length,
-    `Reading from ${req.sources.length} spreadsheet(s)`
-  );
+  await ha.sendProgress(0, req.sources.length, `Reading from ${req.sources.length} spreadsheet(s)`);
   const { crossRead } = await import('../../services/cross-spreadsheet.js');
   const result = await crossRead(
     ha.api,
@@ -201,14 +197,8 @@ export async function handleCrossCompare(
     req.keyColumn,
     ha.context.cachedSheetsApi
   );
-  const shapedAdded = shapeValuesByResponseFormat(
-    result.added as ValuesArray,
-    responseFormat
-  );
-  const shapedRemoved = shapeValuesByResponseFormat(
-    result.removed as ValuesArray,
-    responseFormat
-  );
+  const shapedAdded = shapeValuesByResponseFormat(result.added as ValuesArray, responseFormat);
+  const shapedRemoved = shapeValuesByResponseFormat(result.removed as ValuesArray, responseFormat);
   const shapedChanged = shapeListByResponseFormat(result.changed, responseFormat);
   const isTruncated = shapedAdded.truncated || shapedRemoved.truncated || shapedChanged.truncated;
 

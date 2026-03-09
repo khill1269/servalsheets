@@ -80,6 +80,7 @@ describe('TransactionHandler', () => {
       expect(mockTransactionManager.begin).toHaveBeenCalledWith('test-sheet-id-123', {
         autoCommit: false,
         autoRollback: true,
+        autoSnapshot: false,
         isolationLevel: 'read_committed',
       });
 
@@ -103,6 +104,7 @@ describe('TransactionHandler', () => {
       expect(mockTransactionManager.begin).toHaveBeenCalledWith('test-sheet-id-456', {
         autoCommit: false,
         autoRollback: false,
+        autoSnapshot: false,
         isolationLevel: 'serializable',
       });
     });

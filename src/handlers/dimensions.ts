@@ -14,6 +14,7 @@
  * Slicers (4): create_slicer, update_slicer, delete_slicer, list_slicers
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
@@ -56,7 +57,10 @@ import type {
   DimensionsUpdateSlicerInput,
   DimensionsDeleteSlicerInput,
   DimensionsListSlicersInput,
+  // Range utility (delete duplicates)
+  DimensionsDeleteDuplicatesInput,
 } from '../schemas/index.js';
+import { handleDeleteDuplicates } from './dimensions-actions/filter-sort-operations.js';
 import { parseCellReference, toGridRange } from '../utils/google-sheets-helpers.js';
 import {
   confirmDestructiveAction,
@@ -199,7 +203,13 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         case 'sort_range':
           response = await this.handleSortRange(req as DimensionsSortRangeInput);
           break;
-        // Range utility operations (4 new)
+        // Range utility operations (5)
+        case 'delete_duplicates':
+          response = await handleDeleteDuplicates(
+            this.buildHandlerAccess(),
+            req as DimensionsDeleteDuplicatesInput
+          );
+          break;
         case 'trim_whitespace':
           response = await this.handleTrimWhitespace(req as DimensionsTrimWhitespaceInput);
           break;
@@ -247,7 +257,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         default: {
           const _exhaustiveCheck: never = req;
           response = this.error({
-            code: 'INVALID_PARAMS',
+            code: ErrorCodes.INVALID_PARAMS,
             message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
@@ -296,7 +306,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     const sheetName = request['sheetName'];
     if (typeof sheetName !== 'string' || sheetName.trim().length === 0) {
       return this.error({
-        code: 'INVALID_PARAMS',
+        code: ErrorCodes.INVALID_PARAMS,
         message: 'Either sheetId (number) or sheetName (string) is required',
         retryable: false,
         suggestedFix: 'Provide sheetId from sheets_core.list_sheets or a valid sheetName',
@@ -326,7 +336,10 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
             : req.action === 'insert' || req.action === 'append'
               ? 'INSERT_DIMENSION'
               : 'UPDATE_DIMENSION_PROPERTIES',
-        target: { spreadsheetId: req.spreadsheetId!, sheetId: req.sheetId! },
+        target: {
+          spreadsheetId: req.spreadsheetId!,
+          sheetId: (req as { sheetId?: number }).sheetId!,
+        },
         payload: {},
         metadata: {
           sourceTool: this.toolName,
@@ -368,7 +381,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
 
         if (!confirmation.confirmed) {
           return this.error({
-            code: 'PRECONDITION_FAILED',
+            code: ErrorCodes.PRECONDITION_FAILED,
             message: `${isRows ? 'Row' : 'Column'} insertion cancelled by user`,
             retryable: false,
             suggestedFix: 'Review the operation requirements and try again',
@@ -447,7 +460,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
 
         if (!confirmation.confirmed) {
           return this.error({
-            code: 'PRECONDITION_FAILED',
+            code: ErrorCodes.PRECONDITION_FAILED,
             message: `${isRows ? 'Row' : 'Column'} deletion cancelled by user`,
             retryable: false,
             suggestedFix: 'Review the operation requirements and try again',
@@ -590,7 +603,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
 
         if (!confirmation.confirmed) {
           return this.error({
-            code: 'PRECONDITION_FAILED',
+            code: ErrorCodes.PRECONDITION_FAILED,
             message: `${isRows ? 'Row' : 'Column'} move cancelled by user`,
             retryable: false,
             suggestedFix: 'Review the operation requirements and try again',
@@ -975,7 +988,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
 
         if (!confirmation.confirmed) {
           return this.error({
-            code: 'PRECONDITION_FAILED',
+            code: ErrorCodes.PRECONDITION_FAILED,
             message: `${isRows ? 'Row' : 'Column'} append cancelled by user`,
             retryable: false,
             suggestedFix: 'Review the operation requirements and try again',
@@ -1031,7 +1044,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
 
       if (!currentFilterResponse.success || !currentFilterResponse.filter) {
         return this.error({
-          code: 'FAILED_PRECONDITION',
+          code: ErrorCodes.FAILED_PRECONDITION,
           message: 'Cannot update filter criteria: No basic filter exists on this sheet',
           category: 'client',
           severity: 'medium',
@@ -1144,7 +1157,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       );
       if (!confirmation.confirmed) {
         return this.error({
-          code: 'PRECONDITION_FAILED',
+          code: ErrorCodes.PRECONDITION_FAILED,
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
           suggestedFix: 'Review the operation requirements and try again',
@@ -1217,6 +1230,30 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
   // ============================================================
   // Sort Operations (merged from filter-sort.ts)
   // ============================================================
+
+  /** Build a DimensionsHandlerAccess adapter for sub-module functions */
+  private buildHandlerAccess(): import('./dimensions-actions/internal.js').DimensionsHandlerAccess {
+    return {
+      success: this.success.bind(
+        this
+      ) as import('./dimensions-actions/internal.js').DimensionsHandlerAccess['success'],
+      error: this.error.bind(this),
+      notFoundError: (t: string, id: string | number) => this.notFoundError(t, String(id)),
+      generateMeta: this.generateMeta.bind(this),
+      getSafetyWarnings: this.getSafetyWarnings.bind(this),
+      formatWarnings: this.formatWarnings.bind(this),
+      createSafetySnapshot: this.createSafetySnapshot.bind(this),
+      snapshotInfo: this.snapshotInfo.bind(
+        this
+      ) as import('./dimensions-actions/internal.js').DimensionsHandlerAccess['snapshotInfo'],
+      rangeToGridRange: this.rangeToGridRange.bind(this),
+      gridRangeToOutput: this.gridRangeToOutput.bind(this),
+      getSheetId: this.getSheetId.bind(this),
+      sendProgress: this.sendProgress.bind(this),
+      context: this.context,
+      sheetsApi: this.sheetsApi,
+    };
+  }
 
   private async handleSortRange(input: DimensionsSortRangeInput): Promise<DimensionsResponse> {
     let resolvedInput = input;
@@ -1493,7 +1530,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       autoFillRequest.range = toGridRange(gridRange);
     } else {
       return this.error({
-        code: 'INVALID_PARAMS',
+        code: ErrorCodes.INVALID_PARAMS,
         message:
           'auto_fill requires one of two modes: ' +
           '(1) "range" only - fills within range using first row/column as pattern. Example: { "range": "A1:A10" } ' +
@@ -1733,7 +1770,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       );
       if (!confirmation.confirmed) {
         return this.error({
-          code: 'PRECONDITION_FAILED',
+          code: ErrorCodes.PRECONDITION_FAILED,
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
           suggestedFix: 'Review the operation requirements and try again',
@@ -1959,7 +1996,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       );
       if (!confirmation.confirmed) {
         return this.error({
-          code: 'PRECONDITION_FAILED',
+          code: ErrorCodes.PRECONDITION_FAILED,
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
           suggestedFix: 'Review the operation requirements and try again',

@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type { SheetsAdvancedInput, AdvancedResponse } from '../../schemas/index.js';
@@ -266,7 +267,7 @@ export async function handleRenameTableColumnAction(
 
   if (!targetTable) {
     return deps.error({
-      code: 'NOT_FOUND',
+      code: ErrorCodes.NOT_FOUND,
       message: `Table with ID '${req.tableId}' not found`,
       category: 'client',
       retryable: false,
@@ -279,7 +280,7 @@ export async function handleRenameTableColumnAction(
   const columnProperties = targetTable.columnProperties ?? [];
   if (req.columnIndex >= columnProperties.length) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: `Column index ${req.columnIndex} is out of range (table has ${columnProperties.length} columns)`,
       category: 'client',
       retryable: false,
@@ -342,7 +343,7 @@ export async function handleSetTableColumnPropertiesAction(
 
   if (!targetTable) {
     return deps.error({
-      code: 'NOT_FOUND',
+      code: ErrorCodes.NOT_FOUND,
       message: `Table with ID '${req.tableId}' not found`,
       category: 'client',
       retryable: false,
@@ -355,7 +356,7 @@ export async function handleSetTableColumnPropertiesAction(
   const columnProperties = targetTable.columnProperties ?? [];
   if (req.columnIndex >= columnProperties.length) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: `Column index ${req.columnIndex} is out of range (table has ${columnProperties.length} columns)`,
       category: 'client',
       retryable: false,
@@ -391,7 +392,7 @@ export async function handleSetTableColumnPropertiesAction(
     const tableRange = targetTable.range;
     if (!tableRange) {
       return deps.error({
-        code: 'FAILED_PRECONDITION',
+        code: ErrorCodes.FAILED_PRECONDITION,
         message: 'Table does not have a valid range',
         category: 'server',
         retryable: false,

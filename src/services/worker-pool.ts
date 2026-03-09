@@ -216,8 +216,8 @@ export class WorkerPool extends EventEmitter {
     });
 
     // Handle worker errors
-    worker.on('error', (error) => {
-      this.handleWorkerError(workerThread, error);
+    worker.on('error', (error: unknown) => {
+      this.handleWorkerError(workerThread, error as Error);
     });
 
     // Handle worker exit

@@ -3191,6 +3191,38 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
         'This answers natural language questions about data. Scope with a range for large datasets to avoid timeouts.',
     },
   },
+  'sheets_analyze.diagnose_errors': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse:
+      'Diagnosing formula, reference, parsing, and type errors in a target range before applying fixes',
+    whenNotToUse:
+      'For broad spreadsheet analysis use comprehensive; for direct remediation use sheets_fix',
+    errorRecovery: {
+      SHEET_NOT_FOUND: 'Call sheets_core.list_sheets first to verify sheet name',
+      INVALID_RANGE: 'Provide a bounded A1 range like Sheet1!A1:Z1000',
+      PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
+      alternativeActions: [
+        {
+          tool: 'sheets_analyze',
+          action: 'comprehensive',
+          when: 'when you need full-sheet structural and quality context',
+        },
+        {
+          tool: 'sheets_fix',
+          action: 'fix',
+          when: 'when diagnosis is complete and fix plan is ready',
+        },
+      ],
+      diagnosticSteps: [
+        'Verify spreadsheet access with sheets_core.get',
+        'Validate range and sheet names with sheets_core.list_sheets',
+        'Run sheets_analyze.scout first if schema context is unknown',
+      ],
+      userGuidance:
+        'This action diagnoses spreadsheet errors and proposes targeted fixes. Provide the smallest relevant range for faster and more accurate diagnostics.',
+    },
+  },
 
   // COLLABORATE TOOL (additional actions)
   'sheets_collaborate.share_update': {
@@ -10151,6 +10183,64 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
       ],
       userGuidance:
         'This lists available endpoints and schemas for a connector. Verify the connector ID is correct.',
+    },
+  },
+  'sheets_analyze.formula_health_check': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse:
+      'Auditing formula quality, error hotspots, volatility, and broken references across a sheet',
+    whenNotToUse:
+      'Use explain or diagnose_errors when you need a focused explanation for one formula',
+    errorRecovery: {
+      PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
+      SHEET_NOT_FOUND: 'Call sheets_core.list_sheets to verify the sheet exists',
+    },
+  },
+  'sheets_core.describe_workbook': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse:
+      'Getting a structured workbook summary with sheets, ranges, formulas, and metadata for LLM routing',
+    whenNotToUse: 'Use get or list_sheets when you only need basic spreadsheet metadata',
+    errorRecovery: {
+      PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
+      SPREADSHEET_NOT_FOUND: 'Call sheets_core.get to verify the spreadsheet ID',
+    },
+  },
+  'sheets_core.workbook_fingerprint': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse:
+      'Comparing workbook structure or caching a lightweight signature before and after larger workflows',
+    whenNotToUse:
+      'Use describe_workbook when you need the full workbook summary instead of a hashable fingerprint',
+    errorRecovery: {
+      PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
+      SPREADSHEET_NOT_FOUND: 'Call sheets_core.get to verify the spreadsheet ID',
+    },
+  },
+  'sheets_data.smart_fill': {
+    apiCalls: 1,
+    idempotent: false,
+    whenToUse:
+      'Extending formulas or patterns down a range when Google Sheets autofill behavior is the desired outcome',
+    whenNotToUse: 'Use write or batch_write when you already know the exact values to place',
+    errorRecovery: {
+      PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
+      INVALID_RANGE:
+        'Use an explicit A1 range and verify the target sheet with sheets_core.list_sheets',
+    },
+  },
+  'sheets_dimensions.delete_duplicates': {
+    apiCalls: 1,
+    idempotent: false,
+    whenToUse:
+      'Removing duplicate rows from a bounded range while preserving one copy of each distinct row',
+    whenNotToUse: 'Use sort_range or filter views when you only need to inspect duplicates first',
+    errorRecovery: {
+      PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
+      INVALID_RANGE: 'Use a bounded A1 range like Sheet1!A1:D500 before retrying',
     },
   },
 };

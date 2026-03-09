@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type { SheetsAdvancedInput, AdvancedResponse } from '../../schemas/index.js';
@@ -152,7 +153,7 @@ export async function handleGetNamedFunctionAction(
 
   if (!fn) {
     return deps.error({
-      code: 'NOT_FOUND',
+      code: ErrorCodes.NOT_FOUND,
       message: `Named function "${req.functionName}" not found`,
       retryable: false,
       suggestedFix: 'Use list_named_functions to see all available named functions',
@@ -188,15 +189,13 @@ export async function handleUpdateNamedFunctionAction(
   const rawFunctions: unknown[] =
     (getResult.data.properties as ExtendedSpreadsheetProperties)?.namedFunctions ?? [];
 
-  const existing = rawFunctions.find(
-    (f) => (f as { name?: string }).name === req.functionName
-  ) as
+  const existing = rawFunctions.find((f) => (f as { name?: string }).name === req.functionName) as
     | { name?: string; functionBody?: string; description?: string; argumentNames?: string[] }
     | undefined;
 
   if (!existing) {
     return deps.error({
-      code: 'NOT_FOUND',
+      code: ErrorCodes.NOT_FOUND,
       message: `Named function "${req.functionName}" not found`,
       retryable: false,
       suggestedFix: 'Use list_named_functions to see all available named functions',
@@ -205,7 +204,8 @@ export async function handleUpdateNamedFunctionAction(
 
   const updatedName = req.newFunctionName ?? existing.name ?? req.functionName!;
   const updatedBody = req.functionBody ?? existing.functionBody ?? '';
-  const updatedDesc = req.description !== undefined ? req.description : (existing.description ?? '');
+  const updatedDesc =
+    req.description !== undefined ? req.description : (existing.description ?? '');
   const updatedArgs = req.parameterDefinitions
     ? req.parameterDefinitions.map((p) => p.name)
     : (existing.argumentNames ?? []);
@@ -266,7 +266,7 @@ export async function handleDeleteNamedFunctionAction(
 
     if (!confirmation.confirmed) {
       return deps.error({
-        code: 'PRECONDITION_FAILED',
+        code: ErrorCodes.PRECONDITION_FAILED,
         message: confirmation.reason || 'User cancelled the operation',
         retryable: false,
         suggestedFix: 'Review the operation requirements and try again',

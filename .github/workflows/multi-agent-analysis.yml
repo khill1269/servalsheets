@@ -30,38 +30,47 @@ jobs:
         run: |
           # Run analysis on changed files (or all files if specified)
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            # Analyze only changed files in PR
-            git diff --name-only origin/${{ github.base_ref }}...HEAD | \
-              grep '\.ts$' | \
-              xargs -I {} npx tsx scripts/analysis/multi-agent-analysis.ts {} --format=json >> analysis-report.json
+            mapfile -t FILES < <(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '\.ts$' || true)
           else
-            # Analyze all source files on push
-            find src -name '*.ts' -type f | \
-              xargs -I {} npx tsx scripts/analysis/multi-agent-analysis.ts {} --format=json >> analysis-report.json
+            mapfile -t FILES < <(find src -name '*.ts' -type f)
+          fi
+
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            printf '{\n  "timestamp": "%s",\n  "overallScore": 100,\n  "agents": [],\n  "issues": [],\n  "autoFixesApplied": 0,\n  "duration": 0\n}\n' \
+              "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > analysis-raw.json
+          else
+            npx tsx scripts/analysis/cli.ts analyze "${FILES[@]}" --format json > analysis-raw.json || true
           fi
         continue-on-error: true
 
       - name: Generate Report
         if: always()
         run: |
+          # Normalize raw analysis output for downstream consumers
+          npx tsx scripts/analysis/report-generator.ts \
+            --input analysis-raw.json \
+            --format json \
+            --output analysis-report.json
+
           # Generate markdown report for PR comment
           npx tsx scripts/analysis/report-generator.ts \
-            --input analysis-report.json \
+            --input analysis-raw.json \
             --format markdown \
             --output analysis-report.md
 
           # Generate HTML report for artifact
           npx tsx scripts/analysis/report-generator.ts \
-            --input analysis-report.json \
+            --input analysis-raw.json \
             --format html \
             --output analysis-report.html
 
       - name: Upload Analysis Reports
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: analysis-reports
           path: |
+            analysis-raw.json
             analysis-report.json
             analysis-report.md
             analysis-report.html

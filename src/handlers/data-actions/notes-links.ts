@@ -2,6 +2,7 @@
  * Notes and hyperlinks action handlers for sheets_data.
  */
 
+import { ErrorCodes } from '../error-codes.js';
 import type { DataResponse, SheetsDataInput } from '../../schemas/data.js';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
 import { validateHyperlinkUrl } from '../../utils/url.js';
@@ -118,7 +119,7 @@ export async function handleSetHyperlink(
   const validation = validateHyperlinkUrl(input.url);
   if (!validation.ok) {
     return ha.makeError({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: `Invalid hyperlink URL: ${validation.reason}`,
       retryable: false,
       suggestedFix: 'Use a valid http or https URL.',

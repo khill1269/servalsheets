@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type { SheetsAdvancedInput, AdvancedResponse } from '../../schemas/index.js';
@@ -40,7 +41,7 @@ export async function handleAddBandingAction(
   // Pre-validation: Catch common LLM parameter errors before API call
   if (!req.range) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message:
         'Missing required "range" parameter. Specify the range to apply banding (e.g., "Sheet1!A1:D10").',
       retryable: false,
@@ -51,7 +52,7 @@ export async function handleAddBandingAction(
   // Validate that at least one of rowProperties or columnProperties is provided
   if (!req.rowProperties && !req.columnProperties) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message:
         'Banding requires either "rowProperties" or "columnProperties". ' +
         'Example: rowProperties: { headerColor: { red: 0.2, green: 0.4, blue: 0.8 }, ' +
@@ -67,20 +68,26 @@ export async function handleAddBandingAction(
     propName: string
   ): AdvancedResponse | null => {
     if (!props) return null;
-    const colorFields = ['headerColor', 'firstBandColor', 'secondBandColor', 'footerColor'] as const;
+    const colorFields = [
+      'headerColor',
+      'firstBandColor',
+      'secondBandColor',
+      'footerColor',
+    ] as const;
     for (const field of colorFields) {
       const color = props[field];
       if (color) {
         const { red = 0, green = 0, blue = 0 } = color;
         if (red > 1 || green > 1 || blue > 1) {
           return deps.error({
-            code: 'INVALID_PARAMS',
+            code: ErrorCodes.INVALID_PARAMS,
             message:
               `Color values in ${propName}.${field} must be between 0 and 1 (not 0-255). ` +
               `Received: red=${red}, green=${green}, blue=${blue}. ` +
               `Example: { red: 0.2, green: 0.4, blue: 0.8 } for a blue color.`,
             retryable: false,
-            suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
+            suggestedFix:
+              'Check the parameter format and ensure all required parameters are provided',
           });
         }
       }
@@ -169,7 +176,7 @@ export async function handleDeleteBandingAction(
 
     if (!confirmation.confirmed) {
       return deps.error({
-        code: 'PRECONDITION_FAILED',
+        code: ErrorCodes.PRECONDITION_FAILED,
         message: confirmation.reason || 'User cancelled the operation',
         retryable: false,
         suggestedFix: 'Review the operation requirements and try again',

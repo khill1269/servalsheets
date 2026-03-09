@@ -3,9 +3,10 @@ import cors from 'cors';
 import express from 'express';
 import type { Application, NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { responseRedactionMiddleware } from '../middleware/redaction.js';
 import { getRequestRecorder } from '../services/request-recorder.js';
+import { getEnv } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { addDeprecationHeaders, extractVersionFromRequest } from '../versioning/schema-manager.js';
 
@@ -17,6 +18,14 @@ export function registerHttpFoundationMiddleware(params: {
   rateLimitMax: number;
 }): void {
   const { app, corsOrigins, trustProxy, rateLimitWindowMs, rateLimitMax } = params;
+  const envConfig = getEnv();
+  const oauthIssuerHost = (() => {
+    try {
+      return new URL(envConfig.OAUTH_ISSUER).host.toLowerCase();
+    } catch {
+      return undefined; // SAFETY: invalid issuer config disables same-host relaxation and keeps strict origin checks.
+    }
+  })();
 
   // Security middleware
   app.use(
@@ -218,6 +227,7 @@ export function registerHttpFoundationMiddleware(params: {
       'localhost',
       '127.0.0.1',
       '::1',
+      ...(oauthIssuerHost ? [oauthIssuerHost] : []),
       ...(process.env['SERVAL_ALLOWED_HOSTS']?.split(',').map((h) => h.trim().toLowerCase()) ?? []),
     ]);
 
@@ -250,6 +260,12 @@ export function registerHttpFoundationMiddleware(params: {
     limit: rateLimitMax,
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: (req: Request) => {
+      const forwardedFor = req.headers['x-forwarded-for'];
+      const forwardedIp = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+      const ip = req.ip || forwardedIp || req.socket.remoteAddress || '127.0.0.1';
+      return `${ipKeyGenerator(ip)}:${req.method}:${req.path}`;
+    },
     message: { error: 'Too many requests, please try again later' },
     // Add custom rate limit info handler
     handler: (req: Request, res: Response) => {
@@ -305,6 +321,15 @@ export function registerHttpFoundationMiddleware(params: {
     }
 
     const clientVersion = req.headers['mcp-protocol-version'] as string | undefined;
+    if (envConfig.STRICT_MCP_PROTOCOL_VERSION && !clientVersion) {
+      res.status(400).json({
+        error: {
+          code: 'INVALID_REQUEST',
+          message: 'Missing MCP-Protocol-Version header. Expected MCP-Protocol-Version: 2025-11-25',
+        },
+      });
+      return;
+    }
 
     // If client specifies a different version, reject with 400
     if (clientVersion && clientVersion !== '2025-11-25') {

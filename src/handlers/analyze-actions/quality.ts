@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { AnalyzeResponse } from '../../schemas/analyze.js';
 import { logger } from '../../utils/logger.js';
 
@@ -13,9 +14,7 @@ interface ConvertedRangeInput {
 }
 
 export interface AnalyzeQualityDeps {
-  convertRangeInput: (
-    range: AnalyzeQualityRequest['range']
-  ) => ConvertedRangeInput | undefined;
+  convertRangeInput: (range: AnalyzeQualityRequest['range']) => ConvertedRangeInput | undefined;
   resolveAnalyzeRange: (range?: ConvertedRangeInput) => string | undefined;
   readData: (spreadsheetId: string, range?: string) => Promise<unknown[][]>;
 }
@@ -39,7 +38,7 @@ export async function handleAnalyzeQualityAction(
       return {
         success: false,
         error: {
-          code: 'NO_DATA',
+          code: ErrorCodes.NO_DATA,
           message: 'No data found in the specified range',
           retryable: false,
         },
@@ -108,11 +107,10 @@ export async function handleAnalyzeQualityAction(
     return {
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: 'Failed to analyze quality',
         retryable: true,
       },
     };
   }
 }
-

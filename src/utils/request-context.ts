@@ -45,6 +45,7 @@ import { AsyncLocalStorage } from 'async_hooks';
 import { randomUUID } from 'crypto';
 import type { Logger } from 'winston';
 import type { ServerNotification } from '@modelcontextprotocol/sdk/types.js';
+import type { MetadataCache } from '../services/metadata-cache.js';
 import { baseLogger } from './base-logger.js';
 
 export interface RequestContext {
@@ -52,6 +53,7 @@ export interface RequestContext {
   logger: Logger;
   timeoutMs: number;
   deadline: number;
+  abortSignal?: AbortSignal;
   /**
    * Stable caller identity when available (session/user/client).
    * Used for per-principal caching and correction metrics.
@@ -79,18 +81,26 @@ export interface RequestContext {
    * Can be client-provided or auto-generated for non-idempotent operations
    */
   idempotencyKey?: string;
+  metadataCache?: MetadataCache;
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
-const DEFAULT_TIMEOUT_MS = parseInt(
-  process.env['REQUEST_TIMEOUT_MS'] ?? process.env['GOOGLE_API_TIMEOUT_MS'] ?? '30000',
-  10
+
+function parseTimeoutMs(rawValue: string | undefined, fallbackMs: number): number {
+  const parsed = Number.parseInt(rawValue ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackMs;
+}
+
+const DEFAULT_TIMEOUT_MS = parseTimeoutMs(
+  process.env['REQUEST_TIMEOUT_MS'] ?? process.env['GOOGLE_API_TIMEOUT_MS'],
+  30000
 );
 
 export function createRequestContext(options?: {
   requestId?: string;
   logger?: Logger;
   timeoutMs?: number;
+  abortSignal?: AbortSignal;
   principalId?: string;
   sendNotification?: (notification: ServerNotification) => Promise<void>;
   progressToken?: string | number;
@@ -98,9 +108,15 @@ export function createRequestContext(options?: {
   spanId?: string;
   parentSpanId?: string;
   idempotencyKey?: string;
+  metadataCache?: MetadataCache;
 }): RequestContext {
   const requestId = options?.requestId ?? randomUUID();
-  const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs =
+    typeof options?.timeoutMs === 'number' &&
+    Number.isFinite(options.timeoutMs) &&
+    options.timeoutMs > 0
+      ? options.timeoutMs
+      : DEFAULT_TIMEOUT_MS;
 
   // Include trace context in logger metadata
   const loggerMeta: Record<string, string> = { requestId };
@@ -121,6 +137,7 @@ export function createRequestContext(options?: {
     logger,
     timeoutMs,
     deadline: Date.now() + timeoutMs,
+    abortSignal: options?.abortSignal,
     principalId: options?.principalId,
     sendNotification: options?.sendNotification,
     progressToken: options?.progressToken,
@@ -128,6 +145,7 @@ export function createRequestContext(options?: {
     spanId: options?.spanId,
     parentSpanId: options?.parentSpanId,
     idempotencyKey: options?.idempotencyKey,
+    metadataCache: options?.metadataCache,
   };
 }
 
@@ -140,6 +158,36 @@ export function runWithRequestContext<T>(
 
 export function getRequestContext(): RequestContext | undefined {
   return storage.getStore();
+}
+
+export function getRequestAbortSignal(): AbortSignal | undefined {
+  return storage.getStore()?.abortSignal;
+}
+
+export function createRequestAbortError(
+  reason?: unknown,
+  fallbackMessage = 'Operation cancelled by client'
+): Error & { code: 'OPERATION_CANCELLED' } {
+  const message =
+    typeof reason === 'string' && reason.trim()
+      ? reason
+      : reason instanceof Error && reason.message
+        ? reason.message
+        : fallbackMessage;
+  const error = new Error(message) as Error & { code: 'OPERATION_CANCELLED'; cause?: unknown };
+  error.name = 'AbortError';
+  error.code = 'OPERATION_CANCELLED';
+  if (reason !== undefined) {
+    error.cause = reason;
+  }
+  return error;
+}
+
+export function throwIfRequestAborted(fallbackMessage = 'Operation cancelled by client'): void {
+  const abortSignal = getRequestAbortSignal();
+  if (abortSignal?.aborted) {
+    throw createRequestAbortError(abortSignal.reason, fallbackMessage);
+  }
 }
 
 export function getRequestLogger(): Logger {

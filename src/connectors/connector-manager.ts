@@ -5,7 +5,9 @@
  * Handles registration, auth, quota tracking, caching, and subscriptions.
  */
 
+import cron from 'node-cron';
 import { logger } from '../utils/logger.js';
+import { randomBytes, createCipheriv, createDecipheriv, scryptSync } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import type {
@@ -34,6 +36,95 @@ import { GenericRestConnector } from './rest-generic.js';
 
 const CONNECTOR_CONFIG_DIR =
   process.env['CONNECTOR_CONFIG_DIR'] || path.join(process.cwd(), '.serval', 'connectors');
+
+const SALT_FILE = path.join(CONNECTOR_CONFIG_DIR, '.salt');
+
+interface EncryptedConfigRecord {
+  version: 1;
+  iv: string;
+  tag: string;
+  ciphertext: string;
+}
+
+function getOrCreateSalt(): Buffer {
+  try {
+    return fs.readFileSync(SALT_FILE);
+  } catch {
+    const salt = randomBytes(32);
+    try {
+      fs.mkdirSync(path.dirname(SALT_FILE), { recursive: true });
+      fs.writeFileSync(SALT_FILE, salt, { flag: 'wx', mode: 0o600 });
+      return salt;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+        return fs.readFileSync(SALT_FILE);
+      }
+      // If we can't persist the salt, use it for this session only
+    }
+    return salt;
+  }
+}
+
+function deriveKey(): Buffer | null {
+  const password = process.env['CONNECTOR_ENCRYPTION_KEY'];
+  if (!password) return null;
+  const salt = getOrCreateSalt();
+  return scryptSync(password, salt, 32);
+}
+
+function encryptConfig(plaintext: string): string {
+  const key = deriveKey();
+  if (!key) {
+    throw new Error(
+      'Cannot save connector credentials: CONNECTOR_ENCRYPTION_KEY is not set. ' +
+        'Set this environment variable to enable encrypted credential storage.'
+    );
+  }
+
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(Buffer.from(plaintext, 'utf8')), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  const record: EncryptedConfigRecord = {
+    version: 1,
+    iv: iv.toString('base64'),
+    tag: tag.toString('base64'),
+    ciphertext: encrypted.toString('base64'),
+  };
+  return JSON.stringify(record);
+}
+
+function decryptConfig(content: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return content;
+  }
+
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    (parsed as Record<string, unknown>)['version'] !== 1 ||
+    !(parsed as Record<string, unknown>)['ciphertext']
+  ) {
+    return content;
+  }
+
+  const key = deriveKey();
+  if (!key) return content;
+
+  const record = parsed as EncryptedConfigRecord;
+  const iv = Buffer.from(record.iv, 'base64');
+  const tag = Buffer.from(record.tag, 'base64');
+  const ciphertext = Buffer.from(record.ciphertext, 'base64');
+
+  const decipher = createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(tag);
+  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  return decrypted.toString('utf8');
+}
 
 interface PersistedConnectorConfig {
   connectorId: string;
@@ -67,7 +158,8 @@ class ConnectorConfigStore {
         configuredAt: new Date().toISOString(),
       };
       const filePath = path.join(this.configDir, `${connectorId}.json`);
-      await fs.promises.writeFile(filePath, JSON.stringify(config, null, 2), 'utf-8');
+      const content = encryptConfig(JSON.stringify(config, null, 2));
+      await fs.promises.writeFile(filePath, content, { encoding: 'utf-8', mode: 0o600 });
       logger.info('Connector config persisted', { connectorId });
     } catch (err) {
       logger.warn('Failed to persist connector config', {
@@ -85,8 +177,9 @@ class ConnectorConfigStore {
       for (const file of files) {
         if (!file.endsWith('.json') || file.startsWith('sub_')) continue;
         try {
-          const content = await fs.promises.readFile(path.join(this.configDir, file), 'utf-8');
-          configs.push(JSON.parse(content));
+          const raw = await fs.promises.readFile(path.join(this.configDir, file), 'utf-8');
+          const content = decryptConfig(raw);
+          configs.push(JSON.parse(content) as PersistedConnectorConfig);
         } catch {
           // Skip corrupted config files
         }
@@ -281,7 +374,10 @@ class ConnectorCache {
 
 class SubscriptionEngine {
   private subscriptions = new Map<string, Subscription>();
-  private timers = new Map<string, ReturnType<typeof setInterval>>();
+  private timers = new Map<
+    string,
+    ReturnType<typeof setInterval> | ReturnType<typeof cron.schedule>
+  >();
   private nextId = 1;
   private configStore: SubscriptionConfigStore;
 
@@ -309,9 +405,8 @@ class SubscriptionEngine {
     };
     this.subscriptions.set(id, sub);
 
-    // Set up timer
-    const intervalMs = this.scheduleToMs(schedule);
-    const timer = setInterval(async () => {
+    // Set up timer — use node-cron for custom cron expressions, setInterval for fixed intervals
+    const runRefresh = async (): Promise<void> => {
       try {
         await refreshCallback(sub);
         sub.lastRefresh = new Date().toISOString();
@@ -321,10 +416,27 @@ class SubscriptionEngine {
         sub.status = 'error';
         sub.errorMessage = err instanceof Error ? err.message : String(err);
       }
-    }, intervalMs);
-    this.timers.set(id, timer);
+    };
 
-    sub.nextRefresh = new Date(Date.now() + intervalMs).toISOString();
+    let timer: ReturnType<typeof setInterval> | ReturnType<typeof cron.schedule>;
+    if (schedule.interval === 'custom' && schedule.customCronExpression) {
+      if (!cron.validate(schedule.customCronExpression)) {
+        throw new Error(
+          `Invalid cron expression: "${schedule.customCronExpression}". ` +
+            'Use standard 5-field cron format (e.g., "0 */6 * * *" for every 6 hours).'
+        );
+      }
+      timer = cron.schedule(schedule.customCronExpression, runRefresh, {
+        timezone: schedule.timezone ?? 'UTC',
+      });
+      // nextRefresh is approximate for cron schedules; use 1-hour lookahead
+      sub.nextRefresh = new Date(Date.now() + 3_600_000).toISOString();
+    } else {
+      const intervalMs = this.scheduleToMs(schedule);
+      timer = setInterval(runRefresh, intervalMs);
+      sub.nextRefresh = new Date(Date.now() + intervalMs).toISOString();
+    }
+    this.timers.set(id, timer);
 
     // Persist to disk
     this.persistSubscription(sub);
@@ -335,7 +447,12 @@ class SubscriptionEngine {
   remove(subscriptionId: string): boolean {
     const timer = this.timers.get(subscriptionId);
     if (timer) {
-      clearInterval(timer);
+      // node-cron tasks have a .stop() method; setInterval timers use clearInterval
+      if (typeof (timer as { stop?: () => void }).stop === 'function') {
+        (timer as { stop: () => void }).stop();
+      } else {
+        clearInterval(timer as ReturnType<typeof setInterval>);
+      }
       this.timers.delete(subscriptionId);
     }
     const removed = this.subscriptions.delete(subscriptionId);
@@ -358,7 +475,9 @@ class SubscriptionEngine {
       case 'weekly':
         return 604_800_000;
       case 'custom':
-        return 3_600_000; // Default to hourly for custom cron
+        // custom schedules use cron.schedule() in the caller; this path is unreachable
+        // but retained for type exhaustiveness
+        return 3_600_000;
     }
   }
 
@@ -450,7 +569,11 @@ class SubscriptionEngine {
 
   dispose(): void {
     for (const timer of this.timers.values()) {
-      clearInterval(timer);
+      if (typeof (timer as { stop?: () => void }).stop === 'function') {
+        (timer as { stop: () => void }).stop();
+      } else {
+        clearInterval(timer as ReturnType<typeof setInterval>);
+      }
     }
     this.timers.clear();
     // NOTE: Do NOT clear subscriptions — they persist on disk
@@ -693,16 +816,33 @@ function applyTransform(data: DataResult, transform: TransformSpec): DataResult 
 // Connector Manager
 // ============================================================================
 
+/** Injectable sheet-write callback so ConnectorManager stays decoupled from the Sheets API. */
+export type SheetWriterFn = (
+  spreadsheetId: string,
+  range: string,
+  values: (string | number | boolean | null)[][]
+) => Promise<void>;
+
 export class ConnectorManager {
   private registry = new Map<string, ConnectorRegistryEntry>();
   private quotaManager = new QuotaManager();
   private cache = new ConnectorCache();
   private subscriptionEngine: SubscriptionEngine;
   private configStore: ConnectorConfigStore;
+  private sheetWriter: SheetWriterFn | null = null;
 
   constructor(configDir?: string) {
     this.subscriptionEngine = new SubscriptionEngine(configDir);
     this.configStore = new ConnectorConfigStore(configDir);
+  }
+
+  /**
+   * Inject a Sheets write function so subscription refresh callbacks can
+   * persist results to the destination spreadsheet.
+   * Call this once at server startup after the Google API client is ready.
+   */
+  setSheetWriter(fn: SheetWriterFn): void {
+    this.sheetWriter = fn;
   }
 
   // ---------------------------------------------------------------------------
@@ -866,8 +1006,21 @@ export class ConnectorManager {
       schedule,
       destination,
       async (_sub) => {
-        await this.query(connectorId, endpoint, params, undefined, false);
-        // In a real implementation, write result to destination spreadsheet
+        const result = await this.query(connectorId, endpoint, params, undefined, false);
+        if (this.sheetWriter) {
+          const values: (string | number | boolean | null)[][] = [result.headers, ...result.rows];
+          await this.sheetWriter(destination.spreadsheetId, destination.range, values);
+          logger.info('Subscription refresh wrote data to sheet', {
+            connectorId,
+            rows: result.rows.length,
+            destination: destination.range,
+          });
+        } else {
+          logger.warn('Subscription refresh: no sheet writer configured — data not persisted', {
+            connectorId,
+            rows: result.rows.length,
+          });
+        }
       }
     );
   }
@@ -978,8 +1131,16 @@ export class ConnectorManager {
 
     // Restore persisted subscriptions
     const refreshCallback = async (sub: Subscription): Promise<void> => {
-      await this.query(sub.connectorId, sub.endpoint, sub.params, undefined, false);
-      // In a real implementation, write result to destination spreadsheet
+      const result = await this.query(sub.connectorId, sub.endpoint, sub.params, undefined, false);
+      if (this.sheetWriter && sub.destination) {
+        const values: (string | number | boolean | null)[][] = [result.headers, ...result.rows];
+        await this.sheetWriter(sub.destination.spreadsheetId, sub.destination.range, values);
+        logger.info('Restored subscription refresh wrote data to sheet', {
+          connectorId: sub.connectorId,
+          rows: result.rows.length,
+          destination: sub.destination.range,
+        });
+      }
     };
 
     const subsResult = await this.subscriptionEngine.initFromDisk(refreshCallback);

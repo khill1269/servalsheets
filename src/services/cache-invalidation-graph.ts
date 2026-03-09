@@ -130,6 +130,9 @@ export class CacheInvalidationGraph {
     rules['sheets_data.cross_query'] = { invalidates: [] }; // Read-only
     rules['sheets_data.cross_write'] = { invalidates: ['values:*'] }; // Writes to destination
     rules['sheets_data.cross_compare'] = { invalidates: [] }; // Read-only
+    rules['sheets_data.batch_get'] = { invalidates: [] }; // Read-only
+    rules['sheets_analyze.discover_action'] = { invalidates: [] }; // Read-only meta-tool
+    rules['sheets_analyze.diagnose_errors'] = { invalidates: [] }; // Read-only error diagnosis
 
     // ========================================================================
     // sheets_format (22 actions)

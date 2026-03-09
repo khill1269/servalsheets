@@ -505,16 +505,20 @@ function validateHandlerImplementations() {
         }
       }
 
-      // Check for Google API call patterns
-      const sheetsApiPattern = /sheetsApi\.spreadsheets\./;
-      const driveApiPattern = /driveApi\./;
-      const compositeServicePattern = /compositeService\./;
-      const apiCallPattern =
-        sheetsApiPattern.test(content) ||
-        driveApiPattern.test(content) ||
-        compositeServicePattern.test(content);
+      // Check for direct API calls or handler-level API wiring into decomposed action modules
+      const apiUsagePatterns = [
+        /sheetsApi\.spreadsheets\./,
+        /driveApi\./,
+        /compositeService\./,
+        /this\.sheetsApi\b/,
+        /this\.driveApi\b/,
+        /api:\s*this\.sheetsApi\b/,
+        /sheetsApi:\s*this\.sheetsApi!?/,
+        /driveApi:\s*this\.driveApi!?/,
+      ];
+      const apiCallPattern = apiUsagePatterns.some((pattern) => pattern.test(content));
       if (apiCallPattern) {
-        log(`  ✅ sheets_${handlerName}: Google API calls present`, 'green');
+        log(`  ✅ sheets_${handlerName}: Google/Drive API usage present`, 'green');
       } else if (
         !['confirm', 'session', 'transaction', 'quality', 'history', 'auth'].includes(handlerName)
       ) {
@@ -522,7 +526,7 @@ function validateHandlerImplementations() {
           severity: 'warning',
           tool: `sheets_${handlerName}`,
           category: 'HANDLER',
-          message: 'No Google Sheets API calls found (might be abstracted)',
+          message: 'No Google/Drive API usage found (might be abstracted)',
           file: `src/handlers/${handlerName}.ts`,
         });
       }

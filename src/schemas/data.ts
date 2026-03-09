@@ -531,6 +531,33 @@ const DetectSpillRangesActionSchema = CommonFieldsSchema.extend({
 });
 
 // ============================================================================
+// Smart Fill Action (pattern-detection fill)
+// ============================================================================
+
+const SmartFillActionSchema = z.object({
+  action: z
+    .literal('smart_fill')
+    .describe(
+      'Detect pattern in a source range (arithmetic, geometric, date, repeating, regression) and fill a target range. Falls back to AI sampling when no deterministic pattern is detected.'
+    ),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sourceRange: RangeInputSchema.describe('Range containing the source pattern (e.g. Sheet1!A1:A5)'),
+  fillRange: RangeInputSchema.describe(
+    'Range to fill with the detected pattern (e.g. Sheet1!A6:A20)'
+  ),
+  useSampling: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Fall back to AI sampling when no deterministic pattern is detected'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+
+// ============================================================================
 // F2: Multi-Spreadsheet Federation (4 actions)
 // ============================================================================
 
@@ -696,6 +723,9 @@ export const SheetsDataInputSchema = z.object({
 
       // Dynamic array action (1)
       DetectSpillRangesActionSchema, // Detect dynamic array / spill ranges
+
+      // Smart fill (1)
+      SmartFillActionSchema, // Pattern-detection fill
 
       // F2: Cross-spreadsheet federation (4)
       CrossReadActionSchema, // Merge data from multiple spreadsheets
@@ -1108,3 +1138,10 @@ export type DataCrossReadInput = z.infer<typeof CrossReadActionSchema>;
 export type DataCrossQueryInput = z.infer<typeof CrossQueryActionSchema>;
 export type DataCrossWriteInput = z.infer<typeof CrossWriteActionSchema>;
 export type DataCrossCompareInput = z.infer<typeof CrossCompareActionSchema>;
+export type DataSmartFillInput = SheetsDataInput['request'] & {
+  action: 'smart_fill';
+  spreadsheetId: string;
+  sourceRange: string;
+  fillRange: string;
+  useSampling?: boolean;
+};

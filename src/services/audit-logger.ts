@@ -177,6 +177,7 @@ export class AuditLogger {
   private siemConfigs: SiemConfig[];
   private writeQueue: Promise<void>;
   private initialization: Promise<void>;
+  private _pendingEncKeyPassword: string | null = null;
 
   constructor(options?: {
     logDir?: string;
@@ -194,11 +195,11 @@ export class AuditLogger {
     this.hmacSecret = options?.hmacSecret
       ? Buffer.from(options.hmacSecret, 'hex')
       : randomBytes(32);
-    // COMP-01: Derive 32-byte AES key from password using scrypt (N=16384, fixed salt)
+    // COMP-01: Derive 32-byte AES key from password using scrypt (N=16384, per-installation random salt)
+    // Salt is loaded/generated lazily in initializeAuditState() to support async file I/O.
     const encKeyPassword = options?.encryptionKey ?? process.env['AUDIT_LOG_ENCRYPTION_KEY'];
-    this.encryptionKey = encKeyPassword
-      ? scryptSync(encKeyPassword, 'servalsheets-audit-log-v1', 32)
-      : null;
+    this.encryptionKey = null; // Will be set in initializeAuditState() if encKeyPassword is set
+    this._pendingEncKeyPassword = encKeyPassword ?? null;
     this.siemConfigs = options?.siemConfigs ?? [];
     this.writeQueue = Promise.resolve();
 
@@ -208,6 +209,26 @@ export class AuditLogger {
   }
 
   private async initializeAuditState(): Promise<void> {
+    // Initialize encryption key with persisted random salt
+    if (this._pendingEncKeyPassword) {
+      const saltPath = join(this.logDir, '.audit-salt');
+      let salt: Buffer;
+      try {
+        salt = await fs.readFile(saltPath);
+      } catch {
+        salt = randomBytes(32);
+        await fs.mkdir(this.logDir, { recursive: true });
+        await fs.writeFile(saltPath, salt, { mode: 0o600 });
+      }
+      this.encryptionKey = scryptSync(this._pendingEncKeyPassword, salt, 32);
+      this._pendingEncKeyPassword = null;
+    }
+
+    // Warn if AUDIT_HMAC_SECRET not set in production
+    if (!process.env['AUDIT_HMAC_SECRET'] && process.env['NODE_ENV'] === 'production') {
+      logger.warn('AUDIT_HMAC_SECRET not set in production — audit log integrity is ephemeral');
+    }
+
     await this.loadLastSequenceNumber();
     await this.pruneExpiredLogs();
   }

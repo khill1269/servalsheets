@@ -10,6 +10,7 @@
  * MCP Protocol: 2025-11-25
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
@@ -720,7 +721,7 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
       default: {
         const _exhaustiveCheck: never = request;
         return this.error({
-          code: 'INVALID_PARAMS',
+          code: ErrorCodes.INVALID_PARAMS,
           message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
           retryable: false,
           suggestedFix:

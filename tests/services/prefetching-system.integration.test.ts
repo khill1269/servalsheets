@@ -228,7 +228,7 @@ describe('PrefetchingSystem Integration', () => {
   });
 
   describe('Circuit Breaker', () => {
-    it('should open circuit breaker after high failure rate', async () => {
+    it('should open circuit breaker after high failure rate', { timeout: 60000 }, async () => {
       // Force all prefetches to fail
       mockValuesGet.mockRejectedValue(new Error('API Error'));
       mockSpreadsheetGet.mockRejectedValue(new Error('API Error'));

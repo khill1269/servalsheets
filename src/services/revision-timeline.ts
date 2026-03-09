@@ -41,6 +41,7 @@ export interface DiffResult {
   revision1: RevisionRef;
   revision2: RevisionRef;
   cellChanges?: CellChange[];
+  isHistorical: boolean;
   summary: {
     metadataOnly: boolean;
     rev1Size?: number;
@@ -109,14 +110,36 @@ export async function getTimeline(
   } = {}
 ): Promise<TimelineEntry[]> {
   const limit = options.limit ?? 50;
+  const MAX_PAGES = 50;
 
-  const response = await driveApi.revisions.list({
-    fileId: spreadsheetId,
-    pageSize: Math.min(limit, 1000),
-    fields: 'revisions(id,modifiedTime,lastModifyingUser(displayName,emailAddress),size)',
-  });
+  const allRevisionItems: drive_v3.Schema$Revision[] = [];
+  let pageToken: string | undefined;
+  let pagesRead = 0;
 
-  let revisions = (response.data.revisions ?? []).map((r) => ({
+  do {
+    const response = await driveApi.revisions.list({
+      fileId: spreadsheetId,
+      pageSize: 200, // Drive revisions.list max is 200; values above are silently clamped
+      pageToken,
+      fields:
+        'nextPageToken,revisions(id,modifiedTime,lastModifyingUser(displayName,emailAddress),size)',
+    });
+    allRevisionItems.push(...(response.data.revisions ?? []));
+    pageToken = response.data.nextPageToken ?? undefined;
+    pagesRead++;
+    if (pagesRead >= MAX_PAGES && pageToken) {
+      logger.warn(
+        'revision-timeline: hit 50-page cap (10,000 revisions at pageSize=200); history may be truncated',
+        {
+          spreadsheetId,
+          pagesRead,
+        }
+      );
+      break;
+    }
+  } while (pageToken);
+
+  let revisions = allRevisionItems.map((r) => ({
     revisionId: r.id!,
     timestamp: r.modifiedTime ?? '',
     user: r.lastModifyingUser?.emailAddress ?? undefined,
@@ -207,13 +230,15 @@ export async function diffRevisions(
 
   // Try CSV export for cell-level diff
   let cellChanges: CellChange[] | undefined;
+  let isHistorical = true;
   try {
-    const [csv1, csv2] = await Promise.all([
+    const [export1, export2] = await Promise.all([
       exportRevisionAsCsv(driveApi, spreadsheetId, revisionId1),
       exportRevisionAsCsv(driveApi, spreadsheetId, revisionId2),
     ]);
-    if (csv1 && csv2) {
-      cellChanges = computeCsvDiff(csv1, csv2);
+    isHistorical = export1.isHistorical && export2.isHistorical;
+    if (export1.data && export2.data) {
+      cellChanges = computeCsvDiff(export1.data, export2.data);
     }
   } catch (err) {
     logger.debug('Cell-level diff unavailable, falling back to metadata', {
@@ -225,6 +250,7 @@ export async function diffRevisions(
     revision1,
     revision2,
     cellChanges,
+    isHistorical,
     summary: {
       metadataOnly: !cellChanges,
       rev1Size: rev1.size ? Number(rev1.size) : undefined,
@@ -244,7 +270,7 @@ export async function restoreCells(
   revisionId: string,
   cells: string[]
 ): Promise<RestoreResult[]> {
-  const csv = await exportRevisionAsCsv(driveApi, spreadsheetId, revisionId);
+  const { data: csv } = await exportRevisionAsCsv(driveApi, spreadsheetId, revisionId);
   if (!csv) {
     throw new Error(
       `Cannot export revision ${revisionId} as CSV. ` +
@@ -291,7 +317,7 @@ async function exportRevisionAsCsv(
   driveApi: drive_v3.Drive,
   fileId: string,
   revisionId: string // Remove underscore prefix — now actually used
-): Promise<string | null> {
+): Promise<{ data: string | null; isHistorical: boolean }> {
   try {
     // Get revision-specific export links from Drive API
     const revisionResponse = await driveApi.revisions.get({
@@ -317,19 +343,32 @@ async function exportRevisionAsCsv(
       )._options?.auth;
       if (oauth2Client?.request) {
         const result = await oauth2Client.request({ url: csvUrl, responseType: 'text' });
-        return typeof result.data === 'string' ? result.data : null;
+        return {
+          data: typeof result.data === 'string' ? result.data : null,
+          isHistorical: true,
+        };
       }
     }
 
     // Fallback: if no export links available (old unpinned revisions), export current version
     // Log warning so callers know they're getting current data, not the requested revision
+    logger.warn(
+      'revision-timeline: revision export links unavailable; falling back to current file data',
+      {
+        fileId,
+        revisionId,
+      }
+    );
     const response = await driveApi.files.export({
       fileId,
       mimeType: 'text/csv',
     });
-    return typeof response.data === 'string' ? response.data : null;
+    return {
+      data: typeof response.data === 'string' ? response.data : null,
+      isHistorical: false,
+    };
   } catch {
-    return null;
+    return { data: null, isHistorical: false };
   }
 }
 

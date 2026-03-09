@@ -7,6 +7,7 @@
  * fill_missing, detect_anomalies, suggest_cleaning.
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import { ValidationError } from '../core/errors.js';
@@ -146,7 +147,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
           response: {
             success: false as const,
             error: {
-              code: 'OPERATION_CANCELLED',
+              code: ErrorCodes.OPERATION_CANCELLED,
               message: `Fix apply cancelled by user. ${operations.length} operation(s) were not applied. Run in preview mode first to review changes.`,
               retryable: false,
             },
@@ -307,8 +308,8 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     if (this.context.samplingServer && result.changes.length > 0) {
       try {
         await assertSamplingConsent(); // ISSUE-226: GDPR consent gate
-        const recResult = await withSamplingTimeout(
-          this.context.samplingServer.createMessage({
+        const recResult = await withSamplingTimeout(() =>
+          this.context.samplingServer!.createMessage({
             messages: [
               {
                 role: 'user' as const,
@@ -415,8 +416,8 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     if (this.context.samplingServer && result.changes.length > 0) {
       try {
         await assertSamplingConsent(); // ISSUE-226: GDPR consent gate
-        const warnResult = await withSamplingTimeout(
-          this.context.samplingServer.createMessage({
+        const warnResult = await withSamplingTimeout(() =>
+          this.context.samplingServer!.createMessage({
             messages: [
               {
                 role: 'user' as const,
@@ -527,8 +528,8 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     if (this.context.samplingServer && result.changes.length > 0) {
       try {
         await assertSamplingConsent(); // ISSUE-226: GDPR consent gate
-        const evalResult = await withSamplingTimeout(
-          this.context.samplingServer.createMessage({
+        const evalResult = await withSamplingTimeout(() =>
+          this.context.samplingServer!.createMessage({
             messages: [
               {
                 role: 'user' as const,

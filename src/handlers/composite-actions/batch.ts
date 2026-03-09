@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { drive_v3, sheets_v4 } from 'googleapis';
 import type {
   BatchOperationResult,
@@ -106,7 +107,7 @@ export async function handleBatchOperationsAction(
         action: op.action,
         success: false,
         error: {
-          code: 'INTERNAL_ERROR',
+          code: ErrorCodes.INTERNAL_ERROR,
           message: `Operation failed: ${errMsg}`,
           retryable: false,
         },

@@ -10,6 +10,7 @@
  * MCP Protocol: 2025-11-25
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
@@ -51,6 +52,7 @@ import {
   handleCrossWrite,
   handleCrossCompare,
 } from './data-actions/cross.js';
+import { handleSmartFill } from './data-actions/smart-fill.js';
 
 /**
  * Main handler for sheets_data tool — thin dispatch only.
@@ -312,6 +314,11 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         return handleCrossWrite(ha, request as DataRequest & { action: 'cross_write' });
       case 'cross_compare':
         return handleCrossCompare(ha, request as DataRequest & { action: 'cross_compare' });
+      case 'smart_fill':
+        return handleSmartFill(
+          ha,
+          request as unknown as import('../schemas/data.js').DataSmartFillInput
+        );
 
       default: {
         const action = (request as { action: string }).action;
@@ -338,7 +345,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         }
 
         return this.error({
-          code: 'INVALID_PARAMS',
+          code: ErrorCodes.INVALID_PARAMS,
           message: `Unknown action: ${action}. Available actions: read, write, append, clear, batch_read, batch_write, batch_clear, find_replace, add_note, get_note, clear_note, set_hyperlink, clear_hyperlink, merge_cells, unmerge_cells, get_merges, cut_paste, copy_paste, cross_read, cross_query, cross_write, cross_compare`,
           retryable: false,
           suggestedFix:

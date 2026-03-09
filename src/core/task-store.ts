@@ -71,6 +71,36 @@ export interface TaskStore {
   getCancellationReason(taskId: string): Promise<string | null>;
 }
 
+function createCancelledTaskResult(message: string): CallToolResult {
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          response: {
+            success: false,
+            error: {
+              code: 'TASK_CANCELLED',
+              message,
+              retryable: false,
+            },
+          },
+        }),
+      },
+    ],
+    structuredContent: {
+      response: {
+        success: false,
+        error: {
+          code: 'TASK_CANCELLED',
+          message,
+          retryable: false,
+        },
+      },
+    },
+  };
+}
+
 /**
  * In-memory task store implementation
  *
@@ -165,6 +195,16 @@ export class InMemoryTaskStore implements TaskStore {
       throw new Error(`Task not found: ${taskId}`);
     }
 
+    if (status === 'cancelled') {
+      const existingReason = this.cancelledTasks.get(taskId);
+      this.cancelledTasks.set(
+        taskId,
+        message || existingReason || task.statusMessage || 'Task cancelled'
+      );
+    } else if (this.cancelledTasks.has(taskId)) {
+      return;
+    }
+
     task.status = status;
     task.statusMessage = message;
     task.lastUpdatedAt = new Date().toISOString();
@@ -184,11 +224,18 @@ export class InMemoryTaskStore implements TaskStore {
     status: 'completed' | 'failed' | 'cancelled',
     result: CallToolResult
   ): Promise<void> {
+    const effectiveStatus = this.cancelledTasks.has(taskId) ? 'cancelled' : status;
+    const existingResult = this.results.get(taskId);
+
     // Update task status to terminal state
-    await this.updateTaskStatus(taskId, status);
+    await this.updateTaskStatus(taskId, effectiveStatus);
+
+    if (effectiveStatus === 'cancelled' && existingResult?.status === 'cancelled') {
+      return;
+    }
 
     // Store result
-    this.results.set(taskId, { result, status });
+    this.results.set(taskId, { result, status: effectiveStatus });
   }
 
   /**
@@ -203,7 +250,20 @@ export class InMemoryTaskStore implements TaskStore {
    * @returns Task result or null if not yet available
    */
   async getTaskResult(taskId: string): Promise<TaskResult | null> {
-    return this.results.get(taskId) ?? null;
+    const existingResult = this.results.get(taskId);
+    if (existingResult) {
+      return existingResult;
+    }
+
+    const cancellationReason = this.cancelledTasks.get(taskId);
+    if (cancellationReason) {
+      return {
+        status: 'cancelled',
+        result: createCancelledTaskResult(cancellationReason),
+      };
+    }
+
+    return null;
   }
 
   /**
@@ -214,6 +274,7 @@ export class InMemoryTaskStore implements TaskStore {
   async deleteTask(taskId: string): Promise<void> {
     this.tasks.delete(taskId);
     this.results.delete(taskId);
+    this.cancelledTasks.delete(taskId);
   }
 
   /**
@@ -245,6 +306,7 @@ export class InMemoryTaskStore implements TaskStore {
     clearInterval(this.cleanupInterval);
     this.tasks.clear();
     this.results.clear();
+    this.cancelledTasks.clear();
   }
 
   /**
@@ -319,6 +381,13 @@ export class InMemoryTaskStore implements TaskStore {
 
     // Update task status
     await this.updateTaskStatus(taskId, 'cancelled');
+
+    if (!this.results.has(taskId)) {
+      this.results.set(taskId, {
+        status: 'cancelled',
+        result: createCancelledTaskResult(reason || 'Cancelled by client'),
+      });
+    }
 
     // Notify the server to abort the running operation
     this.onTaskCancelled?.(taskId, reason || 'Cancelled by client');
@@ -512,6 +581,20 @@ export class RedisTaskStore implements TaskStore {
       throw new Error(`Task not found: ${taskId}`);
     }
 
+    const cancelKey = `${this.keyPrefix}cancelled:${taskId}`;
+    const isCancelled = (await client.exists(cancelKey)) === 1;
+    if (status === 'cancelled') {
+      const ttl = await client.ttl(taskKey);
+      const existingReason = await client.get(cancelKey);
+      await client.set(
+        cancelKey,
+        message || existingReason || 'Task cancelled',
+        ttl > 0 ? { EX: ttl } : undefined
+      );
+    } else if (isCancelled) {
+      return;
+    }
+
     const now = new Date().toISOString();
     const updates: Record<string, string> = {
       status,
@@ -534,13 +617,30 @@ export class RedisTaskStore implements TaskStore {
     result: CallToolResult
   ): Promise<void> {
     const client = await this.ensureConnected();
+    const cancelKey = `${this.keyPrefix}cancelled:${taskId}`;
+    const resultKey = this.getResultKey(taskId);
+    const effectiveStatus = ((await client.exists(cancelKey)) === 1 ? 'cancelled' : status) as
+      | 'completed'
+      | 'failed'
+      | 'cancelled';
+    const existingResultData = await client.get(resultKey);
 
     // Update task status
-    await this.updateTaskStatus(taskId, status);
+    await this.updateTaskStatus(taskId, effectiveStatus);
+
+    if (effectiveStatus === 'cancelled' && existingResultData) {
+      try {
+        const existingResult = JSON.parse(existingResultData) as TaskResult;
+        if (existingResult.status === 'cancelled') {
+          return;
+        }
+      } catch {
+        // Overwrite malformed stored data with the new terminal result.
+      }
+    }
 
     // Store result as JSON
-    const resultKey = this.getResultKey(taskId);
-    const taskResult: TaskResult = { result, status };
+    const taskResult: TaskResult = { result, status: effectiveStatus };
     await client.set(resultKey, JSON.stringify(taskResult));
 
     // Set same expiration as task
@@ -560,16 +660,24 @@ export class RedisTaskStore implements TaskStore {
     const resultKey = this.getResultKey(taskId);
     const resultData = await client.get(resultKey);
 
-    if (!resultData) {
-      return null;
+    if (resultData) {
+      try {
+        return JSON.parse(resultData) as TaskResult;
+      } catch (error) {
+        logger.error('Failed to parse Redis task result', { error });
+        return null;
+      }
     }
 
-    try {
-      return JSON.parse(resultData) as TaskResult;
-    } catch (error) {
-      logger.error('Failed to parse Redis task result', { error });
-      return null;
+    const cancellationReason = await this.getCancellationReason(taskId);
+    if (cancellationReason) {
+      return {
+        status: 'cancelled',
+        result: createCancelledTaskResult(cancellationReason),
+      };
     }
+
+    return null;
   }
 
   /**
@@ -580,8 +688,9 @@ export class RedisTaskStore implements TaskStore {
 
     const taskKey = this.getTaskKey(taskId);
     const resultKey = this.getResultKey(taskId);
+    const cancelKey = `${this.keyPrefix}cancelled:${taskId}`;
 
-    await client.del([taskKey, resultKey]);
+    await client.del([taskKey, resultKey, cancelKey]);
   }
 
   /**
@@ -729,6 +838,7 @@ export class RedisTaskStore implements TaskStore {
     const client = await this.ensureConnected();
 
     const taskKey = this.getTaskKey(taskId);
+    const resultKey = this.getResultKey(taskId);
     const task = await client.hGetAll(taskKey);
 
     if (!task || Object.keys(task).length === 0) {
@@ -750,6 +860,17 @@ export class RedisTaskStore implements TaskStore {
 
     // Update task status
     await this.updateTaskStatus(taskId, 'cancelled');
+
+    const existingResult = await client.get(resultKey);
+    if (!existingResult) {
+      const taskResult: TaskResult = {
+        status: 'cancelled',
+        result: createCancelledTaskResult(reason || 'Cancelled by client'),
+      };
+      await client.set(resultKey, JSON.stringify(taskResult), {
+        EX: ttlSeconds,
+      });
+    }
 
     logger.warn('Task cancelled', { taskId, reason: reason || 'no reason' });
   }

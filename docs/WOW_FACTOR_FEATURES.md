@@ -38,37 +38,44 @@ awareness and predictive AI workflows.
 Before adding anything new, here's your existing performance stack — it's already substantial:
 
 **Caching (3 layers):**
+
 - L1: In-memory LRU (5-min TTL, 100MB cap) — microsecond reads
 - L2: ETag conditional requests (304 Not Modified) — 95% payload elimination
 - L3: Optional Redis (10-min TTL) — shared across instances
 - Cache invalidation graph (373 lines) — mutation-aware invalidation
 
 **Batching & Merging:**
+
 - BatchCompiler: 20-200ms adaptive windows, 100 ops/batchUpdate max
 - RequestMerger: A1 bounding-box merge (A1:C10 + B5:D15 → A1:D15), 20-40% reduction
 - Request deduplication: 5-second window, idempotency keys
 
 **Parallelism:**
+
 - ParallelExecutor: 20 concurrent requests, triggers at 100+ ranges, 40% faster
 - ConcurrencyCoordinator: Global semaphore (15 permits), adaptive 5-25 range
 - HTTP/2 multiplexing via ALPN, keepAlive with LIFO scheduling
 
 **Prediction:**
+
 - PrefetchingSystem (585 lines): Access pattern learning, background refresh 60s before TTL
 - PrefetchPredictor (458 lines): Sequential pattern detection, confidence scoring
 - AccessPatternTracker (445 lines): Learns user behavior
 
 **Resilience:**
+
 - Per-API circuit breakers (Sheets, Drive, BigQuery, Docs, Slides)
 - Exponential backoff with jitter (100ms base, 32s max)
 - Connection health monitoring with auto-reset on GOAWAY
 
 **Streaming:**
+
 - Chunked export (1000 rows/chunk, 500MB cap)
 - Response compaction (50-80% size reduction via smart sampling)
 - Verbosity filtering (essential vs. conditional fields)
 
 **Infrastructure:**
+
 - WorkerPool skeleton (488 lines) — exists but not fully wired
 - Field masks (40-60% payload reduction)
 - Payload validation (prevents 25MB limit hits)
@@ -87,6 +94,7 @@ seconds because 40-55% of steps were already prefetched. The user sees results a
 before they ask.
 
 **How it works:**
+
 ```
 User calls: read_range("Sales!A1:Z100")
   → Server executes read
@@ -97,6 +105,7 @@ User calls: read_range("Sales!A1:Z100")
 ```
 
 **Pattern library** (common Sheets workflows):
+
 - read → analyze → suggest → apply (data quality flow)
 - read → format → write (ETL flow)
 - create → generate_sheet → format (new sheet flow)
@@ -119,6 +128,7 @@ always discardable).
 to the 4 heaviest CPU operations so the main event loop never blocks.
 
 **The 4 targets:**
+
 1. **Formula parsing** (formula-parser.ts: 14K lines) — regex-heavy AST construction
 2. **Dependency graph traversal** (dependency-graph.ts: 13K lines) — transitive closure computation
 3. **Anomaly detection** (cleaning-engine.ts) — statistical computation over large ranges
@@ -147,6 +157,7 @@ for all 10 suggestions, the first 3 appear in 400ms, then 3 more at 1.2s, then t
 3s. The agent can start acting on the first suggestions while the rest compute.
 
 **How it works with MCP:**
+
 ```
 Tool call: suggest_next_actions
   → Progress notification: { partial_results: [suggestion1, suggestion2, suggestion3] }
@@ -155,6 +166,7 @@ Tool call: suggest_next_actions
 ```
 
 **Key operations that benefit:**
+
 - `comprehensive` analysis (43 feature categories → stream each category as computed)
 - `timeline` (revisions → stream each revision diff as fetched)
 - `cross_read` (multiple sources → stream each source's data as fetched)
@@ -176,6 +188,7 @@ check. For high-miss-rate workloads (first access to new spreadsheets), 70% of l
 nothing. A Bloom filter short-circuits these misses instantly.
 
 **Numbers:**
+
 - 100K cache keys → 40KB Bloom filter (2% false positive rate)
 - Cache lookup: ~5μs (hash table + string comparison)
 - Bloom check: ~0.3μs (2-3 hash operations, no string comparison)
@@ -196,6 +209,7 @@ behavior: re-fetch the entire range (100K cells). With delta sync: fetch only th
 cells. That's a 20,000x reduction in transferred data.
 
 **How:**
+
 1. First read: Full fetch + store cell-level hashes (SHA-256 of each cell value)
 2. On re-read: Check revision via Drive API (1 lightweight call)
 3. If revision changed: Fetch full range with ETag → if 304, done
@@ -218,6 +232,7 @@ real-time push notifications when spreadsheet data changes.
 someone changes a cell. No polling. No delays. The agent can react in <100ms.
 
 **Architecture:**
+
 ```
 Standard MCP: POST /mcp → tool call → response (existing)
 Real-time:    WS  /ws  → subscribe("spreadsheetId", "Sheet1!B5:B100")
@@ -229,6 +244,7 @@ Real-time:    WS  /ws  → subscribe("spreadsheetId", "Sheet1!B5:B100")
 to subscribed WebSocket clients. Already have `sheets_webhook` (7 actions) as foundation.
 
 **Use cases:**
+
 - Financial model monitoring (react to revenue changes instantly)
 - Collaboration awareness (see what teammates edit in real-time)
 - Data pipeline triggers (new data arrives → auto-process)
@@ -268,6 +284,7 @@ semantic similarity (not exact string match).
 — semantically identical query. Instead of re-computing: instant cache hit.
 
 **How:**
+
 - Embed query text using lightweight model (e.g., sentence-transformers)
 - Store embedding + result in vector cache
 - On new query: compute embedding, find nearest neighbor
@@ -288,6 +305,7 @@ pressure, and response latency.
 **Current:** ConcurrencyCoordinator uses fixed 5-25 range with manual adjustment.
 
 **Upgraded:**
+
 ```
 Healthy (0 errors, <200ms p50):      concurrency = 25
 Elevated (1-2 429s, <500ms p50):     concurrency = 15
@@ -297,6 +315,7 @@ Recovery (0 errors for 30s):         gradual ramp back up
 ```
 
 **Memory pressure integration:**
+
 - Below 70% heap: full speed
 - 70-85%: reduce prefetch concurrency, increase GC hints
 - 85%+: pause non-essential operations, compact caches, alert
@@ -335,6 +354,7 @@ with 1000+ formulas.
 and execute independent calls in parallel while queuing dependent ones.
 
 **Example:**
+
 ```
 Incoming sequence:
   1. read_range("Sales!A1:Z100")        ← independent

@@ -216,10 +216,7 @@ export function parseNLConditionalFormat(description: string): {
 
   // Text comparisons
   const textContainsMatch = d.match(/contains?\s+["']?([^"']+?)["']?\s*(?:in\s+\w+)?$/);
-  if (
-    textContainsMatch &&
-    !/greater|less|equal|above|below|blank|duplicate|error|scale/.test(d)
-  ) {
+  if (textContainsMatch && !/greater|less|equal|above|below|blank|duplicate|error|scale/.test(d)) {
     return {
       success: true,
       rule: {

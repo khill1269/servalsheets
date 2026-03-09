@@ -106,17 +106,13 @@ if (Array.isArray(serverJson.tools)) {
 }
 
 if (serverSchema) {
-  const ajv = new Ajv({ allErrors: true, strict: false, validateSchema: false });
-  try {
-    addFormats(ajv);
-  } catch {
-    // ajv-formats incompatible with ajv@6, skip format validation
-  }
+  const ajv = new Ajv({ allErrors: true, strict: false });
+  addFormats(ajv);
   const validate = ajv.compile(serverSchema);
   const valid = validate(serverJson);
   if (!valid) {
     for (const err of validate.errors ?? []) {
-      const location = err.dataPath && err.dataPath.length > 0 ? err.dataPath : '/';
+      const location = err.instancePath && err.instancePath.length > 0 ? err.instancePath : '/';
       const message = err.message ?? 'schema validation error';
       errors.push(`server.json schema: ${location} ${message}`);
     }

@@ -15,6 +15,7 @@
  * @category Handlers
  */
 
+import { ErrorCodes } from './error-codes.js';
 import {
   getWebhookManager,
   validateWebhookUrl,
@@ -97,7 +98,7 @@ export class WebhookHandler {
 
     if (isRedisConfigError) {
       return {
-        code: 'CONFIG_ERROR',
+        code: ErrorCodes.CONFIG_ERROR,
         message: 'Redis required: Redis backend is required for sheets_webhook operations',
         details: {
           action,
@@ -118,7 +119,7 @@ export class WebhookHandler {
     }
 
     return {
-      code: 'INTERNAL_ERROR',
+      code: ErrorCodes.INTERNAL_ERROR,
       message: message || fallbackMessage,
       details: { action, error: String(error) },
       retryable: false,
@@ -163,7 +164,7 @@ export class WebhookHandler {
               response: {
                 success: false as const,
                 error: {
-                  code: 'NOT_FOUND' as const,
+                  code: ErrorCodes.NOT_FOUND,
                   message: 'Workspace Events service not available',
                   retryable: false,
                 },
@@ -192,7 +193,7 @@ export class WebhookHandler {
               response: {
                 success: false as const,
                 error: {
-                  code: 'NOT_FOUND' as const,
+                  code: ErrorCodes.NOT_FOUND,
                   message: 'Workspace Events service not available',
                   retryable: false,
                 },
@@ -217,7 +218,7 @@ export class WebhookHandler {
               response: {
                 success: false as const,
                 error: {
-                  code: 'NOT_FOUND' as const,
+                  code: ErrorCodes.NOT_FOUND,
                   message: 'Workspace Events service not available',
                   retryable: false,
                 },
@@ -241,7 +242,7 @@ export class WebhookHandler {
             response: {
               success: false,
               error: {
-                code: 'INVALID_PARAMS',
+                code: ErrorCodes.INVALID_PARAMS,
                 message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
                 retryable: false,
                 suggestedFix:
@@ -285,7 +286,7 @@ export class WebhookHandler {
           return {
             success: false,
             error: {
-              code: 'FAILED_PRECONDITION',
+              code: ErrorCodes.FAILED_PRECONDITION,
               message: `A webhook with URL "${input.webhookUrl}" is already registered for this spreadsheet (existing ID: ${duplicate.webhookId}). Unregister the existing webhook first or use a different URL.`,
               retryable: false,
             },
@@ -375,7 +376,7 @@ export class WebhookHandler {
         return {
           success: false,
           error: {
-            code: 'NOT_FOUND',
+            code: ErrorCodes.NOT_FOUND,
             message: `Webhook ${input.webhookId} not found`,
             retryable: false,
             suggestedFix: 'Verify the spreadsheet ID is correct and the spreadsheet exists',
@@ -410,7 +411,7 @@ export class WebhookHandler {
         return {
           success: false,
           error: {
-            code: 'NOT_FOUND',
+            code: ErrorCodes.NOT_FOUND,
             message: `Webhook ${input.webhookId} not found`,
             retryable: false,
             suggestedFix: 'Verify the spreadsheet ID is correct and the spreadsheet exists',
@@ -547,7 +548,7 @@ export class WebhookHandler {
       return {
         success: false,
         error: {
-          code: 'CONFIG_ERROR',
+          code: ErrorCodes.CONFIG_ERROR,
           message: 'Drive API client not available. watch_changes requires Drive API access.',
           retryable: false,
           resolution: 'Ensure the server is initialized with Drive API scopes.',

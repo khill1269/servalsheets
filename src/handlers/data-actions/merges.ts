@@ -2,6 +2,7 @@
  * Merge / unmerge / cut-paste / copy-paste / detect-spill handlers for sheets_data.
  */
 
+import { ErrorCodes } from '../error-codes.js';
 import type { DataResponse, SheetsDataInput } from '../../schemas/data.js';
 import {
   buildGridRangeInput,
@@ -10,7 +11,12 @@ import {
 } from '../../utils/google-sheets-helpers.js';
 import type { DataHandlerAccess } from './internal.js';
 import { MAX_CELLS_PER_REQUEST } from './internal.js';
-import { resolveRangeToA1, a1ToGridRange, buildCellRef, requestDestructiveConfirmation } from './helpers.js';
+import {
+  resolveRangeToA1,
+  a1ToGridRange,
+  buildCellRef,
+  requestDestructiveConfirmation,
+} from './helpers.js';
 
 type DataRequest = SheetsDataInput['request'];
 
@@ -68,9 +74,11 @@ export async function handleUnmergeCells(
 
   // Safety: confirm destructive unmerge operation
   const unmergeConfirmation = await requestDestructiveConfirmation(
-    ha, 'unmerge_cells',
+    ha,
+    'unmerge_cells',
     `Unmerge cells in ${rangeA1}. Merged cell formatting will be lost.`,
-    1000, 100
+    1000,
+    100
   );
   if (!unmergeConfirmation.proceed) {
     return ha.makeSuccess('unmerge_cells', {
@@ -150,9 +158,11 @@ export async function handleCutPaste(
 
   // Safety: confirm destructive cut operation (source cells will be cleared)
   const cutConfirmation = await requestDestructiveConfirmation(
-    ha, 'cut_paste',
+    ha,
+    'cut_paste',
     `Cut data from ${rangeA1} and paste to ${input.destination}. Source cells will be cleared.`,
-    1000, 100
+    1000,
+    100
   );
   if (!cutConfirmation.proceed) {
     return ha.makeSuccess('cut_paste', {
@@ -170,7 +180,7 @@ export async function handleCutPaste(
     destParsed = parseCellReference(input.destination);
   } catch (_error) {
     return ha.makeError({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: `Invalid destination cell reference: ${input.destination}. Expected format: 'Sheet1!A1' or 'A1'`,
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -245,7 +255,7 @@ export async function handleCopyPaste(
     destParsed = parseCellReference(input.destination);
   } catch (_error) {
     return ha.makeError({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: `Invalid destination cell reference: ${input.destination}. Expected format: 'Sheet1!A1' or 'A1'`,
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -341,8 +351,7 @@ export async function handleDetectSpillRanges(
 
   const resolvedSheet =
     result.data.sheets?.find(
-      (s) =>
-        s.properties?.title === rangeStr || rangeStr?.startsWith(s.properties?.title ?? '\x00')
+      (s) => s.properties?.title === rangeStr || rangeStr?.startsWith(s.properties?.title ?? '\x00')
     ) ?? result.data.sheets?.[0];
   const gridProps = resolvedSheet?.properties?.gridProperties;
   if (gridProps) {

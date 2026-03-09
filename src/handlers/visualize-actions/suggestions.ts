@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type {
@@ -35,7 +36,7 @@ export async function handleSuggestChartAction(
 
   if (!hasLLMFallback && (!deps.context.server || !samplingSupport.supported)) {
     return deps.error({
-      code: 'FEATURE_UNAVAILABLE',
+      code: ErrorCodes.FEATURE_UNAVAILABLE,
       message:
         'Chart suggestions require MCP Sampling capability (SEP-1577) or LLM API key. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.',
       retryable: false,
@@ -46,7 +47,7 @@ export async function handleSuggestChartAction(
 
   if (!input.range) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: 'Range is required for chart suggestions',
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -76,7 +77,7 @@ export async function handleSuggestChartAction(
     const values = response.data.values || [];
     if (values.length === 0) {
       return deps.error({
-        code: 'INVALID_PARAMS',
+        code: ErrorCodes.INVALID_PARAMS,
         message: 'Range contains no data',
         retryable: false,
         suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -150,7 +151,7 @@ Always return valid JSON in the exact format requested.`;
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return deps.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: 'Could not parse chart suggestions from AI response',
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -174,7 +175,7 @@ Always return valid JSON in the exact format requested.`;
       error: error instanceof Error ? error.message : String(error),
     });
     return deps.error({
-      code: 'INTERNAL_ERROR',
+      code: ErrorCodes.INTERNAL_ERROR,
       message:
         'Chart suggestion failed. The AI analysis service may be temporarily unavailable. Please try again.',
       retryable: true,
@@ -195,7 +196,7 @@ export async function handleSuggestPivotAction(
 
   if (!hasLLMFallback && (!deps.context.server || !samplingSupport.supported)) {
     return deps.error({
-      code: 'FEATURE_UNAVAILABLE',
+      code: ErrorCodes.FEATURE_UNAVAILABLE,
       message:
         'Pivot table suggestions require MCP Sampling capability (SEP-1577) or LLM API key. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.',
       retryable: false,
@@ -206,7 +207,7 @@ export async function handleSuggestPivotAction(
 
   if (!input.range) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: 'Range is required for pivot table suggestions',
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -236,7 +237,7 @@ export async function handleSuggestPivotAction(
     const values = response.data.values || [];
     if (values.length === 0) {
       return deps.error({
-        code: 'INVALID_PARAMS',
+        code: ErrorCodes.INVALID_PARAMS,
         message: 'Range contains no data',
         retryable: false,
         suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -313,7 +314,7 @@ Always return valid JSON in the exact format requested.`;
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return deps.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: 'Could not parse pivot table suggestions from AI response',
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -334,7 +335,7 @@ Always return valid JSON in the exact format requested.`;
     });
   } catch (error) {
     return deps.error({
-      code: 'INTERNAL_ERROR',
+      code: ErrorCodes.INTERNAL_ERROR,
       message: `Pivot table suggestion failed: ${error instanceof Error ? error.message : String(error)}`,
       retryable: true,
       suggestedFix: 'Please try again. If the issue persists, contact support',

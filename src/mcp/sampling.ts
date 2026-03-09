@@ -21,7 +21,7 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js';
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
-import { getRequestContext } from '../utils/request-context.js';
+import { createRequestAbortError, getRequestContext } from '../utils/request-context.js';
 import { getEnv } from '../config/env.js';
 import {
   getSpreadsheetContext,
@@ -111,34 +111,74 @@ export async function assertSamplingConsent(): Promise<void> {
 
 /** Default sampling request timeout in ms (configurable via SAMPLING_TIMEOUT_MS env var) */
 const SAMPLING_TIMEOUT_MS = parseInt(process.env['SAMPLING_TIMEOUT_MS'] ?? '30000', 10);
+type SamplingOperation<T> = Promise<T> | (() => Promise<T>);
+
+function getEffectiveSamplingTimeout(deadline: number | undefined): number {
+  if (!Number.isFinite(SAMPLING_TIMEOUT_MS) || SAMPLING_TIMEOUT_MS <= 0) {
+    return 30000;
+  }
+  if (!Number.isFinite(deadline)) {
+    return SAMPLING_TIMEOUT_MS;
+  }
+  return Math.min(SAMPLING_TIMEOUT_MS, Math.max(0, (deadline as number) - Date.now()));
+}
 
 /**
  * Wrap a sampling request with a configurable timeout.
  * Respects the current request deadline so sampling never outlasts its parent request.
  * Rejects with a descriptive error if the request exceeds the effective timeout.
  */
-export function withSamplingTimeout<T>(promise: Promise<T>): Promise<T> {
+export function withSamplingTimeout<T>(operation: SamplingOperation<T>): Promise<T> {
   // Use the remaining request deadline if available, capped at SAMPLING_TIMEOUT_MS
   const ctx = getRequestContext();
-  const effectiveTimeout = ctx
-    ? Math.min(SAMPLING_TIMEOUT_MS, Math.max(0, ctx.deadline - Date.now()))
-    : SAMPLING_TIMEOUT_MS;
+  const abortSignal = ctx?.abortSignal;
+  const effectiveTimeout = getEffectiveSamplingTimeout(ctx?.deadline);
+  const execute = typeof operation === 'function' ? operation : () => operation;
+
+  if (abortSignal?.aborted) {
+    return Promise.reject(
+      createRequestAbortError(abortSignal.reason, 'Sampling request cancelled by client')
+    );
+  }
 
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`Sampling request timed out after ${effectiveTimeout}ms`)),
-      effectiveTimeout
-    );
-    promise.then(
-      (v) => {
+    let settled = false;
+    let timer: NodeJS.Timeout | undefined;
+    const cleanup = (): void => {
+      if (timer) {
         clearTimeout(timer);
-        resolve(v);
-      },
-      (e: unknown) => {
-        clearTimeout(timer);
-        reject(e);
       }
-    );
+      abortSignal?.removeEventListener('abort', onAbort);
+    };
+    const settle = (callback: () => void): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      callback();
+    };
+    const onAbort = (): void => {
+      settle(() =>
+        reject(createRequestAbortError(abortSignal?.reason, 'Sampling request cancelled by client'))
+      );
+    };
+
+    abortSignal?.addEventListener('abort', onAbort, { once: true });
+    timer = setTimeout(() => {
+      settle(() => reject(new Error(`Sampling request timed out after ${effectiveTimeout}ms`)));
+    }, effectiveTimeout);
+
+    Promise.resolve()
+      .then(() => execute())
+      .then(
+        (value) => {
+          settle(() => resolve(value));
+        },
+        (error: unknown) => {
+          settle(() => reject(error));
+        }
+      );
   });
 }
 
@@ -605,7 +645,7 @@ export async function analyzeData(
   }
   prompt += `Data:\n${formattedData}`;
 
-  const result = await withSamplingTimeout(
+  const result = await withSamplingTimeout(() =>
     server.createMessage({
       messages: [createUserMessage(prompt)],
       systemPrompt,
@@ -666,7 +706,7 @@ export async function generateFormula(
   }
 
   const defaults = DEFAULT_MODEL_HINTS['formulaGeneration']!;
-  const result = await withSamplingTimeout(
+  const result = await withSamplingTimeout(() =>
     server.createMessage({
       messages: [createUserMessage(prompt)],
       systemPrompt: SAMPLING_PROMPTS.formulaGeneration,
@@ -729,7 +769,7 @@ export async function recommendChart(
 }`;
 
   const chartDefaults = DEFAULT_MODEL_HINTS['chartRecommendation']!;
-  const result = await withSamplingTimeout(
+  const result = await withSamplingTimeout(() =>
     server.createMessage({
       messages: [createUserMessage(prompt)],
       systemPrompt: SAMPLING_PROMPTS.chartRecommendation,
@@ -777,7 +817,7 @@ export async function explainFormula(
     : `Briefly explain what this Google Sheets formula does:\n\n${formula}`;
 
   const explainDefaults = DEFAULT_MODEL_HINTS['formulaExplanation']!;
-  const result = await withSamplingTimeout(
+  const result = await withSamplingTimeout(() =>
     server.createMessage({
       messages: [createUserMessage(prompt)],
       systemPrompt: SAMPLING_PROMPTS.formulaExplanation,
@@ -827,7 +867,7 @@ export async function identifyDataIssues(
   "suggestedFix": "How to fix it"
 }]`;
 
-  const result = await withSamplingTimeout(
+  const result = await withSamplingTimeout(() =>
     server.createMessage({
       messages: [createUserMessage(prompt)],
       systemPrompt: SAMPLING_PROMPTS.dataCleaning,
@@ -1168,7 +1208,7 @@ Original question: ${params.question}
 Provide a cohesive summary that synthesizes insights from all chunks.`;
 
   await assertSamplingConsent(); // ISSUE-117: consent gate for summary generation
-  const summary = await withSamplingTimeout(
+  const summary = await withSamplingTimeout(() =>
     server.createMessage({
       messages: [createUserMessage(summaryPrompt)],
       systemPrompt:
@@ -1228,7 +1268,7 @@ export async function* streamAgenticOperation(
   while (continueLoop && iterationCount < maxIterations) {
     iterationCount++;
 
-    const result = await withSamplingTimeout(server.createMessage(params));
+    const result = await withSamplingTimeout(() => server.createMessage(params));
 
     // Process content
     const contentBlocks = Array.isArray(result.content) ? result.content : [result.content];
@@ -1355,7 +1395,7 @@ export async function generateAIInsight(
       prompt += `\n\nContext: ${options.context}`;
     }
 
-    const result = await withSamplingTimeout(
+    const result = await withSamplingTimeout(() =>
       server.createMessage({
         messages: [createUserMessage(prompt)],
         systemPrompt,

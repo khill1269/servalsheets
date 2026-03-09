@@ -30,6 +30,7 @@ function hasDependency(packageJson, dependencyName) {
 const issues = [];
 
 const httpServer = read('src/http-server.ts');
+const httpServerGraphql = read('src/http-server/graphql-admin.ts');
 const serverMain = read('src/server.ts');
 const envConfig = read('src/config/env.ts');
 const graphqlResolvers = read('src/graphql/resolvers.ts');
@@ -101,9 +102,9 @@ if (!hasDependency(packageJson, 'hyperformula')) {
 }
 
 ensureIncludes(
-  httpServer,
+  httpServerGraphql,
   'addGraphQLEndpoint(',
-  'GraphQL endpoint is not wired from src/http-server.ts.',
+  'GraphQL endpoint is not wired from src/http-server/graphql-admin.ts.',
   issues
 );
 ensureIncludes(

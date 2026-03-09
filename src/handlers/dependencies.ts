@@ -15,6 +15,7 @@
  * @category Handlers
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { ImpactAnalyzer } from '../analysis/impact-analyzer.js';
 import type {
@@ -138,7 +139,7 @@ export class DependenciesHandler {
             response: {
               success: false,
               error: {
-                code: 'INVALID_PARAMS',
+                code: ErrorCodes.INVALID_PARAMS,
                 message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
                 retryable: false,
                 suggestedFix:
@@ -726,8 +727,8 @@ export class DependenciesHandler {
           .join(', ');
 
         await assertSamplingConsent(); // ISSUE-226: GDPR consent gate
-        const narrativeResult = await withSamplingTimeout(
-          this.samplingServer.createMessage({
+        const narrativeResult = await withSamplingTimeout(() =>
+          this.samplingServer!.createMessage({
             messages: [
               {
                 role: 'user' as const,
@@ -988,7 +989,7 @@ export class DependenciesHandler {
       return {
         success: false,
         error: {
-          code: 'OPERATION_LIMIT_EXCEEDED',
+          code: ErrorCodes.OPERATION_LIMIT_EXCEEDED,
           message: `Scenario contains ${req.scenario.changes.length} cell changes, which exceeds the ${MAX_SCENARIO_CELLS}-cell limit. Narrow the output range or split the scenario into smaller batches.`,
           retryable: false,
         },

@@ -17,6 +17,7 @@
  * MCP Protocol: 2025-11-25
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4, drive_v3 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
@@ -98,7 +99,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         default: {
           const _exhaustiveCheck: never = req;
           response = this.error({
-            code: 'INVALID_PARAMS',
+            code: ErrorCodes.INVALID_PARAMS,
             message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
@@ -136,7 +137,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       if (error instanceof IncrementalScopeRequiredError) {
         return this.error({
-          code: 'INCREMENTAL_SCOPE_REQUIRED',
+          code: ErrorCodes.INCREMENTAL_SCOPE_REQUIRED,
           message: error.message,
           category: 'auth',
           retryable: true,
@@ -199,7 +200,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       logger.error('Failed to list templates', { error });
       return this.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: `Failed to list templates: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -224,7 +225,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         const builtin = await this.templateStore.getBuiltinTemplate(builtinId);
         if (!builtin) {
           return this.error({
-            code: 'NOT_FOUND',
+            code: ErrorCodes.NOT_FOUND,
             message: `Builtin template not found: ${builtinId}`,
             retryable: false,
             suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
@@ -250,7 +251,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
       const template = await this.templateStore.get(req.templateId);
       if (!template) {
         return this.error({
-          code: 'NOT_FOUND',
+          code: ErrorCodes.NOT_FOUND,
           message: `Template not found: ${req.templateId}`,
           retryable: false,
           suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
@@ -261,7 +262,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       logger.error('Failed to get template', { templateId: req.templateId, error });
       return this.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: `Failed to get template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -313,7 +314,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       logger.error('Failed to create template', { spreadsheetId: req.spreadsheetId, error });
       return this.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: `Failed to create template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -343,7 +344,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         const builtin = await this.templateStore.getBuiltinTemplate(builtinId);
         if (!builtin) {
           return this.error({
-            code: 'NOT_FOUND',
+            code: ErrorCodes.NOT_FOUND,
             message: `Builtin template not found: ${builtinId}`,
             retryable: false,
             suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
@@ -354,7 +355,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         const template = await this.templateStore.get(req.templateId);
         if (!template) {
           return this.error({
-            code: 'NOT_FOUND',
+            code: ErrorCodes.NOT_FOUND,
             message: `Template not found: ${req.templateId}`,
             retryable: false,
             suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
@@ -403,7 +404,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
       // Validate response data before using
       if (!response.data.spreadsheetId || !response.data.spreadsheetUrl) {
         return this.error({
-          code: 'INTERNAL_ERROR',
+          code: ErrorCodes.INTERNAL_ERROR,
           message: 'Sheets API returned incomplete data after creating spreadsheet',
           details: {
             templateId: req.templateId,
@@ -478,7 +479,10 @@ export class SheetsTemplatesHandler extends BaseHandler<
         }
 
         processedSheets += 1;
-        if (shouldReportProgress && (processedSheets % 2 === 0 || processedSheets === totalSheets)) {
+        if (
+          shouldReportProgress &&
+          (processedSheets % 2 === 0 || processedSheets === totalSheets)
+        ) {
           await this.sendProgress(
             1 + processedSheets,
             totalProgressSteps,
@@ -551,7 +555,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       logger.error('Failed to apply template', { templateId: req.templateId, error });
       return this.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: `Failed to apply template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -570,7 +574,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     try {
       if (req.templateId.startsWith('builtin:')) {
         return this.error({
-          code: 'INVALID_REQUEST',
+          code: ErrorCodes.INVALID_REQUEST,
           message: 'Cannot update builtin templates. Use import_builtin first.',
           retryable: false,
           suggestedFix: 'Verify the request format is correct',
@@ -590,7 +594,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       logger.error('Failed to update template', { templateId: req.templateId, error });
       return this.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: `Failed to update template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -609,7 +613,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     try {
       if (req.templateId.startsWith('builtin:')) {
         return this.error({
-          code: 'INVALID_REQUEST',
+          code: ErrorCodes.INVALID_REQUEST,
           message: 'Cannot delete builtin templates.',
           retryable: false,
           suggestedFix: 'Verify the request format is correct',
@@ -622,7 +626,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       logger.error('Failed to delete template', { templateId: req.templateId, error });
       return this.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: `Failed to delete template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -654,7 +658,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         const builtin = await this.templateStore.getBuiltinTemplate(builtinId);
         if (!builtin) {
           return this.error({
-            code: 'NOT_FOUND',
+            code: ErrorCodes.NOT_FOUND,
             message: `Builtin template not found: ${builtinId}`,
             retryable: false,
             suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
@@ -669,7 +673,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         const template = await this.templateStore.get(req.templateId);
         if (!template) {
           return this.error({
-            code: 'NOT_FOUND',
+            code: ErrorCodes.NOT_FOUND,
             message: `Template not found: ${req.templateId}`,
             retryable: false,
             suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
@@ -694,7 +698,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       logger.error('Failed to preview template', { templateId: req.templateId, error });
       return this.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: `Failed to preview template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -714,7 +718,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
       const builtin = await this.templateStore.getBuiltinTemplate(req.builtinName);
       if (!builtin) {
         return this.error({
-          code: 'NOT_FOUND',
+          code: ErrorCodes.NOT_FOUND,
           message: `Builtin template not found: ${req.builtinName}`,
           retryable: false,
           suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
@@ -736,7 +740,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       logger.error('Failed to import builtin template', { builtinName: req.builtinName, error });
       return this.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: `Failed to import builtin template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',

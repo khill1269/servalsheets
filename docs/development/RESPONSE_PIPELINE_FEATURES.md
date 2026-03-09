@@ -10,6 +10,7 @@ Two new features enhance the MCP response pipeline to make ServalSheets more int
 2. **Phase 1B.2: Suggested Next Actions** — After successful tool calls, include up to 3 `suggestedNextActions` that recommend what to do next
 
 Together, these features enable Claude to:
+
 - Automatically correct common mistakes without human intervention
 - Discover powerful action-chaining patterns
 - Work more independently with fewer back-and-forth corrections
@@ -56,6 +57,7 @@ export function suggestFix(
 10. **RANGE_OVERLAP** — Suggest `sheets_data.get_merges` to inspect conflicts
 
 **Design Notes:**
+
 - Non-blocking: wrapped in try/catch, silently continues if suggestion fails
 - Context-aware: uses original tool/action/params to provide better suggestions
 - Defensive: all field accesses use optional chaining and type guards
@@ -94,6 +96,7 @@ export function getRecommendedActions(
 | `sheets_core.create` | `sheets_core.add_sheet`, `sheets_data.write`, `sheets_session.set_active` | Set up new spreadsheet |
 
 **Design Notes:**
+
 - Pattern-based: static rules, zero API calls (instant)
 - Ordered by relevance: most useful action first
 - Limited to 3 per response: prevents overwhelming Claude
@@ -109,6 +112,7 @@ export function getRecommendedActions(
 **Insertion Points:**
 
 1. **Phase 1B.1 (line ~990):** After error detection, BEFORE size validation
+
    ```typescript
    if (hasFailure && 'response' in structuredContent && response && typeof response === 'object') {
      try {
@@ -124,6 +128,7 @@ export function getRecommendedActions(
    ```
 
 2. **Phase 1B.2 (line ~1010):** Immediately after Phase 1B.1
+
    ```typescript
    if (!hasFailure && 'response' in structuredContent && response && typeof response === 'object' && toolName) {
      try {
@@ -168,6 +173,7 @@ export function getRecommendedActions(
 ```
 
 Claude can now see what went wrong AND exactly how to fix it, enabling self-correction:
+
 ```
 Tool call failed: Sheet 'Sales2024' not found.
 I should call sheets_core.list_sheets to find the correct sheet name first.
@@ -203,6 +209,7 @@ I should call sheets_core.list_sheets to find the correct sheet name first.
 ```
 
 Claude can now understand the natural next steps:
+
 ```
 I just read the data. The response suggests I could:
 1. Analyze patterns to find insights
@@ -219,6 +226,7 @@ Let me start by analyzing patterns...
 ### 1. Non-Blocking
 
 Both features are wrapped in try/catch blocks. If suggestion generation throws an error, the response is still returned successfully without the suggestion. This ensures:
+
 - No tool call ever fails due to suggestion generation
 - Failures in suggestion logic don't cascade to the user
 - Safe to experiment with new suggestion patterns
@@ -226,11 +234,13 @@ Both features are wrapped in try/catch blocks. If suggestion generation throws a
 ### 2. Context-Aware
 
 Suggestions take into account:
+
 - The original error code and message (what went wrong)
 - The tool and action that failed (where it failed)
 - The parameters that were passed (what was being attempted)
 
 This allows for smarter fixes. Example:
+
 ```typescript
 // Error: "Range 'A:Z' is unbounded"
 // Suggestion: Rewrite as 'A1:Z1000' (smart bounds based on context)
@@ -247,6 +257,7 @@ This allows for smarter fixes. Example:
 ### 4. User-Friendly
 
 All suggestions include:
+
 - **explanation** (error fixes): Why this fix works
 - **reason** (action recommendations): Why you'd want to do this next
 
@@ -291,11 +302,13 @@ MCP Client (Claude)
 **File:** `tests/unit/response-pipeline-features.test.ts`
 
 Tests both services with:
+
 - 8 test cases for suggestFix (all 10 patterns covered)
 - 8 test cases for getRecommendedActions
 - Total: 16 tests, all passing
 
 Example test:
+
 ```typescript
 it('should suggest fixing unbounded range', () => {
   const fix = suggestFix('INVALID_RANGE', 'Range is unbounded', 'sheets_data', 'read', {
@@ -312,6 +325,7 @@ it('should suggest fixing unbounded range', () => {
 ### Phase 1B.3: Contextual Fixes (Planned)
 
 Add context from SessionContext to improve suggestions:
+
 - User's recent actions (suggest based on pattern history)
 - Previously attempted fixes (avoid suggesting the same fix twice)
 - User preferences (suggest based on style, not just correctness)
@@ -319,6 +333,7 @@ Add context from SessionContext to improve suggestions:
 ### Phase 1B.4: Learning (Planned)
 
 Track which suggestions Claude accepted:
+
 - If Claude calls the suggested tool, mark as "effective"
 - If Claude ignores it, mark as "irrelevant"
 - Dynamically rerank suggestions based on effectiveness
@@ -326,6 +341,7 @@ Track which suggestions Claude accepted:
 ### Phase 1B.5: ML-Based (Future)
 
 Use Sampling to generate context-specific suggestions:
+
 - "I tried to read the data and got a permission error — what should I do?"
 - Sampling generates 3 personalized suggestions (not just static patterns)
 - More powerful but higher latency
@@ -342,6 +358,7 @@ Use Sampling to generate context-specific suggestions:
 | **Discoverable** | Users learn about features through recommendations | Exposure of underused actions |
 
 **Expected Outcome:**
+
 - Faster, more autonomous Claude workflows
 - Fewer retry loops and back-and-forth corrections
 - Better feature discovery and tool usage

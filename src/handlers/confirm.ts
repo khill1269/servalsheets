@@ -11,6 +11,7 @@
  * @see MCP_PROTOCOL_COMPLETE_REFERENCE.md - Elicitation section
  */
 
+import { ErrorCodes } from './error-codes.js';
 import { randomUUID } from 'crypto';
 import { unwrapRequest, type HandlerContext } from './base.js';
 import {
@@ -35,6 +36,7 @@ import { registerCleanup } from '../utils/resource-cleanup.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { logger } from '../utils/logger.js';
+import { getRequestContext } from '../utils/request-context.js';
 
 /**
  * Wizard session storage
@@ -141,7 +143,7 @@ export class ConfirmHandler {
             response = {
               success: false,
               error: {
-                code: 'ELICITATION_UNAVAILABLE',
+                code: ErrorCodes.ELICITATION_UNAVAILABLE,
                 message: 'MCP Server instance not available. Cannot perform elicitation.',
                 retryable: false,
               },
@@ -150,13 +152,13 @@ export class ConfirmHandler {
           }
 
           // Check if client supports elicitation (with caching)
-          const sessionId = this.context.requestId || 'default';
+          const sessionId = getRequestContext()?.requestId ?? this.context.requestId ?? 'default';
           const clientCapabilities = await getCapabilitiesWithCache(sessionId, this.context.server);
           if (!clientCapabilities?.elicitation) {
             response = {
               success: false,
               error: {
-                code: 'ELICITATION_UNAVAILABLE',
+                code: ErrorCodes.ELICITATION_UNAVAILABLE,
                 message:
                   'MCP Elicitation not available. The MCP client must declare elicitation capability during initialize (SEP-1036). Claude Desktop does not yet support this. Use sheets_confirm.wizard_start for multi-step confirmation flows as an alternative, or use the HTTP transport with an elicitation-capable client.',
                 retryable: false,
@@ -285,7 +287,7 @@ export class ConfirmHandler {
             response = {
               success: false,
               error: {
-                code: 'NOT_FOUND',
+                code: ErrorCodes.NOT_FOUND,
                 message: `Wizard "${stepInput.wizardId}" not found. It may have expired.`,
                 retryable: false,
                 suggestedFix: 'Verify the spreadsheet ID is correct and the spreadsheet exists',
@@ -300,7 +302,7 @@ export class ConfirmHandler {
             response = {
               success: false,
               error: {
-                code: 'INVALID_PARAMS',
+                code: ErrorCodes.INVALID_PARAMS,
                 message: `Step "${stepInput.stepId}" not found in wizard.`,
                 retryable: false,
                 suggestedFix:
@@ -366,7 +368,7 @@ export class ConfirmHandler {
             response = {
               success: false,
               error: {
-                code: 'NOT_FOUND',
+                code: ErrorCodes.NOT_FOUND,
                 message: `Wizard "${completeInput.wizardId}" not found. It may have expired.`,
                 retryable: false,
                 suggestedFix: 'Verify the spreadsheet ID is correct and the spreadsheet exists',
@@ -403,10 +405,14 @@ export class ConfirmHandler {
         }
 
         default: {
+          // Exhaustiveness guard: compile error if a new ConfirmActionSchema action is added
+          // without a corresponding case here.
+          const _exhaustiveCheck: never = req as never;
+          void _exhaustiveCheck;
           response = {
             success: false,
             error: {
-              code: 'INVALID_PARAMS',
+              code: ErrorCodes.INVALID_PARAMS,
               message: `Unknown action: ${requestActionLabel}`,
               retryable: false,
             },
