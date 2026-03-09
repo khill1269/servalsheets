@@ -2,7 +2,8 @@
 title: MCP 2025-11-25 Compliance Checklist
 category: general
 last_updated: 2026-01-31
-description: > ServalSheets MCP Protocol Compliance Audit & Testing Guide
+description: >
+  ServalSheets MCP Protocol Compliance Audit & Testing Guide
 version: 1.6.0
 tags: [mcp]
 ---
