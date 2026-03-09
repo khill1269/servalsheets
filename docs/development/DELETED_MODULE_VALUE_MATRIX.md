@@ -138,6 +138,7 @@ Method: static references (`rg`), active architecture comparison, test/type gate
 Scope: symbol/file candidates from `audit-output/dead-code-triage-2026-02-24.{md,json}`.
 
 Value parameters used for each decision:
+
 - Runtime wiring: direct runtime imports/calls in `src/`.
 - Tooling dependency: test/script usage and CI contract impact.
 - Architectural uniqueness: unique capability vs overlap/duplication.

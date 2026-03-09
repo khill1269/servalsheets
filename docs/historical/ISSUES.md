@@ -1,7 +1,7 @@
 # ServalSheets — Master Issue Registry
 
 > **Note**: This is a historical document. Tool/action counts referenced below reflect the state at the time each issue was filed. Current counts: 25 tools, 391 actions (see `src/schemas/action-counts.ts`).
-
+>
 > Consolidated from 8 source documents: Audit_Report, Fix_Report, MCP_Test_Results,
 > Handler_Analysis, Complete_Audit_Roadmap, Competitive_Analysis, Implementation_Guide,
 > Strategic_Roadmap. Use this file to drive agent-by-agent codebase remediation.
@@ -381,7 +381,7 @@ All current changes irreversibly overwritten with no preview. User has no way to
 
 Surgically restores cells from historic revision with no elicitation. No threshold check.
 
-**Fix**: `if (cells.length > 10) { await this.confirmDestructiveAction({ description: `Restore ${cells.length} cells from ${revisionId}` }); }`
+**Fix**: `if (cells.length > 10) { await this.confirmDestructiveAction({ description:`Restore ${cells.length} cells from ${revisionId}`}); }`
 
 ---
 
@@ -1709,7 +1709,7 @@ The catch block treats `SAMPLING_UNAVAILABLE` errors the same as JSON parse fail
 
 After previewing a cleaning run, applying it skips confirmation even when the operation count is large. Users may apply more changes than they reviewed.
 
-**Fix**: If `mode === 'apply'` and `changes.length > CLEAN_CONFIRM_THRESHOLD` (default 5, configurable), call `confirmDestructiveAction({ description: `Apply ${changes.length} cleaning operations`, impact: ... })`.
+**Fix**: If `mode === 'apply'` and `changes.length > CLEAN_CONFIRM_THRESHOLD` (default 5, configurable), call `confirmDestructiveAction({ description:`Apply ${changes.length} cleaning operations`, impact: ... })`.
 
 ---
 
@@ -3013,7 +3013,7 @@ Key deltas from the prior continuation:
 
 ---
 
-## VERIFICATION GATES
+## VERIFICATION GATES REFERENCE
 
 Run these before marking any issue complete:
 

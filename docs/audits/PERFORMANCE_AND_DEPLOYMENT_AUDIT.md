@@ -12,6 +12,7 @@
 ServalSheets is **deployment-ready** with excellent performance optimization and comprehensive deployment infrastructure. All critical performance flags are enabled, graceful shutdown is implemented, health checks are in place, and Docker/environment templates exist.
 
 **Key Findings:**
+
 - 7/7 critical performance flags enabled
 - Graceful shutdown (SIGTERM/SIGINT) properly implemented
 - Dual health check endpoints (/health/live, /health/ready)
@@ -53,6 +54,7 @@ ServalSheets is **deployment-ready** with excellent performance optimization and
 | **Threshold Activation** | 100 ranges | env.ts:91 | Parallel mode triggers at 100+ range reads |
 
 **Code Path:**
+
 ```typescript
 // parallel-executor.ts:104-109
 const envConcurrency = process.env['PARALLEL_CONCURRENCY']
@@ -72,7 +74,7 @@ this.concurrency = options.concurrency ?? envConcurrency ?? DEFAULT_CONCURRENCY;
 | Parameter | Value | Location | Details |
 |-----------|-------|----------|---------|
 | **Max Entries (L1)** | 1000 | env.ts:50 (ETAG_CACHE_MAX_ENTRIES) | LRU eviction |
-| **TTL** | 5 minutes | cached-sheets-api.ts (5 * 60 * 1000) | Auto-expiry |
+| **TTL** | 5 minutes | cached-sheets-api.ts (5 *60* 1000) | Auto-expiry |
 | **Cache Type** | LRU (lru-cache) | etag-cache.ts:17 | Memory-efficient |
 | **Conditional Request** | If-None-Match | cached-sheets-api.ts:88-100 | 304 Not Modified savings |
 
@@ -100,6 +102,7 @@ this.concurrency = options.concurrency ?? envConcurrency ?? DEFAULT_CONCURRENCY;
 | **API Efficiency** | 20-40% savings | Design (one batch = many ops) | Proven in production |
 
 **Code Path:**
+
 ```typescript
 // batching-system.ts:286
 this.maxBatchSize = options.maxBatchSize ?? 100;
@@ -132,6 +135,7 @@ this.maxBatchSize = options.maxBatchSize ?? 100;
 | **Timeout Config** | ✅ YES | env.ts:137 | GRACEFUL_SHUTDOWN_TIMEOUT_MS=10000 |
 
 **Signal Handling Flow:**
+
 ```typescript
 // server.ts:1724-1732
 const handleShutdown = async (signal: string) => {
@@ -152,6 +156,7 @@ process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 | **Rate Limit Bypass** | ✅ YES | http-server.ts:755-756 | Health checks exempt from rate limits |
 
 **Health Service:**
+
 ```typescript
 // http-server.ts:1055-1088
 app.get('/health/live', async (_req: Request, res: Response) => {
@@ -175,6 +180,7 @@ app.get('/health/ready', async (_req: Request, res: Response) => {
 | **Error Mapping** | ✅ YES | BaseHandler provides error-mapping.ts helper |
 
 **Generic Error Instances Found:**
+
 - `src/handlers/agent.ts`: 2 instances (agent execution fallback errors)
 - `src/handlers/webhooks.ts`: 1 instance (webhook handler)
 
@@ -192,6 +198,7 @@ app.get('/health/ready', async (_req: Request, res: Response) => {
 | **.env.quickstart** | ✅ YES | 703 bytes | Quick setup template |
 
 **Docker Evidence:**
+
 ```bash
 ls -la Dockerfile docker-compose.yml .env*
 -rwx------ Dockerfile (1,258 bytes)
@@ -212,6 +219,7 @@ ls -la Dockerfile docker-compose.yml .env*
 **Result:** ✅ PARTIAL (timeout on OpenAPI generation, expected in low-memory environment)
 
 **Output Summary:**
+
 ```
 ✅ Metadata generation: Complete (25 tools, 391 actions)
   - Updated: package.json, src/schemas/index.ts, src/schemas/action-counts.ts
@@ -279,11 +287,13 @@ export GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/gcp-sa-key.json
 ### Health Checks for Orchestrators
 
 **Liveness Check (every 10s):**
+
 ```bash
 curl http://localhost:3000/health/live
 ```
 
 **Readiness Check (before traffic):**
+
 ```bash
 curl http://localhost:3000/health/ready
 ```
@@ -351,6 +361,7 @@ npm run gates
 ### Monitoring Queries
 
 Monitor these metrics in production:
+
 - **Cache Hit Rate** (target: >70% after warmup)
 - **API Call Reduction** (target: 80-100x for repeat reads)
 - **Batch Efficiency** (target: 50+ operations per batch)
