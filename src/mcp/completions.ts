@@ -11,11 +11,12 @@ import type { CompleteResult } from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * Action names for each tool (for autocompletion)
+ * Total: 397 actions across 25 tools
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
- * Total: 391 actions across 25 tools (includes agent, compute, and connectors tool families)
- * Note: sheets_analyze has 19 actions (comprehensive + targeted + progressive analyses)
+ * Total counts are derived from src/schemas/action-counts.ts.
+ * Note: sheets_analyze has 20 actions (comprehensive + targeted + progressive analyses)
  */
 export const TOOL_ACTIONS: Record<string, string[]> = {
   sheets_advanced: [
@@ -81,6 +82,8 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'suggest_next_actions',
     'auto_enhance',
     'discover_action',
+    'diagnose_errors',
+    'formula_health_check',
   ],
   sheets_appsscript: [
     'create',
@@ -237,6 +240,8 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'get_url',
     'batch_get',
     'get_comprehensive',
+    'describe_workbook',
+    'workbook_fingerprint',
     'list',
     'add_sheet',
     'delete_sheet',
@@ -270,6 +275,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'cut_paste',
     'copy_paste',
     'detect_spill_ranges',
+    'smart_fill',
     'cross_read',
     'cross_query',
     'cross_write',
@@ -303,6 +309,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'clear_basic_filter',
     'get_basic_filter',
     'sort_range',
+    'delete_duplicates',
     'trim_whitespace',
     'randomize_range',
     'text_to_columns',
@@ -820,7 +827,7 @@ const ACTION_ALIASES: Record<string, string> = {
   // sheets_history (operation history / undo-redo)
   history: 'list',
   'version history': 'list',
-  undo: 'undo',
+  undo: 'version_restore_revision',
   redo: 'redo',
   'time travel': 'timeline',
   'restore cells': 'restore_cells',

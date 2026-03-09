@@ -12,7 +12,13 @@
  *   const result = await runPythonSafe('1 + 1', {}, 10000);
  */
 
+import { Worker } from 'worker_threads';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { logger } from '../utils/logger.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // ============================================================================
 // Pyodide singleton
@@ -98,7 +104,10 @@ export interface PythonRunResult {
 }
 
 /**
- * Run Python code with injected globals, a timeout guard, and stdout capture.
+ * Run Python code in an isolated Worker thread with true timeout enforcement.
+ *
+ * Each call spawns a fresh Pyodide instance in a Worker thread, preventing
+ * global state pollution and enabling true timeout via worker.terminate().
  *
  * @param code - Python source to execute
  * @param globals - Variables to inject into the Python namespace before execution
@@ -109,42 +118,43 @@ export async function runPythonSafe(
   globals: Record<string, unknown> = {},
   timeoutMs = 60000
 ): Promise<PythonRunResult> {
-  const py = await getPyodide();
+  const workerPath = join(__dirname, 'python-worker.js');
 
-  // Inject caller-provided globals into the Python namespace
-  for (const [k, v] of Object.entries(globals)) {
-    py.globals.set(k, py.toPy(v));
-  }
+  return new Promise<PythonRunResult>((resolve, reject) => {
+    const worker = new Worker(workerPath, {
+      workerData: { code, globals, timeoutMs },
+    });
 
-  const start = Date.now();
+    const timer = setTimeout(() => {
+      void worker.terminate();
+      reject(new Error(`Python execution timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
 
-  // Redirect sys.stdout to a StringIO buffer so we can capture print() output
-  py.runPython(`
-import sys as _sys, io as _io
-_stdout_capture = _io.StringIO()
-_sys.stdout = _stdout_capture
-`);
+    worker.on(
+      'message',
+      (msg: {
+        success: boolean;
+        output?: string;
+        result?: unknown;
+        executionMs?: number;
+        error?: string;
+      }) => {
+        clearTimeout(timer);
+        if (msg.success) {
+          resolve({
+            output: msg.output ?? '',
+            result: msg.result,
+            executionMs: msg.executionMs ?? 0,
+          });
+        } else {
+          reject(new Error(msg.error ?? 'Python execution failed'));
+        }
+      }
+    );
 
-  // Execute user code with a timeout guard
-  const result = await Promise.race<unknown>([
-    new Promise<never>((_, reject) =>
-      setTimeout(
-        () => reject(new Error(`Python execution timed out after ${timeoutMs}ms`)),
-        timeoutMs
-      )
-    ),
-    Promise.resolve().then(() => py.runPython(code) as unknown),
-  ]);
-
-  // Restore stdout and grab captured output
-  const captured = py.runPython(`
-_sys.stdout = _sys.__stdout__
-_stdout_capture.getvalue()
-`) as string;
-
-  return {
-    output: captured ?? '',
-    result: py.toJs(result as object),
-    executionMs: Date.now() - start,
-  };
+    worker.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
 }

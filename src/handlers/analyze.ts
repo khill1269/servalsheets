@@ -9,11 +9,13 @@
  * @see MCP_SEP_SPECIFICATIONS_COMPLETE.md - SEP-1577
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, unwrapRequest, type HandlerContext } from './base.js';
 import type { Intent } from '../core/intent.js';
 import { DataError } from '../core/errors.js';
 import { logger } from '../utils/logger.js';
+import { getRequestContext } from '../utils/request-context.js';
 import { buildFormulaSamplingRequest } from '../services/sampling-analysis.js';
 import {
   createMessageWithFallback,
@@ -53,6 +55,7 @@ import {
 import { handleScoutAction } from './analyze-actions/scout.js';
 import { handleAnalyzeDataAction } from './analyze-actions/analyze-data.js';
 import { handleComprehensiveAction } from './analyze-actions/comprehensive.js';
+import { handleDiagnoseErrorsAction } from './analyze-actions/diagnose-errors.js';
 
 export interface AnalyzeHandlerOptions {
   context: HandlerContext;
@@ -233,7 +236,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
       return {
         success: false,
         error: {
-          code: 'SAMPLING_UNAVAILABLE',
+          code: ErrorCodes.SAMPLING_UNAVAILABLE,
           message:
             'MCP Server instance not available and no LLM API key configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.',
           retryable: false,
@@ -241,14 +244,14 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
       };
     }
 
-    const sessionId = this.context.requestId || 'default';
+    const sessionId = getRequestContext()?.requestId ?? this.context.requestId ?? 'default';
     const clientCapabilities = await getCapabilitiesWithCache(sessionId, this.context.server);
 
     if (!clientCapabilities?.sampling) {
       return {
         success: false,
         error: {
-          code: 'SAMPLING_UNAVAILABLE',
+          code: ErrorCodes.SAMPLING_UNAVAILABLE,
           message:
             'MCP Sampling not supported by client and no LLM API key configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.',
           retryable: false,
@@ -636,13 +639,39 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
           break;
         }
 
+        case 'formula_health_check': {
+          response = (await this.handleFormulaHealthCheck(
+            req as typeof req & {
+              spreadsheetId: string;
+              range?: unknown;
+              maxDepthThreshold?: number;
+              checkVolatile?: boolean;
+              checkConsistency?: boolean;
+              checkErrorGuards?: boolean;
+            }
+          )) as unknown as AnalyzeResponse;
+          break;
+        }
+
+        case 'diagnose_errors': {
+          const diagnoseInput = req as typeof req & {
+            spreadsheetId: string;
+            range?: unknown;
+            includeFormulas?: boolean;
+          };
+          response = await handleDiagnoseErrorsAction(diagnoseInput, {
+            sheetsApi: this.sheetsApi,
+          });
+          break;
+        }
+
         default: {
           // Exhaustive check - should never reach here with discriminated union
           const _exhaustiveCheck: never = req;
           response = {
             success: false,
             error: {
-              code: 'INVALID_PARAMS',
+              code: ErrorCodes.INVALID_PARAMS,
               message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
               retryable: false,
               suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
@@ -685,7 +714,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
         response: {
           success: false,
           error: {
-            code: 'INTERNAL_ERROR',
+            code: ErrorCodes.INTERNAL_ERROR,
             message: error instanceof Error ? error.message : String(error),
             retryable: false,
           },
@@ -777,11 +806,165 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
       return {
         success: false,
         error: {
-          code: 'PARSE_ERROR',
+          code: ErrorCodes.PARSE_ERROR,
           message: 'Failed to parse formula response',
           retryable: true,
         },
       };
     }
+  }
+
+  private async handleFormulaHealthCheck(req: {
+    spreadsheetId: string;
+    range?: unknown;
+    maxDepthThreshold?: number;
+    checkVolatile?: boolean;
+    checkConsistency?: boolean;
+    checkErrorGuards?: boolean;
+  }): Promise<Record<string, unknown>> {
+    const {
+      spreadsheetId,
+      range,
+      maxDepthThreshold = 5,
+      checkVolatile = true,
+      checkConsistency = true,
+      checkErrorGuards = true,
+    } = req;
+
+    const rangeStr = typeof range === 'string' ? range : undefined;
+    const ranges = rangeStr ? [rangeStr] : undefined;
+
+    const ssResponse = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId,
+      includeGridData: true,
+      ...(ranges && { ranges }),
+    });
+    const spreadsheet = ssResponse.data;
+
+    const VOLATILE_FUNCTIONS = [
+      'NOW',
+      'TODAY',
+      'RAND',
+      'RANDBETWEEN',
+      'INDIRECT',
+      'OFFSET',
+      'INFO',
+      'CELL',
+    ];
+    const LOOKUP_FUNCTIONS = ['VLOOKUP', 'HLOOKUP', 'XLOOKUP', 'INDEX', 'MATCH', 'GETPIVOTDATA'];
+
+    const issues: Array<{ cell: string; issue: string; severity: 'error' | 'warning' | 'info' }> =
+      [];
+    let formulaCount = 0;
+    let maxDepthSeen = 0;
+
+    // Track column formulas for consistency check: col index → Set of normalized formula templates
+    const colFormulas = new Map<number, Set<string>>();
+
+    for (const sheet of spreadsheet.sheets ?? []) {
+      const sheetTitle = sheet.properties?.title ?? 'Sheet1';
+      for (const gridData of sheet.data ?? []) {
+        const startRow = gridData.startRow ?? 0;
+        const startCol = gridData.startColumn ?? 0;
+        for (let ri = 0; ri < (gridData.rowData ?? []).length; ri++) {
+          const row = gridData.rowData?.[ri];
+          if (!row) continue;
+          for (let ci = 0; ci < (row.values ?? []).length; ci++) {
+            const cell = row.values?.[ci];
+            if (!cell) continue;
+            const formula = cell.userEnteredValue?.formulaValue;
+            if (!formula) continue;
+            formulaCount++;
+            const a1Col = String.fromCharCode(65 + startCol + ci);
+            const a1Row = startRow + ri + 1;
+            const cellRef = `${sheetTitle}!${a1Col}${a1Row}`;
+
+            // Nesting depth: count parentheses depth
+            let depth = 0;
+            let maxDepth = 0;
+            for (const ch of formula) {
+              if (ch === '(') {
+                depth++;
+                if (depth > maxDepth) maxDepth = depth;
+              } else if (ch === ')') depth--;
+            }
+            if (maxDepth > maxDepthSeen) maxDepthSeen = maxDepth;
+            if (maxDepth > maxDepthThreshold) {
+              issues.push({
+                cell: cellRef,
+                issue: `Nesting depth ${maxDepth} exceeds threshold ${maxDepthThreshold}`,
+                severity: 'warning',
+              });
+            }
+
+            const formulaUpper = formula.toUpperCase();
+
+            // Volatile function check
+            if (checkVolatile) {
+              for (const fn of VOLATILE_FUNCTIONS) {
+                if (formulaUpper.includes(`${fn}(`)) {
+                  issues.push({
+                    cell: cellRef,
+                    issue: `Uses volatile function ${fn} — recalculates on every change`,
+                    severity: 'info',
+                  });
+                  break;
+                }
+              }
+            }
+
+            // Error guard check: lookups without IFERROR/IFNA
+            if (checkErrorGuards) {
+              const hasLookup = LOOKUP_FUNCTIONS.some((fn) => formulaUpper.includes(`${fn}(`));
+              const hasGuard = formulaUpper.includes('IFERROR(') || formulaUpper.includes('IFNA(');
+              if (hasLookup && !hasGuard) {
+                issues.push({
+                  cell: cellRef,
+                  issue: 'Lookup function without IFERROR/IFNA guard',
+                  severity: 'warning',
+                });
+              }
+            }
+
+            // Consistency tracking: normalize row numbers to detect column-formula patterns
+            if (checkConsistency) {
+              const colIdx = startCol + ci;
+              const normalized = formula.replace(/\d+/g, 'N');
+              if (!colFormulas.has(colIdx)) colFormulas.set(colIdx, new Set());
+              colFormulas.get(colIdx)!.add(normalized);
+            }
+          }
+        }
+      }
+    }
+
+    // Consistency issues: columns with more than one distinct formula template
+    if (checkConsistency) {
+      for (const [colIdx, templates] of colFormulas) {
+        if (templates.size > 1) {
+          const colLetter = String.fromCharCode(65 + colIdx);
+          issues.push({
+            cell: `col:${colLetter}`,
+            issue: `Column ${colLetter} has ${templates.size} distinct formula patterns — may indicate inconsistency`,
+            severity: 'warning',
+          });
+        }
+      }
+    }
+
+    const errorCount = issues.filter((i) => i.severity === 'error').length;
+    const warningCount = issues.filter((i) => i.severity === 'warning').length;
+    const score = formulaCount === 0 ? 100 : Math.max(0, 100 - errorCount * 20 - warningCount * 5);
+
+    return {
+      success: true,
+      action: 'formula_health_check',
+      formulaCount,
+      maxNestingDepth: maxDepthSeen,
+      healthScore: score,
+      issueCount: issues.length,
+      issues: issues.slice(0, 50),
+      message: `Audited ${formulaCount} formula(s). Health score: ${score}/100. ${warningCount} warning(s), ${errorCount} error(s).`,
+    };
   }
 }

@@ -41,11 +41,13 @@ for 9 of the 12 proposed techniques. Only 3 require new work.
 ### Codebase Status: ✅ ALREADY IMPLEMENTED
 
 **Existing files:**
+
 - `src/services/prefetching-system.ts` (~200 lines) — queue-based prefetch with priority
 - `src/services/access-pattern-tracker.ts` (~200 lines) — learns patterns at 70%+ accuracy
 - `src/services/prefetch-predictor.ts` (~200 lines) — predicts next operations with confidence scores
 
 **How it works today:**
+
 - AccessPatternTracker records spreadsheet/sheet/range access sequences
 - PrefetchPredictor generates predictions with confidence thresholds (0-1)
 - PrefetchingSystem queues background fetches integrated with ConcurrencyCoordinator
@@ -77,6 +79,7 @@ for 9 of the 12 proposed techniques. Only 3 require new work.
 ### What's Left To Do
 
 **Nothing for core infrastructure.** Optional improvements:
+
 - Tune confidence threshold (currently unknown default — verify in code)
 - Add Markov chain model for multi-step workflow prediction (currently sequential only)
 - Monitor prefetch hit rate in production metrics
@@ -88,6 +91,7 @@ for 9 of the 12 proposed techniques. Only 3 require new work.
 ### Codebase Status: ✅ ALREADY IMPLEMENTED
 
 **Existing files:**
+
 - `src/services/worker-pool.ts` (~200 lines) — thread pool, configurable size (CPU count - 1)
 - `src/workers/formula-parser-worker.ts` — regex-heavy formula parsing offloaded
 - `src/workers/analysis-worker.ts` — large dataset analysis
@@ -95,6 +99,7 @@ for 9 of the 12 proposed techniques. Only 3 require new work.
 - `src/services/webhook-worker.ts` — webhook delivery
 
 **How it works today:**
+
 - Round-robin task distribution across worker pool
 - Automatic worker restart on errors
 - 30-second task timeout protection
@@ -133,11 +138,13 @@ operation time for large datasets. SharedArrayBuffer eliminates this copy.
 ### Codebase Status: ✅ ALREADY IMPLEMENTED
 
 **Existing files:**
+
 - `src/analysis/streaming.ts` (~100 lines) — AsyncGenerator for chunked processing
 - `src/utils/request-context.ts` — `sendProgress()` used in 15+ handlers
 - `src/utils/streaming-export.ts` — streaming export for large datasets
 
 **How it works today:**
+
 - Large datasets (>50K rows) processed in 1K row chunks
 - Progress tracking per chunk with cancellation support
 - `AnalysisChunk` interface aggregates partial results
@@ -214,11 +221,13 @@ Marginal improvement. The existing 3-layer cache (LRU + ETag + Redis) already ac
 ### Codebase Status: ✅ ALREADY IMPLEMENTED
 
 **Existing files:**
+
 - `src/core/diff-engine.ts` (~200 lines) — tiered comparison engine
 - `src/services/revision-timeline.ts` — change history per sheet
 - `src/services/history-service.ts` (18K lines) — full operation tracking + undo
 
 **How it works today:**
+
 - DiffEngine operates in 3 tiers: METADATA, SAMPLE, FULL
 - Captures spreadsheet state with SHA-256 checksums
 - Block-based checksums for large sheets (1000-cell blocks)
@@ -262,6 +271,7 @@ matches full Google API fetch for 100 test spreadsheets.
 ### Codebase Status: ⚠️ PARTIAL (webhook-based only)
 
 **Existing files:**
+
 - `src/services/webhook-manager.ts` (~200 lines) — Drive API files.watch integration
 - SSRF protection + DNS rebinding checks
 - Redis-backed metadata storage
@@ -299,6 +309,7 @@ not persistent WebSocket connections.
 ### Verdict: DEFER TO MCP STANDARD
 
 **Do not add non-standard WebSocket.** Instead:
+
 1. Use existing webhook system for file-level change detection
 2. Use Streamable HTTP SSE for client push notifications (already implemented)
 3. Monitor SEP-1288 for official WebSocket transport ratification
@@ -311,12 +322,14 @@ not persistent WebSocket connections.
 ### Codebase Status: ✅ ALREADY IMPLEMENTED (server-side batching)
 
 **Existing files:**
+
 - `src/core/batch-compiler.ts` — compiles intents → batchUpdate
 - `src/services/batching-system.ts` (~200 lines) — 50-100ms adaptive windows
 - `src/services/request-merger.ts` — overlapping range merge
 - `src/services/composite-operations.ts` — multi-step operation bundling
 
 **How it works today:**
+
 - BatchingSystem collects operations within configurable windows
 - Merges into single Google API calls (20-40% API reduction)
 - BatchCompiler handles batchUpdate, batchClear, batchGetByDataFilter
@@ -369,6 +382,7 @@ to send multiple tool calls in one request (like MCP BatchIt pattern).
 - **If client expects determinism:** Serving semantically-matched cached result = violation
 
 **Safe implementation:**
+
 ```
 Add explicit parameter: `semanticCache: boolean` (default false)
 When true: include confidence score in response
@@ -401,12 +415,14 @@ NOT for deterministic read operations. Must be opt-in with explicit parameter.
 ### Codebase Status: ✅ ALREADY IMPLEMENTED
 
 **Existing files:**
+
 - `src/services/concurrency-coordinator.ts` (~200 lines) — the unified concurrency brain
 - `src/services/parallel-executor.ts` (~200 lines) — configurable parallel execution
 - `src/services/user-rate-limiter.ts` — per-user rate limiting
 - `src/core/rate-limiter.ts` — token bucket algorithm
 
 **How it works today:**
+
 - ConcurrencyCoordinator: Global semaphore (15 permits), adaptive adjustment
 - Coordinates: ParallelExecutor (20) + PrefetchingSystem (2) + BatchingSystem (adaptive)
 - Metrics: active operations, peak concurrent, wait times, 429 errors
@@ -448,6 +464,7 @@ OOM before it happens:
 ### Codebase Status: ❌ NOT IMPLEMENTED — **NOT RECOMMENDED**
 
 **Existing formula infrastructure:**
+
 - `src/analysis/formula-parser.ts` (14K lines) — pure regex-based AST parsing
 - `src/workers/formula-parser-worker.ts` — offloaded to worker thread
 - `src/analysis/formula-helpers.ts` (24K lines) — evaluation utilities
@@ -465,6 +482,7 @@ OOM before it happens:
 - **Google explicitly states:** Formulas cannot be accurately simulated externally
 
 **Results will diverge for ~5% of formulas** due to:
+
 - Locale formatting differences
 - Undocumented function edge cases
 - Real-time data dependencies
@@ -478,6 +496,7 @@ WASM adds complexity with accuracy risk. For scenario modeling, fetch actual val
 from Google API rather than evaluating locally.
 
 **Alternative approach for scenario modeling:**
+
 1. Fetch current cell values via Sheets API (already fast with caching)
 2. Apply delta changes in-memory (simple arithmetic)
 3. For formula recalculation, use Sheets API with temporary sheet
@@ -492,6 +511,7 @@ This is slower than WASM but **100% accurate** because Google evaluates the form
 ### Codebase Status: ✅ LARGELY IMPLEMENTED
 
 **Existing files:**
+
 - `src/services/batching-system.ts` — operation bundling within windows
 - `src/services/request-merger.ts` — overlapping range consolidation
 - `src/core/batch-compiler.ts` — multi-operation compilation
@@ -528,6 +548,7 @@ No additional Google constraints beyond existing rate limits.
 **New component:** `src/mcp/pipeline-executor.ts` (~300 lines)
 
 Performs read-write analysis on incoming tool call sequences:
+
 1. Parse A1 ranges from each call's input
 2. Classify each call as READ or WRITE
 3. Build dependency graph (writes before reads on same range)
@@ -544,11 +565,13 @@ or non-overlapping ranges on same spreadsheet). Default to sequential for ambigu
 ### Codebase Status: ✅ ALREADY IMPLEMENTED
 
 **Existing files:**
+
 - `src/mcp/event-store.ts` (~150 lines) — InMemoryEventStore with TTL
 - `src/http-server.ts` (line 21) — StreamableHTTPServerTransport imported
 - RedisEventStore alternative available for production persistence
 
 **How it works today:**
+
 - InMemoryEventStore: bounded (5000 events), 5-min TTL, automatic pruning
 - Implements MCP EventStore interface: `storeEvent()`, `replayEventsAfter()`
 - `getStreamIdForEventId()` for cursor-based replay

@@ -306,10 +306,12 @@ const ExportToBigQueryActionSchema = CommonFieldsSchema.extend({
   range: RangeInputSchema.describe('Source range to export'),
   destination: BigQueryTableRefSchema.describe('Destination BigQuery table'),
   writeDisposition: z
-    .literal('WRITE_APPEND')
+    .enum(['WRITE_APPEND', 'WRITE_TRUNCATE', 'WRITE_EMPTY'])
     .optional()
     .default('WRITE_APPEND')
-    .describe('Streaming insert always appends. Only WRITE_APPEND is supported.'),
+    .describe(
+      'Write disposition: WRITE_APPEND (default) streams rows; WRITE_TRUNCATE deletes existing rows then streams; WRITE_EMPTY fails if table already has rows.'
+    ),
   headerRows: z.coerce
     .number()
     .int()

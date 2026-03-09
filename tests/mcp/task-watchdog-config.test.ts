@@ -91,4 +91,71 @@ describe('task watchdog configuration', () => {
 
     await server.shutdown();
   });
+
+  it('stores a TASK_CANCELLED result when cancellation lands just before a successful result write', async () => {
+    const server = new ServalSheetsServer();
+    const taskStore = (
+      server as unknown as {
+        taskStore: {
+          cancelTask: (taskId: string, reason?: string) => Promise<void>;
+          getTask: (taskId: string) => Promise<{ status: string } | null>;
+        };
+      }
+    ).taskStore;
+
+    let taskId: string | undefined;
+    let releaseHandleToolCall: (() => void) | undefined;
+    const handleToolCallGate = new Promise<void>((resolve) => {
+      releaseHandleToolCall = resolve;
+    });
+
+    (
+      server as unknown as {
+        handleToolCall: (
+          toolName: string,
+          args: Record<string, unknown>,
+          extra?: { abortSignal?: AbortSignal }
+        ) => Promise<unknown>;
+      }
+    ).handleToolCall = async () => {
+      await handleToolCallGate;
+      await taskStore.cancelTask(taskId!, 'Cancelled after execution completed');
+      return {
+        content: [{ type: 'text', text: 'Late success' }],
+        isError: false,
+      };
+    };
+
+    const taskHandler = (
+      server as unknown as {
+        createToolTaskHandler: (toolName: string) => {
+          createTask: (
+            args: Record<string, unknown>,
+            extra: { taskStore: unknown; taskRequestedTtl?: number }
+          ) => Promise<{ task: { taskId: string } }>;
+        };
+      }
+    ).createToolTaskHandler('sheets_auth');
+
+    const created = await taskHandler.createTask({}, { taskStore });
+    taskId = created.task.taskId;
+    releaseHandleToolCall?.();
+
+    const taskResult = (await waitForTaskResult(server, created.task.taskId)) as {
+      structuredContent?: {
+        response?: {
+          error?: { code?: string; message?: string };
+        };
+      };
+    };
+    const task = await taskStore.getTask(created.task.taskId);
+
+    expect(task?.status).toBe('cancelled');
+    expect(taskResult.structuredContent?.response?.error?.code).toBe('TASK_CANCELLED');
+    expect(taskResult.structuredContent?.response?.error?.message).toContain(
+      'Cancelled after execution completed'
+    );
+
+    await server.shutdown();
+  });
 });

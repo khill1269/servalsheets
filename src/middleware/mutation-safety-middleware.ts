@@ -6,6 +6,7 @@
  */
 
 import { isLikelyMutationAction } from './write-lock-middleware.js';
+import { logger } from '../utils/logger.js';
 
 const DANGEROUS_FORMULA_PATTERN =
   /^[=+\-@].*(?:IMPORTDATA|IMPORTRANGE|IMPORTFEED|IMPORTHTML|IMPORTXML|GOOGLEFINANCE|QUERY)\s*\(/i;
@@ -19,14 +20,6 @@ export interface MutationSafetyViolation {
 
 function previewFormula(value: string): string {
   return value.length <= 60 ? value : `${value.slice(0, 57)}...`;
-}
-
-function isSanitizeOptOut(value: unknown): boolean {
-  if (!value || typeof value !== 'object') return false;
-  const record = value as Record<string, unknown>;
-  const safety = record['safety'];
-  if (!safety || typeof safety !== 'object') return false;
-  return (safety as Record<string, unknown>)['sanitizeFormulas'] === false;
 }
 
 function scanFormulaCandidate(
@@ -74,9 +67,6 @@ function scanMutationRequest(
 ): MutationSafetyViolation | null {
   if (depth > 12 || value == null) return null;
 
-  // Branch-level opt out: allows deliberate formula payloads in scoped nested operations.
-  if (isSanitizeOptOut(value)) return null;
-
   if (parentKey && FORMULA_CANDIDATE_KEYS.has(parentKey)) {
     return scanFormulaCandidate(value, path, visited, depth + 1);
   }
@@ -123,8 +113,23 @@ export function detectMutationSafetyViolation(
   const action = req['action'];
   if (typeof action !== 'string' || !isLikelyMutationAction(action)) return null;
 
-  // Top-level opt-out preserves existing behavior for explicit advanced use.
-  if (isSanitizeOptOut(req)) return null;
+  if (process.env['SERVAL_ALLOW_FORMULA_PASSTHROUGH'] === 'true') {
+    if (process.env['NODE_ENV'] === 'production') {
+      throw new Error(
+        'SERVAL_ALLOW_FORMULA_PASSTHROUGH cannot be enabled in production. ' +
+          'This flag disables formula injection protection and is not permitted in production environments.'
+      );
+    }
+    const action =
+      typeof (normalizedArgs['request'] as Record<string, unknown>)?.['action'] === 'string'
+        ? (normalizedArgs['request'] as Record<string, unknown>)['action']
+        : 'unknown';
+    logger.warn('Formula injection scanning BYPASSED via SERVAL_ALLOW_FORMULA_PASSTHROUGH', {
+      action,
+      spreadsheetId: (normalizedArgs['request'] as Record<string, unknown>)?.['spreadsheetId'],
+    });
+    return null;
+  }
 
   return scanMutationRequest(req, 'request', undefined, new WeakSet<object>(), 0);
 }

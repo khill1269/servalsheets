@@ -242,6 +242,7 @@ Source: tanaikech benchmark (production-measured data):
 ### When Layer 3 Activates
 
 Layer 3 only runs for formulas HyperFormula can't handle. In practice:
+
 - 90% of sheets: Layer 3 never activates (0 API calls)
 - 8% of sheets: 1-5 QUERY/FILTER formulas sent to Layer 3
 - 2% of sheets: 10+ complex Google-specific formulas
@@ -254,6 +255,7 @@ Layer 3 only runs for formulas HyperFormula can't handle. In practice:
 
 When modeling 10 scenarios against the same spreadsheet, HyperFormula parses and interprets
 every formula 10 times. For `=SUM(A1:A100)*B1`, that's:
+
 1. Parse formula string → AST (regex + tokenization)
 2. Walk AST to resolve references
 3. Fetch cell values
@@ -536,6 +538,7 @@ export class FormulaEvaluator {
 New file: `src/services/google-formula-service.ts` (~200 lines)
 
 Uses existing `sheets_appsscript` infrastructure (18 actions already available) to:
+
 1. Deploy evaluation script (once per spreadsheet, cached)
 2. Call `evaluateFormulaBatch()` with unsupported formulas
 3. Return 100% accurate results for QUERY, FILTER, etc.

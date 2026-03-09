@@ -205,7 +205,9 @@ program
         process.exit(1);
       }
 
-      console.log(`${COLORS.cyan}Analyzing ${resolvedFiles.length} file(s)...${COLORS.reset}\n`);
+      if (options.format !== 'json') {
+        console.log(`${COLORS.cyan}Analyzing ${resolvedFiles.length} file(s)...${COLORS.reset}\n`);
+      }
 
       const orchestrator = new AnalysisOrchestrator({
         autoFix: options.fix,

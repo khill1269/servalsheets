@@ -649,7 +649,7 @@ TEST_REAL_API=true npm test tests/integration/
 
 ## Next Steps
 
-### After adding your first action:
+### After adding your first action
 
 1. **Add more actions** - Practice makes perfect!
 2. **Add integration tests** - Test with real Google API

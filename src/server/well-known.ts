@@ -23,6 +23,7 @@ import { VERSION, SERVER_INFO, SERVER_ICONS } from '../version.js';
 import { TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
 import { DEFAULT_SCOPES, ELEVATED_SCOPES, READONLY_SCOPES } from '../services/google-api.js';
 import { getEnv } from '../config/env.js';
+import { getPromptsCatalogCount } from '../resources/prompts-catalog.js';
 
 /**
  * Compute ETag for JSON content
@@ -230,6 +231,7 @@ export interface WellKnownRuntimeConfig {
   corsOrigins?: string[];
   rateLimitMax?: number;
   legacySseEnabled?: boolean;
+  authenticationRequired?: boolean;
 }
 
 /**
@@ -237,6 +239,7 @@ export interface WellKnownRuntimeConfig {
  */
 export function getMcpConfiguration(): McpServerConfiguration {
   const env = getEnv();
+  const promptCount = getPromptsCatalogCount();
   const transports: McpServerConfiguration['transports'] = env.ENABLE_LEGACY_SSE
     ? ['stdio', 'sse', 'streamable-http']
     : ['stdio', 'streamable-http'];
@@ -256,11 +259,11 @@ export function getMcpConfiguration(): McpServerConfiguration {
       resources: {
         supported: true,
         templates: true,
-        subscriptions: false,
+        subscriptions: true,
       },
       prompts: {
         supported: true,
-        count: 17,
+        count: promptCount,
       },
       tasks: {
         supported: true,
@@ -322,6 +325,7 @@ export function getMcpServerCard(serverUrl?: string): McpServerCard {
     corsOrigins: effectiveCorsOrigins,
     rateLimitMax: env.RATE_LIMIT_MAX,
     legacySseEnabled: env.ENABLE_LEGACY_SSE,
+    authenticationRequired: false,
   });
 }
 
@@ -330,6 +334,7 @@ function composeMcpServerCard(
   allScopes: string[],
   runtimeConfig: Required<WellKnownRuntimeConfig>
 ): McpServerCard {
+  const promptCount = getPromptsCatalogCount();
   const effectiveCorsOrigins =
     runtimeConfig.corsOrigins.length > 0
       ? runtimeConfig.corsOrigins
@@ -361,10 +366,10 @@ function composeMcpServerCard(
       },
       resources: {
         templates: true,
-        subscriptions: false,
+        subscriptions: true,
       },
       prompts: {
-        count: 17,
+        count: promptCount,
       },
       sampling: true,
       roots: false,
@@ -378,7 +383,7 @@ function composeMcpServerCard(
       progress: true,
     },
     authentication: {
-      required: true,
+      required: runtimeConfig.authenticationRequired,
       methods: ['oauth2'],
       oauth2: {
         authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
@@ -436,6 +441,7 @@ export function getMcpServerCardWithRuntimeConfig(
     corsOrigins: runtimeConfig.corsOrigins ?? env.CORS_ORIGINS.split(',').map((v) => v.trim()),
     rateLimitMax: runtimeConfig.rateLimitMax ?? env.RATE_LIMIT_MAX,
     legacySseEnabled: runtimeConfig.legacySseEnabled ?? env.ENABLE_LEGACY_SSE,
+    authenticationRequired: runtimeConfig.authenticationRequired ?? false,
   });
 }
 
@@ -491,11 +497,12 @@ export function getOAuthAuthorizationServerMetadata(
  * Describes this server as an OAuth-protected resource
  */
 export function getOAuthProtectedResourceMetadata(
-  serverUrl: string
+  serverUrl: string,
+  authorizationServer?: string
 ): OAuthProtectedResourceMetadata {
   return {
     resource: serverUrl,
-    authorization_servers: ['https://accounts.google.com'],
+    authorization_servers: [authorizationServer ?? 'https://accounts.google.com'],
     scopes_supported: [...DEFAULT_SCOPES, ...ELEVATED_SCOPES, ...READONLY_SCOPES].filter(
       (v, i, a) => a.indexOf(v) === i
     ),
@@ -581,7 +588,7 @@ export function mcpConfigurationHandler(req: Request, res: Response): void {
  * Express handler for /.well-known/oauth-authorization-server
  */
 export function oauthAuthorizationServerHandler(req: Request, res: Response): void {
-  const metadata = getOAuthAuthorizationServerMetadata();
+  const metadata = getOAuthAuthorizationServerMetadata(getEnv().OAUTH_ISSUER);
   const etag = computeETag(metadata);
 
   // Check If-None-Match for conditional request
@@ -607,7 +614,7 @@ export function oauthProtectedResourceHandler(req: Request, res: Response): void
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
   const serverUrl = `${protocol}://${host}`;
 
-  const metadata = getOAuthProtectedResourceMetadata(serverUrl);
+  const metadata = getOAuthProtectedResourceMetadata(serverUrl, getEnv().OAUTH_ISSUER);
   const etag = computeETag(metadata);
 
   // Check If-None-Match for conditional request

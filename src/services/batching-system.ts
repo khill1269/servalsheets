@@ -164,7 +164,7 @@ export class AdaptiveBatchWindow {
 
   constructor(config: AdaptiveBatchWindowConfig = {}) {
     this.minWindowMs = config.minWindowMs ?? 20;
-    this.maxWindowMs = config.maxWindowMs ?? 200;
+    this.maxWindowMs = config.maxWindowMs ?? 100;
     this.currentWindowMs = config.initialWindowMs ?? 50;
     this.lowThreshold = config.lowThreshold ?? 3;
     this.highThreshold = config.highThreshold ?? 50;

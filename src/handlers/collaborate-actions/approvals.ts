@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { drive_v3, sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type {
@@ -187,7 +188,7 @@ export async function handleApprovalApproveAction(
 
     if (!approval) {
       return deps.error({
-        code: 'NOT_FOUND',
+        code: ErrorCodes.NOT_FOUND,
         message: `Approval ${input.approvalId} not found`,
         details: { approvalId: input.approvalId },
         retryable: false,
@@ -198,7 +199,7 @@ export async function handleApprovalApproveAction(
     const userEmail = await getCurrentUserEmail(deps);
     if (!userEmail || !approval.approvers.includes(userEmail)) {
       return deps.error({
-        code: 'PERMISSION_DENIED',
+        code: ErrorCodes.PERMISSION_DENIED,
         message: 'You are not authorized to approve this request',
         details: { approvalId: input.approvalId, userEmail },
         retryable: false,
@@ -209,7 +210,7 @@ export async function handleApprovalApproveAction(
 
     if (approval.approvedBy.includes(userEmail)) {
       return deps.error({
-        code: 'PRECONDITION_FAILED',
+        code: ErrorCodes.PRECONDITION_FAILED,
         message: 'You have already approved this request',
         details: { approvalId: input.approvalId, userEmail },
         retryable: false,
@@ -260,7 +261,7 @@ export async function handleApprovalRejectAction(
 
     if (!approval) {
       return deps.error({
-        code: 'NOT_FOUND',
+        code: ErrorCodes.NOT_FOUND,
         message: `Approval ${input.approvalId} not found`,
         details: { approvalId: input.approvalId },
         retryable: false,
@@ -271,7 +272,7 @@ export async function handleApprovalRejectAction(
     const userEmail = await getCurrentUserEmail(deps);
     if (!userEmail || !approval.approvers.includes(userEmail)) {
       return deps.error({
-        code: 'PERMISSION_DENIED',
+        code: ErrorCodes.PERMISSION_DENIED,
         message: 'You are not authorized to reject this request',
         details: { approvalId: input.approvalId, userEmail },
         retryable: false,
@@ -318,7 +319,7 @@ export async function handleApprovalGetStatusAction(
 
     if (!approval) {
       return deps.error({
-        code: 'NOT_FOUND',
+        code: ErrorCodes.NOT_FOUND,
         message: `Approval ${input.approvalId} not found`,
         details: { approvalId: input.approvalId },
         retryable: false,
@@ -351,7 +352,8 @@ export async function handleApprovalListPendingAction(
         dataFilters: [
           {
             developerMetadataLookup: {
-              metadataKey: 'servalsheets_approval_*',
+              locationType: 'SPREADSHEET',
+              visibility: 'DOCUMENT',
             },
           },
         ],
@@ -361,7 +363,9 @@ export async function handleApprovalListPendingAction(
     const approvals: Approval[] = [];
 
     for (const item of response.data.matchedDeveloperMetadata ?? []) {
-      const metadataValue = item.developerMetadata?.metadataValue;
+      const meta = item.developerMetadata;
+      if (!meta?.metadataKey?.startsWith('servalsheets_approval_')) continue;
+      const metadataValue = meta.metadataValue;
       if (metadataValue) {
         try {
           const approval = JSON.parse(metadataValue) as Approval;
@@ -397,7 +401,7 @@ export async function handleApprovalDelegateAction(
 
     if (!approval) {
       return deps.error({
-        code: 'NOT_FOUND',
+        code: ErrorCodes.NOT_FOUND,
         message: `Approval ${input.approvalId} not found`,
         details: { approvalId: input.approvalId },
         retryable: false,
@@ -408,7 +412,7 @@ export async function handleApprovalDelegateAction(
     const userEmail = await getCurrentUserEmail(deps);
     if (!userEmail || !approval.approvers.includes(userEmail)) {
       return deps.error({
-        code: 'PERMISSION_DENIED',
+        code: ErrorCodes.PERMISSION_DENIED,
         message: 'You are not authorized to delegate this approval',
         details: { approvalId: input.approvalId, userEmail },
         retryable: false,
@@ -456,7 +460,7 @@ export async function handleApprovalCancelAction(
 
     if (!approval) {
       return deps.error({
-        code: 'NOT_FOUND',
+        code: ErrorCodes.NOT_FOUND,
         message: `Approval ${input.approvalId} not found`,
         details: { approvalId: input.approvalId },
         retryable: false,
@@ -467,7 +471,7 @@ export async function handleApprovalCancelAction(
     const userEmail = await getCurrentUserEmail(deps);
     if (!userEmail) {
       return deps.error({
-        code: 'AUTHENTICATION_REQUIRED',
+        code: ErrorCodes.AUTHENTICATION_REQUIRED,
         message:
           'Cannot verify your identity to cancel this approval — no authenticated email available',
         retryable: false,
@@ -476,7 +480,7 @@ export async function handleApprovalCancelAction(
     }
     if (approval.requester.emailAddress && userEmail !== approval.requester.emailAddress) {
       return deps.error({
-        code: 'PERMISSION_DENIED',
+        code: ErrorCodes.PERMISSION_DENIED,
         message: 'Only the requester can cancel an approval',
         details: { approvalId: input.approvalId, userEmail },
         retryable: false,
@@ -504,7 +508,7 @@ export async function handleApprovalCancelAction(
 
       if (!confirmation.confirmed) {
         return deps.error({
-          code: 'OPERATION_CANCELLED',
+          code: ErrorCodes.OPERATION_CANCELLED,
           message: confirmation.reason ?? 'Operation cancelled by user',
           retryable: false,
         });
@@ -610,7 +614,8 @@ async function updateApprovalMetadata(
     throw createNotFoundError({
       resourceType: 'operation',
       resourceId: approvalId,
-      searchSuggestion: 'Check if the approval ID is correct or if the approval was already processed',
+      searchSuggestion:
+        'Check if the approval ID is correct or if the approval was already processed',
     });
   }
 

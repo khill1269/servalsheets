@@ -11,6 +11,7 @@
  * - Preserves specific codes from typed errors (ValidationError, NotFoundError, etc.)
  */
 
+import { ErrorCodes } from '../error-codes.js';
 import type { ErrorDetail } from '../../schemas/shared.js';
 import {
   ValidationError,
@@ -41,7 +42,7 @@ export function mapStandaloneError(error: unknown): {
   // CircuitBreakerError → UNAVAILABLE with retryAfterMs (ISSUE-149)
   if (error instanceof CircuitBreakerError) {
     return {
-      code: 'UNAVAILABLE',
+      code: ErrorCodes.UNAVAILABLE,
       message: error.message,
       retryable: true,
       retryAfterMs: Math.max(0, error.nextAttemptTime - Date.now()),
@@ -55,7 +56,7 @@ export function mapStandaloneError(error: unknown): {
     typeof (error as Error & { retryAfterMs?: number }).retryAfterMs === 'number'
   ) {
     return {
-      code: 'RESOURCE_EXHAUSTED',
+      code: ErrorCodes.RESOURCE_EXHAUSTED,
       message: error.message,
       retryable: true,
       retryAfterMs: (error as Error & { retryAfterMs: number }).retryAfterMs,
@@ -65,7 +66,7 @@ export function mapStandaloneError(error: unknown): {
   // ValidationError → VALIDATION_ERROR
   if (error instanceof ValidationError) {
     return {
-      code: 'VALIDATION_ERROR',
+      code: ErrorCodes.VALIDATION_ERROR,
       message: error.message,
       retryable: false,
     };
@@ -74,7 +75,7 @@ export function mapStandaloneError(error: unknown): {
   // NotFoundError → NOT_FOUND
   if (error instanceof NotFoundError) {
     return {
-      code: 'NOT_FOUND',
+      code: ErrorCodes.NOT_FOUND,
       message: error.message,
       retryable: false,
     };
@@ -101,7 +102,7 @@ export function mapStandaloneError(error: unknown): {
   // ConfigError → CONFIG_ERROR
   if (error instanceof ConfigError) {
     return {
-      code: 'CONFIG_ERROR',
+      code: ErrorCodes.CONFIG_ERROR,
       message: error.message,
       retryable: false,
     };
@@ -110,7 +111,7 @@ export function mapStandaloneError(error: unknown): {
   // Any other ServalError base → INTERNAL_ERROR (preserve message)
   if (error instanceof ServalError) {
     return {
-      code: 'INTERNAL_ERROR',
+      code: ErrorCodes.INTERNAL_ERROR,
       message: error.message,
       retryable: true,
     };
@@ -119,7 +120,7 @@ export function mapStandaloneError(error: unknown): {
   // Generic Error → INTERNAL_ERROR (not retryable — unknown if safe to retry)
   if (error instanceof Error) {
     return {
-      code: 'INTERNAL_ERROR',
+      code: ErrorCodes.INTERNAL_ERROR,
       message: error.message,
       retryable: false,
     };
@@ -127,7 +128,7 @@ export function mapStandaloneError(error: unknown): {
 
   // Non-Error throw (string, number, null, undefined, etc.)
   return {
-    code: 'INTERNAL_ERROR',
+    code: ErrorCodes.INTERNAL_ERROR,
     message: error != null ? String(error) : 'An unknown error occurred',
     retryable: false,
   };

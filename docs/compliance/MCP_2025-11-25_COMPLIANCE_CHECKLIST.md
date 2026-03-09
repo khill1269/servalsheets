@@ -2,7 +2,8 @@
 title: MCP 2025-11-25 Compliance Checklist
 category: general
 last_updated: 2026-01-31
-description: > ServalSheets MCP Protocol Compliance Audit & Testing Guide
+description: >
+  ServalSheets MCP Protocol Compliance Audit & Testing Guide
 version: 1.6.0
 tags: [mcp]
 ---
@@ -119,40 +120,25 @@ npx @anthropic/mcp-inspector --stdio "node dist/cli.js"
 
 ### 2.1 Sampling (SEP-1577)
 
-| Feature                      | Status | File                         | Test Command |
-| ---------------------------- | ------ | ---------------------------- | ------------ |
-| createMessage support        | ✅     | `src/mcp/sampling.ts`        | Manual       |
-| tools parameter              | ✅     | `src/mcp/sampling.ts:16-20`  | Manual       |
-| toolChoice parameter         | ✅     | `src/mcp/sampling.ts:16-20`  | Manual       |
-| Capability detection         | ✅     | `src/mcp/sampling.ts:97-100` | Manual       |
-| sheets_analyze uses sampling | ✅     | `src/handlers/analyze.ts`    | Manual       |
-
-**Manual Test:**
-
-```bash
-# Call sheets_analyze with pattern detection
-{"action":"detect_patterns","spreadsheetId":"...","range":"A1:D100"}
-# Requires client with sampling support
-```
+| Feature                      | Status | File                         | Test Command                               |
+| ---------------------------- | ------ | ---------------------------- | ------------------------------------------ |
+| createMessage support        | ✅     | `src/mcp/sampling.ts`        | `tests/integration/http-transport.test.ts` |
+| tools parameter              | ✅     | `src/mcp/sampling.ts:16-20`  | `tests/integration/http-transport.test.ts` |
+| toolChoice parameter         | ✅     | `src/mcp/sampling.ts:16-20`  | `tests/integration/http-transport.test.ts` |
+| Capability detection         | ✅     | `src/mcp/sampling.ts:97-100` | `tests/integration/http-transport.test.ts` |
+| sheets_analyze uses sampling | ✅     | `src/handlers/analyze.ts`    | `tests/integration/http-transport.test.ts` |
 
 ### 2.2 Elicitation (SEP-1036)
 
-| Feature                         | Status | File                             | Test Command           |
-| ------------------------------- | ------ | -------------------------------- | ---------------------- |
-| elicitInput support             | ✅     | `src/mcp/elicitation.ts`         | Manual                 |
-| Form mode                       | ✅     | `src/mcp/elicitation.ts:74-82`   | Manual                 |
-| URL mode                        | ✅     | `src/mcp/elicitation.ts:87-92`   | Manual                 |
-| Binary mode                     | ❌     | Not implemented                  | SEP-1306 (exploratory) |
-| Capability detection            | ✅     | `src/mcp/elicitation.ts:101-120` | Manual                 |
-| sheets_confirm uses elicitation | ✅     | `src/handlers/confirm.ts`        | Manual                 |
-
-**Manual Test:**
-
-```bash
-# Call sheets_confirm to trigger elicitation
-{"action":"request","spreadsheetId":"...","operations":[...]}
-# Requires client with elicitation support
-```
+| Feature                         | Status | File                             | Test Command                                  |
+| ------------------------------- | ------ | -------------------------------- | --------------------------------------------- |
+| elicitInput support             | ✅     | `src/mcp/elicitation.ts`         | `tests/integration/http-transport.test.ts`    |
+| Form mode                       | ✅     | `src/mcp/elicitation.ts:74-82`   | `tests/integration/http-transport.test.ts`    |
+| URL mode                        | ✅     | `src/mcp/elicitation.ts:87-92`   | `tests/handlers/auth.test.ts`                 |
+| Binary mode                     | ❌     | Not implemented                  | SEP-1306 (exploratory)                        |
+| Capability detection            | ✅     | `src/mcp/elicitation.ts:101-120` | `tests/handlers/confirm.test.ts`              |
+| sheets_confirm uses elicitation | ✅     | `src/handlers/confirm.ts`        | `tests/integration/http-transport.test.ts`    |
+| Multi-select form fields        | ✅     | `src/mcp/elicitation.ts:74-82`   | `tests/mcp/elicitation-schema-compat.test.ts` |
 
 ### 2.3 Roots
 
@@ -438,10 +424,10 @@ npm run test -- contracts
 
 ### Priority 1: Critical Tests
 
-- [ ] Integration test for sampling/createMessage with tools
-- [ ] Integration test for elicitation form mode
-- [ ] Integration test for task lifecycle (create → progress → complete)
-- [ ] Integration test for task cancellation
+- [x] Integration test for sampling/createMessage with tools
+- [x] Integration test for elicitation form mode
+- [x] Integration test for task lifecycle (create → progress → complete)
+- [x] Integration test for task cancellation
 
 ### Priority 2: Important Tests
 
@@ -488,9 +474,9 @@ npm run test -- contracts
 
 ### Immediate (This Sprint)
 
-1. [ ] Add integration tests for sampling with tools (SEP-1577)
-2. [ ] Add integration tests for elicitation modes (SEP-1036)
-3. [ ] Add integration tests for task lifecycle (SEP-1686)
+1. [x] Add integration tests for sampling with tools (SEP-1577)
+2. [x] Add integration tests for elicitation modes (SEP-1036)
+3. [x] Add integration tests for task lifecycle (SEP-1686)
 4. [ ] Verify PKCE S256 enforcement in OAuth tests
 
 ### Near Term (Next Sprint)

@@ -12,8 +12,36 @@
  */
 
 import { z } from 'zod';
+import { tmpdir } from 'os';
+import { resolve, sep } from 'path';
 import { logger } from '../utils/logger.js';
 import { URL_REGEX } from './google-limits.js';
+
+/**
+ * Strict boolean parser for environment variables.
+ *
+ * strictBoolean() uses JavaScript's Boolean() coercion, which makes
+ * Boolean("false") === true — silently keeping disabled features enabled.
+ *
+ * This helper correctly maps:
+ *   "true"  / "1"  → true
+ *   "false" / "0"  → false
+ *   true / false   → pass-through (already boolean, e.g. from defaults)
+ *   undefined      → undefined (handled by .default() downstream)
+ */
+const StrictBooleanSchema = z.union([
+  z.boolean(),
+  z.literal('true').transform(() => true as boolean),
+  z.literal('1').transform(() => true as boolean),
+  z.literal('false').transform(() => false as boolean),
+  z.literal('0').transform(() => false as boolean),
+]);
+
+const strictBoolean = (): typeof StrictBooleanSchema => StrictBooleanSchema;
+
+export const DEFAULT_DATA_DIR = '/tmp/servalsheets';
+export const DEFAULT_PROFILE_STORAGE_DIR = '/tmp/servalsheets-profiles';
+export const DEFAULT_CHECKPOINT_DIR = '/tmp/servalsheets-checkpoints';
 
 /**
  * Environment variable schema with validation rules and defaults
@@ -42,9 +70,22 @@ const EnvSchema = z.object({
   // OAuth token storage paths (optional)
   // Note: Use GOOGLE_TOKEN_STORE_PATH in CLI (not TOKEN_PATH)
   CREDENTIALS_PATH: z.string().optional(),
+  GOOGLE_TOKEN_STORE_PATH: z.string().optional(),
+  ENCRYPTION_KEY: z.string().optional(),
+  PROFILE_STORAGE_DIR: z.string().optional(),
+  CHECKPOINT_DIR: z.string().optional(),
+  OAUTH_USE_CALLBACK_SERVER: z
+    .string()
+    .optional()
+    .transform((v) => v !== 'false' && v !== '0'),
+  OAUTH_AUTO_OPEN_BROWSER: z
+    .string()
+    .optional()
+    .transform((v) => v !== 'false' && v !== '0'),
+  MAX_TRANSACTION_OPS: z.coerce.number().int().positive().default(100),
 
   // Performance tuning
-  CACHE_ENABLED: z.coerce.boolean().default(true),
+  CACHE_ENABLED: strictBoolean().default(true),
   CACHE_MAX_SIZE_MB: z.coerce.number().positive().default(100),
   CACHE_TTL_MS: z.coerce.number().positive().default(300000), // 5 minutes
   ETAG_CACHE_MAX_ENTRIES: z.coerce.number().int().positive().default(1000),
@@ -52,25 +93,25 @@ const EnvSchema = z.object({
   // Distributed Cache (Redis L2)
   // Enables Redis L2 cache for data responses (metadata, values)
   // Provides 15-25% latency improvement across replicas
-  CACHE_REDIS_ENABLED: z.coerce.boolean().default(false), // Opt-in for now
+  CACHE_REDIS_ENABLED: strictBoolean().default(false), // Opt-in for now
   CACHE_REDIS_TTL_SECONDS: z.coerce.number().int().positive().default(600), // 10 minutes
 
   // Background Analysis Configuration
   // Automatically monitors data quality after destructive operations
-  ENABLE_BACKGROUND_ANALYSIS: z.coerce.boolean().default(true),
+  ENABLE_BACKGROUND_ANALYSIS: strictBoolean().default(true),
   BACKGROUND_ANALYSIS_MIN_CELLS: z.coerce.number().int().positive().default(10),
   BACKGROUND_ANALYSIS_DEBOUNCE_MS: z.coerce.number().int().positive().default(2000), // 2 seconds
 
   // Feature flags (staged rollout)
-  ENABLE_DATAFILTER_BATCH: z.coerce.boolean().default(true),
-  ENABLE_TABLE_APPENDS: z.coerce.boolean().default(true),
-  ENABLE_PAYLOAD_VALIDATION: z.coerce.boolean().default(true),
-  ENABLE_LEGACY_SSE: z.coerce.boolean().default(false),
-  ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS: z.coerce.boolean().default(false),
-  ENABLE_AGGRESSIVE_FIELD_MASKS: z.coerce.boolean().default(true), // Priority 8: 40-60% payload reduction
-  ENABLE_CONDITIONAL_REQUESTS: z.coerce.boolean().default(true), // Priority 9: ETag-based conditional reads (10-20% quota savings)
+  ENABLE_DATAFILTER_BATCH: strictBoolean().default(true),
+  ENABLE_TABLE_APPENDS: strictBoolean().default(true),
+  ENABLE_PAYLOAD_VALIDATION: strictBoolean().default(true),
+  ENABLE_LEGACY_SSE: strictBoolean().default(false),
+  ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS: strictBoolean().default(true),
+  ENABLE_AGGRESSIVE_FIELD_MASKS: strictBoolean().default(true), // Priority 8: 40-60% payload reduction
+  ENABLE_CONDITIONAL_REQUESTS: strictBoolean().default(true), // Priority 9: ETag-based conditional reads (10-20% quota savings)
   // HTTP/2 connection health management (prevents GOAWAY errors)
-  ENABLE_AUTO_CONNECTION_RESET: z.coerce.boolean().default(true),
+  ENABLE_AUTO_CONNECTION_RESET: strictBoolean().default(true),
   GOOGLE_API_HTTP2_ENABLED: z
     .string()
     .default('true')
@@ -84,27 +125,29 @@ const EnvSchema = z.object({
   // Performance optimization flags
   // RequestMerger: Merges overlapping range reads within 50ms window (20-40% API savings)
   // Enabled by default — production-ready with safe 50ms window and metrics tracking
-  ENABLE_REQUEST_MERGING: z.coerce.boolean().default(true),
+  ENABLE_REQUEST_MERGING: strictBoolean().default(true),
   // ParallelExecutor: Parallel execution for large batch operations (40% faster)
   // Enabled by default — 19 unit/integration tests pass, guarded by threshold (100+ ranges)
-  ENABLE_PARALLEL_EXECUTOR: z.coerce.boolean().default(true),
+  ENABLE_PARALLEL_EXECUTOR: strictBoolean().default(true),
   PARALLEL_EXECUTOR_THRESHOLD: z.coerce.number().int().positive().default(100),
+  // Number of concurrent requests in parallel executor (quota-safe default: 5)
+  PARALLEL_CONCURRENCY: z.coerce.number().int().min(1).max(100).default(5),
   // Granular progress notifications for long-running operations
   // Enabled by default — non-breaking MCP-compliant progress updates for CSV import, dedup, batch ops
-  ENABLE_GRANULAR_PROGRESS: z.coerce.boolean().default(true),
+  ENABLE_GRANULAR_PROGRESS: strictBoolean().default(true),
 
   // Deduplication
-  DEDUP_ENABLED: z.coerce.boolean().default(true),
+  DEDUP_ENABLED: strictBoolean().default(true),
   DEDUP_WINDOW_MS: z.coerce.number().positive().default(5000), // 5 seconds
 
   // Tracing & Observability (OTEL enabled by default for production observability)
-  TRACING_ENABLED: z.coerce.boolean().default(true),
+  TRACING_ENABLED: strictBoolean().default(true),
   TRACING_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
-  OTEL_ENABLED: z.coerce.boolean().default(true), // Internal tracing infrastructure
-  OTEL_LOG_SPANS: z.coerce.boolean().default(false), // Debug logging of spans
+  OTEL_ENABLED: strictBoolean().default(true), // Internal tracing infrastructure
+  OTEL_LOG_SPANS: strictBoolean().default(false), // Debug logging of spans
 
   // OTLP Export Configuration (production observability)
-  OTEL_EXPORT_ENABLED: z.coerce.boolean().default(false), // Opt-in OTLP export
+  OTEL_EXPORT_ENABLED: strictBoolean().default(false), // Opt-in OTLP export
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default('http://localhost:4318'), // OTLP collector endpoint
   OTEL_EXPORTER_OTLP_HEADERS: z.string().optional(), // Additional headers (comma-separated key=value pairs)
   OTEL_SERVICE_NAME: z.string().default('servalsheets'),
@@ -114,7 +157,7 @@ const EnvSchema = z.object({
 
   // Dedicated Prometheus metrics server (optional)
   // When enabled, serves metrics on a separate port via src/server/metrics-server.ts
-  ENABLE_METRICS_SERVER: z.coerce.boolean().default(false),
+  ENABLE_METRICS_SERVER: strictBoolean().default(true),
   METRICS_PORT: z.coerce.number().int().positive().max(65535).default(9090),
   METRICS_HOST: z.string().default('127.0.0.1'),
 
@@ -139,6 +182,7 @@ const EnvSchema = z.object({
   // Session Store Configuration (for OAuth)
   SESSION_STORE_TYPE: z.enum(['memory', 'redis']).default('memory'),
   REDIS_URL: z.string().regex(URL_REGEX, 'Invalid URL format').optional().catch(undefined),
+  ALLOW_MEMORY_SESSIONS: strictBoolean().default(false),
 
   // Admin Dashboard Configuration
   ADMIN_API_KEY: z.string().optional(),
@@ -169,14 +213,26 @@ const EnvSchema = z.object({
         'https://claude.ai/api/mcp/auth_callback,' +
         'https://claude.com/api/mcp/auth_callback'
     ),
-  CORS_ORIGINS: z.string().default('https://claude.ai,https://claude.com'),
+  CORS_ORIGINS: z
+    .string()
+    .default(
+      'https://claude.ai,' +
+        'https://claude.com,' +
+        'https://chatgpt.com,' +
+        'https://chat.openai.com,' +
+        'https://copilot.microsoft.com,' +
+        'https://gemini.google.com,' +
+        'https://grok.x.ai,' +
+        'https://app.cursor.sh,' +
+        'https://codeium.com'
+    ),
   ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(3600), // 1 hour
   REFRESH_TOKEN_TTL: z.coerce.number().int().positive().default(2592000), // 30 days
 
   // Google Cloud Managed Auth Mode
   // When true: Uses Application Default Credentials, disables sheets_auth tool
   // Set to true when deploying to Cloud Run, GKE, or Cloud Functions
-  MANAGED_AUTH: z.coerce.boolean().default(false),
+  MANAGED_AUTH: strictBoolean().default(false),
 
   // Webhook Configuration (Phase 1: Drive API Push Notifications)
   // Public HTTPS endpoint for Google Drive API to send notifications
@@ -192,7 +248,7 @@ const EnvSchema = z.object({
   // MCP Federation Configuration (Feature 3: Server Federation)
   // Enables calling external MCP servers for composite workflows
   // Example: Weather APIs, ML servers, database connectors
-  MCP_FEDERATION_ENABLED: z.coerce.boolean().default(false),
+  MCP_FEDERATION_ENABLED: strictBoolean().default(false),
   MCP_FEDERATION_TIMEOUT_MS: z.coerce.number().positive().default(30000), // 30 seconds
   MCP_FEDERATION_MAX_CONNECTIONS: z.coerce.number().int().positive().default(10),
   // JSON array of server configs: [{"name":"weather-api","url":"http://localhost:3001"}]
@@ -201,47 +257,69 @@ const EnvSchema = z.object({
   // Context Optimization
   // Disables 800KB of embedded knowledge resources to reduce context usage
   // Knowledge files still available in dist/knowledge/ if needed
-  DISABLE_KNOWLEDGE_RESOURCES: z.coerce.boolean().default(false),
+  DISABLE_KNOWLEDGE_RESOURCES: strictBoolean().default(false),
 
   // Resource Discovery Optimization
   // Defers resource registration until first access (saves 300-500ms on cold start)
   // Disabled by default for compatibility; enable explicitly for production optimization
-  DEFER_RESOURCE_DISCOVERY: z.coerce.boolean().default(false),
+  DEFER_RESOURCE_DISCOVERY: strictBoolean().default(false),
 
   // Incremental consent (SaaS deployments)
-  INCREMENTAL_CONSENT_ENABLED: z.coerce.boolean().default(false),
+  INCREMENTAL_CONSENT_ENABLED: strictBoolean().default(false),
   SAMPLING_CONSENT_CACHE_TTL_MS: z.coerce.number().int().nonnegative().default(30000),
+  // GDPR sampling consent enforcement: 'off'=permissive, 'log'=warn only, 'strict'=block
+  ENABLE_SAMPLING_CONSENT: z.enum(['off', 'log', 'strict']).default('off'),
 
   // Enterprise feature flags
   // RBAC and Tenant Isolation require infrastructure (role config, API keys) — keep opt-in
-  ENABLE_RBAC: z.coerce.boolean().default(false),
+  ENABLE_RBAC: strictBoolean().default(false),
   // Audit logging: non-critical (try/catch wrapped), adds compliance visibility
-  ENABLE_AUDIT_LOGGING: z.coerce.boolean().default(true),
+  ENABLE_AUDIT_LOGGING: strictBoolean().default(true),
   AUDIT_LOG_ENCRYPTION_KEY: z.string().optional(),
   AUDIT_HMAC_SECRET: z.string().optional(),
   AUDIT_LOG_DIR: z.string().optional(),
   AUDIT_LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
   TRANSACTION_WAL_DIR: z.string().default('.serval/wal'),
-  ENABLE_TENANT_ISOLATION: z.coerce.boolean().default(false),
+  TRANSACTIONS_ENABLED: strictBoolean().default(true),
+  TRANSACTIONS_AUTO_SNAPSHOT: strictBoolean().default(true),
+  TRANSACTIONS_AUTO_ROLLBACK: strictBoolean().default(true),
+  TRANSACTIONS_MAX_OPERATIONS: z.coerce.number().int().positive().default(100),
+  TRANSACTIONS_TIMEOUT_MS: z.coerce.number().int().positive().default(300000),
+  TRANSACTIONS_SNAPSHOT_RETENTION_MS: z.coerce.number().int().positive().default(3600000),
+  TRANSACTIONS_MAX_CONCURRENT: z.coerce.number().int().positive().default(10),
+  TRANSACTIONS_VERBOSE: strictBoolean().default(false),
+  TRANSACTIONS_DEFAULT_ISOLATION: z
+    .enum(['optimistic', 'pessimistic', 'snapshot', 'read_committed'])
+    .default('optimistic'),
+  TENANT_ALLOW_UNMAPPED_SPREADSHEET_ACCESS: strictBoolean().default(false),
+  DISCOVERY_API_ENABLED: strictBoolean().default(true),
+  DISCOVERY_CACHE_TTL: z.coerce.number().int().positive().default(86400),
+  ENABLE_TENANT_ISOLATION: strictBoolean().default(false),
   // Idempotency: makes all tool calls retry-safe via key-based dedup
-  ENABLE_IDEMPOTENCY: z.coerce.boolean().default(true),
+  ENABLE_IDEMPOTENCY: strictBoolean().default(true),
   // Cost tracking: useful for SaaS/multi-tenant, adds per-request overhead — keep opt-in
-  ENABLE_COST_TRACKING: z.coerce.boolean().default(false),
+  ENABLE_COST_TRACKING: strictBoolean().default(false),
   // Billing integration (Stripe): disabled by default, runtime-initialized when enabled
-  ENABLE_BILLING_INTEGRATION: z.coerce.boolean().default(false),
+  ENABLE_BILLING_INTEGRATION: strictBoolean().default(false),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   BILLING_CURRENCY: z.string().default('usd'),
   BILLING_CYCLE: z.enum(['monthly', 'annual']).default('monthly'),
-  BILLING_AUTO_INVOICING: z.coerce.boolean().default(true),
+  BILLING_AUTO_INVOICING: strictBoolean().default(true),
+
+  // Post-mutation verification: read back affected ranges to verify writes succeeded
+  ENABLE_MUTATION_VERIFICATION: strictBoolean().default(false),
+
+  // Strict output schema validation: reject responses failing schema validation (opt-in for CI/test)
+  STRICT_OUTPUT_VALIDATION: strictBoolean().default(true), // MCP-01: declared outputSchema MUST conform per spec
 
   // Predictive Prefetching (80% latency reduction on sequential operations)
   // Intelligently prefetches data based on access patterns (adjacent ranges, predicted next access)
   // Enabled by default - production-ready with circuit breaker and background refresh
-  ENABLE_PREFETCH: z.coerce.boolean().default(true),
+  ENABLE_PREFETCH: strictBoolean().default(true),
   PREFETCH_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.5),
   PREFETCH_CONCURRENCY: z.coerce.number().int().positive().default(2),
-  PREFETCH_BACKGROUND_REFRESH: z.coerce.boolean().default(true),
+  PREFETCH_BACKGROUND_REFRESH: strictBoolean().default(true),
 
   // Python Compute (Pyodide WASM — Phase 2)
   // Disabled by default: first load is ~10-20 seconds (WASM download + package install).
@@ -253,10 +331,129 @@ const EnvSchema = z.object({
     .transform((v) => v === 'true')
     .default(false)
     .describe('Enable Pyodide-based Python compute (WASM, first load ~10-20s)'),
+
+  // Excel Online (Microsoft Graph API) — scaffold backend (P3-3)
+  // Set these to enable Excel Online adapter initialization
+  EXCEL_ONLINE_CLIENT_ID: z.string().optional(),
+  EXCEL_ONLINE_CLIENT_SECRET: z.string().optional(),
+  EXCEL_ONLINE_TENANT_ID: z.string().optional(),
+
+  // Action Log Sheet (audit-to-spreadsheet)
+  // When enabled, each mutation is appended to a designated Google Sheet for audit trail
+  ENABLE_ACTION_LOG_SHEET: strictBoolean().default(false),
+  ACTION_LOG_SPREADSHEET_ID: z.string().optional(),
+  ACTION_LOG_SHEET_NAME: z.string().default('_audit_log'),
+
+  // Response redaction: strips tokens/keys from HTTP response bodies (default: true)
+  ENABLE_RESPONSE_REDACTION: strictBoolean().default(true),
+
+  // Google API request timeout in milliseconds (default: 60 seconds)
+  GOOGLE_API_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
+
+  // Formula passthrough bypass (security override — use with caution)
+  // When true, mutation-safety-middleware skips formula injection scanning (non-production only)
+  SERVAL_ALLOW_FORMULA_PASSTHROUGH: strictBoolean().default(false),
+
+  // Connector credential encryption key (AES-256-GCM)
+  // Must be set to enable encrypted credential storage for data connectors
+  CONNECTOR_ENCRYPTION_KEY: z.string().min(32).optional(),
+
+  // MCP non-fatal tool errors: when 'true', tool errors are returned as content not protocol errors
+  MCP_NON_FATAL_TOOL_ERRORS: z.string().optional().default('true'),
   PYODIDE_CACHE_DIR: z
     .string()
     .optional()
     .describe('Directory to cache Pyodide WASM files (improves cold start)'),
+
+  // Connector configuration directory (persistent encrypted credential storage)
+  CONNECTOR_CONFIG_DIR: z.string().optional(),
+
+  // OAuth redirect URI for embedded desktop OAuth flow
+  OAUTH_REDIRECT_URI: z.string().default('http://localhost:3000/callback'),
+
+  // When true, server is running in HTTP mode (not STDIO desktop mode)
+  MCP_HTTP_MODE: strictBoolean().default(false),
+
+  // Health monitoring — connection health check thresholds
+  MCP_DISCONNECT_THRESHOLD_MS: z.coerce.number().int().positive().default(120000), // 2 minutes
+  MCP_WARN_THRESHOLD_MS: z.coerce.number().int().positive().default(60000), // 1 minute
+
+  // Heap health check — snapshot support for memory debugging
+  ENABLE_HEAP_SNAPSHOTS: strictBoolean().default(false),
+  HEAP_SNAPSHOT_PATH: z.string().default('./heap-snapshots'),
+  // Heap pressure thresholds for heap-watchdog.ts (0-1 fraction of total heap)
+  HEAP_ELEVATED_THRESHOLD: z.coerce.number().min(0).max(1).default(0.8),
+  HEAP_CRITICAL_THRESHOLD: z.coerce.number().min(0).max(1).default(0.9),
+  HEAP_WATCHDOG_INTERVAL_MS: z.coerce.number().int().positive().default(5000),
+
+  // Scheduler / persistent job store directory
+  DATA_DIR: z.string().default(DEFAULT_DATA_DIR),
+
+  // MCP-07: Enforce MCP-Protocol-Version header on HTTP transport.
+  // When true, reject requests missing or mismatching "MCP-Protocol-Version: 2025-11-25".
+  // MCP 2025-11-25 spec §4.1 requires this header; default true for compliance.
+  STRICT_MCP_PROTOCOL_VERSION: strictBoolean().default(true),
+
+  // SERVAL function integration callback URLs
+  SERVAL_CALLBACK_URL: z.string().optional(),
+  SERVALSHEETS_BASE_URL: z.string().optional(),
+
+  // BigQuery result row cap (configurable for large exports)
+  MAX_BIGQUERY_RESULT_ROWS: z.coerce.number().positive().default(100000),
+
+  // Sampling request timeout in milliseconds
+  SAMPLING_TIMEOUT_MS: z.coerce.number().positive().default(30000),
+
+  // Output schema validation (validate handler responses against declared outputSchema)
+  VALIDATE_OUTPUT_SCHEMAS: strictBoolean().default(true),
+
+  // Impact analyzer configuration
+  IMPACT_ANALYSIS_ENABLED: strictBoolean().default(true),
+  IMPACT_ANALYZE_FORMULAS: strictBoolean().default(true),
+  IMPACT_ANALYZE_CHARTS: strictBoolean().default(true),
+  IMPACT_ANALYZE_PIVOT_TABLES: strictBoolean().default(true),
+  IMPACT_ANALYZE_VALIDATION: strictBoolean().default(true),
+  IMPACT_ANALYZE_NAMED_RANGES: strictBoolean().default(true),
+  IMPACT_ANALYZE_PROTECTED: strictBoolean().default(true),
+  IMPACT_ANALYSIS_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+  IMPACT_VERBOSE: strictBoolean().default(false),
+  ENABLE_CHECKPOINTS: strictBoolean().default(false),
+
+  // Cache manager (constructor defaults — distinct from CACHE_TTL_MS / CACHE_MAX_SIZE_MB above)
+  CACHE_DEFAULT_TTL: z.coerce.number().positive().default(300000),
+  CACHE_MAX_SIZE: z.coerce.number().positive().default(100), // MB
+  CACHE_CLEANUP_INTERVAL: z.coerce.number().positive().default(300000),
+
+  // LLM fallback configuration
+  LLM_PROVIDER: z.enum(['anthropic', 'openai', 'google']).default('anthropic'),
+  LLM_API_KEY: z.string().optional(),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  GOOGLE_API_KEY: z.string().optional(),
+  LLM_MODEL: z.string().optional(),
+  LLM_BASE_URL: z.string().optional(),
+
+  // MCP response size limits
+  MCP_MAX_RESPONSE_BYTES: z.coerce.number().int().positive().default(100000),
+  // Response compaction (response-compactor.ts)
+  MAX_INLINE_CELLS: z.coerce.number().int().positive().default(500),
+  COMPACT_RESPONSES: strictBoolean().default(true),
+
+  // Rate limiting (Google Sheets API quota)
+  RATE_LIMIT_READS_PER_MINUTE: z.coerce.number().positive().default(300),
+  RATE_LIMIT_WRITES_PER_MINUTE: z.coerce.number().positive().default(60),
+
+  // Diff engine concurrency (parallel sheet fetches)
+  DIFF_ENGINE_CONCURRENCY: z.coerce.number().positive().default(10),
+
+  // Schema optimization mode (controls tool description verbosity)
+  SCHEMA_MODE: z.enum(['full', 'minimal', 'compact']).default('full'),
+  LAZY_LOAD_TOOLS: z.string().optional(),
+  LAZY_LOAD_ENTERPRISE: strictBoolean().default(false),
+
+  // OAuth scope selection
+  OAUTH_SCOPE_MODE: z.string().optional(),
+  DEPLOYMENT_MODE: z.enum(['self-hosted', 'saas']).catch('self-hosted').default('self-hosted'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -272,6 +469,14 @@ function ensureEnv(): Env {
     env = EnvSchema.parse(process.env);
   }
   return env;
+}
+
+/**
+ * Reset the env cache. FOR TEST USE ONLY.
+ * Call before setting process.env vars that need to be re-parsed.
+ */
+export function resetEnvForTest(): void {
+  env = undefined as unknown as Env;
 }
 
 /**
@@ -301,6 +506,9 @@ export function validateEnv(): Env {
           'Enable RBAC to enforce per-tenant authorization boundaries in multi-tenant mode.'
       );
     }
+    if (env.NODE_ENV === 'production' && env.ENABLE_TENANT_ISOLATION && !env.ENABLE_RBAC) {
+      throw new Error('ENABLE_TENANT_ISOLATION requires ENABLE_RBAC=true in production');
+    }
 
     if (env.ENABLE_BILLING_INTEGRATION && !env.STRIPE_SECRET_KEY) {
       logger.warn(
@@ -318,11 +526,36 @@ export function validateEnv(): Env {
         { nodeEnv: env.NODE_ENV }
       );
     }
-    const transactionsEnabled = process.env['TRANSACTIONS_ENABLED'] !== 'false';
+    const transactionsEnabled = env.TRANSACTIONS_ENABLED;
     if (transactionsEnabled && env.NODE_ENV === 'production' && !env.TRANSACTION_WAL_DIR) {
       logger.warn(
         'DURABILITY: Transactions are enabled in production without TRANSACTION_WAL_DIR. ' +
           'In-flight transaction recovery after process crashes will be unavailable.'
+      );
+    }
+    if (env.NODE_ENV === 'production' && isTemporaryDataDir(env.DATA_DIR)) {
+      throw new Error(
+        `DATA_DIR must point to persistent storage in production. ` +
+          `Current value "${env.DATA_DIR}" resolves to a temporary directory. ` +
+          'Set DATA_DIR to a durable path such as /var/lib/servalsheets or a mounted volume.'
+      );
+    }
+    const profileStorageDir = env.PROFILE_STORAGE_DIR ?? DEFAULT_PROFILE_STORAGE_DIR;
+    if (env.NODE_ENV === 'production' && isTemporaryDataDir(profileStorageDir)) {
+      throw new Error(
+        `PROFILE_STORAGE_DIR must point to persistent storage in production. ` +
+          `Current value "${profileStorageDir}" resolves to a temporary directory.`
+      );
+    }
+    const checkpointDir = env.CHECKPOINT_DIR ?? DEFAULT_CHECKPOINT_DIR;
+    if (
+      env.NODE_ENV === 'production' &&
+      env.ENABLE_CHECKPOINTS &&
+      isTemporaryDataDir(checkpointDir)
+    ) {
+      throw new Error(
+        `CHECKPOINT_DIR must point to persistent storage when checkpoints are enabled in production. ` +
+          `Current value "${checkpointDir}" resolves to a temporary directory.`
       );
     }
     return env;
@@ -344,6 +577,19 @@ export function validateEnv(): Env {
 
     throw error;
   }
+}
+
+export function isTemporaryDataDir(dataDir: string): boolean {
+  const normalizedDir = resolve(dataDir);
+  const tempRoots = new Set([resolve(tmpdir()), resolve('/tmp')]);
+
+  for (const tempRoot of tempRoots) {
+    if (normalizedDir === tempRoot || normalizedDir.startsWith(`${tempRoot}${sep}`)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**

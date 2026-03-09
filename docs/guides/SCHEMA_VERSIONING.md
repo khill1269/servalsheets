@@ -321,6 +321,7 @@ export const DEPRECATED_VERSIONS: Map<SchemaVersion, Date> = new Map([
    ```
 
 3. **Migration Guide Link:**
+
    ```http
    Link: </docs/schema-versioning>; rel="deprecation"
    ```

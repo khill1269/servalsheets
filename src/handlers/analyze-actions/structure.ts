@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { AnalyzeResponse } from '../../schemas/analyze.js';
 import { logger } from '../../utils/logger.js';
@@ -72,11 +73,10 @@ export async function handleAnalyzeStructureAction(
     return {
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: 'Failed to analyze structure',
         retryable: true,
       },
     };
   }
 }
-

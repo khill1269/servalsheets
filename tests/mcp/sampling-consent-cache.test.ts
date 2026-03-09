@@ -3,6 +3,7 @@ import {
   assertSamplingConsent,
   clearSamplingConsentCache,
   registerSamplingConsentChecker,
+  withSamplingTimeout,
 } from '../../src/mcp/sampling.js';
 import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
@@ -62,5 +63,26 @@ describe('sampling consent cache', () => {
     ).rejects.toThrow('GDPR_CONSENT_REQUIRED');
 
     expect(checker).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not invoke the sampling factory when the request is already aborted', async () => {
+    const abortController = new AbortController();
+    abortController.abort('Cancelled before sampling request');
+    const factory = vi.fn(async () => 'should-not-run');
+
+    const context = createRequestContext({
+      principalId: 'user-c',
+      abortSignal: abortController.signal,
+    });
+
+    await expect(
+      runWithRequestContext(context, async () => withSamplingTimeout(factory))
+    ).rejects.toMatchObject({
+      name: 'AbortError',
+      code: 'OPERATION_CANCELLED',
+      message: 'Cancelled before sampling request',
+    });
+
+    expect(factory).not.toHaveBeenCalled();
   });
 });

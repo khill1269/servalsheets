@@ -21,6 +21,10 @@ import type { RangeResolver } from '../../src/core/range-resolver.js';
 import type { ErrorDetail, ResponseMeta } from '../../src/schemas/shared.js';
 import type { sheets_v4 } from 'googleapis';
 import { getTracer, initTracer } from '../../src/utils/tracing.js';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 // Test implementation of BaseHandler
 class TestHandler extends BaseHandler<any, any> {
@@ -936,6 +940,30 @@ describe('BaseHandler', () => {
         );
 
       expect(resolveSpan).toBeDefined();
+    });
+
+    it('should use request-scoped metadata cache when handler context lacks one', async () => {
+      const metadataCache = {
+        getSheetId: vi.fn().mockResolvedValue(456),
+        getOrFetch: vi.fn(),
+      };
+      const mockSheetsApi = {
+        spreadsheets: {
+          get: vi.fn(),
+        },
+      };
+
+      const requestContext = createRequestContext({
+        metadataCache: metadataCache as any,
+      });
+
+      const sheetId = await runWithRequestContext(requestContext, () =>
+        handler.testGetSheetId('sheet-cached', 'CachedSheet', mockSheetsApi as any)
+      );
+
+      expect(sheetId).toBe(456);
+      expect(metadataCache.getSheetId).toHaveBeenCalledWith('sheet-cached', 'CachedSheet');
+      expect(mockSheetsApi.spreadsheets.get).not.toHaveBeenCalled();
     });
   });
 });

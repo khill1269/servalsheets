@@ -108,6 +108,7 @@ ServalSheets is a production-grade MCP server for Google Sheets that delivers 25
 | API-006: No full-column references | PASS | No `A:Z` patterns in handler code (validated by grep) |
 
 **6-Layer Optimization Stack**:
+
 ```
 Layer 1: Request Merging (overlapping ranges → single request)
 Layer 2: Field Masks (95% payload reduction on metadata)
@@ -230,6 +231,7 @@ Layer 6: Batch Compiler (100 ops per batchUpdate)
 | LLM-006: Description length variance | PARTIAL | Range: 146 chars (webhook) to 3,489 chars (collaborate) — webhook too sparse |
 
 **Tool Description Stats**:
+
 - Average: 2,388 chars per tool
 - Largest: `sheets_collaborate` (3,489 chars, 40 actions)
 - Smallest: `sheets_webhook` (146 chars, 10 actions — needs expansion)
@@ -285,6 +287,7 @@ Layer 6: Batch Compiler (100 ops per batchUpdate)
 | SAMP-005: Graceful degradation | PASS | All sampling calls have non-AI fallback paths |
 
 **Sampling Call Sites**:
+
 1. `analyzeData()` — comprehensive data analysis
 2. `generateFormula()` — AI formula generation
 3. `recommendChart()` — chart type suggestion
@@ -304,6 +307,7 @@ Layer 6: Batch Compiler (100 ops per batchUpdate)
 | ELIC-005: Client capability check | PASS | Graceful skip when client doesn't support elicitation |
 
 **Wizard Flows**:
+
 1. `chart_create` — 2-step: chart type → title
 2. `add_conditional_format_rule` — 1-step: rule preset selection
 3. `create` (spreadsheet) — 1-step: title + locale + timezone
@@ -396,6 +400,7 @@ Layer 6: Batch Compiler (100 ops per batchUpdate)
 | COMP-004: API optimization depth | PASS | 6-layer optimization stack unique in market |
 
 **Exclusive Features (no competitor offers)**:
+
 1. Cross-spreadsheet federation (join/query/compare across sheets)
 2. AI-powered sheet generation from natural language
 3. Scenario modeling with dependency cascade
@@ -482,6 +487,7 @@ This is what Claude sees in the `tools/list` MCP response. Each tool includes a 
 | Operating manual | `src/mcp/features-2025-11-25.ts` | ~700 | 39,926 | ~6,189 |
 
 **Contents**:
+
 - 5-GROUP mental model (Read → Modify → Analyze → Orchestrate → Admin)
 - 12 decision trees for common task routing
 - 11 few-shot examples with complete request/response pairs
@@ -496,6 +502,7 @@ This is what Claude sees in the `tools/list` MCP response. Each tool includes a 
 | Per-action metadata | `src/schemas/annotations.ts` | 10,290 | 390,598 | ~52,456 |
 
 This is the **single largest file** in the project. It contains 391 action-level entries, each with:
+
 - 392 `errorRecovery` blocks (specific fix instructions per error code)
 - Parameter guidance (required/optional, format examples, valid ranges)
 - Cross-action suggestions ("after this action, consider...")
@@ -534,6 +541,7 @@ Multi-step workflow templates like "Import CSV and format", "Set up tracking she
 ### Scaling Math
 
 Each new action adds approximately:
+
 - ~134 tokens to annotations
 - ~38 tokens to descriptions
 - ~22 tokens to server.json

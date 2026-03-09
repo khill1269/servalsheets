@@ -13,9 +13,11 @@
  * @module handlers/composite
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4, drive_v3 } from 'googleapis';
 import { BaseHandler, type HandlerContext, type HandlerError, unwrapRequest } from './base.js';
 import { ValidationError } from '../core/errors.js';
+import { getRequestAbortSignal } from '../utils/request-context.js';
 import {
   CompositeOperationsService,
   type CsvImportResult,
@@ -128,7 +130,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       if (error instanceof IncrementalScopeRequiredError) {
         return {
           response: this.error({
-            code: 'INCREMENTAL_SCOPE_REQUIRED',
+            code: ErrorCodes.INCREMENTAL_SCOPE_REQUIRED,
             message: error.message,
             category: 'auth',
             retryable: true,
@@ -164,6 +166,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
     try {
       let response: CompositeOutput['response'];
+      const requestAbortSignal = getRequestAbortSignal() ?? this.context.abortSignal;
 
       switch (req.action) {
         case 'import_csv':
@@ -248,21 +251,21 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
           response = await handleGenerateSheetAction(req as CompositeGenerateSheetInput, {
             sheetsApi: this.sheetsApi,
             samplingServer: this.context.samplingServer,
-            abortSignal: this.context.abortSignal,
+            abortSignal: requestAbortSignal,
           });
           break;
         case 'generate_template':
           response = await handleGenerateTemplateAction(req as CompositeGenerateTemplateInput, {
             sheetsApi: this.sheetsApi,
             samplingServer: this.context.samplingServer,
-            abortSignal: this.context.abortSignal,
+            abortSignal: requestAbortSignal,
           });
           break;
         case 'preview_generation':
           response = await handlePreviewGenerationAction(req as CompositePreviewGenerationInput, {
             sheetsApi: this.sheetsApi,
             samplingServer: this.context.samplingServer,
-            abortSignal: this.context.abortSignal,
+            abortSignal: requestAbortSignal,
           });
           break;
         // P14-C1 Composite Workflow actions (5)
@@ -548,7 +551,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         return {
           success: false,
           error: {
-            code: 'PRECONDITION_FAILED',
+            code: ErrorCodes.PRECONDITION_FAILED,
             message: confirmation.reason || 'User cancelled the operation',
             retryable: false,
           },
@@ -721,7 +724,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         return {
           success: false,
           error: {
-            code: 'PRECONDITION_FAILED',
+            code: ErrorCodes.PRECONDITION_FAILED,
             message: confirmation.reason || 'User cancelled the operation',
             retryable: false,
           },

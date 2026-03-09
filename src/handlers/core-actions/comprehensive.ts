@@ -1,9 +1,7 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
-import type {
-  CoreGetComprehensiveInput,
-  CoreResponse,
-} from '../../schemas/index.js';
+import type { CoreGetComprehensiveInput, CoreResponse } from '../../schemas/index.js';
 import type { ErrorDetail } from '../../schemas/shared.js';
 import { cacheManager, createCacheKey } from '../../utils/cache-manager.js';
 import { CACHE_TTL_SPREADSHEET } from '../../config/constants.js';
@@ -64,7 +62,7 @@ export async function handleGetComprehensiveAction(
 
   if (paginationState.sheetIndex < 0 || paginationState.sheetIndex > totalSheets) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: 'Invalid pagination cursor: sheet index out of bounds',
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -165,7 +163,7 @@ export async function handleGetComprehensiveAction(
 
   if (!data.spreadsheetId) {
     return deps.error({
-      code: 'INTERNAL_ERROR',
+      code: ErrorCodes.INTERNAL_ERROR,
       message: 'Sheets API returned incomplete data - missing spreadsheetId',
       details: { inputSpreadsheetId: input.spreadsheetId },
       retryable: true,

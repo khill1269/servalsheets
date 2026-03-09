@@ -36,6 +36,11 @@ const LoginActionSchema = z.object({
 const CallbackActionSchema = z.object({
   action: z.literal('callback').describe('Handle OAuth callback with authorization code'),
   code: z.string().min(1).describe('Authorization code from Google'),
+  state: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('OAuth state token from the redirect URL. Include it when available.'),
   verbosity: VerbositySchema,
 });
 
@@ -102,5 +107,6 @@ export type AuthLoginInput = SheetsAuthInput['request'] & { action: 'login' };
 export type AuthCallbackInput = SheetsAuthInput['request'] & {
   action: 'callback';
   code: string;
+  state?: string;
 };
 export type AuthLogoutInput = SheetsAuthInput['request'] & { action: 'logout' };

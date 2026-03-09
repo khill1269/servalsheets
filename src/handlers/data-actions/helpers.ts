@@ -3,6 +3,7 @@
  * All functions take a DataHandlerAccess object (`ha`) in place of `this`.
  */
 
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import {
   buildA1Notation,
@@ -20,7 +21,12 @@ import {
 import type { ValuesArray, RangeInput } from '../../schemas/index.js';
 import type { DataResponse } from '../../schemas/data.js';
 import type { ResponseMeta } from '../../schemas/index.js';
-import { type DataHandlerAccess, type ResponseFormat, DEFAULT_READ_PAGE_SIZE, MAX_CELLS_PER_REQUEST } from './internal.js';
+import {
+  type DataHandlerAccess,
+  type ResponseFormat,
+  DEFAULT_READ_PAGE_SIZE,
+  MAX_CELLS_PER_REQUEST,
+} from './internal.js';
 
 // ─── Range helpers ────────────────────────────────────────────────────────────
 
@@ -141,7 +147,7 @@ export function payloadTooLargeError(
   });
 
   return ha.makeError({
-    code: 'PAYLOAD_TOO_LARGE',
+    code: ErrorCodes.PAYLOAD_TOO_LARGE,
     message: validation.message,
     retryable: false,
     suggestedFix: validation.suggestions?.join('; ') || 'Split request into smaller batches',
@@ -474,7 +480,7 @@ export function buildPaginationPlan(
     if (wantsPagination) {
       return {
         error: ha.makeError({
-          code: 'INVALID_PARAMS',
+          code: ErrorCodes.INVALID_PARAMS,
           message: 'Pagination is not supported for this range format',
           retryable: false,
           suggestedFix:
@@ -506,11 +512,10 @@ export function buildPaginationPlan(
   if (offset === null || offset < 0 || offset >= totalRows) {
     return {
       error: ha.makeError({
-        code: 'INVALID_PARAMS',
+        code: ErrorCodes.INVALID_PARAMS,
         message: 'Invalid pagination cursor',
         retryable: false,
-        suggestedFix:
-          'Check the parameter format and ensure all required parameters are provided',
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
         details: { cursor },
       }),
     };
@@ -565,7 +570,7 @@ export async function buildMultiRangePaginationPlan(
   if (state.rangeIndex < 0 || state.rangeIndex >= ranges.length) {
     return {
       error: ha.makeError({
-        code: 'INVALID_PARAMS',
+        code: ErrorCodes.INVALID_PARAMS,
         message: 'Invalid pagination cursor: range index out of bounds',
         retryable: false,
         suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",

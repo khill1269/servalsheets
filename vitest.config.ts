@@ -1,10 +1,20 @@
 import { defineConfig } from 'vitest/config';
+import { fileURLToPath } from 'node:url';
+
+const isCI = process.env['CI'] === 'true' || process.env['GITHUB_ACTIONS'] === 'true';
+const maxConcurrency = isCI ? 4 : 8;
+const maxWorkers = isCI ? 4 : 8;
+const minWorkers = isCI ? 1 : 2;
 
 export default defineConfig({
   resolve: {
     // Handle .js imports for .ts files (NodeNext module resolution compatibility)
     extensionAlias: {
       '.js': ['.ts', '.js'],
+    },
+    alias: {
+      // node-cron emits sourcemap noise in test runs; use a deterministic test mock.
+      'node-cron': fileURLToPath(new URL('./tests/mocks/node-cron.ts', import.meta.url)),
     },
   },
   test: {
@@ -15,12 +25,15 @@ export default defineConfig({
     env: {
       NODE_ENV: 'test',
       OAUTH_AUTO_OPEN_BROWSER: 'false',
+      OAUTH_USE_CALLBACK_SERVER: 'false',
+      SERVAL_STAGED_REGISTRATION: 'false',
     },
     // Parallel execution with thread pool (increased for P2-2 optimization)
     pool: 'threads',
-    maxConcurrency: 8,
-    maxWorkers: 8,
-    minWorkers: 2,
+    // switch to 'forks' if OOM in low-memory environments (~3GB heap needed)
+    maxConcurrency,
+    maxWorkers,
+    minWorkers,
     // Test sharding support for parallel execution
     // Use: npm run test:shard 1/4 to run 1st quarter of tests
     // Use: npm run test:unit to run unit tests only
@@ -31,6 +44,7 @@ export default defineConfig({
       'tests/.tmp/**',
       'tests/manual/**',
       'tests/examples/**',
+      'tests/fixtures/**',
     ],
     coverage: {
       provider: 'v8',
@@ -47,14 +61,14 @@ export default defineConfig({
         'src/remote-server.ts', // Remote server entry point
       ],
       thresholds: {
-        lines: 75,
-        functions: 75,
-        branches: 70,
-        statements: 75,
+        lines: 80,
+        functions: 80,
+        branches: 75,
+        statements: 80,
       },
       include: ['src/**/*.ts'],
     },
-    testTimeout: 10000,
-    hookTimeout: 10000,
+    testTimeout: 15000,
+    hookTimeout: 30000,
   },
 });

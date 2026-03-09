@@ -3,7 +3,7 @@
  *
  * Real-world workflow patterns demonstrating the UASEV+R protocol:
  * - U (Understand): Parse user intent, identify hidden requirements
- * - A (Assess): Analyze context with sheets_analyze comprehensive
+ * - A (Assess): Analyze context with sheets_analyze scout or a targeted assess step
  * - S (Strategize): Plan optimal approach, choose tools/actions
  * - E (Execute): Run operations with proper error handling
  * - V (Verify): Confirm goal achieved, validate results
@@ -209,7 +209,7 @@ const WORKFLOW_PATTERNS: Record<string, WorkflowPattern> = {
       },
       {
         phase: 'A',
-        description: 'Comprehensive analysis of target sheet and data quality',
+        description: 'Assess target sheet structure before import',
         tools: [
           {
             tool: 'sheets_auth',
@@ -228,16 +228,17 @@ const WORKFLOW_PATTERNS: Record<string, WorkflowPattern> = {
           },
           {
             tool: 'sheets_analyze',
-            action: 'comprehensive',
-            purpose: 'Analyze existing data schema and quality',
+            action: 'scout',
+            purpose: 'Inspect existing sheet structure and schema before import',
             example: {
-              action: 'comprehensive',
+              action: 'scout',
               spreadsheetId: '1abc...',
               sheetName: 'Data',
             },
           },
         ],
-        notes: 'Full analysis critical for data imports to detect schema mismatches',
+        notes:
+          'Start with scout for structure. Escalate to comprehensive only if the target sheet already contains complex formulas, quality issues, or mixed data that must be preserved.',
       },
       {
         phase: 'S',
@@ -575,7 +576,7 @@ const WORKFLOW_PATTERNS: Record<string, WorkflowPattern> = {
       'Creating visualizations before fixing data quality issues',
     ],
     optimization_tips: [
-      'Use sheets_analyze comprehensive first - provides schema, stats, quality in 1-2 calls',
+      'Start with sheets_analyze scout to inspect structure, then run comprehensive only if you need a full quality/formula audit',
       'Leverage tiered retrieval: starts with metadata, samples 10 rows, only does full scan if needed',
       'Fix data quality issues before creating visualizations',
       'Cache analysis results for 5 minutes to avoid re-analysis',
@@ -827,12 +828,22 @@ const WORKFLOW_PATTERNS: Record<string, WorkflowPattern> = {
       },
       {
         phase: 'A',
-        description: 'Use tiered retrieval to avoid unnecessary full scans',
+        description: 'Assess with scout first, then escalate only if a deeper scan is needed',
         tools: [
           {
             tool: 'sheets_analyze',
+            action: 'scout',
+            purpose: 'Inspect structure and row/column shape before deeper analysis',
+            example: {
+              action: 'scout',
+              spreadsheetId: '1abc...',
+              sheetName: 'BigData',
+            },
+          },
+          {
+            tool: 'sheets_analyze',
             action: 'comprehensive',
-            purpose: 'Analyze with tiered retrieval (metadata → sample → full if needed)',
+            purpose: 'Run tiered retrieval only when scout shows deeper analysis is warranted',
             example: {
               action: 'comprehensive',
               spreadsheetId: '1abc...',
@@ -841,7 +852,7 @@ const WORKFLOW_PATTERNS: Record<string, WorkflowPattern> = {
           },
         ],
         notes:
-          'Tiered approach: (1) Metadata analysis (free), (2) Sample 10 rows (1 call), (3) Full scan only if needed (1 more call)',
+          'Recommended sequence: (1) scout for structure, (2) comprehensive for sample/full-scan analysis only if needed, (3) chunk raw reads only when the analysis says a full pass is required.',
       },
       {
         phase: 'S',
@@ -901,7 +912,7 @@ const WORKFLOW_PATTERNS: Record<string, WorkflowPattern> = {
       'Not using tiered retrieval in sheets_analyze (always does full scan)',
     ],
     optimization_tips: [
-      'Always use sheets_analyze comprehensive first - tiered retrieval avoids full scans when possible',
+      'Start with sheets_analyze scout and add comprehensive only when you need sample/full-scan analysis',
       'For aggregations: use pivot tables (1-2 API calls) instead of reading all data',
       'Chunk reads into 5K row batches for datasets >10K rows',
       'Process chunks in memory before requesting next chunk (memory efficient)',
@@ -1141,7 +1152,7 @@ export async function readPatternResource(uri: string): Promise<{
               'Real-world patterns showing how to apply UASEV+R protocol for optimal efficiency',
             protocol: {
               U: 'UNDERSTAND - Parse user intent, identify hidden requirements',
-              A: 'ASSESS - Analyze context with sheets_analyze or quick auth check',
+              A: 'ASSESS - Use scout, targeted reads, or quick auth checks before escalating to deeper analysis',
               S: 'STRATEGIZE - Plan optimal approach (batch, transaction, composite)',
               E: 'EXECUTE - Run operations with proper error handling',
               V: 'VERIFY - Confirm goal achieved, validate results',
@@ -1155,9 +1166,9 @@ export async function readPatternResource(uri: string): Promise<{
               transactions:
                 '2+ related writes: Use transactions for atomicity + quota optimization',
               complex_workflows:
-                'Imports, analysis, consolidation: Use full UASEV+R with comprehensive analysis',
+                'Imports, analysis, consolidation: Use full UASEV+R, starting with scout or targeted assessment and escalating to comprehensive only when needed',
               tiered_retrieval:
-                'Large datasets: Use sheets_analyze comprehensive (metadata → sample → full scan only if needed)',
+                'Large datasets: Start with sheets_analyze scout, then use comprehensive for metadata → sample → full scan only when needed',
             },
             patterns,
           },

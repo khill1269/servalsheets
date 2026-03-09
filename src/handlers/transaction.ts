@@ -4,6 +4,7 @@
  * Handles multi-operation transactions with atomicity and auto-rollback.
  */
 
+import { ErrorCodes } from './error-codes.js';
 import { getTransactionManager } from '../services/transaction-manager.js';
 import type {
   SheetsTransactionInput,
@@ -74,11 +75,10 @@ export class TransactionHandler {
             txDescription = beginReqAny['description'] as string | undefined;
           }
 
-          // NOTE: autoSnapshot is controlled by TransactionManager config, not per-transaction
-          // The input.autoSnapshot parameter is currently ignored (design limitation)
           const txId = await transactionManager.begin(req.spreadsheetId, {
-            autoCommit: false, // Fixed: was incorrectly using req.autoSnapshot
+            autoCommit: false,
             autoRollback: req.autoRollback ?? true,
+            autoSnapshot: req.autoSnapshot ?? false,
             isolationLevel: req.isolationLevel ?? 'read_committed',
           });
 
@@ -179,7 +179,7 @@ export class TransactionHandler {
             response = {
               success: false,
               error: {
-                code: 'INTERNAL_ERROR',
+                code: ErrorCodes.INTERNAL_ERROR,
                 message: result.error?.message || 'Transaction commit failed',
                 retryable: false,
                 details: result.rolledBack
@@ -200,14 +200,20 @@ export class TransactionHandler {
             );
           }
 
-          await transactionManager.rollback(req.transactionId);
+          const rollbackResult = await transactionManager.rollback(req.transactionId);
+
+          const recoveryHint = rollbackResult.snapshotId
+            ? ` Snapshot ${rollbackResult.snapshotId} is available — use sheets_collaborate action="version_restore_snapshot" or sheets_history action="undo" to restore cell data.`
+            : ' No snapshot was taken; use sheets_history action="undo" to manually reverse individual operations.';
 
           response = {
             success: true,
             action: 'rollback',
             transactionId: req.transactionId,
             status: 'rolled_back',
-            message: `Transaction ${req.transactionId} rolled back successfully.`,
+            snapshotId: rollbackResult.snapshotId || undefined,
+            operationsExecuted: rollbackResult.operationsReverted,
+            message: `Transaction ${req.transactionId} rolled back successfully (${rollbackResult.operationsReverted ?? 0} operation(s) reverted).${recoveryHint}`,
           };
           break;
         }
@@ -336,7 +342,7 @@ export class TransactionHandler {
           response = {
             success: false,
             error: {
-              code: 'INVALID_PARAMS',
+              code: ErrorCodes.INVALID_PARAMS,
               message: `Unsupported action: ${(req as { action: string }).action}`,
               retryable: false,
               suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",

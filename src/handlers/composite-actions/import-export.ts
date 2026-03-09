@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { drive_v3, sheets_v4 } from 'googleapis';
 import { Readable } from 'stream';
 import type {
@@ -36,7 +37,7 @@ export async function handleExportXlsxAction(
     return {
       success: false,
       error: {
-        code: 'FEATURE_UNAVAILABLE',
+        code: ErrorCodes.FEATURE_UNAVAILABLE,
         message:
           'Drive API not available for XLSX export. Ensure OAuth authentication is configured.',
         retryable: false,
@@ -90,7 +91,7 @@ export async function handleImportXlsxAction(
     return {
       success: false,
       error: {
-        code: 'FEATURE_UNAVAILABLE',
+        code: ErrorCodes.FEATURE_UNAVAILABLE,
         message:
           'Drive API not available for XLSX import. Ensure OAuth authentication is configured.',
         retryable: false,
@@ -183,7 +184,7 @@ export async function handleGetFormResponsesAction(
     });
   } catch (_err) {
     return deps.error({
-      code: 'SHEET_NOT_FOUND',
+      code: ErrorCodes.SHEET_NOT_FOUND,
       message: `Form responses sheet "${sheetName}" not found or inaccessible. Verify the sheet exists and you have read access.`,
       retryable: false,
       details: { formResponsesSheet: sheetName, spreadsheetId: input.spreadsheetId },

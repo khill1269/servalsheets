@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import { generateAIInsight, type SamplingServer } from '../../mcp/sampling.js';
 import type { AnalyzeResponse } from '../../schemas/analyze.js';
 import { logger } from '../../utils/logger.js';
@@ -16,9 +17,7 @@ interface ConvertedRangeInput {
 export interface DetectPatternsDeps {
   hasServer: boolean;
   samplingServer?: SamplingServer;
-  convertRangeInput: (
-    range: DetectPatternsRequest['range']
-  ) => ConvertedRangeInput | undefined;
+  convertRangeInput: (range: DetectPatternsRequest['range']) => ConvertedRangeInput | undefined;
   resolveAnalyzeRange: (range?: ConvertedRangeInput) => string | undefined;
   readData: (spreadsheetId: string, range?: string) => Promise<unknown[][]>;
 }
@@ -35,7 +34,7 @@ export async function handleDetectPatternsAction(
     return {
       success: false,
       error: {
-        code: 'SAMPLING_UNAVAILABLE',
+        code: ErrorCodes.SAMPLING_UNAVAILABLE,
         message: 'MCP Sampling is not available. detect_patterns requires an LLM via Sampling.',
         retryable: false,
       },
@@ -51,7 +50,7 @@ export async function handleDetectPatternsAction(
     return {
       success: false,
       error: {
-        code: 'NO_DATA',
+        code: ErrorCodes.NO_DATA,
         message: 'No data found in the specified range',
         retryable: false,
       },
@@ -128,9 +127,8 @@ export async function handleDetectPatternsAction(
         workerDuration: workerResult.duration,
       });
     } else {
-      const { detectAnomalies, analyzeTrends, analyzeCorrelationsData } = await import(
-        '../../analysis/helpers.js'
-      );
+      const { detectAnomalies, analyzeTrends, analyzeCorrelationsData } =
+        await import('../../analysis/helpers.js');
 
       anomalies = detectAnomalies(data);
       trends = analyzeTrends(data);
@@ -184,11 +182,10 @@ export async function handleDetectPatternsAction(
     return {
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: 'Failed to detect patterns',
         retryable: true,
       },
     };
   }
 }
-

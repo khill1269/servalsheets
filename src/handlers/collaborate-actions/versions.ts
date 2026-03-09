@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { drive_v3 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type {
@@ -17,6 +18,7 @@ import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
 import { confirmDestructiveAction } from '../../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
 import { createNotFoundError } from '../../utils/error-factory.js';
+import { logger } from '../../utils/logger.js';
 
 const DRIVE_MIME_TYPES = {
   XLSX: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -58,9 +60,12 @@ function mapRevision(
   };
 }
 
-function featureUnavailable(action: 'version_restore_revision', deps: VersionsDeps): CollaborateResponse {
+function featureUnavailable(
+  action: 'version_restore_revision',
+  deps: VersionsDeps
+): CollaborateResponse {
   return deps.error({
-    code: 'FEATURE_UNAVAILABLE',
+    code: ErrorCodes.FEATURE_UNAVAILABLE,
     message:
       'version_restore_revision is not supported. The Drive API does not support restoring Google Sheets revisions in-place. Use version_create_snapshot to export a copy, then restore manually.',
     details: {
@@ -81,6 +86,51 @@ export async function handleVersionListRevisionsAction(
   input: CollaborateVersionListRevisionsInput,
   deps: VersionsDeps
 ): Promise<CollaborateResponse> {
+  // Cursor-based pagination via afterRevisionId: collect all revisions until we find the
+  // cursor, then return the next page of results.
+  if (input.afterRevisionId !== undefined) {
+    const pageSize = input.pageSize ?? 100;
+    const allRevisions: drive_v3.Schema$Revision[] = [];
+    let pageToken: string | undefined;
+    let pageCount = 0;
+    const PAGE_CAP = 100;
+
+    // Fetch all revisions across Drive pages to find the cursor position.
+    do {
+      const resp = await deps.driveApi.revisions.list({
+        fileId: input.spreadsheetId!,
+        pageSize: 200,
+        fields:
+          'revisions(id,modifiedTime,lastModifyingUser/displayName,lastModifyingUser/emailAddress,size,keepForever),nextPageToken',
+        ...(pageToken ? { pageToken } : {}),
+      });
+      allRevisions.push(...(resp.data.revisions ?? []));
+      pageToken = resp.data.nextPageToken ?? undefined;
+      pageCount++;
+      if (pageCount >= PAGE_CAP) {
+        logger.warn(
+          `version_list_revisions: revision list capped at ${PAGE_CAP} pages for afterRevisionId cursor for spreadsheet ${input.spreadsheetId}`
+        );
+        break;
+      }
+    } while (pageToken);
+
+    // Find the index of the cursor revision and slice the next page after it.
+    const cursorIndex = allRevisions.findIndex((r) => r.id === input.afterRevisionId);
+    const startIndex = cursorIndex === -1 ? 0 : cursorIndex + 1;
+    const page = allRevisions.slice(startIndex, startIndex + pageSize);
+    const revisions = page.map((revision) => mapRevision(revision));
+    const hasMore = startIndex + pageSize < allRevisions.length;
+    const nextRevisionId =
+      hasMore && page.length > 0 ? (page[page.length - 1]!.id ?? undefined) : undefined;
+
+    return deps.success('version_list_revisions', {
+      revisions,
+      ...(nextRevisionId !== undefined ? { nextRevisionId } : {}),
+    });
+  }
+
+  // Token-based pagination (existing behaviour).
   const response = await deps.driveApi.revisions.list({
     fileId: input.spreadsheetId!,
     pageSize: input.pageSize ?? 100,
@@ -195,16 +245,23 @@ export async function handleVersionListSnapshotsAction(
 ): Promise<CollaborateResponse> {
   deps.checkOperationScopes('version_list_snapshots');
 
-  const response = await deps.driveApi.files.list({
-    q: `appProperties has { key='sourceSpreadsheetId' and value='${input.spreadsheetId}' } and trashed=false`,
-    spaces: 'drive',
-    fields: 'files(id,name,createdTime,size),nextPageToken',
-    pageSize: 50,
-    supportsAllDrives: true,
-    includeItemsFromAllDrives: true,
-  });
+  const allFiles: drive_v3.Schema$File[] = [];
+  let snapshotPageToken: string | undefined;
+  do {
+    const response = await deps.driveApi.files.list({
+      q: `appProperties has { key='sourceSpreadsheetId' and value='${input.spreadsheetId}' } and trashed=false`,
+      spaces: 'drive',
+      fields: 'files(id,name,createdTime,size),nextPageToken',
+      pageSize: 200,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      ...(snapshotPageToken ? { pageToken: snapshotPageToken } : {}),
+    });
+    allFiles.push(...(response.data.files ?? []));
+    snapshotPageToken = response.data.nextPageToken ?? undefined;
+  } while (snapshotPageToken);
 
-  const snapshots = (response.data.files ?? []).map((file) => ({
+  const snapshots = allFiles.map((file) => ({
     id: file.id ?? '',
     name: file.name ?? '',
     createdAt: file.createdTime ?? '',
@@ -215,7 +272,6 @@ export async function handleVersionListSnapshotsAction(
 
   return deps.success('version_list_snapshots', {
     snapshots,
-    nextPageToken: response.data.nextPageToken ?? undefined,
   });
 }
 
@@ -281,7 +337,7 @@ export async function handleVersionDeleteSnapshotAction(
 
     if (!confirmation.confirmed) {
       return deps.error({
-        code: 'PRECONDITION_FAILED',
+        code: ErrorCodes.PRECONDITION_FAILED,
         message: confirmation.reason || 'User cancelled the operation',
         retryable: false,
         suggestedFix: 'Review the operation requirements and try again',
@@ -330,16 +386,32 @@ export async function handleVersionCompareAction(
     let resolvedId2 = input.revisionId2;
 
     if (needsResolution) {
-      const revisionsResponse = await deps.driveApi.revisions.list({
-        fileId: input.spreadsheetId!,
-        pageSize: 1000,
-        fields: 'revisions(id)',
-      });
-      const revisionIds = (revisionsResponse.data.revisions ?? []).map((r) => r.id!).filter(Boolean);
+      const revisionIds: string[] = [];
+      let pageToken: string | undefined;
+      let pageCount = 0;
+      const PAGE_CAP = 100;
+      do {
+        const revisionsResponse = await deps.driveApi.revisions.list({
+          fileId: input.spreadsheetId!,
+          pageSize: 200, // Drive revisions.list max is 200; values above are silently clamped
+          fields: 'revisions(id),nextPageToken',
+          ...(pageToken ? { pageToken } : {}),
+        });
+        const ids = (revisionsResponse.data.revisions ?? []).map((r) => r.id!).filter(Boolean);
+        revisionIds.push(...ids);
+        pageToken = revisionsResponse.data.nextPageToken ?? undefined;
+        pageCount++;
+        if (pageCount >= PAGE_CAP) {
+          logger.warn(
+            `version_compare: revision list capped at ${PAGE_CAP} pages (${revisionIds.length} revisions) for spreadsheet ${input.spreadsheetId}`
+          );
+          break;
+        }
+      } while (pageToken);
 
       if (revisionIds.length < 2) {
         return deps.error({
-          code: 'INVALID_PARAMS',
+          code: ErrorCodes.INVALID_PARAMS,
           message: 'Spreadsheet has fewer than 2 revisions to compare',
           retryable: false,
         });
@@ -408,7 +480,7 @@ export async function handleVersionExportAction(
 
   if (input.revisionId && input.revisionId !== 'head') {
     return deps.error({
-      code: 'FEATURE_UNAVAILABLE',
+      code: ErrorCodes.FEATURE_UNAVAILABLE,
       message:
         'Exporting specific revisions is not supported. Use revisionId="head" or omit it to export the current version.',
       details: {
@@ -455,7 +527,7 @@ export async function handleVersionExportAction(
     }
 
     return deps.error({
-      code: 'INTERNAL_ERROR',
+      code: ErrorCodes.INTERNAL_ERROR,
       message: `Failed to export spreadsheet: ${error?.message ?? 'unknown error'}`,
       details: {
         spreadsheetId: input.spreadsheetId!,

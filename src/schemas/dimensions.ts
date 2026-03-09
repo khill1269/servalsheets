@@ -277,8 +277,28 @@ const SortRangeActionSchema = z.object({
 });
 
 // ============================================================================
-// Range Utility Actions (4 new operations - Google API coverage completion)
+// Range Utility Actions (5 operations - Google API coverage completion)
 // ============================================================================
+
+const DeleteDuplicatesActionSchema = z.object({
+  action: z
+    .literal('delete_duplicates')
+    .describe('Remove duplicate rows from a range using the Google Sheets deleteDuplicates API'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  range: RangeInputSchema.describe('Range to deduplicate (sheet-qualified, e.g. Sheet1!A1:D100)'),
+  comparisonColumns: z
+    .array(z.number().int().nonnegative())
+    .optional()
+    .describe(
+      'Zero-based column indices (relative to range start) to use for comparison. Omit to compare all columns.'
+    ),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+  safety: SafetyOptionsSchema.optional().describe('Safety options (supports dryRun, snapshot)'),
+});
 
 const TrimWhitespaceActionSchema = z.object({
   action: z.literal('trim_whitespace').describe('Trim leading and trailing whitespace from cells'),
@@ -678,7 +698,8 @@ export const SheetsDimensionsInputSchema = z.object({
       GetBasicFilterActionSchema,
       // FilterUpdateFilterCriteriaActionSchema removed - merged into set_basic_filter
       SortRangeActionSchema,
-      // Range utility actions (4)
+      // Range utility actions (5)
+      DeleteDuplicatesActionSchema,
       TrimWhitespaceActionSchema,
       RandomizeRangeActionSchema,
       TextToColumnsActionSchema,
@@ -989,4 +1010,10 @@ export type DimensionsDeleteSlicerInput = SheetsDimensionsInput['request'] & {
 export type DimensionsListSlicersInput = SheetsDimensionsInput['request'] & {
   action: 'list_slicers';
   spreadsheetId: string;
+};
+export type DimensionsDeleteDuplicatesInput = SheetsDimensionsInput['request'] & {
+  action: 'delete_duplicates';
+  spreadsheetId: string;
+  range: string;
+  comparisonColumns?: number[];
 };

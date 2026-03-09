@@ -59,7 +59,8 @@ export async function dispatchServerToolCall(
   }
 
   const handlerMap =
-    params.cachedHandlerMap ?? createToolHandlerMap(handlers, authHandler ?? undefined);
+    params.cachedHandlerMap ??
+    createToolHandlerMap(handlers, authHandler ?? undefined, googleClient ?? undefined);
   const handler = handlerMap[toolName];
   if (!handler) {
     return {

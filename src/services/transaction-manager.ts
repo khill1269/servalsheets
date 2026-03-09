@@ -139,6 +139,7 @@ export class TransactionManager {
     options: {
       autoCommit?: boolean;
       autoRollback?: boolean;
+      autoSnapshot?: boolean;
       isolationLevel?: 'read_uncommitted' | 'read_committed' | 'serializable';
       userId?: string;
     } = {}
@@ -154,9 +155,11 @@ export class TransactionManager {
     const transactionId = uuidv4();
     this.log(`Beginning transaction: ${transactionId}`);
 
-    // Create snapshot if auto-snapshot enabled
+    // Create snapshot if auto-snapshot enabled (per-call option overrides config)
+    const takeSnapshot =
+      options.autoSnapshot !== undefined ? options.autoSnapshot : this.config.autoSnapshot;
     let snapshot: TransactionSnapshot | undefined;
-    if (this.config.autoSnapshot) {
+    if (takeSnapshot) {
       snapshot = await this.createSnapshot(spreadsheetId);
       this.log(`Created snapshot: ${snapshot.id}`);
     }
@@ -270,6 +273,11 @@ export class TransactionManager {
 
       // Merge operations into batch request
       const batchRequest = this.mergeToBatchRequest(transaction.operations, sheetNameMap);
+
+      // Capture pre-commit cell values for rollback (write operations only)
+      if (transaction.snapshot) {
+        await this.capturePreCommitValues(transaction, transaction.snapshot);
+      }
 
       // Execute batch request via Google Sheets API
       const batchResponse = await this.executeBatchRequest(transaction.spreadsheetId, batchRequest);
@@ -525,39 +533,110 @@ export class TransactionManager {
   }
 
   /**
-   * Restore snapshot (Design Decision: Manual Recovery Path)
+   * Capture pre-commit cell values for write/clear operations.
    *
-   * Automatic in-place restoration is intentionally deferred because:
-   * 1. It risks data corruption if the spreadsheet was modified externally
-   * 2. Comparing and merging states is complex and error-prone
-   * 3. Manual recovery via sheets_collaborate.version_restore_snapshot is safer
+   * Fetches current cell values immediately before the batchUpdate so that
+   * restoreSnapshot() can write them back if the transaction is rolled back.
+   * Scoped to sheets_data write/clear operations only; format changes do not
+   * have a simple inverse and must still be undone manually.
+   */
+  private async capturePreCommitValues(
+    transaction: Transaction,
+    snapshot: TransactionSnapshot
+  ): Promise<void> {
+    if (!this.googleClient) return;
+
+    const WRITE_TOOL_ACTIONS = new Set([
+      'sheets_data:write',
+      'sheets_data:batch_write',
+      'sheets_data:clear',
+      'sheets_data:batch_clear',
+    ]);
+
+    const ranges: string[] = [];
+    for (const op of transaction.operations) {
+      const toolAction = `${op.tool}:${op.action}`;
+      if (WRITE_TOOL_ACTIONS.has(toolAction) && typeof op.params['range'] === 'string') {
+        ranges.push(op.params['range'] as string);
+      }
+    }
+
+    if (ranges.length === 0) return;
+
+    // Deduplicate ranges
+    const uniqueRanges = [...new Set(ranges)];
+
+    try {
+      const response = await this.googleClient.sheets.spreadsheets.values.batchGet({
+        spreadsheetId: transaction.spreadsheetId,
+        ranges: uniqueRanges,
+      });
+
+      snapshot.preCommitCellData = (response.data.valueRanges ?? []).map((vr) => ({
+        range: vr.range ?? '',
+        values: (vr.values as unknown[][] | undefined) ?? [],
+      }));
+
+      this.log(`Captured pre-commit cell data for ${uniqueRanges.length} range(s)`);
+    } catch (error) {
+      // Non-fatal: log and continue — rollback will still mark the transaction rolled_back
+      this.log(
+        `WARNING: Could not capture pre-commit cell data: ${error instanceof Error ? error.message : String(error)}. ` +
+          'Rollback will not restore cell values for this transaction.'
+      );
+    }
+  }
+
+  /**
+   * Restore snapshot — writes back pre-commit cell data captured before the batchUpdate.
    *
-   * Recovery options available to users:
-   * - Use sheets_collaborate action="version_restore_snapshot" to create a recovery file
-   * - Use sheets_history to review and manually undo operations
-   * - Implement compensating transactions for automated recovery
-   *
-   * Full in-place restoration would require:
-   * 1. Comparing current state with snapshot state
-   * 2. Generating compensating batchUpdate requests to revert changes
-   * 3. Handling cases where sheets were added/deleted
-   * 4. Managing potential conflicts if spreadsheet was modified externally
+   * Restores cell values for sheets_data write/clear operations.
+   * Format changes (sheets_format) and structural changes (sheet add/delete) are NOT
+   * reverted automatically; use sheets_history or sheets_collaborate for those.
    */
   private async restoreSnapshot(snapshot: TransactionSnapshot): Promise<void> {
-    // C12: Automatic in-place cell-data restoration is intentionally deferred (see JSDoc above).
-    // The snapshot captures spreadsheet metadata (structure, sheet names, properties) but not
-    // cell values. Restoring would require comparing states and generating compensating requests,
-    // which risks data corruption when external modifications occurred during the transaction.
-    //
-    // The rollback is considered SUCCESSFUL: the transaction is marked rolled_back, the
-    // snapshotId is returned so callers can trigger manual recovery via:
-    //   (1) sheets_history action "undo" to reverse individual operations
-    //   (2) sheets_collaborate action "version_restore_snapshot" to export a recovery copy
-    //   (3) sheets_collaborate action "version_list_revisions" to find a prior revision
-    this.log(
-      `Transaction rolled back. Snapshot ${snapshot.id} recorded for manual recovery. ` +
-        'Cell data recovery requires manual action via sheets_history or sheets_collaborate.'
-    );
+    if (!snapshot.preCommitCellData || snapshot.preCommitCellData.length === 0) {
+      this.log(
+        `Transaction rolled back. Snapshot ${snapshot.id} has no cell data to restore. ` +
+          'For format/structural rollback use sheets_history or sheets_collaborate.'
+      );
+      return;
+    }
+
+    if (!this.googleClient) {
+      this.log(
+        `Transaction rolled back. Cannot restore cell data — no Google API client. ` +
+          `Snapshot ${snapshot.id} captured ${snapshot.preCommitCellData.length} range(s); ` +
+          'restore manually via sheets_history or sheets_collaborate.'
+      );
+      return;
+    }
+
+    this.log(`Restoring ${snapshot.preCommitCellData.length} range(s) to pre-transaction state...`);
+
+    try {
+      await this.googleClient.sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: snapshot.spreadsheetId,
+        requestBody: {
+          valueInputOption: 'RAW',
+          data: snapshot.preCommitCellData.map((d) => ({
+            range: d.range,
+            values: d.values,
+          })),
+        },
+      });
+
+      this.log(
+        `Cell data restored for ${snapshot.preCommitCellData.length} range(s). ` +
+          'Note: format changes are not reverted — use sheets_history for full undo.'
+      );
+    } catch (error) {
+      // Non-fatal: log and continue — the transaction is still marked rolled_back
+      this.log(
+        `WARNING: Failed to restore cell data during rollback: ${error instanceof Error ? error.message : String(error)}. ` +
+          `Snapshot ${snapshot.id} contains the pre-transaction values for manual recovery.`
+      );
+    }
   }
 
   /**
@@ -1535,7 +1614,7 @@ export function initTransactionManager(
   if (!transactionManagerInstance) {
     const env = getEnv();
     transactionManagerInstance = new TransactionManager({
-      enabled: process.env['TRANSACTIONS_ENABLED'] !== 'false',
+      enabled: env.TRANSACTIONS_ENABLED,
       autoSnapshot: process.env['TRANSACTIONS_AUTO_SNAPSHOT'] !== 'false',
       autoRollback: process.env['TRANSACTIONS_AUTO_ROLLBACK'] !== 'false',
       maxOperationsPerTransaction: parseInt(process.env['TRANSACTIONS_MAX_OPERATIONS'] || '100'),

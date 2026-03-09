@@ -65,7 +65,6 @@ export const FULL_ACCESS_SCOPES = [
   'https://www.googleapis.com/auth/script.deployments',
   'https://www.googleapis.com/auth/script.processes',
   'https://www.googleapis.com/auth/script.external_request',
-  'https://www.googleapis.com/auth/script.metrics',
 
   // Drive Labels (for sheets_collaborate.label_list, label_apply, label_remove)
   'https://www.googleapis.com/auth/drive.labels.readonly',

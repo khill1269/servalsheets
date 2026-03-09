@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type {
@@ -106,9 +107,7 @@ export async function handlePivotUpdateAction(
     source: currentPivot.source,
     // Merge: use input value when provided, otherwise preserve existing field
     rows:
-      input.rows !== undefined
-        ? input.rows.map(mapPivotGroup)
-        : (currentPivot.rows ?? undefined),
+      input.rows !== undefined ? input.rows.map(mapPivotGroup) : (currentPivot.rows ?? undefined),
     columns:
       input.columns !== undefined
         ? input.columns.map(mapPivotGroup)
@@ -175,7 +174,7 @@ export async function handlePivotDeleteAction(
 
     if (!confirmation.confirmed) {
       return deps.error({
-        code: 'PRECONDITION_FAILED',
+        code: ErrorCodes.PRECONDITION_FAILED,
         message: confirmation.reason || 'User cancelled the operation',
         retryable: false,
         suggestedFix: 'Review the operation requirements and try again',
@@ -200,7 +199,9 @@ export async function handlePivotDeleteAction(
     fields: 'sheets.data.rowData.values.pivotTable',
     ranges: [],
   });
-  const sheet = (getResponse.data.sheets ?? []).find((s) => s.properties?.sheetId === input.sheetId);
+  const sheet = (getResponse.data.sheets ?? []).find(
+    (s) => s.properties?.sheetId === input.sheetId
+  );
   let pivotRow = 0;
   let pivotCol = 0;
   if (sheet?.data?.[0]?.rowData) {
@@ -283,7 +284,7 @@ export async function handlePivotGetAction(
   const targetSheet = metaSheets.find((s) => s.properties?.sheetId === input.sheetId);
   if (!targetSheet?.properties?.title) {
     return deps.error({
-      code: 'SHEET_NOT_FOUND',
+      code: ErrorCodes.SHEET_NOT_FOUND,
       message: `Sheet with ID ${input.sheetId} not found`,
       retryable: false,
       suggestedFix: 'Verify the sheet ID is correct',
@@ -300,7 +301,8 @@ export async function handlePivotGetAction(
     spreadsheetId: input.spreadsheetId,
     ranges: [scopedRange],
     includeGridData: true,
-    fields: 'sheets.data.rowData.values.pivotTable,sheets.properties.sheetId,sheets.properties.title',
+    fields:
+      'sheets.data.rowData.values.pivotTable,sheets.properties.sheetId,sheets.properties.title',
   });
 
   for (const sheet of response.data.sheets ?? []) {

@@ -13,7 +13,7 @@
  * DECLARED CAPABILITIES (via createServerCapabilities):
  * - tools: TOOL_COUNT tools with ACTION_COUNT actions (current consolidated set)
  * - resources: 3 URI templates + 28 registered resources
- * - prompts: 38 guided workflows for common operations
+ * - prompts: 48 guided workflows for common operations
  * - completions: Argument autocompletion for prompts/resources
  * - tasks: Background execution with TaskStoreAdapter (SEP-1686)
  * - logging: Dynamic log level control via logging/setLevel handler
@@ -747,10 +747,9 @@ If the client doesn't support sampling, these operations degrade gracefully to r
 The server uses \`sheets_confirm\` internally. If the client doesn't support elicitation, the server
 falls back to \`safety.dryRun\` parameter — always set \`dryRun: true\` first for destructive ops.
 
-**Tasks (SEP-1686)** — Long-running operations emit Task IDs for background tracking:
-\`sheets_bigquery.export_to_bigquery\`, \`sheets_bigquery.import_from_bigquery\`, \`sheets_appsscript.run\`,
-\`sheets_composite.export_large_dataset\`, \`sheets_history.timeline\`, \`sheets_federation.*\`.
-When a Task ID is returned, clients can cancel, track progress, or query status without blocking.
+**Tasks (SEP-1686)** — Use MCP \`tasks/call\` for background tracking on task-enabled tools.
+The transport returns the Task ID, and clients can cancel, track progress, or query status without
+waiting on the foreground \`tools/call\` response.
 
 **Transactions** — For 5+ operations, use atomic batching:
 1. \`sheets_transaction begin\` (description for audit trail)

@@ -605,7 +605,7 @@ npm test -- --reporter=verbose
 
 ## Next Steps
 
-### After completing onboarding:
+### After completing onboarding
 
 1. **Read architecture docs:**
    - [Handler Patterns](../development/HANDLER_PATTERNS.md)

@@ -91,6 +91,26 @@ const AggregateActionSchema = CommonFieldsSchema.extend({
     .describe(
       'Column to group by before aggregating (column letter, e.g., "A" or column header name)'
     ),
+  type: z
+    .enum(['standard', 'moving_average', 'moving_median', 'moving_sum'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Aggregation mode. "standard" runs the functions array; "moving_*" computes a rolling window over valueColumn.'
+    ),
+  valueColumn: z
+    .string()
+    .optional()
+    .describe(
+      'Column to use for moving window operations (letter or header name). Required when type is moving_*.'
+    ),
+  windowSize: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .default(3)
+    .describe('Number of rows in the moving window (default: 3). Only used when type is moving_*.'),
 }).strict();
 
 const StatisticalActionSchema = CommonFieldsSchema.extend({
@@ -112,6 +132,17 @@ const StatisticalActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(false)
     .describe('Include correlation matrix between numeric columns'),
+  movingWindow: z
+    .object({
+      windowSize: z.number().int().min(1).default(3).describe('Rolling window size (default: 3)'),
+      operation: z
+        .enum(['average', 'median', 'sum'])
+        .default('average')
+        .describe('Window operation to compute'),
+      column: z.string().describe('Column to apply the moving window to (letter or header name)'),
+    })
+    .optional()
+    .describe('If provided, compute a moving window statistic alongside the standard statistics.'),
 }).strict();
 
 const RegressionActionSchema = CommonFieldsSchema.extend({

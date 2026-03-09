@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type {
@@ -169,7 +170,10 @@ export async function handleChartCreateAction(
     }
   }
 
-  const dataRange = await deps.toGridRange(resolvedInput.spreadsheetId, resolvedInput.data.sourceRange);
+  const dataRange = await deps.toGridRange(
+    resolvedInput.spreadsheetId,
+    resolvedInput.data.sourceRange
+  );
   const position = await toOverlayPosition(
     deps,
     resolvedInput.spreadsheetId,
@@ -178,7 +182,12 @@ export async function handleChartCreateAction(
   );
 
   // Route to appropriate chart spec builder based on chart type
-  const chartSpec = buildChartSpec(dataRange, resolvedInput.chartType, resolvedInput.data, resolvedInput.options);
+  const chartSpec = buildChartSpec(
+    dataRange,
+    resolvedInput.chartType,
+    resolvedInput.data,
+    resolvedInput.options
+  );
 
   const response = await deps.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: resolvedInput.spreadsheetId,
@@ -242,7 +251,7 @@ export async function handleChartUpdateAction(
 
     if (!existingSpec) {
       return deps.error({
-        code: 'RANGE_NOT_FOUND',
+        code: ErrorCodes.RANGE_NOT_FOUND,
         message: `Chart with ID ${input.chartId} not found`,
         retryable: false,
         suggestedFix: 'Verify the range reference is correct and the sheet exists',
@@ -327,7 +336,7 @@ export async function handleChartDeleteAction(
 
     if (!confirmation.confirmed) {
       return deps.error({
-        code: 'PRECONDITION_FAILED',
+        code: ErrorCodes.PRECONDITION_FAILED,
         message: confirmation.reason || 'User cancelled the operation',
         retryable: false,
         suggestedFix: 'Review the operation requirements and try again',
@@ -433,7 +442,9 @@ export async function handleChartListAction(
         sheetId,
         title: chart.spec?.title ?? undefined,
         position: {
-          anchorCell: overlay?.anchorCell ? formatAnchorCell(overlay.anchorCell) : `${columnToLetter(0)}1`,
+          anchorCell: overlay?.anchorCell
+            ? formatAnchorCell(overlay.anchorCell)
+            : `${columnToLetter(0)}1`,
           offsetX: overlay?.offsetXPixels ?? 0,
           offsetY: overlay?.offsetYPixels ?? 0,
           width: overlay?.widthPixels ?? 600,
@@ -589,7 +600,7 @@ export async function handleChartUpdateDataRangeAction(
 
   if (!existingChart?.spec?.basicChart) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: `Chart with ID ${input.chartId} not found or is not a basic chart type`,
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -692,7 +703,7 @@ export async function handleChartAddTrendlineAction(
 
   if (!existingChart?.spec?.basicChart) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: `Chart with ID ${input.chartId} not found or is not a basic chart type`,
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -702,7 +713,7 @@ export async function handleChartAddTrendlineAction(
   const chartType = existingChart.spec.basicChart.chartType ?? '';
   if (!compatibleTypes.includes(chartType)) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: `Trendlines are not supported on ${chartType} charts. Use LINE, AREA, SCATTER, STEPPED_AREA, or COLUMN charts.`,
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -712,7 +723,7 @@ export async function handleChartAddTrendlineAction(
   const series = [...(existingChart.spec.basicChart.series ?? [])] as ExtendedBasicChartSeries[];
   if (input.seriesIndex >= series.length) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: `Series index ${input.seriesIndex} out of range. Chart has ${series.length} series.`,
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -798,7 +809,7 @@ export async function handleChartAddTrendlineAction(
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes('trendline') || message.includes('Unknown name')) {
       return deps.error({
-        code: 'FEATURE_UNAVAILABLE',
+        code: ErrorCodes.FEATURE_UNAVAILABLE,
         message:
           'Trendlines cannot be added programmatically via the Google Sheets REST API. ' +
           'This is a Google API limitation. Add trendlines manually via the Google Sheets UI: ' +
@@ -838,7 +849,7 @@ export async function handleChartRemoveTrendlineAction(
 
   if (!existingChart?.spec?.basicChart) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: `Chart with ID ${input.chartId} not found or is not a basic chart type`,
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -849,7 +860,7 @@ export async function handleChartRemoveTrendlineAction(
   const series = [...(existingChart.spec.basicChart.series ?? [])] as ExtendedBasicChartSeries[];
   if (input.seriesIndex >= series.length) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: `Series index ${input.seriesIndex} out of range. Chart has ${series.length} series.`,
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -858,7 +869,7 @@ export async function handleChartRemoveTrendlineAction(
 
   if (!series[input.seriesIndex]?.trendline) {
     return deps.error({
-      code: 'NOT_FOUND',
+      code: ErrorCodes.NOT_FOUND,
       message: `No trendline found on series ${input.seriesIndex}`,
       retryable: false,
       suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
@@ -1071,8 +1082,10 @@ function buildChartSpec(
               sources: [
                 {
                   ...gridRange,
-                  startColumnIndex: (dataRange.startColumnIndex ?? 0) + (data.series?.[0]?.column ?? 1),
-                  endColumnIndex: (dataRange.startColumnIndex ?? 0) + (data.series?.[0]?.column ?? 1) + 1,
+                  startColumnIndex:
+                    (dataRange.startColumnIndex ?? 0) + (data.series?.[0]?.column ?? 1),
+                  endColumnIndex:
+                    (dataRange.startColumnIndex ?? 0) + (data.series?.[0]?.column ?? 1) + 1,
                 },
               ],
             },

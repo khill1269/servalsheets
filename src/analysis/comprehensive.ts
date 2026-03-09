@@ -248,6 +248,12 @@ export interface ComprehensiveResult {
     totalAnomalies: number;
     totalTrends: number;
     totalCorrelations: number;
+    formulaDensity: number;
+    chartCount: number;
+    errorCellCount: number;
+    pivotTableCount: number;
+    dataValidationCount: number;
+    conditionalFormatCount: number;
   };
 
   // Visualizations (if requested)
@@ -1931,10 +1937,22 @@ export class ComprehensiveAnalyzer {
     totalAnomalies: number;
     totalTrends: number;
     totalCorrelations: number;
+    formulaDensity: number;
+    chartCount: number;
+    errorCellCount: number;
+    pivotTableCount: number;
+    dataValidationCount: number;
+    conditionalFormatCount: number;
   } {
+    const totalFormulas = sheetAnalyses.reduce((sum, s) => sum + (s.formulas?.total ?? 0), 0);
+    const totalCells = sheetAnalyses.reduce((sum, s) => sum + s.rowCount * s.columnCount, 0);
+    const errorCellCount = sheetAnalyses.reduce(
+      (sum, s) => sum + s.issues.filter((i) => i.type === 'error').length,
+      0
+    );
     return {
       totalDataRows: sheetAnalyses.reduce((sum, s) => sum + s.dataRowCount, 0),
-      totalFormulas: sheetAnalyses.reduce((sum, s) => sum + (s.formulas?.total ?? 0), 0),
+      totalFormulas,
       overallQualityScore:
         sheetAnalyses.length > 0
           ? sheetAnalyses.reduce((sum, s) => sum + s.qualityScore, 0) / sheetAnalyses.length
@@ -1947,6 +1965,12 @@ export class ComprehensiveAnalyzer {
       totalAnomalies: sheetAnalyses.reduce((sum, s) => sum + s.anomalies.length, 0),
       totalTrends: sheetAnalyses.reduce((sum, s) => sum + s.trends.length, 0),
       totalCorrelations: sheetAnalyses.reduce((sum, s) => sum + s.correlations.length, 0),
+      formulaDensity: totalCells > 0 ? totalFormulas / totalCells : 0,
+      chartCount: 0, // Populated by getSpreadsheetInfo() when available
+      errorCellCount,
+      pivotTableCount: 0, // Populated by getSpreadsheetInfo() when available
+      dataValidationCount: 0, // Populated by getSpreadsheetInfo() when available
+      conditionalFormatCount: 0, // Populated by getSpreadsheetInfo() when available
     };
   }
 

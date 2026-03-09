@@ -4,6 +4,7 @@
  * Sparkline actions: sparkline_add, sparkline_get, sparkline_clear
  */
 
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
 import { RangeResolutionError } from '../../core/range-resolver.js';
@@ -265,7 +266,7 @@ export async function handleBatchFormat(
 
   if (!operations || operations.length === 0) {
     return ha.makeError({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: 'No operations provided. Supply at least one operation in the operations array.',
       retryable: false,
       suggestedFix: 'Provide operations array with at least one format operation',
@@ -616,7 +617,7 @@ export async function handleBatchFormat(
         ? `\n${skippedOps.join('\n')}`
         : '\nEnsure each operation has a valid type and the required parameters for that type.';
     return ha.makeError({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: `No valid format operations could be built from ${operations.length} operation(s).${diagnostics}`,
       retryable: false,
       suggestedFix:
@@ -626,7 +627,7 @@ export async function handleBatchFormat(
 
   if (requests.length > 100) {
     return ha.makeError({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: `batch_format built ${requests.length} API subrequests but Google Sheets API allows max 100 per batchUpdate call.`,
       retryable: false,
       suggestedFix: 'Split into multiple batch_format calls with up to 100 operations each',
@@ -729,7 +730,7 @@ export async function handleSparklineGet(
 
   if (!formula || !String(formula).toUpperCase().startsWith('=SPARKLINE(')) {
     return ha.makeError({
-      code: 'NOT_FOUND',
+      code: ErrorCodes.NOT_FOUND,
       message: `No sparkline found in cell ${input.cell}`,
       retryable: false,
       suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',

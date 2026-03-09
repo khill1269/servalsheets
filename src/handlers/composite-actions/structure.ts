@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type {
   CompositeCloneStructureInput,
@@ -302,7 +303,7 @@ export async function handleCloneStructureAction(
     return {
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: 'Failed to copy sheet - no sheet ID returned',
         retryable: true,
       },

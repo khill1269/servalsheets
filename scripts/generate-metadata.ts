@@ -32,6 +32,57 @@ if (VALIDATE_MODE) {
   console.log('🔍 Running in validation mode (no files will be written)...\n');
 }
 
+const METADATA_TOOL_CATEGORIES = [
+  {
+    label: 'Core Operations',
+    tools: ['auth', 'core', 'data', 'format', 'dimensions'],
+  },
+  {
+    label: 'Visual Analytics',
+    tools: ['visualize'],
+  },
+  {
+    label: 'Collaboration & Governance',
+    tools: ['collaborate'],
+  },
+  {
+    label: 'Advanced Sheet Structures',
+    tools: ['advanced'],
+  },
+  {
+    label: 'Reliability & Recovery',
+    tools: ['transaction', 'quality', 'history'],
+  },
+  {
+    label: 'AI-Native Workflows',
+    tools: ['confirm', 'analyze', 'fix'],
+  },
+  {
+    label: 'Productivity & Composition',
+    tools: ['composite', 'session'],
+  },
+  {
+    label: 'Templates & Integrations',
+    tools: ['templates', 'bigquery', 'appsscript'],
+  },
+  {
+    label: 'Automation & Events',
+    tools: ['webhook'],
+  },
+  {
+    label: 'Formula Intelligence',
+    tools: ['dependencies'],
+  },
+  {
+    label: 'Federation & Compute',
+    tools: ['federation', 'compute'],
+  },
+  {
+    label: 'Agentic Execution & Connectors',
+    tools: ['agent', 'connectors'],
+  },
+] as const;
+
 /**
  * Track files that would be written vs their current content.
  * In validate mode, we compare without writing.
@@ -55,7 +106,7 @@ const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> =
   // NOTE: analyze and confirm kept as special cases because AST parser over-counts
   // (finds z.literal in output schemas too, not just input discriminated unions)
   analyze: {
-    count: 19,
+    count: 21,
     actions: [
       'comprehensive',
       'analyze_data',
@@ -78,6 +129,9 @@ const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> =
       'auto_enhance',
       // Meta-tools
       'discover_action',
+      // Diagnostic actions
+      'diagnose_errors',
+      'formula_health_check',
     ],
   },
   confirm: {
@@ -476,7 +530,7 @@ const serverJson = {
     '---\n\n' +
     'ServalSheets provides ' +
     TOOL_COUNT +
-    ' tools for Google Sheets operations. Use sheets_analyze with action "comprehensive" to start. For token efficiency, read schema://tools/{toolName} before calling tools with complex parameters.',
+    ' tools for Google Sheets operations. Start with sheets_auth action "status". If the user request is explicit, route directly to the matching tool. Use sheets_analyze action "scout" for quick exploration and "comprehensive" only for full audits. For token efficiency, read schema://tools/{toolName} before calling tools with complex parameters.',
   packages: [
     {
       registryType: 'npm',
@@ -499,16 +553,33 @@ const serverJson = {
   metadata: {
     toolCount: TOOL_COUNT,
     actionCount: ACTION_COUNT,
-    categories: [
-      'Core Operations (5 tools): auth, core, data, format, dimensions',
-      'Visualizations (1 tool): visualize',
-      'Collaboration (1 tool): collaborate',
-      'Advanced Features (1 tool): advanced',
-      'Workflow & Safety (3 tools): transaction, quality, history',
-      'MCP-Native Intelligence (3 tools): confirm (Elicitation), analyze (Sampling), fix (Automated)',
-      'Productivity (2 tools): composite, session',
-      'Enterprise (3 tools): templates, bigquery, appsscript',
-    ],
+    categories: (() => {
+      const toolNames = analyses
+        .filter((a) => a.actionCount > 0)
+        .map((a) => a.toolName)
+        .sort();
+      const categorizedToolNames = METADATA_TOOL_CATEGORIES.flatMap(
+        (category) => category.tools
+      ).sort();
+      const missingTools = toolNames.filter((tool) => !categorizedToolNames.includes(tool));
+      const extraTools = categorizedToolNames.filter((tool) => !toolNames.includes(tool));
+      const duplicateTools = categorizedToolNames.filter(
+        (tool, index, array) => array.indexOf(tool) !== index
+      );
+
+      if (missingTools.length > 0 || extraTools.length > 0 || duplicateTools.length > 0) {
+        throw new Error(
+          `Metadata category drift detected. Missing: ${missingTools.join(', ') || 'none'}; ` +
+            `extra: ${extraTools.join(', ') || 'none'}; ` +
+            `duplicates: ${Array.from(new Set(duplicateTools)).join(', ') || 'none'}`
+        );
+      }
+
+      return METADATA_TOOL_CATEGORIES.map(
+        (category) =>
+          `${category.label} (${category.tools.length} ${category.tools.length === 1 ? 'tool' : 'tools'}): ${category.tools.join(', ')}`
+      );
+    })(),
   },
   author: {
     name: 'Thomas Lee Cahill',

@@ -10,6 +10,7 @@
  * - analyze_impact: Pre-execution impact analysis with dependency tracking
  */
 
+import { ErrorCodes } from './error-codes.js';
 import { getValidationEngine } from '../services/validation-engine.js';
 import { getConflictDetector } from '../services/conflict-detector.js';
 import { getImpactAnalyzer } from '../services/impact-analyzer.js';
@@ -116,7 +117,7 @@ export class QualityHandler {
       const response: QualityResponse = {
         success: false,
         error: {
-          code: 'VALIDATION_ERROR',
+          code: ErrorCodes.VALIDATION_ERROR,
           message: `Validation failed. ${report.errors.length} error(s), ${report.warnings.length} warning(s).`,
           retryable: false,
           details: {
@@ -295,7 +296,7 @@ export class QualityHandler {
       return {
         success: false,
         error: {
-          code: 'INTERNAL_ERROR',
+          code: ErrorCodes.INTERNAL_ERROR,
           message: result.error?.message || 'Failed to resolve conflict',
           retryable: false,
         },

@@ -109,6 +109,8 @@ export interface UserQuotaStats {
 export class UserRateLimiter {
   private redis: RedisClient | null;
   private config: UserRateLimitConfig;
+  private _redisWarningLogged = false;
+  private _fallbackRequestCount = 0;
 
   /**
    * Create a user rate limiter
@@ -126,6 +128,15 @@ export class UserRateLimiter {
       burstAllowance: config.burstAllowance,
       redisAvailable: redis !== null,
     });
+
+    if (!this.redis) {
+      logger.warn(
+        'UserRateLimiter: Redis not configured — rate limiting disabled. ' +
+          'Set REDIS_URL to enable distributed rate limiting.',
+        { component: 'UserRateLimiter' }
+      );
+      this._redisWarningLogged = true;
+    }
   }
 
   /**
@@ -136,7 +147,15 @@ export class UserRateLimiter {
    */
   async checkLimit(userId: string): Promise<RateLimitResult> {
     if (!this.redis) {
-      // No Redis - allow all requests (graceful degradation)
+      // No Redis — rate limiting disabled (logged at startup)
+      this._fallbackRequestCount = (this._fallbackRequestCount ?? 0) + 1;
+      if (this._fallbackRequestCount % 100 === 0) {
+        logger.warn(
+          'UserRateLimiter: Redis unavailable — rate limiting bypassed for request #' +
+            this._fallbackRequestCount,
+          { component: 'UserRateLimiter' }
+        );
+      }
       return {
         allowed: true,
         remaining: Infinity,
