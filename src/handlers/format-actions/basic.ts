@@ -4,6 +4,7 @@
  * set_alignment, set_borders, clear_format, set_rich_text
  */
 
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
 import { confirmDestructiveAction } from '../../mcp/elicitation.js';
@@ -239,7 +240,7 @@ export async function handleSetAlignment(
 
   if (fields.length === 0) {
     return ha.makeError({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message:
         'No alignment properties specified. You must provide at least one of: horizontal (LEFT, CENTER, RIGHT), vertical (TOP, MIDDLE, BOTTOM), or wrapStrategy (OVERFLOW_CELL, LEGACY_WRAP, CLIP, WRAP)',
       retryable: false,
@@ -322,17 +323,16 @@ export async function handleClearFormat(
 
       if (!confirmation.confirmed) {
         return ha.makeError({
-          code: 'PRECONDITION_FAILED',
+          code: ErrorCodes.PRECONDITION_FAILED,
           message: 'Clear formatting operation cancelled by user',
           retryable: false,
           suggestedFix: 'Review the operation requirements and try again',
         });
       }
     } catch (err) {
-      ha.context.logger?.warn(
-        'Elicitation failed for clear_format, proceeding with operation',
-        { error: err }
-      );
+      ha.context.logger?.warn('Elicitation failed for clear_format, proceeding with operation', {
+        error: err,
+      });
     }
   }
 

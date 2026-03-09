@@ -13,6 +13,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
 import { TOOL_ACTIONS } from '../mcp/completions.js';
 import { VERSION } from '../version.js';
+import { getPromptsCatalogCount } from './prompts-catalog.js';
 
 /**
  * Resource category definition
@@ -207,6 +208,10 @@ function getToolSummary(): Array<{ name: string; actions: number; description: s
     sheets_appsscript: 'Apps Script automation',
     sheets_webhook: 'Change notifications',
     sheets_dependencies: 'Formula dependency analysis',
+    sheets_federation: 'Remote MCP federation and cross-server workflows',
+    sheets_compute: 'Server-side computation, statistics, and forecasting',
+    sheets_agent: 'Autonomous planning, execution, and rollback',
+    sheets_connectors: 'Live external data connectors and subscriptions',
   };
 
   return Object.entries(TOOL_ACTIONS)
@@ -248,7 +253,7 @@ export function registerMasterIndexResource(server: McpServer): void {
           tools: TOOL_COUNT,
           actions: ACTION_COUNT,
           resources: totalResources,
-          prompts: 20,
+          prompts: getPromptsCatalogCount(),
           knowledgeFiles: 38,
         },
 
@@ -281,8 +286,8 @@ export function registerMasterIndexResource(server: McpServer): void {
           },
           {
             name: 'Full Analysis',
-            description: 'Comprehensive spreadsheet analysis',
-            steps: ['sheets_auth status', 'sheets_analyze comprehensive'],
+            description: 'Explore sheet structure, then run a full audit only if needed',
+            steps: ['sheets_auth status', 'sheets_analyze scout', 'sheets_analyze comprehensive'],
             resourceToRead: 'servalsheets://patterns/comprehensive_audit',
           },
           {
@@ -303,7 +308,7 @@ export function registerMasterIndexResource(server: McpServer): void {
           discovery:
             "Browse 'categories' to find resources by type. Use 'whenToUse' to decide which category fits your need.",
           toolSelection:
-            "Check 'tools.byActionCount' for available tools, then read schema://tools/{toolName} for details.",
+            "Check 'tools.byActionCount' for available tools, route directly when intent is explicit, and read schema://tools/{toolName} for details before complex calls.",
           gettingStarted:
             "Follow 'quickStart.firstTimeUser' resources in order for a guided introduction.",
           optimization:
@@ -347,6 +352,11 @@ export function registerMasterIndexResource(server: McpServer): void {
           'Automate with Apps Script',
           'Connect to BigQuery',
           'Set up webhooks for changes',
+          'Trace formula dependencies and model scenarios',
+          'Run server-side compute, regression, and forecasting',
+          'Pull live data from external connectors',
+          'Call remote MCP servers via federation',
+          'Execute multi-step agent workflows with rollback',
         ],
 
         startWith: 'sheets_auth action:"status"',

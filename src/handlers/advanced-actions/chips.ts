@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type { SheetsAdvancedInput, AdvancedResponse } from '../../schemas/index.js';
@@ -95,7 +96,7 @@ export async function handleAddDriveChipAction(
     scopes.includes('https://www.googleapis.com/auth/drive');
   if (!hasDriveScope) {
     return deps.error({
-      code: 'INCREMENTAL_SCOPE_REQUIRED',
+      code: ErrorCodes.INCREMENTAL_SCOPE_REQUIRED,
       message:
         'Drive file access required. Please grant drive.file or drive scope to write Drive chips.',
       retryable: true,
@@ -159,7 +160,7 @@ export async function handleAddRichLinkChipAction(
     scopes.includes('https://www.googleapis.com/auth/drive');
   if (!hasDriveScope) {
     return deps.error({
-      code: 'INCREMENTAL_SCOPE_REQUIRED',
+      code: ErrorCodes.INCREMENTAL_SCOPE_REQUIRED,
       message:
         'Drive file access required. Please grant drive.file or drive scope to write rich link chips.',
       retryable: true,
@@ -216,7 +217,7 @@ export async function handleListChipsAction(
   // ISSUE-019: Require range to prevent unbounded full-grid fetch (chipRuns requires includeGridData)
   if (!req.range) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message:
         'list_chips requires a range parameter to prevent fetching the entire spreadsheet. Use A1 notation (e.g., "Sheet1!A1:Z100").',
       retryable: false,

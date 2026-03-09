@@ -136,6 +136,46 @@ describe('TaskStoreAdapter', () => {
       const retrieved = await adapter.getTask(task.taskId);
       expect(retrieved?.status).toBe('failed');
     });
+
+    it('should preserve cancelled status when a late completion result arrives', async () => {
+      const task = await adapter.createTask({ ttl: 300000 }, 'req-1', {
+        method: 'test',
+        params: {},
+      } as Request);
+
+      await adapter.updateTaskStatus(task.taskId, 'cancelled', 'User cancelled');
+      await adapter.storeTaskResult(task.taskId, 'completed', {
+        content: [{ type: 'text' as const, text: 'Late success' }],
+        isError: false,
+      });
+
+      const retrievedTask = await adapter.getTask(task.taskId);
+      const retrievedResult = await adapter.getUnderlyingStore().getTaskResult(task.taskId);
+
+      expect(retrievedTask?.status).toBe('cancelled');
+      expect(retrievedResult?.status).toBe('cancelled');
+    });
+
+    it('should expose a TASK_CANCELLED result immediately after cancellation', async () => {
+      const task = await adapter.createTask({ ttl: 300000 }, 'req-1', {
+        method: 'test',
+        params: {},
+      } as Request);
+
+      await adapter.cancelTask(task.taskId, 'User cancelled');
+
+      const retrievedResult = await adapter.getTaskResult(task.taskId);
+
+      expect(retrievedResult.structuredContent).toMatchObject({
+        response: {
+          success: false,
+          error: {
+            code: 'TASK_CANCELLED',
+            message: 'User cancelled',
+          },
+        },
+      });
+    });
   });
 
   describe('getTaskResult', () => {

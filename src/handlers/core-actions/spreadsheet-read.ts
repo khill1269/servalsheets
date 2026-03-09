@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { drive_v3, sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type {
@@ -186,7 +187,7 @@ export async function handleListAction(
 
   if (!deps.driveApi) {
     return deps.error({
-      code: 'INTERNAL_ERROR',
+      code: ErrorCodes.INTERNAL_ERROR,
       message: 'Drive API not available - required for listing spreadsheets',
       details: {
         action: 'list',
@@ -204,7 +205,8 @@ export async function handleListAction(
     });
   }
 
-  const pageSize = input.maxResults || 100;
+  // Drive files.list max pageSize is 1000; keep caller's maxResults as a result-count limit only
+  const pageSize = Math.min(1000, 100);
   const orderBy = input.orderBy || 'modifiedTime desc';
 
   let q = "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false";
@@ -213,17 +215,57 @@ export async function handleListAction(
   }
 
   try {
-    const response = await deps.driveApi.files.list({
-      q,
-      pageSize,
-      orderBy,
-      fields: 'files(id,name,createdTime,modifiedTime,webViewLink,owners,lastModifyingUser)',
-      spaces: 'drive',
-      supportsAllDrives: true,
-      includeItemsFromAllDrives: true,
-    });
+    const allFiles: drive_v3.Schema$File[] = [];
+    // Use caller-supplied pageToken (for cursor-based pagination) as the starting token
+    let pageToken: string | undefined = input.pageToken ?? undefined;
+    const maxPages = 20;
+    let pageCount = 0;
+    const limit = input.maxResults || 0; // 0 = no limit
+    let truncated = false;
+    let driveNextPageToken: string | undefined = undefined;
 
-    const spreadsheets = (response.data.files || [])
+    do {
+      const listParams: drive_v3.Params$Resource$Files$List = {
+        q,
+        pageSize,
+        orderBy,
+        fields:
+          'nextPageToken,files(id,name,createdTime,modifiedTime,webViewLink,owners,lastModifyingUser)',
+        spaces: 'drive',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+      };
+      if (pageToken) listParams.pageToken = pageToken;
+      const pageResponse = await deps.driveApi.files.list(listParams);
+
+      const files = pageResponse.data.files || [];
+      allFiles.push(...files);
+      driveNextPageToken = pageResponse.data.nextPageToken ?? undefined;
+      pageToken = driveNextPageToken;
+      pageCount++;
+
+      if (pageCount >= maxPages && pageToken) {
+        deps.context.logger?.warn?.(
+          'core.list: pagination cap reached (20 pages / 2000 spreadsheets)',
+          {
+            totalFetched: allFiles.length,
+          }
+        );
+        truncated = true;
+        break;
+      }
+
+      if (limit > 0 && allFiles.length >= limit) {
+        break;
+      }
+    } while (pageToken);
+
+    // Surface a nextPageToken when there are more results available
+    const returnNextPageToken = truncated ? pageToken : driveNextPageToken;
+
+    const sliced = limit > 0 ? allFiles.slice(0, limit) : allFiles;
+
+    const spreadsheets = sliced
       .filter((file) => file.id && file.name)
       .map((file) => ({
         spreadsheetId: file.id as string,
@@ -239,13 +281,19 @@ export async function handleListAction(
       }));
 
     const responseData = deps.applyListResponseFormat({ spreadsheets }, responseFormat);
+    // Merge pagination truncation with preview-mode truncation
+    const mergedTruncated = (responseData['truncated'] as boolean | undefined) || truncated;
+    const mergedResponseData = { ...responseData, truncated: mergedTruncated };
 
     return deps.success(
       'list',
-      responseData,
+      {
+        ...mergedResponseData,
+        ...(returnNextPageToken ? { nextPageToken: returnNextPageToken } : {}),
+      },
       undefined,
       undefined,
-      deps.buildResponseFormatMeta('list', responseData)
+      deps.buildResponseFormatMeta('list', mergedResponseData)
     );
   } catch (err) {
     return deps.mapError(err);

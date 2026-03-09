@@ -8,15 +8,21 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type {
+  CallToolResult,
+  RequestInfo,
+  ToolAnnotations,
+} from '@modelcontextprotocol/sdk/types.js';
 import type { ToolTaskHandler } from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
 import { randomUUID } from 'crypto';
+import PQueue from 'p-queue';
 import {
   recordToolCall,
   recordToolCallLatency,
   recordError,
   recordSelfCorrection,
   recordErrorCodeCompatibility,
+  updateQueueMetrics,
 } from '../../observability/metrics.js';
 import { getTemporaryResourceStore } from '../../resources/temporary-storage.js';
 import { resourceNotifications } from '../../resources/notifications.js';
@@ -25,13 +31,16 @@ import { z, type ZodSchema, type ZodTypeAny } from 'zod';
 
 import type { Handlers } from '../../handlers/index.js';
 import { AuthHandler } from '../../handlers/auth.js';
+import { ConfirmHandler } from '../../handlers/confirm.js';
 import { SessionHandler } from '../../handlers/session.js';
 import type { GoogleApiClient } from '../../services/google-api.js';
 import {
   createRequestContext,
   runWithRequestContext,
   getRequestContext,
+  createRequestAbortError,
 } from '../../utils/request-context.js';
+import { extractIdempotencyKeyFromHeaders } from '../../utils/idempotency-key-generator.js';
 import { compactResponse, isCompactModeEnabled } from '../../utils/response-compactor.js';
 import { recordSpreadsheetId, TOOL_ACTIONS } from '../completions.js';
 import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from '../features-2025-11-25.js';
@@ -41,8 +50,10 @@ import { getSessionContext } from '../../services/session-context.js';
 import { getCostTracker } from '../../services/cost-tracker.js';
 import { getAuditLogger } from '../../services/audit-logger.js';
 import { getCacheInvalidationGraph } from '../../services/cache-invalidation-graph.js';
+import { createMetadataCache } from '../../services/metadata-cache.js';
 import { invalidateContext as invalidateSamplingContext } from '../../services/sampling-context-cache.js';
 import { getEnv } from '../../config/env.js';
+import { registerServerTaskCancelHandler } from '../../server-runtime/control-plane-registration.js';
 import { resolveCostTrackingTenantId } from '../../utils/tenant-identification.js';
 import type { OperationHistory } from '../../types/history.js';
 import {
@@ -51,7 +62,7 @@ import {
 } from './schema-helpers.js';
 import type { ToolDefinition } from './tool-definitions.js';
 import { redactSensitiveData } from '../../middleware/redaction.js';
-import { ACTIVE_TOOL_DEFINITIONS } from './tool-definitions.js';
+import { ACTIVE_TOOL_DEFINITIONS, isToolCallAuthExempt } from './tool-definitions.js';
 import {
   extractAction,
   extractSpreadsheetId,
@@ -102,6 +113,13 @@ import { getErrorCodeCompatibility } from '../../utils/error-code-compat.js';
 import { withWriteLock } from '../../middleware/write-lock-middleware.js';
 import { checkRateLimit } from '../../middleware/rate-limit-middleware.js';
 import { detectMutationSafetyViolation } from '../../middleware/mutation-safety-middleware.js';
+import { startKeepalive } from '../../utils/keepalive.js';
+import {
+  buildAuthErrorResponse,
+  checkAuthAsync,
+  convertGoogleAuthError,
+  isGoogleAuthError,
+} from '../../utils/auth-guard.js';
 
 // Wrap input schemas for legacy envelopes during validation.
 // Keep registration schemas unwrapped to avoid MCP SDK tools/list empty schema bug.
@@ -169,6 +187,22 @@ const NON_FATAL_TOOL_ERROR_CODES = new Set<string>([
 
 const SELF_CORRECTION_WINDOW_MS = 5 * 60 * 1000;
 const recentFailuresByPrincipal = new Map<string, { action: string; timestampMs: number }>();
+type RegisteredTaskStore = Parameters<typeof registerServerTaskCancelHandler>[0]['taskStore'];
+const taskAbortControllersByStore = new WeakMap<
+  RegisteredTaskStore,
+  Map<string, AbortController>
+>();
+const taskWatchdogTimersByStore = new WeakMap<RegisteredTaskStore, Map<string, NodeJS.Timeout>>();
+const taskCancelHandlersRegistered = new WeakSet<RegisteredTaskStore>();
+
+export interface LegacyToolRegistration {
+  dispose(): void;
+}
+
+interface LegacyToolRegistrationState {
+  disposed: boolean;
+  abortController: AbortController;
+}
 
 function buildSelfCorrectionKey(toolName: string, principalId: string): string {
   return `${principalId}:${toolName}`;
@@ -180,6 +214,70 @@ function pruneSelfCorrectionFailures(nowMs: number): void {
       recentFailuresByPrincipal.delete(key);
     }
   }
+}
+
+function mergeAbortSignals(
+  requestAbortSignal?: AbortSignal,
+  sessionAbortSignal?: AbortSignal
+): AbortSignal | undefined {
+  if (!requestAbortSignal) {
+    return sessionAbortSignal;
+  }
+  if (!sessionAbortSignal) {
+    return requestAbortSignal;
+  }
+
+  if (typeof AbortSignal.any === 'function') {
+    return AbortSignal.any([requestAbortSignal, sessionAbortSignal]);
+  }
+
+  const controller = new AbortController();
+  const forwardAbort = (signal: AbortSignal): void => {
+    if (!controller.signal.aborted) {
+      controller.abort(signal.reason);
+    }
+  };
+
+  if (requestAbortSignal.aborted) {
+    forwardAbort(requestAbortSignal);
+  } else {
+    requestAbortSignal.addEventListener('abort', () => forwardAbort(requestAbortSignal), {
+      once: true,
+    });
+  }
+
+  if (sessionAbortSignal.aborted) {
+    forwardAbort(sessionAbortSignal);
+  } else {
+    sessionAbortSignal.addEventListener('abort', () => forwardAbort(sessionAbortSignal), {
+      once: true,
+    });
+  }
+
+  return controller.signal;
+}
+
+function getHeaderValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function normalizeRequestHeaders(
+  headers: unknown
+): Record<string, string | string[] | undefined> | undefined {
+  if (!headers || typeof headers !== 'object') {
+    return undefined;
+  }
+
+  if (
+    'entries' in (headers as Record<string, unknown>) &&
+    typeof (headers as { entries?: unknown }).entries === 'function'
+  ) {
+    return Object.fromEntries(
+      Array.from((headers as { entries: () => IterableIterator<[string, string]> }).entries())
+    );
+  }
+
+  return headers as Record<string, string | string[] | undefined>;
 }
 
 function extractAttemptedAction(args: unknown): string | null {
@@ -256,6 +354,48 @@ function shouldInvalidateSamplingContext(toolName: string, action: string): bool
   return invalidationKeys.length > 0;
 }
 
+function getTaskAbortControllers(taskStore: RegisteredTaskStore): Map<string, AbortController> {
+  const existing = taskAbortControllersByStore.get(taskStore);
+  if (existing) {
+    return existing;
+  }
+
+  const controllers = new Map<string, AbortController>();
+  taskAbortControllersByStore.set(taskStore, controllers);
+  return controllers;
+}
+
+function getTaskWatchdogTimers(taskStore: RegisteredTaskStore): Map<string, NodeJS.Timeout> {
+  const existing = taskWatchdogTimersByStore.get(taskStore);
+  if (existing) {
+    return existing;
+  }
+
+  const timers = new Map<string, NodeJS.Timeout>();
+  taskWatchdogTimersByStore.set(taskStore, timers);
+  return timers;
+}
+
+function ensureTaskCancellationControlPlane(taskStore: RegisteredTaskStore): {
+  abortControllers: Map<string, AbortController>;
+  watchdogTimers: Map<string, NodeJS.Timeout>;
+} {
+  const abortControllers = getTaskAbortControllers(taskStore);
+  const watchdogTimers = getTaskWatchdogTimers(taskStore);
+
+  if (!taskCancelHandlersRegistered.has(taskStore)) {
+    registerServerTaskCancelHandler({
+      taskStore,
+      taskAbortControllers: abortControllers,
+      taskWatchdogTimers: watchdogTimers,
+      log: logger,
+    });
+    taskCancelHandlersRegistered.add(taskStore);
+  }
+
+  return { abortControllers, watchdogTimers };
+}
+
 const parseForHandler = <T>(
   schema: ZodTypeAny,
   args: unknown,
@@ -321,7 +461,8 @@ const parseForHandler = <T>(
  */
 export function createToolHandlerMap(
   handlers: Handlers,
-  authHandler?: AuthHandler
+  authHandler?: AuthHandler,
+  googleClient?: GoogleApiClient | null
 ): Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> {
   const map: Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> = {
     sheets_core: (args) =>
@@ -559,6 +700,39 @@ export function createToolHandlerMap(
           'sheets_auth'
         )
       );
+  }
+
+  const withRequestMetadataCache = (
+    fn: (args: unknown, extra?: unknown) => Promise<unknown>
+  ): ((args: unknown, extra?: unknown) => Promise<unknown>) => {
+    if (!googleClient?.sheets) {
+      return fn;
+    }
+
+    return async (args: unknown, extra?: unknown) => {
+      const requestContext = getRequestContext();
+      if (requestContext?.metadataCache) {
+        return fn(args, extra);
+      }
+
+      const metadataCache = createMetadataCache(googleClient.sheets);
+      if (requestContext) {
+        requestContext.metadataCache = metadataCache;
+      }
+
+      try {
+        return await fn(args, extra);
+      } finally {
+        if (requestContext?.metadataCache === metadataCache) {
+          delete requestContext.metadataCache;
+        }
+        metadataCache.clear();
+      }
+    };
+  };
+
+  for (const [toolName, fn] of Object.entries(map)) {
+    map[toolName] = withRequestMetadataCache(fn);
   }
 
   // Build final map (with optional idempotency wrapping)
@@ -980,9 +1154,16 @@ export function buildToolResponse(
     const resp = structuredContent['response'] as Record<string, unknown>;
     if (resp && typeof resp === 'object') {
       if (requestContext) {
-        // Add _meta with requestId for correlation across logs/errors
-        resp['_meta'] = {
-          ...(typeof resp['_meta'] === 'object' ? (resp['_meta'] as Record<string, unknown>) : {}),
+        // Inject correlation metadata at structuredContent._meta (not inside response),
+        // keeping response clean and conformant with the tool's declared outputSchema.
+        // MCP 2025-11-25: _meta is a protocol-level reserved key on result objects.
+        const scMeta = (
+          typeof structuredContent['_meta'] === 'object' && structuredContent['_meta'] !== null
+            ? structuredContent['_meta']
+            : {}
+        ) as Record<string, unknown>;
+        structuredContent['_meta'] = {
+          ...scMeta,
           requestId: requestContext.requestId,
           ...(requestContext.traceId && { traceId: requestContext.traceId }),
           ...(requestContext.spanId && { spanId: requestContext.spanId }),
@@ -1021,24 +1202,21 @@ export function buildToolResponse(
     NON_FATAL_TOOL_ERROR_CODES.has(responseErrorCode);
   const isError = hasFailure && !treatAsNonFatal;
 
-  if (treatAsNonFatal && response && typeof response === 'object') {
-    const responseRecord = response as Record<string, unknown>;
-    responseRecord['_meta'] = {
-      ...(typeof responseRecord['_meta'] === 'object'
-        ? (responseRecord['_meta'] as Record<string, unknown>)
-        : {}),
+  if (treatAsNonFatal) {
+    // Inject at structuredContent._meta level (not inside response) per MCP 2025-11-25
+    const scMeta = (
+      typeof structuredContent['_meta'] === 'object' && structuredContent['_meta'] !== null
+        ? structuredContent['_meta']
+        : {}
+    ) as Record<string, unknown>;
+    structuredContent['_meta'] = {
+      ...scMeta,
       nonFatalError: true,
       nonFatalReason: `error_code:${responseErrorCode}`,
     };
   }
 
   if (hasFailure && response && typeof response === 'object' && errorCodeCompatibility) {
-    const responseRecord = response as Record<string, unknown>;
-    const existingMeta =
-      typeof responseRecord['_meta'] === 'object'
-        ? (responseRecord['_meta'] as Record<string, unknown>)
-        : {};
-
     recordErrorCodeCompatibility({
       reportedCode: errorCodeCompatibility.reportedCode,
       canonicalCode: errorCodeCompatibility.canonicalCode,
@@ -1047,13 +1225,18 @@ export function buildToolResponse(
       isKnown: errorCodeCompatibility.isKnown,
     });
 
-    responseRecord['_meta'] = {
-      ...existingMeta,
-      errorCode: existingMeta['errorCode'] ?? errorCodeCompatibility.reportedCode,
-      errorCodeCanonical:
-        existingMeta['errorCodeCanonical'] ?? errorCodeCompatibility.canonicalCode,
-      errorCodeFamily: existingMeta['errorCodeFamily'] ?? errorCodeCompatibility.family,
-      ...(errorCodeCompatibility.isAlias && typeof existingMeta['errorCodeIsAlias'] !== 'boolean'
+    // Inject error code compat metadata at structuredContent._meta (not inside response)
+    const scMeta = (
+      typeof structuredContent['_meta'] === 'object' && structuredContent['_meta'] !== null
+        ? structuredContent['_meta']
+        : {}
+    ) as Record<string, unknown>;
+    structuredContent['_meta'] = {
+      ...scMeta,
+      errorCode: scMeta['errorCode'] ?? errorCodeCompatibility.reportedCode,
+      errorCodeCanonical: scMeta['errorCodeCanonical'] ?? errorCodeCompatibility.canonicalCode,
+      errorCodeFamily: scMeta['errorCodeFamily'] ?? errorCodeCompatibility.family,
+      ...(errorCodeCompatibility.isAlias && typeof scMeta['errorCodeIsAlias'] !== 'boolean'
         ? { errorCodeIsAlias: true }
         : {}),
     };
@@ -1201,7 +1384,16 @@ export function buildToolResponse(
 
   return {
     // Human-readable content for display
-    content: [{ type: 'text', text: responseStr }],
+    content: [
+      {
+        type: 'text',
+        text: responseStr,
+        // MCP 2025-11-25: audience annotations guide client rendering
+        annotations: {
+          audience: isError ? (['user', 'assistant'] as const) : (['assistant'] as const),
+        },
+      },
+    ],
     // Typed structured content for programmatic access
     structuredContent,
     // Error flag - only set when true, undefined otherwise (MCP convention)
@@ -1335,10 +1527,25 @@ function normalizeRangeFields(record: Record<string, unknown>): Record<string, u
 
 function createToolCallHandler(
   tool: ToolDefinition,
-  handlerMap: Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> | null
+  handlerMap: Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> | null,
+  googleClient: GoogleApiClient | null,
+  requestQueue: PQueue,
+  registrationState: LegacyToolRegistrationState
 ): (
   args: Record<string, unknown>,
-  extra?: { requestId?: string | number; elicit?: unknown; sample?: unknown }
+  extra?: {
+    requestId?: string | number;
+    elicit?: unknown;
+    sample?: unknown;
+    sendNotification?: (
+      notification: import('@modelcontextprotocol/sdk/types.js').ServerNotification
+    ) => Promise<void>;
+    abortSignal?: AbortSignal;
+    signal?: AbortSignal;
+    progressToken?: string | number;
+    requestInfo?: Pick<RequestInfo, 'headers'>;
+    _meta?: { progressToken?: string | number };
+  }
 ) => Promise<CallToolResult> {
   return async (
     args: Record<string, unknown>,
@@ -1346,22 +1553,49 @@ function createToolCallHandler(
       requestId?: string | number;
       elicit?: unknown;
       sample?: unknown;
+      sendNotification?: (
+        notification: import('@modelcontextprotocol/sdk/types.js').ServerNotification
+      ) => Promise<void>;
+      abortSignal?: AbortSignal;
+      signal?: AbortSignal;
+      progressToken?: string | number;
+      requestInfo?: Pick<RequestInfo, 'headers'>;
+      _meta?: { progressToken?: string | number };
       traceId?: string;
       spanId?: string;
       parentSpanId?: string;
-      requestHeaders?: Record<string, string>;
+      requestHeaders?: Record<string, string | string[] | undefined>;
     }
   ) => {
-    const requestId = extra?.requestId ? String(extra.requestId) : undefined;
+    const parentRequestContext = getRequestContext();
+    const requestId =
+      extra?.requestId !== undefined ? String(extra.requestId) : parentRequestContext?.requestId;
+    const requestHeaders =
+      extra?.requestHeaders ?? normalizeRequestHeaders(extra?.requestInfo?.headers);
+    const progressToken = extra?._meta?.progressToken ?? extra?.progressToken;
+    const requestAbortSignal = mergeAbortSignals(
+      extra?.abortSignal ?? extra?.signal,
+      registrationState.abortController.signal
+    );
 
     // Extract trace context from extra params or headers (W3C Trace Context support)
-    const traceId = extra?.traceId || extra?.requestHeaders?.['x-trace-id'];
-    const spanId = extra?.spanId || extra?.requestHeaders?.['x-span-id'];
-    const parentSpanId = extra?.parentSpanId || extra?.requestHeaders?.['x-parent-span-id'];
+    const traceId =
+      extra?.traceId ||
+      getHeaderValue(requestHeaders?.['x-trace-id']) ||
+      parentRequestContext?.traceId;
+    const spanId =
+      extra?.spanId ||
+      getHeaderValue(requestHeaders?.['x-span-id']) ||
+      parentRequestContext?.spanId;
+    const parentSpanId =
+      extra?.parentSpanId ||
+      getHeaderValue(requestHeaders?.['x-parent-span-id']) ||
+      parentRequestContext?.parentSpanId;
     const principalId =
-      extra?.requestHeaders?.['x-user-id'] ||
-      extra?.requestHeaders?.['x-session-id'] ||
-      extra?.requestHeaders?.['x-client-id'];
+      getHeaderValue(requestHeaders?.['x-user-id']) ||
+      getHeaderValue(requestHeaders?.['x-session-id']) ||
+      getHeaderValue(requestHeaders?.['x-client-id']) ||
+      parentRequestContext?.principalId;
 
     const requestContext = createRequestContext({
       requestId,
@@ -1369,9 +1603,15 @@ function createToolCallHandler(
       spanId,
       parentSpanId,
       principalId,
+      abortSignal: requestAbortSignal,
+      sendNotification: extra?.sendNotification,
+      progressToken,
+      idempotencyKey: requestHeaders
+        ? extractIdempotencyKeyFromHeaders(requestHeaders)
+        : parentRequestContext?.idempotencyKey,
     });
     const costTrackingTenantId = resolveCostTrackingTenantId({
-      headers: extra?.requestHeaders,
+      headers: requestHeaders,
     });
 
     // Generate operation ID and start time for history tracking
@@ -1379,483 +1619,560 @@ function createToolCallHandler(
     const startTime = Date.now();
     const timestamp = new Date(startTime).toISOString();
 
-    return runWithRequestContext(requestContext, async () => {
-      recordSpreadsheetId(args);
-
-      if (!handlerMap) {
-        const errorResponse = {
-          response: {
-            success: false,
-            error: {
-              code: 'AUTHENTICATION_REQUIRED',
-              message: 'Google API client not initialized. Please provide credentials.',
-              retryable: false,
-              suggestedFix: 'Set GOOGLE_APPLICATION_CREDENTIALS or configure OAuth',
-            },
+    if (registrationState.disposed) {
+      return buildToolResponse({
+        response: {
+          success: false,
+          error: {
+            code: 'OPERATION_CANCELLED',
+            message: 'MCP session closed',
+            retryable: false,
           },
-        };
+        },
+      });
+    }
 
-        // Record failed operation in history
-        const historyService = getHistoryService();
-        historyService.record({
-          id: operationId,
-          timestamp,
-          tool: tool.name,
-          action: extractAction(args),
-          params: args,
-          result: 'error',
-          duration: Date.now() - startTime,
-          errorMessage: 'Google API client not initialized. Please provide credentials.',
-          errorCode: 'AUTHENTICATION_REQUIRED',
-          requestId,
-          spreadsheetId: extractSpreadsheetId(args),
-        });
+    updateQueueMetrics(requestQueue.size, requestQueue.pending);
 
-        return buildToolResponse(errorResponse);
+    return requestQueue.add(async () => {
+      if (requestAbortSignal?.aborted) {
+        throw createRequestAbortError(requestAbortSignal.reason, 'MCP session closed');
       }
 
-      const handler = handlerMap[tool.name];
-      if (!handler) {
-        const errorResponse = {
-          response: {
-            success: false,
-            error: {
-              code: 'NOT_IMPLEMENTED',
-              message: `Handler for ${tool.name} not yet implemented`,
-              retryable: false,
-              suggestedFix: 'This tool is planned for a future release',
-            },
-          },
-        };
-
-        // Record failed operation in history
-        const historyService = getHistoryService();
-        historyService.record({
-          id: operationId,
-          timestamp,
-          tool: tool.name,
-          action: extractAction(args),
-          params: args,
-          result: 'error',
-          duration: Date.now() - startTime,
-          errorMessage: `Handler for ${tool.name} not yet implemented`,
-          errorCode: 'NOT_IMPLEMENTED',
-          requestId,
-          spreadsheetId: extractSpreadsheetId(args),
+      return runWithRequestContext(requestContext, async () => {
+        requestContext.logger.debug('Tool call queued', {
+          toolName: tool.name,
+          queueSize: requestQueue.size,
+          pendingCount: requestQueue.pending,
+          traceId: requestContext.traceId,
+          spanId: requestContext.spanId,
         });
 
-        return buildToolResponse(errorResponse);
-      }
+        if (requestContext.abortSignal?.aborted) {
+          throw createRequestAbortError(requestContext.abortSignal.reason);
+        }
 
-      try {
-        const localParentSpanId = requestContext.spanId;
-        const remoteParentSpanId = requestContext.parentSpanId;
-        const toolSpanParent =
-          requestContext.traceId && requestContext.spanId
-            ? {
-                traceId: requestContext.traceId,
-                spanId: requestContext.spanId,
-                traceFlags: 1,
-              }
-            : undefined;
+        recordSpreadsheetId(args);
+        const rawArgs = args as Record<string, unknown>;
+        const rawAction = ((rawArgs['request'] as Record<string, unknown> | undefined)?.[
+          'action'
+        ] ?? rawArgs['action']) as string | undefined;
+        const isExempt = isToolCallAuthExempt(tool.name, rawAction);
 
-        // Execute handler with distributed tracing
-        const result = await withToolSpan(
-          tool.name,
-          async (span) => {
-            const previousTraceId = requestContext.traceId;
-            const previousSpanId = requestContext.spanId;
-            const previousParentSpanId = requestContext.parentSpanId;
+        if (!isExempt) {
+          const authResult = await checkAuthAsync(googleClient);
+          if (!authResult.authenticated) {
+            return buildToolResponse(buildAuthErrorResponse(authResult.error!));
+          }
+        }
 
-            // Propagate active tool span for downstream API traceparent headers.
-            requestContext.traceId = span.context.traceId;
-            requestContext.spanId = span.context.spanId;
-            requestContext.parentSpanId = span.parentSpanId ?? previousParentSpanId;
+        if (!handlerMap) {
+          const errorResponse = {
+            response: {
+              success: false,
+              error: {
+                code: 'AUTHENTICATION_REQUIRED',
+                message: 'Google API client not initialized. Please provide credentials.',
+                retryable: false,
+                suggestedFix: 'Set GOOGLE_APPLICATION_CREDENTIALS or configure OAuth',
+              },
+            },
+          };
 
-            // Add span attributes for observability
-            const action = extractAction(args);
-            const spreadsheetId = extractSpreadsheetId(args);
-            const sheetId = extractSheetId(args);
+          // Record failed operation in history
+          const historyService = getHistoryService();
+          historyService.record({
+            id: operationId,
+            timestamp,
+            tool: tool.name,
+            action: extractAction(args),
+            params: args,
+            result: 'error',
+            duration: Date.now() - startTime,
+            errorMessage: 'Google API client not initialized. Please provide credentials.',
+            errorCode: 'AUTHENTICATION_REQUIRED',
+            requestId,
+            spreadsheetId: extractSpreadsheetId(args),
+          });
 
-            span.setAttributes({
-              'tool.name': tool.name,
-              'tool.action': action,
-              'operation.id': operationId,
-              'request.id': requestId || 'unknown',
-              ...(localParentSpanId && { 'trace.local_parent_span_id': localParentSpanId }),
-              ...(remoteParentSpanId && { 'trace.remote_parent_span_id': remoteParentSpanId }),
-              ...(spreadsheetId && { 'spreadsheet.id': spreadsheetId }),
-              ...(sheetId && { 'sheet.id': sheetId.toString() }),
-            });
+          return buildToolResponse(errorResponse);
+        }
 
-            // ISSUE-107: Detect legacy invocation patterns before normalizing
-            const legacyWarning = detectLegacyInvocation(args);
-            if (legacyWarning) {
-              logger.debug('Legacy MCP invocation pattern detected', {
-                tool: tool.name,
-                warning: legacyWarning,
-                requestId,
-              });
-            }
+        const handler = handlerMap[tool.name];
+        if (!handler) {
+          const errorResponse = {
+            response: {
+              success: false,
+              error: {
+                code: 'NOT_IMPLEMENTED',
+                message: `Handler for ${tool.name} not yet implemented`,
+                retryable: false,
+                suggestedFix: 'This tool is planned for a future release',
+              },
+            },
+          };
 
-            try {
-              // Per-user rate limiting (token bucket, configured via RATE_LIMIT_*)
-              const principalId = requestContext.principalId ?? 'anonymous';
-              const rateCheck = checkRateLimit(principalId);
-              if (!rateCheck.allowed) {
-                return {
-                  response: {
-                    success: false,
-                    error: {
-                      code: 'RATE_LIMITED',
-                      message: `Rate limit exceeded. Retry after ${rateCheck.retryAfterMs}ms.`,
-                      retryable: true,
-                      retryAfterMs: rateCheck.retryAfterMs,
-                    },
-                  },
-                };
-              }
+          // Record failed operation in history
+          const historyService = getHistoryService();
+          historyService.record({
+            id: operationId,
+            timestamp,
+            tool: tool.name,
+            action: extractAction(args),
+            params: args,
+            result: 'error',
+            duration: Date.now() - startTime,
+            errorMessage: `Handler for ${tool.name} not yet implemented`,
+            errorCode: 'NOT_IMPLEMENTED',
+            requestId,
+            spreadsheetId: extractSpreadsheetId(args),
+          });
 
-              // Execute handler - pass extra context for MCP-native tools
-              // Write lock: serialize mutations per spreadsheetId (reads bypass)
-              const normalizedArgs = normalizeToolArgs(args);
-              const mutationSafetyViolation = detectMutationSafetyViolation(normalizedArgs);
-              if (mutationSafetyViolation) {
-                return {
-                  response: {
-                    success: false,
-                    error: {
-                      code: 'FORMULA_INJECTION_BLOCKED',
-                      message:
-                        `Dangerous formula detected at ${mutationSafetyViolation.path}: ` +
-                        `${mutationSafetyViolation.preview}. ` +
-                        'Set safety.sanitizeFormulas=false to allow.',
-                      retryable: false,
-                      suggestedFix:
-                        'Remove formulas containing IMPORTDATA, IMPORTRANGE, IMPORTFEED, IMPORTHTML, IMPORTXML, GOOGLEFINANCE, or QUERY from mutation payloads.',
-                    },
-                  },
-                };
-              }
-              const handlerResult = await withWriteLock(normalizedArgs, () =>
-                handler(normalizedArgs, extra)
-              );
+          return buildToolResponse(errorResponse);
+        }
 
-              // ISSUE-107: Inject protocol version (always) + deprecation warning (if legacy)
-              if (
-                handlerResult &&
-                typeof handlerResult === 'object' &&
-                'response' in handlerResult &&
-                handlerResult.response &&
-                typeof handlerResult.response === 'object'
-              ) {
-                const response = handlerResult.response as Record<string, unknown>;
-                const existingMeta =
-                  response['_meta'] && typeof response['_meta'] === 'object'
-                    ? (response['_meta'] as Record<string, unknown>)
-                    : {};
-                response['_meta'] = {
-                  ...existingMeta,
-                  protocolVersion: '2025-11-25',
-                  ...(legacyWarning ? { deprecationWarning: legacyWarning } : {}),
-                };
-              }
+        const keepalive = startKeepalive({
+          operationName: tool.name,
+          debug: process.env['DEBUG_KEEPALIVE'] === 'true',
+        });
 
-              // Add result attributes to span
+        try {
+          const localParentSpanId = requestContext.spanId;
+          const remoteParentSpanId = requestContext.parentSpanId;
+          const toolSpanParent =
+            requestContext.traceId && requestContext.spanId
+              ? {
+                  traceId: requestContext.traceId,
+                  spanId: requestContext.spanId,
+                  traceFlags: 1,
+                }
+              : undefined;
+
+          // Execute handler with distributed tracing
+          const result = await withToolSpan(
+            tool.name,
+            async (span) => {
+              const previousTraceId = requestContext.traceId;
+              const previousSpanId = requestContext.spanId;
+              const previousParentSpanId = requestContext.parentSpanId;
+
+              // Propagate active tool span for downstream API traceparent headers.
+              requestContext.traceId = span.context.traceId;
+              requestContext.spanId = span.context.spanId;
+              requestContext.parentSpanId = span.parentSpanId ?? previousParentSpanId;
+
+              // Add span attributes for observability
+              const action = extractAction(args);
+              const spreadsheetId = extractSpreadsheetId(args);
+              const sheetId = extractSheetId(args);
+
               span.setAttributes({
-                'result.success': isSuccessResult(handlerResult),
-                'cells.affected': extractCellsAffected(handlerResult) || 0,
+                'tool.name': tool.name,
+                'tool.action': action,
+                'operation.id': operationId,
+                'request.id': requestId || 'unknown',
+                ...(localParentSpanId && { 'trace.local_parent_span_id': localParentSpanId }),
+                ...(remoteParentSpanId && { 'trace.remote_parent_span_id': remoteParentSpanId }),
+                ...(spreadsheetId && { 'spreadsheet.id': spreadsheetId }),
+                ...(sheetId && { 'sheet.id': sheetId.toString() }),
               });
 
-              return handlerResult;
-            } finally {
-              requestContext.traceId = previousTraceId;
-              requestContext.spanId = previousSpanId;
-              requestContext.parentSpanId = previousParentSpanId;
-            }
-          },
-          {
-            'mcp.protocol.version': '2025-11-25',
-            'service.name': 'servalsheets',
-          },
-          toolSpanParent
-        );
+              // ISSUE-107: Detect legacy invocation patterns before normalizing
+              const legacyWarning = detectLegacyInvocation(args);
+              if (legacyWarning) {
+                logger.debug('Legacy MCP invocation pattern detected', {
+                  tool: tool.name,
+                  warning: legacyWarning,
+                  requestId,
+                });
+              }
 
-        const duration = Date.now() - startTime;
-        const spreadsheetId = extractSpreadsheetId(args);
-        const action = extractAction(args);
-        const status = isSuccessResult(result) ? 'success' : 'error';
-        const principalId = requestContext.principalId ?? 'anonymous';
-        const nowMs = Date.now();
-        pruneSelfCorrectionFailures(nowMs);
-        const correctionKey = buildSelfCorrectionKey(tool.name, principalId);
+              try {
+                // Per-user rate limiting (token bucket, configured via RATE_LIMIT_*)
+                const principalId = requestContext.principalId ?? 'anonymous';
+                const rateCheck = checkRateLimit(principalId);
+                if (!rateCheck.allowed) {
+                  return {
+                    response: {
+                      success: false,
+                      error: {
+                        code: 'RATE_LIMITED',
+                        message: `Rate limit exceeded. Retry after ${rateCheck.retryAfterMs}ms.`,
+                        retryable: true,
+                        retryAfterMs: rateCheck.retryAfterMs,
+                      },
+                    },
+                  };
+                }
 
-        // Record operation in history
-        const historyService = getHistoryService();
-        const operation: OperationHistory = {
-          id: operationId,
-          timestamp,
-          tool: tool.name,
-          action,
-          params: args,
-          result: status,
-          duration,
-          cellsAffected: extractCellsAffected(result),
-          snapshotId: extractSnapshotId(result),
-          errorMessage: extractErrorMessage(result),
-          errorCode: extractErrorCode(result),
-          requestId,
-          spreadsheetId,
-          sheetId: extractSheetId(args),
-        };
+                // Execute handler - pass extra context for MCP-native tools
+                // Write lock: serialize mutations per spreadsheetId (reads bypass)
+                const normalizedArgs = normalizeToolArgs(args);
+                const mutationSafetyViolation = detectMutationSafetyViolation(normalizedArgs);
+                if (mutationSafetyViolation) {
+                  return {
+                    response: {
+                      success: false,
+                      error: {
+                        code: 'FORMULA_INJECTION_BLOCKED',
+                        message:
+                          `Dangerous formula detected at ${mutationSafetyViolation.path}: ` +
+                          `${mutationSafetyViolation.preview}. ` +
+                          'Set safety.sanitizeFormulas=false to allow.',
+                        retryable: false,
+                        suggestedFix:
+                          'Remove formulas containing IMPORTDATA, IMPORTRANGE, IMPORTFEED, IMPORTHTML, IMPORTXML, GOOGLEFINANCE, or QUERY from mutation payloads.',
+                      },
+                    },
+                  };
+                }
+                const handlerResult = await withWriteLock(normalizedArgs, () =>
+                  handler(normalizedArgs, extra)
+                );
 
-        historyService.record(operation);
+                // ISSUE-107: Inject protocol version (always) + deprecation warning (if legacy)
+                if (
+                  handlerResult &&
+                  typeof handlerResult === 'object' &&
+                  'response' in handlerResult &&
+                  handlerResult.response &&
+                  typeof handlerResult.response === 'object'
+                ) {
+                  const response = handlerResult.response as Record<string, unknown>;
+                  const existingMeta =
+                    response['_meta'] && typeof response['_meta'] === 'object'
+                      ? (response['_meta'] as Record<string, unknown>)
+                      : {};
+                  response['_meta'] = {
+                    ...existingMeta,
+                    protocolVersion: '2025-11-25',
+                    ...(legacyWarning ? { deprecationWarning: legacyWarning } : {}),
+                  };
+                }
 
-        // Record metrics for observability
-        const durationSeconds = duration / 1000;
-        recordToolCall(tool.name, action, status, durationSeconds);
-        recordToolCallLatency(tool.name, action, durationSeconds);
-        if (status === 'error') {
-          recentFailuresByPrincipal.set(correctionKey, { action, timestampMs: nowMs });
-        } else {
-          const priorFailure = recentFailuresByPrincipal.get(correctionKey);
-          if (priorFailure && nowMs - priorFailure.timestampMs <= SELF_CORRECTION_WINDOW_MS) {
-            recordSelfCorrection(tool.name, priorFailure.action, action);
-            recentFailuresByPrincipal.delete(correctionKey);
-          }
-        }
+                // Add result attributes to span
+                span.setAttributes({
+                  'result.success': isSuccessResult(handlerResult),
+                  'cells.affected': extractCellsAffected(handlerResult) || 0,
+                });
 
-        // Record trace for debugging/performance analysis
-        const traceAggregator = getTraceAggregator();
-        if (traceAggregator.isEnabled()) {
-          // Collect spans from the tracer for this request
-          const { getTracer } = await import('../../utils/tracing.js');
-          const tracer = getTracer();
-          const recordedSpans = tracer.getSpans();
-
-          // Convert Span objects to TraceSpan format
-          const { TraceAggregatorImpl } = await import('../../services/trace-aggregator.js');
-          const convertedSpans = recordedSpans.map((span) =>
-            TraceAggregatorImpl.spanToTraceSpan(span)
+                return handlerResult;
+              } finally {
+                requestContext.traceId = previousTraceId;
+                requestContext.spanId = previousSpanId;
+                requestContext.parentSpanId = previousParentSpanId;
+              }
+            },
+            {
+              'mcp.protocol.version': '2025-11-25',
+              'service.name': 'servalsheets',
+            },
+            toolSpanParent
           );
 
-          traceAggregator.recordTrace({
-            requestId: requestId || operationId,
-            traceId: traceId || operationId,
-            timestamp: startTime,
-            duration,
+          const duration = Date.now() - startTime;
+          const spreadsheetId = extractSpreadsheetId(args);
+          const action = extractAction(args);
+          const status = isSuccessResult(result) ? 'success' : 'error';
+          const principalId = requestContext.principalId ?? 'anonymous';
+          const nowMs = Date.now();
+          pruneSelfCorrectionFailures(nowMs);
+          const correctionKey = buildSelfCorrectionKey(tool.name, principalId);
+
+          // Record operation in history
+          const historyService = getHistoryService();
+          const operation: OperationHistory = {
+            id: operationId,
+            timestamp,
             tool: tool.name,
             action,
-            success: status === 'success',
-            errorCode: extractErrorCode(result) ?? undefined,
-            errorMessage: extractErrorMessage(result) ?? undefined,
-            spans: convertedSpans,
-          });
-        }
+            params: args,
+            result: status,
+            duration,
+            cellsAffected: extractCellsAffected(result),
+            snapshotId: extractSnapshotId(result),
+            errorMessage: extractErrorMessage(result),
+            errorCode: extractErrorCode(result),
+            requestId,
+            spreadsheetId,
+            sheetId: extractSheetId(args),
+          };
 
-        // Track cost per tenant (opt-in via ENABLE_COST_TRACKING)
-        const envConfig = getEnv();
-        if (envConfig.ENABLE_COST_TRACKING || envConfig.ENABLE_BILLING_INTEGRATION) {
-          try {
-            // COST-01: Disaggregate API type by tool (bigquery/drive/sheets)
-            const apiType =
-              tool.name === 'sheets_bigquery'
-                ? 'bigquery'
-                : tool.name === 'sheets_collaborate' || tool.name === 'sheets_history'
-                  ? 'drive'
-                  : 'sheets';
-            getCostTracker().trackApiCall(costTrackingTenantId, apiType);
+          historyService.record(operation);
 
-            // COST-01: Track feature-level usage (rows, transactions)
-            if (status === 'success') {
-              const resp = (result as Record<string, unknown>)?.['response'] as
-                | Record<string, unknown>
-                | undefined;
-              if (resp) {
-                const rowsProcessed =
-                  (typeof resp['rowCount'] === 'number' ? resp['rowCount'] : undefined) ??
-                  (typeof resp['updatedRows'] === 'number' ? resp['updatedRows'] : undefined);
-                if (typeof rowsProcessed === 'number' && rowsProcessed > 0) {
-                  getCostTracker().trackFeatureUsage(
-                    costTrackingTenantId,
-                    'rowsProcessed',
-                    rowsProcessed
-                  );
-                }
-                if (tool.name === 'sheets_transaction' && action === 'commit') {
-                  getCostTracker().trackFeatureUsage(costTrackingTenantId, 'transactionsExecuted');
+          // Record metrics for observability
+          const durationSeconds = duration / 1000;
+          recordToolCall(tool.name, action, status, durationSeconds);
+          recordToolCallLatency(tool.name, action, durationSeconds);
+          if (status === 'error') {
+            recentFailuresByPrincipal.set(correctionKey, { action, timestampMs: nowMs });
+          } else {
+            const priorFailure = recentFailuresByPrincipal.get(correctionKey);
+            if (priorFailure && nowMs - priorFailure.timestampMs <= SELF_CORRECTION_WINDOW_MS) {
+              recordSelfCorrection(tool.name, priorFailure.action, action);
+              recentFailuresByPrincipal.delete(correctionKey);
+            }
+          }
+
+          // Record trace for debugging/performance analysis
+          const traceAggregator = getTraceAggregator();
+          if (traceAggregator.isEnabled()) {
+            // Collect spans from the tracer for this request
+            const { getTracer } = await import('../../utils/tracing.js');
+            const tracer = getTracer();
+            const recordedSpans = tracer.getSpans();
+
+            // Convert Span objects to TraceSpan format
+            const { TraceAggregatorImpl } = await import('../../services/trace-aggregator.js');
+            const convertedSpans = recordedSpans.map((span) =>
+              TraceAggregatorImpl.spanToTraceSpan(span)
+            );
+
+            traceAggregator.recordTrace({
+              requestId: requestId || operationId,
+              traceId: traceId || operationId,
+              timestamp: startTime,
+              duration,
+              tool: tool.name,
+              action,
+              success: status === 'success',
+              errorCode: extractErrorCode(result) ?? undefined,
+              errorMessage: extractErrorMessage(result) ?? undefined,
+              spans: convertedSpans,
+            });
+          }
+
+          // Track cost per tenant (opt-in via ENABLE_COST_TRACKING)
+          const envConfig = getEnv();
+          if (envConfig.ENABLE_COST_TRACKING || envConfig.ENABLE_BILLING_INTEGRATION) {
+            try {
+              // COST-01: Disaggregate API type by tool (bigquery/drive/sheets)
+              const apiType =
+                tool.name === 'sheets_bigquery'
+                  ? 'bigquery'
+                  : tool.name === 'sheets_collaborate' || tool.name === 'sheets_history'
+                    ? 'drive'
+                    : 'sheets';
+              getCostTracker().trackApiCall(costTrackingTenantId, apiType);
+
+              // COST-01: Track feature-level usage (rows, transactions)
+              if (status === 'success') {
+                const resp = (result as Record<string, unknown>)?.['response'] as
+                  | Record<string, unknown>
+                  | undefined;
+                if (resp) {
+                  const rowsProcessed =
+                    (typeof resp['rowCount'] === 'number' ? resp['rowCount'] : undefined) ??
+                    (typeof resp['updatedRows'] === 'number' ? resp['updatedRows'] : undefined);
+                  if (typeof rowsProcessed === 'number' && rowsProcessed > 0) {
+                    getCostTracker().trackFeatureUsage(
+                      costTrackingTenantId,
+                      'rowsProcessed',
+                      rowsProcessed
+                    );
+                  }
+                  if (tool.name === 'sheets_transaction' && action === 'commit') {
+                    getCostTracker().trackFeatureUsage(
+                      costTrackingTenantId,
+                      'transactionsExecuted'
+                    );
+                  }
                 }
               }
+            } catch {
+              // Cost tracking is non-critical — never block tool execution
             }
-          } catch {
-            // Cost tracking is non-critical — never block tool execution
           }
-        }
 
-        // Audit logging for compliance (opt-in via ENABLE_AUDIT_LOGGING)
-        if (envConfig.ENABLE_AUDIT_LOGGING) {
-          try {
-            void getAuditLogger().logToolCall({
-              tool: tool.name,
-              action,
-              userId: requestId || 'anonymous',
-              spreadsheetId: spreadsheetId || undefined,
-              outcome: status === 'success' ? 'success' : 'failure',
-              duration,
-            });
-          } catch {
-            // Audit logging is non-critical — never block tool execution
+          // Audit logging for compliance (opt-in via ENABLE_AUDIT_LOGGING)
+          if (envConfig.ENABLE_AUDIT_LOGGING) {
+            try {
+              void getAuditLogger().logToolCall({
+                tool: tool.name,
+                action,
+                userId: requestId || 'anonymous',
+                spreadsheetId: spreadsheetId || undefined,
+                outcome: status === 'success' ? 'success' : 'failure',
+                duration,
+              });
+            } catch {
+              // Audit logging is non-critical — never block tool execution
+            }
           }
-        }
 
-        // Invalidate sampling context cache after successful mutating operations.
-        if (
-          status === 'success' &&
-          spreadsheetId &&
-          shouldInvalidateSamplingContext(tool.name, action)
-        ) {
-          try {
-            invalidateSamplingContext(spreadsheetId);
-          } catch (error) {
-            logger.debug('Sampling context invalidation skipped', {
-              tool: tool.name,
-              action,
-              spreadsheetId,
-              error: error instanceof Error ? error.message : String(error),
-            });
+          // Invalidate sampling context cache after successful mutating operations.
+          if (
+            status === 'success' &&
+            spreadsheetId &&
+            shouldInvalidateSamplingContext(tool.name, action)
+          ) {
+            try {
+              invalidateSamplingContext(spreadsheetId);
+            } catch (error) {
+              logger.debug('Sampling context invalidation skipped', {
+                tool: tool.name,
+                action,
+                spreadsheetId,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            }
           }
-        }
 
-        return buildToolResponse(result, tool.name, tool.outputSchema);
-      } catch (error) {
-        const duration = Date.now() - startTime;
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        const errorCodeFromThrown =
-          typeof (error as { code?: unknown } | null)?.code === 'string'
-            ? String((error as { code?: unknown }).code)
-            : undefined;
+          return buildToolResponse(result, tool.name, tool.outputSchema);
+        } catch (error) {
+          const duration = Date.now() - startTime;
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorCodeFromThrown =
+            typeof (error as { code?: unknown } | null)?.code === 'string'
+              ? String((error as { code?: unknown }).code)
+              : undefined;
 
-        let errorCode = errorCodeFromThrown ?? 'INTERNAL_ERROR';
-        const errorPayload: Record<string, unknown> = {
-          code: errorCode,
-          message: errorMessage,
-          retryable: false,
-        };
+          let errorCode = errorCodeFromThrown ?? 'INTERNAL_ERROR';
+          const errorPayload: Record<string, unknown> = {
+            code: errorCode,
+            message: errorMessage,
+            retryable: false,
+          };
 
-        if (error instanceof z.ZodError) {
-          const validationError = createZodValidationError(
-            error.issues.map((issue) => ({
-              code: getIssueCode(issue),
-              path: normalizeIssuePath(issue.path),
-              message: issue.message,
-              options: Array.isArray((issue as { options?: unknown }).options)
-                ? ((issue as { options?: unknown[] }).options ?? [])
-                : undefined,
-              expected:
-                typeof (issue as { expected?: unknown }).expected === 'string'
-                  ? String((issue as { expected?: unknown }).expected)
+          if (error instanceof z.ZodError) {
+            const validationError = createZodValidationError(
+              error.issues.map((issue) => ({
+                code: getIssueCode(issue),
+                path: normalizeIssuePath(issue.path),
+                message: issue.message,
+                options: Array.isArray((issue as { options?: unknown }).options)
+                  ? ((issue as { options?: unknown[] }).options ?? [])
                   : undefined,
-              received:
-                typeof (issue as { received?: unknown }).received === 'string'
-                  ? String((issue as { received?: unknown }).received)
-                  : undefined,
-            })),
-            tool.name
-          );
+                expected:
+                  typeof (issue as { expected?: unknown }).expected === 'string'
+                    ? String((issue as { expected?: unknown }).expected)
+                    : undefined,
+                received:
+                  typeof (issue as { received?: unknown }).received === 'string'
+                    ? String((issue as { received?: unknown }).received)
+                    : undefined,
+              })),
+              tool.name
+            );
 
-          errorCode = validationError.code;
-          errorPayload['code'] = validationError.code;
-          errorPayload['message'] = validationError.message;
-          errorPayload['retryable'] = validationError.retryable;
-          if (validationError.category) {
-            errorPayload['category'] = validationError.category;
+            errorCode = validationError.code;
+            errorPayload['code'] = validationError.code;
+            errorPayload['message'] = validationError.message;
+            errorPayload['retryable'] = validationError.retryable;
+            if (validationError.category) {
+              errorPayload['category'] = validationError.category;
+            }
+            if (validationError.severity) {
+              errorPayload['severity'] = validationError.severity;
+            }
+            if (validationError.resolution) {
+              errorPayload['resolution'] = validationError.resolution;
+            }
+            if (validationError.resolutionSteps) {
+              errorPayload['resolutionSteps'] = validationError.resolutionSteps;
+            }
           }
-          if (validationError.severity) {
-            errorPayload['severity'] = validationError.severity;
-          }
-          if (validationError.resolution) {
-            errorPayload['resolution'] = validationError.resolution;
-          }
-          if (validationError.resolutionSteps) {
-            errorPayload['resolutionSteps'] = validationError.resolutionSteps;
-          }
-        }
 
-        // Record failed operation in history
-        const historyService = getHistoryService();
-        historyService.record({
-          id: operationId,
-          timestamp,
-          tool: tool.name,
-          action: extractAction(args),
-          params: args,
-          result: 'error',
-          duration,
-          errorMessage,
-          errorCode,
-          requestId,
-          spreadsheetId: extractSpreadsheetId(args),
-        });
-
-        // Record error metrics
-        const action = extractAction(args);
-        recordToolCall(tool.name, action, 'error', duration / 1000);
-        recordError(error instanceof Error ? error.name : 'UnknownError', tool.name, action);
-        const principalId = requestContext.principalId ?? 'anonymous';
-        pruneSelfCorrectionFailures(Date.now());
-        const correctionKey = buildSelfCorrectionKey(tool.name, principalId);
-        recentFailuresByPrincipal.set(correctionKey, { action, timestampMs: Date.now() });
-
-        // Record error trace for debugging
-        const traceAggregator = getTraceAggregator();
-        if (traceAggregator.isEnabled()) {
-          // Collect spans from the tracer for error cases too
-          const { getTracer } = await import('../../utils/tracing.js');
-          const tracer = getTracer();
-          const recordedSpans = tracer.getSpans();
-
-          // Convert Span objects to TraceSpan format
-          const { TraceAggregatorImpl } = await import('../../services/trace-aggregator.js');
-          const convertedSpans = recordedSpans.map((span) =>
-            TraceAggregatorImpl.spanToTraceSpan(span)
-          );
-
-          traceAggregator.recordTrace({
-            requestId: requestId || operationId,
-            traceId: traceId || operationId,
-            timestamp: startTime,
-            duration,
+          // Record failed operation in history
+          const historyService = getHistoryService();
+          historyService.record({
+            id: operationId,
+            timestamp,
             tool: tool.name,
-            action,
-            success: false,
-            errorCode,
+            action: extractAction(args),
+            params: args,
+            result: 'error',
+            duration,
             errorMessage,
-            spans: convertedSpans,
+            errorCode,
+            requestId,
+            spreadsheetId: extractSpreadsheetId(args),
           });
+
+          // Record error metrics
+          const action = extractAction(args);
+          recordToolCall(tool.name, action, 'error', duration / 1000);
+          recordError(error instanceof Error ? error.name : 'UnknownError', tool.name, action);
+          const principalId = requestContext.principalId ?? 'anonymous';
+          pruneSelfCorrectionFailures(Date.now());
+          const correctionKey = buildSelfCorrectionKey(tool.name, principalId);
+          recentFailuresByPrincipal.set(correctionKey, { action, timestampMs: Date.now() });
+
+          // Record error trace for debugging
+          const traceAggregator = getTraceAggregator();
+          if (traceAggregator.isEnabled()) {
+            // Collect spans from the tracer for error cases too
+            const { getTracer } = await import('../../utils/tracing.js');
+            const tracer = getTracer();
+            const recordedSpans = tracer.getSpans();
+
+            // Convert Span objects to TraceSpan format
+            const { TraceAggregatorImpl } = await import('../../services/trace-aggregator.js');
+            const convertedSpans = recordedSpans.map((span) =>
+              TraceAggregatorImpl.spanToTraceSpan(span)
+            );
+
+            traceAggregator.recordTrace({
+              requestId: requestId || operationId,
+              traceId: traceId || operationId,
+              timestamp: startTime,
+              duration,
+              tool: tool.name,
+              action,
+              success: false,
+              errorCode,
+              errorMessage,
+              spans: convertedSpans,
+            });
+          }
+
+          if (isGoogleAuthError(error)) {
+            return buildToolResponse(convertGoogleAuthError(error));
+          }
+
+          // Return structured error instead of throwing (Task 1.2)
+          // buildToolResponse classifies recoverable error codes as non-fatal MCP results.
+          const errorResponse = {
+            response: {
+              success: false,
+              error: errorPayload,
+            },
+          };
+
+          return buildToolResponse(errorResponse);
+        } finally {
+          keepalive.stop();
         }
-
-        // Return structured error instead of throwing (Task 1.2)
-        // buildToolResponse classifies recoverable error codes as non-fatal MCP results.
-        const errorResponse = {
-          response: {
-            success: false,
-            error: errorPayload,
-          },
-        };
-
-        return buildToolResponse(errorResponse);
-      }
+      });
     });
   };
 }
 
-function createToolTaskHandler(
+export function createToolTaskHandler(
   toolName: string,
   runTool: (
     args: Record<string, unknown>,
-    extra?: { requestId?: string | number }
+    extra?:
+      | (Record<string, unknown> & {
+          requestId?: string | number;
+          abortSignal?: AbortSignal;
+          signal?: AbortSignal;
+        })
+      | undefined
   ) => Promise<CallToolResult>
 ): ToolTaskHandler<AnySchema> {
+  const buildCancelledTaskResult = (message: string): CallToolResult =>
+    buildToolResponse({
+      response: {
+        success: false,
+        error: {
+          code: 'TASK_CANCELLED',
+          message,
+          retryable: false,
+        },
+      },
+    });
+
   return {
     createTask: async (args, extra) => {
       if (!extra.taskStore) {
@@ -1866,12 +2183,106 @@ function createToolTaskHandler(
         ttl: extra.taskRequestedTtl ?? undefined,
       });
 
-      const taskStore = extra.taskStore;
+      const taskStore = extra.taskStore as unknown as RegisteredTaskStore;
+      const { abortControllers, watchdogTimers } = ensureTaskCancellationControlPlane(taskStore);
+      const abortController = new AbortController();
+      abortControllers.set(task.taskId, abortController);
+
+      const TASK_WATCHDOG_MS = getEnv().TASK_WATCHDOG_MS;
+      const watchdogTimer = setTimeout(() => {
+        if (abortControllers.has(task.taskId)) {
+          logger.warn('Task watchdog: aborting hung task', {
+            taskId: task.taskId,
+            toolName,
+            maxLifetimeMs: TASK_WATCHDOG_MS,
+          });
+          abortController.abort(
+            `Task exceeded maximum runtime of ${(TASK_WATCHDOG_MS / 60000).toFixed(1)} minutes`
+          );
+          abortControllers.delete(task.taskId);
+          watchdogTimers.delete(task.taskId);
+        }
+      }, TASK_WATCHDOG_MS);
+      watchdogTimers.set(task.taskId, watchdogTimer);
+
+      const isTaskStoreCancelled = async (): Promise<boolean> => {
+        if (!('isTaskCancelled' in taskStore) || typeof taskStore.isTaskCancelled !== 'function') {
+          return false;
+        }
+        return await taskStore.isTaskCancelled(task.taskId);
+      };
+      const getCancellationReason = async (): Promise<string> => {
+        if (
+          'getCancellationReason' in taskStore &&
+          typeof taskStore.getCancellationReason === 'function'
+        ) {
+          return (await taskStore.getCancellationReason(task.taskId)) || 'Task was cancelled';
+        }
+        return 'Task was cancelled';
+      };
+      const storeCancelledTaskResult = async (message: string): Promise<void> => {
+        // C11: SDK storeTaskResult only accepts 'completed'|'failed'; use 'failed' for
+        // cancelled tasks (the task store preserves cancelled status and the payload carries TASK_CANCELLED).
+        await taskStore.storeTaskResult(task.taskId, 'failed', buildCancelledTaskResult(message));
+      };
+
       void (async () => {
         try {
-          const result = await runTool(args as Record<string, unknown>, extra);
+          if (await isTaskStoreCancelled()) {
+            await storeCancelledTaskResult(await getCancellationReason());
+            return;
+          }
+
+          const result = await runTool(args as Record<string, unknown>, {
+            ...(extra as unknown as Record<string, unknown>),
+            abortSignal: abortController.signal,
+            signal: abortController.signal,
+          });
+
+          if (await isTaskStoreCancelled()) {
+            await storeCancelledTaskResult(await getCancellationReason());
+            return;
+          }
+
           await taskStore.storeTaskResult(task.taskId, 'completed', result);
         } catch (error) {
+          if (error instanceof Error && error.name === 'AbortError') {
+            try {
+              await storeCancelledTaskResult(error.message);
+            } catch (storeError) {
+              // Use structured logging to avoid corrupting stdio transport
+              import('../../utils/logger.js')
+                .then(({ logger }) => {
+                  logger.error('Failed to store cancelled task result', {
+                    toolName,
+                    error: storeError,
+                  });
+                })
+                .catch(() => {
+                  // Fallback if logger import fails
+                });
+            }
+            return;
+          }
+
+          if (await isTaskStoreCancelled()) {
+            try {
+              await storeCancelledTaskResult(await getCancellationReason());
+            } catch (storeError) {
+              import('../../utils/logger.js')
+                .then(({ logger }) => {
+                  logger.error('Failed to store cancelled task result', {
+                    toolName,
+                    error: storeError,
+                  });
+                })
+                .catch(() => {
+                  // Fallback if logger import fails
+                });
+            }
+            return;
+          }
+
           const errorResult = buildToolResponse({
             response: {
               success: false,
@@ -1897,6 +2308,10 @@ function createToolTaskHandler(
                 // Fallback if logger import fails
               });
           }
+        } finally {
+          abortControllers.delete(task.taskId);
+          clearTimeout(watchdogTimers.get(task.taskId));
+          watchdogTimers.delete(task.taskId);
         }
       })();
 
@@ -1933,19 +2348,30 @@ export async function registerServalSheetsTools(
   server: McpServer,
   handlers: Handlers | null,
   options?: { googleClient?: GoogleApiClient | null }
-): Promise<void> {
+): Promise<LegacyToolRegistration> {
+  const requestQueue = new PQueue({
+    concurrency: getEnv().MAX_CONCURRENT_REQUESTS,
+  });
+  const registrationState: LegacyToolRegistrationState = {
+    disposed: false,
+    abortController: new AbortController(),
+  };
+
   const authHandler = new AuthHandler({
     googleClient: options?.googleClient ?? null,
     elicitationServer: server.server,
   });
 
   const handlerMap = handlers
-    ? createToolHandlerMap(handlers, authHandler)
+    ? createToolHandlerMap(handlers, authHandler, options?.googleClient ?? null)
     : (() => {
         // Pre-auth: only sheets_auth (for login) and local-only tools available
         const sessionHandler = new SessionHandler();
-        return {
-          sheets_auth: (args: unknown) =>
+        const preAuthHandlerMap: Record<
+          string,
+          (args: unknown, extra?: unknown) => Promise<unknown>
+        > = {
+          sheets_auth: (args: unknown, _extra?: unknown) =>
             authHandler.handle(
               parseForHandler<Parameters<AuthHandler['handle']>[0]>(
                 SheetsAuthInputSchema,
@@ -1954,7 +2380,27 @@ export async function registerServalSheetsTools(
                 'sheets_auth'
               )
             ),
-          sheets_session: (args: unknown) =>
+          sheets_confirm: (args: unknown, extra?: unknown) => {
+            const requestExtra = extra as { requestId?: string | number } | undefined;
+            return new ConfirmHandler({
+              context: {
+                batchCompiler: {} as never,
+                rangeResolver: {} as never,
+                server: server.server,
+                elicitationServer: server.server,
+                samplingServer: server.server,
+                requestId: requestExtra?.requestId ? String(requestExtra.requestId) : undefined,
+              },
+            }).handle(
+              parseForHandler<Parameters<ConfirmHandler['handle']>[0]>(
+                SheetsConfirmInputSchemaLegacy,
+                args,
+                'SheetsConfirmInput',
+                'sheets_confirm'
+              )
+            );
+          },
+          sheets_session: (args: unknown, _extra?: unknown) =>
             sessionHandler.handle(
               parseForHandler<Parameters<SessionHandler['handle']>[0]>(
                 SheetsSessionInputSchemaLegacy,
@@ -1964,6 +2410,7 @@ export async function registerServalSheetsTools(
               )
             ),
         };
+        return preAuthHandlerMap;
       })();
 
   // Validate tool names comply with MCP spec (SEP-986: snake_case only)
@@ -1993,7 +2440,13 @@ export async function registerServalSheetsTools(
     // Type assertion needed due to TypeScript's deep type instantiation limits
     const execution = TOOL_EXECUTION_CONFIG[tool.name];
     const supportsTasks = execution?.taskSupport && execution.taskSupport !== 'forbidden';
-    const runTool = createToolCallHandler(tool, handlerMap);
+    const runTool = createToolCallHandler(
+      tool,
+      handlerMap as Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> | null,
+      options?.googleClient ?? null,
+      requestQueue,
+      registrationState
+    );
 
     if (supportsTasks) {
       const taskHandler = createToolTaskHandler(tool.name, runTool);
@@ -2069,4 +2522,17 @@ export async function registerServalSheetsTools(
 
   // NOTE: We register unwrapped object schemas for tools/list compatibility.
   // Legacy request envelopes are handled during validation via wrapInputSchemaForLegacyRequest.
+
+  return {
+    dispose: () => {
+      if (registrationState.disposed) {
+        return;
+      }
+
+      registrationState.disposed = true;
+      registrationState.abortController.abort('MCP session closed');
+      requestQueue.clear();
+      updateQueueMetrics(requestQueue.size, requestQueue.pending);
+    },
+  };
 }

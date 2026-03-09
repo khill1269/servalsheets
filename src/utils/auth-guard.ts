@@ -116,6 +116,96 @@ export function checkAuth(googleClient: GoogleApiClient | null): AuthGuardResult
 }
 
 /**
+ * Async version of checkAuth that also validates the token via the API when needed.
+ *
+ * Fast path: if access token is fresh (expiryDate > now + buffer), skip validation.
+ * Slow path: call validateToken() for expired/missing-expiry tokens.
+ * - If invalid + no refresh token: TOKEN_EXPIRED
+ * - If invalid + has refresh token: still authenticated (will auto-refresh)
+ */
+export async function checkAuthAsync(
+  googleClient: GoogleApiClient | null
+): Promise<AuthGuardResult> {
+  if (!googleClient) {
+    return {
+      authenticated: false,
+      error: {
+        code: 'NOT_CONFIGURED',
+        message: 'Google API client not initialized. Authentication required.',
+        resolution: 'You must authenticate before using this tool.',
+        resolutionSteps: [
+          '1. Call sheets_auth with action: "status" to check auth state',
+          '2. If not authenticated, call sheets_auth with action: "login"',
+          '3. Present the authUrl to the user and wait for the code',
+          '4. Call sheets_auth with action: "callback" and the code',
+          '5. Then retry your original request',
+        ],
+        nextTool: { name: 'sheets_auth', action: 'status' },
+      },
+    };
+  }
+
+  const authType = googleClient.authType;
+  if (authType === 'service_account' || authType === 'application_default') {
+    return { authenticated: true };
+  }
+
+  const tokenStatus = googleClient.getTokenStatus();
+  const hasValidAuth = tokenStatus.hasAccessToken || tokenStatus.hasRefreshToken;
+
+  if (!hasValidAuth) {
+    return {
+      authenticated: false,
+      error: {
+        code: 'NOT_AUTHENTICATED',
+        message: 'Not authenticated with Google. OAuth flow required.',
+        resolution: 'Complete the OAuth authentication flow first.',
+        resolutionSteps: [
+          '1. Call sheets_auth with action: "login" to get an OAuth URL',
+          '2. Present the authUrl to the user as a clickable link',
+          '3. Instruct user to sign in and authorize the application',
+          '4. User will receive an authorization code after approval',
+          '5. Call sheets_auth with action: "callback" and the code',
+          '6. Once authenticated, retry your original request',
+        ],
+        nextTool: { name: 'sheets_auth', action: 'login' },
+      },
+    };
+  }
+
+  // Fast path: token is fresh
+  if (tokenStatus.hasAccessToken && tokenStatus.expiryDate && tokenStatus.expiryDate > Date.now()) {
+    return { authenticated: true };
+  }
+
+  // Slow path: validate token via API
+  const validation = await googleClient.validateToken();
+  if (!validation.valid) {
+    if (!tokenStatus.hasRefreshToken) {
+      return {
+        authenticated: false,
+        error: {
+          code: 'TOKEN_EXPIRED',
+          message: 'Access token has expired and no refresh token is available.',
+          resolution: 'Re-authenticate to get a new token.',
+          resolutionSteps: [
+            '1. Call sheets_auth with action: "login" to start fresh OAuth flow',
+            '2. Present the authUrl to the user',
+            '3. Complete the OAuth flow to get new tokens',
+            '4. Then retry your original request',
+          ],
+          nextTool: { name: 'sheets_auth', action: 'login' },
+        },
+      };
+    }
+    // Has refresh token — will auto-refresh on next API call
+    return { authenticated: true };
+  }
+
+  return { authenticated: true };
+}
+
+/**
  * Build a standardized auth error response for tool handlers
  *
  * This creates a response object that follows the ServalSheets response schema

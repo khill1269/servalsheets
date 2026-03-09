@@ -9,6 +9,57 @@ import { AuthHandler } from '../../src/handlers/auth.js';
 import { SheetsAuthOutputSchema } from '../../src/schemas/auth.js';
 import type { GoogleApiClient } from '../../src/services/google-api.js';
 
+const oauthClientMocks = vi.hoisted(() => ({
+  lastGeneratedState: undefined as string | undefined,
+  generateAuthUrl: vi.fn((options?: { scope?: string[]; state?: string }) => {
+    oauthClientMocks.lastGeneratedState = options?.state;
+    const params = new URLSearchParams({
+      client_id: 'test',
+      redirect_uri: 'http://localhost:3000/callback',
+      scope: options?.scope?.join(' ') ?? 'https://www.googleapis.com/auth/spreadsheets',
+      access_type: 'offline',
+      response_type: 'code',
+    });
+    if (options?.state) {
+      params.set('state', options.state);
+    }
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  }),
+  getToken: vi.fn().mockResolvedValue({
+    tokens: {
+      access_token: 'mock-access-token',
+      refresh_token: 'mock-refresh-token',
+      expiry_date: Date.now() + 3600000,
+    },
+  }),
+  setCredentials: vi.fn(),
+  revokeToken: vi.fn().mockResolvedValue({ success: true }),
+  getAccessToken: vi.fn().mockResolvedValue({
+    token: 'mock-access-token',
+  }),
+  refreshAccessToken: vi.fn().mockResolvedValue({
+    credentials: {
+      access_token: 'mock-refreshed-token',
+      expiry_date: Date.now() + 3600000,
+    },
+  }),
+}));
+
+const mockSessionContext = vi.hoisted(() => ({
+  exportState: vi.fn().mockReturnValue('mock-session-state'),
+  importState: vi.fn(),
+}));
+
+const callbackServerMocks = vi.hoisted(() => ({
+  startCallbackServer: vi.fn().mockImplementation(() =>
+    Promise.resolve({
+      code: 'auto-auth-code',
+      state: oauthClientMocks.lastGeneratedState,
+    })
+  ),
+  extractPortFromRedirectUri: vi.fn().mockReturnValue(3000),
+}));
+
 // Make auth tests deterministic by disabling embedded OAuth fallback in this suite.
 vi.mock('../../src/utils/oauth-config.js', () => ({
   getOAuthEnvConfig: () => ({
@@ -27,36 +78,15 @@ vi.mock('googleapis', () => {
   class MockOAuth2Client {
     credentials: any = {};
 
-    generateAuthUrl = vi
-      .fn()
-      .mockReturnValue(
-        'https://accounts.google.com/o/oauth2/v2/auth?client_id=test&redirect_uri=http://localhost:3000/callback&scope=https://www.googleapis.com/auth/spreadsheets&access_type=offline&response_type=code'
-      );
-
-    getToken = vi.fn().mockResolvedValue({
-      tokens: {
-        access_token: 'mock-access-token',
-        refresh_token: 'mock-refresh-token',
-        expiry_date: Date.now() + 3600000,
-      },
-    });
-
+    generateAuthUrl = oauthClientMocks.generateAuthUrl;
+    getToken = oauthClientMocks.getToken;
     setCredentials = vi.fn((tokens: any) => {
       this.credentials = tokens;
     });
 
-    revokeToken = vi.fn().mockResolvedValue({ success: true });
-
-    getAccessToken = vi.fn().mockResolvedValue({
-      token: 'mock-access-token',
-    });
-
-    refreshAccessToken = vi.fn().mockResolvedValue({
-      credentials: {
-        access_token: 'mock-refreshed-token',
-        expiry_date: Date.now() + 3600000,
-      },
-    });
+    revokeToken = oauthClientMocks.revokeToken;
+    getAccessToken = oauthClientMocks.getAccessToken;
+    refreshAccessToken = oauthClientMocks.refreshAccessToken;
   }
 
   return {
@@ -67,6 +97,15 @@ vi.mock('googleapis', () => {
     },
   };
 });
+
+vi.mock('../../src/services/session-context.js', () => ({
+  getSessionContext: vi.fn(() => mockSessionContext),
+}));
+
+vi.mock('../../src/utils/oauth-callback-server.js', () => ({
+  startCallbackServer: callbackServerMocks.startCallbackServer,
+  extractPortFromRedirectUri: callbackServerMocks.extractPortFromRedirectUri,
+}));
 
 // Mock EncryptedFileTokenStore
 // See tests/helpers/oauth-mocks.ts for the reference implementation
@@ -113,6 +152,8 @@ describe('AuthHandler', () => {
     delete process.env['OAUTH_CLIENT_SECRET'];
     delete process.env['OAUTH_USE_CALLBACK_SERVER'];
     process.env['OAUTH_AUTO_OPEN_BROWSER'] = 'false';
+    oauthClientMocks.lastGeneratedState = undefined;
+    mockSessionContext.exportState.mockReturnValue('mock-session-state');
   });
 
   describe('status action', () => {
@@ -176,6 +217,57 @@ describe('AuthHandler', () => {
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authenticated', false);
       expect(result.response).toHaveProperty('authType', 'oauth');
+    });
+
+    it('surfaces re-auth guidance after repeated refresh failures and clears after success', async () => {
+      const mockClient = createMockGoogleClient('oauth', true);
+      const handler = new AuthHandler({
+        googleClient: mockClient,
+        oauthClientId: 'test-client-id',
+        oauthClientSecret: 'test-secret',
+        redirectUri: 'http://localhost:3000/callback',
+      });
+      const refreshError = new Error('Refresh token revoked');
+      const oauthClient = {
+        generateAuthUrl: oauthClientMocks.generateAuthUrl,
+        refreshAccessToken: vi.fn().mockRejectedValue(refreshError),
+        setCredentials: vi.fn(),
+      } as any;
+
+      (handler as any).startTokenManager(oauthClient);
+      const tokenManager = (handler as any).tokenManager;
+
+      await tokenManager.refreshToken();
+      await tokenManager.refreshToken();
+      await tokenManager.refreshToken();
+
+      const reauthStatus = await handler.handle({ action: 'status' });
+
+      expect(reauthStatus.response.success).toBe(false);
+      if (!reauthStatus.response.success) {
+        expect(reauthStatus.response.error.code).toBe('INVALID_CREDENTIALS');
+        expect(reauthStatus.response.error.details?.['re_auth_url']).toContain(
+          'https://accounts.google.com/o/oauth2/v2/auth'
+        );
+        expect(reauthStatus.response.error.details?.['consecutiveFailures']).toBe(3);
+      }
+
+      oauthClient.refreshAccessToken.mockResolvedValue({
+        credentials: {
+          access_token: 'new-access-token',
+          refresh_token: 'mock-refresh-token',
+          expiry_date: Date.now() + 3600000,
+        },
+      });
+
+      await tokenManager.refreshToken();
+
+      const recoveredStatus = await handler.handle({ action: 'status' });
+
+      expect(recoveredStatus.response.success).toBe(true);
+      if (recoveredStatus.response.success) {
+        expect(recoveredStatus.response.authenticated).toBe(true);
+      }
     });
   });
 
@@ -246,6 +338,24 @@ describe('AuthHandler', () => {
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authUrl');
     });
+
+    it('does not overwrite client scopes in automatic callback flow when Google omits granted scopes', async () => {
+      const mockClient = createMockGoogleClient('oauth', false);
+      const handler = new AuthHandler({
+        googleClient: mockClient,
+        oauthClientId: 'test-client-id',
+        oauthClientSecret: 'test-secret',
+        redirectUri: 'http://localhost:3000/callback',
+      });
+
+      const result = await handler.handle({ action: 'login' });
+
+      expect(result.response.success).toBe(true);
+      expect(result.response).toHaveProperty('authenticated', true);
+      expect(callbackServerMocks.startCallbackServer).toHaveBeenCalled();
+      expect(mockClient.setScopes).not.toHaveBeenCalled();
+      expect(mockSessionContext.importState).toHaveBeenCalledWith('mock-session-state');
+    });
   });
 
   describe('callback action', () => {
@@ -295,6 +405,82 @@ describe('AuthHandler', () => {
       if (result.response.success) {
         expect(result.response.message).toContain('ENCRYPTION_KEY');
       }
+    });
+
+    it('rejects invalid state before exchanging the authorization code', async () => {
+      const handler = new AuthHandler({
+        oauthClientId: 'test-client-id',
+        oauthClientSecret: 'test-secret',
+      });
+
+      const result = await handler.handle({
+        action: 'callback',
+        code: 'test-code',
+        state: 'invalid-state',
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error?.message).toContain('state verification failed');
+      expect(oauthClientMocks.getToken).not.toHaveBeenCalled();
+      expect(mockSessionContext.importState).not.toHaveBeenCalled();
+    });
+
+    it('restores session state only when callback state matches the login state', async () => {
+      process.env['OAUTH_USE_CALLBACK_SERVER'] = 'false';
+      const handler = new AuthHandler({
+        oauthClientId: 'test-client-id',
+        oauthClientSecret: 'test-secret',
+      });
+
+      const loginResult = await handler.handle({ action: 'login' });
+      expect(loginResult.response.success).toBe(true);
+      const state = new URL(loginResult.response.authUrl!).searchParams.get('state');
+      expect(state).toBeTruthy();
+
+      const callbackResult = await handler.handle({
+        action: 'callback',
+        code: 'test-code',
+        state: state!,
+      });
+
+      expect(callbackResult.response.success).toBe(true);
+      expect(mockSessionContext.importState).toHaveBeenCalledWith('mock-session-state');
+    });
+
+    it('does not restore pending session state when callback omits state', async () => {
+      process.env['OAUTH_USE_CALLBACK_SERVER'] = 'false';
+      const handler = new AuthHandler({
+        oauthClientId: 'test-client-id',
+        oauthClientSecret: 'test-secret',
+      });
+
+      const loginResult = await handler.handle({ action: 'login' });
+      expect(loginResult.response.success).toBe(true);
+
+      const callbackResult = await handler.handle({
+        action: 'callback',
+        code: 'test-code',
+      });
+
+      expect(callbackResult.response.success).toBe(true);
+      expect(mockSessionContext.importState).not.toHaveBeenCalled();
+    });
+
+    it('does not overwrite client scopes when Google omits granted scopes', async () => {
+      const mockClient = createMockGoogleClient('oauth', false);
+      const handler = new AuthHandler({
+        googleClient: mockClient,
+        oauthClientId: 'test-client-id',
+        oauthClientSecret: 'test-secret',
+      });
+
+      const result = await handler.handle({
+        action: 'callback',
+        code: 'test-code',
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(mockClient.setScopes).not.toHaveBeenCalled();
     });
   });
 

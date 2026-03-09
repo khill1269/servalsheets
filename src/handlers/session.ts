@@ -6,6 +6,7 @@
  * @module handlers/session
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { SheetsSessionInput, SheetsSessionOutput } from '../schemas/session.js';
 import { PipelineExecutor, type PipelineStep } from '../services/pipeline-executor.js';
 import { getPipelineDispatch } from '../services/pipeline-registry.js';
@@ -178,7 +179,7 @@ export class SessionHandler {
         response: {
           success: false,
           error: {
-            code: 'INTERNAL_ERROR',
+            code: ErrorCodes.INTERNAL_ERROR,
             message: error instanceof Error ? error.message : String(error),
             retryable: false,
           },
@@ -478,7 +479,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             response: {
               success: false,
               error: {
-                code: 'CHECKPOINTS_DISABLED',
+                code: ErrorCodes.CHECKPOINTS_DISABLED,
                 message: 'Checkpoints disabled. Set ENABLE_CHECKPOINTS=true in .env.local',
                 retryable: false,
               },
@@ -535,7 +536,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             response: {
               success: false,
               error: {
-                code: 'CHECKPOINTS_DISABLED',
+                code: ErrorCodes.CHECKPOINTS_DISABLED,
                 message: 'Checkpoints disabled. Set ENABLE_CHECKPOINTS=true in .env.local',
                 retryable: false,
               },
@@ -553,7 +554,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             response: {
               success: false,
               error: {
-                code: 'CHECKPOINT_NOT_FOUND',
+                code: ErrorCodes.CHECKPOINT_NOT_FOUND,
                 message: `No checkpoint found for session "${sessionId}"`,
                 retryable: false,
               },
@@ -621,7 +622,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             response: {
               success: false,
               error: {
-                code: 'CHECKPOINTS_DISABLED',
+                code: ErrorCodes.CHECKPOINTS_DISABLED,
                 message: 'Checkpoints disabled. Set ENABLE_CHECKPOINTS=true in .env.local',
                 retryable: false,
               },
@@ -782,7 +783,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             response: {
               success: false as const,
               error: {
-                code: 'NOT_FOUND' as const,
+                code: ErrorCodes.NOT_FOUND,
                 message: 'Scheduler service not available',
                 retryable: false,
               },
@@ -812,7 +813,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             response: {
               success: false as const,
               error: {
-                code: 'NOT_FOUND' as const,
+                code: ErrorCodes.NOT_FOUND,
                 message: 'Scheduler service not available',
                 retryable: false,
               },
@@ -839,7 +840,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             response: {
               success: false as const,
               error: {
-                code: 'NOT_FOUND' as const,
+                code: ErrorCodes.NOT_FOUND,
                 message: 'Scheduler service not available',
                 retryable: false,
               },
@@ -862,7 +863,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             response: {
               success: false as const,
               error: {
-                code: 'NOT_FOUND' as const,
+                code: ErrorCodes.NOT_FOUND,
                 message: 'Scheduler service not available',
                 retryable: false,
               },

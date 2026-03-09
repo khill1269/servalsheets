@@ -9,6 +9,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { CompositeHandler } from '../../src/handlers/composite.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4, drive_v3 } from 'googleapis';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 const mockDispatchCompositeOperation = vi.hoisted(() => vi.fn());
 
@@ -1342,22 +1346,27 @@ describe('Composite Handler', () => {
   describe('batch_operations action', () => {
     it('should emit progress notifications for multi-operation batches', async () => {
       const notification = vi.fn().mockResolvedValue(undefined);
-      (mockContext as Record<string, unknown>).server = { notification };
-      handler = new CompositeHandler(mockContext, mockSheetsApi);
+      const requestContext = createRequestContext({
+        requestId: 'composite-batch-progress',
+        progressToken: 'composite-batch-progress',
+        sendNotification: notification,
+      });
 
       mockDispatchCompositeOperation
         .mockResolvedValueOnce({ success: true })
         .mockResolvedValueOnce({ success: true });
 
-      const result = await handler.handle({
-        action: 'batch_operations',
-        spreadsheetId: 'test123',
-        operations: [
-          { tool: 'sheets_core', action: 'get', params: {} },
-          { tool: 'sheets_data', action: 'read', params: { range: 'Sheet1!A1:B2' } },
-        ],
-        stopOnError: false,
-      } as any);
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'batch_operations',
+          spreadsheetId: 'test123',
+          operations: [
+            { tool: 'sheets_core', action: 'get', params: {} },
+            { tool: 'sheets_data', action: 'read', params: { range: 'Sheet1!A1:B2' } },
+          ],
+          stopOnError: false,
+        } as any)
+      );
 
       expect(result.response.success).toBe(true);
       expect(mockDispatchCompositeOperation).toHaveBeenCalledTimes(2);

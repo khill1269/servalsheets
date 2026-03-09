@@ -1,5 +1,10 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
-import { ActionGenerator, type AnalysisFinding, type GenerateActionsResult } from '../../analysis/action-generator.js';
+import {
+  ActionGenerator,
+  type AnalysisFinding,
+  type GenerateActionsResult,
+} from '../../analysis/action-generator.js';
 import { FlowOrchestrator } from '../../analysis/flow-orchestrator.js';
 import { Planner, type AnalysisPlan } from '../../analysis/planner.js';
 import { Scout, type ScoutResult } from '../../analysis/scout.js';
@@ -140,7 +145,7 @@ export async function handlePlanAction(
     return {
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message:
           'Plan creation failed. The AI analysis service may be temporarily unavailable. Please try again.',
         retryable: true,
@@ -262,7 +267,7 @@ export async function handleDrillDownAction(
     return {
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message:
           'Drill-down analysis failed. The AI analysis service may be temporarily unavailable. Please try again.',
         retryable: true,
@@ -366,7 +371,7 @@ export async function handleGenerateActionsAction(
     return {
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message:
           'Action generation failed. The AI analysis service may be temporarily unavailable. Please try again.',
         retryable: true,

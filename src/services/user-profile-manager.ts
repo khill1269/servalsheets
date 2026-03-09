@@ -8,6 +8,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { DEFAULT_PROFILE_STORAGE_DIR } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 
 // ============================================================================
@@ -107,11 +108,11 @@ export class UserProfileManager {
   private profiles = new Map<string, UserProfile>();
   private storageDir: string;
 
-  constructor(storageDir = process.env['PROFILE_STORAGE_DIR'] || '/tmp/servalsheets-profiles') {
+  constructor(storageDir = process.env['PROFILE_STORAGE_DIR'] || DEFAULT_PROFILE_STORAGE_DIR) {
     this.storageDir = storageDir;
     if (!process.env['PROFILE_STORAGE_DIR']) {
       logger.warn(
-        'PROFILE_STORAGE_DIR not set — using /tmp/servalsheets-profiles (volatile, not secure). ' +
+        `PROFILE_STORAGE_DIR not set — using ${DEFAULT_PROFILE_STORAGE_DIR} (volatile, not secure). ` +
           'Set PROFILE_STORAGE_DIR env var for persistent, secure profile storage.'
       );
     }

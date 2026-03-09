@@ -3,8 +3,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getMcpServerCard } from '../src/server/well-known.js';
+import {
+  getMcpServerCard,
+  getMcpServerCardWithRuntimeConfig,
+} from '../src/server/well-known.js';
 import { validateEnv } from '../src/config/env.js';
+import { getPromptsCatalogCount } from '../src/resources/prompts-catalog.js';
 
 describe('MCP Server Card (SEP-1649)', () => {
   const originalCorsOrigins = process.env['CORS_ORIGINS'];
@@ -55,6 +59,13 @@ describe('MCP Server Card (SEP-1649)', () => {
         count: expect.any(Number),
         actions: expect.any(Number),
       });
+      expect(card.capabilities.resources).toEqual({
+        templates: true,
+        subscriptions: true,
+      });
+      expect(card.capabilities.prompts).toEqual({
+        count: getPromptsCatalogCount(),
+      });
       expect(card.capabilities.tasks).toBe(true);
       expect(card.capabilities.elicitation).toEqual({
         form: true,
@@ -62,15 +73,29 @@ describe('MCP Server Card (SEP-1649)', () => {
       });
     });
 
-    it('should include OAuth2 authentication requirements', () => {
+    it('should advertise OAuth metadata without requiring auth by default', () => {
       const card = getMcpServerCard();
 
       expect(card.authentication).toBeDefined();
-      expect(card.authentication?.required).toBe(true);
+      expect(card.authentication?.required).toBe(false);
       expect(card.authentication?.methods).toContain('oauth2');
       expect(card.authentication?.oauth2).toBeDefined();
       expect(card.authentication?.oauth2?.pkce_required).toBe(true);
       expect(card.authentication?.oauth2?.authorization_endpoint).toContain('google.com');
+    });
+
+    it('should mark authentication as required when runtime config enables OAuth', () => {
+      const card = getMcpServerCardWithRuntimeConfig(
+        {
+          corsOrigins: ['https://claude.ai'],
+          rateLimitMax: 120,
+          legacySseEnabled: false,
+          authenticationRequired: true,
+        },
+        'https://api.example.com'
+      );
+
+      expect(card.authentication?.required).toBe(true);
     });
 
     it('should include security configuration', () => {

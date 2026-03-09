@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
+import { safeRmSync } from '../helpers/safe-cleanup.js';
 import { WatchMode } from '../../scripts/analysis/watch-mode.js';
 import { waitFor } from '../helpers/wait-for.js';
 
@@ -38,7 +39,7 @@ describe('WatchMode', () => {
   afterEach(() => {
     // Cleanup
     if (fs.existsSync(testDir)) {
-      fs.rmSync(testDir, { recursive: true, force: true });
+      safeRmSync(testDir, { recursive: true, force: true });
     }
   });
 

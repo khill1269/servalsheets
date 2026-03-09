@@ -31,7 +31,12 @@ export async function handleGenerateSheetAction(
 
   await sendProgress(0, 3, 'Designing spreadsheet structure...');
   if (deps.abortSignal?.aborted) {
-    throw new ServiceError('Operation cancelled by client', 'OPERATION_CANCELLED', 'composite', false);
+    throw new ServiceError(
+      'Operation cancelled by client',
+      'OPERATION_CANCELLED',
+      'composite',
+      false
+    );
   }
 
   const definition = await generateDefinition(
@@ -63,7 +68,12 @@ export async function handleGenerateSheetAction(
 
   await sendProgress(1, 3, 'Creating spreadsheet...');
   if (deps.abortSignal?.aborted) {
-    throw new ServiceError('Operation cancelled by client', 'OPERATION_CANCELLED', 'composite', false);
+    throw new ServiceError(
+      'Operation cancelled by client',
+      'OPERATION_CANCELLED',
+      'composite',
+      false
+    );
   }
 
   const result = await executeDefinition(deps.sheetsApi, definition, input.spreadsheetId);

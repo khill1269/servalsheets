@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { AnalysisRouter } from '../../analysis/router.js';
 import { TieredRetrieval } from '../../analysis/tiered-retrieval.js';
@@ -75,7 +76,7 @@ export async function handleAnalyzeDataAction(
         return {
           success: false,
           error: {
-            code: 'NO_DATA',
+            code: ErrorCodes.NO_DATA,
             message: 'No data found in the specified range',
             retryable: false,
           },
@@ -88,9 +89,8 @@ export async function handleAnalyzeDataAction(
         samplingMethod: sampleResult.sampleData.samplingMethod,
       });
 
-      const { analyzeTrends, detectAnomalies, analyzeCorrelationsData } = await import(
-        '../../analysis/helpers.js'
-      );
+      const { analyzeTrends, detectAnomalies, analyzeCorrelationsData } =
+        await import('../../analysis/helpers.js');
 
       const trends = analyzeTrends(data);
       const anomalies = detectAnomalies(data);
@@ -141,11 +141,7 @@ export async function handleAnalyzeDataAction(
 
       const dataResult = useFullData
         ? await tieredRetrieval.getFull(req.spreadsheetId, sheetId as number | undefined)
-        : await tieredRetrieval.getSample(
-            req.spreadsheetId,
-            sheetId as number | undefined,
-            200
-          );
+        : await tieredRetrieval.getSample(req.spreadsheetId, sheetId as number | undefined, 200);
 
       const data = useFullData
         ? 'fullData' in dataResult
@@ -159,7 +155,7 @@ export async function handleAnalyzeDataAction(
         return {
           success: false,
           error: {
-            code: 'NO_DATA',
+            code: ErrorCodes.NO_DATA,
             message: 'No data found in the specified range',
             retryable: false,
           },
@@ -172,7 +168,9 @@ export async function handleAnalyzeDataAction(
       });
 
       const targetSheet =
-        sheetId !== undefined ? metadata.sheets.find((s) => s.sheetId === sheetId) : metadata.sheets[0];
+        sheetId !== undefined
+          ? metadata.sheets.find((s) => s.sheetId === sheetId)
+          : metadata.sheets[0];
       const sheetName = targetSheet?.title;
 
       const samplingRequest = buildAnalysisSamplingRequest(data, {
@@ -197,7 +195,7 @@ export async function handleAnalyzeDataAction(
         return {
           success: false,
           error: {
-            code: 'PARSE_ERROR',
+            code: ErrorCodes.PARSE_ERROR,
             message: parsed.error ?? 'Failed to parse analysis response',
             retryable: true,
           },
@@ -237,11 +235,7 @@ export async function handleAnalyzeDataAction(
 
       const { StreamingAnalyzer } = await import('../../analysis/streaming.js');
 
-      const streamingAnalyzer = new StreamingAnalyzer(
-        deps.sheetsApi,
-        tieredRetrieval,
-        1000
-      );
+      const streamingAnalyzer = new StreamingAnalyzer(deps.sheetsApi, tieredRetrieval, 1000);
 
       const streamingResult = await streamingAnalyzer.execute(
         req.spreadsheetId,

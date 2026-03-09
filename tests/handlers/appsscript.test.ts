@@ -9,6 +9,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SheetsAppsScriptHandler } from '../../src/handlers/appsscript.js';
 import { SheetsAppsScriptOutputSchema } from '../../src/schemas/appsscript.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 // Mock Google Client with OAuth2
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
@@ -866,6 +870,30 @@ describe('SheetsAppsScriptHandler', () => {
   // ===========================================================================
 
   describe('run action', () => {
+    it('should respect request-scoped cancellation before execution starts', async () => {
+      const abortController = new AbortController();
+      abortController.abort('cancelled in test');
+
+      const result = await runWithRequestContext(
+        createRequestContext({
+          requestId: 'appsscript-cancel-test',
+          abortSignal: abortController.signal,
+        }),
+        () =>
+          handler.handle({
+            request: {
+              action: 'run',
+              scriptId: 'script-123',
+              functionName: 'myFunction',
+            },
+          })
+      );
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error.code).toBe('CANCELLED');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
     it('should execute function successfully', async () => {
       mockFetch.mockResolvedValue({
         ok: true,

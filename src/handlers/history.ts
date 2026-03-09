@@ -4,6 +4,7 @@
  * Handles operation history tracking, undo/redo functionality, and debugging.
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { drive_v3, sheets_v4 } from 'googleapis';
 import { getHistoryService } from '../services/history-service.js';
 import { SnapshotService } from '../services/snapshot.js';
@@ -37,7 +38,6 @@ export class HistoryHandler {
   private driveApi?: drive_v3.Drive;
   private sheetsApi?: sheets_v4.Sheets;
   private server?: ElicitationServer;
-  private taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter;
   private samplingServer?: SamplingServer;
   private googleClient?: import('../services/google-api.js').GoogleApiClient;
 
@@ -46,7 +46,6 @@ export class HistoryHandler {
     this.driveApi = options.driveApi;
     this.sheetsApi = options.sheetsApi;
     this.server = options.server;
-    this.taskStore = options.taskStore;
     this.samplingServer = options.samplingServer;
     this.googleClient = options.googleClient;
   }
@@ -181,7 +180,7 @@ export class HistoryHandler {
             response = {
               success: false,
               error: {
-                code: 'SERVICE_NOT_INITIALIZED',
+                code: ErrorCodes.SERVICE_NOT_INITIALIZED,
                 message: 'Snapshot service not available',
                 retryable: false,
               },
@@ -204,7 +203,7 @@ export class HistoryHandler {
               response = {
                 success: false,
                 error: {
-                  code: 'OPERATION_CANCELLED',
+                  code: ErrorCodes.OPERATION_CANCELLED,
                   message: 'Undo cancelled by user',
                   retryable: false,
                 },
@@ -236,7 +235,7 @@ export class HistoryHandler {
             response = {
               success: false,
               error: {
-                code: 'SNAPSHOT_RESTORE_FAILED',
+                code: ErrorCodes.SNAPSHOT_RESTORE_FAILED,
                 message: error instanceof Error ? error.message : String(error),
                 retryable: true,
               },
@@ -279,7 +278,7 @@ export class HistoryHandler {
             response = {
               success: false,
               error: {
-                code: 'SERVICE_NOT_INITIALIZED',
+                code: ErrorCodes.SERVICE_NOT_INITIALIZED,
                 message: 'Snapshot service not available',
                 retryable: false,
               },
@@ -302,7 +301,7 @@ export class HistoryHandler {
               response = {
                 success: false,
                 error: {
-                  code: 'OPERATION_CANCELLED',
+                  code: ErrorCodes.OPERATION_CANCELLED,
                   message: 'Redo cancelled by user',
                   retryable: false,
                 },
@@ -334,7 +333,7 @@ export class HistoryHandler {
             response = {
               success: false,
               error: {
-                code: 'SNAPSHOT_RESTORE_FAILED',
+                code: ErrorCodes.SNAPSHOT_RESTORE_FAILED,
                 message: error instanceof Error ? error.message : String(error),
                 retryable: true,
               },
@@ -375,7 +374,7 @@ export class HistoryHandler {
             response = {
               success: false,
               error: {
-                code: 'SERVICE_NOT_INITIALIZED',
+                code: ErrorCodes.SERVICE_NOT_INITIALIZED,
                 message: 'Snapshot service not available',
                 retryable: false,
               },
@@ -417,7 +416,7 @@ export class HistoryHandler {
               response = {
                 success: false,
                 error: {
-                  code: 'OPERATION_CANCELLED',
+                  code: ErrorCodes.OPERATION_CANCELLED,
                   message: 'Revert cancelled by user',
                   retryable: false,
                 },
@@ -446,7 +445,7 @@ export class HistoryHandler {
             response = {
               success: false,
               error: {
-                code: 'SNAPSHOT_RESTORE_FAILED',
+                code: ErrorCodes.SNAPSHOT_RESTORE_FAILED,
                 message: error instanceof Error ? error.message : String(error),
                 retryable: true,
               },
@@ -471,7 +470,7 @@ export class HistoryHandler {
               response = {
                 success: false,
                 error: {
-                  code: 'OPERATION_CANCELLED',
+                  code: ErrorCodes.OPERATION_CANCELLED,
                   message: 'Clear cancelled by user',
                   retryable: false,
                 },
@@ -504,7 +503,7 @@ export class HistoryHandler {
             response = {
               success: false,
               error: {
-                code: 'INTERNAL_ERROR',
+                code: ErrorCodes.INTERNAL_ERROR,
                 message: 'Drive API not available for timeline',
                 retryable: false,
               },
@@ -548,25 +547,6 @@ export class HistoryHandler {
             /* non-blocking */
           }
 
-          // MCP SEP-1686: Drive revision scanning is a long-running operation
-          let timelineTaskId: string | undefined;
-          if (this.taskStore) {
-            const task = await this.taskStore.createTask(
-              { ttl: 3600000 }, // 1 hour TTL
-              'history-timeline',
-              {
-                method: 'tools/call',
-                params: { name: 'sheets_history', arguments: req },
-              }
-            );
-            timelineTaskId = task.taskId;
-            await this.taskStore.updateTaskStatus(
-              timelineTaskId,
-              'completed',
-              `Retrieved ${entries.length} timeline entries`
-            );
-          }
-
           // Wire completions: cache revision IDs for argument autocompletion (ISSUE-062)
           for (const entry of entries) {
             const revId = (entry as unknown as Record<string, unknown>)['revisionId'];
@@ -601,7 +581,6 @@ export class HistoryHandler {
             action: 'timeline',
             timeline: entries,
             activityAvailable,
-            ...(timelineTaskId !== undefined ? { taskId: timelineTaskId } : {}),
             ...(aiNarrative !== undefined ? { aiNarrative } : {}),
             message: `Found ${entries.length} revision(s)`,
           };
@@ -613,7 +592,7 @@ export class HistoryHandler {
             response = {
               success: false,
               error: {
-                code: 'INTERNAL_ERROR',
+                code: ErrorCodes.INTERNAL_ERROR,
                 message: 'Drive API not available for diff',
                 retryable: false,
               },
@@ -641,8 +620,8 @@ export class HistoryHandler {
                 )
                 .join('; ');
               await assertSamplingConsent(); // ISSUE-226: GDPR consent gate
-              const explanationResult = await withSamplingTimeout(
-                this.samplingServer.createMessage({
+              const explanationResult = await withSamplingTimeout(() =>
+                this.samplingServer!.createMessage({
                   messages: [
                     {
                       role: 'user' as const,
@@ -691,7 +670,9 @@ export class HistoryHandler {
             diff,
             message: diff.summary.metadataOnly
               ? 'Cell-level diff unavailable — Google Drive API exports current version only, not historical revisions for Workspace files. Metadata comparison (timestamps, authors) is shown instead. For cell-level change tracking, use sheets_history.timeline which tracks ServalSheets operations.'
-              : `Found ${diff.cellChanges?.length ?? 0} cell change(s)`,
+              : !diff.isHistorical
+                ? `Found ${diff.cellChanges?.length ?? 0} cell change(s) — WARNING: one or both revisions could not be exported from Drive history (revision export unavailable for this file age or format). Diff may reflect current file state rather than the requested revision.`
+                : `Found ${diff.cellChanges?.length ?? 0} cell change(s)`,
             ...(aiExplanation !== undefined ? { aiExplanation } : {}),
             ...(aiNarrative !== undefined ? { aiNarrative } : {}),
           };
@@ -703,7 +684,7 @@ export class HistoryHandler {
             response = {
               success: false,
               error: {
-                code: 'INTERNAL_ERROR',
+                code: ErrorCodes.INTERNAL_ERROR,
                 message: 'Drive/Sheets API not available for restore',
                 retryable: false,
               },
@@ -742,7 +723,7 @@ export class HistoryHandler {
               response = {
                 success: false,
                 error: {
-                  code: 'PRECONDITION_FAILED',
+                  code: ErrorCodes.PRECONDITION_FAILED,
                   message: confirmation.reason || 'User cancelled the bulk restore operation',
                   retryable: false,
                   suggestedFix:
@@ -775,7 +756,7 @@ export class HistoryHandler {
           response = {
             success: false,
             error: {
-              code: 'INVALID_PARAMS',
+              code: ErrorCodes.INVALID_PARAMS,
               message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
               retryable: false,
               suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",

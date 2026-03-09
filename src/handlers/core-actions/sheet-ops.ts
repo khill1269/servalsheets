@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type {
@@ -165,7 +166,7 @@ export async function handleDeleteSheetAction(
 
     if (!confirmation.confirmed) {
       return deps.error({
-        code: 'PRECONDITION_FAILED',
+        code: ErrorCodes.PRECONDITION_FAILED,
         message: confirmation.reason || 'User cancelled the operation',
         retryable: false,
         suggestedFix: 'Review the operation requirements and try again',
@@ -318,7 +319,7 @@ export async function handleUpdateSheetAction(
 
   if (resolvedSheetId === undefined) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: 'Either sheetId (number) or sheetName (string) is required',
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -360,11 +361,13 @@ export async function handleUpdateSheetAction(
 
   if (fields.length === 0) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message:
         'No properties to update. Provide at least one of: title, index, hidden, tabColor, rightToLeft',
       details: {
-        receivedParams: Object.keys(inputAny).filter((k) => k !== 'action' && k !== 'spreadsheetId'),
+        receivedParams: Object.keys(inputAny).filter(
+          (k) => k !== 'action' && k !== 'spreadsheetId'
+        ),
         hint: 'Properties can be at root level or nested in a "properties" object',
       },
       retryable: false,
@@ -409,7 +412,10 @@ export async function handleUpdateSheetAction(
     rowCount: sheetData.properties.gridProperties?.rowCount ?? 0,
     columnCount: sheetData.properties.gridProperties?.columnCount ?? 0,
     hidden: sheetData.properties.hidden ?? false,
-    tabColor: deps.convertTabColor(sheetData.properties.tabColor, sheetData.properties.tabColorStyle),
+    tabColor: deps.convertTabColor(
+      sheetData.properties.tabColor,
+      sheetData.properties.tabColorStyle
+    ),
   };
 
   deps.context.sheetResolver?.invalidate(input.spreadsheetId);
@@ -552,7 +558,8 @@ export async function handleGetSheetAction(
     const resourceId =
       input.sheetId !== undefined ? `sheetId: ${input.sheetId}` : `sheetName: "${input.sheetName}"`;
     const available =
-      response.data.sheets?.map((s) => `${s.properties?.title} (id: ${s.properties?.sheetId})`) ?? [];
+      response.data.sheets?.map((s) => `${s.properties?.title} (id: ${s.properties?.sheetId})`) ??
+      [];
     return deps.error(
       createNotFoundError({
         resourceType: 'sheet',
@@ -570,7 +577,10 @@ export async function handleGetSheetAction(
     rowCount: sheetData.properties.gridProperties?.rowCount ?? 0,
     columnCount: sheetData.properties.gridProperties?.columnCount ?? 0,
     hidden: sheetData.properties.hidden ?? false,
-    tabColor: deps.convertTabColor(sheetData.properties.tabColor, sheetData.properties.tabColorStyle),
+    tabColor: deps.convertTabColor(
+      sheetData.properties.tabColor,
+      sheetData.properties.tabColorStyle
+    ),
   };
 
   return deps.success('get_sheet', { sheet });

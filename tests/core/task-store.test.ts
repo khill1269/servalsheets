@@ -124,17 +124,16 @@ describe('InMemoryTaskStore', () => {
     });
 
     it('should allow status transition to all valid states', async () => {
-      const task = await store.createTask();
-
       const states: TaskStatus[] = [
         'working',
         'completed',
         'failed',
-        'cancelled',
         'input_required',
+        'cancelled',
       ];
 
       for (const status of states) {
+        const task = await store.createTask();
         await store.updateTaskStatus(task.taskId, status);
         const updated = await store.getTask(task.taskId);
         expect(updated?.status).toBe(status);
@@ -211,6 +210,41 @@ describe('InMemoryTaskStore', () => {
         throw new Error('Expected text result');
       }
       expect(first.text).toBe('Second');
+    });
+
+    it('should preserve cancelled status when a late completion result arrives', async () => {
+      const task = await store.createTask();
+      await store.cancelTask(task.taskId, 'User cancelled');
+
+      await store.storeTaskResult(task.taskId, 'completed', {
+        content: [{ type: 'text' as const, text: 'Late success' }],
+        isError: false,
+      });
+
+      const retrievedTask = await store.getTask(task.taskId);
+      const retrievedResult = await store.getTaskResult(task.taskId);
+
+      expect(retrievedTask?.status).toBe('cancelled');
+      expect(retrievedResult?.status).toBe('cancelled');
+    });
+
+    it('should return a TASK_CANCELLED result immediately after cancellation', async () => {
+      const task = await store.createTask();
+
+      await store.cancelTask(task.taskId, 'User cancelled');
+
+      const retrievedResult = await store.getTaskResult(task.taskId);
+
+      expect(retrievedResult?.status).toBe('cancelled');
+      expect(retrievedResult?.result.structuredContent).toMatchObject({
+        response: {
+          success: false,
+          error: {
+            code: 'TASK_CANCELLED',
+            message: 'User cancelled',
+          },
+        },
+      });
     });
   });
 
@@ -470,6 +504,16 @@ describe('InMemoryTaskStore', () => {
         throw new Error('Expected text result');
       }
       expect(first.text).toBe(largeText);
+    });
+
+    it('should ignore non-cancel status updates after cancellation', async () => {
+      const task = await store.createTask();
+      await store.cancelTask(task.taskId, 'User cancelled');
+
+      await store.updateTaskStatus(task.taskId, 'working', 'Should be ignored');
+
+      const retrieved = await store.getTask(task.taskId);
+      expect(retrieved?.status).toBe('cancelled');
     });
   });
 });

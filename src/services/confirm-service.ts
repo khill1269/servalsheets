@@ -110,7 +110,10 @@ export interface ElicitationRequest {
   message: string;
   requestedSchema: {
     type: 'object';
-    properties: Record<string, unknown>;
+    properties: Record<
+      string,
+      { type: string; title?: string; description?: string; default?: unknown }
+    >;
     required?: string[];
   };
 }

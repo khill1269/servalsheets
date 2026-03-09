@@ -39,6 +39,8 @@ vi.mock('../../src/utils/request-context.js', () => ({
     error: vi.fn(),
     debug: vi.fn(),
   }),
+  getRequestContext: vi.fn().mockReturnValue(undefined),
+  getRequestAbortSignal: vi.fn().mockReturnValue(undefined),
   sendProgress: vi.fn().mockResolvedValue(undefined),
 }));
 

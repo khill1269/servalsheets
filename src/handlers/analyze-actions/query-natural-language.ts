@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { AnalyzeResponse } from '../../schemas/analyze.js';
 import { DataError } from '../../core/errors.js';
@@ -127,7 +128,7 @@ export async function handleQueryNaturalLanguageAction(
       return {
         success: false,
         error: {
-          code: 'VALIDATION_ERROR',
+          code: ErrorCodes.VALIDATION_ERROR,
           message: validation.reason || 'Invalid query',
           retryable: false,
         },
@@ -139,7 +140,7 @@ export async function handleQueryNaturalLanguageAction(
     let samplingResult;
     try {
       await assertSamplingConsent();
-      samplingResult = await withSamplingTimeout(deps.server.createMessage(samplingRequest));
+      samplingResult = await withSamplingTimeout(() => deps.server.createMessage(samplingRequest));
     } catch (samplingError) {
       logger.error('MCP Sampling call failed for query_natural_language', {
         component: 'analyze-handler',
@@ -149,7 +150,7 @@ export async function handleQueryNaturalLanguageAction(
       return {
         success: false,
         error: {
-          code: 'FEATURE_UNAVAILABLE',
+          code: ErrorCodes.FEATURE_UNAVAILABLE,
           message:
             'MCP Sampling capability failed. This feature requires a compatible MCP client with Sampling support (MCP 2025-11-25+).',
           retryable: false,
@@ -253,7 +254,7 @@ export async function handleQueryNaturalLanguageAction(
     return {
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: 'Failed to process natural language query',
         retryable: true,
       },

@@ -537,6 +537,8 @@ export const ErrorCodeSchema = z
       'AUTHENTICATION_REQUIRED: no active session — call sheets_auth.login first.'
   );
 
+export const ErrorCodes = ErrorCodeSchema.enum;
+
 export const ErrorCodeFamilySchema = z.enum([
   'protocol',
   'validation',

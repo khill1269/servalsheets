@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { drive_v3, sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type {
@@ -93,7 +94,7 @@ export async function handleGetAction(
 
   if (!data.spreadsheetId) {
     return deps.error({
-      code: 'INTERNAL_ERROR',
+      code: ErrorCodes.INTERNAL_ERROR,
       message: 'Sheets API returned incomplete data - missing spreadsheetId',
       details: { inputSpreadsheetId: input.spreadsheetId },
       retryable: true,
@@ -164,7 +165,7 @@ export async function handleCreateAction(
     const authUrl = validator.generateIncrementalAuthUrl(requirements.missing);
 
     return deps.error({
-      code: 'PERMISSION_DENIED',
+      code: ErrorCodes.PERMISSION_DENIED,
       message: requirements.description,
       category: 'auth',
       severity: 'high',
@@ -260,7 +261,7 @@ export async function handleCreateAction(
 
   if (!data.spreadsheetId) {
     return deps.error({
-      code: 'INTERNAL_ERROR',
+      code: ErrorCodes.INTERNAL_ERROR,
       message: 'Sheets API returned incomplete data after creating spreadsheet',
       details: { title: input.title },
       retryable: true,
@@ -307,7 +308,7 @@ export async function handleCopyAction(
 ): Promise<CoreResponse> {
   if (!deps.driveApi) {
     return deps.error({
-      code: 'INTERNAL_ERROR',
+      code: ErrorCodes.INTERNAL_ERROR,
       message: 'Drive API not available - required for spreadsheet copy operation',
       details: {
         spreadsheetId: input.spreadsheetId,
@@ -355,7 +356,7 @@ export async function handleCopyAction(
 
     if (!response.data.id) {
       return deps.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: 'Drive API returned no file ID after copy operation',
         details: {
           spreadsheetId: input.spreadsheetId,
@@ -363,7 +364,8 @@ export async function handleCopyAction(
         },
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
-        resolution: 'Retry the copy operation. If the issue persists, check Google Drive API status.',
+        resolution:
+          'Retry the copy operation. If the issue persists, check Google Drive API status.',
       });
     }
 
@@ -439,7 +441,7 @@ export async function handleUpdatePropertiesAction(
 
   if (fields.length === 0) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: 'No properties to update',
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -466,7 +468,7 @@ export async function handleUpdatePropertiesAction(
 
   if (!updated?.spreadsheetId) {
     return deps.error({
-      code: 'INTERNAL_ERROR',
+      code: ErrorCodes.INTERNAL_ERROR,
       message: 'Sheets API returned incomplete data after update',
       details: { spreadsheetId: input.spreadsheetId },
       retryable: true,

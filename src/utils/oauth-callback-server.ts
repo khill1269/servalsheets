@@ -34,10 +34,27 @@ export async function startCallbackServer(
 
   return new Promise((resolve, reject) => {
     let resolved = false;
+    // Allowed Host header values — only localhost / loopback accepted
+    const allowedHosts = new Set([
+      `localhost:${port}`,
+      `127.0.0.1:${port}`,
+      `[::1]:${port}`,
+      'localhost',
+      '127.0.0.1',
+    ]);
+
     const server = http.createServer((req, res) => {
       if (resolved) {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end('<html><body><h1>Already processed</h1></body></html>');
+        return;
+      }
+
+      // DNS-rebinding protection: reject requests with unexpected Host headers
+      const requestHost = req.headers.host ?? '';
+      if (!allowedHosts.has(requestHost)) {
+        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.end('Bad Request: invalid Host header');
         return;
       }
 

@@ -12,6 +12,7 @@
  * P5.3: Added AI-powered connector discovery via MCP Sampling
  */
 
+import { ErrorCodes } from './error-codes.js';
 import { logger } from '../utils/logger.js';
 import { connectorManager } from '../resources/connectors-runtime.js';
 import type { SheetsConnectorsInput, SheetsConnectorsOutput } from '../schemas/connectors.js';
@@ -76,7 +77,7 @@ export class ConnectorsHandler {
               success: false,
               action: String(_exhaustive),
               error: {
-                code: 'INVALID_PARAMS',
+                code: ErrorCodes.INVALID_PARAMS,
                 message: `Unknown action: ${String(_exhaustive)}`,
                 retryable: false,
               },
@@ -91,7 +92,7 @@ export class ConnectorsHandler {
         response: {
           success: false,
           action,
-          error: { code: 'INTERNAL_ERROR', message, retryable: false },
+          error: { code: ErrorCodes.INTERNAL_ERROR, message, retryable: false },
         },
       };
     }
@@ -121,7 +122,7 @@ export class ConnectorsHandler {
         response: {
           success: false as const,
           action: 'configure',
-          error: { code: 'CONNECTOR_ERROR' as const, message: result.message, retryable: false },
+          error: { code: ErrorCodes.CONNECTOR_ERROR, message: result.message, retryable: false },
         },
       };
     }

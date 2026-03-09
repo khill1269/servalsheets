@@ -15,7 +15,7 @@ This guide helps Claude (and other AI assistants) use ServalSheets MCP server ef
 
 ## Overview
 
-ServalSheets provides 25 tools with 391 actions for comprehensive Google Sheets operations. It's production-grade with safety rails, semantic range resolution, and intelligent batching.
+ServalSheets provides 25 tools with 397 actions for comprehensive Google Sheets operations. It's production-grade with safety rails, semantic range resolution, and intelligent batching.
 
 ## MCP Protocol Notes (2025-11-25)
 

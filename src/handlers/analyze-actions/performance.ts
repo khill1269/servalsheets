@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { AnalyzeResponse } from '../../schemas/analyze.js';
 import { logger } from '../../utils/logger.js';
@@ -61,7 +62,10 @@ export async function handleAnalyzePerformanceAction(
           ).length ?? 0),
         0
       ),
-      conditionalFormats: sheets.reduce((sum, sheet) => sum + (sheet.conditionalFormats?.length ?? 0), 0),
+      conditionalFormats: sheets.reduce(
+        (sum, sheet) => sum + (sheet.conditionalFormats?.length ?? 0),
+        0
+      ),
       charts: sheets.reduce((sum, sheet) => sum + (sheet.charts?.length ?? 0), 0),
     };
 
@@ -179,11 +183,10 @@ export async function handleAnalyzePerformanceAction(
     return {
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: 'Failed to analyze performance',
         retryable: true,
       },
     };
   }
 }
-

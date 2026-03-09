@@ -12,10 +12,7 @@ import type { Server as NodeHttpServer } from 'node:http';
 import { fileURLToPath } from 'url';
 import { resolve } from 'path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import {
-  SetLevelRequestSchema,
-  type LoggingLevel,
-} from '@modelcontextprotocol/sdk/types.js';
+import { SetLevelRequestSchema, type LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
 import { OAuthProvider } from './oauth-provider.js';
@@ -211,7 +208,7 @@ async function createMcpServerInstance(
   googleToken?: string,
   googleRefreshToken?: string,
   sessionId?: string
-): Promise<{ mcpServer: McpServer; taskStore: TaskStoreAdapter }> {
+): Promise<{ mcpServer: McpServer; taskStore: TaskStoreAdapter; disposeRuntime: () => void }> {
   const envConfig = getEnv();
   const costTrackingEnabled =
     envConfig.ENABLE_COST_TRACKING || envConfig.ENABLE_BILLING_INTEGRATION;
@@ -320,7 +317,7 @@ async function createMcpServerInstance(
     autoInvoicing: envConfig.BILLING_AUTO_INVOICING,
   });
 
-  await registerServalSheetsTools(mcpServer, handlers, { googleClient });
+  const toolRegistration = await registerServalSheetsTools(mcpServer, handlers, { googleClient });
   registerServalSheetsResources(mcpServer, googleClient);
   registerServalSheetsPrompts(mcpServer);
   await registerKnowledgeResources(mcpServer);
@@ -409,7 +406,13 @@ async function createMcpServerInstance(
   );
   logger.info('HTTP Server: Logging handler registered (logging/setLevel)');
 
-  return { mcpServer, taskStore };
+  return {
+    mcpServer,
+    taskStore,
+    disposeRuntime: () => {
+      toolRegistration.dispose();
+    },
+  };
 }
 
 /**
@@ -433,7 +436,21 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     options.corsOrigins ??
     (configuredCorsOrigins.length > 0
       ? configuredCorsOrigins
-      : ['https://claude.ai', 'https://claude.com']);
+      : [
+          'https://claude.ai',
+          'https://claude.com',
+          'https://platform.openai.com',
+          'https://copilot.microsoft.com',
+          'https://grok.x.ai',
+          'https://gemini.google.com',
+          // MCP Inspector (official debugging tool) and local development clients
+          'http://localhost:6274',
+          'http://localhost:3000',
+          'http://localhost:8080',
+          'http://127.0.0.1:6274',
+          'http://127.0.0.1:3000',
+          'http://127.0.0.1:8080',
+        ]);
   const rateLimitWindowMs = options.rateLimitWindowMs ?? envConfig.RATE_LIMIT_WINDOW_MS;
   const rateLimitMax = options.rateLimitMax ?? envConfig.RATE_LIMIT_MAX;
   const trustProxy = options.trustProxy ?? false;
@@ -690,6 +707,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     corsOrigins,
     rateLimitMax,
     legacySseEnabled,
+    authenticationRequired: options.enableOAuth ?? false,
   });
 
   registerHttpObservabilityRoutes({

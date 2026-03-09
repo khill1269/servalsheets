@@ -40,7 +40,7 @@ const buildQueryString = (query?: Record<string, unknown>): string => {
 export const requestApp = async (
   app: Express,
   options: {
-    method: 'GET' | 'POST';
+    method: 'GET' | 'POST' | 'DELETE' | 'OPTIONS';
     path: string;
     query?: Record<string, unknown>;
     body?: Record<string, unknown> | string;
@@ -58,6 +58,7 @@ export const requestApp = async (
         headers[key.toLowerCase()] = value;
       }
     }
+    headers['host'] = headers['host'] ?? 'localhost';
 
     let bodyString: string | undefined;
     let bodyRecord: Record<string, string> | undefined;
@@ -88,6 +89,35 @@ export const requestApp = async (
     req.method = options.method;
     req.url = url;
     req.headers = headers;
+    const rawHeaders = Object.entries(headers).flatMap(([key, value]) => [key, value]);
+    Object.defineProperty(req, 'rawHeaders', {
+      configurable: true,
+      value: rawHeaders,
+    });
+    Object.defineProperty(req, 'headersDistinct', {
+      configurable: true,
+      value: Object.fromEntries(Object.entries(headers).map(([key, value]) => [key, [value]])),
+    });
+    Object.defineProperty(req, 'httpVersion', {
+      configurable: true,
+      value: '1.1',
+    });
+    Object.defineProperty(req, 'httpVersionMajor', {
+      configurable: true,
+      value: 1,
+    });
+    Object.defineProperty(req, 'httpVersionMinor', {
+      configurable: true,
+      value: 1,
+    });
+    Object.defineProperty(req, 'ip', {
+      configurable: true,
+      value: '127.0.0.1',
+    });
+    Object.defineProperty(req.socket, 'remoteAddress', {
+      configurable: true,
+      value: '127.0.0.1',
+    });
 
     const res = new ServerResponse(req);
     res.assignSocket(socket);

@@ -19,6 +19,7 @@ import {
   validateScopes,
   formatScopesForAuth,
 } from '../../src/config/oauth-scopes.js';
+import { resetEnvForTest } from '../../src/config/env.js';
 
 describe('OAuth Scope Configuration', () => {
   // Store original env vars
@@ -31,6 +32,8 @@ describe('OAuth Scope Configuration', () => {
     // Clear env vars before each test
     delete process.env['OAUTH_SCOPE_MODE'];
     delete process.env['DEPLOYMENT_MODE'];
+    // Reset cached env so getEnv() re-parses from process.env
+    resetEnvForTest();
   });
 
   afterEach(() => {
@@ -45,6 +48,7 @@ describe('OAuth Scope Configuration', () => {
     } else {
       delete process.env['DEPLOYMENT_MODE'];
     }
+    resetEnvForTest();
   });
 
   describe('Deployment-Aware Defaults', () => {

@@ -83,13 +83,6 @@ class SharedDriveRateLimiter {
   }
 
   /**
-   * Check if this ID is a Shared Drive ID (starts with 0A prefix)
-   */
-  static isSharedDriveId(fileId: string | undefined): boolean {
-    return Boolean(fileId?.startsWith('0A'));
-  }
-
-  /**
    * Refill tokens based on elapsed time
    */
   private refillTokens(): void {
@@ -256,6 +249,7 @@ export class GoogleApiClient {
 
   // Shared Drive rate limiter
   private sharedDriveRateLimiter: SharedDriveRateLimiter;
+  private sharedDriveMembershipCache = new Map<string, boolean>();
 
   constructor(options: GoogleApiClientOptions = {}) {
     this.options = options;
@@ -440,10 +434,23 @@ export class GoogleApiClient {
     });
 
     // Drive Activity API for WHO/WHEN change attribution
-    this._driveActivity = google.driveactivity({ version: 'v2', auth: this.auth });
+    this._driveActivity = wrapGoogleApi(google.driveactivity({ version: 'v2', auth: this.auth }), {
+      ...(this.retryOptions ?? {}),
+      timeoutMs: this.timeoutMs,
+      circuit: this.driveCircuit,
+      client: this,
+    });
 
     // Workspace Events API for push notification subscriptions
-    this._workspaceEvents = google.workspaceevents({ version: 'v1', auth: this.auth });
+    this._workspaceEvents = wrapGoogleApi(
+      google.workspaceevents({ version: 'v1', auth: this.auth }),
+      {
+        ...(this.retryOptions ?? {}),
+        timeoutMs: this.timeoutMs,
+        circuit: this.driveCircuit,
+        client: this,
+      }
+    );
 
     logger.info('Google API clients initialized', {
       http2Enabled: enableHTTP2,
@@ -485,18 +492,6 @@ export class GoogleApiClient {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
       circuit: this.bigqueryCircuit,
-      client: this,
-    });
-    this._docs = wrapGoogleApi(docsApi, {
-      ...(this.retryOptions ?? {}),
-      timeoutMs: this.timeoutMs,
-      circuit: this.docsCircuit,
-      client: this,
-    });
-    this._slides = wrapGoogleApi(slidesApi, {
-      ...(this.retryOptions ?? {}),
-      timeoutMs: this.timeoutMs,
-      circuit: this.slidesCircuit,
       client: this,
     });
     this._docs = wrapGoogleApi(docsApi, {
@@ -1591,6 +1586,38 @@ export class GoogleApiClient {
   }
 
   /**
+   * Resolve whether a Drive file belongs to a shared drive using documented
+   * Drive API metadata rather than file ID heuristics.
+   */
+  async isSharedDriveFile(fileId: string | undefined): Promise<boolean> {
+    if (!fileId || !this._drive) {
+      return false;
+    }
+
+    const cached = this.sharedDriveMembershipCache.get(fileId);
+    if (typeof cached === 'boolean') {
+      return cached;
+    }
+
+    try {
+      const response = await this._drive.files.get({
+        fileId,
+        fields: 'driveId',
+        supportsAllDrives: true,
+      });
+      const isSharedDrive = Boolean(response.data.driveId);
+      this.sharedDriveMembershipCache.set(fileId, isSharedDrive);
+      return isSharedDrive;
+    } catch (error) {
+      logger.debug('Failed to resolve shared-drive membership for Drive file', {
+        fileId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    }
+  }
+
+  /**
    * Cleanup resources and remove event listeners
    * Prevents memory leaks from accumulating listeners
    */
@@ -1600,6 +1627,8 @@ export class GoogleApiClient {
       clearInterval(this.poolMonitorInterval);
       this.poolMonitorInterval = undefined;
     }
+
+    this.sharedDriveMembershipCache.clear();
 
     // Stop token manager
     if (this.tokenManager) {
@@ -1697,13 +1726,14 @@ function wrapGoogleApi<T extends object>(
                   methodName === 'update' ||
                   methodName === 'create' ||
                   methodName === 'delete';
-                const sharedDriveId = String(params['spreadsheetId'] ?? '');
+                const sharedDriveFileId =
+                  typeof params['spreadsheetId'] === 'string' ? params['spreadsheetId'] : undefined;
 
-                if (isWriteOp && SharedDriveRateLimiter.isSharedDriveId(sharedDriveId)) {
+                if (isWriteOp && (await client.isSharedDriveFile(sharedDriveFileId))) {
                   const waitMs = await client.waitForSharedDriveWriteToken();
                   if (waitMs > 0) {
                     logger.debug('Shared Drive write rate limit applied', {
-                      spreadsheetId: sharedDriveId,
+                      spreadsheetId: sharedDriveFileId,
                       waitedMs: waitMs,
                     });
                   }
