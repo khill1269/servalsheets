@@ -13,6 +13,7 @@ version: 1.7.0
 > production-grade code with zero regressions.
 >
 > **Input Documents:**
+>
 > - `ISSUES.md` — 234 individually tracked issues with file:line references and fix instructions
 > - `docs/PRODUCTION_AUDIT.md` — 20-category quality assessment with scores, grades, and priority tiers
 > - `CLAUDE.md` — Project rules, verification commands, coding conventions
@@ -645,6 +646,7 @@ Target scores (post-remediation):
 ### 9.1 Main Agent Role
 
 The main Claude Code agent acts as **coordinator**. It:
+
 - Loads context for the current phase/subphase
 - Dispatches work to subagents
 - Reviews subagent output
@@ -653,6 +655,7 @@ The main Claude Code agent acts as **coordinator**. It:
 - Tracks progress in ISSUES.md
 
 The main agent should NEVER:
+
 - Run the full test suite directly (delegate to Bash subagent)
 - Load more than 2-3 handler files simultaneously
 - Skip the per-issue protocol
@@ -675,17 +678,20 @@ The main agent should NEVER:
 ```
 
 **Explore Agent** — Use for:
+
 - "Find all usages of X across the codebase"
 - "Which handlers use confirmDestructiveAction?"
 - "Where is ErrorCode enum defined?"
 - Quick codebase searches before fixing
 
 **Plan Agent** — Use for:
+
 - Complex multi-file fixes (ISSUE-001 auth token)
 - Architectural decisions (ISSUE-172 plugin system)
 - When unsure about approach
 
 **Bash Agent** — Use for:
+
 - `npm run test:fast` (returns pass/fail summary)
 - `npm run typecheck` (returns error list)
 - `npm run schema:commit` (returns success/fail)
@@ -694,11 +700,13 @@ The main agent should NEVER:
 - `wc -l` for line counts
 
 **Task Agent (Fix)** — Use for:
+
 - Implementing a fix for a single issue
 - Mechanical batch fixes (as any removal, error message improvement)
 - Schema changes + handler updates
 
 **Task Agent (Test)** — Use for:
+
 - Writing failing tests before fixes
 - Running specific test files
 - Verifying regressions after fixes
@@ -706,22 +714,26 @@ The main agent should NEVER:
 ### 9.3 Agent Dispatch Patterns
 
 **Pattern 1: Serial Fix (simple issues)**
+
 ```
 Main → Explore (find current code) → Main → Fix (implement) → Bash (verify) → Main (commit)
 ```
 
 **Pattern 2: Parallel Research + Fix (medium issues)**
+
 ```
 Main → [Explore (find code), Task (write failing test)] → Main → Fix (implement) → Bash (verify)
 ```
 
 **Pattern 3: Parallel Batch (mechanical fixes)**
+
 ```
 Main → [Fix Agent 1 (handler A), Fix Agent 2 (handler B), Fix Agent 3 (handler C)]
      → Bash (verify all) → Main (commit per handler)
 ```
 
 **Pattern 4: Complex Fix (multi-file issues)**
+
 ```
 Main → Plan (design approach) → Main (approve) → Fix (implement phase 1)
      → Bash (verify) → Fix (implement phase 2) → Bash (verify) → Main (commit)

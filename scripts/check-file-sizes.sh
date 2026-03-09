@@ -52,10 +52,12 @@ get_budget_override() {
     # Action counts are the primary driver of handler size.
     # bigquery.ts: 1878 lines, 17 actions
     "src/handlers/bigquery.ts")      echo 2100 ;;
-    # dimensions.ts: 2033 lines, 29 actions
-    "src/handlers/dimensions.ts")    echo 2050 ;;
+    # dimensions.ts: 2070 lines, 30 actions
+    "src/handlers/dimensions.ts")    echo 2300 ;;
     # appsscript.ts: 1447 lines, 18 actions
     "src/handlers/appsscript.ts")    echo 1600 ;;
+    # analyze.ts: 970 lines, 21 actions
+    "src/handlers/analyze.ts")       echo 1100 ;;
     # compute.ts: 1341 lines, 10 actions
     "src/handlers/compute.ts")       echo 1500 ;;
     # fix.ts: 1178 lines, 6 actions

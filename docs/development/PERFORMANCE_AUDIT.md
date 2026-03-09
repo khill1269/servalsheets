@@ -48,6 +48,7 @@ const spreadsheet = await this.sheetsApi.spreadsheets.get({
 ```
 
 **Impact:**
+
 - **Worst case:** 5 sheets × 26 columns × 1000 rows = **130,000 cells** in single API call
 - **Latency:** 15-45 seconds for that single call
 - **Quota:** Counts as single quota unit but very expensive bandwidth-wise
@@ -56,6 +57,7 @@ const spreadsheet = await this.sheetsApi.spreadsheets.get({
 **Risk Assessment:** **CRITICAL** — blocks other requests in same session
 
 **Recommendation:**
+
 1. Add `maxSheets` param (already exists in schema: `perfInput.maxSheets ?? 5`) — currently uses it
 2. **Cap hard:** `maxSheets = 3` (default, not 5)
 3. Add `MAX_CELLS_PER_GRIDDATA = 50_000` check
@@ -86,6 +88,7 @@ const formulaValues = await this.sheetsApi.spreadsheets.values.get({
 ```
 
 **Impact:**
+
 - **Double quota:** 2 API calls when 1 would suffice
 - **Unbounded memory:** `allValues` could be 1M+ cells
 - **Latency:** 10-30 seconds for large sheets
@@ -93,6 +96,7 @@ const formulaValues = await this.sheetsApi.spreadsheets.values.get({
 **Risk Assessment:** **CRITICAL** — 100% reproducible with large sheets
 
 **Recommendation:**
+
 1. Apply `MAX_CELLS_PER_REQUEST = 10_000` (defined at line 55 but not used in this action)
 2. Merge both calls: Use single `valueRenderOption: 'FORMULA'` call with cell count check
 3. Add batchGet for multiple ranges if needed
@@ -116,6 +120,7 @@ const paginatedSheets = allSheets.slice(startSheetIndex, endSheetIndex);
 ```
 
 **Impact:**
+
 - **Memory:** `metadata` for 100 sheets = ~500KB (acceptable)
 - **Latency:** Cold cache = 1-2 seconds to fetch all sheet metadata
 - **Subsequent pages:** Must refetch all 100 sheets just to slice array at line 362
@@ -123,6 +128,7 @@ const paginatedSheets = allSheets.slice(startSheetIndex, endSheetIndex);
 **Risk Assessment:** **MEDIUM** — acceptable for <50 sheets, problematic for >100
 
 **Recommendation:**
+
 1. Add server-side sheet filtering: `tieredRetrieval.getMetadata(spreadsheetId, { limit: pageSize, offset: startSheetIndex })`
 2. Or: Cache `allSheets` metadata at service level (already cached at 5min TTL, so acceptable as-is)
 3. Document: "Pagination applies to sheets analyzed, not cells per sheet"
@@ -177,6 +183,7 @@ const response = {
 ```
 
 **Memory Footprint:**
+
 - Per sheet: ~1-100 KB (depending on sheet size)
 - 50 sheets: **50-5000 KB**
 - Typical case (10 sheets): **10-100 KB** ✅
@@ -184,6 +191,7 @@ const response = {
 - Very large case (1000 sheets): **1-5 MB** ⚠️
 
 **Impact:**
+
 - **JSON serialization:** At 5MB, takes 500ms+ to stringify
 - **MCP transport:** SSE/HTTP buffering may struggle
 - **Node.js heap:** Multiple concurrent analyses could spike memory
@@ -191,9 +199,11 @@ const response = {
 **Risk Assessment:** **MEDIUM** — acceptable for typical cases, problematic at scale
 
 **Recommendation:**
+
 1. **Pagination is correct:** Default `pageSize = 5` sheets limits response to ~100KB ✅
 2. **Document limit:** Add comment: "Max 5 sheets per page; use `cursor` for pagination"
 3. **Add response size check** (already at line 570):
+
    ```typescript
    if (JSON.stringify(response).length > 1_000_000) {
      // Use resource URI instead of inline response
@@ -201,6 +211,7 @@ const response = {
      return { response: { success: true, resourceUri: uri } };
    }
    ```
+
 4. **Monitor** analysis result size in metrics
 
 ---
@@ -227,12 +238,14 @@ for (const val of columnValues) {
 ```
 
 **Memory Footprint:**
+
 - Per column: 1 Set + 1 Map = ~2KB overhead
 - 100 columns: **200 KB** (acceptable)
 - 1000 columns: **2 MB** ⚠️
 - Worst case (large sheet + all text): **5-10 MB** for one sheet's analysis
 
 **Impact:**
+
 - **GC pressure:** Many short-lived Maps/Sets trigger garbage collection
 - **Latency:** GC pauses 10-100ms during analysis
 - **Not cumulative:** Sets are local to sheet analysis, garbage collected after
@@ -240,6 +253,7 @@ for (const val of columnValues) {
 **Risk Assessment:** **LOW-MEDIUM** — acceptable, but could be optimized
 
 **Recommendation:**
+
 1. No immediate action required (sets are bounded by column count)
 2. **Future optimization:** Use typed arrays instead of Set for small column analyses
 3. **Monitor:** Add metric for max live objects during comprehensive analysis
@@ -270,6 +284,7 @@ async queue(operation: BatchableOperation): Promise<void> {
 ```
 
 **Memory Footprint:**
+
 - Per operation: ~1 KB (ranges, formats, etc.)
 - 1000 pending ops: **1 MB** (unlikely in practice)
 - Typical: **10-50 KB** ✅
@@ -277,6 +292,7 @@ async queue(operation: BatchableOperation): Promise<void> {
 **Risk Assessment:** **LOW** — acceptable (maxBatchSize = 100 acts as circuit breaker)
 
 **Recommendation:**
+
 1. Add metric: `pending_operations_count` (track peak queue depth)
 2. Add warning if queue depth > 1000: "Batch system may be backed up"
 3. Current implementation is safe ✅
@@ -288,6 +304,7 @@ async queue(operation: BatchableOperation): Promise<void> {
 **Location:** `/src/services/etag-cache.ts:76-88`
 
 **Configuration:**
+
 ```typescript
 this.cache = new LRUCache<string, ETagEntry>({
   max: this.maxSize,      // = 1000 entries (line 76)
@@ -297,6 +314,7 @@ this.cache = new LRUCache<string, ETagEntry>({
 ```
 
 **Memory Footprint:**
+
 - Per entry: ETag (~50 bytes) + metadata (~100 bytes) = **~150 bytes**
 - 1000 entries: **~150 KB** ✅
 - Acceptable ✅
@@ -329,12 +347,14 @@ const { SheetsAuthInputSchema } = await import('./schemas/auth.js');
 ```
 
 **Benefits:**
+
 - ✅ Auth handler (heavily used) loads eagerly
 - ✅ Session/history handlers lazy-loaded
 - ✅ Deferred resource discovery saves 800KB initial context
 - ✅ Dynamic schema imports avoid parsing all 22 schemas at startup
 
 **Startup Timeline:**
+
 1. **Immediate** (0-100ms): MCP server init, stdio transport
 2. **Fast path** (100-500ms): Load auth handler + 5 core schemas
 3. **Deferred** (500ms+): Load other handlers on first call to that tool
@@ -355,12 +375,14 @@ const { SheetsAuthInputSchema } = await import('./schemas/auth.js');
 **Purpose:** Cache Zod schema validation results
 
 **Configuration:**
+
 - **Type:** In-memory LRU
 - **Capacity:** Unlimited (per Zod's internal caching)
 - **TTL:** N/A (unbounded lifetime)
 - **Hit Rate:** ~90% (most requests with similar inputs)
 
 **Latency Impact:**
+
 - Cache hit: **5-10 ms** (Zod parse of cached schema)
 - Cache miss: **50-100 ms** (full Zod validation)
 - Typical: **50-60 ms** (mix of hits/misses)
@@ -368,6 +390,7 @@ const { SheetsAuthInputSchema } = await import('./schemas/auth.js');
 **Risk:** No eviction policy means memory grows unbounded for unique inputs.
 
 **Recommendation:**
+
 1. Current implementation is acceptable (Zod's cache is internal)
 2. Monitor: Add metric `schema_cache_hit_rate` (estimated at 90%)
 3. Benchmark confirms: `broad-sample fixtures (invalid)` takes 80-150ms ✓
@@ -379,16 +402,19 @@ const { SheetsAuthInputSchema } = await import('./schemas/auth.js');
 **Purpose:** Conditional requests with If-None-Match header
 
 **Configuration:**
+
 - **L1 (Memory):** LRU, 1000 entries, 5-minute TTL
 - **L2 (Redis):** Optional, 10-minute TTL, survives pod restarts
 - **Strategy:** Check cache → send conditional request → 304 or 200
 
 **Effectiveness:**
+
 - **Without cache:** 100% full responses
 - **With L1 only:** 30-40% 304 responses (estimated)
 - **With L1+L2 (Redis):** 40-60% 304 responses
 
 **Quota Savings:**
+
 - 304 responses: **don't count** against quota ✅
 - ETag mismatches: Single quota unit (same cost as cache miss)
 
@@ -410,6 +436,7 @@ const { SheetsAuthInputSchema } = await import('./schemas/auth.js');
 ```
 
 **Impact:**
+
 - Action `sheets_fix.fix` mutations don't invalidate cache
 - Post-fix reads return **stale data** (5-minute TTL, so eventual consistency)
 - Severity: **HIGH** for correctness
@@ -448,6 +475,7 @@ const MAX_BATCH_RANGES = 50;  // Auto-chunk if more ranges
 ```
 
 **Google Sheets API Limits:**
+
 - **batchUpdate:** Max 100 requests per call ✅
 - **batchGet:** No official limit, but practical: 100 ranges = ~5-10 second latency
 
@@ -479,6 +507,7 @@ async handleBatchRead(req: BatchReadInput): Promise<BatchReadOutput> {
 **Risk Assessment:** **LOW** — scaling is well-handled via ParallelExecutor
 
 **Recommendation:**
+
 1. Document: "Batch operations scale to 1000s via automatic chunking"
 2. Monitor: Track `batch_operation_chunk_count` in metrics
 3. Current implementation is solid ✅
@@ -492,11 +521,13 @@ async handleBatchRead(req: BatchReadInput): Promise<BatchReadOutput> {
 **Purpose:** Merge overlapping ranges into single batchGet call
 
 **Configuration:**
+
 - **Window:** 50ms collection window
 - **Overlap detection:** A1 range parsing + bounding box merge
 - **Savings:** 20-40% for overlapping read patterns
 
 **Example:**
+
 ```
 Request 1: A1:C10
 Request 2: B5:D15  (overlaps with Request 1)
@@ -554,6 +585,7 @@ Result: 3 requests → 2 API calls (33% savings)
 | Cross-spreadsheet ops | 5s | 15s | 30s | 2-3 sources, merge overhead |
 
 **Current Implementation Status:**
+
 - ✅ Simple reads: Likely 0.3-0.7s (cached)
 - ✅ Batch operations: Likely 2-8s (depends on range count)
 - ⚠️ Analysis: Likely 5-45s (depends on sheet size, caching)
@@ -573,6 +605,7 @@ Result: 3 requests → 2 API calls (33% savings)
 **Output:** JSON benchmarks per operation (via Vitest)
 
 **Limitations:**
+
 1. No automated baseline comparison
 2. No regression detection (manual review required)
 3. No historical trend tracking
@@ -586,6 +619,7 @@ Result: 3 requests → 2 API calls (33% savings)
 4. **Trend Tracking:** Store results in database for monthly dashboard
 
 **Implementation:**
+
 ```bash
 # Step 1: Baseline
 npm run audit:perf > perf-baseline.json

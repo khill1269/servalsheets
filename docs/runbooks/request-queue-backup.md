@@ -51,6 +51,7 @@ curl http://localhost:3000/metrics | grep batch_execution_duration_seconds
 ```
 
 Common culprits:
+
 - `batchUpdate` batches: format/dimension operations waiting for Google API
 - `values.batchGet` batches: read operations under high load
 - `values.update` batches: write operations with high cell counts
@@ -91,6 +92,7 @@ Only use when queue backup is severe (> 1000 pending operations).
 ### Option B — Scale horizontally
 
 If a single instance is overloaded:
+
 1. Deploy an additional instance behind the load balancer
 2. Ensure Redis is configured for shared state (`CACHE_REDIS_ENABLED=true`)
 3. Monitor that session state is correctly distributed

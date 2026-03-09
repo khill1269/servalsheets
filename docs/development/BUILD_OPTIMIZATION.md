@@ -206,6 +206,7 @@ time npm run build
    ```
 
 3. Clear caches and rebuild:
+
    ```bash
    npm run clean
    rm -rf .turbo .tsbuildinfo*
@@ -246,6 +247,7 @@ time npm run build
    ```
 
 3. Clear Turbo cache:
+
    ```bash
    npx turbo run build --force
    ```
@@ -270,6 +272,7 @@ time npm run build
    ```
 
 3. **Clean when switching branches:**
+
    ```bash
    git checkout different-branch
    npm run clean
@@ -292,6 +295,7 @@ time npm run build
    - Cache `.turbo/` directory
 
 3. **Use Turborepo:**
+
    ```yaml
    run: npx turbo run build
    ```
