@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { ConfidenceScorer } from '../../analysis/confidence-scorer.js';
 import { ElicitationEngine } from '../../analysis/elicitation-engine.js';
@@ -151,18 +152,15 @@ export async function handleScoutAction(
       if (elicitation.shouldElicit) {
         (response as Record<string, unknown>)['elicitation'] = {
           shouldElicit: true,
-          questions: elicitation.questions
-            .slice(0, elicitation.recommendedBatchSize)
-            .map((q) => ({
-              id: q.id,
-              question: q.question,
-              reason: q.reason,
-              type: q.type,
-              options: q.options,
-              priority: q.priority,
-            })),
-          projectedBoost:
-            elicitation.projectedConfidenceAfterElicitation - assessment.overallScore,
+          questions: elicitation.questions.slice(0, elicitation.recommendedBatchSize).map((q) => ({
+            id: q.id,
+            question: q.question,
+            reason: q.reason,
+            type: q.type,
+            options: q.options,
+            priority: q.priority,
+          })),
+          projectedBoost: elicitation.projectedConfidenceAfterElicitation - assessment.overallScore,
         };
       }
     } catch (intelligenceErr) {
@@ -196,7 +194,7 @@ export async function handleScoutAction(
     return {
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message:
           'Scout analysis failed. The AI analysis service may be temporarily unavailable. Please try again.',
         retryable: true,

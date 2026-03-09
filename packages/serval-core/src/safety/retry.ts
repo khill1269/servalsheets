@@ -46,7 +46,7 @@ export const DEFAULT_RETRY_CONFIG: RetryConfig = {
   maxDelayMs: 60000,
   jitterRatio: 0.2,
   defaultTimeoutMs: 60000,
-  retryableStatuses: new Set([401, 403, 429, 500, 502, 503, 504]),
+  retryableStatuses: new Set([429, 500, 502, 503, 504]),
   retryableCodes: new Set([
     'ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EAI_AGAIN',
     'ENOTFOUND', 'ENETUNREACH', 'ECONNABORTED',
@@ -156,11 +156,9 @@ export function isRetryableError(error: unknown, config: RetryConfig = DEFAULT_R
       const message = typeof errAny.message === 'string' ? errAny.message.toLowerCase() : '';
       return message.includes('userratelimitexceeded') || message.includes('rate limit') || message.includes('quota exceeded');
     }
-    if (status === 401) {
-      const message = typeof errAny.message === 'string' ? errAny.message.toLowerCase() : '';
-      return message.includes('token expired') || message.includes('invalid_grant') ||
-        message.includes('invalid credentials') || message.includes('unauthorized');
-    }
+    // 401 Unauthorized is not retryable — indicates invalid/expired credentials,
+    // not a transient server error. Token refresh must happen at a higher layer.
+    if (status === 401) return false;
     return true;
   }
 

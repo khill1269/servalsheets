@@ -1,9 +1,10 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { ComprehensiveAnalyzer } from '../../analysis/comprehensive.js';
 import { ServiceError } from '../../core/errors.js';
 import { isHeapCritical } from '../../utils/heap-watchdog.js';
 import { logger } from '../../utils/logger.js';
-import { sendProgress } from '../../utils/request-context.js';
+import { getRequestAbortSignal, sendProgress } from '../../utils/request-context.js';
 import type { AnalyzeResponse, ComprehensiveInput } from '../../schemas/analyze.js';
 import type { HandlerContext } from '../base.js';
 
@@ -185,7 +186,7 @@ export async function handleComprehensiveAction(
     return {
       success: false,
       error: {
-        code: 'RESOURCE_EXHAUSTED',
+        code: ErrorCodes.RESOURCE_EXHAUSTED,
         message:
           'Server heap memory is critically full (>90%). Comprehensive analysis rejected to prevent OOM crash. Try again after current operations complete.',
         retryable: true,
@@ -280,8 +281,13 @@ export async function handleComprehensiveAction(
 
   try {
     await sendProgress(0, 100, 'Starting comprehensive analysis');
-    if (deps.context.abortSignal?.aborted) {
-      throw new ServiceError('Operation cancelled by client', 'OPERATION_CANCELLED', 'analyze', false);
+    if ((getRequestAbortSignal() ?? deps.context.abortSignal)?.aborted) {
+      throw new ServiceError(
+        'Operation cancelled by client',
+        'OPERATION_CANCELLED',
+        'analyze',
+        false
+      );
     }
 
     const result = await analyzer.analyze(req.spreadsheetId);
@@ -321,7 +327,7 @@ export async function handleComprehensiveAction(
     return {
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: error instanceof Error ? error.message : 'Comprehensive analysis failed',
         retryable: true,
       },

@@ -1019,6 +1019,67 @@ const DiscoverActionActionSchema = z.object({
 });
 
 /**
+ * Check overall formula health: volatile functions, deeply nested formulas,
+ * missing error guards (IFERROR/IFNA), inconsistent column formulas, and
+ * named range coverage. Returns a scored health report with actionable findings.
+ */
+const FormulaHealthCheckActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('formula_health_check')
+    .describe(
+      'Audit formula health across the spreadsheet. Detects volatile functions (NOW, RAND, INDIRECT), ' +
+        'deeply nested formulas (depth > 5), missing IFERROR/IFNA guards on VLOOKUP/INDEX-MATCH, ' +
+        'inconsistent formulas within a column, and orphaned named ranges. ' +
+        'Returns a health score (0–100) with severity-ranked findings and fix suggestions.'
+    ),
+  range: RangeInputSchema.optional().describe(
+    'Range to audit. If omitted, scans all sheets with formulas.'
+  ),
+  maxDepthThreshold: z
+    .number()
+    .int()
+    .min(1)
+    .max(20)
+    .optional()
+    .default(5)
+    .describe('Nesting depth at which a formula is flagged as overly complex (default 5)'),
+  checkVolatile: z.boolean().optional().default(true).describe('Flag volatile functions'),
+  checkConsistency: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Flag columns where some rows have formulas and others have hardcoded values'),
+  checkErrorGuards: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Flag lookup formulas missing IFERROR/IFNA protection'),
+});
+
+/**
+ * Diagnose formula errors (#REF!, #VALUE!, #NAME?, #DIV/0!, #N/A, circular refs)
+ * with root cause analysis and suggested fixes.
+ * Competitive parity: Claude in Excel's #1 feature — traces formula errors with cell-level citations.
+ */
+const DiagnoseErrorsActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('diagnose_errors')
+    .describe(
+      'Diagnose and explain errors in spreadsheet formulas and data. ' +
+        'Traces #REF!, #VALUE!, #NAME?, #DIV/0!, #NULL!, #N/A errors and circular references ' +
+        'with root cause analysis, dependency chain, and suggested fixes.'
+    ),
+  range: RangeInputSchema.optional().describe(
+    'Range to scan for errors. If omitted, scans all sheets.'
+  ),
+  includeFormulas: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Include formula text in error diagnosis for context'),
+});
+
+/**
  * All analysis operation inputs
  *
  * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
@@ -1054,6 +1115,9 @@ export const SheetsAnalyzeInputSchema = z.object({
     AutoEnhanceActionSchema,
     // Meta-tools (1)
     DiscoverActionActionSchema,
+    // Diagnostic actions (2) - competitive parity with Claude in Excel
+    DiagnoseErrorsActionSchema,
+    FormulaHealthCheckActionSchema,
   ]),
 });
 

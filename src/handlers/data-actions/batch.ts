@@ -2,6 +2,7 @@
  * Batch read / write / clear and find-replace handlers for sheets_data.
  */
 
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { DataResponse, SheetsDataInput } from '../../schemas/data.js';
 import type { ValuesArray, RangeInput } from '../../schemas/index.js';
@@ -40,20 +41,18 @@ export async function handleBatchRead(
   if (wantsPagination) {
     if (input.dataFilters && input.dataFilters.length > 0) {
       return ha.makeError({
-        code: 'INVALID_PARAMS',
+        code: ErrorCodes.INVALID_PARAMS,
         message: 'Pagination is not supported with dataFilters in batch_read',
         retryable: false,
-        suggestedFix:
-          'Check the parameter format and ensure all required parameters are provided',
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
     if (!input.ranges || input.ranges.length === 0) {
       return ha.makeError({
-        code: 'INVALID_PARAMS',
+        code: ErrorCodes.INVALID_PARAMS,
         message: 'Pagination in batch_read requires at least one range',
         retryable: false,
-        suggestedFix:
-          'Check the parameter format and ensure all required parameters are provided',
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -136,7 +135,7 @@ export async function handleBatchRead(
         action: 'batch_read',
       });
       return ha.makeError({
-        code: 'FEATURE_UNAVAILABLE',
+        code: ErrorCodes.FEATURE_UNAVAILABLE,
         message: 'DataFilter batch reads are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
         retryable: false,
         suggestedFix:
@@ -455,7 +454,7 @@ export async function handleBatchWrite(
     );
     if (!confirmation.confirmed) {
       return ha.makeError({
-        code: 'PRECONDITION_FAILED',
+        code: ErrorCodes.PRECONDITION_FAILED,
         message: confirmation.reason || 'User cancelled the operation',
         retryable: false,
         suggestedFix: 'Review the operation requirements and try again',
@@ -473,7 +472,7 @@ export async function handleBatchWrite(
       action: 'batch_write',
     });
     return ha.makeError({
-      code: 'FEATURE_UNAVAILABLE',
+      code: ErrorCodes.FEATURE_UNAVAILABLE,
       message: 'DataFilter batch writes are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
       retryable: false,
       suggestedFix:
@@ -535,7 +534,7 @@ export async function handleBatchWrite(
 
   if (hasDataFilters && hasRanges) {
     return ha.makeError({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: 'Do not mix range-based and dataFilter-based entries in batch_write',
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -545,7 +544,7 @@ export async function handleBatchWrite(
   const rangeEntries = input.data as Array<{ range?: RangeInput; values: ValuesArray }>;
   if (rangeEntries.some((entry) => !entry.range)) {
     return ha.makeError({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: 'Missing range for batch_write entry',
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -747,7 +746,7 @@ export async function handleBatchClear(
     );
     if (!confirmation.confirmed) {
       return ha.makeError({
-        code: 'OPERATION_CANCELLED',
+        code: ErrorCodes.OPERATION_CANCELLED,
         message: confirmation.reason ?? 'Operation cancelled by user',
         retryable: false,
       });
@@ -770,7 +769,7 @@ export async function handleBatchClear(
         action: 'batch_clear',
       });
       return ha.makeError({
-        code: 'FEATURE_UNAVAILABLE',
+        code: ErrorCodes.FEATURE_UNAVAILABLE,
         message: 'DataFilter batch clears are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
         retryable: false,
         suggestedFix:
@@ -948,8 +947,8 @@ export async function handleFindReplace(
     if (ha.context.samplingServer) {
       try {
         await assertSamplingConsent();
-        const samplingResult = await withSamplingTimeout(
-          ha.context.samplingServer.createMessage({
+        const samplingResult = await withSamplingTimeout(() =>
+          ha.context.samplingServer!.createMessage({
             messages: [
               {
                 role: 'user' as const,
@@ -963,11 +962,8 @@ export async function handleFindReplace(
           })
         );
         const text = Array.isArray(samplingResult.content)
-          ? ((
-              samplingResult.content.find((c) => c.type === 'text') as
-                | { text: string }
-                | undefined
-            )?.text ?? '')
+          ? ((samplingResult.content.find((c) => c.type === 'text') as { text: string } | undefined)
+              ?.text ?? '')
           : ((samplingResult.content as { text?: string }).text ?? '');
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
@@ -1014,10 +1010,11 @@ export async function handleFindReplace(
     const injected = checkFormulaInjection([[resolvedInput.replacement]]);
     if (injected) {
       return ha.makeError({
-        code: 'FORMULA_INJECTION_BLOCKED',
+        code: ErrorCodes.FORMULA_INJECTION_BLOCKED,
         message: `Replacement value contains dangerous formula: ${injected}. Set safety.sanitizeFormulas=false to allow.`,
         retryable: false,
-        suggestedFix: 'Remove the dangerous formula from the replacement value, or set safety.sanitizeFormulas=false if this is intentional',
+        suggestedFix:
+          'Remove the dangerous formula from the replacement value, or set safety.sanitizeFormulas=false if this is intentional',
       });
     }
   }
@@ -1058,8 +1055,8 @@ export async function handleFindReplace(
   if (ha.context.samplingServer) {
     try {
       await assertSamplingConsent();
-      const predictionResult = await withSamplingTimeout(
-        ha.context.samplingServer.createMessage({
+      const predictionResult = await withSamplingTimeout(() =>
+        ha.context.samplingServer!.createMessage({
           messages: [
             {
               role: 'user' as const,
@@ -1073,11 +1070,8 @@ export async function handleFindReplace(
         })
       );
       const text = Array.isArray(predictionResult.content)
-        ? ((
-            predictionResult.content.find((c) => c.type === 'text') as
-              | { text: string }
-              | undefined
-          )?.text ?? '')
+        ? ((predictionResult.content.find((c) => c.type === 'text') as { text: string } | undefined)
+            ?.text ?? '')
         : ((predictionResult.content as { text?: string }).text ?? '');
       aiImpactPrediction = text.trim();
     } catch {

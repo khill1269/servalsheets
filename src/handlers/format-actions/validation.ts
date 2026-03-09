@@ -3,6 +3,7 @@
  * set_data_validation, clear_data_validation, list_data_validations, suggest_format
  */
 
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { buildGridRangeInput, toGridRange } from '../../utils/google-sheets-helpers.js';
 import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
@@ -145,7 +146,7 @@ export async function handleListDataValidations(
     );
     if (!metaSheet?.properties?.gridProperties) {
       return ha.makeError({
-        code: 'SHEET_NOT_FOUND',
+        code: ErrorCodes.SHEET_NOT_FOUND,
         message: `Sheet with ID ${input.sheetId} not found`,
         retryable: false,
         suggestedFix: 'Verify the sheet name or ID is correct',
@@ -156,7 +157,7 @@ export async function handleListDataValidations(
     const totalCells = rowCount * colCount;
     if (totalCells > 10000) {
       return ha.makeError({
-        code: 'INVALID_PARAMS',
+        code: ErrorCodes.INVALID_PARAMS,
         message: `Sheet has ${totalCells.toLocaleString()} cells (${rowCount}×${colCount}). Provide 'range' parameter to prevent timeout.`,
         resolution: `Specify a range parameter to limit scan area (e.g., range: "A1:Z100"). For best performance, use ranges <10K cells.`,
         retryable: false,
@@ -175,7 +176,7 @@ export async function handleListDataValidations(
   const sheet = response.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);
   if (!sheet?.properties?.gridProperties) {
     return ha.makeError({
-      code: 'SHEET_NOT_FOUND',
+      code: ErrorCodes.SHEET_NOT_FOUND,
       message: `Sheet with ID ${input.sheetId} not found`,
       retryable: false,
       suggestedFix: 'Verify the sheet name or ID is correct',
@@ -269,7 +270,7 @@ export async function handleSuggestFormat(
     gridData = sheet?.data?.[0];
     if (!gridData || !gridData.rowData || gridData.rowData.length === 0) {
       return ha.makeError({
-        code: 'INVALID_PARAMS',
+        code: ErrorCodes.INVALID_PARAMS,
         message: 'Range contains no data',
         retryable: false,
         suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -277,7 +278,7 @@ export async function handleSuggestFormat(
     }
   } catch (error) {
     return ha.makeError({
-      code: 'INTERNAL_ERROR',
+      code: ErrorCodes.INTERNAL_ERROR,
       message: `Failed to fetch range data: ${error instanceof Error ? error.message : String(error)}`,
       retryable: true,
       suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -406,7 +407,7 @@ Always return valid JSON in the exact format requested.`;
         const settled = await Promise.allSettled(
           suggestions.map(async (suggestion) => {
             try {
-              const rationaleResult = await withSamplingTimeout(
+              const rationaleResult = await withSamplingTimeout(() =>
                 ha.context.samplingServer!.createMessage({
                   messages: [
                     {

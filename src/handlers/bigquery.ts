@@ -27,6 +27,7 @@
  * MCP Protocol: 2025-11-25
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { bigquery_v2 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
@@ -228,7 +229,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         default: {
           const _exhaustiveCheck: never = req;
           response = this.error({
-            code: 'INVALID_PARAMS',
+            code: ErrorCodes.INVALID_PARAMS,
             message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
@@ -259,7 +260,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
   private requireBigQuery(): bigquery_v2.Bigquery {
     if (!this.bigqueryApi) {
       throw this.error({
-        code: 'CONFIG_ERROR',
+        code: ErrorCodes.CONFIG_ERROR,
         message:
           'BigQuery API is not configured. Enable BigQuery API in your GCP project and ensure proper OAuth scopes.',
         retryable: false,
@@ -501,7 +502,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       switch (apiError.status) {
         case 'PERMISSION_DENIED':
           return this.error({
-            code: 'PERMISSION_DENIED',
+            code: ErrorCodes.PERMISSION_DENIED,
             message: `BigQuery access denied: ${apiError.message ?? 'Check permissions'}`,
             retryable: false,
             suggestedFix:
@@ -509,14 +510,14 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           });
         case 'NOT_FOUND':
           return this.error({
-            code: 'NOT_FOUND',
+            code: ErrorCodes.NOT_FOUND,
             message: `BigQuery resource not found: ${apiError.message ?? 'Check project/dataset/table IDs'}`,
             retryable: false,
             suggestedFix: 'Verify projectId, datasetId, and tableId are correct.',
           });
         case 'INVALID_ARGUMENT':
           return this.error({
-            code: 'INVALID_PARAMS',
+            code: ErrorCodes.INVALID_PARAMS,
             message: `Invalid BigQuery query: ${apiError.message ?? 'Check SQL syntax'}`,
             retryable: false,
             suggestedFix: 'Check SQL syntax. Use preview with dryRun:true to validate queries.',
@@ -527,7 +528,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
 
       if (apiError.code === 429) {
         return this.error({
-          code: 'QUOTA_EXCEEDED',
+          code: ErrorCodes.QUOTA_EXCEEDED,
           message: 'BigQuery API rate limit exceeded. Try again later.',
           retryable: true,
           suggestedFix: 'Wait 60 seconds and retry, or reduce query frequency.',
@@ -536,7 +537,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     }
 
     return this.error({
-      code: 'UNAVAILABLE',
+      code: ErrorCodes.UNAVAILABLE,
       message: `BigQuery operation failed: ${error.message ?? 'Unknown error'}`,
       retryable: true,
       suggestedFix: 'Try again. If the issue persists, check the BigQuery console.',
@@ -781,7 +782,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
 
       if (!dataSource) {
         return this.error({
-          code: 'NOT_FOUND',
+          code: ErrorCodes.NOT_FOUND,
           message: `Data source not found: ${req.dataSourceId}`,
           retryable: false,
           suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
@@ -1261,7 +1262,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         range = req.range.namedRange;
       } else {
         return this.error({
-          code: 'INVALID_PARAMS',
+          code: ErrorCodes.INVALID_PARAMS,
           message: 'Range must be a string, A1 notation object, or named range',
           retryable: false,
           suggestedFix:
@@ -1277,7 +1278,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       const values = sheetData.data.values ?? [];
       if (values.length === 0) {
         return this.error({
-          code: 'INVALID_PARAMS',
+          code: ErrorCodes.INVALID_PARAMS,
           message: 'No data found in the specified range',
           retryable: false,
           suggestedFix:
@@ -1285,13 +1286,86 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         });
       }
 
-      // Validate writeDisposition - streaming insert only supports WRITE_APPEND
-      if (req.writeDisposition && req.writeDisposition !== 'WRITE_APPEND') {
-        return this.error({
-          code: 'INVALID_PARAMS',
-          message: `writeDisposition '${req.writeDisposition}' is not supported for streaming export. Only WRITE_APPEND is supported.`,
-          retryable: false,
+      const writeDisposition = req.writeDisposition ?? 'WRITE_APPEND';
+
+      // WRITE_EMPTY: fail if the table already has rows
+      if (writeDisposition === 'WRITE_EMPTY') {
+        const tableRef = `\`${req.destination.projectId}.${req.destination.datasetId}.${req.destination.tableId}\``;
+        const countJob = await bigquery.jobs.insert({
+          projectId: req.destination.projectId,
+          requestBody: {
+            configuration: {
+              query: {
+                query: `SELECT COUNT(1) AS row_count FROM ${tableRef}`,
+                useLegacySql: false,
+              },
+            },
+          },
         });
+        const jobId = countJob.data.jobReference?.jobId;
+        if (jobId) {
+          // Poll until the count job finishes (simple poll, max 30s)
+          for (let attempt = 0; attempt < 15; attempt++) {
+            await new Promise((r) => setTimeout(r, 2000));
+            const pollResp = await bigquery.jobs.get({
+              projectId: req.destination.projectId,
+              jobId,
+            });
+            if (pollResp.data.status?.state === 'DONE') {
+              const queryResults = await bigquery.jobs.getQueryResults({
+                projectId: req.destination.projectId,
+                jobId,
+              });
+              const existingRows = Number(queryResults.data.rows?.[0]?.f?.[0]?.v ?? 0);
+              if (existingRows > 0) {
+                return this.error({
+                  code: ErrorCodes.INVALID_PARAMS,
+                  message: `writeDisposition WRITE_EMPTY failed: table already contains ${existingRows} row(s).`,
+                  retryable: false,
+                  suggestedFix: 'Use writeDisposition WRITE_APPEND or WRITE_TRUNCATE.',
+                });
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      // WRITE_TRUNCATE: delete all existing rows via DML before streaming new ones
+      if (writeDisposition === 'WRITE_TRUNCATE') {
+        const tableRef = `\`${req.destination.projectId}.${req.destination.datasetId}.${req.destination.tableId}\``;
+        const truncateJob = await bigquery.jobs.insert({
+          projectId: req.destination.projectId,
+          requestBody: {
+            configuration: {
+              query: {
+                query: `DELETE FROM ${tableRef} WHERE TRUE`,
+                useLegacySql: false,
+              },
+            },
+          },
+        });
+        const truncJobId = truncateJob.data.jobReference?.jobId;
+        if (truncJobId) {
+          for (let attempt = 0; attempt < 30; attempt++) {
+            await new Promise((r) => setTimeout(r, 2000));
+            const pollResp = await bigquery.jobs.get({
+              projectId: req.destination.projectId,
+              jobId: truncJobId,
+            });
+            if (pollResp.data.status?.state === 'DONE') {
+              if (pollResp.data.status.errorResult) {
+                logger.warn(
+                  'WRITE_TRUNCATE DML returned error (table may not exist yet — proceeding)',
+                  {
+                    error: pollResp.data.status.errorResult,
+                  }
+                );
+              }
+              break;
+            }
+          }
+        }
       }
 
       // Skip header rows
@@ -1384,32 +1458,8 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
 
       // Streaming inserts don't produce a BigQuery job — no jobId to return
 
-      // MCP SEP-1686: Create task entry for long-running export operation
-      let taskId: string | undefined;
-      if (this.context.taskStore) {
-        const task = await this.context.taskStore.createTask(
-          { ttl: 3600000 }, // 1 hour TTL
-          'bigquery-export',
-          {
-            method: 'tools/call',
-            params: { name: 'sheets_bigquery', arguments: req },
-          }
-        );
-        taskId = task.taskId;
-        await this.context.taskStore.updateTaskStatus(
-          taskId,
-          'completed',
-          `Exported ${successfulRows} rows to BigQuery`
-        );
-        logger.info('Task created for export_to_bigquery', {
-          taskId,
-          spreadsheetId: req.spreadsheetId,
-        });
-      }
-
       return this.success('export_to_bigquery', {
         rowCount: successfulRows,
-        ...(taskId !== undefined ? { taskId } : {}),
         mutation: {
           cellsAffected: totalRows,
           sheetsModified: [],
@@ -1514,29 +1564,6 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         rowCount: rows.length,
       });
 
-      // MCP SEP-1686: Create task entry for long-running import operation
-      let importTaskId: string | undefined;
-      if (this.context.taskStore) {
-        const task = await this.context.taskStore.createTask(
-          { ttl: 3600000 }, // 1 hour TTL
-          'bigquery-import',
-          {
-            method: 'tools/call',
-            params: { name: 'sheets_bigquery', arguments: req },
-          }
-        );
-        importTaskId = task.taskId;
-        await this.context.taskStore.updateTaskStatus(
-          importTaskId,
-          'completed',
-          `Imported ${rows.length} rows from BigQuery`
-        );
-        logger.info('Task created for import_from_bigquery', {
-          taskId: importTaskId,
-          spreadsheetId: req.spreadsheetId,
-        });
-      }
-
       return this.success('import_from_bigquery', {
         rowCount: rows.length,
         columns,
@@ -1545,7 +1572,6 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         bytesProcessed: queryResult.bytesProcessed,
         cacheHit: queryResult.cacheHit,
         jobId: queryResult.jobId,
-        ...(importTaskId !== undefined ? { taskId: importTaskId } : {}),
         mutation: {
           cellsAffected: values.length * (columns.length || 1),
           sheetsModified: [targetSheetName],
@@ -1582,7 +1608,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     try {
       if (!this.context.googleClient) {
         return this.error({
-          code: 'UNAUTHENTICATED',
+          code: ErrorCodes.UNAUTHENTICATED,
           message: 'Google client not available - authentication required',
           retryable: false,
         });
@@ -1590,7 +1616,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       const token = await this.getFreshAccessToken();
       if (!token) {
         return this.error({
-          code: 'UNAUTHENTICATED',
+          code: ErrorCodes.UNAUTHENTICATED,
           message: 'OAuth access token required for scheduled queries',
           retryable: false,
         });
@@ -1686,7 +1712,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     try {
       if (!this.context.googleClient) {
         return this.error({
-          code: 'UNAUTHENTICATED',
+          code: ErrorCodes.UNAUTHENTICATED,
           message: 'Google client not available - authentication required',
           retryable: false,
         });
@@ -1694,7 +1720,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       const token = await this.getFreshAccessToken();
       if (!token) {
         return this.error({
-          code: 'UNAUTHENTICATED',
+          code: ErrorCodes.UNAUTHENTICATED,
           message: 'OAuth access token required for scheduled queries',
           retryable: false,
         });
@@ -1772,7 +1798,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     try {
       if (!this.context.googleClient) {
         return this.error({
-          code: 'UNAUTHENTICATED',
+          code: ErrorCodes.UNAUTHENTICATED,
           message: 'Google client not available - authentication required',
           retryable: false,
         });
@@ -1780,7 +1806,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       const token = await this.getFreshAccessToken();
       if (!token) {
         return this.error({
-          code: 'UNAUTHENTICATED',
+          code: ErrorCodes.UNAUTHENTICATED,
           message: 'OAuth access token required for scheduled queries',
           retryable: false,
         });
@@ -1790,7 +1816,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       const TRANSFER_CONFIG_PATTERN = /^projects\/[^/]+\/locations\/[^/]+\/transferConfigs\/[^/]+$/;
       if (!TRANSFER_CONFIG_PATTERN.test(transferConfigName)) {
         return this.error({
-          code: 'INVALID_PARAMS',
+          code: ErrorCodes.INVALID_PARAMS,
           message:
             'transferConfigName must be in format: projects/{project}/locations/{location}/transferConfigs/{id}',
           retryable: false,

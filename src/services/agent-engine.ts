@@ -17,7 +17,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { assertSamplingConsent as assertGlobalSamplingConsent } from '../mcp/sampling.js';
 import { logger } from '../utils/logger.js';
-import { getRequestContext } from '../utils/request-context.js';
+import { createRequestAbortError, getRequestContext } from '../utils/request-context.js';
 
 interface SamplingTextContent {
   type: 'text';
@@ -52,28 +52,68 @@ export interface SamplingServer {
 type ConsentChecker = (() => Promise<void>) | undefined;
 let _consentChecker: ConsentChecker;
 const SAMPLING_TIMEOUT_MS = parseInt(process.env['SAMPLING_TIMEOUT_MS'] ?? '30000', 10);
+type SamplingOperation<T> = Promise<T> | (() => Promise<T>);
 
-function withSamplingTimeout<T>(promise: Promise<T>): Promise<T> {
+function getEffectiveSamplingTimeout(deadline: number | undefined): number {
+  if (!Number.isFinite(SAMPLING_TIMEOUT_MS) || SAMPLING_TIMEOUT_MS <= 0) {
+    return 30000;
+  }
+  if (!Number.isFinite(deadline)) {
+    return SAMPLING_TIMEOUT_MS;
+  }
+  return Math.min(SAMPLING_TIMEOUT_MS, Math.max(0, (deadline as number) - Date.now()));
+}
+
+function withSamplingTimeout<T>(operation: SamplingOperation<T>): Promise<T> {
   const context = getRequestContext();
-  const effectiveTimeout = context
-    ? Math.min(SAMPLING_TIMEOUT_MS, Math.max(0, context.deadline - Date.now()))
-    : SAMPLING_TIMEOUT_MS;
+  const abortSignal = context?.abortSignal;
+  const effectiveTimeout = getEffectiveSamplingTimeout(context?.deadline);
+  const execute = typeof operation === 'function' ? operation : () => operation;
+
+  if (abortSignal?.aborted) {
+    return Promise.reject(
+      createRequestAbortError(abortSignal.reason, 'Sampling request cancelled by client')
+    );
+  }
 
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`Sampling request timed out after ${effectiveTimeout}ms`)),
-      effectiveTimeout
-    );
-    promise.then(
-      (value) => {
+    let settled = false;
+    let timer: NodeJS.Timeout | undefined;
+    const cleanup = (): void => {
+      if (timer) {
         clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
       }
-    );
+      abortSignal?.removeEventListener('abort', onAbort);
+    };
+    const settle = (callback: () => void): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      callback();
+    };
+    const onAbort = (): void => {
+      settle(() =>
+        reject(createRequestAbortError(abortSignal?.reason, 'Sampling request cancelled by client'))
+      );
+    };
+
+    abortSignal?.addEventListener('abort', onAbort, { once: true });
+    timer = setTimeout(() => {
+      settle(() => reject(new Error(`Sampling request timed out after ${effectiveTimeout}ms`)));
+    }, effectiveTimeout);
+
+    Promise.resolve()
+      .then(() => execute())
+      .then(
+        (value) => {
+          settle(() => resolve(value));
+        },
+        (error) => {
+          settle(() => reject(error));
+        }
+      );
   });
 }
 
@@ -517,8 +557,8 @@ Maximum ${maxSteps || 10} steps.`;
     if (context) prompt += `\nAdditional context: ${context}`;
 
     const modelHint = getModelHint('agentPlanning');
-    const result = await withSamplingTimeout(
-      _samplingServer.createMessage({
+    const result = await withSamplingTimeout(() =>
+      _samplingServer!.createMessage({
         messages: [createUserMessage(prompt)],
         systemPrompt,
         maxTokens: 1500,

@@ -5,6 +5,7 @@
  * add_conditional_format_rule, generate_conditional_format
  */
 
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { buildGridRangeInput, toGridRange } from '../../utils/google-sheets-helpers.js';
 import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
@@ -164,7 +165,7 @@ export async function handleRuleUpdateConditionalFormat(
 
   if (!currentRule) {
     return ha.makeError({
-      code: 'RANGE_NOT_FOUND',
+      code: ErrorCodes.RANGE_NOT_FOUND,
       message: `Conditional format rule at index ${input.ruleIndex} not found`,
       retryable: false,
       suggestedFix: 'Verify the range reference is correct and the sheet exists',
@@ -750,7 +751,7 @@ export async function handleAddConditionalFormatRule(
 
     default:
       return ha.makeError({
-        code: 'INVALID_PARAMS',
+        code: ErrorCodes.INVALID_PARAMS,
         message: `Unknown conditional format preset: "${resolvedInput.rulePreset}". Available presets: highlight_duplicates, highlight_blanks, highlight_errors, color_scale, data_bar, above_average, top_n, positive_negative, traffic_light, variance_highlight`,
         retryable: false,
         suggestedFix:
@@ -804,7 +805,7 @@ export async function handleGenerateConditionalFormat(
   const parsed = parseNLConditionalFormat(description);
   if (!parsed.success) {
     return ha.makeError({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: `Could not parse conditional format description: "${description}". ${parsed.hint}`,
       retryable: false,
       suggestedFix:
@@ -840,7 +841,7 @@ export async function handleGenerateConditionalFormat(
   }
 
   return ha.makeError({
-    code: 'INTERNAL_ERROR',
+    code: ErrorCodes.INTERNAL_ERROR,
     message: 'Rule parsing produced no output',
     retryable: false,
     suggestedFix: 'Use add_conditional_format_rule directly with a preset',

@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type { SheetsAdvancedInput, AdvancedResponse } from '../../schemas/index.js';
@@ -136,7 +137,7 @@ export async function handleDeleteNamedRangeAction(
 
     if (!confirmation.confirmed) {
       return deps.error({
-        code: 'PRECONDITION_FAILED',
+        code: ErrorCodes.PRECONDITION_FAILED,
         message: confirmation.reason || 'User cancelled the operation',
         retryable: false,
         suggestedFix: 'Review the operation requirements and try again',

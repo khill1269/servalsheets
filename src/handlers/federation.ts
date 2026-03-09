@@ -60,12 +60,9 @@ function buildFederationError(
  * Supports HTTP and STDIO transports with circuit breaker protection.
  */
 export class FederationHandler {
-  private taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter;
   private circuitBreaker: CircuitBreaker;
 
-  constructor(taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter) {
-    this.taskStore = taskStore;
-
+  constructor(_taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter) {
     // 16-S3: Initialize circuit breaker for federation operations
     const circuitConfig = getCircuitBreakerConfig();
     this.circuitBreaker = new CircuitBreaker({
@@ -190,33 +187,6 @@ export class FederationHandler {
   }
 
   /**
-   * MCP SEP-1686: Create a task entry for a federation operation.
-   * Returns the taskId string, or undefined if taskStore is not available.
-   */
-  private async createFederationTask(
-    actionName: string,
-    req: Record<string, unknown>
-  ): Promise<string | undefined> {
-    if (!this.taskStore) {
-      return undefined; // graceful degradation — no task store configured
-    }
-    const task = await this.taskStore.createTask(
-      { ttl: 3600000 }, // 1 hour TTL
-      `federation-${actionName}`,
-      {
-        method: 'tools/call',
-        params: { name: 'sheets_federation', arguments: req },
-      }
-    );
-    logger.info('Task created for federation action', {
-      component: 'federation-handler',
-      action: actionName,
-      taskId: task.taskId,
-    });
-    return task.taskId;
-  }
-
-  /**
    * Handle call_remote action
    * 16-S3: Wrapped with circuit breaker protection
    */
@@ -257,19 +227,12 @@ export class FederationHandler {
       toolName,
     });
 
-    const taskId = await this.createFederationTask('call-remote', {
-      serverName,
-      toolName,
-      toolInput,
-    });
-
     return {
       response: {
         success: true,
         action: 'call_remote',
         remoteServer: serverName,
         data: result,
-        ...(taskId !== undefined ? { taskId } : {}),
       },
     };
   }
@@ -293,14 +256,11 @@ export class FederationHandler {
       serverCount: serverList.length,
     });
 
-    const taskId = await this.createFederationTask('list-servers', {});
-
     return {
       response: {
         success: true,
         action: 'list_servers',
         servers: serverList,
-        ...(taskId !== undefined ? { taskId } : {}),
       },
     };
   }
@@ -334,8 +294,6 @@ export class FederationHandler {
       toolCount: tools.length,
     });
 
-    const taskId = await this.createFederationTask('get-server-tools', { serverName });
-
     return {
       response: {
         success: true,
@@ -346,7 +304,6 @@ export class FederationHandler {
           description?: string;
           inputSchema?: Record<string, unknown>;
         }>,
-        ...(taskId !== undefined ? { taskId } : {}),
       },
     };
   }
@@ -381,15 +338,12 @@ export class FederationHandler {
         serverName,
       });
 
-      const taskId = await this.createFederationTask('validate-connection', { serverName });
-
       return {
         response: {
           success: true,
           action: 'validate_connection',
           remoteServer: serverName,
           data: { connected: true },
-          ...(taskId !== undefined ? { taskId } : {}),
         },
       };
     } catch (error) {

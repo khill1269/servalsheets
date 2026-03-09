@@ -11,6 +11,10 @@ import { AnalyzeHandler } from '../../src/handlers/analyze.js';
 import { SheetsAnalyzeOutputSchema } from '../../src/schemas/analyze.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import { resetCapabilityCacheService } from '../../src/services/capability-cache.js';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 // Mock capability cache at module level
 vi.mock('../../src/services/capability-cache.js', async () => {
@@ -727,7 +731,6 @@ describe('AnalyzeHandler', () => {
   describe('analyze_formulas action', () => {
     it('should emit progress notifications for multi-sheet formula scans', async () => {
       const notification = vi.fn().mockResolvedValue(undefined);
-      (mockContext.server as Record<string, unknown>).notification = notification;
 
       mockApi.spreadsheets.get
         .mockResolvedValueOnce({
@@ -783,10 +786,18 @@ describe('AnalyzeHandler', () => {
           },
         });
 
-      const result = await handler.handle({
-        action: 'analyze_formulas',
-        spreadsheetId: 'test-id',
-      });
+      const result = await runWithRequestContext(
+        createRequestContext({
+          requestId: 'progress-test-request',
+          sendNotification: notification,
+          progressToken: 'progress-token-1',
+        }),
+        () =>
+          handler.handle({
+            action: 'analyze_formulas',
+            spreadsheetId: 'test-id',
+          })
+      );
 
       expect(result.response.success).toBe(true);
       expect(notification).toHaveBeenCalled();

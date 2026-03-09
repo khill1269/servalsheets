@@ -6,6 +6,7 @@
  * MCP Protocol: 2025-11-25
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { drive_v3 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
@@ -147,7 +148,7 @@ export class CollaborateHandler extends BaseHandler<
       if (error instanceof IncrementalScopeRequiredError) {
         return {
           response: this.error({
-            code: 'INCREMENTAL_SCOPE_REQUIRED',
+            code: ErrorCodes.INCREMENTAL_SCOPE_REQUIRED,
             message: error.message,
             category: 'auth',
             retryable: true,
@@ -174,7 +175,7 @@ export class CollaborateHandler extends BaseHandler<
     if (!this.driveApi) {
       return {
         response: this.error({
-          code: 'INTERNAL_ERROR',
+          code: ErrorCodes.INTERNAL_ERROR,
           message: 'Drive API not available - required for collaboration operations',
           details: {
             action: req.action,
@@ -213,7 +214,7 @@ export class CollaborateHandler extends BaseHandler<
         // Return properly formatted error response
         return {
           response: this.error({
-            code: 'PERMISSION_DENIED',
+            code: ErrorCodes.PERMISSION_DENIED,
             message:
               requirements?.description ?? 'Sharing operations require additional Drive access',
             category: 'auth',
@@ -558,7 +559,7 @@ export class CollaborateHandler extends BaseHandler<
         default: {
           const _exhaustiveCheck: never = inferredReq.action;
           response = this.error({
-            code: 'INVALID_PARAMS',
+            code: ErrorCodes.INVALID_PARAMS,
             message: `Unknown action: ${String(_exhaustiveCheck)}`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",

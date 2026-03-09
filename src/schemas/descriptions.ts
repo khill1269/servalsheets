@@ -8,7 +8,7 @@
  * 4. **TOP 3 ACTIONS** - Most common usage patterns
  * 5. **SAFETY** - Destructive operation warnings
  *
- * Total: 25 tools, 391 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
+ * Total: 25 tools, 397 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
  *
  * SHARED CONTEXT (applies to all tools except sheets_auth):
  * - PREREQUISITE: sheets_auth must be authenticated before using any tool.
@@ -358,14 +358,21 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   // ANALYSIS & INTELLIGENCE
   //=============================================================================
 
-  sheets_analyze: `🤖 ANALYZE - AI-powered spreadsheet insights & recommendations (${ACTION_COUNTS['sheets_analyze']} actions). START HERE.
+  sheets_analyze: `🤖 ANALYZE - AI-powered spreadsheet insights & recommendations (${ACTION_COUNTS['sheets_analyze']} actions). Use for discovery, explanation, and planning.
 
-**🚀 ALWAYS START HERE:**
-Unfamiliar with a spreadsheet? Call **comprehensive** FIRST. Gets metadata + data + quality + formulas + recommendations in 1-2 API calls. Saves 70%+ time.
+**Use this first ONLY when:**
+- The spreadsheet is unfamiliar and you need context before choosing another tool
+- The user asked for exploration, auditing, diagnosis, or recommendations
+- You need AI help planning a multi-step change safely
+
+**Skip this tool when:**
+- The user already gave a precise read/write/format/structure request
+- You already know the exact target range, action, or sheet mutation needed
+- Another specialist tool clearly matches the request (data, format, dimensions, collaborate, advanced, etc.)
 
 **DECISION GUIDE - Which action should I use?**
 → **Quick overview only?** Use scout (metadata only, 0 data transfer, ~200ms)
-→ **Full analysis (all categories)?** Use comprehensive (metadata + data + quality + formulas, START HERE)
+→ **Full analysis (all categories)?** Use comprehensive (metadata + data + quality + formulas)
 → **Specific category only?** Use analyze_quality/analyze_formulas/analyze_performance (focused deep-dive)
 → **Need a chart/pivot?** Use suggest_chart or suggest_pivot
 → **Proactive suggestions?** Use suggest_next_actions (ranked improvements with executable params)
@@ -376,19 +383,19 @@ Unfamiliar with a spreadsheet? Call **comprehensive** FIRST. Gets metadata + dat
 **NOT this tool - use instead:**
 > sheets_quality - VALIDATING data before writing
 > sheets_data - Writing/reading CELL VALUES
-> sheets_fix - AUTO-FIXING issues (use comprehensive first to find them)
+> sheets_fix - AUTO-FIXING issues after diagnosis or when the cleanup path is already clear
 > sheets_dependencies - FORMULA relationships
 
 **ACTIONS BY CATEGORY:**
-[Discovery] comprehensive (START HERE, 43 categories), scout (metadata only, fast), analyze_structure
+[Discovery] scout (metadata only, fast), comprehensive (full audit, 43 categories), analyze_structure
 [Analysis] analyze_data, analyze_quality, analyze_formulas, analyze_performance, detect_patterns
 [AI] generate_formula (describe → formula), generate_actions, explain_analysis, query_natural_language
 [Workflow] plan, execute_plan, drill_down
 [Copilot] suggest_next_actions (ranked improvements), auto_enhance (auto-apply safe changes)
 
 **⚠️ KEY DISTINCTIONS:**
-- **comprehensive** = All analysis (metadata + data + quality + formulas + recommendations) → START HERE
-- **scout** = Metadata only (sheet names, column count) → Use if you just need structure
+- **scout** = Metadata only (sheet names, column count) → Best first step for unfamiliar sheets
+- **comprehensive** = All analysis (metadata + data + quality + formulas + recommendations) → Use for full audits or after scout
 - **suggest_next_actions** = Ranked suggestions with executable params → Get proactive ideas
 - **auto_enhance** = Auto-apply safe improvements (freeze, format, resize) → Mode: preview or apply
 
@@ -397,12 +404,12 @@ Unfamiliar with a spreadsheet? Call **comprehensive** FIRST. Gets metadata + dat
 [Safe mutation] auto_enhance (mode:"apply", non-destructive only: freeze, format, resize)
 
 **TOP 3 ACTIONS:**
-1. comprehensive: {"action":"comprehensive","spreadsheetId":"1ABC..."} — START HERE (all analysis)
-2. scout: {"action":"scout","spreadsheetId":"1ABC..."} — Metadata only (fast)
+1. scout: {"action":"scout","spreadsheetId":"1ABC..."} — Fast structural overview
+2. comprehensive: {"action":"comprehensive","spreadsheetId":"1ABC..."} — Full audit across categories
 3. suggest_next_actions: {"action":"suggest_next_actions","spreadsheetId":"1ABC...","maxSuggestions":5} — Ranked improvements
 
 **WORKFLOWS:**
-- **New sheet?** → comprehensive (get full picture)
+- **Unfamiliar sheet?** → scout → comprehensive if you need a full audit
 - **Just need structure?** → scout (fast, 0 data)
 - **Need ideas?** → suggest_next_actions (proactive suggestions)
 - **Apply improvements?** → auto_enhance with mode:"preview" → mode:"apply"

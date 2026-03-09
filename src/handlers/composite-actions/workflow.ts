@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { drive_v3, sheets_v4 } from 'googleapis';
 import type {
   ColumnMapping,
@@ -66,7 +67,8 @@ export async function handleAuditSheetAction(
 
   let valueRanges: Array<{ range?: string | null; values?: unknown[][] | null }> = [];
   if (ranges.length > 0) {
-    const valuesApi = deps.sheetsApi.spreadsheets.values as typeof deps.sheetsApi.spreadsheets.values & {
+    const valuesApi = deps.sheetsApi.spreadsheets
+      .values as typeof deps.sheetsApi.spreadsheets.values & {
       batchGet?: (params: {
         spreadsheetId: string;
         ranges: string[];
@@ -306,7 +308,7 @@ export async function handlePublishReportAction(
     return {
       success: false,
       error: {
-        code: 'FEATURE_UNAVAILABLE',
+        code: ErrorCodes.FEATURE_UNAVAILABLE,
         message:
           'Drive API not available for XLSX/PDF export. Ensure OAuth authentication is configured.',
         retryable: false,
@@ -450,7 +452,8 @@ export async function handleDataPipelineAction(
   let aiEvaluation: string | undefined;
   if (deps.samplingServer) {
     const stepTypes = input.steps.map((s) => s.type).join(', ');
-    const reductionPercent = rowsIn > 0 ? Math.round(((rowsIn - dataRows.length) / rowsIn) * 100) : 0;
+    const reductionPercent =
+      rowsIn > 0 ? Math.round(((rowsIn - dataRows.length) / rowsIn) * 100) : 0;
 
     aiEvaluation = await generateAIInsight(
       deps.samplingServer,
@@ -773,7 +776,8 @@ function applyPipelineStep(rows: unknown[][], headers: string[], step: PipelineS
         if (aggregation === 'sum') newRow[aggCol] = values.reduce((a, b) => a + b, 0);
         else if (aggregation === 'count') newRow[aggCol] = values.length;
         else if (aggregation === 'avg') {
-          newRow[aggCol] = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+          newRow[aggCol] =
+            values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
         } else if (aggregation === 'min') {
           newRow[aggCol] = Math.min(...values);
         } else if (aggregation === 'max') {

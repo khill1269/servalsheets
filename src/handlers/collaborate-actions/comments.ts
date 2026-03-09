@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { drive_v3 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type {
@@ -58,8 +59,8 @@ export async function handleCommentAddAction(
     if (commentContent.includes('?')) {
       try {
         await assertSamplingConsent();
-        const replyResult = await withSamplingTimeout(
-          deps.context.samplingServer.createMessage({
+        const replyResult = await withSamplingTimeout(() =>
+          deps.context.samplingServer!.createMessage({
             messages: [
               {
                 role: 'user' as const,
@@ -134,7 +135,7 @@ export async function handleCommentDeleteAction(
 
     if (!confirmation.confirmed) {
       return deps.error({
-        code: 'PRECONDITION_FAILED',
+        code: ErrorCodes.PRECONDITION_FAILED,
         message: confirmation.reason || 'User cancelled the operation',
         retryable: false,
         suggestedFix: 'Review the operation requirements and try again',
@@ -315,7 +316,7 @@ export async function handleCommentDeleteReplyAction(
 
     if (!confirmation.confirmed) {
       return deps.error({
-        code: 'PRECONDITION_FAILED',
+        code: ErrorCodes.PRECONDITION_FAILED,
         message: confirmation.reason || 'User cancelled the operation',
         retryable: false,
         suggestedFix: 'Review the operation requirements and try again',

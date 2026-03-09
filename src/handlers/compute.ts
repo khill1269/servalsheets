@@ -8,6 +8,7 @@
  *          matrix_op, pivot_compute, custom_function, batch_compute, explain_formula
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { SheetsComputeInput, SheetsComputeOutput } from '../schemas/compute.js';
 import {
@@ -26,16 +27,27 @@ import type { SamplingServer } from '../mcp/sampling.js';
 import { DuckDBEngine } from '../services/duckdb-engine.js';
 import { runPythonSafe } from '../services/python-engine.js';
 
+type ElicitFn = (opts: {
+  message: string;
+  requestedSchema: unknown;
+}) => Promise<{ action: string; content: unknown }>;
+
 export class ComputeHandler {
   private samplingServer?: SamplingServer;
   private duckdbEngine?: DuckDBEngine;
+  private server?: { elicitInput?: ElicitFn };
 
   constructor(
     private sheetsApi: sheets_v4.Sheets,
-    options?: { samplingServer?: SamplingServer; duckdbEngine?: DuckDBEngine }
+    options?: {
+      samplingServer?: SamplingServer;
+      duckdbEngine?: DuckDBEngine;
+      server?: { elicitInput?: ElicitFn };
+    }
   ) {
     this.samplingServer = options?.samplingServer;
     this.duckdbEngine = options?.duckdbEngine;
+    this.server = options?.server;
   }
 
   async handle(input: SheetsComputeInput): Promise<SheetsComputeOutput> {
@@ -82,7 +94,7 @@ export class ComputeHandler {
             response: {
               success: false as const,
               error: {
-                code: 'INVALID_PARAMS' as const,
+                code: ErrorCodes.INVALID_PARAMS,
                 message: `Unknown compute action: ${(req as { action: string }).action}`,
                 retryable: false,
               },
@@ -101,7 +113,7 @@ export class ComputeHandler {
         response: {
           success: false as const,
           error: {
-            code: 'INTERNAL_ERROR' as const,
+            code: ErrorCodes.INTERNAL_ERROR,
             message: error instanceof Error ? error.message : String(error),
             retryable: false,
           },
@@ -168,11 +180,24 @@ export class ComputeHandler {
     const startMs = Date.now();
     const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.range);
 
-    // Check for moving window mode (extension to aggregate)
-    const mwMode = (req as unknown as { type?: string }).type;
+    // Check for moving window mode
+    const mwMode = req.type;
     if (mwMode === 'moving_average' || mwMode === 'moving_median' || mwMode === 'moving_sum') {
+      if (!data || data.length === 0) {
+        return {
+          response: {
+            success: false,
+            error: {
+              code: ErrorCodes.INVALID_PARAMS,
+              message: 'No data found in the specified range',
+              retryable: false,
+            },
+          },
+        };
+      }
+
       const headers = (data[0] || []).map(String);
-      const valueCol = (req as unknown as { valueColumn?: string }).valueColumn || headers[0];
+      const valueCol = req.valueColumn || headers[0];
       const colIdx = headers.findIndex(
         (h) => h?.toString().toLowerCase() === valueCol?.toLowerCase()
       );
@@ -182,7 +207,7 @@ export class ComputeHandler {
           response: {
             success: false,
             error: {
-              code: 'INVALID_PARAMS' as const,
+              code: ErrorCodes.INVALID_PARAMS,
               message: `Column "${valueCol}" not found`,
               retryable: false,
             },
@@ -202,7 +227,7 @@ export class ComputeHandler {
         }
       }
 
-      const windowSize = Math.max(1, (req as unknown as { windowSize?: number }).windowSize || 3);
+      const windowSize = Math.max(1, req.windowSize ?? 3);
       const operation = mwMode.replace('moving_', '') as 'average' | 'median' | 'sum';
 
       // Compute moving window
@@ -252,26 +277,15 @@ export class ComputeHandler {
     let movingWindowConfig:
       | { windowSize: number; operation: 'average' | 'median' | 'sum'; column: string }
       | undefined;
-    if ((req as unknown as { movingWindow?: unknown }).movingWindow) {
-      const mwConfig = (req as unknown as { movingWindow?: Record<string, unknown> }).movingWindow;
+    if (req.movingWindow) {
+      const mwConfig = req.movingWindow;
       if (mwConfig && typeof mwConfig === 'object') {
-        const windowSizeRaw = mwConfig['windowSize'];
-        const windowSize =
-          typeof windowSizeRaw === 'number'
-            ? windowSizeRaw
-            : typeof windowSizeRaw === 'string'
-              ? Number.parseInt(windowSizeRaw, 10)
-              : 3;
-        const operationRaw = mwConfig['operation'];
-        const operation =
-          operationRaw === 'average' || operationRaw === 'median' || operationRaw === 'sum'
-            ? operationRaw
-            : 'average';
-        const columnRaw = mwConfig['column'];
+        const windowSize = mwConfig.windowSize ?? 3;
+        const operation = mwConfig.operation ?? 'average';
         movingWindowConfig = {
           windowSize: Number.isFinite(windowSize) ? Math.max(1, windowSize) : 3,
           operation,
-          column: typeof columnRaw === 'string' ? columnRaw : '',
+          column: mwConfig.column,
         };
       }
     }
@@ -344,14 +358,7 @@ export class ComputeHandler {
 
     // Wizard: If range is provided but periods is missing, elicit forecast length
     if (resolvedReq.range && !resolvedReq.periods) {
-      const serverRef = (this as unknown as { context?: { server?: { elicitInput?: unknown } } })
-        .context?.server;
-      const elicitFn = serverRef?.elicitInput as
-        | ((opts: {
-            message: string;
-            requestedSchema: unknown;
-          }) => Promise<{ action: string; content: unknown }>)
-        | undefined;
+      const elicitFn = this.server?.elicitInput;
 
       if (elicitFn) {
         try {
@@ -670,7 +677,7 @@ export class ComputeHandler {
         response: {
           success: false as const,
           error: {
-            code: 'NOT_FOUND' as const,
+            code: ErrorCodes.NOT_FOUND,
             message: 'DuckDB engine not available — pass duckdbEngine in ComputeHandler options',
             retryable: false,
           },
@@ -716,7 +723,7 @@ export class ComputeHandler {
         response: {
           success: false as const,
           error: {
-            code: 'NOT_FOUND' as const,
+            code: ErrorCodes.NOT_FOUND,
             message: 'DuckDB engine not available — pass duckdbEngine in ComputeHandler options',
             retryable: false,
           },
@@ -807,7 +814,7 @@ ${req.code}`
         response: {
           success: false as const,
           error: {
-            code: 'INTERNAL_ERROR' as const,
+            code: ErrorCodes.INTERNAL_ERROR,
             message: err instanceof Error ? err.message : 'Python execution failed',
             retryable: false,
           },
@@ -876,12 +883,27 @@ result
       const pyResult = await runPythonSafe(code, { data: rows }, 120000);
       const res = pyResult.result as { stats?: unknown; correlations?: unknown } | null;
 
+      // Filter out non-numeric correlation values (null, strings, etc.)
+      const rawCorr = (res?.correlations ?? {}) as Record<string, Record<string, unknown>>;
+      const correlations: Record<string, Record<string, number>> = {};
+      for (const [row, cols] of Object.entries(rawCorr)) {
+        const filteredCols: Record<string, number> = {};
+        for (const [col, val] of Object.entries(cols)) {
+          if (typeof val === 'number' && Number.isFinite(val)) {
+            filteredCols[col] = val;
+          }
+        }
+        if (Object.keys(filteredCols).length > 0) {
+          correlations[row] = filteredCols;
+        }
+      }
+
       return {
         response: {
           success: true as const,
           action: 'pandas_profile',
           profileStats: (res?.stats ?? {}) as Record<string, unknown>,
-          correlations: (res?.correlations ?? {}) as Record<string, Record<string, number>>,
+          correlations,
           pythonExecutionMs: pyResult.executionMs,
         },
       };
@@ -893,7 +915,7 @@ result
         response: {
           success: false as const,
           error: {
-            code: 'INTERNAL_ERROR' as const,
+            code: ErrorCodes.INTERNAL_ERROR,
             message: err instanceof Error ? err.message : 'Pandas profiling failed',
             retryable: false,
           },
@@ -1036,7 +1058,7 @@ result
         return {
           response: {
             success: false as const,
-            error: { code: 'INVALID_PARAMS' as const, message: res.error, retryable: false },
+            error: { code: ErrorCodes.INVALID_PARAMS, message: res.error, retryable: false },
           },
         };
       }
@@ -1063,7 +1085,7 @@ result
         response: {
           success: false as const,
           error: {
-            code: 'INTERNAL_ERROR' as const,
+            code: ErrorCodes.INTERNAL_ERROR,
             message: err instanceof Error ? err.message : 'Model training failed',
             retryable: false,
           },
@@ -1183,7 +1205,7 @@ result
         return {
           response: {
             success: false as const,
-            error: { code: 'INVALID_PARAMS' as const, message: res.error, retryable: false },
+            error: { code: ErrorCodes.INVALID_PARAMS, message: res.error, retryable: false },
           },
         };
       }
@@ -1204,7 +1226,7 @@ result
         response: {
           success: false as const,
           error: {
-            code: 'INTERNAL_ERROR' as const,
+            code: ErrorCodes.INTERNAL_ERROR,
             message: err instanceof Error ? err.message : 'Chart generation failed',
             retryable: false,
           },

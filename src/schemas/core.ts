@@ -223,6 +223,24 @@ const GetComprehensiveActionSchema = CommonFieldsSchema.extend({
     .describe('Max sheets per page for pagination (default: 10)'),
 });
 
+const DescribeWorkbookActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('describe_workbook')
+    .describe(
+      'Return a structured metadata summary of a workbook: title, sheet dimensions, formula counts, last modified'
+    ),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+});
+
+const WorkbookFingerprintActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('workbook_fingerprint')
+    .describe(
+      'Return a stable SHA-256 fingerprint of a workbook structure (sheet names, dimensions, formula counts). Use to detect structural changes without reading cell data.'
+    ),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+});
+
 const ListActionSchema = CommonFieldsSchema.extend({
   action: z.literal('list').describe('List user spreadsheets from Google Drive'),
   response_format: ResponseFormatSchema.optional()
@@ -245,6 +263,10 @@ const ListActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default('modifiedTime')
     .describe('How to order results (default: modifiedTime)'),
+  pageToken: z
+    .string()
+    .optional()
+    .describe('Continuation token from a previous list response to fetch the next page'),
 });
 
 // ============================================================================
@@ -445,6 +467,8 @@ export const SheetsCoreInputSchema = z.object({
     GetUrlActionSchema,
     BatchGetActionSchema,
     GetComprehensiveActionSchema,
+    DescribeWorkbookActionSchema,
+    WorkbookFingerprintActionSchema,
     ListActionSchema,
     // Sheet/tab actions (9 - added clear_sheet, move_sheet)
     AddSheetActionSchema,
@@ -756,7 +780,11 @@ export type CoreGetComprehensiveInput = SheetsCoreInput['request'] & {
   action: 'get_comprehensive';
   spreadsheetId: string;
 };
-export type CoreListInput = SheetsCoreInput['request'] & { action: 'list' };
+export type CoreListInput = SheetsCoreInput['request'] & {
+  action: 'list';
+  pageToken?: string;
+  maxResults?: number;
+};
 
 // Sheet/tab actions
 export type CoreAddSheetInput = SheetsCoreInput['request'] & {
@@ -828,4 +856,12 @@ export type CoreMoveSheetInput = SheetsCoreInput['request'] & {
   sheetId?: number;
   sheetName?: string;
   newIndex: number;
+};
+export type CoreDescribeWorkbookInput = SheetsCoreInput['request'] & {
+  action: 'describe_workbook';
+  spreadsheetId: string;
+};
+export type CoreWorkbookFingerprintInput = SheetsCoreInput['request'] & {
+  action: 'workbook_fingerprint';
+  spreadsheetId: string;
 };

@@ -348,8 +348,8 @@ export async function createMessageWithFallback(
     // Use MCP sampling
     await assertSamplingConsent();
 
-    const result = (await withSamplingTimeout(
-      server.createMessage({
+    const result = (await withSamplingTimeout(() =>
+      server.createMessage!({
         messages: options.messages.map((m) => ({
           role: m.role,
           content: { type: 'text', text: m.content },

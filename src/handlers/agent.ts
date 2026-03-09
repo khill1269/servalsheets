@@ -1,7 +1,8 @@
+import { ErrorCodes } from './error-codes.js';
 import type { SheetsAgentInput, SheetsAgentOutput } from '../schemas/agent.js';
 import { HandlerLoadError } from '../core/errors.js';
 import {
-  compilePlan,
+  compilePlanAI,
   executePlan,
   executeStep,
   createCheckpoint,
@@ -16,7 +17,7 @@ interface AgentToolHandler {
   handle: (input: { request: Record<string, unknown> }) => Promise<unknown>;
 }
 
-type AgentHandlerRegistry = Record<string, AgentToolHandler>;
+export type AgentHandlerRegistry = Record<string, AgentToolHandler>;
 
 export class AgentHandler {
   private handlers?: AgentHandlerRegistry;
@@ -52,7 +53,7 @@ export class AgentHandler {
     try {
       switch (req.action) {
         case 'plan': {
-          const plan = await compilePlan(
+          const plan = await compilePlanAI(
             req.description,
             req.maxSteps ?? 10,
             req.spreadsheetId,
@@ -134,7 +135,7 @@ export class AgentHandler {
               response: {
                 success: false,
                 error: {
-                  code: 'NOT_FOUND',
+                  code: ErrorCodes.NOT_FOUND,
                   message: `Plan ${req.planId} not found`,
                   retryable: false,
                 },
@@ -200,7 +201,7 @@ export class AgentHandler {
             response: {
               success: false,
               error: {
-                code: 'INVALID_PARAMS',
+                code: ErrorCodes.INVALID_PARAMS,
                 message: `Unknown action: ${(req as Record<string, unknown>)['action'] as string}`,
                 retryable: false,
               },
@@ -213,7 +214,7 @@ export class AgentHandler {
         response: {
           success: false,
           error: {
-            code: 'INTERNAL_ERROR',
+            code: ErrorCodes.INTERNAL_ERROR,
             message: error instanceof Error ? error.message : String(error),
             retryable: false,
           },

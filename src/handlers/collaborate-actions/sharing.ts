@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { drive_v3 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type {
@@ -95,7 +96,7 @@ export async function handleShareUpdateAction(
   await driveRateLimiter.acquire();
   if (input.role === 'owner') {
     return deps.error({
-      code: 'VALIDATION_ERROR',
+      code: ErrorCodes.VALIDATION_ERROR,
       message:
         'Cannot change role to "owner" via share_update. Use share_transfer_ownership instead, ' +
         'which handles the required transferOwnership flag and pending acceptance flow.',
@@ -146,7 +147,7 @@ export async function handleShareRemoveAction(
 
     if (!confirmation.confirmed) {
       return deps.error({
-        code: 'PRECONDITION_FAILED',
+        code: ErrorCodes.PRECONDITION_FAILED,
         message: confirmation.reason || 'User cancelled the operation',
         retryable: false,
         suggestedFix: 'Review the operation requirements and try again',
@@ -188,7 +189,8 @@ export async function handleShareListAction(
     supportsAllDrives: true,
     pageSize: 100,
     pageToken: (input as typeof input & { pageToken?: string }).pageToken ?? undefined,
-    fields: 'nextPageToken,permissions(id,type,role,emailAddress,domain,displayName,expirationTime)',
+    fields:
+      'nextPageToken,permissions(id,type,role,emailAddress,domain,displayName,expirationTime)',
   });
 
   const permissions = (response.data.permissions ?? []).map((permission) =>

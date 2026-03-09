@@ -7,14 +7,8 @@ export class TestHandler {
   }
 
   private async doSomething(): Promise<string> {
-    if (Math.random() > 0.5) {
-      return 'success';
-    } else if (Math.random() > 0.3) {
-      return 'maybe';
-    } else if (Math.random() > 0.1) {
-      return 'unlikely';
-    } else {
-      return 'failure';
-    }
+    const outcomes = ['success', 'maybe', 'unlikely', 'failure'] as const;
+    const deterministicIndex = ('TestHandler'.length + 'doSomething'.length) % outcomes.length;
+    return outcomes[deterministicIndex];
   }
 }

@@ -12,6 +12,7 @@
 
 import { logger } from '../utils/logger.js';
 import { randomBytes } from 'crypto';
+import { validateEnv } from '../config/env.js';
 import { initTracer, shutdownTracer, getTracer, type TracerOptions } from '../utils/tracing.js';
 import { shutdownOtlpExporter } from '../observability/otel-export.js';
 import { initTraceAggregator } from '../services/trace-aggregator.js';
@@ -326,6 +327,9 @@ export async function startBackgroundTasks(options?: {
   connectionHealth?: ConnectionHealthConfig;
 }): Promise<void> {
   logger.info('Starting background tasks...');
+
+  // Validate env-derived safety and durability requirements before startup work begins.
+  validateEnv();
 
   // SEC-001: Validate ENCRYPTION_KEY in production
   requireEncryptionKeyInProduction();

@@ -3,8 +3,11 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { resetEnvForTest } from '../../src/config/env.js';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
+import { safeRmSync } from '../helpers/safe-cleanup.js';
 import { ConnectorManager } from '../../src/connectors/connector-manager.js';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -64,8 +67,12 @@ describe('P5.1: Persistent Connector Configuration', () => {
   let manager: ConnectorManager;
 
   beforeEach(() => {
-    // Use temp directory for testing
-    configDir = path.join(process.cwd(), '.serval', 'test-connectors');
+    // Use unique temp directory for test isolation — configDir is a subdir
+    // that does NOT exist yet (so "should handle missing configuration directory" works)
+    const tmpParent = fs.mkdtempSync(path.join(os.tmpdir(), 'serval-test-connectors-'));
+    configDir = path.join(tmpParent, 'connectors');
+    process.env['CONNECTOR_ENCRYPTION_KEY'] = 'test-encryption-key-32-chars-min!!';
+    resetEnvForTest();
   });
 
   afterEach(async () => {
@@ -74,7 +81,7 @@ describe('P5.1: Persistent Connector Configuration', () => {
       await manager.dispose();
     }
     if (fs.existsSync(configDir)) {
-      fs.rmSync(configDir, { recursive: true, force: true });
+      safeRmSync(configDir, { recursive: true, force: true });
     }
   });
 
@@ -92,10 +99,13 @@ describe('P5.1: Persistent Connector Configuration', () => {
     const configFile = path.join(configDir, 'test_mock.json');
     expect(fs.existsSync(configFile)).toBe(true);
 
+    // Config is stored encrypted — verify the encrypted envelope format
     const content = JSON.parse(fs.readFileSync(configFile, 'utf-8'));
-    expect(content.connectorId).toBe('test_mock');
-    expect(content.credentials.apiKey).toBe('test-key-123');
-    expect(content.configuredAt).toBeDefined();
+    expect(content.ciphertext).toBeDefined();
+    expect(content.iv).toBeDefined();
+    expect(content.tag).toBeDefined();
+    // Verify the connector was actually configured (proves persistence worked)
+    expect(manager.listConnectors().connectors[0].configured).toBe(true);
   });
 
   it('should restore persisted configurations on initialize', async () => {
@@ -141,7 +151,8 @@ describe('P5.2: Persistent Subscriptions', () => {
   let manager: ConnectorManager;
 
   beforeEach(() => {
-    configDir = path.join(process.cwd(), '.serval', 'test-subscriptions');
+    const tmpParent = fs.mkdtempSync(path.join(os.tmpdir(), 'serval-test-subs-'));
+    configDir = path.join(tmpParent, 'subscriptions');
   });
 
   afterEach(async () => {
@@ -149,7 +160,7 @@ describe('P5.2: Persistent Subscriptions', () => {
       await manager.dispose();
     }
     if (fs.existsSync(configDir)) {
-      fs.rmSync(configDir, { recursive: true, force: true });
+      safeRmSync(configDir, { recursive: true, force: true });
     }
   });
 
@@ -300,12 +311,13 @@ describe('P5.2: Persistent Subscriptions', () => {
   });
 });
 
-describe('Integration: Config + Subscriptions together', () => {
+describe('P5.3: Cron subscription restore on startup', () => {
   let configDir: string;
   let manager: ConnectorManager;
 
   beforeEach(() => {
-    configDir = path.join(process.cwd(), '.serval', 'test-integration');
+    const tmpParent = fs.mkdtempSync(path.join(os.tmpdir(), 'serval-test-cron-'));
+    configDir = path.join(tmpParent, 'cron');
   });
 
   afterEach(async () => {
@@ -313,7 +325,62 @@ describe('Integration: Config + Subscriptions together', () => {
       await manager.dispose();
     }
     if (fs.existsSync(configDir)) {
-      fs.rmSync(configDir, { recursive: true, force: true });
+      safeRmSync(configDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should restore custom cron subscriptions with cron timer (not setInterval)', async () => {
+    // Session 1: create a custom cron subscription
+    manager = new ConnectorManager(configDir);
+    const connector1 = new MockConnector();
+    manager.register(connector1);
+    await manager.configure('test_mock', { apiKey: 'key' });
+
+    const sub = manager.subscribe(
+      'test_mock',
+      'endpoint',
+      { param: 'value' },
+      { interval: 'custom', customCronExpression: '0 */6 * * *', timezone: 'UTC' },
+      { spreadsheetId: 'ss-123', range: 'A1:B10' }
+    );
+
+    await wait(100);
+    await manager.dispose();
+
+    // Session 2: restore and verify the subscription exists with cron schedule
+    manager = new ConnectorManager(configDir);
+    const connector2 = new MockConnector();
+    manager.register(connector2);
+    await manager.configure('test_mock', { apiKey: 'key' });
+
+    await manager.initialize();
+
+    const subs = manager.listSubscriptions();
+    expect(subs).toHaveLength(1);
+    expect(subs[0].id).toBe(sub.id);
+    expect(subs[0].schedule.interval).toBe('custom');
+    expect(subs[0].schedule.customCronExpression).toBe('0 */6 * * *');
+    expect(subs[0].status).toBe('active');
+  });
+});
+
+describe('Integration: Config + Subscriptions together', () => {
+  let configDir: string;
+  let manager: ConnectorManager;
+
+  beforeEach(() => {
+    const tmpParent = fs.mkdtempSync(path.join(os.tmpdir(), 'serval-test-integ-'));
+    configDir = path.join(tmpParent, 'integration');
+    process.env['CONNECTOR_ENCRYPTION_KEY'] = 'test-encryption-key-32-chars-min!!';
+    resetEnvForTest();
+  });
+
+  afterEach(async () => {
+    if (manager) {
+      await manager.dispose();
+    }
+    if (fs.existsSync(configDir)) {
+      safeRmSync(configDir, { recursive: true, force: true });
     }
   });
 

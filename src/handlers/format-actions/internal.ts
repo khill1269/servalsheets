@@ -95,7 +95,11 @@ export type FormatHandlerAccess = {
     result?: Record<string, unknown>,
     options?: { cellsAffected?: number; apiCallsMade?: number; duration?: number }
   ) => ResponseMeta;
-  getSheetId: (spreadsheetId: string, sheetName?: string, api?: sheets_v4.Sheets) => Promise<number>;
+  getSheetId: (
+    spreadsheetId: string,
+    sheetName?: string,
+    api?: sheets_v4.Sheets
+  ) => Promise<number>;
   deduplicatedApiCall: <T>(key: string, call: () => Promise<T>) => Promise<T>;
   recordAccessAndPrefetch: (params: {
     spreadsheetId: string;

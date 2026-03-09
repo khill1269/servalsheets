@@ -7,6 +7,10 @@ import { AdvancedHandler } from '../../src/handlers/advanced.js';
 import { SheetsAdvancedOutputSchema } from '../../src/schemas/advanced.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4 } from 'googleapis';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 const createMockSheetsApi = () => ({
   spreadsheets: {
@@ -1069,8 +1073,11 @@ describe('AdvancedHandler', () => {
 
     it('emits progress notifications when scanning chips across multiple sheets', async () => {
       const notification = vi.fn().mockResolvedValue(undefined);
-      mockContext.server = { notification } as unknown as HandlerContext['server'];
-      handler = new AdvancedHandler(mockContext, mockSheetsApi as unknown as sheets_v4.Sheets);
+      const requestContext = createRequestContext({
+        requestId: 'advanced-chips-progress',
+        progressToken: 'advanced-chips-progress',
+        sendNotification: notification,
+      });
 
       const sizeCheckResponse = {
         data: {
@@ -1111,12 +1118,14 @@ describe('AdvancedHandler', () => {
         .mockResolvedValueOnce(sizeCheckResponse)
         .mockResolvedValueOnce(chipDataResponse);
 
-      const result = await handler.handle({
-        action: 'list_chips',
-        spreadsheetId: 'sheet-id',
-        range: 'Sheet1!A1:Z100',
-        chipType: 'all',
-      });
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'list_chips',
+          spreadsheetId: 'sheet-id',
+          range: 'Sheet1!A1:Z100',
+          chipType: 'all',
+        })
+      );
 
       expect(result.response.success).toBe(true);
       expect(notification).toHaveBeenCalled();

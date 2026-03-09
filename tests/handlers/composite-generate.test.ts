@@ -17,6 +17,9 @@ import type { sheets_v4 } from 'googleapis';
 
 const mockGenerateDefinition = vi.fn();
 const mockExecuteDefinition = vi.fn();
+const requestContextState = vi.hoisted(() => ({
+  abortSignal: undefined as AbortSignal | undefined,
+}));
 
 vi.mock('../../src/services/sheet-generator.js', () => ({
   generateDefinition: (...args: any[]) => mockGenerateDefinition(...args),
@@ -46,6 +49,7 @@ vi.mock('../../src/utils/request-context.js', () => ({
     debug: vi.fn(),
   }),
   sendProgress: vi.fn().mockResolvedValue(undefined),
+  getRequestAbortSignal: () => requestContextState.abortSignal,
 }));
 
 // Mock elicitation
@@ -170,6 +174,7 @@ describe('CompositeHandler (F1 Sheet Generator)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    requestContextState.abortSignal = undefined;
     mockContext = createMockContext();
     mockSheetsApi = createMockSheetsApi();
     handler = new CompositeHandler(mockContext, mockSheetsApi);
@@ -188,6 +193,25 @@ describe('CompositeHandler (F1 Sheet Generator)', () => {
   // =========================================================================
 
   describe('generate_sheet', () => {
+    it('should respect request-scoped cancellation before generation starts', async () => {
+      const abortController = new AbortController();
+      abortController.abort('cancelled in test');
+      requestContextState.abortSignal = abortController.signal;
+
+      const result = await handler.handle({
+        request: {
+          action: 'generate_sheet',
+          description: 'Cancelled sheet generation',
+        },
+      } as any);
+
+      const response = result.response as any;
+      expect(response.success).toBe(false);
+      expect(response.error.code).toBe('OPERATION_CANCELLED');
+      expect(mockGenerateDefinition).not.toHaveBeenCalled();
+      expect(mockExecuteDefinition).not.toHaveBeenCalled();
+    });
+
     it('should generate and execute a spreadsheet from description', async () => {
       const result = await handler.handle({
         request: {

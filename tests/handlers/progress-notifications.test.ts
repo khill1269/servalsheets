@@ -31,6 +31,8 @@ vi.mock('../../src/services/composite-operations.js', () => {
 
 vi.mock('../../src/utils/request-context.js', () => ({
   getRequestLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
+  getRequestContext: vi.fn().mockReturnValue(undefined),
+  getRequestAbortSignal: vi.fn().mockReturnValue(undefined),
   sendProgress: mockSendProgress,
 }));
 

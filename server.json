@@ -2,7 +2,7 @@
   "$schema": "https://cdn.jsdelivr.net/npm/@anthropic-ai/mcp-registry@latest/dist/registry-schema.json",
   "name": "io.github.khill1269/servalsheets",
   "version": "1.7.0",
-  "description": "Production-grade Google Sheets MCP server with 25 tools and 391 actions",
+  "description": "Production-grade Google Sheets MCP server with 25 tools and 397 actions",
   "icons": [
     {
       "src": "https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/serval-icon.png",
@@ -20,7 +20,7 @@
     }
   ],
   "mcpProtocol": "2025-11-25",
-  "instructions": "⚠️ CRITICAL PARAMETER FORMAT (read this first) ⚠️\n\nNEVER wrap arguments in {\"request\":{...}} object.\n\n✅ CORRECT format for ALL tools:\n{\"action\":\"...\", \"spreadsheetId\":\"...\", \"range\":\"...\"}\n\n❌ LEGACY format (normalized at runtime, avoid in new integrations):\n{\"request\": {\"action\":\"...\", \"spreadsheetId\":\"...\"}}\n\nUse flat format for all new tool calls. No exceptions.\n\n---\n\nServalSheets provides 25 tools for Google Sheets operations. Use sheets_analyze with action \"comprehensive\" to start. For token efficiency, read schema://tools/{toolName} before calling tools with complex parameters.",
+  "instructions": "⚠️ CRITICAL PARAMETER FORMAT (read this first) ⚠️\n\nNEVER wrap arguments in {\"request\":{...}} object.\n\n✅ CORRECT format for ALL tools:\n{\"action\":\"...\", \"spreadsheetId\":\"...\", \"range\":\"...\"}\n\n❌ LEGACY format (normalized at runtime, avoid in new integrations):\n{\"request\": {\"action\":\"...\", \"spreadsheetId\":\"...\"}}\n\nUse flat format for all new tool calls. No exceptions.\n\n---\n\nServalSheets provides 25 tools for Google Sheets operations. Start with sheets_auth action \"status\". If the user request is explicit, route directly to the matching tool. Use sheets_analyze action \"scout\" for quick exploration and \"comprehensive\" only for full audits. For token efficiency, read schema://tools/{toolName} before calling tools with complex parameters.",
   "packages": [
     {
       "registryType": "npm",
@@ -29,7 +29,7 @@
       "transport": {
         "type": "stdio"
       },
-      "description": "Production-grade Google Sheets MCP server - 25 tools, 391 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
+      "description": "Production-grade Google Sheets MCP server - 25 tools, 397 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
     }
   ],
   "tools": [
@@ -86,7 +86,7 @@
     },
     {
       "name": "sheets_analyze",
-      "description": "analyze operations (19 actions)",
+      "description": "analyze operations (21 actions)",
       "actions": [
         "comprehensive",
         "analyze_data",
@@ -106,7 +106,9 @@
         "generate_actions",
         "suggest_next_actions",
         "auto_enhance",
-        "discover_action"
+        "discover_action",
+        "diagnose_errors",
+        "formula_health_check"
       ]
     },
     {
@@ -290,7 +292,7 @@
     },
     {
       "name": "sheets_core",
-      "description": "core operations (19 actions)",
+      "description": "core operations (21 actions)",
       "actions": [
         "get",
         "create",
@@ -299,6 +301,8 @@
         "get_url",
         "batch_get",
         "get_comprehensive",
+        "describe_workbook",
+        "workbook_fingerprint",
         "list",
         "add_sheet",
         "delete_sheet",
@@ -315,7 +319,7 @@
     },
     {
       "name": "sheets_data",
-      "description": "data operations (23 actions)",
+      "description": "data operations (24 actions)",
       "actions": [
         "read",
         "write",
@@ -336,6 +340,7 @@
         "cut_paste",
         "copy_paste",
         "detect_spill_ranges",
+        "smart_fill",
         "cross_read",
         "cross_query",
         "cross_write",
@@ -360,7 +365,7 @@
     },
     {
       "name": "sheets_dimensions",
-      "description": "dimensions operations (29 actions)",
+      "description": "dimensions operations (30 actions)",
       "actions": [
         "insert",
         "delete",
@@ -377,6 +382,7 @@
         "clear_basic_filter",
         "get_basic_filter",
         "sort_range",
+        "delete_duplicates",
         "trim_whitespace",
         "randomize_range",
         "text_to_columns",
@@ -585,16 +591,20 @@
   ],
   "metadata": {
     "toolCount": 25,
-    "actionCount": 391,
+    "actionCount": 397,
     "categories": [
       "Core Operations (5 tools): auth, core, data, format, dimensions",
-      "Visualizations (1 tool): visualize",
-      "Collaboration (1 tool): collaborate",
-      "Advanced Features (1 tool): advanced",
-      "Workflow & Safety (3 tools): transaction, quality, history",
-      "MCP-Native Intelligence (3 tools): confirm (Elicitation), analyze (Sampling), fix (Automated)",
-      "Productivity (2 tools): composite, session",
-      "Enterprise (3 tools): templates, bigquery, appsscript"
+      "Visual Analytics (1 tool): visualize",
+      "Collaboration & Governance (1 tool): collaborate",
+      "Advanced Sheet Structures (1 tool): advanced",
+      "Reliability & Recovery (3 tools): transaction, quality, history",
+      "AI-Native Workflows (3 tools): confirm, analyze, fix",
+      "Productivity & Composition (2 tools): composite, session",
+      "Templates & Integrations (3 tools): templates, bigquery, appsscript",
+      "Automation & Events (1 tool): webhook",
+      "Formula Intelligence (1 tool): dependencies",
+      "Federation & Compute (2 tools): federation, compute",
+      "Agentic Execution & Connectors (2 tools): agent, connectors"
     ]
   },
   "author": {

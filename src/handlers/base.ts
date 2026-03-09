@@ -5,6 +5,7 @@
  * MCP Protocol: 2025-11-25
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { Intent } from '../core/intent.js';
 import { ServiceError } from '../core/errors.js';
 import type { BatchCompiler, ExecutionResult } from '../core/batch-compiler.js';
@@ -16,7 +17,11 @@ import type {
   RangeInput,
   ResponseMeta,
 } from '../schemas/shared.js';
-import { getRequestLogger } from '../utils/request-context.js';
+import {
+  getRequestLogger,
+  getRequestContext,
+  sendProgress as sendRequestContextProgress,
+} from '../utils/request-context.js';
 import {
   createPermissionError,
   createRateLimitError,
@@ -226,11 +231,6 @@ export abstract class BaseHandler<TInput, TOutput> {
    * @param message - Optional progress message
    */
   protected async sendProgress(completed: number, total: number, _message?: string): Promise<void> {
-    // Only available for HTTP transport (graceful degradation for STDIO)
-    if (!this.context.server) {
-      return;
-    }
-
     // Throttle: max 1 event per second
     const now = Date.now();
     if (now - this.lastProgressTime < 1000) {
@@ -239,15 +239,7 @@ export abstract class BaseHandler<TInput, TOutput> {
     this.lastProgressTime = now;
 
     try {
-      // Send MCP progress notification
-      await this.context.server.notification({
-        method: 'notifications/progress',
-        params: {
-          progress: completed,
-          total,
-          progressToken: this.context.requestId || `${this.toolName}-progress`,
-        },
-      });
+      await sendRequestContextProgress(completed, total, _message);
     } catch (error) {
       // Don't fail the operation if progress notification fails
       // Just log and continue
@@ -542,7 +534,7 @@ export abstract class BaseHandler<TInput, TOutput> {
     details?: Record<string, unknown>
   ): HandlerError {
     return this.error({
-      code: 'SHEET_NOT_FOUND',
+      code: ErrorCodes.SHEET_NOT_FOUND,
       message: `${resourceType} ${identifier} not found`,
       retryable: false,
       suggestedFix: 'Verify the sheet name or ID is correct',
@@ -559,7 +551,7 @@ export abstract class BaseHandler<TInput, TOutput> {
     details?: Record<string, unknown>
   ): HandlerError {
     return this.error({
-      code: 'INVALID_REQUEST',
+      code: ErrorCodes.INVALID_REQUEST,
       message: `Invalid ${what}: ${why}`,
       retryable: false,
       suggestedFix: 'Verify the request format is correct',
@@ -676,7 +668,7 @@ export abstract class BaseHandler<TInput, TOutput> {
 
     logger.error('Handler error', { tool: this.toolName, error: err });
     return this.error({
-      code: 'UNKNOWN_ERROR',
+      code: ErrorCodes.UNKNOWN_ERROR,
       message: String(err),
       retryable: false,
       suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -840,7 +832,7 @@ export abstract class BaseHandler<TInput, TOutput> {
       message.includes('the pending stream has been canceled')
     ) {
       return {
-        code: 'CONNECTION_ERROR',
+        code: ErrorCodes.CONNECTION_ERROR,
         message:
           'HTTP/2 connection was reset by Google servers. This is a temporary network issue.',
         category: 'transient',
@@ -876,7 +868,7 @@ export abstract class BaseHandler<TInput, TOutput> {
     ) {
       const isTimeout = errorCode === 'ETIMEDOUT' || message.includes('timeout');
       return {
-        code: 'CONNECTION_ERROR',
+        code: ErrorCodes.CONNECTION_ERROR,
         message: isTimeout
           ? 'Request to Google Sheets API timed out. The network may be slow or unavailable.'
           : 'Cannot reach Google Sheets API. Check your internet connection.',
@@ -903,7 +895,7 @@ export abstract class BaseHandler<TInput, TOutput> {
 
     // Default: internal error
     return {
-      code: 'INTERNAL_ERROR',
+      code: ErrorCodes.INTERNAL_ERROR,
       message: error.message,
       category: 'server',
       severity: 'high',
@@ -1094,7 +1086,7 @@ export abstract class BaseHandler<TInput, TOutput> {
    *
    * if (!canProceed) {
    *   return this.error({
-   *     code: 'OPERATION_CANCELLED',
+   *     code: ErrorCodes.OPERATION_CANCELLED,
    *     message: 'Operation cancelled by user',
    *     retryable: false,
    suggestedFix: 'Retry the operation',
@@ -1326,7 +1318,7 @@ export abstract class BaseHandler<TInput, TOutput> {
       // Check sheet count
       if (sheets.length > MAX_SHEETS_FOR_GRID_DATA) {
         return this.error({
-          code: 'SPREADSHEET_TOO_LARGE',
+          code: ErrorCodes.SPREADSHEET_TOO_LARGE,
           message: `Spreadsheet has ${sheets.length} sheets (max: ${MAX_SHEETS_FOR_GRID_DATA} for this operation)`,
           retryable: false,
           suggestedFix: 'Split your spreadsheet into smaller files or remove unnecessary data',
@@ -1346,7 +1338,7 @@ export abstract class BaseHandler<TInput, TOutput> {
 
       if (totalCells > MAX_CELLS_FOR_GRID_DATA) {
         return this.error({
-          code: 'SPREADSHEET_TOO_LARGE',
+          code: ErrorCodes.SPREADSHEET_TOO_LARGE,
           message: `Spreadsheet has ${totalCells.toLocaleString()} cells (max: ${MAX_CELLS_FOR_GRID_DATA.toLocaleString()} for this operation)`,
           retryable: false,
           suggestedFix: 'Split your spreadsheet into smaller files or remove unnecessary data',
@@ -1383,19 +1375,21 @@ export abstract class BaseHandler<TInput, TOutput> {
     sheetName?: string,
     sheetsApi?: import('googleapis').sheets_v4.Sheets
   ): Promise<number> {
+    const metadataCache = this.context.metadataCache ?? getRequestContext()?.metadataCache;
+
     // OPTIMIZATION: Use session-level metadata cache if available (N+1 elimination)
-    if (this.context.metadataCache) {
+    if (metadataCache) {
       if (!sheetName) {
         // Get first sheet ID
-        const metadata = await this.context.metadataCache.getOrFetch(spreadsheetId);
+        const metadata = await metadataCache.getOrFetch(spreadsheetId);
         return metadata.sheets[0]?.sheetId ?? 0;
       }
 
       // Get sheet ID by name
-      const sheetId = await this.context.metadataCache.getSheetId(spreadsheetId, sheetName);
+      const sheetId = await metadataCache.getSheetId(spreadsheetId, sheetName);
       if (sheetId === undefined) {
         // Sheet not found - provide helpful error
-        const metadata = await this.context.metadataCache.getOrFetch(spreadsheetId);
+        const metadata = await metadataCache.getOrFetch(spreadsheetId);
         const availableSheets = metadata.sheets.map((s) => s.title).slice(0, 5);
         const RangeResolutionError = (await import('../core/range-resolver.js'))
           .RangeResolutionError;

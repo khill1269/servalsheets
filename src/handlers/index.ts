@@ -109,6 +109,7 @@ export interface Handlers {
  */
 export function createHandlers(options: HandlerFactoryOptions): Handlers {
   const cache = {} as Partial<Handlers>;
+  let handlersRef: Handlers | undefined;
 
   const loaders = {
     async data() {
@@ -230,7 +231,7 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     // Agent loop (Phase 6)
     async agent() {
       const { AgentHandler } = await import('./agent.js');
-      return new AgentHandler();
+      return new AgentHandler(handlersRef as unknown as import('./agent.js').AgentHandlerRegistry);
     },
     // Live data connectors (Wave 6)
     async connectors() {
@@ -239,7 +240,7 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     },
   };
 
-  return new Proxy({} as Handlers, {
+  handlersRef = new Proxy({} as Handlers, {
     get(_, prop: string) {
       // Return cached handler if available
       if (cache[prop as keyof Handlers]) {
@@ -280,4 +281,5 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
       );
     },
   });
+  return handlersRef;
 }

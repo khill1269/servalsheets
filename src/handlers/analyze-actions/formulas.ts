@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { TieredRetrieval } from '../../analysis/tiered-retrieval.js';
 import type { AnalyzeResponse } from '../../schemas/analyze.js';
@@ -228,7 +229,7 @@ export async function handleAnalyzeFormulasAction(
     return {
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: 'Failed to analyze formulas',
         retryable: true,
       },

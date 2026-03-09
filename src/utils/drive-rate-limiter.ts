@@ -24,10 +24,11 @@ export class DriveRateLimiter {
   private refill(): void {
     const now = Date.now();
     const elapsed = now - this.lastRefill;
-    if (elapsed >= this.refillMs) {
-      this.tokens = this.maxTokens;
-      this.lastRefill = now;
-    }
+    this.tokens = Math.min(
+      this.maxTokens,
+      this.tokens + (elapsed / this.refillMs) * this.maxTokens
+    );
+    this.lastRefill = now;
   }
 }
 

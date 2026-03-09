@@ -9,6 +9,7 @@
  * MCP Protocol: 2025-11-25
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4, drive_v3 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
@@ -37,6 +38,8 @@ import type {
   CoreBatchUpdateSheetsInput,
   CoreClearSheetInput,
   CoreMoveSheetInput,
+  CoreDescribeWorkbookInput,
+  CoreWorkbookFingerprintInput,
   ResponseMeta,
 } from '../schemas/index.js';
 import { ScopeValidator, IncrementalScopeRequiredError } from '../security/incremental-scope.js';
@@ -52,6 +55,10 @@ import {
   handleListAction,
 } from './core-actions/spreadsheet-read.js';
 import { handleGetComprehensiveAction } from './core-actions/comprehensive.js';
+import {
+  handleDescribeWorkbookAction,
+  handleWorkbookFingerprintAction,
+} from './core-actions/describe-workbook.js';
 import {
   handleAddSheetAction,
   handleDeleteSheetAction,
@@ -96,7 +103,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       if (error instanceof IncrementalScopeRequiredError) {
         return {
           response: this.error({
-            code: 'INCREMENTAL_SCOPE_REQUIRED',
+            code: ErrorCodes.INCREMENTAL_SCOPE_REQUIRED,
             message: error.message,
             category: 'auth',
             retryable: true,
@@ -473,6 +480,23 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
             comprehensiveDeps
           );
           break;
+        case 'describe_workbook':
+          response = await handleDescribeWorkbookAction(req as CoreDescribeWorkbookInput, {
+            sheetsApi: this.sheetsApi,
+            driveApi: this.driveApi,
+            success: this.success.bind(this),
+            mapError: this.mapError.bind(this),
+            error: this.error.bind(this),
+          });
+          break;
+        case 'workbook_fingerprint':
+          response = await handleWorkbookFingerprintAction(req as CoreWorkbookFingerprintInput, {
+            sheetsApi: this.sheetsApi,
+            success: this.success.bind(this),
+            mapError: this.mapError.bind(this),
+            error: this.error.bind(this),
+          });
+          break;
         case 'list':
           response = await handleListAction(req as CoreListInput, spreadsheetReadDeps);
           break;
@@ -559,7 +583,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
           // Note: exhaustiveness check skipped — switch uses `req.action as string`
           // to support handler-level aliases (rename_sheet, hide_sheet, etc.)
           response = this.error({
-            code: 'INVALID_PARAMS',
+            code: ErrorCodes.INVALID_PARAMS,
             message: `Unknown action: ${(req as { action: string }).action}. Available actions: get, create, copy, update_properties, get_url, batch_get, get_comprehensive, list, add_sheet, delete_sheet, duplicate_sheet, update_sheet, copy_sheet_to, list_sheets, get_sheet, clear_sheet, move_sheet, batch_delete_sheets, batch_update_sheets`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",

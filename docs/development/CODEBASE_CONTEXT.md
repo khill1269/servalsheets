@@ -1,15 +1,24 @@
+---
+title: ServalSheets - Complete Codebase Context
+category: development
+last_updated: 2026-03-09
+description: Persistent reference for coding sessions across tools, MCP compliance, API patterns, and architecture decisions.
+version: 1.7.0
+tags: [sheets, architecture, mcp]
+---
+
 # ServalSheets — Complete Codebase Context
 
-> Persistent reference for coding sessions. Covers all 25 tools (391 actions), MCP compliance,
+> Persistent reference for coding sessions. Covers all 25 tools (397 actions), MCP compliance,
 > Google API patterns, anti-patterns, and architecture decisions.
-> Updated: Session 46, 2026-02-28.
+> Updated: 2026-03-09.
 
 ## Quick Reference
 
 | Metric               | Value                          | Source                       |
 | -------------------- | ------------------------------ | ---------------------------- |
 | Tools                | 25                             | src/schemas/action-counts.ts |
-| Actions              | 391                            | src/schemas/action-counts.ts |
+| Actions              | 397                            | src/schemas/action-counts.ts |
 | Version              | 1.7.0                          | package.json                 |
 | MCP Protocol         | 2025-11-25                     | src/version.ts:14            |
 | Contract Tests       | 2376/2376 pass                 | npm run test:fast            |
@@ -146,9 +155,9 @@ await this.confirmDestructiveAction({
 
 ## MCP Protocol Wiring (P13 Additions)
 
-### Task IDs (SEP-1686) — 7 Long-Running Operations
+### Tasks (SEP-1686) — Transport-Level Background Execution
 
-Operations that emit Task IDs for background tracking:
+Use MCP `tasks/call` for background tracking on task-enabled tools:
 
 | Action                                                                      | Tool              | Why                                         |
 | --------------------------------------------------------------------------- | ----------------- | ------------------------------------------- |
@@ -158,6 +167,9 @@ Operations that emit Task IDs for background tracking:
 | `export_large_dataset`                                                      | sheets_composite  | Streaming export, multiple API calls        |
 | `timeline`                                                                  | sheets_history    | Drive API revision scan, multiple revisions |
 | `call_remote` + `list_servers` + `get_server_tools` + `validate_connection` | sheets_federation | Remote MCP calls, network latency           |
+
+Task IDs are emitted by the MCP transport during `tasks/call`, not by ordinary `tools/call`
+responses.
 
 ### Session Context Wiring — 10 Handler Actions
 
@@ -194,7 +206,7 @@ Actions with interactive wizard flows when key params are absent:
 
 | Action                        | Tool               | Wizard                                                                                   |
 | ----------------------------- | ------------------ | ---------------------------------------------------------------------------------------- |
-| `chart_create`                | sheets_visualize   | 2-step: chart type (all ChartTypeSchema options) → chart title                            |
+| `chart_create`                | sheets_visualize   | 2-step: chart type (all ChartTypeSchema options) → chart title                           |
 | `add_conditional_format_rule` | sheets_format      | 1-step: rule preset (highlight_duplicates, color_scale, data_bars, top_10_percent, etc.) |
 | `create`                      | sheets_core        | 1-step: spreadsheet title (defaults to "Untitled Spreadsheet")                           |
 | `begin`                       | sheets_transaction | 1-step: transaction description for audit trail                                          |
@@ -365,14 +377,14 @@ Interface validated across 4 platform types with zero modifications needed.
 
 ## Dead Code Findings
 
-| Item                            | Status                         | Action                     |
-| ------------------------------- | ------------------------------ | -------------------------- |
-| ENABLE_COST_TRACKING flag       | Checked in tool/server paths   | Extend beyond API-call counters |
-| src/handlers/optimization.ts    | Possible unused utilities      | Verify usage or remove     |
-| Scaffold backends (3)           | Intentional P3 scaffolds       | Keep                       |
-| 0 TODOs/FIXMEs in src/          | Clean                          | —                          |
-| All 22 handlers registered      | Verified                       | —                          |
-| All middleware properly guarded | Verified                       | —                          |
+| Item                            | Status                       | Action                          |
+| ------------------------------- | ---------------------------- | ------------------------------- |
+| ENABLE_COST_TRACKING flag       | Checked in tool/server paths | Extend beyond API-call counters |
+| src/handlers/optimization.ts    | Possible unused utilities    | Verify usage or remove          |
+| Scaffold backends (3)           | Intentional P3 scaffolds     | Keep                            |
+| 0 TODOs/FIXMEs in src/          | Clean                        | —                               |
+| All 22 handlers registered      | Verified                     | —                               |
+| All middleware properly guarded | Verified                     | —                               |
 
 ---
 
@@ -509,7 +521,7 @@ Full specs: `docs/development/FEATURE_PLAN.md`
 
 ### P13 MCP Feature Wiring
 
-- Task IDs (SEP-1686): 7 long-running operations
+- Tasks (SEP-1686): transport-level `tasks/call` on task-enabled tools
 - Session Context: 10 handler actions
 - Sampling (SEP-1577): 5 high-value actions
 - Elicitation wizards (SEP-1036): 4 complex actions

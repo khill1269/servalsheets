@@ -33,11 +33,7 @@ import {
   TOOL_ICONS,
   TOOL_EXECUTION_CONFIG,
 } from './mcp/features-2025-11-25.js';
-import {
-  recordToolCall,
-  updateQueueMetrics,
-  quotaWarningsTotal,
-} from './observability/metrics.js';
+import { recordToolCall, updateQueueMetrics, quotaWarningsTotal } from './observability/metrics.js';
 
 import {
   BatchCompiler,
@@ -63,10 +59,11 @@ import { SchedulerService } from './services/scheduler.js';
 import { createHandlers, type HandlerContext, type Handlers } from './handlers/index.js';
 import { getCostTracker } from './services/cost-tracker.js';
 import { initializeBillingIntegration } from './services/billing-integration.js';
+import { createMetadataCache } from './services/metadata-cache.js';
 import { GoogleSheetsBackend } from './adapters/index.js';
 import { AuthHandler } from './handlers/auth.js';
 import {
-  checkAuth,
+  checkAuthAsync,
   buildAuthErrorResponse,
   isGoogleAuthError,
   convertGoogleAuthError,
@@ -74,6 +71,7 @@ import {
 import { logger as baseLogger } from './utils/logger.js';
 import {
   createRequestContext,
+  createRequestAbortError,
   runWithRequestContext,
   sendProgress,
 } from './utils/request-context.js';
@@ -100,7 +98,11 @@ import { STAGED_REGISTRATION } from './config/constants.js';
 import { toolStageManager } from './mcp/registration/tool-stage-manager.js';
 import { getEnv } from './config/env.js';
 import { resolveCostTrackingTenantId } from './utils/tenant-identification.js';
-import { initializeBuiltinConnectors, connectorManager } from './connectors/connector-manager.js';
+import {
+  initializeBuiltinConnectors,
+  connectorManager,
+  type SheetWriterFn,
+} from './connectors/connector-manager.js';
 import {
   extractActionFromArgs,
   extractPrincipalIdFromHeaders,
@@ -114,7 +116,10 @@ import {
   handleSheetsAuthToolCall,
 } from './server-runtime/preinit-tool-routing.js';
 import { dispatchServerToolCall } from './server-runtime/handler-dispatch.js';
-import { forwardServerLogMessage, installServerLoggingBridge } from './server-runtime/logging-bridge.js';
+import {
+  forwardServerLogMessage,
+  installServerLoggingBridge,
+} from './server-runtime/logging-bridge.js';
 import {
   ensureServerCompletionsRegistered,
   ensureServerResourcesRegistered,
@@ -264,22 +269,19 @@ export class ServalSheetsServer {
       // Local ref for closure capture in getter below
       const _googleClient = this.googleClient;
       const duckdbEngine = new DuckDBEngine();
-      const scheduler = new SchedulerService(
-        process.env['DATA_DIR'] ?? '/tmp/servalsheets',
-        async (job) => {
-          const result = await this.handleToolCall(job.action.tool, {
-            request: {
-              action: job.action.actionName,
-              ...job.action.params,
-            },
-          });
+      const scheduler = new SchedulerService(envConfig.DATA_DIR, async (job) => {
+        const result = await this.handleToolCall(job.action.tool, {
+          request: {
+            action: job.action.actionName,
+            ...job.action.params,
+          },
+        });
 
-          const isError = (result as { isError?: boolean }).isError === true;
-          if (isError) {
-            throw new Error(`Scheduled job ${job.id} failed for ${job.action.tool}`);
-          }
+        const isError = (result as { isError?: boolean }).isError === true;
+        if (isError) {
+          throw new Error(`Scheduled job ${job.id} failed for ${job.action.tool}`);
         }
-      );
+      });
 
       // Create platform-agnostic backend adapter (wraps GoogleApiClient)
       const backend = new GoogleSheetsBackend(_googleClient);
@@ -378,6 +380,23 @@ export class ServalSheetsServer {
     // Register built-in data connectors once at startup so sheets_connectors has
     // a non-empty catalog without any manual bootstrap calls.
     initializeBuiltinConnectors();
+
+    // Wire subscription writeback: inject the Sheets values.update writer so
+    // scheduled refreshes persist results to the destination spreadsheet.
+    if (this.googleClient?.sheets) {
+      const sheetsClient = this.googleClient.sheets;
+      const sheetWriter: SheetWriterFn = async (spreadsheetId, range, values) => {
+        await sheetsClient.spreadsheets.values.update({
+          spreadsheetId,
+          range,
+          valueInputOption: 'RAW',
+          requestBody: { values },
+        });
+      };
+      connectorManager.setSheetWriter(sheetWriter);
+    } else {
+      baseLogger.debug('Connector sheet writer not configured (Sheets client unavailable)');
+    }
 
     initializeBillingIntegration({
       enabled: envConfig.ENABLE_BILLING_INTEGRATION,
@@ -529,8 +548,7 @@ export class ServalSheetsServer {
         },
         async (args: Record<string, unknown>, extra) => {
           // Extract progress token from request metadata
-          const progressToken =
-            extra.requestInfo?._meta?.progressToken ?? extra._meta?.progressToken;
+          const progressToken = extra._meta?.progressToken;
           // Forward complete MCP context (Task 1.1)
           return this.handleToolCall(tool.name, args, {
             ...extra, // Forward all fields: signal, requestId, sendRequest, sendNotification, etc.
@@ -626,19 +644,7 @@ export class ServalSheetsServer {
             // Check if already cancelled
             if (await this.taskStore.isTaskCancelled(task.taskId)) {
               const reason = await this.taskStore.getCancellationReason(task.taskId);
-              const cancelResult = buildToolResponse({
-                response: {
-                  success: false,
-                  error: {
-                    code: 'TASK_CANCELLED',
-                    message: reason || 'Task was cancelled',
-                    retryable: false,
-                  },
-                },
-              });
-              // C11: SDK storeTaskResult only accepts 'completed'|'failed'; use 'failed' for
-              // cancelled tasks (cancelResult.content carries code:'TASK_CANCELLED' for callers)
-              await this.taskStore.storeTaskResult(task.taskId, 'failed', cancelResult);
+              await this.storeCancelledTaskResult(task.taskId, reason || 'Task was cancelled');
               return;
             }
 
@@ -650,31 +656,33 @@ export class ServalSheetsServer {
 
             // Check cancellation again before storing result
             if (await this.taskStore.isTaskCancelled(task.taskId)) {
-              return; // Already marked as cancelled
+              const reason = await this.taskStore.getCancellationReason(task.taskId);
+              await this.storeCancelledTaskResult(task.taskId, reason || 'Task was cancelled');
+              return;
             }
 
             await extra.taskStore.storeTaskResult(task.taskId, 'completed', result);
           } catch (error) {
             // Check if error is due to cancellation
             if (error instanceof Error && error.name === 'AbortError') {
-              const cancelResult = buildToolResponse({
-                response: {
-                  success: false,
-                  error: {
-                    code: 'TASK_CANCELLED',
-                    message: error.message,
-                    retryable: false,
-                  },
-                },
-              });
               try {
-                // C11: SDK storeTaskResult only accepts 'completed'|'failed'; use 'failed' for
-                // cancelled tasks (cancelResult.content carries code:'TASK_CANCELLED' for callers)
-                await this.taskStore.storeTaskResult(task.taskId, 'failed', cancelResult);
+                await this.storeCancelledTaskResult(task.taskId, error.message);
               } catch (storeError) {
                 baseLogger.error('Failed to store cancelled task result', { toolName, storeError });
               }
             } else {
+              if (await this.taskStore.isTaskCancelled(task.taskId)) {
+                try {
+                  const reason = await this.taskStore.getCancellationReason(task.taskId);
+                  await this.storeCancelledTaskResult(task.taskId, reason || 'Task was cancelled');
+                } catch (storeError) {
+                  baseLogger.error('Failed to store cancelled task result', {
+                    toolName,
+                    storeError,
+                  });
+                }
+                return;
+              }
               const errorResult = buildToolResponse({
                 response: {
                   success: false,
@@ -714,6 +722,23 @@ export class ServalSheetsServer {
         return (await extra.taskStore.getTaskResult(extra.taskId)) as CallToolResult;
       },
     };
+  }
+
+  private async storeCancelledTaskResult(taskId: string, message: string): Promise<void> {
+    const cancelResult = buildToolResponse({
+      response: {
+        success: false,
+        error: {
+          code: 'TASK_CANCELLED',
+          message,
+          retryable: false,
+        },
+      },
+    });
+
+    // C11: SDK storeTaskResult only accepts 'completed'|'failed'; use 'failed' for
+    // cancelled tasks (the task store preserves cancelled status and the payload carries TASK_CANCELLED).
+    await this.taskStore.storeTaskResult(taskId, 'failed', cancelResult);
   }
 
   /**
@@ -774,16 +799,24 @@ export class ServalSheetsServer {
 
     // Wrap in queue to enforce concurrency limits
     return this.requestQueue.add(async () => {
+      if (extra?.abortSignal?.aborted) {
+        throw createRequestAbortError(extra.abortSignal.reason);
+      }
+
       // Extract idempotency key from headers (if HTTP transport)
       const headers = (extra as { headers?: Record<string, string | string[] | undefined> })
         ?.headers;
       const idempotencyKey = headers ? extractIdempotencyKeyFromHeaders(headers) : undefined;
       const costTrackingTenantId = resolveCostTrackingTenantId({ headers });
       const principalId = extractPrincipalIdFromHeaders(headers) ?? 'anonymous';
+      const metadataCache = this.googleClient?.sheets
+        ? createMetadataCache(this.googleClient.sheets)
+        : undefined;
 
       const requestContext = createRequestContext({
         sendNotification: extra?.sendNotification,
         progressToken: extra?.progressToken,
+        abortSignal: extra?.abortSignal,
         // W3C Trace Context support - extract from extra if provided by HTTP transport
         traceId: (extra as { traceId?: string })?.traceId,
         spanId: (extra as { spanId?: string })?.spanId,
@@ -791,6 +824,7 @@ export class ServalSheetsServer {
         // Idempotency key from X-Idempotency-Key header
         idempotencyKey,
         principalId,
+        metadataCache,
       });
       return runWithRequestContext(requestContext, async () => {
         const logger = requestContext.logger;
@@ -807,6 +841,10 @@ export class ServalSheetsServer {
           traceId: requestContext.traceId,
           spanId: requestContext.spanId,
         });
+
+        if (requestContext.abortSignal?.aborted) {
+          throw createRequestAbortError(requestContext.abortSignal.reason);
+        }
 
         // Check if shutting down
         if (this.isShutdown) {
@@ -842,7 +880,7 @@ export class ServalSheetsServer {
 
           // For all other tools, check authentication first
           if (!isExempt) {
-            const authResult = checkAuth(this.googleClient);
+            const authResult = await checkAuthAsync(this.googleClient);
             if (!authResult.authenticated) {
               const errorResponse = buildAuthErrorResponse(authResult.error!);
               return buildToolResponse(errorResponse);
@@ -909,6 +947,19 @@ export class ServalSheetsServer {
 
           logger.error('Tool call threw exception', { tool: toolName, error });
 
+          if (error instanceof Error && error.name === 'AbortError') {
+            return buildToolResponse({
+              response: {
+                success: false,
+                error: {
+                  code: 'OPERATION_CANCELLED',
+                  message: error.message,
+                  retryable: false,
+                },
+              },
+            });
+          }
+
           recordToolExecutionException({
             toolName,
             action,
@@ -936,6 +987,8 @@ export class ServalSheetsServer {
             },
           });
         }
+      }).finally(() => {
+        metadataCache?.clear();
       });
     });
   }

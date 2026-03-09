@@ -21,11 +21,43 @@ import { TOOL_COUNT, ACTION_COUNT } from '../src/schemas/index.js';
 
 console.log('🔍 Running extended server.json validation...\n');
 
+type ServerJsonTool = {
+  name?: string;
+  description?: string;
+  actions?: unknown[];
+};
+
+type ServerJsonPackage = {
+  registryType?: string;
+  identifier?: string;
+  version?: string;
+  description?: string;
+  [key: string]: unknown;
+};
+
+type ServerJsonMetadata = {
+  toolCount?: number;
+  actionCount?: number;
+  description?: string;
+  categories?: string[];
+};
+
+type ServerJson = {
+  metadata?: ServerJsonMetadata;
+  tools?: ServerJsonTool[];
+  packages?: ServerJsonPackage[];
+  capabilities?: string[];
+  mcpProtocol?: string;
+  name?: string;
+  version?: string;
+  [key: string]: unknown;
+};
+
 // ============================================================================
 // LOAD server.json
 // ============================================================================
 
-let serverJson: any;
+let serverJson: ServerJson;
 
 try {
   serverJson = JSON.parse(readFileSync('./server.json', 'utf-8'));
@@ -78,6 +110,60 @@ if (!serverJson.metadata) {
 }
 
 // ============================================================================
+// VALIDATION 1B: Metadata Category Coverage
+// ============================================================================
+
+if (serverJson.metadata?.categories && Array.isArray(serverJson.metadata.categories)) {
+  const categoryToolNames = serverJson.metadata.categories.flatMap((category: string) => {
+    const separatorIndex = category.indexOf(':');
+    if (separatorIndex === -1) {
+      return [];
+    }
+
+    return category
+      .slice(separatorIndex + 1)
+      .split(',')
+      .map((value: string) => value.trim())
+      .filter(Boolean);
+  });
+
+  const declaredToolNames = (serverJson.tools ?? []).map((tool: ServerJsonTool) =>
+    String(tool.name).replace(/^sheets_/, '')
+  );
+  const missingFromCategories = declaredToolNames.filter(
+    (tool: string) => !categoryToolNames.includes(tool)
+  );
+  const extraInCategories = categoryToolNames.filter(
+    (tool: string) => !declaredToolNames.includes(tool)
+  );
+  const duplicateCategoryTools = categoryToolNames.filter(
+    (tool: string, index: number, array: string[]) => array.indexOf(tool) !== index
+  );
+
+  if (missingFromCategories.length > 0) {
+    errors.push(`metadata.categories missing tools: ${missingFromCategories.join(', ')}`);
+  }
+  if (extraInCategories.length > 0) {
+    errors.push(`metadata.categories references unknown tools: ${extraInCategories.join(', ')}`);
+  }
+  if (duplicateCategoryTools.length > 0) {
+    errors.push(
+      `metadata.categories duplicates tools: ${Array.from(new Set(duplicateCategoryTools)).join(', ')}`
+    );
+  }
+
+  if (
+    missingFromCategories.length === 0 &&
+    extraInCategories.length === 0 &&
+    duplicateCategoryTools.length === 0
+  ) {
+    console.log(
+      `  ✅ metadata.categories covers all ${declaredToolNames.length} tools exactly once`
+    );
+  }
+}
+
+// ============================================================================
 // VALIDATION 2: Tools Array
 // ============================================================================
 
@@ -95,7 +181,7 @@ if (!serverJson.tools || !Array.isArray(serverJson.tools)) {
 
   // Sum of actions matches
   const totalActionsInTools = serverJson.tools.reduce(
-    (sum: number, tool: any) => sum + (tool.actions?.length || 0),
+    (sum: number, tool: ServerJsonTool) => sum + (tool.actions?.length || 0),
     0
   );
 
@@ -124,7 +210,7 @@ if (!serverJson.tools || !Array.isArray(serverJson.tools)) {
 
   // Tool names follow convention
   const invalidToolNames = serverJson.tools.filter(
-    (tool: any) => !tool.name?.startsWith('sheets_')
+    (tool: ServerJsonTool) => !tool.name?.startsWith('sheets_')
   );
 
   if (invalidToolNames.length > 0) {
@@ -181,7 +267,7 @@ console.log('\nValidating package metadata...');
 if (!serverJson.packages || !Array.isArray(serverJson.packages)) {
   warnings.push('Missing packages array (recommended for Claude registry)');
 } else {
-  const requiredPackageFields = ['name', 'version', 'description'];
+  const requiredPackageFields = ['identifier', 'version', 'description'];
 
   for (const pkg of serverJson.packages) {
     for (const field of requiredPackageFields) {
@@ -192,10 +278,10 @@ if (!serverJson.packages || !Array.isArray(serverJson.packages)) {
 
     // Check for registry-specific fields (optional but recommended)
     if (!pkg.registryType) {
-      warnings.push(`Package "${pkg.name}" missing registryType (e.g., "npm")`);
+      warnings.push(`Package "${pkg.identifier || 'unknown'}" missing registryType (e.g., "npm")`);
     }
     if (!pkg.identifier) {
-      warnings.push(`Package "${pkg.name}" missing identifier`);
+      warnings.push(`Package "${pkg.identifier || 'unknown'}" missing identifier`);
     }
   }
 

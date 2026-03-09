@@ -1,9 +1,6 @@
 import type { sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
-import type {
-  CompositeExportLargeDatasetInput,
-  CompositeOutput,
-} from '../../schemas/composite.js';
+import type { CompositeExportLargeDatasetInput, CompositeOutput } from '../../schemas/composite.js';
 import type { ResponseMeta } from '../../schemas/shared.js';
 import { getRequestLogger } from '../../utils/request-context.js';
 import { readDataInChunks, formatBytes } from '../../utils/streaming-export.js';
@@ -75,29 +72,6 @@ export async function handleExportLargeDatasetAction(
       streamed: result.streamed,
     });
 
-    let exportTaskId: string | undefined;
-    if (deps.taskStore) {
-      const task = await deps.taskStore.createTask(
-        { ttl: 3600000 },
-        'composite-export-large',
-        {
-          method: 'tools/call',
-          params: { name: 'sheets_composite', arguments: input },
-        }
-      );
-      exportTaskId = task.taskId;
-      await deps.taskStore.updateTaskStatus(
-        exportTaskId,
-        'completed',
-        `Exported ${result.stats.totalRows} rows`
-      );
-
-      logger.info('Task created for export_large_dataset', {
-        taskId: exportTaskId,
-        spreadsheetId: input.spreadsheetId,
-      });
-    }
-
     return {
       success: true as const,
       action: 'export_large_dataset' as const,
@@ -110,7 +84,6 @@ export async function handleExportLargeDatasetAction(
       durationMs: result.stats.durationMs,
       streamed: result.streamed,
       data: formattedData,
-      ...(exportTaskId !== undefined ? { taskId: exportTaskId } : {}),
       _meta: deps.generateMeta(
         'export_large_dataset',
         input as unknown as Record<string, unknown>,

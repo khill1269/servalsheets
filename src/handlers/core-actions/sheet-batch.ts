@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type {
@@ -78,7 +79,7 @@ export async function handleBatchDeleteSheetsAction(
     );
     if (!confirmation.confirmed) {
       return deps.error({
-        code: 'OPERATION_CANCELLED',
+        code: ErrorCodes.OPERATION_CANCELLED,
         message: confirmation.reason || 'User cancelled the batch delete operation',
         retryable: false,
         suggestedFix: 'Review the operation requirements and try again',
@@ -252,7 +253,7 @@ export async function handleClearSheetAction(
 
   if (resolvedSheetId === undefined) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: 'Either sheetId (number) or sheetName (string) is required',
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -287,7 +288,7 @@ export async function handleClearSheetAction(
 
     if (!confirmation.confirmed) {
       return deps.error({
-        code: 'PRECONDITION_FAILED',
+        code: ErrorCodes.PRECONDITION_FAILED,
         message: confirmation.reason || 'User cancelled the operation',
         retryable: false,
         suggestedFix: 'Review the operation requirements and try again',
@@ -336,7 +337,7 @@ export async function handleClearSheetAction(
 
   if (requests.length === 0) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: 'Nothing to clear. Set at least one of: clearValues, clearFormats, clearNotes',
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -415,7 +416,9 @@ export async function handleMoveSheetAction(
         spreadsheetId: input.spreadsheetId,
         fields: 'sheets.properties(sheetId,hidden)',
       });
-      const sheet = lookupResponse.data.sheets?.find((s) => s.properties?.sheetId === resolvedSheetId);
+      const sheet = lookupResponse.data.sheets?.find(
+        (s) => s.properties?.sheetId === resolvedSheetId
+      );
       sheetHidden = sheet?.properties?.hidden === true;
     } catch {
       // Non-critical - continue without hidden check
@@ -424,7 +427,7 @@ export async function handleMoveSheetAction(
 
   if (resolvedSheetId === undefined) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: 'Either sheetId (number) or sheetName (string) is required',
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -433,7 +436,7 @@ export async function handleMoveSheetAction(
 
   if (input.newIndex === undefined) {
     return deps.error({
-      code: 'INVALID_PARAMS',
+      code: ErrorCodes.INVALID_PARAMS,
       message: 'newIndex is required - the 0-based position to move the sheet to',
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
@@ -462,11 +465,13 @@ export async function handleMoveSheetAction(
     fields: 'sheets.properties(sheetId,title,index)',
   });
 
-  const movedSheet = verifyResponse.data.sheets?.find((s) => s.properties?.sheetId === resolvedSheetId);
+  const movedSheet = verifyResponse.data.sheets?.find(
+    (s) => s.properties?.sheetId === resolvedSheetId
+  );
 
   if (!movedSheet) {
     return deps.error({
-      code: 'SHEET_NOT_FOUND',
+      code: ErrorCodes.SHEET_NOT_FOUND,
       message: `Sheet with ID ${resolvedSheetId} not found after move operation`,
       retryable: false,
       suggestedFix: 'Verify the sheet still exists in the spreadsheet',
