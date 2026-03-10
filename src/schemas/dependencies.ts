@@ -88,6 +88,87 @@ export const DependencyExportDotInputSchema = z.object({
   spreadsheetId: z.string().min(1, 'Spreadsheet ID required'),
 });
 
+// ============================================================================
+// F6: Scenario Modeling (3 actions)
+// ============================================================================
+
+const ModelScenarioInputSchema = z.object({
+  action: z
+    .literal('model_scenario')
+    .describe(
+      'Simulate "what if" changes — trace formula cascades without modifying the spreadsheet'
+    ),
+  spreadsheetId: z.string().min(1),
+  changes: z
+    .array(
+      z.object({
+        cell: z.string().min(1).describe('Cell reference (A1 notation, e.g. "Sheet1!B2")'),
+        newValue: z
+          .union([z.string(), z.number(), z.boolean(), z.null()])
+          .describe('Hypothetical new value'),
+      })
+    )
+    .min(1)
+    .max(50)
+    .describe('Input changes to simulate'),
+  outputRange: z.string().optional().describe('Focus impact report on this range'),
+});
+
+const CompareScenariosInputSchema = z.object({
+  action: z
+    .literal('compare_scenarios')
+    .describe('Compare multiple what-if scenarios side by side'),
+  spreadsheetId: z.string().min(1),
+  scenarios: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(100).describe('Scenario label'),
+        changes: z
+          .array(
+            z.object({
+              cell: z.string().min(1),
+              newValue: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+            })
+          )
+          .min(1),
+      })
+    )
+    .min(2)
+    .max(10)
+    .describe('Scenarios to compare'),
+  compareColumns: z
+    .array(z.string())
+    .optional()
+    .describe('Focus comparison on specific cells (A1 notation)'),
+});
+
+const CreateScenarioSheetInputSchema = z.object({
+  action: z
+    .literal('create_scenario_sheet')
+    .describe(
+      'Materialize a scenario as a new sheet tab (non-destructive copy with changes applied)'
+    ),
+  spreadsheetId: z.string().min(1),
+  scenario: z.object({
+    name: z.string().min(1).max(100).describe('Scenario name (becomes sheet tab name)'),
+    changes: z
+      .array(
+        z.object({
+          cell: z.string().min(1),
+          newValue: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+        })
+      )
+      .min(1),
+  }),
+  targetSheet: z.string().optional().describe('Custom name for the new sheet tab'),
+  sourceSheetName: z
+    .string()
+    .optional()
+    .describe(
+      'Which sheet to duplicate as the scenario base. If omitted, inferred from the first cell reference in changes (e.g., "Sales!A1" → "Sales"). Falls back to first sheet.'
+    ),
+});
+
 /**
  * Dependencies request (discriminated union)
  */
@@ -99,6 +180,9 @@ const DependencyRequestSchema = z.discriminatedUnion('action', [
   DependencyGetDependentsInputSchema,
   DependencyGetStatsInputSchema,
   DependencyExportDotInputSchema,
+  ModelScenarioInputSchema,
+  CompareScenariosInputSchema,
+  CreateScenarioSheetInputSchema,
 ]);
 
 /**
@@ -189,6 +273,48 @@ const DependenciesResponseSchema = z.discriminatedUnion('success', [
       z.object({ dependents: z.array(z.string()) }),
       DependencyStatsSchema,
       z.object({ dot: z.string() }),
+      // F6: Scenario results
+      z.object({
+        action: z.string(),
+        inputChanges: z.array(
+          z.object({
+            cell: z.string(),
+            from: z.union([z.string(), z.number(), z.null()]).optional(),
+            to: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+          })
+        ),
+        cascadeEffects: z.array(
+          z.object({
+            cell: z.string(),
+            formula: z.string().optional(),
+            currentValue: z.union([z.string(), z.number(), z.null()]).optional(),
+            affectedBy: z.array(z.string()).optional(),
+          })
+        ),
+        summary: z.object({
+          cellsAffected: z.number().int(),
+          message: z.string(),
+        }),
+      }),
+      // F6: compare_scenarios result
+      z.object({
+        action: z.string(),
+        scenarios: z.array(
+          z.object({
+            name: z.string(),
+            cellsAffected: z.number().int(),
+          })
+        ),
+        message: z.string(),
+      }),
+      // F6: create_scenario_sheet result
+      z.object({
+        action: z.string(),
+        newSheetId: z.number().int(),
+        newSheetName: z.string(),
+        cellsModified: z.number().int(),
+        message: z.string(),
+      }),
     ]),
   }),
   z.object({
@@ -205,11 +331,11 @@ export const SheetsDependenciesOutputSchema = z.object({
  * Tool annotations for sheets_dependencies
  */
 export const SHEETS_DEPENDENCIES_ANNOTATIONS = {
-  title: 'Formula Dependencies',
-  readOnlyHint: true,
-  destructiveHint: false,
-  idempotentHint: true,
-  openWorldHint: false,
+  title: 'Formula Dependencies & Scenario Modeling',
+  readOnlyHint: false, // create_scenario_sheet writes a new sheet
+  destructiveHint: true, // create_scenario_sheet creates a new sheet (side effect)
+  idempotentHint: false, // create_scenario_sheet creates new resources
+  openWorldHint: true, // Reads from Google Sheets API
 };
 
 // Type exports
@@ -228,3 +354,6 @@ export type ImpactAnalysis = z.infer<typeof ImpactAnalysisSchema>;
 export type DependencyStats = z.infer<typeof DependencyStatsSchema>;
 export type DependencyBuildResult = z.infer<typeof DependencyBuildResultSchema>;
 export type SheetsDependenciesOutput = z.infer<typeof SheetsDependenciesOutputSchema>;
+export type ModelScenarioInput = z.infer<typeof ModelScenarioInputSchema>;
+export type CompareScenariosInput = z.infer<typeof CompareScenariosInputSchema>;
+export type CreateScenarioSheetInput = z.infer<typeof CreateScenarioSheetInputSchema>;

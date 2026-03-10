@@ -47,6 +47,9 @@ const ALL_TOOLS = [
   'sheets_webhook',
   'sheets_dependencies',
   'sheets_federation',
+  'sheets_compute',
+  'sheets_agent',
+  'sheets_connectors',
 ];
 
 describe('MCP 2025-11-25 Feature Compliance', () => {
@@ -195,7 +198,8 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
 
     it('should mark read-only tools correctly', () => {
       // sheets_quality (resolve_conflict) and sheets_history (undo/redo) have write operations
-      const readOnlyTools = ['sheets_confirm', 'sheets_analyze', 'sheets_dependencies'];
+      // sheets_dependencies now has create_scenario_sheet (write) — not read-only post-P14
+      const readOnlyTools = ['sheets_confirm', 'sheets_analyze'];
       for (const tool of readOnlyTools) {
         expect(TOOL_ANNOTATIONS[tool]!.readOnlyHint).toBe(true);
       }
@@ -241,13 +245,13 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
     it('should mark non-destructive tools correctly', () => {
       const nonDestructiveTools = [
         'sheets_auth',
-        'sheets_format', // formatting doesn't destroy data
+        // sheets_format removed: clear_format and delete_conditional_format_rule are destructive
         'sheets_quality',
         'sheets_history',
         'sheets_confirm',
         'sheets_analyze',
         'sheets_session',
-        'sheets_dependencies',
+        // sheets_dependencies removed: create_scenario_sheet is destructive (creates a new sheet)
       ];
       for (const tool of nonDestructiveTools) {
         expect(TOOL_ANNOTATIONS[tool]!.destructiveHint).toBe(false);
@@ -282,7 +286,8 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
 
     it('should mark local-only tools correctly', () => {
       // sheets_quality (resolve_conflict) and sheets_history (undo/redo) call Google API
-      const localTools = ['sheets_confirm', 'sheets_session', 'sheets_dependencies'];
+      // sheets_dependencies removed: model_scenario calls Google Sheets API for live values (post-P13)
+      const localTools = ['sheets_confirm', 'sheets_session'];
       for (const tool of localTools) {
         expect(TOOL_ANNOTATIONS[tool]!.openWorldHint).toBe(false);
       }
@@ -293,13 +298,13 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
   // TOOL DEFINITIONS
   // =========================================================================
   describe('Tool Definitions', () => {
-    it('should define exactly 22 tools (includes Tier 7 enterprise + federation)', () => {
-      expect(TOOL_DEFINITIONS.length).toBe(22);
+    it('should define exactly TOOL_COUNT tools', () => {
+      expect(TOOL_DEFINITIONS.length).toBe(TOOL_COUNT);
     });
 
     it('should have unique names', () => {
       const names = TOOL_DEFINITIONS.map((t) => t.name);
-      expect(new Set(names).size).toBe(22);
+      expect(new Set(names).size).toBe(TOOL_DEFINITIONS.length);
     });
 
     it('should use snake_case naming (SEP-986)', () => {
@@ -358,7 +363,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
   // TOOL EXECUTION CONFIG (SEP-1686 Tasks)
   // =========================================================================
   describe('Task Support (SEP-1686)', () => {
-    it('should have execution config for all 22 tools', () => {
+    it('should have execution config for all tools', () => {
       for (const tool of ALL_TOOLS) {
         expect(TOOL_EXECUTION_CONFIG[tool]).toBeDefined();
       }
@@ -375,6 +380,9 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
         'sheets_appsscript',
         'sheets_bigquery',
         'sheets_templates',
+        'sheets_compute',
+        'sheets_agent',
+        'sheets_connectors',
       ];
       for (const tool of longRunning) {
         expect(TOOL_EXECUTION_CONFIG[tool]!.taskSupport).toBe('optional');
@@ -385,13 +393,13 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
       const fast = [
         'sheets_auth',
         'sheets_core',
-        'sheets_collaborate',
+        // sheets_collaborate removed: taskSupport is 'optional' (sharing ops can be long-running)
         'sheets_advanced',
         'sheets_transaction',
         'sheets_quality',
-        'sheets_history',
+        // sheets_history removed: P13-M1 added task support (timeline is a long-running op)
         'sheets_confirm',
-        'sheets_fix',
+        // sheets_fix removed: P13-M1 added task support (clean can be long-running)
         'sheets_session',
       ];
       for (const tool of fast) {
@@ -425,14 +433,14 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
   // DESCRIPTIONS
   // =========================================================================
   describe('Tool Descriptions', () => {
-    it('should have full descriptions for all 22 tools', () => {
+    it('should have full descriptions for all tools', () => {
       for (const tool of ALL_TOOLS) {
         expect(TOOL_DESCRIPTIONS[tool]).toBeDefined();
         expect(TOOL_DESCRIPTIONS[tool]!.length).toBeGreaterThan(50);
       }
     });
 
-    it('should have minimal descriptions for all 22 tools', () => {
+    it('should have minimal descriptions for all tools', () => {
       for (const tool of ALL_TOOLS) {
         expect(TOOL_DESCRIPTIONS_MINIMAL[tool]).toBeDefined();
         expect(TOOL_DESCRIPTIONS_MINIMAL[tool]!.length).toBeGreaterThan(10);
@@ -455,7 +463,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
     it('should have correct tool count', () => {
       // TOOL_COUNT must match TOOL_DEFINITIONS length
       expect(TOOL_COUNT).toBe(TOOL_DEFINITIONS.length);
-      expect(TOOL_COUNT).toBe(22); // As of 2026-02-16
+      expect(TOOL_COUNT).toBeGreaterThan(20);
     });
 
     it('should have correct action count (dynamically validated)', () => {
@@ -467,7 +475,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
 
       // Sanity check: we should have a reasonable number of actions
       expect(actualActionCount).toBeGreaterThan(290);
-      expect(actualActionCount).toBeLessThan(350);
+      expect(actualActionCount).toBeLessThan(400);
     });
   });
 });

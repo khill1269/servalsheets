@@ -13,8 +13,20 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import {
+  CallToolResultSchema,
+  CreateMessageRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 import { VERSION } from '../../src/version.js';
 import { createHttpServer, type HttpServerOptions } from '../../src/http-server.js';
+import { logger } from '../../src/utils/logger.js';
+import { createTestHttpClient } from '../e2e/mcp-client-simulator.js';
+import {
+  getOrCreateSessionContext,
+  removeSessionContext,
+} from '../../src/services/session-context.js';
 import type { Express } from 'express';
 import net from 'node:net';
 
@@ -34,8 +46,11 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
   let server: ReturnType<typeof createHttpServer>;
   let httpServer: ReturnType<Express['listen']>;
   let agent: ReturnType<typeof request>;
+  const previousLegacySse = process.env['ENABLE_LEGACY_SSE'];
 
   beforeAll(async () => {
+    process.env['ENABLE_LEGACY_SSE'] = 'true';
+
     // Create HTTP server for testing
     const options: HttpServerOptions = {
       port: 0, // Use random port
@@ -61,6 +76,12 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
   });
 
   afterAll(async () => {
+    if (previousLegacySse === undefined) {
+      delete process.env['ENABLE_LEGACY_SSE'];
+    } else {
+      process.env['ENABLE_LEGACY_SSE'] = previousLegacySse;
+    }
+
     if (httpServer) {
       await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     }
@@ -80,7 +101,128 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
       });
       sessions.clear();
     }
+    await server.stop?.();
   });
+
+  const getBaseUrl = (): string => {
+    const address = httpServer.address();
+    if (!address || typeof address === 'string') {
+      throw new Error('HTTP test server is not listening on a TCP port');
+    }
+    return `http://127.0.0.1:${address.port}`;
+  };
+
+  const createJwtLikeBearerToken = (audience: string): string => {
+    const encode = (value: object): string =>
+      Buffer.from(JSON.stringify(value)).toString('base64url');
+    return [
+      encode({ alg: 'none', typ: 'JWT' }),
+      encode({
+        aud: audience,
+        iss: 'https://accounts.google.com',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        email: 'sdk-http-test@example.com',
+      }),
+      'signature',
+    ].join('.');
+  };
+
+  const createSdkHttpClient = async (options?: {
+    authToken?: string;
+    samplingResponseText?: string;
+    samplingHandler?: (request: {
+      params: {
+        messages: Array<{
+          content?: unknown;
+        }>;
+      };
+    }) => Promise<{
+      model: string;
+      role: 'assistant';
+      content: {
+        type: 'text';
+        text: string;
+      };
+    }>;
+  }) => {
+    const transport = new StreamableHTTPClientTransport(new URL(`${getBaseUrl()}/mcp`), {
+      requestInit: {
+        headers: options?.authToken
+          ? {
+              Authorization: `Bearer ${options.authToken}`,
+            }
+          : undefined,
+      },
+    });
+
+    const samplingRequests: Array<{ message?: string }> = [];
+    const client = new Client(
+      {
+        name: 'servalsheets-http-sdk-test-client',
+        version: '1.0.0-test',
+      },
+      {
+        capabilities: {
+          sampling: {},
+        },
+      }
+    );
+
+    client.setRequestHandler(CreateMessageRequestSchema, async (request) => {
+      const firstMessage = request.params.messages[0];
+      const content = firstMessage?.content;
+      const prompt =
+        content && typeof content === 'object' && !Array.isArray(content) && content.type === 'text'
+          ? content.text
+          : undefined;
+      samplingRequests.push({ message: prompt });
+
+      if (options?.samplingHandler) {
+        return await options.samplingHandler(request);
+      }
+
+      return {
+        model: 'mock-http-sampling-model',
+        role: 'assistant',
+        content: {
+          type: 'text',
+          text:
+            options?.samplingResponseText ??
+            JSON.stringify({
+              title: 'Generated Budget Planner',
+              sheets: [
+                {
+                  name: 'Budget',
+                  columns: [
+                    { header: 'Category', type: 'text', width: 160 },
+                    { header: 'Budget', type: 'currency', width: 120 },
+                    { header: 'Actual', type: 'currency', width: 120 },
+                  ],
+                  rows: [{ values: ['Marketing', 1000, 950] }, { values: ['Travel', 500, 420] }],
+                  formatting: {
+                    headerStyle: 'bold_blue_background',
+                    freezeRows: 1,
+                    alternatingRows: true,
+                  },
+                },
+              ],
+            }),
+        },
+      };
+    });
+
+    await client.connect(transport);
+
+    return {
+      client,
+      transport,
+      samplingRequests,
+      close: async () => {
+        await client.close().catch(() => undefined);
+        await transport.close().catch(() => undefined);
+      },
+    };
+  };
 
   describe('Health and Info Endpoints', () => {
     it('should return healthy status on /health', async () => {
@@ -110,6 +252,74 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
       expect(typeof response.body.actions).toBe('number');
       expect(response.body.tools).toBeGreaterThan(0);
       expect(response.body.actions).toBeGreaterThan(0);
+    });
+
+    it('should not expose oauth issuer/client metadata or session counts in readiness health', async () => {
+      const oauthServer = createHttpServer({
+        port: 0,
+        host: '127.0.0.1',
+        corsOrigins: ['http://localhost:3000'],
+        rateLimitMax: 1000,
+        trustProxy: false,
+        enableOAuth: true,
+        oauthConfig: {
+          issuer: 'https://issuer.example.com',
+          clientId: 'oauth-client-id',
+          clientSecret: 'oauth-client-secret',
+          jwtSecret: 'x'.repeat(32),
+          stateSecret: 'y'.repeat(32),
+          allowedRedirectUris: ['http://localhost:3000/callback'],
+          googleClientId: 'google-client-id',
+          googleClientSecret: 'google-client-secret',
+          accessTokenTtl: 3600,
+          refreshTokenTtl: 86400,
+        },
+      });
+
+      const oauthApp = oauthServer.app as Express;
+      const oauthHttpServer = await new Promise<ReturnType<Express['listen']>>(
+        (resolve, reject) => {
+          const listener = oauthApp.listen(0, '127.0.0.1', () => resolve(listener));
+          listener.on('error', reject);
+        }
+      );
+      const address = oauthHttpServer.address();
+      if (!address || typeof address === 'string') {
+        throw new Error('OAuth test server failed to start');
+      }
+
+      const oauthAgent = request(`http://127.0.0.1:${address.port}`);
+      const response = await oauthAgent.get('/health/ready').expect('Content-Type', /json/);
+
+      expect([200, 503]).toContain(response.status);
+      expect(response.body.oauth).toBeDefined();
+      expect(response.body.oauth).toMatchObject({
+        enabled: true,
+        configured: true,
+      });
+      expect(response.body.oauth).not.toHaveProperty('issuer');
+      expect(response.body.oauth).not.toHaveProperty('clientId');
+
+      expect(response.body.sessions).toBeDefined();
+      expect(response.body.sessions).toHaveProperty('hasAuthentication');
+      expect(typeof response.body.sessions.hasAuthentication).toBe('boolean');
+      expect(response.body.sessions).not.toHaveProperty('active');
+
+      await new Promise<void>((resolve) => oauthHttpServer.close(() => resolve()));
+      const oauthSessions = oauthServer.sessions as Map<
+        string,
+        { transport?: { close?: () => void }; taskStore?: { dispose?: () => void } }
+      >;
+      oauthSessions.forEach((session) => {
+        if (typeof session.transport?.close === 'function') {
+          session.transport.close();
+        }
+        if (typeof session.taskStore?.dispose === 'function') {
+          session.taskStore.dispose();
+        }
+      });
+      oauthSessions.clear();
+      await oauthServer.stop?.();
     });
   });
 
@@ -215,6 +425,26 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
       // Error format may vary - check for error indication
       expect(response.body.error).toBeDefined();
     });
+
+    it('should remove session-scoped context when deleting a session', async () => {
+      const sessionId = 'test-session-context-cleanup';
+      const initialContext = getOrCreateSessionContext(sessionId);
+
+      const sessions = server.sessions as Map<
+        string,
+        { transport?: { close?: () => void }; taskStore?: { dispose?: () => void } }
+      >;
+      sessions.set(sessionId, {
+        transport: { close: vi.fn() },
+        taskStore: { dispose: vi.fn() },
+      });
+
+      await agent.delete(`/session/${sessionId}`).expect(200);
+
+      const recreatedContext = getOrCreateSessionContext(sessionId);
+      expect(recreatedContext).not.toBe(initialContext);
+      removeSessionContext(sessionId);
+    });
   });
 
   describe('Streamable HTTP transport behavior', () => {
@@ -255,6 +485,551 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
     it('should return 404 on DELETE /mcp with unknown session', async () => {
       const response = await agent.delete('/mcp').set('Mcp-Session-Id', 'missing-session');
       expect(response.status).toBe(404);
+    });
+
+    it('should dispose session runtime state when a streamable HTTP session is terminated', async () => {
+      const client = createTestHttpClient(getBaseUrl());
+
+      try {
+        await client.initialize();
+
+        const sessionId = client.getSession().sessionId;
+        expect(sessionId).toBeTruthy();
+
+        const sessions = server.sessions as Map<
+          string,
+          {
+            disposeRuntime?: () => void;
+            taskStore: { dispose: () => void };
+          }
+        >;
+        const session = sessions.get(sessionId);
+
+        expect(session).toBeDefined();
+
+        const disposeRuntimeSpy = vi.spyOn(session!, 'disposeRuntime');
+        const taskStoreDisposeSpy = vi.spyOn(session!.taskStore, 'dispose');
+
+        await client.close();
+
+        await vi.waitFor(() => {
+          expect(disposeRuntimeSpy).toHaveBeenCalledTimes(1);
+          expect(taskStoreDisposeSpy).toHaveBeenCalledTimes(1);
+          expect(sessions.has(sessionId)).toBe(false);
+        });
+      } finally {
+        await client.close().catch(() => undefined);
+      }
+    });
+
+    it('should propagate HTTP trace context into legacy tool response metadata', async () => {
+      const traceId = '0123456789abcdef0123456789abcdef';
+      const parentSpanId = '0123456789abcdef';
+      const traceparent = `00-${traceId}-${parentSpanId}-01`;
+      const userAgent = 'trace-context-test-client';
+
+      try {
+        const initResponse = await agent
+          .post('/mcp')
+          .set('Content-Type', 'application/json')
+          .set('Accept', 'application/json, text/event-stream')
+          .set('MCP-Protocol-Version', '2025-11-25')
+          .set('User-Agent', userAgent)
+          .set('traceparent', traceparent)
+          .send({
+            jsonrpc: '2.0',
+            id: 3201,
+            method: 'initialize',
+            params: {
+              protocolVersion: '2025-11-25',
+              capabilities: {},
+              clientInfo: {
+                name: 'trace-context-test-client',
+                version: '1.0.0',
+              },
+            },
+          })
+          .expect(200);
+
+        const sessionIdHeader =
+          initResponse.headers['mcp-session-id'] ?? initResponse.headers['x-session-id'];
+        const sessionId = Array.isArray(sessionIdHeader) ? sessionIdHeader[0] : sessionIdHeader;
+        expect(typeof sessionId).toBe('string');
+        expect(sessionId).toBeTruthy();
+
+        await agent
+          .post('/mcp')
+          .set('Content-Type', 'application/json')
+          .set('Accept', 'application/json, text/event-stream')
+          .set('MCP-Protocol-Version', '2025-11-25')
+          .set('Mcp-Session-Id', sessionId as string)
+          .set('User-Agent', userAgent)
+          .send({
+            jsonrpc: '2.0',
+            method: 'notifications/initialized',
+          })
+          .expect((response) => {
+            expect([200, 202, 204]).toContain(response.status);
+          });
+
+        const toolResponse = await agent
+          .post('/mcp')
+          .set('Content-Type', 'application/json')
+          .set('Accept', 'application/json, text/event-stream')
+          .set('MCP-Protocol-Version', '2025-11-25')
+          .set('Mcp-Session-Id', sessionId as string)
+          .set('User-Agent', userAgent)
+          .set('traceparent', traceparent)
+          .send({
+            jsonrpc: '2.0',
+            id: 3202,
+            method: 'tools/call',
+            params: {
+              name: 'sheets_session',
+              arguments: {
+                request: {
+                  action: 'get_active',
+                },
+              },
+            },
+          })
+          .expect(200);
+
+        const responseResult =
+          toolResponse.body?.result ??
+          (() => {
+            const blocks = toolResponse.text.split(/\r?\n\r?\n/);
+            for (const block of blocks) {
+              const dataLines = block
+                .split(/\r?\n/)
+                .filter((line) => line.startsWith('data:'))
+                .map((line) => line.slice(5).trimStart());
+
+              if (dataLines.length === 0) {
+                continue;
+              }
+
+              let payload: { id?: number; result?: unknown } | undefined;
+              try {
+                payload = JSON.parse(dataLines.join('\n')) as {
+                  id?: number;
+                  result?: unknown;
+                };
+              } catch {
+                continue;
+              }
+
+              if (payload.id === 3202) {
+                return payload.result;
+              }
+            }
+            return undefined;
+          })();
+
+        expect(responseResult).toMatchObject({
+          structuredContent: {
+            response: {
+              success: true,
+              action: 'get_active',
+            },
+            _meta: {
+              traceId,
+            },
+          },
+        });
+      } finally {
+        // No-op: explicit session cleanup is handled by the test server teardown.
+      }
+    });
+
+    it('should stream progress notifications for tool calls that include a progress token', async () => {
+      const previousCheckpoints = process.env['ENABLE_CHECKPOINTS'];
+      process.env['ENABLE_CHECKPOINTS'] = 'true';
+
+      const client = createTestHttpClient(getBaseUrl());
+
+      try {
+        await client.initialize();
+
+        const response = (await (
+          client as unknown as {
+            sendRequest: (request: Record<string, unknown>) => Promise<{
+              result?: {
+                structuredContent?: {
+                  response?: {
+                    success?: boolean;
+                    action?: string;
+                  };
+                };
+              };
+            }>;
+          }
+        ).sendRequest({
+          jsonrpc: '2.0',
+          id: 3101,
+          method: 'tools/call',
+          params: {
+            name: 'sheets_session',
+            arguments: {
+              request: {
+                action: 'save_checkpoint',
+                sessionId: 'http-progress-test-session',
+                description: 'transport progress regression',
+              },
+            },
+            _meta: {
+              progressToken: 'tok-http-progress',
+            },
+          },
+        })) as {
+          result?: {
+            structuredContent?: {
+              response?: {
+                success?: boolean;
+                action?: string;
+              };
+            };
+          };
+        };
+
+        expect(response.result?.structuredContent?.response).toMatchObject({
+          success: true,
+          action: 'save_checkpoint',
+        });
+
+        expect(client.getNotifications()).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              method: 'notifications/progress',
+              params: expect.objectContaining({
+                progressToken: 'tok-http-progress',
+              }),
+            }),
+          ])
+        );
+      } finally {
+        await client.close();
+        if (previousCheckpoints === undefined) {
+          delete process.env['ENABLE_CHECKPOINTS'];
+        } else {
+          process.env['ENABLE_CHECKPOINTS'] = previousCheckpoints;
+        }
+      }
+    });
+
+    it('should complete an elicitation roundtrip over HTTP with an MCP client', async () => {
+      const client = createTestHttpClient(getBaseUrl(), {
+        capabilities: {
+          elicitation: { form: {} },
+          sampling: {},
+        },
+      });
+
+      client.setRequestHandler('elicitation/create', () => ({
+        action: 'accept',
+        content: {
+          approved: true,
+          modifications: 'Proceed with audit-safe rollout',
+          skipSnapshot: false,
+        },
+      }));
+
+      try {
+        await client.initialize();
+        await client.openEventStream();
+
+        const toolPromise = client.callTool('sheets_confirm', {
+          request: {
+            action: 'request',
+            plan: {
+              title: 'Audit MCP rollout',
+              description: 'Validate and approve the MCP transport rollout plan',
+              steps: [
+                {
+                  stepNumber: 1,
+                  description: 'Review transport coverage',
+                  tool: 'sheets_session',
+                  action: 'status',
+                  risk: 'low',
+                  estimatedApiCalls: 1,
+                  isDestructive: false,
+                  canUndo: true,
+                },
+              ],
+              willCreateSnapshot: false,
+            },
+          },
+        });
+
+        const elicitationRequest = await client.waitForRequest('elicitation/create', 3000);
+        const result = await toolPromise;
+        const structured = result.structuredContent as
+          | {
+              response?: {
+                success?: boolean;
+                action?: string;
+                confirmation?: {
+                  approved?: boolean;
+                  modifications?: string;
+                };
+              };
+            }
+          | undefined;
+
+        expect(elicitationRequest).toMatchObject({
+          method: 'elicitation/create',
+          params: expect.objectContaining({
+            message: expect.stringContaining('Audit MCP rollout'),
+          }),
+        });
+        expect(structured?.response).toMatchObject({
+          success: true,
+          action: 'request',
+          confirmation: expect.objectContaining({
+            approved: true,
+            modifications: 'Proceed with audit-safe rollout',
+          }),
+        });
+      } finally {
+        await client.close();
+      }
+    });
+
+    it('should complete a sampling roundtrip over HTTP with the official MCP SDK client', async () => {
+      const sdkClient = await createSdkHttpClient({
+        authToken: createJwtLikeBearerToken(getBaseUrl()),
+      });
+
+      try {
+        const result = await sdkClient.client.callTool({
+          name: 'sheets_composite',
+          arguments: {
+            request: {
+              action: 'preview_generation',
+              description: 'Create a department budget tracker with budget and actual columns',
+              style: 'professional',
+            },
+          },
+        });
+
+        const structured = result.structuredContent as
+          | {
+              response?: {
+                success?: boolean;
+                action?: string;
+                definition?: {
+                  title?: string;
+                  sheets?: Array<{ name?: string }>;
+                };
+              };
+            }
+          | undefined;
+
+        expect(sdkClient.samplingRequests).toHaveLength(1);
+        expect(sdkClient.samplingRequests[0]?.message).toContain(
+          'Create a department budget tracker'
+        );
+        expect(structured?.response).toMatchObject({
+          success: true,
+          action: 'preview_generation',
+          definition: expect.objectContaining({
+            title: 'Generated Budget Planner',
+          }),
+        });
+      } finally {
+        await sdkClient.close();
+      }
+    });
+
+    it('should support task-based tool execution over HTTP with the official MCP SDK client', async () => {
+      const sdkClient = await createSdkHttpClient();
+
+      try {
+        const stream = sdkClient.client.experimental.tasks.callToolStream(
+          {
+            name: 'sheets_history',
+            arguments: {
+              request: {
+                action: 'stats',
+              },
+            },
+          },
+          CallToolResultSchema,
+          {
+            task: { ttl: 60000 },
+          }
+        );
+
+        const seenMessageTypes: string[] = [];
+        let taskId: string | undefined;
+        let finalResult:
+          | {
+              structuredContent?: {
+                response?: {
+                  success?: boolean;
+                  action?: string;
+                };
+              };
+            }
+          | undefined;
+
+        for await (const message of stream) {
+          seenMessageTypes.push(message.type);
+
+          if (message.type === 'taskCreated') {
+            taskId = message.task.taskId;
+          }
+
+          if (message.type === 'result') {
+            finalResult = message.result as typeof finalResult;
+          }
+        }
+
+        expect(taskId).toBeDefined();
+        expect(seenMessageTypes).toContain('taskCreated');
+        expect(seenMessageTypes).toContain('result');
+
+        const task = await sdkClient.client.experimental.tasks.getTask(taskId!);
+        expect(task.status).toBe('completed');
+
+        const listedTasks = await sdkClient.client.experimental.tasks.listTasks();
+        expect(listedTasks.tasks.map((listed) => listed.taskId)).toContain(taskId!);
+
+        const taskResult = await sdkClient.client.experimental.tasks.getTaskResult(
+          taskId!,
+          CallToolResultSchema
+        );
+        const structured = taskResult.structuredContent as
+          | {
+              response?: {
+                success?: boolean;
+                action?: string;
+                error?: {
+                  code?: string;
+                  message?: string;
+                };
+              };
+            }
+          | undefined;
+
+        expect(finalResult?.structuredContent?.response).toMatchObject({
+          success: true,
+          action: 'stats',
+        });
+        expect(finalResult?.structuredContent?.response).not.toHaveProperty('taskId');
+        expect(structured?.response).toMatchObject({
+          success: true,
+          action: 'stats',
+        });
+        expect(structured?.response).not.toHaveProperty('taskId');
+      } finally {
+        await sdkClient.close();
+      }
+    });
+
+    it('should cancel a task-based tool execution over HTTP with the official MCP SDK client', async () => {
+      const sdkClient = await createSdkHttpClient({
+        authToken: createJwtLikeBearerToken(getBaseUrl()),
+        samplingHandler: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+
+          return {
+            model: 'mock-http-sampling-model',
+            role: 'assistant',
+            content: {
+              type: 'text',
+              text: JSON.stringify({
+                title: 'Delayed cancellation fallback',
+                sheets: [{ name: 'Cancelled' }],
+              }),
+            },
+          };
+        },
+      });
+
+      try {
+        const stream = sdkClient.client.experimental.tasks.callToolStream(
+          {
+            name: 'sheets_composite',
+            arguments: {
+              request: {
+                action: 'preview_generation',
+                description: 'Create a cancellation-focused forecast sheet',
+                style: 'professional',
+              },
+            },
+          },
+          CallToolResultSchema,
+          {
+            task: { ttl: 60000 },
+          }
+        );
+
+        const firstMessage = await stream.next();
+        expect(firstMessage.done).toBe(false);
+        expect(firstMessage.value?.type).toBe('taskCreated');
+
+        const taskId =
+          firstMessage.value?.type === 'taskCreated' ? firstMessage.value.task.taskId : undefined;
+        expect(taskId).toBeDefined();
+
+        await sdkClient.client.experimental.tasks.cancelTask(taskId!);
+
+        await vi.waitFor(
+          async () => {
+            const task = await sdkClient.client.experimental.tasks.getTask(taskId!);
+            expect(task.status).toBe('cancelled');
+          },
+          { timeout: 5000 }
+        );
+
+        const taskResult = await sdkClient.client.experimental.tasks.getTaskResult(
+          taskId!,
+          CallToolResultSchema
+        );
+        const structured = taskResult.structuredContent as
+          | {
+              response?: {
+                success?: boolean;
+                error?: {
+                  code?: string;
+                  message?: string;
+                };
+              };
+            }
+          | undefined;
+
+        expect(structured?.response).toMatchObject({
+          success: false,
+          error: {
+            code: 'TASK_CANCELLED',
+          },
+        });
+
+        for await (const message of stream) {
+          if (message.type === 'result') {
+            const streamedResult = message.result as {
+              structuredContent?: {
+                response?: {
+                  success?: boolean;
+                  error?: {
+                    code?: string;
+                  };
+                };
+              };
+            };
+
+            expect(streamedResult.structuredContent?.response).toMatchObject({
+              success: false,
+              error: {
+                code: 'TASK_CANCELLED',
+              },
+            });
+          }
+        }
+      } finally {
+        await sdkClient.close();
+      }
     });
   });
 
@@ -382,6 +1157,77 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
       // Should work without token (limited functionality)
       // May return 200, 406, or 426 (Upgrade Required for WebSocket transport)
       expect([200, 406, 426]).toContain(response.status);
+    });
+  });
+
+  describe('MCP Logging Bridge', () => {
+    it('should forward logger output after logging/setLevel via MCP notifications', async () => {
+      const initializeRequest = {
+        jsonrpc: '2.0',
+        id: 9001,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-11-25',
+          capabilities: {},
+          clientInfo: {
+            name: 'logging-bridge-test-client',
+            version: '1.0.0',
+          },
+        },
+      };
+
+      const initResponse = await agent
+        .post('/mcp')
+        .set('Content-Type', 'application/json')
+        .set('Accept', 'application/json, text/event-stream')
+        .send(initializeRequest)
+        .expect(200);
+
+      const sessionIdHeader =
+        initResponse.headers['mcp-session-id'] ?? initResponse.headers['x-session-id'];
+      const sessionId = Array.isArray(sessionIdHeader) ? sessionIdHeader[0] : sessionIdHeader;
+      expect(typeof sessionId).toBe('string');
+      expect(sessionId).toBeTruthy();
+
+      const sessions = server.sessions as Map<
+        string,
+        {
+          mcpServer: {
+            server: {
+              sendLoggingMessage: (message: unknown) => Promise<void>;
+            };
+          };
+        }
+      >;
+      const session = sessions.get(sessionId as string);
+      expect(session).toBeDefined();
+
+      const sendLoggingMessageSpy = vi
+        .spyOn(session!.mcpServer.server, 'sendLoggingMessage')
+        .mockResolvedValue(undefined);
+
+      await agent
+        .post('/mcp')
+        .set('Content-Type', 'application/json')
+        .set('Accept', 'application/json, text/event-stream')
+        .set('Mcp-Session-Id', sessionId as string)
+        .send({
+          jsonrpc: '2.0',
+          id: 9002,
+          method: 'logging/setLevel',
+          params: { level: 'debug' },
+        })
+        .expect(200);
+
+      logger.info('http-logging-bridge-regression-test');
+
+      await vi.waitFor(() => {
+        expect(sendLoggingMessageSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            logger: 'servalsheets',
+          })
+        );
+      });
     });
   });
 });

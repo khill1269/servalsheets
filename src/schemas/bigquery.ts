@@ -2,7 +2,7 @@
  * Tool 18: sheets_bigquery
  * BigQuery and Looker integration via Connected Sheets
  *
- * 14 Actions:
+ * 17 Actions:
  * Connection Management (5): connect, connect_looker, disconnect, list_connections, get_connection
  * Query Operations (4): query, preview, refresh, cancel_refresh
  * Schema Discovery (3): list_datasets, list_tables, get_table_schema
@@ -48,6 +48,10 @@ const BigQueryTableRefSchema = z.object({
   projectId: z.string().min(1).describe('GCP project ID'),
   datasetId: z.string().min(1).describe('BigQuery dataset ID'),
   tableId: z.string().min(1).describe('BigQuery table ID'),
+  location: z
+    .string()
+    .optional()
+    .describe('BigQuery dataset location for region-scoped jobs (e.g., "US", "EU")'),
 });
 
 // Data source specification for Connected Sheets (BigQuery)
@@ -306,10 +310,12 @@ const ExportToBigQueryActionSchema = CommonFieldsSchema.extend({
   range: RangeInputSchema.describe('Source range to export'),
   destination: BigQueryTableRefSchema.describe('Destination BigQuery table'),
   writeDisposition: z
-    .literal('WRITE_APPEND')
+    .enum(['WRITE_APPEND', 'WRITE_TRUNCATE', 'WRITE_EMPTY'])
     .optional()
     .default('WRITE_APPEND')
-    .describe('Streaming insert always appends. Only WRITE_APPEND is supported.'),
+    .describe(
+      'Write disposition: WRITE_APPEND (default) streams rows; WRITE_TRUNCATE deletes existing rows then streams; WRITE_EMPTY fails if table already has rows.'
+    ),
   headerRows: z.coerce
     .number()
     .int()
@@ -410,7 +416,7 @@ const CreateScheduledQueryActionSchema = z.object({
     .optional()
     .describe(
       'Service account email to run the scheduled query as (e.g., "sa@project.iam.gserviceaccount.com"). ' +
-      'If omitted, runs as the authenticated user.'
+        'If omitted, runs as the authenticated user.'
     ),
 });
 

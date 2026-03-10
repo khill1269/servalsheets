@@ -125,6 +125,15 @@ export class BackgroundAnalyzer {
         });
       }
 
+      // Store findings for suggestion engine boosting
+      const session = getSessionContext();
+      session.setRecentAnalysis(spreadsheetId, {
+        qualityScore,
+        qualityChange,
+        range,
+        alertTriggered,
+      });
+
       const duration = Date.now() - startTime;
       logger.info('Background analysis complete', {
         spreadsheetId,

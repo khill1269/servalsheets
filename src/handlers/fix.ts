@@ -7,10 +7,17 @@
  * fill_missing, detect_anomalies, suggest_cleaning.
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import { ValidationError } from '../core/errors.js';
 import type { Intent } from '../core/intent.js';
+import { CleaningEngine, parseRangeOffset } from '../services/cleaning-engine.js';
+import { generateAIInsight, withSamplingTimeout, assertSamplingConsent } from '../mcp/sampling.js';
+
+// ISSUE-047: CleaningEngine is stateless — use module-level singleton to avoid
+// recreating the instance (and its pre-compiled rule arrays) on every action call.
+const _cleaningEngine = new CleaningEngine();
 import type {
   SheetsFixInput,
   SheetsFixOutput,
@@ -23,7 +30,7 @@ import type {
   FillMissingInput,
   DetectAnomaliesInput,
   SuggestCleaningInput,
-  CellChange,
+  CleanCellChange,
 } from '../schemas/fix.js';
 
 export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
@@ -48,28 +55,27 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
         case 'fix':
           return this.handleFix(req as FixRequest & { action: 'fix' }, verbosity);
         case 'clean':
-          return this.handleClean(req as unknown as CleanInput, verbosity);
+          return this.handleClean(req as CleanInput, verbosity);
         case 'standardize_formats':
-          return this.handleStandardizeFormats(
-            req as unknown as StandardizeFormatsInput,
-            verbosity
-          );
+          return this.handleStandardizeFormats(req as StandardizeFormatsInput, verbosity);
         case 'fill_missing':
-          return this.handleFillMissing(req as unknown as FillMissingInput, verbosity);
+          return this.handleFillMissing(req as FillMissingInput, verbosity);
         case 'detect_anomalies':
-          return this.handleDetectAnomalies(req as unknown as DetectAnomaliesInput, verbosity);
+          return this.handleDetectAnomalies(req as DetectAnomaliesInput, verbosity);
         case 'suggest_cleaning':
-          return this.handleSuggestCleaning(req as unknown as SuggestCleaningInput, verbosity);
-        default:
+          return this.handleSuggestCleaning(req as SuggestCleaningInput, verbosity);
+        default: {
+          const _exhaustiveCheck: never = req;
           return {
             response: this.mapError(
               new ValidationError(
-                `Unknown action: ${(req as { action: string }).action}`,
+                `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
                 'action',
                 'fix | clean | standardize_formats | fill_missing | detect_anomalies | suggest_cleaning'
               )
             ),
           };
+        }
       }
     } catch (err) {
       return { response: this.mapError(err) };
@@ -80,7 +86,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
   private async handleFix(
     req: FixRequest & { action: 'fix'; verbosity?: 'minimal' | 'standard' | 'detailed' },
-    verbosity: string
+    verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<SheetsFixOutput> {
     // Type narrow to ensure required fields are present
     if (!req.spreadsheetId || !req.issues) {
@@ -127,6 +133,29 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     }
 
     // Apply mode - execute operations
+    // ISSUE-131: Confirm before applying large batches (>5 ops) to avoid unreviewed changes
+    const CLEAN_CONFIRM_THRESHOLD = 5;
+    if (operations.length > CLEAN_CONFIRM_THRESHOLD) {
+      const confirmed = await this.confirmOperation(
+        `Apply ${operations.length} fix operations`,
+        `This will apply ${operations.length} changes to spreadsheet ${req.spreadsheetId}. Review the preview output before proceeding.`,
+        { isDestructive: false, operationType: 'fix_apply_batch' },
+        { skipIfElicitationUnavailable: true }
+      );
+      if (!confirmed) {
+        return {
+          response: {
+            success: false as const,
+            error: {
+              code: ErrorCodes.OPERATION_CANCELLED,
+              message: `Fix apply cancelled by user. ${operations.length} operation(s) were not applied. Run in preview mode first to review changes.`,
+              retryable: false,
+            },
+          },
+        };
+      }
+    }
+
     const snapshot =
       req.safety?.createSnapshot !== false
         ? await this.createSnapshot(req.spreadsheetId)
@@ -166,36 +195,99 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
   // ─── F3: Clean action ───
 
-  private async handleClean(req: CleanInput, verbosity: string): Promise<SheetsFixOutput> {
-    if (!req.spreadsheetId || !req.range) {
+  private async handleClean(
+    req: CleanInput,
+    verbosity: 'minimal' | 'standard' | 'detailed'
+  ): Promise<SheetsFixOutput> {
+    let resolvedInput = req;
+
+    // Wizard: If no specific rules are provided, elicit cleaning mode
+    if (
+      (!resolvedInput.rules || resolvedInput.rules.length === 0) &&
+      this.context?.server?.elicitInput
+    ) {
+      try {
+        const wizard = await this.context.server.elicitInput({
+          message: 'Ready to clean data. Preview first or apply directly?',
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              mode: {
+                type: 'string',
+                title: 'Cleaning mode',
+                description: 'Preview changes first (safe) or apply directly?',
+                enum: ['preview', 'apply'],
+              },
+            },
+          },
+        });
+        const wizardContent = wizard?.content as Record<string, unknown> | undefined;
+        const mode =
+          wizardContent?.['mode'] === 'preview' || wizardContent?.['mode'] === 'apply'
+            ? wizardContent['mode']
+            : undefined;
+        if (wizard?.action === 'accept' && mode) {
+          resolvedInput = { ...resolvedInput, mode };
+        }
+      } catch {
+        // Elicitation not available — default to preview mode
+        if (!resolvedInput.mode) {
+          resolvedInput = { ...resolvedInput, mode: 'preview' as const };
+        }
+      }
+    }
+
+    if (!resolvedInput.spreadsheetId || !resolvedInput.range) {
       return {
         response: this.mapError(new Error('Missing required fields: spreadsheetId and range')),
       };
     }
 
-    const mode = req.mode ?? 'preview';
+    const mode = resolvedInput.mode ?? 'preview';
 
-    // Dynamically import to avoid circular deps and keep handler lean
-    const { CleaningEngine, parseRangeOffset } = await import('../services/cleaning-engine.js');
-    const engine = new CleaningEngine();
+    const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
     // Fetch data from the range
-    const data = await this.fetchRangeData(req.spreadsheetId, req.range);
-    const rangeOffset = parseRangeOffset(req.range);
+    const data = await this.fetchRangeData(resolvedInput.spreadsheetId, resolvedInput.range);
+    const rangeOffset = parseRangeOffset(resolvedInput.range);
 
     // Run cleaning
-    const result = await engine.clean(data, req.rules, rangeOffset);
+    const result = await engine.clean(data, resolvedInput.rules, rangeOffset);
 
     // Apply mode: write changes back
     if (mode === 'apply' && result.changes.length > 0) {
       const snapshot =
-        req.safety?.createSnapshot !== false
-          ? await this.createSnapshot(req.spreadsheetId)
+        resolvedInput.safety?.createSnapshot !== false
+          ? await this.createSnapshot(resolvedInput.spreadsheetId)
           : undefined;
 
-      await this.writeChanges(req.spreadsheetId, req.range, data, result.changes, rangeOffset);
+      await this.writeChanges(
+        resolvedInput.spreadsheetId,
+        resolvedInput.range,
+        data,
+        result.changes,
+        rangeOffset
+      );
 
-      this.trackContextFromRequest({ spreadsheetId: req.spreadsheetId });
+      this.trackContextFromRequest({ spreadsheetId: resolvedInput.spreadsheetId });
+
+      // Wire session context: record applied cleaning rules for learning
+      try {
+        if (this.context.sessionContext && result.summary.rulesApplied.length > 0) {
+          this.context.sessionContext.recordOperation({
+            tool: 'sheets_fix',
+            action: 'clean',
+            spreadsheetId: resolvedInput.spreadsheetId,
+            range: resolvedInput.range,
+            description: `Cleaned ${result.summary.cellsCleaned} cell(s) using rules: ${result.summary.rulesApplied.join(', ')}`,
+            undoable: !!snapshot?.revisionId,
+            snapshotId: snapshot?.revisionId,
+            cellsAffected: result.summary.cellsCleaned,
+          });
+        }
+      } catch {
+        /* non-blocking */
+      }
 
       const response = {
         success: true as const,
@@ -211,6 +303,35 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       return { response: super.applyVerbosityFilter(response, verbosity) };
     }
 
+    // Wire AI-powered cleaning recommendation after completion (both modes)
+    let aiRecommendation: string | undefined;
+    if (this.context.samplingServer && result.changes.length > 0) {
+      try {
+        await assertSamplingConsent(); // ISSUE-226: GDPR consent gate
+        const recResult = await withSamplingTimeout(() =>
+          this.context.samplingServer!.createMessage({
+            messages: [
+              {
+                role: 'user' as const,
+                content: {
+                  type: 'text' as const,
+                  text: `Evaluate these data cleaning results:\n- Rules applied: ${result.summary.rulesApplied.join(', ')}\n- Cells cleaned: ${result.summary.cellsCleaned}\n- Total changes: ${result.changes.length}\n\nRecommend any follow-up cleaning steps or optimizations.`,
+                },
+              },
+            ],
+            maxTokens: 256,
+          })
+        );
+        const text = Array.isArray(recResult.content)
+          ? ((recResult.content.find((c) => c.type === 'text') as { text: string } | undefined)
+              ?.text ?? '')
+          : ((recResult.content as { text?: string }).text ?? '');
+        aiRecommendation = text.trim();
+      } catch {
+        // Non-blocking: sampling failure should not block the response
+      }
+    }
+
     // Preview mode
     const response = {
       success: true as const,
@@ -221,6 +342,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       message: `Preview: ${result.summary.cellsCleaned} cell(s) would be cleaned using ${result.summary.rulesApplied.length} rule(s). Use mode="apply" to execute.`,
       changes: result.changes,
       cleaningSummary: result.summary,
+      ...(aiRecommendation !== undefined ? { aiRecommendation } : {}),
     };
     return { response: super.applyVerbosityFilter(response, verbosity) };
   }
@@ -229,7 +351,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
   private async handleStandardizeFormats(
     req: StandardizeFormatsInput,
-    verbosity: string
+    verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<SheetsFixOutput> {
     if (!req.spreadsheetId || !req.range || !req.columns) {
       return {
@@ -241,8 +363,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     const mode = req.mode ?? 'preview';
 
-    const { CleaningEngine, parseRangeOffset } = await import('../services/cleaning-engine.js');
-    const engine = new CleaningEngine();
+    const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
     const data = await this.fetchRangeData(req.spreadsheetId, req.range);
     const rangeOffset = parseRangeOffset(req.range);
@@ -259,6 +380,23 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
       this.trackContextFromRequest({ spreadsheetId: req.spreadsheetId });
 
+      try {
+        if (this.context.sessionContext) {
+          this.context.sessionContext.recordOperation({
+            tool: 'sheets_fix',
+            action: 'standardize_formats',
+            spreadsheetId: req.spreadsheetId,
+            range: req.range,
+            description: `Standardized ${result.summary.cellsChanged} cell(s) across ${result.summary.columnsProcessed} column(s)`,
+            undoable: !!snapshot?.revisionId,
+            snapshotId: snapshot?.revisionId,
+            cellsAffected: result.summary.cellsChanged,
+          });
+        }
+      } catch {
+        /* non-blocking */
+      }
+
       const response = {
         success: true as const,
         mode: 'apply' as const,
@@ -273,6 +411,35 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       return { response: super.applyVerbosityFilter(response, verbosity) };
     }
 
+    // Wire AI detection of ambiguous format conversions after completion
+    let aiWarnings: string | undefined;
+    if (this.context.samplingServer && result.changes.length > 0) {
+      try {
+        await assertSamplingConsent(); // ISSUE-226: GDPR consent gate
+        const warnResult = await withSamplingTimeout(() =>
+          this.context.samplingServer!.createMessage({
+            messages: [
+              {
+                role: 'user' as const,
+                content: {
+                  type: 'text' as const,
+                  text: `Identify ambiguous format conversions that might produce incorrect results:\n- Format specs: ${req.columns.map((c) => `${c.column}→${c.targetFormat}`).join(', ')}\n- Cells changed: ${result.summary.cellsChanged}\n- Columns processed: ${result.summary.columnsProcessed}\n\nWarn about date ambiguities (MM/DD vs DD/MM), locale mismatches, or potential data loss.`,
+                },
+              },
+            ],
+            maxTokens: 256,
+          })
+        );
+        const text = Array.isArray(warnResult.content)
+          ? ((warnResult.content.find((c) => c.type === 'text') as { text: string } | undefined)
+              ?.text ?? '')
+          : ((warnResult.content as { text?: string }).text ?? '');
+        aiWarnings = text.trim();
+      } catch {
+        // Non-blocking: sampling failure should not block the response
+      }
+    }
+
     const response = {
       success: true as const,
       mode: 'preview' as const,
@@ -282,6 +449,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       message: `Preview: ${result.summary.cellsChanged} cell(s) would be standardized across ${result.summary.columnsProcessed} column(s). Use mode="apply" to execute.`,
       formatChanges: result.changes,
       formatSummary: result.summary,
+      ...(aiWarnings !== undefined ? { aiWarnings } : {}),
     };
     return { response: super.applyVerbosityFilter(response, verbosity) };
   }
@@ -290,7 +458,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
   private async handleFillMissing(
     req: FillMissingInput,
-    verbosity: string
+    verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<SheetsFixOutput> {
     if (!req.spreadsheetId || !req.range || !req.strategy) {
       return {
@@ -302,8 +470,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     const mode = req.mode ?? 'preview';
 
-    const { CleaningEngine, parseRangeOffset } = await import('../services/cleaning-engine.js');
-    const engine = new CleaningEngine();
+    const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
     const data = await this.fetchRangeData(req.spreadsheetId, req.range);
     const rangeOffset = parseRangeOffset(req.range);
@@ -325,6 +492,23 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
       this.trackContextFromRequest({ spreadsheetId: req.spreadsheetId });
 
+      try {
+        if (this.context.sessionContext) {
+          this.context.sessionContext.recordOperation({
+            tool: 'sheets_fix',
+            action: 'fill_missing',
+            spreadsheetId: req.spreadsheetId,
+            range: req.range,
+            description: `Filled ${result.summary.filled} missing cell(s) using ${req.strategy} strategy`,
+            undoable: !!snapshot?.revisionId,
+            snapshotId: snapshot?.revisionId,
+            cellsAffected: result.summary.filled,
+          });
+        }
+      } catch {
+        /* non-blocking */
+      }
+
       const response = {
         success: true as const,
         mode: 'apply' as const,
@@ -339,6 +523,35 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       return { response: super.applyVerbosityFilter(response, verbosity) };
     }
 
+    // Wire AI-powered fill strategy evaluation after completion
+    let aiEvaluation: string | undefined;
+    if (this.context.samplingServer && result.changes.length > 0) {
+      try {
+        await assertSamplingConsent(); // ISSUE-226: GDPR consent gate
+        const evalResult = await withSamplingTimeout(() =>
+          this.context.samplingServer!.createMessage({
+            messages: [
+              {
+                role: 'user' as const,
+                content: {
+                  type: 'text' as const,
+                  text: `Evaluate the fill strategy used for missing data:\n- Strategy: ${req.strategy}\n- Cells filled: ${result.summary.filled} of ${result.summary.totalEmpty}\n- Columns affected: ${Object.keys(result.summary.byColumn).length}\n\nWas this the best approach? Suggest better strategies if applicable (e.g., use median instead of mean for skewed data, use forward-fill for time series).`,
+                },
+              },
+            ],
+            maxTokens: 256,
+          })
+        );
+        const text = Array.isArray(evalResult.content)
+          ? ((evalResult.content.find((c) => c.type === 'text') as { text: string } | undefined)
+              ?.text ?? '')
+          : ((evalResult.content as { text?: string }).text ?? '');
+        aiEvaluation = text.trim();
+      } catch {
+        // Non-blocking: sampling failure should not block the response
+      }
+    }
+
     const response = {
       success: true as const,
       mode: 'preview' as const,
@@ -348,6 +561,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       message: `Preview: ${result.summary.filled} of ${result.summary.totalEmpty} empty cell(s) would be filled using "${req.strategy}" strategy. Use mode="apply" to execute.`,
       fillChanges: result.changes,
       fillSummary: result.summary,
+      ...(aiEvaluation !== undefined ? { aiEvaluation } : {}),
     };
     return { response: super.applyVerbosityFilter(response, verbosity) };
   }
@@ -356,7 +570,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
   private async handleDetectAnomalies(
     req: DetectAnomaliesInput,
-    verbosity: string
+    verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<SheetsFixOutput> {
     if (!req.spreadsheetId || !req.range) {
       return {
@@ -364,8 +578,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       };
     }
 
-    const { CleaningEngine, parseRangeOffset } = await import('../services/cleaning-engine.js');
-    const engine = new CleaningEngine();
+    const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
     const data = await this.fetchRangeData(req.spreadsheetId, req.range);
     const rangeOffset = parseRangeOffset(req.range);
@@ -378,6 +591,21 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       rangeOffset
     );
 
+    // Wire AI insight: explain anomaly causes
+    let aiInsight: string | undefined;
+    if (result.anomalies.length > 0) {
+      const sampleAnomalies = result.anomalies
+        .slice(0, 10)
+        .map((a) => `${a.cell}: ${a.value} (${a.score?.toFixed(2) ?? '?'})`)
+        .join('; ');
+      aiInsight = await generateAIInsight(
+        this.context.samplingServer,
+        'anomalyExplanation',
+        'Explain why these values are anomalies and what might have caused them',
+        sampleAnomalies
+      );
+    }
+
     // detect_anomalies is always read-only (no apply mode)
     const response = {
       success: true as const,
@@ -388,6 +616,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       message: `Found ${result.summary.anomaliesFound} anomaly(ies) across ${Object.keys(result.summary.byColumn).length} column(s) using ${result.summary.method} method (threshold: ${result.summary.threshold}).`,
       anomalies: result.anomalies,
       anomalySummary: result.summary,
+      ...(aiInsight !== undefined ? { aiInsight } : {}),
     };
     return { response: super.applyVerbosityFilter(response, verbosity) };
   }
@@ -396,7 +625,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
   private async handleSuggestCleaning(
     req: SuggestCleaningInput,
-    verbosity: string
+    verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<SheetsFixOutput> {
     if (!req.spreadsheetId || !req.range) {
       return {
@@ -404,13 +633,27 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       };
     }
 
-    const { CleaningEngine, parseRangeOffset } = await import('../services/cleaning-engine.js');
-    const engine = new CleaningEngine();
+    const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
     const data = await this.fetchRangeData(req.spreadsheetId, req.range);
     const rangeOffset = parseRangeOffset(req.range);
 
     const result = await engine.suggestCleaning(data, req.maxRecommendations ?? 10, rangeOffset);
+
+    // Wire AI insight: recommend cleaning strategy
+    let aiInsight: string | undefined;
+    if (result.recommendations.length > 0) {
+      const columnsWithNulls = result.dataProfile.columnProfiles.filter(
+        (c) => c.nullCount > 0
+      ).length;
+      const profileSummary = `${result.dataProfile.totalRows} rows, ${result.dataProfile.totalColumns} columns, null rate ${result.dataProfile.nullRate}. Columns with missing values: ${columnsWithNulls}.`;
+      aiInsight = await generateAIInsight(
+        this.context.samplingServer,
+        'cleaningStrategy',
+        'Based on the data profile, recommend the optimal cleaning strategy and rule priority order',
+        profileSummary
+      );
+    }
 
     // suggest_cleaning is always read-only
     const response = {
@@ -422,7 +665,28 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       message: `Found ${result.recommendations.length} cleaning recommendation(s) after profiling ${result.dataProfile.totalRows} row(s) across ${result.dataProfile.totalColumns} column(s).`,
       recommendations: result.recommendations,
       dataProfile: result.dataProfile,
+      ...(aiInsight !== undefined ? { aiInsight } : {}),
     };
+
+    // Wire session context: cache recommendations as pending operation for quick follow-up
+    try {
+      if (this.context.sessionContext && result.recommendations.length > 0) {
+        const ruleIds = result.recommendations.map((r) => r.suggestedRule ?? r.id ?? 'unknown');
+        this.context.sessionContext.setPendingOperation({
+          type: 'suggest_cleaning',
+          step: 1,
+          totalSteps: 2,
+          context: {
+            spreadsheetId: req.spreadsheetId,
+            range: req.range,
+            suggestedRuleIds: ruleIds,
+          },
+        });
+      }
+    } catch {
+      /* non-blocking */
+    }
+
     return { response: super.applyVerbosityFilter(response, verbosity) };
   }
 
@@ -489,7 +753,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     spreadsheetId: string,
     range: string,
     originalData: (string | number | boolean | null)[][],
-    changes: CellChange[],
+    changes: CleanCellChange[],
     _rangeOffset: { startRow: number; startCol: number }
   ): Promise<void> {
     // Apply changes to the data grid
@@ -500,11 +764,12 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       const dataRow = change.row - _rangeOffset.startRow;
       const dataCol = change.col - _rangeOffset.startCol;
 
-      if (dataRow >= 0 && dataRow < updatedData.length) {
-        while (updatedData[dataRow].length <= dataCol) {
-          updatedData[dataRow].push(null);
+      const targetRow = updatedData[dataRow];
+      if (dataRow >= 0 && dataRow < updatedData.length && targetRow) {
+        while (targetRow.length <= dataCol) {
+          targetRow.push(null);
         }
-        updatedData[dataRow][dataCol] = change.newValue;
+        targetRow[dataCol] = change.newValue;
       }
     }
 
@@ -524,7 +789,10 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   /**
    * Filter issues based on user preferences
    */
-  private filterIssues(issues: IssueToFix[], filters?: FixRequest['filters']): IssueToFix[] {
+  private filterIssues(
+    issues: IssueToFix[],
+    filters?: Extract<FixRequest, { action: 'fix' }>['filters']
+  ): IssueToFix[] {
     if (!filters) return issues;
 
     let filtered = issues;
@@ -734,18 +1002,10 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     _spreadsheetId: string,
     _issue: IssueToFix
   ): Promise<FixOperation[]> {
-    // Requires reading formulas, parsing, and rewriting — placeholder
-    return [
-      {
-        id: `fix_full_column_${Date.now()}`,
-        issueType: 'FULL_COLUMN_REFS',
-        tool: 'sheets_data',
-        action: 'find_replace',
-        parameters: {},
-        estimatedImpact: 'Replace A:A with A2:A500 in formulas',
-        risk: 'medium',
-      },
-    ];
+    // NOT_IMPLEMENTED: Requires formula AST parsing + rewriting (A:A → A2:A500).
+    // Full column refs trigger full grid fetch — significant perf impact — but
+    // automated rewriting needs formula-level analysis to determine safe bounds.
+    return []; // OK: Explicit empty — full column ref rewriting not yet implemented
   }
 
   /**
@@ -755,8 +1015,9 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     _spreadsheetId: string,
     _issue: IssueToFix
   ): Promise<FixOperation[]> {
-    // Requires formula parsing and rewriting — placeholder
-    return []; // OK: Explicit empty — not yet implemented
+    // NOT_IMPLEMENTED: Requires formula AST analysis to simplify nested IFERROR chains
+    // (e.g., IFERROR(IFERROR(A,B),C) → IFERROR(A,IFERROR(B,C))) while preserving semantics.
+    return []; // OK: Explicit empty — nested IFERROR simplification not yet implemented
   }
 
   /**
@@ -766,8 +1027,10 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     _spreadsheetId: string,
     _sheetName: string
   ): Promise<FixOperation[]> {
-    // Would need to read rules, merge similar ones, delete duplicates — placeholder
-    return []; // OK: Explicit empty — not yet implemented
+    // NOT_IMPLEMENTED: Requires reading all CF rules, identifying overlapping/duplicate
+    // conditions, and merging them without changing visual behavior. Complex rule interaction
+    // analysis needed (priority ordering, stop-if-true semantics).
+    return []; // OK: Explicit empty — conditional format rule deduplication not yet implemented
   }
 
   /**

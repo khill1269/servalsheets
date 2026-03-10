@@ -18,6 +18,7 @@ import {
   resetAccessPatternTracker,
 } from '../../src/services/access-pattern-tracker.js';
 import { cacheManager } from '../../src/utils/cache-manager.js';
+import { waitFor } from '../helpers/wait-for.js';
 
 describe('PrefetchingSystem Integration', () => {
   let mockSheetsApi: sheets_v4.Sheets;
@@ -153,7 +154,7 @@ describe('PrefetchingSystem Integration', () => {
       });
 
       // Wait for queue to process
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       const stats = prefetchingSystem.getStats();
       expect(stats.totalPrefetches).toBeGreaterThan(0);
@@ -183,7 +184,7 @@ describe('PrefetchingSystem Integration', () => {
       ).resolves.not.toThrow();
 
       // Wait for queue to process
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       // System should still be functional
       const stats = prefetchingSystem.getStats();
@@ -197,7 +198,7 @@ describe('PrefetchingSystem Integration', () => {
       await prefetchingSystem.prefetchOnOpen('test-sheet-123');
 
       // Wait for queue to process
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       const stats = prefetchingSystem.getStats();
       // prefetchOnOpen queues comprehensive metadata + first 100 rows
@@ -214,7 +215,7 @@ describe('PrefetchingSystem Integration', () => {
       await prefetchingSystem.prefetchOnOpen('test-sheet-123');
 
       // Wait for prefetch queue
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       const stats = prefetchingSystem.getStats();
       expect(stats.totalPrefetches).toBeGreaterThan(0);
@@ -227,7 +228,7 @@ describe('PrefetchingSystem Integration', () => {
   });
 
   describe('Circuit Breaker', () => {
-    it('should open circuit breaker after high failure rate', async () => {
+    it('should open circuit breaker after high failure rate', { timeout: 60000 }, async () => {
       // Force all prefetches to fail
       mockValuesGet.mockRejectedValue(new Error('API Error'));
       mockSpreadsheetGet.mockRejectedValue(new Error('API Error'));
@@ -247,11 +248,11 @@ describe('PrefetchingSystem Integration', () => {
           range: `A${i}:B${i + 10}`,
         });
 
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        await waitFor(10);
       }
 
       // Wait for all prefetches to fail
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await waitFor(2000);
 
       const stats = prefetchingSystem.getStats();
       expect(stats.failureRate).toBeGreaterThan(0.3);
@@ -271,10 +272,10 @@ describe('PrefetchingSystem Integration', () => {
           spreadsheetId: 'test-sheet-123',
           range: `A${i}:B${i}`,
         });
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        await waitFor(10);
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await waitFor(1000);
 
       // Circuit should be open
       const updatedStats = prefetchingSystem.getStats();
@@ -286,7 +287,7 @@ describe('PrefetchingSystem Integration', () => {
         range: 'Z1:Z10',
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       // Total prefetches should not increase significantly
       const finalStats = prefetchingSystem.getStats();

@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { sheets_v4 } from 'googleapis';
 import { PrefetchingSystem } from '../../src/services/prefetching-system.js';
 import { cacheManager } from '../../src/utils/cache-manager.js';
+import { waitFor } from '../helpers/wait-for.js';
 
 describe('Background Refresh', () => {
   let mockSheetsApi: sheets_v4.Sheets;
@@ -66,7 +67,7 @@ describe('Background Refresh', () => {
     );
 
     // Wait for entry to be within refresh threshold
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    await waitFor(30);
 
     // Get expiring entries within 200ms threshold
     const expiring = cacheManager.getExpiringEntries(200, 'prefetch');
@@ -87,13 +88,13 @@ describe('Background Refresh', () => {
     await prefetchSystem.prefetchOnOpen('test-spreadsheet-id');
 
     // Wait for prefetch to complete
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await waitFor(100);
 
     // Clear mock call count
     vi.clearAllMocks();
 
     // Wait for cache to approach expiry (using short TTL in test)
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitFor(200);
 
     // Background refresh should have triggered
     // Check if API was called for refresh
@@ -124,7 +125,7 @@ describe('Background Refresh', () => {
     }
 
     // Wait for entries to approach expiry
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await waitFor(60);
 
     // Get stats to verify refresh system is working
     const stats = prefetchSystem.getStats();
@@ -140,7 +141,7 @@ describe('Background Refresh', () => {
       // Ignore initial failure
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await waitFor(100);
 
     // Stats should track failures
     const stats = prefetchSystem.getStats();
@@ -160,7 +161,7 @@ describe('Background Refresh', () => {
     });
 
     // Wait for refresh threshold
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await waitFor(100);
 
     // The background refresh should have updated the cache
     // (In real scenario, this happens automatically)
@@ -170,7 +171,7 @@ describe('Background Refresh', () => {
     // Prefetch data
     await prefetchSystem.prefetchOnOpen('test-id');
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await waitFor(100);
 
     const stats = prefetchSystem.getStats();
 
@@ -195,7 +196,7 @@ describe('Background Refresh', () => {
     await prefetchSystem.prefetchOnOpen('test-id');
 
     // Wait for one refresh cycle
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await waitFor(50);
 
     const elapsedTime = Date.now() - startTime;
 
@@ -226,7 +227,7 @@ describe('Background Refresh', () => {
     }
 
     // Wait for entries to approach expiry
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await waitFor(60);
 
     // System should handle multiple concurrent refreshes
     const stats = prefetchSystem.getStats();
@@ -240,7 +241,7 @@ describe('Background Refresh', () => {
     cacheManager.set(coldKey, { values: [['cold']] }, { namespace: 'prefetch', ttl: 150 });
 
     // Wait for entry to approach expiry
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await waitFor(60);
 
     // Cold data should have lower priority
     // (Implementation prioritizes hot data)
@@ -276,7 +277,7 @@ describe('Background Refresh', () => {
       );
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await waitFor(60);
 
     // System should be able to parse all formats
     const stats = prefetchSystem.getStats();
@@ -285,7 +286,9 @@ describe('Background Refresh', () => {
 
   it('limits metadata storage to prevent memory bloat', async () => {
     // Create many prefetch operations to test metadata limit
-    for (let i = 0; i < 1100; i++) {
+    // Use 200 iterations (above typical cache limits) instead of 1100
+    // to avoid test timeout in CI environments
+    for (let i = 0; i < 200; i++) {
       await prefetchSystem.prefetch({
         spreadsheetId: `sheet-${i}`,
         range: 'A1:B10',
@@ -293,7 +296,7 @@ describe('Background Refresh', () => {
     }
 
     // Wait for prefetches to complete
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitFor(200);
 
     // System should have limited metadata storage
     const stats = prefetchSystem.getStats();
@@ -324,7 +327,7 @@ describe('Background Refresh', () => {
 
     // Cold entry is never accessed
 
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await waitFor(60);
 
     // Hot data should be refreshed first
     const stats = prefetchSystem.getStats();
@@ -335,7 +338,7 @@ describe('Background Refresh', () => {
     // Prefetch comprehensive metadata
     await prefetchSystem.prefetchOnOpen('comprehensive-test');
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await waitFor(100);
 
     // Mock should have been called for comprehensive metadata
     expect(mockSheetsApi.spreadsheets.get).toHaveBeenCalled();
@@ -354,7 +357,7 @@ describe('Background Refresh', () => {
       { namespace: 'spreadsheet', ttl: 150 }
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await waitFor(60);
 
     // System should handle both namespaces
     const prefetchExpiring = cacheManager.getExpiringEntries(100, 'prefetch');

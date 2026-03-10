@@ -130,7 +130,7 @@ services:
 
       # Token store encryption
       GOOGLE_TOKEN_STORE_PATH: /app/data/tokens.enc
-      GOOGLE_TOKEN_STORE_KEY: ${GOOGLE_TOKEN_STORE_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
 
       # Optional: Redis for HA sessions + Streamable HTTP resumability
       # REDIS_URL: redis://redis:6379
@@ -282,7 +282,7 @@ stringData:
       "type": "service_account",
       "project_id": "your-project",
       "private_key_id": "xxx",
-      "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+      "private_key": "<service-account-private-key>",
       "client_email": "servalsheets-prod@your-project.iam.gserviceaccount.com",
       "client_id": "xxx",
       "auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -360,7 +360,7 @@ spec:
           env:
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: /secrets/service-account.json
-            - name: GOOGLE_TOKEN_STORE_KEY
+            - name: ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
                   name: servalsheets-secret
@@ -667,7 +667,7 @@ GOOGLE_APPLICATION_CREDENTIALS=/opt/servalsheets/config/service-account.json
 
 # Token store
 GOOGLE_TOKEN_STORE_PATH=/opt/servalsheets/data/tokens.enc
-GOOGLE_TOKEN_STORE_KEY=8f3b2c1a9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1
+ENCRYPTION_KEY=8f3b2c1a9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1
 
 # Feature flags (staged rollout)
 ENABLE_DATAFILTER_BATCH=true
@@ -773,7 +773,7 @@ module.exports = {
 
         // Token store
         GOOGLE_TOKEN_STORE_PATH: '/path/to/tokens.enc',
-        GOOGLE_TOKEN_STORE_KEY: '8f3b2c1a9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1',
+        ENCRYPTION_KEY: '8f3b2c1a9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1',
       },
 
       // Logging
@@ -903,7 +903,7 @@ pm2 link <secret> <public>
           "valueFrom": "arn:aws:secretsmanager:us-east-1:123456789012:secret:servalsheets/service-account"
         },
         {
-          "name": "GOOGLE_TOKEN_STORE_KEY",
+          "name": "ENCRYPTION_KEY",
           "valueFrom": "arn:aws:secretsmanager:us-east-1:123456789012:secret:servalsheets/token-key"
         }
       ],

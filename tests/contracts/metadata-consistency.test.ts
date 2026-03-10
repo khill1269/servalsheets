@@ -54,6 +54,42 @@ describe('Metadata Consistency Contract', () => {
     expect(serverJson.metadata.actionCount).toBe(ACTION_COUNT);
   });
 
+  it('server.json instructions prioritize auth and direct routing over blanket analysis', () => {
+    const serverJson = JSON.parse(readFileSync('server.json', 'utf-8'));
+
+    expect(serverJson.instructions).toContain('sheets_auth action "status"');
+    expect(serverJson.instructions).toContain('route directly to the matching tool');
+    expect(serverJson.instructions).toContain('sheets_analyze action "scout"');
+    expect(serverJson.instructions).toContain('"comprehensive" only for full audits');
+    expect(serverJson.instructions).not.toContain(
+      'Use sheets_analyze with action "comprehensive" to start'
+    );
+  });
+
+  it('server.json metadata categories cover every tool exactly once', () => {
+    const serverJson = JSON.parse(readFileSync('server.json', 'utf-8'));
+
+    const categorizedToolNames = serverJson.metadata.categories.flatMap((category: string) => {
+      const separatorIndex = category.indexOf(':');
+      if (separatorIndex === -1) {
+        return [];
+      }
+
+      return category
+        .slice(separatorIndex + 1)
+        .split(',')
+        .map((value: string) => value.trim())
+        .filter(Boolean);
+    });
+
+    const declaredToolNames = serverJson.tools.map((tool: { name: string }) =>
+      tool.name.replace(/^sheets_/, '')
+    );
+
+    expect(new Set(categorizedToolNames).size).toBe(TOOL_COUNT);
+    expect(categorizedToolNames.sort()).toEqual(declaredToolNames.sort());
+  });
+
   it('server.json package description has correct counts', () => {
     const serverJson = JSON.parse(readFileSync('server.json', 'utf-8'));
 

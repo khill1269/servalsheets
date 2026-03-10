@@ -16,15 +16,21 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { TransactionManager } from '../../src/services/transaction-manager.js';
 import type { TransactionConfig } from '../../src/types/transaction.js';
+import { promises as fs } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
+import { randomBytes } from 'crypto';
 
 describe('TransactionManager', () => {
   let transactionManager: TransactionManager;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockGoogleClient: any;
   let cleanupInterval: NodeJS.Timeout | undefined;
+  const originalWalDir = process.env['TRANSACTION_WAL_DIR'];
 
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env['TRANSACTION_WAL_DIR'];
 
     // Create comprehensive mock for Google API client
     mockGoogleClient = {
@@ -85,6 +91,12 @@ describe('TransactionManager', () => {
     if (cleanupInterval) {
       clearInterval(cleanupInterval);
       cleanupInterval = undefined;
+    }
+
+    if (originalWalDir === undefined) {
+      delete process.env['TRANSACTION_WAL_DIR'];
+    } else {
+      process.env['TRANSACTION_WAL_DIR'] = originalWalDir;
     }
   });
 
@@ -523,7 +535,7 @@ describe('TransactionManager', () => {
   });
 
   describe('Rollback Mechanisms', () => {
-    it('should return failure for snapshot-based rollback (manual recovery required)', async () => {
+    it('marks queued transactions as rolled back even when snapshot restoration is metadata-only', async () => {
       // Arrange
       const txnId = await transactionManager.begin('test-sheet-123');
       await transactionManager.queue(txnId, {
@@ -536,16 +548,13 @@ describe('TransactionManager', () => {
       // Act
       const result = await transactionManager.rollback(txnId);
 
-      // Assert - rollback returns result object, not throws
-      expect(result.success).toBe(false);
+      // Assert - queued operations are cancelled successfully
+      expect(result.success).toBe(true);
       expect(result.transactionId).toBe(txnId);
-      expect(result.error).toBeDefined();
-      expect(result.error!.message).toContain(
-        'Automatic in-place snapshot restoration is not supported'
-      );
+      expect(result.operationsReverted).toBe(1);
     });
 
-    it('should reject rollback when no snapshot exists', async () => {
+    it('returns a successful cancellation when no snapshot exists yet', async () => {
       // Arrange - create manager without auto-snapshot
       const managerWithoutSnapshot = new TransactionManager({
         enabled: true,
@@ -561,10 +570,14 @@ describe('TransactionManager', () => {
         params: { range: 'A1', values: [[1]] },
       });
 
-      // Act & Assert
-      await expect(managerWithoutSnapshot.rollback(txnId)).rejects.toThrow(
-        'No snapshot available for rollback'
-      );
+      // Act
+      const result = await managerWithoutSnapshot.rollback(txnId);
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.transactionId).toBe(txnId);
+      expect(result.snapshotId).toBe('');
+      expect(result.operationsReverted).toBe(1);
     });
 
     it('should auto-rollback on commit failure when configured', async () => {
@@ -785,7 +798,7 @@ describe('TransactionManager', () => {
       expect(events[2]!.type).toBe('commit');
     });
 
-    it('should support removing event listeners', () => {
+    it('should support removing event listeners', async () => {
       // Arrange
       const listener = vi.fn();
       transactionManager.addEventListener(listener);
@@ -794,10 +807,79 @@ describe('TransactionManager', () => {
       transactionManager.removeEventListener(listener);
 
       // Try to trigger event
-      transactionManager.begin('test-sheet-123');
+      await transactionManager.begin('test-sheet-123');
 
       // Assert
       expect(listener).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('WAL Durability', () => {
+    it('should write and compact WAL entries for completed transactions', async () => {
+      const walDir = join(tmpdir(), `tx-wal-${randomBytes(6).toString('hex')}`);
+      await fs.mkdir(walDir, { recursive: true });
+      process.env['TRANSACTION_WAL_DIR'] = walDir;
+
+      const walManager = new TransactionManager({
+        enabled: true,
+        autoSnapshot: false,
+        googleClient: mockGoogleClient,
+      });
+
+      const txId = await walManager.begin('test-sheet-123');
+      await walManager.queue(txId, {
+        type: 'values_write',
+        tool: 'sheets_data',
+        action: 'write',
+        params: { range: 'A1', values: [[1]] },
+      });
+
+      mockGoogleClient.sheets.spreadsheets.batchUpdate.mockResolvedValue({
+        data: { replies: [{}] },
+      });
+      await walManager.commit(txId);
+
+      const walPath = join(walDir, 'transactions.wal.jsonl');
+      const walContent = await fs.readFile(walPath, 'utf8');
+      expect(walContent.trim()).toBe('');
+
+      await fs.rm(walDir, { recursive: true, force: true });
+    });
+
+    it('should report orphaned transactions during WAL replay', async () => {
+      const walDir = join(tmpdir(), `tx-wal-${randomBytes(6).toString('hex')}`);
+      await fs.mkdir(walDir, { recursive: true });
+      process.env['TRANSACTION_WAL_DIR'] = walDir;
+
+      const firstManager = new TransactionManager({
+        enabled: true,
+        autoSnapshot: false,
+        googleClient: mockGoogleClient,
+      });
+
+      const txId = await firstManager.begin('test-sheet-123');
+      await firstManager.queue(txId, {
+        type: 'values_write',
+        tool: 'sheets_data',
+        action: 'write',
+        params: { range: 'A1', values: [[1]] },
+      });
+
+      const secondManager = new TransactionManager({
+        enabled: true,
+        autoSnapshot: false,
+        googleClient: mockGoogleClient,
+      });
+
+      const report = await secondManager.getWalRecoveryReport();
+      expect(report.enabled).toBe(true);
+
+      const orphan = report.orphanedTransactions.find((item) => item.transactionId === txId);
+      expect(orphan).toBeDefined();
+      expect(orphan?.spreadsheetId).toBe('test-sheet-123');
+      expect(orphan?.queuedOperations).toBe(1);
+
+      await fs.rm(walDir, { recursive: true, force: true });
     });
   });
 

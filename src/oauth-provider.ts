@@ -359,7 +359,9 @@ export class OAuthProvider {
       .update(payload)
       .digest('hex');
 
-    if (signature !== expectedSignature) {
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expectedSignature);
+    if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
       throw new Error('Invalid state signature');
     }
 
@@ -681,9 +683,14 @@ export class OAuthProvider {
 
         res.redirect(callbackUrl.toString());
       } catch (err) {
+        logger.error('OAuth token exchange failed', {
+          component: 'oauth-provider',
+          error: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined,
+        });
         res.status(500).json({
           error: 'token_exchange_failed',
-          details: err instanceof Error ? err.message : String(err),
+          details: 'Authentication failed. Please try logging in again.',
         });
       }
     });

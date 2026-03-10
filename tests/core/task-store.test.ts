@@ -10,6 +10,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { InMemoryTaskStore } from '../../src/core/task-store.js';
 import type { TaskStatus } from '../../src/core/task-store.js';
+import { waitFor } from '../helpers/wait-for.js';
 
 describe('InMemoryTaskStore', () => {
   let store: InMemoryTaskStore;
@@ -75,7 +76,7 @@ describe('InMemoryTaskStore', () => {
       const task = await store.createTask({ ttl: 1 });
 
       // Wait for expiration
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       const retrieved = await store.getTask(task.taskId);
       expect(retrieved).toBeNull();
@@ -113,7 +114,7 @@ describe('InMemoryTaskStore', () => {
       const originalTimestamp = task.lastUpdatedAt;
 
       // Wait a bit
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       await store.updateTaskStatus(task.taskId, 'working', 'In progress...');
 
@@ -123,17 +124,16 @@ describe('InMemoryTaskStore', () => {
     });
 
     it('should allow status transition to all valid states', async () => {
-      const task = await store.createTask();
-
       const states: TaskStatus[] = [
         'working',
         'completed',
         'failed',
-        'cancelled',
         'input_required',
+        'cancelled',
       ];
 
       for (const status of states) {
+        const task = await store.createTask();
         await store.updateTaskStatus(task.taskId, status);
         const updated = await store.getTask(task.taskId);
         expect(updated?.status).toBe(status);
@@ -211,6 +211,41 @@ describe('InMemoryTaskStore', () => {
       }
       expect(first.text).toBe('Second');
     });
+
+    it('should preserve cancelled status when a late completion result arrives', async () => {
+      const task = await store.createTask();
+      await store.cancelTask(task.taskId, 'User cancelled');
+
+      await store.storeTaskResult(task.taskId, 'completed', {
+        content: [{ type: 'text' as const, text: 'Late success' }],
+        isError: false,
+      });
+
+      const retrievedTask = await store.getTask(task.taskId);
+      const retrievedResult = await store.getTaskResult(task.taskId);
+
+      expect(retrievedTask?.status).toBe('cancelled');
+      expect(retrievedResult?.status).toBe('cancelled');
+    });
+
+    it('should return a TASK_CANCELLED result immediately after cancellation', async () => {
+      const task = await store.createTask();
+
+      await store.cancelTask(task.taskId, 'User cancelled');
+
+      const retrievedResult = await store.getTaskResult(task.taskId);
+
+      expect(retrievedResult?.status).toBe('cancelled');
+      expect(retrievedResult?.result.structuredContent).toMatchObject({
+        response: {
+          success: false,
+          error: {
+            code: 'TASK_CANCELLED',
+            message: 'User cancelled',
+          },
+        },
+      });
+    });
   });
 
   describe('getAllTasks', () => {
@@ -230,9 +265,9 @@ describe('InMemoryTaskStore', () => {
 
     it('should sort tasks by creation time (newest first)', async () => {
       const task1 = await store.createTask();
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
       const task2 = await store.createTask();
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
       const task3 = await store.createTask();
 
       const tasks = await store.getAllTasks();
@@ -253,7 +288,7 @@ describe('InMemoryTaskStore', () => {
       await store.createTask({ ttl: 60000 });
 
       // Wait for short task to expire
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       const tasks = await store.getAllTasks();
       expect(tasks).toHaveLength(1);
@@ -287,7 +322,7 @@ describe('InMemoryTaskStore', () => {
       const longTask = await store.createTask({ ttl: 60000 });
 
       // Wait for short task to expire
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       const cleaned = await store.cleanupExpiredTasks();
 
@@ -306,7 +341,7 @@ describe('InMemoryTaskStore', () => {
       await store.createTask({ ttl: 1 });
       await store.createTask({ ttl: 1 });
 
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       const cleaned = await store.cleanupExpiredTasks();
       expect(cleaned).toBe(3);
@@ -319,7 +354,7 @@ describe('InMemoryTaskStore', () => {
         isError: false,
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
       await store.cleanupExpiredTasks();
 
       const result = await store.getTaskResult(task.taskId);
@@ -363,7 +398,7 @@ describe('InMemoryTaskStore', () => {
       await store.updateTaskStatus(task.taskId, 'completed');
 
       // Wait significantly longer than TTL to ensure task has definitely expired
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       const stats = await store.getTaskStats();
       expect(stats.completed).toBe(0);
@@ -379,7 +414,7 @@ describe('InMemoryTaskStore', () => {
       await fastStore.createTask({ ttl: 1 });
 
       // Wait for cleanup cycle
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await waitFor(150);
 
       const tasks = await fastStore.getAllTasks();
       expect(tasks).toHaveLength(0);
@@ -394,7 +429,7 @@ describe('InMemoryTaskStore', () => {
       fastStore.dispose();
 
       // Cleanup should not run after dispose
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       // Task count should be 0 because dispose clears all
       const tasks = await fastStore.getAllTasks();
@@ -436,7 +471,7 @@ describe('InMemoryTaskStore', () => {
       expect(task).toBeDefined();
 
       // Wait for task to expire
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       // Should be expired now
       const retrieved = await store.getTask(task.taskId);
@@ -469,6 +504,16 @@ describe('InMemoryTaskStore', () => {
         throw new Error('Expected text result');
       }
       expect(first.text).toBe(largeText);
+    });
+
+    it('should ignore non-cancel status updates after cancellation', async () => {
+      const task = await store.createTask();
+      await store.cancelTask(task.taskId, 'User cancelled');
+
+      await store.updateTaskStatus(task.taskId, 'working', 'Should be ignored');
+
+      const retrieved = await store.getTask(task.taskId);
+      expect(retrieved?.status).toBe('cancelled');
     });
   });
 });

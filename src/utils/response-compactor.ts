@@ -182,7 +182,15 @@ export function compactResponse<T extends Record<string, unknown>>(
   // If response has a 'response' wrapper, compact the inner object
   if ('response' in response && typeof response['response'] === 'object') {
     const innerCompact = compactInner(response['response'] as Record<string, unknown>, options);
-    return { response: innerCompact } as unknown as T;
+    const wrappedCompact: Record<string, unknown> = { response: innerCompact };
+
+    // Preserve protocol-level metadata on wrapped MCP results. This differs from
+    // handler-level response._meta, which is intentionally compacted separately.
+    if ('_meta' in response && typeof response['_meta'] !== 'undefined') {
+      wrappedCompact['_meta'] = response['_meta'];
+    }
+
+    return wrappedCompact as unknown as T;
   }
 
   return compactInner(response, options) as unknown as T;

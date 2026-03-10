@@ -6,7 +6,7 @@ layout: home
 hero:
   name: ServalSheets
   text: Google Sheets MCP Server
-  tagline: Production-grade integration with 305 actions, safety rails, and AI-powered features
+  tagline: Production-grade integration with 397 actions, safety rails, and AI-powered features
   image:
     src: /logo.svg
     alt: ServalSheets
@@ -21,7 +21,7 @@ hero:
 features:
   - icon: 🎯
     title: MCP Protocol Native
-    details: Full compliance with MCP 2025-11-25 specification. 22 tools, 305 actions, 6 resources, 6 prompts.
+    details: Full compliance with MCP 2025-11-25 specification. 25 tools, 397 actions, resources, and prompts.
   - icon: 🛡️
     title: Safety Rails
     details: Dry-run mode, effect scope limits, user confirmations, and transaction rollback for worry-free automation.
@@ -36,7 +36,7 @@ features:
     details: OAuth 2.1 with PKCE, CSRF protection, signed state tokens, and comprehensive audit logging.
   - icon: 🚀
     title: Production Ready
-    details: Docker, Kubernetes, Helm, Terraform modules for AWS/GCP. 1800+ tests, 92% coverage.
+    details: Docker, Kubernetes, Helm, Terraform modules for AWS/GCP. 2500+ tests and production hardening.
 last_updated: 2026-01-30
 ---
 
@@ -63,9 +63,7 @@ last_updated: 2026-01-30
 
 ## Demo
 
-<p align="center">
-  <img src="/demos/hero-optimized.gif" alt="ServalSheets Demo" style="max-width: 100%; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
-</p>
+ServalSheets exposes the same spreadsheet workflows through MCP tools, HTTP transport, and structured resources, so the same prompts can be used in local development and production deployments.
 
 ## Quick Example
 
@@ -89,7 +87,7 @@ await claude.chat('Create a sales report with Q1 data and add a chart');
 | MCP Protocol     | ✅ Full 2025-11-25 | ❌     |
 | Safety Rails     | ✅ Comprehensive   | ❌     |
 | AI Features      | ✅ Built-in        | ❌     |
-| Actions          | 252                | ~30    |
+| Actions          | 397                | ~30    |
 | Enterprise Ready | ✅                 | ⚠️     |
 
 </div>

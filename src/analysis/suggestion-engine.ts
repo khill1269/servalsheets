@@ -11,12 +11,8 @@
  */
 
 import { logger } from '../utils/logger.js';
-import { Scout, type ScoutResult, type ColumnTypeInfo } from './scout.js';
-import {
-  ActionGenerator,
-  type ExecutableAction,
-  type AnalysisFinding,
-} from './action-generator.js';
+import { Scout, type ScoutResult } from './scout.js';
+import { ActionGenerator } from './action-generator.js';
 import { getSessionContext } from '../services/session-context.js';
 import { sendProgress } from '../utils/request-context.js';
 
@@ -130,7 +126,7 @@ function detectStructurePatterns(scoutResult: ScoutResult, spreadsheetId: string
 
   // 1. Missing header freeze
   if (indicators.estimatedCells > 50 && scoutResult.sheets.length > 0) {
-    const sheet = scoutResult.sheets[0];
+    const sheet = scoutResult.sheets[0]!;
     suggestions.push({
       id: 'freeze_header_row',
       title: 'Freeze Header Row',
@@ -153,7 +149,7 @@ function detectStructurePatterns(scoutResult: ScoutResult, spreadsheetId: string
 
   // 2. Auto-resize columns for readability
   if (scoutResult.sheets.length > 0) {
-    const sheet = scoutResult.sheets[0];
+    const sheet = scoutResult.sheets[0]!;
     if (sheet.columnCount > 3) {
       suggestions.push({
         id: 'auto_resize_columns',
@@ -210,7 +206,7 @@ function detectFormulaPatterns(scoutResult: ScoutResult, spreadsheetId: string):
     return suggestions;
   }
 
-  const sheet = scoutResult.sheets[0];
+  const sheet = scoutResult.sheets[0]!;
   const numericColumns = columnTypes.filter((c) => c.detectedType === 'number');
   const hasFormulas = scoutResult.indicators.hasFormulas;
 
@@ -284,7 +280,7 @@ function detectFormattingPatterns(scoutResult: ScoutResult, spreadsheetId: strin
     return suggestions;
   }
 
-  const sheet = scoutResult.sheets[0];
+  const sheet = scoutResult.sheets[0]!;
 
   // 1. Number columns that could benefit from formatting
   const numericColumns = columnTypes.filter((c) => c.detectedType === 'number' && c.header);
@@ -295,7 +291,7 @@ function detectFormattingPatterns(scoutResult: ScoutResult, spreadsheetId: strin
     );
 
     if (currencyLike.length > 0) {
-      const firstCol = currencyLike[0];
+      const firstCol = currencyLike[0]!;
       const colLetter = String.fromCharCode(65 + firstCol.index);
       suggestions.push({
         id: 'format_currency_columns',
@@ -321,7 +317,7 @@ function detectFormattingPatterns(scoutResult: ScoutResult, spreadsheetId: strin
   const dateColumns = columnTypes.filter((c) => c.detectedType === 'date' && c.header);
 
   if (dateColumns.length > 0) {
-    const firstDateCol = dateColumns[0];
+    const firstDateCol = dateColumns[0]!;
     const colLetter = String.fromCharCode(65 + firstDateCol.index);
     suggestions.push({
       id: 'format_date_columns',
@@ -378,7 +374,7 @@ function detectDataQualityPatterns(scoutResult: ScoutResult, spreadsheetId: stri
     return suggestions;
   }
 
-  const sheet = scoutResult.sheets[0];
+  const sheet = scoutResult.sheets[0]!;
 
   // 1. Columns with low unique ratios → suggest data validation dropdown
   const dropdownCandidates = columnTypes.filter(
@@ -387,7 +383,7 @@ function detectDataQualityPatterns(scoutResult: ScoutResult, spreadsheetId: stri
   );
 
   if (dropdownCandidates.length > 0) {
-    const col = dropdownCandidates[0];
+    const col = dropdownCandidates[0]!;
     const colLetter = String.fromCharCode(65 + col.index);
     suggestions.push({
       id: 'add_data_validation',
@@ -456,7 +452,7 @@ function detectVisualizationPatterns(
     return suggestions;
   }
 
-  const sheet = scoutResult.sheets[0];
+  const sheet = scoutResult.sheets[0]!;
   const hasDateCol = columnTypes.some((c) => c.detectedType === 'date');
   const numericCount = columnTypes.filter((c) => c.detectedType === 'number').length;
 
@@ -528,10 +524,10 @@ export class SuggestionEngine {
    * Generate ranked suggestions for a spreadsheet
    */
   async suggest(options: SuggestOptions): Promise<SuggestResult> {
-    const { spreadsheetId, range, maxSuggestions, categories } = options;
+    const { spreadsheetId, maxSuggestions, categories } = options;
 
     // Phase 1: Quick structural scan via Scout (~200ms)
-    sendProgress(0.1, 'Scanning spreadsheet structure...');
+    sendProgress(0, undefined, 'Scanning spreadsheet structure...');
     const scoutResult = await this.scout.scout(spreadsheetId);
     logger.debug('Scout scan complete', {
       spreadsheetId,
@@ -540,7 +536,7 @@ export class SuggestionEngine {
     });
 
     // Phase 2: Pattern-based suggestions (instant, no API calls)
-    sendProgress(0.4, 'Detecting improvement patterns...');
+    sendProgress(1, undefined, 'Detecting improvement patterns...');
     const allPatterns = [
       ...detectStructurePatterns(scoutResult, spreadsheetId),
       ...detectFormulaPatterns(scoutResult, spreadsheetId),
@@ -555,14 +551,30 @@ export class SuggestionEngine {
       : allPatterns;
 
     // Phase 4: Filter out previously rejected suggestions
-    sendProgress(0.6, 'Filtering suggestions...');
+    sendProgress(2, undefined, 'Filtering suggestions...');
     candidates = await this.filterRejected(candidates);
 
-    // Phase 5: Rank by confidence (descending) and take top N
+    // Phase 5: Boost suggestions based on recent background analysis findings
+    const sessionCtx = getSessionContext();
+    const recentAnalysis = sessionCtx.getRecentAnalysis(spreadsheetId);
+    if (recentAnalysis) {
+      for (const s of candidates) {
+        // Quality dropped → boost data_quality suggestions
+        if (recentAnalysis.qualityChange < -10 && s.category === 'data_quality') {
+          s.confidence = Math.min(s.confidence + 0.15, 1.0);
+        }
+        // Low quality score → boost cleaning-related suggestions
+        if (recentAnalysis.qualityScore < 70 && s.category === 'data_quality') {
+          s.confidence = Math.min(s.confidence + 0.1, 1.0);
+        }
+      }
+    }
+
+    // Phase 6: Rank by confidence (descending) and take top N
     candidates.sort((a, b) => b.confidence - a.confidence);
     const suggestions = candidates.slice(0, maxSuggestions);
 
-    sendProgress(1.0, `Found ${suggestions.length} suggestions`);
+    sendProgress(3, 3, `Found ${suggestions.length} suggestions`);
 
     return {
       suggestions,

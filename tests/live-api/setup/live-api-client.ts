@@ -388,6 +388,240 @@ export class LiveApiClient {
     this.quotaManager.reset();
     this.quotaManager.resetStats();
   }
+
+  // ─── Convenience Methods ────────────────────────────────────────────────────
+
+  /**
+   * Create a new spreadsheet and return its ID.
+   */
+  async createSpreadsheet(title: string): Promise<{ spreadsheetId: string; spreadsheetUrl: string }> {
+    const response = await this.executeWrite('createSpreadsheet', () =>
+      this.sheetsApi.spreadsheets.create({
+        requestBody: { properties: { title } },
+      })
+    );
+    return {
+      spreadsheetId: response.data.spreadsheetId!,
+      spreadsheetUrl: response.data.spreadsheetUrl ?? '',
+    };
+  }
+
+  /**
+   * Get spreadsheet metadata.
+   */
+  async getSpreadsheet(spreadsheetId: string) {
+    const response = await this.executeRead('getSpreadsheet', () =>
+      this.sheetsApi.spreadsheets.get({ spreadsheetId })
+    );
+    return response.data;
+  }
+
+  /**
+   * Delete a spreadsheet via Drive API.
+   */
+  async deleteSpreadsheet(spreadsheetId: string): Promise<void> {
+    await this.executeWrite('deleteSpreadsheet', () =>
+      this.driveApi.files.delete({ fileId: spreadsheetId })
+    );
+  }
+
+  /**
+   * Add a sheet to an existing spreadsheet.
+   */
+  async addSheet(spreadsheetId: string, title: string): Promise<{ sheetId: number | null }> {
+    const response = await this.executeWrite('addSheet', () =>
+      this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [{ addSheet: { properties: { title } } }],
+        },
+      })
+    );
+    const reply = response.data.replies?.[0]?.addSheet;
+    return { sheetId: reply?.properties?.sheetId ?? null };
+  }
+
+  /**
+   * Delete a sheet from a spreadsheet.
+   */
+  async deleteSheet(spreadsheetId: string, sheetId: number): Promise<void> {
+    await this.executeWrite('deleteSheet', () =>
+      this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [{ deleteSheet: { sheetId } }],
+        },
+      })
+    );
+  }
+
+  /**
+   * Write data to a range.
+   */
+  async writeData(
+    spreadsheetId: string,
+    range: string,
+    values: unknown[][],
+    options?: { valueInputOption?: string }
+  ): Promise<void> {
+    await this.executeWrite('writeData', () =>
+      this.sheetsApi.spreadsheets.values.update({
+        spreadsheetId,
+        range,
+        valueInputOption: options?.valueInputOption ?? 'RAW',
+        requestBody: { values },
+      })
+    );
+  }
+
+  /**
+   * Read data from a range.
+   */
+  async readData(
+    spreadsheetId: string,
+    range: string,
+    options?: { valueRenderOption?: string }
+  ): Promise<{ values: string[][] }> {
+    const response = await this.executeRead('readData', () =>
+      this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId,
+        range,
+        valueRenderOption: options?.valueRenderOption ?? 'UNFORMATTED_VALUE',
+      })
+    );
+    return { values: (response.data.values as string[][]) ?? [] };
+  }
+
+  /**
+   * Batch read multiple ranges.
+   */
+  async batchReadData(
+    spreadsheetId: string,
+    ranges: string[]
+  ): Promise<{ valueRanges: Array<{ values: string[][] }> }> {
+    const response = await this.executeRead('batchReadData', () =>
+      this.sheetsApi.spreadsheets.values.batchGet({
+        spreadsheetId,
+        ranges,
+      })
+    );
+    return {
+      valueRanges: (response.data.valueRanges ?? []).map((vr) => ({
+        values: (vr.values as string[][]) ?? [],
+      })),
+    };
+  }
+
+  /**
+   * Batch write to multiple ranges.
+   */
+  async batchWriteData(
+    spreadsheetId: string,
+    writes: Array<{ range: string; values: unknown[][] }>
+  ): Promise<void> {
+    await this.executeWrite('batchWriteData', () =>
+      this.sheetsApi.spreadsheets.values.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          valueInputOption: 'RAW',
+          data: writes,
+        },
+      })
+    );
+  }
+
+  /**
+   * Append rows to a range.
+   */
+  async appendData(
+    spreadsheetId: string,
+    range: string,
+    values: unknown[][]
+  ): Promise<void> {
+    await this.executeWrite('appendData', () =>
+      this.sheetsApi.spreadsheets.values.append({
+        spreadsheetId,
+        range,
+        valueInputOption: 'RAW',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: { values },
+      })
+    );
+  }
+
+  /**
+   * Clear data from a range.
+   */
+  async clearData(spreadsheetId: string, range: string): Promise<void> {
+    await this.executeWrite('clearData', () =>
+      this.sheetsApi.spreadsheets.values.clear({
+        spreadsheetId,
+        range,
+        requestBody: {},
+      })
+    );
+  }
+
+  /**
+   * Delete rows from a sheet by index range (0-based, exclusive end).
+   */
+  async deleteRows(
+    spreadsheetId: string,
+    sheetId: number,
+    startIndex: number,
+    endIndex: number
+  ): Promise<void> {
+    await this.executeWrite('deleteRows', () =>
+      this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              deleteDimension: {
+                range: {
+                  sheetId,
+                  dimension: 'ROWS',
+                  startIndex,
+                  endIndex,
+                },
+              },
+            },
+          ],
+        },
+      })
+    );
+  }
+
+  /**
+   * Insert empty rows into a sheet at a given index (0-based).
+   */
+  async insertRows(
+    spreadsheetId: string,
+    sheetId: number,
+    startIndex: number,
+    count: number
+  ): Promise<void> {
+    await this.executeWrite('insertRows', () =>
+      this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              insertDimension: {
+                range: {
+                  sheetId,
+                  dimension: 'ROWS',
+                  startIndex,
+                  endIndex: startIndex + count,
+                },
+                inheritFromBefore: false,
+              },
+            },
+          ],
+        },
+      })
+    );
+  }
 }
 
 // Singleton instance

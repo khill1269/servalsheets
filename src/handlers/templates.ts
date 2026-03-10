@@ -17,6 +17,7 @@
  * MCP Protocol: 2025-11-25
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4, drive_v3 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
@@ -38,6 +39,7 @@ import type {
 import { TemplateStore } from '../services/template-store.js';
 import { logger } from '../utils/logger.js';
 import { ScopeValidator, IncrementalScopeRequiredError } from '../security/incremental-scope.js';
+import { recordTemplateId } from '../mcp/completions.js';
 
 export class SheetsTemplatesHandler extends BaseHandler<
   SheetsTemplatesInput,
@@ -94,13 +96,15 @@ export class SheetsTemplatesHandler extends BaseHandler<
         case 'import_builtin':
           response = await this.handleImportBuiltin(req as TemplatesImportBuiltinInput);
           break;
-        default:
+        default: {
+          const _exhaustiveCheck: never = req;
           response = this.error({
-            code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(req as { action: string }).action}`,
+            code: ErrorCodes.INVALID_PARAMS,
+            message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
+        }
       }
 
       // 4. Apply verbosity filtering (LLM optimization)
@@ -133,7 +137,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       if (error instanceof IncrementalScopeRequiredError) {
         return this.error({
-          code: 'INCREMENTAL_SCOPE_REQUIRED',
+          code: ErrorCodes.INCREMENTAL_SCOPE_REQUIRED,
           message: error.message,
           category: 'auth',
           retryable: true,
@@ -183,6 +187,11 @@ export class SheetsTemplatesHandler extends BaseHandler<
 
       const allTemplates = [...userTemplates, ...builtinTemplates];
 
+      // Wire completions: cache template IDs for argument autocompletion (ISSUE-062)
+      for (const t of allTemplates) {
+        if (t.id) recordTemplateId(t.id);
+      }
+
       return this.success('list', {
         templates: allTemplates,
         totalTemplates: allTemplates.length,
@@ -191,7 +200,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       logger.error('Failed to list templates', { error });
       return this.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: `Failed to list templates: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -216,7 +225,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         const builtin = await this.templateStore.getBuiltinTemplate(builtinId);
         if (!builtin) {
           return this.error({
-            code: 'NOT_FOUND',
+            code: ErrorCodes.NOT_FOUND,
             message: `Builtin template not found: ${builtinId}`,
             retryable: false,
             suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
@@ -230,6 +239,11 @@ export class SheetsTemplatesHandler extends BaseHandler<
             category: builtin.category,
             version: '1.0.0',
             sheets: builtin.sheets,
+            // Normalize shape to match user template response (ISSUE-050)
+            created: undefined,
+            updated: undefined,
+            namedRanges: undefined,
+            metadata: undefined,
           },
         });
       }
@@ -237,7 +251,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
       const template = await this.templateStore.get(req.templateId);
       if (!template) {
         return this.error({
-          code: 'NOT_FOUND',
+          code: ErrorCodes.NOT_FOUND,
           message: `Template not found: ${req.templateId}`,
           retryable: false,
           suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
@@ -248,7 +262,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       logger.error('Failed to get template', { templateId: req.templateId, error });
       return this.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: `Failed to get template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -300,7 +314,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       logger.error('Failed to create template', { spreadsheetId: req.spreadsheetId, error });
       return this.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: `Failed to create template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -330,7 +344,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         const builtin = await this.templateStore.getBuiltinTemplate(builtinId);
         if (!builtin) {
           return this.error({
-            code: 'NOT_FOUND',
+            code: ErrorCodes.NOT_FOUND,
             message: `Builtin template not found: ${builtinId}`,
             retryable: false,
             suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
@@ -341,13 +355,24 @@ export class SheetsTemplatesHandler extends BaseHandler<
         const template = await this.templateStore.get(req.templateId);
         if (!template) {
           return this.error({
-            code: 'NOT_FOUND',
+            code: ErrorCodes.NOT_FOUND,
             message: `Template not found: ${req.templateId}`,
             retryable: false,
             suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
           });
         }
         templateData = template;
+      }
+
+      const totalSheets = templateData.sheets.length;
+      const shouldReportProgress = totalSheets >= 2;
+      const totalProgressSteps = totalSheets + 2;
+      if (shouldReportProgress) {
+        await this.sendProgress(
+          0,
+          totalProgressSteps,
+          `Applying template (0/${totalProgressSteps} steps)...`
+        );
       }
 
       // Build spreadsheet create request
@@ -379,7 +404,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
       // Validate response data before using
       if (!response.data.spreadsheetId || !response.data.spreadsheetUrl) {
         return this.error({
-          code: 'INTERNAL_ERROR',
+          code: ErrorCodes.INTERNAL_ERROR,
           message: 'Sheets API returned incomplete data after creating spreadsheet',
           details: {
             templateId: req.templateId,
@@ -395,9 +420,17 @@ export class SheetsTemplatesHandler extends BaseHandler<
 
       const spreadsheetId = response.data.spreadsheetId;
       const spreadsheetUrl = response.data.spreadsheetUrl;
+      if (shouldReportProgress) {
+        await this.sendProgress(
+          1,
+          totalProgressSteps,
+          `Spreadsheet created (1/${totalProgressSteps} steps)`
+        );
+      }
 
       // Apply headers if defined
       const requests: sheets_v4.Schema$Request[] = [];
+      let processedSheets = 0;
       for (let i = 0; i < templateData.sheets.length; i++) {
         const sheet = templateData.sheets[i];
         if (!sheet) continue;
@@ -444,6 +477,18 @@ export class SheetsTemplatesHandler extends BaseHandler<
             });
           }
         }
+
+        processedSheets += 1;
+        if (
+          shouldReportProgress &&
+          (processedSheets % 2 === 0 || processedSheets === totalSheets)
+        ) {
+          await this.sendProgress(
+            1 + processedSheets,
+            totalProgressSteps,
+            `Prepared ${processedSheets}/${totalSheets} sheet(s) from template...`
+          );
+        }
       }
 
       // Add named ranges if defined
@@ -469,6 +514,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
       }
 
       // Move to folder if specified
+      let folderMoveError: string | null = null;
       if (req.folderId) {
         try {
           await this.driveApi.files.update({
@@ -478,12 +524,21 @@ export class SheetsTemplatesHandler extends BaseHandler<
             supportsAllDrives: true,
           });
         } catch (moveError) {
+          folderMoveError = moveError instanceof Error ? moveError.message : String(moveError);
           logger.warn('Failed to move spreadsheet to folder', {
             folderId: req.folderId,
             error: moveError,
           });
-          // Don't fail the whole operation for this
+          // Don't fail the whole operation for this (ISSUE-186: surface in response)
         }
+      }
+
+      if (shouldReportProgress) {
+        await this.sendProgress(
+          totalProgressSteps,
+          totalProgressSteps,
+          `Template application complete (${totalProgressSteps}/${totalProgressSteps})`
+        );
       }
 
       logger.info('Applied template', {
@@ -495,11 +550,12 @@ export class SheetsTemplatesHandler extends BaseHandler<
       return this.success('apply', {
         spreadsheetId,
         spreadsheetUrl,
+        ...(folderMoveError !== null ? { folderMoveError } : {}),
       });
     } catch (error) {
       logger.error('Failed to apply template', { templateId: req.templateId, error });
       return this.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: `Failed to apply template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -518,7 +574,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     try {
       if (req.templateId.startsWith('builtin:')) {
         return this.error({
-          code: 'INVALID_REQUEST',
+          code: ErrorCodes.INVALID_REQUEST,
           message: 'Cannot update builtin templates. Use import_builtin first.',
           retryable: false,
           suggestedFix: 'Verify the request format is correct',
@@ -538,7 +594,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       logger.error('Failed to update template', { templateId: req.templateId, error });
       return this.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: `Failed to update template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -557,7 +613,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     try {
       if (req.templateId.startsWith('builtin:')) {
         return this.error({
-          code: 'INVALID_REQUEST',
+          code: ErrorCodes.INVALID_REQUEST,
           message: 'Cannot delete builtin templates.',
           retryable: false,
           suggestedFix: 'Verify the request format is correct',
@@ -570,7 +626,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       logger.error('Failed to delete template', { templateId: req.templateId, error });
       return this.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: `Failed to delete template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -602,7 +658,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         const builtin = await this.templateStore.getBuiltinTemplate(builtinId);
         if (!builtin) {
           return this.error({
-            code: 'NOT_FOUND',
+            code: ErrorCodes.NOT_FOUND,
             message: `Builtin template not found: ${builtinId}`,
             retryable: false,
             suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
@@ -617,7 +673,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         const template = await this.templateStore.get(req.templateId);
         if (!template) {
           return this.error({
-            code: 'NOT_FOUND',
+            code: ErrorCodes.NOT_FOUND,
             message: `Template not found: ${req.templateId}`,
             retryable: false,
             suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
@@ -642,7 +698,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       logger.error('Failed to preview template', { templateId: req.templateId, error });
       return this.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: `Failed to preview template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -662,7 +718,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
       const builtin = await this.templateStore.getBuiltinTemplate(req.builtinName);
       if (!builtin) {
         return this.error({
-          code: 'NOT_FOUND',
+          code: ErrorCodes.NOT_FOUND,
           message: `Builtin template not found: ${req.builtinName}`,
           retryable: false,
           suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
@@ -684,7 +740,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
     } catch (error) {
       logger.error('Failed to import builtin template', { builtinName: req.builtinName, error });
       return this.error({
-        code: 'INTERNAL_ERROR',
+        code: ErrorCodes.INTERNAL_ERROR,
         message: `Failed to import builtin template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
         suggestedFix: 'Please try again. If the issue persists, contact support',

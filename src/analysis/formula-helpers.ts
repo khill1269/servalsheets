@@ -15,6 +15,145 @@
  */
 
 // ============================================================================
+// Modern Google Sheets Function Registry
+// ============================================================================
+
+/**
+ * Registry of modern Google Sheets functions (Lambda, Dynamic Arrays, Modern Lookups)
+ * Supports recognition, validation, and explanation.
+ */
+export const MODERN_FUNCTION_REGISTRY: Record<
+  string,
+  {
+    minArgs: number;
+    maxArgs: number;
+    description: string;
+    category: 'lambda' | 'dynamic_array' | 'lookup' | 'utility';
+    introduced?: string; // Approximate date introduced
+    volatility?: 'volatile' | 'stable';
+  }
+> = {
+  LAMBDA: {
+    minArgs: 2,
+    maxArgs: 253,
+    description: 'Creates a custom function with named parameters',
+    category: 'lambda',
+    introduced: '2021',
+    volatility: 'stable',
+  },
+  LET: {
+    minArgs: 3,
+    maxArgs: 253,
+    description: 'Assigns names to values for reuse throughout a formula',
+    category: 'lambda',
+    introduced: '2021',
+    volatility: 'stable',
+  },
+  MAP: {
+    minArgs: 2,
+    maxArgs: 253,
+    description: 'Applies a LAMBDA function to each value in one or more arrays',
+    category: 'lambda',
+    introduced: '2021',
+    volatility: 'stable',
+  },
+  REDUCE: {
+    minArgs: 3,
+    maxArgs: 3,
+    description: 'Reduces an array to a single accumulated value using a LAMBDA function',
+    category: 'lambda',
+    introduced: '2021',
+    volatility: 'stable',
+  },
+  SCAN: {
+    minArgs: 3,
+    maxArgs: 3,
+    description: 'Scans an array and produces intermediate results using a LAMBDA function',
+    category: 'lambda',
+    introduced: '2021',
+    volatility: 'stable',
+  },
+  MAKEARRAY: {
+    minArgs: 3,
+    maxArgs: 3,
+    description: 'Creates an array of specified dimensions using a LAMBDA function',
+    category: 'lambda',
+    introduced: '2021',
+    volatility: 'stable',
+  },
+  BYROW: {
+    minArgs: 2,
+    maxArgs: 2,
+    description: 'Applies a LAMBDA function to each row of a range and returns an array',
+    category: 'lambda',
+    introduced: '2021',
+    volatility: 'stable',
+  },
+  BYCOL: {
+    minArgs: 2,
+    maxArgs: 2,
+    description: 'Applies a LAMBDA function to each column of a range and returns an array',
+    category: 'lambda',
+    introduced: '2021',
+    volatility: 'stable',
+  },
+  XLOOKUP: {
+    minArgs: 3,
+    maxArgs: 6,
+    description:
+      'Searches a range and returns a matching item. Modern replacement for VLOOKUP/HLOOKUP',
+    category: 'lookup',
+    introduced: '2019',
+    volatility: 'stable',
+  },
+  XMATCH: {
+    minArgs: 2,
+    maxArgs: 4,
+    description:
+      'Returns the relative position of a value in a range. Modern replacement for MATCH',
+    category: 'lookup',
+    introduced: '2019',
+    volatility: 'stable',
+  },
+  FILTER: {
+    minArgs: 2,
+    maxArgs: 3,
+    description:
+      'Filter a range based on a boolean condition array. Returns only rows/columns where the condition is TRUE.',
+    category: 'dynamic_array',
+    introduced: '2023',
+    volatility: 'stable',
+  },
+  SORT: {
+    minArgs: 1,
+    maxArgs: 4,
+    description:
+      'Sort rows of a range by specified columns. Supports ascending/descending and multi-column sort.',
+    category: 'dynamic_array',
+    introduced: '2023',
+    volatility: 'stable',
+  },
+  SORTBY: {
+    minArgs: 2,
+    maxArgs: 6,
+    description:
+      'Sort a range by corresponding values in another range. More flexible than SORT for complex ordering.',
+    category: 'dynamic_array',
+    introduced: '2023',
+    volatility: 'stable',
+  },
+  SEQUENCE: {
+    minArgs: 1,
+    maxArgs: 4,
+    description:
+      'Generate a sequence of numbers arranged in rows and columns. Parameters: rows, columns, start, step.',
+    category: 'dynamic_array',
+    introduced: '2023',
+    volatility: 'stable',
+  },
+};
+
+// ============================================================================
 // Type Definitions
 // ============================================================================
 
@@ -131,6 +270,76 @@ export interface OptimizationSuggestion {
   suggestedFormula: string;
   reasoning: string;
   estimatedSpeedup: string;
+}
+
+// ============================================================================
+// Modern Function Validation
+// ============================================================================
+
+/**
+ * Validate a function call against modern Google Sheets function registry
+ * Returns error details if validation fails, null if valid
+ */
+export function validateModernFunction(
+  functionName: string,
+  argCount: number
+): { valid: boolean; error?: string } {
+  const upper = functionName.toUpperCase();
+  const spec = MODERN_FUNCTION_REGISTRY[upper];
+
+  if (!spec) {
+    return { valid: true }; // Not a modern function, don't validate
+  }
+
+  if (argCount < spec.minArgs) {
+    return {
+      valid: false,
+      error: `${upper} requires at least ${spec.minArgs} argument(s), got ${argCount}`,
+    };
+  }
+
+  if (argCount > spec.maxArgs) {
+    return {
+      valid: false,
+      error: `${upper} accepts at most ${spec.maxArgs} argument(s), got ${argCount}`,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Check if a function is a modern Google Sheets function
+ */
+export function isModernFunction(functionName: string): boolean {
+  return functionName.toUpperCase() in MODERN_FUNCTION_REGISTRY;
+}
+
+/**
+ * Get metadata for a modern function
+ */
+export function getModernFunctionInfo(
+  functionName: string
+): (typeof MODERN_FUNCTION_REGISTRY)[keyof typeof MODERN_FUNCTION_REGISTRY] | null {
+  return MODERN_FUNCTION_REGISTRY[functionName.toUpperCase()] ?? null;
+}
+
+/**
+ * Count modern function usage in a formula
+ */
+export function countModernFunctions(formula: string): Record<string, number> {
+  const counts: Record<string, number> = {};
+  const functionPattern = /\b([A-Z_]+)\s*\(/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = functionPattern.exec(formula)) !== null) {
+    const fnName = match[1] ?? '';
+    if (isModernFunction(fnName)) {
+      counts[fnName] = (counts[fnName] ?? 0) + 1;
+    }
+  }
+
+  return counts;
 }
 
 // ============================================================================
@@ -324,6 +533,15 @@ export function analyzeFormulaComplexity(cell: string, formula: string): Formula
     suggestions.push('Very long formula - break into intermediate calculations');
   }
 
+  // Check for modern function usage
+  const modernFuncs = countModernFunctions(formula);
+  if (Object.keys(modernFuncs).length > 0) {
+    const modernList = Object.keys(modernFuncs).join(', ');
+    suggestions.push(
+      `Using modern functions (${modernList}) - ensure Google Sheets version is current`
+    );
+  }
+
   return {
     cell,
     formula,
@@ -390,22 +608,22 @@ export function detectCircularRefs(
 
     const deps = dependencies.get(node);
     if (deps) {
-      for (const dep of deps) {
+      deps.forEach((dep) => {
         if (hasCycle(dep, [...path])) {
           // Continue to find all cycles
         }
-      }
+      });
     }
 
     recStack.delete(node);
     return false;
   }
 
-  for (const cell of dependencies.keys()) {
+  dependencies.forEach((_, cell) => {
     if (!visited.has(cell)) {
       hasCycle(cell, []);
     }
-  }
+  });
 
   return circularRefs;
 }
@@ -593,6 +811,150 @@ export function generateOptimizations(
   }
 
   return suggestions;
+}
+
+// ============================================================================
+// Formula Upgrade Detection
+// ============================================================================
+
+export interface FormulaUpgrade {
+  cell: string;
+  currentFormula: string;
+  suggestedFormula: string;
+  pattern: string;
+  reason: string;
+  confidence: number;
+  executable: {
+    tool: string;
+    action: string;
+    params: { spreadsheetId: string; range: string; values: string[][] };
+  };
+}
+
+/**
+ * Detect formulas that can be upgraded to modern Google Sheets functions.
+ * Returns executable suggestions with ready-to-dispatch params.
+ */
+export function detectFormulaUpgrades(
+  formulas: Array<{ cell: string; formula: string }>,
+  spreadsheetId: string
+): FormulaUpgrade[] {
+  const upgrades: FormulaUpgrade[] = [];
+
+  for (const { cell, formula } of formulas) {
+    const upper = formula.toUpperCase();
+
+    // 1. IF(ISNA(VLOOKUP(...))) → IFNA(XLOOKUP(...))
+    if (/\bIF\s*\(\s*ISNA\s*\(\s*VLOOKUP/.test(upper)) {
+      upgrades.push({
+        cell,
+        currentFormula: formula,
+        suggestedFormula: formula.replace(
+          /IF\s*\(\s*ISNA\s*\(\s*(VLOOKUP\([^)]+\))\s*\)\s*,\s*([^,]+)\s*,\s*\1\s*\)/i,
+          'IFNA(XLOOKUP($2), $3)'
+        ),
+        pattern: 'IF_ISNA_VLOOKUP_TO_IFNA_XLOOKUP',
+        reason: 'IFNA(XLOOKUP(...)) is cleaner — XLOOKUP handles errors natively without wrapping',
+        confidence: 0.9,
+        executable: {
+          tool: 'sheets_data',
+          action: 'write',
+          params: { spreadsheetId, range: cell, values: [[`=IFNA(XLOOKUP(...), default_value)`]] },
+        },
+      });
+    }
+    // 2. Plain VLOOKUP → XLOOKUP
+    else if (/\bVLOOKUP\s*\(/.test(upper) && !/\bXLOOKUP/.test(upper)) {
+      upgrades.push({
+        cell,
+        currentFormula: formula,
+        suggestedFormula: '=XLOOKUP(lookup_value, lookup_range, result_range, default)',
+        pattern: 'VLOOKUP_TO_XLOOKUP',
+        reason:
+          'XLOOKUP supports bidirectional search, handles errors natively, and does not require sorted data',
+        confidence: 0.85,
+        executable: {
+          tool: 'sheets_data',
+          action: 'write',
+          params: { spreadsheetId, range: cell, values: [['=XLOOKUP(...)']] },
+        },
+      });
+    }
+
+    // 3. Deeply nested IF → IFS
+    const ifMatches = upper.match(/\bIF\s*\(/g);
+    if (ifMatches && ifMatches.length >= 3) {
+      upgrades.push({
+        cell,
+        currentFormula: formula,
+        suggestedFormula: '=IFS(condition1, value1, condition2, value2, ...)',
+        pattern: 'NESTED_IF_TO_IFS',
+        reason: `${ifMatches.length} nested IF levels detected — IFS is flatter, easier to read and maintain`,
+        confidence: 0.8,
+        executable: {
+          tool: 'sheets_data',
+          action: 'write',
+          params: { spreadsheetId, range: cell, values: [['=IFS(...)']] },
+        },
+      });
+    }
+
+    // 4. ARRAYFORMULA wrapping simple filter/unique patterns → native array functions
+    if (/\bARRAYFORMULA\s*\(/.test(upper)) {
+      if (/\bIF\s*\(.*,\s*[A-Z]+\d*:\s*[A-Z]+\d*/.test(upper)) {
+        upgrades.push({
+          cell,
+          currentFormula: formula,
+          suggestedFormula: '=FILTER(range, condition)',
+          pattern: 'ARRAYFORMULA_IF_TO_FILTER',
+          reason:
+            'FILTER is a native array function — no ARRAYFORMULA wrapper needed, better performance',
+          confidence: 0.75,
+          executable: {
+            tool: 'sheets_data',
+            action: 'write',
+            params: { spreadsheetId, range: cell, values: [['=FILTER(...)']] },
+          },
+        });
+      }
+    }
+
+    // 5. INDIRECT/OFFSET → flag as volatile with non-volatile alternative
+    if (/\bINDIRECT\s*\(/.test(upper)) {
+      upgrades.push({
+        cell,
+        currentFormula: formula,
+        suggestedFormula: 'Use INDEX with named ranges instead of INDIRECT',
+        pattern: 'INDIRECT_VOLATILE',
+        reason:
+          'INDIRECT is volatile — recalculates on every edit. INDEX with named ranges is non-volatile and faster',
+        confidence: 0.7,
+        executable: {
+          tool: 'sheets_data',
+          action: 'write',
+          params: { spreadsheetId, range: cell, values: [['=INDEX(...)']] },
+        },
+      });
+    }
+    if (/\bOFFSET\s*\(/.test(upper)) {
+      upgrades.push({
+        cell,
+        currentFormula: formula,
+        suggestedFormula: 'Use INDEX with calculated row/col instead of OFFSET',
+        pattern: 'OFFSET_VOLATILE',
+        reason:
+          'OFFSET is volatile — recalculates on every edit. INDEX is non-volatile and produces same results',
+        confidence: 0.7,
+        executable: {
+          tool: 'sheets_data',
+          action: 'write',
+          params: { spreadsheetId, range: cell, values: [['=INDEX(...)']] },
+        },
+      });
+    }
+  }
+
+  return upgrades;
 }
 
 // ============================================================================

@@ -9,15 +9,21 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createGoogleApiClient } from '../../../src/services/google-api.js';
+import type { GoogleApiClient } from '../../../src/services/google-api.js';
 import {
   initWebhookManager,
   initWebhookQueue,
   getWebhookManager,
   getWebhookQueue,
+  resetWebhookManager,
+  resetWebhookQueue,
 } from '../../../src/services/index.js';
 import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 
 const runLiveTests = shouldRunIntegrationTests();
+// Drive push notifications require a publicly accessible HTTPS endpoint on a verified domain.
+// Skip these tests when no real webhook endpoint is configured.
+const hasWebhookEndpoint = Boolean(process.env['WEBHOOK_ENDPOINT']);
 
 describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
   const testSpreadsheetId = process.env['TEST_SPREADSHEET_ID'];
@@ -25,19 +31,36 @@ describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
     process.env['WEBHOOK_ENDPOINT'] ?? 'https://example.com/webhook/drive-callback';
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockRedis: any;
-  let googleApi: ReturnType<typeof createGoogleApiClient>;
+  let googleApi: GoogleApiClient;
 
   beforeAll(async () => {
     if (!testSpreadsheetId) {
       throw new Error('TEST_SPREADSHEET_ID environment variable is required');
     }
 
+    // Reset singletons so re-init works across test runs
+    resetWebhookManager();
+    resetWebhookQueue();
+
     const credentials = await loadTestCredentials();
     if (!credentials) {
       throw new Error('Test credentials not available');
     }
 
-    googleApi = createGoogleApiClient({ credentials });
+    // Build GoogleApiClientOptions from TestCredentials
+    const oauthCreds = credentials.oauth;
+    if (!oauthCreds) {
+      throw new Error('OAuth credentials required for webhook tests');
+    }
+    googleApi = await createGoogleApiClient({
+      credentials: {
+        clientId: oauthCreds.client_id,
+        clientSecret: oauthCreds.client_secret,
+        redirectUri: oauthCreds.redirect_uri,
+      },
+      accessToken: oauthCreds.tokens.access_token,
+      refreshToken: oauthCreds.tokens.refresh_token,
+    });
 
     // Mock Redis client for testing
     mockRedis = {
@@ -45,12 +68,16 @@ describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
       get: async () => null,
       del: async () => 1,
       keys: async () => [],
+      scan: async () => ({ cursor: 0, keys: [] }),
       sAdd: async () => 1,
       sRem: async () => 1,
       sMembers: async () => [],
       lPush: async () => 1,
+      rPush: async () => 1,
       lPop: async () => null,
+      blPop: async () => null,
       lLen: async () => 0,
+      expire: async () => 1,
     };
 
     initWebhookManager(mockRedis, googleApi, webhookEndpoint);
@@ -61,7 +88,7 @@ describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
     // No cleanup needed for mock
   }, 30000);
 
-  it('should register webhook with Drive API watch()', async () => {
+  it.skipIf(!hasWebhookEndpoint)('should register webhook with Drive API watch()', async () => {
     const webhookManager = getWebhookManager();
     if (!webhookManager) {
       throw new Error('WebhookManager not initialized');
@@ -85,7 +112,7 @@ describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
     await webhookManager.unregister(registration.webhookId);
   }, 30000);
 
-  it('should handle channel expiration and renewal', async () => {
+  it.skipIf(!hasWebhookEndpoint)('should handle channel expiration and renewal', async () => {
     const webhookManager = getWebhookManager();
     if (!webhookManager) {
       throw new Error('WebhookManager not initialized');
@@ -172,7 +199,7 @@ describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
     expect(true).toBe(true);
   }, 10000);
 
-  it('should stop channels when unregistering webhooks', async () => {
+  it.skipIf(!hasWebhookEndpoint)('should stop channels when unregistering webhooks', async () => {
     const webhookManager = getWebhookManager();
     if (!webhookManager) {
       throw new Error('WebhookManager not initialized');

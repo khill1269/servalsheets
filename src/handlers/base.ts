@@ -5,6 +5,7 @@
  * MCP Protocol: 2025-11-25
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { Intent } from '../core/intent.js';
 import { ServiceError } from '../core/errors.js';
 import type { BatchCompiler, ExecutionResult } from '../core/batch-compiler.js';
@@ -16,7 +17,11 @@ import type {
   RangeInput,
   ResponseMeta,
 } from '../schemas/shared.js';
-import { getRequestLogger } from '../utils/request-context.js';
+import {
+  getRequestLogger,
+  getRequestContext,
+  sendProgress as sendRequestContextProgress,
+} from '../utils/request-context.js';
 import {
   createPermissionError,
   createRateLimitError,
@@ -107,6 +112,9 @@ export interface HandlerContext {
     warn: (message: string, ...args: unknown[]) => void;
     error: (message: string, ...args: unknown[]) => void;
   };
+  costTracker?: import('../services/cost-tracker.js').CostTracker; // Per-tenant API call tracking (ENABLE_COST_TRACKING)
+  duckdbEngine?: import('../services/duckdb-engine.js').DuckDBEngine; // DuckDB in-process SQL analytics (Phase 1)
+  scheduler?: import('../services/scheduler.js').SchedulerService; // Scheduled recurring workflows (Phase 6)
   abortSignal?: AbortSignal;
   requestId?: string;
 }
@@ -223,11 +231,6 @@ export abstract class BaseHandler<TInput, TOutput> {
    * @param message - Optional progress message
    */
   protected async sendProgress(completed: number, total: number, _message?: string): Promise<void> {
-    // Only available for HTTP transport (graceful degradation for STDIO)
-    if (!this.context.server) {
-      return;
-    }
-
     // Throttle: max 1 event per second
     const now = Date.now();
     if (now - this.lastProgressTime < 1000) {
@@ -236,15 +239,7 @@ export abstract class BaseHandler<TInput, TOutput> {
     this.lastProgressTime = now;
 
     try {
-      // Send MCP progress notification
-      await this.context.server.notification({
-        method: 'notifications/progress',
-        params: {
-          progress: completed,
-          total,
-          progressToken: this.context.requestId || `${this.toolName}-progress`,
-        },
-      });
+      await sendRequestContextProgress(completed, total, _message);
     } catch (error) {
       // Don't fail the operation if progress notification fails
       // Just log and continue
@@ -320,13 +315,13 @@ export abstract class BaseHandler<TInput, TOutput> {
    *
    * @param method - API method name (e.g., 'spreadsheets.values.get')
    * @param apiCall - The API call function to execute
-   * @param context - Optional context for enhanced tracing (spreadsheetId, range, etc.)
+   * @param context - Optional context for enhanced tracing (spreadsheetId, action, range, etc.)
    * @returns Promise resolving to the API call result
    */
   protected async instrumentedApiCall<T>(
     method: string,
     apiCall: () => Promise<T>,
-    context?: { spreadsheetId?: string; range?: string; sheetName?: string }
+    context?: { spreadsheetId?: string; action?: string; range?: string; sheetName?: string }
   ): Promise<T> {
     const startTime = Date.now();
 
@@ -342,6 +337,10 @@ export abstract class BaseHandler<TInput, TOutput> {
         // Add context attributes to span for better tracing
         if (context?.spreadsheetId) {
           span.setAttribute('spreadsheet.id', context.spreadsheetId);
+          span.setAttribute('spreadsheetId', context.spreadsheetId);
+        }
+        if (context?.action) {
+          span.setAttribute('action', context.action);
         }
         if (context?.range) {
           span.setAttribute('range', context.range);
@@ -356,6 +355,11 @@ export abstract class BaseHandler<TInput, TOutput> {
           recordGoogleApiCall(method, 'success', duration);
           return result;
         } catch (error) {
+          if (error instanceof Error) {
+            span.recordException(error);
+          } else {
+            span.setStatus('error', String(error));
+          }
           const duration = (Date.now() - startTime) / 1000;
           recordGoogleApiCall(method, 'error', duration);
           throw error;
@@ -530,7 +534,7 @@ export abstract class BaseHandler<TInput, TOutput> {
     details?: Record<string, unknown>
   ): HandlerError {
     return this.error({
-      code: 'SHEET_NOT_FOUND',
+      code: ErrorCodes.SHEET_NOT_FOUND,
       message: `${resourceType} ${identifier} not found`,
       retryable: false,
       suggestedFix: 'Verify the sheet name or ID is correct',
@@ -547,7 +551,7 @@ export abstract class BaseHandler<TInput, TOutput> {
     details?: Record<string, unknown>
   ): HandlerError {
     return this.error({
-      code: 'INVALID_REQUEST',
+      code: ErrorCodes.INVALID_REQUEST,
       message: `Invalid ${what}: ${why}`,
       retryable: false,
       suggestedFix: 'Verify the request format is correct',
@@ -664,7 +668,7 @@ export abstract class BaseHandler<TInput, TOutput> {
 
     logger.error('Handler error', { tool: this.toolName, error: err });
     return this.error({
-      code: 'UNKNOWN_ERROR',
+      code: ErrorCodes.UNKNOWN_ERROR,
       message: String(err),
       retryable: false,
       suggestedFix: 'Please try again. If the issue persists, contact support',
@@ -700,7 +704,45 @@ export abstract class BaseHandler<TInput, TOutput> {
       return parsed as ErrorDetail;
     }
 
-    // Fallback: Parse from message string
+    // ISSUE-044: Check numeric HTTP status before falling back to fragile string matching.
+    // GaxiosError exposes status via error.status or error.response?.status.
+    const httpStatus: number | undefined =
+      typeof errorAny['status'] === 'number'
+        ? (errorAny['status'] as number)
+        : typeof (errorAny['response'] as Record<string, unknown> | undefined)?.['status'] ===
+            'number'
+          ? ((errorAny['response'] as Record<string, unknown>)['status'] as number)
+          : undefined;
+
+    if (httpStatus === 429) {
+      const circuitBreakerState =
+        this.context.googleClient &&
+        typeof this.context.googleClient.getCircuitBreakerState === 'function'
+          ? this.context.googleClient.getCircuitBreakerState()
+          : undefined;
+      return createRateLimitError({
+        quotaType: 'requests',
+        retryAfterMs: 60000,
+        circuitBreakerState,
+      });
+    }
+    if (httpStatus === 403) {
+      return createPermissionError({
+        operation: 'perform this operation',
+        resourceType: 'spreadsheet',
+        currentPermission: 'view',
+        requiredPermission: 'edit',
+      });
+    }
+    if (httpStatus === 404) {
+      return createNotFoundError({
+        resourceType: 'spreadsheet',
+        resourceId: this.currentSpreadsheetId || 'unknown (check spreadsheet ID)',
+        searchSuggestion: 'Verify the spreadsheet URL and your access permissions',
+      });
+    }
+
+    // Fallback: Parse from message string (locale-sensitive, used only when no numeric code)
 
     // Rate limit (429)
     if (message.includes('429') || message.includes('rate limit')) {
@@ -790,7 +832,7 @@ export abstract class BaseHandler<TInput, TOutput> {
       message.includes('the pending stream has been canceled')
     ) {
       return {
-        code: 'CONNECTION_ERROR',
+        code: ErrorCodes.CONNECTION_ERROR,
         message:
           'HTTP/2 connection was reset by Google servers. This is a temporary network issue.',
         category: 'transient',
@@ -826,7 +868,7 @@ export abstract class BaseHandler<TInput, TOutput> {
     ) {
       const isTimeout = errorCode === 'ETIMEDOUT' || message.includes('timeout');
       return {
-        code: 'CONNECTION_ERROR',
+        code: ErrorCodes.CONNECTION_ERROR,
         message: isTimeout
           ? 'Request to Google Sheets API timed out. The network may be slow or unavailable.'
           : 'Cannot reach Google Sheets API. Check your internet connection.',
@@ -853,7 +895,7 @@ export abstract class BaseHandler<TInput, TOutput> {
 
     // Default: internal error
     return {
-      code: 'INTERNAL_ERROR',
+      code: ErrorCodes.INTERNAL_ERROR,
       message: error.message,
       category: 'server',
       severity: 'high',
@@ -1044,7 +1086,7 @@ export abstract class BaseHandler<TInput, TOutput> {
    *
    * if (!canProceed) {
    *   return this.error({
-   *     code: 'OPERATION_CANCELLED',
+   *     code: ErrorCodes.OPERATION_CANCELLED,
    *     message: 'Operation cancelled by user',
    *     retryable: false,
    suggestedFix: 'Retry the operation',
@@ -1204,11 +1246,19 @@ export abstract class BaseHandler<TInput, TOutput> {
       'sheets(properties,conditionalFormats,protectedRanges,charts,filterViews,basicFilter,merges)',
     ].join(',');
 
-    const response = await sheetsApi.spreadsheets.get({
-      spreadsheetId,
-      includeGridData: false,
-      fields,
-    });
+    const response = await this.instrumentedApiCall(
+      'spreadsheets.get',
+      () =>
+        sheetsApi.spreadsheets.get({
+          spreadsheetId,
+          includeGridData: false,
+          fields,
+        }),
+      {
+        spreadsheetId,
+        action: 'fetch_comprehensive_metadata',
+      }
+    );
 
     // Cache for 5 minutes
     cacheManager.set(cacheKey, response.data, {
@@ -1248,10 +1298,18 @@ export abstract class BaseHandler<TInput, TOutput> {
     const MAX_SHEETS_FOR_GRID_DATA = 50;
 
     try {
-      const metadata = await sheetsApi.spreadsheets.get({
-        spreadsheetId,
-        fields: 'sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)))',
-      });
+      const metadata = await this.instrumentedApiCall(
+        'spreadsheets.get',
+        () =>
+          sheetsApi.spreadsheets.get({
+            spreadsheetId,
+            fields: 'sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)))',
+          }),
+        {
+          spreadsheetId,
+          action: 'validate_grid_data_size',
+        }
+      );
 
       const sheets = sheetId
         ? (metadata.data.sheets ?? []).filter((s) => s.properties?.sheetId === sheetId)
@@ -1260,7 +1318,7 @@ export abstract class BaseHandler<TInput, TOutput> {
       // Check sheet count
       if (sheets.length > MAX_SHEETS_FOR_GRID_DATA) {
         return this.error({
-          code: 'SPREADSHEET_TOO_LARGE',
+          code: ErrorCodes.SPREADSHEET_TOO_LARGE,
           message: `Spreadsheet has ${sheets.length} sheets (max: ${MAX_SHEETS_FOR_GRID_DATA} for this operation)`,
           retryable: false,
           suggestedFix: 'Split your spreadsheet into smaller files or remove unnecessary data',
@@ -1280,7 +1338,7 @@ export abstract class BaseHandler<TInput, TOutput> {
 
       if (totalCells > MAX_CELLS_FOR_GRID_DATA) {
         return this.error({
-          code: 'SPREADSHEET_TOO_LARGE',
+          code: ErrorCodes.SPREADSHEET_TOO_LARGE,
           message: `Spreadsheet has ${totalCells.toLocaleString()} cells (max: ${MAX_CELLS_FOR_GRID_DATA.toLocaleString()} for this operation)`,
           retryable: false,
           suggestedFix: 'Split your spreadsheet into smaller files or remove unnecessary data',
@@ -1317,19 +1375,21 @@ export abstract class BaseHandler<TInput, TOutput> {
     sheetName?: string,
     sheetsApi?: import('googleapis').sheets_v4.Sheets
   ): Promise<number> {
+    const metadataCache = this.context.metadataCache ?? getRequestContext()?.metadataCache;
+
     // OPTIMIZATION: Use session-level metadata cache if available (N+1 elimination)
-    if (this.context.metadataCache) {
+    if (metadataCache) {
       if (!sheetName) {
         // Get first sheet ID
-        const metadata = await this.context.metadataCache.getOrFetch(spreadsheetId);
+        const metadata = await metadataCache.getOrFetch(spreadsheetId);
         return metadata.sheets[0]?.sheetId ?? 0;
       }
 
       // Get sheet ID by name
-      const sheetId = await this.context.metadataCache.getSheetId(spreadsheetId, sheetName);
+      const sheetId = await metadataCache.getSheetId(spreadsheetId, sheetName);
       if (sheetId === undefined) {
         // Sheet not found - provide helpful error
-        const metadata = await this.context.metadataCache.getOrFetch(spreadsheetId);
+        const metadata = await metadataCache.getOrFetch(spreadsheetId);
         const availableSheets = metadata.sheets.map((s) => s.title).slice(0, 5);
         const RangeResolutionError = (await import('../core/range-resolver.js'))
           .RangeResolutionError;
@@ -1372,10 +1432,18 @@ export abstract class BaseHandler<TInput, TOutput> {
           false
         );
       }
-      const response = await sheetsApi.spreadsheets.get({
-        spreadsheetId,
-        fields: 'sheets.properties',
-      });
+      const response = await this.instrumentedApiCall(
+        'spreadsheets.get',
+        () =>
+          sheetsApi.spreadsheets.get({
+            spreadsheetId,
+            fields: 'sheets.properties',
+          }),
+        {
+          spreadsheetId,
+          action: 'resolve_sheet_id',
+        }
+      );
       metadata = response.data;
 
       // Cache for 5 minutes

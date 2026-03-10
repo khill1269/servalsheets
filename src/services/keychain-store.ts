@@ -272,7 +272,7 @@ export class HybridTokenStore implements TokenStore {
 
     if (!keychainStore && !fileStore) {
       throw new Error(
-        'No token storage available. Either enable keychain or provide TOKEN_STORE_KEY.'
+        'No token storage available. Either enable keychain or provide ENCRYPTION_KEY.'
       );
     }
 

@@ -7,9 +7,8 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { SetLevelRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
+import { InMemoryTaskMessageQueue } from '@modelcontextprotocol/sdk/experimental/tasks/stores/in-memory.js';
+import type { CallToolResult, LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
 import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import type {
   ToolTaskHandler,
@@ -35,7 +34,7 @@ import {
   TOOL_ICONS,
   TOOL_EXECUTION_CONFIG,
 } from './mcp/features-2025-11-25.js';
-import { recordToolCall, updateQueueMetrics } from './observability/metrics.js';
+import { recordToolCall, updateQueueMetrics, quotaWarningsTotal } from './observability/metrics.js';
 
 import {
   BatchCompiler,
@@ -56,56 +55,38 @@ import { initImpactAnalyzer } from './services/impact-analyzer.js';
 import { initValidationEngine } from './services/validation-engine.js';
 import { initWebhookManager } from './services/webhook-manager.js';
 import { initWebhookQueue } from './services/webhook-queue.js';
+import { DuckDBEngine } from './services/duckdb-engine.js';
+import { SchedulerService } from './services/scheduler.js';
 import { createHandlers, type HandlerContext, type Handlers } from './handlers/index.js';
+import { getCostTracker } from './services/cost-tracker.js';
+import { initializeBillingIntegration } from './services/billing-integration.js';
+import { createMetadataCache } from './services/metadata-cache.js';
 import { GoogleSheetsBackend } from './adapters/index.js';
 import { AuthHandler } from './handlers/auth.js';
-import { handleLoggingSetLevel } from './handlers/logging.js';
 import {
-  checkAuth,
+  checkAuthAsync,
   buildAuthErrorResponse,
   isGoogleAuthError,
   convertGoogleAuthError,
 } from './utils/auth-guard.js';
 import { logger as baseLogger } from './utils/logger.js';
-import { createRequestContext, runWithRequestContext } from './utils/request-context.js';
+import {
+  createRequestContext,
+  createRequestAbortError,
+  runWithRequestContext,
+  sendProgress,
+  type RelatedRequestSender,
+  type TaskStatusUpdater,
+} from './utils/request-context.js';
 import { verifyJsonSchema } from './utils/schema-compat.js';
 import { extractIdempotencyKeyFromHeaders } from './utils/idempotency-key-generator.js';
-import { TOOL_DEFINITIONS } from './mcp/registration/tool-definitions.js';
-import { createToolHandlerMap, buildToolResponse } from './mcp/registration/tool-handlers.js';
-import { registerServalSheetsResources } from './mcp/registration/resource-registration.js';
-import { registerServalSheetsPrompts } from './mcp/registration/prompt-registration.js';
+import { TOOL_DEFINITIONS, isToolCallAuthExempt } from './mcp/registration/tool-definitions.js';
+import { createTaskAwareSamplingServer } from './mcp/sampling.js';
+import { buildToolResponse } from './mcp/registration/tool-handlers.js';
 import { prepareSchemaForRegistrationCached } from './mcp/registration/schema-helpers.js';
 import { registerToolsListCompatibilityHandler } from './mcp/registration/tools-list-compat.js';
 import { recordSpreadsheetId } from './mcp/completions.js';
-import {
-  registerKnowledgeResources,
-  registerDeferredKnowledgeResources,
-  registerHistoryResources,
-  registerCacheResources,
-  registerTransactionResources,
-  registerConflictResources,
-  registerImpactResources,
-  registerValidationResources,
-  registerMetricsResources,
-  registerConfirmResources,
-  registerAnalyzeResources,
-  registerReferenceResources,
-  registerGuideResources,
-  registerDecisionResources,
-  registerExamplesResources,
-  registerPatternResources,
-  registerSheetResources,
-  registerSchemaResources,
-  registerDiscoveryResources,
-  registerMasterIndexResource,
-  registerKnowledgeIndexResource,
-  registerKnowledgeSearchResource,
-  initializeResourceNotifications,
-  registerConnectionHealthResource,
-  registerRestartHealthResource,
-  registerCostDashboardResources,
-  registerTimeTravelResources,
-} from './resources/index.js';
+import { resourceNotifications } from './resources/notifications.js';
 import { cacheManager } from './utils/cache-manager.js';
 import { requestDeduplicator } from './utils/request-deduplication.js';
 import {
@@ -114,41 +95,46 @@ import {
   createConnectionHealthCheck,
   type HealthMonitor,
 } from './server/index.js';
-import { parseWithCache } from './utils/schema-cache.js';
-import { startKeepalive } from './utils/keepalive.js';
 import { cleanupAllResources } from './utils/resource-cleanup.js';
-import { DEFER_SCHEMAS } from './config/constants.js';
-
-/**
- * Extract action from args, checking up to 3 levels deep for nested request objects
- * Fixes: 13% of calls showing as "unknown" due to shallow extraction
- */
-function extractActionFromArgs(args: unknown): string {
-  if (typeof args !== 'object' || args === null) {
-    return 'unknown';
-  }
-
-  const record = args as Record<string, unknown>;
-
-  // Check top-level action field
-  if (typeof record['action'] === 'string' && record['action']) {
-    return record['action'];
-  }
-
-  // Check nested request objects (up to 3 levels)
-  let current: unknown = record['request'];
-  for (let depth = 0; depth < 3 && current; depth++) {
-    if (typeof current === 'object' && current !== null) {
-      const nested = current as Record<string, unknown>;
-      if (typeof nested['action'] === 'string' && nested['action']) {
-        return nested['action'];
-      }
-      current = nested['request'];
-    }
-  }
-
-  return 'unknown';
-}
+import { disposeTemporaryResourceStore } from './resources/temporary-storage.js';
+import { startHeapWatchdog } from './utils/heap-watchdog.js';
+import { STAGED_REGISTRATION } from './config/constants.js';
+import { toolStageManager } from './mcp/registration/tool-stage-manager.js';
+import { getEnv, validateEnv } from './config/env.js';
+import { resolveCostTrackingTenantId } from './utils/tenant-identification.js';
+import {
+  initializeBuiltinConnectors,
+  connectorManager,
+  type SheetWriterFn,
+} from './connectors/connector-manager.js';
+import {
+  extractActionFromArgs,
+  extractPrincipalIdFromHeaders,
+} from './server-utils/request-extraction.js';
+import {
+  recordToolExecutionException,
+  recordToolExecutionResult,
+} from './server-runtime/tool-call-metrics.js';
+import {
+  handlePreInitExemptToolCall,
+  handleSheetsAuthToolCall,
+} from './server-runtime/preinit-tool-routing.js';
+import { dispatchServerToolCall } from './server-runtime/handler-dispatch.js';
+import {
+  forwardServerLogMessage,
+  installServerLoggingBridge,
+} from './server-runtime/logging-bridge.js';
+import {
+  ensureServerCompletionsRegistered,
+  ensureServerResourcesRegistered,
+  registerServerPrompts,
+  registerServerResources,
+} from './server-runtime/resource-registration.js';
+import { prepareServerBootstrap } from './server-runtime/bootstrap.js';
+import {
+  registerServerLoggingSetLevelHandler,
+  registerServerTaskCancelHandler,
+} from './server-runtime/control-plane-registration.js';
 
 export interface ServalSheetsServerOptions {
   name?: string;
@@ -171,8 +157,12 @@ export class ServalSheetsServer {
   private requestQueue: PQueue;
   private taskStore: TaskStoreAdapter;
   private taskAbortControllers = new Map<string, AbortController>();
+  private taskWatchdogTimers = new Map<string, NodeJS.Timeout>();
   private healthMonitor: HealthMonitor;
   private connectionHealthCheck: ReturnType<typeof createConnectionHealthCheck>;
+  private requestedMcpLogLevel: LoggingLevel | null = null;
+  private loggingBridgeInstalled = false;
+  private forwardingMcpLog = false;
 
   // Cached handler map (rebuilt only when handlers change)
   private cachedHandlerMap: Record<
@@ -207,6 +197,7 @@ export class ServalSheetsServer {
         instructions: SERVER_INSTRUCTIONS,
         // Task support (MCP 2025-11-25) for tasks/get/list/result/cancel and task-capable tools
         taskStore: this.taskStore,
+        taskMessageQueue: new InMemoryTaskMessageQueue(),
       }
     );
 
@@ -245,6 +236,10 @@ export class ServalSheetsServer {
    * Initialize the server
    */
   async initialize(): Promise<void> {
+    const envConfig = getEnv();
+    const costTrackingEnabled =
+      envConfig.ENABLE_COST_TRACKING || envConfig.ENABLE_BILLING_INTEGRATION;
+
     // Always create AuthHandler (it works even without googleClient)
     this.authHandler = new AuthHandler({
       googleClient: null, // Will be set after googleClient is created
@@ -278,6 +273,20 @@ export class ServalSheetsServer {
       // Create reusable context and handlers
       // Local ref for closure capture in getter below
       const _googleClient = this.googleClient;
+      const duckdbEngine = new DuckDBEngine();
+      const scheduler = new SchedulerService(envConfig.DATA_DIR, async (job) => {
+        const result = await this.handleToolCall(job.action.tool, {
+          request: {
+            action: job.action.actionName,
+            ...job.action.params,
+          },
+        });
+
+        const isError = (result as { isError?: boolean }).isError === true;
+        if (isError) {
+          throw new Error(`Scheduled job ${job.id} failed for ${job.action.tool}`);
+        }
+      });
 
       // Create platform-agnostic backend adapter (wraps GoogleApiClient)
       const backend = new GoogleSheetsBackend(_googleClient);
@@ -293,13 +302,7 @@ export class ServalSheetsServer {
           sheetsApi: this.googleClient.sheets,
           onProgress: (event) => {
             // Send MCP progress notification
-            // Note: stdio transport doesn't support notifications well
-            // This is primarily for HTTP/remote transports
-            baseLogger.debug('Progress', {
-              phase: event.phase,
-              progress: `${event.current}/${event.total}`,
-              message: event.message,
-            });
+            void sendProgress(event.current, event.total, event.message);
           },
         }),
         rangeResolver: new RangeResolver({ sheetsApi: this.googleClient.sheets }),
@@ -313,6 +316,9 @@ export class ServalSheetsServer {
         queryOptimizer, // Phase 3B: Adaptive query optimization (-25% avg latency)
         prefetchingSystem, // Pattern-based prefetching (80% latency reduction on sequential ops)
         snapshotService, // Pass to context for HistoryHandler undo/revert (Task 1.3)
+        duckdbEngine, // Advanced SQL compute engine (Phase 1)
+        scheduler, // Scheduled workflows (Phase 6)
+        ...(costTrackingEnabled ? { costTracker: getCostTracker() } : {}),
         auth: {
           // Use getter to always read live value from GoogleApiClient
           // This ensures re-auth with broader scopes takes effect immediately
@@ -325,11 +331,19 @@ export class ServalSheetsServer {
             return _googleClient.scopes;
           },
         },
-        samplingServer: this._server.server, // Pass underlying Server instance for sampling
+        samplingServer: createTaskAwareSamplingServer(this._server.server),
         server: this._server.server, // Pass Server instance for elicitation/sampling (SEP-1036, SEP-1577)
         requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
         taskStore: this.taskStore, // For task-based execution (SEP-1686)
       };
+
+      // QUOTA-01: Subscribe to CostTracker alerts and emit Prometheus metric at 80% quota
+      this.context.costTracker?.on('alert', (alert: { type: string; tenantId: string }) => {
+        if (alert.type === 'limit_approaching') {
+          quotaWarningsTotal.inc({ tenantId: alert.tenantId });
+          baseLogger.warn('API quota approaching monthly limit', { tenantId: alert.tenantId });
+        }
+      });
 
       const handlers = createHandlers({
         context: this.context,
@@ -339,6 +353,18 @@ export class ServalSheetsServer {
       });
       this.handlers = handlers;
       this.cachedHandlerMap = null; // Invalidate cached handler map
+
+      if (envConfig.ENABLE_PYTHON_COMPUTE) {
+        void import('./services/python-engine.js')
+          .then(({ preloadPyodide }) => {
+            preloadPyodide();
+          })
+          .catch((error) => {
+            baseLogger.warn('Pyodide preload skipped due to initialization error', {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          });
+      }
 
       // Removed: initWorkflowEngine (Claude orchestrates natively via MCP)
       // Removed: initPlanningAgent, initInsightsService (replaced by MCP-native Elicitation/Sampling)
@@ -356,13 +382,44 @@ export class ServalSheetsServer {
       initWebhookManager(null, this.googleClient, webhookEndpoint);
     }
 
+    // Register built-in data connectors once at startup so sheets_connectors has
+    // a non-empty catalog without any manual bootstrap calls.
+    initializeBuiltinConnectors();
+
+    // Wire subscription writeback: inject the Sheets values.update writer so
+    // scheduled refreshes persist results to the destination spreadsheet.
+    if (this.googleClient?.sheets) {
+      const sheetsClient = this.googleClient.sheets;
+      const sheetWriter: SheetWriterFn = async (spreadsheetId, range, values) => {
+        await sheetsClient.spreadsheets.values.update({
+          spreadsheetId,
+          range,
+          valueInputOption: 'RAW',
+          requestBody: { values },
+        });
+      };
+      connectorManager.setSheetWriter(sheetWriter);
+    } else {
+      baseLogger.debug('Connector sheet writer not configured (Sheets client unavailable)');
+    }
+
+    initializeBillingIntegration({
+      enabled: envConfig.ENABLE_BILLING_INTEGRATION,
+      stripeSecretKey: envConfig.STRIPE_SECRET_KEY,
+      webhookSecret: envConfig.STRIPE_WEBHOOK_SECRET,
+      currency: envConfig.BILLING_CURRENCY,
+      billingCycle: envConfig.BILLING_CYCLE,
+      autoInvoicing: envConfig.BILLING_AUTO_INVOICING,
+    });
+
     // Register all tools
     this.registerTools();
 
     // Register completions
-    // NOTE: MCP SDK v1.25.1 only supports completions for prompts/resources, not tool arguments
-    // Tool argument completions will be added when SDK supports them
-    // this.registerCompletions();
+    // Supported since SDK v1.26.0: resource template completions are auto-registered by the
+    // SDK when ResourceTemplate instances include 'complete' callbacks (see resource-registration.ts).
+    // This call ensures completion capability is advertised and logs registration status.
+    this.registerCompletions();
 
     // Register resources (async to support non-blocking knowledge discovery)
     // Can be deferred to first access with DEFER_RESOURCE_DISCOVERY=true (saves 300-500ms)
@@ -386,16 +443,20 @@ export class ServalSheetsServer {
     // Start cache cleanup task
     cacheManager.startCleanupTask();
 
+    // Start reactive heap watchdog (5s interval, disables analysis at 80%, rejects at 90%)
+    startHeapWatchdog();
+
     // Start health monitoring (heap usage, connection tracking)
     await this.healthMonitor.start();
     baseLogger.info('Health monitoring started');
   }
 
   /**
-   * Register all 22 tools with proper annotations
+   * Register a set of tool definitions with the MCP server.
+   * Extracted to support both initial registration and stage-based advancement.
    */
-  private registerTools(): void {
-    for (const tool of TOOL_DEFINITIONS) {
+  private registerToolSet(tools: readonly (typeof TOOL_DEFINITIONS)[number][]): void {
+    for (const tool of tools) {
       // Prepare schemas for SDK registration with caching (P0-2 optimization)
       // Caching saves 8-40ms at startup by avoiding redundant schema transformations
       const inputSchemaForRegistration = prepareSchemaForRegistrationCached(
@@ -492,8 +553,7 @@ export class ServalSheetsServer {
         },
         async (args: Record<string, unknown>, extra) => {
           // Extract progress token from request metadata
-          const progressToken =
-            extra.requestInfo?._meta?.progressToken ?? extra._meta?.progressToken;
+          const progressToken = extra._meta?.progressToken;
           // Forward complete MCP context (Task 1.1)
           return this.handleToolCall(tool.name, args, {
             ...extra, // Forward all fields: signal, requestId, sendRequest, sendNotification, etc.
@@ -506,9 +566,48 @@ export class ServalSheetsServer {
         }
       );
     }
+  }
+
+  /**
+   * Register tools with stage-based loading support.
+   *
+   * When SERVAL_STAGED_REGISTRATION=true:
+   * - Stage 1 tools are registered immediately (auth, core, session, analyze, confirm)
+   * - Stage 2 tools (data, format, dimensions, etc.) are registered after spreadsheet active
+   * - Stage 3 tools (remaining) are registered on demand
+   * - Each stage transition emits notifications/tools/list_changed
+   *
+   * When disabled (default): all tools are registered at once (backwards-compatible).
+   */
+  private registerTools(): void {
+    // Initialize stage manager with all definitions and registration callback
+    toolStageManager.initialize(TOOL_DEFINITIONS, (newTools) => this.registerToolSet(newTools));
+
+    // Register initial tools (all tools if staging disabled, Stage 1 if enabled)
+    const initialTools = toolStageManager.getInitialTools();
+    this.registerToolSet(initialTools);
+    toolStageManager.markRegistered(initialTools.map((t) => t.name));
+
+    if (STAGED_REGISTRATION) {
+      baseLogger.info('Staged tool registration enabled', {
+        stage: 1,
+        initialTools: initialTools.length,
+        totalAvailable: TOOL_DEFINITIONS.length,
+      });
+    }
 
     // Override tools/list to safely serialize schemas with transforms/pipes.
     registerToolsListCompatibilityHandler(this._server);
+
+    if (getEnv().ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS) {
+      resourceNotifications.syncToolList(
+        initialTools.map((tool) => tool.name),
+        {
+          emitOnFirstSet: false,
+          reason: 'tool registration updated',
+        }
+      );
+    }
   }
 
   private createToolTaskHandler(toolName: string): ToolTaskHandler<AnySchema> {
@@ -526,57 +625,77 @@ export class ServalSheetsServer {
         const abortController = new AbortController();
         this.taskAbortControllers.set(task.taskId, abortController);
 
+        // Watchdog timer: force-abort tasks that exceed configured max runtime
+        const TASK_WATCHDOG_MS = getEnv().TASK_WATCHDOG_MS;
+        const watchdogTimer = setTimeout(() => {
+          if (this.taskAbortControllers.has(task.taskId)) {
+            baseLogger.warn('Task watchdog: aborting hung task', {
+              taskId: task.taskId,
+              toolName,
+              maxLifetimeMs: TASK_WATCHDOG_MS,
+            });
+            abortController.abort(
+              `Task exceeded maximum runtime of ${(TASK_WATCHDOG_MS / 60000).toFixed(1)} minutes`
+            );
+            this.taskAbortControllers.delete(task.taskId);
+            this.taskWatchdogTimers.delete(task.taskId);
+          }
+        }, TASK_WATCHDOG_MS);
+        this.taskWatchdogTimers.set(task.taskId, watchdogTimer);
+
         // Use this.taskStore for cancellation methods (not extra.taskStore)
         void (async () => {
           try {
             // Check if already cancelled
             if (await this.taskStore.isTaskCancelled(task.taskId)) {
               const reason = await this.taskStore.getCancellationReason(task.taskId);
-              const cancelResult = buildToolResponse({
-                response: {
-                  success: false,
-                  error: {
-                    code: 'TASK_CANCELLED',
-                    message: reason || 'Task was cancelled',
-                    retryable: false,
-                  },
-                },
-              });
-              await this.taskStore.storeTaskResult(task.taskId, 'cancelled', cancelResult);
+              await this.storeCancelledTaskResult(task.taskId, reason || 'Task was cancelled');
               return;
             }
 
-            // Execute with abort signal
+            // Execute with abort signal — pass only fields handleToolCall accepts
+            // (avoids sendRequest type mismatch from SDK's ToolTaskHandler extra)
             const result = await this.handleToolCall(toolName, args as Record<string, unknown>, {
-              ...extra,
+              sendNotification: extra.sendNotification as
+                | ((
+                    n: import('@modelcontextprotocol/sdk/types.js').ServerNotification
+                  ) => Promise<void>)
+                | undefined,
+              progressToken: extra._meta?.progressToken,
               abortSignal: abortController.signal,
+              taskId: task.taskId,
+              taskStore: extra.taskStore,
             });
 
             // Check cancellation again before storing result
             if (await this.taskStore.isTaskCancelled(task.taskId)) {
-              return; // Already marked as cancelled
+              const reason = await this.taskStore.getCancellationReason(task.taskId);
+              await this.storeCancelledTaskResult(task.taskId, reason || 'Task was cancelled');
+              return;
             }
 
             await extra.taskStore.storeTaskResult(task.taskId, 'completed', result);
           } catch (error) {
             // Check if error is due to cancellation
             if (error instanceof Error && error.name === 'AbortError') {
-              const cancelResult = buildToolResponse({
-                response: {
-                  success: false,
-                  error: {
-                    code: 'TASK_CANCELLED',
-                    message: error.message,
-                    retryable: false,
-                  },
-                },
-              });
               try {
-                await this.taskStore.storeTaskResult(task.taskId, 'cancelled', cancelResult);
+                await this.storeCancelledTaskResult(task.taskId, error.message);
               } catch (storeError) {
                 baseLogger.error('Failed to store cancelled task result', { toolName, storeError });
               }
             } else {
+              if (await this.taskStore.isTaskCancelled(task.taskId)) {
+                try {
+                  const reason = await this.taskStore.getCancellationReason(task.taskId);
+                  await this.storeCancelledTaskResult(task.taskId, reason || 'Task was cancelled');
+                } catch (storeError) {
+                  baseLogger.error('Failed to store cancelled task result', {
+                    toolName,
+                    storeError,
+                  });
+                }
+                return;
+              }
               const errorResult = buildToolResponse({
                 response: {
                   success: false,
@@ -594,8 +713,10 @@ export class ServalSheetsServer {
               }
             }
           } finally {
-            // Cleanup abort controller
+            // Cleanup abort controller and watchdog timer
             this.taskAbortControllers.delete(task.taskId);
+            clearTimeout(this.taskWatchdogTimers.get(task.taskId));
+            this.taskWatchdogTimers.delete(task.taskId);
           }
         })();
 
@@ -614,6 +735,23 @@ export class ServalSheetsServer {
         return (await extra.taskStore.getTaskResult(extra.taskId)) as CallToolResult;
       },
     };
+  }
+
+  private async storeCancelledTaskResult(taskId: string, message: string): Promise<void> {
+    const cancelResult = buildToolResponse({
+      response: {
+        success: false,
+        error: {
+          code: 'TASK_CANCELLED',
+          message,
+          retryable: false,
+        },
+      },
+    });
+
+    // C11: SDK storeTaskResult only accepts 'completed'|'failed'; use 'failed' for
+    // cancelled tasks (the task store preserves cancelled status and the payload carries TASK_CANCELLED).
+    await this.taskStore.storeTaskResult(taskId, 'failed', cancelResult);
   }
 
   /**
@@ -637,6 +775,10 @@ export class ServalSheetsServer {
         this.taskAbortControllers.delete(taskId);
       }
 
+      // Clear watchdog timer for cancelled task
+      clearTimeout(this.taskWatchdogTimers.get(taskId));
+      this.taskWatchdogTimers.delete(taskId);
+
       baseLogger.info('Task cancelled', { taskId });
     } catch (error) {
       baseLogger.error('Failed to cancel task', { taskId, error });
@@ -654,6 +796,9 @@ export class ServalSheetsServer {
       sendNotification?: (
         notification: import('@modelcontextprotocol/sdk/types.js').ServerNotification
       ) => Promise<void>;
+      sendRequest?: RelatedRequestSender;
+      taskId?: string;
+      taskStore?: TaskStatusUpdater;
       progressToken?: string | number;
       elicit?: unknown; // SEP-1036: Elicitation capability for sheets_confirm
       sample?: unknown; // SEP-1577: Sampling capability for sheets_analyze
@@ -670,20 +815,35 @@ export class ServalSheetsServer {
 
     // Wrap in queue to enforce concurrency limits
     return this.requestQueue.add(async () => {
+      if (extra?.abortSignal?.aborted) {
+        throw createRequestAbortError(extra.abortSignal.reason);
+      }
+
       // Extract idempotency key from headers (if HTTP transport)
       const headers = (extra as { headers?: Record<string, string | string[] | undefined> })
         ?.headers;
       const idempotencyKey = headers ? extractIdempotencyKeyFromHeaders(headers) : undefined;
+      const costTrackingTenantId = resolveCostTrackingTenantId({ headers });
+      const principalId = extractPrincipalIdFromHeaders(headers) ?? 'anonymous';
+      const metadataCache = this.googleClient?.sheets
+        ? createMetadataCache(this.googleClient.sheets)
+        : undefined;
 
       const requestContext = createRequestContext({
         sendNotification: extra?.sendNotification,
         progressToken: extra?.progressToken,
+        abortSignal: extra?.abortSignal,
         // W3C Trace Context support - extract from extra if provided by HTTP transport
         traceId: (extra as { traceId?: string })?.traceId,
         spanId: (extra as { spanId?: string })?.spanId,
         parentSpanId: (extra as { parentSpanId?: string })?.parentSpanId,
         // Idempotency key from X-Idempotency-Key header
         idempotencyKey,
+        principalId,
+        metadataCache,
+        sendRequest: extra?.sendRequest,
+        taskId: extra?.taskId,
+        taskStore: extra?.taskStore,
       });
       return runWithRequestContext(requestContext, async () => {
         const logger = requestContext.logger;
@@ -700,6 +860,10 @@ export class ServalSheetsServer {
           traceId: requestContext.traceId,
           spanId: requestContext.spanId,
         });
+
+        if (requestContext.abortSignal?.aborted) {
+          throw createRequestAbortError(requestContext.abortSignal.reason);
+        }
 
         // Check if shutting down
         if (this.isShutdown) {
@@ -718,33 +882,24 @@ export class ServalSheetsServer {
         try {
           // Handle sheets_auth separately - it works even without full initialization
           if (toolName === 'sheets_auth') {
-            if (!this.authHandler) {
-              // Create a basic auth handler if not initialized
-              this.authHandler = new AuthHandler({});
-            }
-            const { SheetsAuthInputSchema } = await import('./schemas/auth.js');
-            const result = await this.authHandler.handle(
-              parseWithCache(SheetsAuthInputSchema, args, 'SheetsAuthInput')
-            );
+            const authResult = await handleSheetsAuthToolCall(this.authHandler, args);
+            this.authHandler = authResult.authHandler;
             const duration = (Date.now() - startTime) / 1000;
             recordToolCall(toolName, 'auth', 'success', duration);
-            return buildToolResponse(result);
+            return buildToolResponse(authResult.result);
           }
 
-          // Local-only tools that work without Google authentication
-          // These operate purely on in-memory state and never call Google APIs
-          const AUTH_EXEMPT_TOOLS = new Set(['sheets_session', 'sheets_confirm']);
-          const AUTH_EXEMPT_ACTIONS: Record<string, Set<string>> = {
-            sheets_history: new Set(['list', 'get', 'stats']),
-          };
-          const rawAction = (args as Record<string, unknown>)['action'] as string | undefined;
-          const isExempt =
-            AUTH_EXEMPT_TOOLS.has(toolName) ||
-            (rawAction !== undefined && AUTH_EXEMPT_ACTIONS[toolName]?.has(rawAction));
+          // Local-only actions that are explicitly auth-exempt in tool registration metadata.
+          // Extract action from request envelope first, then fallback to flat legacy args.
+          const rawArgs = args as Record<string, unknown>;
+          const rawAction = ((rawArgs['request'] as Record<string, unknown> | undefined)?.[
+            'action'
+          ] ?? rawArgs['action']) as string | undefined;
+          const isExempt = isToolCallAuthExempt(toolName, rawAction);
 
           // For all other tools, check authentication first
           if (!isExempt) {
-            const authResult = checkAuth(this.googleClient);
+            const authResult = await checkAuthAsync(this.googleClient);
             if (!authResult.authenticated) {
               const errorResponse = buildAuthErrorResponse(authResult.error!);
               return buildToolResponse(errorResponse);
@@ -754,23 +909,9 @@ export class ServalSheetsServer {
           if (!this.handlers) {
             // Pre-auth path: serve local-only tools without full handler initialization
             if (isExempt) {
-              if (toolName === 'sheets_session') {
-                const { SessionHandler } = await import('./handlers/session.js');
-                const { SheetsSessionInputSchema } = await import('./schemas/session.js');
-                const handler = new SessionHandler();
-                const result = await handler.handle(
-                  parseWithCache(SheetsSessionInputSchema, args, 'SheetsSessionInput')
-                );
-                return buildToolResponse(result);
-              }
-              if (toolName === 'sheets_history') {
-                const { HistoryHandler } = await import('./handlers/history.js');
-                const { SheetsHistoryInputSchema } = await import('./schemas/history.js');
-                const handler = new HistoryHandler({});
-                const result = await handler.handle(
-                  parseWithCache(SheetsHistoryInputSchema, args, 'SheetsHistoryInput')
-                );
-                return buildToolResponse(result);
+              const preInitResult = await handlePreInitExemptToolCall(toolName, args);
+              if (preInitResult) {
+                return buildToolResponse(preInitResult);
               }
             }
             return buildToolResponse({
@@ -786,120 +927,64 @@ export class ServalSheetsServer {
             });
           }
 
-          // Route to appropriate handler (cached — handlers don't change between requests)
-          this.cachedHandlerMap ??= createToolHandlerMap(
-            this.handlers,
-            this.authHandler ?? undefined
-          );
-          const handlerMap = this.cachedHandlerMap;
-
-          const handler = handlerMap[toolName];
-          if (!handler) {
-            return buildToolResponse({
-              response: {
-                success: false,
-                error: {
-                  code: 'METHOD_NOT_FOUND',
-                  message: `Handler for ${toolName} not yet implemented`,
-                  retryable: false,
-                  suggestedFix: 'This tool is planned for a future release',
-                  alternatives: [
-                    {
-                      tool: 'sheets_data',
-                      action: 'read',
-                      description: 'Use sheets_data for basic read/write operations',
-                    },
-                  ],
-                },
-              },
-            });
-          }
-
-          // Create per-request context with requestId for tracing
-          if (!this.context) {
-            return buildToolResponse({
-              response: {
-                success: false,
-                error: {
-                  code: 'INTERNAL_ERROR',
-                  message: 'Server context not initialized',
-                  retryable: false,
-                },
-              },
-            });
-          }
-
-          // OPTIMIZATION: Create session-level metadata cache (N+1 elimination)
-          const { createMetadataCache } = await import('./services/metadata-cache.js');
-          const metadataCache = this.googleClient?.sheets
-            ? createMetadataCache(this.googleClient.sheets)
-            : undefined;
-
-          const perRequestContext: HandlerContext = {
-            ...this.context,
+          const dispatchResult = await dispatchServerToolCall({
+            toolName,
+            args,
+            extra: extra as (Record<string, unknown> & { abortSignal?: AbortSignal }) | undefined,
+            rawArgs,
+            rawAction,
+            handlers: this.handlers,
+            authHandler: this.authHandler,
+            cachedHandlerMap: this.cachedHandlerMap,
+            context: this.context,
+            googleClient: this.googleClient,
             requestId: requestContext.requestId,
-            abortSignal: extra?.abortSignal,
-            metadataCache, // Session-level metadata cache for N+1 elimination
-          };
-
-          // Start keepalive to prevent Claude Desktop timeouts during long operations
-          const keepalive = startKeepalive({
-            operationName: toolName,
-            debug: process.env['DEBUG_KEEPALIVE'] === 'true',
+            costTrackingTenantId,
           });
-
-          // Pass full extra to handler (includes elicit/sample for MCP-native tools, plus context)
-          // Wrap with try/finally to ensure keepalive stops even if handler throws
-          let result;
-          try {
-            result = await handler(args, { ...extra, context: perRequestContext });
-          } finally {
-            // Stop keepalive when handler completes
-            keepalive.stop();
-
-            // OPTIMIZATION: Clear metadata cache after request completes
-            metadataCache?.clear();
+          this.cachedHandlerMap = dispatchResult.handlerMap;
+          if (dispatchResult.kind === 'error') {
+            return dispatchResult.response;
           }
 
           const duration = (Date.now() - startTime) / 1000;
 
           // Get action from args if available (check up to 3 levels deep)
           const action = extractActionFromArgs(args);
+          recordToolExecutionResult({
+            toolName,
+            action,
+            durationSeconds: duration,
+            result: dispatchResult.result,
+            principalId: requestContext.principalId ?? 'anonymous',
+            warn: (message, meta) => logger.warn(message, meta),
+          });
 
-          const response =
-            typeof result === 'object' && result !== null
-              ? (result as { response?: { success?: boolean; error?: unknown } }).response
-              : undefined;
-          const isError =
-            response?.success === false ||
-            (typeof result === 'object' &&
-              result !== null &&
-              'success' in result &&
-              (result as { success?: boolean }).success === false);
-
-          if (isError) {
-            const errorDetail =
-              response?.success === false ? response.error : (result as { error?: unknown }).error;
-            logger.warn('Tool call failed', {
-              tool: toolName,
-              error: errorDetail,
-            });
-            // Record failed tool call
-            recordToolCall(toolName, action, 'error', duration);
-          } else {
-            // Record successful tool call
-            recordToolCall(toolName, action, 'success', duration);
-          }
-
-          return buildToolResponse(result);
+          return buildToolResponse(dispatchResult.result);
         } catch (error) {
           const duration = (Date.now() - startTime) / 1000;
           const action = extractActionFromArgs(args);
 
           logger.error('Tool call threw exception', { tool: toolName, error });
 
-          // Record error metric
-          recordToolCall(toolName, action, 'error', duration);
+          if (error instanceof Error && error.name === 'AbortError') {
+            return buildToolResponse({
+              response: {
+                success: false,
+                error: {
+                  code: 'OPERATION_CANCELLED',
+                  message: error.message,
+                  retryable: false,
+                },
+              },
+            });
+          }
+
+          recordToolExecutionException({
+            toolName,
+            action,
+            durationSeconds: duration,
+            principalId: requestContext.principalId ?? 'anonymous',
+          });
 
           // Check if this is a Google authentication error
           // If so, convert it to a user-friendly auth error with clear instructions
@@ -921,114 +1006,25 @@ export class ServalSheetsServer {
             },
           });
         }
+      }).finally(() => {
+        metadataCache?.clear();
       });
     });
   }
 
   /**
    * Register resources
+   * Idempotent: safe to call multiple times (guards against double-registration)
    */
   private async registerResources(): Promise<void> {
-    registerServalSheetsResources(this._server, this.googleClient);
-
-    // Register knowledge resources
-    // Deferred mode: register URI template only, load files on-demand (saves ~800KB context)
-    // Eager mode: discover all files at startup and register individual URIs
-    // Auto-enabled for STDIO when DEFER_SCHEMAS is active; override with DISABLE_KNOWLEDGE_RESOURCES
-    const useDeferred = process.env['DISABLE_KNOWLEDGE_RESOURCES'] === 'true' || DEFER_SCHEMAS;
-    if (useDeferred) {
-      registerDeferredKnowledgeResources(this._server);
-    } else {
-      await registerKnowledgeResources(this._server);
+    if (this.resourcesRegistered) {
+      return; // Already registered — prevent SDK "already registered" errors
     }
-
-    // Register operation history resources (Phase 1, Task 1.3)
-    registerHistoryResources(this._server);
-
-    // Register time travel debugger resources (checkpoint blame analysis)
-    registerTimeTravelResources(this._server);
-
-    // Register cache statistics resources (Phase 1, Task 1.5)
-    registerCacheResources(this._server);
-
-    // Removed: registerWorkflowResources (Claude orchestrates natively via MCP)
-
-    // Only register Phase 4 resources if Google client was initialized
-    // These features require an active Google API connection
-    if (this.googleClient) {
-      // Register transaction resources (Phase 4, Task 4.1)
-      registerTransactionResources(this._server);
-
-      // Register conflict resources (Phase 4, Task 4.2)
-      registerConflictResources(this._server);
-
-      // Register impact resources (Phase 4, Task 4.3)
-      registerImpactResources(this._server);
-
-      // Register validation resources (Phase 4, Task 4.4)
-      registerValidationResources(this._server);
-
-      // Register metrics resources (Phase 6, Task 6.1)
-      registerMetricsResources(this._server);
-
-      // Register discovery resources (Phase 4 - Observability)
-      registerDiscoveryResources(this._server);
-    }
-
-    // Register MCP-native resources (Elicitation & Sampling)
-    registerConfirmResources(this._server); // Confirmation via Elicitation (SEP-1036)
-    registerAnalyzeResources(this._server); // AI analysis via Sampling (SEP-1577)
-
-    // Register dynamic sheet discovery (MCP 2025-11-25 Resource Templates)
-    if (this.googleClient && this.context) {
-      registerSheetResources(this._server, this.context);
-    }
-
-    // Register static reference resources (LLM reference documentation)
-    registerReferenceResources(this._server); // Colors, formulas, formats, API limits
-
-    // Register performance guide resources (Phase 6)
-    registerGuideResources(this._server); // Quota optimization, batching, caching, error recovery
-
-    // Register decision tree resources (Phase 6)
-    registerDecisionResources(this._server); // Transaction, confirmation, tool selection, read vs batch_read
-
-    // Register examples library resources (Phase 6)
-    registerExamplesResources(this._server); // Basic operations, batch, transactions, composite workflows, analysis
-
-    // Register workflow patterns resources (UASEV+R protocol demonstrations)
-    registerPatternResources(this._server); // Real-world patterns showing optimal tool usage per workflow phase
-
-    // Register schema resources for deferred loading (SERVAL_DEFER_SCHEMAS=true)
-    // These resources expose full tool schemas on-demand when using minimal registration
-    registerSchemaResources(this._server);
-
-    // Register cost dashboard resources (billing integration)
-    registerCostDashboardResources(this._server);
-
-    // Register connection health resource (Phase 0, Priority 1)
-    // Exposes real-time connection health statistics for monitoring
-    registerConnectionHealthResource(this._server);
-
-    // Register restart policy health resource (Phase 0, Priority 4)
-    // Exposes restart policy state and backoff monitoring
-    registerRestartHealthResource(this._server);
-
-    // Register master index resource (servalsheets://index)
-    // Entry point for Claude to discover all available resources
-    registerMasterIndexResource(this._server);
-
-    // Register knowledge index resource (knowledge:///index)
-    // Provides semantic index of all knowledge files with usage guidance
-    registerKnowledgeIndexResource(this._server);
-
-    // Register knowledge search resource (knowledge:///search?q={query})
-    // Enables fuzzy search across all knowledge files
-    registerKnowledgeSearchResource(this._server);
-
-    // Initialize resource change notifications (MCP notifications/resources/list_changed)
-    // Enables clients to be notified when dynamic resources change (e.g., analysis results)
-    initializeResourceNotifications(this._server);
+    await registerServerResources({
+      server: this._server,
+      googleClient: this.googleClient,
+      context: this.context,
+    });
   }
 
   /**
@@ -1039,39 +1035,39 @@ export class ServalSheetsServer {
    * Thread-safe: multiple concurrent calls will only register once.
    */
   private async ensureResourcesRegistered(): Promise<void> {
-    // Fast path: resources already registered
-    if (this.resourcesRegistered) {
-      return;
-    }
-
-    // If registration is in progress, wait for it
-    if (this.resourceRegistrationPromise) {
-      await this.resourceRegistrationPromise;
-      return;
-    }
-
-    // Start registration (only one caller will enter this block)
-    this.resourceRegistrationPromise = (async () => {
-      try {
-        baseLogger.info('Lazy-loading resources on first access');
-        await this.registerResources();
-        this.resourcesRegistered = true;
-        baseLogger.info('Resources registered successfully');
-      } catch (error) {
-        baseLogger.error('Failed to register resources', { error });
-        this.resourceRegistrationPromise = null; // Allow retry
-        throw error;
-      }
-    })();
-
-    await this.resourceRegistrationPromise;
+    await ensureServerResourcesRegistered({
+      resourcesRegistered: this.resourcesRegistered,
+      resourceRegistrationPromise: this.resourceRegistrationPromise,
+      registerResources: () => this.registerResources(),
+      setResourcesRegistered: (value) => {
+        this.resourcesRegistered = value;
+      },
+      setResourceRegistrationPromise: (value) => {
+        this.resourceRegistrationPromise = value;
+      },
+      log: baseLogger,
+    });
   }
 
   /**
    * Register prompts
    */
   private registerPrompts(): void {
-    registerServalSheetsPrompts(this._server);
+    registerServerPrompts(this._server);
+  }
+
+  /**
+   * Register MCP completions capability
+   *
+   * Resource template completions (spreadsheetId, range) are auto-registered by the SDK
+   * when ResourceTemplate instances include 'complete' callbacks in resource-registration.ts.
+   * This method ensures the capability is advertised and logs its status.
+   *
+   * SDK v1.26.0+: setCompletionRequestHandler() is called automatically by the SDK
+   * when any ResourceTemplate with completions is registered.
+   */
+  private registerCompletions(): void {
+    ensureServerCompletionsRegistered(baseLogger);
   }
 
   /**
@@ -1081,28 +1077,41 @@ export class ServalSheetsServer {
    * MCP 2025-11-25: Task-based execution support
    */
   private registerTaskCancelHandler(): void {
-    try {
-      // Wire the cancel callback: when the SDK's TaskStore.cancelTask() is called
-      // (via tasks/cancel protocol request), abort the running operation's AbortController
-      const underlyingStore = this.taskStore.getUnderlyingStore();
-      if ('onTaskCancelled' in underlyingStore) {
-        (
-          underlyingStore as { onTaskCancelled?: (taskId: string, reason: string) => void }
-        ).onTaskCancelled = (taskId, reason) => {
-          const abortController = this.taskAbortControllers.get(taskId);
-          if (abortController) {
-            abortController.abort(reason);
-            this.taskAbortControllers.delete(taskId);
-            baseLogger.info('Task abort signal sent', { taskId, reason });
-          }
-        };
-        baseLogger.info('Task cancellation support enabled');
-      } else {
-        baseLogger.warn('Task cancellation not available (store does not support onTaskCancelled)');
-      }
-    } catch (error) {
-      baseLogger.error('Failed to register task cancel handler', { error });
-    }
+    registerServerTaskCancelHandler({
+      taskStore: this.taskStore,
+      taskAbortControllers: this.taskAbortControllers,
+      taskWatchdogTimers: this.taskWatchdogTimers,
+      log: baseLogger,
+    });
+  }
+
+  private installLoggingBridge(): void {
+    installServerLoggingBridge({
+      loggingBridgeInstalled: this.loggingBridgeInstalled,
+      setLoggingBridgeInstalled: (value) => {
+        this.loggingBridgeInstalled = value;
+      },
+      getRequestedMcpLogLevel: () => this.requestedMcpLogLevel,
+      getForwardingMcpLog: () => this.forwardingMcpLog,
+      setForwardingMcpLog: (value) => {
+        this.forwardingMcpLog = value;
+      },
+      server: this._server,
+    });
+  }
+
+  private forwardLogMessage(levelOrEntry: unknown, message: unknown, meta: unknown[]): void {
+    forwardServerLogMessage({
+      levelOrEntry,
+      message,
+      meta,
+      requestedMcpLogLevel: this.requestedMcpLogLevel,
+      forwardingMcpLog: this.forwardingMcpLog,
+      setForwardingMcpLog: (value) => {
+        this.forwardingMcpLog = value;
+      },
+      server: this._server,
+    });
   }
 
   /**
@@ -1111,30 +1120,16 @@ export class ServalSheetsServer {
    * Enables clients to adjust server log verbosity via logging/setLevel request.
    */
   private registerLogging(): void {
-    try {
-      this._server.server.setRequestHandler(
-        SetLevelRequestSchema,
-        async (request: z.infer<typeof SetLevelRequestSchema>) => {
-          // Extract level from request params
-          const level = request.params.level;
-
-          // Call the handler
-          const response = await handleLoggingSetLevel({ level });
-
-          baseLogger.info('Log level changed via logging/setLevel', {
-            previousLevel: response.previousLevel,
-            newLevel: response.newLevel,
-          });
-
-          // OK: Explicit empty - MCP logging/setLevel returns empty object per protocol
-          return {};
-        }
-      );
-
-      baseLogger.info('Logging handler registered (logging/setLevel)');
-    } catch (error) {
-      baseLogger.error('Failed to register logging handler', { error });
-    }
+    registerServerLoggingSetLevelHandler({
+      server: this._server,
+      setRequestedMcpLogLevel: (level) => {
+        this.requestedMcpLogLevel = level;
+      },
+      installLoggingBridge: () => {
+        this.installLoggingBridge();
+      },
+      log: baseLogger,
+    });
   }
 
   /**
@@ -1147,17 +1142,35 @@ export class ServalSheetsServer {
     baseLogger.info('ServalSheets: Shutting down...');
 
     // Wait for queue to drain (with timeout)
+    const pendingAtShutdown = this.requestQueue.size;
     baseLogger.info('Waiting for request queue to drain', {
-      queueSize: this.requestQueue.size,
+      queueSize: pendingAtShutdown,
       pendingCount: this.requestQueue.pending,
     });
 
+    let timedOut = false;
     await Promise.race([
       this.requestQueue.onIdle(),
-      new Promise((resolve) => setTimeout(resolve, 10000)), // 10s max
+      new Promise<void>((resolve) =>
+        setTimeout(() => {
+          timedOut = true;
+          resolve();
+        }, 10000)
+      ), // 10s max
     ]);
 
-    baseLogger.info('Request queue drained');
+    // ISSUE-056: if drain timed out, clear remaining queued (not yet started) items
+    // to prevent orphaned requests from executing after shutdown completes.
+    if (timedOut && this.requestQueue.size > 0) {
+      const orphaned = this.requestQueue.size;
+      this.requestQueue.clear();
+      baseLogger.warn('Request queue drain timed out — cleared orphaned waiting requests', {
+        orphaned,
+        stillRunning: this.requestQueue.pending,
+      });
+    } else {
+      baseLogger.info('Request queue drained');
+    }
 
     // Clear range resolver cache
     if (this.context?.rangeResolver) {
@@ -1167,8 +1180,15 @@ export class ServalSheetsServer {
     // Stop cache cleanup task
     cacheManager.stopCleanupTask();
 
-    // Stop health monitoring
-    await this.healthMonitor.stop();
+    // Stop health monitoring (ISSUE-055: 5s timeout prevents indefinite hang on stuck onStop hooks)
+    await Promise.race([
+      this.healthMonitor.stop(),
+      new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error('Health monitor stop timed out after 5s')), 5000)
+      ),
+    ]).catch((err: Error) => {
+      baseLogger.warn('Health monitor stop did not complete cleanly', { error: err.message });
+    });
     baseLogger.info('Health monitoring stopped');
 
     // Phase 1: Clean up all registered resources (timers, connections, etc.)
@@ -1205,6 +1225,11 @@ export class ServalSheetsServer {
         baseLogger.debug('RequestMerger destroyed');
       }
 
+      if (this.context?.scheduler) {
+        this.context.scheduler.dispose();
+        baseLogger.debug('SchedulerService disposed');
+      }
+
       // Destroy BatchingSystem singleton (batch window timers)
       const { getBatchingSystem } = await import('./services/batching-system.js');
       const batchingSystem = getBatchingSystem();
@@ -1224,8 +1249,15 @@ export class ServalSheetsServer {
       baseLogger.warn('Error during service cleanup', { error });
     }
 
+    // Dispose connector framework resources (subscription timers + connector state).
+    await connectorManager.dispose();
+    baseLogger.debug('ConnectorManager disposed');
+
     // Dispose task store (stops cleanup interval)
     this.taskStore.dispose();
+
+    // Dispose temporary resource store (stops cleanup interval)
+    disposeTemporaryResourceStore();
 
     // Clear references
     this.googleClient = null;
@@ -1249,6 +1281,9 @@ export class ServalSheetsServer {
    */
   async start(): Promise<void> {
     const startTime = performance.now();
+
+    // Validate required environment variables before any initialization
+    validateEnv();
 
     // Initialize first (register handlers), then connect
     baseLogger.info('[Phase 1/3] Initializing handlers...');
@@ -1388,67 +1423,7 @@ export class ServalSheetsServer {
 export async function createServalSheetsServer(
   options: ServalSheetsServerOptions = {}
 ): Promise<ServalSheetsServer> {
-  // Create task store if not provided - uses createTaskStore() for Redis support
-  if (!options.taskStore) {
-    const { createTaskStore } = await import('./core/task-store-factory.js');
-    options.taskStore = await createTaskStore();
-  }
-
-  // Initialize capability cache service with Redis if available
-  const redisUrl = process.env['REDIS_URL'];
-  const isProduction = process.env['NODE_ENV'] === 'production';
-  const allowMemorySessions = process.env['ALLOW_MEMORY_SESSIONS'] === 'true';
-
-  // Enforce Redis in production for distributed cache and session persistence
-  // Unless ALLOW_MEMORY_SESSIONS=true for local testing
-  if (isProduction && !redisUrl && !allowMemorySessions) {
-    throw new Error(
-      'Redis is required in production mode. Set REDIS_URL environment variable.\n' +
-        'Example: REDIS_URL=redis://localhost:6379\n' +
-        'For development/testing, set NODE_ENV=development\n' +
-        'For local production testing, set ALLOW_MEMORY_SESSIONS=true'
-    );
-  }
-
-  if (isProduction && allowMemorySessions && !redisUrl) {
-    baseLogger.warn(
-      'Running production without Redis (ALLOW_MEMORY_SESSIONS=true). ' +
-        'Cache and sessions are memory-only. Not recommended for real production.'
-    );
-  }
-
-  if (redisUrl) {
-    const { createClient } = await import('redis');
-    const { initCapabilityCacheService } = await import('./services/capability-cache.js');
-    const { initETagCache } = await import('./services/etag-cache.js');
-    const { getDistributedCacheConfig } = await import('./config/env.js');
-
-    const redis = createClient({ url: redisUrl });
-    await redis.connect();
-
-    // Initialize capability cache with Redis
-    initCapabilityCacheService(redis);
-    baseLogger.info('Capability cache service initialized with Redis');
-
-    // Initialize ETag cache with Redis (if enabled)
-    const cacheConfig = getDistributedCacheConfig();
-    if (cacheConfig.enabled) {
-      initETagCache(redis);
-      baseLogger.info('ETag cache initialized with Redis L2 (distributed caching enabled)');
-    } else {
-      initETagCache();
-      baseLogger.info('ETag cache initialized (L1 memory-only)');
-    }
-  } else {
-    const { initCapabilityCacheService } = await import('./services/capability-cache.js');
-    const { initETagCache } = await import('./services/etag-cache.js');
-
-    initCapabilityCacheService();
-    baseLogger.info('Capability cache service initialized (memory-only)');
-
-    initETagCache();
-    baseLogger.info('ETag cache initialized (L1 memory-only)');
-  }
+  await prepareServerBootstrap(options);
 
   const server = new ServalSheetsServer(options);
   await server.start();

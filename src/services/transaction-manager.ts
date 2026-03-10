@@ -16,6 +16,8 @@
  * await txManager.commit(tx.id); // Both ops in single API call
  */
 
+import { promises as fsPromises, existsSync, mkdirSync } from 'fs';
+import { dirname, join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger.js';
 import type { sheets_v4 } from 'googleapis';
@@ -31,18 +33,43 @@ import {
   OperationResult,
   BatchRequest,
   BatchRequestEntry,
+  SpreadsheetState,
   TransactionConfig,
   TransactionStats,
   TransactionEvent,
   TransactionListener,
 } from '../types/transaction.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
+import { getEnv } from '../config/env.js';
+
+interface WalEntry {
+  seq?: number;
+  txId: string;
+  type: TransactionEvent['type'];
+  ts: number;
+  data?: unknown;
+}
+
+interface WalRecoveryTransaction {
+  transactionId: string;
+  spreadsheetId?: string;
+  snapshotId?: string;
+  queuedOperations: number;
+  lastEventType: TransactionEvent['type'];
+  lastEventTimestamp: number;
+}
+
+export interface WalRecoveryReport {
+  enabled: boolean;
+  walPath?: string;
+  orphanedTransactions: WalRecoveryTransaction[];
+}
 
 /**
  * Transaction Manager - Handles multi-operation transactions with atomicity
  */
 export class TransactionManager {
-  private config: Required<Omit<TransactionConfig, 'googleClient'>>;
+  private config: Required<Omit<TransactionConfig, 'googleClient' | 'walDir'>>;
   private googleClient?: TransactionConfig['googleClient'];
   private stats: TransactionStats;
   private activeTransactions: Map<string, Transaction>;
@@ -51,6 +78,13 @@ export class TransactionManager {
   private operationIdCounter: number;
   // Phase 1: Timer cleanup
   private snapshotCleanupInterval?: NodeJS.Timeout;
+  // DR-01: Write-ahead log
+  private walEnabled: boolean;
+  private walPath: string;
+  private walSeq = 0;
+  private walReady: Promise<void>;
+  private walWriteChain: Promise<void>;
+  private walOrphanedTransactions: WalRecoveryTransaction[];
 
   constructor(config: TransactionConfig = {}) {
     this.googleClient = config.googleClient;
@@ -87,6 +121,14 @@ export class TransactionManager {
 
     // Start background cleanup
     this.startSnapshotCleanup();
+
+    // DR-01: Initialize write-ahead log (enabled when TRANSACTION_WAL_DIR is set)
+    const walDir = config.walDir ?? process.env['TRANSACTION_WAL_DIR'];
+    this.walEnabled = !!walDir;
+    this.walPath = walDir ? join(walDir, 'transactions.wal.jsonl') : '';
+    this.walWriteChain = Promise.resolve();
+    this.walOrphanedTransactions = [];
+    this.walReady = this.walEnabled ? this.initWal() : Promise.resolve();
   }
 
   /**
@@ -97,6 +139,7 @@ export class TransactionManager {
     options: {
       autoCommit?: boolean;
       autoRollback?: boolean;
+      autoSnapshot?: boolean;
       isolationLevel?: 'read_uncommitted' | 'read_committed' | 'serializable';
       userId?: string;
     } = {}
@@ -112,9 +155,11 @@ export class TransactionManager {
     const transactionId = uuidv4();
     this.log(`Beginning transaction: ${transactionId}`);
 
-    // Create snapshot if auto-snapshot enabled
+    // Create snapshot if auto-snapshot enabled (per-call option overrides config)
+    const takeSnapshot =
+      options.autoSnapshot !== undefined ? options.autoSnapshot : this.config.autoSnapshot;
     let snapshot: TransactionSnapshot | undefined;
-    if (this.config.autoSnapshot) {
+    if (takeSnapshot) {
       snapshot = await this.createSnapshot(spreadsheetId);
       this.log(`Created snapshot: ${snapshot.id}`);
     }
@@ -136,7 +181,7 @@ export class TransactionManager {
     this.stats.totalTransactions++;
     this.stats.activeTransactions++;
 
-    this.emitEvent({
+    await this.emitEvent({
       type: 'begin',
       transactionId,
       timestamp: Date.now(),
@@ -193,11 +238,17 @@ export class TransactionManager {
     transaction.operations.push(queuedOp);
     transaction.status = 'queued';
 
-    this.emitEvent({
+    await this.emitEvent({
       type: 'queue',
       transactionId,
       timestamp: Date.now(),
-      data: { operationId, operationType: operation.type },
+      data: {
+        operationId,
+        operationType: operation.type,
+        tool: operation.tool,
+        action: operation.action,
+        params: operation.params, // DR-01: stored for crash-recovery replay
+      },
     });
 
     return operationId;
@@ -222,6 +273,11 @@ export class TransactionManager {
 
       // Merge operations into batch request
       const batchRequest = this.mergeToBatchRequest(transaction.operations, sheetNameMap);
+
+      // Capture pre-commit cell values for rollback (write operations only)
+      if (transaction.snapshot) {
+        await this.capturePreCommitValues(transaction, transaction.snapshot);
+      }
 
       // Execute batch request via Google Sheets API
       const batchResponse = await this.executeBatchRequest(transaction.spreadsheetId, batchRequest);
@@ -257,12 +313,17 @@ export class TransactionManager {
         snapshotId: transaction.snapshot?.id,
       };
 
-      this.emitEvent({
+      await this.emitEvent({
         type: 'commit',
         transactionId,
         timestamp: Date.now(),
         data: { success: true, operationCount: transaction.operations.length },
       });
+
+      // DR-01: Compact WAL — remove completed transaction's entries
+      if (this.walEnabled) {
+        await this.compactWal(transactionId);
+      }
 
       // Cleanup
       this.activeTransactions.delete(transactionId);
@@ -290,7 +351,7 @@ export class TransactionManager {
         }
       }
 
-      this.emitEvent({
+      await this.emitEvent({
         type: 'fail',
         transactionId,
         timestamp: Date.now(),
@@ -299,6 +360,11 @@ export class TransactionManager {
           rolledBack,
         },
       });
+
+      // DR-01: Compact WAL for terminal failed transactions.
+      if (this.walEnabled) {
+        await this.compactWal(transactionId);
+      }
 
       // Cleanup
       this.activeTransactions.delete(transactionId);
@@ -335,28 +401,33 @@ export class TransactionManager {
 
     this.log(`Rolling back transaction: ${transactionId}`);
 
-    if (!transaction.snapshot) {
-      throw new Error('No snapshot available for rollback');
-    }
+    const snapshot = transaction.snapshot;
 
     try {
-      // Restore snapshot
-      await this.restoreSnapshot(transaction.snapshot);
+      // Restore snapshot if one was created (metadata-only; see restoreSnapshot for details)
+      if (snapshot) {
+        await this.restoreSnapshot(snapshot);
+      }
 
       transaction.status = 'rolled_back';
       this.stats.rolledBackTransactions++;
 
-      this.emitEvent({
+      await this.emitEvent({
         type: 'rollback',
         transactionId,
         timestamp: Date.now(),
-        data: { snapshotId: transaction.snapshot.id },
+        data: { snapshotId: snapshot?.id },
       });
+
+      // DR-01: Compact WAL — remove rolled-back transaction's entries
+      if (this.walEnabled) {
+        await this.compactWal(transactionId);
+      }
 
       return {
         transactionId,
         success: true,
-        snapshotId: transaction.snapshot.id,
+        snapshotId: snapshot?.id ?? '',
         duration: Date.now() - startTime,
         operationsReverted: transaction.operations.length,
       };
@@ -364,7 +435,7 @@ export class TransactionManager {
       return {
         transactionId,
         success: false,
-        snapshotId: transaction.snapshot.id,
+        snapshotId: snapshot?.id ?? '',
         duration: Date.now() - startTime,
         operationsReverted: 0,
         error: error instanceof Error ? error : new Error(String(error)),
@@ -442,8 +513,7 @@ export class TransactionManager {
       const snapshot: TransactionSnapshot = {
         id: uuidv4(),
         spreadsheetId,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        state: state as any, // Type conversion: Google API Schema$Spreadsheet to internal SpreadsheetState
+        state: state as unknown as SpreadsheetState, // Metadata-only snapshot shape is compatible subset
         timestamp: Date.now(),
         size,
       };
@@ -463,35 +533,110 @@ export class TransactionManager {
   }
 
   /**
-   * Restore snapshot (Design Decision: Manual Recovery Path)
+   * Capture pre-commit cell values for write/clear operations.
    *
-   * Automatic in-place restoration is intentionally deferred because:
-   * 1. It risks data corruption if the spreadsheet was modified externally
-   * 2. Comparing and merging states is complex and error-prone
-   * 3. Manual recovery via sheets_collaborate.version_restore_snapshot is safer
+   * Fetches current cell values immediately before the batchUpdate so that
+   * restoreSnapshot() can write them back if the transaction is rolled back.
+   * Scoped to sheets_data write/clear operations only; format changes do not
+   * have a simple inverse and must still be undone manually.
+   */
+  private async capturePreCommitValues(
+    transaction: Transaction,
+    snapshot: TransactionSnapshot
+  ): Promise<void> {
+    if (!this.googleClient) return;
+
+    const WRITE_TOOL_ACTIONS = new Set([
+      'sheets_data:write',
+      'sheets_data:batch_write',
+      'sheets_data:clear',
+      'sheets_data:batch_clear',
+    ]);
+
+    const ranges: string[] = [];
+    for (const op of transaction.operations) {
+      const toolAction = `${op.tool}:${op.action}`;
+      if (WRITE_TOOL_ACTIONS.has(toolAction) && typeof op.params['range'] === 'string') {
+        ranges.push(op.params['range'] as string);
+      }
+    }
+
+    if (ranges.length === 0) return;
+
+    // Deduplicate ranges
+    const uniqueRanges = [...new Set(ranges)];
+
+    try {
+      const response = await this.googleClient.sheets.spreadsheets.values.batchGet({
+        spreadsheetId: transaction.spreadsheetId,
+        ranges: uniqueRanges,
+      });
+
+      snapshot.preCommitCellData = (response.data.valueRanges ?? []).map((vr) => ({
+        range: vr.range ?? '',
+        values: (vr.values as unknown[][] | undefined) ?? [],
+      }));
+
+      this.log(`Captured pre-commit cell data for ${uniqueRanges.length} range(s)`);
+    } catch (error) {
+      // Non-fatal: log and continue — rollback will still mark the transaction rolled_back
+      this.log(
+        `WARNING: Could not capture pre-commit cell data: ${error instanceof Error ? error.message : String(error)}. ` +
+          'Rollback will not restore cell values for this transaction.'
+      );
+    }
+  }
+
+  /**
+   * Restore snapshot — writes back pre-commit cell data captured before the batchUpdate.
    *
-   * Recovery options available to users:
-   * - Use sheets_collaborate action="version_restore_snapshot" to create a recovery file
-   * - Use sheets_history to review and manually undo operations
-   * - Implement compensating transactions for automated recovery
-   *
-   * Full in-place restoration would require:
-   * 1. Comparing current state with snapshot state
-   * 2. Generating compensating batchUpdate requests to revert changes
-   * 3. Handling cases where sheets were added/deleted
-   * 4. Managing potential conflicts if spreadsheet was modified externally
+   * Restores cell values for sheets_data write/clear operations.
+   * Format changes (sheets_format) and structural changes (sheet add/delete) are NOT
+   * reverted automatically; use sheets_history or sheets_collaborate for those.
    */
   private async restoreSnapshot(snapshot: TransactionSnapshot): Promise<void> {
-    this.log(
-      `Snapshot ${snapshot.id} available for manual recovery. Use sheets_collaborate to restore.`
-    );
+    if (!snapshot.preCommitCellData || snapshot.preCommitCellData.length === 0) {
+      this.log(
+        `Transaction rolled back. Snapshot ${snapshot.id} has no cell data to restore. ` +
+          'For format/structural rollback use sheets_history or sheets_collaborate.'
+      );
+      return;
+    }
 
-    throw new Error(
-      `Automatic in-place snapshot restoration is not supported (snapshot: ${snapshot.id}). ` +
-        'Recovery options: (1) Use sheets_history action "undo" to reverse individual operations, ' +
-        '(2) Use sheets_collaborate action "version_restore_snapshot" to export a recovery copy, ' +
-        'or (3) Use sheets_collaborate action "version_list_revisions" to find and restore a previous revision.'
-    );
+    if (!this.googleClient) {
+      this.log(
+        `Transaction rolled back. Cannot restore cell data — no Google API client. ` +
+          `Snapshot ${snapshot.id} captured ${snapshot.preCommitCellData.length} range(s); ` +
+          'restore manually via sheets_history or sheets_collaborate.'
+      );
+      return;
+    }
+
+    this.log(`Restoring ${snapshot.preCommitCellData.length} range(s) to pre-transaction state...`);
+
+    try {
+      await this.googleClient.sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: snapshot.spreadsheetId,
+        requestBody: {
+          valueInputOption: 'RAW',
+          data: snapshot.preCommitCellData.map((d) => ({
+            range: d.range,
+            values: d.values,
+          })),
+        },
+      });
+
+      this.log(
+        `Cell data restored for ${snapshot.preCommitCellData.length} range(s). ` +
+          'Note: format changes are not reverted — use sheets_history for full undo.'
+      );
+    } catch (error) {
+      // Non-fatal: log and continue — the transaction is still marked rolled_back
+      this.log(
+        `WARNING: Failed to restore cell data during rollback: ${error instanceof Error ? error.message : String(error)}. ` +
+          `Snapshot ${snapshot.id} contains the pre-transaction values for manual recovery.`
+      );
+    }
   }
 
   /**
@@ -1133,11 +1278,190 @@ export class TransactionManager {
     }
   }
 
+  // ==========================================================================
+  // DR-01: Write-Ahead Log (WAL)
+  // ==========================================================================
+
+  /**
+   * Ensure WAL directory exists and replay any orphaned transactions from a previous crash.
+   */
+  private async initWal(): Promise<void> {
+    try {
+      const walDir = dirname(this.walPath);
+      if (!existsSync(walDir)) {
+        mkdirSync(walDir, { recursive: true, mode: 0o750 });
+      }
+      await this.replayWal();
+    } catch (error) {
+      logger.error('WAL initialization failed', {
+        error: error instanceof Error ? error.message : String(error),
+        walPath: this.walPath,
+      });
+    }
+  }
+
+  /**
+   * Append a transaction event to the WAL.
+   * Format: one JSON object per line — { seq, txId, type, ts, data }
+   */
+  private async appendWalEntry(event: TransactionEvent): Promise<void> {
+    await this.walReady;
+    await this.runWalOperation('append', async () => {
+      const entry =
+        JSON.stringify({
+          seq: ++this.walSeq,
+          txId: event.transactionId,
+          type: event.type,
+          ts: event.timestamp,
+          data: event.data ?? {},
+        }) + '\n';
+      await fsPromises.appendFile(this.walPath, entry, { flag: 'a', mode: 0o640 });
+    });
+  }
+
+  /**
+   * On startup, scan the WAL for transactions that started but never committed or rolled back.
+   * These represent in-flight transactions from a previous crash.
+   */
+  private async replayWal(): Promise<void> {
+    if (!existsSync(this.walPath)) return;
+    try {
+      const content = await fsPromises.readFile(this.walPath, 'utf8');
+      const lines = content.split('\n').filter(Boolean);
+      const txEvents = new Map<
+        string,
+        {
+          hasBegin: boolean;
+          completed: boolean;
+          queuedOperations: number;
+          spreadsheetId?: string;
+          snapshotId?: string;
+          lastEventType: TransactionEvent['type'];
+          lastEventTimestamp: number;
+        }
+      >();
+      for (const line of lines) {
+        try {
+          const entry = JSON.parse(line) as WalEntry;
+          this.walSeq = Math.max(this.walSeq, entry.seq ?? 0);
+
+          const state = txEvents.get(entry.txId) ?? {
+            hasBegin: false,
+            completed: false,
+            queuedOperations: 0,
+            lastEventType: entry.type,
+            lastEventTimestamp: entry.ts,
+          };
+
+          state.lastEventType = entry.type;
+          state.lastEventTimestamp = entry.ts;
+
+          if (entry.type === 'begin') {
+            state.hasBegin = true;
+            const beginData =
+              entry.data && typeof entry.data === 'object'
+                ? (entry.data as Record<string, unknown>)
+                : undefined;
+            const spreadsheetId = beginData?.['spreadsheetId'];
+            const snapshotId = beginData?.['snapshot'];
+            if (typeof spreadsheetId === 'string') {
+              state.spreadsheetId = spreadsheetId;
+            }
+            if (typeof snapshotId === 'string') {
+              state.snapshotId = snapshotId;
+            }
+          }
+
+          if (entry.type === 'queue') {
+            state.queuedOperations += 1;
+          }
+
+          if (entry.type === 'commit' || entry.type === 'rollback' || entry.type === 'fail') {
+            state.completed = true;
+          }
+
+          txEvents.set(entry.txId, state);
+        } catch {
+          // Ignore malformed WAL lines
+        }
+      }
+      const orphaned: WalRecoveryTransaction[] = [];
+      for (const [txId, state] of txEvents) {
+        if (state.hasBegin && !state.completed) {
+          orphaned.push({
+            transactionId: txId,
+            spreadsheetId: state.spreadsheetId,
+            snapshotId: state.snapshotId,
+            queuedOperations: state.queuedOperations,
+            lastEventType: state.lastEventType,
+            lastEventTimestamp: state.lastEventTimestamp,
+          });
+        }
+      }
+      this.walOrphanedTransactions = orphaned;
+
+      if (this.walOrphanedTransactions.length > 0) {
+        logger.warn('WAL replay: orphaned transactions detected from previous crash', {
+          count: this.walOrphanedTransactions.length,
+          transactions: this.walOrphanedTransactions.map((tx) => ({
+            transactionId: tx.transactionId,
+            spreadsheetId: tx.spreadsheetId,
+            snapshotId: tx.snapshotId,
+            queuedOperations: tx.queuedOperations,
+          })),
+        });
+      } else {
+        logger.info('WAL replay: no orphaned transactions', { walPath: this.walPath });
+      }
+    } catch (error) {
+      logger.warn('WAL replay failed', {
+        error: error instanceof Error ? error.message : String(error),
+        walPath: this.walPath,
+      });
+    }
+  }
+
+  /**
+   * Rewrite the WAL removing all entries for a completed transaction.
+   * Uses an atomic temp-file rename to prevent partial writes.
+   */
+  private async compactWal(completedTxId: string): Promise<void> {
+    await this.walReady;
+    await this.runWalOperation('compact', async () => {
+      if (!existsSync(this.walPath)) return;
+
+      const content = await fsPromises.readFile(this.walPath, 'utf8');
+      const remaining = content
+        .split('\n')
+        .filter((line) => {
+          if (!line) return false;
+          try {
+            const entry = JSON.parse(line) as { txId: string };
+            return entry.txId !== completedTxId;
+          } catch {
+            return true; // Keep malformed lines (don't lose data)
+          }
+        })
+        .join('\n');
+      const tmpPath = this.walPath + '.tmp';
+      await fsPromises.writeFile(tmpPath, remaining ? remaining + '\n' : '', { mode: 0o640 });
+      await fsPromises.rename(tmpPath, this.walPath);
+
+      this.walOrphanedTransactions = this.walOrphanedTransactions.filter(
+        (tx) => tx.transactionId !== completedTxId
+      );
+    });
+  }
+
   /**
    * Emit event to listeners
    */
-  private emitEvent(event: TransactionEvent): void {
-    for (const listener of this.listeners) {
+  private async emitEvent(event: TransactionEvent): Promise<void> {
+    // DR-01: Append to WAL before notifying listeners.
+    if (this.walEnabled) {
+      await this.appendWalEntry(event);
+    }
+    for (const listener of [...this.listeners]) {
       try {
         listener(event);
       } catch (error) {
@@ -1175,6 +1499,44 @@ export class TransactionManager {
   }
 
   /**
+   * Return WAL recovery status captured at startup replay.
+   */
+  async getWalRecoveryReport(): Promise<WalRecoveryReport> {
+    await this.walReady;
+    if (!this.walEnabled) {
+      return {
+        enabled: false,
+        orphanedTransactions: [],
+      };
+    }
+
+    return {
+      enabled: true,
+      walPath: this.walPath,
+      orphanedTransactions: [...this.walOrphanedTransactions],
+    };
+  }
+
+  /**
+   * Discard an orphaned WAL transaction entry (crash recovery cleanup).
+   * Removes the transaction from the orphan list and compacts the WAL.
+   */
+  async discardOrphanedTransaction(transactionId: string): Promise<void> {
+    const exists = this.walOrphanedTransactions.some((tx) => tx.transactionId === transactionId);
+    if (!exists) {
+      throw new Error(`No orphaned transaction found: ${transactionId}`);
+    }
+    if (this.walEnabled) {
+      await this.compactWal(transactionId);
+    } else {
+      this.walOrphanedTransactions = this.walOrphanedTransactions.filter(
+        (tx) => tx.transactionId !== transactionId
+      );
+    }
+    logger.info('Discarded orphaned WAL transaction', { transactionId });
+  }
+
+  /**
    * Reset statistics
    */
   resetStats(): void {
@@ -1208,10 +1570,35 @@ export class TransactionManager {
 
     if (transaction.snapshot) {
       await this.rollback(transactionId);
+    } else {
+      await this.emitEvent({
+        type: 'fail',
+        transactionId,
+        timestamp: Date.now(),
+        data: { error: 'Transaction cancelled without snapshot rollback', cancelled: true },
+      });
+      if (this.walEnabled) {
+        await this.compactWal(transactionId);
+      }
     }
 
     this.activeTransactions.delete(transactionId);
     this.stats.activeTransactions--;
+  }
+
+  private runWalOperation(operationName: string, operation: () => Promise<void>): Promise<void> {
+    this.walWriteChain = this.walWriteChain.then(async () => {
+      try {
+        await operation();
+      } catch (error) {
+        logger.warn('WAL operation failed', {
+          operation: operationName,
+          error: error instanceof Error ? error.message : String(error),
+          walPath: this.walPath,
+        });
+      }
+    });
+    return this.walWriteChain;
   }
 }
 
@@ -1225,8 +1612,9 @@ export function initTransactionManager(
   googleClient?: TransactionConfig['googleClient']
 ): TransactionManager {
   if (!transactionManagerInstance) {
+    const env = getEnv();
     transactionManagerInstance = new TransactionManager({
-      enabled: process.env['TRANSACTIONS_ENABLED'] !== 'false',
+      enabled: env.TRANSACTIONS_ENABLED,
       autoSnapshot: process.env['TRANSACTIONS_AUTO_SNAPSHOT'] !== 'false',
       autoRollback: process.env['TRANSACTIONS_AUTO_ROLLBACK'] !== 'false',
       maxOperationsPerTransaction: parseInt(process.env['TRANSACTIONS_MAX_OPERATIONS'] || '100'),
@@ -1240,6 +1628,7 @@ export function initTransactionManager(
           | 'read_committed'
           | 'serializable') || 'read_committed',
       googleClient,
+      walDir: env.TRANSACTION_WAL_DIR,
     });
   }
   return transactionManagerInstance;

@@ -1,42 +1,46 @@
 ---
 title: Tools Overview
 category: reference
-last_updated: 2026-01-31
-description: ServalSheets provides 22 MCP tools with 305 total actions covering the complete Google Sheets API v4.
-version: 1.6.0
+last_updated: 2026-03-08
+description: ServalSheets provides 25 MCP tools with 397 total actions covering the complete Google Sheets API v4.
+version: 1.7.0
 tags: [sheets]
 stability: stable
 ---
 
 # Tools Overview
 
-ServalSheets provides 22 MCP tools with 305 total actions covering the complete Google Sheets API v4.
+ServalSheets provides 25 MCP tools with 397 total actions covering the complete Google Sheets API v4.
 
 ## Tool Categories
 
 | Tool                  | Actions | Description                                                                   |
 | --------------------- | ------- | ----------------------------------------------------------------------------- |
 | `sheets_auth`         | 4       | OAuth status/login/callback/logout                                            |
-| `sheets_core`         | 19      | Spreadsheet + sheet metadata and management                                   |
-| `sheets_data`         | 19      | Read/write/append/clear values, notes, links, merges, spill detection         |
-| `sheets_format`       | 22      | Formatting, borders, number formats, validation, rules                        |
-| `sheets_dimensions`   | 28      | Rows/columns, filters, sort, filter views, slicers                            |
+| `sheets_core`         | 21      | Spreadsheet + sheet metadata and management                                   |
+| `sheets_data`         | 24      | Read/write/append/clear values, notes, links, merges, spill detection         |
+| `sheets_format`       | 24      | Formatting, borders, number formats, validation, rules                        |
+| `sheets_dimensions`   | 30      | Rows/columns, filters, sort, filter views, slicers                            |
 | `sheets_visualize`    | 18      | Charts + pivots (create/update/list)                                          |
-| `sheets_collaborate`  | 35      | Sharing, comments, revisions, snapshots                                       |
+| `sheets_collaborate`  | 40      | Sharing, comments, revisions, snapshots, approvals                            |
 | `sheets_advanced`     | 31      | Named ranges, named functions (LAMBDA), protections, metadata, banding, chips |
 | `sheets_transaction`  | 6       | Begin/queue/commit/rollback/status/list                                       |
 | `sheets_quality`      | 4       | Validation, conflicts, impact analysis                                        |
-| `sheets_history`      | 7       | History, undo/redo, revert                                                    |
+| `sheets_history`      | 10      | History, undo/redo, revert, time travel                                       |
 | `sheets_confirm`      | 5       | Elicitation-based confirmations                                               |
-| `sheets_analyze`      | 16      | AI analysis + planning (comprehensive, scout, plan, etc)                      |
-| `sheets_fix`          | 1       | Auto-fix detected issues                                                      |
-| `sheets_composite`    | 11      | CSV/XLSX import/export, smart append, dedupe, setup                           |
-| `sheets_session`      | 26      | Context, preferences, checkpoints                                             |
+| `sheets_analyze`      | 21      | AI analysis + planning (comprehensive, scout, plan, etc)                      |
+| `sheets_fix`          | 6       | Auto-fix detected issues                                                      |
+| `sheets_composite`    | 20      | CSV/XLSX import/export, smart append, dedupe, setup                           |
+| `sheets_session`      | 31      | Context, preferences, checkpoints, scheduler, pipeline                        |
 | `sheets_templates`    | 8       | Template management                                                           |
-| `sheets_bigquery`     | 14      | Connected Sheets + BigQuery query/import/export                               |
-| `sheets_appsscript`   | 14      | Apps Script project/deploy/run                                                |
-| `sheets_webhook`      | 6       | Webhook register/test/stats                                                   |
-| `sheets_dependencies` | 7       | Dependency graph + impact analysis                                            |
+| `sheets_bigquery`     | 17      | Connected Sheets + BigQuery query/import/export                               |
+| `sheets_appsscript`   | 19      | Apps Script project/deploy/run                                                |
+| `sheets_webhook`      | 10      | Webhook register/test/stats                                                   |
+| `sheets_dependencies` | 10      | Dependency graph + impact analysis                                            |
+| `sheets_agent`        | 8       | Autonomous multi-step plan/execute/rollback                                   |
+| `sheets_compute`      | 16      | Statistical analysis, SQL queries, Python/DuckDB compute                      |
+| `sheets_connectors`   | 10      | External data connectors (Finnhub, Polygon, FRED, BigQuery, etc)              |
+| `sheets_federation`   | 4       | Cross-MCP-server operations                                                   |
 
 ## Common Parameters
 

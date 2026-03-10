@@ -40,7 +40,7 @@ ServalSheets is a **production-grade MCP (Model Context Protocol) server** that 
 
 **Key Stats:**
 
-- 22 tools with 305 actions
+- 25 tools with 391 actions
 - 1,700+ tests (100% critical path coverage)
 - TypeScript strict mode
 - MCP 2025-11-25 protocol compliant
@@ -605,7 +605,7 @@ npm test -- --reporter=verbose
 
 ## Next Steps
 
-### After completing onboarding:
+### After completing onboarding
 
 1. **Read architecture docs:**
    - [Handler Patterns](../development/HANDLER_PATTERNS.md)

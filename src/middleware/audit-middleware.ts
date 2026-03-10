@@ -7,14 +7,14 @@
  * ## Audit Coverage
  *
  * **Data Mutations** (sheets_data, sheets_dimensions, sheets_format):
- * - All write operations (write_range, append_rows, clear_range)
- * - All structural changes (insert_rows, delete_columns)
- * - All formatting operations (apply_formatting, set_cell_format)
+ * - All write operations (write, append, clear, batch_write)
+ * - All structural changes (insert, delete, move, resize)
+ * - All formatting operations (set_format, batch_format, clear_format)
  *
  * **Permission Changes** (sheets_collaborate):
- * - Sharing spreadsheets (share_spreadsheet)
- * - Updating permissions (update_permissions)
- * - Revoking access (revoke_access)
+ * - Sharing spreadsheets (share_add, share_update, share_remove)
+ * - Updating permissions (share_set_link)
+ * - Revoking access (share_remove)
  *
  * **Authentication** (sheets_auth):
  * - Login attempts (authenticate)
@@ -54,45 +54,106 @@
  * - OAuth scopes (from token claims)
  */
 
-import type { AuditLogger } from '../services/audit-logger.js';
+import type {
+  AuditLogger,
+  MutationEvent,
+  PermissionEvent,
+  AuthenticationEvent,
+  ExportEvent,
+  ConfigurationEvent,
+} from '../services/audit-logger.js';
 import { getRequestContext } from '../utils/request-context.js';
 import { logger } from '../utils/logger.js';
 
 /**
- * Tool actions that trigger audit logging
+ * Tool actions that trigger audit logging.
+ * Names must match the actual action keys dispatched by handler switch statements.
  */
-const MUTATION_ACTIONS = new Set([
-  // sheets_data
-  'write_range',
-  'append_rows',
-  'clear_range',
-  'batch_update',
-
-  // sheets_dimensions
-  'insert_rows',
-  'insert_columns',
-  'delete_rows',
-  'delete_columns',
-  'move_rows',
-  'move_columns',
-
-  // sheets_format
-  'apply_formatting',
-  'set_cell_format',
-  'set_row_height',
-  'set_column_width',
+export const MUTATION_ACTIONS = new Set<MutationEvent['action']>([
+  // sheets_data — direct data writes
+  'write',
+  'append',
+  'clear',
+  'batch_write',
+  'batch_clear',
+  'cross_write',
+  // sheets_fix — mutating fixes
+  'clean',
+  'standardize_formats',
+  'fill_missing',
+  // sheets_composite — bulk write operations
+  'bulk_update',
+  'data_pipeline',
+  'instantiate_template',
+  'migrate_spreadsheet',
+  'cut_paste',
+  'copy_paste',
+  'find_replace',
   'merge_cells',
   'unmerge_cells',
+  'set_hyperlink',
+  'clear_hyperlink',
+  'add_note',
+  'clear_note',
+
+  // sheets_dimensions — structural changes
+  'delete_sheet',
+  'batch_delete_sheets',
+  'clear_sheet',
+  'insert',
+  'delete',
+  'move',
+  'resize',
+  'hide',
+  'show',
+  'freeze',
+  'group',
+  'ungroup',
+  'trim_whitespace',
+  'text_to_columns',
+  'randomize_range',
+  'set_basic_filter',
+  'clear_basic_filter',
+  'sort_range',
+  'create_filter_view',
+  'update_filter_view',
+  'delete_filter_view',
+  'create_slicer',
+  'update_slicer',
+  'delete_slicer',
+  'auto_fill',
+
+  // sheets_format — formatting mutations
+  'set_format',
+  'set_background',
+  'set_text_format',
+  'set_number_format',
+  'set_alignment',
+  'set_borders',
+  'clear_format',
+  'apply_preset',
+  'batch_format',
+  'set_data_validation',
+  'clear_data_validation',
+  'add_conditional_format_rule',
+  'rule_add_conditional_format',
+  'rule_update_conditional_format',
+  'rule_delete_conditional_format',
+  'set_rich_text',
+  'sparkline_add',
+  'sparkline_clear',
 ]);
 
-const PERMISSION_ACTIONS = new Set([
-  'share_spreadsheet',
-  'update_permissions',
-  'revoke_access',
-  'transfer_ownership',
+const PERMISSION_ACTIONS = new Set<PermissionEvent['action']>([
+  // sheets_collaborate — actual dispatch names
+  'share_add',
+  'share_update',
+  'share_remove',
+  'share_transfer_ownership',
+  'share_set_link',
 ]);
 
-const AUTHENTICATION_ACTIONS = new Set([
+const AUTHENTICATION_ACTIONS = new Set<AuthenticationEvent['action']>([
   'authenticate',
   'refresh_token',
   'revoke_token',
@@ -100,7 +161,7 @@ const AUTHENTICATION_ACTIONS = new Set([
   'service_account_auth',
 ]);
 
-const EXPORT_ACTIONS = new Set([
+const EXPORT_ACTIONS = new Set<ExportEvent['action']>([
   'export_csv',
   'export_xlsx',
   'export_pdf',
@@ -108,7 +169,7 @@ const EXPORT_ACTIONS = new Set([
   'download_attachment',
 ]);
 
-const CONFIGURATION_ACTIONS = new Set([
+const CONFIGURATION_ACTIONS = new Set<ConfigurationEvent['action']>([
   'update_env',
   'toggle_feature',
   'adjust_rate_limit',
@@ -120,6 +181,10 @@ const CONFIGURATION_ACTIONS = new Set([
  */
 export class AuditMiddleware {
   constructor(private auditLogger: AuditLogger) {}
+
+  private isSetAction<T extends string>(set: ReadonlySet<T>, action: string): action is T {
+    return set.has(action as T);
+  }
 
   /**
    * Wrap handler execution with audit logging
@@ -161,11 +226,10 @@ export class AuditMiddleware {
 
       // Log appropriate audit event
       try {
-        if (MUTATION_ACTIONS.has(action)) {
+        if (this.isSetAction(MUTATION_ACTIONS, action)) {
           await this.auditLogger.logMutation({
             userId,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Cast required for dynamic action types
-            action: action as any,
+            action,
             tool: toolName,
             resource,
             outcome,
@@ -180,11 +244,10 @@ export class AuditMiddleware {
             rowsModified: this.extractRowsModified(result),
             columnsModified: this.extractColumnsModified(result),
           });
-        } else if (PERMISSION_ACTIONS.has(action)) {
+        } else if (this.isSetAction(PERMISSION_ACTIONS, action)) {
           await this.auditLogger.logPermissionChange({
             userId,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Cast required for dynamic action types
-            action: action as any,
+            action,
             tool: toolName,
             resource,
             outcome,
@@ -197,11 +260,10 @@ export class AuditMiddleware {
             scopes: this.extractScopes(args),
             permission: this.extractPermission(args),
           });
-        } else if (AUTHENTICATION_ACTIONS.has(action)) {
+        } else if (this.isSetAction(AUTHENTICATION_ACTIONS, action)) {
           await this.auditLogger.logAuthentication({
             userId,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Cast required for dynamic action types
-            action: action as any,
+            action,
             tool: toolName,
             resource,
             outcome,
@@ -214,11 +276,10 @@ export class AuditMiddleware {
             method: this.extractAuthMethod(action),
             failureReason: outcome === 'failure' ? errorMessage : undefined,
           });
-        } else if (EXPORT_ACTIONS.has(action)) {
+        } else if (this.isSetAction(EXPORT_ACTIONS, action)) {
           await this.auditLogger.logExport({
             userId,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Cast required for dynamic action types
-            action: action as any,
+            action,
             tool: toolName,
             resource,
             outcome,
@@ -233,11 +294,10 @@ export class AuditMiddleware {
             recordCount: this.extractRecordCount(result),
             fileSize: this.extractFileSize(result),
           });
-        } else if (CONFIGURATION_ACTIONS.has(action)) {
+        } else if (this.isSetAction(CONFIGURATION_ACTIONS, action)) {
           await this.auditLogger.logConfiguration({
             userId,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Cast required for dynamic action types
-            action: action as any,
+            action,
             tool: toolName,
             resource,
             outcome,
@@ -270,11 +330,11 @@ export class AuditMiddleware {
    */
   private requiresAudit(action: string): boolean {
     return (
-      MUTATION_ACTIONS.has(action) ||
-      PERMISSION_ACTIONS.has(action) ||
-      AUTHENTICATION_ACTIONS.has(action) ||
-      EXPORT_ACTIONS.has(action) ||
-      CONFIGURATION_ACTIONS.has(action)
+      this.isSetAction(MUTATION_ACTIONS, action) ||
+      this.isSetAction(PERMISSION_ACTIONS, action) ||
+      this.isSetAction(AUTHENTICATION_ACTIONS, action) ||
+      this.isSetAction(EXPORT_ACTIONS, action) ||
+      this.isSetAction(CONFIGURATION_ACTIONS, action)
     );
   }
 
@@ -381,7 +441,7 @@ export class AuditMiddleware {
    * Extract authentication method from action
    */
   private extractAuthMethod(
-    action: string
+    action: AuthenticationEvent['action']
   ): 'oauth' | 'api_key' | 'service_account' | 'managed_identity' {
     if (action === 'oauth_grant') return 'oauth';
     if (action === 'service_account_auth') return 'service_account';
@@ -391,10 +451,11 @@ export class AuditMiddleware {
   /**
    * Extract export format from action
    */
-  private extractExportFormat(action: string): string | undefined {
+  private extractExportFormat(action: ExportEvent['action']): string | undefined {
     if (action === 'export_csv') return 'csv';
     if (action === 'export_xlsx') return 'xlsx';
     if (action === 'export_pdf') return 'pdf';
+    if (action === 'export_bigquery' || action === 'export_to_bigquery') return 'bigquery';
     return undefined;
   }
 
@@ -410,7 +471,7 @@ export class AuditMiddleware {
    */
   private extractOldValue(args: Record<string, unknown>): string | undefined {
     if (typeof args['oldValue'] === 'string') {
-      return this.sanitizeConfigValue(args['oldValue']);
+      return this.sanitizeConfigValue(this.extractConfigKey(args), args['oldValue']);
     }
     return undefined;
   }
@@ -420,7 +481,7 @@ export class AuditMiddleware {
    */
   private extractNewValue(args: Record<string, unknown>): string | undefined {
     if (typeof args['newValue'] === 'string') {
-      return this.sanitizeConfigValue(args['newValue']);
+      return this.sanitizeConfigValue(this.extractConfigKey(args), args['newValue']);
     }
     return undefined;
   }
@@ -428,13 +489,9 @@ export class AuditMiddleware {
   /**
    * Sanitize config value (remove secrets)
    */
-  private sanitizeConfigValue(value: string): string {
-    // Redact anything that looks like a secret
-    if (
-      value.toLowerCase().includes('secret') ||
-      value.toLowerCase().includes('token') ||
-      value.toLowerCase().includes('key')
-    ) {
+  private sanitizeConfigValue(key: string, value: string): string {
+    const sensitiveKeys = /secret|token|key|password|credential|auth|private/i;
+    if (sensitiveKeys.test(key)) {
       return '[REDACTED]';
     }
     return value;

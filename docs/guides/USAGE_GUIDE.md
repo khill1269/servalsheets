@@ -255,7 +255,7 @@ Store OAuth tokens securely across restarts:
 
 ```bash
 # Generate encryption key
-export GOOGLE_TOKEN_STORE_KEY=$(openssl rand -hex 32)
+export ENCRYPTION_KEY=$(openssl rand -hex 32)
 
 # Set token store path
 export GOOGLE_TOKEN_STORE_PATH=~/.config/servalsheets/tokens.enc

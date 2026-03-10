@@ -317,10 +317,10 @@ describe('FixHandler (F3 Data Cleaning)', () => {
 
       try {
         const response = await handler.handle(input);
-        // If we get here, check if response indicates error
-        expect([true, false]).toContain(response.response.success);
+        // Handler returns an error response (success:false) rather than throwing
+        expect(response.response.success).toBe(false);
       } catch (err) {
-        // Handler may throw or return error response - both acceptable
+        // Handler may also throw a typed error — both are acceptable
         expect(err).toBeDefined();
       }
     });
@@ -376,11 +376,11 @@ describe('FixHandler (F3 Data Cleaning)', () => {
     });
 
     it('should handle large datasets', async () => {
-      // Simulate large dataset
+      // Simulate large dataset (deterministic values for reproducibility)
       const largeData = Array.from({ length: 1000 }, (_, i) => [
         `Row${i}`,
-        Math.random() * 1000,
-        new Date().toISOString(),
+        (i + 1) * 10,
+        '2024-01-15',
       ]);
 
       (mockSheetsApi.spreadsheets?.values?.get as any).mockResolvedValue({

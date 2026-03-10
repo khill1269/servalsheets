@@ -35,6 +35,9 @@ import {
   SheetsWebhookInputSchema,
   SheetsDependenciesInputSchema,
   SheetsFederationInputSchema,
+  SheetsComputeInputSchema,
+  SheetsAgentInputSchema,
+  SheetsConnectorsInputSchema,
   TOOL_COUNT,
   ACTION_COUNT,
 } from '../../src/schemas/index.js';
@@ -153,9 +156,12 @@ const VALID_INPUTS: Record<string, unknown> = {
   },
   sheets_dependencies: { request: { action: 'build', spreadsheetId: 'test123' } },
   sheets_federation: { request: { action: 'list_servers' } },
+  sheets_compute: { request: { action: 'evaluate', spreadsheetId: 'test123', formula: '=SUM(A1:A10)' } },
+  sheets_agent: { request: { action: 'list_plans' } },
+  sheets_connectors: { request: { action: 'list_connectors' } },
 };
 
-// All tool input schemas (22 tools - includes Tier 7 enterprise tools + federation)
+// All tool input schemas (25 tools - includes Tier 7 enterprise tools + federation + connectors)
 const TOOL_SCHEMAS = [
   { name: 'sheets_auth', schema: SheetsAuthInputSchema },
   { name: 'sheets_core', schema: SheetsCoreInputSchema },
@@ -179,13 +185,16 @@ const TOOL_SCHEMAS = [
   { name: 'sheets_webhook', schema: SheetsWebhookInputSchema },
   { name: 'sheets_dependencies', schema: SheetsDependenciesInputSchema },
   { name: 'sheets_federation', schema: SheetsFederationInputSchema },
+  { name: 'sheets_compute', schema: SheetsComputeInputSchema },
+  { name: 'sheets_agent', schema: SheetsAgentInputSchema },
+  { name: 'sheets_connectors', schema: SheetsConnectorsInputSchema },
 ];
 
 describe('Schema Contracts', () => {
   describe('Tool Registry Integrity', () => {
-    it('should have exactly 22 tools (includes Tier 7 enterprise tools + federation)', () => {
-      expect(TOOL_COUNT).toBe(22);
-      expect(TOOL_SCHEMAS).toHaveLength(22);
+    it('should have exactly 25 tools (includes Tier 7 enterprise + federation + compute + agent + connectors)', () => {
+      expect(TOOL_COUNT).toBe(25);
+      expect(TOOL_SCHEMAS).toHaveLength(25);
     });
 
     it('should have correct total action count (dynamically validated)', () => {
@@ -802,8 +811,8 @@ describe('Schema Contracts', () => {
         },
       });
 
-      // Should succeed (extra fields are ignored)
-      expect(writeWithUnrelatedFields.success).toBe(true);
+      // Should fail — discriminated union branches use .strict() which rejects extra fields
+      expect(writeWithUnrelatedFields.success).toBe(false);
     });
 
     it('sheets_templates validates all 8 actions', () => {

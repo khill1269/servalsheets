@@ -143,6 +143,28 @@ export function isRetryableError(error: unknown): boolean {
     );
   }
 
+  // HTTP/2 stream errors — prefer stable Node.js error codes (ISSUE-143), fall back to message patterns
+  if (error instanceof Error) {
+    const errCode = (error as unknown as Record<string, unknown>)['code'];
+    // ERR_HTTP2_GOAWAY_SESSION is the canonical Node.js code for HTTP/2 GOAWAY (more stable than message strings)
+    if (
+      errCode === 'ERR_HTTP2_GOAWAY_SESSION' ||
+      errCode === 'ERR_HTTP2_SESSION_ERROR' ||
+      errCode === 'ERR_HTTP2_STREAM_ERROR'
+    ) {
+      return true;
+    }
+    const msg = error.message.toLowerCase();
+    if (
+      msg.includes('nghttp2_refused_stream') ||
+      msg.includes('stream was closed') ||
+      msg.includes('econnreset') ||
+      msg.includes('socket hang up')
+    ) {
+      return true;
+    }
+  }
+
   // Delegate everything else to serval-core's base detection
   return coreIsRetryableError(error, GOOGLE_SHEETS_RETRY_CONFIG);
 }
@@ -155,9 +177,14 @@ function trackHttp2ErrorByMessage(error: unknown): void {
   if (!(error instanceof Error)) return;
   const msg = error.message.toLowerCase();
   const errObj = error as unknown as Record<string, unknown>;
-  const errCode = typeof errObj.code === 'string' ? errObj.code : '';
+  const errCode = typeof errObj['code'] === 'string' ? errObj['code'] : '';
 
   if (
+    // Prefer stable Node.js error codes (ISSUE-143 fix)
+    errCode === 'ERR_HTTP2_GOAWAY_SESSION' ||
+    errCode === 'ERR_HTTP2_SESSION_ERROR' ||
+    errCode === 'ERR_HTTP2_STREAM_ERROR' ||
+    // Fallback: message patterns for older Node.js / non-standard errors
     msg.includes('goaway') ||
     msg.includes('new streams cannot be created') ||
     (msg.includes('session') && msg.includes('error') && msg.includes('http2'))

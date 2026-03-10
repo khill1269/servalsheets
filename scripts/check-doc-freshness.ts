@@ -14,6 +14,7 @@ interface DocFreshness {
   daysSinceUpdate: number;
   gitLastModified?: Date;
   frontmatterDate?: Date;
+  fsLastModified?: Date;
   status: 'fresh' | 'aging' | 'stale' | 'critical';
 }
 
@@ -74,9 +75,10 @@ async function checkFreshness(): Promise<DocFreshness[]> {
     const content = fs.readFileSync(file, 'utf8');
     const frontmatterDate = parseFrontmatterDate(content);
     const gitDate = getGitLastModified(file);
+    const fsDate = fs.statSync(file).mtime;
 
-    // Use frontmatter date if available, otherwise git
-    const lastUpdated = frontmatterDate || gitDate || new Date(0);
+    // Prefer explicit frontmatter, then git history, then filesystem mtime.
+    const lastUpdated = frontmatterDate || gitDate || fsDate;
     const daysSinceUpdate = Math.floor(
       (Date.now() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24)
     );
@@ -87,6 +89,7 @@ async function checkFreshness(): Promise<DocFreshness[]> {
       daysSinceUpdate,
       gitLastModified: gitDate || undefined,
       frontmatterDate: frontmatterDate || undefined,
+      fsLastModified: fsDate,
       status: getFreshnessStatus(daysSinceUpdate),
     });
   }

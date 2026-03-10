@@ -15,8 +15,8 @@
  * - src/schemas/handler-deviations.ts - Documented acceptable deviations
  *
  * Expected Results:
- * - 21/22 tools: Perfect alignment (0 deviations)
- * - 1/22 tools: Alignment with documented deviations (sheets_core)
+ * - 24/25 tools: Perfect alignment (0 deviations)
+ * - 1/25 tools: Alignment with documented deviations (sheets_core)
  * - 0 undocumented deviations allowed
  */
 
@@ -33,13 +33,16 @@ const PROJECT_ROOT = path.resolve(__dirname, '../..');
 
 const TOOLS = [
   'advanced',
+  'agent',
   'analyze',
   'appsscript',
   'auth',
   'bigquery',
   'collaborate',
   'composite',
+  'compute',
   'confirm',
+  'connectors',
   'core',
   'data',
   'dependencies',
@@ -161,27 +164,30 @@ describe('Schema-Handler Alignment', () => {
     it('should have correct action counts per tool', () => {
       const expectedCounts: Record<string, number> = {
         advanced: 31,
-        analyze: 18,
-        appsscript: 18,
+        agent: 8,
+        analyze: 21,
+        appsscript: 19,
         auth: 4,
         bigquery: 17,
-        collaborate: 35,
-        composite: 11,
+        collaborate: 40,
+        composite: 20,
+        compute: 16,
         confirm: 5,
-        core: 19,
-        data: 19,
-        dependencies: 7,
-        dimensions: 28,
+        connectors: 10,
+        core: 21,
+        data: 24,
+        dependencies: 10,
+        dimensions: 30,
         federation: 4,
         fix: 6,
         format: 24,
-        history: 7,
+        history: 10,
         quality: 4,
-        session: 26,
+        session: 31,
         templates: 8,
         transaction: 6,
         visualize: 18,
-        webhook: 7,
+        webhook: 10,
       };
 
       Object.entries(expectedCounts).forEach(([tool, expectedCount]) => {
@@ -198,11 +204,17 @@ describe('Schema-Handler Alignment', () => {
   describe('Deviations validation', () => {
     it('should have valid deviation structure', () => {
       ACCEPTABLE_DEVIATIONS.forEach((deviation) => {
-        expect(deviation.tool).toBeTruthy();
-        expect(deviation.reason).toBeTruthy();
-        expect(deviation.justification).toBeTruthy();
+        expect(typeof deviation.tool).toBe('string');
+        expect(deviation.tool.length).toBeGreaterThan(0);
+        expect(typeof deviation.reason).toBe('string');
+        expect(deviation.reason.length).toBeGreaterThan(0);
+        expect(typeof deviation.justification).toBe('string');
+        expect(deviation.justification.length).toBeGreaterThan(0);
         expect(deviation.addedDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-        expect(deviation.extraCases || deviation.missingCases).toBeTruthy();
+        expect(
+          (deviation.extraCases && deviation.extraCases.length > 0) ||
+            (deviation.missingCases && deviation.missingCases.length > 0)
+        ).toBe(true);
       });
     });
 
@@ -243,7 +255,7 @@ describe('Schema-Handler Alignment', () => {
       });
 
       // Assert expectations
-      expect(perfectAlignment).toBeGreaterThanOrEqual(21); // At least 21/22 perfect
+      expect(perfectAlignment).toBeGreaterThanOrEqual(24); // At least 24/25 perfect
       expect(toolsWithDeviations).toBeLessThanOrEqual(1); // At most 1 with deviations
     });
   });

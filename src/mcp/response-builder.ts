@@ -162,7 +162,17 @@ export function createLazyResponse(
 
       const structured = this.getStructuredContent();
       cachedResult = {
-        content: [{ type: 'text', text: JSON.stringify(structured, null, 2) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(structured, null, 2),
+            annotations: {
+              audience: isErrorResponse
+                ? (['user', 'assistant'] as const)
+                : (['assistant'] as const),
+            },
+          },
+        ],
         structuredContent: structured,
         isError: isErrorResponse ? true : undefined,
       };
@@ -235,13 +245,25 @@ export function buildSuccessResponse<T extends Record<string, unknown>>(
   if (sizeCheck.truncated) {
     // Response exceeded client limit - return truncated version
     return {
-      content: [{ type: 'text', text: JSON.stringify(sizeCheck.data, null, 2) }],
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(sizeCheck.data, null, 2),
+          annotations: { audience: ['assistant'] as const },
+        },
+      ],
       structuredContent: sizeCheck.data,
     };
   }
 
   return {
-    content: [{ type: 'text', text: JSON.stringify(structured, null, 2) }],
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(structured, null, 2),
+        annotations: { audience: ['assistant'] as const },
+      },
+    ],
     structuredContent: structured,
   };
 }
@@ -254,10 +276,12 @@ export function buildErrorResponse(
   message: string,
   details?: Record<string, unknown>
 ): CallToolResult {
+  const canonicalCode = code === 'RATE_LIMIT' ? 'RATE_LIMITED' : code;
+
   const error: Record<string, unknown> = {
-    code,
+    code: canonicalCode,
     message,
-    retryable: isRetryableError(code),
+    retryable: isRetryableError(canonicalCode),
   };
 
   if (details) {
@@ -272,7 +296,13 @@ export function buildErrorResponse(
   const structured = { response };
 
   return {
-    content: [{ type: 'text', text: JSON.stringify(structured, null, 2) }],
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(structured, null, 2),
+        annotations: { audience: ['user', 'assistant'] as const },
+      },
+    ],
     structuredContent: structured,
     isError: true,
   };
@@ -417,7 +447,13 @@ export function createStreamingResponse(
       currentIndex++;
 
       return {
-        content: [{ type: 'text', text: JSON.stringify({ response }, null, 2) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ response }, null, 2),
+            annotations: { audience: ['assistant'] as const },
+          },
+        ],
         structuredContent: { response },
       };
     },
@@ -558,7 +594,7 @@ function shouldTruncate(values: unknown[][], options: ResponseOptions): boolean 
  */
 function isRetryableError(code: string): boolean {
   const retryableCodes = new Set([
-    'RATE_LIMIT',
+    'RATE_LIMITED',
     'QUOTA_EXCEEDED',
     'SERVICE_UNAVAILABLE',
     'TIMEOUT',
@@ -719,7 +755,7 @@ const RESPONSE_TEMPLATES = {
     response: {
       success: false,
       error: {
-        code: 'RATE_LIMIT',
+        code: 'RATE_LIMITED',
         message: 'Rate limit exceeded. Please wait before retrying.',
         retryable: true,
         retryAfterMs,
@@ -744,7 +780,15 @@ export function buildFromTemplate<K extends keyof typeof RESPONSE_TEMPLATES>(
   const isError = response?.['success'] === false;
 
   return {
-    content: [{ type: 'text', text: JSON.stringify(structured, null, 2) }],
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(structured, null, 2),
+        annotations: {
+          audience: isError ? (['user', 'assistant'] as const) : (['assistant'] as const),
+        },
+      },
+    ],
     structuredContent: structured,
     isError: isError ? true : undefined,
   };

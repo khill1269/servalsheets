@@ -17,11 +17,7 @@ export default defineConfig({
 
     // Run tests sequentially to avoid interference
     pool: 'threads',
-    poolOptions: {
-      threads: {
-        singleThread: true, // One test at a time for controlled chaos
-      },
-    },
+    maxWorkers: 1, // One test at a time for controlled chaos
 
     // Include only chaos test files
     include: ['tests/chaos/**/*.test.ts'],

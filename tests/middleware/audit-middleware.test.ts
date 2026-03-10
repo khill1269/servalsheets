@@ -52,12 +52,12 @@ describe('AuditMiddleware', () => {
   });
 
   describe('mutation actions', () => {
-    it('should log write_range as mutation', async () => {
+    it('should log write as mutation', async () => {
       const handler = vi.fn().mockResolvedValue({ cellsModified: 10 });
 
       const result = await middleware.wrap(
         'sheets_data',
-        'write_range',
+        'write',
         { spreadsheetId: 'abc123', range: 'A1:B10' },
         handler
       );
@@ -66,7 +66,7 @@ describe('AuditMiddleware', () => {
       expect(handler).toHaveBeenCalledOnce();
       expect(mockLogger.logMutation).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: 'write_range',
+          action: 'write',
           tool: 'sheets_data',
           outcome: 'success',
         })
@@ -77,12 +77,12 @@ describe('AuditMiddleware', () => {
       const handler = vi.fn().mockRejectedValue(new Error('quota exceeded'));
 
       await expect(
-        middleware.wrap('sheets_data', 'append_rows', { spreadsheetId: 'abc123' }, handler)
+        middleware.wrap('sheets_data', 'append', { spreadsheetId: 'abc123' }, handler)
       ).rejects.toThrow('quota exceeded');
 
       expect(mockLogger.logMutation).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: 'append_rows',
+          action: 'append',
           outcome: 'failure',
           errorMessage: 'quota exceeded',
         })
@@ -91,19 +91,19 @@ describe('AuditMiddleware', () => {
   });
 
   describe('permission actions', () => {
-    it('should log share_spreadsheet as permission change', async () => {
+    it('should log share_add as permission change', async () => {
       const handler = vi.fn().mockResolvedValue({ shared: true });
 
       await middleware.wrap(
         'sheets_collaborate',
-        'share_spreadsheet',
+        'share_add',
         { spreadsheetId: 'abc', role: 'writer', email: 'user@example.com' },
         handler
       );
 
       expect(mockLogger.logPermissionChange).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: 'share_spreadsheet',
+          action: 'share_add',
           outcome: 'success',
         })
       );

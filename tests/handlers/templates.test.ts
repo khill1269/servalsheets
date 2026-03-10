@@ -8,6 +8,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SheetsTemplatesHandler } from '../../src/handlers/templates.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 describe('SheetsTemplatesHandler', () => {
   let handler: SheetsTemplatesHandler;
@@ -516,6 +520,65 @@ describe('SheetsTemplatesHandler', () => {
 
       expect(result.response.success).toBe(false);
       expect(result.response.error).toBeDefined();
+    });
+
+    it('should emit progress notifications for multi-sheet template application', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'templates-apply-progress',
+        progressToken: 'templates-apply-progress',
+        sendNotification: notification,
+      });
+
+      mockDriveApi.files.get
+        .mockResolvedValueOnce({
+          data: {
+            id: 'template-1',
+            name: 'Multi Sheet Template',
+            appProperties: {
+              templateName: 'Multi Sheet Template',
+            },
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                name: 'Sheet1',
+                rowCount: 100,
+                columnCount: 5,
+                headers: ['Name', 'Email'],
+                columnWidths: [180, 220],
+              },
+              {
+                name: 'Sheet2',
+                rowCount: 100,
+                columnCount: 5,
+                headers: ['Region', 'Revenue'],
+              },
+            ],
+          },
+        });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          request: {
+            action: 'apply',
+            templateId: 'template-1',
+            title: 'My Multi Sheet Template',
+          },
+        })
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({
+          progress: 0,
+          total: 4,
+        }),
+      });
     });
   });
 

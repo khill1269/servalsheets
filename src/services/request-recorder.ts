@@ -7,8 +7,56 @@
 
 import Database from 'better-sqlite3';
 import { resolve } from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, chmodSync } from 'fs';
 import { logger } from '../utils/logger.js';
+
+/** Keys whose values are replaced with '[REDACTED]' before storage */
+const SENSITIVE_KEYS = new Set([
+  'access_token',
+  'refresh_token',
+  'id_token',
+  'client_secret',
+  'password',
+  'authorization',
+  'authorization_code',
+  'code',
+  'x-api-key',
+  'x-goog-api-key',
+  'x-goog-authenticated-user-email',
+  'api_key',
+  'apikey',
+  'secret',
+  'token',
+  'private_key',
+  'encryption_key',
+]);
+
+const BEARER_PATTERN = /Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi;
+
+function redactValue(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return value.replace(BEARER_PATTERN, 'Bearer [REDACTED]');
+  }
+  if (Array.isArray(value)) {
+    return value.map(redactValue);
+  }
+  if (value !== null && typeof value === 'object') {
+    const redacted: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      redacted[k] = SENSITIVE_KEYS.has(k.toLowerCase()) ? '[REDACTED]' : redactValue(v);
+    }
+    return redacted;
+  }
+  return value;
+}
+
+function redactForStorage(json: string): string {
+  try {
+    return JSON.stringify(redactValue(JSON.parse(json)));
+  } catch {
+    return json;
+  }
+}
 
 /**
  * Recorded request entry
@@ -53,9 +101,8 @@ export class RequestRecorder {
   private enabled: boolean;
 
   constructor(dbPath?: string) {
-    this.enabled =
-      process.env['RECORD_REQUESTS'] === 'true' ||
-      (process.env['NODE_ENV'] !== 'production' && process.env['RECORD_REQUESTS'] !== 'false');
+    // Opt-in only: recording requires explicit RECORD_REQUESTS=true
+    this.enabled = process.env['RECORD_REQUESTS'] === 'true';
 
     if (!this.enabled) {
       logger.info('Request recording disabled');
@@ -75,8 +122,13 @@ export class RequestRecorder {
       mkdirSync(dir, { recursive: true });
     }
 
-    // Open database
+    // Open database with restricted permissions (owner read/write only)
     this.db = new Database(finalPath);
+    try {
+      chmodSync(finalPath, 0o600);
+    } catch {
+      /* non-fatal */
+    }
     this.db.pragma('journal_mode = WAL'); // Write-Ahead Logging for performance
 
     // Initialize schema
@@ -132,8 +184,8 @@ export class RequestRecorder {
         entry.tool_name,
         entry.action,
         entry.spreadsheet_id,
-        entry.request_body,
-        entry.response_body,
+        redactForStorage(entry.request_body),
+        redactForStorage(entry.response_body),
         entry.status_code,
         entry.duration_ms,
         entry.error_message

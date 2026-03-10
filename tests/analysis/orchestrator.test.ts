@@ -13,6 +13,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as ts from 'typescript';
+import { safeUnlinkSync } from '../helpers/safe-cleanup.js';
 import { AnalysisOrchestrator, OrchestratorOptions } from '../../scripts/analysis/orchestrator.js';
 import type { AnalysisContext } from '../../scripts/analysis/multi-agent-analysis.js';
 
@@ -28,15 +29,9 @@ export class TestHandler {
   }
 
   private async doSomething(): Promise<string> {
-    if (Math.random() > 0.5) {
-      return 'success';
-    } else if (Math.random() > 0.3) {
-      return 'maybe';
-    } else if (Math.random() > 0.1) {
-      return 'unlikely';
-    } else {
-      return 'failure';
-    }
+    const outcomes = ['success', 'maybe', 'unlikely', 'failure'] as const;
+    const deterministicIndex = ('TestHandler'.length + 'doSomething'.length) % outcomes.length;
+    return outcomes[deterministicIndex];
   }
 }
   `.trim();
@@ -146,7 +141,7 @@ export class TestHandler {
       const falsePositives = report.validatedFindings.filter((f) => f.isFalsePositive);
       expect(falsePositives.length).toBeGreaterThan(0);
 
-      fs.unlinkSync(testFile);
+      safeUnlinkSync(testFile);
     });
 
     it('should assign confidence levels correctly', async () => {
@@ -193,7 +188,8 @@ export class TestHandler {
 
           expect(['pattern', 'severity', 'suggestion']).toContain(conflict.conflictType);
           expect(conflict.issues.length).toBeGreaterThanOrEqual(2);
-          expect(conflict.winner).toBeTruthy();
+          expect(typeof conflict.winner).toBe('string');
+          expect(conflict.winner.length).toBeGreaterThan(0);
         }
       }
     });
@@ -221,7 +217,7 @@ export class TestHandler {
         }
       }
 
-      fs.unlinkSync(testFile);
+      safeUnlinkSync(testFile);
     });
 
     it('should apply resolutions to final findings', async () => {
@@ -285,7 +281,8 @@ export class TestHandler {
         expect(fix).toHaveProperty('file');
         expect(fix).toHaveProperty('issueType');
         expect(fix).toHaveProperty('applied');
-        expect(fix.file).toBeTruthy();
+        expect(typeof fix.file).toBe('string');
+        expect(fix.file.length).toBeGreaterThan(0);
       }
     });
 
@@ -394,7 +391,8 @@ export class TestHandler {
       const findProjectRoot = (orchestrator as any).findProjectRoot.bind(orchestrator);
       const root = findProjectRoot(testFilePath);
 
-      expect(root).toBeTruthy();
+      expect(typeof root).toBe('string');
+      expect(root.length).toBeGreaterThan(0);
       expect(fs.existsSync(path.join(root, 'package.json'))).toBe(true);
     });
 
@@ -447,7 +445,7 @@ export class TestHandler {
 
       // Cleanup
       for (let i = 0; i < 5; i++) {
-        fs.unlinkSync(path.join(__dirname, `../fixtures/test-${i}.ts`));
+        safeUnlinkSync(path.join(__dirname, `../fixtures/test-${i}.ts`));
       }
     });
   });
@@ -472,7 +470,7 @@ export class TestHandler {
       // Should still process the valid file
       expect(report.agentReports.length).toBeGreaterThan(0);
 
-      fs.unlinkSync(badFile);
+      safeUnlinkSync(badFile);
     });
 
     it('should fail fast when enabled', async () => {

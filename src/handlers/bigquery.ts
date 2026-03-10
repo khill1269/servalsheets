@@ -27,12 +27,13 @@
  * MCP Protocol: 2025-11-25
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { bigquery_v2 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
-import { getCircuitBreakerConfig } from '../config/env.js';
+import { getCircuitBreakerConfig, getEnv } from '../config/env.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import { ServiceError } from '../core/errors.js';
 import { createValidationError } from '../utils/error-factory.js';
@@ -57,6 +58,10 @@ import type {
   BigQueryImportInput,
 } from '../schemas/index.js';
 import { logger } from '../utils/logger.js';
+import { sendProgress } from '../utils/request-context.js';
+
+/** Maximum BigQuery result rows (ISSUE-188: configurable via env var) */
+const MAX_BIGQUERY_RESULT_ROWS = getEnv().MAX_BIGQUERY_RESULT_ROWS;
 
 /**
  * Dangerous SQL patterns that should be blocked in Connected Sheets queries.
@@ -75,6 +80,7 @@ const DANGEROUS_SQL_PATTERNS = [
   /\bGRANT\b/i,
   /\bREVOKE\b/i,
   /\bEXECUTE\s+IMMEDIATE\b/i,
+  /\bCALL\s+\w/i,
 ];
 
 function validateBigQuerySql(query: string): void {
@@ -220,13 +226,15 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         case 'delete_scheduled_query':
           response = await this.handleDeleteScheduledQuery(req);
           break;
-        default:
+        default: {
+          const _exhaustiveCheck: never = req;
           response = this.error({
-            code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(req as { action: string }).action}`,
+            code: ErrorCodes.INVALID_PARAMS,
+            message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
+        }
       }
 
       // 5. Track context after successful operation
@@ -252,7 +260,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
   private requireBigQuery(): bigquery_v2.Bigquery {
     if (!this.bigqueryApi) {
       throw this.error({
-        code: 'CONFIG_ERROR',
+        code: ErrorCodes.CONFIG_ERROR,
         message:
           'BigQuery API is not configured. Enable BigQuery API in your GCP project and ensure proper OAuth scopes.',
         retryable: false,
@@ -358,7 +366,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         pageToken = pageResponse.data.pageToken ?? undefined;
 
         // Safety limit: don't fetch more than 100K rows
-        if (allRows.length > 100000) {
+        if (allRows.length > MAX_BIGQUERY_RESULT_ROWS) {
           logger.warn('BigQuery result set truncated at 100K rows', { jobId });
           break;
         }
@@ -457,7 +465,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           allRows = allRows.concat(pageRows);
           pageToken = pageResponse.data.pageToken ?? undefined;
 
-          if (allRows.length > 100000) {
+          if (allRows.length > MAX_BIGQUERY_RESULT_ROWS) {
             logger.warn('BigQuery result set truncated at 100K rows', { jobId });
             break;
           }
@@ -494,7 +502,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       switch (apiError.status) {
         case 'PERMISSION_DENIED':
           return this.error({
-            code: 'PERMISSION_DENIED',
+            code: ErrorCodes.PERMISSION_DENIED,
             message: `BigQuery access denied: ${apiError.message ?? 'Check permissions'}`,
             retryable: false,
             suggestedFix:
@@ -502,14 +510,14 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           });
         case 'NOT_FOUND':
           return this.error({
-            code: 'NOT_FOUND',
+            code: ErrorCodes.NOT_FOUND,
             message: `BigQuery resource not found: ${apiError.message ?? 'Check project/dataset/table IDs'}`,
             retryable: false,
             suggestedFix: 'Verify projectId, datasetId, and tableId are correct.',
           });
         case 'INVALID_ARGUMENT':
           return this.error({
-            code: 'INVALID_PARAMS',
+            code: ErrorCodes.INVALID_PARAMS,
             message: `Invalid BigQuery query: ${apiError.message ?? 'Check SQL syntax'}`,
             retryable: false,
             suggestedFix: 'Check SQL syntax. Use preview with dryRun:true to validate queries.',
@@ -520,7 +528,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
 
       if (apiError.code === 429) {
         return this.error({
-          code: 'QUOTA_EXCEEDED',
+          code: ErrorCodes.QUOTA_EXCEEDED,
           message: 'BigQuery API rate limit exceeded. Try again later.',
           retryable: true,
           suggestedFix: 'Wait 60 seconds and retry, or reduce query frequency.',
@@ -529,7 +537,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     }
 
     return this.error({
-      code: 'UNAVAILABLE',
+      code: ErrorCodes.UNAVAILABLE,
       message: `BigQuery operation failed: ${error.message ?? 'Unknown error'}`,
       retryable: true,
       suggestedFix: 'Try again. If the issue persists, check the BigQuery console.',
@@ -774,7 +782,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
 
       if (!dataSource) {
         return this.error({
-          code: 'NOT_FOUND',
+          code: ErrorCodes.NOT_FOUND,
           message: `Data source not found: ${req.dataSourceId}`,
           retryable: false,
           suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
@@ -1013,9 +1021,15 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
 
       // Inject LIMIT if not present to prevent unbounded preview queries
       const maxRows = req.maxRows ?? 10;
-      const previewQuery = /\bLIMIT\s+\d+/i.test(req.query)
+      const strippedForLimitCheck = req.query
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/--[^\n]*/g, '');
+      const previewQuery = /\bLIMIT\s+\d+/i.test(strippedForLimitCheck)
         ? req.query
         : `${req.query.replace(/;?\s*$/, '')} LIMIT ${maxRows}`;
+
+      // Re-validate the assembled query (LIMIT injection could expose DML in edge cases)
+      validateBigQuerySql(previewQuery);
 
       // Use async job pattern for reliable execution
       const result = await this.executeQueryWithJobPolling(bigquery, {
@@ -1248,7 +1262,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         range = req.range.namedRange;
       } else {
         return this.error({
-          code: 'INVALID_PARAMS',
+          code: ErrorCodes.INVALID_PARAMS,
           message: 'Range must be a string, A1 notation object, or named range',
           retryable: false,
           suggestedFix:
@@ -1259,12 +1273,13 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       const sheetData = await this.sheetsApi.spreadsheets.values.get({
         spreadsheetId: req.spreadsheetId,
         range,
+        valueRenderOption: 'UNFORMATTED_VALUE', // Preserve raw numbers/dates for BigQuery ingestion
       });
 
       const values = sheetData.data.values ?? [];
       if (values.length === 0) {
         return this.error({
-          code: 'INVALID_PARAMS',
+          code: ErrorCodes.INVALID_PARAMS,
           message: 'No data found in the specified range',
           retryable: false,
           suggestedFix:
@@ -1272,13 +1287,91 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         });
       }
 
-      // Validate writeDisposition - streaming insert only supports WRITE_APPEND
-      if (req.writeDisposition && req.writeDisposition !== 'WRITE_APPEND') {
-        return this.error({
-          code: 'INVALID_PARAMS',
-          message: `writeDisposition '${req.writeDisposition}' is not supported for streaming export. Only WRITE_APPEND is supported.`,
-          retryable: false,
+      const writeDisposition = req.writeDisposition ?? 'WRITE_APPEND';
+
+      // WRITE_EMPTY: fail if the table already has rows
+      if (writeDisposition === 'WRITE_EMPTY') {
+        const tableRef = `\`${req.destination.projectId}.${req.destination.datasetId}.${req.destination.tableId}\``;
+        const countJob = await bigquery.jobs.insert({
+          projectId: req.destination.projectId,
+          requestBody: {
+            configuration: {
+              query: {
+                query: `SELECT COUNT(1) AS row_count FROM ${tableRef}`,
+                useLegacySql: false,
+              },
+            },
+          },
         });
+        const jobId = countJob.data.jobReference?.jobId;
+        if (jobId) {
+          // Poll with exponential backoff (500ms → 5s cap, max 30s total)
+          for (let attempt = 0; attempt < 15; attempt++) {
+            const delay = Math.min(500 * Math.pow(2, attempt), 5000);
+            await new Promise((r) => setTimeout(r, delay));
+            const pollResp = await bigquery.jobs.get({
+              projectId: req.destination.projectId,
+              jobId,
+              location: req.destination.location,
+            });
+            if (pollResp.data.status?.state === 'DONE') {
+              const queryResults = await bigquery.jobs.getQueryResults({
+                projectId: req.destination.projectId,
+                jobId,
+              });
+              const existingRows = Number(queryResults.data.rows?.[0]?.f?.[0]?.v ?? 0);
+              if (existingRows > 0) {
+                return this.error({
+                  code: ErrorCodes.INVALID_PARAMS,
+                  message: `writeDisposition WRITE_EMPTY failed: table already contains ${existingRows} row(s).`,
+                  retryable: false,
+                  suggestedFix: 'Use writeDisposition WRITE_APPEND or WRITE_TRUNCATE.',
+                });
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      // WRITE_TRUNCATE: delete all existing rows via DML before streaming new ones
+      if (writeDisposition === 'WRITE_TRUNCATE') {
+        const tableRef = `\`${req.destination.projectId}.${req.destination.datasetId}.${req.destination.tableId}\``;
+        const truncateJob = await bigquery.jobs.insert({
+          projectId: req.destination.projectId,
+          requestBody: {
+            configuration: {
+              query: {
+                query: `DELETE FROM ${tableRef} WHERE TRUE`,
+                useLegacySql: false,
+              },
+            },
+          },
+        });
+        const truncJobId = truncateJob.data.jobReference?.jobId;
+        if (truncJobId) {
+          // Poll with exponential backoff (500ms → 5s cap, max 60s total)
+          for (let attempt = 0; attempt < 20; attempt++) {
+            const delay = Math.min(500 * Math.pow(2, attempt), 5000);
+            await new Promise((r) => setTimeout(r, delay));
+            const pollResp = await bigquery.jobs.get({
+              projectId: req.destination.projectId,
+              jobId: truncJobId,
+              location: req.destination.location,
+            });
+            if (pollResp.data.status?.state === 'DONE') {
+              if (pollResp.data.status.errorResult) {
+                logger.warn(
+                  'WRITE_TRUNCATE DML returned error (table may not exist yet — proceeding)',
+                  {
+                    error: pollResp.data.status.errorResult,
+                  }
+                );
+              }
+              break;
+            }
+          }
+        }
       }
 
       // Skip header rows
@@ -1298,14 +1391,23 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       });
 
       // Use streaming insert with chunking for large datasets (P1-3)
-      // BigQuery streaming insert has a soft limit of ~10,000 rows per call
-      const CHUNK_SIZE = 500;
+      // BigQuery recommends 10,000 rows per streaming insert request for spreadsheet-sized rows
+      const CHUNK_SIZE = 10_000;
+      // For very large exports (>500K rows), GCS-staged load jobs would be more efficient
+      // but require Cloud Storage access not yet wired. Log advisory for operators.
+      const LOAD_JOB_THRESHOLD = 500_000;
       const totalRows = rows.length;
       const allInsertErrors: unknown[] = [];
       // Generate a stable batch ID for insertId deduplication (prevents duplicate rows on retry)
       const batchId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-      if (totalRows > CHUNK_SIZE) {
+      if (totalRows >= LOAD_JOB_THRESHOLD) {
+        logger.warn('Very large BigQuery export: GCS-staged load jobs would be more efficient', {
+          totalRows,
+          threshold: LOAD_JOB_THRESHOLD,
+          note: 'Proceeding with streaming insert. For >500K rows, consider using a GCS load job instead.',
+        });
+      } else if (totalRows > CHUNK_SIZE) {
         logger.info('Chunking large export', {
           totalRows,
           chunkSize: CHUNK_SIZE,
@@ -1313,11 +1415,13 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         });
       }
 
+      const totalChunks = Math.ceil(totalRows / CHUNK_SIZE);
+      await sendProgress(0, totalChunks, `Exporting ${totalRows} rows to BigQuery...`);
+
       // Process rows in chunks
       for (let i = 0; i < totalRows; i += CHUNK_SIZE) {
         const chunk = rows.slice(i, Math.min(i + CHUNK_SIZE, totalRows));
         const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
-        const totalChunks = Math.ceil(totalRows / CHUNK_SIZE);
 
         logger.debug('Inserting chunk', {
           chunkNumber,
@@ -1333,6 +1437,8 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
             datasetId: req.destination.datasetId,
             tableId: req.destination.tableId,
             requestBody: {
+              skipInvalidRows: true, // Don't fail entire chunk on single bad row
+              ignoreUnknownValues: true, // Tolerate extra columns not in schema
               rows: chunk.map((row, rowIdx) => ({
                 insertId: `${batchId}-${i + rowIdx}`,
                 ...row,
@@ -1349,6 +1455,12 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           });
           allInsertErrors.push(...chunkErrors);
         }
+
+        await sendProgress(
+          chunkNumber,
+          totalChunks,
+          `Exported chunk ${chunkNumber}/${totalChunks}`
+        );
       }
 
       const successfulRows = totalRows - allInsertErrors.length;
@@ -1362,6 +1474,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       }
 
       // Streaming inserts don't produce a BigQuery job — no jobId to return
+
       return this.success('export_to_bigquery', {
         rowCount: successfulRows,
         mutation: {
@@ -1394,6 +1507,8 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         },
       }));
 
+      await sendProgress(0, 3, 'Running BigQuery query...');
+
       // Use async job pattern with pagination for reliable large query execution
       const queryResult = await this.executeQueryWithJobPolling(bigquery, {
         projectId: req.projectId,
@@ -1407,6 +1522,8 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         parameterMode: queryParameters ? 'NAMED' : undefined,
         queryParameters,
       });
+
+      await sendProgress(1, 3, `Query returned ${queryResult.rows.length} rows`);
 
       const columns = queryResult.columns;
       const rows = queryResult.rows;
@@ -1444,6 +1561,8 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         targetSheetName =
           addSheetResponse.data?.replies?.[0]?.addSheet?.properties?.title ?? targetSheetName;
       }
+
+      await sendProgress(2, 3, `Writing ${rows.length} rows to sheet...`);
 
       // Write data to sheet
       const range = `${targetSheetName}!${startCell}`;
@@ -1504,18 +1623,17 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     validateBigQuerySql(query);
 
     try {
-      const googleClient = this.context.googleClient;
-      if (!googleClient) {
+      if (!this.context.googleClient) {
         return this.error({
-          code: 'UNAUTHENTICATED',
+          code: ErrorCodes.UNAUTHENTICATED,
           message: 'Google client not available - authentication required',
           retryable: false,
         });
       }
-      const token = googleClient.oauth2.credentials?.access_token;
+      const token = await this.getFreshAccessToken();
       if (!token) {
         return this.error({
-          code: 'UNAUTHENTICATED',
+          code: ErrorCodes.UNAUTHENTICATED,
           message: 'OAuth access token required for scheduled queries',
           retryable: false,
         });
@@ -1545,11 +1663,41 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
+        const errorBody = await response.text();
+        logger.error('BigQuery Data Transfer API error', {
+          action: 'create_scheduled_query',
+          status: response.status,
+          body: errorBody.substring(0, 200),
+        });
+        const safeCode:
+          | 'PERMISSION_DENIED'
+          | 'NOT_FOUND'
+          | 'INVALID_PARAMS'
+          | 'QUOTA_EXCEEDED'
+          | 'INTERNAL_ERROR' =
+          response.status === 403
+            ? 'PERMISSION_DENIED'
+            : response.status === 404
+              ? 'NOT_FOUND'
+              : response.status === 400
+                ? 'INVALID_PARAMS'
+                : response.status === 429
+                  ? 'QUOTA_EXCEEDED'
+                  : 'INTERNAL_ERROR';
+        const safeMessage =
+          response.status === 403
+            ? 'Permission denied. Check BigQuery Data Transfer API is enabled and OAuth scopes include bigquery.'
+            : response.status === 404
+              ? 'Resource not found. Verify project, location, and transferConfigName.'
+              : response.status === 400
+                ? 'Invalid request. Check scheduled query configuration and parameters.'
+                : response.status === 429
+                  ? 'Rate limit exceeded. Please wait and retry.'
+                  : `Scheduled query operation failed (HTTP ${response.status}). Check BigQuery console.`;
         return this.error({
-          code: 'INTERNAL_ERROR',
-          message: `Failed to create scheduled query: ${response.status} ${errorText}`,
-          retryable: response.status >= 500,
+          code: safeCode,
+          message: safeMessage,
+          retryable: response.status >= 500 || response.status === 429,
         });
       }
 
@@ -1579,18 +1727,17 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     const maxResults = (req['maxResults'] as number) ?? 20;
 
     try {
-      const googleClient = this.context.googleClient;
-      if (!googleClient) {
+      if (!this.context.googleClient) {
         return this.error({
-          code: 'UNAUTHENTICATED',
+          code: ErrorCodes.UNAUTHENTICATED,
           message: 'Google client not available - authentication required',
           retryable: false,
         });
       }
-      const token = googleClient.oauth2.credentials?.access_token;
+      const token = await this.getFreshAccessToken();
       if (!token) {
         return this.error({
-          code: 'UNAUTHENTICATED',
+          code: ErrorCodes.UNAUTHENTICATED,
           message: 'OAuth access token required for scheduled queries',
           retryable: false,
         });
@@ -1603,11 +1750,41 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
+        const errorBody = await response.text();
+        logger.error('BigQuery Data Transfer API error', {
+          action: 'list_scheduled_queries',
+          status: response.status,
+          body: errorBody.substring(0, 200),
+        });
+        const safeCode:
+          | 'PERMISSION_DENIED'
+          | 'NOT_FOUND'
+          | 'INVALID_PARAMS'
+          | 'QUOTA_EXCEEDED'
+          | 'INTERNAL_ERROR' =
+          response.status === 403
+            ? 'PERMISSION_DENIED'
+            : response.status === 404
+              ? 'NOT_FOUND'
+              : response.status === 400
+                ? 'INVALID_PARAMS'
+                : response.status === 429
+                  ? 'QUOTA_EXCEEDED'
+                  : 'INTERNAL_ERROR';
+        const safeMessage =
+          response.status === 403
+            ? 'Permission denied. Check BigQuery Data Transfer API is enabled and OAuth scopes include bigquery.'
+            : response.status === 404
+              ? 'Resource not found. Verify project, location, and transferConfigName.'
+              : response.status === 400
+                ? 'Invalid request. Check scheduled query configuration and parameters.'
+                : response.status === 429
+                  ? 'Rate limit exceeded. Please wait and retry.'
+                  : `Scheduled query operation failed (HTTP ${response.status}). Check BigQuery console.`;
         return this.error({
-          code: 'INTERNAL_ERROR',
-          message: `Failed to list scheduled queries: ${response.status} ${errorText}`,
-          retryable: response.status >= 500,
+          code: safeCode,
+          message: safeMessage,
+          retryable: response.status >= 500 || response.status === 429,
         });
       }
 
@@ -1636,24 +1813,34 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     const transferConfigName = req['transferConfigName'] as string;
 
     try {
-      const googleClient = this.context.googleClient;
-      if (!googleClient) {
+      if (!this.context.googleClient) {
         return this.error({
-          code: 'UNAUTHENTICATED',
+          code: ErrorCodes.UNAUTHENTICATED,
           message: 'Google client not available - authentication required',
           retryable: false,
         });
       }
-      const token = googleClient.oauth2.credentials?.access_token;
+      const token = await this.getFreshAccessToken();
       if (!token) {
         return this.error({
-          code: 'UNAUTHENTICATED',
+          code: ErrorCodes.UNAUTHENTICATED,
           message: 'OAuth access token required for scheduled queries',
           retryable: false,
         });
       }
 
-      const url = `https://bigquerydatatransfer.googleapis.com/v1/${encodeURIComponent(transferConfigName)}`;
+      // SEC-1: Validate GCP resource path format to prevent BOLA attacks
+      const TRANSFER_CONFIG_PATTERN = /^projects\/[^/]+\/locations\/[^/]+\/transferConfigs\/[^/]+$/;
+      if (!TRANSFER_CONFIG_PATTERN.test(transferConfigName)) {
+        return this.error({
+          code: ErrorCodes.INVALID_PARAMS,
+          message:
+            'transferConfigName must be in format: projects/{project}/locations/{location}/transferConfigs/{id}',
+          retryable: false,
+        });
+      }
+      // Use path directly (validated format); encodeURIComponent on full path breaks slash separators
+      const url = `https://bigquerydatatransfer.googleapis.com/v1/${transferConfigName}`;
 
       const response = await fetch(url, {
         method: 'DELETE',
@@ -1661,11 +1848,41 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
+        const errorBody = await response.text();
+        logger.error('BigQuery Data Transfer API error', {
+          action: 'delete_scheduled_query',
+          status: response.status,
+          body: errorBody.substring(0, 200),
+        });
+        const safeCode:
+          | 'PERMISSION_DENIED'
+          | 'NOT_FOUND'
+          | 'INVALID_PARAMS'
+          | 'QUOTA_EXCEEDED'
+          | 'INTERNAL_ERROR' =
+          response.status === 403
+            ? 'PERMISSION_DENIED'
+            : response.status === 404
+              ? 'NOT_FOUND'
+              : response.status === 400
+                ? 'INVALID_PARAMS'
+                : response.status === 429
+                  ? 'QUOTA_EXCEEDED'
+                  : 'INTERNAL_ERROR';
+        const safeMessage =
+          response.status === 403
+            ? 'Permission denied. Check BigQuery Data Transfer API is enabled and OAuth scopes include bigquery.'
+            : response.status === 404
+              ? 'Resource not found. Verify project, location, and transferConfigName.'
+              : response.status === 400
+                ? 'Invalid request. Check scheduled query configuration and parameters.'
+                : response.status === 429
+                  ? 'Rate limit exceeded. Please wait and retry.'
+                  : `Scheduled query operation failed (HTTP ${response.status}). Check BigQuery console.`;
         return this.error({
-          code: 'INTERNAL_ERROR',
-          message: `Failed to delete scheduled query: ${response.status} ${errorText}`,
-          retryable: response.status >= 500,
+          code: safeCode,
+          message: safeMessage,
+          retryable: response.status >= 500 || response.status === 429,
         });
       }
 
@@ -1677,5 +1894,28 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       logger.error('Failed to delete scheduled query', { err, transferConfigName });
       return this.mapBigQueryError(err);
     }
+  }
+
+  /**
+   * Get a fresh OAuth access token, refreshing if it expires within 60 seconds.
+   * Falls back to the cached token if refresh fails.
+   */
+  private async getFreshAccessToken(): Promise<string | null> {
+    const googleClient = this.context.googleClient;
+    if (!googleClient) return null;
+
+    const credentials = googleClient.oauth2.credentials;
+    const expiryDate = credentials?.expiry_date as number | undefined;
+    const isExpiringSoon = expiryDate !== undefined && expiryDate - Date.now() < 60_000;
+
+    if (isExpiringSoon || !credentials?.access_token) {
+      try {
+        const result = await googleClient.oauth2.getAccessToken();
+        return result?.token ?? credentials?.access_token ?? null;
+      } catch {
+        return credentials?.access_token ?? null;
+      }
+    }
+    return credentials.access_token;
   }
 }

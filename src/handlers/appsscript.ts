@@ -29,13 +29,16 @@
  * MCP Protocol: 2025-11-25
  */
 
+import { ErrorCodes } from './error-codes.js';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import { AuthenticationError, ServiceError } from '../core/errors.js';
 import type { Intent } from '../core/intent.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { executeWithRetry } from '../utils/retry.js';
+import { getRequestAbortSignal } from '../utils/request-context.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
+import { randomBytes } from 'crypto';
 import type {
   SheetsAppsScriptInput,
   SheetsAppsScriptOutput,
@@ -59,8 +62,10 @@ import type {
   AppsScriptListTriggersInput,
   AppsScriptDeleteTriggerInput,
   AppsScriptUpdateTriggerInput,
+  AppsScriptInstallServalFunctionInput,
 } from '../schemas/index.js';
 import { logger } from '../utils/logger.js';
+import { sendProgress } from '../utils/request-context.js';
 
 // Apps Script API base URL
 const APPS_SCRIPT_API_BASE = 'https://script.googleapis.com/v1';
@@ -84,6 +89,67 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   SheetsAppsScriptInput,
   SheetsAppsScriptOutput
 > {
+  // ISSUE-203: Track concurrent run() executions (Google Apps Script limit: 20/user)
+  // Static so the limit applies across all handler instances (one per MCP request)
+  private static activeRunExecutions = 0;
+  private static readonly MAX_CONCURRENT_RUNS = 15; // 15/20 — buffer below Google's limit
+
+  // ============================================================================
+  // Shared API response interfaces (class-level to avoid inline duplication)
+  // ============================================================================
+
+  declare private _interfaces: {
+    ProjectResponse: {
+      scriptId: string;
+      title: string;
+      parentId?: string;
+      createTime?: string;
+      updateTime?: string;
+      creator?: { email?: string; name?: string };
+    };
+    ContentResponse: {
+      scriptId: string;
+      files: Array<{
+        name: string;
+        type: 'SERVER_JS' | 'HTML' | 'JSON';
+        source: string;
+        lastModifyUser?: { email?: string; name?: string };
+        createTime?: string;
+        updateTime?: string;
+      }>;
+    };
+    VersionResponse: {
+      versionNumber: number;
+      description?: string;
+      createTime?: string;
+    };
+    DeploymentResponse: {
+      deploymentId: string;
+      deploymentConfig?: {
+        description?: string;
+        manifestFileName?: string;
+        versionNumber?: number;
+        scriptId?: string;
+      };
+      entryPoints?: Array<{
+        entryPointType?: 'EXECUTION_API' | 'WEB_APP' | 'ADD_ON';
+        webApp?: {
+          url?: string;
+          entryPointConfig?: {
+            access?: 'MYSELF' | 'DOMAIN' | 'ANYONE' | 'ANYONE_ANONYMOUS';
+            executeAs?: 'USER_ACCESSING' | 'USER_DEPLOYING';
+          };
+        };
+        executionApi?: {
+          entryPointConfig?: {
+            access?: 'MYSELF' | 'DOMAIN' | 'ANYONE' | 'ANYONE_ANONYMOUS';
+          };
+        };
+      }>;
+      updateTime?: string;
+    };
+  };
+
   private circuitBreaker: CircuitBreaker;
 
   constructor(context: HandlerContext) {
@@ -190,13 +256,20 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         case 'update_trigger':
           response = await this.handleUpdateTrigger(req as AppsScriptUpdateTriggerInput);
           break;
-        default:
+        case 'install_serval_function':
+          response = await this.handleInstallServalFunction(
+            req as AppsScriptInstallServalFunctionInput
+          );
+          break;
+        default: {
+          const _exhaustiveCheck: never = req;
           response = this.error({
-            code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(req as { action: string }).action}`,
+            code: ErrorCodes.INVALID_PARAMS,
+            message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
+        }
       }
 
       // 4. Apply verbosity filtering if needed
@@ -292,9 +365,15 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     return await executeWithRetry(
       async (signal) => {
         return await this.circuitBreaker.execute(async () => {
-          // Merge retry signal with our manual timeout signal
+          // Merge retry signal + manual timeout signal + MCP cancellation signal (ISSUE-119)
           const fetchController = new AbortController();
+          const requestAbortSignal = getRequestAbortSignal() ?? this.context.abortSignal;
           signal.addEventListener('abort', () => fetchController.abort(signal.reason));
+          // ISSUE-119: Wire context abortSignal so client cancellation (notifications/cancelled)
+          // terminates the long-running Apps Script HTTP request immediately.
+          requestAbortSignal?.addEventListener('abort', () =>
+            fetchController.abort('MCP request cancelled by client')
+          );
 
           try {
             const fetchOptions: RequestInit = { ...options, signal: fetchController.signal };
@@ -323,7 +402,11 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       {
         timeoutMs,
         retryable: (error) => {
-          // Don't retry API-level ServiceErrors — circuit breaker handles those
+          // Don't retry API-level ServiceErrors — circuit breaker handles those.
+          // NOTE: 429 rate limits from Apps Script are ServiceError(UNAVAILABLE, RATE_LIMITED)
+          // and are not retried here because retrying would trip the circuit breaker (threshold=3)
+          // before backoff completes, producing a plain Error instead of the typed ServiceError.
+          // The correct fix requires the circuit breaker to not count 429s as failures — deferred.
           if (error instanceof ServiceError) return false;
           const code =
             typeof (error as { code?: unknown }).code === 'string'
@@ -346,7 +429,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
           'UNAVAILABLE',
           'AppsScript',
           true,
-          { statusCode: 429, path, retryAfterMs, code: 'RATE_LIMIT' }
+          { statusCode: 429, path, retryAfterMs, code: ErrorCodes.RATE_LIMITED }
         );
       }
 
@@ -428,7 +511,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     const text = await response.text();
     if (!text) {
       logger.debug('Empty response body - OK for DELETE/void operations');
-      return {} as T; // OK: Explicit empty for void operations
+      return {} as unknown as T; // OK: Explicit empty for void operations (DELETE returns no body)
     }
 
     return JSON.parse(text) as T;
@@ -446,14 +529,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       parentId?: string;
     }
 
-    interface ProjectResponse {
-      scriptId: string;
-      title: string;
-      parentId?: string;
-      createTime?: string;
-      updateTime?: string;
-      creator?: { email?: string; name?: string };
-    }
+    type ProjectResponse = (typeof this._interfaces)['ProjectResponse'];
 
     const body: CreateProjectRequest = {
       title: req.title,
@@ -480,14 +556,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   private async handleGet(req: AppsScriptGetInput): Promise<AppsScriptResponse> {
     logger.info(`Getting Apps Script project: ${req.scriptId}`);
 
-    interface ProjectResponse {
-      scriptId: string;
-      title: string;
-      parentId?: string;
-      createTime?: string;
-      updateTime?: string;
-      creator?: { email?: string; name?: string };
-    }
+    type ProjectResponse = (typeof this._interfaces)['ProjectResponse'];
 
     const result = await this.apiRequest<ProjectResponse>('GET', `/projects/${req.scriptId}`);
 
@@ -506,17 +575,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   private async handleGetContent(req: AppsScriptGetContentInput): Promise<AppsScriptResponse> {
     logger.info(`Getting Apps Script content: ${req.scriptId}`);
 
-    interface ContentResponse {
-      scriptId: string;
-      files: Array<{
-        name: string;
-        type: 'SERVER_JS' | 'HTML' | 'JSON';
-        source: string;
-        lastModifyUser?: { email?: string; name?: string };
-        createTime?: string;
-        updateTime?: string;
-      }>;
-    }
+    type ContentResponse = (typeof this._interfaces)['ContentResponse'];
 
     let path = `/projects/${req.scriptId}/content`;
     if (req.versionNumber) {
@@ -542,17 +601,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   ): Promise<AppsScriptResponse> {
     logger.info(`Updating Apps Script content: ${req.scriptId}`);
 
-    interface ContentResponse {
-      scriptId: string;
-      files: Array<{
-        name: string;
-        type: 'SERVER_JS' | 'HTML' | 'JSON';
-        source: string;
-        lastModifyUser?: { email?: string; name?: string };
-        createTime?: string;
-        updateTime?: string;
-      }>;
-    }
+    type ContentResponse = (typeof this._interfaces)['ContentResponse'];
 
     const body = {
       files: req.files.map((f) => ({
@@ -589,11 +638,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   ): Promise<AppsScriptResponse> {
     logger.info(`Creating version for: ${req.scriptId}`);
 
-    interface VersionResponse {
-      versionNumber: number;
-      description?: string;
-      createTime?: string;
-    }
+    type VersionResponse = (typeof this._interfaces)['VersionResponse'];
 
     const body: { description?: string } = {};
     if (req.description) {
@@ -648,11 +693,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   private async handleGetVersion(req: AppsScriptGetVersionInput): Promise<AppsScriptResponse> {
     logger.info(`Getting version ${req.versionNumber} for: ${req.scriptId}`);
 
-    interface VersionResponse {
-      versionNumber: number;
-      description?: string;
-      createTime?: string;
-    }
+    type VersionResponse = (typeof this._interfaces)['VersionResponse'];
 
     const result = await this.apiRequest<VersionResponse>(
       'GET',
@@ -675,31 +716,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   private async handleDeploy(req: AppsScriptDeployInput): Promise<AppsScriptResponse> {
     logger.info(`Creating deployment for: ${req.scriptId}`);
 
-    interface DeploymentResponse {
-      deploymentId: string;
-      deploymentConfig?: {
-        description?: string;
-        manifestFileName?: string;
-        versionNumber?: number;
-        scriptId?: string;
-      };
-      entryPoints?: Array<{
-        entryPointType?: 'EXECUTION_API' | 'WEB_APP' | 'ADD_ON';
-        webApp?: {
-          url?: string;
-          entryPointConfig?: {
-            access?: 'MYSELF' | 'DOMAIN' | 'ANYONE' | 'ANYONE_ANONYMOUS';
-            executeAs?: 'USER_ACCESSING' | 'USER_DEPLOYING';
-          };
-        };
-        executionApi?: {
-          entryPointConfig?: {
-            access?: 'MYSELF' | 'DOMAIN' | 'ANYONE' | 'ANYONE_ANONYMOUS';
-          };
-        };
-      }>;
-      updateTime?: string;
-    }
+    type DeploymentResponse = (typeof this._interfaces)['DeploymentResponse'];
 
     interface DeploymentConfig {
       scriptId: string;
@@ -719,10 +736,19 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       deploymentConfig.versionNumber = req.versionNumber;
     }
 
+    if (!deploymentConfig.versionNumber) {
+      logger.warn(
+        'Deploying Apps Script to HEAD version (volatile). Specify versionNumber for a stable, pinned deployment.',
+        { scriptId: req.scriptId }
+      );
+    }
+
+    // Per Apps Script API: request body is a Deployment resource with deploymentConfig nested
+    // https://developers.google.com/apps-script/api/reference/rest/v1/projects.deployments/create
     const result = await this.apiRequest<DeploymentResponse>(
       'POST',
       `/projects/${req.scriptId}/deployments`,
-      deploymentConfig
+      { deploymentConfig }
     );
 
     // Extract web app URL if available
@@ -809,31 +835,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   ): Promise<AppsScriptResponse> {
     logger.info(`Getting deployment ${req.deploymentId} for: ${req.scriptId}`);
 
-    interface DeploymentResponse {
-      deploymentId: string;
-      deploymentConfig?: {
-        description?: string;
-        manifestFileName?: string;
-        versionNumber?: number;
-        scriptId?: string;
-      };
-      entryPoints?: Array<{
-        entryPointType?: 'EXECUTION_API' | 'WEB_APP' | 'ADD_ON';
-        webApp?: {
-          url?: string;
-          entryPointConfig?: {
-            access?: 'MYSELF' | 'DOMAIN' | 'ANYONE' | 'ANYONE_ANONYMOUS';
-            executeAs?: 'USER_ACCESSING' | 'USER_DEPLOYING';
-          };
-        };
-        executionApi?: {
-          entryPointConfig?: {
-            access?: 'MYSELF' | 'DOMAIN' | 'ANYONE' | 'ANYONE_ANONYMOUS';
-          };
-        };
-      }>;
-      updateTime?: string;
-    }
+    type DeploymentResponse = (typeof this._interfaces)['DeploymentResponse'];
 
     const result = await this.apiRequest<DeploymentResponse>(
       'GET',
@@ -867,6 +869,31 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   // ============================================================================
 
   private async handleRun(req: AppsScriptRunInput): Promise<AppsScriptResponse> {
+    const requestAbortSignal = getRequestAbortSignal() ?? this.context.abortSignal;
+    // ISSUE-119: Check for pre-flight cancellation (client may have cancelled before we started)
+    if (requestAbortSignal?.aborted) {
+      return this.error({
+        code: ErrorCodes.CANCELLED,
+        message: 'Request cancelled by client.',
+        retryable: false,
+      });
+    }
+
+    // ISSUE-203: Enforce Apps Script concurrent execution limit (Google limit: 20/user)
+    if (
+      SheetsAppsScriptHandler.activeRunExecutions >= SheetsAppsScriptHandler.MAX_CONCURRENT_RUNS
+    ) {
+      return this.error({
+        code: ErrorCodes.QUOTA_EXCEEDED,
+        message:
+          `Apps Script concurrent execution limit reached ` +
+          `(${SheetsAppsScriptHandler.activeRunExecutions}/${SheetsAppsScriptHandler.MAX_CONCURRENT_RUNS} slots in use). ` +
+          `Wait for current executions to complete before retrying.`,
+        retryable: true,
+        retryAfterMs: 30000,
+      });
+    }
+
     logger.info(`Running function ${req.functionName} in: ${req.scriptId}`);
 
     // Safety gate: dryRun returns early without executing
@@ -880,22 +907,22 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       });
     }
 
-    // Safety gate: requireConfirmation asks user before executing
-    if (safety?.requireConfirmation) {
-      const confirmed = await this.confirmOperation(
-        `Execute Apps Script function '${req.functionName}'`,
-        `Script ID: ${req.scriptId}. This will run code with side effects.`,
-        { isDestructive: true, operationType: 'apps_script_run' },
-        { skipIfElicitationUnavailable: false }
-      );
-      if (!confirmed) {
-        return this.error({
-          code: 'OPERATION_CANCELLED',
-          message: 'Execution cancelled by user.',
-          retryable: false,
-        });
-      }
+    // Safety gate: confirm by default before executing (script runs can have side effects)
+    const confirmed = await this.confirmOperation(
+      `Execute Apps Script function '${req.functionName}'`,
+      `Script ID: ${req.scriptId}. This will run code with side effects.`,
+      { isDestructive: true, operationType: 'apps_script_run' },
+      { skipIfElicitationUnavailable: true }
+    );
+    if (!confirmed) {
+      return this.error({
+        code: ErrorCodes.OPERATION_CANCELLED,
+        message: 'Execution cancelled by user.',
+        retryable: false,
+      });
     }
+
+    await sendProgress(0, 2, `Executing Apps Script function '${req.functionName}'...`);
 
     // Pre-flight token check: Refresh if expiring within 360 seconds (6 minutes)
     // This prevents mid-execution auth failures for long-running scripts
@@ -951,6 +978,9 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         }>;
       };
     }
+
+    // ISSUE-203: Claim a concurrency slot — released in finally block
+    SheetsAppsScriptHandler.activeRunExecutions++;
 
     const body: RunRequest = {
       function: req.functionName,
@@ -1015,23 +1045,53 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       }
     }
 
-    // Check for execution error
+    // Check for execution error — decrement slot before returning (ISSUE-203)
     if (result.error) {
       const scriptError = result.error.details?.find((d) => d['@type']?.includes('ScriptError'));
+      SheetsAppsScriptHandler.activeRunExecutions--;
+
+      const rawMessage = scriptError?.errorMessage ?? result.error.message ?? 'Unknown error';
+
+      // ISSUE-205: Detect BigQuery Advanced Service not enabled and return actionable error.
+      // Apps Script throws "BigQuery is not defined" (ReferenceError) when the BigQuery
+      // Advanced Service is not enabled in the Apps Script project settings.
+      const isBigQueryServiceMissing =
+        /BigQuery\s+is\s+not\s+defined/i.test(rawMessage) ||
+        (/BigQuery/i.test(rawMessage) && /not defined|undefined|ReferenceError/i.test(rawMessage));
+
+      const errorMessage = isBigQueryServiceMissing
+        ? `${rawMessage}\n\nThe BigQuery Advanced Service is not enabled for this script. ` +
+          `To fix: open the script in Apps Script Editor → Services (+) → Add "BigQuery API". ` +
+          `Then retry your function call.`
+        : rawMessage;
 
       return this.success('run', {
         executionError: {
-          errorMessage: scriptError?.errorMessage ?? result.error.message ?? 'Unknown error',
+          errorMessage,
           errorType: scriptError?.errorType ?? undefined,
           scriptStackTraceElements: scriptError?.scriptStackTraceElements ?? undefined,
         },
       });
     }
 
+    await sendProgress(2, 2, `Function '${req.functionName}' completed`);
+
+    // ISSUE-203: Always release the concurrency slot when execution completes
+    SheetsAppsScriptHandler.activeRunExecutions--;
+
+    // result.response?.result is typed as `unknown` from the RunResponse interface.
+    // The schema accepts string | number | boolean | null | array | object.
+    // The Apps Script API always returns one of these types at runtime.
     return this.success('run', {
-      result: result.response?.result,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+      result: result.response?.result as
+        | string
+        | number
+        | boolean
+        | null
+        | unknown[]
+        | Record<string, unknown>
+        | undefined,
+    });
   }
 
   private async handleListProcesses(
@@ -1077,10 +1137,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     let path = '/processes:listScriptProcesses';
     if (params.length > 0) path += `?${params.join('&')}`;
 
-    const result = await this.apiRequest<ListProcessesResponse>(
-      'GET',
-      path
-    );
+    const result = await this.apiRequest<ListProcessesResponse>('GET', path);
 
     return this.success('list_processes', {
       processes: (result.processes ?? []).map((p) => ({
@@ -1163,7 +1220,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     _req: AppsScriptCreateTriggerInput
   ): Promise<AppsScriptResponse> {
     return this.error({
-      code: 'NOT_IMPLEMENTED',
+      code: ErrorCodes.NOT_IMPLEMENTED,
       message:
         'Trigger management requires in-script ScriptApp.newTrigger(). ' +
         'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
@@ -1177,7 +1234,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
    */
   private async handleListTriggers(_req: AppsScriptListTriggersInput): Promise<AppsScriptResponse> {
     return this.error({
-      code: 'NOT_IMPLEMENTED',
+      code: ErrorCodes.NOT_IMPLEMENTED,
       message:
         'Trigger management requires in-script ScriptApp APIs. ' +
         'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
@@ -1193,7 +1250,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     _req: AppsScriptDeleteTriggerInput
   ): Promise<AppsScriptResponse> {
     return this.error({
-      code: 'NOT_IMPLEMENTED',
+      code: ErrorCodes.NOT_IMPLEMENTED,
       message:
         'Trigger management requires in-script ScriptApp APIs. ' +
         'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
@@ -1210,12 +1267,183 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     _req: AppsScriptUpdateTriggerInput
   ): Promise<AppsScriptResponse> {
     return this.error({
-      code: 'NOT_IMPLEMENTED',
+      code: ErrorCodes.NOT_IMPLEMENTED,
       message:
         'Trigger management requires in-script ScriptApp APIs. ' +
         'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
         'Use update_content to modify trigger code in the script project.',
       retryable: false,
+    });
+  }
+
+  // ============================================================================
+  // SERVAL() Formula Installer (Phase 5)
+  // ============================================================================
+
+  /**
+   * Install the SERVAL() formula function into a spreadsheet via a bound Apps Script project.
+   * Generates an HMAC secret, builds the Apps Script source, creates a bound project,
+   * and pushes the function code.
+   */
+  private async handleInstallServalFunction(
+    req: AppsScriptInstallServalFunctionInput
+  ): Promise<AppsScriptResponse> {
+    logger.info('Installing SERVAL() function', { spreadsheetId: req.spreadsheetId });
+
+    const hmacSecret = randomBytes(32).toString('hex');
+    const defaultModel = req.defaultModel ?? 'claude-sonnet-4-6';
+    const callbackBaseUrlRaw =
+      req.callbackUrl ?? process.env['SERVAL_CALLBACK_URL'] ?? process.env['SERVALSHEETS_BASE_URL'];
+    if (!callbackBaseUrlRaw) {
+      return this.error({
+        code: ErrorCodes.CONFIG_ERROR,
+        message:
+          'SERVAL callback URL is required. Provide request.callbackUrl or set SERVAL_CALLBACK_URL.',
+        retryable: false,
+      });
+    }
+    const callbackUrl = callbackBaseUrlRaw.replace(/\/+$/, '');
+
+    // SECURITY: Validate callbackUrl is a legitimate HTTPS URL before embedding in Apps Script source.
+    // A malicious URL containing single-quotes could inject arbitrary JavaScript into the script.
+    try {
+      const parsedUrl = new URL(callbackUrl);
+      if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
+        return this.error({
+          code: ErrorCodes.VALIDATION_ERROR,
+          message: 'callbackUrl must use https:// or http:// protocol',
+          retryable: false,
+        });
+      }
+      // Prevent quote injection: URL must not contain single quotes or backticks
+      if (callbackUrl.includes("'") || callbackUrl.includes('`') || callbackUrl.includes('\\')) {
+        return this.error({
+          code: ErrorCodes.VALIDATION_ERROR,
+          message: 'callbackUrl contains invalid characters',
+          retryable: false,
+        });
+      }
+    } catch {
+      return this.error({
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: 'callbackUrl is not a valid URL',
+        retryable: false,
+      });
+    }
+
+    // Build the Apps Script source.
+    // SECURITY: The HMAC secret is NEVER embedded in the script source — it is registered
+    // server-side only (via registerSpreadsheetSecret below). The script reads the secret
+    // exclusively from ScriptProperties, which must be set via the Apps Script IDE or the
+    // serval_setup() helper function pushed alongside this script.
+    const scriptSource = `
+function SERVAL(prompt, range, model) {
+  var CALLBACK_URL = '${callbackUrl}/api/serval-formula';
+  var HMAC_SECRET = PropertiesService.getScriptProperties().getProperty('SERVAL_HMAC_SECRET');
+  if (!HMAC_SECRET) {
+    return '#NOT_INITIALIZED: Run serval_setup() in the Apps Script IDE to complete installation.';
+  }
+  var spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
+  var rangeValues = range ? (Array.isArray(range) ? range : [[range]]) : null;
+  var body = JSON.stringify({
+    requests: [{ prompt: String(prompt), range_values: rangeValues, model: model || '${defaultModel}' }],
+    spreadsheetId: spreadsheetId,
+    timestamp: Date.now()
+  });
+  var sig = Utilities.computeHmacSha256Signature(body, HMAC_SECRET);
+  var sigHex = sig.map(function(b) { return ('0' + (b & 0xff).toString(16)).slice(-2); }).join('');
+  var response = UrlFetchApp.fetch(CALLBACK_URL, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'X-Serval-Signature': sigHex, 'X-Serval-SpreadsheetId': spreadsheetId },
+    payload: body,
+    muteHttpExceptions: true
+  });
+  if (response.getResponseCode() !== 200) return '#ERROR!';
+  var result = JSON.parse(response.getContentText());
+  return result.results && result.results[0] ? (result.results[0].text || result.results[0].values || '#NODATA') : '#NODATA';
+}
+
+/**
+ * Run this function once from the Apps Script IDE to complete installation.
+ * Paste the hmacSecret value from the install_serval_function response when prompted.
+ */
+function serval_setup() {
+  var secret = Browser.inputBox('SERVAL Setup', 'Paste the SERVAL HMAC secret from the installation response:', Browser.Buttons.OK_CANCEL);
+  if (secret && secret !== 'cancel') {
+    PropertiesService.getScriptProperties().setProperty('SERVAL_HMAC_SECRET', secret);
+    Browser.msgBox('SERVAL setup complete. The SERVAL() formula is ready to use.');
+  }
+}
+`.trim();
+
+    // Create bound Apps Script project
+    interface CreateProjectResponse {
+      scriptId: string;
+      title: string;
+      parentId?: string;
+      createTime?: string;
+      updateTime?: string;
+    }
+
+    const project = await this.apiRequest<CreateProjectResponse>('POST', '/projects', {
+      title: 'SERVAL Formula Functions',
+      parentId: req.spreadsheetId,
+    });
+
+    const scriptId = project.scriptId;
+
+    // Push the SERVAL function source
+    interface UpdateContentResponse {
+      files: Array<{ name: string; type: string; source: string }>;
+    }
+
+    await this.apiRequest<UpdateContentResponse>('PUT', `/projects/${scriptId}/content`, {
+      files: [
+        {
+          name: 'SERVAL',
+          type: 'SERVER_JS',
+          source: scriptSource,
+        },
+      ],
+    });
+
+    // Register the HMAC secret server-side only — never embedded in script source
+    try {
+      const { registerSpreadsheetSecret } = await import('../services/formula-callback.js');
+      registerSpreadsheetSecret(
+        req.spreadsheetId,
+        hmacSecret,
+        req.rateLimit ?? { requestsPerMinute: 100 },
+        req.cacheTtlSeconds ?? 300
+      );
+    } catch {
+      // Non-blocking — secret registration is best-effort at install time
+      logger.warn('Could not register SERVAL HMAC secret in formula-callback service', {
+        spreadsheetId: req.spreadsheetId,
+      });
+    }
+
+    const installedAt = new Date().toISOString();
+    logger.info('SERVAL() function installed', { scriptId, spreadsheetId: req.spreadsheetId });
+
+    return this.success('install_serval_function', {
+      scriptId,
+      functionName: 'SERVAL',
+      callbackUrl: `${callbackUrl}/api/serval-formula`,
+      // hmacSecret returned to caller so they can complete setup via serval_setup() in IDE
+      // SECURITY: this value is shown once — store it securely
+      hmacSecret,
+      setupInstructions:
+        'Open the Apps Script IDE for this spreadsheet, run serval_setup(), and paste this hmacSecret when prompted.',
+      installedAt,
+      project: {
+        scriptId,
+        title: 'SERVAL Formula Functions',
+        parentId: req.spreadsheetId,
+        createTime: project.createTime ?? installedAt,
+        updateTime: project.updateTime ?? installedAt,
+      },
     });
   }
 }

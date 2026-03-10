@@ -32,10 +32,11 @@ const NO_SPREADSHEET_TOOLS = new Set([
   'sheets_auth',
   'sheets_session',
   'sheets_confirm',
-  'sheets_history',
   'sheets_transaction',
   'sheets_quality',
   'sheets_federation',
+  'sheets_agent',
+  'sheets_connectors',
 ]);
 
 // Actions within spreadsheet-requiring tools that don't need spreadsheetId
@@ -130,6 +131,22 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     },
     detect_spill_ranges: {
       requiredFields: ['spreadsheetId'],
+    },
+    cross_read: {
+      validInput: { sources: [{ spreadsheetId: 'id1', range: 'Sheet1!A1:D10' }, { spreadsheetId: 'id2', range: 'Sheet1!A1:D10' }] },
+      requiredFields: ['sources'],
+    },
+    cross_query: {
+      validInput: { sources: [{ spreadsheetId: 'id1', range: 'Sheet1!A1:D10' }], query: 'revenue' },
+      requiredFields: ['sources', 'query'],
+    },
+    cross_write: {
+      validInput: { source: { spreadsheetId: 'id1', range: 'Sheet1!A1:D10' }, destination: { spreadsheetId: 'id2', range: 'Sheet1!A1' } },
+      requiredFields: ['source', 'destination'],
+    },
+    cross_compare: {
+      validInput: { source1: { spreadsheetId: 'id1', range: 'Sheet1!A1:D10' }, source2: { spreadsheetId: 'id2', range: 'Sheet1!A1:D10' } },
+      requiredFields: ['source1', 'source2'],
     },
   },
 
@@ -374,6 +391,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { range: 'Sheet1!A1:D10', title: 'My Filter' },
       requiredFields: ['spreadsheetId', 'range'],
     },
+    duplicate_filter_view: {
+      validInput: { filterViewId: 123 },
+      requiredFields: ['spreadsheetId', 'filterViewId'],
+    },
     update_filter_view: {
       validInput: { filterViewId: 123 },
       requiredFields: ['spreadsheetId', 'filterViewId'],
@@ -598,6 +619,26 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { approvalId: 'a1' },
       requiredFields: ['spreadsheetId', 'approvalId'],
     },
+    list_access_proposals: {
+      validInput: {},
+      requiredFields: ['spreadsheetId'],
+    },
+    resolve_access_proposal: {
+      validInput: { proposalId: 'p1', decision: 'APPROVE', role: 'reader' },
+      requiredFields: ['spreadsheetId', 'proposalId', 'decision'],
+    },
+    label_list: {
+      validInput: {},
+      requiredFields: ['spreadsheetId'],
+    },
+    label_apply: {
+      validInput: { labelId: 'label123' },
+      requiredFields: ['spreadsheetId', 'labelId'],
+    },
+    label_remove: {
+      validInput: { labelId: 'label123' },
+      requiredFields: ['spreadsheetId', 'labelId'],
+    },
   },
 
   sheets_advanced: {
@@ -782,6 +823,36 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['suggestion'],
     },
     get_top_formulas: { requiredFields: [] },
+    execute_pipeline: {
+      validInput: { steps: [{ id: 'step1', tool: 'sheets_data', action: 'read', params: { spreadsheetId: 'test-id', range: 'A1:B10' } }] },
+      requiredFields: ['steps'],
+    },
+    schedule_create: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        cronExpression: '0 9 * * 1-5',
+        description: 'Weekday data refresh',
+        tool: 'sheets_data',
+        actionName: 'read',
+        params: { spreadsheetId: 'test-id', range: 'Sheet1!A1:B10' },
+      },
+      requiredFields: [
+        'spreadsheetId',
+        'cronExpression',
+        'description',
+        'tool',
+        'actionName',
+        'params',
+      ],
+    },
+    schedule_cancel: {
+      validInput: { jobId: 'job-123' },
+      requiredFields: ['jobId'],
+    },
+    schedule_run_now: {
+      validInput: { jobId: 'job-123' },
+      requiredFields: ['jobId'],
+    },
   },
 
   sheets_transaction: {
@@ -847,6 +918,17 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['operationId'],
     },
     clear: { requiredFields: [] },
+    timeline: {
+      requiredFields: ['spreadsheetId'],
+    },
+    diff_revisions: {
+      validInput: { revisionId1: 'rev1', revisionId2: 'rev2' },
+      requiredFields: ['spreadsheetId', 'revisionId1', 'revisionId2'],
+    },
+    restore_cells: {
+      validInput: { revisionId: 'rev1', cells: ['A1', 'B2'] },
+      requiredFields: ['spreadsheetId', 'revisionId', 'cells'],
+    },
   },
 
   sheets_confirm: {
@@ -873,6 +955,26 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     fix: {
       validInput: { spreadsheetId: 'test-id', issues: [] },
       requiredFields: ['spreadsheetId'],
+    },
+    clean: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D100' },
+      requiredFields: ['spreadsheetId', 'range'],
+    },
+    standardize_formats: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D100', columns: [{ column: 'A', targetFormat: 'iso_date' }] },
+      requiredFields: ['spreadsheetId', 'range', 'columns'],
+    },
+    fill_missing: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D100', strategy: 'forward' },
+      requiredFields: ['spreadsheetId', 'range', 'strategy'],
+    },
+    detect_anomalies: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D100' },
+      requiredFields: ['spreadsheetId', 'range'],
+    },
+    suggest_cleaning: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D100' },
+      requiredFields: ['spreadsheetId', 'range'],
     },
   },
 
@@ -941,6 +1043,16 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { spreadsheetId: 'test-id', intent: 'fix_critical' },
       requiredFields: ['spreadsheetId', 'intent'],
     },
+    suggest_next_actions: {
+      requiredFields: ['spreadsheetId'],
+    },
+    auto_enhance: {
+      requiredFields: ['spreadsheetId'],
+    },
+    discover_action: {
+      validInput: { query: 'find action for merging data' },
+      requiredFields: ['query'],
+    },
   },
 
   sheets_composite: {
@@ -987,6 +1099,40 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     export_large_dataset: {
       validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:Z1000' },
       requiredFields: ['spreadsheetId', 'range'],
+    },
+    generate_sheet: {
+      validInput: { description: 'Q1 budget tracker with revenue and expenses' },
+      requiredFields: ['description'],
+    },
+    generate_template: {
+      validInput: { description: 'Employee onboarding checklist' },
+      requiredFields: ['description'],
+    },
+    preview_generation: {
+      validInput: { description: 'Sales pipeline tracker' },
+      requiredFields: ['description'],
+    },
+    audit_sheet: {
+      requiredFields: ['spreadsheetId'],
+    },
+    publish_report: {
+      requiredFields: ['spreadsheetId'],
+    },
+    data_pipeline: {
+      validInput: { spreadsheetId: 'test-id', sourceRange: 'Sheet1!A1:D100', steps: [{ type: 'filter', config: { column: 'A', operator: 'equals', value: 'x' } }] },
+      requiredFields: ['spreadsheetId', 'sourceRange', 'steps'],
+    },
+    instantiate_template: {
+      validInput: { templateId: 'tmpl1', variables: { companyName: 'Acme Corp' } },
+      requiredFields: ['templateId', 'variables'],
+    },
+    migrate_spreadsheet: {
+      validInput: { sourceSpreadsheetId: 'src-id', sourceRange: 'Sheet1!A1:D100', destinationSpreadsheetId: 'dest-id', destinationRange: 'Sheet1!A1', columnMapping: [{ sourceColumn: 'Name', destinationColumn: 'Name' }] },
+      requiredFields: ['sourceSpreadsheetId', 'sourceRange', 'destinationSpreadsheetId', 'destinationRange', 'columnMapping'],
+    },
+    batch_operations: {
+      validInput: { spreadsheetId: 'test-id', operations: [{ tool: 'sheets_data', action: 'read', params: { range: 'Sheet1!A1:B2' } }] },
+      requiredFields: ['spreadsheetId', 'operations'],
     },
   },
 
@@ -1191,6 +1337,17 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { spreadsheetId: 'test-id', webhookUrl: 'https://example.com/hook' },
       requiredFields: ['spreadsheetId', 'webhookUrl'],
     },
+    subscribe_workspace: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        notificationEndpoint: 'projects/test-project/topics/test-topic',
+      },
+      requiredFields: ['spreadsheetId', 'notificationEndpoint'],
+    },
+    unsubscribe_workspace: {
+      validInput: { subscriptionId: 'sub-123' },
+      requiredFields: ['subscriptionId'],
+    },
   },
 
   sheets_dependencies: {
@@ -1222,6 +1379,18 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { spreadsheetId: 'test-id' },
       requiredFields: ['spreadsheetId'],
     },
+    model_scenario: {
+      validInput: { spreadsheetId: 'test-id', changes: [{ cell: 'B2', newValue: 80000 }] },
+      requiredFields: ['spreadsheetId', 'changes'],
+    },
+    compare_scenarios: {
+      validInput: { spreadsheetId: 'test-id', scenarios: [{ name: 'Base', changes: [{ cell: 'B2', newValue: 100000 }] }, { name: 'Optimistic', changes: [{ cell: 'B2', newValue: 120000 }] }] },
+      requiredFields: ['spreadsheetId', 'scenarios'],
+    },
+    create_scenario_sheet: {
+      validInput: { spreadsheetId: 'test-id', scenario: { name: 'Optimistic', changes: [{ cell: 'B2', newValue: 120000 }] } },
+      requiredFields: ['spreadsheetId', 'scenario'],
+    },
   },
 
   sheets_federation: {
@@ -1237,6 +1406,173 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     validate_connection: {
       validInput: { serverName: 'srv1' },
       requiredFields: ['serverName'],
+    },
+  },
+
+  sheets_agent: {
+    plan: {
+      validInput: { description: 'Add a profit margin column to the data sheet' },
+      requiredFields: ['description'],
+    },
+    execute: {
+      validInput: { planId: 'plan-123' },
+      requiredFields: ['planId'],
+    },
+    execute_step: {
+      validInput: { planId: 'plan-123', stepId: 'step-1' },
+      requiredFields: ['planId', 'stepId'],
+    },
+    observe: {
+      validInput: { planId: 'plan-123' },
+      requiredFields: ['planId'],
+    },
+    rollback: {
+      validInput: { planId: 'plan-123', checkpointId: 'ckpt-1' },
+      requiredFields: ['planId', 'checkpointId'],
+    },
+    get_status: {
+      validInput: { planId: 'plan-123' },
+      requiredFields: ['planId'],
+    },
+    list_plans: {
+      requiredFields: [],
+    },
+    resume: {
+      validInput: { planId: 'plan-123' },
+      requiredFields: ['planId'],
+    },
+  },
+
+  sheets_compute: {
+    evaluate: {
+      validInput: { spreadsheetId: 'test-id', formula: '=SUM(A1:A10)' },
+      requiredFields: ['spreadsheetId', 'formula'],
+    },
+    aggregate: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:A100', functions: ['sum', 'average'] },
+      requiredFields: ['spreadsheetId', 'range', 'functions'],
+    },
+    statistical: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D100' },
+      requiredFields: ['spreadsheetId', 'range'],
+    },
+    regression: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:B100', xColumn: 'A', yColumn: 'B' },
+      requiredFields: ['spreadsheetId', 'range', 'xColumn', 'yColumn'],
+    },
+    forecast: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:B24', dateColumn: 'A', valueColumn: 'B', periods: 6 },
+      requiredFields: ['spreadsheetId', 'range', 'dateColumn', 'valueColumn', 'periods'],
+    },
+    matrix_op: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:C3', operation: 'transpose' },
+      requiredFields: ['spreadsheetId', 'range', 'operation'],
+    },
+    pivot_compute: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D100', rows: ['Category'], values: [{ column: 'Revenue', function: 'sum' }] },
+      requiredFields: ['spreadsheetId', 'range', 'rows', 'values'],
+    },
+    custom_function: {
+      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:C100', expression: 'ROUND($Revenue * $TaxRate, 2)' },
+      requiredFields: ['spreadsheetId', 'range', 'expression'],
+    },
+    batch_compute: {
+      validInput: { spreadsheetId: 'test-id', computations: [{ id: 'c1', type: 'aggregate', params: { range: 'Sheet1!A1:A10', functions: ['sum'] } }] },
+      requiredFields: ['spreadsheetId', 'computations'],
+    },
+    explain_formula: {
+      validInput: { spreadsheetId: 'test-id', formula: '=VLOOKUP(A2, Sheet2!A:C, 3, FALSE)' },
+      requiredFields: ['spreadsheetId', 'formula'],
+    },
+    sql_query: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        tables: [{ name: 'sales', range: 'Sheet1!A1:D100', hasHeaders: true }],
+        sql: 'SELECT * FROM sales LIMIT 10',
+      },
+      requiredFields: ['spreadsheetId', 'tables', 'sql'],
+    },
+    sql_join: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        left: { range: 'Sheet1!A1:C100', alias: 'left' },
+        right: { range: 'Sheet2!A1:C100', alias: 'right' },
+        on: 'left.id = right.id',
+      },
+      requiredFields: ['spreadsheetId', 'left', 'right', 'on'],
+    },
+    python_eval: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:C50',
+        code: 'result = len(data)',
+      },
+      requiredFields: ['spreadsheetId', 'range', 'code'],
+    },
+    pandas_profile: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:C50',
+      },
+      requiredFields: ['spreadsheetId', 'range'],
+    },
+    sklearn_model: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:D100',
+        targetColumn: 'revenue',
+        modelType: 'linear_regression',
+      },
+      requiredFields: ['spreadsheetId', 'range', 'targetColumn', 'modelType'],
+    },
+    matplotlib_chart: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:C50',
+        chartType: 'line',
+      },
+      requiredFields: ['spreadsheetId', 'range', 'chartType'],
+    },
+  },
+
+  sheets_connectors: {
+    list_connectors: {
+      requiredFields: [],
+    },
+    configure: {
+      validInput: { connectorId: 'finnhub', credentials: { type: 'api_key', apiKey: 'test-key' } },
+      requiredFields: ['connectorId', 'credentials'],
+    },
+    query: {
+      validInput: { connectorId: 'finnhub', endpoint: 'stock/quote' },
+      requiredFields: ['connectorId', 'endpoint'],
+    },
+    batch_query: {
+      validInput: { queries: [{ connectorId: 'finnhub', endpoint: 'stock/quote' }] },
+      requiredFields: ['queries'],
+    },
+    subscribe: {
+      validInput: { connectorId: 'finnhub', endpoint: 'stock/quote', schedule: { interval: 'hourly' }, destination: { spreadsheetId: 'test-id', range: 'Sheet1!A1' } },
+      requiredFields: ['connectorId', 'endpoint', 'schedule', 'destination'],
+    },
+    unsubscribe: {
+      validInput: { subscriptionId: 'sub-123' },
+      requiredFields: ['subscriptionId'],
+    },
+    list_subscriptions: {
+      requiredFields: [],
+    },
+    transform: {
+      validInput: { connectorId: 'finnhub', endpoint: 'stock/quote', transform: { limit: 10 } },
+      requiredFields: ['connectorId', 'endpoint', 'transform'],
+    },
+    status: {
+      validInput: { connectorId: 'finnhub' },
+      requiredFields: ['connectorId'],
+    },
+    discover: {
+      validInput: { connectorId: 'finnhub' },
+      requiredFields: ['connectorId'],
     },
   },
 };

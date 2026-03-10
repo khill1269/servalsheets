@@ -61,7 +61,7 @@ openssl rand -hex 32
 
 ```bash
 export GOOGLE_TOKEN_STORE_PATH=~/.config/servalsheets/tokens.enc
-export GOOGLE_TOKEN_STORE_KEY=8f3b2c1a9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1
+export ENCRYPTION_KEY=8f3b2c1a9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1
 ```
 
 #### Key Rotation Procedure
@@ -72,17 +72,13 @@ export GOOGLE_TOKEN_STORE_KEY=8f3b2c1a9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f
 # 1. Generate new key
 NEW_KEY=$(openssl rand -hex 32)
 
-# 2. Set new key as secondary
-export GOOGLE_TOKEN_STORE_KEY_NEW=$NEW_KEY
+# 2. Replace the active token-store key
+export ENCRYPTION_KEY=$NEW_KEY
 
-# 3. Restart ServalSheets
-# It will automatically re-encrypt tokens with new key
+# 3. Delete the old encrypted token store
+rm ~/.config/servalsheets/tokens.enc
 
-# 4. Update primary key
-export GOOGLE_TOKEN_STORE_KEY=$NEW_KEY
-unset GOOGLE_TOKEN_STORE_KEY_NEW
-
-# 5. Restart again
+# 4. Re-authenticate so tokens are re-encrypted with the new key
 ```
 
 #### File Permissions
@@ -246,6 +242,7 @@ ServalSheets implements OAuth 2.1 with PKCE (Proof Key for Code Exchange) for en
    - Authorized redirect URIs: `http://localhost:3000/oauth/callback`
 
 2. **Configure ServalSheets**
+
    ```bash
    export GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
    export GOOGLE_CLIENT_SECRET=GOCSPX-xxx
@@ -350,7 +347,7 @@ export SERVALSHEETS_WRITES_PER_MINUTE=60
 
 # Token store (recommended)
 export GOOGLE_TOKEN_STORE_PATH=/secure/path/tokens.enc
-export GOOGLE_TOKEN_STORE_KEY=$(cat /secure/path/token-store-key.txt)
+export ENCRYPTION_KEY=$(cat /secure/path/token-store-key.txt)
 
 # Timeouts
 export GOOGLE_API_TIMEOUT_MS=30000
@@ -376,7 +373,7 @@ export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa-key.json
 vault kv get -field=service_account_key secret/servalsheets/prod > $GOOGLE_APPLICATION_CREDENTIALS
 chmod 600 $GOOGLE_APPLICATION_CREDENTIALS
 
-export GOOGLE_TOKEN_STORE_KEY=$(vault kv get -field=token_store_key secret/servalsheets/prod)
+export ENCRYPTION_KEY=$(vault kv get -field=token_store_key secret/servalsheets/prod)
 ```
 
 #### Using AWS Secrets Manager
@@ -458,7 +455,7 @@ systemctl stop servalsheets
 
 # Rotate encryption keys
 NEW_KEY=$(openssl rand -hex 32)
-export GOOGLE_TOKEN_STORE_KEY=$NEW_KEY
+export ENCRYPTION_KEY=$NEW_KEY
 
 # Delete token store
 rm ~/.config/servalsheets/tokens.enc

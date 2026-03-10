@@ -135,12 +135,13 @@ describe('QualityHandler', () => {
         context: { spreadsheetId: 'test123', range: 'Sheet1!A1:B2' },
       });
 
-      expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('valid', false);
-      expect(result.response).toHaveProperty('errorCount', 1);
-      expect(result.response).toHaveProperty('warningCount', 1);
-      expect((result.response as any).errors).toHaveLength(1);
-      expect((result.response as any).warnings).toHaveLength(1);
+      // ISSUE-136 fix: success:false when validation finds errors (eliminates dual-success pattern)
+      expect(result.response.success).toBe(false);
+      // Error details are embedded in the error.details field
+      expect(result.response).toHaveProperty('error');
+      expect((result.response as any).error.code).toBe('VALIDATION_ERROR');
+      expect((result.response as any).error.details.errorCount).toBe(1);
+      expect((result.response as any).error.details.valid).toBe(false);
     });
 
     it('should support dryRun mode', async () => {
@@ -313,7 +314,7 @@ describe('QualityHandler', () => {
 
       expect(result.response.success).toBe(false);
       expect((result.response as any).error).toBeDefined();
-      expect((result.response as any).error.code).toBe('INTERNAL_ERROR');
+      expect((result.response as any).error.code).toBe('VALIDATION_ERROR');
     });
   });
 

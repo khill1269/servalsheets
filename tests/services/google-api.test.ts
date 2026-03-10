@@ -6,6 +6,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { waitFor } from '../helpers/wait-for.js';
+import { google } from 'googleapis';
 
 // Mock googleapis before importing the module
 vi.mock('googleapis', () => {
@@ -54,6 +56,15 @@ vi.mock('googleapis', () => {
       }),
       slides: vi.fn().mockReturnValue({
         presentations: { get: vi.fn(), create: vi.fn(), batchUpdate: vi.fn() },
+      }),
+      drivelabels: vi.fn().mockReturnValue({
+        labels: { get: vi.fn(), list: vi.fn() },
+      }),
+      driveactivity: vi.fn().mockReturnValue({
+        activity: { query: vi.fn() },
+      }),
+      workspaceevents: vi.fn().mockReturnValue({
+        subscriptions: { create: vi.fn(), delete: vi.fn(), get: vi.fn(), list: vi.fn() },
       }),
     },
   };
@@ -114,6 +125,7 @@ import {
   DEFAULT_SCOPES,
   ELEVATED_SCOPES,
   READONLY_SCOPES,
+  resolveGoogleApiAgentTimeoutMs,
 } from '../../src/services/google-api.js';
 
 describe('GoogleApiClient', () => {
@@ -200,6 +212,35 @@ describe('GoogleApiClient', () => {
     });
   });
 
+  describe('resolveGoogleApiAgentTimeoutMs', () => {
+    const originalEnv = { ...process.env };
+
+    afterEach(() => {
+      process.env = { ...originalEnv };
+    });
+
+    it('prefers GOOGLE_API_TIMEOUT_MS', () => {
+      process.env['GOOGLE_API_TIMEOUT_MS'] = '45000';
+      process.env['GOOGLE_API_REQUEST_TIMEOUT_MS'] = '15000';
+
+      expect(resolveGoogleApiAgentTimeoutMs()).toBe(45000);
+    });
+
+    it('falls back to the legacy GOOGLE_API_REQUEST_TIMEOUT_MS alias', () => {
+      delete process.env['GOOGLE_API_TIMEOUT_MS'];
+      process.env['GOOGLE_API_REQUEST_TIMEOUT_MS'] = '15000';
+
+      expect(resolveGoogleApiAgentTimeoutMs()).toBe(15000);
+    });
+
+    it('uses the default timeout when neither env var is set', () => {
+      delete process.env['GOOGLE_API_TIMEOUT_MS'];
+      delete process.env['GOOGLE_API_REQUEST_TIMEOUT_MS'];
+
+      expect(resolveGoogleApiAgentTimeoutMs()).toBe(60000);
+    });
+  });
+
   describe('initialize', () => {
     it('should initialize with OAuth credentials', async () => {
       client = new GoogleApiClient({
@@ -225,6 +266,89 @@ describe('GoogleApiClient', () => {
       await client.initialize();
 
       expect(client.sheets).toBeDefined();
+    });
+  });
+
+  describe('shared drive write throttling', () => {
+    it('uses Drive metadata instead of spreadsheet ID heuristics for shared drive writes', async () => {
+      client = new GoogleApiClient({
+        accessToken: 'test-access-token',
+      });
+      await client.initialize();
+
+      const driveApi = vi.mocked(google.drive).mock.results.at(-1)?.value as {
+        files: { get: ReturnType<typeof vi.fn> };
+      };
+      const waitSpy = vi.spyOn(client, 'waitForSharedDriveWriteToken').mockResolvedValue(12);
+
+      driveApi.files.get.mockResolvedValue({ data: { driveId: 'shared-drive-123' } });
+
+      await client.sheets.spreadsheets.values.update({
+        spreadsheetId: 'sheet-123',
+        range: 'Sheet1!A1',
+        valueInputOption: 'RAW',
+        requestBody: { values: [['x']] },
+      });
+
+      expect(driveApi.files.get).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fileId: 'sheet-123',
+          fields: 'driveId',
+          supportsAllDrives: true,
+        })
+      );
+      expect(waitSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('caches shared drive membership lookups per spreadsheet', async () => {
+      client = new GoogleApiClient({
+        accessToken: 'test-access-token',
+      });
+      await client.initialize();
+
+      const driveApi = vi.mocked(google.drive).mock.results.at(-1)?.value as {
+        files: { get: ReturnType<typeof vi.fn> };
+      };
+
+      driveApi.files.get.mockResolvedValue({ data: { driveId: 'shared-drive-123' } });
+
+      await client.sheets.spreadsheets.values.update({
+        spreadsheetId: 'sheet-123',
+        range: 'Sheet1!A1',
+        valueInputOption: 'RAW',
+        requestBody: { values: [['x']] },
+      });
+      await client.sheets.spreadsheets.values.update({
+        spreadsheetId: 'sheet-123',
+        range: 'Sheet1!A2',
+        valueInputOption: 'RAW',
+        requestBody: { values: [['y']] },
+      });
+
+      expect(driveApi.files.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not throttle writes when Drive metadata shows a personal drive file', async () => {
+      client = new GoogleApiClient({
+        accessToken: 'test-access-token',
+      });
+      await client.initialize();
+
+      const driveApi = vi.mocked(google.drive).mock.results.at(-1)?.value as {
+        files: { get: ReturnType<typeof vi.fn> };
+      };
+      const waitSpy = vi.spyOn(client, 'waitForSharedDriveWriteToken').mockResolvedValue(12);
+
+      driveApi.files.get.mockResolvedValue({ data: {} });
+
+      await client.sheets.spreadsheets.values.update({
+        spreadsheetId: 'sheet-123',
+        range: 'Sheet1!A1',
+        valueInputOption: 'RAW',
+        requestBody: { values: [['x']] },
+      });
+
+      expect(waitSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -429,7 +553,7 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       client.recordCallResult(false);
 
       // Wait a bit for async reset to start
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       expect(client).toBeDefined();
     });
@@ -445,11 +569,11 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       client.recordCallResult(false);
 
       // Should not trigger reset yet
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitFor(50);
 
       // 5th failure should trigger
       client.recordCallResult(false);
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       expect(client).toBeDefined();
     });
@@ -482,7 +606,7 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       client = new GoogleApiClient();
 
       // Wait for idle timeout
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await waitFor(150);
 
       // Should trigger proactive reset
       await client.ensureHealthyConnection();
@@ -495,14 +619,14 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       client = new GoogleApiClient();
 
       // Wait less than custom timeout
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
       await client.ensureHealthyConnection();
 
       // Should not trigger reset yet
       expect(client).toBeDefined();
 
       // Wait past custom timeout
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await waitFor(150);
       await client.ensureHealthyConnection();
 
       // Should trigger reset now
@@ -520,7 +644,7 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       }
 
       // Wait for async reset
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       // Next success should work normally
       client.recordCallResult(true);
@@ -537,7 +661,7 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       }
 
       // Wait for resets to process
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await waitFor(300);
 
       // Should handle gracefully (only one reset should run)
       expect(client).toBeDefined();
@@ -557,7 +681,7 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       await client.initialize();
 
       // Wait for at least one keepalive cycle
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      await waitFor(250);
 
       expect(client).toBeDefined();
     });
@@ -603,7 +727,7 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       client.recordCallResult(false);
 
       // Wait for reset
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       // Simulate successful reconnection
       client.recordCallResult(true);
@@ -638,7 +762,7 @@ describe('GoogleApiClient HTTP/2 connection health', () => {
       client.recordCallResult(true); // Reset again
 
       // Should never trigger threshold
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       expect(client).toBeDefined();
     });

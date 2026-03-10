@@ -19,6 +19,12 @@ import type { Intent } from '../../src/core/intent.js';
 import type { BatchCompiler } from '../../src/core/batch-compiler.js';
 import type { RangeResolver } from '../../src/core/range-resolver.js';
 import type { ErrorDetail, ResponseMeta } from '../../src/schemas/shared.js';
+import type { sheets_v4 } from 'googleapis';
+import { getTracer, initTracer } from '../../src/utils/tracing.js';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 // Test implementation of BaseHandler
 class TestHandler extends BaseHandler<any, any> {
@@ -105,6 +111,22 @@ class TestHandler extends BaseHandler<any, any> {
   ): HandlerError {
     return this.invalidError(what, why, details);
   }
+
+  public async testInstrumentedApiCall<T>(
+    method: string,
+    apiCall: () => Promise<T>,
+    context?: { spreadsheetId?: string; action?: string; range?: string; sheetName?: string }
+  ): Promise<T> {
+    return this.instrumentedApiCall(method, apiCall, context);
+  }
+
+  public async testGetSheetId(
+    spreadsheetId: string,
+    sheetName?: string,
+    sheetsApi?: sheets_v4.Sheets
+  ): Promise<number> {
+    return this.getSheetId(spreadsheetId, sheetName, sheetsApi);
+  }
 }
 
 // Mock factory functions
@@ -131,6 +153,7 @@ describe('BaseHandler', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    initTracer({ enabled: false, logSpans: false });
   });
 
   describe('success() - Response Formatting', () => {
@@ -852,6 +875,95 @@ describe('BaseHandler', () => {
       expect(result.range).toBe('Sheet1!A1:C5');
       expect(result.updatedCells).toBe(15);
       expect(result._meta).toBeDefined();
+    });
+  });
+
+  describe('Tracing Instrumentation', () => {
+    it('should attach spreadsheet/action/range attributes and record exceptions', async () => {
+      initTracer({ enabled: true, logSpans: false });
+      const tracer = getTracer();
+      tracer.clearSpans();
+
+      const apiError = new Error('Tracing test failure');
+      await expect(
+        handler.testInstrumentedApiCall(
+          'spreadsheets.values.get',
+          async () => {
+            throw apiError;
+          },
+          {
+            spreadsheetId: 'sheet-trace-1',
+            action: 'read_range',
+            range: 'Sheet1!A1:B2',
+          }
+        )
+      ).rejects.toThrow('Tracing test failure');
+
+      const spans = tracer.getSpans().filter((s) => s.name === 'api.spreadsheets.values.get');
+      expect(spans.length).toBeGreaterThan(0);
+      const latestSpan = spans[spans.length - 1]!;
+
+      expect(latestSpan.attributes['spreadsheet.id']).toBe('sheet-trace-1');
+      expect(latestSpan.attributes['spreadsheetId']).toBe('sheet-trace-1');
+      expect(latestSpan.attributes['action']).toBe('read_range');
+      expect(latestSpan.attributes['range']).toBe('Sheet1!A1:B2');
+      expect(latestSpan.status).toBe('error');
+      expect(latestSpan.events.some((event) => event.name === 'exception')).toBe(true);
+    });
+
+    it('should wire shared getSheetId API path through instrumented spans', async () => {
+      initTracer({ enabled: true, logSpans: false });
+      const tracer = getTracer();
+      tracer.clearSpans();
+
+      const spreadsheetId = `sheet-trace-${Date.now()}`;
+      const mockSheetsApi = {
+        spreadsheets: {
+          get: vi.fn().mockResolvedValue({
+            data: {
+              sheets: [{ properties: { sheetId: 123, title: 'Sheet1' } }],
+            },
+          }),
+        },
+      };
+
+      const sheetId = await handler.testGetSheetId(spreadsheetId, 'Sheet1', mockSheetsApi);
+      expect(sheetId).toBe(123);
+
+      const resolveSpan = tracer
+        .getSpans()
+        .find(
+          (span) =>
+            span.name === 'api.spreadsheets.get' &&
+            span.attributes['action'] === 'resolve_sheet_id' &&
+            span.attributes['spreadsheetId'] === spreadsheetId
+        );
+
+      expect(resolveSpan).toBeDefined();
+    });
+
+    it('should use request-scoped metadata cache when handler context lacks one', async () => {
+      const metadataCache = {
+        getSheetId: vi.fn().mockResolvedValue(456),
+        getOrFetch: vi.fn(),
+      };
+      const mockSheetsApi = {
+        spreadsheets: {
+          get: vi.fn(),
+        },
+      };
+
+      const requestContext = createRequestContext({
+        metadataCache: metadataCache as any,
+      });
+
+      const sheetId = await runWithRequestContext(requestContext, () =>
+        handler.testGetSheetId('sheet-cached', 'CachedSheet', mockSheetsApi as any)
+      );
+
+      expect(sheetId).toBe(456);
+      expect(metadataCache.getSheetId).toHaveBeenCalledWith('sheet-cached', 'CachedSheet');
+      expect(mockSheetsApi.spreadsheets.get).not.toHaveBeenCalled();
     });
   });
 });

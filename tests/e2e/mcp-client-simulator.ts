@@ -65,6 +65,8 @@ export interface MCPClientConfig {
   timeout?: number;
 }
 
+type ServerRequestHandler = (request: JSONRPCRequest) => unknown | Promise<unknown>;
+
 /**
  * MCP Client session state
  */
@@ -117,6 +119,9 @@ export class MCPClientSimulator extends EventEmitter {
   private config: MCPClientConfig;
   private session: MCPClientSession;
   private requestId = 1;
+  private notifications: JSONRPCNotification[] = [];
+  private requests: JSONRPCRequest[] = [];
+  private requestHandlers = new Map<string, ServerRequestHandler>();
   private pendingRequests = new Map<
     number,
     { resolve: (value: JSONRPCResponse) => void; reject: (error: Error) => void }
@@ -400,11 +405,93 @@ export class MCPClientSimulator extends EventEmitter {
     return { ...this.session };
   }
 
+  protected getSessionState(): MCPClientSession {
+    return this.session;
+  }
+
+  protected getClientConfig(): MCPClientConfig {
+    return this.config;
+  }
+
   /**
    * Check if client is initialized
    */
   isInitialized(): boolean {
     return this.session.initialized;
+  }
+
+  getNotifications(): readonly JSONRPCNotification[] {
+    return [...this.notifications];
+  }
+
+  clearNotifications(): void {
+    this.notifications = [];
+  }
+
+  getRequests(): readonly JSONRPCRequest[] {
+    return [...this.requests];
+  }
+
+  clearRequests(): void {
+    this.requests = [];
+  }
+
+  setRequestHandler(method: string, handler: ServerRequestHandler): void {
+    this.requestHandlers.set(method, handler);
+  }
+
+  clearRequestHandler(method: string): void {
+    this.requestHandlers.delete(method);
+  }
+
+  async waitForNotification(method: string, timeoutMs = 1000): Promise<JSONRPCNotification> {
+    const buffered = this.notifications.find((notification) => notification.method === method);
+    if (buffered) {
+      return buffered;
+    }
+
+    return await new Promise<JSONRPCNotification>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.off('notification', onNotification);
+        reject(new Error(`Timed out waiting for notification: ${method}`));
+      }, timeoutMs);
+
+      const onNotification = (notification: JSONRPCNotification) => {
+        if (notification.method !== method) {
+          return;
+        }
+        clearTimeout(timeout);
+        this.off('notification', onNotification);
+        resolve(notification);
+      };
+
+      this.on('notification', onNotification);
+    });
+  }
+
+  async waitForRequest(method: string, timeoutMs = 1000): Promise<JSONRPCRequest> {
+    const buffered = this.requests.find((request) => request.method === method);
+    if (buffered) {
+      return buffered;
+    }
+
+    return await new Promise<JSONRPCRequest>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.off('request', onRequest);
+        reject(new Error(`Timed out waiting for request: ${method}`));
+      }, timeoutMs);
+
+      const onRequest = (request: JSONRPCRequest) => {
+        if (request.method !== method) {
+          return;
+        }
+        clearTimeout(timeout);
+        this.off('request', onRequest);
+        resolve(request);
+      };
+
+      this.on('request', onRequest);
+    });
   }
 
   /**
@@ -473,6 +560,151 @@ export class MCPClientSimulator extends EventEmitter {
     this.emit('closed');
   }
 
+  protected async handleIncomingNotification(notification: JSONRPCNotification): Promise<void> {
+    this.notifications.push(notification);
+    this.emit('notification', notification);
+  }
+
+  protected async handleIncomingRequest(request: JSONRPCRequest): Promise<void> {
+    this.requests.push(request);
+    this.emit('request', request);
+
+    const handler = this.requestHandlers.get(request.method);
+    if (!handler) {
+      await this.sendMessage({
+        jsonrpc: '2.0',
+        id: request.id,
+        error: {
+          code: -32601,
+          message: `Method not found: ${request.method}`,
+        },
+      });
+      return;
+    }
+
+    try {
+      const result = await handler(request);
+      await this.sendMessage({
+        jsonrpc: '2.0',
+        id: request.id,
+        result,
+      });
+    } catch (error) {
+      await this.sendMessage({
+        jsonrpc: '2.0',
+        id: request.id,
+        error: {
+          code: -32603,
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  }
+
+  protected async parseSseJsonRpc(
+    response: Response,
+    id?: number | string
+  ): Promise<JSONRPCResponse> {
+    let matched: JSONRPCResponse | undefined;
+
+    await this.consumeSseStream(response, async (payload) => {
+      if (isJsonRpcNotification(payload)) {
+        await this.handleIncomingNotification(payload);
+        return false;
+      }
+
+      if (isJsonRpcRequest(payload)) {
+        await this.handleIncomingRequest(payload);
+        return false;
+      }
+
+      if (isJsonRpcResponse(payload) && (id === undefined || payload.id === id)) {
+        matched = payload;
+        return true;
+      }
+
+      return false;
+    });
+
+    if (!matched) {
+      throw new Error(
+        `Failed to parse JSON-RPC response from SSE payload${id === undefined ? '' : ` for id ${id}`}`
+      );
+    }
+
+    return matched;
+  }
+
+  protected async consumeSseStream(
+    response: Response,
+    onPayload: (payload: unknown) => Promise<boolean> | boolean
+  ): Promise<void> {
+    if (!response.body) {
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let shouldStop = false;
+
+    try {
+      while (!shouldStop) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split(/\r?\n\r?\n/);
+        buffer = blocks.pop() ?? '';
+
+        for (const block of blocks) {
+          shouldStop = await this.processSseBlock(block, onPayload);
+          if (shouldStop) {
+            await reader.cancel();
+            break;
+          }
+        }
+      }
+
+      if (!shouldStop && buffer.trim()) {
+        await this.processSseBlock(buffer, onPayload);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  protected async processSseBlock(
+    block: string,
+    onPayload: (payload: unknown) => Promise<boolean> | boolean
+  ): Promise<boolean> {
+    const dataLines: string[] = [];
+
+    for (const rawLine of block.split(/\r?\n/)) {
+      const line = rawLine.trimEnd();
+      if (!line || line.startsWith(':')) {
+        continue;
+      }
+      if (line.startsWith('data:')) {
+        dataLines.push(line.slice(5).trimStart());
+      }
+    }
+
+    if (dataLines.length === 0) {
+      return false;
+    }
+
+    const payloadText = dataLines.join('\n').trim();
+    if (!payloadText) {
+      return false;
+    }
+
+    const payload = JSON.parse(payloadText) as unknown;
+    return await onPayload(payload);
+  }
+
   /**
    * Send JSON-RPC request and wait for response
    *
@@ -489,6 +721,12 @@ export class MCPClientSimulator extends EventEmitter {
    */
   protected async sendNotification(notification: JSONRPCNotification): Promise<void> {
     throw new Error('sendNotification must be implemented by transport-specific subclass');
+  }
+
+  protected async sendMessage(
+    _message: JSONRPCRequest | JSONRPCResponse | JSONRPCNotification
+  ): Promise<Response> {
+    throw new Error('sendMessage must be implemented by transport-specific subclass');
   }
 
   /**
@@ -509,6 +747,8 @@ export class MCPClientSimulator extends EventEmitter {
 export class MCPHttpClient extends MCPClientSimulator {
   private baseUrl: string;
   private authToken?: string;
+  private eventStreamAbortController: AbortController | null = null;
+  private eventStreamLoop: Promise<void> | null = null;
 
   constructor(config: MCPClientConfig & { baseUrl: string; authToken?: string }) {
     super(config);
@@ -517,31 +757,146 @@ export class MCPHttpClient extends MCPClientSimulator {
   }
 
   protected async sendRequest(request: JSONRPCRequest): Promise<JSONRPCResponse> {
+    const response = await this.sendMessage(request);
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(
+        `HTTP error: ${response.status} ${response.statusText}${body ? ` - ${body}` : ''}`
+      );
+    }
+
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType.includes('text/event-stream')) {
+      return await this.parseSseJsonRpc(response, request.id);
+    }
+
+    if (contentType.includes('application/json')) {
+      return (await response.json()) as JSONRPCResponse;
+    }
+
+    const text = await response.text();
+    if (!text.trim()) {
+      throw new Error(`Empty JSON-RPC response for request ${String(request.id)}`);
+    }
+
+    return JSON.parse(text) as JSONRPCResponse;
+  }
+
+  protected async sendNotification(notification: JSONRPCNotification): Promise<void> {
+    await this.sendMessage(notification);
+  }
+
+  async openEventStream(): Promise<void> {
+    const sessionId = this.getSession().sessionId;
+    if (!sessionId) {
+      throw new Error('Client session not established - call initialize() first');
+    }
+    if (this.eventStreamLoop) {
+      return;
+    }
+
+    const controller = new AbortController();
+    this.eventStreamAbortController = controller;
+
     const response = await fetch(`${this.baseUrl}/mcp`, {
-      method: 'POST',
+      method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        'MCP-Protocol-Version': this.getSessionProtocolVersion(),
+        'Mcp-Session-Id': sessionId,
         ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
       },
-      body: JSON.stringify(request),
+      signal: controller.signal,
     });
+
+    this.updateSessionIdFromResponse(response);
 
     if (!response.ok) {
       throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
     }
 
-    return (await response.json()) as JSONRPCResponse;
+    this.eventStreamLoop = this.consumeSseStream(response, async (payload) => {
+      if (isJsonRpcNotification(payload)) {
+        await this.handleIncomingNotification(payload);
+        return false;
+      }
+
+      if (isJsonRpcRequest(payload)) {
+        await this.handleIncomingRequest(payload);
+      }
+
+      return false;
+    }).catch((error) => {
+      if (controller.signal.aborted) {
+        return;
+      }
+      throw error;
+    });
   }
 
-  protected async sendNotification(notification: JSONRPCNotification): Promise<void> {
-    await fetch(`${this.baseUrl}/mcp`, {
+  override async close(): Promise<void> {
+    const sessionId = this.isInitialized() ? this.getSession().sessionId : undefined;
+
+    this.eventStreamAbortController?.abort();
+    this.eventStreamAbortController = null;
+
+    if (this.eventStreamLoop) {
+      await this.eventStreamLoop.catch(() => undefined);
+      this.eventStreamLoop = null;
+    }
+
+    if (sessionId) {
+      await fetch(`${this.baseUrl}/mcp`, {
+        method: 'DELETE',
+        headers: {
+          'MCP-Protocol-Version': this.getSessionProtocolVersion(),
+          'Mcp-Session-Id': sessionId,
+          ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
+        },
+      }).catch(() => undefined);
+    }
+
+    await super.close();
+  }
+
+  protected async sendMessage(
+    message: JSONRPCRequest | JSONRPCResponse | JSONRPCNotification
+  ): Promise<Response> {
+    const response = await fetch(`${this.baseUrl}/mcp`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        'MCP-Protocol-Version': this.getSessionProtocolVersion(),
         ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
+        ...(this.isInitializeRequest(message)
+          ? {}
+          : { 'Mcp-Session-Id': this.getSession().sessionId }),
       },
-      body: JSON.stringify(notification),
+      body: JSON.stringify(message),
     });
+
+    this.updateSessionIdFromResponse(response);
+    return response;
+  }
+
+  private updateSessionIdFromResponse(response: Response): void {
+    const sessionId =
+      response.headers.get('mcp-session-id') ?? response.headers.get('x-session-id');
+    if (sessionId) {
+      this.getSessionState().sessionId = sessionId;
+    }
+  }
+
+  private getSessionProtocolVersion(): string {
+    return this.getClientConfig().protocolVersion ?? '2025-11-25';
+  }
+
+  private isInitializeRequest(
+    message: JSONRPCRequest | JSONRPCResponse | JSONRPCNotification
+  ): message is JSONRPCRequest {
+    return 'method' in message && message.method === 'initialize';
   }
 }
 
@@ -555,8 +910,8 @@ export function createTestClient(overrides?: Partial<MCPClientConfig>): MCPClien
     name: 'test-client',
     version: '1.0.0',
     capabilities: {
-      elicitation: true,
-      sampling: true,
+      elicitation: { form: {} },
+      sampling: {},
     },
     protocolVersion: '2025-11-25',
     transport: 'http',
@@ -577,8 +932,8 @@ export function createTestHttpClient(
     name: 'test-http-client',
     version: '1.0.0',
     capabilities: {
-      elicitation: true,
-      sampling: true,
+      elicitation: { form: {} },
+      sampling: {},
     },
     protocolVersion: '2025-11-25',
     transport: 'http',
@@ -590,4 +945,38 @@ export function createTestHttpClient(
     ...overrides,
     baseUrl,
   });
+}
+
+function isJsonRpcNotification(payload: unknown): payload is JSONRPCNotification {
+  return (
+    !!payload &&
+    typeof payload === 'object' &&
+    'jsonrpc' in payload &&
+    (payload as { jsonrpc?: unknown }).jsonrpc === '2.0' &&
+    'method' in payload &&
+    !('id' in payload)
+  );
+}
+
+function isJsonRpcRequest(payload: unknown): payload is JSONRPCRequest {
+  return (
+    !!payload &&
+    typeof payload === 'object' &&
+    'jsonrpc' in payload &&
+    (payload as { jsonrpc?: unknown }).jsonrpc === '2.0' &&
+    'method' in payload &&
+    'id' in payload
+  );
+}
+
+function isJsonRpcResponse(payload: unknown): payload is JSONRPCResponse {
+  return (
+    !!payload &&
+    typeof payload === 'object' &&
+    'jsonrpc' in payload &&
+    (payload as { jsonrpc?: unknown }).jsonrpc === '2.0' &&
+    'id' in payload &&
+    ('result' in payload || 'error' in payload) &&
+    !('method' in payload)
+  );
 }

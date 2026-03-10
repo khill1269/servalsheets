@@ -25,7 +25,23 @@
     "**/*.spec.ts"
   ],
   "ignoreDependencies": [
-    "@types/*"
+    "@types/*",
+    "@apollo/server",
+    "@serval/core",
+    "better-sqlite3",
+    "chalk",
+    "cli-table3",
+    "deep-diff",
+    "googleapis",
+    "graphql",
+    "hyperformula",
+    "ioredis",
+    "lru-cache",
+    "open",
+    "prom-client",
+    "stripe",
+    "uuid",
+    "winston"
   ],
   "ignoreExportsUsedInFile": true,
   "includeEntryExports": false,

@@ -5,18 +5,35 @@
  * Verifies zero data leakage between tenants.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   TenantContextService,
   TenantStorage,
   TenantMetadata,
+  TenantQuotaExceededError,
 } from '../../src/services/tenant-context.js';
 
 describe('Tenant Isolation', () => {
   let service: TenantContextService;
+  const originalIsolation = process.env['ENABLE_TENANT_ISOLATION'];
+  const originalUnmappedOverride = process.env['TENANT_ALLOW_UNMAPPED_SPREADSHEET_ACCESS'];
 
   beforeEach(() => {
     service = new TenantContextService();
+  });
+
+  afterEach(() => {
+    if (originalIsolation === undefined) {
+      delete process.env['ENABLE_TENANT_ISOLATION'];
+    } else {
+      process.env['ENABLE_TENANT_ISOLATION'] = originalIsolation;
+    }
+
+    if (originalUnmappedOverride === undefined) {
+      delete process.env['TENANT_ALLOW_UNMAPPED_SPREADSHEET_ACCESS'];
+    } else {
+      process.env['TENANT_ALLOW_UNMAPPED_SPREADSHEET_ACCESS'] = originalUnmappedOverride;
+    }
   });
 
   describe('Tenant Creation', () => {
@@ -275,6 +292,71 @@ describe('Tenant Isolation', () => {
 
       expect(context!.quotaRemaining.hourly).toBe(Infinity);
       expect(context!.quotaRemaining.concurrent).toBe(Infinity);
+    });
+
+    it('should decrement remaining hourly quota after recorded API calls', async () => {
+      const { apiKey, metadata } = await service.createTenant('Test Tenant', {
+        maxApiCallsPerHour: 2,
+      });
+
+      const before = await service.extractTenantContext(apiKey);
+      expect(before!.quotaRemaining.hourly).toBe(2);
+
+      await service.recordApiCall(metadata.tenantId);
+
+      const after = await service.extractTenantContext(apiKey);
+      expect(after!.quotaRemaining.hourly).toBe(1);
+    });
+
+    it('should throw when hourly quota is exceeded', async () => {
+      const { metadata } = await service.createTenant('Test Tenant', {
+        maxApiCallsPerHour: 1,
+      });
+
+      await service.recordApiCall(metadata.tenantId);
+
+      await expect(service.recordApiCall(metadata.tenantId)).rejects.toBeInstanceOf(
+        TenantQuotaExceededError
+      );
+    });
+  });
+
+  describe('Spreadsheet Access Isolation', () => {
+    it('denies unknown spreadsheet mappings when tenant isolation is enabled', async () => {
+      process.env['ENABLE_TENANT_ISOLATION'] = 'true';
+      delete process.env['TENANT_ALLOW_UNMAPPED_SPREADSHEET_ACCESS'];
+
+      const { metadata } = await service.createTenant('Tenant A');
+      const allowed = await service.validateSpreadsheetAccess(metadata.tenantId, 'sheet-unmapped');
+
+      expect(allowed).toBe(false);
+    });
+
+    it('allows mapped spreadsheets and denies cross-tenant spreadsheet access', async () => {
+      process.env['ENABLE_TENANT_ISOLATION'] = 'true';
+      delete process.env['TENANT_ALLOW_UNMAPPED_SPREADSHEET_ACCESS'];
+
+      const tenantA = await service.createTenant('Tenant A');
+      const tenantB = await service.createTenant('Tenant B');
+      service.grantSpreadsheetAccess(tenantA.metadata.tenantId, 'sheet-a');
+      service.grantSpreadsheetAccess(tenantB.metadata.tenantId, 'sheet-b');
+
+      await expect(
+        service.validateSpreadsheetAccess(tenantA.metadata.tenantId, 'sheet-a')
+      ).resolves.toBe(true);
+      await expect(
+        service.validateSpreadsheetAccess(tenantA.metadata.tenantId, 'sheet-b')
+      ).resolves.toBe(false);
+    });
+
+    it('supports explicit permissive override for unmapped spreadsheets', async () => {
+      process.env['ENABLE_TENANT_ISOLATION'] = 'true';
+      process.env['TENANT_ALLOW_UNMAPPED_SPREADSHEET_ACCESS'] = 'true';
+
+      const { metadata } = await service.createTenant('Tenant A');
+      const allowed = await service.validateSpreadsheetAccess(metadata.tenantId, 'sheet-unmapped');
+
+      expect(allowed).toBe(true);
     });
   });
 

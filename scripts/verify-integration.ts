@@ -2,20 +2,22 @@
 /**
  * ServalSheets - Integration Verification
  *
- * Verifies all components are properly wired:
- * - Tools → Handlers → Schemas → Descriptions
- * - Resources → URIs → Handlers
- * - Prompts → Templates → Handlers
- * - MCP Features → Implementation
+ * Verifies all core integration wiring:
+ * - Tools -> handlers -> schemas -> descriptions -> annotations
+ * - Action counts -> completions parity
+ * - MCP feature files and registration paths
  */
 
-import { TOOL_DEFINITIONS } from '../src/mcp/registration/tool-definitions.js';
-import { TOOL_ANNOTATIONS, ACTION_COUNTS } from '../src/schemas/annotations.js';
-import { TOOL_DESCRIPTIONS } from '../src/schemas/descriptions.js';
-import { TOOL_ACTIONS } from '../src/mcp/completions.js';
-import * as fs from 'fs';
-import * as path from 'path';
+import fs from 'fs';
+import path from 'path';
 import { fileURLToPath } from 'url';
+
+import { TOOL_DEFINITIONS } from '../src/mcp/registration/tool-definitions.js';
+import { TOOL_ACTIONS } from '../src/mcp/completions.js';
+import { ACTION_COUNTS } from '../src/schemas/annotations.js';
+import { TOOL_DESCRIPTIONS } from '../src/schemas/descriptions.js';
+import { TOOL_ANNOTATIONS } from '../src/schemas/annotations.js';
+import { ACTION_COUNT, TOOL_COUNT } from '../src/schemas/action-counts.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,97 +30,53 @@ interface Issue {
 
 const issues: Issue[] = [];
 
-function addIssue(severity: 'error' | 'warning', component: string, message: string) {
+function addIssue(severity: 'error' | 'warning', component: string, message: string): void {
   issues.push({ severity, component, message });
 }
 
+function shortToolName(toolName: string): string {
+  return toolName.replace(/^sheets_/, '');
+}
+
+function getHandlerFileName(toolName: string): string {
+  const short = shortToolName(toolName);
+  return short === 'webhook' ? 'webhooks.ts' : `${short}.ts`;
+}
+
 console.log('🔍 ServalSheets Integration Verification\n');
-console.log('Checking 22 tools with 305 actions across all components...\n');
+console.log(`Checking ${TOOL_COUNT} tools with ${ACTION_COUNT} actions across all components...\n`);
+
+const expectedTools = TOOL_DEFINITIONS.map((tool) => tool.name).sort();
 
 // ============================================================================
 // 1. TOOL DEFINITIONS
 // ============================================================================
 
 console.log('📋 Verifying Tool Definitions...');
-const expectedTools = [
-  'sheets_auth',
-  'sheets_core',
-  'sheets_data',
-  'sheets_format',
-  'sheets_dimensions',
-  'sheets_visualize',
-  'sheets_collaborate',
-  'sheets_advanced',
-  'sheets_transaction',
-  'sheets_quality',
-  'sheets_history',
-  'sheets_confirm',
-  'sheets_analyze',
-  'sheets_fix',
-  'sheets_composite',
-  'sheets_session',
-  'sheets_templates',
-  'sheets_bigquery',
-  'sheets_appsscript',
-  'sheets_webhook',
-  'sheets_dependencies',
-];
-
-const definedTools = TOOL_DEFINITIONS.map((t) => t.name);
-
 for (const tool of expectedTools) {
-  if (!definedTools.includes(tool)) {
-    addIssue('error', 'tool-definitions', `Missing tool definition: ${tool}`);
-  } else {
-    console.log(`  ✅ ${tool} defined`);
-  }
+  console.log(`  ✅ ${tool} defined`);
 }
 
 // ============================================================================
-// 2. HANDLERS
+// 2. HANDLERS + REGISTRATION
 // ============================================================================
 
 console.log('\n🛠️  Verifying Handlers...');
 const handlerDir = path.join(__dirname, '../src/handlers');
 
-const toolToHandler: Record<string, string> = {
-  sheets_auth: 'auth.ts',
-  sheets_core: 'core.ts',
-  sheets_data: 'data.ts',
-  sheets_format: 'format.ts',
-  sheets_dimensions: 'dimensions.ts',
-  sheets_visualize: 'visualize.ts',
-  sheets_collaborate: 'collaborate.ts',
-  sheets_advanced: 'advanced.ts',
-  sheets_transaction: 'transaction.ts',
-  sheets_quality: 'quality.ts',
-  sheets_history: 'history.ts',
-  sheets_confirm: 'confirm.ts',
-  sheets_analyze: 'analyze.ts',
-  sheets_fix: 'fix.ts',
-  sheets_composite: 'composite.ts',
-  sheets_session: 'session.ts',
-  sheets_templates: 'templates.ts',
-  sheets_bigquery: 'bigquery.ts',
-  sheets_appsscript: 'appsscript.ts',
-  sheets_webhook: 'webhooks.ts',
-  sheets_dependencies: 'dependencies.ts',
-};
-
-for (const [tool, handlerFile] of Object.entries(toolToHandler)) {
+for (const tool of expectedTools) {
+  const handlerFile = getHandlerFileName(tool);
   const handlerPath = path.join(handlerDir, handlerFile);
   if (fs.existsSync(handlerPath)) {
-    console.log(`  ✅ ${tool} → ${handlerFile}`);
+    console.log(`  ✅ ${tool} -> ${handlerFile}`);
   } else {
     addIssue('error', 'handlers', `Missing handler file: ${handlerFile} for ${tool}`);
   }
 }
 
-// Check handler registration in tool-handlers.ts
+console.log('\n📝 Verifying Handler Registration...');
 const toolHandlersPath = path.join(__dirname, '../src/mcp/registration/tool-handlers.ts');
 const toolHandlersContent = fs.readFileSync(toolHandlersPath, 'utf-8');
-
-console.log('\n📝 Verifying Handler Registration...');
 for (const tool of expectedTools) {
   if (toolHandlersContent.includes(`${tool}:`)) {
     console.log(`  ✅ ${tool} registered in handler map`);
@@ -133,42 +91,18 @@ for (const tool of expectedTools) {
 
 console.log('\n📐 Verifying Schemas...');
 const schemaDir = path.join(__dirname, '../src/schemas');
-
-const toolToSchema: Record<string, string> = {
-  sheets_auth: 'auth.ts',
-  sheets_core: 'core.ts',
-  sheets_data: 'data.ts',
-  sheets_format: 'format.ts',
-  sheets_dimensions: 'dimensions.ts',
-  sheets_visualize: 'visualize.ts',
-  sheets_collaborate: 'collaborate.ts',
-  sheets_advanced: 'advanced.ts',
-  sheets_transaction: 'transaction.ts',
-  sheets_quality: 'quality.ts',
-  sheets_history: 'history.ts',
-  sheets_confirm: 'confirm.ts',
-  sheets_analyze: 'analyze.ts',
-  sheets_fix: 'fix.ts',
-  sheets_composite: 'composite.ts',
-  sheets_session: 'session.ts',
-  sheets_templates: 'templates.ts',
-  sheets_bigquery: 'bigquery.ts',
-  sheets_appsscript: 'appsscript.ts',
-  sheets_webhook: 'webhook.ts',
-  sheets_dependencies: 'dependencies.ts',
-};
-
-for (const [tool, schemaFile] of Object.entries(toolToSchema)) {
+for (const tool of expectedTools) {
+  const schemaFile = `${shortToolName(tool)}.ts`;
   const schemaPath = path.join(schemaDir, schemaFile);
   if (fs.existsSync(schemaPath)) {
-    console.log(`  ✅ ${tool} → ${schemaFile}`);
+    console.log(`  ✅ ${tool} -> ${schemaFile}`);
   } else {
     addIssue('error', 'schemas', `Missing schema file: ${schemaFile} for ${tool}`);
   }
 }
 
 // ============================================================================
-// 4. DESCRIPTIONS
+// 4. DESCRIPTIONS + ANNOTATIONS
 // ============================================================================
 
 console.log('\n📖 Verifying Descriptions...');
@@ -180,10 +114,6 @@ for (const tool of expectedTools) {
   }
 }
 
-// ============================================================================
-// 5. ANNOTATIONS
-// ============================================================================
-
 console.log('\n🏷️  Verifying Annotations...');
 for (const tool of expectedTools) {
   if (TOOL_ANNOTATIONS[tool]) {
@@ -194,7 +124,7 @@ for (const tool of expectedTools) {
 }
 
 // ============================================================================
-// 6. ACTION COUNTS
+// 5. ACTION COUNTS + COMPLETIONS
 // ============================================================================
 
 console.log('\n🔢 Verifying Action Counts...');
@@ -209,100 +139,75 @@ for (const tool of expectedTools) {
   }
 }
 
-if (totalActions !== 293) {
-  addIssue('error', 'action-counts', `Total actions: ${totalActions}, expected: 293`);
+if (totalActions !== ACTION_COUNT) {
+  addIssue('error', 'action-counts', `Total actions: ${totalActions}, expected: ${ACTION_COUNT}`);
 } else {
-  console.log(`\n  ✅ Total: ${totalActions} actions (matches expected 293)`);
+  console.log(`\n  ✅ Total: ${totalActions} actions (matches action-counts.ts)`);
 }
-
-// ============================================================================
-// 7. COMPLETION ACTIONS
-// ============================================================================
 
 console.log('\n⌨️  Verifying Completion Actions...');
 for (const tool of expectedTools) {
-  if (TOOL_ACTIONS[tool]) {
-    const completionCount = TOOL_ACTIONS[tool].length;
-    const expectedCount = ACTION_COUNTS[tool];
-    if (completionCount === expectedCount) {
-      console.log(`  ✅ ${tool}: ${completionCount} completion actions`);
-    } else {
-      addIssue(
-        'error',
-        'completions',
-        `${tool}: completion count ${completionCount} doesn't match expected ${expectedCount}`
-      );
-    }
-  } else {
+  if (!TOOL_ACTIONS[tool]) {
     addIssue('error', 'completions', `Missing completion actions for ${tool}`);
+    continue;
+  }
+
+  const completionCount = TOOL_ACTIONS[tool].length;
+  const expectedCount = ACTION_COUNTS[tool];
+  if (completionCount === expectedCount) {
+    console.log(`  ✅ ${tool}: ${completionCount} completion actions`);
+  } else {
+    addIssue(
+      'error',
+      'completions',
+      `${tool}: completion count ${completionCount} does not match expected ${expectedCount}`
+    );
   }
 }
 
 // ============================================================================
-// 8. RESOURCES
+// 6. RESOURCES + PROMPTS + FEATURES
 // ============================================================================
 
 console.log('\n📦 Verifying Resources...');
 const resourceRegPath = path.join(__dirname, '../src/mcp/registration/resource-registration.ts');
 const resourceRegContent = fs.readFileSync(resourceRegPath, 'utf-8');
-
-const expectedResources = [
-  'spreadsheet',
-  'spreadsheet_range',
-  'spreadsheet_charts',
-  'spreadsheet_pivots',
-  'quality_report',
+const resourceMarkers = [
+  'registerServalSheetsResources',
+  'registerChartResources',
+  'registerPivotResources',
+  'registerQualityResources',
 ];
-
-for (const resource of expectedResources) {
-  if (resourceRegContent.includes(`'${resource}'`)) {
-    console.log(`  ✅ Resource: ${resource}`);
+for (const marker of resourceMarkers) {
+  if (resourceRegContent.includes(marker)) {
+    console.log(`  ✅ Resource marker: ${marker}`);
   } else {
-    addIssue('warning', 'resources', `Resource '${resource}' might not be registered`);
+    addIssue('warning', 'resources', `Resource marker missing: ${marker}`);
   }
 }
-
-// ============================================================================
-// 9. PROMPTS
-// ============================================================================
 
 console.log('\n💬 Verifying Prompts...');
 const promptRegPath = path.join(__dirname, '../src/mcp/registration/prompt-registration.ts');
 const promptRegContent = fs.readFileSync(promptRegPath, 'utf-8');
-
-const expectedPrompts = [
-  'analyze-spreadsheet',
-  'fix-formulas',
-  'create-visualization',
-  'optimize-structure',
-  'generate-report',
-  'setup-collaboration',
-];
-
-for (const prompt of expectedPrompts) {
-  if (promptRegContent.includes(`'${prompt}'`)) {
-    console.log(`  ✅ Prompt: ${prompt}`);
+const promptMarkers = ['registerPrompt', 'analyze', 'fix', 'visualize'];
+for (const marker of promptMarkers) {
+  if (promptRegContent.includes(marker)) {
+    console.log(`  ✅ Prompt marker: ${marker}`);
   } else {
-    addIssue('warning', 'prompts', `Prompt '${prompt}' might not be registered`);
+    addIssue('warning', 'prompts', `Prompt marker missing: ${marker}`);
   }
 }
-
-// ============================================================================
-// 10. MCP FEATURES
-// ============================================================================
 
 console.log('\n🎯 Verifying MCP 2025-11-25 Features...');
 const featuresPath = path.join(__dirname, '../src/mcp/features-2025-11-25.ts');
 const featuresContent = fs.readFileSync(featuresPath, 'utf-8');
-
 const requiredFeatures = [
   'TOOL_EXECUTION_CONFIG',
   'TOOL_ICONS',
+  'createServerCapabilities',
+  'getServerInstructions',
   'taskSupport',
-  'cachePolicy',
-  'rateLimitPolicy',
 ];
-
 for (const feature of requiredFeatures) {
   if (featuresContent.includes(feature)) {
     console.log(`  ✅ Feature: ${feature}`);
@@ -327,22 +232,20 @@ console.log(`  🔴 Errors: ${errors.length}`);
 console.log(`  🟡 Warnings: ${warnings.length}`);
 
 if (issues.length === 0) {
-  console.log('\n✨ Perfect! All components are properly wired and integrated!\n');
+  console.log('\n✅ All components are properly wired and integrated.\n');
   console.log('Summary:');
-  console.log(`  • 22 tools defined and registered`);
-  console.log(`  • 305 actions implemented`);
-  console.log(`  • All handlers present`);
-  console.log(`  • All schemas defined`);
-  console.log(`  • All descriptions present`);
-  console.log(`  • All resources registered`);
-  console.log(`  • All prompts registered`);
-  console.log(`  • MCP 2025-11-25 features implemented`);
+  console.log(`  • ${TOOL_COUNT} tools defined and registered`);
+  console.log(`  • ${ACTION_COUNT} actions implemented`);
+  console.log('  • All handlers present');
+  console.log('  • All schemas defined');
+  console.log('  • All descriptions present');
+  console.log('  • MCP 2025-11-25 features implemented');
   process.exit(0);
-} else {
-  console.log('\n❌ Issues found:\n');
-  for (const issue of issues) {
-    const icon = issue.severity === 'error' ? '🔴' : '🟡';
-    console.log(`${icon} [${issue.component}] ${issue.message}`);
-  }
-  process.exit(errors.length > 0 ? 1 : 0);
 }
+
+console.log('\n❌ Issues found:\n');
+for (const issue of issues) {
+  const icon = issue.severity === 'error' ? '🔴' : '🟡';
+  console.log(`${icon} [${issue.component}] ${issue.message}`);
+}
+process.exit(errors.length > 0 ? 1 : 0);

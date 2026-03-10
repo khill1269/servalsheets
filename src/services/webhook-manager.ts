@@ -21,13 +21,14 @@
  */
 
 import { randomUUID } from 'crypto';
-import dns from 'node:dns';
 import type { GoogleApiClient } from './google-api.js';
 import { logger } from '../utils/logger.js';
+import { redactUrl } from '../utils/redact.js';
 import { recordWebhookRenewal, updateActiveWebhookCount } from '../observability/metrics.js';
 import { DiffEngine, type SpreadsheetState } from '../core/diff-engine.js';
 import { generateWebhookSecret } from '../security/webhook-signature.js';
 import { resourceNotifications } from '../resources/notifications.js';
+import { validateWebhookUrl } from './webhook-url-validation.js';
 import type {
   WebhookEventType,
   WebhookInfo,
@@ -35,119 +36,15 @@ import type {
   WebhookRegisterResponse,
 } from '../schemas/webhook.js';
 
-/**
- * Check if an IPv4 address string is in a private/internal range.
- */
-function isPrivateIPv4(ip: string): boolean {
-  const match = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-  if (!match) return false;
-  const a = Number(match[1]);
-  const b = Number(match[2]);
-  return (
-    a === 10 || // 10.0.0.0/8
-    (a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12
-    (a === 192 && b === 168) || // 192.168.0.0/16
-    (a === 169 && b === 254) || // 169.254.0.0/16 (link-local)
-    a === 127 || // 127.0.0.0/8 (loopback)
-    a === 0 // 0.0.0.0/8
-  );
-}
-
-/**
- * Check if an IPv6 address string is private/internal.
- */
-function isPrivateIPv6(ip: string): boolean {
-  const lower = ip.toLowerCase().replace(/[[\]]/g, '');
-  if (
-    lower.startsWith('fc') ||
-    lower.startsWith('fd') || // Unique local
-    lower.startsWith('fe80') || // Link-local
-    lower === '::1' // Loopback
-  ) {
-    return true;
-  }
-  // IPv4-mapped IPv6 (::ffff:x.x.x.x) - extract and check the IPv4 part
-  const v4MappedMatch = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (v4MappedMatch) {
-    return isPrivateIPv4(v4MappedMatch[1]!);
-  }
-  return false;
-}
-
-/**
- * SSRF protection: Block webhook URLs pointing to private/internal networks.
- * Validates that webhook URLs use HTTPS and don't target internal IP ranges.
- * Includes DNS rebinding protection by resolving hostnames and re-validating.
- */
-async function validateWebhookUrl(urlString: string): Promise<void> {
-  let parsed: URL;
-  try {
-    parsed = new URL(urlString);
-  } catch {
-    throw new Error(`Invalid webhook URL: ${urlString}`);
-  }
-
-  // Require HTTPS
-  if (parsed.protocol !== 'https:') {
-    throw new Error('Webhook URL must use HTTPS');
-  }
-
-  const hostname = parsed.hostname;
-
-  // Block localhost
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
-    throw new Error('Webhook URL cannot target localhost');
-  }
-
-  // Block decimal IP encoding (e.g., 2130706433 = 127.0.0.1)
-  if (/^\d+$/.test(hostname)) {
-    throw new Error('Webhook URL cannot use decimal IP encoding');
-  }
-
-  // Block hex IP encoding (e.g., 0x7f000001 = 127.0.0.1)
-  if (/^0x[0-9a-fA-F]+$/.test(hostname)) {
-    throw new Error('Webhook URL cannot use hex IP encoding');
-  }
-
-  // Block private IP ranges (IPv4)
-  if (isPrivateIPv4(hostname)) {
-    throw new Error('Webhook URL cannot target private/internal IP addresses');
-  }
-
-  // Block IPv6 private ranges
-  if (hostname.startsWith('[') || hostname.includes(':')) {
-    if (isPrivateIPv6(hostname)) {
-      throw new Error('Webhook URL cannot target private/internal IPv6 addresses');
-    }
-  }
-
-  // DNS rebinding protection: resolve hostname and re-validate resolved IPs
-  try {
-    const addresses = await dns.promises.resolve(hostname);
-    for (const addr of addresses) {
-      if (isPrivateIPv4(addr) || isPrivateIPv6(addr)) {
-        throw new Error(
-          'Webhook URL hostname resolves to a private/internal IP address (DNS rebinding protection)'
-        );
-      }
-    }
-  } catch (error) {
-    // Re-throw our own SSRF errors
-    if (error instanceof Error && error.message.includes('DNS rebinding')) {
-      throw error;
-    }
-    // DNS resolution failures for non-IP hostnames are suspicious but not blocking
-    // (hostname may resolve later, or use AAAA records only)
-    logger.warn('DNS resolution failed during SSRF validation', {
-      hostname,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
 // Use any for Redis client to avoid type conflicts
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RedisClient = any;
+
+/**
+ * Webhook durability architecture decision (P19-05):
+ * webhook lifecycle state is Redis-backed and Redis is a hard runtime requirement.
+ */
+export const WEBHOOK_DURABILITY_MODE = 'redis_required' as const;
 
 /** Non-blocking SCAN replacement for redis.keys() */
 async function scanRedisKeys(redis: RedisClient, pattern: string): Promise<string[]> {
@@ -182,6 +79,14 @@ interface WebhookRecord {
   deliveryTimings?: number[]; // Circular buffer of last 100 delivery times (ms)
 }
 
+interface WorkspaceEventSummary {
+  eventId?: string;
+  eventType?: string;
+  resourceName?: string;
+  spreadsheetId?: string;
+  publishTime?: string;
+}
+
 /**
  * Webhook Manager
  *
@@ -205,7 +110,105 @@ export class WebhookManager {
     logger.info('Webhook manager initialized', {
       redisAvailable: redis !== null,
       webhookEndpoint,
+      durabilityMode: WEBHOOK_DURABILITY_MODE,
     });
+  }
+
+  /**
+   * Parse and process a Workspace Events push payload.
+   * Supports both direct CloudEvent payloads and Pub/Sub push envelopes.
+   */
+  async handleWorkspaceEvent(payload: unknown): Promise<WorkspaceEventSummary> {
+    const summary = this.summarizeWorkspaceEvent(payload);
+
+    logger.info('Workspace event processed', summary);
+
+    // Notify MCP resource subscribers that underlying sheet state may have changed.
+    // This keeps downstream clients reactive even when event envelopes vary.
+    resourceNotifications.notifyResourceListChanged(
+      summary.spreadsheetId
+        ? `workspace event: ${summary.spreadsheetId}`
+        : `workspace event: ${summary.resourceName ?? 'unknown'}`
+    );
+
+    return summary;
+  }
+
+  /**
+   * Extract normalized fields from Workspace Events payload variants.
+   */
+  private summarizeWorkspaceEvent(payload: unknown): WorkspaceEventSummary {
+    if (!payload || typeof payload !== 'object') {
+      return {};
+    }
+
+    const root = payload as Record<string, unknown>;
+    const messageEnvelope =
+      root['message'] && typeof root['message'] === 'object'
+        ? (root['message'] as Record<string, unknown>)
+        : undefined;
+
+    const decodedMessage = this.decodePubSubMessage(messageEnvelope);
+    const eventPayload =
+      decodedMessage && typeof decodedMessage === 'object'
+        ? (decodedMessage as Record<string, unknown>)
+        : root;
+
+    const resourceName =
+      (eventPayload['resourceName'] as string | undefined) ??
+      (eventPayload['subject'] as string | undefined) ??
+      (eventPayload['name'] as string | undefined);
+    const eventType =
+      (eventPayload['eventType'] as string | undefined) ??
+      (eventPayload['type'] as string | undefined);
+    const eventId =
+      (eventPayload['eventId'] as string | undefined) ??
+      (eventPayload['id'] as string | undefined) ??
+      (messageEnvelope?.['messageId'] as string | undefined);
+    const publishTime =
+      (eventPayload['time'] as string | undefined) ??
+      (messageEnvelope?.['publishTime'] as string | undefined);
+
+    const spreadsheetId = this.extractSpreadsheetId(resourceName);
+
+    return {
+      eventId,
+      eventType,
+      resourceName,
+      spreadsheetId,
+      publishTime,
+    };
+  }
+
+  /**
+   * Decode Pub/Sub push envelope `message.data` when present.
+   */
+  private decodePubSubMessage(
+    envelope: Record<string, unknown> | undefined
+  ): Record<string, unknown> | null {
+    if (!envelope) return null;
+
+    const data = envelope['data'];
+    if (typeof data !== 'string' || data.length === 0) {
+      return null;
+    }
+
+    try {
+      const json = Buffer.from(data, 'base64').toString('utf8');
+      const parsed = JSON.parse(json);
+      return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
+    } catch (error) {
+      logger.warn('Failed to decode Workspace Events Pub/Sub payload', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  private extractSpreadsheetId(resourceName?: string): string | undefined {
+    if (!resourceName) return undefined;
+    const match = resourceName.match(/\/files\/([a-zA-Z0-9_-]+)/);
+    return match?.[1];
   }
 
   /**
@@ -306,7 +309,7 @@ export class WebhookManager {
       logger.info('Webhook registered', {
         webhookId,
         spreadsheetId: input.spreadsheetId,
-        webhookUrl: input.webhookUrl,
+        webhookUrl: redactUrl(input.webhookUrl), // ISSUE-215: redact token/key params
         expiresAt: new Date(expiresAt).toISOString(),
       });
 
@@ -894,3 +897,5 @@ export function resetWebhookManager(): void {
   webhookManager = null;
   logger.debug('Webhook manager reset');
 }
+
+export { validateWebhookUrl };

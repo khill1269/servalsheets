@@ -18,69 +18,28 @@
 import type { sheets_v4 } from 'googleapis';
 import { LRUCache } from 'lru-cache';
 import { logger } from '../utils/logger.js';
+import {
+  buildA1Notation as buildA1NotationImpl,
+  calculateSheetNameSimilarity,
+  columnIndexToLetter as columnIndexToLetterImpl,
+  isMultipleRanges as isMultipleRangesImpl,
+  letterToColumnIndex as letterToColumnIndexImpl,
+  parseA1Notation as parseA1NotationImpl,
+  parseMultipleRanges as parseMultipleRangesImpl,
+} from './sheet-notation.js';
+import type {
+  ResolvedSheet,
+  SheetReference,
+  SheetResolutionResult,
+  SheetResolverOptions,
+} from './sheet-resolver-types.js';
 
-// ============================================================================
-// Types
-// ============================================================================
-
-/**
- * Sheet reference - can be either name or ID
- */
-export interface SheetReference {
-  /** Sheet name (preferred for UX) */
-  sheetName?: string;
-  /** Sheet ID (numeric, for API) */
-  sheetId?: number;
-}
-
-/**
- * Resolved sheet information
- */
-export interface ResolvedSheet {
-  /** Numeric sheet ID */
-  sheetId: number;
-  /** Sheet title/name */
-  title: string;
-  /** Sheet index (0-based position) */
-  index: number;
-  /** Whether the sheet is hidden */
-  hidden: boolean;
-  /** Grid properties */
-  gridProperties?: {
-    rowCount: number;
-    columnCount: number;
-    frozenRowCount?: number;
-    frozenColumnCount?: number;
-  };
-}
-
-/**
- * Sheet resolution result with confidence
- */
-export interface SheetResolutionResult {
-  /** Resolved sheet info */
-  sheet: ResolvedSheet;
-  /** Resolution method used */
-  method: 'exact_name' | 'exact_id' | 'fuzzy_name' | 'index';
-  /** Confidence score (0-1) */
-  confidence: number;
-  /** Alternative matches (for fuzzy resolution) */
-  alternatives?: Array<{ sheet: ResolvedSheet; similarity: number }>;
-}
-
-/**
- * Sheet resolver options
- */
-export interface SheetResolverOptions {
-  /** Sheets API instance */
-  sheetsApi: sheets_v4.Sheets;
-  /** Cache TTL in milliseconds (default: 5 minutes) */
-  cacheTtlMs?: number;
-  /** Enable fuzzy matching (default: true) */
-  enableFuzzyMatch?: boolean;
-  /** Fuzzy match threshold (0-1, default: 0.7) */
-  fuzzyThreshold?: number;
-}
+export type {
+  ResolvedSheet,
+  SheetReference,
+  SheetResolutionResult,
+  SheetResolverOptions,
+} from './sheet-resolver-types.js';
 
 // ============================================================================
 // Sheet Resolution Error
@@ -262,7 +221,7 @@ export class SheetResolver {
       const matches = sheets
         .map((sheet) => ({
           sheet,
-          similarity: this.calculateSimilarity(nameLower, sheet.title.toLowerCase()),
+          similarity: calculateSheetNameSimilarity(nameLower, sheet.title.toLowerCase()),
         }))
         .filter((m) => m.similarity >= this.fuzzyThreshold)
         .sort((a, b) => b.similarity - a.similarity);
@@ -292,55 +251,6 @@ export class SheetResolver {
       { searchedName: name },
       sheets.map((s) => s.title)
     );
-  }
-
-  /**
-   * Calculate string similarity using Levenshtein-based metric
-   */
-  private calculateSimilarity(a: string, b: string): number {
-    if (a === b) return 1.0;
-    if (a.length === 0 || b.length === 0) return 0;
-
-    // Check if one contains the other
-    if (a.includes(b) || b.includes(a)) {
-      const minLen = Math.min(a.length, b.length);
-      const maxLen = Math.max(a.length, b.length);
-      return minLen / maxLen;
-    }
-
-    // Levenshtein distance
-    const matrix: number[][] = [];
-
-    for (let i = 0; i <= b.length; i++) {
-      matrix[i] = [i];
-    }
-
-    for (let j = 0; j <= a.length; j++) {
-      const firstRow = matrix[0];
-      if (firstRow) {
-        firstRow[j] = j;
-      }
-    }
-
-    for (let i = 1; i <= b.length; i++) {
-      for (let j = 1; j <= a.length; j++) {
-        const cost = b.charAt(i - 1) === a.charAt(j - 1) ? 0 : 1;
-        const row = matrix[i];
-        const prevRow = matrix[i - 1];
-        if (row && prevRow) {
-          row[j] = Math.min(
-            (prevRow[j] ?? 0) + 1,
-            (row[j - 1] ?? 0) + 1,
-            (prevRow[j - 1] ?? 0) + cost
-          );
-        }
-      }
-    }
-
-    const lastRow = matrix[b.length];
-    const distance = lastRow?.[a.length] ?? Math.max(a.length, b.length);
-    const maxLen = Math.max(a.length, b.length);
-    return 1 - distance / maxLen;
   }
 
   /**
@@ -664,27 +574,14 @@ export class SheetResolver {
    * Convert 0-based column index to letter (A, B, ..., Z, AA, AB, ...)
    */
   columnIndexToLetter(index: number): string {
-    let letter = '';
-    let num = index + 1; // Convert to 1-based
-
-    while (num > 0) {
-      const remainder = (num - 1) % 26;
-      letter = String.fromCharCode(65 + remainder) + letter;
-      num = Math.floor((num - 1) / 26);
-    }
-
-    return letter;
+    return columnIndexToLetterImpl(index);
   }
 
   /**
    * Convert column letter to 0-based index (A->0, B->1, ..., AA->26)
    */
   letterToColumnIndex(letter: string): number {
-    let index = 0;
-    for (let i = 0; i < letter.length; i++) {
-      index = index * 26 + (letter.charCodeAt(i) - 64);
-    }
-    return index - 1; // Convert to 0-based
+    return letterToColumnIndexImpl(letter);
   }
 
   /**
@@ -697,87 +594,7 @@ export class SheetResolver {
     endColumn?: string;
     endRow?: number;
   } {
-    // Handle comma-separated ranges: extract just the first range
-    // E.g., "'🍾 Inventory'!C2:C10,F2:F10" -> "'🍾 Inventory'!C2:C10"
-    const firstRange = this.extractFirstRange(notation);
-
-    // Handle sheet-qualified references like 'Sheet1'!A1:B2
-    let sheetName: string | undefined;
-    let rangeStr = firstRange;
-
-    if (notation.includes('!')) {
-      const parts = notation.split('!');
-      const extractedSheetName = parts[0];
-      const extractedRange = parts[1];
-
-      if (extractedSheetName && extractedRange) {
-        sheetName = extractedSheetName;
-        rangeStr = extractedRange;
-
-        // Remove quotes from sheet name if present
-        if (sheetName.startsWith("'") && sheetName.endsWith("'")) {
-          sheetName = sheetName.slice(1, -1);
-        }
-      }
-    }
-
-    // Parse the range part
-    if (rangeStr.includes(':')) {
-      const parts = rangeStr.split(':');
-      const start = parts[0];
-      const end = parts[1];
-
-      if (!start || !end) {
-        throw new Error(`Invalid A1 notation: ${notation}`);
-      }
-
-      // Check if it's a row-only range (e.g., "1:10")
-      if (/^\d+$/.test(start) && /^\d+$/.test(end)) {
-        return {
-          sheetName,
-          startRow: parseInt(start, 10),
-          endRow: parseInt(end, 10),
-        };
-      }
-
-      // Parse start cell
-      const startMatch = start.match(/^([A-Z]+)(\d+)?$/);
-      if (!startMatch) {
-        throw new Error(`Invalid A1 notation: ${notation}`);
-      }
-
-      const startColumn = startMatch[1];
-      const startRow = startMatch[2] ? parseInt(startMatch[2], 10) : undefined;
-
-      // Parse end cell
-      const endMatch = end.match(/^([A-Z]+)(\d+)?$/);
-      if (!endMatch) {
-        throw new Error(`Invalid A1 notation: ${notation}`);
-      }
-
-      const endColumn = endMatch[1];
-      const endRow = endMatch[2] ? parseInt(endMatch[2], 10) : undefined;
-
-      return {
-        sheetName,
-        startColumn,
-        startRow,
-        endColumn,
-        endRow,
-      };
-    } else {
-      // Single cell reference
-      const match = rangeStr.match(/^([A-Z]+)(\d+)?$/);
-      if (!match) {
-        throw new Error(`Invalid A1 notation: ${notation}`);
-      }
-
-      return {
-        sheetName,
-        startColumn: match[1],
-        startRow: match[2] ? parseInt(match[2], 10) : undefined,
-      };
-    }
+    return parseA1NotationImpl(notation);
   }
 
   /**
@@ -793,84 +610,14 @@ export class SheetResolver {
     endColumn?: string;
     endRow?: number;
   }> {
-    // If no comma, just parse as single range
-    if (!notation.includes(',')) {
-      return [this.parseA1Notation(notation)];
-    }
-
-    // Split by comma, handling cases where comma might be inside sheet names
-    // Smart split: only split on commas not inside quotes
-    const ranges: string[] = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (const char of notation) {
-      if (char === "'" && !inQuotes) {
-        inQuotes = true;
-        current += char;
-      } else if (char === "'" && inQuotes) {
-        inQuotes = false;
-        current += char;
-      } else if (char === ',' && !inQuotes) {
-        if (current.trim()) {
-          ranges.push(current.trim());
-        }
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    if (current.trim()) {
-      ranges.push(current.trim());
-    }
-
-    return ranges.map((range) => this.parseA1Notation(range));
+    return parseMultipleRangesImpl(notation);
   }
 
   /**
    * Check if a notation contains multiple ranges (comma-separated)
    */
   isMultipleRanges(notation: string): boolean {
-    // Check for comma outside of quoted sheet names
-    let inQuotes = false;
-    for (const char of notation) {
-      if (char === "'") inQuotes = !inQuotes;
-      if (char === ',' && !inQuotes) return true;
-    }
-    return false;
-  }
-
-  /**
-   * Extract just the first range from comma-separated ranges
-   * Quote-aware splitting to handle sheet names like "'🍾 Inventory'"
-   */
-  private extractFirstRange(notation: string): string {
-    // Quick check: if no comma, return as-is
-    if (!notation.includes(',')) {
-      return notation;
-    }
-
-    // Quote-aware extraction of first range
-    let current = '';
-    let inQuotes = false;
-
-    for (const char of notation) {
-      if (char === "'" && !inQuotes) {
-        inQuotes = true;
-        current += char;
-      } else if (char === "'" && inQuotes) {
-        inQuotes = false;
-        current += char;
-      } else if (char === ',' && !inQuotes) {
-        // Found comma outside quotes - we have the first range
-        return current.trim() || notation;
-      } else {
-        current += char;
-      }
-    }
-
-    // No comma found outside quotes - return the whole thing
-    return notation;
+    return isMultipleRangesImpl(notation);
   }
 
   /**
@@ -883,30 +630,7 @@ export class SheetResolver {
     endColumn?: string;
     endRow?: number;
   }): string {
-    const { sheetName, startColumn, startRow, endColumn, endRow } = components;
-
-    // Build the range part
-    let range = startColumn;
-    if (startRow) {
-      range += startRow;
-    }
-
-    if (endColumn) {
-      range += `:${endColumn}`;
-      if (endRow) {
-        range += endRow;
-      }
-    }
-
-    // Add sheet name if present
-    if (sheetName) {
-      // Quote sheet name if it contains special characters
-      const needsQuotes = /[^a-zA-Z0-9_]/.test(sheetName);
-      const quotedName = needsQuotes ? `'${sheetName}'` : sheetName;
-      return `${quotedName}!${range}`;
-    }
-
-    return range;
+    return buildA1NotationImpl(components);
   }
 }
 

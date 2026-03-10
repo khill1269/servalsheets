@@ -106,7 +106,7 @@ if (Array.isArray(serverJson.tools)) {
 }
 
 if (serverSchema) {
-  const ajv = new Ajv({ allErrors: true, strict: false, validateSchema: false });
+  const ajv = new Ajv({ allErrors: true, strict: false });
   addFormats(ajv);
   const validate = ajv.compile(serverSchema);
   const valid = validate(serverJson);

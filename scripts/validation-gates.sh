@@ -46,7 +46,8 @@ echo "────────────────────────�
 npm test -- --run tests/contracts/cross-map-consistency.test.ts
 npm test -- --run tests/contracts/schema-handler-alignment.test.ts
 bash scripts/check-hardcoded-counts.sh
-npx tsx scripts/validate-schema-handler-alignment.ts
+node --import tsx scripts/validate-schema-handler-alignment.ts
+npm run validate:action-config
 echo "✅ G1 passed"
 
 # G2: Phase behavior
@@ -63,8 +64,9 @@ echo ""
 echo "▶ G3: API/PROTOCOL/DOCS"
 echo "───────────────────────────────────────"
 npm run validate:compliance
-npm run docs:validate || echo "⚠️  Docs validation has warnings (non-blocking)"
-bash scripts/docs-freshness-check.sh || echo "⚠️  Some docs have stale counts (non-blocking)"
+npm run docs:lint:baseline
+npm run docs:check-links
+npm run docs:freshness:ci
 echo "✅ G3 passed"
 
 # G4: Final truth check (ESM-safe)
@@ -72,18 +74,7 @@ echo ""
 echo "▶ G4: FINAL TRUTH CHECK"
 echo "───────────────────────────────────────"
 npm run build > /dev/null 2>&1
-node --input-type=module <<'EOF'
-import { TOOL_COUNT, ACTION_COUNT } from './dist/schemas/action-counts.js';
-if (TOOL_COUNT !== 22) {
-  console.error('❌ Source of truth mismatch: TOOL_COUNT=' + TOOL_COUNT + ' (expected 22)');
-  process.exit(1);
-}
-if (ACTION_COUNT < 200) {
-  console.error('❌ Source of truth mismatch: ACTION_COUNT=' + ACTION_COUNT + ' (suspiciously low)');
-  process.exit(1);
-}
-console.log('✓ Source of truth confirmed: ' + TOOL_COUNT + ' tools, ' + ACTION_COUNT + ' actions');
-EOF
+node scripts/check-source-truth.mjs
 echo "✅ G4 passed"
 
 # G5: Audit validation & score
@@ -93,8 +84,8 @@ echo "────────────────────────�
 
 # Validate any audit documents present
 if [ -f "SCHEMA_HANDLER_ALIGNMENT_AUDIT.md" ] || \
-   [ -f "*_AUDIT.md" ] || \
-   [ -f "*_ANALYSIS.md" ]; then
+   compgen -G "*_AUDIT.md" > /dev/null || \
+   compgen -G "*_ANALYSIS.md" > /dev/null; then
   echo "Validating audit claims..."
   bash scripts/verify-audit-claims.sh || {
     echo "❌ Audit claims validation failed"
@@ -104,21 +95,7 @@ fi
 
 # Check npm audit score
 npm run audit:quick > /dev/null 2>&1
-if [ -f "audit-output/quick-results.json" ]; then
-  SCORE=$(node --input-type=module -e "import fs from 'fs'; const data = JSON.parse(fs.readFileSync('audit-output/quick-results.json', 'utf8')); console.log(data.total_percentage);")
-  THRESHOLD=85
-
-  echo "Quick audit score: ${SCORE}%"
-
-  if (( $(echo "$SCORE < $THRESHOLD" | bc -l) )); then
-    echo "❌ Audit score below threshold: ${SCORE}% < ${THRESHOLD}%"
-    exit 1
-  else
-    echo "✓ Audit score meets threshold: ${SCORE}% ≥ ${THRESHOLD}%"
-  fi
-else
-  echo "⚠️  Quick audit results not found, skipping score check"
-fi
+node scripts/check-audit-score.mjs
 echo "✅ G5 passed"
 
 echo ""

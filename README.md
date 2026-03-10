@@ -2,7 +2,7 @@
 
 ![Audit Score](https://img.shields.io/badge/audit-130.83%25-brightgreen)
 
-Production-grade Google Sheets MCP Server with 22 tools, 315 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 25 tools, 397 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
@@ -92,7 +92,7 @@ On first run, ServalSheets will guide you through Google OAuth authentication.
 
 ### Core Capabilities
 
-- **22 Tools, 315 Actions**: Comprehensive Google Sheets API v4 coverage
+- **25 Tools, 377 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Compliant**: Full protocol compliance with structured outputs
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
@@ -103,7 +103,7 @@ On first run, ServalSheets will guide you through Google OAuth authentication.
 Full compliance with Model Context Protocol 2025-11-25:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.26.0
-- ✅ **Tools**: 22 tools with 315 actions using discriminated unions
+- ✅ **Tools**: 25 tools with 397 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -158,7 +158,7 @@ Full compliance with Model Context Protocol 2025-11-25:
 - **OpenAPI 3.1 Specification**: Auto-generated from Zod schemas
 - **Interactive Swagger UI**: Test endpoints at `/api-docs` when HTTP server is running
 - **Multiple Formats**: JSON and YAML exports for SDK generation
-- **22 Tools Documented**: Complete API reference with request/response schemas
+- **25 Tools Documented**: Complete API reference with request/response schemas
 - **Authentication Schemes**: Bearer token and OAuth 2.0 documented
 
 **Access Documentation:**
@@ -170,7 +170,7 @@ open http://localhost:3000/api-docs  # View Swagger UI
 
 See [OpenAPI Documentation Guide](docs/guides/OPENAPI_DOCUMENTATION.md) for details.
 
-## Quick Start
+## Getting Started
 
 ### Installation
 
@@ -354,31 +354,35 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ## Tools Reference
 
-### Tool Summary (22 tools, 315 actions)
+### Tool Summary (25 tools, 397 actions)
 
-| Tool                  | Actions | Description                                                       |
-| --------------------- | ------- | ----------------------------------------------------------------- |
-| `sheets_auth`         | 4       | Authentication & OAuth                                            |
-| `sheets_core`         | 19      | Spreadsheet and sheet metadata/management                         |
-| `sheets_data`         | 19      | Read/write values, notes, hyperlinks, clipboard                   |
-| `sheets_format`       | 23      | Cell formatting, conditional formats, data validation, sparklines |
-| `sheets_dimensions`   | 28      | Rows/columns, filters, sorts, groups, freezes, views, slicers     |
-| `sheets_visualize`    | 18      | Charts and pivot tables                                           |
-| `sheets_collaborate`  | 35      | Sharing, comments, versions/snapshots                             |
-| `sheets_advanced`     | 31      | Named ranges, protected ranges, metadata, banding, tables, chips  |
-| `sheets_transaction`  | 6       | Transaction management                                            |
-| `sheets_quality`      | 4       | Validation, conflicts, impact analysis                            |
-| `sheets_history`      | 7       | Undo/redo, history, revert                                        |
-| `sheets_confirm`      | 5       | Elicitation confirmations & wizards                               |
-| `sheets_analyze`      | 16      | AI-assisted analysis & recommendations                            |
-| `sheets_fix`          | 1       | Automated fixes from analysis                                     |
-| `sheets_composite`    | 11      | High-level bulk operations                                        |
-| `sheets_session`      | 26      | Session context and references                                    |
-| `sheets_appsscript`   | 18      | Apps Script automation                                            |
-| `sheets_bigquery`     | 17      | BigQuery Connected Sheets                                         |
-| `sheets_templates`    | 8       | Enterprise templates                                              |
-| `sheets_webhook`      | 7       | Webhook registration & delivery                                   |
-| `sheets_dependencies` | 7       | Formula dependency analysis                                       |
+| Tool                  | Actions | Description                                                        |
+| --------------------- | ------- | ------------------------------------------------------------------ |
+| `sheets_auth`         | 4       | Authentication & OAuth 2.1                                         |
+| `sheets_core`         | 19      | Spreadsheet and sheet metadata/management                          |
+| `sheets_data`         | 23      | Read/write values, notes, hyperlinks, clipboard, cross-spreadsheet |
+| `sheets_format`       | 24      | Cell formatting, conditional formats, data validation, sparklines  |
+| `sheets_dimensions`   | 29      | Rows/columns, filters, sorts, groups, freezes, views, slicers      |
+| `sheets_visualize`    | 18      | Charts and pivot tables                                            |
+| `sheets_collaborate`  | 40      | Sharing, comments, versions/snapshots, approvals, labels           |
+| `sheets_advanced`     | 31      | Named ranges, protected ranges, metadata, banding, tables, chips   |
+| `sheets_transaction`  | 6       | Atomic batch operations (80-95% API savings)                       |
+| `sheets_quality`      | 4       | Validation, conflicts, impact analysis                             |
+| `sheets_history`      | 10      | Undo/redo, history, revert, time-travel debugger                   |
+| `sheets_confirm`      | 5       | Elicitation confirmations & wizards                                |
+| `sheets_analyze`      | 19      | AI-assisted analysis, suggestions & recommendations                |
+| `sheets_fix`          | 6       | Automated fixes & data cleaning pipeline                           |
+| `sheets_composite`    | 20      | High-level bulk operations, NL sheet generation & ETL pipelines    |
+| `sheets_session`      | 27      | Session context, preferences, checkpoints                          |
+| `sheets_appsscript`   | 18      | Apps Script automation                                             |
+| `sheets_bigquery`     | 17      | BigQuery Connected Sheets                                          |
+| `sheets_templates`    | 8       | Enterprise templates                                               |
+| `sheets_webhook`      | 7       | Webhook registration & delivery                                    |
+| `sheets_federation`   | 4       | Remote MCP server federation & cross-server calls                  |
+| `sheets_dependencies` | 10      | Formula dependency analysis & scenario modeling                    |
+| `sheets_agent`        | 8       | Autonomous multi-step execution with plan/execute/rollback         |
+| `sheets_compute`      | 10      | Server-side computation (stats, regression, forecast, matrix ops)  |
+| `sheets_connectors`   | 10      | External data connectors (Finnhub, FRED, REST APIs)                |
 
 ## Examples
 
@@ -1101,7 +1105,7 @@ npm run start:remote
 
 ```
 src/
-├── schemas/           # Zod schemas for all 22 tools
+├── schemas/           # Zod schemas for all 25 tools
 ├── core/              # Core infrastructure
 │   ├── intent.ts          # Intent types and mappings
 │   ├── batch-compiler.ts  # Compiles intents to API requests
@@ -1206,7 +1210,7 @@ graph TB
 
 ## Schema Architecture: Discriminated Unions
 
-ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 22 tools and 315 actions. This architecture provides:
+ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 25 tools and 397 actions. This architecture provides:
 
 ### Pattern Overview
 
@@ -1234,7 +1238,7 @@ const SheetsAuthInputSchema = z.object({
 
 ### Tool Structure
 
-All 22 tools follow this pattern:
+All 25 tools follow this pattern:
 
 ```
 Tool: sheets_[category]
@@ -1282,7 +1286,7 @@ All tool responses use a **discriminated union by `success` field**:
 }
 ```
 
-### 22 Tools Overview
+### 25 Tools Overview
 
 | Tool                  | Actions | Pattern                                           | Use Case               |
 | --------------------- | ------- | ------------------------------------------------- | ---------------------- |
@@ -1298,9 +1302,9 @@ All tool responses use a **discriminated union by `success` field**:
 | `sheets_quality`      | 4       | Validate, Detect conflicts, Impact analysis       | Data quality           |
 | `sheets_history`      | 7       | Undo, Redo, Revert, List history                  | Version control        |
 | `sheets_confirm`      | 5       | Request, Wizard, Elicitation                      | User confirmations     |
-| `sheets_analyze`      | 16      | Comprehensive, Scout, Planner, Quality analysis   | AI analysis            |
-| `sheets_fix`          | 1       | Auto-fix detected issues                          | Automated fixes        |
-| `sheets_composite`    | 11      | Import CSV, Deduplicate, Smart append             | Bulk operations        |
+| `sheets_analyze`      | 18      | Comprehensive, Scout, Planner, Suggestions        | AI analysis            |
+| `sheets_fix`          | 6       | Fix, Clean, Standardize, Fill, Anomalies, Suggest | Data cleaning pipeline |
+| `sheets_composite`    | 14      | Import CSV, Deduplicate, Generate sheet           | Bulk ops & generation  |
 | `sheets_session`      | 26      | Set active, Get context, Save checkpoint          | Session context        |
 | `sheets_appsscript`   | 18      | Run, Deploy, Get content                          | Apps Script automation |
 | `sheets_bigquery`     | 17      | Query, Import, Connect Looker                     | BigQuery integration   |
@@ -2047,7 +2051,7 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 | Feature          | Status  | Version    | Implementation                              |
 | ---------------- | ------- | ---------- | ------------------------------------------- |
 | **JSON-RPC 2.0** | ✅ Full | 2.0        | @modelcontextprotocol/sdk v1.26.0           |
-| **Tools**        | ✅ Full | 2025-11-25 | 22 tools, 315 actions, discriminated unions |
+| **Tools**        | ✅ Full | 2025-11-25 | 25 tools, 397 actions, discriminated unions |
 | **Resources**    | ✅ Full | 2025-11-25 | 6 URI templates + 7 knowledge resources     |
 | **Prompts**      | ✅ Full | 2025-11-25 | 6 guided workflows with arguments           |
 | **Completions**  | ✅ Full | 2025-11-25 | Argument autocompletion                     |
@@ -2060,9 +2064,9 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 
 ### Feature Checklist
 
-#### Tools (22 tools ✅)
+#### Tools (25 tools ✅)
 
-**Implemented & Tested** (all 22 tools):
+**Implemented & Tested** (all 25 tools):
 
 ```
 ✅ sheets_auth (4 actions) - OAuth, login, logout, status
@@ -2077,9 +2081,9 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 ✅ sheets_quality (4 actions) - Validation, conflict detection
 ✅ sheets_history (7 actions) - Undo, redo, revert
 ✅ sheets_confirm (5 actions) - User confirmations, wizards
-✅ sheets_analyze (16 actions) - AI analysis, recommendations
-✅ sheets_fix (1 action) - Automated fixes
-✅ sheets_composite (11 actions) - Bulk ops, import, deduplicate
+✅ sheets_analyze (18 actions) - AI analysis, suggestions, recommendations
+✅ sheets_fix (6 actions) - Automated fixes & data cleaning pipeline
+✅ sheets_composite (14 actions) - Bulk ops, import, deduplicate, NL sheet generation
 ✅ sheets_session (26 actions) - Session context
 ✅ sheets_appsscript (18 actions) - Apps Script automation
 ✅ sheets_bigquery (17 actions) - BigQuery integration
@@ -2297,7 +2301,7 @@ Test Suites: 78 ✅
 Coverage: 92% ✅
 
 By Component:
-├─ Tools: 1200 tests (22 tools × ~55 tests each)
+├─ Tools: 1200 tests (25 tools × ~55 tests each)
 ├─ Schemas: 340 tests (validation, discriminated unions)
 ├─ Error Handling: 150 tests (all error types)
 ├─ Performance: 71 tests (batching, caching, rate limits)

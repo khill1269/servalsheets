@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createChaosEngine, type ChaosEngine } from './chaos-framework.js';
 import { CircuitBreaker } from '../../src/utils/circuit-breaker.js';
 import { executeWithRetry } from '../../src/utils/retry.js';
+import { waitFor } from '../helpers/wait-for.js';
 
 describe('Chaos: Network Faults', () => {
   let chaos: ChaosEngine;
@@ -37,7 +38,7 @@ describe('Chaos: Network Faults', () => {
       const operation = async () => {
         // Simulate the latency that would be injected by the chaos engine
         const delay = 500 + Math.random() * 500;
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await waitFor(delay);
         return 'success';
       };
 
@@ -87,7 +88,7 @@ describe('Chaos: Network Faults', () => {
 
       const operations = Array.from({ length: 10 }, (_, i) =>
         chaos.execute(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 10));
+          await waitFor(10);
           return `result-${i}`;
         })
       );
@@ -193,7 +194,7 @@ describe('Chaos: Network Faults', () => {
       expect(breaker.getState()).toBe('open');
 
       // Phase 2: Wait for half-open
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      await waitFor(600);
 
       // Phase 3: Remove chaos and verify recovery
       chaos.reset();
@@ -206,7 +207,7 @@ describe('Chaos: Network Faults', () => {
         } catch {
           // May fail if still in half-open
         }
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await waitFor(100);
       }
 
       // Should eventually close and succeed
@@ -223,9 +224,10 @@ describe('Chaos: Network Faults', () => {
       chaos.injectPacketLoss(0.3); // 30% packet loss
 
       let attempts = 0;
+      let callCount = 0;
       const operation = async () => {
         attempts++;
-        if (Math.random() < 0.3) {
+        if (++callCount % 3 === 0) {
           throw new Error('ECONNRESET');
         }
         return 'success';
@@ -249,11 +251,12 @@ describe('Chaos: Network Faults', () => {
 
       const data = Array.from({ length: 100 }, (_, i) => i);
       const transmitted: number[] = [];
+      let callCount = 0;
 
       for (const value of data) {
         try {
           const result = await chaos.execute(async () => {
-            if (Math.random() < 0.2) {
+            if (++callCount % 5 === 0) {
               throw new Error('ECONNRESET');
             }
             return value;
@@ -310,7 +313,7 @@ describe('Chaos: Network Faults', () => {
           // Circuit open without fallback would throw
           results.push({ error: true });
         }
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await waitFor(100);
       }
 
       // Should have used fallback at least once
@@ -342,11 +345,12 @@ describe('Chaos: Network Faults', () => {
     it('should track chaos events accurately', async () => {
       chaos.injectNetworkLatency(100, 200);
       chaos.injectDisconnects(0.5);
+      let callCount = 0;
 
       for (let i = 0; i < 10; i++) {
         try {
           await chaos.execute(async () => {
-            if (Math.random() < 0.5) {
+            if (++callCount % 2 === 0) {
               throw new Error('ERR_HTTP2_GOAWAY_SESSION');
             }
             return 'ok';

@@ -4,42 +4,30 @@
  * Handles multi-operation transactions with atomicity and auto-rollback.
  */
 
+import { ErrorCodes } from './error-codes.js';
 import { getTransactionManager } from '../services/transaction-manager.js';
 import type {
   SheetsTransactionInput,
   SheetsTransactionOutput,
   TransactionResponse,
 } from '../schemas/transaction.js';
-import { unwrapRequest } from './base.js';
-import { ValidationError } from '../core/errors.js';
+import { unwrapRequest, type HandlerContext } from './base.js';
+import { ValidationError, ServiceError } from '../core/errors.js';
+import { mapStandaloneError } from './helpers/error-mapping.js';
+import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
+import { sendProgress } from '../utils/request-context.js';
+import { logger } from '../utils/logger.js';
+import { getEnv } from '../config/env.js';
 
 export interface TransactionHandlerOptions {
-  // Options can be added as needed
+  context?: HandlerContext;
 }
 
 export class TransactionHandler {
-  constructor(_options: TransactionHandlerOptions = {}) {
-    // Constructor logic if needed
-  }
+  private context?: HandlerContext;
 
-  /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
-   */
-  private applyVerbosityFilter(
-    response: TransactionResponse,
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): TransactionResponse {
-    if (!response.success || verbosity === 'standard') {
-      return response;
-    }
-
-    if (verbosity === 'minimal') {
-      // For minimal verbosity, strip _meta field
-      const { _meta, ...rest } = response as Record<string, unknown>;
-      return rest as TransactionResponse;
-    }
-
-    return response;
+  constructor(options: TransactionHandlerOptions = {}) {
+    this.context = options.context;
   }
 
   async handle(input: SheetsTransactionInput): Promise<SheetsTransactionOutput> {
@@ -59,11 +47,39 @@ export class TransactionHandler {
             );
           }
 
-          // NOTE: autoSnapshot is controlled by TransactionManager config, not per-transaction
-          // The input.autoSnapshot parameter is currently ignored (design limitation)
+          // Elicitation wizard: ask for a description to enrich the audit trail
+          let txDescription: string | undefined;
+          const beginReqAny = req as Record<string, unknown>;
+          if (!beginReqAny['description'] && this.context?.server) {
+            try {
+              const elicitResult = await this.context.server.elicitInput({
+                mode: 'form',
+                message: 'Transaction description (optional — helps with audit trail):',
+                requestedSchema: {
+                  type: 'object',
+                  properties: {
+                    description: {
+                      type: 'string',
+                      title: 'Transaction description',
+                      description: 'Describe what this transaction will do (for audit trail)',
+                    },
+                  },
+                },
+              });
+              if (elicitResult.action === 'accept' && elicitResult.content?.['description']) {
+                txDescription = elicitResult.content['description'] as string;
+              }
+            } catch {
+              // non-blocking — proceed without description
+            }
+          } else {
+            txDescription = beginReqAny['description'] as string | undefined;
+          }
+
           const txId = await transactionManager.begin(req.spreadsheetId, {
-            autoCommit: false, // Fixed: was incorrectly using req.autoSnapshot
+            autoCommit: false,
             autoRollback: req.autoRollback ?? true,
+            autoSnapshot: req.autoSnapshot ?? false,
             isolationLevel: req.isolationLevel ?? 'read_committed',
           });
 
@@ -72,13 +88,14 @@ export class TransactionHandler {
             ? ' Note: Snapshots are metadata-only and may fail for very large spreadsheets (>50MB metadata).'
             : '';
 
+          const descriptionNote = txDescription ? ` Description: "${txDescription}".` : '';
           response = {
             success: true,
             action: 'begin',
             transactionId: txId,
             status: 'pending',
             operationsQueued: 0,
-            message: `Transaction ${txId} started for spreadsheet ${req.spreadsheetId}.${snapshotWarning}`,
+            message: `Transaction ${txId} started for spreadsheet ${req.spreadsheetId}.${snapshotWarning}${descriptionNote}`,
           };
           break;
         }
@@ -89,6 +106,17 @@ export class TransactionHandler {
             throw new ValidationError(
               'transactionId and operation are required for queue action',
               'transactionId'
+            );
+          }
+
+          // ISSUE-139: Hard cap on queued operations to prevent unbounded growth
+          const MAX_TRANSACTION_OPS = getEnv().MAX_TRANSACTION_OPS;
+          const preTx = transactionManager.getTransaction(req.transactionId);
+          if (preTx.operations.length >= MAX_TRANSACTION_OPS) {
+            throw new ServiceError(
+              `Transaction ${req.transactionId} has reached the maximum of ${MAX_TRANSACTION_OPS} operations. Commit or rollback before adding more.`,
+              'OPERATION_LIMIT_EXCEEDED',
+              'transaction'
             );
           }
 
@@ -133,7 +161,9 @@ export class TransactionHandler {
             );
           }
 
+          await sendProgress(0, 100, 'Committing transaction...');
           const result = await transactionManager.commit(req.transactionId);
+          await sendProgress(100, 100, 'Transaction committed');
 
           if (result.success) {
             response = {
@@ -150,7 +180,7 @@ export class TransactionHandler {
             response = {
               success: false,
               error: {
-                code: 'INTERNAL_ERROR',
+                code: ErrorCodes.INTERNAL_ERROR,
                 message: result.error?.message || 'Transaction commit failed',
                 retryable: false,
                 details: result.rolledBack
@@ -171,14 +201,20 @@ export class TransactionHandler {
             );
           }
 
-          await transactionManager.rollback(req.transactionId);
+          const rollbackResult = await transactionManager.rollback(req.transactionId);
+
+          const recoveryHint = rollbackResult.snapshotId
+            ? ` Snapshot ${rollbackResult.snapshotId} is available — use sheets_collaborate action="version_restore_snapshot" or sheets_history action="undo" to restore cell data.`
+            : ' No snapshot was taken; use sheets_history action="undo" to manually reverse individual operations.';
 
           response = {
             success: true,
             action: 'rollback',
             transactionId: req.transactionId,
             status: 'rolled_back',
-            message: `Transaction ${req.transactionId} rolled back successfully.`,
+            snapshotId: rollbackResult.snapshotId || undefined,
+            operationsExecuted: rollbackResult.operationsReverted,
+            message: `Transaction ${req.transactionId} rolled back successfully (${rollbackResult.operationsReverted ?? 0} operation(s) reverted).${recoveryHint}`,
           };
           break;
         }
@@ -264,11 +300,22 @@ export class TransactionHandler {
             `Failed: ${summary.byStatus.failed}`,
           ].join(' | ');
 
+          // DR-01: Include WAL orphan info for crash recovery awareness
+          const walReport = await transactionManager.getWalRecoveryReport();
+
           response = {
             success: true,
             action: 'list',
             transactions,
-            message: `Found ${transactions.length} active transaction(s). ${summaryMessage}`,
+            walEnabled: walReport.enabled,
+            walOrphans:
+              walReport.orphanedTransactions.length > 0
+                ? walReport.orphanedTransactions
+                : undefined,
+            message:
+              walReport.orphanedTransactions.length > 0
+                ? `Found ${transactions.length} active transaction(s). ${summaryMessage} | WAL: ${walReport.orphanedTransactions.length} orphaned transaction(s) from crash — call rollback with each transactionId to discard`
+                : `Found ${transactions.length} active transaction(s). ${summaryMessage}`,
             _meta:
               transactions.length > 0
                 ? {
@@ -296,7 +343,7 @@ export class TransactionHandler {
           response = {
             success: false,
             error: {
-              code: 'INVALID_PARAMS',
+              code: ErrorCodes.INVALID_PARAMS,
               message: `Unsupported action: ${(req as { action: string }).action}`,
               retryable: false,
               suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
@@ -307,19 +354,19 @@ export class TransactionHandler {
 
       // Apply verbosity filtering (LLM optimization)
       const verbosity = req.verbosity ?? 'standard';
-      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
+      const filteredResponse = applyVerbosityFilter(response, verbosity);
 
       return { response: filteredResponse };
     } catch (error) {
       // Catch-all for unexpected errors
+      logger.error('Transaction handler error', {
+        action: req.action,
+        error,
+      });
       return {
         response: {
           success: false,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: error instanceof Error ? error.message : String(error),
-            retryable: false,
-          },
+          error: mapStandaloneError(error),
         },
       };
     }

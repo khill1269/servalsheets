@@ -10,6 +10,7 @@ import {
   getConcurrencyCoordinator,
   resetConcurrencyCoordinator,
 } from '../../src/services/concurrency-coordinator.js';
+import { waitFor } from '../helpers/wait-for.js';
 
 describe('ConcurrencyCoordinator', () => {
   let coordinator: ConcurrencyCoordinator;
@@ -126,7 +127,7 @@ describe('ConcurrencyCoordinator', () => {
       const operation = async () => {
         concurrentCount++;
         peakConcurrent = Math.max(peakConcurrent, concurrentCount);
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await waitFor(50);
         concurrentCount--;
       };
 
@@ -214,7 +215,7 @@ describe('ConcurrencyCoordinator', () => {
       const promise4 = coordinator.acquire('test4');
 
       // Give async queue time to process
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       const metrics = coordinator.getMetrics();
       expect(metrics.limitReachedCount).toBe(3);
@@ -237,7 +238,7 @@ describe('ConcurrencyCoordinator', () => {
       // Queue operation that will wait
       const promise2 = coordinator.acquire('test2');
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitFor(100);
 
       coordinator.release(permit1);
       await promise2;
@@ -359,19 +360,19 @@ describe('ConcurrencyCoordinator', () => {
 
       const operations = [
         coordinator.execute('fast1', async () => {
-          await new Promise((resolve) => setTimeout(resolve, 10));
+          await waitFor(10);
           return 'fast1';
         }),
         coordinator.execute('slow', async () => {
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          await waitFor(100);
           return 'slow';
         }),
         coordinator.execute('fast2', async () => {
-          await new Promise((resolve) => setTimeout(resolve, 10));
+          await waitFor(10);
           return 'fast2';
         }),
         coordinator.execute('fast3', async () => {
-          await new Promise((resolve) => setTimeout(resolve, 10));
+          await waitFor(10);
           return 'fast3';
         }),
       ];
@@ -425,7 +426,7 @@ describe('ConcurrencyCoordinator', () => {
         Array.from({ length: 5 }, (_, i) =>
           coordinator.execute(`test${i}`, async () => {
             // Simulate fast API call
-            await new Promise((resolve) => setTimeout(resolve, 1));
+            await waitFor(1);
           })
         )
       );
@@ -446,7 +447,7 @@ describe('ConcurrencyCoordinator', () => {
         Array.from({ length: 6 }, (_, i) =>
           coordinator.execute(`test${i}`, async () => {
             startTimes.push(Date.now());
-            await new Promise((resolve) => setTimeout(resolve, 50));
+            await waitFor(50);
             endTimes.push(Date.now());
           })
         )

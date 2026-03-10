@@ -15,11 +15,14 @@
  */
 
 import type { sheets_v4 } from 'googleapis';
+import type { RequestMerger } from './request-merger.js';
 import { getETagCache } from './etag-cache.js';
 import { getCacheInvalidationGraph } from './cache-invalidation-graph.js';
-import { extractETag } from '../utils/etag-helpers.js';
+import { extractETag, is304NotModified } from '../utils/etag-helpers.js';
 import { logger } from '../utils/logger.js';
 import { cacheHitsTotal, cacheMissesTotal } from '../observability/metrics.js';
+import { getTracer } from '../utils/tracing.js';
+import { getAccessPatternTracker } from './access-pattern-tracker.js';
 
 /**
  * Statistics for cached API operations
@@ -38,15 +41,18 @@ export interface CachedApiStats {
  */
 export class CachedSheetsApi {
   private sheetsApi: sheets_v4.Sheets;
+  private requestMerger?: RequestMerger;
   private cache = getETagCache();
+  private accessTracker = getAccessPatternTracker();
   private stats = {
     totalRequests: 0,
     cacheHits: 0,
     cacheMisses: 0,
   };
 
-  constructor(sheetsApi: sheets_v4.Sheets) {
+  constructor(sheetsApi: sheets_v4.Sheets, requestMerger?: RequestMerger) {
     this.sheetsApi = sheetsApi;
+    this.requestMerger = requestMerger;
   }
 
   /**
@@ -64,6 +70,10 @@ export class CachedSheetsApi {
       fields?: string;
     } = {}
   ): Promise<sheets_v4.Schema$Spreadsheet> {
+    const span = getTracer().startSpan('cached-sheets-api.getSpreadsheet', {
+      kind: 'internal',
+      attributes: { 'spreadsheet.id': spreadsheetId },
+    });
     this.stats.totalRequests++;
 
     const cacheKey = {
@@ -103,7 +113,7 @@ export class CachedSheetsApi {
           return response.data;
         } catch (error: unknown) {
           // Check for 304 Not Modified
-          if (error && typeof error === 'object' && 'code' in error && error.code === 304) {
+          if (is304NotModified(error)) {
             this.stats.cacheHits++;
             cacheHitsTotal.inc({ namespace: 'etag' });
             const cachedData = (await this.cache.getCachedData(
@@ -115,6 +125,9 @@ export class CachedSheetsApi {
                 spreadsheetId,
                 quotaSaved: true,
               });
+              // 16-A3/A4: Record access pattern for prefetching
+              this.recordAccessPattern(spreadsheetId, 'metadata');
+              span.end();
               return cachedData;
             }
 
@@ -138,6 +151,9 @@ export class CachedSheetsApi {
         spreadsheetId,
         savedApiCall: true,
       });
+      // 16-A3/A4: Record access pattern for prefetching
+      this.recordAccessPattern(spreadsheetId, 'metadata');
+      span.end();
       return cached;
     }
 
@@ -155,6 +171,9 @@ export class CachedSheetsApi {
     const etag = extractETag(response) || `cached-${Date.now()}`;
     await this.cache.setETag(cacheKey, etag, response.data);
 
+    // 16-A3/A4: Record access pattern after API call
+    this.recordAccessPattern(spreadsheetId, 'metadata');
+    span.end();
     return response.data;
   }
 
@@ -175,6 +194,10 @@ export class CachedSheetsApi {
       majorDimension?: 'ROWS' | 'COLUMNS';
     } = {}
   ): Promise<sheets_v4.Schema$ValueRange> {
+    const span = getTracer().startSpan('cached-sheets-api.getValues', {
+      kind: 'internal',
+      attributes: { 'spreadsheet.id': spreadsheetId, range: range },
+    });
     this.stats.totalRequests++;
 
     const cacheKey = {
@@ -216,7 +239,7 @@ export class CachedSheetsApi {
           return response.data;
         } catch (error: unknown) {
           // Check for 304 Not Modified
-          if (error && typeof error === 'object' && 'code' in error && error.code === 304) {
+          if (is304NotModified(error)) {
             this.stats.cacheHits++;
             cacheHitsTotal.inc({ namespace: 'etag' });
             const cachedData = (await this.cache.getCachedData(
@@ -229,6 +252,9 @@ export class CachedSheetsApi {
                 range,
                 quotaSaved: true,
               });
+              // 16-A3/A4: Record access pattern for prefetching
+              this.recordAccessPattern(spreadsheetId, range);
+              span.end();
               return cachedData;
             }
 
@@ -251,25 +277,42 @@ export class CachedSheetsApi {
         range,
         savedApiCall: true,
       });
+      // 16-A3/A4: Record access pattern for prefetching
+      this.recordAccessPattern(spreadsheetId, range);
+      span.end();
       return cached;
     }
 
     // Cache miss - fetch from API
     this.stats.cacheMisses++;
     cacheMissesTotal.inc({ namespace: 'local' });
-    const response = await this.sheetsApi.spreadsheets.values.get({
-      spreadsheetId,
-      range,
-      valueRenderOption: options.valueRenderOption,
-      dateTimeRenderOption: options.dateTimeRenderOption,
-      majorDimension: options.majorDimension,
-    });
 
-    // Cache with real ETag if available, otherwise use timestamp
-    const etag = extractETag(response) || `cached-${Date.now()}`;
-    await this.cache.setETag(cacheKey, etag, response.data);
+    // Use RequestMerger for overlapping range optimization (20-40% API savings)
+    // Falls back to direct call when dateTimeRenderOption is set (merger doesn't support it)
+    let valueData: sheets_v4.Schema$ValueRange;
+    if (this.requestMerger && !options.dateTimeRenderOption) {
+      valueData = await this.requestMerger.mergeRead(this.sheetsApi, spreadsheetId, range, {
+        valueRenderOption: options.valueRenderOption,
+        majorDimension: options.majorDimension,
+      });
+    } else {
+      const response = await this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId,
+        range,
+        valueRenderOption: options.valueRenderOption,
+        dateTimeRenderOption: options.dateTimeRenderOption,
+        majorDimension: options.majorDimension,
+      });
+      // Cache with real ETag if available
+      const etag = extractETag(response) || `cached-${Date.now()}`;
+      await this.cache.setETag(cacheKey, etag, response.data);
+      valueData = response.data;
+    }
 
-    return response.data;
+    // 16-A3/A4: Record access pattern after API call
+    this.recordAccessPattern(spreadsheetId, range);
+    span.end();
+    return valueData;
   }
 
   /**
@@ -288,6 +331,10 @@ export class CachedSheetsApi {
       majorDimension?: 'ROWS' | 'COLUMNS';
     } = {}
   ): Promise<sheets_v4.Schema$BatchGetValuesResponse> {
+    const span = getTracer().startSpan('cached-sheets-api.batchGetValues', {
+      kind: 'internal',
+      attributes: { 'spreadsheet.id': spreadsheetId, 'ranges.count': ranges.length },
+    });
     this.stats.totalRequests++;
 
     // De-duplicate ranges to avoid fetching same range multiple times
@@ -322,10 +369,14 @@ export class CachedSheetsApi {
         rangeCount: uniqueRanges.length,
         savedApiCall: true,
       });
+      // 16-A3/A4: Record access patterns for each range
+      uniqueRanges.forEach((r) => this.recordAccessPattern(spreadsheetId, r));
       // Map cached results back to original order if duplicates existed
       if (duplicatesEliminated > 0) {
+        span.end();
         return this.remapBatchResults(cached, ranges, uniqueRanges);
       }
+      span.end();
       return cached;
     }
 
@@ -343,11 +394,16 @@ export class CachedSheetsApi {
     const etag = extractETag(response) || `cached-${Date.now()}`;
     await this.cache.setETag(cacheKey, etag, response.data);
 
+    // 16-A3/A4: Record access patterns for each range
+    uniqueRanges.forEach((r) => this.recordAccessPattern(spreadsheetId, r));
+
     // Map results back to original order if duplicates existed
     if (duplicatesEliminated > 0) {
+      span.end();
       return this.remapBatchResults(response.data, ranges, uniqueRanges);
     }
 
+    span.end();
     return response.data;
   }
 
@@ -387,6 +443,27 @@ export class CachedSheetsApi {
       ...response,
       valueRanges: remappedValueRanges,
     };
+  }
+
+  /**
+   * 16-A3/A4: Record access pattern for predictive prefetching
+   *
+   * Tracks spreadsheet/sheet/range sequences to enable pattern-based prefetching.
+   * Non-blocking: errors are logged but don't affect the cache operation.
+   */
+  private recordAccessPattern(spreadsheetId: string, range: string): void {
+    try {
+      this.accessTracker.recordAccess({
+        spreadsheetId,
+        range,
+        action: 'read',
+      });
+    } catch (error) {
+      // Non-blocking: access tracking is best-effort optimization
+      logger.debug('Failed to record access pattern', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /**
@@ -483,9 +560,12 @@ let instance: CachedSheetsApi | null = null;
 /**
  * Get or create cached Sheets API singleton
  */
-export function getCachedSheetsApi(sheetsApi: sheets_v4.Sheets): CachedSheetsApi {
+export function getCachedSheetsApi(
+  sheetsApi: sheets_v4.Sheets,
+  requestMerger?: RequestMerger
+): CachedSheetsApi {
   if (!instance) {
-    instance = new CachedSheetsApi(sheetsApi);
+    instance = new CachedSheetsApi(sheetsApi, requestMerger);
   }
   return instance;
 }

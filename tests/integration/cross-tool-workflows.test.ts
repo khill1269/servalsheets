@@ -418,7 +418,7 @@ describe('Workflow: Template-Based Creation', () => {
       request: {
         action: 'copy' as const,
         spreadsheetId: templateId,
-        title: 'Invoice #12345',
+        newTitle: 'Invoice #12345',
       },
     };
 
@@ -654,7 +654,7 @@ describe('Workflow: Batch Operations', () => {
       request: {
         action: 'batch_clear' as const,
         spreadsheetId,
-        ranges: [{ a1: 'Temp!A:Z' }, { a1: 'Cache!A:Z' }],
+        ranges: [{ a1: 'Temp!A1:Z10000' }, { a1: 'Cache!A1:Z10000' }],
       },
     };
 

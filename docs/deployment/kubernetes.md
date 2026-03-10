@@ -1254,11 +1254,13 @@ If you're still experiencing issues:
 1. **Check operator logs**: `kubectl logs -n servalsheets-system -l app=servalsheets-operator`
 2. **Check server logs**: `kubectl logs -n <namespace> -l app=<server-name>`
 3. **Gather diagnostics**:
+
    ```bash
    kubectl get sss <server-name> -n <namespace> -o yaml > server.yaml
    kubectl describe sss <server-name> -n <namespace> > describe.txt
    kubectl logs -n <namespace> -l app=<server-name> --tail=500 > logs.txt
    ```
+
 4. **Open an issue**: https://github.com/yourusername/servalsheets/issues with diagnostics attached
 
 ---

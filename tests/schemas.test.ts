@@ -9,6 +9,7 @@ import {
   SheetsCoreInputSchema,
   SheetsDataInputSchema,
   SheetsDimensionsInputSchema,
+  SheetsAppsScriptInputSchema,
   SafetyOptionsSchema,
   ColorSchema,
 } from '../src/schemas/index.js';
@@ -141,6 +142,22 @@ describe('ServalSheets v4', () => {
           },
         });
         expect(result.success).toBe(true);
+      });
+    });
+
+    describe('SheetsAppsScriptInputSchema', () => {
+      it('should default create runtimeVersion to V8', () => {
+        const result = SheetsAppsScriptInputSchema.safeParse({
+          request: {
+            action: 'create',
+            title: 'Runtime Default Test',
+          },
+        });
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data.request.runtimeVersion).toBe('V8');
+        }
       });
     });
 

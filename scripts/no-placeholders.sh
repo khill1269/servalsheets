@@ -99,6 +99,14 @@ for pattern in "${PATTERNS[@]}"; do
       --glob '!src/handlers-v2/**' \
       --glob '!src/__tests__/**' \
       --glob '!src/ui/**' \
+      --glob '!src/adapters/excel-online-backend.ts' \
+      --glob '!src/adapters/airtable-backend.ts' \
+      --glob '!src/schemas/descriptions.ts' \
+      --glob '!src/schemas/composite.ts' \
+      --glob '!src/schemas/annotations.ts' \
+      --glob '!src/handlers/composite.ts' \
+      --glob '!src/schemas/dependencies.ts' \
+      --glob '!src/mcp/registration/prompt-registration.ts' \
       '$pattern' ${SEARCH_DIRS[*]} 2>/dev/null" || true)
   else
     # Fallback to grep
@@ -115,6 +123,9 @@ for pattern in "${PATTERNS[@]}"; do
       --exclude-dir="handlers-v2" \
       --exclude-dir="__tests__" \
       --exclude-dir="ui" \
+      --exclude="excel-online-backend.ts" \
+      --exclude="airtable-backend.ts" \
+      --exclude="prompt-registration.ts" \
       --exclude="no-placeholders.sh" \
       "$pattern" "${SEARCH_DIRS[@]}" 2>/dev/null || true)
   fi

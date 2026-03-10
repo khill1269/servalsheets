@@ -358,6 +358,7 @@ export class GoogleSheetsBackend implements SpreadsheetBackend {
   async copyDocument(params: CopyDocumentParams): Promise<FileMetadata> {
     const response = await this.drive.files.copy({
       fileId: params.documentId,
+      supportsAllDrives: true,
       requestBody: {
         name: params.title,
         parents: params.destinationFolderId ? [params.destinationFolderId] : undefined,
@@ -371,6 +372,7 @@ export class GoogleSheetsBackend implements SpreadsheetBackend {
   async getFileMetadata(documentId: string): Promise<FileMetadata> {
     const response = await this.drive.files.get({
       fileId: documentId,
+      supportsAllDrives: true,
       fields: 'id,name,mimeType,modifiedTime,createdTime,owners,webViewLink',
     });
 
@@ -383,6 +385,8 @@ export class GoogleSheetsBackend implements SpreadsheetBackend {
       pageSize: params.maxResults ?? 20,
       orderBy: params.orderBy ?? 'modifiedTime desc',
       pageToken: params.cursor,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
       fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,createdTime,owners,webViewLink)',
     });
 

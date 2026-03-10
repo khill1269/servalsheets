@@ -5,19 +5,24 @@
  * success threshold, reset timeout, manual reset, and stats.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { CircuitBreaker, CircuitBreakerError } from '../../src/utils/circuit-breaker.js';
 
 describe('CircuitBreaker - State Transitions', () => {
   let breaker: CircuitBreaker;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     breaker = new CircuitBreaker({
       failureThreshold: 3,
       successThreshold: 2,
       timeout: 500,
       name: 'test-circuit',
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe('initial state', () => {
@@ -137,8 +142,8 @@ describe('CircuitBreaker - State Transitions', () => {
       }
       expect(breaker.getState()).toBe('open');
 
-      // Wait for timeout + jitter (up to 30%)
-      await new Promise((r) => setTimeout(r, 1000));
+      // Advance fake time past timeout + max jitter (500ms + 30% = 650ms)
+      vi.advanceTimersByTime(700);
 
       // Next execute should be allowed (half-open probe)
       await breaker.execute(async () => 'probe-success');
@@ -159,8 +164,8 @@ describe('CircuitBreaker - State Transitions', () => {
         ).rejects.toThrow();
       }
 
-      // Wait for timeout + jitter (up to 30%) → half_open
-      await new Promise((r) => setTimeout(r, 1000));
+      // Advance fake time past timeout + max jitter (500ms + 30% = 650ms) → half_open
+      vi.advanceTimersByTime(700);
 
       // successThreshold is 2: need 2 consecutive successes
       await breaker.execute(async () => 'success-1');
@@ -183,8 +188,8 @@ describe('CircuitBreaker - State Transitions', () => {
         ).rejects.toThrow();
       }
 
-      // Wait for timeout + jitter (up to 30%) → half_open
-      await new Promise((r) => setTimeout(r, 1000));
+      // Advance fake time past timeout + max jitter (500ms + 30% = 650ms) → half_open
+      vi.advanceTimersByTime(700);
 
       // First call succeeds (probe)
       await breaker.execute(async () => 'ok');

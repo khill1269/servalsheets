@@ -17,7 +17,7 @@ describe('AdaptiveBatchWindow', () => {
       const config = window.getConfig();
 
       expect(config.minWindowMs).toBe(20);
-      expect(config.maxWindowMs).toBe(200);
+      expect(config.maxWindowMs).toBe(100);
       expect(config.initialWindowMs).toBe(50);
       expect(config.lowThreshold).toBe(3);
       expect(config.highThreshold).toBe(50);

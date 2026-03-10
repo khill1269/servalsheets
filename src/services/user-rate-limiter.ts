@@ -32,6 +32,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { getEnv } from '../config/env.js';
 
 // Use any for Redis client to avoid type conflicts between redis versions
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -109,6 +110,8 @@ export interface UserQuotaStats {
 export class UserRateLimiter {
   private redis: RedisClient | null;
   private config: UserRateLimitConfig;
+  private _redisWarningLogged = false;
+  private _fallbackRequestCount = 0;
 
   /**
    * Create a user rate limiter
@@ -126,6 +129,15 @@ export class UserRateLimiter {
       burstAllowance: config.burstAllowance,
       redisAvailable: redis !== null,
     });
+
+    if (!this.redis) {
+      logger.warn(
+        'UserRateLimiter: Redis not configured — rate limiting disabled. ' +
+          'Set REDIS_URL to enable distributed rate limiting.',
+        { component: 'UserRateLimiter' }
+      );
+      this._redisWarningLogged = true;
+    }
   }
 
   /**
@@ -136,7 +148,15 @@ export class UserRateLimiter {
    */
   async checkLimit(userId: string): Promise<RateLimitResult> {
     if (!this.redis) {
-      // No Redis - allow all requests (graceful degradation)
+      // No Redis — rate limiting disabled (logged at startup)
+      this._fallbackRequestCount = (this._fallbackRequestCount ?? 0) + 1;
+      if (this._fallbackRequestCount % 100 === 0) {
+        logger.warn(
+          'UserRateLimiter: Redis unavailable — rate limiting bypassed for request #' +
+            this._fallbackRequestCount,
+          { component: 'UserRateLimiter' }
+        );
+      }
       return {
         allowed: true,
         remaining: Infinity,
@@ -373,9 +393,10 @@ export class UserRateLimiter {
  * - RATE_LIMIT_BURST (default: 20)
  */
 export function createUserRateLimiterFromEnv(redis: RedisClient | null): UserRateLimiter {
+  const env = getEnv();
   return new UserRateLimiter(redis, {
-    requestsPerMinute: parseInt(process.env['RATE_LIMIT_PER_MINUTE'] || '100', 10),
-    requestsPerHour: parseInt(process.env['RATE_LIMIT_PER_HOUR'] || '5000', 10),
-    burstAllowance: parseInt(process.env['RATE_LIMIT_BURST'] || '20', 10),
+    requestsPerMinute: env.RATE_LIMIT_PER_MINUTE,
+    requestsPerHour: env.RATE_LIMIT_PER_HOUR,
+    burstAllowance: env.RATE_LIMIT_BURST,
   });
 }

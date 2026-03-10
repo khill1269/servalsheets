@@ -24,62 +24,28 @@ import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
 import { logger } from '../utils/logger.js';
 import PQueue from 'p-queue';
 import { getConcurrencyCoordinator } from './concurrency-coordinator.js';
+import { FIELD_MASKS } from '../constants/field-masks.js';
+import {
+  createRefreshTaskFromCacheKey,
+  getPrefetchCacheKey as buildPrefetchCacheKey,
+  updateFailureWindow,
+  updateRefreshMetadata,
+} from './prefetching-system-utils.js';
+import type {
+  PrefetchOptions,
+  PrefetchStats,
+  PrefetchTask,
+  RefreshMetadata,
+  RefreshTask,
+} from './prefetching-system-types.js';
 
-export interface PrefetchOptions {
-  /** Enable/disable prefetching (default: true) */
-  enabled?: boolean;
-  /** Maximum concurrent prefetch requests (default: 2) */
-  concurrency?: number;
-  /** Minimum confidence threshold for prefetching (default: 0.5) */
-  minConfidence?: number;
-  /** Enable background refresh (default: true) */
-  backgroundRefresh?: boolean;
-  /** Refresh TTL threshold in ms (default: 60000 = 1 min before expiry) */
-  refreshThreshold?: number;
-}
-
-export interface PrefetchTask {
-  spreadsheetId: string;
-  range?: string;
-  sheetId?: number;
-  comprehensive?: boolean; // Phase 2: Flag for comprehensive metadata
-  confidence: number;
-  reason: string;
-  priority: number;
-}
-
-export interface RefreshTask {
-  cacheKey: string;
-  spreadsheetId: string;
-  range?: string;
-  sheetId?: number;
-  comprehensive?: boolean;
-  priority: number;
-  lastAccessed: number;
-  accessCount: number;
-}
-
-export interface RefreshMetadata {
-  spreadsheetId: string;
-  range?: string;
-  comprehensive?: boolean;
-  lastAccessed: number;
-  accessCount: number;
-}
-
-export interface PrefetchStats {
-  totalPrefetches: number;
-  successfulPrefetches: number;
-  failedPrefetches: number;
-  cacheHitsFromPrefetch: number;
-  prefetchHitRate: number;
-  totalRefreshes: number;
-  successfulRefreshes: number;
-  failedRefreshes: number;
-  refreshHitRate: number;
-  failureRate: number; // OPTIMIZATION (Phase 2.3): Rolling failure rate
-  circuitOpen: boolean; // OPTIMIZATION (Phase 2.3): Circuit breaker status
-}
+export type {
+  PrefetchOptions,
+  PrefetchStats,
+  PrefetchTask,
+  RefreshMetadata,
+  RefreshTask,
+} from './prefetching-system-types.js';
 
 /**
  * Predictive Prefetching System
@@ -380,6 +346,7 @@ export class PrefetchingSystem {
         this.sheetsApi.spreadsheets.get({
           spreadsheetId: task.spreadsheetId,
           includeGridData: false,
+          fields: FIELD_MASKS.SPREADSHEET_WITH_SHEETS,
         })
       );
 
@@ -408,23 +375,7 @@ export class PrefetchingSystem {
    * Stores metadata needed to reconstruct refresh tasks
    */
   private trackRefreshMetadata(cacheKey: string, metadata: RefreshMetadata): void {
-    // Update existing metadata or create new
-    const existing = this.refreshMetadata.get(cacheKey);
-    if (existing) {
-      existing.accessCount++;
-      existing.lastAccessed = metadata.lastAccessed;
-    } else {
-      this.refreshMetadata.set(cacheKey, metadata);
-    }
-
-    // Limit metadata storage to prevent memory bloat
-    if (this.refreshMetadata.size > 1000) {
-      // Remove oldest entries
-      const entries = Array.from(this.refreshMetadata.entries());
-      entries.sort((a, b) => a[1].lastAccessed - b[1].lastAccessed);
-      const toRemove = entries.slice(0, 100);
-      toRemove.forEach(([key]) => this.refreshMetadata.delete(key));
-    }
+    updateRefreshMetadata(this.refreshMetadata, cacheKey, metadata);
   }
 
   /**
@@ -537,12 +488,9 @@ export class PrefetchingSystem {
    * @param success - Whether the prefetch succeeded
    */
   private recordPrefetchResult(success: boolean): void {
-    this.failureWindow[this.failureIndex] = success;
-    this.failureIndex = (this.failureIndex + 1) % 100;
-
-    // Calculate failure rate from circular buffer
-    const failures = this.failureWindow.filter((f) => !f).length;
-    this.failureRate = failures / 100;
+    const updated = updateFailureWindow(this.failureWindow, this.failureIndex, success);
+    this.failureIndex = updated.failureIndex;
+    this.failureRate = updated.failureRate;
   }
 
   /**
@@ -552,144 +500,18 @@ export class PrefetchingSystem {
    * and determines refresh priority based on access patterns.
    */
   private createRefreshTask(cacheKey: string, expiresIn: number): RefreshTask | null {
-    // Try to get stored metadata first
-    const metadata = this.refreshMetadata.get(cacheKey);
-    if (metadata) {
-      // Calculate priority based on access count and recency
-      const priority = this.calculateRefreshPriority(
-        metadata.accessCount,
-        metadata.lastAccessed,
-        expiresIn
-      );
-
-      return {
-        cacheKey,
-        spreadsheetId: metadata.spreadsheetId,
-        range: metadata.range,
-        comprehensive: metadata.comprehensive,
-        priority,
-        lastAccessed: metadata.lastAccessed,
-        accessCount: metadata.accessCount,
-      };
-    }
-
-    // Fallback: Parse cache key to reconstruct task
-    const parsed = this.parseCacheKey(cacheKey);
-    if (!parsed) {
+    const task = createRefreshTaskFromCacheKey(
+      cacheKey,
+      expiresIn,
+      this.refreshMetadata.get(cacheKey)
+    );
+    if (!task) {
       logger.debug('Background refresh: unable to parse cache key', {
         cacheKey,
       });
       return null;
     }
-
-    // Default priority for entries without metadata
-    const priority = this.calculateRefreshPriority(1, Date.now(), expiresIn);
-
-    return {
-      cacheKey,
-      spreadsheetId: parsed.spreadsheetId,
-      range: parsed.range,
-      comprehensive: parsed.comprehensive,
-      priority,
-      lastAccessed: Date.now(),
-      accessCount: 1,
-    };
-  }
-
-  /**
-   * Calculate refresh priority based on access patterns
-   *
-   * Hot data (frequently accessed, recently used) gets higher priority
-   */
-  private calculateRefreshPriority(
-    accessCount: number,
-    lastAccessed: number,
-    expiresIn: number
-  ): number {
-    // Base priority on access frequency (capped at 5)
-    const frequencyScore = Math.min(5, accessCount);
-
-    // Recency score: higher for recently accessed data
-    const ageMs = Date.now() - lastAccessed;
-    const recencyScore = ageMs < 60000 ? 3 : ageMs < 300000 ? 2 : ageMs < 600000 ? 1 : 0;
-
-    // Urgency score: higher for entries expiring sooner
-    const urgencyScore =
-      expiresIn < 30000 ? 2 : expiresIn < 60000 ? 1 : expiresIn < 120000 ? 0.5 : 0;
-
-    // Combine scores (max 10)
-    const priority = Math.min(10, frequencyScore + recencyScore + urgencyScore);
-
-    return Math.round(priority);
-  }
-
-  /**
-   * Parse cache key to extract request parameters
-   *
-   * Cache keys are in format: "operation:param1=value1&param2=value2"
-   */
-  private parseCacheKey(cacheKey: string): {
-    spreadsheetId: string;
-    range?: string;
-    comprehensive?: boolean;
-  } | null {
-    try {
-      // Remove namespace prefix if present
-      const key = cacheKey.includes(':') ? cacheKey.substring(cacheKey.indexOf(':') + 1) : cacheKey;
-
-      // Check for comprehensive metadata pattern
-      if (key.includes('spreadsheet:comprehensive')) {
-        const match = key.match(/spreadsheetId="([^"]+)"/);
-        if (match?.[1]) {
-          return {
-            spreadsheetId: match[1],
-            comprehensive: true,
-          };
-        }
-      }
-
-      // Parse standard cache key format
-      const params: Record<string, string> = {};
-      const parts = key.split('&');
-
-      for (const part of parts) {
-        const [paramKey, paramValue] = part.split('=');
-        if (paramKey && paramValue) {
-          // Remove quotes from JSON-stringified values
-          params[paramKey] = paramValue.replace(/^"(.*)"$/, '$1');
-        }
-      }
-
-      // Extract spreadsheetId
-      let spreadsheetId = params['spreadsheetId'];
-
-      // If not found in params, try to extract from first part
-      if (!spreadsheetId && parts[0]) {
-        const firstPart = parts[0];
-        if (firstPart.includes(':')) {
-          const afterColon = firstPart.split(':').pop();
-          if (afterColon && !afterColon.includes('=')) {
-            spreadsheetId = afterColon;
-          }
-        }
-      }
-
-      if (!spreadsheetId) {
-        return null;
-      }
-
-      return {
-        spreadsheetId,
-        range: params['range'],
-        comprehensive: params['type'] === 'metadata',
-      };
-    } catch (error) {
-      logger.debug('Failed to parse cache key', {
-        cacheKey,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return null;
-    }
+    return task;
   }
 
   /**
@@ -761,6 +583,7 @@ export class PrefetchingSystem {
         const response = await this.sheetsApi.spreadsheets.get({
           spreadsheetId: task.spreadsheetId,
           includeGridData: false,
+          fields: FIELD_MASKS.SPREADSHEET_WITH_SHEETS,
         });
 
         // Update cache
@@ -794,18 +617,7 @@ export class PrefetchingSystem {
    * Phase 2: Updated to handle comprehensive metadata
    */
   private getPrefetchCacheKey(task: PrefetchTask): string {
-    if (task.range) {
-      return createCacheKey(task.spreadsheetId, {
-        range: task.range,
-        type: 'values',
-      });
-    }
-    if (task.comprehensive) {
-      return createCacheKey('spreadsheet:comprehensive', {
-        spreadsheetId: task.spreadsheetId,
-      });
-    }
-    return createCacheKey(task.spreadsheetId, { type: 'metadata' });
+    return buildPrefetchCacheKey(task);
   }
 
   /**

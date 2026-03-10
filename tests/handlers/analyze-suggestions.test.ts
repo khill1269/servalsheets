@@ -28,10 +28,11 @@ vi.mock('../../src/services/capability-cache.js', async () => {
   };
 });
 
-// Mock session context (for rejection filtering)
+// Mock session context (for rejection filtering + background analysis boosting)
 vi.mock('../../src/services/session-context.js', () => ({
   getSessionContext: vi.fn().mockReturnValue({
     shouldAvoidSuggestion: vi.fn().mockResolvedValue(false),
+    getRecentAnalysis: vi.fn().mockReturnValue(undefined),
   }),
 }));
 
@@ -327,6 +328,72 @@ describe('F4: Smart Suggestions', () => {
         (s: any) => s.id === 'add_data_validation'
       );
       expect(dropdownSuggestion).toBeDefined();
+    });
+  });
+
+  describe('discover_action', () => {
+    it('disambiguates Drive spreadsheet listing from sheet-tab listing', async () => {
+      const driveResult = await handler.handle({
+        request: {
+          action: 'discover_action',
+          query: 'list spreadsheets in drive',
+        },
+      } as any);
+
+      expect(driveResult.response.success).toBe(true);
+      expect(driveResult.response.action).toBe('discover_action');
+      expect(driveResult.response.matches.length).toBeGreaterThan(0);
+      expect(driveResult.response.matches[0]).toMatchObject({
+        tool: 'sheets_core',
+        action: 'list',
+      });
+
+      const tabsResult = await handler.handle({
+        request: {
+          action: 'discover_action',
+          query: 'list tabs in this spreadsheet',
+        },
+      } as any);
+
+      expect(tabsResult.response.success).toBe(true);
+      expect(tabsResult.response.matches.length).toBeGreaterThan(0);
+      expect(tabsResult.response.matches[0]).toMatchObject({
+        tool: 'sheets_core',
+        action: 'list_sheets',
+      });
+    });
+
+    it('returns guidance fields for matches', async () => {
+      const result = await handler.handle({
+        request: {
+          action: 'discover_action',
+          query: 'append rows to the bottom',
+          maxResults: 3,
+        },
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      expect(result.response.matchCount).toBeGreaterThan(0);
+      expect(result.response.matches[0]).toHaveProperty('whenToUse');
+      expect(result.response.matches[0]).toHaveProperty('whenNotToUse');
+      expect(result.response.matches[0]).toHaveProperty('commonMistake');
+    });
+
+    it('returns clarification guidance for ambiguous queries', async () => {
+      const result = await handler.handle({
+        request: {
+          action: 'discover_action',
+          query: 'list',
+          maxResults: 5,
+        },
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      expect(result.response.needsClarification).toBe(true);
+      expect(result.response.clarificationReason).toBe('underspecified_query');
+      expect(result.response.clarificationQuestion).toBeDefined();
+      expect(Array.isArray(result.response.clarificationOptions)).toBe(true);
+      expect(result.response.clarificationOptions.length).toBeGreaterThan(0);
     });
   });
 

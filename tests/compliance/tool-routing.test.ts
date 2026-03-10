@@ -62,6 +62,17 @@ describe('Tool Routing - Description Quality', () => {
       seen.add(desc);
     }
   });
+
+  it('should not present sheets_analyze as a blanket universal entry point', () => {
+    const fullDesc = TOOL_DESCRIPTIONS['sheets_analyze']!;
+    const minimalDesc = TOOL_DESCRIPTIONS_MINIMAL['sheets_analyze']!;
+
+    expect(fullDesc).not.toContain('ALWAYS START HERE');
+    expect(fullDesc).toContain('Skip this tool when:');
+    expect(fullDesc).toContain('Use this first ONLY when:');
+    expect(minimalDesc).not.toContain('START HERE');
+    expect(minimalDesc).toContain('skip this tool');
+  });
 });
 
 describe('Tool Routing - Annotation Consistency', () => {
@@ -88,9 +99,9 @@ describe('Tool Routing - Annotation Consistency', () => {
       .map(([name]) => name);
 
     // sheets_quality and sheets_history call Google API (resolve_conflict, undo/redo)
+    // sheets_dependencies calls Google API (model_scenario fetches live values, post-P13)
     // so they are NOT local-only
     expect(localTools).toContain('sheets_session');
-    expect(localTools).toContain('sheets_dependencies');
     expect(localTools).toContain('sheets_confirm');
   });
 });

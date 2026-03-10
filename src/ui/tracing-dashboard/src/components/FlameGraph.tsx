@@ -28,15 +28,19 @@ export default function FlameGraph({ trace }: FlameGraphProps) {
       .cellHeight(18)
       .transitionDuration(750)
       .minFrameSize(5)
-      .transitionEase(d3.easeCubic as any) // Type assertion for d3-flame-graph
+      .transitionEase(d3.easeCubic)
       .sort(true)
       .title('')
       .tooltip(true);
 
+    const renderChart = chart as unknown as (
+      selection: d3.Selection<HTMLDivElement, unknown, null, undefined>
+    ) => void;
+
     // Render
     d3.select(containerRef.current)
       .datum(data)
-      .call(chart as any); // Type assertion needed due to d3-flame-graph types
+      .call(renderChart);
 
     // Handle window resize
     const handleResize = () => {
@@ -44,7 +48,7 @@ export default function FlameGraph({ trace }: FlameGraphProps) {
         chart.width(containerRef.current.clientWidth);
         d3.select(containerRef.current)
           .datum(data)
-          .call(chart as any);
+          .call(renderChart);
       }
     };
 

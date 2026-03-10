@@ -468,7 +468,7 @@ Validation gates are **progressive checkpoints** that validate different aspects
 **What it checks:**
 
 ```bash
-1. Handler tests (all 22 handlers)
+1. Handler tests (all 25 handlers)
 2. Integration tests (cross-layer)
 3. Compliance tests (MCP protocol)
 ```
@@ -669,7 +669,7 @@ describe('ValuesHandler', () => {
 ```typescript
 // tests/integration/mcp-tools-list.test.ts
 describe('MCP tools/list integration', () => {
-  it('should return all 22 tools with valid schemas', async () => {
+  it('should return all 25 tools with valid schemas', async () => {
     const tools = await server.listTools();
 
     expect(tools.tools).toHaveLength(16);
@@ -1557,10 +1557,10 @@ grep "Circuit breaker" logs/servalsheets.log
 
 ```markdown
 ❌ Wrong:
-ServalSheets has 22 tools and 305 actions.
+ServalSheets has 25 tools and 391 actions.
 
 ✅ Correct:
-ServalSheets has 22 tools and 305 actions (see src/schemas/index.ts:63).
+ServalSheets has 25 tools and 391 actions (see src/schemas/index.ts:63).
 ```
 
 **Fix:**

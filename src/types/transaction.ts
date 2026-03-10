@@ -108,6 +108,13 @@ export interface TransactionSnapshot {
 
   /** Metadata */
   metadata?: Record<string, unknown>;
+
+  /**
+   * Pre-commit cell data captured immediately before batchUpdate execution.
+   * Present only for transactions that include write/clear operations.
+   * Used by restoreSnapshot() to write back the original values on rollback.
+   */
+  preCommitCellData?: Array<{ range: string; values: unknown[][] }>;
 }
 
 /**
@@ -485,6 +492,9 @@ export interface TransactionConfig {
 
   /** Google API client for batch operations */
   googleClient?: GoogleApiClient;
+
+  /** Optional transaction WAL directory for crash recovery */
+  walDir?: string;
 }
 
 /**

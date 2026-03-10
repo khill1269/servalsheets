@@ -11,6 +11,7 @@ import {
   SpreadsheetIdSchema,
   SheetIdSchema,
   RangeInputSchema,
+  A1NotationSchema,
   DataFilterSchema,
   ValuesArraySchema,
   ValueRenderOptionSchema,
@@ -69,6 +70,12 @@ const CommonFieldsSchema = z.object({
 // VALUE ACTION SCHEMAS (8 actions)
 // ============================================================================
 
+const ResponseFormatSchema = z
+  .enum(['full', 'compact', 'preview'])
+  .describe(
+    'Response format profile for read-heavy actions: full (complete payload), compact (reduced token usage), preview (small sample for quick inspection)'
+  );
+
 const ReadActionSchema = CommonFieldsSchema.extend({
   action: z.literal('read').describe('Read cell values from a range'),
   range: RangeInputSchema.optional().describe(
@@ -85,7 +92,7 @@ const ReadActionSchema = CommonFieldsSchema.extend({
     .optional()
     .describe(
       'How dates/times should be rendered when valueRenderOption is UNFORMATTED_VALUE. ' +
-      'SERIAL_NUMBER (default): date as number. FORMATTED_STRING: date as formatted string.'
+        'SERIAL_NUMBER (default): date as number. FORMATTED_STRING: date as formatted string.'
     ),
   majorDimension: MajorDimensionSchema.optional()
     .default('ROWS')
@@ -106,23 +113,28 @@ const ReadActionSchema = CommonFieldsSchema.extend({
     .max(10000)
     .optional()
     .describe('Maximum number of rows per page (default: 1000, max: 10000)'),
-}).superRefine((val, ctx) => {
-  // Exactly ONE of range or dataFilter must be provided
-  if (!val.range && !val.dataFilter) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either range or dataFilter for read',
-      path: ['range'],
-    });
-  }
-  if (val.range && val.dataFilter) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either range or dataFilter (not both) for read',
-      path: ['dataFilter'],
-    });
-  }
-});
+  response_format: ResponseFormatSchema.optional()
+    .default('full')
+    .describe('Output size profile for returned values (full, compact, preview)'),
+})
+  .superRefine((val, ctx) => {
+    // Exactly ONE of range or dataFilter must be provided
+    if (!val.range && !val.dataFilter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either range or dataFilter for read',
+        path: ['range'],
+      });
+    }
+    if (val.range && val.dataFilter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either range or dataFilter (not both) for read',
+        path: ['dataFilter'],
+      });
+    }
+  })
+  .strict();
 
 const WriteActionSchema = CommonFieldsSchema.extend({
   action: z
@@ -144,23 +156,25 @@ const WriteActionSchema = CommonFieldsSchema.extend({
     .default(false)
     .describe('Return the written values for verification'),
   diffOptions: DiffOptionsSchema.optional().describe('Diff generation options'),
-}).superRefine((val, ctx) => {
-  // Exactly ONE of range or dataFilter must be provided
-  if (!val.range && !val.dataFilter) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either range or dataFilter for write',
-      path: ['range'],
-    });
-  }
-  if (val.range && val.dataFilter) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either range or dataFilter (not both) for write',
-      path: ['dataFilter'],
-    });
-  }
-});
+})
+  .superRefine((val, ctx) => {
+    // Exactly ONE of range or dataFilter must be provided
+    if (!val.range && !val.dataFilter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either range or dataFilter for write',
+        path: ['range'],
+      });
+    }
+    if (val.range && val.dataFilter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either range or dataFilter (not both) for write',
+        path: ['dataFilter'],
+      });
+    }
+  })
+  .strict();
 
 const AppendActionSchema = CommonFieldsSchema.extend({
   action: z.literal('append').describe('Append rows after the last row of data in a range'),
@@ -173,15 +187,17 @@ const AppendActionSchema = CommonFieldsSchema.extend({
   insertDataOption: InsertDataOptionSchema.optional()
     .default('INSERT_ROWS')
     .describe('Whether to overwrite or insert rows (INSERT_ROWS or OVERWRITE)'),
-}).superRefine((val, ctx) => {
-  if (!val.range && !val.tableId) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either range or tableId for append',
-      path: ['range'],
-    });
-  }
-});
+})
+  .superRefine((val, ctx) => {
+    if (!val.range && !val.tableId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either range or tableId for append',
+        path: ['range'],
+      });
+    }
+  })
+  .strict();
 
 const ClearActionSchema = CommonFieldsSchema.extend({
   action: z.literal('clear').describe('Clear cell values from a range (keeps formatting)'),
@@ -196,23 +212,25 @@ const ClearActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(false)
     .describe('Show what would change without applying'),
-}).superRefine((val, ctx) => {
-  // Exactly ONE of range or dataFilter must be provided
-  if (!val.range && !val.dataFilter) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either range or dataFilter for clear',
-      path: ['range'],
-    });
-  }
-  if (val.range && val.dataFilter) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either range or dataFilter (not both) for clear',
-      path: ['dataFilter'],
-    });
-  }
-});
+})
+  .superRefine((val, ctx) => {
+    // Exactly ONE of range or dataFilter must be provided
+    if (!val.range && !val.dataFilter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either range or dataFilter for clear',
+        path: ['range'],
+      });
+    }
+    if (val.range && val.dataFilter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either range or dataFilter (not both) for clear',
+        path: ['dataFilter'],
+      });
+    }
+  })
+  .strict();
 
 const BatchWriteEntrySchema = z
   .object({
@@ -260,29 +278,34 @@ const BatchReadActionSchema = CommonFieldsSchema.extend({
     .optional()
     .describe(
       'How dates/times should be rendered when valueRenderOption is UNFORMATTED_VALUE. ' +
-      'SERIAL_NUMBER (default): date as number. FORMATTED_STRING: date as formatted string.'
+        'SERIAL_NUMBER (default): date as number. FORMATTED_STRING: date as formatted string.'
     ),
   majorDimension: MajorDimensionSchema.optional().default('ROWS').describe('Major dimension'),
   cursor: z.string().optional().describe('Pagination cursor'),
   pageSize: z.coerce.number().int().positive().max(10000).optional().describe('Rows per page'),
-}).superRefine((val, ctx) => {
-  const hasRanges = Boolean(val.ranges && val.ranges.length > 0);
-  const hasFilters = Boolean(val.dataFilters && val.dataFilters.length > 0);
-  if (!hasRanges && !hasFilters) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either ranges or dataFilters for batch_read',
-      path: ['ranges'],
-    });
-  }
-  if (hasRanges && hasFilters) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either ranges or dataFilters, not both, for batch_read',
-      path: ['dataFilters'],
-    });
-  }
-});
+  response_format: ResponseFormatSchema.optional()
+    .default('full')
+    .describe('Output size profile for returned ranges (full, compact, preview)'),
+})
+  .superRefine((val, ctx) => {
+    const hasRanges = Boolean(val.ranges && val.ranges.length > 0);
+    const hasFilters = Boolean(val.dataFilters && val.dataFilters.length > 0);
+    if (!hasRanges && !hasFilters) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either ranges or dataFilters for batch_read',
+        path: ['ranges'],
+      });
+    }
+    if (hasRanges && hasFilters) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either ranges or dataFilters, not both, for batch_read',
+        path: ['dataFilters'],
+      });
+    }
+  })
+  .strict();
 
 const BatchWriteActionSchema = CommonFieldsSchema.extend({
   action: z.literal('batch_write').describe('Write to multiple ranges in a single API call'),
@@ -296,17 +319,19 @@ const BatchWriteActionSchema = CommonFieldsSchema.extend({
     .describe('How input data should be interpreted'),
   includeValuesInResponse: z.boolean().optional().default(false).describe('Return written values'),
   diffOptions: DiffOptionsSchema.optional().describe('Diff generation options'),
-}).superRefine((val, ctx) => {
-  const hasRanges = val.data.some((entry) => entry.range !== undefined);
-  const hasFilters = val.data.some((entry) => entry.dataFilter !== undefined);
-  if (hasRanges && hasFilters) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Do not mix range-based and dataFilter-based entries in batch_write',
-      path: ['data'],
-    });
-  }
-});
+})
+  .superRefine((val, ctx) => {
+    const hasRanges = val.data.some((entry) => entry.range !== undefined);
+    const hasFilters = val.data.some((entry) => entry.dataFilter !== undefined);
+    if (hasRanges && hasFilters) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Do not mix range-based and dataFilter-based entries in batch_write',
+        path: ['data'],
+      });
+    }
+  })
+  .strict();
 
 const BatchClearActionSchema = CommonFieldsSchema.extend({
   action: z.literal('batch_clear').describe('Clear multiple ranges in a single API call'),
@@ -399,11 +424,9 @@ const FindReplaceActionSchema = CommonFieldsSchema.extend({
 
 const AddNoteActionSchema = CommonFieldsSchema.extend({
   action: z.literal('add_note').describe('Add or update a note on a cell'),
-  cell: z
-    .string()
-    .describe(
-      "Cell reference in A1 notation (e.g., 'A1' or 'Sheet1!B2'). Also accepts 'range' as alias."
-    ),
+  cell: A1NotationSchema.describe(
+    "Cell reference in A1 notation (e.g., 'A1' or 'Sheet1!B2'). Also accepts 'range' as alias."
+  ),
   note: z
     .string()
     .min(1, 'Note cannot be empty')
@@ -412,7 +435,7 @@ const AddNoteActionSchema = CommonFieldsSchema.extend({
       `Note exceeds Google Sheets limit of ${CELL_NOTE_MAX_LENGTH} characters`
     )
     .describe('Note/comment text to add to the cell (max 50,000 chars)'),
-});
+}).strict();
 
 const GetNoteActionSchema = CommonFieldsSchema.extend({
   action: z.literal('get_note').describe('Get the note text from a cell'),
@@ -429,7 +452,7 @@ const ClearNoteActionSchema = CommonFieldsSchema.extend({
 
 const SetHyperlinkActionSchema = CommonFieldsSchema.extend({
   action: z.literal('set_hyperlink').describe('Add a clickable hyperlink to a cell'),
-  cell: z.string().describe("Cell reference in A1 notation. Also accepts 'range' as alias."),
+  cell: A1NotationSchema.describe("Cell reference in A1 notation. Also accepts 'range' as alias."),
   url: z
     .string()
     .regex(URL_REGEX, 'Invalid URL format')
@@ -505,6 +528,111 @@ const DetectSpillRangesActionSchema = CommonFieldsSchema.extend({
     .describe('Detect dynamic array / spill range formulas in a sheet'),
   range: RangeInputSchema.optional().describe('Range to scan (omit to scan entire active sheet)'),
   sheetId: z.coerce.number().int().optional().describe('Sheet ID to scan (alternative to range)'),
+});
+
+// ============================================================================
+// Smart Fill Action (pattern-detection fill)
+// ============================================================================
+
+const SmartFillActionSchema = z.object({
+  action: z
+    .literal('smart_fill')
+    .describe(
+      'Detect pattern in a source range (arithmetic, geometric, date, repeating, regression) and fill a target range. Falls back to AI sampling when no deterministic pattern is detected.'
+    ),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sourceRange: RangeInputSchema.describe('Range containing the source pattern (e.g. Sheet1!A1:A5)'),
+  fillRange: RangeInputSchema.describe(
+    'Range to fill with the detected pattern (e.g. Sheet1!A6:A20)'
+  ),
+  useSampling: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Fall back to AI sampling when no deterministic pattern is detected'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+
+// ============================================================================
+// F2: Multi-Spreadsheet Federation (4 actions)
+// ============================================================================
+
+const SourceRefSchema = z.object({
+  spreadsheetId: z.string().min(1).describe('Spreadsheet ID'),
+  range: z.string().min(1).describe('Range in A1 notation (e.g. "Sheet1!A1:D100")'),
+  label: z.string().optional().describe('Human-readable label for this source in output'),
+});
+
+const CrossReadActionSchema = z.object({
+  action: z.literal('cross_read').describe('Read and merge data from multiple spreadsheets'),
+  sources: z
+    .array(SourceRefSchema)
+    .min(2)
+    .max(10)
+    .describe('Spreadsheets to read from (2–10 sources)'),
+  joinKey: z
+    .string()
+    .optional()
+    .describe('Header column name to join on — omit to concatenate all rows with a _source column'),
+  joinType: z
+    .enum(['inner', 'left', 'outer'])
+    .optional()
+    .default('left')
+    .describe(
+      'Join type when joinKey is set: inner (matched rows only), left (all primary rows), outer (all rows)'
+    ),
+  response_format: ResponseFormatSchema.optional()
+    .default('full')
+    .describe('Output size profile for merged rows (full, compact, preview)'),
+  verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
+});
+
+const CrossQueryActionSchema = z.object({
+  action: z
+    .literal('cross_query')
+    .describe('Search for rows matching a keyword query across multiple spreadsheets'),
+  sources: z.array(SourceRefSchema).min(1).max(10),
+  query: z.string().min(1).max(500).describe('Search query — matched against all cell values'),
+  maxResults: z.number().int().min(1).max(500).optional().default(100),
+  response_format: ResponseFormatSchema.optional()
+    .default('full')
+    .describe('Output size profile for query matches (full, compact, preview)'),
+  verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
+});
+
+const CrossWriteActionSchema = z.object({
+  action: z.literal('cross_write').describe('Copy data from one spreadsheet to another'),
+  source: SourceRefSchema.describe('Spreadsheet and range to read from'),
+  destination: z
+    .object({
+      spreadsheetId: z.string().min(1),
+      range: z.string().min(1),
+    })
+    .describe('Spreadsheet and range to write to'),
+  valueInputOption: ValueInputOptionSchema.optional().default('USER_ENTERED'),
+  verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
+});
+
+const CrossCompareActionSchema = z.object({
+  action: z.literal('cross_compare').describe('Diff ranges across two spreadsheets cell by cell'),
+  source1: SourceRefSchema,
+  source2: SourceRefSchema,
+  compareColumns: z
+    .array(z.string())
+    .optional()
+    .describe('Column headers to compare (omit to compare all common columns)'),
+  keyColumn: z
+    .string()
+    .optional()
+    .describe('Column header to use as row key for aligned comparison (omit for row-by-row)'),
+  response_format: ResponseFormatSchema.optional()
+    .default('full')
+    .describe('Output size profile for diff payload (full, compact, preview)'),
+  verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
 });
 
 // ============================================================================
@@ -595,6 +723,15 @@ export const SheetsDataInputSchema = z.object({
 
       // Dynamic array action (1)
       DetectSpillRangesActionSchema, // Detect dynamic array / spill ranges
+
+      // Smart fill (1)
+      SmartFillActionSchema, // Pattern-detection fill
+
+      // F2: Cross-spreadsheet federation (4)
+      CrossReadActionSchema, // Merge data from multiple spreadsheets
+      CrossQueryActionSchema, // Search across multiple spreadsheets
+      CrossWriteActionSchema, // Copy data between spreadsheets
+      CrossCompareActionSchema, // Diff ranges across two spreadsheets
     ])
   ),
 });
@@ -614,8 +751,28 @@ const DataResponseSchema = z.discriminatedUnion('success', [
 
     // Read results
     values: ValuesArraySchema.optional().describe('2D array of cell values (for read actions)'),
+    rowCount: z.coerce.number().int().optional().describe('Total rows in the source result set'),
+    columnCount: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Total columns in the source result set'),
+    returnedRowCount: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Rows returned after response_format shaping'),
+    returnedColumnCount: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Columns returned after response_format shaping'),
     range: z.string().optional().describe('A1 notation range that was operated on'),
     majorDimension: z.string().optional().describe('Major dimension of the data'),
+    responseFormat: z
+      .enum(['full', 'compact', 'preview'])
+      .optional()
+      .describe('Applied response_format profile'),
 
     // Pagination (MCP 2025-11-25)
     nextCursor: z.string().optional().describe('Cursor for next page (null = no more data)'),
@@ -726,6 +883,79 @@ const DataResponseSchema = z.discriminatedUnion('success', [
     // ========================================================================
     // SHARED RESPONSE FIELDS
     // ========================================================================
+
+    // F2: Cross-spreadsheet results
+    rows: ValuesArraySchema.optional().describe(
+      'Merged dataset from multiple sources (cross_read)'
+    ),
+    mergedHeaders: z.array(z.string()).optional().describe('Column headers for merged dataset'),
+    sourcesRead: z.coerce.number().int().optional().describe('Number of sources successfully read'),
+    crossErrors: z.array(z.string()).optional().describe('Per-source errors (non-fatal)'),
+    queryMatches: z
+      .array(
+        z.object({
+          spreadsheetId: z.string(),
+          label: z.string().optional(),
+          range: z.string(),
+          row: z.coerce.number().int(),
+          matchedValues: z.array(z.string()),
+        })
+      )
+      .optional()
+      .describe('Matching rows across sources (cross_query)'),
+    totalSearched: z.coerce.number().int().optional(),
+    totalMatches: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Total query matches before response_format shaping'),
+    returnedMatches: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Query matches returned after response_format shaping'),
+    _responseFormatHint: z
+      .string()
+      .optional()
+      .describe('Guidance for fetching full data when response_format truncates payload'),
+    cellsCopied: z.coerce.number().int().optional().describe('Cells written (cross_write)'),
+    diff: z
+      .object({
+        added: z.array(z.array(z.unknown())).optional(),
+        removed: z.array(z.array(z.unknown())).optional(),
+        changed: z
+          .array(
+            z.object({
+              key: z.string(),
+              column: z.string(),
+              source1Value: z.unknown(),
+              source2Value: z.unknown(),
+            })
+          )
+          .optional(),
+        returnedAddedRows: z.coerce
+          .number()
+          .int()
+          .optional()
+          .describe('Added rows returned after response_format shaping'),
+        returnedRemovedRows: z.coerce
+          .number()
+          .int()
+          .optional()
+          .describe('Removed rows returned after response_format shaping'),
+        returnedChangedCells: z.coerce
+          .number()
+          .int()
+          .optional()
+          .describe('Changed cells returned after response_format shaping'),
+        summary: z.object({
+          addedRows: z.coerce.number().int(),
+          removedRows: z.coerce.number().int(),
+          changedCells: z.coerce.number().int(),
+        }),
+      })
+      .optional()
+      .describe('Cell-level diff result (cross_compare)'),
 
     // Safety
     dryRun: z.boolean().optional().describe('True if this was a dry run (no changes made)'),
@@ -901,4 +1131,17 @@ export type DataCopyPasteInput = SheetsDataInput['request'] & {
 export type DataDetectSpillRangesInput = SheetsDataInput['request'] & {
   action: 'detect_spill_ranges';
   spreadsheetId: string;
+};
+
+// F2: Cross-spreadsheet federation types
+export type DataCrossReadInput = z.infer<typeof CrossReadActionSchema>;
+export type DataCrossQueryInput = z.infer<typeof CrossQueryActionSchema>;
+export type DataCrossWriteInput = z.infer<typeof CrossWriteActionSchema>;
+export type DataCrossCompareInput = z.infer<typeof CrossCompareActionSchema>;
+export type DataSmartFillInput = SheetsDataInput['request'] & {
+  action: 'smart_fill';
+  spreadsheetId: string;
+  sourceRange: string;
+  fillRange: string;
+  useSampling?: boolean;
 };

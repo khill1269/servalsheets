@@ -20,6 +20,7 @@ export * from './retry.js';
 
 // Error Handling
 export * from './error-factory.js';
+export * from './error-code-compat.js';
 
 // Google Sheets Helpers
 export * from './google-sheets-helpers.js';

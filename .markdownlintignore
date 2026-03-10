@@ -25,3 +25,16 @@ docs/CHANGELOG.md
 # Auto-generated files
 docs/DOCS_CATALOG.md
 docs/METRICS_DASHBOARD.md
+
+# Session notes and operational docs (not public-facing)
+.serval/**
+
+# Internal issue registry — dense structured format intentionally omits blank lines between heading and severity line
+ISSUES.md
+
+# Development context docs (internal reference, not public-facing)
+docs/development/**
+
+# Agent memory files (auto-generated)
+.claude/agent-memory/**
+.claude/worktrees/**

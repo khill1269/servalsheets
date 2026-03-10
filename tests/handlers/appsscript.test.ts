@@ -9,6 +9,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SheetsAppsScriptHandler } from '../../src/handlers/appsscript.js';
 import { SheetsAppsScriptOutputSchema } from '../../src/schemas/appsscript.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 // Mock Google Client with OAuth2
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
@@ -861,11 +865,67 @@ describe('SheetsAppsScriptHandler', () => {
     });
   });
 
+  describe('install_serval_function action', () => {
+    it('rejects callback URLs with invalid protocols before making API calls', async () => {
+      const result = await handler.handle({
+        request: {
+          action: 'install_serval_function',
+          spreadsheetId: 'sheet-123',
+          callbackUrl: 'javascript:alert(1)',
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error.code).toBe('VALIDATION_ERROR');
+      expect(result.response.error.message).toContain('callbackUrl must use');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('rejects callback URLs with characters that could break script source', async () => {
+      const result = await handler.handle({
+        request: {
+          action: 'install_serval_function',
+          spreadsheetId: 'sheet-123',
+          callbackUrl: "https://example.com/o'hai",
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error.code).toBe('VALIDATION_ERROR');
+      expect(result.response.error.message).toContain('invalid characters');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
   // ===========================================================================
   // Execution Actions
   // ===========================================================================
 
   describe('run action', () => {
+    it('should respect request-scoped cancellation before execution starts', async () => {
+      const abortController = new AbortController();
+      abortController.abort('cancelled in test');
+
+      const result = await runWithRequestContext(
+        createRequestContext({
+          requestId: 'appsscript-cancel-test',
+          abortSignal: abortController.signal,
+        }),
+        () =>
+          handler.handle({
+            request: {
+              action: 'run',
+              scriptId: 'script-123',
+              functionName: 'myFunction',
+            },
+          })
+      );
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error.code).toBe('CANCELLED');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
     it('should execute function successfully', async () => {
       mockFetch.mockResolvedValue({
         ok: true,

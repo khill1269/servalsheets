@@ -32,7 +32,7 @@ Task(
 
   Requirements:
   1. Map natural language queries to action names
-  2. Support 305 actions across 22 tools
+  2. Support 342 actions across 22 tools
   3. 70%+ accuracy on common queries
   4. <100ms latency (p95)
   5. Minimal dependencies (no ML models)

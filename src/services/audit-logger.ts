@@ -136,144 +136,29 @@
 
 import { existsSync, mkdirSync, promises as fs } from 'fs';
 import { join } from 'path';
-import { createHmac, randomBytes } from 'crypto';
+import { createHmac, createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto';
 import { logger } from '../utils/logger.js';
 import { getEnv } from '../config/env.js';
+import type {
+  AuditEvent,
+  AuthenticationEvent,
+  ConfigurationEvent,
+  ExportEvent,
+  MutationEvent,
+  PermissionEvent,
+  SiemConfig,
+  SignedAuditEntry,
+} from './audit-logger-types.js';
 
-/**
- * W5 Audit Event (Who, What, When, Where, Why)
- */
-export interface AuditEvent {
-  // WHO: Identity and authentication
-  userId: string; // User identifier (email, sub claim, API key ID)
-  sessionId?: string; // Session identifier for correlation
-  clientId?: string; // OAuth client ID
-  apiKeyId?: string; // API key identifier (not the key itself)
-
-  // WHAT: Action and outcome
-  action: string; // Action performed (e.g., 'write_range', 'share_spreadsheet')
-  tool?: string; // MCP tool invoked (e.g., 'sheets_data')
-  resource: AuditResource; // Resource affected
-  outcome: 'success' | 'failure' | 'partial'; // Operation result
-  errorCode?: string; // Error code if outcome is failure
-  errorMessage?: string; // Error message (sanitized, no PII)
-
-  // WHEN: Temporal context
-  timestamp: string; // ISO 8601 timestamp (YYYY-MM-DDTHH:mm:ss.sssZ)
-  durationMs?: number; // Operation duration in milliseconds
-
-  // WHERE: Location and network
-  ipAddress: string; // Source IP address (IPv4 or IPv6)
-  geoLocation?: string; // Geographic location (city, country)
-  userAgent?: string; // User agent string
-  endpoint?: string; // API endpoint invoked
-
-  // WHY: Business context
-  requestId: string; // Request ID for correlation with application logs
-  scopes?: string[]; // OAuth scopes granted
-  reason?: string; // Business justification (e.g., 'emergency access')
-
-  // Additional metadata
-  metadata?: Record<string, unknown>; // Extensible metadata
-}
-
-/**
- * Resource identifier (spreadsheet, range, permission, etc.)
- */
-export interface AuditResource {
-  type: 'spreadsheet' | 'range' | 'permission' | 'token' | 'config' | 'export';
-  spreadsheetId?: string;
-  spreadsheetName?: string;
-  range?: string;
-  sheetId?: string;
-  sheetName?: string;
-  [key: string]: unknown; // Extensible
-}
-
-/**
- * Data mutation event (create, update, delete)
- */
-export interface MutationEvent extends AuditEvent {
-  action:
-    | 'write_range'
-    | 'append_rows'
-    | 'clear_range'
-    | 'delete_rows'
-    | 'delete_columns'
-    | 'insert_rows'
-    | 'insert_columns'
-    | 'apply_formatting';
-  cellsModified?: number; // Number of cells affected
-  rowsModified?: number; // Number of rows affected
-  columnsModified?: number; // Number of columns affected
-  snapshot?: string; // Snapshot ID for rollback
-}
-
-/**
- * Permission change event
- */
-export interface PermissionEvent extends AuditEvent {
-  action: 'share_spreadsheet' | 'update_permissions' | 'revoke_access';
-  permission: {
-    role: 'owner' | 'writer' | 'reader';
-    email?: string;
-    domain?: string;
-    anyone?: boolean;
-  };
-}
-
-/**
- * Authentication event
- */
-export interface AuthenticationEvent extends AuditEvent {
-  action: 'login' | 'logout' | 'token_refresh' | 'token_revoke' | 'oauth_grant';
-  method: 'oauth' | 'api_key' | 'service_account' | 'managed_identity';
-  failureReason?: string; // Reason for authentication failure
-}
-
-/**
- * Configuration change event
- */
-export interface ConfigurationEvent extends AuditEvent {
-  action: 'update_env' | 'toggle_feature' | 'adjust_rate_limit';
-  configKey: string; // Configuration key changed
-  oldValue?: string; // Previous value (sanitized, no secrets)
-  newValue?: string; // New value (sanitized, no secrets)
-}
-
-/**
- * Export event (data extraction)
- */
-export interface ExportEvent extends AuditEvent {
-  action: 'export_csv' | 'export_xlsx' | 'export_bigquery' | 'download_attachment';
-  format?: string; // Export format
-  recordCount?: number; // Number of records exported
-  fileSize?: number; // File size in bytes
-  destination?: string; // Destination (sanitized, no credentials)
-}
-
-/**
- * Signed audit entry (immutable with cryptographic integrity)
- */
-interface SignedAuditEntry {
-  sequenceNumber: number; // Monotonically increasing sequence
-  event: AuditEvent; // The audit event
-  hash: string; // HMAC-SHA256(sequenceNumber + event + previousHash)
-  previousHash: string; // Hash of previous entry (chain of trust)
-}
-
-/**
- * SIEM destination configuration
- */
-interface SiemConfig {
-  type: 'splunk' | 'datadog' | 'cloudwatch' | 'azure';
-  endpoint: string;
-  token?: string;
-  apiKey?: string;
-  region?: string; // For AWS CloudWatch
-  logGroup?: string; // For AWS CloudWatch
-  logStream?: string; // For AWS CloudWatch
-}
+export type {
+  AuditEvent,
+  AuditResource,
+  AuthenticationEvent,
+  ConfigurationEvent,
+  ExportEvent,
+  MutationEvent,
+  PermissionEvent,
+} from './audit-logger-types.js';
 
 /**
  * Compliance-grade audit logger
@@ -284,26 +169,68 @@ export class AuditLogger {
   private logDir: string;
   private currentLogPath: string;
   private currentDate: string;
+  private retentionDays: number;
   private sequenceNumber: number;
   private previousHash: string;
   private hmacSecret: Buffer;
+  private encryptionKey: Buffer | null;
   private siemConfigs: SiemConfig[];
   private writeQueue: Promise<void>;
+  private initialization: Promise<void>;
+  private _pendingEncKeyPassword: string | null = null;
 
-  constructor(options?: { logDir?: string; hmacSecret?: string; siemConfigs?: SiemConfig[] }) {
+  constructor(options?: {
+    logDir?: string;
+    hmacSecret?: string;
+    encryptionKey?: string;
+    retentionDays?: number;
+    siemConfigs?: SiemConfig[];
+  }) {
     this.logDir = options?.logDir ?? join(process.cwd(), 'audit-logs');
     this.currentDate = this.getCurrentDate();
     this.currentLogPath = this.getLogPath(this.currentDate);
+    this.retentionDays = options?.retentionDays ?? 90;
     this.sequenceNumber = 0;
     this.previousHash = '0'.repeat(64); // Genesis hash
     this.hmacSecret = options?.hmacSecret
       ? Buffer.from(options.hmacSecret, 'hex')
       : randomBytes(32);
+    // COMP-01: Derive 32-byte AES key from password using scrypt (N=16384, per-installation random salt)
+    // Salt is loaded/generated lazily in initializeAuditState() to support async file I/O.
+    const encKeyPassword = options?.encryptionKey ?? process.env['AUDIT_LOG_ENCRYPTION_KEY'];
+    this.encryptionKey = null; // Will be set in initializeAuditState() if encKeyPassword is set
+    this._pendingEncKeyPassword = encKeyPassword ?? null;
     this.siemConfigs = options?.siemConfigs ?? [];
     this.writeQueue = Promise.resolve();
 
     this.ensureLogDirectory();
-    this.loadLastSequenceNumber();
+    // Ensure log state and retention are applied before first write/integrity check.
+    this.initialization = this.initializeAuditState();
+  }
+
+  private async initializeAuditState(): Promise<void> {
+    // Initialize encryption key with persisted random salt
+    if (this._pendingEncKeyPassword) {
+      const saltPath = join(this.logDir, '.audit-salt');
+      let salt: Buffer;
+      try {
+        salt = await fs.readFile(saltPath);
+      } catch {
+        salt = randomBytes(32);
+        await fs.mkdir(this.logDir, { recursive: true });
+        await fs.writeFile(saltPath, salt, { mode: 0o600 });
+      }
+      this.encryptionKey = scryptSync(this._pendingEncKeyPassword, salt, 32);
+      this._pendingEncKeyPassword = null;
+    }
+
+    // Warn if AUDIT_HMAC_SECRET not set in production
+    if (!process.env['AUDIT_HMAC_SECRET'] && process.env['NODE_ENV'] === 'production') {
+      logger.warn('AUDIT_HMAC_SECRET not set in production — audit log integrity is ephemeral');
+    }
+
+    await this.loadLastSequenceNumber();
+    await this.pruneExpiredLogs();
   }
 
   /**
@@ -389,6 +316,8 @@ export class AuditLogger {
    * Generic audit event logging
    */
   private async logEvent(event: AuditEvent): Promise<void> {
+    await this.initialization;
+
     // Check if we need to rotate to a new day
     const currentDate = this.getCurrentDate();
     if (currentDate !== this.currentDate) {
@@ -441,9 +370,51 @@ export class AuditLogger {
   /**
    * Append entry to log file (atomic, append-only)
    */
+  /**
+   * COMP-01: Encrypt a log line with AES-256-GCM.
+   * Format: "ENC:" + base64(iv[12] + authTag[16] + ciphertext)
+   * Returns the original line unchanged when encryption is disabled.
+   */
+  private encryptLogLine(plaintext: string): string {
+    if (!this.encryptionKey) return plaintext;
+    const iv = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', this.encryptionKey, iv);
+    const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+    const authTag = cipher.getAuthTag();
+    const payload = Buffer.concat([iv, authTag, ciphertext]);
+    return 'ENC:' + payload.toString('base64') + '\n';
+  }
+
+  /**
+   * COMP-01: Decrypt a log line produced by encryptLogLine().
+   * Lines not prefixed with "ENC:" are returned unchanged (backward compat).
+   * Throws if decryption key is unavailable or authentication fails.
+   */
+  decryptLogEntry(line: string): string {
+    const trimmed = line.trimEnd();
+    if (!trimmed.startsWith('ENC:')) return trimmed;
+    if (!this.encryptionKey) {
+      throw new Error('AUDIT_LOG_ENCRYPTION_KEY is required to decrypt audit logs');
+    }
+    const payload = Buffer.from(trimmed.slice(4), 'base64');
+    const iv = payload.subarray(0, 12);
+    const authTag = payload.subarray(12, 28);
+    const ciphertext = payload.subarray(28);
+    const decipher = createDecipheriv('aes-256-gcm', this.encryptionKey, iv);
+    decipher.setAuthTag(authTag);
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+  }
+
+  private parseLogEntry(line: string): SignedAuditEntry {
+    const decoded = this.decryptLogEntry(line);
+    return JSON.parse(decoded) as SignedAuditEntry;
+  }
+
   private async appendToLog(entry: SignedAuditEntry): Promise<void> {
     // Serialize as JSON Lines format (one JSON object per line)
-    const line = JSON.stringify(entry) + '\n';
+    const plaintext = JSON.stringify(entry) + '\n';
+    // COMP-01: Encrypt at rest when AUDIT_LOG_ENCRYPTION_KEY is configured
+    const line = this.encryptLogLine(plaintext);
 
     // Chain writes to ensure atomicity and ordering
     this.writeQueue = this.writeQueue.then(async () => {
@@ -601,6 +572,7 @@ export class AuditLogger {
     this.previousHash = '0'.repeat(64);
 
     this.ensureLogDirectory();
+    await this.pruneExpiredLogs();
   }
 
   /**
@@ -630,7 +602,7 @@ export class AuditLogger {
 
       // Parse last entry
       const lastLine = lines[lines.length - 1];
-      const lastEntry: SignedAuditEntry = JSON.parse(lastLine!);
+      const lastEntry = this.parseLogEntry(lastLine!);
 
       this.sequenceNumber = lastEntry.sequenceNumber;
       this.previousHash = lastEntry.hash;
@@ -642,6 +614,44 @@ export class AuditLogger {
       });
     } catch (error) {
       logger.warn('Failed to load audit log state', { error });
+    }
+  }
+
+  /**
+   * Remove dated log files older than the configured retention window.
+   * Operates only on YYYY-MM-DD.jsonl files to avoid touching unrelated artifacts.
+   */
+  private async pruneExpiredLogs(): Promise<void> {
+    try {
+      const entries = await fs.readdir(this.logDir, { withFileTypes: true });
+      const now = Date.now();
+      const cutoffMs = now - this.retentionDays * 24 * 60 * 60 * 1000;
+      let removed = 0;
+
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        if (!/^\d{4}-\d{2}-\d{2}\.jsonl$/.test(entry.name)) continue;
+
+        const datePart = entry.name.slice(0, 10);
+        const timestamp = Date.parse(`${datePart}T00:00:00.000Z`);
+        if (Number.isNaN(timestamp) || timestamp >= cutoffMs) continue;
+
+        await fs.rm(join(this.logDir, entry.name), { force: true });
+        removed++;
+      }
+
+      if (removed > 0) {
+        logger.info('Pruned expired audit logs', {
+          removed,
+          retentionDays: this.retentionDays,
+        });
+      }
+    } catch (error) {
+      logger.warn('Failed to prune expired audit logs', {
+        error: error instanceof Error ? error.message : String(error),
+        logDir: this.logDir,
+        retentionDays: this.retentionDays,
+      });
     }
   }
 
@@ -666,13 +676,14 @@ export class AuditLogger {
    */
   async verifyIntegrity(): Promise<boolean> {
     try {
+      await this.initialization;
       const content = await fs.readFile(this.currentLogPath, 'utf-8');
       const lines = content.trim().split('\n').filter(Boolean);
 
       let previousHash = '0'.repeat(64);
 
       for (const line of lines) {
-        const entry: SignedAuditEntry = JSON.parse(line);
+        const entry = this.parseLogEntry(line);
 
         // Verify previous hash matches
         if (entry.previousHash !== previousHash) {
@@ -722,7 +733,7 @@ let auditLogger: AuditLogger | null = null;
  */
 export function getAuditLogger(): AuditLogger {
   if (!auditLogger) {
-    const _env = getEnv();
+    const env = getEnv();
 
     // Load SIEM configs from environment
     const siemConfigs: SiemConfig[] = [];
@@ -754,8 +765,10 @@ export function getAuditLogger(): AuditLogger {
     }
 
     auditLogger = new AuditLogger({
-      logDir: process.env['AUDIT_LOG_DIR'] ?? undefined,
-      hmacSecret: process.env['AUDIT_HMAC_SECRET'] ?? undefined,
+      logDir: env.AUDIT_LOG_DIR,
+      hmacSecret: env.AUDIT_HMAC_SECRET,
+      encryptionKey: env.AUDIT_LOG_ENCRYPTION_KEY,
+      retentionDays: env.AUDIT_LOG_RETENTION_DAYS,
       siemConfigs: siemConfigs.length > 0 ? siemConfigs : undefined,
     });
   }
