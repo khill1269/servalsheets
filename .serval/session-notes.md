@@ -6,7 +6,7 @@
 
 ## Current Phase
 
-**Session 55 (2026-03-03) — MCP/API fixes + workspace hygiene committed.** All G0–G5 gates green. `remediation/phase-1` branch has all work committed and PR is open against `feat/phase-0-mcp-protocol-compliance`.
+**Session 56 (2026-03-10) — Full audit pass + doc hardening.** All G0–G5 gates green. 2,559/2,559 tests. Branch `remediation/phase-1` is clean; PR open against `feat/phase-0-mcp-protocol-compliance`.
 
 ## Genuine Remaining Work
 
@@ -15,11 +15,25 @@
 3. **ISSUE-073**: Git worktree cleanup (maintainer-only)
 4. **ISSUE-075**: npm publish @serval/core v0.2.0 (maintainer-only)
 
+## Verified False Claims (do not re-investigate)
+
+These were in prior session notes or audit plans but are source-verified NOT real issues:
+
+- **G-1**: revision-timeline no pagination — FALSE. `revision-timeline.ts:119-140` paginates with 50-page cap.
+- **G-2**: collaborate/versions no pagination — FALSE. `versions.ts:390-399` paginates with 100-page cap.
+- **G-4**: Apps Script bypasses `wrapGoogleApi` retry — FALSE. `appsscript.ts:365` wraps with `executeWithRetry()` + circuit breaker.
+- **G-6**: core.list no pagination — FALSE. `core-actions/spreadsheet-read.ts:182-261` has cursor-based pagination with 20-page cap.
+- **NEW-1 (agent self-eval gap)**: RESOLVED. `executePlan()` now calls `aiValidateStepResult()` after each step (IMP-03, 2026-03-09). Tests: `tests/services/agent-engine-selfeval.test.ts`.
+- **NEW-2 (connector discover SSRF)**: RESOLVED. `connectors.ts:278` validates `req.endpoint` against `discovery.endpoints` before calling `getEndpointSchema()`.
+- **connector manager unbounded maps** — FALSE. `cappedMapSet` used at tenant-context.ts:214,302,360,381,429.
+- **OAuth redirect URI hardcoded** — FALSE. `oauth-config.ts:26` reads `OAUTH_REDIRECT_URI` from env.
+
 ## What Was Just Completed
 
 ### Session 55 (2026-03-03) — MCP/API Fixes + Workspace Hygiene
 
 **MCP/API Fixes (6):**
+
 - Fix 1A: `bootstrap.ts` error message `=true` → `=strict` (GDPR consent env var)
 - Fix 1B: Removed duplicate `registerSamplingConsentChecker` from `http-server.ts` + orphaned imports
 - Fix 1C: Stale "16 tools" comment → "all 25 tools" in `features-2025-11-25.ts`
@@ -28,6 +42,7 @@
 - Fix 3A: Hardened `is304NotModified()` in `etag-helpers.ts` to check all GaxiosError shapes
 
 **VERIFIED_FIX_PLAN (9 fixes):**
+
 - Fix 1: `manifest.json` rewritten to MCPB v0.3 format (version 1.7.0, 25/391, correct icon)
 - Fix 2: 19 doc files updated (22→25 tools, stale counts→391 actions); RELEASE_NOTES_1.6.0.md preserved
 - Fix 3: `CODEBASE_CONTEXT.md` + `PROJECT_STATUS.md` 377→391
@@ -39,9 +54,7 @@
 
 **Result:** 0 TS errors, 2452/2452 tests, drift PASS, G0–G5 all green
 
-## What Was Just Completed
-
-### Session 54 (2026-03-03) — Project Audit Execution & Doc Hygiene
+## Session 54 (2026-03-03) — Project Audit Execution & Doc Hygiene
 
 - Executed all 9 fixes from VERIFIED_FIX_PLAN.md (Fixes 1-8 were already done in prior sessions):
   - **Fix 2 remaining**: Added current-count notes to 3 historical docs (RELEASE_NOTES_1.6.0.md, ISSUES.md, GOOGLE_API_ISSUES.md)
@@ -201,8 +214,8 @@
 
 | Date       | Session | Summary                                                                                                                               |
 | ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-03-03 | 54      | Project audit execution: fixed 5 stale doc counts, created sync-doc-counts.mjs, added historical-doc notes, all verifications green |
-| 2026-03-03 | 53      | P2 phase-2 progress coverage tranche D: added progress notifications for templates.apply (multi-sheet), tests green                 |
+| 2026-03-03 | 54      | Project audit execution: fixed 5 stale doc counts, created sync-doc-counts.mjs, added historical-doc notes, all verifications green   |
+| 2026-03-03 | 53      | P2 phase-2 progress coverage tranche D: added progress notifications for templates.apply (multi-sheet), tests green                   |
 | 2026-03-03 | 53      | P2 phase-2 progress coverage tranche C: added progress notifications for dependencies.model_scenario + compare_scenarios, tests green |
 | 2026-03-03 | 53      | P2 phase-2 progress coverage tranche B: added progress notifications for composite.batch_operations, tests green                      |
 | 2026-03-03 | 53      | P2 phase-2 progress coverage tranche A: added progress notifications for analyze_formulas + list_chips, tests green                   |
