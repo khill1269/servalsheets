@@ -75,7 +75,7 @@ export const ImportDataPromptArgsSchema: PromptArgsShape = {
 
 export const SetupCollaborationPromptArgsSchema: PromptArgsShape = {
   spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
-  collaborators: z.array(z.string()).min(1), // Email addresses
+  collaborators: z.string().min(1), // Comma-separated email addresses (prompt request args arrive as strings)
   role: z.enum(['reader', 'commenter', 'writer', 'owner']).optional(),
 };
 

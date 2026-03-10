@@ -81,12 +81,8 @@ export interface MultiSelectEnumSchema {
   items: { type: 'string'; enum: string[] } | { anyOf: Array<{ const: string; title: string }> };
 }
 
-export type PrimitiveSchema =
-  | StringSchema
-  | NumberSchema
-  | BooleanSchema
-  | EnumSchema
-  | MultiSelectEnumSchema;
+export type PrimitiveSchema = StringSchema | NumberSchema | BooleanSchema | EnumSchema;
+// MultiSelectEnumSchema (type:'array') removed — violates MCP 2025-11-25 spec which requires string/number/boolean/enum only
 
 /**
  * Form elicitation request parameters
