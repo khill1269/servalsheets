@@ -10,6 +10,7 @@
 
 import type { sheets_v4 } from 'googleapis';
 import { executeWithRetry } from '../utils/retry.js';
+import { ValidationError, NotFoundError } from '../core/errors.js';
 import {
   computeCorrelation,
   computeEigenvaluesQR,
@@ -169,7 +170,7 @@ function resolveColumnIndex(headers: string[], col: string): number {
   // Try as header name
   const headerIdx = headers.findIndex((h) => h?.toString().toLowerCase() === col.toLowerCase());
   if (headerIdx >= 0) return headerIdx;
-  throw new Error(`Column "${col}" not found. Available headers: ${headers.join(', ')}`);
+  throw new NotFoundError('column', col, { availableHeaders: headers.join(', ') });
 }
 
 function extractNumericColumn(data: CellValue[][], colIdx: number): number[] {
@@ -415,7 +416,12 @@ export function computeRegression(
   const xValues = extractNumericColumn(data, xIdx);
   const yValues = extractNumericColumn(data, yIdx);
   const n = Math.min(xValues.length, yValues.length);
-  if (n < 2) throw new Error('Regression requires at least 2 data points');
+  if (n < 2)
+    throw new ValidationError(
+      'Regression requires at least 2 data points',
+      'data',
+      'at least 2 numeric rows'
+    );
 
   const x = xValues.slice(0, n);
   const y = yValues.slice(0, n);
@@ -458,7 +464,11 @@ export function computeRegression(
       break;
     }
     default:
-      throw new Error(`Unsupported regression type: ${options.type}`);
+      throw new ValidationError(
+        `Unsupported regression type: ${options.type}`,
+        'type',
+        'linear | polynomial | exponential | logarithmic | power'
+      );
   }
 
   // R-squared
@@ -505,7 +515,12 @@ export function computeForecast(data: CellValue[][], options: ForecastOptions): 
   const valueIdx = resolveColumnIndex(headers, options.valueColumn);
   const values = extractNumericColumn(data, valueIdx);
 
-  if (values.length < 3) throw new Error('Forecasting requires at least 3 data points');
+  if (values.length < 3)
+    throw new ValidationError(
+      'Forecasting requires at least 3 data points',
+      'data',
+      'at least 3 numeric rows'
+    );
 
   const method =
     options.method === 'auto' ? selectBestMethod(values, options.seasonality) : options.method;
@@ -561,7 +576,11 @@ export function computeForecast(data: CellValue[][], options: ForecastOptions): 
       break;
     }
     default:
-      throw new Error(`Unsupported forecast method: ${method}`);
+      throw new ValidationError(
+        `Unsupported forecast method: ${method}`,
+        'method',
+        'linear_trend | exponential_smoothing | moving_average | seasonal'
+      );
   }
 
   // Add confidence bounds (simple ±2 stddev)
@@ -601,20 +620,31 @@ export function matrixOp(
     case 'transpose':
       return { matrix: transpose(matrix) };
     case 'multiply': {
-      if (!secondMatrix) throw new Error('multiply requires secondRange');
+      if (!secondMatrix)
+        throw new ValidationError(
+          'multiply requires secondRange',
+          'secondRange',
+          'a valid A1 range string'
+        );
       return { matrix: matrixMultiply(matrix, secondMatrix) };
     }
     case 'determinant': {
       if (matrix.length !== matrix[0]?.length)
-        throw new Error('Determinant requires a square matrix');
+        throw new ValidationError(
+          'Determinant requires a square matrix',
+          'range',
+          'NxN square range'
+        );
       return { scalar: determinant(matrix) };
     }
     case 'inverse': {
-      if (matrix.length !== matrix[0]?.length) throw new Error('Inverse requires a square matrix');
+      if (matrix.length !== matrix[0]?.length)
+        throw new ValidationError('Inverse requires a square matrix', 'range', 'NxN square range');
       return { matrix: invertMatrix(matrix) };
     }
     case 'trace': {
-      if (matrix.length !== matrix[0]?.length) throw new Error('Trace requires a square matrix');
+      if (matrix.length !== matrix[0]?.length)
+        throw new ValidationError('Trace requires a square matrix', 'range', 'NxN square range');
       let sum = 0;
       for (let i = 0; i < matrix.length; i++) sum += matrix[i]![i]!;
       return { scalar: sum };
@@ -623,11 +653,19 @@ export function matrixOp(
       return { scalar: computeRank(matrix) };
     case 'eigenvalues': {
       if (matrix.length !== matrix[0]?.length)
-        throw new Error('Eigenvalues requires a square matrix');
+        throw new ValidationError(
+          'Eigenvalues requires a square matrix',
+          'range',
+          'NxN square range'
+        );
       return { eigenvalues: computeEigenvaluesQR(matrix) };
     }
     default:
-      throw new Error(`Unsupported matrix operation: ${operation}`);
+      throw new ValidationError(
+        `Unsupported matrix operation: ${operation}`,
+        'operation',
+        'transpose | multiply | determinant | inverse | trace | rank | eigenvalues'
+      );
   }
 }
 

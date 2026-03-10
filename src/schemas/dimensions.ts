@@ -179,7 +179,11 @@ const ShowDimensionActionSchema = CommonFieldsSchema.extend({
 });
 
 const FreezeDimensionActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('freeze').describe('Freeze rows from top or columns from left'),
+  action: z
+    .literal('freeze')
+    .describe(
+      'Freeze rows or columns. Examples: freeze header row → {dimension:"ROWS",count:1}; freeze first column → {dimension:"COLUMNS",count:1}; unfreeze → {dimension:"ROWS",count:0}. To freeze both rows and columns, make two calls. Do NOT use {rows:N,columns:N} — use separate dimension+count params.'
+    ),
   dimension: DimensionSchema.describe('ROWS or COLUMNS'),
   count: z.number().int().min(0).describe('Number to freeze (0 = unfreeze all)'),
   position: z

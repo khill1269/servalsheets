@@ -143,8 +143,8 @@ const ACTION_TEMPLATES: Record<string, Partial<ExecutableAction>> = {
     category: 'data_cleaning',
   },
   set_validation: {
-    tool: 'sheets_data',
-    action: 'set_validation',
+    tool: 'sheets_format',
+    action: 'set_data_validation',
     risk: 'low',
     reversible: true,
     requiresConfirmation: false,
@@ -180,7 +180,7 @@ const ACTION_TEMPLATES: Record<string, Partial<ExecutableAction>> = {
   // Structure actions
   freeze_rows: {
     tool: 'sheets_dimensions',
-    action: 'freeze_rows',
+    action: 'freeze',
     risk: 'none',
     reversible: true,
     requiresConfirmation: false,

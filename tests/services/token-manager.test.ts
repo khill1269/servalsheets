@@ -24,14 +24,14 @@ describe('TokenManager', () => {
       credentials: {
         access_token: 'test-access-token',
         refresh_token: 'test-refresh-token',
-        expiry_date: Date.now() + 3600000, // 1 hour from now
+        expiry_date: 1704067200000 + 3600000, // 1 hour from now
       },
       setCredentials: vi.fn(),
       refreshAccessToken: vi.fn().mockResolvedValue({
         credentials: {
           access_token: 'new-access-token',
           refresh_token: 'test-refresh-token',
-          expiry_date: Date.now() + 3600000,
+          expiry_date: 1704067200000 + 3600000,
         },
       }),
     };
@@ -84,7 +84,7 @@ describe('TokenManager', () => {
     it('should indicate missing refresh token', () => {
       mockOAuthClient.credentials = {
         access_token: 'test-access-token',
-        expiry_date: Date.now() + 3600000,
+        expiry_date: 1704067200000 + 3600000,
       };
 
       const status = tokenManager.getTokenStatus();
@@ -112,7 +112,7 @@ describe('TokenManager', () => {
       mockOAuthClient.credentials = {
         access_token: 'test-access-token',
         refresh_token: 'test-refresh-token',
-        expiry_date: Date.now() + 600000, // 10 minutes
+        expiry_date: 1704067200000 + 600000, // 10 minutes
       };
 
       const status = tokenManager.getTokenStatus();
@@ -126,7 +126,7 @@ describe('TokenManager', () => {
       mockOAuthClient.credentials = {
         access_token: 'test-access-token',
         refresh_token: 'test-refresh-token',
-        expiry_date: Date.now() + 3000000, // 50 minutes
+        expiry_date: 1704067200000 + 3000000, // 50 minutes
       };
 
       const status = tokenManager.getTokenStatus();
@@ -243,7 +243,7 @@ describe('TokenManager', () => {
       mockOAuthClient.credentials = {
         access_token: 'test-access-token',
         refresh_token: 'test-refresh-token',
-        expiry_date: Date.now() + 3000000,
+        expiry_date: 1704067200000 + 3000000,
       };
 
       const result = await tokenManager.checkAndRefresh();
@@ -257,7 +257,7 @@ describe('TokenManager', () => {
       mockOAuthClient.credentials = {
         access_token: 'test-access-token',
         refresh_token: 'test-refresh-token',
-        expiry_date: Date.now() + 600000,
+        expiry_date: 1704067200000 + 600000,
       };
 
       const result = await tokenManager.checkAndRefresh();
@@ -269,7 +269,7 @@ describe('TokenManager', () => {
     it('should not refresh if no refresh token available', async () => {
       mockOAuthClient.credentials = {
         access_token: 'test-access-token',
-        expiry_date: Date.now() + 600000,
+        expiry_date: 1704067200000 + 600000,
       };
 
       const result = await tokenManager.checkAndRefresh();
@@ -391,7 +391,7 @@ describe('TokenManager', () => {
         credentials: {
           access_token: 'new-token',
           refresh_token: 'test-refresh-token',
-          expiry_date: Date.now() + 3600000,
+          expiry_date: 1704067200000 + 3600000,
         },
       });
       await tokenManager.refreshToken();
@@ -484,14 +484,14 @@ describe('TokenManager', () => {
         credentials: {
           access_token: 'new-token',
           refresh_token: 'new-refresh',
-          expiry_date: Date.now() + 1800000,
+          expiry_date: 1704067200000 + 1800000,
         },
         setCredentials: vi.fn(),
         refreshAccessToken: vi.fn().mockResolvedValue({
           credentials: {
             access_token: 'refreshed-token',
             refresh_token: 'new-refresh',
-            expiry_date: Date.now() + 3600000,
+            expiry_date: 1704067200000 + 3600000,
           },
         }),
       };
@@ -517,7 +517,7 @@ describe('TokenManager', () => {
       mockOAuthClient.credentials = {
         access_token: 'test-access-token',
         refresh_token: 'test-refresh-token',
-        expiry_date: Date.now() + 1200000,
+        expiry_date: 1704067200000 + 1200000,
       };
 
       const status = customManager.getTokenStatus();

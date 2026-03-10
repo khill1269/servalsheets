@@ -18,6 +18,7 @@ import path from 'path';
 import { assertSamplingConsent as assertGlobalSamplingConsent } from '../mcp/sampling.js';
 import { logger } from '../utils/logger.js';
 import { createRequestAbortError, getRequestContext } from '../utils/request-context.js';
+import { NotFoundError, ValidationError } from '../core/errors.js';
 
 interface SamplingTextContent {
   type: 'text';
@@ -903,7 +904,7 @@ export async function executePlan(
 ): Promise<PlanState> {
   const plan = planStore.get(planId);
   if (!plan) {
-    throw new Error(`Plan ${planId} not found`);
+    throw new NotFoundError('plan', planId);
   }
 
   if (dryRun) {
@@ -991,12 +992,12 @@ export async function executeStep(
 ): Promise<StepResult> {
   const plan = planStore.get(planId);
   if (!plan) {
-    throw new Error(`Plan ${planId} not found`);
+    throw new NotFoundError('plan', planId);
   }
 
   const step = plan.steps.find((s) => s.stepId === stepId);
   if (!step) {
-    throw new Error(`Step ${stepId} not found in plan ${planId}`);
+    throw new NotFoundError('step', `${stepId} in plan ${planId}`);
   }
 
   const startTime = new Date().toISOString();
@@ -1059,7 +1060,7 @@ export function createCheckpoint(
 ): Checkpoint {
   const plan = planStore.get(planId);
   if (!plan) {
-    throw new Error(`Plan ${planId} not found`);
+    throw new NotFoundError('plan', planId);
   }
 
   const checkpoint: Checkpoint = {
@@ -1086,12 +1087,12 @@ export function createCheckpoint(
 export function rollbackToPlan(planId: string, checkpointId: string): PlanState {
   const plan = planStore.get(planId);
   if (!plan) {
-    throw new Error(`Plan ${planId} not found`);
+    throw new NotFoundError('plan', planId);
   }
 
   const checkpoint = plan.checkpoints.find((c) => c.checkpointId === checkpointId);
   if (!checkpoint) {
-    throw new Error(`Checkpoint ${checkpointId} not found in plan ${planId}`);
+    throw new NotFoundError('checkpoint', `${checkpointId} in plan ${planId}`);
   }
 
   // Remove results after checkpoint
@@ -1152,18 +1153,22 @@ export async function resumePlan(
 ): Promise<PlanState> {
   const plan = planStore.get(planId);
   if (!plan) {
-    throw new Error(`Plan ${planId} not found`);
+    throw new NotFoundError('plan', planId);
   }
 
   if (plan.status !== 'paused') {
-    throw new Error(`Plan ${planId} is not paused (status: ${plan.status})`);
+    throw new ValidationError(
+      `Plan ${planId} is not paused (status: ${plan.status})`,
+      'planId',
+      'plan in paused status'
+    );
   }
 
   // Determine resume position
   if (fromStepId) {
     const stepIdx = plan.steps.findIndex((s) => s.stepId === fromStepId);
     if (stepIdx < 0) {
-      throw new Error(`Step ${fromStepId} not found in plan ${planId}`);
+      throw new NotFoundError('step', `${fromStepId} in plan ${planId}`);
     }
     plan.currentStepIndex = stepIdx;
   }

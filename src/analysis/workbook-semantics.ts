@@ -685,7 +685,7 @@ function generateSuggestions(
     case 'database':
       suggestions.push('Use sheets_data.find_replace for bulk data updates');
       suggestions.push('Use sheets_fix.detect_anomalies to find outlier records');
-      suggestions.push('Use sheets_advanced.set_data_validation for data integrity');
+      suggestions.push('Use sheets_format.set_data_validation for data integrity');
       break;
     case 'dashboard':
       suggestions.push('Use sheets_visualize.chart_update to refresh dashboard charts');

@@ -92,7 +92,7 @@ describe('SchemaValidator', () => {
       compareSchemas: vi.fn().mockReturnValue({
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [],
         deprecatedFields: [],
         changedFields: [],
@@ -200,7 +200,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [],
         deprecatedFields: [],
         changedFields: [],
@@ -223,7 +223,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [
           { path: 'Spreadsheet.metadata', type: 'object', description: 'Additional metadata' },
         ],
@@ -249,7 +249,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [],
         deprecatedFields: [
           {
@@ -279,7 +279,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [],
         deprecatedFields: [],
         changedFields: [{ path: 'Spreadsheet.rowCount', oldType: 'integer', newType: 'string' }],
@@ -303,7 +303,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [],
         deprecatedFields: [],
         changedFields: [],
@@ -327,7 +327,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [],
         deprecatedFields: [],
         changedFields: [],
@@ -356,7 +356,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [{ path: 'Spreadsheet.newField', type: 'string', description: 'New field' }],
         deprecatedFields: [
           {
@@ -389,7 +389,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [],
         deprecatedFields: [],
         changedFields: [],
@@ -412,7 +412,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [],
         deprecatedFields: [
           {
@@ -441,7 +441,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [],
         deprecatedFields: [],
         changedFields: [
@@ -467,7 +467,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [
           { path: 'Spreadsheet.newField1', type: 'string', description: 'New field 1' },
           { path: 'Spreadsheet.newField2', type: 'object', description: 'New field 2' },
@@ -492,7 +492,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [],
         deprecatedFields: [],
         changedFields: [],
@@ -513,7 +513,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [],
         deprecatedFields: [],
         changedFields: [],
@@ -535,7 +535,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [],
         deprecatedFields: [],
         changedFields: [],
@@ -555,7 +555,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [
           { path: 'Field1', type: 'string', description: 'New' },
           { path: 'Field2', type: 'string', description: 'New' },
@@ -576,7 +576,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: Array.from({ length: 10 }, (_, i) => ({
           path: `Field${i}`,
           type: 'string',
@@ -598,7 +598,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: Array.from({ length: 20 }, (_, i) => ({
           path: `Field${i}`,
           type: 'string',
@@ -620,7 +620,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [],
         deprecatedFields: [],
         changedFields: [],
@@ -640,7 +640,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'drive',
         version: 'v3',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [],
         deprecatedFields: [],
         changedFields: [],
@@ -658,7 +658,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        timestamp: Date.now(),
+        timestamp: 1704067200000,
         newFields: [{ path: 'Field1', type: 'string', description: 'New' }],
         deprecatedFields: [
           { path: 'Field2', deprecationMessage: 'Old', removalDate: '2025-12-31' },

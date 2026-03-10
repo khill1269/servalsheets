@@ -41,6 +41,7 @@ import {
 } from '../types/transaction.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
 import { getEnv } from '../config/env.js';
+import { ServiceError, ValidationError, NotFoundError } from '../core/errors.js';
 
 interface WalEntry {
   seq?: number;
@@ -145,11 +146,16 @@ export class TransactionManager {
     } = {}
   ): Promise<string> {
     if (!this.config.enabled) {
-      throw new Error('Transactions are disabled');
+      throw new ServiceError('Transactions are disabled', 'CONFIG_ERROR', 'TransactionManager');
     }
 
     if (this.activeTransactions.size >= this.config.maxConcurrentTransactions) {
-      throw new Error('Maximum concurrent transactions reached');
+      throw new ServiceError(
+        'Maximum concurrent transactions reached',
+        'QUOTA_EXCEEDED',
+        'TransactionManager',
+        true
+      );
     }
 
     const transactionId = uuidv4();
@@ -210,13 +216,20 @@ export class TransactionManager {
     // FIX: Allow both 'pending' and 'queued' states (Issue #4)
     // After first queue(), status changes to 'queued', so we need to accept both
     if (transaction.status !== 'pending' && transaction.status !== 'queued') {
-      throw new Error(
-        `Transaction ${transactionId} is not in pending/queued state (current: ${transaction.status})`
+      throw new ValidationError(
+        `Transaction ${transactionId} is not in pending/queued state (current: ${transaction.status})`,
+        'transactionId',
+        'transaction in pending or queued state'
       );
     }
 
     if (transaction.operations.length >= this.config.maxOperationsPerTransaction) {
-      throw new Error('Maximum operations per transaction reached');
+      throw new ServiceError(
+        'Maximum operations per transaction reached',
+        'QUOTA_EXCEEDED',
+        'TransactionManager',
+        false
+      );
     }
 
     const operationId = `op_${this.operationIdCounter++}`;
@@ -288,7 +301,12 @@ export class TransactionManager {
       // Check for failures
       const failedOps = operationResults.filter((r) => !r.success);
       if (failedOps.length > 0 && transaction.autoRollback) {
-        throw new Error(`${failedOps.length} operation(s) failed: ${failedOps[0]!.error?.message}`);
+        throw new ServiceError(
+          `${failedOps.length} operation(s) failed: ${failedOps[0]!.error?.message}`,
+          'TRANSACTION_CONFLICT',
+          'TransactionManager',
+          true
+        );
       }
 
       transaction.status = 'committed';
@@ -449,7 +467,7 @@ export class TransactionManager {
   getTransaction(transactionId: string): Transaction {
     const transaction = this.activeTransactions.get(transactionId);
     if (!transaction) {
-      throw new Error(`Transaction ${transactionId} not found`);
+      throw new NotFoundError('transaction', transactionId);
     }
     return transaction;
   }
@@ -463,9 +481,10 @@ export class TransactionManager {
     this.log(`Creating snapshot for spreadsheet: ${spreadsheetId}`);
 
     if (!this.googleClient) {
-      throw new Error(
-        'Transaction manager requires Google API client for snapshots. ' +
-          'Simulated snapshots have been removed for production safety.'
+      throw new ServiceError(
+        'Transaction manager requires Google API client for snapshots. Simulated snapshots have been removed for production safety.',
+        'SERVICE_NOT_INITIALIZED',
+        'TransactionManager'
       );
     }
 
@@ -491,10 +510,10 @@ export class TransactionManager {
           serializationError instanceof RangeError &&
           String(serializationError.message).includes('string longer than')
         ) {
-          throw new Error(
-            'Snapshot too large to serialize (exceeds 512MB JavaScript limit). ' +
-              'This spreadsheet is too large for transactional snapshots. ' +
-              'Options: (1) Disable autoSnapshot, (2) Use sheets_history for undo, (3) Reduce spreadsheet size.'
+          throw new ServiceError(
+            'Snapshot too large to serialize (exceeds 512MB JavaScript limit). This spreadsheet is too large for transactional snapshots. Options: (1) Disable autoSnapshot, (2) Use sheets_history for undo, (3) Reduce spreadsheet size.',
+            'PAYLOAD_TOO_LARGE',
+            'TransactionManager'
           );
         }
         throw serializationError;
@@ -503,10 +522,10 @@ export class TransactionManager {
       // Enforce snapshot size limit (prevent memory exhaustion)
       const MAX_SNAPSHOT_SIZE = 50 * 1024 * 1024; // 50MB limit
       if (size > MAX_SNAPSHOT_SIZE) {
-        throw new Error(
-          `Snapshot too large: ${Math.round(size / 1024 / 1024)}MB exceeds ${MAX_SNAPSHOT_SIZE / 1024 / 1024}MB limit. ` +
-            `This spreadsheet has too much metadata for transactional snapshots. ` +
-            `Options: (1) Begin transaction with autoSnapshot: false, (2) Use sheets_history instead, (3) Reduce number of sheets.`
+        throw new ServiceError(
+          `Snapshot too large: ${Math.round(size / 1024 / 1024)}MB exceeds ${MAX_SNAPSHOT_SIZE / 1024 / 1024}MB limit. This spreadsheet has too much metadata for transactional snapshots. Options: (1) Begin transaction with autoSnapshot: false, (2) Use sheets_history instead, (3) Reduce number of sheets.`,
+          'PAYLOAD_TOO_LARGE',
+          'TransactionManager'
         );
       }
 
@@ -644,7 +663,11 @@ export class TransactionManager {
    */
   private validateOperations(transaction: Transaction): void {
     if (transaction.operations.length === 0) {
-      throw new Error('No operations to commit');
+      throw new ValidationError(
+        'No operations to commit',
+        'operations',
+        'non-empty operations list'
+      );
     }
 
     // Check for circular dependencies
@@ -671,7 +694,11 @@ export class TransactionManager {
 
     for (const op of transaction.operations) {
       if (hasCycle(op.id)) {
-        throw new Error('Circular dependency detected in operations');
+        throw new ValidationError(
+          'Circular dependency detected in operations',
+          'operations',
+          'acyclic dependency graph'
+        );
       }
     }
   }
@@ -711,10 +738,10 @@ export class TransactionManager {
 
     // Throw if no operations could be converted
     if (requests.length === 0 && operations.length > 0) {
-      throw new Error(
-        `None of the ${operations.length} queued operation(s) could be converted to batch requests. ` +
-          `Unconverted operations: ${unconvertedOps.join(', ')}. ` +
-          `Please use supported operations or execute them individually outside of transactions.`
+      throw new ValidationError(
+        `None of the ${operations.length} queued operation(s) could be converted to batch requests. Unconverted operations: ${unconvertedOps.join(', ')}. Please use supported operations or execute them individually outside of transactions.`,
+        'operations',
+        'operations convertible to batch requests'
       );
     }
 
@@ -1161,9 +1188,10 @@ export class TransactionManager {
     );
 
     if (!this.googleClient) {
-      throw new Error(
-        'Transaction manager requires Google API client for execution. ' +
-          'Simulated execution has been removed for production safety.'
+      throw new ServiceError(
+        'Transaction manager requires Google API client for execution. Simulated execution has been removed for production safety.',
+        'SERVICE_NOT_INITIALIZED',
+        'TransactionManager'
       );
     }
 
@@ -1524,7 +1552,7 @@ export class TransactionManager {
   async discardOrphanedTransaction(transactionId: string): Promise<void> {
     const exists = this.walOrphanedTransactions.some((tx) => tx.transactionId === transactionId);
     if (!exists) {
-      throw new Error(`No orphaned transaction found: ${transactionId}`);
+      throw new NotFoundError('orphaned transaction', transactionId);
     }
     if (this.walEnabled) {
       await this.compactWal(transactionId);
@@ -1639,7 +1667,11 @@ export function initTransactionManager(
  */
 export function getTransactionManager(): TransactionManager {
   if (!transactionManagerInstance) {
-    throw new Error('Transaction manager not initialized. Call initTransactionManager() first.');
+    throw new ServiceError(
+      'Transaction manager not initialized. Call initTransactionManager() first.',
+      'SERVICE_NOT_INITIALIZED',
+      'TransactionManager'
+    );
   }
   return transactionManagerInstance;
 }
@@ -1650,7 +1682,11 @@ export function getTransactionManager(): TransactionManager {
  */
 export function resetTransactionManager(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetTransactionManager() can only be called in test environment');
+    throw new ServiceError(
+      'resetTransactionManager() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'TransactionManager'
+    );
   }
   transactionManagerInstance = null;
 }

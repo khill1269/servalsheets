@@ -34,7 +34,7 @@ vi.mock('../../src/services/conflict-detector.js', () => ({
     resolveConflict: vi.fn().mockResolvedValue({
       success: true,
       changesApplied: true,
-      finalVersion: { version: 1, timestamp: new Date().toISOString() },
+      finalVersion: { version: 1, timestamp: new Date('2024-01-15T00:00:00Z').toISOString() },
     }),
   })),
 }));
@@ -179,7 +179,7 @@ describe('QualityHandler', () => {
           {
             type: 'update',
             range: 'Sheet1!A1:B2',
-            timestamp: new Date().toISOString(),
+            timestamp: new Date('2024-01-15T00:00:00Z').toISOString(),
             userId: 'user1',
           },
         ],

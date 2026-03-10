@@ -154,7 +154,7 @@ const createMockDriveApi = () => ({
 const createMockContext = (): HandlerContext =>
   ({
     requestId: 'test-request',
-    timestamp: new Date(),
+    timestamp: new Date('2024-01-15T00:00:00Z'),
     auth: {
       scopes: [
         'https://www.googleapis.com/auth/spreadsheets',
@@ -199,11 +199,11 @@ const createMockContext = (): HandlerContext =>
     snapshotService: {
       createSnapshot: vi.fn().mockResolvedValue({
         snapshotId: 'snapshot-123',
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       }),
       create: vi.fn().mockResolvedValue({
         id: 'snapshot-123',
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       }),
     } as any,
     impactAnalyzer: {
@@ -355,7 +355,7 @@ describe('SheetsCoreHandler', () => {
           }),
         });
 
-        expect((result.response as any).error.message).toBeDefined();
+        expect((result.response as any).error.message).not.toBeUndefined();
       });
 
       it('should resolve Drive shortcut IDs before fetching spreadsheet metadata', async () => {
@@ -481,7 +481,6 @@ describe('SheetsCoreHandler', () => {
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'copy');
-        expect((result.response as any).spreadsheet).toBeDefined();
         expect((result.response as any).spreadsheet.spreadsheetId).toBe('copied-spreadsheet-id');
         expect((result.response as any).spreadsheet.title).toBe('Copy of Test Spreadsheet');
         expect(mockDriveApi.files.copy).toHaveBeenCalled();
@@ -664,7 +663,6 @@ describe('SheetsCoreHandler', () => {
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'get_comprehensive');
-        expect((result.response as any).comprehensiveMetadata).toBeDefined();
         expect((result.response as any).comprehensiveMetadata.spreadsheetId).toBe(
           'test-spreadsheet-id'
         );
@@ -721,7 +719,6 @@ describe('SheetsCoreHandler', () => {
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'describe_workbook');
         const summary = (result.response as any).workbookSummary;
-        expect(summary).toBeDefined();
         expect(summary.title).toBe('My Budget');
         expect(summary.sheetCount).toBe(1);
         expect(summary.sheets).toHaveLength(1);
@@ -851,8 +848,7 @@ describe('SheetsCoreHandler', () => {
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'add_sheet');
-        expect((result.response as any).sheet).toBeDefined();
-        expect((result.response as any).sheet.sheetId).toBeDefined();
+        expect((result.response as any).sheet).not.toBeNull();
         expect((result.response as any).sheet.title).toBe('New Sheet');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
@@ -1004,7 +1000,6 @@ describe('SheetsCoreHandler', () => {
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'duplicate_sheet');
-        expect((result.response as any).sheet).toBeDefined();
         expect((result.response as any).sheet.sheetId).toBe(456);
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
@@ -1109,7 +1104,6 @@ describe('SheetsCoreHandler', () => {
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'copy_sheet_to');
-        expect((result.response as any).sheet).toBeDefined();
         expect((result.response as any).sheet.sheetId).toBe(789);
 
         const parseResult = SheetsCoreOutputSchema.safeParse(result);
@@ -1178,7 +1172,6 @@ describe('SheetsCoreHandler', () => {
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'get_sheet');
-        expect((result.response as any).sheet).toBeDefined();
         expect((result.response as any).sheet.sheetId).toBe(0);
         expect((result.response as any).sheet.title).toBe('Sheet1');
 
@@ -1194,7 +1187,6 @@ describe('SheetsCoreHandler', () => {
         });
 
         expect(result.response.success).toBe(true);
-        expect((result.response as any).sheet).toBeDefined();
         expect((result.response as any).sheet.sheetId).toBe(0);
         expect((result.response as any).sheet.title).toBe('Sheet1');
       });

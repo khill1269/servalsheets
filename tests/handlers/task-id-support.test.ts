@@ -169,14 +169,14 @@ describe('handler task ID cleanup', () => {
           credentials: {
             access_token: 'test-token',
             refresh_token: 'test-refresh',
-            expiry_date: Date.now() + 3600000,
+            expiry_date: 1704067200000 + 3600000,
           },
           getAccessToken: vi.fn().mockResolvedValue({ token: 'test-token' }),
         },
         getTokenStatus: vi.fn().mockReturnValue({
           hasAccessToken: true,
           hasRefreshToken: true,
-          expiryDate: Date.now() + 3600000,
+          expiryDate: 1704067200000 + 3600000,
         }),
       } as any,
       taskStore: taskStore as unknown as HandlerContext['taskStore'],

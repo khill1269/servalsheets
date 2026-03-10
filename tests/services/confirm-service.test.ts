@@ -253,7 +253,7 @@ describe('ConfirmService', () => {
         },
       };
 
-      const result = service.processElicitationResult(elicitResult, Date.now() - 1000);
+      const result = service.processElicitationResult(elicitResult, 1704067200000 - 1000);
 
       expect(result.approved).toBe(true);
       expect(result.action).toBe('accept');
@@ -266,7 +266,7 @@ describe('ConfirmService', () => {
         action: 'decline',
       };
 
-      const result = service.processElicitationResult(elicitResult, Date.now() - 500);
+      const result = service.processElicitationResult(elicitResult, 1704067200000 - 500);
 
       expect(result.approved).toBe(false);
       expect(result.action).toBe('decline');
@@ -278,7 +278,7 @@ describe('ConfirmService', () => {
         action: 'cancel',
       };
 
-      const result = service.processElicitationResult(elicitResult, Date.now() - 200);
+      const result = service.processElicitationResult(elicitResult, 1704067200000 - 200);
 
       expect(result.approved).toBe(false);
       expect(result.action).toBe('cancel');
@@ -288,13 +288,13 @@ describe('ConfirmService', () => {
       // Process multiple results
       service.processElicitationResult(
         { action: 'accept', content: { approved: true } },
-        Date.now() - 1000
+        1704067200000 - 1000
       );
       service.processElicitationResult(
         { action: 'accept', content: { approved: true } },
-        Date.now() - 800
+        1704067200000 - 800
       );
-      service.processElicitationResult({ action: 'decline' }, Date.now() - 600);
+      service.processElicitationResult({ action: 'decline' }, 1704067200000 - 600);
 
       const stats = service.getStats();
 
@@ -666,17 +666,17 @@ describe('ConfirmService', () => {
       // 3 approvals out of 4 total = 75%
       service.processElicitationResult(
         { action: 'accept', content: { approved: true } },
-        Date.now()
+        1704067200000
       );
       service.processElicitationResult(
         { action: 'accept', content: { approved: true } },
-        Date.now()
+        1704067200000
       );
       service.processElicitationResult(
         { action: 'accept', content: { approved: true } },
-        Date.now()
+        1704067200000
       );
-      service.processElicitationResult({ action: 'decline' }, Date.now());
+      service.processElicitationResult({ action: 'decline' }, 1704067200000);
 
       const stats = service.getStats();
       expect(stats.approvalRate).toBe(75);
@@ -686,13 +686,13 @@ describe('ConfirmService', () => {
       // Process with known response times
       service.processElicitationResult(
         { action: 'accept', content: { approved: true } },
-        Date.now() - 1000
+        1704067200000 - 1000
       ); // 1000ms
       service.processElicitationResult(
         { action: 'accept', content: { approved: true } },
-        Date.now() - 2000
+        1704067200000 - 2000
       ); // 2000ms
-      service.processElicitationResult({ action: 'decline' }, Date.now() - 3000); // 3000ms
+      service.processElicitationResult({ action: 'decline' }, 1704067200000 - 3000); // 3000ms
 
       const stats = service.getStats();
 
@@ -704,9 +704,9 @@ describe('ConfirmService', () => {
       // Add some data
       service.processElicitationResult(
         { action: 'accept', content: { approved: true } },
-        Date.now()
+        1704067200000
       );
-      service.processElicitationResult({ action: 'decline' }, Date.now());
+      service.processElicitationResult({ action: 'decline' }, 1704067200000);
 
       let stats = service.getStats();
       expect(stats.totalConfirmations).toBe(2);
@@ -728,7 +728,7 @@ describe('ConfirmService', () => {
       for (let i = 0; i < 150; i++) {
         service.processElicitationResult(
           { action: 'accept', content: { approved: true } },
-          Date.now() - 100
+          1704067200000 - 100
         );
       }
 
@@ -761,7 +761,7 @@ describe('ConfirmService', () => {
       const service1 = getConfirmationService();
       service1.processElicitationResult(
         { action: 'accept', content: { approved: true } },
-        Date.now()
+        1704067200000
       );
 
       const service2 = getConfirmationService();

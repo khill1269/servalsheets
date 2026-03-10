@@ -219,7 +219,7 @@ describe('BaseHandler', () => {
       const result = handler.testSuccess('write', data);
 
       // Should have auto-generated metadata
-      expect(result._meta).toBeDefined();
+      expect(result._meta?.costEstimate).toBeDefined();
     });
 
     it('should NOT include metadata for minimal verbosity', () => {
@@ -234,7 +234,7 @@ describe('BaseHandler', () => {
       handler.testSetVerbosity('standard');
 
       const result = handler.testSuccess('write', { updatedCells: 15 });
-      expect(result._meta).toBeDefined();
+      expect(result._meta?.costEstimate).toBeDefined();
     });
 
     it('should omit undefined optional fields from response', () => {
@@ -531,7 +531,8 @@ describe('BaseHandler', () => {
         { cellsAffected: 10 }
       );
 
-      expect(meta).toBeDefined();
+      expect(meta).not.toBeNull();
+      expect(meta.costEstimate).toBeDefined();
     });
 
     it('should handle metadata generation with options', () => {
@@ -547,7 +548,8 @@ describe('BaseHandler', () => {
         }
       );
 
-      expect(meta).toBeDefined();
+      expect(meta).not.toBeNull();
+      expect(meta.costEstimate).toBeDefined();
     });
   });
 
@@ -648,7 +650,7 @@ describe('BaseHandler', () => {
       const data = { value: 1 };
       const result = handler.testSuccess('test', data);
 
-      expect(result._meta).toBeDefined();
+      expect(result._meta?.costEstimate).toBeDefined();
     });
 
     it('should set verbosity to detailed', () => {
@@ -656,7 +658,7 @@ describe('BaseHandler', () => {
       const data = { value: 1 };
       const result = handler.testSuccess('test', data);
 
-      expect(result._meta).toBeDefined();
+      expect(result._meta?.costEstimate).toBeDefined();
     });
   });
 
@@ -683,7 +685,7 @@ describe('BaseHandler', () => {
 
       const filtered = handler.testApplyVerbosityFilter(response, 'standard');
 
-      expect(filtered._meta).toBeDefined();
+      expect(filtered._meta).toEqual({ costEstimate: { tokens: 100 } });
       expect(filtered.value).toBe(1);
     });
 
@@ -750,7 +752,7 @@ describe('BaseHandler', () => {
 
       const filtered = handler.testApplyVerbosityFilter(response, 'minimal');
 
-      expect(filtered._meta).toBeDefined();
+      expect(filtered._meta).toEqual({ costEstimate: { tokens: 100 } });
     });
   });
 
@@ -761,7 +763,7 @@ describe('BaseHandler', () => {
 
       const result = handler.testMapError(error);
 
-      expect(result.error.details).toBeDefined();
+      expect(result.error.details?.['resourceId']).toBe('sheet-abc-123');
     });
 
     it('should clear spreadsheet ID when set to undefined', () => {
@@ -874,7 +876,7 @@ describe('BaseHandler', () => {
       expect(result.success).toBe(true);
       expect(result.range).toBe('Sheet1!A1:C5');
       expect(result.updatedCells).toBe(15);
-      expect(result._meta).toBeDefined();
+      expect(result._meta?.costEstimate).toBeDefined();
     });
   });
 
@@ -916,7 +918,7 @@ describe('BaseHandler', () => {
       const tracer = getTracer();
       tracer.clearSpans();
 
-      const spreadsheetId = `sheet-trace-${Date.now()}`;
+      const spreadsheetId = `sheet-trace-1704067200000`;
       const mockSheetsApi = {
         spreadsheets: {
           get: vi.fn().mockResolvedValue({

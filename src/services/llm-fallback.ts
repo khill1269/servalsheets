@@ -20,6 +20,7 @@
 
 import { logger } from '../utils/logger.js';
 import { assertSamplingConsent, withSamplingTimeout } from '../mcp/sampling.js';
+import { ServiceError, ConfigError } from '../core/errors.js';
 
 // ============================================================================
 // Types
@@ -143,8 +144,11 @@ async function callAnthropic(
   if (!response.ok) {
     const errorBody = await response.text();
     logger.error('Anthropic API request failed', { status: response.status, error: errorBody });
-    throw new Error(
-      `AI analysis service temporarily unavailable (status ${response.status}). Please try again.`
+    throw new ServiceError(
+      `AI analysis service temporarily unavailable (status ${response.status}). Please try again.`,
+      'UNAVAILABLE',
+      'Anthropic',
+      true
     );
   }
 
@@ -204,8 +208,11 @@ async function callOpenAI(
   if (!response.ok) {
     const errorBody = await response.text();
     logger.error('OpenAI API request failed', { status: response.status, error: errorBody });
-    throw new Error(
-      `AI analysis service temporarily unavailable (status ${response.status}). Please try again.`
+    throw new ServiceError(
+      `AI analysis service temporarily unavailable (status ${response.status}). Please try again.`,
+      'UNAVAILABLE',
+      'OpenAI',
+      true
     );
   }
 
@@ -260,8 +267,11 @@ async function callGoogle(
   if (!response.ok) {
     const errorBody = await response.text();
     logger.error('Google Gemini API request failed', { status: response.status, error: errorBody });
-    throw new Error(
-      `AI analysis service temporarily unavailable (status ${response.status}). Please try again.`
+    throw new ServiceError(
+      `AI analysis service temporarily unavailable (status ${response.status}). Please try again.`,
+      'UNAVAILABLE',
+      'GoogleGemini',
+      true
     );
   }
 
@@ -300,8 +310,9 @@ export async function createLLMMessage(options: LLMRequestOptions): Promise<LLMR
   const config = getLLMFallbackConfig();
 
   if (!config) {
-    throw new Error(
-      'LLM fallback not configured. Set LLM_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.'
+    throw new ConfigError(
+      'LLM fallback not configured. Set LLM_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.',
+      'LLM_API_KEY'
     );
   }
 
@@ -319,7 +330,10 @@ export async function createLLMMessage(options: LLMRequestOptions): Promise<LLMR
     case 'google':
       return callGoogle(config, options);
     default:
-      throw new Error(`Unsupported LLM provider: ${config.provider}`);
+      throw new ConfigError(
+        `Unsupported LLM provider: ${(config as { provider: string }).provider}`,
+        'LLM_PROVIDER'
+      );
   }
 }
 

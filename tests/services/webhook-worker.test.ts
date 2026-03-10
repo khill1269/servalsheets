@@ -193,7 +193,7 @@ describe('WebhookWorker', () => {
         payload: { spreadsheetId: 'test-id' },
         attemptCount: 0,
         maxAttempts: 3,
-        queuedAt: Date.now(),
+        queuedAt: 1704067200000,
       };
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -225,7 +225,7 @@ describe('WebhookWorker', () => {
         secret: 'test-secret',
         attemptCount: 0,
         maxAttempts: 3,
-        queuedAt: Date.now(),
+        queuedAt: 1704067200000,
       };
     });
 
@@ -476,7 +476,7 @@ describe('WebhookWorker', () => {
         payload: {},
         attemptCount: 0,
         maxAttempts: 3,
-        queuedAt: Date.now(),
+        queuedAt: 1704067200000,
       };
 
       const job2: WebhookDeliveryJob = {
@@ -487,7 +487,7 @@ describe('WebhookWorker', () => {
         payload: {},
         attemptCount: 0,
         maxAttempts: 3,
-        queuedAt: Date.now(),
+        queuedAt: 1704067200000,
       };
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -542,7 +542,7 @@ describe('WebhookWorker', () => {
         payload: {},
         attemptCount: 0,
         maxAttempts: 3,
-        queuedAt: Date.now(),
+        queuedAt: 1704067200000,
       };
 
       (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Invalid URL'));

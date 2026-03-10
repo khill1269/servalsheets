@@ -349,10 +349,9 @@ function detectFormattingPatterns(scoutResult: ScoutResult, spreadsheetId: strin
       impact: 'low_risk',
       action: {
         tool: 'sheets_format',
-        action: 'rule_add_conditional_format',
+        action: 'add_conditional_format_rule',
         params: {
           spreadsheetId,
-          sheetId: sheet.sheetId,
           range: `'${sheet.title}'!A1:${String.fromCharCode(65 + Math.min(columnTypes.length - 1, 25))}${sheet.rowCount}`,
           rulePreset: 'negative_red',
         },

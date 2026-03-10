@@ -441,26 +441,23 @@ export const FILTER_SETTINGS_SCHEMA: FormElicitParams['requestedSchema'] = {
 // ============================================================================
 
 /**
- * Safely elicit with fallback value if not supported
+ * Safely elicit with fallback value if not supported.
+ * Attempts elicitation regardless of declared capabilities — Claude Desktop
+ * handles elicitation/create even when not advertised in initialize capabilities.
+ * Falls back silently on any error (unsupported, declined, timeout).
  */
 export async function safeElicit<T>(
   server: ElicitationServer,
   params: FormElicitParams,
   fallback: T
 ): Promise<T> {
-  const caps = server.getClientCapabilities();
-  if (!caps?.elicitation?.form) {
-    return fallback;
-  }
-
   try {
     const result = await server.elicitInput(params);
     if (result.action === 'accept' && result.content) {
       return result.content as T;
     }
   } catch (_error) {
-    // Note: logger not available in elicitation module, error will be handled by caller
-    // Silently fall back to default value
+    // Client doesn't support elicitation, declined, or timed out — use fallback
   }
 
   return fallback;
@@ -474,20 +471,22 @@ export async function elicitSpreadsheetCreation(server: ElicitationServer): Prom
   locale: string;
   timeZone: string;
 } | null> {
-  assertFormElicitationSupport(server.getClientCapabilities());
+  try {
+    const result = await server.elicitInput({
+      mode: 'form',
+      message: 'Configure your new spreadsheet:',
+      requestedSchema: SPREADSHEET_CREATION_SCHEMA,
+    });
 
-  const result = await server.elicitInput({
-    mode: 'form',
-    message: 'Configure your new spreadsheet:',
-    requestedSchema: SPREADSHEET_CREATION_SCHEMA,
-  });
-
-  if (result.action === 'accept' && result.content) {
-    return {
-      title: (result.content['title'] as string) || 'Untitled Spreadsheet',
-      locale: (result.content['locale'] as string) || 'en_US',
-      timeZone: (result.content['timeZone'] as string) || 'America/New_York',
-    };
+    if (result.action === 'accept' && result.content) {
+      return {
+        title: (result.content['title'] as string) || 'Untitled Spreadsheet',
+        locale: (result.content['locale'] as string) || 'en_US',
+        timeZone: (result.content['timeZone'] as string) || 'America/New_York',
+      };
+    }
+  } catch (_error) {
+    /* client doesn't support elicitation — fall through to return null */
   }
 
   return null;
@@ -505,21 +504,23 @@ export async function elicitSharingSettings(
   sendNotification: boolean;
   message?: string;
 } | null> {
-  assertFormElicitationSupport(server.getClientCapabilities());
+  try {
+    const result = await server.elicitInput({
+      mode: 'form',
+      message: `Share "${spreadsheetTitle}" with someone:`,
+      requestedSchema: SHARING_SETTINGS_SCHEMA,
+    });
 
-  const result = await server.elicitInput({
-    mode: 'form',
-    message: `Share "${spreadsheetTitle}" with someone:`,
-    requestedSchema: SHARING_SETTINGS_SCHEMA,
-  });
-
-  if (result.action === 'accept' && result.content) {
-    return {
-      email: result.content['email'] as string,
-      role: result.content['role'] as 'reader' | 'commenter' | 'writer',
-      sendNotification: (result.content['sendNotification'] as boolean) ?? true,
-      message: result.content['message'] as string | undefined,
-    };
+    if (result.action === 'accept' && result.content) {
+      return {
+        email: result.content['email'] as string,
+        role: result.content['role'] as 'reader' | 'commenter' | 'writer',
+        sendNotification: (result.content['sendNotification'] as boolean) ?? true,
+        message: result.content['message'] as string | undefined,
+      };
+    }
+  } catch (_error) {
+    /* client doesn't support elicitation */
   }
 
   return null;
@@ -533,14 +534,7 @@ export async function confirmDestructiveAction(
   action: string,
   details: string
 ): Promise<{ confirmed: boolean; reason?: string }> {
-  const caps = server.getClientCapabilities();
-  if (!caps?.elicitation?.form) {
-    // Elicitation not available - proceed by default since user explicitly requested the action
-    // This is the safe default per MCP spec backward compatibility
-    return { confirmed: true };
-  }
-
-  // Add timeout to prevent hanging when client reports capability but doesn't respond
+  // Add timeout to prevent hanging when client doesn't respond
   const ELICITATION_TIMEOUT_MS = 5000;
 
   try {
@@ -566,8 +560,9 @@ export async function confirmDestructiveAction(
     // User declined or cancelled
     return { confirmed: false };
   } catch (_error) {
-    // Timeout or error - fail-safe: deny destructive operations
-    return { confirmed: false };
+    // Client doesn't support elicitation or timed out — proceed by default since
+    // user explicitly requested the action (safe per MCP spec backward compatibility)
+    return { confirmed: true };
   }
 }
 
@@ -581,22 +576,24 @@ export async function elicitDataImport(server: ElicitationServer): Promise<{
   headerRow: boolean;
   replaceExisting: boolean;
 } | null> {
-  assertFormElicitationSupport(server.getClientCapabilities());
+  try {
+    const result = await server.elicitInput({
+      mode: 'form',
+      message: 'Configure data import:',
+      requestedSchema: DATA_IMPORT_SCHEMA,
+    });
 
-  const result = await server.elicitInput({
-    mode: 'form',
-    message: 'Configure data import:',
-    requestedSchema: DATA_IMPORT_SCHEMA,
-  });
-
-  if (result.action === 'accept' && result.content) {
-    return {
-      sourceType: result.content['sourceType'] as 'csv_url' | 'google_sheet' | 'json_api',
-      url: result.content['url'] as string,
-      targetSheet: (result.content['targetSheet'] as string) || 'Imported Data',
-      headerRow: (result.content['headerRow'] as boolean) ?? true,
-      replaceExisting: (result.content['replaceExisting'] as boolean) ?? false,
-    };
+    if (result.action === 'accept' && result.content) {
+      return {
+        sourceType: result.content['sourceType'] as 'csv_url' | 'google_sheet' | 'json_api',
+        url: result.content['url'] as string,
+        targetSheet: (result.content['targetSheet'] as string) || 'Imported Data',
+        headerRow: (result.content['headerRow'] as boolean) ?? true,
+        replaceExisting: (result.content['replaceExisting'] as boolean) ?? false,
+      };
+    }
+  } catch (_error) {
+    /* client doesn't support elicitation */
   }
 
   return null;
@@ -1138,8 +1135,6 @@ export async function runWizard<T>(
     onStepComplete?: (stepIndex: number, data: Partial<T>) => void;
   } = {}
 ): Promise<WizardStepResult<T>> {
-  assertFormElicitationSupport(server.getClientCapabilities());
-
   let accumulated: Partial<T> = {};
 
   for (let i = 0; i < steps.length; i++) {
@@ -1147,11 +1142,17 @@ export async function runWizard<T>(
     const stepNumber = i + 1;
     const totalSteps = steps.length;
 
-    const result = await server.elicitInput({
-      mode: 'form',
-      message: `Step ${stepNumber}/${totalSteps}: ${step.message}`,
-      requestedSchema: step.schema,
-    });
+    let result: Awaited<ReturnType<typeof server.elicitInput>>;
+    try {
+      result = await server.elicitInput({
+        mode: 'form',
+        message: `Step ${stepNumber}/${totalSteps}: ${step.message}`,
+        requestedSchema: step.schema,
+      });
+    } catch (_error) {
+      // Client doesn't support elicitation — abort wizard gracefully
+      return { completed: false };
+    }
 
     if (result.action === 'cancel') {
       return { completed: false, cancelled: true };

@@ -9,6 +9,7 @@
 import type { drive_v3, sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
 import type { GoogleApiClient } from './google-api.js';
+import { NotFoundError } from '../core/errors.js';
 
 export interface TimelineEntry {
   revisionId: string;
@@ -284,11 +285,9 @@ export async function restoreCells(
 ): Promise<RestoreResult[]> {
   const { data: csv } = await exportRevisionAsCsv(driveApi, spreadsheetId, revisionId);
   if (!csv) {
-    throw new Error(
-      `Cannot export revision ${revisionId} as CSV. ` +
-        'This may happen if the revision is too old or the file format is unsupported. ' +
-        'Use sheets_collaborate version_list_revisions to find available revisions.'
-    );
+    throw new NotFoundError('revision', revisionId, {
+      hint: 'This may happen if the revision is too old or the file format is unsupported. Use sheets_collaborate version_list_revisions to find available revisions.',
+    });
   }
 
   const grid = parseCsv(csv);

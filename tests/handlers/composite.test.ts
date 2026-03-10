@@ -30,7 +30,7 @@ describe('Composite Handler', () => {
   beforeEach(() => {
     mockContext = {
       requestId: 'test-request-id',
-      timestamp: new Date(),
+      timestamp: new Date('2024-01-15T00:00:00Z'),
       capabilities: {
         supports: vi.fn(() => true),
         requireCapability: vi.fn(),

@@ -49,6 +49,7 @@ import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from '../features-2025-11-25.js';
 import { getHistoryService } from '../../services/history-service.js';
 import { getTraceAggregator } from '../../services/trace-aggregator.js';
 import { getSessionContext } from '../../services/session-context.js';
+import { getConcurrencyCoordinator } from '../../services/concurrency-coordinator.js';
 import { getCostTracker } from '../../services/cost-tracker.js';
 import { getAuditLogger } from '../../services/audit-logger.js';
 import { getCacheInvalidationGraph } from '../../services/cache-invalidation-graph.js';
@@ -1166,11 +1167,18 @@ export function buildToolResponse(
             ? structuredContent['_meta']
             : {}
         ) as Record<string, unknown>;
+        const quotaStatus = getConcurrencyCoordinator().getQuotaStatus();
         structuredContent['_meta'] = {
           ...scMeta,
           requestId: requestContext.requestId,
           ...(requestContext.traceId && { traceId: requestContext.traceId }),
           ...(requestContext.spanId && { spanId: requestContext.spanId }),
+          quotaStatus: {
+            used: quotaStatus.used,
+            limit: quotaStatus.limit,
+            utilization: Math.round(quotaStatus.utilization * 100) / 100,
+            windowRemainingMs: quotaStatus.windowRemainingMs,
+          },
         };
       }
 

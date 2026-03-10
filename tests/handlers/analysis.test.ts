@@ -89,4 +89,56 @@ describe('AnalyzeHandler', () => {
       expect(result.response.action).toBe('analyze_data');
     }
   });
+
+  it('returns error when API throws for nonexistent spreadsheetId on analyze_quality', async () => {
+    mockSheetsApi.spreadsheets.values.get.mockRejectedValue(
+      Object.assign(new Error('Spreadsheet not found'), { code: 404 })
+    );
+
+    const result = await handler.handle({
+      action: 'analyze_quality',
+      spreadsheetId: 'nonexistent-id',
+      range: { a1: 'Sheet1!A1:B3' },
+    });
+
+    expect(result.response.success).toBe(false);
+    if (!result.response.success) {
+      expect(result.response.error).toBeDefined();
+      expect(result.response.error.code).toBeDefined();
+    }
+  });
+
+  it('returns error when API throws on analyze_quality', async () => {
+    mockSheetsApi.spreadsheets.values.get.mockRejectedValue(
+      new Error('API unavailable')
+    );
+
+    const result = await handler.handle({
+      action: 'analyze_quality',
+      spreadsheetId: 'sheet-id',
+      range: { a1: 'Sheet1!A1:B3' },
+    });
+
+    expect(result.response.success).toBe(false);
+    if (!result.response.success) {
+      expect(result.response.error).toBeDefined();
+    }
+  });
+
+  it('returns error when API throws on analyze_data', async () => {
+    mockSheetsApi.spreadsheets.get.mockRejectedValue(
+      new Error('Spreadsheet not found')
+    );
+
+    const result = await handler.handle({
+      action: 'analyze_data',
+      spreadsheetId: 'nonexistent-id',
+      analysisTypes: ['summary'],
+    });
+
+    expect(result.response.success).toBe(false);
+    if (!result.response.success) {
+      expect(result.response.error).toBeDefined();
+    }
+  });
 });

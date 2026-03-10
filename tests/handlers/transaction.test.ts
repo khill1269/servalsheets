@@ -428,7 +428,7 @@ describe('TransactionHandler', () => {
           { id: 'op_3', type: 'sheet_create' },
         ],
         snapshot: { id: 'snapshot-001' },
-        startTime: Date.now() - 5000,
+        startTime: 1704067200000 - 5000,
       } as Transaction);
 
       const result = await handler.handle({
@@ -459,7 +459,7 @@ describe('TransactionHandler', () => {
         spreadsheetId: 'sheet-456',
         status: 'pending',
         operations: [],
-        startTime: Date.now(),
+        startTime: 1704067200000,
       } as Transaction);
 
       const result = await handler.handle({
@@ -502,7 +502,7 @@ describe('TransactionHandler', () => {
           spreadsheetId: 'sheet-1',
           status: 'pending',
           operations: [{ id: 'op_1', type: 'custom' }],
-          startTime: Date.now() - 5000,
+          startTime: 1704067200000 - 5000,
           isolationLevel: 'read_committed',
           snapshot: { id: 'snap-001' },
         } as Transaction,
@@ -514,7 +514,7 @@ describe('TransactionHandler', () => {
             { id: 'op_2', type: 'custom' },
             { id: 'op_3', type: 'custom' },
           ],
-          startTime: Date.now() - 3000,
+          startTime: 1704067200000 - 3000,
           isolationLevel: 'serializable',
           snapshot: { id: 'snap-002' },
         } as Transaction,
@@ -595,7 +595,7 @@ describe('TransactionHandler', () => {
           spreadsheetId: 'sheet-1',
           status: 'pending',
           operations: [],
-          startTime: Date.now() - 5000,
+          startTime: 1704067200000 - 5000,
           isolationLevel: 'read_committed',
         } as Transaction,
         {
@@ -603,7 +603,7 @@ describe('TransactionHandler', () => {
           spreadsheetId: 'sheet-2',
           status: 'queued',
           operations: [],
-          startTime: Date.now() - 3000,
+          startTime: 1704067200000 - 3000,
           isolationLevel: 'read_committed',
         } as Transaction,
         {
@@ -611,7 +611,7 @@ describe('TransactionHandler', () => {
           spreadsheetId: 'sheet-1',
           status: 'executing',
           operations: [],
-          startTime: Date.now() - 1000,
+          startTime: 1704067200000 - 1000,
           isolationLevel: 'read_committed',
         } as Transaction,
       ];
@@ -646,8 +646,8 @@ describe('TransactionHandler', () => {
     });
 
     it('should include duration for active and completed transactions', async () => {
-      const startTime = Date.now() - 10000;
-      const endTime = Date.now() - 5000;
+      const startTime = 1704067200000 - 10000;
+      const endTime = 1704067200000 - 5000;
 
       const mockTransactions = [
         {
@@ -700,7 +700,7 @@ describe('TransactionHandler', () => {
           spreadsheetId: 'sheet-1',
           status: 'pending',
           operations: [],
-          startTime: Date.now(),
+          startTime: 1704067200000,
           isolationLevel: 'read_committed',
         } as Transaction,
         {
@@ -708,7 +708,7 @@ describe('TransactionHandler', () => {
           spreadsheetId: 'sheet-1',
           status: 'pending',
           operations: [],
-          startTime: Date.now(),
+          startTime: 1704067200000,
           isolationLevel: 'read_committed',
         } as Transaction,
         {
@@ -716,7 +716,7 @@ describe('TransactionHandler', () => {
           spreadsheetId: 'sheet-1',
           status: 'queued',
           operations: [],
-          startTime: Date.now(),
+          startTime: 1704067200000,
           isolationLevel: 'read_committed',
         } as Transaction,
         {
@@ -724,8 +724,8 @@ describe('TransactionHandler', () => {
           spreadsheetId: 'sheet-1',
           status: 'committed',
           operations: [],
-          startTime: Date.now(),
-          endTime: Date.now(),
+          startTime: 1704067200000,
+          endTime: 1704067200000,
           isolationLevel: 'read_committed',
         } as Transaction,
       ];

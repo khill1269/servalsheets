@@ -205,15 +205,24 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         case 'create':
           response = await this.handleCreate(req as AppsScriptCreateInput);
           break;
-        case 'get':
-          response = await this.handleGet(req as AppsScriptGetInput);
+        case 'get': {
+          // FIX P1-1: Auto-resolve scriptId from spreadsheetId if needed
+          const getReq = await this.ensureScriptId(req as AppsScriptGetInput);
+          response = await this.handleGet(getReq);
           break;
-        case 'get_content':
-          response = await this.handleGetContent(req as AppsScriptGetContentInput);
+        }
+        case 'get_content': {
+          // FIX P1-1: Auto-resolve scriptId from spreadsheetId if needed
+          const getContentReq = await this.ensureScriptId(req as AppsScriptGetContentInput);
+          response = await this.handleGetContent(getContentReq);
           break;
-        case 'update_content':
-          response = await this.handleUpdateContent(req as AppsScriptUpdateContentInput);
+        }
+        case 'update_content': {
+          // FIX P1-1: Auto-resolve scriptId from spreadsheetId if needed
+          const updateContentReq = await this.ensureScriptId(req as AppsScriptUpdateContentInput);
+          response = await this.handleUpdateContent(updateContentReq);
           break;
+        }
         case 'create_version':
           response = await this.handleCreateVersion(req as AppsScriptCreateVersionInput);
           break;
@@ -291,6 +300,104 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   // ============================================================================
   // Helper Methods
   // ============================================================================
+
+  /**
+   * Resolve scriptId from spreadsheetId via Drive API.
+   * Looks for bound Apps Script projects (mimeType: application/vnd.google-apps.script)
+   * that are children of the given spreadsheet.
+   *
+   * FIX P1-1: LLMs often only have the spreadsheetId, not the scriptId.
+   * This method bridges the gap by querying the Drive API.
+   */
+  private async resolveScriptIdFromSpreadsheet(spreadsheetId: string): Promise<string> {
+    const googleClient = this.context.googleClient;
+    if (!googleClient) {
+      throw new AuthenticationError(
+        'No Google client available - authentication required',
+        'AUTH_ERROR',
+        false,
+        { service: 'AppsScript' }
+      );
+    }
+
+    logger.debug(`Resolving scriptId from spreadsheetId: ${spreadsheetId}`);
+    await sendProgress(0, 1, `Resolving Apps Script project for spreadsheet ${spreadsheetId}...`);
+
+    try {
+      const drive = googleClient.drive;
+      const response = await drive.files.list({
+        q: `'${spreadsheetId}' in parents and mimeType = 'application/vnd.google-apps.script' and trashed = false`,
+        fields: 'files(id, name)',
+        pageSize: 5,
+      });
+
+      const files = response.data.files;
+      if (!files || files.length === 0) {
+        throw new ServiceError(
+          `No bound Apps Script project found for spreadsheet ${spreadsheetId}. ` +
+            `The spreadsheet may not have a bound script. Use action "create" with parentId to create one.`,
+          ErrorCodes.NOT_FOUND,
+          'drive-api',
+          false,
+          {
+            spreadsheetId,
+            hint: 'Use sheets_appsscript action "create" with parentId set to the spreadsheetId',
+          }
+        );
+      }
+
+      const firstFile = files[0];
+      const scriptId = firstFile?.id;
+      if (!scriptId) {
+        throw new ServiceError(
+          `Drive API returned a file without an ID for spreadsheet ${spreadsheetId}`,
+          ErrorCodes.INTERNAL_ERROR,
+          'drive-api',
+          true,
+          { spreadsheetId }
+        );
+      }
+      logger.info(
+        `Resolved scriptId: ${scriptId} (from spreadsheet: ${spreadsheetId}, script name: ${firstFile?.name ?? 'unknown'})`
+      );
+      return scriptId;
+    } catch (err) {
+      if (err instanceof ServiceError) throw err;
+      throw new ServiceError(
+        `Failed to resolve Apps Script project from spreadsheet: ${(err as Error).message}`,
+        ErrorCodes.INTERNAL_ERROR,
+        'drive-api',
+        true,
+        { spreadsheetId }
+      );
+    }
+  }
+
+  /**
+   * Ensure scriptId is present on the request. If only spreadsheetId is provided,
+   * auto-resolve scriptId via Drive API lookup.
+   *
+   * FIX P1-1: Allows LLMs to pass spreadsheetId instead of scriptId for
+   * get, get_content, and update_content actions.
+   */
+  private async ensureScriptId<T extends { scriptId?: string; spreadsheetId?: string }>(
+    req: T
+  ): Promise<T & { scriptId: string }> {
+    if (req.scriptId) {
+      return req as T & { scriptId: string };
+    }
+    if (req.spreadsheetId) {
+      const scriptId = await this.resolveScriptIdFromSpreadsheet(req.spreadsheetId);
+      return { ...req, scriptId };
+    }
+    throw new ServiceError(
+      'Either scriptId or spreadsheetId must be provided',
+      ErrorCodes.INVALID_PARAMS,
+      'appsscript',
+      false,
+      { hint: 'Provide scriptId (from script URL) or spreadsheetId (to auto-resolve bound script)' }
+    );
+  }
 
   /**
    * Make authenticated request to Apps Script API

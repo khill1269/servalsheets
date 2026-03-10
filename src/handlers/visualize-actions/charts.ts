@@ -170,6 +170,14 @@ export async function handleChartCreateAction(
     }
   }
 
+  if (!resolvedInput.data?.sourceRange) {
+    return deps.error({
+      code: 'INVALID_PARAMS',
+      message:
+        'chart_create requires data.sourceRange. Example: { "data": { "sourceRange": "Sheet1!A1:B10" } }. Top-level "sourceRange" or "dataRange" fields are not supported — wrap in a "data" object.',
+      retryable: false,
+    });
+  }
   const dataRange = await deps.toGridRange(
     resolvedInput.spreadsheetId,
     resolvedInput.data.sourceRange

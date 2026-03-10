@@ -142,7 +142,7 @@ const createMockSheetsApi = () => ({
 const createMockContext = (): HandlerContext =>
   ({
     requestId: 'test-request',
-    timestamp: new Date(),
+    timestamp: new Date('2024-01-15T00:00:00Z'),
     session: {
       get: vi.fn(),
       set: vi.fn(),
@@ -180,7 +180,7 @@ const createMockContext = (): HandlerContext =>
     snapshotService: {
       createSnapshot: vi.fn().mockResolvedValue({
         snapshotId: 'snapshot-123',
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       }),
     } as any,
     impactAnalyzer: {
@@ -387,7 +387,6 @@ describe('SheetsDataHandler', () => {
         expect(response.success).toBe(true);
         expect(response.hasMore).toBe(true);
         expect(response.totalRows).toBe(1000);
-        expect(response.nextCursor).toBeDefined();
         const decodedCursor = Buffer.from(response.nextCursor, 'base64').toString('utf-8');
         expect(decodedCursor).toBe('384');
       });
@@ -647,7 +646,7 @@ describe('SheetsDataHandler', () => {
         const snapshotService = {
           create: vi.fn().mockResolvedValue({
             id: 'snapshot-123',
-            timestamp: new Date(),
+            timestamp: new Date('2024-01-15T00:00:00Z'),
           }),
         };
         const contextWithSnapshot = {
@@ -758,7 +757,6 @@ describe('SheetsDataHandler', () => {
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'find_replace');
-        expect((result.response as any).matches).toBeDefined();
         expect((result.response as any).matches.length).toBeGreaterThan(0);
 
         const parseResult = SheetsDataOutputSchema.safeParse(result);
@@ -984,7 +982,7 @@ describe('SheetsDataHandler', () => {
         const snapshotService = {
           create: vi.fn().mockResolvedValue({
             id: 'snapshot-123',
-            timestamp: new Date(),
+            timestamp: new Date('2024-01-15T00:00:00Z'),
           }),
         };
         const contextWithSnapshot = {

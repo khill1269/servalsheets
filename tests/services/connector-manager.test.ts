@@ -38,7 +38,7 @@ class StubConnector implements SpreadsheetConnector {
       healthy: true,
       latencyMs: 1,
       message: 'ok',
-      lastChecked: new Date().toISOString(),
+      lastChecked: new Date('2024-01-15T00:00:00Z').toISOString(),
     };
   }
 
@@ -75,7 +75,7 @@ class StubConnector implements SpreadsheetConnector {
       metadata: {
         source: 'stub',
         endpoint,
-        fetchedAt: new Date().toISOString(),
+        fetchedAt: new Date('2024-01-15T00:00:00Z').toISOString(),
         rowCount: 1,
         cached: false,
         quotaUsed: 1,
@@ -87,7 +87,7 @@ class StubConnector implements SpreadsheetConnector {
     return {
       used: 0,
       limit: 60,
-      resetAt: new Date(Date.now() + 60_000).toISOString(),
+      resetAt: new Date(1704067200000 + 60_000).toISOString(),
       unit: 'requests',
     };
   }

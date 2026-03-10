@@ -399,21 +399,25 @@ const BatchDeleteSheetsActionSchema = CommonFieldsSchema.extend({
 const BatchUpdateSheetsActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('batch_update_sheets')
-    .describe('Update multiple sheet properties in one API call'),
+    .describe(
+      'Update existing sheet properties (title, color, visibility, position) in one API call. Each item MUST have a sheetId. To add new sheets use add_sheet; to delete use delete_sheet.'
+    ),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   updates: z
     .array(
-      z.object({
-        sheetId: SheetIdSchema.describe('Numeric sheet ID to update'),
-        title: z.string().min(1).max(255).optional().describe('New sheet title'),
-        index: z.coerce.number().int().min(0).optional().describe('New position (0 = first)'),
-        tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
-        hidden: z.boolean().optional().describe('Hide/show the sheet'),
-      })
+      z
+        .object({
+          sheetId: SheetIdSchema.describe('Numeric sheet ID to update (required)'),
+          title: z.string().min(1).max(255).optional().describe('New sheet title'),
+          index: z.coerce.number().int().min(0).optional().describe('New position (0 = first)'),
+          tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
+          hidden: z.boolean().optional().describe('Hide/show the sheet'),
+        })
+        .strict()
     )
     .min(1)
     .max(100)
-    .describe('Array of sheet updates (1-100)'),
+    .describe('Array of sheet property updates (1-100). Each item needs sheetId.'),
 });
 
 // ============================================================================

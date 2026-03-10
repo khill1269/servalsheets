@@ -59,7 +59,7 @@ describe('WebhookHandler', () => {
         eventTypes: ['spreadsheet.updated' as WebhookEventType],
         active: true,
         secret: 'test-secret',
-        createdAt: new Date().toISOString(),
+        createdAt: new Date('2024-01-15T00:00:00Z').toISOString(),
       };
 
       mockWebhookManager.register.mockResolvedValue(mockWebhook);
@@ -93,7 +93,7 @@ describe('WebhookHandler', () => {
         eventTypes: ['all' as WebhookEventType],
         active: true,
         secret: 'custom-secret',
-        createdAt: new Date().toISOString(),
+        createdAt: new Date('2024-01-15T00:00:00Z').toISOString(),
       };
 
       mockWebhookManager.register.mockResolvedValue(mockWebhook);
@@ -311,8 +311,8 @@ describe('WebhookHandler', () => {
         spreadsheetId: 'sheet-123',
         deliveryCount: 15,
         failureCount: 2,
-        lastDelivery: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
+        lastDelivery: new Date('2024-01-15T00:00:00Z').toISOString(),
+        createdAt: new Date('2024-01-15T00:00:00Z').toISOString(),
       };
 
       mockWebhookManager.get.mockResolvedValue(mockWebhook);

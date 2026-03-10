@@ -83,8 +83,8 @@ describe('CapabilityCacheService', () => {
 
       const cached = {
         capabilities,
-        cachedAt: Date.now(),
-        expiresAt: Date.now() + 3600000,
+        cachedAt: 1704067200000,
+        expiresAt: 1704067200000 + 3600000,
       };
 
       mockRedis.get.mockResolvedValue(JSON.stringify(cached));
@@ -100,8 +100,8 @@ describe('CapabilityCacheService', () => {
 
       const expiredCached = {
         capabilities,
-        cachedAt: Date.now() - 7200000, // 2 hours ago
-        expiresAt: Date.now() - 3600000, // Expired 1 hour ago
+        cachedAt: 1704067200000 - 7200000, // 2 hours ago
+        expiresAt: 1704067200000 - 3600000, // Expired 1 hour ago
       };
 
       mockRedis.get.mockResolvedValue(JSON.stringify(expiredCached));
@@ -132,8 +132,8 @@ describe('CapabilityCacheService', () => {
 
       const cached = {
         capabilities,
-        cachedAt: Date.now(),
-        expiresAt: Date.now() + 3600000,
+        cachedAt: 1704067200000,
+        expiresAt: 1704067200000 + 3600000,
       };
 
       mockRedis.get.mockResolvedValue(JSON.stringify(cached));

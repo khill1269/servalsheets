@@ -68,7 +68,7 @@ function makePlanState(overrides?: Record<string, unknown>) {
     steps: [makeStep()],
     results: [],
     currentStepIndex: 0,
-    createdAt: Date.now(),
+    createdAt: 1704067200000,
     ...overrides,
   };
 }

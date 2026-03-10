@@ -31,7 +31,7 @@ describe('SessionContextManager', () => {
       const context: SpreadsheetContext = {
         spreadsheetId: '1ABC',
         title: 'My Budget',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1', 'Sheet2'],
       };
 
@@ -48,14 +48,14 @@ describe('SessionContextManager', () => {
       const first: SpreadsheetContext = {
         spreadsheetId: '1ABC',
         title: 'First',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       };
 
       const second: SpreadsheetContext = {
         spreadsheetId: '2DEF',
         title: 'Second',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       };
 
@@ -73,7 +73,7 @@ describe('SessionContextManager', () => {
         manager.setActiveSpreadsheet({
           spreadsheetId: `${i}ABC`,
           title: `Sheet ${i}`,
-          activatedAt: Date.now(),
+          activatedAt: 1704067200000,
           sheetNames: ['Sheet1'],
         });
       }
@@ -88,7 +88,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'Large Spreadsheet',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: manySheets,
       });
 
@@ -102,7 +102,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'Budget',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       });
 
@@ -113,7 +113,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'Q4 Budget',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       });
 
@@ -125,7 +125,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'Q4 Budget 2024',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       });
 
@@ -137,7 +137,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'Budget',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       });
 
@@ -149,7 +149,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'CRM System',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       });
 
@@ -161,14 +161,14 @@ describe('SessionContextManager', () => {
       const first: SpreadsheetContext = {
         spreadsheetId: '1ABC',
         title: 'Old Budget',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       };
 
       const second: SpreadsheetContext = {
         spreadsheetId: '2DEF',
         title: 'Current Budget',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       };
 
@@ -184,7 +184,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'Budget',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       });
 
@@ -196,7 +196,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'Budget',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       });
 
@@ -486,7 +486,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'Budget',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1', 'Sheet2'],
       });
 
@@ -520,7 +520,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'Large',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: manySheets,
       });
 
@@ -538,7 +538,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'A'.repeat(1000),
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: Array.from({ length: 100 }, (_, i) => `Sheet${i + 1}`),
       });
 
@@ -552,7 +552,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'Budget',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       });
 
@@ -566,7 +566,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'Budget',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       });
 
@@ -586,7 +586,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'My Budget 2024',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['January', 'February', 'March'],
       });
 
@@ -604,7 +604,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'Budget',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       });
 
@@ -624,7 +624,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'Budget',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       });
 
@@ -644,7 +644,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'A'.repeat(200),
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       });
 
@@ -657,7 +657,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'A'.repeat(100),
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: Array.from({ length: 100 }, (_, i) => `Sheet${i + 1}`),
       });
 
@@ -682,14 +682,14 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'Old Spreadsheet',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       });
 
       manager.setActiveSpreadsheet({
         spreadsheetId: '2DEF',
         title: 'New Spreadsheet',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       });
 
@@ -708,7 +708,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'Budget',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       });
 
@@ -728,7 +728,7 @@ describe('SessionContextManager', () => {
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',
         title: 'Budget',
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
         sheetNames: ['Sheet1'],
       });
 
@@ -778,7 +778,7 @@ describe('Redis session persistence (SCALE-01)', () => {
     manager.setActiveSpreadsheet({
       spreadsheetId: 'sheet-from-redis',
       title: 'Persisted Sheet',
-      activatedAt: Date.now(),
+      activatedAt: 1704067200000,
       sheetNames: ['Data'],
     });
     stored['servalsheets:session:default:state'] = manager.exportState();
@@ -817,7 +817,7 @@ describe('Redis session persistence (SCALE-01)', () => {
     manager.setActiveSpreadsheet({
       spreadsheetId: 'roundtrip-sheet',
       title: 'Test',
-      activatedAt: Date.now(),
+      activatedAt: 1704067200000,
       sheetNames: ['Sheet1'],
     });
     const exported = manager.exportState();

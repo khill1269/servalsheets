@@ -29,7 +29,7 @@ const oauthClientMocks = vi.hoisted(() => ({
     tokens: {
       access_token: 'mock-access-token',
       refresh_token: 'mock-refresh-token',
-      expiry_date: Date.now() + 3600000,
+      expiry_date: 1704067200000 + 3600000,
     },
   }),
   setCredentials: vi.fn(),
@@ -40,7 +40,7 @@ const oauthClientMocks = vi.hoisted(() => ({
   refreshAccessToken: vi.fn().mockResolvedValue({
     credentials: {
       access_token: 'mock-refreshed-token',
-      expiry_date: Date.now() + 3600000,
+      expiry_date: 1704067200000 + 3600000,
     },
   }),
 }));
@@ -268,7 +268,7 @@ describe('AuthHandler', () => {
         credentials: {
           access_token: 'new-access-token',
           refresh_token: 'mock-refresh-token',
-          expiry_date: Date.now() + 3600000,
+          expiry_date: 1704067200000 + 3600000,
         },
       });
 

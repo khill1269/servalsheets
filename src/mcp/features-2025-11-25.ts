@@ -549,7 +549,9 @@ Benefits:
 **Building a dashboard?**
 ├─ Get chart recommendations → \`sheets_visualize.suggest_chart\`
 ├─ Create chart + sparklines → \`sheets_visualize.chart_create\` → \`sheets_format.sparkline_add\`
-└─ Full dashboard → scout → suggest_chart → chart_create → sparkline_add → apply_preset
+├─ Add interactive slicer → \`sheets_dimensions.create_slicer\` (⚠️ do NOT combine with set_basic_filter on the same range — use one or the other)
+├─ Add dropdowns/validation → \`sheets_format.set_data_validation\`
+└─ Full dashboard → scout → suggest_chart → chart_create → sparkline_add → apply_preset → add_conditional_format_rule
 
 **Auditing, reporting, or migrating spreadsheets?**
 ├─ Full quality + formula + structure audit → \`sheets_composite.audit_sheet\`
@@ -594,6 +596,7 @@ When the user's intent is CLEAR, skip analysis and route directly:
 | "instantiate template/apply template with values" | sheets_composite.instantiate_template |
 | "migrate/move data between spreadsheets/transfer" | sheets_composite.migrate_spreadsheet |
 | "analyze/understand/explore/summarize sheet" | sheets_analyze |
+| "dropdown/data validation/restrict input" | sheets_format.set_data_validation |
 | "named range/protected range/table/metadata/chips" | sheets_advanced |
 | "template/save pattern/reuse layout" | sheets_templates |
 | "what if/scenario/model impact" | sheets_dependencies.model_scenario |
@@ -934,7 +937,7 @@ When a supporting MCP client is connected, these actions launch **interactive fo
 **"Get the current stock price for AAPL"** → sheets_connectors action:"query" connectorId:"alpha-vantage" params:{symbol:"AAPL",function:"GLOBAL_QUOTE"}
   (NOT sheets_data — connectors fetches live external API data; sheets_data only reads existing cell values)
 
-**"Save a checkpoint before bulk changes so I can restore quickly"** → sheets_session action:"save_checkpoint" label:"before-bulk-update"
+**"Save a checkpoint before bulk changes so I can restore quickly"** → sheets_session action:"save_checkpoint" sessionId:"before-bulk-update"
   (NOT sheets_history — session checkpoints are in-session fast restore points; history tracks all past operations including cross-session)
 
 **"What cells break if I change B5? Show me the impact"** → sheets_dependencies action:"analyze_impact" spreadsheetId:"..." cell:"Sheet1!B5"

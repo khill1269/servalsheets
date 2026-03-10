@@ -24,6 +24,7 @@ import {
   SafetyOptionsSchema,
   MutationSummarySchema,
   ResponseMetaSchema,
+  A1NotationSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -279,15 +280,9 @@ const SparklineAddActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('sparkline_add')
     .describe('Add a sparkline visualization to a cell using the SPARKLINE formula'),
-  targetCell: z
-    .string()
-    .regex(
-      /^(?:(?:'[^']+'|[A-Za-z0-9_ ]+)!)?[A-Z]{1,3}\d+$/,
-      'Invalid cell reference (expected A1 format, optionally with sheet like Sheet1!A1)'
-    )
-    .describe(
-      'Target cell for sparkline (A1 notation or sheet-qualified like Sheet1!A1, single cell only)'
-    ),
+  targetCell: A1NotationSchema.describe(
+    "Target cell for sparkline (A1 notation or sheet-qualified like Sheet1!A1 or '📊 Dashboard'!G10, single cell only)"
+  ),
   dataRange: RangeInputSchema.describe(
     'Data range for sparkline (should be 1D - single row or column)'
   ),
@@ -298,24 +293,16 @@ const SparklineGetActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('sparkline_get')
     .describe('Get sparkline formula and configuration from a cell'),
-  cell: z
-    .string()
-    .regex(
-      /^(?:(?:'[^']+'|[A-Za-z0-9_ ]+)!)?[A-Z]{1,3}\d+$/,
-      'Invalid cell reference (expected A1 format, optionally with sheet like Sheet1!A1)'
-    )
-    .describe('Cell to get sparkline from (A1 notation or sheet-qualified like Sheet1!A1)'),
+  cell: A1NotationSchema.describe(
+    "Cell to get sparkline from (A1 notation or sheet-qualified like Sheet1!A1 or '📊 Dashboard'!G10)"
+  ),
 });
 
 const SparklineClearActionSchema = CommonFieldsSchema.extend({
   action: z.literal('sparkline_clear').describe('Remove sparkline from a cell'),
-  cell: z
-    .string()
-    .regex(
-      /^(?:(?:'[^']+'|[A-Za-z0-9_ ]+)!)?[A-Z]{1,3}\d+$/,
-      'Invalid cell reference (expected A1 format, optionally with sheet like Sheet1!A1)'
-    )
-    .describe('Cell to clear sparkline from (A1 notation or sheet-qualified like Sheet1!A1)'),
+  cell: A1NotationSchema.describe(
+    "Cell to clear sparkline from (A1 notation or sheet-qualified like Sheet1!A1 or '📊 Dashboard'!G10)"
+  ),
 });
 
 // ===== RULES ACTION SCHEMAS (8 actions) =====
@@ -729,6 +716,17 @@ const normalizeFormatRequest = (val: unknown): unknown => {
     if (condition) {
       const { rule: _r, ...rest } = obj;
       return { ...rest, condition };
+    }
+
+    // FIX P1-3: Handle dropdownValues shortcut
+    // LLMs often send: { dropdownValues: ["A", "B", "C"] } instead of condition object
+    const dropdownValues = obj['dropdownValues'] as unknown[] | undefined;
+    if (dropdownValues && Array.isArray(dropdownValues) && !obj['condition']) {
+      const { dropdownValues: _dv, ...rest } = obj;
+      return {
+        ...rest,
+        condition: { type: 'ONE_OF_LIST', values: dropdownValues },
+      };
     }
 
     // Also handle flattened format: { validationType: "ONE_OF_LIST", values: [...] }

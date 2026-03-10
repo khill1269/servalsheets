@@ -21,14 +21,14 @@ const createMockGoogleClient = () => ({
     credentials: {
       access_token: 'test-access-token',
       refresh_token: 'test-refresh-token',
-      expiry_date: Date.now() + 3600000,
+      expiry_date: 1704067200000 + 3600000,
     },
     getAccessToken: vi.fn().mockResolvedValue({ token: 'test-access-token' }),
   },
   getTokenStatus: vi.fn().mockReturnValue({
     hasAccessToken: true,
     hasRefreshToken: true,
-    expiryDate: Date.now() + 3600000, // 1 hour from now (won't trigger pre-refresh)
+    expiryDate: 1704067200000 + 3600000, // 1 hour from now (won't trigger pre-refresh)
     scope: 'https://www.googleapis.com/auth/script.projects',
   }),
 });

@@ -311,12 +311,9 @@ export function registerHttpFoundationMiddleware(params: {
     // Always set supported version on response
     res.setHeader('MCP-Protocol-Version', '2025-11-25');
 
-    // Skip version check for non-MCP endpoints (health, metrics, info, etc.)
-    if (
-      !req.path.startsWith('/sse') &&
-      !req.path.startsWith('/mcp') &&
-      !req.path.startsWith('/session')
-    ) {
+    // Skip version check for non-MCP JSON-RPC endpoints (health, metrics, /session REST mgmt, etc.)
+    // /session/:id is a REST management API, not an MCP JSON-RPC endpoint
+    if (!req.path.startsWith('/sse') && !req.path.startsWith('/mcp')) {
       return next();
     }
 

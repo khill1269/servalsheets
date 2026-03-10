@@ -188,13 +188,29 @@ const CreateProjectActionSchema = z.object({
 
 const GetProjectActionSchema = z.object({
   action: z.literal('get').describe('Get Apps Script project metadata'),
-  scriptId: ScriptIdSchema,
+  scriptId: ScriptIdSchema.optional().describe(
+    'Apps Script project ID (from script URL or API). If omitted, provide spreadsheetId to auto-resolve.'
+  ),
+  spreadsheetId: z
+    .string()
+    .optional()
+    .describe(
+      'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+    ),
   verbosity: VerbositySchema,
 });
 
 const GetContentActionSchema = z.object({
   action: z.literal('get_content').describe('Get script project files and source code'),
-  scriptId: ScriptIdSchema,
+  scriptId: ScriptIdSchema.optional().describe(
+    'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
+  ),
+  spreadsheetId: z
+    .string()
+    .optional()
+    .describe(
+      'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+    ),
   versionNumber: z
     .number()
     .int()
@@ -206,7 +222,15 @@ const GetContentActionSchema = z.object({
 
 const UpdateContentActionSchema = z.object({
   action: z.literal('update_content').describe('Update script project files (replaces all files)'),
-  scriptId: ScriptIdSchema,
+  scriptId: ScriptIdSchema.optional().describe(
+    'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
+  ),
+  spreadsheetId: z
+    .string()
+    .optional()
+    .describe(
+      'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+    ),
   files: z
     .array(ScriptFileSchema)
     .min(1)

@@ -56,7 +56,8 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
       port: 0, // Use random port
       host: '127.0.0.1',
       corsOrigins: ['http://localhost:3000'],
-      rateLimitMax: 1000, // High limit for tests
+      rateLimitMax: 10000, // High limit for tests
+      rateLimitWindowMs: 1000, // 1s window so limit resets between tests
       trustProxy: false,
     };
 
@@ -478,12 +479,18 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
     });
 
     it('should return 404 on GET /mcp with unknown session', async () => {
-      const response = await agent.get('/mcp').set('Mcp-Session-Id', 'missing-session');
+      const response = await agent
+        .get('/mcp')
+        .set('Mcp-Session-Id', 'missing-session')
+        .set('MCP-Protocol-Version', '2025-11-25');
       expect(response.status).toBe(404);
     });
 
     it('should return 404 on DELETE /mcp with unknown session', async () => {
-      const response = await agent.delete('/mcp').set('Mcp-Session-Id', 'missing-session');
+      const response = await agent
+        .delete('/mcp')
+        .set('Mcp-Session-Id', 'missing-session')
+        .set('MCP-Protocol-Version', '2025-11-25');
       expect(response.status).toBe(404);
     });
 
@@ -1211,6 +1218,7 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
         .set('Content-Type', 'application/json')
         .set('Accept', 'application/json, text/event-stream')
         .set('Mcp-Session-Id', sessionId as string)
+        .set('MCP-Protocol-Version', '2025-11-25')
         .send({
           jsonrpc: '2.0',
           id: 9002,

@@ -456,7 +456,10 @@ export class AuthHandler {
     let browserOpened = false;
     if (autoOpenBrowser) {
       try {
-        await open(authUrl);
+        const manualProc = await open(authUrl, { wait: false });
+        manualProc.stdout?.destroy();
+        manualProc.stderr?.destroy();
+        manualProc.unref();
         browserOpened = true;
       } catch (error) {
         logger.error('Failed to open browser', {

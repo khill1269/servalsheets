@@ -92,4 +92,47 @@ describe('CollaborateHandler rate limiter integration', () => {
     expect(result.response.success).toBe(true);
     expect(acquireSpy).not.toHaveBeenCalled();
   });
+
+  it('returns error response when rate limiter throws', async () => {
+    vi.spyOn(driveRateLimiter, 'acquire').mockRejectedValue(
+      new Error('Rate limit exceeded')
+    );
+    const handler = new CollaborateHandler(createMockContext(), createMockDriveApi() as any);
+
+    const result = await handler.handle({
+      action: 'share_add',
+      spreadsheetId: 'spreadsheet-id',
+      type: 'user',
+      role: 'reader',
+      emailAddress: 'alice@example.com',
+    });
+
+    // Handler must catch and return error response, not crash
+    expect(result.response.success).toBe(false);
+    if (!result.response.success) {
+      expect(result.response.error).toBeDefined();
+    }
+  });
+
+  it('returns error response when Drive API throws during share_add', async () => {
+    vi.spyOn(driveRateLimiter, 'acquire').mockResolvedValue();
+    const mockDriveApi = createMockDriveApi();
+    mockDriveApi.permissions.create.mockRejectedValue(
+      Object.assign(new Error('Drive API error'), { code: 403 })
+    );
+    const handler = new CollaborateHandler(createMockContext(), mockDriveApi as any);
+
+    const result = await handler.handle({
+      action: 'share_add',
+      spreadsheetId: 'spreadsheet-id',
+      type: 'user',
+      role: 'reader',
+      emailAddress: 'bob@example.com',
+    });
+
+    expect(result.response.success).toBe(false);
+    if (!result.response.success) {
+      expect(result.response.error).toBeDefined();
+    }
+  });
 });

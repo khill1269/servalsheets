@@ -163,7 +163,7 @@ export interface VisualizationRecommendation {
   };
   executionParams: {
     tool: 'sheets_visualize';
-    action: 'create';
+    action: 'chart_create';
     params: Record<string, unknown>;
   };
 }
@@ -1766,7 +1766,7 @@ export class ComprehensiveAnalyzer {
         },
         executionParams: {
           tool: 'sheets_visualize',
-          action: 'create',
+          action: 'chart_create',
           params: {
             spreadsheetId,
             sheetId: analysis.sheetId,
@@ -1793,7 +1793,7 @@ export class ComprehensiveAnalyzer {
         },
         executionParams: {
           tool: 'sheets_visualize',
-          action: 'create',
+          action: 'chart_create',
           params: {
             spreadsheetId,
             sheetId: analysis.sheetId,
@@ -1819,7 +1819,7 @@ export class ComprehensiveAnalyzer {
         },
         executionParams: {
           tool: 'sheets_visualize',
-          action: 'create',
+          action: 'chart_create',
           params: {
             spreadsheetId,
             sheetId: analysis.sheetId,
@@ -1843,7 +1843,7 @@ export class ComprehensiveAnalyzer {
         },
         executionParams: {
           tool: 'sheets_visualize',
-          action: 'create',
+          action: 'chart_create',
           params: {
             spreadsheetId,
             sheetId: analysis.sheetId,

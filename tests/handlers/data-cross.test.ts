@@ -57,7 +57,7 @@ const createMockSheetsApi = (overrides?: {
 const createMockContext = (): HandlerContext =>
   ({
     requestId: 'test-request',
-    timestamp: new Date(),
+    timestamp: new Date('2024-01-15T00:00:00Z'),
     session: {
       get: vi.fn(),
       set: vi.fn(),
