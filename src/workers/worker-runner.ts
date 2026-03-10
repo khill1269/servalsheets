@@ -28,6 +28,13 @@ parentPort.on('message', async (message: WorkerMessage) => {
   const { taskId, taskType: _taskType, scriptPath, data } = message;
 
   try {
+    // Defense-in-depth: reject path traversal and enforce basename allowlist
+    const basename = scriptPath.replace(/\\/g, '/').split('/').at(-1) ?? '';
+    const allowedWorkers = new Set(['analysis-worker.js', 'formula-parser-worker.js']);
+    if (scriptPath.includes('..') || !allowedWorkers.has(basename)) {
+      throw new Error(`Worker script not on allowlist: ${scriptPath}`);
+    }
+
     // Dynamically import worker script
     const scriptUrl = pathToFileURL(scriptPath).href;
     const workerModule = await import(scriptUrl);
