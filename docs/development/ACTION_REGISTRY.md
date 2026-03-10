@@ -1,3 +1,11 @@
+---
+title: ServalSheets — Action Registry (391 Actions, 25 Tools)
+category: development
+last_updated: 2026-03-10
+description: '> Complete action list by tool. Source of truth for counts: src/schemas/action-counts.ts.'
+version: 1.6.0
+---
+
 # ServalSheets — Action Registry (391 Actions, 25 Tools)
 
 > Complete action list by tool. Source of truth for counts: `src/schemas/action-counts.ts`.
@@ -77,13 +85,14 @@
 `audit_sheet`, `publish_report`, `data_pipeline`, `instantiate_template`, `migrate_spreadsheet`,
 `batch_operations`
 
-## sheets_analyze (19) — BaseHandler
+## sheets_analyze (21) — BaseHandler
 
 `comprehensive`, `analyze_data`, `analyze_formulas`, `analyze_structure`,
 `analyze_performance`, `analyze_quality`, `detect_patterns`, `drill_down`,
 `explain_analysis`, `generate_actions`, `generate_formula`, `plan`, `execute_plan`,
 `query_natural_language`, `suggest_visualization`, `scout`,
-`suggest_next_actions`, `auto_enhance`, `discover_action`
+`suggest_next_actions`, `auto_enhance`, `discover_action`,
+`diagnose_errors`, `formula_health_check`
 
 ## sheets_confirm (5) — Standalone
 

@@ -67,7 +67,7 @@ npm run check:silent-fallbacks  # No silent {} returns
 ### Audit Commands
 
 ```bash
-npm run audit:coverage      # 340-action coverage test
+npm run audit:coverage      # 397-action coverage test
 npm run audit:perf          # Performance benchmarks
 npm run audit:memory        # Memory leak detection
 npm run audit:gate          # CI gate (7 checks)
