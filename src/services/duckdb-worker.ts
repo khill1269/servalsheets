@@ -70,7 +70,12 @@ async function runQuery(): Promise<void> {
       // Validate table name against strict allowlist before any SQL interpolation
       validateTableName(table.name);
 
-      const headers = table.rows[0] as string[];
+      const rawHeaders = table.rows[0] as string[];
+      // Sanitize column headers: allow only alphanumeric, underscore, space, hyphen
+      // to prevent JSON key injection attacks via crafted spreadsheet column names
+      const headers = rawHeaders.map((h, i) =>
+        typeof h === 'string' && /^[\w\s.-]{1,128}$/.test(h) ? h : `col_${i}`
+      );
       const dataRows = table.rows.slice(1);
 
       // Build JSON array: [{header0: val0, header1: val1, ...}, ...]

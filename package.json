@@ -436,6 +436,7 @@
     "test:llm": "vitest run tests/handlers/analyze.test.ts",
     "test:load": "vitest run tests/load --config tests/config/vitest.config.load.ts",
     "test:load:script": "bash scripts/run-load-tests.sh",
+    "test:mcp-http-task-contract": "bash scripts/test-mcp-http-task-contract.sh",
     "test:mutation": "stryker run",
     "test:mutation:critical": "stryker run stryker.critical.conf.mjs",
     "test:mutation:minimal": "stryker run stryker.minimal.conf.mjs",

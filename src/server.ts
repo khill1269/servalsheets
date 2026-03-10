@@ -7,6 +7,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { InMemoryTaskMessageQueue } from '@modelcontextprotocol/sdk/experimental/tasks/stores/in-memory.js';
 import type { CallToolResult, LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
 import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import type {
@@ -74,10 +75,13 @@ import {
   createRequestAbortError,
   runWithRequestContext,
   sendProgress,
+  type RelatedRequestSender,
+  type TaskStatusUpdater,
 } from './utils/request-context.js';
 import { verifyJsonSchema } from './utils/schema-compat.js';
 import { extractIdempotencyKeyFromHeaders } from './utils/idempotency-key-generator.js';
 import { TOOL_DEFINITIONS, isToolCallAuthExempt } from './mcp/registration/tool-definitions.js';
+import { createTaskAwareSamplingServer } from './mcp/sampling.js';
 import { buildToolResponse } from './mcp/registration/tool-handlers.js';
 import { prepareSchemaForRegistrationCached } from './mcp/registration/schema-helpers.js';
 import { registerToolsListCompatibilityHandler } from './mcp/registration/tools-list-compat.js';
@@ -96,7 +100,7 @@ import { disposeTemporaryResourceStore } from './resources/temporary-storage.js'
 import { startHeapWatchdog } from './utils/heap-watchdog.js';
 import { STAGED_REGISTRATION } from './config/constants.js';
 import { toolStageManager } from './mcp/registration/tool-stage-manager.js';
-import { getEnv } from './config/env.js';
+import { getEnv, validateEnv } from './config/env.js';
 import { resolveCostTrackingTenantId } from './utils/tenant-identification.js';
 import {
   initializeBuiltinConnectors,
@@ -193,6 +197,7 @@ export class ServalSheetsServer {
         instructions: SERVER_INSTRUCTIONS,
         // Task support (MCP 2025-11-25) for tasks/get/list/result/cancel and task-capable tools
         taskStore: this.taskStore,
+        taskMessageQueue: new InMemoryTaskMessageQueue(),
       }
     );
 
@@ -326,7 +331,7 @@ export class ServalSheetsServer {
             return _googleClient.scopes;
           },
         },
-        samplingServer: this._server.server, // Pass underlying Server instance for sampling
+        samplingServer: createTaskAwareSamplingServer(this._server.server),
         server: this._server.server, // Pass Server instance for elicitation/sampling (SEP-1036, SEP-1577)
         requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
         taskStore: this.taskStore, // For task-based execution (SEP-1686)
@@ -648,10 +653,18 @@ export class ServalSheetsServer {
               return;
             }
 
-            // Execute with abort signal
+            // Execute with abort signal — pass only fields handleToolCall accepts
+            // (avoids sendRequest type mismatch from SDK's ToolTaskHandler extra)
             const result = await this.handleToolCall(toolName, args as Record<string, unknown>, {
-              ...extra,
+              sendNotification: extra.sendNotification as
+                | ((
+                    n: import('@modelcontextprotocol/sdk/types.js').ServerNotification
+                  ) => Promise<void>)
+                | undefined,
+              progressToken: extra._meta?.progressToken,
               abortSignal: abortController.signal,
+              taskId: task.taskId,
+              taskStore: extra.taskStore,
             });
 
             // Check cancellation again before storing result
@@ -783,6 +796,9 @@ export class ServalSheetsServer {
       sendNotification?: (
         notification: import('@modelcontextprotocol/sdk/types.js').ServerNotification
       ) => Promise<void>;
+      sendRequest?: RelatedRequestSender;
+      taskId?: string;
+      taskStore?: TaskStatusUpdater;
       progressToken?: string | number;
       elicit?: unknown; // SEP-1036: Elicitation capability for sheets_confirm
       sample?: unknown; // SEP-1577: Sampling capability for sheets_analyze
@@ -825,6 +841,9 @@ export class ServalSheetsServer {
         idempotencyKey,
         principalId,
         metadataCache,
+        sendRequest: extra?.sendRequest,
+        taskId: extra?.taskId,
+        taskStore: extra?.taskStore,
       });
       return runWithRequestContext(requestContext, async () => {
         const logger = requestContext.logger;
@@ -1262,6 +1281,9 @@ export class ServalSheetsServer {
    */
   async start(): Promise<void> {
     const startTime = performance.now();
+
+    // Validate required environment variables before any initialization
+    validateEnv();
 
     // Initialize first (register handlers), then connect
     baseLogger.info('[Phase 1/3] Initializing handlers...');

@@ -34,4 +34,12 @@ describe('request-context timeout defaults', () => {
     expect(context.timeoutMs).toBe(30000);
     expect(Number.isFinite(context.deadline)).toBe(true);
   });
+
+  it('preserves nested request senders when provided', async () => {
+    const { createRequestContext } = await import('../../src/utils/request-context.js');
+    const sendRequest = vi.fn();
+    const context = createRequestContext({ sendRequest });
+
+    expect(context.sendRequest).toBe(sendRequest);
+  });
 });

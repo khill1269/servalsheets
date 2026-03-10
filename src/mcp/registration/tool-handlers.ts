@@ -39,6 +39,8 @@ import {
   runWithRequestContext,
   getRequestContext,
   createRequestAbortError,
+  type RelatedRequestSender,
+  type TaskStatusUpdater,
 } from '../../utils/request-context.js';
 import { extractIdempotencyKeyFromHeaders } from '../../utils/idempotency-key-generator.js';
 import { compactResponse, isCompactModeEnabled } from '../../utils/response-compactor.js';
@@ -54,6 +56,7 @@ import { createMetadataCache } from '../../services/metadata-cache.js';
 import { invalidateContext as invalidateSamplingContext } from '../../services/sampling-context-cache.js';
 import { getEnv } from '../../config/env.js';
 import { registerServerTaskCancelHandler } from '../../server-runtime/control-plane-registration.js';
+import { handlePreInitExemptToolCall } from '../../server-runtime/preinit-tool-routing.js';
 import { resolveCostTrackingTenantId } from '../../utils/tenant-identification.js';
 import type { OperationHistory } from '../../types/history.js';
 import {
@@ -114,6 +117,7 @@ import { withWriteLock } from '../../middleware/write-lock-middleware.js';
 import { checkRateLimit } from '../../middleware/rate-limit-middleware.js';
 import { detectMutationSafetyViolation } from '../../middleware/mutation-safety-middleware.js';
 import { startKeepalive } from '../../utils/keepalive.js';
+import { createTaskAwareSamplingServer } from '../sampling.js';
 import {
   buildAuthErrorResponse,
   checkAuthAsync,
@@ -1540,6 +1544,9 @@ function createToolCallHandler(
     sendNotification?: (
       notification: import('@modelcontextprotocol/sdk/types.js').ServerNotification
     ) => Promise<void>;
+    sendRequest?: RelatedRequestSender;
+    taskId?: string;
+    taskStore?: TaskStatusUpdater;
     abortSignal?: AbortSignal;
     signal?: AbortSignal;
     progressToken?: string | number;
@@ -1556,6 +1563,9 @@ function createToolCallHandler(
       sendNotification?: (
         notification: import('@modelcontextprotocol/sdk/types.js').ServerNotification
       ) => Promise<void>;
+      sendRequest?: RelatedRequestSender;
+      taskId?: string;
+      taskStore?: TaskStatusUpdater;
       abortSignal?: AbortSignal;
       signal?: AbortSignal;
       progressToken?: string | number;
@@ -1605,6 +1615,9 @@ function createToolCallHandler(
       principalId,
       abortSignal: requestAbortSignal,
       sendNotification: extra?.sendNotification,
+      sendRequest: extra?.sendRequest,
+      taskId: extra?.taskId,
+      taskStore: extra?.taskStore,
       progressToken,
       idempotencyKey: requestHeaders
         ? extractIdempotencyKeyFromHeaders(requestHeaders)
@@ -1667,6 +1680,13 @@ function createToolCallHandler(
         }
 
         if (!handlerMap) {
+          if (isExempt) {
+            const preInitResult = await handlePreInitExemptToolCall(tool.name, rawArgs);
+            if (preInitResult) {
+              return buildToolResponse(preInitResult as Record<string, unknown>);
+            }
+          }
+
           const errorResponse = {
             response: {
               success: false,
@@ -1700,6 +1720,13 @@ function createToolCallHandler(
 
         const handler = handlerMap[tool.name];
         if (!handler) {
+          if (isExempt) {
+            const preInitResult = await handlePreInitExemptToolCall(tool.name, rawArgs);
+            if (preInitResult) {
+              return buildToolResponse(preInitResult as Record<string, unknown>);
+            }
+          }
+
           const errorResponse = {
             response: {
               success: false,
@@ -2235,6 +2262,8 @@ export function createToolTaskHandler(
 
           const result = await runTool(args as Record<string, unknown>, {
             ...(extra as unknown as Record<string, unknown>),
+            taskId: task.taskId,
+            taskStore,
             abortSignal: abortController.signal,
             signal: abortController.signal,
           });
@@ -2388,7 +2417,7 @@ export async function registerServalSheetsTools(
                 rangeResolver: {} as never,
                 server: server.server,
                 elicitationServer: server.server,
-                samplingServer: server.server,
+                samplingServer: createTaskAwareSamplingServer(server.server),
                 requestId: requestExtra?.requestId ? String(requestExtra.requestId) : undefined,
               },
             }).handle(

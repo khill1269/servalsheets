@@ -72,7 +72,9 @@ fi
 
 # Test 4: HTTP server starts and responds to health check
 echo "→ Testing: HTTP server health endpoint"
-node "$(pwd)/dist/http-server.js" &
+# Smoke only needs the main HTTP listener; disable the dedicated metrics bind so
+# an occupied default metrics port does not cause a false-negative startup failure.
+ENABLE_METRICS_SERVER=false node "$(pwd)/dist/http-server.js" &
 SERVER_PID=$!
 sleep 3
 

@@ -507,7 +507,7 @@ export class AuthHandler {
 
     cleanupExpiredSessionStates();
 
-    if (request.state && !verifyOAuthState(request.state)) {
+    if (!request.state || !verifyOAuthState(request.state)) {
       return {
         success: false,
         error: {

@@ -143,6 +143,18 @@ const createMockGoogleClient = (
     revokeAccess: vi.fn(),
   }) as any;
 
+async function startManualLoginAndGetState(handler: AuthHandler): Promise<string> {
+  process.env['OAUTH_USE_CALLBACK_SERVER'] = 'false';
+
+  const loginResult = await handler.handle({ action: 'login' });
+  expect(loginResult.response.success).toBe(true);
+
+  const state = new URL(loginResult.response.authUrl!).searchParams.get('state');
+  expect(state).toBeTruthy();
+
+  return state!;
+}
+
 describe('AuthHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -366,10 +378,12 @@ describe('AuthHandler', () => {
         oauthClientId: 'test-client-id',
         oauthClientSecret: 'test-secret',
       });
+      const state = await startManualLoginAndGetState(handler);
 
       const result = await handler.handle({
         action: 'callback',
         code: 'test-auth-code',
+        state,
       });
 
       expect(result.response.success).toBe(true);
@@ -395,10 +409,12 @@ describe('AuthHandler', () => {
         oauthClientSecret: 'test-secret',
         tokenStoreKey: undefined,
       });
+      const state = await startManualLoginAndGetState(handler);
 
       const result = await handler.handle({
         action: 'callback',
         code: 'test-code',
+        state,
       });
 
       expect(result.response.success).toBe(true);
@@ -462,7 +478,8 @@ describe('AuthHandler', () => {
         code: 'test-code',
       });
 
-      expect(callbackResult.response.success).toBe(true);
+      expect(callbackResult.response.success).toBe(false);
+      expect(callbackResult.response.error?.message).toContain('state verification failed');
       expect(mockSessionContext.importState).not.toHaveBeenCalled();
     });
 
@@ -473,10 +490,12 @@ describe('AuthHandler', () => {
         oauthClientId: 'test-client-id',
         oauthClientSecret: 'test-secret',
       });
+      const state = await startManualLoginAndGetState(handler);
 
       const result = await handler.handle({
         action: 'callback',
         code: 'test-code',
+        state,
       });
 
       expect(result.response.success).toBe(true);
@@ -555,10 +574,12 @@ describe('AuthHandler', () => {
         oauthClientId: 'test-client-id',
         oauthClientSecret: 'test-secret',
       });
+      const state = await startManualLoginAndGetState(handler);
 
       const result = await handler.handle({
         action: 'callback',
         code: 'test-code',
+        state,
       });
 
       expect(result.response.success).toBe(true);

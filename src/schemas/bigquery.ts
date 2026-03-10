@@ -48,6 +48,10 @@ const BigQueryTableRefSchema = z.object({
   projectId: z.string().min(1).describe('GCP project ID'),
   datasetId: z.string().min(1).describe('BigQuery dataset ID'),
   tableId: z.string().min(1).describe('BigQuery table ID'),
+  location: z
+    .string()
+    .optional()
+    .describe('BigQuery dataset location for region-scoped jobs (e.g., "US", "EU")'),
 });
 
 // Data source specification for Connected Sheets (BigQuery)

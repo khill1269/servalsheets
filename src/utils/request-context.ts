@@ -48,6 +48,31 @@ import type { ServerNotification } from '@modelcontextprotocol/sdk/types.js';
 import type { MetadataCache } from '../services/metadata-cache.js';
 import { baseLogger } from './base-logger.js';
 
+export interface RelatedMcpRequest {
+  method: string;
+  params?: Record<string, unknown>;
+}
+
+export interface RelatedRequestOptions {
+  signal?: AbortSignal;
+}
+
+export type TaskRequestStatus = 'working' | 'input_required' | 'completed' | 'failed' | 'cancelled';
+
+export interface TaskStatusUpdater {
+  updateTaskStatus: (
+    taskId: string,
+    status: TaskRequestStatus,
+    statusMessage?: string
+  ) => Promise<unknown>;
+}
+
+export type RelatedRequestSender = (
+  request: RelatedMcpRequest,
+  resultSchema: unknown,
+  options?: RelatedRequestOptions
+) => Promise<unknown>;
+
 export interface RequestContext {
   requestId: string;
   logger: Logger;
@@ -64,6 +89,19 @@ export interface RequestContext {
    * Available when client requests progress updates via _meta.progressToken
    */
   sendNotification?: (notification: ServerNotification) => Promise<void>;
+  /**
+   * MCP nested request sender bound to the current request/task context.
+   * When available, this preserves related-request and related-task metadata.
+   */
+  sendRequest?: RelatedRequestSender;
+  /**
+   * Active MCP task identifier when execution is happening in a background task.
+   */
+  taskId?: string;
+  /**
+   * Task status updater used to mark input_required while nested task requests are pending.
+   */
+  taskStore?: TaskStatusUpdater;
   /**
    * MCP progress token from request _meta
    * Used to associate progress notifications with the original request
@@ -103,6 +141,9 @@ export function createRequestContext(options?: {
   abortSignal?: AbortSignal;
   principalId?: string;
   sendNotification?: (notification: ServerNotification) => Promise<void>;
+  sendRequest?: RelatedRequestSender;
+  taskId?: string;
+  taskStore?: TaskStatusUpdater;
   progressToken?: string | number;
   traceId?: string;
   spanId?: string;
@@ -140,6 +181,9 @@ export function createRequestContext(options?: {
     abortSignal: options?.abortSignal,
     principalId: options?.principalId,
     sendNotification: options?.sendNotification,
+    sendRequest: options?.sendRequest,
+    taskId: options?.taskId,
+    taskStore: options?.taskStore,
     progressToken: options?.progressToken,
     traceId: options?.traceId,
     spanId: options?.spanId,
