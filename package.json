@@ -59,7 +59,7 @@
     "@types/deep-diff": "^1.0.5",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^25.3.3",
+    "@types/node": "^25.4.0",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
     "@types/stripe": "^8.0.416",
