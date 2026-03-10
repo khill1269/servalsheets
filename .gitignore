@@ -50,6 +50,7 @@ Thumbs.db
 !tsconfig.eslint.json
 !inspector.json
 !server.json
+!src/generated/manifest.json
 !.prettierrc.json
 !vitest.config.ts
 !tests/config/test-credentials.example.json
@@ -66,6 +67,7 @@ claude_desktop_config.json
 # Logs
 *.log
 npm-debug.log*
+audit-logs/
 
 # Test coverage
 coverage/
