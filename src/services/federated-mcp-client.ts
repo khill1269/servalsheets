@@ -20,6 +20,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { logger } from '../utils/logger.js';
+import { validateWebhookUrl } from './webhook-url-validation.js';
 
 /**
  * Configuration for a federated MCP server
@@ -153,6 +154,9 @@ export class FederatedMcpClient {
     } else if (config.auth?.type === 'api-key' && config.auth.token) {
       headers['X-API-Key'] = config.auth.token;
     }
+
+    // SSRF protection: validate federation URL against private/internal network ranges
+    await validateWebhookUrl(config.url);
 
     // Create transport (currently only HTTP supported)
     // STDIO transport would require StdioClientTransport
