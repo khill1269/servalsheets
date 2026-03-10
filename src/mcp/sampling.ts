@@ -113,18 +113,18 @@ export async function assertSamplingConsent(): Promise<void> {
 // Timeout Wrapper (ISSUE-088)
 // ============================================================================
 
-/** Default sampling request timeout in ms (configurable via SAMPLING_TIMEOUT_MS env var) */
-const SAMPLING_TIMEOUT_MS = parseInt(process.env['SAMPLING_TIMEOUT_MS'] ?? '30000', 10);
 type SamplingOperation<T> = Promise<T> | (() => Promise<T>);
 
 function getEffectiveSamplingTimeout(deadline: number | undefined): number {
-  if (!Number.isFinite(SAMPLING_TIMEOUT_MS) || SAMPLING_TIMEOUT_MS <= 0) {
+  // Lazy read — avoids module-level getEnv() call that fails in test environments
+  const timeoutMs = getEnv().SAMPLING_TIMEOUT_MS;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     return 30000;
   }
   if (!Number.isFinite(deadline)) {
-    return SAMPLING_TIMEOUT_MS;
+    return timeoutMs;
   }
-  return Math.min(SAMPLING_TIMEOUT_MS, Math.max(0, (deadline as number) - Date.now()));
+  return Math.min(timeoutMs, Math.max(0, (deadline as number) - Date.now()));
 }
 
 /**
