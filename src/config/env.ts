@@ -54,6 +54,10 @@ const EnvSchema = z.object({
   HOST: z.string().default('127.0.0.1'),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+  // Per-user sliding-window limits (used by UserRateLimiter in user-rate-limiter.ts)
+  RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(100),
+  RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(5000),
+  RATE_LIMIT_BURST: z.coerce.number().int().positive().default(20),
 
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
@@ -82,7 +86,7 @@ const EnvSchema = z.object({
     .string()
     .optional()
     .transform((v) => v !== 'false' && v !== '0'),
-  MAX_TRANSACTION_OPS: z.coerce.number().int().positive().default(100),
+  MAX_TRANSACTION_OPS: z.coerce.number().int().positive().default(200),
 
   // Performance tuning
   CACHE_ENABLED: strictBoolean().default(true),

@@ -32,6 +32,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { getEnv } from '../config/env.js';
 
 // Use any for Redis client to avoid type conflicts between redis versions
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -392,9 +393,10 @@ export class UserRateLimiter {
  * - RATE_LIMIT_BURST (default: 20)
  */
 export function createUserRateLimiterFromEnv(redis: RedisClient | null): UserRateLimiter {
+  const env = getEnv();
   return new UserRateLimiter(redis, {
-    requestsPerMinute: parseInt(process.env['RATE_LIMIT_PER_MINUTE'] || '100', 10),
-    requestsPerHour: parseInt(process.env['RATE_LIMIT_PER_HOUR'] || '5000', 10),
-    burstAllowance: parseInt(process.env['RATE_LIMIT_BURST'] || '20', 10),
+    requestsPerMinute: env.RATE_LIMIT_PER_MINUTE,
+    requestsPerHour: env.RATE_LIMIT_PER_HOUR,
+    burstAllowance: env.RATE_LIMIT_BURST,
   });
 }
