@@ -17,6 +17,7 @@ import { mapStandaloneError } from './helpers/error-mapping.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { sendProgress } from '../utils/request-context.js';
 import { logger } from '../utils/logger.js';
+import { getEnv } from '../config/env.js';
 
 export interface TransactionHandlerOptions {
   context?: HandlerContext;
@@ -109,7 +110,7 @@ export class TransactionHandler {
           }
 
           // ISSUE-139: Hard cap on queued operations to prevent unbounded growth
-          const MAX_TRANSACTION_OPS = parseInt(process.env['MAX_TRANSACTION_OPS'] ?? '200', 10);
+          const MAX_TRANSACTION_OPS = getEnv().MAX_TRANSACTION_OPS;
           const preTx = transactionManager.getTransaction(req.transactionId);
           if (preTx.operations.length >= MAX_TRANSACTION_OPS) {
             throw new ServiceError(

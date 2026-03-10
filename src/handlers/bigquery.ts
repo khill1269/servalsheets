@@ -33,7 +33,7 @@ import type { bigquery_v2 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
-import { getCircuitBreakerConfig } from '../config/env.js';
+import { getCircuitBreakerConfig, getEnv } from '../config/env.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import { ServiceError } from '../core/errors.js';
 import { createValidationError } from '../utils/error-factory.js';
@@ -61,7 +61,7 @@ import { logger } from '../utils/logger.js';
 import { sendProgress } from '../utils/request-context.js';
 
 /** Maximum BigQuery result rows (ISSUE-188: configurable via env var) */
-const MAX_BIGQUERY_RESULT_ROWS = parseInt(process.env['MAX_BIGQUERY_RESULT_ROWS'] ?? '100000', 10);
+const MAX_BIGQUERY_RESULT_ROWS = getEnv().MAX_BIGQUERY_RESULT_ROWS;
 
 /**
  * Dangerous SQL patterns that should be blocked in Connected Sheets queries.
