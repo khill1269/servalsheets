@@ -1,4 +1,16 @@
 import { createHash } from 'node:crypto';
+
+/** Convert 1-based column index to A1-notation letter(s). E.g., 1→A, 26→Z, 27→AA */
+function columnIndexToLetter(col: number): string {
+  let result = '';
+  let n = col;
+  while (n > 0) {
+    n--;
+    result = String.fromCharCode(65 + (n % 26)) + result;
+    n = Math.floor(n / 26);
+  }
+  return result;
+}
 import type { sheets_v4, drive_v3 } from 'googleapis';
 import type {
   CoreDescribeWorkbookInput,
@@ -38,42 +50,88 @@ export async function handleDescribeWorkbookAction(
   try {
     const { spreadsheetId } = input;
 
-    // Fetch spreadsheet metadata with a tight field mask — no grid data, no expensive fields
+    // Pass 1: metadata only — no grid data. Fast and lightweight regardless of spreadsheet size.
     const spreadsheetRes = await deps.sheetsApi.spreadsheets.get({
       spreadsheetId,
       fields:
-        'spreadsheetId,properties(title,locale,timeZone),sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)),data(rowData(values(formattedValue,userEnteredValue))))',
-      // includeGridData defaults to false — we request minimal data to count formulas
-      includeGridData: true,
-      ranges: [], // no ranges = full sparse fetch, will have rowData with values
+        'spreadsheetId,properties(title,locale,timeZone),sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)))',
+      includeGridData: false,
     });
 
     const spreadsheet = spreadsheetRes.data;
     const properties = spreadsheet.properties ?? {};
     const sheets = spreadsheet.sheets ?? [];
 
+    // Pass 2: bounded values fetch for formula + cell counts.
+    // Cap at MAX_ROWS rows per sheet to prevent full-grid fetches on large workbooks.
+    const MAX_ROWS = 2000;
+    const sheetMeta = sheets.map((sheet) => {
+      const props = sheet.properties ?? {};
+      const grid = props.gridProperties ?? {};
+      const rowCount = Math.min((grid.rowCount as number) ?? 0, MAX_ROWS);
+      const columnCount = (grid.columnCount as number) ?? 0;
+      const title = props.title ?? '';
+      return {
+        name: title,
+        sheetId: (props.sheetId as number) ?? 0,
+        rowCount: (grid.rowCount as number) ?? 0,
+        columnCount,
+        // A1 range bounded to MAX_ROWS to avoid full-grid fetch
+        range:
+          columnCount > 0 && rowCount > 0
+            ? `'${title}'!A1:${columnIndexToLetter(columnCount)}${rowCount}`
+            : null,
+      };
+    });
+
+    const rangeQueries = sheetMeta.filter((s) => s.range !== null).map((s) => s.range as string);
+
+    let valueRanges: Array<{ range: string; values?: string[][] }> = [];
+    if (rangeQueries.length > 0) {
+      try {
+        const valuesRes = await deps.sheetsApi.spreadsheets.values.batchGet({
+          spreadsheetId,
+          ranges: rangeQueries,
+          valueRenderOption: 'FORMULA', // See formula strings directly (start with '=')
+        });
+        valueRanges = (valuesRes.data.valueRanges ?? []) as Array<{
+          range: string;
+          values?: string[][];
+        }>;
+      } catch {
+        // Best-effort: if values fetch fails, skip formula/cell counting
+      }
+    }
+
+    // Build a range→values map for O(1) lookup
+    const valuesByRange = new Map<string, string[][]>();
+    for (const vr of valueRanges) {
+      if (vr.range) valuesByRange.set(vr.range, vr.values ?? []);
+    }
+
     let totalFormulaCount = 0;
     let totalNonEmptyCells = 0;
 
-    const sheetSummaries = sheets.map((sheet) => {
-      const props = sheet.properties ?? {};
-      const grid = props.gridProperties ?? {};
-      const rowCount = (grid.rowCount as number) ?? 0;
-      const columnCount = (grid.columnCount as number) ?? 0;
-
+    const sheetSummaries = sheetMeta.map((meta) => {
       let formulaCount = 0;
       let nonEmptyCells = 0;
 
-      for (const dataRange of sheet.data ?? []) {
-        for (const row of dataRange.rowData ?? []) {
-          for (const cell of row.values ?? []) {
-            const formatted = cell.formattedValue;
-            const entered = cell.userEnteredValue;
-            if (formatted !== undefined && formatted !== null && formatted !== '') {
+      if (meta.range) {
+        // Try exact range first, then any key that includes the sheet name
+        const rows =
+          valuesByRange.get(meta.range) ??
+          [...valuesByRange.entries()].find(
+            ([k]) => k.startsWith(`'${meta.name}'!`) || k.startsWith(`${meta.name}!`)
+          )?.[1] ??
+          [];
+
+        for (const row of rows) {
+          for (const cell of row) {
+            if (cell !== '' && cell !== null && cell !== undefined) {
               nonEmptyCells++;
-            }
-            if (entered && typeof entered === 'object' && 'formulaValue' in entered) {
-              formulaCount++;
+              if (typeof cell === 'string' && cell.startsWith('=')) {
+                formulaCount++;
+              }
             }
           }
         }
@@ -83,10 +141,10 @@ export async function handleDescribeWorkbookAction(
       totalNonEmptyCells += nonEmptyCells;
 
       return {
-        name: props.title ?? '',
-        sheetId: (props.sheetId as number) ?? 0,
-        rowCount,
-        columnCount,
+        name: meta.name,
+        sheetId: meta.sheetId,
+        rowCount: meta.rowCount,
+        columnCount: meta.columnCount,
         formulaCount,
         nonEmptyCells,
         isEmpty: nonEmptyCells === 0,
@@ -143,34 +201,74 @@ export async function handleWorkbookFingerprintAction(
   try {
     const { spreadsheetId } = input;
 
+    // Metadata-only fetch — no grid data. The fingerprint uses sheet structure
+    // (names, dimensions) which doesn't require full cell values.
     const spreadsheetRes = await deps.sheetsApi.spreadsheets.get({
       spreadsheetId,
       fields:
-        'spreadsheetId,properties(title),sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)),data(rowData(values(userEnteredValue))))',
-      includeGridData: true,
-      ranges: [],
+        'spreadsheetId,properties(title),sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)))',
+      includeGridData: false,
     });
 
     const sheets = spreadsheetRes.data.sheets ?? [];
     const title = spreadsheetRes.data.properties?.title ?? '';
 
+    // Formula counting: bounded per-sheet values fetch (capped at 2000 rows)
+    const MAX_ROWS = 2000;
+    const rangeQueries = sheets
+      .map((sheet) => {
+        const props = sheet.properties ?? {};
+        const grid = props.gridProperties ?? {};
+        const sheetTitle = props.title ?? '';
+        const cols = (grid.columnCount as number) ?? 0;
+        const rows = Math.min((grid.rowCount as number) ?? 0, MAX_ROWS);
+        if (cols === 0 || rows === 0) return null;
+        return `'${sheetTitle}'!A1:${columnIndexToLetter(cols)}${rows}`;
+      })
+      .filter(Boolean) as string[];
+
+    let valueRanges: Array<{ range: string; values?: string[][] }> = [];
+    if (rangeQueries.length > 0) {
+      try {
+        const valuesRes = await deps.sheetsApi.spreadsheets.values.batchGet({
+          spreadsheetId,
+          ranges: rangeQueries,
+          valueRenderOption: 'FORMULA',
+        });
+        valueRanges = (valuesRes.data.valueRanges ?? []) as Array<{
+          range: string;
+          values?: string[][];
+        }>;
+      } catch {
+        // Best-effort: fingerprint still works using only sheet structure
+      }
+    }
+    const valuesByRange = new Map<string, string[][]>();
+    for (const vr of valueRanges) {
+      if (vr.range) valuesByRange.set(vr.range, vr.values ?? []);
+    }
+
     const parts: string[] = [`title:${title}`];
     for (const sheet of sheets) {
       const props = sheet.properties ?? {};
       const grid = props.gridProperties ?? {};
+      const sheetTitle = props.title ?? '';
       let formulaCount = 0;
-      for (const dataRange of sheet.data ?? []) {
-        for (const row of dataRange.rowData ?? []) {
-          for (const cell of row.values ?? []) {
-            const entered = cell.userEnteredValue;
-            if (entered && typeof entered === 'object' && 'formulaValue' in entered) {
-              formulaCount++;
-            }
-          }
+      const rows =
+        valuesByRange.get(
+          `'${sheetTitle}'!A1:${columnIndexToLetter((grid.columnCount as number) ?? 1)}${Math.min((grid.rowCount as number) ?? 0, MAX_ROWS)}`
+        ) ??
+        [...valuesByRange.entries()].find(
+          ([k]) => k.startsWith(`'${sheetTitle}'!`) || k.startsWith(`${sheetTitle}!`)
+        )?.[1] ??
+        [];
+      for (const row of rows) {
+        for (const cell of row) {
+          if (typeof cell === 'string' && cell.startsWith('=')) formulaCount++;
         }
       }
       parts.push(
-        `sheet:${props.title ?? ''}|id:${props.sheetId ?? 0}|rows:${grid.rowCount ?? 0}|cols:${grid.columnCount ?? 0}|formulas:${formulaCount}`
+        `sheet:${sheetTitle}|id:${props.sheetId ?? 0}|rows:${grid.rowCount ?? 0}|cols:${grid.columnCount ?? 0}|formulas:${formulaCount}`
       );
     }
 
