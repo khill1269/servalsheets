@@ -114,6 +114,8 @@ function fuzzyMatch(query: string, candidates: string[]): Array<{ value: string;
     .sort((a, b) => b.score - a.score);
 }
 
+const MIN_OPERATION_FUZZY_MATCH_SCORE = 0.5;
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -675,7 +677,7 @@ export class SessionContextManager {
 
       if (textMatches.length > 0) {
         const matchedText = textMatches[0];
-        if (matchedText) {
+        if (matchedText && matchedText.score >= MIN_OPERATION_FUZZY_MATCH_SCORE) {
           const matchedRecord = operationTexts.find((ot) => ot.text === matchedText.value);
           if (matchedRecord) {
             return { ...matchedRecord.op, matchScore: matchedText.score };
@@ -1293,11 +1295,13 @@ export class SessionContextManager {
 // SINGLETON INSTANCE
 // ============================================================================
 
-/** Session TTL in ms — configurable via SESSION_TTL_MS env var (default: 24h) */
-const SESSION_TTL_MS = parseInt(process.env['SESSION_TTL_MS'] ?? String(24 * 60 * 60 * 1000), 10);
+function getSessionTtlMs(): number {
+  return parseInt(process.env['SESSION_TTL_MS'] ?? String(24 * 60 * 60 * 1000), 10);
+}
 
-/** Redis session store key — namespaced by SESSION_INSTANCE_ID for multi-instance deployments */
-const SESSION_REDIS_KEY = `servalsheets:session:${process.env['SESSION_INSTANCE_ID'] ?? 'default'}:state`;
+function getSessionRedisKey(): string {
+  return `servalsheets:session:${process.env['SESSION_INSTANCE_ID'] ?? 'default'}:state`;
+}
 
 let sessionContext: SessionContextManager | null = null;
 const sessionContexts = new Map<string, SessionContextManager>();
@@ -1326,10 +1330,11 @@ export function initSessionRedis(client: RedisSessionClient): void {
 export function getSessionContext(): SessionContextManager {
   if (!sessionContext) {
     sessionContext = new SessionContextManager();
+    const sessionRedisKey = getSessionRedisKey();
     // SCALE-01: Restore from Redis asynchronously (fire-and-forget; state is valid in-memory)
     if (sessionRedisClient) {
       void sessionRedisClient
-        .get(SESSION_REDIS_KEY)
+        .get(sessionRedisKey)
         .then((stored) => {
           if (stored && sessionContext) {
             sessionContext.importState(stored);
@@ -1343,18 +1348,18 @@ export function getSessionContext(): SessionContextManager {
           });
         });
     }
-  } else if (Date.now() - sessionContext.getState().lastActivityAt > SESSION_TTL_MS) {
+  } else if (Date.now() - sessionContext.getState().lastActivityAt > getSessionTtlMs()) {
     logger.info('Session expired — creating new SessionContextManager', {
       component: 'session-context',
       idleMs: Date.now() - sessionContext.getState().lastActivityAt,
-      ttlMs: SESSION_TTL_MS,
+      ttlMs: getSessionTtlMs(),
     });
     // SCALE-01: Persist expired session to Redis before evicting
     if (sessionRedisClient) {
       const serialized = sessionContext.exportState();
-      const ttlSeconds = Math.ceil(SESSION_TTL_MS / 1000);
+      const ttlSeconds = Math.ceil(getSessionTtlMs() / 1000);
       void sessionRedisClient
-        .set(SESSION_REDIS_KEY, serialized, { EX: ttlSeconds })
+        .set(getSessionRedisKey(), serialized, { EX: ttlSeconds })
         .catch((err: unknown) => {
           logger.warn('Failed to persist session to Redis on expiry', {
             component: 'session-context',
@@ -1375,14 +1380,14 @@ export function getOrCreateSessionContext(sessionId: string): SessionContextMana
   const existing = sessionContexts.get(sessionId);
   if (existing) {
     const idleMs = Date.now() - existing.getState().lastActivityAt;
-    if (idleMs <= SESSION_TTL_MS) {
+    if (idleMs <= getSessionTtlMs()) {
       return existing;
     }
     logger.info('Session expired — creating new SessionContextManager', {
       component: 'session-context',
       sessionId,
       idleMs,
-      ttlMs: SESSION_TTL_MS,
+      ttlMs: getSessionTtlMs(),
     });
   }
 
@@ -1403,7 +1408,7 @@ export function removeSessionContext(sessionId: string): void {
  * Reset the session context (for testing or new sessions)
  */
 export function resetSessionContext(): void {
-  sessionContext = new SessionContextManager();
+  sessionContext = null;
   sessionContexts.clear();
 }
 

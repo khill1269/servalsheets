@@ -20,14 +20,30 @@ import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
 import { logger } from '../utils/logger.js';
 
-// Configuration constants
-const MIN_BACKOFF_MS = parseInt(process.env['MIN_RESTART_BACKOFF_MS'] || '1000', 10); // 1 second
-const MAX_BACKOFF_MS = parseInt(process.env['MAX_RESTART_BACKOFF_MS'] || '60000', 10); // 60 seconds
-const SUCCESS_THRESHOLD_MS = parseInt(process.env['SUCCESS_THRESHOLD_MS'] || '30000', 10); // 30 seconds
+function getMinBackoffMs(): number {
+  return parseInt(process.env['MIN_RESTART_BACKOFF_MS'] || '1000', 10);
+}
 
-// State file location
-const homeDir = process.env['HOME'] || process.env['USERPROFILE'] || '/tmp';
-const STATE_FILE = join(homeDir, '.servalsheets', 'restart-state.json');
+function getMaxBackoffMs(): number {
+  return parseInt(process.env['MAX_RESTART_BACKOFF_MS'] || '60000', 10);
+}
+
+function getSuccessThresholdMs(): number {
+  return parseInt(process.env['SUCCESS_THRESHOLD_MS'] || '30000', 10);
+}
+
+function getStateFile(): string {
+  if (process.env['RESTART_STATE_FILE']) {
+    return process.env['RESTART_STATE_FILE'];
+  }
+
+  if (process.env['DATA_DIR']) {
+    return join(process.env['DATA_DIR'], 'restart-state.json');
+  }
+
+  const homeDir = process.env['HOME'] || process.env['USERPROFILE'] || '/tmp';
+  return join(homeDir, '.servalsheets', 'restart-state.json');
+}
 
 export interface RestartState {
   lastStartAttempt: number;
@@ -53,16 +69,17 @@ function calculateBackoff(consecutiveFailures: number): number {
     return 0;
   }
 
-  const backoff = MIN_BACKOFF_MS * Math.pow(2, consecutiveFailures - 1);
-  return Math.min(backoff, MAX_BACKOFF_MS);
+  const backoff = getMinBackoffMs() * Math.pow(2, consecutiveFailures - 1);
+  return Math.min(backoff, getMaxBackoffMs());
 }
 
 /**
  * Load restart state from persistent storage
  */
 async function loadRestartState(): Promise<RestartState> {
+  const stateFile = getStateFile();
   try {
-    const data = await fs.readFile(STATE_FILE, 'utf-8');
+    const data = await fs.readFile(stateFile, 'utf-8');
     const parsed = JSON.parse(data) as RestartState;
 
     logger.debug('Loaded restart state', {
@@ -89,14 +106,15 @@ async function loadRestartState(): Promise<RestartState> {
  * Save restart state to persistent storage
  */
 async function saveRestartState(state: RestartState): Promise<void> {
+  const stateFile = getStateFile();
   try {
     // Ensure directory exists
-    await fs.mkdir(dirname(STATE_FILE), { recursive: true });
+    await fs.mkdir(dirname(stateFile), { recursive: true });
 
     // Write state atomically (write to temp file, then rename)
-    const tempFile = `${STATE_FILE}.tmp`;
+    const tempFile = `${stateFile}.tmp`;
     await fs.writeFile(tempFile, JSON.stringify(state, null, 2), 'utf-8');
-    await fs.rename(tempFile, STATE_FILE);
+    await fs.rename(tempFile, stateFile);
 
     logger.debug('Saved restart state', {
       consecutiveFailures: state.consecutiveFailures,
@@ -121,7 +139,7 @@ export async function checkRestartBackoff(): Promise<number> {
   // If last start was successful (ran for > SUCCESS_THRESHOLD_MS), reset failure count
   if (
     state.lastSuccessfulStart > 0 &&
-    state.lastSuccessfulStart - state.lastStartAttempt > SUCCESS_THRESHOLD_MS
+    state.lastSuccessfulStart - state.lastStartAttempt > getSuccessThresholdMs()
   ) {
     logger.debug('Last startup was successful, resetting failure count');
     state.consecutiveFailures = 0;
@@ -176,22 +194,23 @@ export async function recordSuccessfulStartup(): Promise<void> {
   const state = await loadRestartState();
   const now = Date.now();
   const uptime = now - state.lastStartAttempt;
+  const successThresholdMs = getSuccessThresholdMs();
 
   // Only record as successful if server ran long enough
-  if (uptime >= SUCCESS_THRESHOLD_MS) {
+  if (uptime >= successThresholdMs) {
     state.lastSuccessfulStart = now;
     state.consecutiveFailures = 0;
 
     logger.info('Recorded successful startup', {
       uptime,
-      threshold: SUCCESS_THRESHOLD_MS,
+      threshold: successThresholdMs,
     });
 
     await saveRestartState(state);
   } else {
     logger.debug('Startup too short to consider successful', {
       uptime,
-      threshold: SUCCESS_THRESHOLD_MS,
+      threshold: successThresholdMs,
     });
   }
 }
@@ -202,7 +221,7 @@ export async function recordSuccessfulStartup(): Promise<void> {
  */
 export async function clearRestartState(): Promise<void> {
   try {
-    await fs.unlink(STATE_FILE);
+    await fs.unlink(getStateFile());
     logger.info('Restart state cleared');
   } catch {
     // Ignore errors - file might not exist

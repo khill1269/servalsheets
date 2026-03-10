@@ -181,6 +181,19 @@ export const APPSSCRIPT_SCOPES = [
  */
 export const FULL_SCOPES = Array.from(FULL_ACCESS_SCOPES);
 
+function parsePositiveInteger(value: string | undefined): number | null {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+export function resolveGoogleApiAgentTimeoutMs(envSource: NodeJS.ProcessEnv = process.env): number {
+  return (
+    parsePositiveInteger(envSource['GOOGLE_API_TIMEOUT_MS']) ??
+    parsePositiveInteger(envSource['GOOGLE_API_REQUEST_TIMEOUT_MS']) ??
+    60000
+  );
+}
+
 /**
  * Create HTTP agents with connection pooling
  * Optimizes performance by reusing TCP connections
@@ -194,7 +207,7 @@ function createHttpAgents(): { http: HttpAgent; https: HttpsAgent } {
     keepAliveMsecs: keepAliveTimeout,
     maxSockets,
     maxFreeSockets: Math.floor(maxSockets / 2),
-    timeout: parseInt(process.env['GOOGLE_API_REQUEST_TIMEOUT_MS'] ?? '60000', 10),
+    timeout: resolveGoogleApiAgentTimeoutMs(),
     scheduling: 'lifo' as const, // Use most recent connection first
   };
 

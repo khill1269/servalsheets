@@ -51,8 +51,8 @@ export class EncryptedFileTokenStore implements TokenStore {
   constructor(filePath: string, secretKeyHex: string) {
     if (!secretKeyHex || secretKeyHex.length !== 64) {
       throw new ConfigError(
-        'TOKEN_STORE_KEY must be a 64-character hex string (32 bytes)',
-        'TOKEN_STORE_KEY',
+        'ENCRYPTION_KEY must be a 64-character hex string (32 bytes)',
+        'ENCRYPTION_KEY',
         {
           received: secretKeyHex ? `${secretKeyHex.length} characters` : 'undefined',
           expected: '64 characters (hex)',

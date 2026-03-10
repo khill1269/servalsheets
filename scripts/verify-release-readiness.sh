@@ -32,6 +32,12 @@ npm run validate:mcp-protocol
 echo "Release readiness: test:compliance"
 npm run test:compliance
 
+echo "Release readiness: test:admin"
+npm run test:admin
+
+echo "Release readiness: test:services"
+npm run test:services
+
 echo "Release readiness: check:integration-wiring"
 npm run check:integration-wiring
 

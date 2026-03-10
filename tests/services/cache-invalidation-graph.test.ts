@@ -110,8 +110,8 @@ describe('CacheInvalidationGraph', () => {
       expect(patterns).toContain('metadata:*');
     });
 
-    it('sheets_format.add_rule should invalidate metadata', () => {
-      const patterns = graph.getInvalidationKeys('sheets_format', 'add_rule');
+    it('sheets_format.add_conditional_format_rule should invalidate metadata', () => {
+      const patterns = graph.getInvalidationKeys('sheets_format', 'add_conditional_format_rule');
 
       expect(patterns).toContain('metadata:*');
     });

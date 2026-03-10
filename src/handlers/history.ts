@@ -512,21 +512,20 @@ export class HistoryHandler {
           }
           const timelineReq = req as HistoryTimelineInput;
           await sendProgress(0, 2, 'Scanning revision history...');
-          const entries = await getTimeline(this.driveApi, timelineReq.spreadsheetId, {
+          const timeline = await getTimeline(this.driveApi, timelineReq.spreadsheetId, {
             since: timelineReq.since,
             until: timelineReq.until,
             limit: timelineReq.limit,
             googleClient: this.googleClient,
           });
-          await sendProgress(1, 2, `Found ${entries.length} revision entries`);
-          const activityAvailable = entries.some((e) => e.activityType !== undefined);
+          await sendProgress(1, 2, `Found ${timeline.items.length} revision entries`);
 
           // Wire session context: cache timeline for quick follow-up diff_revisions
           try {
             const session = getSessionContext();
-            if (entries.length >= 2) {
-              const latestId = (entries[0] as { revisionId?: string }).revisionId;
-              const previousId = (entries[1] as { revisionId?: string }).revisionId;
+            if (timeline.items.length >= 2) {
+              const latestId = (timeline.items[0] as { revisionId?: string }).revisionId;
+              const previousId = (timeline.items[1] as { revisionId?: string }).revisionId;
               if (latestId && previousId) {
                 session.setPendingOperation({
                   type: 'timeline',
@@ -536,7 +535,7 @@ export class HistoryHandler {
                     spreadsheetId: timelineReq.spreadsheetId,
                     latestRevisionId: latestId,
                     previousRevisionId: previousId,
-                    entryCount: entries.length,
+                    entryCount: timeline.items.length,
                     since: timelineReq.since,
                     until: timelineReq.until,
                   },
@@ -548,15 +547,15 @@ export class HistoryHandler {
           }
 
           // Wire completions: cache revision IDs for argument autocompletion (ISSUE-062)
-          for (const entry of entries) {
+          for (const entry of timeline.items) {
             const revId = (entry as unknown as Record<string, unknown>)['revisionId'];
             if (typeof revId === 'string') recordRevisionId(revId);
           }
 
           // Wire AI insight: narrate change history
           let aiNarrative: string | undefined;
-          if (entries.length > 0) {
-            const timelineSummary = entries
+          if (timeline.items.length > 0) {
+            const timelineSummary = timeline.items
               .slice(0, 10)
               .map((e) => {
                 const entry = e as unknown as Record<string, unknown>;
@@ -579,10 +578,13 @@ export class HistoryHandler {
           response = {
             success: true,
             action: 'timeline',
-            timeline: entries,
-            activityAvailable,
+            timeline: timeline.items,
+            activityAvailable: timeline.activityAvailable,
+            totalFetched: timeline.totalFetched,
+            truncated: timeline.truncated,
+            nextPageToken: timeline.nextPageToken,
             ...(aiNarrative !== undefined ? { aiNarrative } : {}),
-            message: `Found ${entries.length} revision(s)`,
+            message: `Found ${timeline.items.length} revision(s)`,
           };
           break;
         }

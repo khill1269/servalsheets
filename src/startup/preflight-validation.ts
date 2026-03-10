@@ -169,16 +169,36 @@ async function checkConfiguration(): Promise<PreflightResult> {
     }
   }
 
-  // OAuth configuration validation
-  const clientId = process.env['OAUTH_CLIENT_ID'];
-  const clientSecret = process.env['OAUTH_CLIENT_SECRET'];
-  const sessionSecret = process.env['SESSION_SECRET'];
-
-  // If any OAuth var is set, all should be set
-  const oauthVarsSet = [clientId, clientSecret, sessionSecret].filter(Boolean).length;
-  if (oauthVarsSet > 0 && oauthVarsSet < 3) {
+  // Local Google OAuth client validation
+  const googleClientId = process.env['GOOGLE_CLIENT_ID'] ?? process.env['OAUTH_CLIENT_ID'];
+  const googleClientSecret =
+    process.env['GOOGLE_CLIENT_SECRET'] ?? process.env['OAUTH_CLIENT_SECRET'];
+  const localOAuthVarsSet = [googleClientId, googleClientSecret].filter(Boolean).length;
+  if (localOAuthVarsSet > 0 && localOAuthVarsSet < 2) {
     issues.push(
-      'Incomplete OAuth configuration - need OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET, and SESSION_SECRET'
+      'Incomplete OAuth client configuration - need GOOGLE_CLIENT_ID/OAUTH_CLIENT_ID and GOOGLE_CLIENT_SECRET/OAUTH_CLIENT_SECRET'
+    );
+  }
+
+  // Remote OAuth server validation
+  const jwtSecret = process.env['JWT_SECRET'];
+  const stateSecret = process.env['STATE_SECRET'];
+  const oauthClientSecret = process.env['OAUTH_CLIENT_SECRET'];
+  const remoteGoogleClientId = process.env['GOOGLE_CLIENT_ID'];
+  const remoteGoogleClientSecret = process.env['GOOGLE_CLIENT_SECRET'];
+  const remoteOAuthVarsSet = [jwtSecret, stateSecret, oauthClientSecret].filter(Boolean).length;
+  if (
+    remoteOAuthVarsSet > 0 &&
+    [
+      jwtSecret,
+      stateSecret,
+      oauthClientSecret,
+      remoteGoogleClientId,
+      remoteGoogleClientSecret,
+    ].filter(Boolean).length < 5
+  ) {
+    issues.push(
+      'Incomplete remote OAuth configuration - need JWT_SECRET, STATE_SECRET, OAUTH_CLIENT_SECRET, GOOGLE_CLIENT_ID, and GOOGLE_CLIENT_SECRET'
     );
   }
 
@@ -205,7 +225,15 @@ async function checkConfiguration(): Promise<PreflightResult> {
     message: 'Configuration validated',
     details: {
       hasEncryptionKey: Boolean(encryptionKey),
-      hasOAuthConfig: oauthVarsSet === 3,
+      hasOAuthClientConfig: localOAuthVarsSet === 2,
+      hasRemoteOAuthConfig:
+        [
+          jwtSecret,
+          stateSecret,
+          oauthClientSecret,
+          remoteGoogleClientId,
+          remoteGoogleClientSecret,
+        ].filter(Boolean).length === 5,
       hasRedisUrl: Boolean(redisUrl),
     },
   };

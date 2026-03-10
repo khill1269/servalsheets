@@ -187,6 +187,7 @@ const EnvSchema = z.object({
   // Admin Dashboard Configuration
   ADMIN_API_KEY: z.string().optional(),
   ADMIN_VIEWER_KEY: z.string().optional(),
+  ADMIN_SECRET: z.string().optional(), // Deprecated fallback for legacy admin auth
   ADMIN_SESSION_TTL_MS: z.coerce.number().positive().default(86400000), // 24 hours
 
   // Session idle timeout (HTTP transport only)

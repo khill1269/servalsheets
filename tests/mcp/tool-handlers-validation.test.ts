@@ -150,7 +150,7 @@ describe('buildToolResponse non-fatal classification', () => {
 
     expect(result.isError).toBeUndefined();
     expect((result.structuredContent as any).response.success).toBe(false);
-    expect((result.structuredContent as any).response._meta.nonFatalError).toBe(true);
+    expect((result.structuredContent as any)._meta.nonFatalError).toBe(true);
   });
 
   it('keeps internal failures as MCP errors', () => {
@@ -181,17 +181,18 @@ describe('buildToolResponse non-fatal classification', () => {
       });
 
       const response = (result.structuredContent as any).response;
+      const meta = response._meta;
       expect(response.success).toBe(true);
       expect(response.resourceUri).toBeDefined();
-      expect(response._meta).toMatchObject({
+      expect(meta).toMatchObject({
         truncated: true,
         originalSizeBytes: expect.any(Number),
         deliveredSizeBytes: expect.any(Number),
         retrievalUri: expect.any(String),
         continuationHint: expect.any(String),
       });
-      expect(response._meta.retrievalUri).toBe(response.resourceUri);
-      expect(response._meta.continuationHint).toContain('resources/read');
+      expect(meta.retrievalUri).toBe(response.resourceUri);
+      expect(meta.continuationHint).toContain('resources/read');
     } finally {
       if (previousBudget === undefined) {
         delete process.env['MCP_MAX_RESPONSE_BYTES'];
@@ -215,7 +216,7 @@ describe('buildToolResponse error-code compatibility metadata', () => {
       },
     });
 
-    const meta = (result.structuredContent as any).response._meta;
+    const meta = (result.structuredContent as any)._meta;
     expect(meta.errorCode).toBe('VALIDATION_ERROR');
     expect(meta.errorCodeCanonical).toBe('INVALID_REQUEST');
     expect(meta.errorCodeFamily).toBe('validation');
@@ -234,7 +235,7 @@ describe('buildToolResponse error-code compatibility metadata', () => {
       },
     });
 
-    const meta = (result.structuredContent as any).response._meta;
+    const meta = (result.structuredContent as any)._meta;
     expect(meta.errorCode).toBe('CUSTOM_RUNTIME_ERROR');
     expect(meta.errorCodeCanonical).toBe('UNKNOWN_ERROR');
     expect(meta.errorCodeFamily).toBe('unknown');

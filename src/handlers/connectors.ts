@@ -274,6 +274,22 @@ export class ConnectorsHandler {
     req: Extract<SheetsConnectorsInput['request'], { action: 'discover' }>
   ): Promise<SheetsConnectorsOutput> {
     if (req.endpoint) {
+      const discovery = await connectorManager.discover(req.connectorId);
+      const endpoint = discovery.endpoints.find((candidate) => candidate.id === req.endpoint);
+      if (!endpoint) {
+        return {
+          response: {
+            success: false,
+            action: 'discover',
+            error: {
+              code: ErrorCodes.INVALID_PARAMS,
+              message: `Unknown endpoint "${req.endpoint}" for connector "${req.connectorId}"`,
+              retryable: false,
+            },
+          },
+        };
+      }
+
       // Get schema for a specific endpoint
       const schema = await connectorManager.getEndpointSchema(req.connectorId, req.endpoint);
       return {

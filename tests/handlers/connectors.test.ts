@@ -175,11 +175,40 @@ describe('ConnectorsHandler', () => {
 
     expect(querySpy).toHaveBeenCalledWith('finnhub', 'stock/quote', { symbol: 'AAPL' }, { limit: 1 }, true);
     expect(statusSpy).toHaveBeenCalledWith('finnhub');
-    expect(discoverSpy).toHaveBeenCalledWith('finnhub');
+    expect(discoverSpy).toHaveBeenCalledTimes(2);
+    expect(discoverSpy).toHaveBeenNthCalledWith(1, 'finnhub');
+    expect(discoverSpy).toHaveBeenNthCalledWith(2, 'finnhub');
     expect(schemaSpy).toHaveBeenCalledWith('finnhub', 'stock/quote');
     expect(transformResult.response.action).toBe('transform');
     expect(statusResult.response.action).toBe('status');
     expect(discoverResult.response.action).toBe('discover');
     expect(discoverSchemaResult.response.action).toBe('discover');
+  });
+
+  it('rejects discover schema requests for unknown endpoints', async () => {
+    vi.spyOn(connectorManager, 'discover').mockResolvedValue({
+      endpoints: [
+        {
+          id: 'stock/quote',
+          name: 'Stock Quote',
+          description: 'Quote endpoint',
+          category: 'stocks',
+          params: [],
+        },
+      ],
+    });
+    const schemaSpy = vi.spyOn(connectorManager, 'getEndpointSchema');
+
+    const result = await handler.handle({
+      request: { action: 'discover', connectorId: 'finnhub', endpoint: 'unknown/endpoint' },
+    });
+
+    expect(result.response.success).toBe(false);
+    expect(result.response.action).toBe('discover');
+    if (!result.response.success) {
+      expect(result.response.error.code).toBe('INVALID_PARAMS');
+      expect(result.response.error.message).toContain('Unknown endpoint');
+    }
+    expect(schemaSpy).not.toHaveBeenCalled();
   });
 });

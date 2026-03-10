@@ -76,11 +76,16 @@ describe('HistoryHandler — time-travel actions (ISSUE-238)', () => {
   describe('timeline action', () => {
     it('should return timeline entries on success', async () => {
       const { getTimeline } = await import('../../src/services/revision-timeline.js');
-      const mockEntries = [
-        { revisionId: 'r2', timestamp: '2026-01-02T00:00:00Z', author: 'alice@example.com' },
-        { revisionId: 'r1', timestamp: '2026-01-01T00:00:00Z', author: 'bob@example.com' },
-      ];
-      vi.mocked(getTimeline).mockResolvedValue(mockEntries as any);
+      const mockTimeline = {
+        items: [
+          { revisionId: 'r2', timestamp: '2026-01-02T00:00:00Z', user: 'alice@example.com' },
+          { revisionId: 'r1', timestamp: '2026-01-01T00:00:00Z', user: 'bob@example.com' },
+        ],
+        totalFetched: 2,
+        truncated: false,
+        activityAvailable: false,
+      };
+      vi.mocked(getTimeline).mockResolvedValue(mockTimeline as any);
 
       const result = await handler.handle({
         request: { action: 'timeline', spreadsheetId: 'sheet-abc' },
@@ -112,7 +117,12 @@ describe('HistoryHandler — time-travel actions (ISSUE-238)', () => {
 
     it('should return empty timeline when no entries found', async () => {
       const { getTimeline } = await import('../../src/services/revision-timeline.js');
-      vi.mocked(getTimeline).mockResolvedValue([]);
+      vi.mocked(getTimeline).mockResolvedValue({
+        items: [],
+        totalFetched: 0,
+        truncated: false,
+        activityAvailable: false,
+      } as any);
 
       const result = await handler.handle({
         request: {
