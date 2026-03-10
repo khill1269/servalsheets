@@ -9,6 +9,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { validateWebhookUrl } from '../services/webhook-url-validation.js';
 import type {
   SpreadsheetConnector,
   ConnectorCredentials,
@@ -115,6 +116,8 @@ export class GenericRestConnector implements SpreadsheetConnector {
   }
 
   async configure(credentials: ConnectorCredentials): Promise<void> {
+    await validateWebhookUrl(this.config.baseUrl);
+
     if (this.config.auth.type !== 'none') {
       if (!credentials.apiKey && !credentials.custom?.['token']) {
         throw new Error(
