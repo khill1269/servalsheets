@@ -14,7 +14,7 @@
  */
 
 import type { sheets_v4 } from 'googleapis';
-import { logger as baseLogger } from '../utils/logger.js';
+import { baseLogger } from '../utils/base-logger.js';
 
 export interface SpreadsheetMetadata {
   spreadsheetId: string;
