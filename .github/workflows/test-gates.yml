@@ -53,10 +53,10 @@ jobs:
       - name: Validate tool schemas
         run: |
           npm run build
-          node -e "
-            const { getAllToolSchemas } = require('./dist/mcp/tool-schemas.js');
-            const { TOOL_COUNT } = require('./dist/schemas/index.js');
-            const schemas = getAllToolSchemas();
+          node --input-type=module -e "
+            import { getSchemaIndex } from './dist/resources/schemas.js';
+            import { TOOL_COUNT } from './dist/schemas/index.js';
+            const schemas = JSON.parse(getSchemaIndex()).tools;
             console.log('Tool count:', schemas.length, '(expected:', TOOL_COUNT + ')');
             if (schemas.length !== TOOL_COUNT) {
               console.error(\`❌ Expected exactly \${TOOL_COUNT} tool schemas, got \${schemas.length}\`);
@@ -86,24 +86,8 @@ jobs:
       - name: Run unit tests
         run: npm test -- --run tests/unit tests/core
 
-      - name: Verify test coverage
-        run: |
-          npm test -- --run --coverage tests/unit tests/core
-          # Check coverage threshold
-          node -e "
-            const fs = require('fs');
-            try {
-              const coverage = JSON.parse(fs.readFileSync('coverage/coverage-summary.json'));
-              const total = coverage.total;
-              console.log('Coverage:', JSON.stringify(total, null, 2));
-              if (total.statements.pct < 70) {
-                console.error('Statement coverage below 70%');
-                process.exit(1);
-              }
-            } catch (e) {
-              console.log('Coverage data not available, skipping check');
-            }
-          "
+      - name: Coverage ownership note
+        run: echo "Coverage is enforced by coverage.yml on the full test suite; this gate only verifies the unit/core slice."
 
   # Gate 3: Integration Tests
   integration-gate:
@@ -156,17 +140,15 @@ jobs:
         run: |
           # Build and check for schema changes
           npm run build
-          node -e "
-            const { getAllToolSchemas } = require('./dist/mcp/tool-schemas.js');
-            const { TOOL_DEFINITIONS } = require('./dist/mcp/registration/tool-definitions.js');
-            const schemas = getAllToolSchemas();
+          node --input-type=module -e "
+            import { getSchemaIndex } from './dist/resources/schemas.js';
+            import { TOOL_DEFINITIONS } from './dist/mcp/registration/tool-definitions.js';
 
-            // Verify schema output matches source-of-truth tool definitions
-            const requiredTools = TOOL_DEFINITIONS.map(t => t.name);
-
-            const toolNames = schemas.map(s => s.name);
-            const missing = requiredTools.filter(t => !toolNames.includes(t));
-            const extra = toolNames.filter(t => !requiredTools.includes(t));
+            const schemas = JSON.parse(getSchemaIndex()).tools;
+            const requiredTools = TOOL_DEFINITIONS.map((t) => t.name);
+            const toolNames = schemas.map((s) => s.name);
+            const missing = requiredTools.filter((t) => !toolNames.includes(t));
+            const extra = toolNames.filter((t) => !requiredTools.includes(t));
 
             if (missing.length > 0) {
               console.error('Missing required tools:', missing);
@@ -206,15 +188,13 @@ jobs:
         run: |
           # Check that destructive operations require confirmation
           npm run build
-          node -e "
-            const { getAllToolSchemas } = require('./dist/mcp/tool-schemas.js');
-            const schemas = getAllToolSchemas();
+          node --input-type=module -e "
+            import { getToolSchema } from './dist/resources/schemas.js';
 
-            // Tools that modify data should have safety checks
             const modifyingTools = ['sheets_data', 'sheets_dimensions', 'sheets_transaction'];
 
             for (const toolName of modifyingTools) {
-              const schema = schemas.find(s => s.name === toolName);
+              const schema = getToolSchema(toolName);
               if (!schema) {
                 console.error('Missing tool:', toolName);
                 process.exit(1);

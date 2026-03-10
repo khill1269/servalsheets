@@ -425,6 +425,7 @@
     "test:compliance": "vitest run tests/compliance",
     "test:contracts": "vitest run tests/contracts",
     "test:coverage": "vitest run --coverage",
+    "test:coverage:report": "vitest run --coverage --coverage.thresholds.lines=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0 --coverage.thresholds.statements=0",
     "test:e2e": "TEST_E2E=true vitest run tests/e2e",
     "test:fast": "vitest run tests/unit tests/schemas tests/utils tests/core tests/handlers --exclude='**/*.snapshot.test.ts' --exclude='**/analyze.test.ts' --exclude='**/benchmarks/**' --pool=threads",
     "test:handlers": "vitest run tests/handlers --exclude='**/*.snapshot.test.ts'",
