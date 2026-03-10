@@ -983,7 +983,7 @@ describe('DimensionsHandler', () => {
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'trim_whitespace');
-        expect(result.response).toHaveProperty('cellsChanged', 15);
+        expect(result.response).toHaveProperty('cellsAffected', 15);
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
           spreadsheetId: 'test-sheet-id',
           requestBody: {
@@ -1010,7 +1010,7 @@ describe('DimensionsHandler', () => {
         });
 
         expect(result.response.success).toBe(true);
-        expect(result.response).toHaveProperty('cellsChanged', 0);
+        expect(result.response).toHaveProperty('cellsAffected', 0);
         expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
       });
     });
@@ -1567,6 +1567,49 @@ describe('DimensionsHandler', () => {
         if (result.response.success) {
           expect(result.response.filterViewId).toBe(7);
         }
+      });
+    });
+
+    describe('duplicate_filter_view', () => {
+      it('should duplicate a filter view by ID', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({
+          data: {
+            replies: [{ duplicateFilterView: { filter: { filterViewId: 84 } } }],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'duplicate_filter_view',
+          spreadsheetId: 'test-sheet-id',
+          filterViewId: 42,
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'duplicate_filter_view');
+        if (result.response.success) {
+          expect(result.response.filterViewId).toBe(84);
+        }
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
+          spreadsheetId: 'test-sheet-id',
+          requestBody: {
+            requests: [{ duplicateFilterView: { filterId: 42 } }],
+          },
+        });
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should respect dryRun for duplicate_filter_view', async () => {
+        const result = await handler.handle({
+          action: 'duplicate_filter_view',
+          spreadsheetId: 'test-sheet-id',
+          filterViewId: 42,
+          safety: { dryRun: true },
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
       });
     });
 

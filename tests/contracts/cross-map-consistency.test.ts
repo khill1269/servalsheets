@@ -114,7 +114,7 @@ describe('Cross-Map Consistency', () => {
 
     it('ACTION_COUNT is greater than 290 (sanity check)', () => {
       expect(ACTION_COUNT).toBeGreaterThan(290);
-      expect(ACTION_COUNT).toBeLessThan(350);
+      expect(ACTION_COUNT).toBeLessThan(400);
     });
   });
 
@@ -137,6 +137,14 @@ describe('Cross-Map Consistency', () => {
           Object.keys(toolMetadata).length,
           `${toolName} has zero action metadata entries`
         ).toBeGreaterThan(0);
+      }
+    });
+
+    it('ACTION_METADATA action keys exactly match TOOL_ACTIONS per tool', () => {
+      for (const [toolName, actions] of Object.entries(TOOL_ACTIONS)) {
+        const metadataActions = Object.keys(ACTION_METADATA[toolName] ?? {}).sort();
+        const expectedActions = [...actions].sort();
+        expect(metadataActions).toEqual(expectedActions);
       }
     });
   });

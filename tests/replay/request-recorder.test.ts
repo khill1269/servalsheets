@@ -1,18 +1,41 @@
 /**
  * Request Recorder Tests
+ *
+ * Requires better-sqlite3 native module. Skipped when binary is incompatible
+ * (e.g., different arch or glibc version in sandbox environments).
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { RequestRecorder, type RecordedRequest } from '../../src/services/request-recorder.js';
 import { unlinkSync, existsSync } from 'fs';
 import { resolve } from 'path';
 
+// Detect whether better-sqlite3 native module is available
+let sqliteAvailable = true;
+try {
+  const Database = (await import('better-sqlite3')).default;
+  const db = new Database(':memory:');
+  db.close();
+} catch {
+  sqliteAvailable = false;
+}
+
+// Dynamic import to avoid top-level crash when native module is broken
+const { RequestRecorder } = sqliteAvailable
+  ? await import('../../src/services/request-recorder.js')
+  : ({ RequestRecorder: null } as any);
+
+type RecordedRequest = import('../../src/services/request-recorder.js').RecordedRequest;
+
 const TEST_DB_PATH = resolve(process.cwd(), '.data', 'test-requests.db');
 
-describe('RequestRecorder', () => {
+describe.skipIf(!sqliteAvailable)('RequestRecorder', () => {
   let recorder: RequestRecorder;
+  let originalRecordRequests: string | undefined;
 
   beforeEach(() => {
+    originalRecordRequests = process.env['RECORD_REQUESTS'];
+    process.env['RECORD_REQUESTS'] = 'true';
+
     // Clean up test database if it exists
     if (existsSync(TEST_DB_PATH)) {
       unlinkSync(TEST_DB_PATH);
@@ -23,6 +46,12 @@ describe('RequestRecorder', () => {
 
   afterEach(() => {
     recorder.close();
+
+    if (originalRecordRequests === undefined) {
+      delete process.env['RECORD_REQUESTS'];
+    } else {
+      process.env['RECORD_REQUESTS'] = originalRecordRequests;
+    }
 
     // Clean up test database
     if (existsSync(TEST_DB_PATH)) {
@@ -87,6 +116,33 @@ describe('RequestRecorder', () => {
 
       const retrieved = recorder.getById(id!);
       expect(retrieved?.error_message).toBe('Internal server error');
+    });
+
+    it('redacts extended OAuth and Google auth fields before storage', () => {
+      const id = recorder.record({
+        timestamp: Date.now(),
+        tool_name: 'sheets_auth',
+        action: 'callback',
+        spreadsheet_id: null,
+        request_body: JSON.stringify({
+          authorization_code: 'auth-code',
+          code: 'short-lived-code',
+          'x-goog-api-key': 'google-api-key',
+          'x-goog-authenticated-user-email': 'user@example.com',
+        }),
+        response_body: JSON.stringify({ ok: true }),
+        status_code: 200,
+        duration_ms: 25,
+        error_message: null,
+      });
+
+      const stored = recorder.getById(id!);
+
+      expect(stored?.request_body).toContain('[REDACTED]');
+      expect(stored?.request_body).not.toContain('auth-code');
+      expect(stored?.request_body).not.toContain('short-lived-code');
+      expect(stored?.request_body).not.toContain('google-api-key');
+      expect(stored?.request_body).not.toContain('user@example.com');
     });
   });
 

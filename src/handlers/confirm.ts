@@ -11,6 +11,7 @@
  * @see MCP_PROTOCOL_COMPLETE_REFERENCE.md - Elicitation section
  */
 
+import { ErrorCodes } from './error-codes.js';
 import { randomUUID } from 'crypto';
 import { unwrapRequest, type HandlerContext } from './base.js';
 import {
@@ -32,6 +33,10 @@ import type {
 } from '../schemas/confirm.js';
 import { getCapabilitiesWithCache } from '../services/capability-cache.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
+import { mapStandaloneError } from './helpers/error-mapping.js';
+import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
+import { logger } from '../utils/logger.js';
+import { getRequestContext } from '../utils/request-context.js';
 
 /**
  * Wizard session storage
@@ -47,6 +52,9 @@ interface WizardSession {
   context?: Record<string, unknown>;
   createdAt: number;
 }
+
+type ServerElicitInputParams = Parameters<NonNullable<HandlerContext['server']>['elicitInput']>[0];
+type ServerElicitFormParams = Extract<ServerElicitInputParams, { requestedSchema: unknown }>;
 
 // In-memory wizard session store (could be upgraded to Redis for production)
 const wizardSessions = new Map<string, WizardSession>();
@@ -89,26 +97,6 @@ export class ConfirmHandler {
   }
 
   /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
-   */
-  private applyVerbosityFilter(
-    response: ConfirmResponse,
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): ConfirmResponse {
-    if (!response.success || verbosity === 'standard') {
-      return response;
-    }
-
-    if (verbosity === 'minimal') {
-      // For minimal verbosity, strip _meta field
-      const { _meta, ...rest } = response as Record<string, unknown>;
-      return rest as ConfirmResponse;
-    }
-
-    return response;
-  }
-
-  /**
    * Convert schema plan step to service plan step
    */
   private toServiceStep(step: PlanStep): ServiceStep {
@@ -121,6 +109,11 @@ export class ConfirmHandler {
       estimatedApiCalls: step.estimatedApiCalls,
       isDestructive: step.isDestructive,
       canUndo: step.canUndo,
+      rationale: step.rationale,
+      expectedOutcome: step.expectedOutcome,
+      estimatedDuration: step.estimatedDuration,
+      optional: step.optional,
+      dependsOn: step.dependsOn,
     };
   }
 
@@ -135,6 +128,7 @@ export class ConfirmHandler {
     };
     const verbosity = req.verbosity ?? 'standard';
     const confirmService = getConfirmationService();
+    const requestActionLabel = String((req as { action?: unknown }).action ?? 'unknown');
 
     try {
       let response: ConfirmResponse;
@@ -149,7 +143,7 @@ export class ConfirmHandler {
             response = {
               success: false,
               error: {
-                code: 'ELICITATION_UNAVAILABLE',
+                code: ErrorCodes.ELICITATION_UNAVAILABLE,
                 message: 'MCP Server instance not available. Cannot perform elicitation.',
                 retryable: false,
               },
@@ -158,13 +152,13 @@ export class ConfirmHandler {
           }
 
           // Check if client supports elicitation (with caching)
-          const sessionId = this.context.requestId || 'default';
+          const sessionId = getRequestContext()?.requestId ?? this.context.requestId ?? 'default';
           const clientCapabilities = await getCapabilitiesWithCache(sessionId, this.context.server);
           if (!clientCapabilities?.elicitation) {
             response = {
               success: false,
               error: {
-                code: 'ELICITATION_UNAVAILABLE',
+                code: ErrorCodes.ELICITATION_UNAVAILABLE,
                 message:
                   'MCP Elicitation not available. The MCP client must declare elicitation capability during initialize (SEP-1036). Claude Desktop does not yet support this. Use sheets_confirm.wizard_start for multi-step confirmation flows as an alternative, or use the HTTP transport with an elicitation-capable client.',
                 retryable: false,
@@ -181,6 +175,9 @@ export class ConfirmHandler {
             {
               willCreateSnapshot: requestInput.plan.willCreateSnapshot,
               additionalWarnings: requestInput.plan.additionalWarnings,
+              successCriteria: requestInput.plan.successCriteria,
+              rollbackStrategy: requestInput.plan.rollbackStrategy,
+              alternatives: requestInput.plan.alternatives,
             }
           );
 
@@ -192,8 +189,9 @@ export class ConfirmHandler {
           const elicitResult = await this.context.server.elicitInput({
             mode: 'form',
             message: elicitRequest.message,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            requestedSchema: elicitRequest.requestedSchema as any, // Type assertion needed due to strict SDK schema types
+            // Cast through the SDK's form-elicitation param type to align JSON-schema shapes.
+            requestedSchema:
+              elicitRequest.requestedSchema as ServerElicitFormParams['requestedSchema'],
           });
 
           // Process result (convert ElicitResult to the format expected by service)
@@ -289,7 +287,7 @@ export class ConfirmHandler {
             response = {
               success: false,
               error: {
-                code: 'NOT_FOUND',
+                code: ErrorCodes.NOT_FOUND,
                 message: `Wizard "${stepInput.wizardId}" not found. It may have expired.`,
                 retryable: false,
                 suggestedFix: 'Verify the spreadsheet ID is correct and the spreadsheet exists',
@@ -304,7 +302,7 @@ export class ConfirmHandler {
             response = {
               success: false,
               error: {
-                code: 'INVALID_PARAMS',
+                code: ErrorCodes.INVALID_PARAMS,
                 message: `Step "${stepInput.stepId}" not found in wizard.`,
                 retryable: false,
                 suggestedFix:
@@ -370,7 +368,7 @@ export class ConfirmHandler {
             response = {
               success: false,
               error: {
-                code: 'NOT_FOUND',
+                code: ErrorCodes.NOT_FOUND,
                 message: `Wizard "${completeInput.wizardId}" not found. It may have expired.`,
                 retryable: false,
                 suggestedFix: 'Verify the spreadsheet ID is correct and the spreadsheet exists',
@@ -405,19 +403,35 @@ export class ConfirmHandler {
           };
           break;
         }
+
+        default: {
+          // Exhaustiveness guard: compile error if a new ConfirmActionSchema action is added
+          // without a corresponding case here.
+          const _exhaustiveCheck: never = req as never;
+          void _exhaustiveCheck;
+          response = {
+            success: false,
+            error: {
+              code: ErrorCodes.INVALID_PARAMS,
+              message: `Unknown action: ${requestActionLabel}`,
+              retryable: false,
+            },
+          };
+          break;
+        }
       }
 
       // Apply verbosity filtering (LLM optimization)
-      return { response: this.applyVerbosityFilter(response, verbosity) };
+      return { response: applyVerbosityFilter(response, verbosity) };
     } catch (error) {
+      logger.error('Confirm handler error', {
+        action: req.action,
+        error,
+      });
       return {
         response: {
           success: false,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: error instanceof Error ? error.message : String(error),
-            retryable: false,
-          },
+          error: mapStandaloneError(error),
         },
       };
     }

@@ -501,6 +501,18 @@ export class CacheManager {
    * Associates a cache key with a spreadsheet range
    */
   trackRangeDependency(spreadsheetId: string, range: string, cacheKey: string): void {
+    // Cap total tracked range dependencies to prevent unbounded memory growth
+    const MAX_RANGE_DEPENDENCIES = 10_000;
+    if (this.rangeDependencies.size >= MAX_RANGE_DEPENDENCIES) {
+      // Evict oldest entries (Maps iterate in insertion order)
+      const toEvict = Math.floor(MAX_RANGE_DEPENDENCIES * 0.1); // evict 10%
+      let evicted = 0;
+      for (const key of this.rangeDependencies.keys()) {
+        if (evicted >= toEvict) break;
+        this.rangeDependencies.delete(key);
+        evicted++;
+      }
+    }
     const depKey = `${spreadsheetId}:${range}`;
     if (!this.rangeDependencies.has(depKey)) {
       this.rangeDependencies.set(depKey, new Set());

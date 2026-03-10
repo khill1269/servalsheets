@@ -4,16 +4,17 @@
  * Handles sheets_dimensions tool (row/column operations, filtering, and sorting)
  * MCP Protocol: 2025-11-25
  *
- * 28 Actions (LLM Optimized - reduced from 39):
+ * 29 Actions (LLM Optimized - reduced from 39):
  * Consolidated dimension operations (11):
  * - insert, delete, move, resize, auto_resize, hide, show, freeze, group, ungroup, append
  *   (all accept dimension: 'ROWS' | 'COLUMNS' parameter)
  * Filter/Sort (4): set_basic_filter, clear_basic_filter, get_basic_filter, sort_range
  * Range utility (4): trim_whitespace, randomize_range, text_to_columns, auto_fill
- * Filter views (5): create_filter_view, update_filter_view, delete_filter_view, list_filter_views, get_filter_view
+ * Filter views (6): create_filter_view, duplicate_filter_view, update_filter_view, delete_filter_view, list_filter_views, get_filter_view
  * Slicers (4): create_slicer, update_slicer, delete_slicer, list_slicers
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
@@ -44,8 +45,9 @@ import type {
   DimensionsRandomizeRangeInput,
   DimensionsTextToColumnsInput,
   DimensionsAutoFillInput,
-  // Filter view types (5)
+  // Filter view types (6)
   DimensionsCreateFilterViewInput,
+  DimensionsDuplicateFilterViewInput,
   DimensionsUpdateFilterViewInput,
   DimensionsDeleteFilterViewInput,
   DimensionsListFilterViewsInput,
@@ -55,13 +57,26 @@ import type {
   DimensionsUpdateSlicerInput,
   DimensionsDeleteSlicerInput,
   DimensionsListSlicersInput,
+  // Range utility (delete duplicates)
+  DimensionsDeleteDuplicatesInput,
 } from '../schemas/index.js';
+import { handleDeleteDuplicates } from './dimensions-actions/filter-sort-operations.js';
 import { parseCellReference, toGridRange } from '../utils/google-sheets-helpers.js';
-import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import {
+  confirmDestructiveAction,
+  safeElicit,
+  FILTER_SETTINGS_SCHEMA,
+} from '../mcp/elicitation.js';
+import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { getBackgroundAnalyzer } from '../services/background-analyzer.js';
 import { getBackgroundAnalysisConfig } from '../config/env.js';
-
-type ApiFilterCriteria = sheets_v4.Schema$FilterCriteria;
+import {
+  collectFilterViewSummaries,
+  findFilterViewSummaryById,
+  mapDimensionsCriteria,
+  paginateFilterViews,
+  toApiSlicerFilterCriteria,
+} from './dimensions-filter-helpers.js';
 
 export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, SheetsDimensionsOutput> {
   private sheetsApi: sheets_v4.Sheets;
@@ -188,7 +203,13 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         case 'sort_range':
           response = await this.handleSortRange(req as DimensionsSortRangeInput);
           break;
-        // Range utility operations (4 new)
+        // Range utility operations (5)
+        case 'delete_duplicates':
+          response = await handleDeleteDuplicates(
+            this.buildHandlerAccess(),
+            req as DimensionsDeleteDuplicatesInput
+          );
+          break;
         case 'trim_whitespace':
           response = await this.handleTrimWhitespace(req as DimensionsTrimWhitespaceInput);
           break;
@@ -203,6 +224,11 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
           break;
         case 'create_filter_view':
           response = await this.handleCreateFilterView(req as DimensionsCreateFilterViewInput);
+          break;
+        case 'duplicate_filter_view':
+          response = await this.handleDuplicateFilterView(
+            req as DimensionsDuplicateFilterViewInput
+          );
           break;
         case 'update_filter_view':
           response = await this.handleUpdateFilterView(req as DimensionsUpdateFilterViewInput);
@@ -228,13 +254,15 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         case 'list_slicers':
           response = await this.handleListSlicers(req as DimensionsListSlicersInput);
           break;
-        default:
+        default: {
+          const _exhaustiveCheck: never = req;
           response = this.error({
-            code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(req as { action: string }).action}`,
+            code: ErrorCodes.INVALID_PARAMS,
+            message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
+        }
       }
 
       // Track context on success
@@ -278,7 +306,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     const sheetName = request['sheetName'];
     if (typeof sheetName !== 'string' || sheetName.trim().length === 0) {
       return this.error({
-        code: 'INVALID_PARAMS',
+        code: ErrorCodes.INVALID_PARAMS,
         message: 'Either sheetId (number) or sheetName (string) is required',
         retryable: false,
         suggestedFix: 'Provide sheetId from sheets_core.list_sheets or a valid sheetName',
@@ -308,7 +336,10 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
             : req.action === 'insert' || req.action === 'append'
               ? 'INSERT_DIMENSION'
               : 'UPDATE_DIMENSION_PROPERTIES',
-        target: { spreadsheetId: req.spreadsheetId!, sheetId: req.sheetId! },
+        target: {
+          spreadsheetId: req.spreadsheetId!,
+          sheetId: (req as { sheetId?: number }).sheetId!,
+        },
         payload: {},
         metadata: {
           sourceTool: this.toolName,
@@ -327,6 +358,41 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
 
   private async handleInsert(input: DimensionsInsertInput): Promise<DimensionsResponse> {
     const count = input.count ?? 1;
+    const isRows = input.dimension === 'ROWS';
+
+    // Create snapshot before mutating (allows rollback)
+    await this.createSafetySnapshot(
+      {
+        operationType: 'insert',
+        isDestructive: false,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+
+    // Request confirmation for larger inserts
+    if (this.context.elicitationServer && count > 10) {
+      try {
+        const confirmation = await confirmDestructiveAction(
+          this.context.elicitationServer,
+          `Insert ${isRows ? 'Rows' : 'Columns'}`,
+          `You are about to insert ${count} ${isRows ? 'rows' : 'columns'} at index ${input.startIndex + 1}. This will shift existing data.`
+        );
+
+        if (!confirmation.confirmed) {
+          return this.error({
+            code: ErrorCodes.PRECONDITION_FAILED,
+            message: `${isRows ? 'Row' : 'Column'} insertion cancelled by user`,
+            retryable: false,
+            suggestedFix: 'Review the operation requirements and try again',
+          });
+        }
+      } catch (err) {
+        this.context.logger?.warn(`Elicitation failed for insert, proceeding with operation`, {
+          error: err,
+        });
+      }
+    }
 
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -346,6 +412,21 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         ],
       },
     });
+
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'insert',
+          spreadsheetId: input.spreadsheetId,
+          description: `Inserted ${count} ${input.dimension === 'ROWS' ? 'rows' : 'columns'} at index ${input.startIndex}`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
 
     return this.success(
       'insert',
@@ -379,7 +460,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
 
         if (!confirmation.confirmed) {
           return this.error({
-            code: 'PRECONDITION_FAILED',
+            code: ErrorCodes.PRECONDITION_FAILED,
             message: `${isRows ? 'Row' : 'Column'} deletion cancelled by user`,
             retryable: false,
             suggestedFix: 'Review the operation requirements and try again',
@@ -464,6 +545,21 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       meta.warnings = this.formatWarnings(warnings);
     }
 
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'delete',
+          spreadsheetId: input.spreadsheetId,
+          description: `Deleted ${count} ${input.dimension === 'ROWS' ? 'rows' : 'columns'} from index ${input.startIndex}`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
+
     return this.success(
       'delete',
       isRows ? { rowsAffected: count } : { columnsAffected: count },
@@ -486,6 +582,40 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       );
     }
 
+    // Create snapshot before mutating (allows rollback)
+    await this.createSafetySnapshot(
+      {
+        operationType: 'move',
+        isDestructive: false,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+
+    // Request confirmation for move operations
+    if (this.context.elicitationServer) {
+      try {
+        const confirmation = await confirmDestructiveAction(
+          this.context.elicitationServer,
+          `Move ${isRows ? 'Rows' : 'Columns'}`,
+          `You are about to move ${count} ${isRows ? 'rows' : 'columns'} (indices ${input.startIndex + 1}-${input.endIndex}) to index ${input.destinationIndex + 1}. This will reorder existing data.`
+        );
+
+        if (!confirmation.confirmed) {
+          return this.error({
+            code: ErrorCodes.PRECONDITION_FAILED,
+            message: `${isRows ? 'Row' : 'Column'} move cancelled by user`,
+            retryable: false,
+            suggestedFix: 'Review the operation requirements and try again',
+          });
+        }
+      } catch (err) {
+        this.context.logger?.warn(`Elicitation failed for move, proceeding with operation`, {
+          error: err,
+        });
+      }
+    }
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
@@ -504,6 +634,21 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         ],
       },
     });
+
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'move',
+          spreadsheetId: input.spreadsheetId,
+          description: `Moved ${count} ${input.dimension === 'ROWS' ? 'rows' : 'columns'} to index ${input.destinationIndex}`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
 
     return this.success('move', isRows ? { rowsAffected: count } : { columnsAffected: count });
   }
@@ -533,6 +678,21 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         ],
       },
     });
+
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'resize',
+          spreadsheetId: input.spreadsheetId,
+          description: `Resized ${input.dimension === 'ROWS' ? 'rows' : 'columns'} to ${input.pixelSize}px`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
 
     return this.success('resize', isRows ? { rowsAffected: count } : { columnsAffected: count });
   }
@@ -567,6 +727,16 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     const count = input.endIndex - input.startIndex;
     const isRows = input.dimension === 'ROWS';
 
+    // Create snapshot before mutating (hide is reversible but snapshot enables rollback)
+    await this.createSafetySnapshot(
+      {
+        operationType: 'hide',
+        isDestructive: false,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
@@ -589,12 +759,43 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
-    return this.success('hide', isRows ? { rowsAffected: count } : { columnsAffected: count });
+    const result = this.success(
+      'hide',
+      isRows ? { rowsAffected: count } : { columnsAffected: count }
+    );
+
+    // Wire session context: track hidden rows/cols
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'hide',
+          spreadsheetId: input.spreadsheetId,
+          description: `Hidden ${count} ${isRows ? 'row(s)' : 'column(s)'} (${input.dimension} ${input.startIndex}–${input.endIndex}) on sheet ${input.sheetId}`,
+          undoable: true,
+          cellsAffected: count,
+        });
+      }
+    } catch {
+      /* non-blocking */
+    }
+
+    return result;
   }
 
   private async handleShow(input: DimensionsShowInput): Promise<DimensionsResponse> {
     const count = input.endIndex - input.startIndex;
     const isRows = input.dimension === 'ROWS';
+
+    // Create snapshot before mutating (show is reversible but snapshot enables rollback)
+    await this.createSafetySnapshot(
+      {
+        operationType: 'show',
+        isDestructive: false,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
 
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -617,6 +818,21 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         ],
       },
     });
+
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'show',
+          spreadsheetId: input.spreadsheetId,
+          description: `Unhid ${count} ${input.dimension === 'ROWS' ? 'rows' : 'columns'}`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
 
     return this.success('show', isRows ? { rowsAffected: count } : { columnsAffected: count });
   }
@@ -644,10 +860,28 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
-    return this.success(
+    const result = this.success(
       'freeze',
       isRows ? { rowsAffected: input.count } : { columnsAffected: input.count }
     );
+
+    // Wire session context: update sheet schema state with freeze info
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'freeze',
+          spreadsheetId: input.spreadsheetId,
+          description: `Froze ${input.count} ${isRows ? 'row(s)' : 'column(s)'} on sheet ${input.sheetId}`,
+          undoable: true,
+          cellsAffected: input.count,
+        });
+      }
+    } catch {
+      /* non-blocking */
+    }
+
+    return result;
   }
 
   private async handleGroup(input: DimensionsGroupInput): Promise<DimensionsResponse> {
@@ -671,6 +905,21 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         ],
       },
     });
+
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'group',
+          spreadsheetId: input.spreadsheetId,
+          description: `Grouped ${count} ${input.dimension === 'ROWS' ? 'rows' : 'columns'}`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
 
     return this.success('group', isRows ? { rowsAffected: count } : { columnsAffected: count });
   }
@@ -697,11 +946,60 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'ungroup',
+          spreadsheetId: input.spreadsheetId,
+          description: `Ungrouped ${count} ${input.dimension === 'ROWS' ? 'rows' : 'columns'}`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
+
     return this.success('ungroup', isRows ? { rowsAffected: count } : { columnsAffected: count });
   }
 
   private async handleAppend(input: DimensionsAppendInput): Promise<DimensionsResponse> {
     const isRows = input.dimension === 'ROWS';
+
+    // Create snapshot before mutating (allows rollback)
+    await this.createSafetySnapshot(
+      {
+        operationType: 'append',
+        isDestructive: false,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+
+    // Request confirmation for larger appends
+    if (this.context.elicitationServer && (input.count ?? 1) > 10) {
+      try {
+        const confirmation = await confirmDestructiveAction(
+          this.context.elicitationServer,
+          `Append ${isRows ? 'Rows' : 'Columns'}`,
+          `You are about to append ${input.count} ${isRows ? 'rows' : 'columns'} to the sheet. This will increase the sheet dimensions.`
+        );
+
+        if (!confirmation.confirmed) {
+          return this.error({
+            code: ErrorCodes.PRECONDITION_FAILED,
+            message: `${isRows ? 'Row' : 'Column'} append cancelled by user`,
+            retryable: false,
+            suggestedFix: 'Review the operation requirements and try again',
+          });
+        }
+      } catch (err) {
+        this.context.logger?.warn(`Elicitation failed for append, proceeding with operation`, {
+          error: err,
+        });
+      }
+    }
 
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -746,7 +1044,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
 
       if (!currentFilterResponse.success || !currentFilterResponse.filter) {
         return this.error({
-          code: 'FAILED_PRECONDITION',
+          code: ErrorCodes.FAILED_PRECONDITION,
           message: 'Cannot update filter criteria: No basic filter exists on this sheet',
           category: 'client',
           severity: 'medium',
@@ -776,13 +1074,28 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
               setBasicFilter: {
                 filter: {
                   range: currentFilterResponse.filter.range,
-                  criteria: this.mapCriteria(updatedCriteria),
+                  criteria: mapDimensionsCriteria(updatedCriteria),
                 },
               },
             },
           ],
         },
       });
+
+      // Record operation in session context for LLM follow-up references
+      try {
+        if (this.context.sessionContext) {
+          this.context.sessionContext.recordOperation({
+            tool: 'sheets_dimensions',
+            action: 'set_basic_filter',
+            spreadsheetId: input.spreadsheetId,
+            description: `Set basic filter criteria`,
+            undoable: false,
+          });
+        }
+      } catch {
+        // Non-blocking: session context recording is best-effort
+      }
 
       return this.success('set_basic_filter', {
         message: `Updated filter criteria for column ${input.columnIndex}`,
@@ -803,13 +1116,28 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
             setBasicFilter: {
               filter: {
                 range: toGridRange(gridRange),
-                criteria: input.criteria ? this.mapCriteria(input.criteria) : undefined,
+                criteria: input.criteria ? mapDimensionsCriteria(input.criteria) : undefined,
               },
             },
           },
         ],
       },
     });
+
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'set_basic_filter',
+          spreadsheetId: input.spreadsheetId,
+          description: `Set basic filter`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
 
     return this.success('set_basic_filter', {});
   }
@@ -829,13 +1157,24 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       );
       if (!confirmation.confirmed) {
         return this.error({
-          code: 'PRECONDITION_FAILED',
+          code: ErrorCodes.PRECONDITION_FAILED,
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
           suggestedFix: 'Review the operation requirements and try again',
         });
       }
     }
+
+    // Safety: snapshot before clearing filter
+    await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'clear_basic_filter',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
 
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -847,6 +1186,21 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         ],
       },
     });
+
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'clear_basic_filter',
+          spreadsheetId: input.spreadsheetId,
+          description: `Cleared basic filter`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
 
     return this.success('clear_basic_filter', {});
   }
@@ -877,17 +1231,103 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
   // Sort Operations (merged from filter-sort.ts)
   // ============================================================
 
+  /** Build a DimensionsHandlerAccess adapter for sub-module functions */
+  private buildHandlerAccess(): import('./dimensions-actions/internal.js').DimensionsHandlerAccess {
+    return {
+      success: this.success.bind(
+        this
+      ) as import('./dimensions-actions/internal.js').DimensionsHandlerAccess['success'],
+      error: this.error.bind(this),
+      notFoundError: (t: string, id: string | number) => this.notFoundError(t, String(id)),
+      generateMeta: this.generateMeta.bind(this),
+      getSafetyWarnings: this.getSafetyWarnings.bind(this),
+      formatWarnings: this.formatWarnings.bind(this),
+      createSafetySnapshot: this.createSafetySnapshot.bind(this),
+      snapshotInfo: this.snapshotInfo.bind(
+        this
+      ) as import('./dimensions-actions/internal.js').DimensionsHandlerAccess['snapshotInfo'],
+      rangeToGridRange: this.rangeToGridRange.bind(this),
+      gridRangeToOutput: this.gridRangeToOutput.bind(this),
+      getSheetId: this.getSheetId.bind(this),
+      sendProgress: this.sendProgress.bind(this),
+      context: this.context,
+      sheetsApi: this.sheetsApi,
+    };
+  }
+
   private async handleSortRange(input: DimensionsSortRangeInput): Promise<DimensionsResponse> {
-    const gridRange = await this.rangeToGridRange(input.spreadsheetId, input.range, this.sheetsApi);
+    let resolvedInput = input;
+
+    // Wizard: If range is provided but sortSpecs is missing, elicit sort direction
+    if (resolvedInput.range && (!resolvedInput.sortSpecs || resolvedInput.sortSpecs.length === 0)) {
+      if (this.context?.server?.elicitInput) {
+        try {
+          const wizard = await this.context.server.elicitInput({
+            message: 'Range ready to sort. Which direction?',
+            requestedSchema: {
+              type: 'object',
+              properties: {
+                direction: {
+                  type: 'string',
+                  title: 'Sort direction',
+                  description: 'Sort ascending (A→Z) or descending (Z→A)?',
+                  enum: ['ASCENDING', 'DESCENDING'],
+                },
+              },
+            },
+          });
+          const wizardContent = wizard?.content as Record<string, unknown> | undefined;
+          const direction =
+            wizardContent?.['direction'] === 'ASCENDING' ||
+            wizardContent?.['direction'] === 'DESCENDING'
+              ? wizardContent['direction']
+              : undefined;
+          if (wizard?.action === 'accept' && direction) {
+            // Create default sort spec for first column with chosen direction
+            resolvedInput = {
+              ...resolvedInput,
+              sortSpecs: [
+                {
+                  columnIndex: 0,
+                  sortOrder: direction,
+                },
+              ],
+            };
+          }
+        } catch {
+          // Elicitation not available — use default ascending if still missing
+          if (!resolvedInput.sortSpecs || resolvedInput.sortSpecs.length === 0) {
+            resolvedInput = {
+              ...resolvedInput,
+              sortSpecs: [{ columnIndex: 0, sortOrder: 'ASCENDING' as const }],
+            };
+          }
+        }
+      }
+    }
+
+    // Fallback: ensure sortSpecs is always defined
+    if (!resolvedInput.sortSpecs || resolvedInput.sortSpecs.length === 0) {
+      resolvedInput = {
+        ...resolvedInput,
+        sortSpecs: [{ columnIndex: 0, sortOrder: 'ASCENDING' as const }],
+      };
+    }
+
+    const gridRange = await this.rangeToGridRange(
+      resolvedInput.spreadsheetId,
+      resolvedInput.range,
+      this.sheetsApi
+    );
 
     await this.sheetsApi.spreadsheets.batchUpdate({
-      spreadsheetId: input.spreadsheetId,
+      spreadsheetId: resolvedInput.spreadsheetId,
       requestBody: {
         requests: [
           {
             sortRange: {
               range: toGridRange(gridRange),
-              sortSpecs: input.sortSpecs.map((spec) => ({
+              sortSpecs: resolvedInput.sortSpecs.map((spec) => ({
                 dimensionIndex: spec.columnIndex,
                 sortOrder: spec.sortOrder ?? 'ASCENDING',
                 foregroundColor: spec.foregroundColor,
@@ -898,6 +1338,30 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         ],
       },
     });
+
+    const rangeStr =
+      typeof resolvedInput.range === 'string'
+        ? resolvedInput.range
+        : ((resolvedInput.range as { a1?: string }).a1 ?? '');
+
+    // Wire session context: note that data was sorted
+    try {
+      if (this.context.sessionContext) {
+        const sortDesc = resolvedInput.sortSpecs
+          .map((s) => `col ${s.columnIndex} ${s.sortOrder ?? 'ASCENDING'}`)
+          .join(', ');
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'sort_range',
+          spreadsheetId: resolvedInput.spreadsheetId,
+          range: rangeStr,
+          description: `Sorted range ${rangeStr} by: ${sortDesc}`,
+          undoable: true,
+        });
+      }
+    } catch {
+      /* non-blocking */
+    }
 
     return this.success('sort_range', {});
   }
@@ -910,7 +1374,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     input: DimensionsTrimWhitespaceInput
   ): Promise<DimensionsResponse> {
     if (input.safety?.dryRun) {
-      return this.success('trim_whitespace', { cellsChanged: 0 }, undefined, true);
+      return this.success('trim_whitespace', { cellsAffected: 0 }, undefined, true);
     }
 
     const gridRange = await this.rangeToGridRange(input.spreadsheetId, input.range, this.sheetsApi);
@@ -928,8 +1392,24 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
-    const cellsChanged = response.data?.replies?.[0]?.trimWhitespace?.cellsChangedCount ?? 0;
-    return this.success('trim_whitespace', { cellsChanged });
+    const cellsAffected = response.data?.replies?.[0]?.trimWhitespace?.cellsChangedCount ?? 0;
+
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'trim_whitespace',
+          spreadsheetId: input.spreadsheetId,
+          description: `Trimmed whitespace in range ${input.range}`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
+
+    return this.success('trim_whitespace', { cellsAffected });
   }
 
   private async handleRandomizeRange(
@@ -953,6 +1433,21 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         ],
       },
     });
+
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'randomize_range',
+          spreadsheetId: input.spreadsheetId,
+          description: `Randomized range ${input.range}`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
 
     return this.success('randomize_range', {});
   }
@@ -984,6 +1479,21 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         ],
       },
     });
+
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'text_to_columns',
+          spreadsheetId: input.spreadsheetId,
+          description: `Split text to columns in range ${input.source}`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
 
     return this.success('text_to_columns', {});
   }
@@ -1020,7 +1530,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       autoFillRequest.range = toGridRange(gridRange);
     } else {
       return this.error({
-        code: 'INVALID_PARAMS',
+        code: ErrorCodes.INVALID_PARAMS,
         message:
           'auto_fill requires one of two modes: ' +
           '(1) "range" only - fills within range using first row/column as pattern. Example: { "range": "A1:A10" } ' +
@@ -1037,6 +1547,22 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        const rangeDesc = input.range || input.sourceRange || 'range';
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'auto_fill',
+          spreadsheetId: input.spreadsheetId,
+          description: `Auto-filled range ${rangeDesc}`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
+
     return this.success('auto_fill', {});
   }
 
@@ -1047,6 +1573,73 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
   private async handleCreateFilterView(
     input: DimensionsCreateFilterViewInput
   ): Promise<DimensionsResponse> {
+    let resolvedTitle = input.title;
+    let resolvedCriteria = input.criteria;
+
+    // Interactive wizard: collect filter settings when title is absent
+    if (!resolvedTitle && this.context.server) {
+      try {
+        const wizardResult = await safeElicit(
+          this.context.server,
+          {
+            mode: 'form',
+            message: 'Configure your filter view: enter a name and optionally a column filter',
+            requestedSchema: FILTER_SETTINGS_SCHEMA,
+          },
+          null
+        );
+        if (wizardResult) {
+          const wiz = wizardResult as {
+            filterName?: string;
+            columnToFilter: string;
+            filterType: string;
+            filterValue?: string;
+          };
+          if (wiz.filterName) resolvedTitle = wiz.filterName;
+          if (wiz.columnToFilter && wiz.filterType && !resolvedCriteria) {
+            // Convert column letter to 0-based index (A=0, B=1, ...)
+            const colIndex =
+              wiz.columnToFilter
+                .toUpperCase()
+                .trim()
+                .split('')
+                .reduce((acc, ch) => acc * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+            const typeMap: Record<string, string> = {
+              equals: 'TEXT_EQ',
+              contains: 'TEXT_CONTAINS',
+              greater_than: 'NUMBER_GREATER',
+              less_than: 'NUMBER_LESS',
+              between: 'NUMBER_BETWEEN',
+              is_empty: 'BLANK',
+              is_not_empty: 'NOT_BLANK',
+            };
+            const conditionType = (typeMap[wiz.filterType] ?? 'TEXT_CONTAINS') as
+              | 'TEXT_EQ'
+              | 'TEXT_CONTAINS'
+              | 'NUMBER_GREATER'
+              | 'NUMBER_LESS'
+              | 'NUMBER_BETWEEN'
+              | 'BLANK'
+              | 'NOT_BLANK';
+            const noValueTypes = new Set<string>(['BLANK', 'NOT_BLANK']);
+            resolvedCriteria = {
+              [colIndex]: {
+                condition: {
+                  type: conditionType,
+                  ...(noValueTypes.has(conditionType) || !wiz.filterValue
+                    ? {}
+                    : { values: [wiz.filterValue] }),
+                },
+              },
+            };
+          }
+        }
+      } catch {
+        // non-blocking: wizard failure does not prevent filter creation
+      }
+      if (!resolvedTitle) resolvedTitle = 'Filter View';
+    }
+
     const gridRange = input.range
       ? await this.rangeToGridRange(input.spreadsheetId, input.range, this.sheetsApi)
       : { sheetId: input.sheetId };
@@ -1058,9 +1651,9 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
           {
             addFilterView: {
               filter: {
-                title: input.title,
+                title: resolvedTitle ?? input.title,
                 range: toGridRange(gridRange),
-                criteria: input.criteria ? this.mapCriteria(input.criteria) : undefined,
+                criteria: resolvedCriteria ? mapDimensionsCriteria(resolvedCriteria) : undefined,
                 sortSpecs: input.sortSpecs?.map((spec) => ({
                   dimensionIndex: spec.columnIndex,
                   sortOrder: spec.sortOrder ?? 'ASCENDING',
@@ -1073,8 +1666,51 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     });
 
     const filterViewId = response.data?.replies?.[0]?.addFilterView?.filter?.filterViewId;
+
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'create_filter_view',
+          spreadsheetId: input.spreadsheetId,
+          description: `Created filter view`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
+
     return this.success('create_filter_view', {
       filterViewId: filterViewId ?? undefined,
+    });
+  }
+
+  private async handleDuplicateFilterView(
+    input: DimensionsDuplicateFilterViewInput
+  ): Promise<DimensionsResponse> {
+    if (input.safety?.dryRun) {
+      return this.success('duplicate_filter_view', {}, undefined, true);
+    }
+
+    const response = await this.sheetsApi.spreadsheets.batchUpdate({
+      spreadsheetId: input.spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            duplicateFilterView: {
+              filterId: input.filterViewId,
+            },
+          },
+        ],
+      },
+    });
+
+    const duplicatedFilterViewId =
+      response.data?.replies?.[0]?.duplicateFilterView?.filter?.filterViewId;
+    return this.success('duplicate_filter_view', {
+      filterViewId: duplicatedFilterViewId ?? undefined,
     });
   }
 
@@ -1088,7 +1724,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     const filter: sheets_v4.Schema$FilterView = {
       filterViewId: input.filterViewId,
       title: input.title,
-      criteria: input.criteria ? this.mapCriteria(input.criteria) : undefined,
+      criteria: input.criteria ? mapDimensionsCriteria(input.criteria) : undefined,
       sortSpecs: input.sortSpecs?.map((spec) => ({
         dimensionIndex: spec.columnIndex,
         sortOrder: spec.sortOrder ?? 'ASCENDING',
@@ -1134,13 +1770,24 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       );
       if (!confirmation.confirmed) {
         return this.error({
-          code: 'PRECONDITION_FAILED',
+          code: ErrorCodes.PRECONDITION_FAILED,
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
           suggestedFix: 'Review the operation requirements and try again',
         });
       }
     }
+
+    // Safety: snapshot before deleting filter view
+    await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'delete_filter_view',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
 
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -1153,6 +1800,21 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'delete_filter_view',
+          spreadsheetId: input.spreadsheetId,
+          description: `Deleted filter view`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
+
     return this.success('delete_filter_view', {});
   }
 
@@ -1164,30 +1826,23 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       fields: 'sheets.filterViews,sheets.properties.sheetId',
     });
 
-    const filterViews: Array<{
-      filterViewId: number;
-      title: string;
-      range: {
-        sheetId: number;
-        startRowIndex?: number;
-        endRowIndex?: number;
-        startColumnIndex?: number;
-        endColumnIndex?: number;
-      };
-    }> = [];
+    const filterViews = collectFilterViewSummaries({
+      sheets: response.data.sheets,
+      sheetId: input.sheetId,
+      gridRangeToOutput: (range) => this.gridRangeToOutput(range),
+    });
+    const paginated = paginateFilterViews(
+      filterViews,
+      (input as { limit?: number }).limit ?? 50,
+      (input as { cursor?: string }).cursor
+    );
 
-    for (const sheet of response.data.sheets ?? []) {
-      if (input.sheetId !== undefined && sheet.properties?.sheetId !== input.sheetId) continue;
-      for (const fv of sheet.filterViews ?? []) {
-        filterViews.push({
-          filterViewId: fv.filterViewId ?? 0,
-          title: fv.title ?? '',
-          range: this.gridRangeToOutput(fv.range ?? { sheetId: sheet.properties?.sheetId ?? 0 }),
-        });
-      }
-    }
-
-    return this.success('list_filter_views', { filterViews });
+    return this.success('list_filter_views', {
+      filterViews: paginated.filterViews,
+      totalCount: paginated.totalCount,
+      hasMore: paginated.hasMore,
+      ...(paginated.nextCursor !== undefined && { nextCursor: paginated.nextCursor }),
+    });
   }
 
   private async handleGetFilterView(
@@ -1198,22 +1853,14 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       fields: 'sheets.filterViews',
     });
 
-    for (const sheet of response.data.sheets ?? []) {
-      for (const fv of sheet.filterViews ?? []) {
-        if (fv.filterViewId === input.filterViewId) {
-          return this.success('get_filter_view', {
-            filterViews: [
-              {
-                filterViewId: fv.filterViewId ?? 0,
-                title: fv.title ?? '',
-                range: this.gridRangeToOutput(
-                  fv.range ?? { sheetId: sheet.properties?.sheetId ?? 0 }
-                ),
-              },
-            ],
-          });
-        }
-      }
+    const filterView = findFilterViewSummaryById({
+      sheets: response.data.sheets,
+      filterViewId: input.filterViewId,
+      gridRangeToOutput: (range) => this.gridRangeToOutput(range),
+    });
+
+    if (filterView) {
+      return this.success('get_filter_view', { filterViews: [filterView] });
     }
 
     return this.notFoundError('Filter view', input.filterViewId);
@@ -1249,6 +1896,9 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
                   title: input.title,
                   dataRange: toGridRange(dataRange),
                   columnIndex: input.filterColumn,
+                  ...(input.filterCriteria
+                    ? { filterCriteria: toApiSlicerFilterCriteria(input.filterCriteria) }
+                    : {}),
                 },
                 position: {
                   overlayPosition: {
@@ -1270,7 +1920,24 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
-    const slicerId = batchResponse.data?.replies?.[0]?.addSlicer?.slicer?.slicerId ?? undefined;
+    const replies = 'data' in batchResponse ? batchResponse.data?.replies : undefined;
+    const slicerId = replies?.[0]?.addSlicer?.slicer?.slicerId ?? undefined;
+
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'create_slicer',
+          spreadsheetId: input.spreadsheetId,
+          description: `Created slicer`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
+
     return this.success('create_slicer', { slicerId });
   }
 
@@ -1284,6 +1951,9 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     const spec: sheets_v4.Schema$SlicerSpec = {
       title: input.title,
       columnIndex: input.filterColumn,
+      ...(input.filterCriteria
+        ? { filterCriteria: toApiSlicerFilterCriteria(input.filterCriteria) }
+        : {}),
     };
 
     await this.sheetsApi.spreadsheets.batchUpdate({
@@ -1298,6 +1968,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
                 [
                   input.title !== undefined ? 'title' : '',
                   input.filterColumn !== undefined ? 'columnIndex' : '',
+                  input.filterCriteria !== undefined ? 'filterCriteria' : '',
                 ]
                   .filter(Boolean)
                   .join(',') || 'title',
@@ -1325,13 +1996,20 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       );
       if (!confirmation.confirmed) {
         return this.error({
-          code: 'PRECONDITION_FAILED',
+          code: ErrorCodes.PRECONDITION_FAILED,
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
           suggestedFix: 'Review the operation requirements and try again',
         });
       }
     }
+
+    // Safety: snapshot before deleting slicer
+    await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      { operationType: 'delete_slicer', isDestructive: true, spreadsheetId: input.spreadsheetId },
+      input.safety
+    );
 
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -1344,6 +2022,21 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_dimensions',
+          action: 'delete_slicer',
+          spreadsheetId: input.spreadsheetId,
+          description: `Deleted slicer`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
+
     return this.success('delete_slicer', {});
   }
 
@@ -1353,11 +2046,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       fields: 'sheets.slicers,sheets.properties.sheetId',
     });
 
-    const slicers: Array<{
-      slicerId: number;
-      sheetId: number;
-      title?: string;
-    }> = [];
+    const slicers = [];
     for (const sheet of response.data.sheets ?? []) {
       if (input.sheetId !== undefined && sheet.properties?.sheetId !== input.sheetId) continue;
       for (const slicer of sheet.slicers ?? []) {
@@ -1365,75 +2054,17 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
           slicerId: slicer.slicerId ?? 0,
           sheetId: sheet.properties?.sheetId ?? 0,
           title: slicer.spec?.title ?? undefined,
+          // Full slicer spec (ISSUE-180: was previously omitted)
+          columnIndex: slicer.spec?.columnIndex ?? undefined,
+          dataRange: slicer.spec?.dataRange ?? undefined,
+          filterCriteria: slicer.spec?.filterCriteria ?? undefined,
+          horizontalAlignment: slicer.spec?.horizontalAlignment ?? undefined,
+          textFormat: slicer.spec?.textFormat ?? undefined,
+          backgroundColorStyle: slicer.spec?.backgroundColorStyle ?? undefined,
         });
       }
     }
 
     return this.success('list_slicers', { slicers });
-  }
-
-  // ============================================================
-  // Helper Methods (merged from filter-sort.ts)
-  // ============================================================
-
-  private mapCriteria(
-    input: Record<
-      number,
-      {
-        hiddenValues?: string[];
-        condition?: { type: string; values?: string[] };
-        visibleBackgroundColor?: {
-          red?: number;
-          green?: number;
-          blue?: number;
-          alpha?: number;
-        };
-        visibleForegroundColor?: {
-          red?: number;
-          green?: number;
-          blue?: number;
-          alpha?: number;
-        };
-      }
-    >
-  ): Record<string, ApiFilterCriteria> {
-    return Object.entries(input).reduce(
-      (acc, [col, crit]) => {
-        acc[col] = this.mapSingleCriteria(crit);
-        return acc;
-      },
-      {} as Record<string, ApiFilterCriteria>
-    );
-  }
-
-  private mapSingleCriteria(crit: {
-    hiddenValues?: string[];
-    condition?: { type: string; values?: string[] };
-    visibleBackgroundColor?: {
-      red?: number;
-      green?: number;
-      blue?: number;
-      alpha?: number;
-    };
-    visibleForegroundColor?: {
-      red?: number;
-      green?: number;
-      blue?: number;
-      alpha?: number;
-    };
-  }): ApiFilterCriteria {
-    return {
-      hiddenValues: crit.hiddenValues,
-      visibleBackgroundColor: crit.visibleBackgroundColor,
-      visibleForegroundColor: crit.visibleForegroundColor,
-      condition: crit.condition
-        ? {
-            type: crit.condition.type as sheets_v4.Schema$BooleanCondition['type'],
-            values: crit.condition.values?.map((v) => ({
-              userEnteredValue: v,
-            })),
-          }
-        : undefined,
-    };
   }
 }

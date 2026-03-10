@@ -11,6 +11,7 @@ import {
   createDependenciesHandler,
   clearAnalyzerCache,
 } from '../../src/handlers/dependencies.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 const unwrapResponse = <T extends { response?: unknown }>(result: T) =>
   'response' in result ? (result as { response?: unknown }).response : result;
@@ -571,6 +572,359 @@ describe('DependenciesHandler', () => {
 
       // Should fetch twice (rebuild clears cache)
       expect(mockSheetsApi.spreadsheets.get).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // ============================================================================
+  // F6: Scenario Modeling
+  // ============================================================================
+
+  describe('model_scenario Action', () => {
+    it('should trace cascade effects for a single input change', async () => {
+      // Pre-build graph
+      await handler.handle({ request: { action: 'build', spreadsheetId: '1ABC' } });
+
+      const result = unwrapResponse(
+        await handler.handle({
+          request: {
+            action: 'model_scenario',
+            spreadsheetId: '1ABC',
+            changes: [{ cell: 'Sheet1!A1', newValue: 50 }],
+          },
+        })
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.action).toBe('model_scenario');
+      expect(result.data.inputChanges).toHaveLength(1);
+      expect(result.data.inputChanges[0].cell).toBe('Sheet1!A1');
+      expect(result.data.inputChanges[0].to).toBe(50);
+      expect(result.data.cascadeEffects).toBeInstanceOf(Array);
+      expect(result.data.summary.cellsAffected).toBeGreaterThanOrEqual(0);
+      expect(result.data.summary.message).toContain('1 input change(s)');
+    });
+
+    it('should auto-build graph if not cached', async () => {
+      const result = unwrapResponse(
+        await handler.handle({
+          request: {
+            action: 'model_scenario',
+            spreadsheetId: '1ABC',
+            changes: [{ cell: 'Sheet1!B1', newValue: 100 }],
+          },
+        })
+      );
+
+      expect(result.success).toBe(true);
+      // Graph was built on demand
+      expect(mockSheetsApi.spreadsheets.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle multiple input changes', async () => {
+      await handler.handle({ request: { action: 'build', spreadsheetId: '1ABC' } });
+
+      const result = unwrapResponse(
+        await handler.handle({
+          request: {
+            action: 'model_scenario',
+            spreadsheetId: '1ABC',
+            changes: [
+              { cell: 'Sheet1!A1', newValue: 100 },
+              { cell: 'Sheet1!B1', newValue: 200 },
+            ],
+          },
+        })
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.inputChanges).toHaveLength(2);
+      expect(result.data.summary.message).toContain('2 input change(s)');
+    });
+
+    it('should emit progress notifications for multi-change scenarios', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'deps-model-scenario-progress',
+        progressToken: 'deps-model-scenario-progress',
+        sendNotification: notification,
+      });
+
+      const result = await runWithRequestContext(requestContext, async () =>
+        unwrapResponse(
+          await handler.handle({
+            request: {
+              action: 'model_scenario',
+              spreadsheetId: '1ABC',
+              changes: [
+                { cell: 'Sheet1!A1', newValue: 100 },
+                { cell: 'Sheet1!B1', newValue: 200 },
+              ],
+            },
+          })
+        )
+      );
+
+      expect(result.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({
+          progress: 0,
+          progressToken: 'deps-model-scenario-progress',
+        }),
+      });
+    });
+
+    it('should not duplicate cascade effects for overlapping dependencies', async () => {
+      await handler.handle({ request: { action: 'build', spreadsheetId: '1ABC' } });
+
+      const result = unwrapResponse(
+        await handler.handle({
+          request: {
+            action: 'model_scenario',
+            spreadsheetId: '1ABC',
+            changes: [
+              { cell: 'Sheet1!A1', newValue: 10 },
+              { cell: 'Sheet1!A1', newValue: 20 }, // same cell twice
+            ],
+          },
+        })
+      );
+
+      expect(result.success).toBe(true);
+      // Each cell should appear at most once in cascadeEffects
+      const cells = result.data.cascadeEffects.map((e: { cell: string }) => e.cell);
+      const unique = new Set(cells);
+      expect(cells.length).toBe(unique.size);
+    });
+  });
+
+  describe('compare_scenarios Action', () => {
+    it('should compare two scenarios and return cells affected per scenario', async () => {
+      await handler.handle({ request: { action: 'build', spreadsheetId: '1ABC' } });
+
+      const result = unwrapResponse(
+        await handler.handle({
+          request: {
+            action: 'compare_scenarios',
+            spreadsheetId: '1ABC',
+            scenarios: [
+              { name: 'Optimistic', changes: [{ cell: 'Sheet1!A1', newValue: 150 }] },
+              { name: 'Pessimistic', changes: [{ cell: 'Sheet1!A1', newValue: 50 }] },
+            ],
+          },
+        })
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.action).toBe('compare_scenarios');
+      expect(result.data.scenarios).toHaveLength(2);
+      expect(result.data.scenarios[0].name).toBe('Optimistic');
+      expect(result.data.scenarios[1].name).toBe('Pessimistic');
+      expect(typeof result.data.scenarios[0].cellsAffected).toBe('number');
+      expect(result.data.message).toContain('2 scenarios');
+    });
+
+    it('should auto-build graph if not cached', async () => {
+      const result = unwrapResponse(
+        await handler.handle({
+          request: {
+            action: 'compare_scenarios',
+            spreadsheetId: '1ABC',
+            scenarios: [
+              { name: 'A', changes: [{ cell: 'Sheet1!A1', newValue: 10 }] },
+              { name: 'B', changes: [{ cell: 'Sheet1!B1', newValue: 20 }] },
+            ],
+          },
+        })
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockSheetsApi.spreadsheets.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('should include all scenario names in summary message', async () => {
+      await handler.handle({ request: { action: 'build', spreadsheetId: '1ABC' } });
+
+      const result = unwrapResponse(
+        await handler.handle({
+          request: {
+            action: 'compare_scenarios',
+            spreadsheetId: '1ABC',
+            scenarios: [
+              { name: 'Base Case', changes: [{ cell: 'Sheet1!A1', newValue: 100 }] },
+              { name: 'Stretch', changes: [{ cell: 'Sheet1!A1', newValue: 200 }] },
+              { name: 'Worst Case', changes: [{ cell: 'Sheet1!A1', newValue: 10 }] },
+            ],
+          },
+        })
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.scenarios).toHaveLength(3);
+      expect(result.data.message).toContain('Base Case');
+      expect(result.data.message).toContain('Stretch');
+      expect(result.data.message).toContain('Worst Case');
+    });
+
+    it('should emit progress notifications for multi-scenario comparisons', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'deps-compare-scenarios-progress',
+        progressToken: 'deps-compare-scenarios-progress',
+        sendNotification: notification,
+      });
+
+      const result = await runWithRequestContext(requestContext, async () =>
+        unwrapResponse(
+          await handler.handle({
+            request: {
+              action: 'compare_scenarios',
+              spreadsheetId: '1ABC',
+              scenarios: [
+                { name: 'Best Case', changes: [{ cell: 'Sheet1!A1', newValue: 120 }] },
+                { name: 'Worst Case', changes: [{ cell: 'Sheet1!A1', newValue: 20 }] },
+              ],
+            },
+          })
+        )
+      );
+
+      expect(result.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({
+          progress: 0,
+          progressToken: 'deps-compare-scenarios-progress',
+        }),
+      });
+    });
+  });
+
+  describe('create_scenario_sheet Action', () => {
+    beforeEach(() => {
+      // Mock batchUpdate for duplicateSheet
+      mockSheetsApi.spreadsheets.batchUpdate = vi.fn().mockResolvedValue({
+        data: {
+          replies: [
+            { duplicateSheet: { properties: { sheetId: 42, title: 'Scenario - Optimistic' } } },
+          ],
+        },
+      });
+      // Mock values.batchUpdate for writing scenario changes
+      mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockResolvedValue({ data: {} });
+    });
+
+    it('should duplicate first sheet and apply scenario changes', async () => {
+      const result = unwrapResponse(
+        await handler.handle({
+          request: {
+            action: 'create_scenario_sheet',
+            spreadsheetId: '1ABC',
+            scenario: {
+              name: 'Optimistic',
+              changes: [
+                { cell: 'Sheet1!A1', newValue: 150 },
+                { cell: 'Sheet1!B1', newValue: 250 },
+              ],
+            },
+          },
+        })
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.action).toBe('create_scenario_sheet');
+      expect(result.data.newSheetId).toBe(42);
+      expect(result.data.newSheetName).toBe('Scenario - Optimistic');
+      expect(result.data.cellsModified).toBe(2);
+      expect(result.data.message).toContain('Scenario - Optimistic');
+      expect(result.data.message).toContain('2 change(s)');
+    });
+
+    it('should use custom targetSheet name when provided', async () => {
+      mockSheetsApi.spreadsheets.batchUpdate.mockResolvedValueOnce({
+        data: {
+          replies: [{ duplicateSheet: { properties: { sheetId: 99, title: 'Q1 Forecast' } } }],
+        },
+      });
+
+      const result = unwrapResponse(
+        await handler.handle({
+          request: {
+            action: 'create_scenario_sheet',
+            spreadsheetId: '1ABC',
+            scenario: {
+              name: 'Optimistic',
+              changes: [{ cell: 'Sheet1!A1', newValue: 150 }],
+            },
+            targetSheet: 'Q1 Forecast',
+          },
+        })
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data.newSheetName).toBe('Q1 Forecast');
+      // Verify batchUpdate was called with the custom name
+      expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            requests: expect.arrayContaining([
+              expect.objectContaining({
+                duplicateSheet: expect.objectContaining({ newSheetName: 'Q1 Forecast' }),
+              }),
+            ]),
+          }),
+        })
+      );
+    });
+
+    it('should default sheet name to "Scenario - {name}" when targetSheet omitted', async () => {
+      const result = unwrapResponse(
+        await handler.handle({
+          request: {
+            action: 'create_scenario_sheet',
+            spreadsheetId: '1ABC',
+            scenario: {
+              name: 'Bear Case',
+              changes: [{ cell: 'Sheet1!A1', newValue: 10 }],
+            },
+          },
+        })
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            requests: expect.arrayContaining([
+              expect.objectContaining({
+                duplicateSheet: expect.objectContaining({ newSheetName: 'Scenario - Bear Case' }),
+              }),
+            ]),
+          }),
+        })
+      );
+    });
+
+    it('should handle API error during sheet duplication', async () => {
+      mockSheetsApi.spreadsheets.batchUpdate.mockRejectedValueOnce(new Error('Quota exceeded'));
+
+      const result = unwrapResponse(
+        await handler.handle({
+          request: {
+            action: 'create_scenario_sheet',
+            spreadsheetId: '1ABC',
+            scenario: {
+              name: 'Test',
+              changes: [{ cell: 'Sheet1!A1', newValue: 1 }],
+            },
+          },
+        })
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain('Quota exceeded');
     });
   });
 });

@@ -40,6 +40,8 @@ describe('TransactionHandler', () => {
       resetStats: vi.fn(),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
+      getWalRecoveryReport: vi.fn().mockResolvedValue({ enabled: false, orphanedTransactions: [] }),
+      discardOrphanedTransaction: vi.fn().mockResolvedValue(undefined),
     } as any;
 
     // Mock getTransactionManager to return our mock
@@ -78,6 +80,7 @@ describe('TransactionHandler', () => {
       expect(mockTransactionManager.begin).toHaveBeenCalledWith('test-sheet-id-123', {
         autoCommit: false,
         autoRollback: true,
+        autoSnapshot: false,
         isolationLevel: 'read_committed',
       });
 
@@ -101,6 +104,7 @@ describe('TransactionHandler', () => {
       expect(mockTransactionManager.begin).toHaveBeenCalledWith('test-sheet-id-456', {
         autoCommit: false,
         autoRollback: false,
+        autoSnapshot: false,
         isolationLevel: 'serializable',
       });
     });

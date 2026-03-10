@@ -253,6 +253,80 @@ const GetTopFormulasActionSchema = CommonFieldsSchema.extend({
   limit: z.number().int().positive().optional().describe('Number of formulas to return'),
 });
 
+// Schedule actions (Phase 6: Scheduled Workflows)
+const ScheduleCreateActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('schedule_create'),
+  spreadsheetId: z.string().min(1),
+  cronExpression: z
+    .string()
+    .min(1)
+    .describe('Cron expression (e.g., "0 9 * * 1-5" for weekdays at 9 AM)'),
+  description: z.string().min(1).describe('Human-readable description of the scheduled task'),
+  tool: z.string().min(1).describe('MCP tool name to invoke (e.g., "sheets_data")'),
+  actionName: z.string().min(1).describe('Action within the tool (e.g., "read")'),
+  params: z.record(z.string(), z.unknown()).describe('Parameters to pass to the action'),
+}).strict();
+
+const ScheduleListActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('schedule_list'),
+  spreadsheetId: z
+    .string()
+    .optional()
+    .describe('Filter by spreadsheet ID (omit for all schedules)'),
+}).strict();
+
+const ScheduleCancelActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('schedule_cancel'),
+  jobId: z.string().min(1).describe('Job ID returned by schedule_create'),
+}).strict();
+
+const ScheduleRunNowActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('schedule_run_now'),
+  jobId: z.string().min(1).describe('Job ID to trigger immediately'),
+}).strict();
+
+// Pipeline step schema (used by execute_pipeline)
+const PipelineStepSchema = z.object({
+  id: z.string().min(1).describe('Unique step identifier — referenced by other steps dependsOn'),
+  tool: z.string().describe('Tool name (e.g. "sheets_data", "sheets_format")'),
+  action: z.string().describe('Action within the tool (e.g. "read", "write", "set_format")'),
+  params: z
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.unknown()),
+        z.record(z.string(), z.unknown()),
+      ])
+    )
+    .describe('Tool parameters (excluding action — added automatically)'),
+  dependsOn: z
+    .array(z.string())
+    .optional()
+    .describe('IDs of steps that must complete before this step runs'),
+});
+
+const ExecutePipelineActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('execute_pipeline')
+    .describe(
+      'Execute a DAG-based multi-step pipeline. READ steps within a wave run in parallel; WRITE steps run sequentially. Use dependsOn to define execution order.'
+    ),
+  steps: z
+    .array(PipelineStepSchema)
+    .min(1)
+    .max(50)
+    .describe('Pipeline steps (max 50). Steps without dependsOn run in the first wave.'),
+  failFast: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Stop execution on first error (default: true). Set false to collect all errors.'),
+});
+
 // ============================================================================
 // Combined Input Schema
 // ============================================================================
@@ -294,6 +368,11 @@ export const SheetsSessionInputSchema = z.object({
     RecordSuccessfulFormulaActionSchema,
     RejectSuggestionActionSchema,
     GetTopFormulasActionSchema,
+    ExecutePipelineActionSchema,
+    ScheduleCreateActionSchema,
+    ScheduleListActionSchema,
+    ScheduleCancelActionSchema,
+    ScheduleRunNowActionSchema,
   ]),
 });
 
@@ -385,6 +464,11 @@ const SessionActionSchema = z.enum([
   'record_successful_formula',
   'reject_suggestion',
   'get_top_formulas',
+  'execute_pipeline',
+  'schedule_create',
+  'schedule_list',
+  'schedule_cancel',
+  'schedule_run_now',
 ]);
 
 // Success responses
@@ -514,6 +598,42 @@ const SessionSuccessSchema = z.object({
       })
     )
     .optional(),
+  // Pipeline execution fields
+  pipelineResults: z
+    .array(
+      z.object({
+        id: z.string(),
+        tool: z.string(),
+        action: z.string(),
+        status: z.enum(['success', 'error', 'skipped']),
+        result: z.unknown().optional(),
+        error: z.string().optional(),
+        durationMs: z.number(),
+      })
+    )
+    .optional(),
+  stepsCompleted: z.coerce.number().optional(),
+  stepsTotal: z.coerce.number().optional(),
+  failedAt: z.string().optional(),
+  pipelineDurationMs: z.coerce.number().optional(),
+  // Schedule response fields (Phase 6)
+  jobId: z.string().optional().describe('Created or targeted job ID'),
+  jobs: z
+    .array(
+      z.object({
+        id: z.string(),
+        spreadsheetId: z.string(),
+        cronExpression: z.string(),
+        description: z.string(),
+        tool: z.string().optional(),
+        actionName: z.string().optional(),
+        enabled: z.boolean(),
+        lastRun: z.string().optional(),
+        createdAt: z.string(),
+      })
+    )
+    .optional()
+    .describe('List of scheduled jobs'),
 });
 
 // Error response

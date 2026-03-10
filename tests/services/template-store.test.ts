@@ -483,9 +483,11 @@ describe('TemplateStore', () => {
       const result = await store.delete('template-1');
 
       expect(result).toBe(true);
-      expect(mockDriveApi.files.delete).toHaveBeenCalledWith({
-        fileId: 'template-1',
-      });
+      expect(mockDriveApi.files.delete).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fileId: 'template-1',
+        })
+      );
     });
 
     it('should return false for non-existent template', async () => {

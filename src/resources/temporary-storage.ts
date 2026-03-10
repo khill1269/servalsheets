@@ -22,10 +22,23 @@ export class TemporaryResourceStore {
   private resources = new Map<string, StoredResource>();
   private maxTotalSizeBytes: number;
   private defaultTtlMs: number;
+  /** @internal Exposed for factory function to set cleanup interval */
+  cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor(options?: { maxSizeMB?: number; defaultTtlSeconds?: number }) {
     this.maxTotalSizeBytes = (options?.maxSizeMB ?? 100) * 1024 * 1024; // Default: 100MB
     this.defaultTtlMs = (options?.defaultTtlSeconds ?? 1800) * 1000; // Default: 30 minutes
+  }
+
+  /**
+   * Dispose the store, clearing cleanup interval and stored resources
+   */
+  dispose(): void {
+    if (this.cleanupIntervalId) {
+      clearInterval(this.cleanupIntervalId);
+      this.cleanupIntervalId = null;
+    }
+    this.resources.clear();
   }
 
   /**
@@ -213,8 +226,8 @@ export function getTemporaryResourceStore(): TemporaryResourceStore {
       defaultTtlSeconds: 1800, // 30 minutes
     });
 
-    // Schedule periodic cleanup every 5 minutes
-    setInterval(
+    // Schedule periodic cleanup every 5 minutes (handle stored for dispose)
+    globalStore.cleanupIntervalId = setInterval(
       () => {
         globalStore?.cleanup();
       },
@@ -222,4 +235,15 @@ export function getTemporaryResourceStore(): TemporaryResourceStore {
     );
   }
   return globalStore;
+}
+
+/**
+ * Dispose the global temporary resource store and clear its cleanup interval.
+ * Called during server shutdown.
+ */
+export function disposeTemporaryResourceStore(): void {
+  if (globalStore) {
+    globalStore.dispose();
+    globalStore = null;
+  }
 }

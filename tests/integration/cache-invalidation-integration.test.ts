@@ -77,7 +77,7 @@ describe('Cache Invalidation Integration', () => {
       const operations = [
         { tool: 'sheets_data', action: 'write' }, // Invalidates values only
         { tool: 'sheets_format', action: 'set_format' }, // Invalidates metadata only
-        { tool: 'sheets_core', action: 'rename_sheet' }, // Invalidates metadata only
+        { tool: 'sheets_core', action: 'update_properties' }, // Invalidates metadata only
         { tool: 'sheets_collaborate', action: 'share' }, // No invalidation
       ];
 
@@ -120,7 +120,7 @@ describe('Cache Invalidation Integration', () => {
         { tool: 'sheets_data', action: 'read' },
         { tool: 'sheets_core', action: 'get' },
         { tool: 'sheets_core', action: 'list' },
-        { tool: 'sheets_analyze', action: 'summarize' },
+        { tool: 'sheets_analyze', action: 'scout' },
       ];
 
       for (const { tool, action } of readOperations) {
@@ -144,7 +144,7 @@ describe('Cache Invalidation Integration', () => {
       const destructiveOps = [
         { tool: 'sheets_core', action: 'delete_sheet' },
         { tool: 'sheets_history', action: 'undo' },
-        { tool: 'sheets_fix', action: 'auto_fix' },
+        { tool: 'sheets_fix', action: 'fix' },
       ];
 
       for (const { tool, action } of destructiveOps) {

@@ -339,6 +339,75 @@ export const DEFER_DESCRIPTIONS = resolveDeferDescriptions();
  */
 export const STRIP_SCHEMA_DESCRIPTIONS = process.env['SERVAL_STRIP_SCHEMA_DESCRIPTIONS'] === 'true';
 
+// ============================================================================
+// Stage-Based Tool Registration
+// ============================================================================
+
+/**
+ * Tool registration stages
+ *
+ * When enabled, tools are registered in stages to reduce initial payload:
+ * - Stage 1 (bootstrap): Auth, core, session, analyze — always registered immediately
+ * - Stage 2 (active): Data, format, dimensions — registered after a spreadsheet is active
+ * - Stage 3 (full): All remaining tools — registered on demand or after first tool call
+ *
+ * Benefits:
+ * - Stage 1 payload is ~40% of full payload (~4 tools vs 24)
+ * - LLM gets essential tools instantly, remaining tools arrive via tools/list_changed
+ * - Backwards-compatible: disabled by default (all tools registered at once)
+ *
+ * Set via SERVAL_STAGED_REGISTRATION=true environment variable.
+ */
+export const STAGED_REGISTRATION = process.env['SERVAL_STAGED_REGISTRATION'] === 'true';
+
+export type ToolStage = 1 | 2 | 3;
+
+/** Stage 1: Bootstrap tools — always available, no auth required for discovery */
+export const STAGE_1_TOOLS = [
+  'sheets_auth',
+  'sheets_core',
+  'sheets_session',
+  'sheets_analyze',
+  'sheets_confirm',
+] as const;
+
+/** Stage 2: Active spreadsheet tools — registered after session.set_active or first spreadsheetId */
+export const STAGE_2_TOOLS = [
+  'sheets_data',
+  'sheets_format',
+  'sheets_dimensions',
+  'sheets_history',
+  'sheets_quality',
+  'sheets_fix',
+] as const;
+
+/** Stage 3: Full tools — all remaining tools, registered on demand */
+export const STAGE_3_TOOLS = [
+  'sheets_visualize',
+  'sheets_collaborate',
+  'sheets_advanced',
+  'sheets_transaction',
+  'sheets_composite',
+  'sheets_templates',
+  'sheets_bigquery',
+  'sheets_appsscript',
+  'sheets_webhook',
+  'sheets_dependencies',
+  'sheets_federation',
+  'sheets_compute',
+  'sheets_agent',
+] as const;
+
+/**
+ * Get the stage a tool belongs to.
+ * Returns 1, 2, or 3.
+ */
+export function getToolStage(toolName: string): ToolStage {
+  if ((STAGE_1_TOOLS as readonly string[]).includes(toolName)) return 1;
+  if ((STAGE_2_TOOLS as readonly string[]).includes(toolName)) return 2;
+  return 3;
+}
+
 /**
  * Essential tools (lite mode) - core spreadsheet operations
  * Reduces schema payload by 62% (527KB → 199KB)

@@ -26,6 +26,12 @@ export const STANDARD_SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
   // Drive AppData: template storage in hidden app folder
   'https://www.googleapis.com/auth/drive.appdata',
+  // Drive read-only: required for sheets_core.list (drive.files.list) to enumerate all user spreadsheets.
+  // RESTRICTED scope — requires Google verification but allows listing all Drive files.
+  // Without this, core.list only sees files the app created/opened (drive.file limitation).
+  'https://www.googleapis.com/auth/drive.readonly',
+  // Drive Labels read-only: required for sheets_collaborate.label_list
+  'https://www.googleapis.com/auth/drive.labels.readonly',
 ] as const;
 
 /**
@@ -59,6 +65,13 @@ export const FULL_ACCESS_SCOPES = [
   'https://www.googleapis.com/auth/script.deployments',
   'https://www.googleapis.com/auth/script.processes',
   'https://www.googleapis.com/auth/script.external_request',
+
+  // Drive Labels (for sheets_collaborate.label_list, label_apply, label_remove)
+  'https://www.googleapis.com/auth/drive.labels.readonly',
+  'https://www.googleapis.com/auth/drive.labels',
+
+  // Drive Activity (for WHO/WHEN attribution in sheets_history.timeline)
+  'https://www.googleapis.com/auth/drive.activity.readonly',
 ] as const;
 
 /**
@@ -165,6 +178,10 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
     'Allow Apps Script to make external HTTP requests',
   'https://www.googleapis.com/auth/spreadsheets.readonly': 'View your Google Sheets spreadsheets',
   'https://www.googleapis.com/auth/drive.readonly': 'View your Google Drive files',
+  'https://www.googleapis.com/auth/drive.labels.readonly':
+    'View Drive Labels applied to files (for label_list)',
+  'https://www.googleapis.com/auth/drive.labels':
+    'View and manage Drive Labels on files (for label_list, label_apply, label_remove)',
 };
 
 /**

@@ -11,6 +11,7 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getTimeTravelDebugger } from '../services/time-travel.js';
 import { logger } from '../utils/logger.js';
+import { completeSpreadsheetId } from '../mcp/completions.js';
 
 /**
  * Register time-travel debug resources with the MCP server
@@ -23,6 +24,9 @@ export function registerTimeTravelResources(server: McpServer): void {
     'Time Travel Checkpoints',
     new ResourceTemplate('debug://time-travel/{spreadsheetId}/checkpoints', {
       list: undefined,
+      complete: {
+        spreadsheetId: async (value) => completeSpreadsheetId(value),
+      },
     }),
     {
       description:
@@ -88,6 +92,9 @@ export function registerTimeTravelResources(server: McpServer): void {
     'Time Travel Cell Blame',
     new ResourceTemplate('debug://time-travel/{spreadsheetId}/blame/{cell}', {
       list: undefined,
+      complete: {
+        spreadsheetId: async (value) => completeSpreadsheetId(value),
+      },
     }),
     {
       description:

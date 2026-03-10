@@ -27,6 +27,7 @@ import {
   TOOL_COUNT as actionCountsToolCount,
   ACTION_COUNT as actionCountsActionCount,
 } from '../src/schemas/action-counts.js';
+import { ACTION_METADATA } from '../src/schemas/action-metadata.js';
 
 interface ValidationResult {
   file: string;
@@ -88,27 +89,26 @@ function validateSchemaIndex(
 /**
  * Validate ACTION_METADATA has entries for all tools
  */
-function validateActionMetadata(expectedToolCount: number): ValidationResult {
+function validateActionMetadata(
+  expectedToolCount: number,
+  expectedActionCount: number
+): ValidationResult {
   const filePath = './src/schemas/action-metadata.ts';
-  const content = readFileSync(filePath, 'utf-8');
 
   const issues: string[] = [];
 
-  // Count tool entries (sheets_xxx: {)
-  const toolMatches = content.match(/\s+sheets_\w+:\s+\{/g);
-  const toolCount = toolMatches ? toolMatches.length : 0;
-
-  // Count total action entries across all tools
-  let actionCount = 0;
-  const actionMatches = content.match(/\s+[a-z_]+:\s+\{[\s\S]*?readOnly:/g);
-  actionCount = actionMatches ? actionMatches.length : 0;
+  const toolCount = Object.keys(ACTION_METADATA).length;
+  const actionCount = Object.values(ACTION_METADATA).reduce(
+    (sum, toolMetadata) => sum + Object.keys(toolMetadata).length,
+    0
+  );
 
   if (toolCount !== expectedToolCount) {
     issues.push(`Tool count (${toolCount}) doesn't match expected (${expectedToolCount})`);
   }
 
-  if (actionCount === 0) {
-    issues.push('No action metadata found');
+  if (actionCount !== expectedActionCount) {
+    issues.push(`Action count (${actionCount}) doesn't match expected (${expectedActionCount})`);
   }
 
   return {
@@ -272,7 +272,7 @@ function runValidation(): void {
 
   // 2. Validate action metadata
   console.log('📝 Validating src/schemas/action-metadata.ts...');
-  const metadataResult = validateActionMetadata(sourceOfTruthToolCount);
+  const metadataResult = validateActionMetadata(sourceOfTruthToolCount, sourceOfTruthActionCount);
   results.push(metadataResult);
 
   if (metadataResult.issues.length > 0) {

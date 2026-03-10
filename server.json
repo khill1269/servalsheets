@@ -2,7 +2,7 @@
   "$schema": "https://cdn.jsdelivr.net/npm/@anthropic-ai/mcp-registry@latest/dist/registry-schema.json",
   "name": "io.github.khill1269/servalsheets",
   "version": "1.7.0",
-  "description": "Production-grade Google Sheets MCP server with 22 tools and 328 actions",
+  "description": "Production-grade Google Sheets MCP server with 25 tools and 397 actions",
   "icons": [
     {
       "src": "https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/serval-icon.png",
@@ -20,7 +20,7 @@
     }
   ],
   "mcpProtocol": "2025-11-25",
-  "instructions": "⚠️ CRITICAL PARAMETER FORMAT (read this first) ⚠️\n\nNEVER wrap arguments in {\"request\":{...}} object.\n\n✅ CORRECT format for ALL tools:\n{\"action\":\"...\", \"spreadsheetId\":\"...\", \"range\":\"...\"}\n\n❌ LEGACY format (normalized at runtime, avoid in new integrations):\n{\"request\": {\"action\":\"...\", \"spreadsheetId\":\"...\"}}\n\nUse flat format for all new tool calls. No exceptions.\n\n---\n\nServalSheets provides 22 tools for Google Sheets operations. Use sheets_analyze with action \"comprehensive\" to start. For token efficiency, read schema://tools/{toolName} before calling tools with complex parameters.",
+  "instructions": "⚠️ CRITICAL PARAMETER FORMAT (read this first) ⚠️\n\nNEVER wrap arguments in {\"request\":{...}} object.\n\n✅ CORRECT format for ALL tools:\n{\"action\":\"...\", \"spreadsheetId\":\"...\", \"range\":\"...\"}\n\n❌ LEGACY format (normalized at runtime, avoid in new integrations):\n{\"request\": {\"action\":\"...\", \"spreadsheetId\":\"...\"}}\n\nUse flat format for all new tool calls. No exceptions.\n\n---\n\nServalSheets provides 25 tools for Google Sheets operations. Start with sheets_auth action \"status\". If the user request is explicit, route directly to the matching tool. Use sheets_analyze action \"scout\" for quick exploration and \"comprehensive\" only for full audits. For token efficiency, read schema://tools/{toolName} before calling tools with complex parameters.",
   "packages": [
     {
       "registryType": "npm",
@@ -29,7 +29,7 @@
       "transport": {
         "type": "stdio"
       },
-      "description": "Production-grade Google Sheets MCP server - 22 tools, 328 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
+      "description": "Production-grade Google Sheets MCP server - 25 tools, 397 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
     }
   ],
   "tools": [
@@ -71,8 +71,22 @@
       ]
     },
     {
+      "name": "sheets_agent",
+      "description": "agent operations (8 actions)",
+      "actions": [
+        "plan",
+        "execute",
+        "execute_step",
+        "observe",
+        "rollback",
+        "get_status",
+        "list_plans",
+        "resume"
+      ]
+    },
+    {
       "name": "sheets_analyze",
-      "description": "analyze operations (18 actions)",
+      "description": "analyze operations (21 actions)",
       "actions": [
         "comprehensive",
         "analyze_data",
@@ -91,12 +105,15 @@
         "drill_down",
         "generate_actions",
         "suggest_next_actions",
-        "auto_enhance"
+        "auto_enhance",
+        "discover_action",
+        "diagnose_errors",
+        "formula_health_check"
       ]
     },
     {
       "name": "sheets_appsscript",
-      "description": "appsscript operations (18 actions)",
+      "description": "appsscript operations (19 actions)",
       "actions": [
         "create",
         "get",
@@ -115,7 +132,8 @@
         "create_trigger",
         "list_triggers",
         "delete_trigger",
-        "update_trigger"
+        "update_trigger",
+        "install_serval_function"
       ]
     },
     {
@@ -153,7 +171,7 @@
     },
     {
       "name": "sheets_collaborate",
-      "description": "collaborate operations (35 actions)",
+      "description": "collaborate operations (40 actions)",
       "actions": [
         "share_add",
         "share_update",
@@ -189,12 +207,17 @@
         "approval_get_status",
         "approval_list_pending",
         "approval_delegate",
-        "approval_cancel"
+        "approval_cancel",
+        "list_access_proposals",
+        "resolve_access_proposal",
+        "label_list",
+        "label_apply",
+        "label_remove"
       ]
     },
     {
       "name": "sheets_composite",
-      "description": "composite operations (14 actions)",
+      "description": "composite operations (20 actions)",
       "actions": [
         "import_csv",
         "smart_append",
@@ -207,9 +230,37 @@
         "import_and_format",
         "clone_structure",
         "export_large_dataset",
+        "audit_sheet",
+        "publish_report",
+        "data_pipeline",
+        "instantiate_template",
+        "migrate_spreadsheet",
         "generate_sheet",
         "generate_template",
-        "preview_generation"
+        "preview_generation",
+        "batch_operations"
+      ]
+    },
+    {
+      "name": "sheets_compute",
+      "description": "compute operations (16 actions)",
+      "actions": [
+        "evaluate",
+        "aggregate",
+        "statistical",
+        "regression",
+        "forecast",
+        "matrix_op",
+        "pivot_compute",
+        "custom_function",
+        "batch_compute",
+        "explain_formula",
+        "sql_query",
+        "sql_join",
+        "python_eval",
+        "pandas_profile",
+        "sklearn_model",
+        "matplotlib_chart"
       ]
     },
     {
@@ -224,8 +275,24 @@
       ]
     },
     {
+      "name": "sheets_connectors",
+      "description": "connectors operations (10 actions)",
+      "actions": [
+        "list_connectors",
+        "configure",
+        "query",
+        "batch_query",
+        "subscribe",
+        "unsubscribe",
+        "list_subscriptions",
+        "transform",
+        "status",
+        "discover"
+      ]
+    },
+    {
       "name": "sheets_core",
-      "description": "core operations (19 actions)",
+      "description": "core operations (21 actions)",
       "actions": [
         "get",
         "create",
@@ -234,6 +301,8 @@
         "get_url",
         "batch_get",
         "get_comprehensive",
+        "describe_workbook",
+        "workbook_fingerprint",
         "list",
         "add_sheet",
         "delete_sheet",
@@ -250,7 +319,7 @@
     },
     {
       "name": "sheets_data",
-      "description": "data operations (19 actions)",
+      "description": "data operations (24 actions)",
       "actions": [
         "read",
         "write",
@@ -270,12 +339,17 @@
         "get_merges",
         "cut_paste",
         "copy_paste",
-        "detect_spill_ranges"
+        "detect_spill_ranges",
+        "smart_fill",
+        "cross_read",
+        "cross_query",
+        "cross_write",
+        "cross_compare"
       ]
     },
     {
       "name": "sheets_dependencies",
-      "description": "dependencies operations (7 actions)",
+      "description": "dependencies operations (10 actions)",
       "actions": [
         "build",
         "analyze_impact",
@@ -283,12 +357,15 @@
         "get_dependencies",
         "get_dependents",
         "get_stats",
-        "export_dot"
+        "export_dot",
+        "model_scenario",
+        "compare_scenarios",
+        "create_scenario_sheet"
       ]
     },
     {
       "name": "sheets_dimensions",
-      "description": "dimensions operations (28 actions)",
+      "description": "dimensions operations (30 actions)",
       "actions": [
         "insert",
         "delete",
@@ -305,11 +382,13 @@
         "clear_basic_filter",
         "get_basic_filter",
         "sort_range",
+        "delete_duplicates",
         "trim_whitespace",
         "randomize_range",
         "text_to_columns",
         "auto_fill",
         "create_filter_view",
+        "duplicate_filter_view",
         "update_filter_view",
         "delete_filter_view",
         "list_filter_views",
@@ -400,7 +479,7 @@
     },
     {
       "name": "sheets_session",
-      "description": "session operations (26 actions)",
+      "description": "session operations (31 actions)",
       "actions": [
         "set_active",
         "get_active",
@@ -427,7 +506,12 @@
         "update_profile_preferences",
         "record_successful_formula",
         "reject_suggestion",
-        "get_top_formulas"
+        "get_top_formulas",
+        "schedule_create",
+        "schedule_list",
+        "schedule_cancel",
+        "schedule_run_now",
+        "execute_pipeline"
       ]
     },
     {
@@ -482,7 +566,7 @@
     },
     {
       "name": "sheets_webhook",
-      "description": "webhook operations (7 actions)",
+      "description": "webhook operations (10 actions)",
       "actions": [
         "register",
         "unregister",
@@ -490,7 +574,10 @@
         "get",
         "test",
         "get_stats",
-        "watch_changes"
+        "watch_changes",
+        "subscribe_workspace",
+        "unsubscribe_workspace",
+        "list_workspace_subscriptions"
       ]
     }
   ],
@@ -503,17 +590,21 @@
     "tasks"
   ],
   "metadata": {
-    "toolCount": 22,
-    "actionCount": 328,
+    "toolCount": 25,
+    "actionCount": 397,
     "categories": [
       "Core Operations (5 tools): auth, core, data, format, dimensions",
-      "Visualizations (1 tool): visualize",
-      "Collaboration (1 tool): collaborate",
-      "Advanced Features (1 tool): advanced",
-      "Workflow & Safety (3 tools): transaction, quality, history",
-      "MCP-Native Intelligence (3 tools): confirm (Elicitation), analyze (Sampling), fix (Automated)",
-      "Productivity (2 tools): composite, session",
-      "Enterprise (3 tools): templates, bigquery, appsscript"
+      "Visual Analytics (1 tool): visualize",
+      "Collaboration & Governance (1 tool): collaborate",
+      "Advanced Sheet Structures (1 tool): advanced",
+      "Reliability & Recovery (3 tools): transaction, quality, history",
+      "AI-Native Workflows (3 tools): confirm, analyze, fix",
+      "Productivity & Composition (2 tools): composite, session",
+      "Templates & Integrations (3 tools): templates, bigquery, appsscript",
+      "Automation & Events (1 tool): webhook",
+      "Formula Intelligence (1 tool): dependencies",
+      "Federation & Compute (2 tools): federation, compute",
+      "Agentic Execution & Connectors (2 tools): agent, connectors"
     ]
   },
   "author": {

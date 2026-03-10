@@ -39,6 +39,8 @@ import type { Request, Response, NextFunction } from 'express';
 import { verifyWebhookSignature } from '../security/webhook-signature.js';
 import { logger } from './logger.js';
 
+const DUMMY_WEBHOOK_SECRET = 'servalsheets-webhook-dummy-secret';
+
 /**
  * Webhook verification configuration
  */
@@ -237,20 +239,10 @@ export function webhookVerificationMiddleware(
         );
       }
 
-      // Get the webhook secret
       const secret = await getSecret(webhookId);
-      if (!secret) {
-        throw new WebhookVerificationError(
-          'WEBHOOK_NOT_FOUND',
-          `Webhook ${webhookId} not found or has no secret`,
-          404,
-          { webhookId }
-        );
-      }
-
-      // Verify signature
-      const isValid = verifyWebhookRequest(rawBody, secret, signature);
-      if (!isValid) {
+      const effectiveSecret = secret ?? DUMMY_WEBHOOK_SECRET;
+      const isValid = verifyWebhookRequest(rawBody, effectiveSecret, signature);
+      if (!secret || !isValid) {
         throw new WebhookVerificationError(
           'INVALID_SIGNATURE',
           'Webhook signature verification failed',

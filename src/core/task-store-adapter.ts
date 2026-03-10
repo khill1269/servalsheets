@@ -69,10 +69,13 @@ export class TaskStoreAdapter implements SDKTaskStore {
 
   /**
    * SDK TaskStore.storeTaskResult - Maps Result to CallToolResult
+   *
+   * C11: SDK interface only allows 'completed' | 'failed' for storeTaskResult.
+   * Cancellation should go through updateTaskStatus (which accepts Task['status']).
    */
   async storeTaskResult(
     taskId: string,
-    status: 'completed' | 'failed' | 'cancelled',
+    status: 'completed' | 'failed',
     result: Result,
     _sessionId?: string
   ): Promise<void> {

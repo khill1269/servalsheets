@@ -7,10 +7,12 @@
 
 Live project state (auto-generated): @.serval/state.md
 Session notes (decisions, next steps): @.serval/session-notes.md
+Codebase deep context (all tools, MCP, API patterns): @docs/development/CODEBASE_CONTEXT.md
+Feature roadmap (P4 differentiators): @docs/development/FEATURE_PLAN.md
 
 ## Project Overview
 
-ServalSheets is a production-grade MCP server for Google Sheets with 22 tools and 315 actions.
+ServalSheets is a production-grade MCP server for Google Sheets with 25 tools and 397 actions.
 Runtime: Node.js + TypeScript (strict). See `src/schemas/index.ts` for authoritative counts.
 
 ### Core Pipeline
@@ -105,6 +107,31 @@ Always run `wc -l file.ts`. Never use "~", "approximately", or "around".
 Tests need `{ request: { action: 'read_range', ... } }` not `{ action: 'read_range', ... }`.
 See `normalizeToolArgs()` in `tool-handlers.ts:81-118`.
 
+### 7. Test Quality Anti-Patterns (ISSUE-237)
+
+```typescript
+// ❌ Tautological — always passes regardless of actual value
+expect([true, false]).toContain(response.success);
+// ✅ Assert the specific expected value
+expect(response.success).toBe(false);
+
+// ❌ Non-deterministic — different results each run
+const largeData = Array.from({ length: 1000 }, (_, i) => [Math.random(), new Date()]);
+// ✅ Deterministic — reproducible across all runs
+const largeData = Array.from({ length: 1000 }, (_, i) => [(i + 1) * 10, '2024-01-15']);
+```
+
+### 8. Stale Hardcoded Action Names (ISSUE-231, P7-B1)
+
+When renaming an action (e.g. `write_range` → `write`), also update:
+
+- `MUTATION_ACTIONS` in `src/middleware/audit-middleware.ts`
+- `AUTH_EXEMPT_ACTIONS` in `src/server.ts`
+- Cache invalidation rules in `src/services/cache-invalidation-graph.ts`
+- `scripts/check-integration-wiring.mjs` guards
+
+Run `npm run check:integration-wiring` after any action rename to catch mismatches.
+
 ## Key Files
 
 - `src/server.ts` — MCP server entrypoint
@@ -118,9 +145,9 @@ See `normalizeToolArgs()` in `tool-handlers.ts:81-118`.
 ### Layered Validation
 
 ```typescript
-fastValidateSpreadsheet(input);                              // 0.1ms pre-Zod
-const validated = Schema.parse(input);                       // Full Zod
-if (!result.response) throw new ResponseValidationError();   // Shape check
+fastValidateSpreadsheet(input); // 0.1ms pre-Zod
+const validated = Schema.parse(input); // Full Zod
+if (!result.response) throw new ResponseValidationError(); // Shape check
 ```
 
 ### Structured Errors
@@ -161,8 +188,12 @@ if (!result.response) throw new ResponseValidationError();   // Shape check
 
 **Step 1:** Schema in `src/schemas/{tool}.ts` — add to discriminated union
 **Step 2:** Handler in `src/handlers/{tool}.ts` — add case + private method
-**Step 3:** Test in `tests/handlers/{tool}.test.ts` — success + error paths
+**Step 3:** Test in `tests/handlers/{tool}.test.ts` — success + error paths (no `Math.random()`, no tautological assertions)
 **Step 4:** `npm run schema:commit`
+**Step 5 (if mutating):** Add action name to `MUTATION_ACTIONS` in `src/middleware/audit-middleware.ts`
+**Step 6 (always):** Add cache invalidation rule in `src/services/cache-invalidation-graph.ts` (use `invalidates: []` for read-only)
+**Step 7 (if session-context wired):** Write back with `sessionContext.recordOperation()` — not just read/filter
+**Step 8 (if new error code):** Add code to `ErrorCodeSchema` in `src/schemas/shared.ts` before using it in handlers
 
 ## Source of Truth
 
@@ -181,6 +212,49 @@ Never hardcode these values — always reference the source file with `file:line
 3. Reproduce bug with failing test
 4. Propose minimal patch (≤3 files)
 5. No refactors in same PR
+
+## Feature Build Workflow
+
+When implementing a new feature (e.g., F4 Smart Suggestions from `docs/development/FEATURE_PLAN.md`):
+
+1. **Scope**: Read only the feature spec section + target handler/schema. Don't load all 22 handlers.
+2. **Schema first**: Add to discriminated union in `src/schemas/{tool}.ts`
+3. **Schema commit**: `npm run schema:commit` — do this IMMEDIATELY, not at the end
+4. **Service**: Create new service in `src/services/` following existing patterns
+5. **Handler**: Add case to switch + private `handle{Action}()` method
+6. **Test**: Success + error paths in `tests/handlers/{tool}.test.ts`
+7. **Verify**: `npm run verify:safe` (includes drift check, skips lint for memory safety)
+8. **Session notes**: Update `.serval/session-notes.md` before ending
+
+## Workflow Anti-Patterns
+
+- **Don't read all handlers at session start** — scope to the module being worked on
+- **Don't run full test suite in main context** — delegate to subagent (returns summary vs 5K tokens of output)
+- **Don't batch commits** — commit per logical unit (schema change, handler, tests)
+- **Don't skip schema:commit** — #1 CI failure cause; PostToolUse hook will remind you
+- **Don't modify generated files directly** — `action-counts.ts`, `annotations.ts`, `completions.ts`, `server.json` are generated by `schema:commit`
+- **Don't use `verify` in low-memory** — use `verify:safe` (skips ESLint, includes drift check)
+
+## Subagent Delegation
+
+Use Task tool (subagents) for heavy operations to keep main context clean:
+
+- **Test runs**: `npm run test:fast` — delegate, get pass/fail summary
+- **Typecheck**: `npm run typecheck` — delegate, get error list only
+- **Audit**: `npm run audit:full` — always delegate (produces massive output)
+- **Code exploration**: Use Explore agent for "find all usages of X" searches
+- **Verification**: After feature complete, delegate `npm run verify:safe` to subagent
+
+Pattern: `Task(Bash, "Run npm run test:fast in /path/to/project and report pass/fail count + any failures")`
+
+## Hooks
+
+Configured in `.claude/hooks.json`:
+
+- **SessionStart**: Auto-generates `.serval/state.md` with live project metrics
+- **Stop**: Prompts to verify tests pass, metadata synced, session notes updated
+- **PreToolUse (Bash)**: Blocks destructive git commands (`reset --hard`, `push --force`)
+- **PostToolUse (Write/Edit)**: Warns when schema files edited without `schema:commit`
 
 ## Known Issues
 

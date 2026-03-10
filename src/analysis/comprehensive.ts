@@ -248,6 +248,12 @@ export interface ComprehensiveResult {
     totalAnomalies: number;
     totalTrends: number;
     totalCorrelations: number;
+    formulaDensity: number;
+    chartCount: number;
+    errorCellCount: number;
+    pivotTableCount: number;
+    dataValidationCount: number;
+    conditionalFormatCount: number;
   };
 
   // Visualizations (if requested)
@@ -1207,9 +1213,12 @@ export class ComprehensiveAnalyzer {
     });
 
     // ── 11. DUPLICATE_ROW ──
-    const rowStrings = dataRows.map((row) => JSON.stringify(row));
-    const uniqueRows = new Set(rowStrings);
-    const duplicateCount = rowStrings.length - uniqueRows.size;
+    // Use delimiter-joined fingerprint instead of JSON.stringify for O(n) vs O(n*m) perf
+    const rowFingerprints = dataRows.map((row) =>
+      Array.isArray(row) ? row.map((cell) => String(cell ?? '')).join('\x00') : String(row)
+    );
+    const uniqueRows = new Set(rowFingerprints);
+    const duplicateCount = rowFingerprints.length - uniqueRows.size;
     if (duplicateCount > 0) {
       issues.push({
         type: 'DUPLICATE_ROW',
@@ -1560,8 +1569,13 @@ export class ComprehensiveAnalyzer {
       logger.debug('Formula data cache miss - fetching', { spreadsheetId });
 
       try {
+        // Scope includeGridData to only the sheets being analyzed to avoid fetching the
+        // entire workbook. Using sheet names as ranges (e.g. "'Sheet1'") tells the API to
+        // include grid data only for those sheets; the field mask further limits to formulas.
+        const sheetRanges = sheetAnalyses.map((a) => `'${a.sheetName.replace(/'/g, "''")}'`);
         const apiResponse = await this.sheetsApi.spreadsheets.get({
           spreadsheetId,
+          ranges: sheetRanges.length > 0 ? sheetRanges : undefined,
           includeGridData: true,
           // Optimized field mask: fetch only formulas, not effectiveValue
           fields: 'sheets(properties.sheetId,data.rowData.values.userEnteredValue.formulaValue)',
@@ -1923,10 +1937,22 @@ export class ComprehensiveAnalyzer {
     totalAnomalies: number;
     totalTrends: number;
     totalCorrelations: number;
+    formulaDensity: number;
+    chartCount: number;
+    errorCellCount: number;
+    pivotTableCount: number;
+    dataValidationCount: number;
+    conditionalFormatCount: number;
   } {
+    const totalFormulas = sheetAnalyses.reduce((sum, s) => sum + (s.formulas?.total ?? 0), 0);
+    const totalCells = sheetAnalyses.reduce((sum, s) => sum + s.rowCount * s.columnCount, 0);
+    const errorCellCount = sheetAnalyses.reduce(
+      (sum, s) => sum + s.issues.filter((i) => i.type === 'error').length,
+      0
+    );
     return {
       totalDataRows: sheetAnalyses.reduce((sum, s) => sum + s.dataRowCount, 0),
-      totalFormulas: sheetAnalyses.reduce((sum, s) => sum + (s.formulas?.total ?? 0), 0),
+      totalFormulas,
       overallQualityScore:
         sheetAnalyses.length > 0
           ? sheetAnalyses.reduce((sum, s) => sum + s.qualityScore, 0) / sheetAnalyses.length
@@ -1939,6 +1965,12 @@ export class ComprehensiveAnalyzer {
       totalAnomalies: sheetAnalyses.reduce((sum, s) => sum + s.anomalies.length, 0),
       totalTrends: sheetAnalyses.reduce((sum, s) => sum + s.trends.length, 0),
       totalCorrelations: sheetAnalyses.reduce((sum, s) => sum + s.correlations.length, 0),
+      formulaDensity: totalCells > 0 ? totalFormulas / totalCells : 0,
+      chartCount: 0, // Populated by getSpreadsheetInfo() when available
+      errorCellCount,
+      pivotTableCount: 0, // Populated by getSpreadsheetInfo() when available
+      dataValidationCount: 0, // Populated by getSpreadsheetInfo() when available
+      conditionalFormatCount: 0, // Populated by getSpreadsheetInfo() when available
     };
   }
 

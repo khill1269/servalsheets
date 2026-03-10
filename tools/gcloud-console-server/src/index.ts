@@ -18,9 +18,7 @@ import { z } from 'zod';
 import { ProjectsClient } from '@google-cloud/resource-manager';
 import { Logging } from '@google-cloud/logging';
 import { MetricServiceClient } from '@google-cloud/monitoring';
-import { GoogleAuth } from 'google-auth-library';
 import { google } from 'googleapis';
-import type { OAuth2Client } from 'google-auth-library';
 
 /**
  * Authentication setup:
@@ -31,7 +29,7 @@ import type { OAuth2Client } from 'google-auth-library';
  */
 
 // Initialize Google Auth
-const googleAuth = new GoogleAuth({
+const googleAuth = new google.auth.GoogleAuth({
   scopes: [
     'https://www.googleapis.com/auth/cloud-platform',
     'https://www.googleapis.com/auth/logging.read',
@@ -303,9 +301,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
-    // Get auth client for googleapis calls
-    const authClient = (await googleAuth.getClient()) as OAuth2Client;
-
     switch (name) {
       case 'gcloud_list_projects': {
         const input = ListProjectsSchema.parse(args);
@@ -361,7 +356,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'gcloud_list_enabled_apis': {
         const input = ListAPIsSchema.parse(args);
         const response = await serviceUsage.services.list({
-          auth: authClient,
+          auth: googleAuth,
           parent: `projects/${input.projectId}`,
           filter: input.filter
             ? `state:ENABLED AND displayName:*${input.filter}*`
@@ -397,7 +392,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'gcloud_enable_api': {
         const input = EnableAPISchema.parse(args);
         await serviceUsage.services.enable({
-          auth: authClient,
+          auth: googleAuth,
           name: `projects/${input.projectId}/services/${input.serviceName}`,
         });
 
@@ -419,7 +414,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'gcloud_get_quotas': {
         const input = GetQuotasSchema.parse(args);
         const response = await serviceUsage.services.get({
-          auth: authClient,
+          auth: googleAuth,
           name: `projects/${input.projectId}/services/${input.serviceName}`,
         });
 
@@ -440,7 +435,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'gcloud_list_iam_policies': {
         const input = ListIAMPoliciesSchema.parse(args);
         const response = await cloudResourceManager.projects.getIamPolicy({
-          auth: authClient,
+          auth: googleAuth,
           resource: input.projectId,
         });
 
@@ -522,7 +517,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'gcloud_validate_permissions': {
         const input = ValidatePermissionsSchema.parse(args);
         const response = await cloudResourceManager.projects.testIamPermissions({
-          auth: authClient,
+          auth: googleAuth,
           resource: input.projectId,
           requestBody: {
             permissions: input.permissions,

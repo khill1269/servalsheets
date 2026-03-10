@@ -342,7 +342,8 @@ describe.skipIf(SKIP_E2E)('E2E: Error Recovery', () => {
           response?: { error?: { code?: string } };
         };
         if (structured.response?.error?.code) {
-          expect(structured.response.error.code).toBeTruthy();
+          expect(structured.response.error.code).toEqual(expect.any(String));
+          expect(structured.response.error.code.length).toBeGreaterThan(0);
         }
       }
     });

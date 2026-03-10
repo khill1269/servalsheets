@@ -3,10 +3,12 @@
  *
  * Drive Revisions API integration for chronological change history,
  * cell-level diffs between revisions, and surgical cell restore.
+ * Phase 3: Drive Activity API for WHO/WHEN attribution.
  */
 
 import type { drive_v3, sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
+import type { GoogleApiClient } from './google-api.js';
 
 export interface TimelineEntry {
   revisionId: string;
@@ -14,6 +16,15 @@ export interface TimelineEntry {
   user?: string;
   displayName?: string;
   sizeBytes?: number;
+  activityType?: string;
+}
+
+export interface TimelineResult {
+  items: TimelineEntry[];
+  totalFetched: number;
+  truncated: boolean;
+  nextPageToken?: string;
+  activityAvailable: boolean;
 }
 
 export interface RevisionRef {
@@ -33,6 +44,7 @@ export interface DiffResult {
   revision1: RevisionRef;
   revision2: RevisionRef;
   cellChanges?: CellChange[];
+  isHistorical: boolean;
   summary: {
     metadataOnly: boolean;
     rev1Size?: number;
@@ -46,6 +58,48 @@ export interface RestoreResult {
 }
 
 /**
+ * Get Drive Activity events for WHO/WHEN attribution.
+ */
+export async function getActivityEvents(
+  googleClient: GoogleApiClient,
+  fileId: string,
+  startTime?: string,
+  endTime?: string
+): Promise<Array<{ timestamp: string; actor: string; actionType: string }>> {
+  try {
+    const driveActivityApi = googleClient.driveActivity;
+    if (!driveActivityApi) return [];
+
+    const filter = startTime
+      ? `time >= "${startTime}"${endTime ? ` AND time <= "${endTime}"` : ''}`
+      : undefined;
+
+    const response = await driveActivityApi.activity.query({
+      requestBody: {
+        itemName: `items/${fileId}`,
+        filter,
+        pageSize: 100,
+      },
+    });
+
+    const activities = response.data.activities ?? [];
+    return activities.map((activity) => {
+      const actor = activity.actors?.[0];
+      const actorEmail =
+        actor?.user?.knownUser?.personName ??
+        actor?.impersonation?.impersonatedUser?.knownUser?.personName ??
+        'unknown';
+      const timestamp = activity.timestamp ?? activity.timeRange?.startTime ?? '';
+      const actionType = Object.keys(activity.primaryActionDetail ?? {})[0] ?? 'edit';
+      return { timestamp, actor: actorEmail, actionType };
+    });
+  } catch {
+    // Drive Activity API may not be authorized — graceful degradation
+    return [];
+  }
+}
+
+/**
  * Get chronological revision timeline for a spreadsheet.
  */
 export async function getTimeline(
@@ -55,39 +109,98 @@ export async function getTimeline(
     since?: string;
     until?: string;
     limit?: number;
+    maxPages?: number;
+    googleClient?: GoogleApiClient;
   } = {}
-): Promise<TimelineEntry[]> {
+): Promise<TimelineResult> {
   const limit = options.limit ?? 50;
+  const maxPages = options.maxPages ?? 50;
 
-  const response = await driveApi.revisions.list({
-    fileId: spreadsheetId,
-    pageSize: Math.min(limit, 1000),
-    fields:
-      'revisions(id,modifiedTime,lastModifyingUser(displayName,emailAddress),size)',
-  });
+  const allRevisionItems: drive_v3.Schema$Revision[] = [];
+  let pageToken: string | undefined;
+  let nextPageToken: string | undefined;
+  let pagesRead = 0;
 
-  let revisions = (response.data.revisions ?? []).map((r) => ({
+  do {
+    const response = await driveApi.revisions.list({
+      fileId: spreadsheetId,
+      pageSize: 200, // Drive revisions.list max is 200; values above are silently clamped
+      pageToken,
+      fields:
+        'nextPageToken,revisions(id,modifiedTime,lastModifyingUser(displayName,emailAddress),size)',
+    });
+    allRevisionItems.push(...(response.data.revisions ?? []));
+    pageToken = response.data.nextPageToken ?? undefined;
+    pagesRead++;
+    if (pagesRead >= maxPages && pageToken) {
+      nextPageToken = pageToken;
+      logger.warn('revision-timeline: hit pagination cap; history may be truncated', {
+        spreadsheetId,
+        pagesRead,
+        maxPages,
+      });
+      break;
+    }
+  } while (pageToken);
+
+  let revisions = allRevisionItems.map((r) => ({
     revisionId: r.id!,
     timestamp: r.modifiedTime ?? '',
     user: r.lastModifyingUser?.emailAddress ?? undefined,
     displayName: r.lastModifyingUser?.displayName ?? undefined,
     sizeBytes: r.size ? Number(r.size) : undefined,
+    activityType: undefined as string | undefined,
   }));
 
   if (options.since) {
     const sinceTime = new Date(options.since).getTime();
-    revisions = revisions.filter(
-      (r) => new Date(r.timestamp).getTime() >= sinceTime
-    );
+    revisions = revisions.filter((r) => new Date(r.timestamp).getTime() >= sinceTime);
   }
   if (options.until) {
     const untilTime = new Date(options.until).getTime();
-    revisions = revisions.filter(
-      (r) => new Date(r.timestamp).getTime() <= untilTime
-    );
+    revisions = revisions.filter((r) => new Date(r.timestamp).getTime() <= untilTime);
   }
 
-  return revisions.slice(0, limit);
+  const sliced = revisions.slice(0, limit);
+  let activityAvailable = false;
+
+  // Merge Drive Activity events for richer WHO/WHEN attribution
+  if (options.googleClient && sliced.length > 0) {
+    try {
+      const activityEvents = await getActivityEvents(
+        options.googleClient,
+        spreadsheetId,
+        options.since,
+        options.until
+      );
+
+      if (activityEvents.length > 0) {
+        activityAvailable = true;
+        // Match activity events to revisions by proximity in time (within 60 seconds)
+        for (const entry of sliced) {
+          const entryTime = new Date(entry.timestamp).getTime();
+          const match = activityEvents.find((a) => {
+            const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+            return Math.abs(aTime - entryTime) < 60_000;
+          });
+          if (match) {
+            if (!entry.user) entry.user = match.actor;
+            entry.activityType = match.actionType;
+          }
+        }
+      }
+    } catch {
+      // Non-blocking: activity enrichment is best-effort
+    }
+  }
+
+  return {
+    items: sliced,
+    totalFetched: allRevisionItems.length,
+    truncated: nextPageToken !== undefined,
+    nextPageToken,
+    activityAvailable,
+  };
 }
 
 /**
@@ -129,13 +242,15 @@ export async function diffRevisions(
 
   // Try CSV export for cell-level diff
   let cellChanges: CellChange[] | undefined;
+  let isHistorical = true;
   try {
-    const [csv1, csv2] = await Promise.all([
+    const [export1, export2] = await Promise.all([
       exportRevisionAsCsv(driveApi, spreadsheetId, revisionId1),
       exportRevisionAsCsv(driveApi, spreadsheetId, revisionId2),
     ]);
-    if (csv1 && csv2) {
-      cellChanges = computeCsvDiff(csv1, csv2);
+    isHistorical = export1.isHistorical && export2.isHistorical;
+    if (export1.data && export2.data) {
+      cellChanges = computeCsvDiff(export1.data, export2.data);
     }
   } catch (err) {
     logger.debug('Cell-level diff unavailable, falling back to metadata', {
@@ -147,6 +262,7 @@ export async function diffRevisions(
     revision1,
     revision2,
     cellChanges,
+    isHistorical,
     summary: {
       metadataOnly: !cellChanges,
       rev1Size: rev1.size ? Number(rev1.size) : undefined,
@@ -166,7 +282,7 @@ export async function restoreCells(
   revisionId: string,
   cells: string[]
 ): Promise<RestoreResult[]> {
-  const csv = await exportRevisionAsCsv(driveApi, spreadsheetId, revisionId);
+  const { data: csv } = await exportRevisionAsCsv(driveApi, spreadsheetId, revisionId);
   if (!csv) {
     throw new Error(
       `Cannot export revision ${revisionId} as CSV. ` +
@@ -212,19 +328,59 @@ export async function restoreCells(
 async function exportRevisionAsCsv(
   driveApi: drive_v3.Drive,
   fileId: string,
-  _revisionId: string
-): Promise<string | null> {
-  // Google Sheets native files can't be downloaded by revision as media.
-  // Export the current version as CSV (revision-specific export is limited).
-  // For true revision content, Drive API files.export is used.
+  revisionId: string // Remove underscore prefix — now actually used
+): Promise<{ data: string | null; isHistorical: boolean }> {
   try {
+    // Get revision-specific export links from Drive API
+    const revisionResponse = await driveApi.revisions.get({
+      fileId,
+      revisionId,
+      fields: 'exportLinks',
+    });
+
+    const exportLinks = revisionResponse.data.exportLinks as Record<string, string> | undefined;
+    const csvUrl = exportLinks?.['text/csv'];
+
+    if (csvUrl) {
+      // Use the revision-pinned export URL via the authenticated OAuth client
+      // The googleapis client handles auth automatically when using request()
+      const oauth2Client = (
+        driveApi as unknown as {
+          _options: {
+            auth: {
+              request: (opts: { url: string; responseType: string }) => Promise<{ data: string }>;
+            };
+          };
+        }
+      )._options?.auth;
+      if (oauth2Client?.request) {
+        const result = await oauth2Client.request({ url: csvUrl, responseType: 'text' });
+        return {
+          data: typeof result.data === 'string' ? result.data : null,
+          isHistorical: true,
+        };
+      }
+    }
+
+    // Fallback: if no export links available (old unpinned revisions), export current version
+    // Log warning so callers know they're getting current data, not the requested revision
+    logger.warn(
+      'revision-timeline: revision export links unavailable; falling back to current file data',
+      {
+        fileId,
+        revisionId,
+      }
+    );
     const response = await driveApi.files.export({
       fileId,
       mimeType: 'text/csv',
     });
-    return typeof response.data === 'string' ? response.data : null;
+    return {
+      data: typeof response.data === 'string' ? response.data : null,
+      isHistorical: false,
+    };
   } catch {
-    return null;
+    return { data: null, isHistorical: false };
   }
 }
 
@@ -246,11 +402,7 @@ function computeCsvDiff(csv1: string, csv2: string): CellChange[] {
   const changes: CellChange[] = [];
 
   const maxRows = Math.max(grid1.length, grid2.length);
-  const maxCols = Math.max(
-    ...grid1.map((r) => r.length),
-    ...grid2.map((r) => r.length),
-    1
-  );
+  const maxCols = Math.max(...grid1.map((r) => r.length), ...grid2.map((r) => r.length), 1);
 
   for (let r = 0; r < maxRows; r++) {
     for (let c = 0; c < maxCols; c++) {

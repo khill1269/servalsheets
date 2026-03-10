@@ -598,7 +598,7 @@ export const ExportLargeDatasetInputSchema = z.object({
     .literal('export_large_dataset')
     .describe('Export large dataset with streaming (100K+ rows)'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID to export'),
-  range: z.string().describe('Range to export (e.g., "Sheet1!A:Z" or "Sheet1!A1:Z100000")'),
+  range: z.string().min(1).describe('Range to export (e.g., "Sheet1!A:Z" or "Sheet1!A1:Z100000")'),
   chunkSize: z.coerce
     .number()
     .int()
@@ -635,6 +635,253 @@ export const ExportLargeDatasetOutputSchema = z.object({
 });
 
 // ============================================================================
+// P14-C1: New Composite Workflow Actions (5 new)
+// ============================================================================
+
+/**
+ * audit_sheet — Generate a comprehensive audit report for a spreadsheet
+ */
+export const AuditSheetInputSchema = z.object({
+  action: z
+    .literal('audit_sheet')
+    .describe('Generate a comprehensive audit report for a spreadsheet'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID to audit'),
+  sheetName: z
+    .string()
+    .optional()
+    .describe('Audit a specific sheet (audits all sheets if omitted)'),
+  includeFormulas: z.boolean().optional().default(true).describe('Count and report formula cells'),
+  includeStats: z.boolean().optional().default(true).describe('Include per-column statistics'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+
+export const AuditIssueSchema = z.object({
+  type: z.string().describe('Issue type (e.g., empty_header, mixed_types, potential_circular_ref)'),
+  location: z.string().describe('Cell or range where the issue was found'),
+  message: z.string().describe('Human-readable description of the issue'),
+});
+
+export const AuditResultSchema = z.object({
+  totalCells: z.coerce.number().int().min(0),
+  formulaCells: z.coerce.number().int().min(0),
+  blankCells: z.coerce.number().int().min(0),
+  dataCells: z.coerce.number().int().min(0),
+  sheetsAudited: z.coerce.number().int().min(1),
+  issues: z.array(AuditIssueSchema),
+});
+
+export const AuditSheetOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('audit_sheet'),
+  audit: AuditResultSchema,
+  _meta: ResponseMetaSchema.optional(),
+});
+
+/**
+ * publish_report — Export a sheet/range as a formatted report
+ */
+export const PublishReportInputSchema = z.object({
+  action: z.literal('publish_report').describe('Export a sheet/range as a formatted report'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID to export'),
+  range: z
+    .string()
+    .optional()
+    .describe('Range to export (e.g., "Sheet1!A1:D100"); uses first sheet if omitted'),
+  format: z.enum(['pdf', 'xlsx', 'csv']).default('pdf').describe('Export format'),
+  title: z.string().optional().describe('Report title to include in metadata'),
+  includeDate: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Include generation timestamp in metadata'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+
+export const ReportResultSchema = z.object({
+  format: z.enum(['pdf', 'xlsx', 'csv']),
+  title: z.string().optional(),
+  generatedAt: z.string().describe('ISO 8601 timestamp of when the report was generated'),
+  fileId: z.string().optional().describe('Drive file ID if exported to Drive'),
+  content: z.string().optional().describe('Report content (CSV text or base64-encoded binary)'),
+  sizeBytes: z.coerce.number().int().optional(),
+});
+
+export const PublishReportOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('publish_report'),
+  report: ReportResultSchema,
+  _meta: ResponseMetaSchema.optional(),
+});
+
+/**
+ * data_pipeline — Execute a sequence of data transformation steps on a range
+ */
+export const PipelineStepTypeSchema = z.enum([
+  'filter',
+  'sort',
+  'deduplicate',
+  'transform',
+  'aggregate',
+]);
+
+export const PipelineStepSchema = z.object({
+  type: PipelineStepTypeSchema.describe('Transformation step type'),
+  config: z
+    .record(z.string(), z.unknown())
+    .describe('Step-specific configuration (column, value, order, formula, etc.)'),
+});
+
+export const DataPipelineInputSchema = z.object({
+  action: z
+    .literal('data_pipeline')
+    .describe('Execute a sequence of data transformation steps on a range'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID'),
+  sourceRange: z.string().min(1).describe('Source range to read (e.g., "Sheet1!A1:D100")'),
+  steps: z.array(PipelineStepSchema).describe('Ordered list of transformation steps to apply'),
+  outputRange: z
+    .string()
+    .optional()
+    .describe('Write results to this range (writes back if provided and not dryRun)'),
+  dryRun: z.boolean().optional().default(false).describe('Preview results without writing'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+
+export const PipelineResultSchema = z.object({
+  stepsExecuted: z.coerce.number().int().min(0),
+  rowsIn: z.coerce.number().int().min(0),
+  rowsOut: z.coerce.number().int().min(0),
+  preview: z
+    .array(z.array(z.unknown()))
+    .describe('First 5 rows of transformed output (including header)'),
+});
+
+export const DataPipelineOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('data_pipeline'),
+  pipeline: PipelineResultSchema,
+  _meta: ResponseMetaSchema.optional(),
+});
+
+/**
+ * instantiate_template — Apply a saved template with variable substitution
+ */
+export const InstantiateTemplateInputSchema = z.object({
+  action: z
+    .literal('instantiate_template')
+    .describe('Apply a saved template with variable substitution'),
+  templateId: z
+    .string()
+    .describe('Template spreadsheet ID (from sheets_templates or a known Google Sheets file)'),
+  variables: z
+    .record(z.string(), z.string())
+    .describe(
+      'Key-value map of placeholder names to replacement values (e.g., { "companyName": "Acme Corp" })'
+    ),
+  targetSpreadsheetId: SpreadsheetIdSchema.optional().describe(
+    'Write substituted values here (creates new spreadsheet if omitted)'
+  ),
+  targetSheetName: z
+    .string()
+    .optional()
+    .describe('Target sheet name (uses first sheet if omitted)'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+  safety: SafetyOptionsSchema.optional().describe('Safety options: dryRun for preview'),
+});
+
+export const InstantiationResultSchema = z.object({
+  spreadsheetId: z.string().describe('Spreadsheet where substituted data was written'),
+  sheetName: z.string().describe('Sheet where substituted data was written'),
+  substitutionsApplied: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .describe('Total placeholder substitutions made'),
+  cellsUpdated: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .describe('Total cells updated (including those with substitutions)'),
+});
+
+export const InstantiateTemplateOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('instantiate_template'),
+  instantiation: InstantiationResultSchema,
+  _meta: ResponseMetaSchema.optional(),
+});
+
+/**
+ * migrate_spreadsheet — Migrate data from one spreadsheet to another with column mapping
+ */
+export const ColumnMappingSchema = z.object({
+  sourceColumn: z.string().describe('Source column header name'),
+  destinationColumn: z.string().describe('Destination column header name'),
+  transform: z
+    .enum(['none', 'uppercase', 'lowercase', 'number', 'date'])
+    .optional()
+    .default('none')
+    .describe('Value transformation to apply'),
+});
+
+export const MigrateSpreadsheetInputSchema = z.object({
+  action: z
+    .literal('migrate_spreadsheet')
+    .describe('Migrate data from one spreadsheet to another with column mapping'),
+  sourceSpreadsheetId: SpreadsheetIdSchema.describe('Source spreadsheet ID'),
+  sourceRange: z.string().min(1).describe('Source range to read (e.g., "Sheet1!A1:D100")'),
+  destinationSpreadsheetId: SpreadsheetIdSchema.describe('Destination spreadsheet ID'),
+  destinationRange: z.string().min(1).describe('Destination range to write to (e.g., "Sheet1!A1")'),
+  columnMapping: z
+    .array(ColumnMappingSchema)
+    .min(1)
+    .describe('Column mapping from source to destination'),
+  appendMode: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Append rows to destination (true) or overwrite (false)'),
+  dryRun: z.boolean().optional().default(false).describe('Preview migration without writing'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+  safety: SafetyOptionsSchema.optional().describe('Safety options: dryRun for preview'),
+});
+
+export const MigrationResultSchema = z.object({
+  rowsMigrated: z.coerce.number().int().min(0),
+  columnsMapped: z.coerce.number().int().min(0),
+  destinationRange: z.string().describe('Actual destination range written to'),
+  preview: z
+    .array(z.array(z.unknown()))
+    .describe('First 3 rows of migrated data (preview of what was or would be written)'),
+});
+
+export const MigrateSpreadsheetOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('migrate_spreadsheet'),
+  migration: MigrationResultSchema,
+  _meta: ResponseMetaSchema.optional(),
+});
+
+// ============================================================================
 // Natural Language Sheet Generator Actions (F1)
 // ============================================================================
 
@@ -659,7 +906,10 @@ export const GeneratedColumnSchema = z.object({
   width: z.coerce.number().int().min(30).max(500).optional().describe('Column width in pixels'),
   formula: z.string().optional().describe('Row-level formula template (use {row} for current row)'),
   numberFormat: z.string().optional().describe('Custom number format pattern'),
-  description: z.string().optional().describe('Column description (used for data validation tooltip)'),
+  description: z
+    .string()
+    .optional()
+    .describe('Column description (used for data validation tooltip)'),
 });
 
 /**
@@ -707,8 +957,22 @@ export const GeneratedFormattingSchema = z.object({
     .array(GeneratedConditionalRuleSchema)
     .optional()
     .describe('Conditional formatting rules'),
-  freezeRows: z.coerce.number().int().min(0).max(10).optional().default(1).describe('Rows to freeze'),
-  freezeColumns: z.coerce.number().int().min(0).max(5).optional().default(0).describe('Columns to freeze'),
+  freezeRows: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(10)
+    .optional()
+    .default(1)
+    .describe('Rows to freeze'),
+  freezeColumns: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(5)
+    .optional()
+    .default(0)
+    .describe('Columns to freeze'),
   alternatingRows: z.boolean().optional().default(false).describe('Enable alternating row colors'),
 });
 
@@ -727,11 +991,7 @@ export const GeneratedSheetDefinitionSchema = z.object({
  */
 export const SheetDefinitionSchema = z.object({
   title: z.string().describe('Spreadsheet title'),
-  sheets: z
-    .array(GeneratedSheetDefinitionSchema)
-    .min(1)
-    .max(10)
-    .describe('Sheet definitions'),
+  sheets: z.array(GeneratedSheetDefinitionSchema).min(1).max(10).describe('Sheet definitions'),
 });
 
 /**
@@ -871,16 +1131,80 @@ export const PreviewGenerationOutputSchema = z.object({
 });
 
 // ============================================================================
+// Batch Operations Action - Execute multiple actions in a single call
+// ============================================================================
+
+export const BatchOperationRequestSchema = z.object({
+  tool: z.string().min(1).describe('Target tool name (e.g., "sheets_data")'),
+  action: z.string().min(1).describe('Action name (e.g., "write")'),
+  params: z
+    .record(z.string(), z.unknown())
+    .describe('Action-specific parameters (spreadsheetId auto-injected)'),
+});
+
+export const BatchOperationsInputSchema = z.object({
+  action: z.literal('batch_operations').describe('Execute multiple actions in a single tool call'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID (auto-injected into each operation)'),
+  operations: z
+    .array(BatchOperationRequestSchema)
+    .min(1)
+    .max(20)
+    .describe('Operations to execute sequentially (max 20)'),
+  atomic: z
+    .boolean()
+    .default(false)
+    .describe('If true, all operations succeed or all roll back (requires active session)'),
+  stopOnError: z
+    .boolean()
+    .default(true)
+    .describe('If true, halt on first failure; if false, continue and report all results'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+
+export const BatchOperationResultSchema = z.object({
+  index: z.coerce.number().int().min(0).describe('Operation index in request'),
+  tool: z.string().describe('Tool that was called'),
+  action: z.string().describe('Action that was called'),
+  success: z.boolean().describe('Whether this operation succeeded'),
+  data: z.unknown().optional().describe('Operation result (if successful)'),
+  error: z
+    .object({
+      code: z.string(),
+      message: z.string(),
+      retryable: z.boolean().optional(),
+      details: z.record(z.string(), z.unknown()).optional(),
+    })
+    .optional()
+    .describe('Error details (if failed)'),
+});
+
+export const BatchOperationsOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('batch_operations'),
+  total: z.coerce.number().int().min(0).describe('Total operations requested'),
+  succeeded: z.coerce.number().int().min(0).describe('Number of successful operations'),
+  failed: z.coerce.number().int().min(0).describe('Number of failed operations'),
+  results: z.array(BatchOperationResultSchema).describe('Results for each operation'),
+  _meta: ResponseMetaSchema.optional(),
+});
+
+// ============================================================================
 // Combined Composite Input/Output
 // ============================================================================
 
 /**
- * All composite operation inputs (14 actions)
+ * All composite operation inputs (20 actions)
  *
  * Original (7): import_csv, smart_append, bulk_update, deduplicate, export_xlsx, import_xlsx, get_form_responses
  * LLM-Optimized Workflows (3): setup_sheet, import_and_format, clone_structure
  * Streaming (1): export_large_dataset
  * NL Sheet Generator (3): generate_sheet, generate_template, preview_generation
+ * P14-C1 Composite Workflows (5): audit_sheet, publish_report, data_pipeline, instantiate_template, migrate_spreadsheet
+ * Orchestration (1): batch_operations
  *
  * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
  * - Better type safety at compile-time
@@ -907,11 +1231,19 @@ export const CompositeInputSchema = z.object({
     GenerateSheetInputSchema,
     GenerateTemplateInputSchema,
     PreviewGenerationInputSchema,
+    // P14-C1 Composite Workflow actions (5)
+    AuditSheetInputSchema,
+    PublishReportInputSchema,
+    DataPipelineInputSchema,
+    InstantiateTemplateInputSchema,
+    MigrateSpreadsheetInputSchema,
+    // Orchestration actions (1)
+    BatchOperationsInputSchema,
   ]),
 });
 
 /**
- * Success outputs (14 actions)
+ * Success outputs (20 actions)
  *
  * Using z.union() (not discriminated union) because output schemas
  * are only used for runtime validation, not for LLM guidance.
@@ -935,6 +1267,14 @@ export const CompositeSuccessOutputSchema = z.union([
   GenerateSheetOutputSchema,
   GenerateTemplateOutputSchema,
   PreviewGenerationOutputSchema,
+  // P14-C1 Composite Workflow outputs
+  AuditSheetOutputSchema,
+  PublishReportOutputSchema,
+  DataPipelineOutputSchema,
+  InstantiateTemplateOutputSchema,
+  MigrateSpreadsheetOutputSchema,
+  // Orchestration outputs
+  BatchOperationsOutputSchema,
 ]);
 
 /**
@@ -964,6 +1304,14 @@ export const CompositeResponseSchema = z.discriminatedUnion('success', [
   GenerateSheetOutputSchema,
   GenerateTemplateOutputSchema,
   PreviewGenerationOutputSchema,
+  // P14-C1 Composite Workflow outputs
+  AuditSheetOutputSchema,
+  PublishReportOutputSchema,
+  DataPipelineOutputSchema,
+  InstantiateTemplateOutputSchema,
+  MigrateSpreadsheetOutputSchema,
+  // Orchestration outputs
+  BatchOperationsOutputSchema,
   CompositeErrorOutputSchema,
 ]);
 
@@ -1107,6 +1455,71 @@ export type CompositeGenerateTemplateInput = CompositeInput['request'] & {
 export type CompositePreviewGenerationInput = CompositeInput['request'] & {
   action: 'preview_generation';
   description: string;
+};
+
+// P14-C1 Composite Workflow types
+export type AuditIssue = z.infer<typeof AuditIssueSchema>;
+export type AuditResult = z.infer<typeof AuditResultSchema>;
+export type AuditSheetInput = z.infer<typeof AuditSheetInputSchema>;
+export type AuditSheetOutput = z.infer<typeof AuditSheetOutputSchema>;
+
+export type ReportResult = z.infer<typeof ReportResultSchema>;
+export type PublishReportInput = z.infer<typeof PublishReportInputSchema>;
+export type PublishReportOutput = z.infer<typeof PublishReportOutputSchema>;
+
+export type PipelineStep = z.infer<typeof PipelineStepSchema>;
+export type PipelineResult = z.infer<typeof PipelineResultSchema>;
+export type DataPipelineInput = z.infer<typeof DataPipelineInputSchema>;
+export type DataPipelineOutput = z.infer<typeof DataPipelineOutputSchema>;
+
+export type ColumnMapping = z.infer<typeof ColumnMappingSchema>;
+export type InstantiationResult = z.infer<typeof InstantiationResultSchema>;
+export type InstantiateTemplateInput = z.infer<typeof InstantiateTemplateInputSchema>;
+export type InstantiateTemplateOutput = z.infer<typeof InstantiateTemplateOutputSchema>;
+
+export type MigrationResult = z.infer<typeof MigrationResultSchema>;
+export type MigrateSpreadsheetInput = z.infer<typeof MigrateSpreadsheetInputSchema>;
+export type MigrateSpreadsheetOutput = z.infer<typeof MigrateSpreadsheetOutputSchema>;
+
+// Type narrowing helpers for new P14-C1 actions
+export type CompositeAuditSheetInput = CompositeInput['request'] & {
+  action: 'audit_sheet';
+  spreadsheetId: string;
+};
+export type CompositePublishReportInput = CompositeInput['request'] & {
+  action: 'publish_report';
+  spreadsheetId: string;
+};
+export type CompositeDataPipelineInput = CompositeInput['request'] & {
+  action: 'data_pipeline';
+  spreadsheetId: string;
+  sourceRange: string;
+  steps: PipelineStep[];
+};
+export type CompositeInstantiateTemplateInput = CompositeInput['request'] & {
+  action: 'instantiate_template';
+  templateId: string;
+  variables: Record<string, string>;
+};
+export type CompositeMigrateSpreadsheetInput = CompositeInput['request'] & {
+  action: 'migrate_spreadsheet';
+  sourceSpreadsheetId: string;
+  sourceRange: string;
+  destinationSpreadsheetId: string;
+  destinationRange: string;
+  columnMapping: ColumnMapping[];
+};
+
+// Orchestration types
+export type BatchOperationRequest = z.infer<typeof BatchOperationRequestSchema>;
+export type BatchOperationResult = z.infer<typeof BatchOperationResultSchema>;
+export type BatchOperationsInput = z.infer<typeof BatchOperationsInputSchema>;
+export type BatchOperationsOutput = z.infer<typeof BatchOperationsOutputSchema>;
+
+export type CompositeBatchOperationsInput = CompositeInput['request'] & {
+  action: 'batch_operations';
+  spreadsheetId: string;
+  operations: BatchOperationRequest[];
 };
 
 // ============================================================================

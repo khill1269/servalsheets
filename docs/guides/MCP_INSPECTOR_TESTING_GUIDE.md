@@ -329,7 +329,7 @@ Tools will execute successfully and return structured data:
 ### ✅ Good Signs
 
 - Server connects immediately
-- All 22 tools are listed
+- All 25 tools are listed
 - Schemas are well-formed
 - Error messages are helpful
 - Responses are fast
@@ -396,7 +396,7 @@ For full testing with Google Sheets access:
 ### Full Tests (15 minutes)
 
 1. [ ] Complete minimum tests
-2. [ ] Test all 22 tools (at least status/list actions)
+2. [ ] Test all 25 tools (at least status/list actions)
 3. [ ] Test with valid spreadsheet ID (requires auth)
 4. [ ] Test error scenarios
 5. [ ] Verify response structures

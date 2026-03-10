@@ -2,15 +2,16 @@
 title: ServalSheets Documentation
 category: general
 last_updated: 2026-02-03
-description: > Production-grade Google Sheets MCP server documentation
-version: 1.6.0
+description: >
+  Production-grade Google Sheets MCP server documentation
+version: 1.7.0
 tags: [sheets]
 ---
 
 # ServalSheets Documentation
 
 > **Production-grade Google Sheets MCP server documentation**  
-> Version 1.6.0 | Updated January 2026
+> Version 1.7.0 | Updated March 2026
 
 ## 📁 Documentation Structure
 

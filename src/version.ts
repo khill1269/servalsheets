@@ -6,12 +6,13 @@
  */
 
 import type { Icon } from '@modelcontextprotocol/sdk/types.js';
+import { MCP_PROTOCOL_VERSION } from './constants/protocol.js';
 
 /** Current version - sync with package.json */
 export const VERSION = '1.7.0';
 
 /** Protocol version */
-export const MCP_PROTOCOL_VERSION = '2025-11-25';
+export { MCP_PROTOCOL_VERSION };
 
 /** Server info for MCP initialization */
 export const SERVER_INFO = {

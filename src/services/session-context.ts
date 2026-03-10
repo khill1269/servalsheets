@@ -54,7 +54,67 @@
 
 import { logger } from '../utils/logger.js';
 import { UserProfileManager, type UserProfile } from './user-profile-manager.js';
-import { UnderstandingStore } from '../analysis/understanding-store.js';
+import { UnderstandingStore } from './understanding-store.js';
+
+// ============================================================================
+// FUZZY MATCHING UTILITIES
+// ============================================================================
+
+/**
+ * Lightweight fuzzy matching scoring algorithm
+ * Returns candidates scored 0.0-1.0, filtered to > 0.3
+ */
+function fuzzyMatch(query: string, candidates: string[]): Array<{ value: string; score: number }> {
+  const normalizedQuery = query.toLowerCase().trim();
+  const queryWords = normalizedQuery.split(/\s+/);
+
+  return candidates
+    .map((candidate) => {
+      const normalizedCandidate = candidate.toLowerCase().trim();
+      let score = 0;
+
+      // Exact match (highest priority)
+      if (normalizedCandidate === normalizedQuery) {
+        return { value: candidate, score: 1.0 };
+      }
+
+      // Contains full query string
+      if (normalizedCandidate.includes(normalizedQuery)) {
+        score = 0.85;
+      }
+
+      // Word-based overlap scoring
+      const candidateWords = normalizedCandidate.split(/[\s_-]+/);
+      let matchedWords = 0;
+      for (const qw of queryWords) {
+        // Exact word match or partial word overlap
+        if (candidateWords.some((cw) => cw === qw || cw.includes(qw) || qw.includes(cw))) {
+          matchedWords++;
+        }
+      }
+      const wordOverlapScore = (matchedWords / Math.max(queryWords.length, 1)) * 0.75;
+      score = Math.max(score, wordOverlapScore);
+
+      // Prefix bonus (first N characters match)
+      const prefixLen = Math.min(3, normalizedQuery.length);
+      if (normalizedCandidate.startsWith(normalizedQuery.slice(0, prefixLen))) {
+        score += 0.1;
+      }
+
+      // Character overlap ratio (Levenshtein-lite)
+      const commonChars = [...normalizedQuery].filter((c) =>
+        normalizedCandidate.includes(c)
+      ).length;
+      const charRatio = (commonChars / Math.max(normalizedQuery.length, 1)) * 0.5;
+      score = Math.max(score, charRatio);
+
+      return { value: candidate, score: Math.min(score, 1.0) };
+    })
+    .filter((m) => m.score > 0.3)
+    .sort((a, b) => b.score - a.score);
+}
+
+const MIN_OPERATION_FUZZY_MATCH_SCORE = 0.5;
 
 // ============================================================================
 // TYPES
@@ -71,6 +131,10 @@ export interface SpreadsheetContext {
   sheetNames: string[];
   /** Last accessed range */
   lastRange?: string;
+  /** I18N-01: Spreadsheet locale (e.g. 'en_US', 'fr_FR') — from core.get properties */
+  locale?: string;
+  /** I18N-02: Spreadsheet time zone (e.g. 'America/New_York') — from core.get properties */
+  timeZone?: string;
 }
 
 export interface OperationRecord {
@@ -221,6 +285,18 @@ export class SessionContextManager {
   private alerts: Alert[] = [];
   private readonly maxAlerts = 20;
 
+  // Recent background analysis results for suggestion boosting
+  private recentAnalyses = new Map<
+    string,
+    {
+      qualityScore: number;
+      qualityChange: number;
+      range: string;
+      alertTriggered: boolean;
+      timestamp: number;
+    }
+  >();
+
   // User profile management for persistent learning
   private profileManager = new UserProfileManager();
   private currentUserId?: string;
@@ -283,45 +359,109 @@ export class SessionContextManager {
   }
 
   /**
-   * Find spreadsheet by natural reference
+   * Find spreadsheet by natural reference with fuzzy matching
    *
-   * Handles: "the budget", "Q4 report", "my CRM", etc.
+   * Handles: "the budget", "Q4 report", "my CRM", "budget sheet", etc.
+   * Returns match with confidence score (0.0-1.0).
+   *
+   * Strategy:
+   * 1. Try exact/contains matches first (highest confidence)
+   * 2. Fall back to fuzzy matching on titles
+   * 3. Try matching sheet names if spreadsheet has them
+   * 4. Return best match with score
    */
-  findSpreadsheetByReference(reference: string): SpreadsheetContext | null {
-    const lowerRef = reference.toLowerCase();
+  findSpreadsheetByReference(
+    reference: string
+  ): (SpreadsheetContext & { matchScore: number }) | null {
+    const lowerRef = reference.toLowerCase().trim();
 
-    // Check active first
+    // Strip common articles and possessives for matching
+    const strippedRef = lowerRef.replace(/^(the|my|our|a|an)\s+/, '');
+
+    // Phase 1: Exact/contains matches (highest priority)
     if (this.state.activeSpreadsheet) {
-      if (this.matchesReference(this.state.activeSpreadsheet, lowerRef)) {
-        return this.state.activeSpreadsheet;
+      const exactMatch = this.matchesReferenceExact(
+        this.state.activeSpreadsheet,
+        lowerRef,
+        strippedRef
+      );
+      if (exactMatch) {
+        return { ...this.state.activeSpreadsheet, matchScore: exactMatch };
       }
     }
 
-    // Check recent
     for (const ss of this.state.recentSpreadsheets) {
-      if (this.matchesReference(ss, lowerRef)) {
-        return ss;
+      const exactMatch = this.matchesReferenceExact(ss, lowerRef, strippedRef);
+      if (exactMatch) {
+        return { ...ss, matchScore: exactMatch };
+      }
+    }
+
+    // Phase 2: Fuzzy matching on all titles
+    const allSpreadsheets = this.state.activeSpreadsheet
+      ? [this.state.activeSpreadsheet, ...this.state.recentSpreadsheets]
+      : this.state.recentSpreadsheets;
+
+    const uniqueSpreadsheets = Array.from(
+      new Map(allSpreadsheets.map((ss) => [ss.spreadsheetId, ss])).values()
+    );
+
+    const titleMatches = fuzzyMatch(
+      strippedRef,
+      uniqueSpreadsheets.map((ss) => ss.title)
+    );
+
+    if (titleMatches.length > 0) {
+      // Find the spreadsheet with the best title match
+      const bestTitleMatch = titleMatches[0];
+      if (bestTitleMatch) {
+        const matchedSpreadsheet = uniqueSpreadsheets.find(
+          (ss) => ss.title.toLowerCase() === bestTitleMatch.value.toLowerCase()
+        );
+        if (matchedSpreadsheet) {
+          return { ...matchedSpreadsheet, matchScore: bestTitleMatch.score };
+        }
+      }
+    }
+
+    // Phase 3: Try matching against sheet names within spreadsheets
+    for (const ss of uniqueSpreadsheets) {
+      if (ss.sheetNames.length > 0) {
+        const sheetMatches = fuzzyMatch(strippedRef, ss.sheetNames);
+        const topSheetMatch = sheetMatches[0];
+        if (topSheetMatch && topSheetMatch.score > 0.6) {
+          // Found a good sheet name match, return the parent spreadsheet
+          // with adjusted score (slightly lower since it's sheet name, not title)
+          return { ...ss, matchScore: topSheetMatch.score * 0.9 };
+        }
       }
     }
 
     return null;
   }
 
-  private matchesReference(ss: SpreadsheetContext, reference: string): boolean {
+  /**
+   * Exact/contains matching (highest priority before fuzzy)
+   * Returns score (1.0 for exact, 0.9 for contains, null for no match)
+   */
+  private matchesReferenceExact(
+    ss: SpreadsheetContext,
+    reference: string,
+    strippedRef: string
+  ): number | null {
     const lowerTitle = ss.title.toLowerCase();
 
-    // Exact or contains match
-    if (lowerTitle === reference || lowerTitle.includes(reference)) {
-      return true;
+    // Exact match
+    if (lowerTitle === reference || lowerTitle === strippedRef) {
+      return 1.0;
     }
 
-    // Handle "the X" or "my X"
-    const stripped = reference.replace(/^(the|my|our)\s+/, '');
-    if (lowerTitle.includes(stripped)) {
-      return true;
+    // Title contains full reference
+    if (lowerTitle.includes(reference) || lowerTitle.includes(strippedRef)) {
+      return 0.9;
     }
 
-    return false;
+    return null;
   }
 
   /**
@@ -483,27 +623,67 @@ export class SessionContextManager {
   }
 
   /**
-   * Find operation by natural reference
+   * Find operation by natural reference with fuzzy matching
    *
    * Handles: "that", "the last write", "the format change", etc.
+   * Returns match with confidence score (0.0-1.0).
    */
-  findOperationByReference(reference: string): OperationRecord | null {
-    const lowerRef = reference.toLowerCase();
+  findOperationByReference(reference: string): (OperationRecord & { matchScore: number }) | null {
+    const lowerRef = reference.toLowerCase().trim();
 
-    // "that" or "the last" = most recent
+    // "that" or "the last" = most recent (highest confidence)
     if (lowerRef === 'that' || lowerRef === 'the last' || lowerRef === 'it') {
-      return this.getLastOperation();
+      const lastOp = this.getLastOperation();
+      return lastOp ? { ...lastOp, matchScore: 1.0 } : null;
     }
 
-    // "the last write" or "the write"
+    // Extract action/tool keywords from reference
+    // Patterns: "the last write", "the format change", "write operation", etc.
     const actionMatch = lowerRef.match(/(?:the\s+)?(?:last\s+)?(\w+)/);
     if (actionMatch) {
-      const action = actionMatch[1]!;
-      return (
-        this.state.operationHistory.find(
-          (op) => op.action.toLowerCase().includes(action) || op.tool.toLowerCase().includes(action)
-        ) ?? null
+      const keyword = actionMatch[1]!;
+
+      // Fuzzy match against operation actions and tools
+      const operationTexts = this.state.operationHistory.map((op) => ({
+        op,
+        text: `${op.action} ${op.tool} ${op.description}`.toLowerCase(),
+      }));
+
+      // Try exact action/tool match first
+      const exactMatch = this.state.operationHistory.find(
+        (op) =>
+          op.action.toLowerCase() === keyword ||
+          op.tool.toLowerCase().replace('sheets_', '') === keyword
       );
+
+      if (exactMatch) {
+        return { ...exactMatch, matchScore: 1.0 };
+      }
+
+      // Try contains match
+      const containsMatch = this.state.operationHistory.find(
+        (op) => op.action.toLowerCase().includes(keyword) || op.tool.toLowerCase().includes(keyword)
+      );
+
+      if (containsMatch) {
+        return { ...containsMatch, matchScore: 0.85 };
+      }
+
+      // Fall back to fuzzy matching on combined operation text
+      const textMatches = fuzzyMatch(
+        keyword,
+        operationTexts.map((ot) => ot.text)
+      );
+
+      if (textMatches.length > 0) {
+        const matchedText = textMatches[0];
+        if (matchedText && matchedText.score >= MIN_OPERATION_FUZZY_MATCH_SCORE) {
+          const matchedRecord = operationTexts.find((ot) => ot.text === matchedText.value);
+          if (matchedRecord) {
+            return { ...matchedRecord.op, matchScore: matchedText.score };
+          }
+        }
+      }
     }
 
     return null;
@@ -934,6 +1114,58 @@ export class SessionContextManager {
   }
 
   // ===========================================================================
+  // BACKGROUND ANALYSIS RESULTS (for suggestion engine boosting)
+  // ===========================================================================
+
+  /**
+   * Store a recent background analysis result.
+   * Called by BackgroundAnalyzer after quality checks.
+   * Used by SuggestionEngine to boost relevant suggestions.
+   */
+  setRecentAnalysis(
+    spreadsheetId: string,
+    result: {
+      qualityScore: number;
+      qualityChange: number;
+      range: string;
+      alertTriggered: boolean;
+    }
+  ): void {
+    this.recentAnalyses.set(spreadsheetId, {
+      ...result,
+      timestamp: Date.now(),
+    });
+    // SCALE-01: Cap at 50 entries to prevent unbounded growth before Redis serialization
+    if (this.recentAnalyses.size > 50) {
+      const oldest = this.recentAnalyses.keys().next().value;
+      if (oldest !== undefined) this.recentAnalyses.delete(oldest);
+    }
+  }
+
+  /**
+   * Get a recent background analysis result (within 5 minutes).
+   * Returns undefined if no recent analysis exists or it has expired.
+   */
+  getRecentAnalysis(spreadsheetId: string):
+    | {
+        qualityScore: number;
+        qualityChange: number;
+        range: string;
+        alertTriggered: boolean;
+        timestamp: number;
+      }
+    | undefined {
+    const result = this.recentAnalyses.get(spreadsheetId);
+    if (!result) return undefined;
+    // Expire after 5 minutes
+    if (Date.now() - result.timestamp > 5 * 60 * 1000) {
+      this.recentAnalyses.delete(spreadsheetId);
+      return undefined;
+    }
+    return result;
+  }
+
+  // ===========================================================================
   // USER PROFILE MANAGEMENT
   // ===========================================================================
 
@@ -1063,23 +1295,129 @@ export class SessionContextManager {
 // SINGLETON INSTANCE
 // ============================================================================
 
+function getSessionTtlMs(): number {
+  return parseInt(process.env['SESSION_TTL_MS'] ?? String(24 * 60 * 60 * 1000), 10);
+}
+
+function getSessionRedisKey(): string {
+  return `servalsheets:session:${process.env['SESSION_INSTANCE_ID'] ?? 'default'}:state`;
+}
+
 let sessionContext: SessionContextManager | null = null;
+const sessionContexts = new Map<string, SessionContextManager>();
+
+// SCALE-01: Duck-typed Redis client interface (compatible with 'redis' npm package)
+interface RedisSessionClient {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string, options: { EX: number }): Promise<unknown>;
+}
+
+let sessionRedisClient: RedisSessionClient | null = null;
 
 /**
- * Get or create the session context manager singleton
+ * SCALE-01: Wire a Redis client for session persistence.
+ * Call from server.ts after Redis is connected when SESSION_STORE_TYPE=redis.
+ */
+export function initSessionRedis(client: RedisSessionClient): void {
+  sessionRedisClient = client;
+  logger.info('Session Redis client initialized', { component: 'session-context' });
+}
+
+/**
+ * Get or create the session context manager singleton.
+ * When SESSION_STORE_TYPE=redis: saves state on expiry, restores on creation.
  */
 export function getSessionContext(): SessionContextManager {
   if (!sessionContext) {
+    sessionContext = new SessionContextManager();
+    const sessionRedisKey = getSessionRedisKey();
+    // SCALE-01: Restore from Redis asynchronously (fire-and-forget; state is valid in-memory)
+    if (sessionRedisClient) {
+      void sessionRedisClient
+        .get(sessionRedisKey)
+        .then((stored) => {
+          if (stored && sessionContext) {
+            sessionContext.importState(stored);
+            logger.info('Session state restored from Redis', { component: 'session-context' });
+          }
+        })
+        .catch((err: unknown) => {
+          logger.warn('Failed to restore session from Redis', {
+            component: 'session-context',
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+    }
+  } else if (Date.now() - sessionContext.getState().lastActivityAt > getSessionTtlMs()) {
+    logger.info('Session expired — creating new SessionContextManager', {
+      component: 'session-context',
+      idleMs: Date.now() - sessionContext.getState().lastActivityAt,
+      ttlMs: getSessionTtlMs(),
+    });
+    // SCALE-01: Persist expired session to Redis before evicting
+    if (sessionRedisClient) {
+      const serialized = sessionContext.exportState();
+      const ttlSeconds = Math.ceil(getSessionTtlMs() / 1000);
+      void sessionRedisClient
+        .set(getSessionRedisKey(), serialized, { EX: ttlSeconds })
+        .catch((err: unknown) => {
+          logger.warn('Failed to persist session to Redis on expiry', {
+            component: 'session-context',
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+    }
     sessionContext = new SessionContextManager();
   }
   return sessionContext;
 }
 
 /**
+ * Get or create a session-scoped context manager.
+ * Used by HTTP transport to isolate context per authenticated MCP session.
+ */
+export function getOrCreateSessionContext(sessionId: string): SessionContextManager {
+  const existing = sessionContexts.get(sessionId);
+  if (existing) {
+    const idleMs = Date.now() - existing.getState().lastActivityAt;
+    if (idleMs <= getSessionTtlMs()) {
+      return existing;
+    }
+    logger.info('Session expired — creating new SessionContextManager', {
+      component: 'session-context',
+      sessionId,
+      idleMs,
+      ttlMs: getSessionTtlMs(),
+    });
+  }
+
+  const created = new SessionContextManager();
+  sessionContexts.set(sessionId, created);
+  return created;
+}
+
+/**
+ * Remove a session-scoped context manager.
+ * Called when HTTP sessions close.
+ */
+export function removeSessionContext(sessionId: string): void {
+  sessionContexts.delete(sessionId);
+}
+
+/**
  * Reset the session context (for testing or new sessions)
  */
 export function resetSessionContext(): void {
-  sessionContext = new SessionContextManager();
+  sessionContext = null;
+  sessionContexts.clear();
+}
+
+/**
+ * Reset the Redis client (for testing only)
+ * @internal
+ */
+export function resetSessionRedis(): void {
+  sessionRedisClient = null;
 }
 
 // ============================================================================
@@ -1089,5 +1427,7 @@ export function resetSessionContext(): void {
 export const SessionContext = {
   SessionContextManager,
   getSessionContext,
+  getOrCreateSessionContext,
+  removeSessionContext,
   resetSessionContext,
 };

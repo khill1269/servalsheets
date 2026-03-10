@@ -373,6 +373,141 @@ describe('Audit Logger - Tamper-Proof Integrity', () => {
   });
 });
 
+describe('Audit Logger - Encryption At Rest', () => {
+  let auditLogger: AuditLogger;
+  let logDir: string;
+  const hmacSecret = randomBytes(32).toString('hex');
+  const encryptionKey = 'audit-encryption-test-passphrase';
+
+  beforeEach(async () => {
+    logDir = join(tmpdir(), `audit-logs-${randomBytes(8).toString('hex')}`);
+    await fs.mkdir(logDir, { recursive: true });
+    auditLogger = new AuditLogger({ logDir, hmacSecret, encryptionKey });
+  });
+
+  afterEach(async () => {
+    await fs.rm(logDir, { recursive: true, force: true });
+  });
+
+  it('should write encrypted log lines when encryption key is configured', async () => {
+    await auditLogger.logMutation({
+      userId: 'user@example.com',
+      action: 'write_range',
+      resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
+      outcome: 'success',
+      ipAddress: '192.168.1.1',
+      requestId: 'req-encrypted-1',
+    });
+
+    const logPath = join(logDir, `${new Date().toISOString().split('T')[0]}.jsonl`);
+    const content = await fs.readFile(logPath, 'utf-8');
+    const line = content.trim();
+
+    expect(line.startsWith('ENC:')).toBe(true);
+    expect(() => JSON.parse(line)).toThrow();
+  });
+
+  it('should decrypt encrypted log lines', async () => {
+    await auditLogger.logMutation({
+      userId: 'user@example.com',
+      action: 'write_range',
+      resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
+      outcome: 'success',
+      ipAddress: '192.168.1.1',
+      requestId: 'req-encrypted-2',
+    });
+
+    const logPath = join(logDir, `${new Date().toISOString().split('T')[0]}.jsonl`);
+    const content = await fs.readFile(logPath, 'utf-8');
+    const decrypted = auditLogger.decryptLogEntry(content.trim());
+    const entry = JSON.parse(decrypted);
+
+    expect(entry.event.action).toBe('write_range');
+    expect(entry.event.requestId).toBe('req-encrypted-2');
+  });
+
+  it('should verify integrity for encrypted logs', async () => {
+    await auditLogger.logMutation({
+      userId: 'user@example.com',
+      action: 'write_range',
+      resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
+      outcome: 'success',
+      ipAddress: '192.168.1.1',
+      requestId: 'req-encrypted-3',
+    });
+
+    await auditLogger.logMutation({
+      userId: 'user@example.com',
+      action: 'append_rows',
+      resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
+      outcome: 'success',
+      ipAddress: '192.168.1.1',
+      requestId: 'req-encrypted-4',
+    });
+
+    const isValid = await auditLogger.verifyIntegrity();
+    expect(isValid).toBe(true);
+  });
+
+  it('should fail integrity verification with incorrect encryption key', async () => {
+    await auditLogger.logMutation({
+      userId: 'user@example.com',
+      action: 'write_range',
+      resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
+      outcome: 'success',
+      ipAddress: '192.168.1.1',
+      requestId: 'req-encrypted-5',
+    });
+
+    const wrongKeyLogger = new AuditLogger({
+      logDir,
+      hmacSecret,
+      encryptionKey: 'wrong-passphrase',
+    });
+    const isValid = await wrongKeyLogger.verifyIntegrity();
+    expect(isValid).toBe(false);
+  });
+});
+
+describe('Audit Logger - Retention Policy', () => {
+  let auditLogger: AuditLogger;
+  let logDir: string;
+
+  beforeEach(async () => {
+    logDir = join(tmpdir(), `audit-logs-${randomBytes(8).toString('hex')}`);
+    await fs.mkdir(logDir, { recursive: true });
+
+    const oldDate = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const recentDate = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    await fs.writeFile(join(logDir, `${oldDate}.jsonl`), '{"old":"entry"}\n');
+    await fs.writeFile(join(logDir, `${recentDate}.jsonl`), '{"recent":"entry"}\n');
+
+    auditLogger = new AuditLogger({ logDir, retentionDays: 30 });
+  });
+
+  afterEach(async () => {
+    await fs.rm(logDir, { recursive: true, force: true });
+  });
+
+  it('should prune audit logs older than retention window', async () => {
+    await auditLogger.logMutation({
+      userId: 'user@example.com',
+      action: 'write_range',
+      resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
+      outcome: 'success',
+      ipAddress: '192.168.1.1',
+      requestId: 'req-retention-1',
+    });
+
+    const oldDate = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const recentDate = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    await expect(fs.access(join(logDir, `${oldDate}.jsonl`))).rejects.toThrow();
+    await expect(fs.access(join(logDir, `${recentDate}.jsonl`))).resolves.toBeUndefined();
+  });
+});
+
 describe('Audit Logger - Event Coverage', () => {
   let auditLogger: AuditLogger;
   let logDir: string;
@@ -516,7 +651,7 @@ describe('Audit Middleware - Automatic Event Logging', () => {
     await runWithRequestContext(requestContext, async () => {
       await auditMiddleware.wrap(
         'sheets_data',
-        'write_range',
+        'write',
         {
           userId: 'user@example.com',
           spreadsheetId: '1ABC',
@@ -532,7 +667,7 @@ describe('Audit Middleware - Automatic Event Logging', () => {
     const content = await fs.readFile(logPath, 'utf-8');
     const entry = JSON.parse(content.trim());
 
-    expect(entry.event.action).toBe('write_range');
+    expect(entry.event.action).toBe('write');
     expect(entry.event.tool).toBe('sheets_data');
     expect(entry.event.userId).toBe('user@example.com');
     expect(entry.event.requestId).toBe('req-123');
@@ -546,7 +681,7 @@ describe('Audit Middleware - Automatic Event Logging', () => {
     await runWithRequestContext(requestContext, async () => {
       await auditMiddleware.wrap(
         'sheets_collaborate',
-        'share_spreadsheet',
+        'share_add',
         {
           userId: 'admin@example.com',
           spreadsheetId: '1ABC',
@@ -563,7 +698,7 @@ describe('Audit Middleware - Automatic Event Logging', () => {
     const content = await fs.readFile(logPath, 'utf-8');
     const entry = JSON.parse(content.trim());
 
-    expect(entry.event.action).toBe('share_spreadsheet');
+    expect(entry.event.action).toBe('share_add');
     expect(entry.event.tool).toBe('sheets_collaborate');
     expect(entry.event.permission.role).toBe('writer');
     expect(entry.event.permission.email).toBe('user@example.com');
@@ -578,7 +713,7 @@ describe('Audit Middleware - Automatic Event Logging', () => {
       await runWithRequestContext(requestContext, async () => {
         await auditMiddleware.wrap(
           'sheets_data',
-          'write_range',
+          'write',
           {
             userId: 'user@example.com',
             spreadsheetId: '1ABC',

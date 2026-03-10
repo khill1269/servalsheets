@@ -27,6 +27,7 @@
 
 import { type Redis } from 'ioredis';
 import { logger } from '../utils/logger.js';
+import { quotaThresholdAlertsTotal, recordQuotaUtilization } from '../observability/metrics.js';
 
 /**
  * Supported time windows for quota tracking
@@ -159,6 +160,36 @@ export class QuotaManager {
       const dailyLimit = limits[operation].daily;
       const monthlyLimit = limits[operation].monthly;
 
+      // QUOTA-01: Helper to emit threshold alerts at 80%/95% and update gauge
+      const checkThresholds = (
+        usageCount: number,
+        limit: number,
+        window: 'hourly' | 'daily' | 'monthly'
+      ): void => {
+        const ratio = usageCount / limit;
+        const pct = ratio * 100;
+        recordQuotaUtilization(pct, { tenantId, operation, window });
+        if (ratio >= 0.95) {
+          logger.warn('Quota threshold reached: 95%', {
+            tenantId,
+            operation,
+            window,
+            usage: usageCount,
+            limit,
+          });
+          quotaThresholdAlertsTotal.inc({ tenantId, operation, window, threshold: '95' });
+        } else if (ratio >= 0.8) {
+          logger.warn('Quota threshold reached: 80%', {
+            tenantId,
+            operation,
+            window,
+            usage: usageCount,
+            limit,
+          });
+          quotaThresholdAlertsTotal.inc({ tenantId, operation, window, threshold: '80' });
+        }
+      };
+
       // Quota exceeded if any window is over limit
       if (hourlyLimit && usage.hourly >= hourlyLimit) {
         logger.warn('Hourly quota exceeded', {
@@ -168,6 +199,9 @@ export class QuotaManager {
           limit: hourlyLimit,
         });
         return false;
+      }
+      if (hourlyLimit && usage.hourly > 0) {
+        checkThresholds(usage.hourly, hourlyLimit, 'hourly');
       }
 
       if (dailyLimit && usage.daily >= dailyLimit) {
@@ -179,6 +213,9 @@ export class QuotaManager {
         });
         return false;
       }
+      if (dailyLimit && usage.daily > 0) {
+        checkThresholds(usage.daily, dailyLimit, 'daily');
+      }
 
       if (monthlyLimit && usage.monthly >= monthlyLimit) {
         logger.warn('Monthly quota exceeded', {
@@ -188,6 +225,9 @@ export class QuotaManager {
           limit: monthlyLimit,
         });
         return false;
+      }
+      if (monthlyLimit && usage.monthly > 0) {
+        checkThresholds(usage.monthly, monthlyLimit, 'monthly');
       }
 
       return true;

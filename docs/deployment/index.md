@@ -96,7 +96,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ServalSheets uses deployment-aware OAuth scopes:
 
-**Self-Hosted (Default)** - All 305 actions work:
+**Self-Hosted (Default)** - All 391 actions work:
 
 ```bash
 # No configuration needed - defaults to full scopes
@@ -106,7 +106,7 @@ docker run -d -p 3000:3000 servalsheets:latest
 **SaaS/Marketplace** - Fast Google verification (3-5 days vs 4-6 weeks):
 
 ```bash
-# Standard scopes: 260/305 actions, faster verification
+# Standard scopes: 260/391 actions, faster verification
 docker run -d \
   -p 3000:3000 \
   -e DEPLOYMENT_MODE=saas \

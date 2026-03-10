@@ -15,8 +15,14 @@
  * @category Handlers
  */
 
-import { getWebhookManager } from '../services/webhook-manager.js';
+import { ErrorCodes } from './error-codes.js';
+import {
+  getWebhookManager,
+  validateWebhookUrl,
+  WEBHOOK_DURABILITY_MODE,
+} from '../services/webhook-manager.js';
 import { getWebhookQueue } from '../services/webhook-queue.js';
+import { WorkspaceEventsService } from '../services/workspace-events.js';
 import type {
   SheetsWebhookInput,
   SheetsWebhookOutput,
@@ -26,15 +32,54 @@ import { logger } from '../utils/logger.js';
 import { resourceNotifications } from '../resources/notifications.js';
 import type { drive_v3 } from 'googleapis';
 import { randomUUID } from 'crypto';
+import { mapStandaloneError } from './helpers/error-mapping.js';
+import { ServiceError } from '../core/errors.js';
+import { recordWebhookId } from '../mcp/completions.js';
+import { CircuitBreaker } from '../utils/circuit-breaker.js';
+import { getCircuitBreakerConfig } from '../config/env.js';
+import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 
 /**
  * Webhook handler
  */
 export class WebhookHandler {
   private driveApi?: drive_v3.Drive;
+  private deliveryCircuitBreaker: CircuitBreaker;
+  private workspaceEventsService?: WorkspaceEventsService;
 
-  constructor(options?: { driveApi?: drive_v3.Drive }) {
+  constructor(options?: {
+    driveApi?: drive_v3.Drive;
+    workspaceEventsService?: WorkspaceEventsService;
+  }) {
     this.driveApi = options?.driveApi;
+    this.workspaceEventsService = options?.workspaceEventsService;
+
+    // 16-S4: Initialize circuit breaker for webhook delivery operations
+    const circuitConfig = getCircuitBreakerConfig();
+    this.deliveryCircuitBreaker = new CircuitBreaker({
+      ...circuitConfig,
+      name: 'webhook-delivery',
+      failureThreshold: 10, // More lenient than general API breaker
+    });
+
+    // Register fallback strategy for delivery circuit breaker
+    this.deliveryCircuitBreaker.registerFallback({
+      name: 'webhook-delivery-unavailable-fallback',
+      priority: 1,
+      shouldUse: () => true,
+      execute: async () => {
+        throw new ServiceError(
+          'Webhook delivery service temporarily unavailable due to repeated delivery failures',
+          'UNAVAILABLE',
+          'webhook-delivery',
+          true,
+          { resetTimeMs: 30000, reason: 'repeated_delivery_failures' }
+        );
+      },
+    });
+
+    // Register with global registry
+    circuitBreakerRegistry.register('webhook-delivery', this.deliveryCircuitBreaker);
   }
 
   private createErrorDetail(
@@ -53,11 +98,12 @@ export class WebhookHandler {
 
     if (isRedisConfigError) {
       return {
-        code: 'CONFIG_ERROR',
+        code: ErrorCodes.CONFIG_ERROR,
         message: 'Redis required: Redis backend is required for sheets_webhook operations',
         details: {
           action,
           dependency: 'redis',
+          durabilityMode: WEBHOOK_DURABILITY_MODE,
           originalError: message,
         },
         retryable: false,
@@ -73,7 +119,7 @@ export class WebhookHandler {
     }
 
     return {
-      code: 'INTERNAL_ERROR',
+      code: ErrorCodes.INTERNAL_ERROR,
       message: message || fallbackMessage,
       details: { action, error: String(error) },
       retryable: false,
@@ -112,19 +158,99 @@ export class WebhookHandler {
             ),
           };
 
-        default:
+        case 'subscribe_workspace': {
+          if (!this.workspaceEventsService) {
+            return {
+              response: {
+                success: false as const,
+                error: {
+                  code: ErrorCodes.NOT_FOUND,
+                  message: 'Workspace Events service not available',
+                  retryable: false,
+                },
+              },
+            };
+          }
+          const subId = await this.workspaceEventsService.createSubscription(
+            req.spreadsheetId,
+            req.notificationEndpoint
+          );
+          return {
+            response: {
+              success: true as const,
+              data: {
+                success: true,
+                message: `Subscription created: ${subId}`,
+                subscriptionId: subId,
+              } as unknown as import('../schemas/webhook.js').WebhookRegisterResponse,
+            },
+          };
+        }
+
+        case 'unsubscribe_workspace': {
+          if (!this.workspaceEventsService) {
+            return {
+              response: {
+                success: false as const,
+                error: {
+                  code: ErrorCodes.NOT_FOUND,
+                  message: 'Workspace Events service not available',
+                  retryable: false,
+                },
+              },
+            };
+          }
+          await this.workspaceEventsService.deleteSubscription(req.subscriptionId);
+          return {
+            response: {
+              success: true as const,
+              data: {
+                success: true,
+                message: `Subscription deleted: ${req.subscriptionId}`,
+              } as unknown as import('../schemas/webhook.js').WebhookRegisterResponse,
+            },
+          };
+        }
+
+        case 'list_workspace_subscriptions': {
+          if (!this.workspaceEventsService) {
+            return {
+              response: {
+                success: false as const,
+                error: {
+                  code: ErrorCodes.NOT_FOUND,
+                  message: 'Workspace Events service not available',
+                  retryable: false,
+                },
+              },
+            };
+          }
+          const subs = this.workspaceEventsService.listSubscriptions(req.spreadsheetId);
+          return {
+            response: {
+              success: true as const,
+              data: {
+                subscriptions: subs,
+              } as unknown as import('../schemas/webhook.js').WebhookRegisterResponse,
+            },
+          };
+        }
+
+        default: {
+          const _exhaustiveCheck: never = req;
           return {
             response: {
               success: false,
               error: {
-                code: 'INVALID_PARAMS',
-                message: `Unknown action: ${(req as { action: string }).action}`,
+                code: ErrorCodes.INVALID_PARAMS,
+                message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
                 retryable: false,
                 suggestedFix:
                   "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
               },
             },
           };
+        }
       }
     } catch (error) {
       logger.error('Webhook handler error', {
@@ -132,10 +258,12 @@ export class WebhookHandler {
         error,
       });
 
+      // 16-S4/16-S5: Use structured error mapping for top-level catch
+      const mapped = mapStandaloneError(error);
       return {
         response: {
           success: false,
-          error: this.createErrorDetail(error, 'Unknown error', req.action),
+          error: mapped,
         },
       };
     }
@@ -149,6 +277,25 @@ export class WebhookHandler {
   ): Promise<SheetsWebhookOutput['response']> {
     try {
       const manager = getWebhookManager();
+
+      // ISSUE-140: Reject duplicate URL registration to prevent double event delivery
+      try {
+        const existingWebhooks = await manager.list(input.spreadsheetId, true);
+        const duplicate = existingWebhooks.find((w) => w.webhookUrl === input.webhookUrl);
+        if (duplicate) {
+          return {
+            success: false,
+            error: {
+              code: ErrorCodes.FAILED_PRECONDITION,
+              message: `A webhook with URL "${input.webhookUrl}" is already registered for this spreadsheet (existing ID: ${duplicate.webhookId}). Unregister the existing webhook first or use a different URL.`,
+              retryable: false,
+            },
+          };
+        }
+      } catch {
+        // Non-blocking: if duplicate check fails (e.g. Redis unavailable), proceed with registration
+      }
+
       const result = await manager.register(input);
 
       // Notify MCP clients that webhook was registered (Feature 1: Real-Time Notifications)
@@ -198,6 +345,11 @@ export class WebhookHandler {
       const manager = getWebhookManager();
       const webhooks = await manager.list(input.spreadsheetId, input.active);
 
+      // Wire completions: cache webhook IDs for argument autocompletion (ISSUE-062)
+      for (const wh of webhooks) {
+        if (wh.webhookId) recordWebhookId(wh.webhookId);
+      }
+
       return {
         success: true,
         data: { webhooks },
@@ -224,7 +376,7 @@ export class WebhookHandler {
         return {
           success: false,
           error: {
-            code: 'NOT_FOUND',
+            code: ErrorCodes.NOT_FOUND,
             message: `Webhook ${input.webhookId} not found`,
             retryable: false,
             suggestedFix: 'Verify the spreadsheet ID is correct and the spreadsheet exists',
@@ -246,6 +398,7 @@ export class WebhookHandler {
 
   /**
    * Send test webhook delivery
+   * 16-S4: Wrapped with circuit breaker protection
    */
   private async handleTest(
     input: Extract<SheetsWebhookInput['request'], { action: 'test' }>
@@ -258,7 +411,7 @@ export class WebhookHandler {
         return {
           success: false,
           error: {
-            code: 'NOT_FOUND',
+            code: ErrorCodes.NOT_FOUND,
             message: `Webhook ${input.webhookId} not found`,
             retryable: false,
             suggestedFix: 'Verify the spreadsheet ID is correct and the spreadsheet exists',
@@ -266,8 +419,12 @@ export class WebhookHandler {
         };
       }
 
+      // 16-S4: Wrap webhook delivery with circuit breaker
+      const queue = await this.deliveryCircuitBreaker.execute(async () => {
+        return getWebhookQueue();
+      });
+
       // Enqueue test delivery
-      const queue = getWebhookQueue();
       const deliveryId = await queue.enqueue({
         webhookId: webhook.webhookId,
         webhookUrl: webhook.webhookUrl,
@@ -391,7 +548,7 @@ export class WebhookHandler {
       return {
         success: false,
         error: {
-          code: 'CONFIG_ERROR',
+          code: ErrorCodes.CONFIG_ERROR,
           message: 'Drive API client not available. watch_changes requires Drive API access.',
           retryable: false,
           resolution: 'Ensure the server is initialized with Drive API scopes.',
@@ -402,6 +559,9 @@ export class WebhookHandler {
     try {
       const channelId = input.channelId ?? `servalsheets-${randomUUID()}`;
       const expiration = Date.now() + (input.expirationMs ?? 43200000);
+
+      // SEC-5: SSRF protection — validate URL before passing to Drive API
+      await validateWebhookUrl(input.webhookUrl);
 
       const response = await this.driveApi.files.watch({
         fileId: input.spreadsheetId,
@@ -448,6 +608,9 @@ export class WebhookHandler {
 /**
  * Create webhook handler
  */
-export function createWebhookHandler(options?: { driveApi?: drive_v3.Drive }): WebhookHandler {
+export function createWebhookHandler(options?: {
+  driveApi?: drive_v3.Drive;
+  workspaceEventsService?: WorkspaceEventsService;
+}): WebhookHandler {
   return new WebhookHandler(options);
 }

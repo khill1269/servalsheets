@@ -40,8 +40,8 @@ const BeginActionSchema = CommonFieldsSchema.extend({
     .default(false)
     .describe(
       'Auto-rollback on error (default: false). WARNING: Automatic rollback cannot restore ' +
-      'in-place — it requires manual recovery via sheets_history undo or version restore. ' +
-      'Set to true only if you understand the limitations.'
+        'in-place — it requires manual recovery via sheets_history undo or version restore. ' +
+        'Set to true only if you understand the limitations.'
     ),
   isolationLevel: z
     .enum(['read_uncommitted', 'read_committed', 'serializable'])
@@ -178,6 +178,22 @@ const TransactionResponseSchema = z.discriminatedUnion('success', [
       )
       .optional()
       .describe('List of active transactions'),
+    walOrphans: z
+      .array(
+        z.object({
+          transactionId: z.string(),
+          spreadsheetId: z.string().optional(),
+          snapshotId: z.string().optional(),
+          queuedOperations: z.number().int().min(0),
+          lastEventType: z.string(),
+          lastEventTimestamp: z.number(),
+        })
+      )
+      .optional()
+      .describe(
+        'Orphaned transactions from WAL crash recovery — call rollback to discard each one'
+      ),
+    walEnabled: z.boolean().optional().describe('Whether WAL crash recovery is active'),
     _meta: ResponseMetaSchema.optional(),
   }),
   z.object({

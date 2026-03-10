@@ -15,13 +15,23 @@
  * const response = await sheets.spreadsheets.get({ spreadsheetId });
  */
 
-import { google, sheets_v4, drive_v3, bigquery_v2, docs_v1, slides_v1 } from 'googleapis';
+import {
+  google,
+  sheets_v4,
+  drive_v3,
+  bigquery_v2,
+  docs_v1,
+  slides_v1,
+  drivelabels_v2,
+  driveactivity_v2,
+  workspaceevents_v1,
+} from 'googleapis';
 import type { OAuth2Client } from 'google-auth-library';
 import { executeWithRetry, type RetryOptions } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
 import { EncryptedFileTokenStore, type TokenStore, type StoredTokens } from './token-store.js';
 import { HybridTokenStore } from './keychain-store.js';
-import { CircuitBreaker } from '../utils/circuit-breaker.js';
+import { CircuitBreaker, FallbackStrategies } from '../utils/circuit-breaker.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
 import { circuitBreakerRegistry } from './circuit-breaker-registry.js';
 import PQueue from 'p-queue';
@@ -48,6 +58,58 @@ async function getMetrics(): Promise<typeof import('../observability/metrics.js'
     return _metricsModule;
   } catch {
     return null;
+  }
+}
+
+// ============================================================================
+// SHARED DRIVE RATE LIMITER (token bucket algorithm)
+// ============================================================================
+
+/**
+ * Rate limiter for Shared Drive write operations.
+ * Shared Drives have stricter write quotas than personal drives.
+ * Uses a token bucket algorithm for smooth rate limiting.
+ */
+class SharedDriveRateLimiter {
+  private tokens: number;
+  private lastRefillTime: number = Date.now();
+  private readonly capacity: number;
+  private readonly refillRate: number; // tokens per second
+
+  constructor(requestsPerSecond: number = 3) {
+    this.capacity = requestsPerSecond;
+    this.refillRate = requestsPerSecond;
+    this.tokens = this.capacity;
+  }
+
+  /**
+   * Refill tokens based on elapsed time
+   */
+  private refillTokens(): void {
+    const now = Date.now();
+    const elapsedSeconds = (now - this.lastRefillTime) / 1000;
+    this.tokens = Math.min(this.capacity, this.tokens + elapsedSeconds * this.refillRate);
+    this.lastRefillTime = now;
+  }
+
+  /**
+   * Wait until a token is available, then consume it.
+   * Returns the wait time in milliseconds.
+   */
+  async waitForToken(): Promise<number> {
+    const startTime = Date.now();
+
+    while (true) {
+      this.refillTokens();
+
+      if (this.tokens >= 1) {
+        this.tokens--;
+        return Date.now() - startTime;
+      }
+
+      // Sleep for a short time (10ms) to avoid busy-waiting
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
   }
 }
 
@@ -119,6 +181,19 @@ export const APPSSCRIPT_SCOPES = [
  */
 export const FULL_SCOPES = Array.from(FULL_ACCESS_SCOPES);
 
+function parsePositiveInteger(value: string | undefined): number | null {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+export function resolveGoogleApiAgentTimeoutMs(envSource: NodeJS.ProcessEnv = process.env): number {
+  return (
+    parsePositiveInteger(envSource['GOOGLE_API_TIMEOUT_MS']) ??
+    parsePositiveInteger(envSource['GOOGLE_API_REQUEST_TIMEOUT_MS']) ??
+    60000
+  );
+}
+
 /**
  * Create HTTP agents with connection pooling
  * Optimizes performance by reusing TCP connections
@@ -132,7 +207,7 @@ function createHttpAgents(): { http: HttpAgent; https: HttpsAgent } {
     keepAliveMsecs: keepAliveTimeout,
     maxSockets,
     maxFreeSockets: Math.floor(maxSockets / 2),
-    timeout: parseInt(process.env['GOOGLE_API_REQUEST_TIMEOUT_MS'] ?? '60000', 10),
+    timeout: resolveGoogleApiAgentTimeoutMs(),
     scheduling: 'lifo' as const, // Use most recent connection first
   };
 
@@ -149,9 +224,12 @@ export class GoogleApiClient {
   private auth: OAuth2Client | null = null;
   private _sheets: sheets_v4.Sheets | null = null;
   private _drive: drive_v3.Drive | null = null;
+  private _driveLabels: drivelabels_v2.Drivelabels | null = null;
   private _bigquery: bigquery_v2.Bigquery | null = null;
   private _docs: docs_v1.Docs | null = null;
   private _slides: slides_v1.Slides | null = null;
+  private _driveActivity: driveactivity_v2.Driveactivity | null = null;
+  private _workspaceEvents: workspaceevents_v1.Workspaceevents | null = null;
   private options: GoogleApiClientOptions;
   private _scopes: string[];
   private retryOptions?: RetryOptions;
@@ -181,6 +259,10 @@ export class GoogleApiClient {
   private lastSuccessfulCall = Date.now();
   private connectionResetInProgress = false;
   private keepaliveInterval?: NodeJS.Timeout;
+
+  // Shared Drive rate limiter
+  private sharedDriveRateLimiter: SharedDriveRateLimiter;
+  private sharedDriveMembershipCache = new Map<string, boolean>();
 
   constructor(options: GoogleApiClientOptions = {}) {
     this.options = options;
@@ -216,6 +298,21 @@ export class GoogleApiClient {
     this.docsCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-docs-api' });
     this.slidesCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-slides-api' });
 
+    // 16-A6: Register readOnlyMode fallback strategies on circuit breakers
+    // When Sheets/Drive circuit is open, gracefully degrade to read-only responses
+    // This prevents cascading failures during API outages by serving cached data
+    this.sheetsCircuit.registerFallback(
+      FallbackStrategies.readOnlyMode(
+        { success: false, error: 'Google Sheets API temporarily unavailable - read-only mode' },
+        30 // priority
+      )
+    );
+    this.driveCircuit.registerFallback(
+      FallbackStrategies.readOnlyMode(
+        { success: false, error: 'Google Drive API temporarily unavailable - read-only mode' },
+        30
+      )
+    );
     // Register circuit breakers for monitoring
     circuitBreakerRegistry.register(
       'google-sheets-api',
@@ -248,6 +345,10 @@ export class GoogleApiClient {
 
     // Initialize HTTP agents with connection pooling
     this.httpAgents = createHttpAgents();
+
+    // Initialize Shared Drive rate limiter (configurable via SHARED_DRIVE_WRITE_RATE env var)
+    const sharedDriveWriteRate = parseInt(process.env['SHARED_DRIVE_WRITE_RATE'] ?? '3', 10);
+    this.sharedDriveRateLimiter = new SharedDriveRateLimiter(sharedDriveWriteRate);
 
     // Set up connection pool monitoring if enabled
     this.setupConnectionPoolMonitoring();
@@ -340,6 +441,30 @@ export class GoogleApiClient {
       auth: this.auth,
       http2: enableHTTP2,
     });
+    const driveLabelsApi = google.drivelabels({
+      version: 'v2',
+      auth: this.auth,
+      http2: enableHTTP2,
+    });
+
+    // Drive Activity API for WHO/WHEN change attribution
+    this._driveActivity = wrapGoogleApi(google.driveactivity({ version: 'v2', auth: this.auth }), {
+      ...(this.retryOptions ?? {}),
+      timeoutMs: this.timeoutMs,
+      circuit: this.driveCircuit,
+      client: this,
+    });
+
+    // Workspace Events API for push notification subscriptions
+    this._workspaceEvents = wrapGoogleApi(
+      google.workspaceevents({ version: 'v1', auth: this.auth }),
+      {
+        ...(this.retryOptions ?? {}),
+        timeoutMs: this.timeoutMs,
+        circuit: this.driveCircuit,
+        client: this,
+      }
+    );
 
     logger.info('Google API clients initialized', {
       http2Enabled: enableHTTP2,
@@ -393,6 +518,12 @@ export class GoogleApiClient {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
       circuit: this.slidesCircuit,
+      client: this,
+    });
+    this._driveLabels = wrapGoogleApi(driveLabelsApi, {
+      ...(this.retryOptions ?? {}),
+      timeoutMs: this.timeoutMs,
+      circuit: this.driveCircuit,
       client: this,
     });
 
@@ -450,6 +581,21 @@ export class GoogleApiClient {
       auth: this.auth,
       http2: enableHTTP2,
     });
+    const docsApi = google.docs({
+      version: 'v1',
+      auth: this.auth,
+      http2: enableHTTP2,
+    });
+    const slidesApi = google.slides({
+      version: 'v1',
+      auth: this.auth,
+      http2: enableHTTP2,
+    });
+    const driveLabelsApi = google.drivelabels({
+      version: 'v2',
+      auth: this.auth,
+      http2: enableHTTP2,
+    });
 
     // Reconfigure transporter with new agents
     if (this.auth && 'transporter' in this.auth) {
@@ -482,6 +628,24 @@ export class GoogleApiClient {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
       circuit: this.bigqueryCircuit,
+      client: this,
+    });
+    this._docs = wrapGoogleApi(docsApi, {
+      ...(this.retryOptions ?? {}),
+      timeoutMs: this.timeoutMs,
+      circuit: this.docsCircuit,
+      client: this,
+    });
+    this._slides = wrapGoogleApi(slidesApi, {
+      ...(this.retryOptions ?? {}),
+      timeoutMs: this.timeoutMs,
+      circuit: this.slidesCircuit,
+      client: this,
+    });
+    this._driveLabels = wrapGoogleApi(driveLabelsApi, {
+      ...(this.retryOptions ?? {}),
+      timeoutMs: this.timeoutMs,
+      circuit: this.driveCircuit,
       client: this,
     });
 
@@ -964,6 +1128,13 @@ export class GoogleApiClient {
   }
 
   /**
+   * Get Drive Labels API client (optional, returns null if not initialized)
+   */
+  get driveLabels(): drivelabels_v2.Drivelabels | null {
+    return this._driveLabels;
+  }
+
+  /**
    * Get BigQuery API client
    * Returns null if BigQuery is not configured (optional API)
    */
@@ -983,6 +1154,20 @@ export class GoogleApiClient {
    */
   get slides(): slides_v1.Slides | null {
     return this._slides;
+  }
+
+  /**
+   * Get Drive Activity API client (optional, returns null if not initialized)
+   */
+  get driveActivity(): driveactivity_v2.Driveactivity | null {
+    return this._driveActivity;
+  }
+
+  /**
+   * Get Workspace Events API client (optional, returns null if not initialized)
+   */
+  get workspaceEvents(): workspaceevents_v1.Workspaceevents | null {
+    return this._workspaceEvents;
   }
 
   /**
@@ -1409,6 +1594,50 @@ export class GoogleApiClient {
   }
 
   /**
+   * Wait for Shared Drive write token before issuing write operations.
+   */
+  async waitForSharedDriveWriteToken(): Promise<number> {
+    return this.sharedDriveRateLimiter.waitForToken();
+  }
+
+  /**
+   * Resolve whether a Drive file belongs to a shared drive using documented
+   * Drive API metadata rather than file ID heuristics.
+   */
+  async isSharedDriveFile(fileId: string | undefined): Promise<boolean> {
+    if (!fileId || !this._drive) {
+      return false;
+    }
+
+    const cached = this.sharedDriveMembershipCache.get(fileId);
+    if (typeof cached === 'boolean') {
+      return cached;
+    }
+
+    try {
+      const response = await this._drive.files.get({
+        fileId,
+        fields: 'driveId',
+        supportsAllDrives: true,
+      });
+      const isSharedDrive = Boolean(response.data.driveId);
+      // Cap at 500 entries to prevent unbounded memory growth in long-running servers
+      if (this.sharedDriveMembershipCache.size >= 500) {
+        const firstKey = this.sharedDriveMembershipCache.keys().next().value;
+        if (firstKey !== undefined) this.sharedDriveMembershipCache.delete(firstKey);
+      }
+      this.sharedDriveMembershipCache.set(fileId, isSharedDrive);
+      return isSharedDrive;
+    } catch (error) {
+      logger.debug('Failed to resolve shared-drive membership for Drive file', {
+        fileId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    }
+  }
+
+  /**
    * Cleanup resources and remove event listeners
    * Prevents memory leaks from accumulating listeners
    */
@@ -1418,6 +1647,8 @@ export class GoogleApiClient {
       clearInterval(this.poolMonitorInterval);
       this.poolMonitorInterval = undefined;
     }
+
+    this.sharedDriveMembershipCache.clear();
 
     // Stop token manager
     if (this.tokenManager) {
@@ -1494,8 +1725,9 @@ function wrapGoogleApi<T extends object>(
               // Auto-inject default field masks for read operations (Fix 1)
               // Reduces response payload by 30-70% on unmasked calls
               const methodName = String(prop);
+              let params: Record<string, unknown> | null = null;
               if (args.length > 0 && args[0] && typeof args[0] === 'object') {
-                const params = args[0] as Record<string, unknown>;
+                params = args[0] as Record<string, unknown>;
                 if (params['spreadsheetId'] && !params['fields']) {
                   if (methodName === 'get' && params['range']) {
                     // values.get — only need range + values
@@ -1503,6 +1735,27 @@ function wrapGoogleApi<T extends object>(
                   } else if (methodName === 'get' && params['ranges']) {
                     // values.batchGet — only need ranges + values
                     params['fields'] = 'spreadsheetId,valueRanges(range,values,majorDimension)';
+                  }
+                }
+              }
+
+              // Apply Shared Drive write rate limiting (non-blocking for reads)
+              if (client && params) {
+                const isWriteOp =
+                  methodName === 'batchUpdate' ||
+                  methodName === 'update' ||
+                  methodName === 'create' ||
+                  methodName === 'delete';
+                const sharedDriveFileId =
+                  typeof params['spreadsheetId'] === 'string' ? params['spreadsheetId'] : undefined;
+
+                if (isWriteOp && (await client.isSharedDriveFile(sharedDriveFileId))) {
+                  const waitMs = await client.waitForSharedDriveWriteToken();
+                  if (waitMs > 0) {
+                    logger.debug('Shared Drive write rate limit applied', {
+                      spreadsheetId: sharedDriveFileId,
+                      waitedMs: waitMs,
+                    });
                   }
                 }
               }

@@ -15,23 +15,51 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import net from 'node:net';
 import { RedisTaskStore } from '../../src/core/task-store.js';
 import type { TaskStatus } from '../../src/core/task-store.js';
+import { waitFor } from '../helpers/wait-for.js';
 
 // Check if Redis is available BEFORE tests register
 const redisUrl = process.env['REDIS_URL'] || 'redis://localhost:6379';
 
-// Check Redis availability with top-level await
-let redisAvailable = false;
-try {
-  const testStore = new RedisTaskStore(redisUrl, 'test:availability:');
-  await testStore.createTask();
-  await testStore.disconnect();
-  redisAvailable = true;
-  console.log('[RedisTaskStore Tests] Redis connection successful');
-} catch (error) {
-  console.log('[RedisTaskStore Tests] Redis not available:', (error as Error).message);
-  redisAvailable = false;
+async function isRedisReachable(url: string, timeoutMs: number = 750): Promise<boolean> {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'redis:' && parsed.protocol !== 'rediss:') {
+      return false;
+    }
+
+    const host = parsed.hostname || 'localhost';
+    const port = parsed.port ? Number(parsed.port) : 6379;
+    if (!Number.isFinite(port) || port <= 0) {
+      return false;
+    }
+
+    return await new Promise<boolean>((resolve) => {
+      const socket = net.createConnection({ host, port });
+
+      const done = (value: boolean): void => {
+        socket.removeAllListeners();
+        socket.destroy();
+        resolve(value);
+      };
+
+      socket.setTimeout(timeoutMs);
+      socket.once('connect', () => done(true));
+      socket.once('timeout', () => done(false));
+      socket.once('error', () => done(false));
+    });
+  } catch {
+    return false;
+  }
+}
+
+const redisAvailable = await isRedisReachable(redisUrl);
+if (redisAvailable) {
+  console.log('[RedisTaskStore Tests] Redis host reachable');
+} else {
+  console.log('[RedisTaskStore Tests] Redis not reachable, skipping tests');
 }
 
 describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
@@ -120,7 +148,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       const task = await store.createTask({ ttl: 100 }); // 100ms
 
       // Wait for Redis to expire the key
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       const retrieved = await store.getTask(task.taskId);
       expect(retrieved).toBeNull();
@@ -158,7 +186,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       const originalTimestamp = task.lastUpdatedAt;
 
       // Wait a bit
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
 
       await store.updateTaskStatus(task.taskId, 'working', 'In progress...');
 
@@ -168,8 +196,8 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
     });
 
     it('should allow status transition to all valid states', async () => {
-      const task = await store.createTask();
-
+      // Each status is tested on a fresh task — cancelled is terminal per MCP spec (SEP-1686),
+      // so subsequent updates to a cancelled task are ignored by design.
       const states: TaskStatus[] = [
         'working',
         'completed',
@@ -179,6 +207,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       ];
 
       for (const status of states) {
+        const task = await store.createTask();
         await store.updateTaskStatus(task.taskId, status);
         const updated = await store.getTask(task.taskId);
         expect(updated?.status).toBe(status);
@@ -280,9 +309,9 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
 
     it('should sort tasks by creation time (newest first)', async () => {
       const task1 = await store.createTask();
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
       const task2 = await store.createTask();
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
       const task3 = await store.createTask();
 
       const tasks = await store.getAllTasks();
@@ -303,7 +332,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       await store.createTask({ ttl: 60000 });
 
       // Wait for short task to expire
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       const tasks = await store.getAllTasks();
       expect(tasks).toHaveLength(1);
@@ -393,7 +422,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       await store.createTask({ ttl: 60000 }); // long-lived
 
       // Wait for short tasks to expire
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       const cleaned = await store.cleanupExpiredTasks();
 

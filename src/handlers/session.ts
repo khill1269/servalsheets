@@ -6,7 +6,11 @@
  * @module handlers/session
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { SheetsSessionInput, SheetsSessionOutput } from '../schemas/session.js';
+import { PipelineExecutor, type PipelineStep } from '../services/pipeline-executor.js';
+import { getPipelineDispatch } from '../services/pipeline-registry.js';
+import type { SchedulerService } from '../services/scheduler.js';
 import {
   getSessionContext,
   type SpreadsheetContext,
@@ -26,6 +30,64 @@ import {
   getOperationCount,
   type Checkpoint,
 } from '../utils/checkpoint.js';
+import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
+import { mapStandaloneError } from './helpers/error-mapping.js';
+import { sendProgress } from '../utils/request-context.js';
+import { logger } from '../utils/logger.js';
+
+// ============================================================================
+// MODULE-LEVEL SCHEDULER REGISTRY
+// ============================================================================
+
+/** Module-level scheduler instance — set via SessionHandler.setScheduler() */
+let _scheduler: SchedulerService | null = null;
+
+// ============================================================================
+// FUZZY MATCHING HELPERS
+// ============================================================================
+
+/**
+ * Normalize reference type aliases
+ * Maps informal names to canonical types
+ */
+function normalizeReferenceType(typeAlias: string): string {
+  const normalized = typeAlias.toLowerCase().trim();
+
+  // Type alias mapping
+  const aliases: Record<string, string> = {
+    sheet: 'spreadsheet',
+    sheets: 'spreadsheet',
+    tab: 'sheet',
+    tabs: 'sheet',
+    doc: 'spreadsheet',
+    document: 'spreadsheet',
+    docs: 'spreadsheet',
+    workbook: 'spreadsheet',
+    workbooks: 'spreadsheet',
+    file: 'spreadsheet',
+  };
+
+  return aliases[normalized] ?? typeAlias;
+}
+
+/**
+ * Convert match score (0.0-1.0) to human-readable confidence level
+ */
+function getConfidenceLevel(score: number): 'exact' | 'high' | 'medium' | 'low' {
+  if (score >= 0.9) return 'exact';
+  if (score >= 0.7) return 'high';
+  if (score >= 0.5) return 'medium';
+  return 'low';
+}
+
+/**
+ * Strip matchScore from result object for response
+ * (matchScore is internal; response should not expose implementation details)
+ */
+function stripMatchScore<T extends { matchScore: number }>(obj: T): Omit<T, 'matchScore'> {
+  const { matchScore: _, ...rest } = obj;
+  return rest as Omit<T, 'matchScore'>;
+}
 
 // ============================================================================
 // HANDLER CLASS
@@ -35,35 +97,95 @@ import {
  * Session handler class for lazy loading
  */
 export class SessionHandler {
-  /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
-   */
-  private applyVerbosityFilter(
-    response: SheetsSessionOutput['response'],
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): SheetsSessionOutput['response'] {
-    if (!response.success || verbosity === 'standard') {
-      return response;
-    }
+  /** Lazily-initialized pipeline executor (populated on first execute_pipeline call). */
+  private pipeline: PipelineExecutor | null = null;
 
-    if (verbosity === 'minimal') {
-      // For minimal verbosity, strip _meta field
-      const { _meta, ...rest } = response as Record<string, unknown>;
-      return rest as SheetsSessionOutput['response'];
-    }
-
-    return response;
+  /** Register a SchedulerService so schedule_* actions are available. */
+  setScheduler(scheduler: SchedulerService): void {
+    _scheduler = scheduler;
   }
 
   async handle(input: SheetsSessionInput): Promise<SheetsSessionOutput> {
     const req = unwrapRequest<SheetsSessionInput['request']>(input);
+    const verbosity = req.verbosity ?? 'standard';
+
+    // execute_pipeline requires access to this.pipeline (class field), so it
+    // is dispatched here rather than in the standalone handleSheetsSession().
+    if (req.action === 'execute_pipeline') {
+      const result = await this.handleExecutePipeline(
+        req as {
+          action: 'execute_pipeline';
+          steps: PipelineStep[];
+          failFast?: boolean;
+        }
+      );
+      const filteredResponse = applyVerbosityFilter(result.response, verbosity);
+      return { response: filteredResponse };
+    }
+
     const result = await handleSheetsSession(input);
 
     // Apply verbosity filtering (LLM optimization)
-    const verbosity = req.verbosity ?? 'standard';
-    const filteredResponse = this.applyVerbosityFilter(result.response, verbosity);
+    const filteredResponse = applyVerbosityFilter(result.response, verbosity);
 
     return { response: filteredResponse };
+  }
+
+  private async handleExecutePipeline(req: {
+    action: 'execute_pipeline';
+    steps: PipelineStep[];
+    failFast?: boolean;
+  }): Promise<SheetsSessionOutput> {
+    try {
+      // Lazily initialise from registry (populated by createToolHandlerMap)
+      if (!this.pipeline) {
+        const dispatch = getPipelineDispatch();
+        if (!dispatch) {
+          throw new ValidationError(
+            'Pipeline executor not available — ensure session handler is fully initialized',
+            'pipeline'
+          );
+        }
+        this.pipeline = new PipelineExecutor(dispatch);
+      }
+
+      await sendProgress(0, req.steps.length, `Starting pipeline (${req.steps.length} steps)`);
+
+      const pipelineResult = await this.pipeline.executePipeline(req.steps, {
+        failFast: req.failFast ?? true,
+      });
+
+      await sendProgress(
+        pipelineResult.stepsCompleted,
+        pipelineResult.stepsTotal,
+        pipelineResult.success
+          ? 'Pipeline completed'
+          : `Pipeline failed at step: ${pipelineResult.failedAt}`
+      );
+
+      return {
+        response: {
+          success: true as const,
+          action: 'execute_pipeline' as const,
+          stepsCompleted: pipelineResult.stepsCompleted,
+          stepsTotal: pipelineResult.stepsTotal,
+          pipelineResults: pipelineResult.results,
+          ...(pipelineResult.failedAt ? { failedAt: pipelineResult.failedAt } : {}),
+          pipelineDurationMs: pipelineResult.durationMs,
+        },
+      };
+    } catch (error) {
+      return {
+        response: {
+          success: false,
+          error: {
+            code: ErrorCodes.INTERNAL_ERROR,
+            message: error instanceof Error ? error.message : String(error),
+            retryable: false,
+          },
+        },
+      };
+    }
   }
 }
 
@@ -123,6 +245,9 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
       }
 
       case 'get_context': {
+        // session.getPendingOperation() context field is `Record<string, unknown>`,
+        // while PendingOperationSchema expects a more specific value union. The runtime
+        // value is always compatible — cast the whole return as the output type.
         return {
           response: {
             success: true,
@@ -132,9 +257,8 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             lastOperation: session.getLastOperation(),
             pendingOperation: session.getPendingOperation(),
             suggestedActions: session.suggestNextActions(),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any,
-        };
+          },
+        } as SheetsSessionOutput;
       }
 
       case 'record_operation': {
@@ -217,24 +341,46 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
         }
 
         // Type assertion: refine() validates these are defined for find_by_reference action
-        if (referenceType === 'spreadsheet') {
-          const spreadsheet = session.findSpreadsheetByReference(reference);
+        // Normalize reference type aliases (sheet → spreadsheet, tab → sheet, etc.)
+        const normalizedType = normalizeReferenceType(referenceType || 'spreadsheet');
+
+        if (normalizedType === 'spreadsheet') {
+          const match = session.findSpreadsheetByReference(reference);
+          const confidence = match ? getConfidenceLevel(match.matchScore) : null;
           return {
             response: {
               success: true,
               action: 'find_by_reference',
-              found: spreadsheet !== null,
-              spreadsheet,
+              found: match !== null,
+              ...(match && {
+                spreadsheet: stripMatchScore(match),
+                confidence,
+                matchScore: match.matchScore,
+              }),
+              ...(match &&
+                match.matchScore < 0.7 && {
+                  warning: `Fuzzy matched (${Math.round(match.matchScore * 100)}% confidence). Did you mean "${match.title}"?`,
+                }),
             },
           };
         } else {
-          const operation = session.findOperationByReference(reference);
+          // referenceType === 'sheet' or other operation types
+          const match = session.findOperationByReference(reference);
+          const confidence = match ? getConfidenceLevel(match.matchScore) : null;
           return {
             response: {
               success: true,
               action: 'find_by_reference',
-              found: operation !== null,
-              operation,
+              found: match !== null,
+              ...(match && {
+                operation: stripMatchScore(match),
+                confidence,
+                matchScore: match.matchScore,
+              }),
+              ...(match &&
+                match.matchScore < 0.7 && {
+                  warning: `Fuzzy matched (${Math.round(match.matchScore * 100)}% confidence). Did you mean "${match.action}"?`,
+                }),
             },
           };
         }
@@ -295,14 +441,15 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             string | number | boolean | unknown[] | Record<string, unknown> | null
           >,
         });
+        // getPendingOperation() context field is `Record<string, unknown>`, which
+        // the output schema narrows further. Cast the return as the output type.
         return {
           response: {
             success: true,
             action: 'set_pending',
             pending: session.getPendingOperation(),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any,
-        };
+          },
+        } as SheetsSessionOutput;
       }
 
       case 'get_pending': {
@@ -311,9 +458,8 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             success: true,
             action: 'get_pending',
             pending: session.getPendingOperation(),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any,
-        };
+          },
+        } as SheetsSessionOutput;
       }
 
       case 'clear_pending': {
@@ -333,7 +479,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             response: {
               success: false,
               error: {
-                code: 'CHECKPOINTS_DISABLED',
+                code: ErrorCodes.CHECKPOINTS_DISABLED,
                 message: 'Checkpoints disabled. Set ENABLE_CHECKPOINTS=true in .env.local',
                 retryable: false,
               },
@@ -341,6 +487,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
           };
         }
 
+        await sendProgress(0, 100, 'Saving checkpoint...');
         const { sessionId, description } = req;
         const activeSpreadsheet = session.getActiveSpreadsheet();
         const history = session.getOperationHistory(100);
@@ -357,11 +504,13 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
           sheetNames: activeSpreadsheet?.sheetNames,
           lastRange: activeSpreadsheet?.lastRange,
           context: {},
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          preferences: session.getPreferences() as any as Record<string, unknown>,
+          // UserPreferences is a typed interface; Checkpoint.preferences is
+          // Record<string, unknown>. The runtime values are always compatible.
+          preferences: session.getPreferences() as unknown as Record<string, unknown>,
         };
 
         const filepath = await saveCheckpoint(checkpoint);
+        await sendProgress(100, 100, 'Checkpoint saved');
 
         return {
           response: {
@@ -387,7 +536,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             response: {
               success: false,
               error: {
-                code: 'CHECKPOINTS_DISABLED',
+                code: ErrorCodes.CHECKPOINTS_DISABLED,
                 message: 'Checkpoints disabled. Set ENABLE_CHECKPOINTS=true in .env.local',
                 retryable: false,
               },
@@ -405,7 +554,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             response: {
               success: false,
               error: {
-                code: 'CHECKPOINT_NOT_FOUND',
+                code: ErrorCodes.CHECKPOINT_NOT_FOUND,
                 message: `No checkpoint found for session "${sessionId}"`,
                 retryable: false,
               },
@@ -473,7 +622,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             response: {
               success: false,
               error: {
-                code: 'CHECKPOINTS_DISABLED',
+                code: ErrorCodes.CHECKPOINTS_DISABLED,
                 message: 'Checkpoints disabled. Set ENABLE_CHECKPOINTS=true in .env.local',
                 retryable: false,
               },
@@ -515,6 +664,9 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
           severity,
         });
 
+        // Alert type from session-context has `actionable` params typed as
+        // Record<string, unknown>, while the output schema uses a specific value union.
+        // The runtime values are always compatible.
         return {
           response: {
             success: true,
@@ -522,9 +674,8 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             alerts,
             count: alerts.length,
             hasCritical: alerts.some((a) => a.severity === 'critical'),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any,
-        };
+          },
+        } as SheetsSessionOutput;
       }
 
       case 'acknowledge_alert': {
@@ -626,20 +777,133 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
         };
       }
 
+      case 'schedule_create': {
+        if (!_scheduler) {
+          return {
+            response: {
+              success: false as const,
+              error: {
+                code: ErrorCodes.NOT_FOUND,
+                message: 'Scheduler service not available',
+                retryable: false,
+              },
+            },
+          };
+        }
+        const job = await _scheduler.create({
+          spreadsheetId: req.spreadsheetId,
+          cronExpression: req.cronExpression,
+          description: req.description,
+          action: { tool: req.tool, actionName: req.actionName, params: req.params },
+          enabled: true,
+        });
+        return {
+          response: {
+            success: true as const,
+            action: 'schedule_create' as const,
+            jobId: job.id,
+            message: `Scheduled job created: ${job.id}`,
+          },
+        };
+      }
+
+      case 'schedule_list': {
+        if (!_scheduler) {
+          return {
+            response: {
+              success: false as const,
+              error: {
+                code: ErrorCodes.NOT_FOUND,
+                message: 'Scheduler service not available',
+                retryable: false,
+              },
+            },
+          };
+        }
+        const jobs = _scheduler.list(req.spreadsheetId);
+        return {
+          response: {
+            success: true as const,
+            action: 'schedule_list' as const,
+            jobs: jobs.map((j) => ({
+              ...j,
+              tool: j.action.tool,
+              actionName: j.action.actionName,
+            })),
+          },
+        };
+      }
+
+      case 'schedule_cancel': {
+        if (!_scheduler) {
+          return {
+            response: {
+              success: false as const,
+              error: {
+                code: ErrorCodes.NOT_FOUND,
+                message: 'Scheduler service not available',
+                retryable: false,
+              },
+            },
+          };
+        }
+        await _scheduler.cancel(req.jobId);
+        return {
+          response: {
+            success: true as const,
+            action: 'schedule_cancel' as const,
+            jobId: req.jobId,
+          },
+        };
+      }
+
+      case 'schedule_run_now': {
+        if (!_scheduler) {
+          return {
+            response: {
+              success: false as const,
+              error: {
+                code: ErrorCodes.NOT_FOUND,
+                message: 'Scheduler service not available',
+                retryable: false,
+              },
+            },
+          };
+        }
+        await _scheduler.runNow(req.jobId);
+        return {
+          response: {
+            success: true as const,
+            action: 'schedule_run_now' as const,
+            jobId: req.jobId,
+            message: 'Job triggered successfully',
+          },
+        };
+      }
+
+      case 'execute_pipeline': {
+        // Intercepted by SessionHandler.handle() before this function is called.
+        // This branch satisfies the exhaustiveness check but is unreachable in production.
+        throw new ValidationError(
+          'execute_pipeline must be dispatched via SessionHandler.handle()',
+          'action'
+        );
+      }
+
       default: {
         const exhaustiveCheck: never = action;
         throw new ValidationError(`Unknown action: ${exhaustiveCheck}`, 'action');
       }
     }
   } catch (error) {
+    logger.error('Session handler error', {
+      action,
+      error,
+    });
     return {
       response: {
         success: false,
-        error: {
-          code: 'SESSION_ERROR',
-          message: error instanceof Error ? error.message : String(error),
-          retryable: false,
-        },
+        error: mapStandaloneError(error),
       },
     };
   }

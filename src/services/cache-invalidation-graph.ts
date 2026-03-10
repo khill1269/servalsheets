@@ -21,7 +21,7 @@
  */
 
 import { logger } from '../utils/logger.js';
-import { TOOL_ACTIONS } from '../mcp/completions.js';
+import { TOOL_ACTIONS } from '../schemas/index.js';
 
 /**
  * Cache invalidation rule
@@ -83,21 +83,19 @@ export class CacheInvalidationGraph {
     // Write operations
     rules['sheets_core.create'] = { invalidates: [] }; // New spreadsheet, no cache yet
     rules['sheets_core.copy'] = { invalidates: [] }; // New spreadsheet, no cache yet
-    rules['sheets_core.rename'] = { invalidates: ['metadata:*'] };
     rules['sheets_core.update_properties'] = { invalidates: ['metadata:*'] };
 
     // Sheet/tab operations
     rules['sheets_core.add_sheet'] = { invalidates: ['metadata:*'] };
-    rules['sheets_core.rename_sheet'] = { invalidates: ['metadata:*'] };
     rules['sheets_core.copy_sheet'] = { invalidates: ['metadata:*'] };
     rules['sheets_core.duplicate_sheet'] = { invalidates: ['metadata:*'] };
+    rules['sheets_core.update_sheet'] = { invalidates: ['metadata:*'] };
     rules['sheets_core.move_sheet'] = { invalidates: ['metadata:*'] };
     rules['sheets_core.delete_sheet'] = { invalidates: ['*'], cascade: true };
-    rules['sheets_core.update_sheet_properties'] = { invalidates: ['metadata:*'] };
-    rules['sheets_core.set_tab_color'] = { invalidates: ['metadata:*'] };
-    rules['sheets_core.hide_sheet'] = { invalidates: ['metadata:*'] };
-    rules['sheets_core.show_sheet'] = { invalidates: ['metadata:*'] };
-    rules['sheets_core.freeze_rows'] = { invalidates: ['metadata:*'] };
+    rules['sheets_core.clear_sheet'] = { invalidates: ['values:*'] };
+    rules['sheets_core.batch_delete_sheets'] = { invalidates: ['metadata:*'], cascade: true };
+    rules['sheets_core.batch_update_sheets'] = { invalidates: ['metadata:*'] };
+    rules['sheets_core.copy_sheet_to'] = { invalidates: [] }; // Creates in another spreadsheet
 
     // ========================================================================
     // sheets_data (18 actions)
@@ -105,8 +103,6 @@ export class CacheInvalidationGraph {
     // Read operations
     rules['sheets_data.read'] = { invalidates: [] };
     rules['sheets_data.batch_read'] = { invalidates: [] };
-    rules['sheets_data.read_metadata'] = { invalidates: [] };
-    rules['sheets_data.search'] = { invalidates: [] };
 
     // Write operations
     rules['sheets_data.write'] = { invalidates: ['values:*'] };
@@ -126,9 +122,17 @@ export class CacheInvalidationGraph {
     rules['sheets_data.find_replace'] = { invalidates: ['values:*'] };
 
     // Clipboard operations
-    rules['sheets_data.cut'] = { invalidates: ['values:*', 'metadata:*'] };
-    rules['sheets_data.copy_range'] = { invalidates: [] }; // Read-only
-    rules['sheets_data.paste'] = { invalidates: ['values:*', 'metadata:*'] };
+    rules['sheets_data.cut_paste'] = { invalidates: ['values:*', 'metadata:*'] };
+    rules['sheets_data.copy_paste'] = { invalidates: ['values:*', 'metadata:*'] };
+
+    // P4: Multi-Spreadsheet Federation (F2)
+    rules['sheets_data.cross_read'] = { invalidates: [] }; // Read-only
+    rules['sheets_data.cross_query'] = { invalidates: [] }; // Read-only
+    rules['sheets_data.cross_write'] = { invalidates: ['values:*'] }; // Writes to destination
+    rules['sheets_data.cross_compare'] = { invalidates: [] }; // Read-only
+    rules['sheets_data.batch_get'] = { invalidates: [] }; // Read-only
+    rules['sheets_analyze.discover_action'] = { invalidates: [] }; // Read-only meta-tool
+    rules['sheets_analyze.diagnose_errors'] = { invalidates: [] }; // Read-only error diagnosis
 
     // ========================================================================
     // sheets_format (22 actions)
@@ -150,13 +154,16 @@ export class CacheInvalidationGraph {
     rules['sheets_format.update_sparkline'] = { invalidates: ['values:*', 'metadata:*'] };
     rules['sheets_format.delete_sparkline'] = { invalidates: ['values:*', 'metadata:*'] };
 
-    // Conditional formatting rules
-    rules['sheets_format.add_rule'] = { invalidates: ['metadata:*'] };
-    rules['sheets_format.update_rule'] = { invalidates: ['metadata:*'] };
-    rules['sheets_format.delete_rule'] = { invalidates: ['metadata:*'] };
-    rules['sheets_format.list_rules'] = { invalidates: [] }; // Read-only
-    rules['sheets_format.clear_rules'] = { invalidates: ['metadata:*'] };
-    rules['sheets_format.reorder_rules'] = { invalidates: ['metadata:*'] };
+    // Conditional formatting rules (16-B3: corrected action names to match handler switch)
+    rules['sheets_format.add_conditional_format_rule'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.rule_add_conditional_format'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.rule_update_conditional_format'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.rule_delete_conditional_format'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.rule_list_conditional_formats'] = { invalidates: [] }; // Read-only
+    rules['sheets_format.generate_conditional_format'] = { invalidates: ['metadata:*'] };
+
+    // Format suggestions (read-only)
+    rules['sheets_format.suggest_format'] = { invalidates: [] }; // Read-only
 
     // Data validation
     rules['sheets_format.set_validation'] = { invalidates: ['metadata:*'] };
@@ -231,12 +238,18 @@ export class CacheInvalidationGraph {
     rules['sheets_visualize.get_pivot'] = { invalidates: [] };
     rules['sheets_visualize.refresh_pivot'] = { invalidates: ['values:*'] }; // Refreshes computed values
 
-    // Slicer operations
-    rules['sheets_visualize.create_slicer'] = { invalidates: ['metadata:*'] };
-    rules['sheets_visualize.update_slicer'] = { invalidates: ['metadata:*'] };
-    rules['sheets_visualize.delete_slicer'] = { invalidates: ['metadata:*'] };
-    rules['sheets_visualize.list_slicers'] = { invalidates: [] };
-    rules['sheets_visualize.get_slicer'] = { invalidates: [] };
+    // AI-powered suggestions (read-only)
+    rules['sheets_visualize.suggest_chart'] = { invalidates: [] }; // Read-only
+    rules['sheets_visualize.suggest_pivot'] = { invalidates: [] }; // Read-only
+
+    // Slicer operations (belong to sheets_dimensions, not sheets_visualize)
+    rules['sheets_dimensions.create_slicer'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.update_slicer'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.delete_slicer'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.list_slicers'] = { invalidates: [] };
+    rules['sheets_dimensions.auto_fill'] = { invalidates: ['values:*'] };
+    rules['sheets_dimensions.auto_resize'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.sort_range'] = { invalidates: ['values:*'] };
 
     // ========================================================================
     // sheets_collaborate (35 actions)
@@ -249,13 +262,16 @@ export class CacheInvalidationGraph {
     rules['sheets_collaborate.delete_permission'] = { invalidates: [] };
 
     // Comment operations (separate from spreadsheet data)
-    rules['sheets_collaborate.add_comment'] = { invalidates: [] };
-    rules['sheets_collaborate.update_comment'] = { invalidates: [] };
-    rules['sheets_collaborate.delete_comment'] = { invalidates: [] };
-    rules['sheets_collaborate.list_comments'] = { invalidates: [] };
-    rules['sheets_collaborate.reply_comment'] = { invalidates: [] };
-    rules['sheets_collaborate.resolve_comment'] = { invalidates: [] };
-    rules['sheets_collaborate.unresolve_comment'] = { invalidates: [] };
+    rules['sheets_collaborate.comment_add'] = { invalidates: [] };
+    rules['sheets_collaborate.comment_update'] = { invalidates: [] };
+    rules['sheets_collaborate.comment_delete'] = { invalidates: [] };
+    rules['sheets_collaborate.comment_list'] = { invalidates: [] };
+    rules['sheets_collaborate.comment_get'] = { invalidates: [] };
+    rules['sheets_collaborate.comment_add_reply'] = { invalidates: [] };
+    rules['sheets_collaborate.comment_update_reply'] = { invalidates: [] };
+    rules['sheets_collaborate.comment_delete_reply'] = { invalidates: [] };
+    rules['sheets_collaborate.comment_resolve'] = { invalidates: [] };
+    rules['sheets_collaborate.comment_reopen'] = { invalidates: [] };
 
     // Version operations (read-only)
     rules['sheets_collaborate.list_versions'] = { invalidates: [] };
@@ -374,15 +390,21 @@ export class CacheInvalidationGraph {
     rules['sheets_quality.optimize'] = { invalidates: ['values:*', 'metadata:*'] }; // Can modify data
 
     // ========================================================================
-    // sheets_history (7 actions)
+    // sheets_history (10 actions — 7 original + 3 P4 F5 Time-Travel Debugger)
     // ========================================================================
-    rules['sheets_history.get_history'] = { invalidates: [] };
-    rules['sheets_history.list_operations'] = { invalidates: [] };
+    // Actual action names from schemas/history.ts
+    rules['sheets_history.list'] = { invalidates: [] };
+    rules['sheets_history.get'] = { invalidates: [] };
+    rules['sheets_history.stats'] = { invalidates: [] };
     rules['sheets_history.undo'] = { invalidates: ['*'], cascade: true };
     rules['sheets_history.redo'] = { invalidates: ['*'], cascade: true };
-    rules['sheets_history.clear_history'] = { invalidates: [] }; // Only affects history, not data
-    rules['sheets_history.get_checkpoint'] = { invalidates: [] };
-    rules['sheets_history.restore_checkpoint'] = { invalidates: ['*'], cascade: true };
+    rules['sheets_history.revert_to'] = { invalidates: ['*'], cascade: true };
+    rules['sheets_history.clear'] = { invalidates: [] }; // Only affects history, not data
+
+    // P4: Time-Travel Debugger (F5)
+    rules['sheets_history.timeline'] = { invalidates: [] }; // Read-only revision scan
+    rules['sheets_history.diff_revisions'] = { invalidates: [] }; // Read-only diff
+    rules['sheets_history.restore_cells'] = { invalidates: ['values:*', 'metadata:*'] }; // Surgical cell restore
 
     // ========================================================================
     // sheets_confirm (5 actions) - Read-only
@@ -394,43 +416,68 @@ export class CacheInvalidationGraph {
     rules['sheets_confirm.get_confirmation_status'] = { invalidates: [] };
 
     // ========================================================================
-    // sheets_analyze (16 actions) - Read-only
+    // sheets_analyze (18 actions — 16 original + 2 P4 F4 Smart Suggestions)
     // ========================================================================
-    rules['sheets_analyze.summarize'] = { invalidates: [] };
+    // Read-only analysis actions (actual action names from schemas/analyze.ts)
+    rules['sheets_analyze.comprehensive'] = { invalidates: [] };
+    rules['sheets_analyze.analyze_data'] = { invalidates: [] };
+    rules['sheets_analyze.analyze_formulas'] = { invalidates: [] };
+    rules['sheets_analyze.analyze_structure'] = { invalidates: [] };
+    rules['sheets_analyze.analyze_performance'] = { invalidates: [] };
+    rules['sheets_analyze.analyze_quality'] = { invalidates: [] };
     rules['sheets_analyze.detect_patterns'] = { invalidates: [] };
-    rules['sheets_analyze.suggest_formula'] = { invalidates: [] };
-    rules['sheets_analyze.explain_formula'] = { invalidates: [] };
-    rules['sheets_analyze.calculate_stats'] = { invalidates: [] };
-    rules['sheets_analyze.detect_anomalies'] = { invalidates: [] };
-    rules['sheets_analyze.suggest_chart'] = { invalidates: [] };
-    rules['sheets_analyze.suggest_pivot'] = { invalidates: [] };
-    rules['sheets_analyze.detect_duplicates'] = { invalidates: [] };
-    rules['sheets_analyze.suggest_cleanup'] = { invalidates: [] };
-    rules['sheets_analyze.detect_trends'] = { invalidates: [] };
-    rules['sheets_analyze.forecast'] = { invalidates: [] };
-    rules['sheets_analyze.correlation_analysis'] = { invalidates: [] };
-    rules['sheets_analyze.outlier_detection'] = { invalidates: [] };
-    rules['sheets_analyze.suggest_formatting'] = { invalidates: [] };
-    rules['sheets_analyze.data_quality_report'] = { invalidates: [] };
+    rules['sheets_analyze.drill_down'] = { invalidates: [] };
+    rules['sheets_analyze.explain_analysis'] = { invalidates: [] };
+    rules['sheets_analyze.generate_actions'] = { invalidates: [] };
+    rules['sheets_analyze.generate_formula'] = { invalidates: [] };
+    rules['sheets_analyze.plan'] = { invalidates: [] };
+    rules['sheets_analyze.execute_plan'] = { invalidates: ['values:*', 'metadata:*'] }; // Can apply changes
+    rules['sheets_analyze.query_natural_language'] = { invalidates: [] };
+    rules['sheets_analyze.suggest_visualization'] = { invalidates: [] };
+    rules['sheets_analyze.scout'] = { invalidates: [] };
+
+    // P4: Smart Suggestions / Copilot (F4)
+    rules['sheets_analyze.suggest_next_actions'] = { invalidates: [] }; // Read-only recommendations
+    rules['sheets_analyze.auto_enhance'] = { invalidates: ['metadata:*'] }; // Applies non-destructive enhancements
 
     // ========================================================================
-    // sheets_fix (1 action)
+    // sheets_fix (6 actions — 1 original + 5 P4 F3 Data Cleaning)
     // ========================================================================
-    rules['sheets_fix.auto_fix'] = { invalidates: ['*'], cascade: true }; // Can fix any issue
+    rules['sheets_fix.fix'] = { invalidates: ['*'], cascade: true }; // Can fix any issue
+
+    // P4: Automated Data Cleaning (F3)
+    rules['sheets_fix.clean'] = { invalidates: ['values:*'] }; // Mutates cell values
+    rules['sheets_fix.standardize_formats'] = { invalidates: ['values:*', 'metadata:*'] }; // Values + formats
+    rules['sheets_fix.fill_missing'] = { invalidates: ['values:*'] }; // Writes to empty cells
+    rules['sheets_fix.detect_anomalies'] = { invalidates: [] }; // Read-only analysis
+    rules['sheets_fix.suggest_cleaning'] = { invalidates: [] }; // Read-only recommendations
 
     // ========================================================================
-    // sheets_composite (10 actions)
+    // sheets_composite (14 actions — 11 original + 3 P4 F1 Sheet Generator)
     // ========================================================================
-    rules['sheets_composite.create_dashboard'] = { invalidates: ['*'] }; // Creates multiple elements
-    rules['sheets_composite.create_report'] = { invalidates: ['*'] };
-    rules['sheets_composite.create_form'] = { invalidates: ['*'] };
-    rules['sheets_composite.bulk_import'] = { invalidates: ['values:*', 'metadata:*'] };
-    rules['sheets_composite.bulk_export'] = { invalidates: [] }; // Read-only
-    rules['sheets_composite.batch_operations'] = { invalidates: ['*'], cascade: true }; // Multiple operations
+    rules['sheets_composite.import_csv'] = { invalidates: ['values:*', 'metadata:*'] };
+    rules['sheets_composite.import_xlsx'] = { invalidates: ['values:*', 'metadata:*'] };
+    rules['sheets_composite.smart_append'] = { invalidates: ['values:*'] };
+    rules['sheets_composite.bulk_update'] = { invalidates: ['values:*'] };
+    rules['sheets_composite.deduplicate'] = { invalidates: ['values:*'] };
+    rules['sheets_composite.export_xlsx'] = { invalidates: [] }; // Read-only export
+    rules['sheets_composite.get_form_responses'] = { invalidates: [] }; // Read-only
+    rules['sheets_composite.setup_sheet'] = { invalidates: ['values:*', 'metadata:*'] };
+    rules['sheets_composite.import_and_format'] = { invalidates: ['values:*', 'metadata:*'] };
     rules['sheets_composite.clone_structure'] = { invalidates: ['metadata:*'] };
-    rules['sheets_composite.apply_template'] = { invalidates: ['*'] };
-    rules['sheets_composite.migrate_data'] = { invalidates: ['values:*', 'metadata:*'] };
-    rules['sheets_composite.sync_sheets'] = { invalidates: ['values:*', 'metadata:*'] };
+    rules['sheets_composite.export_large_dataset'] = { invalidates: [] }; // Read-only export
+
+    // P4: Natural Language Sheet Generator (F1)
+    rules['sheets_composite.generate_sheet'] = { invalidates: ['values:*', 'metadata:*'] }; // Creates sheet + data
+    rules['sheets_composite.generate_template'] = { invalidates: [] }; // Saves template only
+    rules['sheets_composite.preview_generation'] = { invalidates: [] }; // Dry-run, read-only
+
+    // P14: Composite workflow actions
+    rules['sheets_composite.audit_sheet'] = { invalidates: [] }; // Read-only: generates report, no mutations
+    rules['sheets_composite.publish_report'] = { invalidates: [] }; // Read-only: exports existing data
+    rules['sheets_composite.data_pipeline'] = { invalidates: ['values:*', 'metadata:*'] }; // Write: transforms data
+    rules['sheets_composite.instantiate_template'] = { invalidates: ['values:*', 'metadata:*'] }; // Write: creates new sheet
+    rules['sheets_composite.migrate_spreadsheet'] = { invalidates: ['values:*', 'metadata:*'] }; // Write: copies data
 
     // ========================================================================
     // sheets_session (26 actions) - No cache invalidation
@@ -521,15 +568,21 @@ export class CacheInvalidationGraph {
     rules['sheets_webhook.get_events'] = { invalidates: [] };
 
     // ========================================================================
-    // sheets_dependencies (7 actions) - Read-only
+    // sheets_dependencies (10 actions — 7 original + 3 P4 F6 Scenario Modeling)
     // ========================================================================
-    rules['sheets_dependencies.analyze'] = { invalidates: [] };
+    // Actual action names from schemas/dependencies.ts
+    rules['sheets_dependencies.build'] = { invalidates: [] };
+    rules['sheets_dependencies.analyze_impact'] = { invalidates: [] };
+    rules['sheets_dependencies.detect_cycles'] = { invalidates: [] };
+    rules['sheets_dependencies.get_dependencies'] = { invalidates: [] };
     rules['sheets_dependencies.get_dependents'] = { invalidates: [] };
-    rules['sheets_dependencies.get_precedents'] = { invalidates: [] };
-    rules['sheets_dependencies.trace_formula'] = { invalidates: [] };
-    rules['sheets_dependencies.detect_circular'] = { invalidates: [] };
-    rules['sheets_dependencies.get_calculation_order'] = { invalidates: [] };
-    rules['sheets_dependencies.export_graph'] = { invalidates: [] };
+    rules['sheets_dependencies.get_stats'] = { invalidates: [] };
+    rules['sheets_dependencies.export_dot'] = { invalidates: [] };
+
+    // P4: Scenario Modeling / What-If Engine (F6)
+    rules['sheets_dependencies.model_scenario'] = { invalidates: [] }; // Read-only simulation
+    rules['sheets_dependencies.compare_scenarios'] = { invalidates: [] }; // Read-only comparison
+    rules['sheets_dependencies.create_scenario_sheet'] = { invalidates: ['metadata:*'] }; // Creates new sheet tab
 
     // ========================================================================
     // sheets_federation (4 actions) - No cache invalidation
@@ -538,6 +591,32 @@ export class CacheInvalidationGraph {
     rules['sheets_federation.unregister_server'] = { invalidates: [] };
     rules['sheets_federation.list_servers'] = { invalidates: [] };
     rules['sheets_federation.call_remote'] = { invalidates: [] };
+
+    // ========================================================================
+    // sheets_compute (10 actions) - All read-only, no cache invalidation
+    // ========================================================================
+    rules['sheets_compute.evaluate'] = { invalidates: [] };
+    rules['sheets_compute.aggregate'] = { invalidates: [] };
+    rules['sheets_compute.statistical'] = { invalidates: [] };
+    rules['sheets_compute.regression'] = { invalidates: [] };
+    rules['sheets_compute.forecast'] = { invalidates: [] };
+    rules['sheets_compute.matrix_op'] = { invalidates: [] };
+    rules['sheets_compute.pivot_compute'] = { invalidates: [] };
+    rules['sheets_compute.custom_function'] = { invalidates: [] };
+    rules['sheets_compute.batch_compute'] = { invalidates: [] };
+    rules['sheets_compute.explain_formula'] = { invalidates: [] };
+
+    // ========================================================================
+    // sheets_agent (8 actions) - Mixed: planning/status read-only, execute mutates
+    // ========================================================================
+    rules['sheets_agent.plan'] = { invalidates: [] };
+    rules['sheets_agent.execute'] = { invalidates: ['values:*', 'metadata:*'] };
+    rules['sheets_agent.execute_step'] = { invalidates: ['values:*', 'metadata:*'] };
+    rules['sheets_agent.observe'] = { invalidates: [] };
+    rules['sheets_agent.rollback'] = { invalidates: ['values:*', 'metadata:*'] };
+    rules['sheets_agent.get_status'] = { invalidates: [] };
+    rules['sheets_agent.list_plans'] = { invalidates: [] };
+    rules['sheets_agent.resume'] = { invalidates: ['values:*', 'metadata:*'] };
 
     // ========================================================================
     // Auto-generate rules for any schema actions not manually defined above.

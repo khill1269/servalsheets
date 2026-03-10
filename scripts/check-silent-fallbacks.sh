@@ -79,7 +79,7 @@ function check_block() {
 ' "$TEMP_FILE" > "$FILTERED_FILE"
 
 if [ -s "$FILTERED_FILE" ]; then
-  COUNT=$(grep -c "return \(\{\}\|undefined\)" "$FILTERED_FILE" || true)
+  COUNT=$(grep -E -c "return (\\{\\}|undefined)" "$FILTERED_FILE" || true)
   echo ""
   echo "❌ Found $COUNT potential silent fallback(s):"
   echo ""

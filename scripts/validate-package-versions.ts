@@ -15,6 +15,7 @@ interface ValidationResult {
   exists: boolean;
   latest?: string;
   error?: string;
+  skipped?: boolean;
 }
 
 const packageFiles = [
@@ -25,6 +26,21 @@ const packageFiles = [
 ];
 
 async function validateVersion(pkg: string, version: string): Promise<ValidationResult> {
+  if (
+    version.startsWith('workspace:') ||
+    version.startsWith('file:') ||
+    version.startsWith('link:') ||
+    version.startsWith('git+') ||
+    version.startsWith('http:')
+  ) {
+    return {
+      package: pkg,
+      specified: version,
+      exists: true,
+      skipped: true,
+    };
+  }
+
   try {
     // Remove semver range characters to get exact version
     const cleanVersion = version.replace(/[\^~>=<]/, '').trim();
@@ -89,7 +105,11 @@ async function main() {
       results.push(result);
 
       if (result.exists) {
-        console.log(`  ✅ ${pkg}@${result.specified}`);
+        if (result.skipped) {
+          console.log(`  ⏭️  ${pkg}@${result.specified} (local/workspace dependency)`);
+        } else {
+          console.log(`  ✅ ${pkg}@${result.specified}`);
+        }
       } else {
         console.error(`  ❌ ${pkg}@${result.specified}`);
         console.error(`     ${result.error}`);

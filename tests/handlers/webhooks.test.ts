@@ -30,6 +30,8 @@ vi.mock('../../src/services/webhook-manager.js', () => ({
   getWebhookManager: vi.fn(() => mockWebhookManager),
   initWebhookManager: vi.fn(),
   resetWebhookManager: vi.fn(),
+  validateWebhookUrl: vi.fn().mockResolvedValue(undefined),
+  WEBHOOK_DURABILITY_MODE: 'redis_required',
 }));
 
 vi.mock('../../src/services/webhook-queue.js', () => ({
@@ -712,6 +714,9 @@ describe('WebhookHandler', () => {
       expect(result.response.error?.code).toBe('CONFIG_ERROR');
       expect(result.response.error?.message).toContain('Redis backend is required');
       expect(result.response.error?.resolutionSteps?.join(' ')).toContain('REDIS_URL');
+      expect((result.response.error?.details as { durabilityMode?: string } | undefined)?.durabilityMode).toBe(
+        'redis_required'
+      );
     });
   });
 

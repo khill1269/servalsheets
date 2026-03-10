@@ -9,10 +9,12 @@ import {
   SheetIdSchema,
   DimensionSchema,
   RangeInputSchema,
+  A1NotationSchema,
   GridRangeSchema,
   SortOrderSchema,
   ConditionSchema,
   ColorSchema,
+  ColorStyleSchema,
   ErrorDetailSchema,
   SafetyOptionsSchema,
   MutationSummarySchema,
@@ -66,22 +68,26 @@ const SortSpecSchema = z.object({
       return val;
     }, z.coerce.number().int().min(0))
     .describe(
-      'Column to sort by: zero-based index (0, 1, 2) or column letter (A, B, C). Examples: 0 or "A" for first column, 2 or "C" for third column.'
+      'Column to sort by: zero-based index (0, 1, 2) or column letter (A, B, C). Examples: 0 or "A" for first column, 2 or "C" for third column. Note: mapped to Google API "dimensionIndex" internally.'
     ),
   sortOrder: SortOrderSchema.optional()
     .default('ASCENDING')
     .describe('Sort order for this column (default: ASCENDING)'),
   foregroundColor: ColorSchema.optional().describe('Sort by cells with this text color'),
   backgroundColor: ColorSchema.optional().describe('Sort by cells with this background color'),
+  foregroundColorStyle: ColorStyleSchema.optional().describe(
+    'Sort by foreground color (supports theme colors via { themeColor: "ACCENT1" }; preferred over foregroundColor)'
+  ),
+  backgroundColorStyle: ColorStyleSchema.optional().describe(
+    'Sort by background color (supports theme colors via { themeColor: "ACCENT1" }; preferred over backgroundColor)'
+  ),
 });
 
 const SlicerPositionSchema = z
   .object({
-    anchorCell: z
-      .string()
-      .describe(
-        'Cell anchor like "P1" or "AB5". Simple cell reference (NOT rowIndex/columnIndex object)'
-      ),
+    anchorCell: A1NotationSchema.describe(
+      'Cell anchor like "P1" or "AB5". Simple cell reference (NOT rowIndex/columnIndex object)'
+    ),
     offsetX: z.coerce.number().min(0, 'Offset X must be non-negative').optional().default(0),
     offsetY: z.coerce.number().min(0, 'Offset Y must be non-negative').optional().default(0),
     width: z.coerce.number().positive('Width must be positive').optional().default(200),
@@ -105,7 +111,7 @@ const InsertDimensionActionSchema = CommonFieldsSchema.extend({
     .boolean()
     .optional()
     .describe('Inherit formatting from before (false = inherit from after)'),
-});
+}).strict();
 
 const DeleteDimensionActionSchema = CommonFieldsSchema.extend({
   action: z.literal('delete').describe('Delete rows or columns'),
@@ -113,7 +119,7 @@ const DeleteDimensionActionSchema = CommonFieldsSchema.extend({
   startIndex: z.coerce.number().int().min(0).describe('Zero-based index of first to delete'),
   endIndex: z.coerce.number().int().min(1).describe('Zero-based index after last, exclusive'),
   allowMissing: z.boolean().optional().describe("Don't error when range doesn't exist"),
-});
+}).strict();
 
 const MoveDimensionActionSchema = CommonFieldsSchema.extend({
   action: z.literal('move').describe('Move rows or columns to a different location'),
@@ -271,8 +277,28 @@ const SortRangeActionSchema = z.object({
 });
 
 // ============================================================================
-// Range Utility Actions (4 new operations - Google API coverage completion)
+// Range Utility Actions (5 operations - Google API coverage completion)
 // ============================================================================
+
+const DeleteDuplicatesActionSchema = z.object({
+  action: z
+    .literal('delete_duplicates')
+    .describe('Remove duplicate rows from a range using the Google Sheets deleteDuplicates API'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  range: RangeInputSchema.describe('Range to deduplicate (sheet-qualified, e.g. Sheet1!A1:D100)'),
+  comparisonColumns: z
+    .array(z.number().int().nonnegative())
+    .optional()
+    .describe(
+      'Zero-based column indices (relative to range start) to use for comparison. Omit to compare all columns.'
+    ),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+  safety: SafetyOptionsSchema.optional().describe('Safety options (supports dryRun, snapshot)'),
+});
 
 const TrimWhitespaceActionSchema = z.object({
   action: z.literal('trim_whitespace').describe('Trim leading and trailing whitespace from cells'),
@@ -376,6 +402,19 @@ const CreateFilterViewActionSchema = CommonFieldsSchema.extend({
   sortSpecs: z.array(SortSpecSchema).optional().describe('Sort specifications'),
 });
 
+const DuplicateFilterViewActionSchema = z.object({
+  action: z.literal('duplicate_filter_view').describe('Duplicate an existing filter view'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.optional().describe('Optional sheet ID for context'),
+  filterViewId: z.coerce.number().int().describe('Filter view ID to duplicate'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+  safety: SafetyOptionsSchema.optional().describe('Safety options'),
+});
+
 const UpdateFilterViewActionSchema = z.object({
   action: z.literal('update_filter_view').describe('Update a filter view'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
@@ -417,6 +456,18 @@ const ListFilterViewsActionSchema = z.object({
     .optional()
     .default('standard')
     .describe('Response detail level'),
+  cursor: z
+    .string()
+    .optional()
+    .describe('Pagination cursor from previous response (numeric offset encoded as string)'),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(500)
+    .optional()
+    .default(50)
+    .describe('Maximum number of filter views to return (default: 50, max: 500)'),
 });
 
 const GetFilterViewActionSchema = z.object({
@@ -451,6 +502,9 @@ Alternative: Consider sheets_dimensions.create_filter_view for more reliable fil
   position: SlicerPositionSchema.describe(
     'Slicer position. Use simple cell reference like "P1" or "AB5" for anchorCell'
   ),
+  filterCriteria: FilterCriteriaSchema.optional().describe(
+    'Filter criteria for the slicer (hiddenValues, condition, visibleBackgroundColor, visibleForegroundColor)'
+  ),
 });
 
 const UpdateSlicerActionSchema = z.object({
@@ -460,6 +514,9 @@ const UpdateSlicerActionSchema = z.object({
   slicerId: z.coerce.number().int().describe('Slicer ID'),
   title: z.string().optional().describe('New title for the slicer'),
   filterColumn: z.coerce.number().int().min(0).optional().describe('Filter column index'),
+  filterCriteria: FilterCriteriaSchema.optional().describe(
+    'Updated filter criteria for the slicer (hiddenValues, condition, visibleBackgroundColor, visibleForegroundColor)'
+  ),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])
     .optional()
@@ -499,11 +556,11 @@ const ListSlicersActionSchema = z.object({
 /**
  * All dimension, filter, and sort operation inputs
  *
- * CONSOLIDATED (28 actions - reduced from 39):
+ * CONSOLIDATED (29 actions - reduced from 39):
  * - Dimension actions: 11 (merged row/column pairs into single actions)
  * - Filter/sort: 4 actions (v2.0: merged filter_update_filter_criteria into set_basic_filter)
  * - Range utility: 4 actions
- * - Filter views: 5 actions
+ * - Filter views: 6 actions
  * - Slicers: 4 actions
  *
  * LLM Optimization: Single action with dimension parameter vs separate row/column actions
@@ -641,13 +698,15 @@ export const SheetsDimensionsInputSchema = z.object({
       GetBasicFilterActionSchema,
       // FilterUpdateFilterCriteriaActionSchema removed - merged into set_basic_filter
       SortRangeActionSchema,
-      // Range utility actions (4)
+      // Range utility actions (5)
+      DeleteDuplicatesActionSchema,
       TrimWhitespaceActionSchema,
       RandomizeRangeActionSchema,
       TextToColumnsActionSchema,
       AutoFillActionSchema,
-      // Filter view actions (5)
+      // Filter view actions (6)
       CreateFilterViewActionSchema,
+      DuplicateFilterViewActionSchema,
       UpdateFilterViewActionSchema,
       DeleteFilterViewActionSchema,
       ListFilterViewsActionSchema,
@@ -712,6 +771,13 @@ const DimensionsResponseSchema = z.discriminatedUnion('success', [
       )
       .optional(),
     slicerId: z.coerce.number().int().optional(),
+    // Pagination fields (list_filter_views)
+    nextCursor: z
+      .string()
+      .optional()
+      .describe('Cursor for next page (pass as cursor in next request)'),
+    hasMore: z.boolean().optional().describe('True if more results are available'),
+    totalCount: z.coerce.number().int().optional().describe('Total number of filter views found'),
     // Range utility response fields
     cellsChanged: z
       .number()
@@ -747,7 +813,7 @@ export type DimensionsResponse = z.infer<typeof DimensionsResponseSchema>;
 /** The unwrapped request type (the discriminated union of actions) */
 export type DimensionsRequest = SheetsDimensionsInput['request'];
 
-// Type narrowing helpers for handler methods (29 action types - consolidated)
+// Type narrowing helpers for handler methods (30 action types - consolidated)
 // Consolidated dimension actions (11)
 export type DimensionsInsertInput = SheetsDimensionsInput['request'] & {
   action: 'insert';
@@ -899,6 +965,11 @@ export type DimensionsCreateFilterViewInput = SheetsDimensionsInput['request'] &
   sheetId: number;
   title: string;
 };
+export type DimensionsDuplicateFilterViewInput = SheetsDimensionsInput['request'] & {
+  action: 'duplicate_filter_view';
+  spreadsheetId: string;
+  filterViewId: number;
+};
 export type DimensionsUpdateFilterViewInput = SheetsDimensionsInput['request'] & {
   action: 'update_filter_view';
   spreadsheetId: string;
@@ -939,4 +1010,10 @@ export type DimensionsDeleteSlicerInput = SheetsDimensionsInput['request'] & {
 export type DimensionsListSlicersInput = SheetsDimensionsInput['request'] & {
   action: 'list_slicers';
   spreadsheetId: string;
+};
+export type DimensionsDeleteDuplicatesInput = SheetsDimensionsInput['request'] & {
+  action: 'delete_duplicates';
+  spreadsheetId: string;
+  range: string;
+  comparisonColumns?: number[];
 };

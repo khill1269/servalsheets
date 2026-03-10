@@ -6,6 +6,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DiffEngine, type SpreadsheetState, type SheetState } from '../../src/core/diff-engine.js';
 import type { sheets_v4 } from 'googleapis';
+import { FIELD_MASKS } from '../../src/constants/field-masks.js';
 
 describe('DiffEngine', () => {
   let diffEngine: DiffEngine;
@@ -64,6 +65,13 @@ describe('DiffEngine', () => {
       expect(state.sheets).toHaveLength(1);
       expect(state.sheets[0]?.title).toBe('Sheet1');
       expect(state.checksum).toBeDefined();
+      expect(mockSheetsApi.spreadsheets.get).toHaveBeenCalledWith(
+        expect.objectContaining({
+          spreadsheetId: 'test-sheet',
+          includeGridData: false,
+          fields: FIELD_MASKS.SPREADSHEET_WITH_SHEETS,
+        })
+      );
     });
 
     it('should capture sample data when tier is SAMPLE', async () => {

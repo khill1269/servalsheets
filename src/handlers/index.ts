@@ -44,6 +44,12 @@ export type { WebhookHandler } from './webhooks.js';
 export type { DependenciesHandler } from './dependencies.js';
 // Federation handler (Feature 3)
 export type { FederationHandler } from './federation.js';
+// Computation engine (Phase 5)
+export type { ComputeHandler } from './compute.js';
+// Agent loop (Phase 6)
+export type { AgentHandler } from './agent.js';
+// Live data connectors (Wave 6)
+export type { ConnectorsHandler } from './connectors.js';
 
 import type { sheets_v4, drive_v3 } from 'googleapis';
 import type { bigquery_v2 } from 'googleapis';
@@ -88,6 +94,12 @@ export interface Handlers {
   dependencies: import('./dependencies.js').DependenciesHandler;
   // Federation handler (Feature 3)
   federation: import('./federation.js').FederationHandler;
+  // Computation engine (Phase 5)
+  compute: import('./compute.js').ComputeHandler;
+  // Agent loop (Phase 6)
+  agent: import('./agent.js').AgentHandler;
+  // Live data connectors (Wave 6)
+  connectors: import('./connectors.js').ConnectorsHandler;
 }
 
 /**
@@ -97,6 +109,7 @@ export interface Handlers {
  */
 export function createHandlers(options: HandlerFactoryOptions): Handlers {
   const cache = {} as Partial<Handlers>;
+  let handlersRef: Handlers | undefined;
 
   const loaders = {
     async data() {
@@ -117,7 +130,7 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     },
     async transaction() {
       const { TransactionHandler } = await import('./transaction.js');
-      return new TransactionHandler();
+      return new TransactionHandler({ context: options.context });
     },
     async quality() {
       const { QualityHandler } = await import('./quality.js');
@@ -129,6 +142,9 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
         snapshotService: options.context.snapshotService,
         driveApi: options.driveApi,
         sheetsApi: options.sheetsApi,
+        server: options.context.server,
+        taskStore: options.context.taskStore,
+        googleClient: options.context.googleClient ?? undefined,
       });
     },
     // New MCP-native handlers
@@ -150,7 +166,11 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     },
     async session() {
       const { SessionHandler } = await import('./session.js');
-      return new SessionHandler();
+      const handler = new SessionHandler();
+      if (options.context.scheduler) {
+        handler.setScheduler(options.context.scheduler);
+      }
+      return handler;
     },
     // Wave 1 consolidated handlers
     async core() {
@@ -181,7 +201,14 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     // Webhook handler
     async webhooks() {
       const { createWebhookHandler } = await import('./webhooks.js');
-      return createWebhookHandler();
+      const { WorkspaceEventsService } = await import('../services/workspace-events.js');
+      const workspaceEventsService = options.context.googleClient
+        ? new WorkspaceEventsService(options.context.googleClient)
+        : undefined;
+      return createWebhookHandler({
+        driveApi: options.driveApi,
+        workspaceEventsService,
+      });
     },
     // Dependencies handler
     async dependencies() {
@@ -191,11 +218,29 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     // Federation handler (Feature 3)
     async federation() {
       const { FederationHandler } = await import('./federation.js');
-      return new FederationHandler();
+      return new FederationHandler(options.context.taskStore);
+    },
+    // Computation engine (Phase 5)
+    async compute() {
+      const { ComputeHandler } = await import('./compute.js');
+      return new ComputeHandler(options.sheetsApi, {
+        samplingServer: options.context.samplingServer,
+        duckdbEngine: options.context.duckdbEngine,
+      });
+    },
+    // Agent loop (Phase 6)
+    async agent() {
+      const { AgentHandler } = await import('./agent.js');
+      return new AgentHandler(handlersRef as unknown as import('./agent.js').AgentHandlerRegistry);
+    },
+    // Live data connectors (Wave 6)
+    async connectors() {
+      const { ConnectorsHandler } = await import('./connectors.js');
+      return new ConnectorsHandler({ samplingServer: options.context.samplingServer });
     },
   };
 
-  return new Proxy({} as Handlers, {
+  handlersRef = new Proxy({} as Handlers, {
     get(_, prop: string) {
       // Return cached handler if available
       if (cache[prop as keyof Handlers]) {
@@ -236,4 +281,5 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
       );
     },
   });
+  return handlersRef;
 }

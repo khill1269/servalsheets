@@ -72,6 +72,7 @@ export class TemplateStore {
             'nextPageToken, files(id, name, description, createdTime, modifiedTime, appProperties)',
           pageSize: 100,
           pageToken,
+          supportsAllDrives: true,
         });
 
         const files = response.data.files || [];
@@ -118,12 +119,14 @@ export class TemplateStore {
       // Get file metadata
       const metaResponse = await this.driveApi.files.get({
         fileId: templateId,
+        supportsAllDrives: true,
         fields: 'id, name, description, appProperties, createdTime, modifiedTime',
       });
 
       // Get file content
       const contentResponse = await this.driveApi.files.get({
         fileId: templateId,
+        supportsAllDrives: true,
         alt: 'media',
       });
 
@@ -174,6 +177,7 @@ export class TemplateStore {
 
     try {
       const response = await this.driveApi.files.create({
+        supportsAllDrives: true,
         requestBody: {
           name: `${template.name.replace(/[^a-zA-Z0-9-_]/g, '_')}.json`,
           description: template.description,
@@ -251,6 +255,7 @@ export class TemplateStore {
     try {
       await this.driveApi.files.update({
         fileId: templateId,
+        supportsAllDrives: true,
         requestBody: {
           description: updated.description,
           appProperties: {
@@ -284,6 +289,7 @@ export class TemplateStore {
       // Note: appDataFolder files cannot be trashed, only permanently deleted
       await this.driveApi.files.delete({
         fileId: templateId,
+        supportsAllDrives: true,
       });
 
       logger.info('Deleted template', { templateId });
@@ -372,6 +378,7 @@ export class TemplateStore {
         q: `name='${TEMPLATES_FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
         fields: 'files(id)',
         pageSize: 1,
+        supportsAllDrives: true,
         // Note: pageSize=1 means pagination unlikely, but included for completeness
       });
 
@@ -383,6 +390,7 @@ export class TemplateStore {
 
       // Create folder
       const createResponse = await this.driveApi.files.create({
+        supportsAllDrives: true,
         requestBody: {
           name: TEMPLATES_FOLDER,
           mimeType: 'application/vnd.google-apps.folder',

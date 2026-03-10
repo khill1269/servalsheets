@@ -19,7 +19,7 @@ import {
 // PROTOCOL CONSTANTS
 // ============================================================================
 
-export const MCP_PROTOCOL_VERSION = '2025-11-25';
+export { MCP_PROTOCOL_VERSION } from '../constants/protocol.js';
 export const SHEETS_API_VERSION = 'v4';
 export const DRIVE_API_VERSION = 'v3';
 
@@ -111,6 +111,36 @@ export const ColorSchema = z
     'Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, "#FF0000", "red"'
   );
 
+// ISSUE-079: Theme color support for Google Sheets dynamic theming
+/** ThemeColorType enum — colors that update automatically with the spreadsheet theme */
+export const ThemeColorTypeSchema = z
+  .enum([
+    'TEXT',
+    'BACKGROUND',
+    'ACCENT1',
+    'ACCENT2',
+    'ACCENT3',
+    'ACCENT4',
+    'ACCENT5',
+    'ACCENT6',
+    'LINK',
+  ])
+  .describe(
+    'Theme color that updates with the spreadsheet theme. Values: TEXT, BACKGROUND, ACCENT1-6, LINK'
+  );
+
+/** ColorStyle — either an explicit RGB color or a theme color reference */
+export const ColorStyleSchema = z
+  .union([
+    z.object({ rgbColor: ColorSchema }).describe('Explicit RGB color'),
+    z
+      .object({ themeColor: ThemeColorTypeSchema })
+      .describe('Theme color (auto-updates with spreadsheet theme)'),
+  ])
+  .describe(
+    'Color as explicit RGB { rgbColor: {red,green,blue} } or theme reference { themeColor: "ACCENT1" }'
+  );
+
 /** Cell value types */
 export const CellValueSchema = z
   .union([z.string(), z.number(), z.boolean(), z.null()])
@@ -143,15 +173,34 @@ export const SheetIdSchema = z.coerce
   );
 
 /** A1 Notation */
-export const A1NotationSchema = z.preprocess((val) => {
-  // Defensive: Ensure value is a string before regex validation
-  // Prevents "a1.match is not a function" runtime errors
-  if (typeof val !== 'string') {
-    // Return invalid value to trigger proper Zod validation error
+export const A1NotationSchema = z.preprocess(
+  (val) => {
+    // Defensive: Ensure value is a string before regex validation
+    // Prevents "a1.match is not a function" runtime errors
+    if (typeof val !== 'string') {
+      // Return invalid value to trigger proper Zod validation error
+      return val;
+    }
     return val;
-  }
-  return val;
-}, z.string().min(1).max(A1_NOTATION_MAX_LENGTH).regex(A1_NOTATION_REGEX, 'Invalid A1 notation format').describe('A1 notation range: "A1" (single cell), "A1:C10" (range), "A:B" (full columns), "1:5" (full rows), "Sheet1!A1:C10" (with sheet name), "\'Sheet Name\'!A1" (quoted sheet name with spaces)'));
+  },
+  z
+    .string()
+    .min(1)
+    .max(A1_NOTATION_MAX_LENGTH)
+    .regex(A1_NOTATION_REGEX, 'Invalid A1 notation format')
+    .refine(
+      (val) => !val.startsWith("'") || /^'([^']|'')*'!/.test(val),
+      "Sheet names with single quotes must use '' escaping in A1 notation (e.g., 'Tom''s Sheet'!A1)"
+    )
+    .refine((val) => {
+      // Reject unbounded full-column refs like "A:Z" or "Sheet1!A:Z" — triggers full grid fetch
+      const range = val.includes('!') ? val.split('!')[1] : val;
+      return !/^[A-Z]+:[A-Z]+$/.test(range ?? '');
+    }, 'Full column references like "A:Z" are not allowed — use explicit row bounds like "A1:Z1000" to prevent unbounded API fetches')
+    .describe(
+      'A1 notation range: "A1" (single cell), "A1:C10" (range), "Sheet1!A1:C10" (with sheet name). Full column refs (A:Z) are rejected — always include row numbers.'
+    )
+);
 
 /** Sheet name */
 export const SheetNameSchema = z
@@ -227,27 +276,29 @@ export const WrapStrategySchema = z
     'Text wrapping: WRAP (wraps to fit column width), CLIP (truncates at cell edge), OVERFLOW_CELL (extends into adjacent empty cells)'
   );
 
-export const BorderStyleSchema = z.enum([
-  'NONE',
-  'DOTTED',
-  'DASHED',
-  'SOLID',
-  'SOLID_MEDIUM',
-  'SOLID_THICK',
-  'DOUBLE',
-]);
+export const BorderStyleSchema = z
+  .enum(['NONE', 'DOTTED', 'DASHED', 'SOLID', 'SOLID_MEDIUM', 'SOLID_THICK', 'DOUBLE'])
+  .describe('Cell border style (e.g., SOLID, DASHED, DOTTED, DOUBLE, NONE).');
 
-export const MergeTypeSchema = z.enum(['MERGE_ALL', 'MERGE_COLUMNS', 'MERGE_ROWS']);
+export const MergeTypeSchema = z
+  .enum(['MERGE_ALL', 'MERGE_COLUMNS', 'MERGE_ROWS'])
+  .describe(
+    'Cell merge type: MERGE_ALL (all cells), MERGE_COLUMNS (by column), MERGE_ROWS (by row).'
+  );
 
-export const PasteTypeSchema = z.enum([
-  'PASTE_NORMAL',
-  'PASTE_VALUES',
-  'PASTE_FORMAT',
-  'PASTE_NO_BORDERS',
-  'PASTE_FORMULA',
-  'PASTE_DATA_VALIDATION',
-  'PASTE_CONDITIONAL_FORMATTING',
-]);
+export const PasteTypeSchema = z
+  .enum([
+    'PASTE_NORMAL',
+    'PASTE_VALUES',
+    'PASTE_FORMAT',
+    'PASTE_NO_BORDERS',
+    'PASTE_FORMULA',
+    'PASTE_DATA_VALIDATION',
+    'PASTE_CONDITIONAL_FORMATTING',
+  ])
+  .describe(
+    'Paste type: PASTE_NORMAL (all), PASTE_VALUES (values only), PASTE_FORMAT (format only), PASTE_FORMULA (formulas only).'
+  );
 
 export const ChartTypeSchema = z
   .preprocess(
@@ -281,22 +332,24 @@ export const LegendPositionSchema = z
   )
   .describe('Legend position for charts. Case-insensitive.');
 
-export const SummarizeFunctionSchema = z.enum([
-  'SUM',
-  'COUNTA',
-  'COUNT',
-  'COUNTUNIQUE',
-  'AVERAGE',
-  'MAX',
-  'MIN',
-  'MEDIAN',
-  'PRODUCT',
-  'STDEV',
-  'STDEVP',
-  'VAR',
-  'VARP',
-  'CUSTOM',
-]);
+export const SummarizeFunctionSchema = z
+  .enum([
+    'SUM',
+    'COUNTA',
+    'COUNT',
+    'COUNTUNIQUE',
+    'AVERAGE',
+    'MAX',
+    'MIN',
+    'MEDIAN',
+    'PRODUCT',
+    'STDEV',
+    'STDEVP',
+    'VAR',
+    'VARP',
+    'CUSTOM',
+  ])
+  .describe('Aggregation function for pivot table values (e.g., SUM, AVERAGE, COUNT, MAX, MIN).');
 
 export const SortOrderSchema = z
   .preprocess(
@@ -305,157 +358,202 @@ export const SortOrderSchema = z
   )
   .describe('Sort order: ASCENDING or DESCENDING. Case-insensitive.');
 
-export const PermissionRoleSchema = z.enum([
-  'owner',
-  'organizer',
-  'fileOrganizer',
-  'writer',
-  'commenter',
-  'reader',
-]);
+export const PermissionRoleSchema = z
+  .enum(['owner', 'organizer', 'fileOrganizer', 'writer', 'commenter', 'reader'])
+  .describe(
+    'Drive permission role: reader (view), commenter (comment), writer (edit), owner (full control).'
+  );
 
-export const PermissionTypeSchema = z.enum(['user', 'group', 'domain', 'anyone']);
+export const PermissionTypeSchema = z
+  .enum(['user', 'group', 'domain', 'anyone'])
+  .describe(
+    'Drive permission type: user (email), group (Google group), domain (whole domain), anyone (public).'
+  );
 
-export const ConditionTypeSchema = z.enum([
-  // Number
-  'NUMBER_GREATER',
-  'NUMBER_GREATER_THAN_EQ',
-  'NUMBER_LESS',
-  'NUMBER_LESS_THAN_EQ',
-  'NUMBER_EQ',
-  'NUMBER_NOT_EQ',
-  'NUMBER_BETWEEN',
-  'NUMBER_NOT_BETWEEN',
-  // Text
-  'TEXT_CONTAINS',
-  'TEXT_NOT_CONTAINS',
-  'TEXT_STARTS_WITH',
-  'TEXT_ENDS_WITH',
-  'TEXT_EQ',
-  'TEXT_IS_EMAIL',
-  'TEXT_IS_URL',
-  // Date
-  'DATE_EQ',
-  'DATE_BEFORE',
-  'DATE_AFTER',
-  'DATE_ON_OR_BEFORE',
-  'DATE_ON_OR_AFTER',
-  'DATE_BETWEEN',
-  'DATE_NOT_BETWEEN',
-  'DATE_IS_VALID',
-  // Other
-  'BLANK',
-  'NOT_BLANK',
-  'CUSTOM_FORMULA',
-  'ONE_OF_LIST',
-  'ONE_OF_RANGE',
-  'BOOLEAN',
-  'TEXT_NOT_EQ',
-  'DATE_NOT_EQ',
-  'FILTER_EXPRESSION',
-]);
+export const ConditionTypeSchema = z
+  .enum([
+    // Number
+    'NUMBER_GREATER',
+    'NUMBER_GREATER_THAN_EQ',
+    'NUMBER_LESS',
+    'NUMBER_LESS_THAN_EQ',
+    'NUMBER_EQ',
+    'NUMBER_NOT_EQ',
+    'NUMBER_BETWEEN',
+    'NUMBER_NOT_BETWEEN',
+    // Text
+    'TEXT_CONTAINS',
+    'TEXT_NOT_CONTAINS',
+    'TEXT_STARTS_WITH',
+    'TEXT_ENDS_WITH',
+    'TEXT_EQ',
+    'TEXT_IS_EMAIL',
+    'TEXT_IS_URL',
+    // Date
+    'DATE_EQ',
+    'DATE_BEFORE',
+    'DATE_AFTER',
+    'DATE_ON_OR_BEFORE',
+    'DATE_ON_OR_AFTER',
+    'DATE_BETWEEN',
+    'DATE_NOT_BETWEEN',
+    'DATE_IS_VALID',
+    // Other
+    'BLANK',
+    'NOT_BLANK',
+    'CUSTOM_FORMULA',
+    'ONE_OF_LIST',
+    'ONE_OF_RANGE',
+    'BOOLEAN',
+    'TEXT_NOT_EQ',
+    'DATE_NOT_EQ',
+    'FILTER_EXPRESSION',
+  ])
+  .describe(
+    'Conditional format condition type (e.g., NUMBER_GREATER, TEXT_CONTAINS, DATE_BEFORE, CUSTOM_FORMULA, BLANK).'
+  );
 
 // ============================================================================
 // ERROR CODES
 // ============================================================================
 
-export const ErrorCodeSchema = z.enum([
-  // MCP Standard (5 codes)
-  'PARSE_ERROR',
-  'INVALID_REQUEST',
-  'METHOD_NOT_FOUND',
-  'INVALID_PARAMS',
-  'INTERNAL_ERROR',
-  // Authentication & Authorization (5 codes)
-  'UNAUTHENTICATED',
-  'PERMISSION_DENIED',
-  'INVALID_CREDENTIALS',
-  'INSUFFICIENT_PERMISSIONS',
-  'INCREMENTAL_SCOPE_REQUIRED', // Phase 0: OAuth incremental consent
-  // Quota & Rate Limiting (3 codes)
-  'QUOTA_EXCEEDED',
-  'RATE_LIMITED',
-  'RESOURCE_EXHAUSTED',
-  // Spreadsheet Errors (8 codes)
-  'SPREADSHEET_NOT_FOUND',
-  'SPREADSHEET_TOO_LARGE',
-  'SHEET_NOT_FOUND',
-  'INVALID_SHEET_ID',
-  'DUPLICATE_SHEET_NAME',
-  'INVALID_RANGE',
-  'RANGE_NOT_FOUND',
-  'PROTECTED_RANGE',
-  // Data & Formula Errors (4 codes)
-  'FORMULA_ERROR',
-  'CIRCULAR_REFERENCE',
-  'INVALID_DATA_VALIDATION',
-  'MERGE_CONFLICT',
-  // Feature-Specific Errors (7 codes)
-  'CONDITIONAL_FORMAT_ERROR',
-  'PIVOT_TABLE_ERROR',
-  'CHART_ERROR',
-  'FILTER_VIEW_ERROR',
-  'NAMED_RANGE_ERROR',
-  'DEVELOPER_METADATA_ERROR',
-  'DIMENSION_ERROR',
-  // Operation Errors (7 codes)
-  'BATCH_UPDATE_ERROR',
-  'TRANSACTION_ERROR',
-  'ABORTED',
-  'DEADLINE_EXCEEDED',
-  'CANCELLED',
-  'OPERATION_CANCELLED', // Phase 1.3: User cancelled operation via elicitation
-  'DATA_LOSS',
-  // Network & Service Errors (6 codes)
-  'UNAVAILABLE',
-  'CONNECTION_ERROR', // HTTP/2 GOAWAY, stream errors, connection resets
-  'UNIMPLEMENTED',
-  'UNKNOWN',
-  'OUT_OF_RANGE',
-  'FAILED_PRECONDITION',
-  // Safety Rails (3 codes)
-  'PRECONDITION_FAILED',
-  'EFFECT_SCOPE_EXCEEDED',
-  'EXPLICIT_RANGE_REQUIRED',
-  'AMBIGUOUS_RANGE',
-  // Features
-  'FEATURE_UNAVAILABLE',
-  'FEATURE_DEGRADED',
-  // Auth & configuration
-  'AUTHENTICATION_REQUIRED',
-  'AUTH_ERROR',
-  'CONFIG_ERROR',
-  'VALIDATION_ERROR',
-  // Resource/handler lifecycle
-  'NOT_FOUND',
-  'NOT_IMPLEMENTED',
-  'HANDLER_LOAD_ERROR',
-  // Session limits
-  'TOO_MANY_SESSIONS',
-  // Data integrity
-  'DATA_ERROR',
-  'VERSION_MISMATCH',
-  'NO_DATA',
-  // Service lifecycle
-  'SERVICE_NOT_INITIALIZED',
-  'SERVICE_NOT_ENABLED', // BUG FIX 0.9: For GCP API not enabled errors
-  'SNAPSHOT_CREATION_FAILED',
-  'SNAPSHOT_RESTORE_FAILED',
-  // Transactions
-  'TRANSACTION_CONFLICT',
-  'TRANSACTION_EXPIRED',
-  // HTTP Transport
-  'SESSION_NOT_FOUND',
-  // Batch/Payload
-  'PAYLOAD_TOO_LARGE',
-  // MCP-native features (SEP-1036, SEP-1577)
-  'ELICITATION_UNAVAILABLE',
-  'SAMPLING_UNAVAILABLE',
-  // Discovery & Replay
-  'FORBIDDEN',
-  'REPLAY_FAILED',
-  // Generic
-  'UNKNOWN_ERROR',
+export const ErrorCodeSchema = z
+  .enum([
+    // MCP Standard (5 codes)
+    'PARSE_ERROR',
+    'INVALID_REQUEST',
+    'METHOD_NOT_FOUND',
+    'INVALID_PARAMS',
+    'INTERNAL_ERROR',
+    // Authentication & Authorization (5 codes)
+    'UNAUTHENTICATED',
+    'PERMISSION_DENIED',
+    'INVALID_CREDENTIALS',
+    'INSUFFICIENT_PERMISSIONS',
+    'INCREMENTAL_SCOPE_REQUIRED', // Phase 0: OAuth incremental consent
+    // Quota & Rate Limiting (3 codes)
+    'QUOTA_EXCEEDED',
+    'RATE_LIMITED',
+    'RESOURCE_EXHAUSTED',
+    // Spreadsheet Errors (8 codes)
+    'SPREADSHEET_NOT_FOUND',
+    'SPREADSHEET_TOO_LARGE',
+    'SHEET_NOT_FOUND',
+    'INVALID_SHEET_ID',
+    'DUPLICATE_SHEET_NAME',
+    'INVALID_RANGE',
+    'RANGE_NOT_FOUND',
+    'PROTECTED_RANGE',
+    // Data & Formula Errors (5 codes)
+    'FORMULA_ERROR',
+    'CIRCULAR_REFERENCE',
+    'INVALID_DATA_VALIDATION',
+    'MERGE_CONFLICT',
+    'FORMULA_INJECTION_BLOCKED', // ISSUE-214: dangerous import/query formula rejected
+    // Feature-Specific Errors (7 codes)
+    'CONDITIONAL_FORMAT_ERROR',
+    'PIVOT_TABLE_ERROR',
+    'CHART_ERROR',
+    'FILTER_VIEW_ERROR',
+    'NAMED_RANGE_ERROR',
+    'DEVELOPER_METADATA_ERROR',
+    'DIMENSION_ERROR',
+    // Operation Errors (8 codes)
+    'BATCH_UPDATE_ERROR',
+    'TRANSACTION_ERROR',
+    'ABORTED',
+    'DEADLINE_EXCEEDED',
+    'CANCELLED',
+    'OPERATION_CANCELLED', // Phase 1.3: User cancelled operation via elicitation
+    'OPERATION_FAILED', // Generic operation failure (composite, agent)
+    'DATA_LOSS',
+    // Network & Service Errors (6 codes)
+    'UNAVAILABLE',
+    'CONNECTION_ERROR', // HTTP/2 GOAWAY, stream errors, connection resets
+    'UNIMPLEMENTED',
+    'UNKNOWN',
+    'OUT_OF_RANGE',
+    'FAILED_PRECONDITION',
+    // Safety Rails (3 codes)
+    'PRECONDITION_FAILED',
+    'EFFECT_SCOPE_EXCEEDED',
+    'EXPLICIT_RANGE_REQUIRED',
+    'AMBIGUOUS_RANGE',
+    // Features
+    'FEATURE_UNAVAILABLE',
+    'FEATURE_DEGRADED',
+    // Auth & configuration
+    'AUTHENTICATION_REQUIRED',
+    'AUTH_ERROR',
+    'CONFIG_ERROR',
+    'VALIDATION_ERROR',
+    // Resource/handler lifecycle
+    'NOT_FOUND',
+    'NOT_IMPLEMENTED',
+    'HANDLER_LOAD_ERROR',
+    // Session limits
+    'TOO_MANY_SESSIONS',
+    // Data integrity
+    'DATA_ERROR',
+    'VERSION_MISMATCH',
+    'NO_DATA',
+    // Service lifecycle
+    'SERVICE_NOT_INITIALIZED',
+    'SERVICE_NOT_ENABLED', // BUG FIX 0.9: For GCP API not enabled errors
+    'SNAPSHOT_CREATION_FAILED',
+    'SNAPSHOT_RESTORE_FAILED',
+    // Transactions
+    'TRANSACTION_CONFLICT',
+    'TRANSACTION_EXPIRED',
+    // HTTP Transport
+    'SESSION_NOT_FOUND',
+    // Session checkpoints (sheets_session.save_checkpoint / load_checkpoint)
+    'CHECKPOINTS_DISABLED',
+    'CHECKPOINT_NOT_FOUND',
+    // Batch/Payload
+    'PAYLOAD_TOO_LARGE',
+    'OPERATION_LIMIT_EXCEEDED',
+    // MCP-native features (SEP-1036, SEP-1577)
+    'ELICITATION_UNAVAILABLE',
+    'SAMPLING_UNAVAILABLE',
+    // Discovery & Replay
+    'FORBIDDEN',
+    'DISCOVERY_FAILED', // Action discovery in discover_action failed
+    'REPLAY_FAILED',
+    // Generic
+    'UNKNOWN_ERROR',
+    // Connectors
+    'INVALID_ACTION',
+    'CONNECTOR_ERROR',
+    // Session errors
+    'SESSION_ERROR',
+  ])
+  .describe(
+    'Structured error code for tool call failures. ' +
+      'PERMISSION_DENIED: credentials expired — call sheets_auth.login. ' +
+      'QUOTA_EXCEEDED: rate-limited — wait 60s and retry. ' +
+      'INVALID_PARAMS: check required fields and A1 range format. ' +
+      'SHEET_NOT_FOUND: call sheets_core.list_sheets to verify names. ' +
+      'AUTHENTICATION_REQUIRED: no active session — call sheets_auth.login first.'
+  );
+
+export const ErrorCodes = ErrorCodeSchema.enum;
+
+export const ErrorCodeFamilySchema = z.enum([
+  'protocol',
+  'validation',
+  'authentication',
+  'authorization',
+  'quota',
+  'not_found',
+  'conflict',
+  'precondition',
+  'transport',
+  'service',
+  'feature',
+  'session',
+  'data',
+  'unknown',
 ]);
 
 // ============================================================================
@@ -471,6 +569,9 @@ export const BorderSchema = z.object({
 /** Text format */
 export const TextFormatSchema = z.object({
   foregroundColor: ColorSchema.optional(),
+  foregroundColorStyle: ColorStyleSchema.optional().describe(
+    'Text color as ColorStyle (preferred over foregroundColor; supports theme colors)'
+  ),
   fontFamily: z.string().optional(),
   fontSize: z.number().positive().optional(),
   bold: z.boolean().optional(),
@@ -547,6 +648,9 @@ export const NumberFormatSchema = z
 /** Cell format */
 export const CellFormatSchema = z.object({
   backgroundColor: ColorSchema.optional(),
+  backgroundColorStyle: ColorStyleSchema.optional().describe(
+    'Background color as ColorStyle (preferred over backgroundColor; supports theme colors)'
+  ),
   textFormat: TextFormatSchema.optional(),
   horizontalAlignment: HorizontalAlignSchema.optional(),
   verticalAlignment: VerticalAlignSchema.optional(),
@@ -560,16 +664,57 @@ export const CellFormatSchema = z.object({
       right: BorderSchema.optional(),
     })
     .optional(),
+  textRotation: z
+    .union([
+      z.object({ angle: z.number().int().min(-90).max(90) }),
+      z.object({ vertical: z.boolean() }),
+    ])
+    .optional()
+    .describe('Text rotation: { angle: -90..90 } or { vertical: true }'),
+  padding: z
+    .object({
+      top: z.number().int().min(0).optional(),
+      right: z.number().int().min(0).optional(),
+      bottom: z.number().int().min(0).optional(),
+      left: z.number().int().min(0).optional(),
+    })
+    .optional()
+    .describe('Cell padding in pixels (top, right, bottom, left)'),
 });
 
 /** Grid range (numeric coordinates) */
-export const GridRangeSchema = z.object({
-  sheetId: SheetIdSchema,
-  startRowIndex: z.number().int().min(0).optional(),
-  endRowIndex: z.number().int().min(0).optional(),
-  startColumnIndex: z.number().int().min(0).optional(),
-  endColumnIndex: z.number().int().min(0).optional(),
-});
+export const GridRangeSchema = z
+  .object({
+    sheetId: SheetIdSchema,
+    startRowIndex: z.number().int().min(0).optional(),
+    endRowIndex: z.number().int().min(0).optional(),
+    startColumnIndex: z.number().int().min(0).optional(),
+    endColumnIndex: z.number().int().min(0).optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (
+      val.startRowIndex !== undefined &&
+      val.endRowIndex !== undefined &&
+      val.startRowIndex >= val.endRowIndex
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'startRowIndex must be less than endRowIndex',
+        path: ['startRowIndex'],
+      });
+    }
+    if (
+      val.startColumnIndex !== undefined &&
+      val.endColumnIndex !== undefined &&
+      val.startColumnIndex >= val.endColumnIndex
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'startColumnIndex must be less than endColumnIndex',
+        path: ['startColumnIndex'],
+      });
+    }
+  });
 
 /** Developer metadata lookup */
 export const DeveloperMetadataLookupSchema = z.object({
@@ -603,32 +748,72 @@ export const DataFilterSchema = z
   });
 
 /** Condition for rules - accepts flexible value formats */
-export const ConditionSchema = z.object({
-  type: ConditionTypeSchema,
-  values: z
-    .preprocess((val) => {
-      // Undefined/null - return undefined
-      if (val === undefined || val === null) return undefined;
+export const ConditionSchema = z
+  .object({
+    type: ConditionTypeSchema,
+    values: z
+      .preprocess((val) => {
+        // Undefined/null - return undefined
+        if (val === undefined || val === null) return undefined;
 
-      // Helper to extract string value from various formats
-      const extractValue = (v: unknown): string => {
-        if (v === null || v === undefined) return '';
-        // Handle Google Sheets API format: { userEnteredValue: "..." }
-        if (typeof v === 'object' && v !== null && 'userEnteredValue' in v) {
-          return String((v as { userEnteredValue: unknown }).userEnteredValue ?? '');
+        // Helper to extract string value from various formats
+        const extractValue = (v: unknown): string => {
+          if (v === null || v === undefined) return '';
+          // Handle Google Sheets API format: { userEnteredValue: "..." }
+          if (typeof v === 'object' && v !== null && 'userEnteredValue' in v) {
+            return String((v as { userEnteredValue: unknown }).userEnteredValue ?? '');
+          }
+          return String(v);
+        };
+
+        // Already an array - convert elements to strings
+        if (Array.isArray(val)) {
+          return val.map(extractValue);
         }
-        return String(v);
-      };
-
-      // Already an array - convert elements to strings
-      if (Array.isArray(val)) {
-        return val.map(extractValue);
+        // Single value - wrap in array
+        return [extractValue(val)];
+      }, z.array(z.string()).optional())
+      .describe('Condition values (single value or array, automatically converted to strings)'),
+  })
+  .superRefine((data, ctx) => {
+    const { type, values } = data;
+    // BETWEEN/NOT_BETWEEN conditions require exactly 2 boundary values
+    const betweenTypes = [
+      'NUMBER_BETWEEN',
+      'NUMBER_NOT_BETWEEN',
+      'DATE_BETWEEN',
+      'DATE_NOT_BETWEEN',
+    ] as const;
+    if (betweenTypes.includes(type as (typeof betweenTypes)[number])) {
+      if (!values || values.length !== 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${type} condition requires exactly 2 values (lower bound and upper bound)`,
+          path: ['values'],
+        });
       }
-      // Single value - wrap in array
-      return [extractValue(val)];
-    }, z.array(z.string()).optional())
-    .describe('Condition values (single value or array, automatically converted to strings)'),
-});
+    }
+    // BLANK/NOT_BLANK conditions require no values
+    if (type === 'BLANK' || type === 'NOT_BLANK') {
+      if (values && values.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${type} condition must have no values`,
+          path: ['values'],
+        });
+      }
+    }
+    // CUSTOM_FORMULA requires a formula starting with '='
+    if (type === 'CUSTOM_FORMULA') {
+      if (!values || values.length === 0 || !values[0]?.startsWith('=')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'CUSTOM_FORMULA condition requires a formula value starting with "="',
+          path: ['values'],
+        });
+      }
+    }
+  });
 
 /** Convert column index to letter (0 = A, 1 = B, 25 = Z, 26 = AA) */
 const indexToColumnLetter = (index: number): string => {
@@ -736,6 +921,14 @@ export const SafetyOptionsSchema = z.object({
   transactionId: z.string().uuid().optional(),
   autoSnapshot: z.boolean().optional().default(true),
   effectScope: EffectScopeSchema.optional(),
+  // ISSUE-214: Formula injection guard for write/append
+  sanitizeFormulas: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe(
+      'When true, reject cell values containing dangerous data-exfiltration formulas (IMPORTDATA, IMPORTRANGE, IMPORTFEED, IMPORTHTML, IMPORTXML, GOOGLEFINANCE, QUERY). Returns FORMULA_INJECTION_BLOCKED error if detected.'
+    ),
 });
 
 // ============================================================================
@@ -1122,6 +1315,112 @@ export const ResponseMetaSchema = z.object({
     })
     .optional()
     .describe('Summary statistics for list-type responses'),
+  pagination: z
+    .object({
+      hasMore: z.boolean().describe('True when additional pages are available'),
+      nextCursor: z
+        .string()
+        .optional()
+        .describe('Opaque cursor/page token to request the next page'),
+      totalCount: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe('Total number of matching records when known'),
+      count: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe('Number of records returned in the current page'),
+      offset: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe('Offset used for this page when offset-based pagination is used'),
+      limit: z.number().int().positive().optional().describe('Page size used for this response'),
+    })
+    .optional()
+    .describe('Standardized pagination metadata envelope'),
+  collection: z
+    .object({
+      itemsField: z
+        .string()
+        .min(1)
+        .describe('Field name on response containing the current page item array'),
+      count: z
+        .number()
+        .int()
+        .nonnegative()
+        .describe('Number of items in the current response page'),
+      totalCount: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe('Total matching item count when known'),
+      hasMore: z.boolean().optional().describe('True when more pages are available'),
+      nextCursor: z.string().optional().describe('Cursor/token for the next page'),
+      offset: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe('Offset used for this page when offset-based paging applies'),
+      limit: z.number().int().positive().optional().describe('Page size used for this response'),
+    })
+    .optional()
+    .describe('Standardized list envelope metadata'),
+  // ISSUE-107: Protocol version surfacing + deprecation guidance
+  protocolVersion: z
+    .string()
+    .optional()
+    .describe('MCP protocol version this server implements (e.g. "2025-11-25")'),
+  deprecationWarning: z
+    .string()
+    .optional()
+    .describe(
+      'Present when the client used a legacy invocation pattern. Contains migration guidance.'
+    ),
+  errorCode: ErrorCodeSchema.optional().describe(
+    'Original error code reported by the handler when success=false'
+  ),
+  errorCodeCanonical: ErrorCodeSchema.optional().describe(
+    'Compatibility canonical error code used for taxonomy consolidation'
+  ),
+  errorCodeFamily: ErrorCodeFamilySchema.optional().describe(
+    'Coarse error-code family for analytics and migration-safe client handling'
+  ),
+  errorCodeIsAlias: z
+    .boolean()
+    .optional()
+    .describe('True when errorCode differs from errorCodeCanonical'),
+  truncated: z
+    .boolean()
+    .optional()
+    .describe('True when response payload was truncated and full data is available elsewhere'),
+  originalSizeBytes: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe('Original serialized response size before truncation'),
+  deliveredSizeBytes: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe('Serialized size of the delivered truncated payload'),
+  retrievalUri: z
+    .string()
+    .optional()
+    .describe('Resource URI for retrieving full non-truncated payload'),
+  continuationHint: z
+    .string()
+    .optional()
+    .describe('Machine-readable hint describing how to continue retrieval'),
 });
 
 // ============================================================================
@@ -1145,6 +1444,8 @@ export interface ToolExecution {
 // ============================================================================
 
 export type Color = z.infer<typeof ColorSchema>;
+export type ThemeColorType = z.infer<typeof ThemeColorTypeSchema>;
+export type ColorStyle = z.infer<typeof ColorStyleSchema>;
 export type CellValue = z.infer<typeof CellValueSchema>;
 export type ValuesArray = z.infer<typeof ValuesArraySchema>;
 export type GridRange = z.infer<typeof GridRangeSchema>;
@@ -1227,8 +1528,13 @@ export const ExecutableActionSchema = z.object({
     .describe('Tool name (e.g., "sheets_fix", "sheets_data", "sheets_format")'),
   action: z.string().min(1).describe('Action name within the tool'),
   params: z
-    .record(
-      z.string(),
+    .object({
+      spreadsheetId: z
+        .string()
+        .min(1)
+        .describe('Target spreadsheet ID (required for action routing)'),
+    })
+    .catchall(
       z.union([
         z.string(),
         z.number(),
@@ -1239,7 +1545,7 @@ export const ExecutableActionSchema = z.object({
       ])
     )
     .describe(
-      'Complete parameters ready to execute - all values must be concrete (strings, numbers, booleans, arrays, or objects)'
+      'Complete parameters ready to execute - spreadsheetId is required; all other values must be concrete (strings, numbers, booleans, arrays, or objects)'
     ),
 
   // Human-readable context

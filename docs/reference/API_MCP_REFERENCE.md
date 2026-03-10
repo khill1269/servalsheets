@@ -773,7 +773,7 @@ export const ToolInputSchema = z.object({
 
 ## Validation Checklist
 
-Use `npm run validate:compliance` to check all 22 tools for:
+Use `npm run validate:compliance` to check all 25 tools for:
 
 ### Google Sheets API v4 Compliance
 
@@ -814,7 +814,7 @@ Use `npm run validate:compliance` to check all 22 tools for:
 npm run validate:compliance
 ```
 
-Checks all 22 tools and 305 actions for:
+Checks all 25 tools and 391 actions for:
 
 - Schema structure compliance
 - Google API pattern adherence
@@ -895,13 +895,13 @@ Runs all checks:
 | `src/schemas/composite.ts`   | `src/handlers/composite.ts`   | 4       |
 | `src/schemas/session.ts`     | `src/handlers/session.ts`     | 13      |
 
-**Total**: 22 tools, 305 actions
+**Total**: 25 tools, 391 actions
 
 ---
 
 ## Summary
 
-This reference provides the complete pattern for implementing Google Sheets API v4 integration with MCP protocol compliance. Use the validation tools to catch issues early and follow the patterns shown here for consistent, reliable implementation across all 305 actions.
+This reference provides the complete pattern for implementing Google Sheets API v4 integration with MCP protocol compliance. Use the validation tools to catch issues early and follow the patterns shown here for consistent, reliable implementation across all 391 actions.
 
 **Next Steps**:
 

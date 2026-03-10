@@ -271,9 +271,7 @@ export class ExcelOnlineBackend implements SpreadsheetBackend {
 
   async batchClear(params: BatchClearParams): Promise<BatchClearResult> {
     await Promise.all(
-      params.ranges.map((range) =>
-        this.clearRange({ documentId: params.documentId, range })
-      )
+      params.ranges.map((range) => this.clearRange({ documentId: params.documentId, range }))
     );
 
     return { clearedRanges: params.ranges };
@@ -408,7 +406,7 @@ export class ExcelOnlineBackend implements SpreadsheetBackend {
     const batchBody = {
       requests: request.mutations.map((mutation, index) => ({
         id: String(index + 1),
-        ...mutation,
+        ...(mutation as object),
       })),
     };
 
@@ -429,9 +427,9 @@ export class ExcelOnlineBackend implements SpreadsheetBackend {
     const path = `${this.itemPath(params.documentId)}/copy`;
 
     const body: Record<string, unknown> = {};
-    if (params.title) body.name = params.title;
+    if (params.title) body['name'] = params.title;
     if (params.destinationFolderId) {
-      body.parentReference = { id: params.destinationFolderId };
+      body['parentReference'] = { id: params.destinationFolderId };
     }
 
     const response = (await this.client.api(path).post(body)) as {
@@ -457,9 +455,7 @@ export class ExcelOnlineBackend implements SpreadsheetBackend {
 
   async listFiles(params: ListFilesParams): Promise<ListFilesResult> {
     // Graph API: GET /drive/root/children with $filter for xlsx files
-    let request = this.client
-      .api('/me/drive/root/children')
-      .top(params.maxResults ?? 20);
+    let request = this.client.api('/me/drive/root/children').top(params.maxResults ?? 20);
 
     if (params.query) {
       request = request.filter(params.query);
@@ -594,14 +590,14 @@ export class ExcelOnlineBackend implements SpreadsheetBackend {
    */
   private toFileMetadata(data: Record<string, unknown>): FileMetadata {
     return {
-      documentId: (data.id as string) ?? '',
-      name: (data.name as string) ?? '',
+      documentId: (data['id'] as string) ?? '',
+      name: (data['name'] as string) ?? '',
       mimeType:
-        ((data.file as Record<string, unknown>)?.mimeType as string) ??
+        ((data['file'] as Record<string, unknown>)?.['mimeType'] as string) ??
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      modifiedTime: (data.lastModifiedDateTime as string) ?? undefined,
-      createdTime: (data.createdDateTime as string) ?? undefined,
-      webViewLink: (data.webUrl as string) ?? undefined,
+      modifiedTime: (data['lastModifiedDateTime'] as string) ?? undefined,
+      createdTime: (data['createdDateTime'] as string) ?? undefined,
+      webViewLink: (data['webUrl'] as string) ?? undefined,
     };
   }
 }

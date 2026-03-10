@@ -110,8 +110,8 @@ describe('CacheInvalidationGraph', () => {
       expect(patterns).toContain('metadata:*');
     });
 
-    it('sheets_format.add_rule should invalidate metadata', () => {
-      const patterns = graph.getInvalidationKeys('sheets_format', 'add_rule');
+    it('sheets_format.add_conditional_format_rule should invalidate metadata', () => {
+      const patterns = graph.getInvalidationKeys('sheets_format', 'add_conditional_format_rule');
 
       expect(patterns).toContain('metadata:*');
     });
@@ -278,8 +278,8 @@ describe('CacheInvalidationGraph', () => {
       expect(patterns).toEqual([]);
     });
 
-    it('sheets_collaborate.add_comment should not invalidate cache', () => {
-      const patterns = graph.getInvalidationKeys('sheets_collaborate', 'add_comment');
+    it('sheets_collaborate.comment_add should not invalidate cache', () => {
+      const patterns = graph.getInvalidationKeys('sheets_collaborate', 'comment_add');
       // Comments are separate from spreadsheet data
       expect(patterns).toEqual([]);
     });
@@ -314,8 +314,8 @@ describe('CacheInvalidationGraph', () => {
   });
 
   describe('History Operations', () => {
-    it('sheets_history.get_history should not invalidate cache', () => {
-      const patterns = graph.getInvalidationKeys('sheets_history', 'get_history');
+    it('sheets_history.list should not invalidate cache', () => {
+      const patterns = graph.getInvalidationKeys('sheets_history', 'list');
       expect(patterns).toEqual([]);
     });
 

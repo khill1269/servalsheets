@@ -11,11 +11,12 @@ import type { CompleteResult } from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * Action names for each tool (for autocompletion)
+ * Total: 397 actions across 25 tools
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
- * Total: 305 actions across 22 tools (Tier 7: templates, bigquery, appsscript, federation)
- * Note: sheets_analyze has 16 actions (comprehensive + targeted + progressive analyses)
+ * Total counts are derived from src/schemas/action-counts.ts.
+ * Note: sheets_analyze has 20 actions (comprehensive + targeted + progressive analyses)
  */
 export const TOOL_ACTIONS: Record<string, string[]> = {
   sheets_advanced: [
@@ -51,6 +52,16 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'update_named_function',
     'delete_named_function',
   ],
+  sheets_agent: [
+    'plan',
+    'execute',
+    'execute_step',
+    'observe',
+    'rollback',
+    'get_status',
+    'list_plans',
+    'resume',
+  ],
   sheets_analyze: [
     'comprehensive',
     'analyze_data',
@@ -70,6 +81,9 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'generate_actions',
     'suggest_next_actions',
     'auto_enhance',
+    'discover_action',
+    'diagnose_errors',
+    'formula_health_check',
   ],
   sheets_appsscript: [
     'create',
@@ -90,6 +104,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'list_triggers',
     'delete_trigger',
     'update_trigger',
+    'install_serval_function',
   ],
   sheets_auth: [
     'status',
@@ -152,6 +167,11 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'approval_list_pending',
     'approval_delegate',
     'approval_cancel',
+    'list_access_proposals',
+    'resolve_access_proposal',
+    'label_list',
+    'label_apply',
+    'label_remove',
   ],
   sheets_composite: [
     'import_csv',
@@ -165,9 +185,33 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'import_and_format',
     'clone_structure',
     'export_large_dataset',
+    'audit_sheet',
+    'publish_report',
+    'data_pipeline',
+    'instantiate_template',
+    'migrate_spreadsheet',
     'generate_sheet',
     'generate_template',
     'preview_generation',
+    'batch_operations',
+  ],
+  sheets_compute: [
+    'evaluate',
+    'aggregate',
+    'statistical',
+    'regression',
+    'forecast',
+    'matrix_op',
+    'pivot_compute',
+    'custom_function',
+    'batch_compute',
+    'explain_formula',
+    'sql_query',
+    'sql_join',
+    'python_eval',
+    'pandas_profile',
+    'sklearn_model',
+    'matplotlib_chart',
   ],
   sheets_confirm: [
     'request',
@@ -175,6 +219,18 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'wizard_start',
     'wizard_step',
     'wizard_complete',
+  ],
+  sheets_connectors: [
+    'list_connectors',
+    'configure',
+    'query',
+    'batch_query',
+    'subscribe',
+    'unsubscribe',
+    'list_subscriptions',
+    'transform',
+    'status',
+    'discover',
   ],
   sheets_core: [
     'get',
@@ -184,6 +240,8 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'get_url',
     'batch_get',
     'get_comprehensive',
+    'describe_workbook',
+    'workbook_fingerprint',
     'list',
     'add_sheet',
     'delete_sheet',
@@ -217,6 +275,11 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'cut_paste',
     'copy_paste',
     'detect_spill_ranges',
+    'smart_fill',
+    'cross_read',
+    'cross_query',
+    'cross_write',
+    'cross_compare',
   ],
   sheets_dependencies: [
     'build',
@@ -226,6 +289,9 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'get_dependents',
     'get_stats',
     'export_dot',
+    'model_scenario',
+    'compare_scenarios',
+    'create_scenario_sheet',
   ],
   sheets_dimensions: [
     'insert',
@@ -243,11 +309,13 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'clear_basic_filter',
     'get_basic_filter',
     'sort_range',
+    'delete_duplicates',
     'trim_whitespace',
     'randomize_range',
     'text_to_columns',
     'auto_fill',
     'create_filter_view',
+    'duplicate_filter_view',
     'update_filter_view',
     'delete_filter_view',
     'list_filter_views',
@@ -342,6 +410,11 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'record_successful_formula',
     'reject_suggestion',
     'get_top_formulas',
+    'schedule_create',
+    'schedule_list',
+    'schedule_cancel',
+    'schedule_run_now',
+    'execute_pipeline',
   ],
   sheets_templates: [
     'list',
@@ -389,6 +462,9 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'test',
     'get_stats',
     'watch_changes',
+    'subscribe_workspace',
+    'unsubscribe_workspace',
+    'list_workspace_subscriptions',
   ],
 };
 
@@ -638,7 +714,6 @@ const ACTION_ALIASES: Record<string, string> = {
   'check quality': 'analyze_quality',
   validate: 'analyze_quality',
   stats: 'analyze_data',
-  statistics: 'analyze_data',
   patterns: 'detect_patterns',
 
   // Collaboration operations
@@ -655,8 +730,6 @@ const ACTION_ALIASES: Record<string, string> = {
   // Version operations
   snapshot: 'version_create_snapshot',
   'save version': 'version_create_snapshot',
-  checkpoint: 'version_create_snapshot',
-  undo: 'version_restore_revision',
   revert: 'version_restore_revision',
   rollback: 'version_restore_revision',
   restore: 'version_restore_revision',
@@ -666,6 +739,141 @@ const ACTION_ALIASES: Record<string, string> = {
   bulk: 'begin',
   multiple: 'begin',
   atomic: 'begin',
+
+  // P4 feature operations (sheets_composite)
+  audit: 'audit_sheet',
+  publish: 'publish_report',
+  pipeline: 'data_pipeline',
+  etl: 'data_pipeline',
+
+  // Cross-spreadsheet operations (sheets_data)
+  cross: 'cross_read',
+  multi: 'cross_read',
+
+  // Federation operations (sheets_federation)
+  remote: 'call_remote',
+  federate: 'call_remote',
+
+  // Data cleaning operations (sheets_fix)
+  anomaly: 'detect_anomalies',
+  anomalies: 'detect_anomalies',
+
+  // Sheet generation and enhancement (sheets_analyze)
+  generate: 'generate_sheet',
+  enhance: 'auto_enhance',
+  suggest: 'suggest_next_actions',
+
+  // Scenario modeling (sheets_dependencies)
+  scenario: 'model_scenario',
+  'what-if': 'model_scenario',
+  what_if: 'model_scenario',
+
+  // sheets_advanced (named ranges, protected ranges, tables, metadata, chips)
+  'named range': 'add_named_range',
+  'protect range': 'add_protected_range',
+  'protect cells': 'add_protected_range',
+  metadata: 'set_metadata',
+  'person chip': 'add_person_chip',
+  table: 'create_table',
+  banding: 'add_banding',
+
+  // sheets_agent (autonomous plan/execute/rollback)
+  'run plan': 'execute',
+  'execute plan': 'execute',
+  'agent plan': 'plan',
+  'multi-step': 'plan',
+  'undo all': 'rollback',
+  'cancel plan': 'rollback',
+
+  // sheets_auth (authentication lifecycle)
+  login: 'login',
+  authenticate: 'login',
+  'sign in': 'login',
+  logout: 'logout',
+  'sign out': 'logout',
+  'auth status': 'status',
+
+  // sheets_bigquery (connected sheets / BigQuery integration)
+  bigquery: 'connect',
+  'connected sheets': 'connect',
+  'bq query': 'query',
+  'export to bq': 'export_to_bigquery',
+  'import from bq': 'import_from_bigquery',
+  'scheduled query': 'create_scheduled_query',
+
+  // sheets_compute (server-side statistical computation)
+  compute: 'aggregate',
+  calculate: 'aggregate',
+  statistics: 'statistical',
+  regression: 'regression',
+  forecast: 'forecast',
+  'matrix multiply': 'matrix_op',
+
+  // sheets_confirm (interactive confirmation and wizards)
+  confirm: 'request',
+  'confirm action': 'request',
+  wizard: 'wizard_start',
+  'start wizard': 'wizard_start',
+  approve: 'request',
+
+  // sheets_connectors (external API connectors)
+  connector: 'configure',
+  'external api': 'query',
+  'live data': 'query',
+  'market data': 'query',
+  subscribe: 'subscribe',
+  'data stream': 'subscribe',
+
+  // sheets_history (operation history / undo-redo)
+  history: 'list',
+  'version history': 'list',
+  undo: 'version_restore_revision',
+  redo: 'redo',
+  'time travel': 'timeline',
+  'restore cells': 'restore_cells',
+
+  // sheets_quality (validation and conflict detection)
+  quality: 'validate',
+  'detect conflicts': 'detect_conflicts',
+  conflict: 'detect_conflicts',
+  'resolve conflict': 'resolve_conflict',
+  'validate data': 'validate',
+
+  // sheets_session (active context and preferences)
+  session: 'set_active',
+  context: 'get_context',
+  checkpoint: 'save_checkpoint',
+  'save state': 'save_checkpoint',
+  preferences: 'update_preferences',
+  'load checkpoint': 'load_checkpoint',
+
+  // sheets_templates (save and apply layout templates)
+  // Note: 'apply' and 'import_builtin' are unique to sheets_templates
+  'apply template': 'apply',
+  'use template': 'apply',
+  'import builtin': 'import_builtin',
+  'built-in template': 'import_builtin',
+
+  // sheets_webhook (event notifications)
+  webhook: 'register',
+  'watch changes': 'watch_changes',
+  notification: 'register',
+  'event trigger': 'register',
+  'unwatch': 'unregister',
+
+  // Boost low-coverage tools to ≥3 aliases
+  // sheets_appsscript (was 2 aliases)
+  'deploy script': 'deploy',
+  'run function': 'run',
+
+  // sheets_federation (was 2 aliases)
+  'list servers': 'list_servers',
+  'validate server': 'validate_connection',
+
+  // sheets_fix (was 2 aliases)
+  clean: 'clean',
+  'fill blanks': 'fill_missing',
+  standardize: 'standardize_formats',
 };
 
 export function completeAction(toolName: string, partial: string): string[] {
@@ -835,3 +1043,178 @@ export const EMPTY_COMPLETION: CompleteResult = {
     hasMore: false,
   },
 };
+
+// ============================================================================
+// ISSUE-062: 6 Missing MCP Completions
+// ============================================================================
+
+/** Simple bounded LRU set for recently-seen entity values */
+class EntityCache {
+  private values: Map<string, number> = new Map(); // value → lastAccess
+  constructor(private maxSize = 100) {}
+
+  add(value: string): void {
+    this.values.set(value, Date.now());
+    if (this.values.size > this.maxSize) {
+      const sorted = Array.from(this.values.entries()).sort((a, b) => b[1] - a[1]);
+      this.values = new Map(sorted.slice(0, this.maxSize));
+    }
+  }
+
+  getCompletions(partial: string): string[] {
+    if (!partial || typeof partial !== 'string') {
+      return Array.from(this.values.keys()).slice(0, 20);
+    }
+    const lower = partial.toLowerCase();
+    return Array.from(this.values.entries())
+      .filter(([v]) => v.toLowerCase().includes(lower))
+      .sort((a, b) => b[1] - a[1])
+      .map(([v]) => v)
+      .slice(0, 20);
+  }
+}
+
+const sheetNameCache = new EntityCache(200);
+const templateIdCache = new EntityCache(50);
+const chartIdCache = new EntityCache(100);
+const namedRangeCache = new EntityCache(100);
+const webhookIdCache = new EntityCache(50);
+const revisionIdCache = new EntityCache(50);
+const sheetIdCache = new EntityCache(100);
+
+/** Record a sheet name observed in a response (call from core/data handlers) */
+export function recordSheetName(name: string): void {
+  if (name && typeof name === 'string') sheetNameCache.add(name);
+}
+
+/** Record a template ID observed in a response */
+export function recordTemplateId(id: string): void {
+  if (id && typeof id === 'string') templateIdCache.add(id);
+}
+
+/** Record a chart ID observed in a response */
+export function recordChartId(id: string | number): void {
+  const s = String(id);
+  if (s) chartIdCache.add(s);
+}
+
+/** Record a named range name observed in a response */
+export function recordNamedRange(name: string): void {
+  if (name && typeof name === 'string') namedRangeCache.add(name);
+}
+
+/** Record a webhook ID observed in a response */
+export function recordWebhookId(id: string): void {
+  if (id && typeof id === 'string') webhookIdCache.add(id);
+}
+
+/** Record a revision ID observed in a response */
+export function recordRevisionId(id: string): void {
+  if (id && typeof id === 'string') revisionIdCache.add(id);
+}
+
+/** Complete sheet names from recently-seen values */
+export function completeSheetName(partial: string): string[] {
+  return sheetNameCache.getCompletions(partial);
+}
+
+/** Complete template IDs from recently-seen values */
+export function completeTemplateId(partial: string): string[] {
+  return templateIdCache.getCompletions(partial);
+}
+
+/** Complete chart IDs from recently-seen values */
+export function completeChartId(partial: string): string[] {
+  return chartIdCache.getCompletions(partial);
+}
+
+/** Complete named range names from recently-seen values */
+export function completeNamedRange(partial: string): string[] {
+  return namedRangeCache.getCompletions(partial);
+}
+
+/** Complete webhook IDs from recently-seen values */
+export function completeWebhookId(partial: string): string[] {
+  return webhookIdCache.getCompletions(partial);
+}
+
+/** Complete revision IDs from recently-seen values */
+export function completeRevisionId(partial: string): string[] {
+  return revisionIdCache.getCompletions(partial);
+}
+
+/** Record a sheet ID (numeric) observed in a response (call from core/dimensions handlers) */
+export function recordSheetId(id: number | string): void {
+  const s = String(id);
+  if (s && /^\d+$/.test(s)) sheetIdCache.add(s);
+}
+
+/** Complete sheet IDs from recently-seen numeric values */
+export function completeSheetId(partial: string): string[] {
+  return sheetIdCache.getCompletions(partial);
+}
+
+// ============================================================================
+// STATIC COMPLETERS — locale and timezone
+// ============================================================================
+
+/** BCP-47 locale codes supported by Google Sheets (format: ll_CC) */
+const LOCALES: readonly string[] = [
+  'af_ZA', 'am_ET', 'ar_SA', 'az_AZ', 'be_BY', 'bg_BG', 'bn_BD', 'ca_ES',
+  'cs_CZ', 'cy_GB', 'da_DK', 'de_AT', 'de_CH', 'de_DE', 'el_GR', 'en_AU',
+  'en_CA', 'en_GB', 'en_IE', 'en_IN', 'en_NZ', 'en_SG', 'en_US', 'en_ZA',
+  'es_AR', 'es_CL', 'es_CO', 'es_ES', 'es_MX', 'es_PE', 'es_VE', 'et_EE',
+  'eu_ES', 'fa_IR', 'fi_FI', 'fil_PH', 'fr_BE', 'fr_CA', 'fr_CH', 'fr_FR',
+  'gl_ES', 'gu_IN', 'he_IL', 'hi_IN', 'hr_HR', 'hu_HU', 'hy_AM', 'id_ID',
+  'is_IS', 'it_CH', 'it_IT', 'ja_JP', 'ka_GE', 'kk_KZ', 'km_KH', 'kn_IN',
+  'ko_KR', 'lo_LA', 'lt_LT', 'lv_LV', 'mk_MK', 'ml_IN', 'mn_MN', 'mr_IN',
+  'ms_MY', 'my_MM', 'ne_NP', 'nl_BE', 'nl_NL', 'no_NO', 'pa_IN', 'pl_PL',
+  'pt_BR', 'pt_PT', 'ro_RO', 'ru_RU', 'si_LK', 'sk_SK', 'sl_SI', 'sq_AL',
+  'sr_RS', 'sv_SE', 'sw_TZ', 'ta_IN', 'te_IN', 'th_TH', 'tr_TR', 'uk_UA',
+  'ur_PK', 'uz_UZ', 'vi_VN', 'zh_CN', 'zh_HK', 'zh_TW', 'zu_ZA',
+] as const;
+
+/** IANA timezone identifiers commonly used in Google Sheets */
+const TIMEZONES: readonly string[] = [
+  'Africa/Abidjan', 'Africa/Cairo', 'Africa/Casablanca', 'Africa/Johannesburg',
+  'Africa/Lagos', 'Africa/Nairobi', 'America/Anchorage', 'America/Argentina/Buenos_Aires',
+  'America/Bogota', 'America/Chicago', 'America/Denver', 'America/Detroit',
+  'America/Halifax', 'America/Lima', 'America/Los_Angeles', 'America/Mexico_City',
+  'America/New_York', 'America/Phoenix', 'America/Santiago', 'America/Sao_Paulo',
+  'America/Toronto', 'America/Vancouver', 'Asia/Bangkok', 'Asia/Colombo',
+  'Asia/Dubai', 'Asia/Hong_Kong', 'Asia/Jakarta', 'Asia/Karachi', 'Asia/Kathmandu',
+  'Asia/Kolkata', 'Asia/Kuala_Lumpur', 'Asia/Manila', 'Asia/Riyadh', 'Asia/Seoul',
+  'Asia/Shanghai', 'Asia/Singapore', 'Asia/Taipei', 'Asia/Tehran', 'Asia/Tokyo',
+  'Asia/Yangon', 'Atlantic/Azores', 'Atlantic/Reykjavik', 'Australia/Adelaide',
+  'Australia/Brisbane', 'Australia/Melbourne', 'Australia/Perth', 'Australia/Sydney',
+  'Europe/Amsterdam', 'Europe/Athens', 'Europe/Berlin', 'Europe/Brussels',
+  'Europe/Budapest', 'Europe/Copenhagen', 'Europe/Dublin', 'Europe/Helsinki',
+  'Europe/Istanbul', 'Europe/Kiev', 'Europe/Lisbon', 'Europe/London',
+  'Europe/Madrid', 'Europe/Moscow', 'Europe/Oslo', 'Europe/Paris',
+  'Europe/Prague', 'Europe/Rome', 'Europe/Stockholm', 'Europe/Vienna',
+  'Europe/Warsaw', 'Europe/Zurich', 'Pacific/Auckland', 'Pacific/Fiji',
+  'Pacific/Guam', 'Pacific/Honolulu', 'Pacific/Noumea', 'Pacific/Port_Moresby',
+  'UTC',
+] as const;
+
+/**
+ * Complete locale codes (format: ll_CC, e.g. en_US, fr_FR, de_DE)
+ */
+export function completeLocale(partial: string): string[] {
+  if (!partial || typeof partial !== 'string') {
+    return LOCALES.slice(0, 20) as string[];
+  }
+  const lower = partial.toLowerCase();
+  return (LOCALES as readonly string[]).filter((l) => l.toLowerCase().startsWith(lower)).slice(0, 20);
+}
+
+/**
+ * Complete IANA timezone identifiers (e.g. America/New_York, Europe/London)
+ */
+export function completeTimeZone(partial: string): string[] {
+  if (!partial || typeof partial !== 'string') {
+    return TIMEZONES.slice(0, 20) as string[];
+  }
+  const lower = partial.toLowerCase();
+  return (TIMEZONES as readonly string[]).filter((tz) => tz.toLowerCase().startsWith(lower)).slice(0, 20);
+}

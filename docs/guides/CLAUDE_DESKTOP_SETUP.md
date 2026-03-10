@@ -452,7 +452,7 @@ The following features are **always active** in v1.6.0:
 
 ## 📊 Verify Tools Are Loaded
 
-You should see **22 tools** available:
+You should see **25 tools** available:
 
 1. `sheets_auth` - Authentication & OAuth
 2. `sheets_core` - Spreadsheet CRUD operations
@@ -474,13 +474,13 @@ You should see **22 tools** available:
 18. `sheets_bigquery` - BigQuery Connected Sheets (Tier 7)
 19. `sheets_appsscript` - Apps Script automation (Tier 7)
 
-**Total**: 22 tools, 305 actions
+**Total**: 25 tools, 391 actions
 
 To see the current action breakdown, run:
 
 ```bash
 npm run check:drift | grep "Total:"
-# Output: ✅ Total: 22 tools, 305 actions
+# Output: ✅ Total: 25 tools, 391 actions
 ```
 
 ## 🎯 Example Tasks
@@ -774,7 +774,7 @@ Available modes:
 
 - **lite** (8 tools, 199KB) - Core operations only, recommended for Claude Desktop
 - **standard** (12 tools, 444KB) - Removes MCP-native + Tier 7 enterprise tools
-- **full** (22 tools, 527KB) - All tools including BigQuery, Apps Script, Templates
+- **full** (25 tools, 527KB) - All tools including BigQuery, Apps Script, Templates
 
 Tool breakdown:
 
@@ -822,7 +822,7 @@ Tool breakdown:
 
 - **Total payload:** ~209KB (60% reduction)
 - **Token savings:** ~318KB
-- **Best for:** Users who need all 22 tools but want better performance
+- **Best for:** Users who need all 25 tools but want better performance
 
 **Default** (No optimization):
 

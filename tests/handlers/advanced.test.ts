@@ -7,6 +7,10 @@ import { AdvancedHandler } from '../../src/handlers/advanced.js';
 import { SheetsAdvancedOutputSchema } from '../../src/schemas/advanced.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4 } from 'googleapis';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 const createMockSheetsApi = () => ({
   spreadsheets: {
@@ -1055,6 +1059,7 @@ describe('AdvancedHandler', () => {
       const result = await handler.handle({
         action: 'list_chips',
         spreadsheetId: 'sheet-id',
+        range: 'Sheet1!A1:Z100',
         chipType: 'all',
       });
 
@@ -1064,6 +1069,73 @@ describe('AdvancedHandler', () => {
       if (result.response.success) {
         expect(result.response.chips?.length).toBe(3);
       }
+    });
+
+    it('emits progress notifications when scanning chips across multiple sheets', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'advanced-chips-progress',
+        progressToken: 'advanced-chips-progress',
+        sendNotification: notification,
+      });
+
+      const sizeCheckResponse = {
+        data: {
+          sheets: [
+            {
+              properties: {
+                sheetId: 0,
+                title: 'Sheet1',
+                gridProperties: { rowCount: 100, columnCount: 26 },
+              },
+            },
+            {
+              properties: {
+                sheetId: 1,
+                title: 'Sheet2',
+                gridProperties: { rowCount: 100, columnCount: 26 },
+              },
+            },
+          ],
+        },
+      };
+      const chipDataResponse = {
+        data: {
+          sheets: [
+            {
+              properties: { sheetId: 0, title: 'Sheet1' },
+              data: [{ startRow: 0, startColumn: 0, rowData: [{ values: [] }] }],
+            },
+            {
+              properties: { sheetId: 1, title: 'Sheet2' },
+              data: [{ startRow: 0, startColumn: 0, rowData: [{ values: [] }] }],
+            },
+          ],
+        },
+      };
+
+      mockSheetsApi.spreadsheets.get
+        .mockResolvedValueOnce(sizeCheckResponse)
+        .mockResolvedValueOnce(chipDataResponse);
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'list_chips',
+          spreadsheetId: 'sheet-id',
+          range: 'Sheet1!A1:Z100',
+          chipType: 'all',
+        })
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({
+          progress: 0,
+          total: 2,
+        }),
+      });
     });
   });
 });

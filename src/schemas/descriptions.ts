@@ -8,7 +8,7 @@
  * 4. **TOP 3 ACTIONS** - Most common usage patterns
  * 5. **SAFETY** - Destructive operation warnings
  *
- * Total: 22 tools, 315 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
+ * Total: 25 tools, 397 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
  *
  * SHARED CONTEXT (applies to all tools except sheets_auth):
  * - PREREQUISITE: sheets_auth must be authenticated before using any tool.
@@ -41,34 +41,54 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   // CORE DATA OPERATIONS
   //=============================================================================
 
-  sheets_core: `📋 CORE - Create and manage spreadsheets and sheets/tabs (${ACTION_COUNTS['sheets_core']} actions). Get metadata and URLs.
+  sheets_core: `📋 CORE - Spreadsheet and sheet/tab management (${ACTION_COUNTS['sheets_core']} actions). Metadata, structure, URLs.
 
 **DECISION GUIDE - Which action should I use?**
-→ **Need metadata from 3+ spreadsheets?** Use batch_get (1 API call for all, NOT 3+ separate get calls)
-→ **Deleting 3+ sheets?** Use batch_delete_sheets (1 API call, 80%+ savings)
+→ **Creating NEW spreadsheet?** Use create (creates entire Google Sheets file)
+→ **Adding NEW TAB to existing spreadsheet?** Use add_sheet (creates sheet within file)
+→ **Need metadata from 3+ spreadsheets?** Use batch_get (1 API call, NOT 3 separate calls)
+→ **Deleting 3+ sheets/tabs?** Use batch_delete_sheets (1 API call, 80%+ savings)
 → **Updating 3+ sheet properties?** Use batch_update_sheets (1 call vs N calls)
+→ **Just getting sheet names?** Use sheets_analyze.scout (faster, 0 data transfer)
 
-**Use when:** Creating/copying spreadsheets, adding/deleting/renaming sheets, getting metadata
+**Use when:** Creating/copying/moving spreadsheets, adding/deleting/renaming sheet tabs, getting metadata and URLs
+
 **NOT this tool - use instead:**
 > sheets_data - Reading/writing CELL VALUES
-> sheets_format - Applying STYLES or formatting
-> sheets_analyze - For metadata + data + analysis in 1 call (faster!)
-**ACTIONS (19):** get, create, copy, update_properties, get_url, batch_get, get_comprehensive, list, add_sheet, delete_sheet, duplicate_sheet, update_sheet, copy_sheet_to, list_sheets, get_sheet, batch_delete_sheets, batch_update_sheets, clear_sheet, move_sheet
-**Key parameter:** sheetId (numeric ID from list_sheets, not sheet name: 0, 123456789, etc.)
+> sheets_format - Cell colors, fonts, borders, styling
+> sheets_composite.setup_sheet - New sheet + headers + formatting (2 calls total)
+> sheets_analyze - Quick metadata + data + quality (faster!)
 
-**Parameter format examples:**
-- Create: {"action":"create","title":"My Spreadsheet"}
-- Get metadata: {"action":"get","spreadsheetId":"1ABC..."}
-- Batch get metadata: {"action":"batch_get","spreadsheetIds":["1ABC...","1DEF...","1GHI..."]} ← 3 spreadsheets in 1 call!
-- Add sheet: {"action":"add_sheet","spreadsheetId":"1ABC...","title":"New Sheet"}
-- Batch delete sheets: {"action":"batch_delete_sheets","spreadsheetId":"1ABC...","sheetIds":[123,456,789]} ← 3 sheets deleted in 1 call!
-**Tip:** Use sheets_analyze comprehensive instead of get for metadata + data + analysis in 1 call
+**ACTIONS BY CATEGORY:**
+[Create/Copy] create (new spreadsheet), copy (copy spreadsheet), copy_sheet_to (copy sheet to another spreadsheet)
+[Spreadsheet Management] get, batch_get (metadata from 3+ files), list, get_url
+[Sheet Management] add_sheet (new tab), delete_sheet, duplicate_sheet, update_sheet, list_sheets, get_sheet, batch_delete_sheets, batch_update_sheets, move_sheet, clear_sheet
+[Properties] update_properties (title, locale, timezone)
+[Full Analysis] get_comprehensive (metadata + data + formulas in 1 call)
+
+**⚠️ KEY DISTINCTION:**
+- **create** = New Google Sheets FILE (entire spreadsheet with blank sheet)
+- **add_sheet** = New TAB within existing file
+- **sheets_analyze.scout** = Metadata only, no data transfer (faster for structure)
+- **sheets_composite.setup_sheet** = Sheet + headers + format + freeze (2 calls)
+
+**SAFETY:**
+[Read-only] get, batch_get, list, list_sheets, get_sheet, get_url, get_comprehensive
+[Destructive] delete_sheet, batch_delete_sheets, clear_sheet ← permanent, use sheets_confirm
+[Safe mutation] create, copy, add_sheet, duplicate_sheet, update_sheet, update_properties, copy_sheet_to, move_sheet, batch_update_sheets
+
+**TOP 3 ACTIONS:**
+1. create: {"action":"create","title":"My Spreadsheet"} — Create new spreadsheet file
+2. add_sheet: {"action":"add_sheet","spreadsheetId":"1ABC...","title":"New Sheet"} — Add new tab
+3. batch_get: {"action":"batch_get","spreadsheetIds":["1ABC...","1DEF...","1GHI..."]} — 3 files, 1 call
 
 **SMART ROUTING:**
-- Need sheet with headers + formatting? → Use sheets_composite.setup_sheet (not add_sheet + write + format separately)
-- Clone structure? → Use sheets_core.duplicate_sheet or sheets_composite.clone_structure
-- Just checking sheet names? → Use sheets_analyze.scout (faster, includes column info)
-- Managing 3+ sheets? → Use batch_delete_sheets or batch_update_sheets (80%+ savings!)`,
+- New file? → create (1 call)
+- New sheet tab? → add_sheet (not create)
+- New sheet + headers + formatting? → sheets_composite.setup_sheet (2 calls)
+- Just sheet names? → sheets_analyze.scout (faster, 0 data)
+- Managing 3+ sheets? → batch_delete_sheets or batch_update_sheets (1 call)
+- Duplicate structure? → duplicate_sheet or sheets_composite.clone_structure`,
 
   sheets_data: `📝 DATA - Read and write cell values, notes, and hyperlinks (${ACTION_COUNTS['sheets_data']} actions). Append rows, find/replace text, merge cells.
 
@@ -83,7 +103,14 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 > sheets_format - Applying CELL STYLES, colors, borders
 > sheets_dimensions - Resizing, hiding, freezing ROWS/COLUMNS
 > sheets_analyze - For analyzing DATA patterns and quality
-**ACTIONS (18):** read, write, append, clear, batch_read, batch_write, batch_clear, find_replace, add_note, get_note, clear_note, set_hyperlink, clear_hyperlink, merge_cells, unmerge_cells, get_merges, cut_paste, copy_paste
+**ACTIONS BY CATEGORY:**
+[Read/Write] read, write, append, clear, batch_read, batch_write, batch_clear, find_replace
+[Notes/Links] add_note, get_note, clear_note, set_hyperlink, clear_hyperlink
+[Merge] merge_cells, unmerge_cells, get_merges
+[Clipboard] cut_paste, copy_paste
+[Spill Detection] detect_spill_ranges — find array formula spill regions
+[Cross-Spreadsheet] cross_read (fetch+join from multiple spreadsheets), cross_query (NL query across spreadsheets), cross_write (copy data between spreadsheets), cross_compare (diff two ranges across spreadsheets)
+
 **Range format:** "Sheet1!A1:D10" (case-sensitive; spaces/emoji: "'My Sheet'!A1:D10")
 
 ⚠️ **EMOJI SHEET NAMES:** ALWAYS use single quotes: "'📊 Dashboard'!A1:Z30" NOT "📊 Dashboard!A1:Z30"
@@ -96,7 +123,11 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 - Write: {"action":"write","spreadsheetId":"1ABC...","range":"Sheet1!A1:D10","values":[["Name","Age"],["Alice",30]]}
 - Write batch: {"action":"batch_write","spreadsheetId":"1ABC...","data":[{"range":"Sheet1!A1:D10","values":[...]},{"range":"Sheet2!A1:B20","values":[...]}]}
 - Append: {"action":"append","spreadsheetId":"1ABC...","range":"Sheet1!A:D","values":[["Bob",25]]}
-**Safety:** write/clear are destructive — use dryRun:true to preview, sheets_confirm for >100 cells
+**SAFETY:**
+[Read-only] read, batch_read, get_note, get_merges, detect_spill_ranges, cross_read, cross_query, cross_compare
+[Destructive] write, clear, batch_write, batch_clear, cut_paste, cross_write ← requires confirmation for >100 cells
+[Non-idempotent] append ← NEVER retry on timeout (duplicates rows)
+[Safe mutation] find_replace, add_note, clear_note, set_hyperlink, clear_hyperlink, merge_cells, unmerge_cells, copy_paste
 
 **Dynamic ranges:** Use \`dataFilter\` instead of hard-coded A1 ranges for production systems. Read \`knowledge:///search?q=dynamic ranges datafilter\` for full guide with examples.
 
@@ -106,6 +137,17 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 3. Multiple sequential reads instead of batch: ❌ Multiple read calls | ✅ batch_read in 1 call
 4. Not validating before large writes: ❌ write directly | ✅ sheets_quality.validate first, then write
 
+**CROSS-SPREADSHEET OPERATIONS:**
+→ **Need data from multiple spreadsheets?** Use cross_read (parallel fetch + optional join by key column)
+→ **Natural language query across sheets?** Use cross_query ("show revenue from Sales joined with costs from Finance")
+→ **Copy data between spreadsheets?** Use cross_write (source → destination, with confirmation)
+→ **Compare data across spreadsheets?** Use cross_compare (cell-level diff with delta percentages)
+
+**Parameter format examples (cross-spreadsheet):**
+- Cross read: {"action":"cross_read","sources":[{"spreadsheetId":"1ABC...","range":"Sheet1!A1:D100"},{"spreadsheetId":"2DEF...","range":"Sheet1!A1:D100"}],"joinKey":"ProductID"}
+- Cross query: {"action":"cross_query","sources":[{"spreadsheetId":"1ABC...","range":"Sales!A1:D100"},{"spreadsheetId":"2DEF...","range":"Costs!A1:C50"}],"query":"total revenue minus costs by category"}
+- Detect spills: {"action":"detect_spill_ranges","spreadsheetId":"1ABC...","sheetId":0}
+
 **SMART ROUTING:**
 - Need to add rows? → Use append (auto-finds last row) NOT write
 - 3+ ranges to read/write? → Use batch_read/batch_write (same API cost!)
@@ -113,58 +155,54 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 - Bulk updating 50+ rows? → Use sheets_transaction OR sheets_composite.bulk_update
 - Need column matching? → Use sheets_composite.smart_append instead
 - Want to validate first? → Run sheets_quality.validate before write
-- Need structure first? → Run sheets_analyze.scout (0 data transfer)`,
+- Need structure first? → Run sheets_analyze.scout (0 data transfer)
+- Need data from multiple spreadsheets? → Use cross_read / cross_query (NOT manual multi-read)`,
 
   //=============================================================================
   // FORMATTING & STYLING
   //=============================================================================
 
-  sheets_format: `🎨 FORMAT - Cell styling, sparklines & conditional rules (${ACTION_COUNTS['sheets_format']} actions). set_format, suggest_format, set_background, set_text_format, set_number_format, set_alignment, set_borders, clear_format, apply_preset, auto_fit, batch_format, sparkline_add, sparkline_get, sparkline_clear, rule_add_conditional_format, rule_update_conditional_format, rule_delete_conditional_format, rule_list_conditional_formats, set_data_validation, clear_data_validation, list_data_validations, add_conditional_format_rule, set_rich_text
+  sheets_format: `🎨 FORMAT - Colors, fonts, borders, conditional rules & data validation (${ACTION_COUNTS['sheets_format']} actions).
 
 **DECISION GUIDE - Which action should I use?**
-→ **Formatting 3+ ranges?** ALWAYS use batch_format — 1 API call for all, 80%+ savings vs sequential calls
-→ **Need a professional look?** Use sheets_composite.setup_sheet (headers+format+freeze in 2 calls, NOT sheets_format calls)
-→ **Just 1-2 format changes?** Use individual set_format (simple, 1 call per range)
-→ **Setting up a new sheet?** Use sheets_composite.setup_sheet instead (includes headers+format+freeze atomically)
+→ **Formatting 3+ ranges?** Use batch_format (1 API call, 80%+ savings vs sequential)
+→ **Need professional look?** Use apply_preset or sheets_composite.setup_sheet (2 calls total)
+→ **Conditional formatting?** Use add_conditional_format_rule with presets (simpler than rule_add_)
+→ **Data validation dropdowns?** Use set_data_validation
+→ **Just 1-2 changes?** Use individual set_format (simple, direct)
 
-**ROUTING - Pick this tool when:**
-> Changing cell COLORS, FONTS, BORDERS, ALIGNMENT, text formatting
-> Applying number formats (currency, dates, percentages, custom patterns)
-> Creating conditional formatting rules (color scales, data bars, formula-based)
-> Adding data validation dropdowns or rules
-> Creating sparkline visualizations in cells
-> Applying MULTIPLE format changes at once → use batch_format (80-95% faster)
+**Use when:** Colors, fonts, borders, alignment, number formats, conditional rules, data validation, sparklines, rich text
 
 **NOT this tool - use instead:**
-> sheets_data - Changing cell VALUES or text content
-> sheets_core - Managing SHEETS/TABS structure
-> sheets_dimensions - Changing row/column SIZE, visibility, or grouping
-> sheets_advanced - Creating NAMED RANGES or protecting cells
-> sheets_composite.setup_sheet - For full sheet setup (headers+format+freeze+optional data in 2 calls)
-
-**⚡ PERFORMANCE TIP:** Use batch_format when applying 3+ format changes. It combines all operations into a single Google API call instead of N separate calls. Example: styling a header (background + text + borders) = 1 API call instead of 3.
+> sheets_data - Reading/writing CELL VALUES
+> sheets_dimensions - Row/column size, visibility, grouping
+> sheets_core - Sheet/tab management
+> sheets_advanced - Named ranges, protection
+> sheets_composite.setup_sheet - Full setup (headers + format + freeze)
 
 **ACTIONS BY CATEGORY:**
 [Style] set_format, set_background, set_text_format, set_number_format, set_alignment, set_borders
-[Helpers] suggest_format, clear_format, apply_preset, auto_fit
-[Conditional] add_conditional_format_rule (RECOMMENDED - uses presets), rule_add_conditional_format (advanced - complex schema), rule_update_conditional_format, rule_delete_conditional_format, rule_list_conditional_formats
-[Validation] set_data_validation, clear_data_validation, list_data_validations
-[Rich Text] set_rich_text (mixed formatting within a single cell)
-[Batch] batch_format ← Use for 3+ format changes (80%+ savings!)
+[Batch] batch_format (3+ ranges, 1 call)
+[Presets] apply_preset (instant professional look), suggest_format (AI recommendations)
+[Conditional] add_conditional_format_rule (presets), rule_add_conditional_format (advanced), rule_update_conditional_format, rule_delete_conditional_format, rule_list_conditional_formats
+[Validation] set_data_validation (dropdowns), clear_data_validation, list_data_validations
+[Sparklines] sparkline_add, sparkline_get, sparkline_clear
+[Rich Text] set_rich_text (bold, color, link in one cell)
+
+**⚡ PERFORMANCE:**
+- **1-2 ranges:** Individual set_format (1 call each)
+- **3+ ranges:** batch_format (1 call total, 80%+ savings)
+- **New sheet:** sheets_composite.setup_sheet (2 calls, includes headers + format + freeze)
+
+**SAFETY:**
+[Read-only] suggest_format, rule_list_conditional_formats, list_data_validations, sparkline_get
+[Safe mutation] set_format, set_background, set_text_format, set_number_format, set_alignment, set_borders, batch_format, apply_preset, clear_format, set_data_validation, clear_data_validation, add_conditional_format_rule, rule_add_conditional_format, rule_update_conditional_format, rule_delete_conditional_format, sparkline_add, sparkline_clear, set_rich_text
+[Destructive] rule_delete_conditional_format
 
 **TOP 3 ACTIONS:**
-1. batch_format: {"action":"batch_format","spreadsheetId":"1ABC...","requests":[{"range":"Sheet1!A1:D1","format":{...}},{"range":"Sheet1!A2:D10","format":{...}}]} ← 2+ formats in 1 call!
-2. apply_preset: {"action":"apply_preset","spreadsheetId":"1ABC...","range":"Sheet1!A1:D10","preset":"header_row"} ← Quick professional look
-3. set_background: {"action":"set_background","spreadsheetId":"1ABC...","range":"Sheet1!A1:D1","color":"#4285F4"}
-
-⚠️ Copy sheet names from API responses — never type emoji manually (lookalikes cause silent failures).
-
-**SMART ROUTING:**
-- 1-2 format ranges? → Individual set_format
-- 3+ ranges? → batch_format (1 API call, 80%+ savings)
-- Conditional formatting? → add_conditional_format_rule with presets (simpler than rule_add_)
-- Professional look? → apply_preset: header_row + alternating_rows
-- New sheet? → sheets_composite.setup_sheet (includes format + freeze)`,
+1. batch_format: {"action":"batch_format","spreadsheetId":"1ABC...","requests":[...]} — 2+ ranges, 1 call
+2. apply_preset: {"action":"apply_preset","spreadsheetId":"1ABC...","range":"Sheet1!A1:D10","preset":"header_row"} — Instant professional look
+3. set_data_validation: {"action":"set_data_validation","spreadsheetId":"1ABC...","range":"Sheet1!D2:D100","type":"list","values":["Option 1","Option 2"]} — Dropdowns`,
 
   //=============================================================================
   // DIMENSIONS & STRUCTURE
@@ -173,219 +211,251 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   sheets_dimensions: `📐 DIMENSIONS - Rows, columns, filters, sorting (${ACTION_COUNTS['sheets_dimensions']} actions).
 
 **DECISION GUIDE - Which action should I use?**
-→ **Need 3+ dimension changes?** Use sheets_transaction to batch them (1 API call, 80%+ savings vs sequential)
-→ **Setting up a new sheet?** Use sheets_composite.setup_sheet (includes freeze, format, headers in 2 calls)
-→ **Just 1-2 operations?** Use individual actions (simple, fast)
+→ **Need 3+ dimension changes?** Use sheets_transaction (1 API call, 80%+ savings)
+→ **Setting up new sheet?** Use sheets_composite.setup_sheet (includes freeze + headers in 2 calls)
+→ **Just 1-2 changes?** Use individual actions
+→ **Deleting rows/columns?** ALWAYS delete from BOTTOM to TOP (indices shift!)
+→ **Freezing header row?** Use freeze (dimension:"ROWS", count:1)
 
-**ROUTING - Pick this tool when:**
-> Inserting or deleting ROWS or COLUMNS
-> Resizing, hiding, freezing, or grouping rows/columns
-> Applying basic filters, creating filter views, or slicers
-> Sorting data by columns
-> Auto-fitting column widths
+**Use when:** Insert/delete/move rows or columns, freeze/hide/group, apply filters, sort data, resize columns, create slicers
 
 **NOT this tool - use instead:**
-> sheets_data - Changing cell VALUES or content
-> sheets_format - Changing cell COLORS, fonts, borders, or styles
-> sheets_core - Deleting entire SHEETS (not rows/columns)
-> sheets_analyze - For understanding DATA before filtering/sorting
+> sheets_data - Reading/writing CELL VALUES or content
+> sheets_format - Colors, fonts, borders, styling
+> sheets_core - Managing entire SHEETS or tabs
+> sheets_analyze - Understanding data before filtering
+> sheets_composite - Setting up new sheet (use setup_sheet instead)
 
-**ACTIONS (28):** insert, append, delete, move, resize, auto_resize, hide, show, freeze, unfreeze, group, ungroup, set_basic_filter, clear_basic_filter, get_basic_filter, create_filter_view, update_filter_view, delete_filter_view, list_filter_views, sort_range, trim_whitespace, randomize_range, text_to_columns, auto_fill, create_slicer, update_slicer, delete_slicer, list_slicers
-
-**CONSOLIDATED ACTIONS (use dimension parameter):**
-All row/column operations use dimension:"ROWS" or dimension:"COLUMNS":
-[Insert/Append] insert, append - add rows or columns
-[Delete] delete - remove rows or columns (DESTRUCTIVE)
-[Move] move - relocate rows or columns
-[Resize] resize, auto_resize - change size
-[Visibility] hide, show - toggle visibility
-[Freeze] freeze - freeze from top/left
-[Group] group, ungroup - collapsible sections
-
-**OTHER ACTIONS:**
-[Basic Filter] set_basic_filter, clear_basic_filter, get_basic_filter
-[Filter Views] create_filter_view, update_filter_view, delete_filter_view, list_filter_views, get_filter_view
-[Sort] sort_range
-[Range Utils] trim_whitespace, randomize_range, text_to_columns, auto_fill
+**ACTIONS BY CATEGORY:**
+[Insert/Delete/Move] insert (add rows/cols), append (add at end), delete (DESTRUCTIVE, NOT idempotent), move, resize, auto_resize
+[Visibility] hide, show, freeze (lock top/left rows/cols)
+[Grouping] group, ungroup (collapsible sections)
+[Filters] set_basic_filter (auto-dropdown on headers), clear_basic_filter, get_basic_filter
+[Filter Views] create_filter_view, duplicate_filter_view, update_filter_view, delete_filter_view, list_filter_views, get_filter_view
+[Sort] sort_range (by column)
 [Slicers] create_slicer, update_slicer, delete_slicer, list_slicers
+[Utils] trim_whitespace, randomize_range, text_to_columns, auto_fill
+
+**⚠️ CRITICAL - NOT IDEMPOTENT:**
+- **insert/delete are NOT idempotent** — calling twice = double effect (10 rows inserted twice = 20 rows)
+- **ALWAYS delete from BOTTOM to TOP** — deleting row 3 shifts row 5 to row 4, so delete row 7 first, then 5, then 3
+- **NEVER retry on timeout** — verify state first (get current count, then insert once)
+
+**SAFETY:**
+[Read-only] get_basic_filter, list_filter_views, get_filter_view, list_slicers
+[Destructive] delete (permanent, NOT idempotent), delete_filter_view, delete_slicer, clear_basic_filter
+[Non-idempotent] insert, append (calling twice doubles effect)
+[Safe mutation] move, resize, auto_resize, hide, show, freeze, group, ungroup, sort_range, trim_whitespace, randomize_range, text_to_columns, auto_fill, set_basic_filter, create_filter_view, update_filter_view, create_slicer, update_slicer
 
 **TOP 3 ACTIONS:**
-1. insert: {"action":"insert","spreadsheetId":"1ABC...","sheetId":0,"dimension":"ROWS","startIndex":5,"count":10}
-2. freeze: {"action":"freeze","spreadsheetId":"1ABC...","sheetId":0,"dimension":"ROWS","count":1}
-3. sort_range: {"action":"sort_range","spreadsheetId":"1ABC...","range":"Sheet1!A1:D100","sortSpecs":[{"columnIndex":0,"sortOrder":"DESCENDING"}]}
+1. freeze: {"action":"freeze","spreadsheetId":"1ABC...","sheetId":0,"dimension":"ROWS","count":1} — Lock header row
+2. sort_range: {"action":"sort_range","spreadsheetId":"1ABC...","range":"Sheet1!A1:D100","sortSpecs":[{"columnIndex":0,"sortOrder":"DESCENDING"}]} — Sort by column
+3. insert: {"action":"insert","spreadsheetId":"1ABC...","sheetId":0,"dimension":"ROWS","startIndex":5,"count":10} — Add 10 rows at position 5
 
-**dimension parameter:** Always use "ROWS" or "COLUMNS" (uppercase)
-**sheetId:** Numeric ID from sheets_core.list_sheets (0, 123456789, etc.). Preferred for reliability.
-**sheetName:** Supported as alternative when sheetId is not provided.
-**range format:** "Sheet1!A1:D100" (required for sort_range, case-sensitive)
+**PARAMETERS:**
+- dimension: "ROWS" or "COLUMNS" (uppercase)
+- sheetId: Numeric ID from sheets_core.list_sheets (0, 123456789, etc.)
+- range: "Sheet1!A1:D100" (required for sort_range, case-sensitive)
 
-**SAFETY CRITICAL - NOT IDEMPOTENT:**
-⚠️ insert and delete are NOT idempotent — calling twice doubles the effect. Always verify current state before structural changes.
-EXAMPLE: insert(count:5) twice = 10 rows inserted, NOT 5 (no automatic deduplication)
-SOLUTION: Get current row count first, then insert once with precise count.
-
-**COMMON MISTAKE - INDEX SHIFTING:**
-❌ BAD: Want to delete rows 3,5,7 → Delete row 3, then delete row 5 (but row 5 is now row 4 after deletion!)
-✅ GOOD: Delete rows from BOTTOM to TOP (delete row 7, then 5, then 3) — indices don't shift this way
-
-**SAFETY:** delete is PERMANENT. Always use sheets_confirm for >10 rows/columns.
-
-**SMART ROUTING:**
-- insert/delete are NOT idempotent — never retry on timeout without checking state
-- Delete multiple rows? → Delete from BOTTOM to TOP (indices shift!)
-- Need header freeze? → Included in sheets_composite.setup_sheet
-- Need to combine insert+freeze+filter? → Batch them together (1 call)`,
+**COMMON WORKFLOWS:**
+- New sheet + headers? → sheets_composite.setup_sheet (freeze + format in 2 calls)
+- Delete multiple rows? → Delete from BOTTOM to TOP (indices don't shift)
+- Bulk insert? → Use sheets_transaction to batch (1 API call)
+- Filter + sort? → set_basic_filter then sort_range`,
 
   //=============================================================================
   // VISUALIZATION
   //=============================================================================
 
-  sheets_visualize: `📊 VISUALIZE - Charts, trendlines & pivot tables (${ACTION_COUNTS['sheets_visualize']} actions).
+  sheets_visualize: `📊 VISUALIZE - Charts and pivot tables (${ACTION_COUNTS['sheets_visualize']} actions).
 
-**Tip:** Use sheets_analyze action:"suggest_chart" or "suggest_pivot" first for recommendations.
+**DECISION GUIDE - Which action should I use?**
+→ **Not sure what chart to create?** Use suggest_chart (AI recommendations)
+→ **Need to aggregate/summarize data?** Use pivot_create or suggest_pivot (cross-tabulation, grouping)
+→ **Creating a chart?** Use chart_create with chartType (BAR, LINE, PIE, SCATTER, COLUMN, AREA, COMBO)
+→ **Moving/resizing a chart?** Use chart_move or chart_resize
 
-**ROUTING - Pick this tool when:**
-> Creating charts (bar, line, pie, scatter, column, combo, etc.)
-> Creating pivot tables for aggregation and summarization
-> Updating, moving, resizing, or deleting visualizations
+**Use when:** Creating charts, pivot tables, updating visualizations, moving/resizing, refreshing data sources
 
 **NOT this tool - use instead:**
-> sheets_analyze - Getting chart/pivot RECOMMENDATIONS and suggestions
-> sheets_data - Reading the SOURCE DATA to visualize
-> sheets_format - Styling the SOURCE data (not the chart)
+> sheets_analyze - Getting chart/pivot RECOMMENDATIONS first (suggest_chart, suggest_pivot)
+> sheets_data - Reading/writing SOURCE DATA
+> sheets_format - Styling the SOURCE data (not the chart itself)
+> sheets_dimensions - Source data structure changes
 
 **ACTIONS BY CATEGORY:**
-[Charts] chart_create, chart_update, chart_delete, chart_list, chart_get, chart_move, chart_resize, chart_update_data_range, suggest_chart
-[Pivots] pivot_create, pivot_update, pivot_delete, pivot_list, pivot_get, pivot_refresh, suggest_pivot
+[Recommendations] suggest_chart (AI suggests chart type), suggest_pivot (AI suggests aggregation)
+[Charts] chart_create, chart_update, chart_delete, chart_list, chart_get, chart_move, chart_resize, chart_update_data_range
+[Trendlines] chart_add_trendline (DEPRECATED — use Google Sheets UI), chart_remove_trendline
+[Pivots] pivot_create, pivot_update, pivot_delete, pivot_list, pivot_get, pivot_refresh
+
+**SAFETY:**
+[Read-only] suggest_chart, suggest_pivot, chart_list, chart_get, pivot_list, pivot_get
+[Safe mutation] chart_create, chart_update, chart_move, chart_resize, chart_update_data_range, pivot_create, pivot_update, pivot_refresh, chart_add_trendline
+[Destructive] chart_delete, chart_remove_trendline, pivot_delete
 
 **TOP 3 ACTIONS:**
-1. chart_create: {"action":"chart_create","spreadsheetId":"1ABC...","sheetId":0,"chartType":"LINE","data":{"sourceRange":"Sheet1!A1:B10"},"position":{"anchorCell":"Sheet1!E2"},"options":{"title":"Sales Trend"}}
-2. pivot_create: {"action":"pivot_create","spreadsheetId":"1ABC...","sourceRange":"Sheet1!A1:D100","rows":[{"sourceColumnOffset":0}],"values":[{"sourceColumnOffset":3,"summarizeFunction":"SUM"}]}
-3. suggest_chart: {"action":"suggest_chart","spreadsheetId":"1ABC...","range":"Sheet1!A1:D100"}
+1. suggest_chart: {"action":"suggest_chart","spreadsheetId":"1ABC...","range":"Sheet1!A1:D100"} — Get AI recommendations
+2. chart_create: {"action":"chart_create","spreadsheetId":"1ABC...","sheetId":0,"chartType":"LINE","data":{"sourceRange":"Sheet1!A1:B10"},"position":{"anchorCell":"Sheet1!E2"}} — Create chart
+3. pivot_create: {"action":"pivot_create","spreadsheetId":"1ABC...","sourceRange":"Sheet1!A1:D100","rows":[{"sourceColumnOffset":0}],"values":[{"sourceColumnOffset":3,"summarizeFunction":"SUM"}]} — Create pivot
 
-**POSITION FORMAT:** anchorCell MUST include sheet name: "Sheet1!E2" not just "E2"
-**sourceRange format:** "Sheet1!A1:D100" (required, case-sensitive)
-**sheetId:** Numeric ID from sheets_core.list_sheets (0, 123456789, etc.)
+**PARAMETERS:**
+- chartType: BAR, LINE, PIE, SCATTER, COLUMN, AREA, COMBO (not TREEMAP, SPARKLINE)
+- anchorCell: Must include sheet name: "Sheet1!E2" (not just "E2")
+- sourceRange: "Sheet1!A1:D100" (case-sensitive)
+- sheetId: Numeric from sheets_core.list_sheets (0, 123456789)
 
-**CHART CONSTRAINTS:**
-- BAR charts: series target BOTTOM_AXIS only (horizontal bars)
-- COLUMN charts: series target LEFT_AXIS (vertical bars)
-- sheetId changes when sheets are recreated - always fetch fresh from list_sheets
-
-**TIP:** Use suggest_chart or suggest_pivot first to get AI recommendations before creating.`,
+**WORKFLOW:**
+- Not sure? → suggest_chart → review → chart_create
+- Aggregating? → suggest_pivot → review → pivot_create
+- Updating data? → chart_update_data_range (refresh linked range)`,
 
   //=============================================================================
   // COLLABORATION
   //=============================================================================
 
-  sheets_collaborate: `👥 COLLABORATE - Sharing, comments, versions & snapshots (${ACTION_COUNTS['sheets_collaborate']} actions).
+  sheets_collaborate: `👥 COLLABORATE - Sharing, comments, versions, snapshots & approvals (${ACTION_COUNTS['sheets_collaborate']} actions).
 
-**Requires:** Elevated Drive scope (OAUTH_SCOPE_MODE=full or incremental consent). Create snapshots before destructive ops.
+**DECISION GUIDE - Which action should I use?**
+→ **Need to share with users or change permissions?** Use share_add/share_update/share_remove (editor/viewer/commenter roles)
+→ **Adding comments or building discussion?** Use comment_add/comment_update/comment_resolve (with optional replies)
+→ **Before destructive operation (delete, clear)?** Use version_create_snapshot (backup point, can restore later)
+→ **Find when data changed?** Use version_list_revisions + version_compare (across-session file history, NOT this session)
+→ **Need multi-user approval workflow?** Use approval_create/approval_approve/approval_reject (audit trail)
 
-**ROUTING - Pick this tool when:**
-> Sharing a spreadsheet with users/groups/domains
-> Adding, replying to, resolving, or listing comments
-> Creating snapshots (backup points before changes)
-> Viewing or restoring previous file versions
-> Transferring file ownership
+**Use when:** Sharing files with users/groups, managing comments/discussions, creating backups, viewing file version history, transferring ownership, approval workflows
 
 **NOT this tool - use instead:**
-> sheets_advanced - PROTECTING specific cell ranges
-> sheets_history - Viewing OPERATION history (this session's changes)
-> sheets_format - Styling cells (not sharing)
+> sheets_advanced - PROTECTING specific cell ranges (not sharing entire file)
+> sheets_history - OPERATION history THIS SESSION (undo/redo) — use this for across-session file history
+> sheets_data - Writing or reading CELL VALUES
+> sheets_session - CONVERSATION context
 
 **ACTIONS BY CATEGORY:**
 [Sharing] share_add, share_update, share_remove, share_list, share_get, share_transfer_ownership, share_set_link, share_get_link
 [Comments] comment_add, comment_update, comment_delete, comment_list, comment_get, comment_resolve, comment_reopen, comment_add_reply, comment_update_reply, comment_delete_reply
-[Versions] version_list_revisions, version_get_revision, version_restore_revision, version_keep_revision, version_create_snapshot, version_list_snapshots, version_restore_snapshot, version_delete_snapshot, version_compare, version_export
+[File Versions] version_list_revisions, version_get_revision, version_restore_revision, version_keep_revision, version_create_snapshot, version_list_snapshots, version_restore_snapshot, version_delete_snapshot, version_compare, version_export
 [Approvals] approval_create, approval_approve, approval_reject, approval_get_status, approval_list_pending, approval_delegate, approval_cancel
 
-**TOP 3 ACTIONS:**
-1. share_add: {"action":"share_add","spreadsheetId":"1ABC...","email":"user@example.com","role":"writer"}
-2. comment_add: {"action":"comment_add","spreadsheetId":"1ABC...","range":"A1","content":"Please verify this"}
-3. version_create_snapshot: {"action":"version_create_snapshot","spreadsheetId":"1ABC...","description":"Before cleanup"}
+**⚠️ KEY DISTINCTIONS:**
+- version_* = File revisions (Google Drive history, across sessions + users)
+- sheets_history = Operation audit (this session only, ServalSheets ops)
+- Snapshots = Explicit backups before changes (restore entire snapshot)
+- Restore cells = sheets_history.restore_cells (surgical — restore just specific cells from past revision)
 
-**email format:** "user@example.com" or "group@domain.com"
-**role options:** viewer, commenter, editor, owner
+**SAFETY:**
+[Read-only] share_list, share_get, share_get_link, comment_list, comment_get, version_list_revisions, version_get_revision, version_list_snapshots, version_compare, version_export, approval_get_status, approval_list_pending
+[Destructive] share_remove, comment_delete, comment_delete_reply, version_restore_revision, version_restore_snapshot, version_delete_snapshot, approval_cancel ← irreversible or data-altering
+[Non-idempotent] share_transfer_ownership ← IRREVERSIBLE, cannot undo
+[Safe mutation] share_add, share_update, share_set_link, comment_add, comment_update, comment_resolve, comment_reopen, comment_add_reply, comment_update_reply, version_create_snapshot, version_keep_revision, approval_create, approval_approve, approval_reject, approval_delegate
 
-**TIP:** Always create a snapshot before destructive operations!`,
+**COMMON WORKFLOWS:**
+- Multi-user editing? → share_add (with role) → comment_add (discussions) → version_create_snapshot (before cleanup)
+- Data governance? → approval_create (requires review) → approval_approve (audit trail) → version_keep_revision (pin)
+- Cross-session recovery? → version_list_revisions → version_compare → version_restore_revision (full revert) OR sheets_history.restore_cells (surgical)`,
 
   //=============================================================================
   // ANALYSIS & INTELLIGENCE
   //=============================================================================
 
-  sheets_analyze: `🤖 ANALYZE - Spreadsheet analysis, insights & AI-powered suggestions (${ACTION_COUNTS['sheets_analyze']} actions). START HERE.
+  sheets_analyze: `🤖 ANALYZE - AI-powered spreadsheet insights & recommendations (${ACTION_COUNTS['sheets_analyze']} actions). Use for discovery, explanation, and planning.
 
-**🚀 ALWAYS START HERE:**
-For any spreadsheet you haven't seen before, ALWAYS call action:"comprehensive" FIRST. It gives you metadata + data quality + formula health + recommended actions in just 1-2 API calls.
-Saves 70%+ time vs manual analysis. Gets everything you need to plan your next steps.
+**Use this first ONLY when:**
+- The spreadsheet is unfamiliar and you need context before choosing another tool
+- The user asked for exploration, auditing, diagnosis, or recommendations
+- You need AI help planning a multi-step change safely
+
+**Skip this tool when:**
+- The user already gave a precise read/write/format/structure request
+- You already know the exact target range, action, or sheet mutation needed
+- Another specialist tool clearly matches the request (data, format, dimensions, collaborate, advanced, etc.)
 
 **DECISION GUIDE - Which action should I use?**
-→ **First time seeing this sheet?** Use comprehensive (full overview, 2 API calls, 73% faster than manual)
-→ **Just need structure/metadata?** Use scout (1 API call, 0 data transfer, super-fast)
-→ **Analyzing specific data range?** Use analyze_data (quality, patterns, trends)
-→ **Need a chart/pivot?** Use suggest_chart or suggest_pivot (get recommendations before creating)
-→ **Want formula ideas?** Use generate_formula (describe what you want, Claude generates it)
+→ **Quick overview only?** Use scout (metadata only, 0 data transfer, ~200ms)
+→ **Full analysis (all categories)?** Use comprehensive (metadata + data + quality + formulas)
+→ **Specific category only?** Use analyze_quality/analyze_formulas/analyze_performance (focused deep-dive)
+→ **Need a chart/pivot?** Use suggest_chart or suggest_pivot
+→ **Proactive suggestions?** Use suggest_next_actions (ranked improvements with executable params)
+→ **Auto-fix safe issues?** Use auto_enhance with mode:"preview" then mode:"apply"
 
-**Use when:** Understanding spreadsheet structure/quality, generating AI insights, detecting patterns, natural language queries
+**Use when:** Understanding sheet structure/quality, getting AI insights, detecting patterns, generating formulas, getting improvement suggestions
+
 **NOT this tool - use instead:**
-> sheets_quality - Validating DATA or detecting CONFLICTS before writing
-> sheets_data - Writing CHANGES to the spreadsheet
-> sheets_visualize - Creating CHARTS (use suggest_chart from here first)
-> sheets_fix - Auto-fixing ISSUES (use comprehensive first to find them)
+> sheets_quality - VALIDATING data before writing
+> sheets_data - Writing/reading CELL VALUES
+> sheets_fix - AUTO-FIXING issues after diagnosis or when the cleanup path is already clear
+> sheets_dependencies - FORMULA relationships
 
-**ACTIONS (16):** comprehensive, analyze_data, suggest_visualization, generate_formula, detect_patterns, analyze_structure, analyze_quality, analyze_performance, analyze_formulas, query_natural_language, explain_analysis, scout, plan, execute_plan, drill_down, generate_actions
+**ACTIONS BY CATEGORY:**
+[Discovery] scout (metadata only, fast), comprehensive (full audit, 43 categories), analyze_structure
+[Analysis] analyze_data, analyze_quality, analyze_formulas, analyze_performance, detect_patterns
+[AI] generate_formula (describe → formula), generate_actions, explain_analysis, query_natural_language
+[Workflow] plan, execute_plan, drill_down
+[Copilot] suggest_next_actions (ranked improvements), auto_enhance (auto-apply safe changes)
+
+**⚠️ KEY DISTINCTIONS:**
+- **scout** = Metadata only (sheet names, column count) → Best first step for unfamiliar sheets
+- **comprehensive** = All analysis (metadata + data + quality + formulas + recommendations) → Use for full audits or after scout
+- **suggest_next_actions** = Ranked suggestions with executable params → Get proactive ideas
+- **auto_enhance** = Auto-apply safe improvements (freeze, format, resize) → Mode: preview or apply
+
+**SAFETY:**
+[Read-only] comprehensive, scout, analyze_*, detect_patterns, generate_formula, explain_analysis, query_natural_language, plan, drill_down, generate_actions, suggest_next_actions
+[Safe mutation] auto_enhance (mode:"apply", non-destructive only: freeze, format, resize)
 
 **TOP 3 ACTIONS:**
-1. comprehensive: {"action":"comprehensive","spreadsheetId":"1ABC..."} ← START HERE for new sheets (metadata + data + quality in 1-2 calls)
-2. scout: {"action":"scout","spreadsheetId":"1ABC..."} ← Fast metadata only (1 call, 0 data transfer)
-3. generate_formula: {"action":"generate_formula","description":"Sum of revenue by category"}
+1. scout: {"action":"scout","spreadsheetId":"1ABC..."} — Fast structural overview
+2. comprehensive: {"action":"comprehensive","spreadsheetId":"1ABC..."} — Full audit across categories
+3. suggest_next_actions: {"action":"suggest_next_actions","spreadsheetId":"1ABC...","maxSuggestions":5} — Ranked improvements
 
-**Progressive workflow:** scout (metadata) → plan → execute_plan → drill_down → generate_actions (for large/complex sheets)`,
+**WORKFLOWS:**
+- **Unfamiliar sheet?** → scout → comprehensive if you need a full audit
+- **Just need structure?** → scout (fast, 0 data)
+- **Need ideas?** → suggest_next_actions (proactive suggestions)
+- **Apply improvements?** → auto_enhance with mode:"preview" → mode:"apply"
+- **Planning changes?** → plan → execute_plan → drill_down
+- **Large/complex?** → scout → plan → execute_plan → drill_down`,
 
   //=============================================================================
   // ADVANCED FEATURES
   //=============================================================================
 
-  sheets_advanced: `⚙️ ADVANCED - Named ranges, protection, metadata, banding, tables (${ACTION_COUNTS['sheets_advanced']} actions).
+  sheets_advanced: `⚙️ ADVANCED - Named ranges, protection, metadata, banding & tables (${ACTION_COUNTS['sheets_advanced']} actions). Infrastructure for large sheets.
 
-**ROUTING - Pick this tool when:**
-> Creating or managing NAMED RANGES (references by name, not cell address)
-> PROTECTING specific cell ranges from editing
-> Adding alternating row colors (BANDING)
-> Managing developer METADATA for custom attributes
-> Creating structured TABLES for data organization
+**DECISION GUIDE - Which action should I use?**
+→ **Need cells to reference other cells by name?** Use add_named_range (formulas: =SUM(Revenue) instead of =SUM(B2:B100))
+→ **Prevent users from editing specific cells?** Use add_protected_range (lock formula cells, unlock data entry cells)
+→ **Add alternating row colors for readability?** Use add_banding then list_banding first (check if exists to avoid error)
+→ **Organize data as structured table?** Use create_table (enables filters, structured references, auto-expand)
+→ **Store custom metadata for programmatic access?** Use set_metadata (custom attributes, not visible in UI)
+
+**Use when:** Creating named ranges, protecting ranges, organizing data as tables, adding alternating row colors, storing custom metadata, creating smart chips (person/file links)
 
 **NOT this tool - use instead:**
-> sheets_data - Writing VALUES to cells or changing content
-> sheets_format - Basic FORMATTING like colors, fonts, borders, styles
-> sheets_collaborate - SHARING permissions with other users
-> sheets_dimensions - Hiding or freezing rows/columns
-
-⚠️ **BANDING PRE-CHECK:** Always call \`list_banding\` before \`add_banding\` to check if banding already exists. Adding banding to a range that already has it will fail.
+> sheets_data - Writing or reading CELL VALUES
+> sheets_format - Colors, fonts, borders (use set_format instead)
+> sheets_dimensions - Hiding/freezing rows/columns, row/column operations
+> sheets_collaborate - SHARING with other users or PROTECTING entire sheet
 
 **ACTIONS BY CATEGORY:**
-[Named Ranges] add_named_range, update_named_range, delete_named_range, list_named_ranges, get_named_range
-[Protection] add_protected_range, update_protected_range, delete_protected_range, list_protected_ranges
-[Metadata] set_metadata, get_metadata, delete_metadata
-[Banding] add_banding, update_banding, delete_banding, list_banding
-[Tables] create_table, delete_table, list_tables, update_table, rename_table_column, set_table_column_properties
-[Smart Chips] add_person_chip, add_drive_chip, add_rich_link_chip, list_chips
+[Named Ranges] add_named_range, update_named_range, delete_named_range, list_named_ranges, get_named_range — Formulas use "Revenue" instead of "B2:B100"
+[Protection] add_protected_range, update_protected_range, delete_protected_range, list_protected_ranges — Lock formula cells, unlock data cells
+[Metadata] set_metadata, get_metadata, delete_metadata — Custom app attributes (not visible to users)
+[Banding] add_banding, update_banding, delete_banding, list_banding — Alternating row colors
+[Tables] create_table, delete_table, list_tables, update_table, rename_table_column, set_table_column_properties — Structured ranges with filters
+[Smart Chips] add_person_chip, add_drive_chip, add_rich_link_chip, list_chips — Linked references. Note: For write operations, only Drive file links are supported via add_rich_link_chip. Reading back smart chips via list_chips can return YouTube, Calendar, and People chip types, but these cannot be created via the API.
+[Named Functions] create_named_function, update_named_function, delete_named_function, list_named_functions, get_named_function — Custom formula functions
 
-**Parameter format examples:**
-- Named range: {"action":"add_named_range","spreadsheetId":"1ABC...","name":"Revenue","range":"B2:B100"}
-- Protection: {"action":"add_protected_range","spreadsheetId":"1ABC...","range":"A1:D1","editors":{"users":["admin@example.com"]}}
-- Table: {"action":"create_table","spreadsheetId":"1ABC...","range":"A1:D100"}
+**⚠️ BANDING PRE-CHECK:** list_banding BEFORE add_banding (adding to range that already has banding fails silently). Protection always requires editor list.
 
-**TOP 3 ACTIONS:**
-1. add_named_range: {"action":"add_named_range","spreadsheetId":"1ABC...","name":"Revenue","range":"B2:B100"}
-2. add_protected_range: {"action":"add_protected_range","spreadsheetId":"1ABC...","range":"A1:D1","editors":{"users":["admin@example.com"]}}
-3. create_table: {"action":"create_table","spreadsheetId":"1ABC...","range":"A1:D100"}
+**SAFETY:**
+[Read-only] list_named_ranges, get_named_range, list_protected_ranges, get_metadata, list_banding, list_tables, list_chips, list_named_functions, get_named_function
+[Destructive] delete_named_range, delete_protected_range, delete_metadata, delete_banding, delete_table, delete_named_function ← permanent
+[Safe mutation] add_named_range, update_named_range, add_protected_range, update_protected_range, set_metadata, add_banding, update_banding, create_table, update_table, rename_table_column, set_table_column_properties, add_person_chip, add_drive_chip, add_rich_link_chip, create_named_function, update_named_function
 
-**range format:** "Sheet1!A1:D100" (case-sensitive, include sheet name)
-**protection options:** editors (users/groups who can edit), unprotectedRanges (cells that stay editable)
-
-**TIP:** Tables use Sheets API v4 table objects for structured ranges. Named ranges allow formulas to use names instead of cell addresses.`,
+**COMMON PATTERN:**
+- Financial sheet? → create_table (A1:E100) → add_banding → add_protected_range (formula row) → add_named_range (for SUM formulas)
+- Data entry form? → add_protected_range (lock instructions) → unprotectedRanges (data entry only) → add_named_range (field references)`,
 
   //=============================================================================
   // ENTERPRISE / SAFETY
@@ -454,11 +524,14 @@ Example: {"action":"validate","value":"test@email.com","rules":["not_empty","val
 
 **TOP 3 ACTIONS:**
 1. validate: {"action":"validate","value":"test@email.com","rules":["not_empty","valid_email"]}
-2. analyze_impact: {"action":"analyze_impact","spreadsheetId":"1ABC...","operation":{"type":"delete_rows","range":"A1:A10"}}
+2. analyze_impact (tool+action form): {"action":"analyze_impact","spreadsheetId":"1ABC...","operation":{"tool":"sheets_data","action":"clear","params":{"spreadsheetId":"1ABC...","range":"Sheet1!A1:A100"}}}
+   analyze_impact (description form): {"action":"analyze_impact","spreadsheetId":"1ABC...","operation":{"description":"delete rows A1:A100"}}
 3. detect_conflicts: {"action":"detect_conflicts","spreadsheetId":"1ABC..."}
 
 **validate rules examples:** not_empty, valid_email, is_number, is_date, min_length, max_length, matches_pattern
-**impact operation types:** delete_rows, delete_columns, clear_range, write_range, create_chart, delete_formula
+**impact operation object:** at least one of \`type\`, \`tool\`, \`action\`, or \`description\` required.
+- Tool+action form: \`{ "tool": "sheets_data", "action": "write", "params": { "spreadsheetId": "...", "range": "Sheet1!A1:B10" } }\`
+- Description form: \`{ "description": "delete column B" }\` (simpler, uses natural language)
 
 **PRE-WRITE WORKFLOW:**
 1. Plan operation (which cells, what values)
@@ -468,47 +541,51 @@ Example: {"action":"validate","value":"test@email.com","rules":["not_empty","val
 
 **USE BEFORE:** Large writes, deletes, or concurrent editing scenarios. Use analyze_impact to check formula dependencies.`,
 
-  sheets_history: `📜 HISTORY - Operation audit & undo/redo (${ACTION_COUNTS['sheets_history']} actions).
+  sheets_history: `📜 HISTORY - Operation audit, undo/redo & time-travel (${ACTION_COUNTS['sheets_history']} actions).
 
-**ROUTING - Pick this tool when:**
-> Viewing what operations were performed (in this session)
-> UNDOING a recent operation (this session only)
-> Getting operation STATISTICS and timing
-> Reverting to a previous operation state (this session)
+**DECISION GUIDE - Which action should I use?**
+→ **Undo recent ServalSheets operation?** Use undo (this session only)
+→ **When did a value change?** Use timeline (who/what/when across sessions)
+→ **Compare two time points?** Use diff_revisions (cell-level diff between revisions)
+→ **Restore just specific cells?** Use restore_cells (surgical, not full revert)
+→ **Need full file restore?** Use sheets_collaborate.version_restore_revision
+
+**Use when:** Undoing recent ops, finding when data changed, comparing versions, restoring specific cells
 
 **NOT this tool - use instead:**
-> sheets_collaborate - For FILE version history (Google revisions, snapshots) — history across sessions
-> sheets_session - For CONVERSATION context and natural language references
-> sheets_analyze - For data quality insights
+> sheets_collaborate.version_* — Full file restore or snapshots (across sessions)
+> sheets_session — Conversation context and natural language references
+> sheets_analyze — Data quality insights
 
-**ACTIONS (7):** list, get, stats, undo, redo, revert_to, clear
+**ACTIONS BY CATEGORY:**
+[Session Audit] list (operations), get, stats, undo, redo, revert_to, clear
+[Time-Travel] timeline (who/what/when), diff_revisions (compare revisions), restore_cells (surgical restore)
 
-**IMPORTANT - SESSION-SCOPED ONLY:**
-undo reverts the last ServalSheets operation made in THIS conversation only. Does NOT track:
-- Manual edits in Sheets UI
-- Operations from other users
-- Operations from other sessions/conversations
-For across-session recovery, use sheets_collaborate.version_* actions (file versions, snapshots).
+**⚠️ KEY DISTINCTIONS:**
+- **undo/redo/revert_to** = Session scope (THIS conversation only, ServalSheets ops only)
+- **timeline/diff_revisions/restore_cells** = File scope (Google Drive history, all users, across sessions)
+- **Full restore** = sheets_collaborate.version_restore_revision (all-or-nothing)
+- **Surgical restore** = sheets_history.restore_cells (just specific cells)
 
-**Parameter format examples:**
-- List operations: {"action":"list","spreadsheetId":"1ABC...","limit":10}
-- Undo: {"action":"undo","spreadsheetId":"1ABC..."} ← Undoes last ServalSheets operation
-- Revert to operation: {"action":"revert_to","spreadsheetId":"1ABC...","operationId":"op_123"}
-- Get stats: {"action":"stats","spreadsheetId":"1ABC..."}
+**SAFETY:**
+[Read-only] list, get, stats, timeline, diff_revisions
+[Destructive] clear (erases operation history), restore_cells (overwrites current cell values)
+[Non-idempotent] undo, redo (calling twice reverses operation)
 
 **TOP 3 ACTIONS:**
-1. list: {"action":"list","spreadsheetId":"1ABC...","limit":10} ← See operation history
-2. undo: {"action":"undo","spreadsheetId":"1ABC..."} ← Revert last ServalSheets op
-3. revert_to: {"action":"revert_to","spreadsheetId":"1ABC...","operationId":"op_123"} ← Revert to specific point
+1. timeline: {"action":"timeline","spreadsheetId":"1ABC...","range":"Sheet1!D1:D100","since":"2026-02-01"} — When did data change?
+2. undo: {"action":"undo","spreadsheetId":"1ABC..."} — Revert last ServalSheets operation
+3. restore_cells: {"action":"restore_cells","spreadsheetId":"1ABC...","revisionId":"123","cells":["Sheet1!D15","Sheet1!E20"]} — Restore just those cells
 
-**operationId format:** "op_abc123..." (from list action results)
-**Session-specific:** History is local to this conversation/session. File versions are in sheets_collaborate.
-**Scope:** Only tracks ServalSheets tool operations, not Sheets UI edits or other users' changes.
+**RECOVERY WORKFLOWS:**
+- **Quick undo?** → undo (session only)
+- **Find what changed?** → timeline (who/what/when) → diff_revisions (full diff) → restore_cells (fix)
+- **Full file restore?** → sheets_collaborate.version_restore_revision (all-or-nothing)
 
-**LIMITS:** Tracks last 100 operations per spreadsheet per session.
-**RECOVERY WORKFLOW:**
-- Session recovery: Use sheets_history.undo/revert_to
-- Cross-session recovery: Use sheets_collaborate.version_restore_revision or version_restore_snapshot`,
+**⚠️ LIMITS:**
+- Session history: Last 100 ops per spreadsheet
+- Drive revision retention: Auto-deletes after 30 days (pin with sheets_collaborate.version_keep_revision)
+- timeline/diff_revisions: Empty if revisions expired`,
 
   sheets_confirm: `⚠️ CONFIRM - User confirmation before destructive operations (${ACTION_COUNTS['sheets_confirm']} actions).
 
@@ -561,94 +638,100 @@ For across-session recovery, use sheets_collaborate.version_* actions (file vers
 
 **TIP:** Always include risk levels and isDestructive flags for each step.`,
 
-  sheets_fix: `🔧 FIX - Automated issue resolution (${ACTION_COUNTS['sheets_fix']} action).
+  sheets_fix: `🔧 FIX - Auto-fix issues & data cleaning (${ACTION_COUNTS['sheets_fix']} actions).
 
-**Requires:** Run sheets_analyze action:"comprehensive" first to detect issues.
+**DECISION GUIDE - Which action should I use?**
+→ **sheets_analyze found issues?** Use fix (resolves volatile formulas, missing freezes)
+→ **Messy data (whitespace, duplicates)?** Use suggest_cleaning first, then clean
+→ **Different date/currency formats?** Use standardize_formats (normalize to one format)
+→ **Empty cells?** Use fill_missing (forward fill, mean, median, constant)
+→ **Statistical outliers?** Use detect_anomalies (IQR or z-score)
 
-**ROUTING - Pick this tool when:**
-> sheets_analyze found issues you want to AUTO-FIX
-> Fixing common problems: volatile formulas, missing freezes, no protection
+**Use when:** Auto-fixing formula/structure issues, cleaning messy data, standardizing formats, filling gaps, detecting anomalies
 
 **NOT this tool - use instead:**
-> sheets_analyze - First, to DETECT issues
-> sheets_data/sheets_format - For MANUAL fixes
+> sheets_analyze - To DETECT issues first (comprehensive or analyze_quality)
+> sheets_data/sheets_format - For MANUAL targeted changes
+> sheets_quality - For data VALIDATION before writing
 
-**ACTION (1):** fix
+**ACTIONS BY CATEGORY:**
+[Issue Resolution] fix (formula issues, missing freezes)
+[Data Cleaning] clean (auto-detect issues), suggest_cleaning (AI recommendations)
+[Format Standardization] standardize_formats (dates, currencies, phones → consistent)
+[Gap Filling] fill_missing (forward, backward, mean, median, mode, constant)
+[Anomaly Detection] detect_anomalies (IQR, z-score outlier flagging)
 
-**Parameter format examples:**
-1. Preview fixes: {"action":"fix","spreadsheetId":"1ABC...","issues":[...],"mode":"preview"}
-2. Apply fixes: {"action":"fix","spreadsheetId":"1ABC...","issues":[...],"mode":"apply","safety":{"createSnapshot":true}}
+**SAFETY:**
+[Read-only] suggest_cleaning, detect_anomalies
+[Safe mutation] fix, clean (with mode:"apply"), standardize_formats, fill_missing
 
-**WORKFLOW:**
-1. sheets_analyze comprehensive -> Get issues list
-2. sheets_fix preview -> Review proposed fixes
-3. sheets_fix apply -> Execute fixes with snapshot
+**TOP 3 ACTIONS:**
+1. suggest_cleaning: {"action":"suggest_cleaning","spreadsheetId":"1ABC...","range":"Sheet1!A1:Z100"} — Get AI recommendations
+2. clean: {"action":"clean","spreadsheetId":"1ABC...","range":"Sheet1!A1:Z100","mode":"preview"} — See proposed changes
+3. standardize_formats: {"action":"standardize_formats","spreadsheetId":"1ABC...","range":"Sheet1!A1:Z100","columns":[{"column":"B","targetFormat":"iso_date"}]} — Normalize formats
 
-**FIXABLE ISSUES:** MULTIPLE_TODAY, FULL_COLUMN_REFS, NO_FROZEN_HEADERS, NO_PROTECTION, NESTED_IFERROR, EXCESSIVE_CF_RULES`,
+**DATA CLEANING WORKFLOW:**
+1. suggest_cleaning → Get AI recommendations
+2. clean mode:"preview" → Review proposed changes (snapshot created)
+3. clean mode:"apply" → Execute (with rollback via snapshot)
+
+**BUILT-IN RULES:** trim_whitespace, fix_dates, fix_numbers, fix_booleans, remove_duplicates, fix_emails, fix_phones
+**FORMAT TARGETS:** iso_date, currency_usd, phone_e164, email_lowercase, title_case, percentage
+**FILL STRATEGIES:** forward, backward, mean, median, mode, constant`,
 
   //=============================================================================
   // COMPOSITE OPERATIONS
   //=============================================================================
 
-  sheets_composite: `🔗 COMPOSITE - Pre-optimized workflows for common operations (${ACTION_COUNTS['sheets_composite']} actions). Combines multiple steps into single calls for 60-80% API savings.
+  sheets_composite: `🔗 COMPOSITE - Pre-optimized multi-step workflows (${ACTION_COUNTS['sheets_composite']} actions). 60-80% fewer API calls than manual approach.
 
-**⚡ BEFORE DOING MANUAL OPERATIONS:**
-BEFORE using 3+ separate tools (sheets_data + sheets_format + sheets_dimensions), check if sheets_composite can do it in 1-2 calls. This is the efficiency hub — most common multi-step workflows are here.
+**DECISION GUIDE - Pick the right action**
+→ **Setting up new sheet (headers + format)?** Use setup_sheet (2 calls vs 6 manual)
+→ **Adding rows with column matching?** Use smart_append (auto-matches headers, safer than append)
+→ **Importing CSV file?** Use import_csv (parse + validate + write in 1 call)
+→ **Bulk updating many rows?** Use bulk_update (atomic, with preview mode)
+→ **Removing duplicates?** Use deduplicate with preview:true first
+→ **Generating from description?** Use generate_sheet (AI-powered: structure + formulas + formatting)
+→ **Exporting to file?** Use export_xlsx or publish_report (PDF/XLSX/CSV with formatting preserved)
+→ **Run ETL pipeline?** Use data_pipeline (filter → sort → deduplicate → transform in 1 call)
 
-**DECISION GUIDE - Which action should I use?**
-→ **Setting up a new sheet with headers + formatting?** Use setup_sheet (2 calls, NOT 5-6 manual ones)
-→ **Adding rows but want column-matched safety?** Use smart_append (auto-matches by headers, safer than append)
-→ **Importing data from CSV?** Use import_csv (parse + validate + write in 1 call)
-→ **Removing duplicates?** Use deduplicate with preview:true first (see what gets removed before committing)
-→ **Exporting to Excel?** Use export_xlsx (1 call, includes all formatting)
-→ **Bulk updating multiple rows?** Use bulk_update (atomic, with preview support)
-
-**Use when:** Importing CSV, setting up sheets with headers, appending with column matching, bulk updates, deduplication, exporting XLSX, cloning structure
+**Use when:** Setting up sheets, importing/exporting, bulk updates, deduplication, column matching, AI generation, data pipelines, auditing, migration
 
 **NOT this tool - use instead:**
-> sheets_data - Simple single read/write operations
-> sheets_transaction - Custom multi-step operations needing atomicity
+> sheets_data - Single read/write/append operations
+> sheets_transaction - Custom multi-op workflows needing atomicity
 > sheets_core - Creating spreadsheets without templates
 > sheets_format - One-off format changes
+> sheets_analyze - Getting recommendations before operations
 
-**ACTIONS (10):** import_csv, smart_append, bulk_update, deduplicate, export_xlsx, import_xlsx, get_form_responses, setup_sheet, import_and_format, clone_structure
+**ACTIONS BY CATEGORY:**
+[Sheet Setup] setup_sheet (headers + format + freeze in 2 calls)
+[Import/Export] import_csv, import_xlsx, import_and_format, export_xlsx, export_large_dataset, get_form_responses
+[Smart Operations] smart_append (auto-match columns), bulk_update (atomic), deduplicate (with preview), clone_structure
+[AI Generation] generate_sheet (description → spreadsheet), generate_template (reusable), preview_generation (dry-run)
+[Audit & Report] audit_sheet (formula/type/blank analysis), publish_report (PDF/XLSX export with formatting)
+[Pipeline & Migrate] data_pipeline (ETL: filter→sort→dedup→transform), instantiate_template (template + {{placeholder}}), migrate_spreadsheet (column mapping)
 
-**🏆 EFFICIENCY POWERHOUSE - USE THESE FIRST:**
+**⚡ TOP 3 ACTIONS:**
+1. **setup_sheet:** Headers + formatting + freeze → 2 API calls (vs 6-7 manual)
+2. **smart_append:** Auto-match columns by header name → Safer, no manual mapping
+3. **import_csv:** Parse + validate + write → 1 call (auto detects types)
 
-**setup_sheet - FASTEST PATH FOR NEW SHEETS:**
-Creates headers + formatting + freeze + optional data + optional alternating rows in just 2 API calls (NOT 7-8 manual ones).
-Compare: manual = sheets_core.add_sheet + sheets_data.write + sheets_format.set_format + sheets_format.apply_preset + sheets_dimensions.freeze + sheets_dimensions.auto_resize (6-8 calls)
-Example: {"action":"setup_sheet","spreadsheetId":"1ABC...","sheetId":0,"headers":["Name","Age","Email"],"freezeHeaderRow":true,"formatAsTable":true}
+**Savings:** 60-80% fewer API calls. Example: setup_sheet = sheets_core.add_sheet + sheets_data.write + sheets_format (3 ops) = 1 call in composite.
 
-**smart_append - AUTO-MATCH COLUMNS:**
-Automatically matches data columns by header name — no manual column mapping needed. Appends data only if headers match.
-Compare: manual = sheets_data.read(headers) + match_columns_manually + sheets_data.append (3+ calls)
-Example: {"action":"smart_append","spreadsheetId":"1ABC...","range":"Sheet1!A1:D100","data":[["Alice",30,"alice@example.com"]]}
-
-**deduplicate - WITH PREVIEW:**
-Use deduplicate with preview:true first to see what gets removed before committing.
-Example: {"action":"deduplicate","spreadsheetId":"1ABC...","range":"Sheet1!A1:D100","preview":true} → Review results
-Then: {"action":"deduplicate","spreadsheetId":"1ABC...","range":"Sheet1!A1:D100","mode":"remove"}
-
-**import_csv - BULK LOAD WITH VALIDATION:**
-Loads CSV, validates types/formats, writes to sheet in 1 call. Option to create new sheet or append to existing.
-Example: {"action":"import_csv","spreadsheetId":"1ABC...","csvPath":"/path/to/file.csv","sheetName":"Data","hasHeader":true}
-
-**Parameter format examples:**
-- Setup sheet: {"action":"setup_sheet","spreadsheetId":"1ABC...","sheetId":0,"headers":["Name","Age","Email"],"freezeHeaderRow":true}
-- Smart append: {"action":"smart_append","spreadsheetId":"1ABC...","range":"Sheet1!A1:D100","data":[["Alice",30]]}
-- Import CSV: {"action":"import_csv","spreadsheetId":"1ABC...","csvPath":"/path/to/file.csv","sheetName":"Data"}
-- Deduplicate (preview first): {"action":"deduplicate","spreadsheetId":"1ABC...","range":"Sheet1!A1:D100","preview":true}
-- Bulk update: {"action":"bulk_update","spreadsheetId":"1ABC...","range":"Sheet1!A2:D100","updates":[...]}
-
-**Savings:** 60-80% fewer API calls vs manual approach (e.g., setup_sheet: 2-3 calls vs 5-7 manual calls)
+**SAFETY:**
+[Read-only] export_xlsx, export_large_dataset, get_form_responses, audit_sheet, publish_report (PDF only), preview_generation
+[Safe mutation] setup_sheet, smart_append, import_csv, import_xlsx, import_and_format, clone_structure, generate_sheet, generate_template, instantiate_template
+[Requires confirmation] bulk_update (>50 rows), deduplicate, migrate_spreadsheet
+[Requires snapshot] bulk_update, deduplicate (if mode:"apply")
 
 **COMMON WORKFLOWS:**
-- New sheet from scratch? → setup_sheet (2 calls)
-- Import CSV and clean up? → import_csv + deduplicate
-- Add data with header matching? → smart_append (auto-matches)
-- Full sheet setup + data? → import_and_format (1 call)
-- Bulk update with safety? → bulk_update with preview:true first`,
+- New sheet? → setup_sheet OR generate_sheet (AI: description → full sheet)
+- Import + clean? → import_csv → deduplicate with preview:true
+- Bulk update? → bulk_update with preview:true first, then mode:"apply"
+- Data pipeline? → data_pipeline (filter → sort → dedup → aggregate in 1 call)
+- Migrate files? → migrate_spreadsheet (with column mapping)
+- Quality audit? → audit_sheet → publish_report (export with formatting)`,
 
   //=============================================================================
   // SESSION CONTEXT
@@ -804,7 +887,7 @@ Example workflow:
 
   sheets_webhook: `🔔 WEBHOOK - Event-driven automation and real-time notifications (${ACTION_COUNTS['sheets_webhook']} actions).
 
-**Requires:** Redis backend + HTTPS endpoint that returns 200 OK within 10s.
+**Requires:** Redis backend (set \`REDIS_URL\` env var) + HTTPS endpoint that returns 200 OK within 10s. Without \`REDIS_URL\`, all actions return \`CONFIG_ERROR\`.
 
 **ROUTING - Pick this tool when:**
 > Setting up REAL-TIME notifications for spreadsheet changes
@@ -857,14 +940,39 @@ Example workflow:
 [Queries] get_dependencies (what cell depends on), get_dependents (what depends on cell)
 [Quality] detect_cycles (find circular refs)
 [Export] export_dot (Graphviz visualization)
+[Scenario Modeling] model_scenario ("what if revenue drops 20%?" — traces full recalculation cascade), compare_scenarios (side-by-side comparison of multiple what-if scenarios), create_scenario_sheet (materialize scenario as new sheet)
+
+**DECISION GUIDE:**
+→ **What cells does this formula depend on?** Use get_dependencies
+→ **What breaks if I change this cell?** Use analyze_impact or get_dependents
+→ **Circular reference errors?** Use detect_cycles
+→ **What if revenue drops 20%?** Use model_scenario (traces formula cascade, shows all affected cells with deltas)
+→ **Compare best/worst/expected cases?** Use compare_scenarios (multiple scenarios side-by-side)
+→ **Save a scenario as a separate sheet?** Use create_scenario_sheet (non-destructive copy with changes applied)
 
 **TOP 3 ACTIONS:**
-1. analyze_impact: {"action":"analyze_impact","spreadsheetId":"1ABC...","cell":"Data!A1"}
-2. detect_cycles: {"action":"detect_cycles","spreadsheetId":"1ABC..."}
-3. get_dependents: {"action":"get_dependents","spreadsheetId":"1ABC...","cell":"Summary!B5"}
+1. model_scenario: {"action":"model_scenario","spreadsheetId":"1ABC...","changes":[{"cell":"Revenue!B2","newValue":80000}]} ← What-if analysis with full cascade
+2. analyze_impact: {"action":"analyze_impact","spreadsheetId":"1ABC...","cell":"Data!A1"}
+3. compare_scenarios: {"action":"compare_scenarios","spreadsheetId":"1ABC...","scenarios":[{"name":"Best Case","changes":[{"cell":"B2","newValue":120000}]},{"name":"Worst Case","changes":[{"cell":"B2","newValue":60000}]}]}
+
+**Parameter format examples (Scenario Modeling):**
+- Model scenario: {"action":"model_scenario","spreadsheetId":"1ABC...","changes":[{"cell":"Revenue!B2","newValue":80000},{"cell":"Revenue!C2","newValue":85000}]}
+- Compare scenarios: {"action":"compare_scenarios","spreadsheetId":"1ABC...","scenarios":[{"name":"Conservative","changes":[{"cell":"B2","newValue":90000}]},{"name":"Aggressive","changes":[{"cell":"B2","newValue":150000}]}]}
+- Materialize: {"action":"create_scenario_sheet","spreadsheetId":"1ABC...","scenario":{"name":"Q2 Conservative","changes":[{"cell":"B2","newValue":90000}]}}
 
 **cell format:** "Sheet1!A1" or "Sheet1!A1:C10"
-**TIP:** Run detect_cycles first, then analyze_impact before modifying cells with many dependents.`,
+
+**SCENARIO WORKFLOW:**
+1. build → Create dependency graph
+2. model_scenario → "What if revenue drops 20%?" → See all cascading effects
+3. compare_scenarios → Compare conservative vs aggressive vs expected
+4. create_scenario_sheet → Save chosen scenario as separate sheet for stakeholders
+
+**SAFETY:**
+[Read-only] build, analyze_impact, get_dependencies, get_dependents, detect_cycles, get_stats, export_dot, model_scenario, compare_scenarios
+[Safe mutation] create_scenario_sheet ← creates new sheet (non-destructive to original data, but requires confirmation)
+
+**TIP:** Run detect_cycles first, then model_scenario for accurate what-if analysis.`,
 
   sheets_federation: `🌐 FEDERATION - Call external MCP servers for composite workflows (${ACTION_COUNTS['sheets_federation']} actions).
 
@@ -905,6 +1013,129 @@ Set MCP_FEDERATION_SERVERS environment variable with JSON array:
 
 **SECURITY:** Only call trusted MCP servers. Use bearer tokens. Set timeouts (default: 30s). Validate responses before writing.
 **WORKFLOW:** validate_connection → get_server_tools → call_remote → sheets_data.write results. Results cached 5 min.`,
+  //=============================================================================
+  // COMPUTATION ENGINE (Phase 5)
+  //=============================================================================
+
+  sheets_compute: `🧮 COMPUTE - Server-side computation engine for spreadsheet data (${ACTION_COUNTS['sheets_compute']} actions). Math, stats, regression, forecasting, matrix ops.
+
+**ROUTING - Pick this tool when:**
+> Computing AGGREGATIONS (sum, average, count, etc.) with optional group-by
+> Running STATISTICAL analysis (mean, median, std dev, correlation, percentiles)
+> Performing REGRESSION analysis (linear, polynomial, exponential, logarithmic, power)
+> FORECASTING future values from time-series data
+> MATRIX operations (transpose, multiply, inverse, determinant, eigenvalues)
+> Creating computed PIVOT TABLES with custom aggregations
+> EVALUATING mathematical expressions referencing cell data
+> EXPLAINING what a formula does in plain language
+
+**NOT this tool - use instead:**
+> sheets_data - For reading/writing cell values (no computation)
+> sheets_analyze - For AI-powered analysis and recommendations
+> sheets_format - For number formatting (not computation)
+> sheets_dependencies - For formula dependency graphs and scenario modeling
+
+**ACTIONS BY CATEGORY:**
+[Math] evaluate (arithmetic expressions), batch_compute (multiple computations)
+[Aggregation] aggregate (sum/avg/count/min/max with group-by)
+[Statistics] statistical (descriptive stats, correlations, percentiles)
+[Modeling] regression (5 types with R²), forecast (trend/moving avg/exponential smoothing)
+[Matrix] matrix_op (transpose, multiply, inverse, determinant, eigenvalues, rank, trace)
+[Pivot] pivot_compute (server-side pivot with custom aggregations)
+[Utility] custom_function (evaluate expressions over ranges), explain_formula (plain-language formula explanation)
+
+**PARAMETER EXAMPLES:**
+• evaluate: {"action":"evaluate","expression":"=SUM(B2:B100)*1.1","range":"Sheet1!B2:B100"} → Multiply sum by 10%
+• aggregate: {"action":"aggregate","range":"Sheet1!A1:D100","function":"sum","columns":["B","C"],"groupBy":"A"} → Sum revenue/cost by region
+• statistical: {"action":"statistical","range":"Sheet1!B2:B100","includeCorrelations":true,"includePercentiles":true} → Stats with P25/P75
+• regression: {"action":"regression","range":"Sheet1!A1:B50","type":"linear","confidenceLevel":0.95} → Linear trend with R²
+• forecast: {"action":"forecast","range":"Sheet1!A1:B50","periods":12,"method":"exponential_smoothing"} → 12-month forecast
+• matrix_op: {"action":"matrix_op","range":"Sheet1!A1:D4","operation":"transpose"} → Swap rows/columns
+• pivot_compute: {"action":"pivot_compute","dataRange":"Sheet1!A1:D100","rowFields":["Category"],"valueFields":[{"field":"Amount","function":"sum"}]} → Pivot by category
+• batch_compute: {"action":"batch_compute","operations":[{"operation":"sum","range":"B2:B100"},{"operation":"avg","range":"C2:C100"}]} → Multiple computations
+
+**SAFETY:** [Read-only] All actions are read-only computations. No data is modified.
+**PERFORMANCE:** Computations run server-side, avoiding round-trips. Use batch_compute for 3+ operations.`,
+
+  //=============================================================================
+  // AGENT LOOP (Phase 6)
+  //=============================================================================
+
+  sheets_agent: `🤖 AGENT - Autonomous multi-step execution engine (${ACTION_COUNTS['sheets_agent']} actions). Plan, execute, observe, rollback.
+
+**ROUTING - Pick this tool when:**
+- User wants a complex multi-step workflow executed autonomously
+- Multiple tools need to be orchestrated in sequence
+- You need rollback safety for multi-step operations
+
+**NOT this tool:**
+- Single operations → use the specific tool directly
+- Analysis → sheets_analyze
+- Batch writes → sheets_transaction
+
+**ACTIONS BY CATEGORY:**
+
+📋 Planning:
+- plan: Create multi-step execution plan from natural language description
+- list_plans: List all saved execution plans
+
+⚡ Execution:
+- execute: Execute entire plan autonomously (all steps)
+- execute_step: Execute a single step from a plan
+- resume: Resume an interrupted plan from last checkpoint
+
+👁️ Observation & Safety:
+- observe: Capture current spreadsheet state as checkpoint
+- rollback: Revert to a previous checkpoint
+- get_status: Get plan and execution status
+
+**TOP 3 ACTIONS:**
+1. plan: {"action":"plan","description":"Import CSV, clean data, add summary formulas, format headers","spreadsheetId":"abc"} -> Creates executable plan
+2. execute: {"action":"execute","planId":"plan_123"} -> Runs all steps with automatic checkpointing
+3. rollback: {"action":"rollback","planId":"plan_123","checkpointId":"cp_456"} -> Reverts to safe state
+
+**SAFETY:** [Destructive] execute and execute_step modify data. Automatic checkpoints before each step enable rollback.
+**PATTERN:** plan → execute → (if error) rollback. Always plan first, then execute.`,
+
+  sheets_connectors: `🔌 CONNECTORS - Pull live external data into Google Sheets (${ACTION_COUNTS['sheets_connectors']} actions). Finnhub, FRED, Alpha Vantage, Polygon, generic REST.
+
+**ROUTING - Pick this tool when:**
+- User wants to import live stock prices, economic data, or weather into a sheet
+- User needs to connect a custom REST/JSON API to their spreadsheet
+- User wants auto-refreshing data from external sources
+
+**NOT this tool:**
+- Data already in Sheets → sheets_data.read
+- Cross-spreadsheet operations → sheets_data.cross_read
+- Apps Script triggers → sheets_appsscript
+
+**ACTIONS BY CATEGORY:**
+
+📋 Discovery:
+- list_connectors: List all available connectors and their configuration status
+- discover: Get available endpoints and data schemas from a connector
+- status: Check connector health, quota usage, and configuration
+
+🔑 Configuration:
+- configure: Provide API credentials for a connector (API key / OAuth2)
+
+📊 Querying:
+- query: Fetch data from a connector endpoint
+- batch_query: Run multiple queries in parallel across connectors
+- transform: Fetch + filter/sort/limit in a single call
+
+🔄 Subscriptions:
+- subscribe: Schedule automatic data refresh into a sheet range
+- unsubscribe: Cancel a refresh subscription
+- list_subscriptions: List all active subscriptions
+
+**TOP 3 ACTIONS:**
+1. query: {"action":"query","connectorId":"finnhub","endpoint":"stock/quote","params":{"symbol":"AAPL"}} -> Live stock price
+2. batch_query: {"action":"batch_query","queries":[{"connectorId":"fred","endpoint":"series/observations","params":{"seriesId":"UNRATE"}},{"connectorId":"finnhub","endpoint":"stock/quote","params":{"symbol":"MSFT"}}]} -> Multi-source data
+3. subscribe: {"action":"subscribe","connectorId":"finnhub","endpoint":"stock/quote","params":{"symbol":"AAPL"},"schedule":{"interval":"hourly"},"destination":{"spreadsheetId":"abc","range":"Sheet1!A1"}} -> Auto-refresh
+
+**SAFETY:** query/batch_query/transform are read operations against external APIs. subscribe/unsubscribe only manage connector subscriptions.
+**PATTERN:** list_connectors → configure (if needed) → discover or status → query/batch_query/transform.`,
 };
 
 // Type export for other modules

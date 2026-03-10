@@ -67,6 +67,44 @@ export function isLazyLoadTool(toolName: string): boolean {
 }
 
 /**
+ * Auto-detect optimal schema mode based on client capabilities.
+ *
+ * Called during server.initialize() when client info is available.
+ * Falls back to SCHEMA_MODE env var if no client hint or env is set.
+ *
+ * @param clientInfo - Optional client information from MCP initialize
+ * @returns Optimal schema mode for the client
+ */
+export function autoDetectSchemaMode(clientInfo?: { name?: string; version?: string }): SchemaMode {
+  // Explicit env var always takes precedence
+  if (process.env['SCHEMA_MODE']) {
+    return SCHEMA_MODE;
+  }
+
+  if (clientInfo?.name) {
+    const name = clientInfo.name.toLowerCase();
+
+    // Full-featured desktop clients get full schemas
+    if (name.includes('claude') || name.includes('desktop') || name.includes('cursor')) {
+      return 'full';
+    }
+
+    // Mobile or constrained clients get compact schemas
+    if (name.includes('mobile') || name.includes('lite') || name.includes('mini')) {
+      return 'compact';
+    }
+
+    // API/SDK/programmatic clients get minimal schemas
+    if (name.includes('api') || name.includes('sdk') || name.includes('programmatic')) {
+      return 'minimal';
+    }
+  }
+
+  // Default: full mode (best for learning and discovery)
+  return 'full';
+}
+
+/**
  * Schema optimization statistics
  */
 export interface SchemaStats {

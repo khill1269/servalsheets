@@ -5,10 +5,12 @@
  */
 
 import { GraphQLError } from 'graphql';
+import type { ZodTypeAny } from 'zod';
 import { TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
 import { VERSION, MCP_PROTOCOL_VERSION } from '../version.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import type { HandlerContext } from '../handlers/index.js';
+import { FIELD_MASKS } from '../constants/field-masks.js';
 import {
   SheetsAdvancedInputSchema,
   SheetsAnalyzeInputSchema,
@@ -40,6 +42,24 @@ import {
 export interface GraphQLContext {
   handlerContext: HandlerContext;
   userId?: string;
+}
+
+function getActionValues(schema: ZodTypeAny): string[] {
+  const shape = (schema as unknown as { shape?: Record<string, unknown> }).shape;
+  const actionSchema = shape?.['action'];
+  if (!actionSchema || typeof actionSchema !== 'object') {
+    return [];
+  }
+
+  const values = (
+    actionSchema as unknown as {
+      _def?: {
+        values?: unknown;
+      };
+    }
+  )._def?.values;
+
+  return Array.isArray(values) ? values.filter((v): v is string => typeof v === 'string') : [];
 }
 
 /**
@@ -89,11 +109,7 @@ export const resolvers = {
       ];
 
       return schemas.map(({ name, schema }) => {
-        const actions =
-          'shape' in schema && 'action' in schema.shape
-            ? // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod internal API
-              (schema.shape.action as any)._def?.values || []
-            : [];
+        const actions = getActionValues(schema);
 
         return {
           name,
@@ -109,8 +125,7 @@ export const resolvers = {
      * Get a specific tool by name
      */
     tool: (_parent: unknown, { name }: { name: string }) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod schema map
-      const schemaMap: Record<string, any> = {
+      const schemaMap: Record<string, ZodTypeAny> = {
         sheets_advanced: SheetsAdvancedInputSchema,
         sheets_analyze: SheetsAnalyzeInputSchema,
         sheets_appsscript: SheetsAppsScriptInputSchema,
@@ -142,11 +157,7 @@ export const resolvers = {
         });
       }
 
-      const actions =
-        'shape' in schema && 'action' in schema.shape
-          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod internal API
-            (schema.shape.action as any)._def?.values || []
-          : [];
+      const actions = getActionValues(schema);
 
       return {
         name,
@@ -194,6 +205,8 @@ export const resolvers = {
         const sheetsApi = googleClient.sheets;
         const response = await sheetsApi.spreadsheets.get({
           spreadsheetId,
+          includeGridData: false,
+          fields: FIELD_MASKS.SPREADSHEET_WITH_SHEETS,
         });
 
         return {

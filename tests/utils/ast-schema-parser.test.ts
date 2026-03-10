@@ -23,8 +23,8 @@ describe('AST Schema Parser', () => {
       const schemaPath = path.join(PROJECT_ROOT, 'src/schemas/session.ts');
       const actions = extractSchemaActions(schemaPath);
 
-      // Session has 26 actions (see src/schemas/annotations.ts)
-      expect(actions.length).toBe(26);
+      // Session has 31 actions (27 original + 4 schedule_* actions added in Phase 6)
+      expect(actions.length).toBe(31);
       expect(actions).toContain('set_active');
       expect(actions).toContain('get_active');
       expect(actions).toContain('record_operation');
@@ -34,8 +34,8 @@ describe('AST Schema Parser', () => {
       const schemaPath = path.join(PROJECT_ROOT, 'src/schemas/collaborate.ts');
       const actions = extractSchemaActions(schemaPath);
 
-      // Collaborate has 35 actions
-      expect(actions.length).toBe(35);
+      // Collaborate has 40 actions (35 original + 2 access_proposal + 3 label_*)
+      expect(actions.length).toBe(40);
       expect(actions).toContain('share_add');
       expect(actions).toContain('comment_add');
       expect(actions).toContain('version_list_revisions');
@@ -57,8 +57,8 @@ describe('AST Schema Parser', () => {
       const schemaPath = path.join(PROJECT_ROOT, 'src/schemas/data.ts');
       const actions = extractSchemaActions(schemaPath);
 
-      // Data has 19 actions (added detect_spill_ranges in v1.7.0)
-      expect(actions.length).toBe(19);
+      // Data has 24 actions (19 original + 4 F2 cross-spreadsheet actions + smart_fill)
+      expect(actions.length).toBe(24);
       expect(actions).toContain('read');
       expect(actions).toContain('write');
       expect(actions).toContain('append');
@@ -111,8 +111,8 @@ describe('AST Schema Parser', () => {
       const handlerPath = path.join(PROJECT_ROOT, 'src/handlers/session.ts');
       const cases = extractHandlerCases(handlerPath);
 
-      // Session has 26 actions
-      expect(cases.length).toBe(26);
+      // Session has 31 actions (27 original + 4 schedule_* actions added in Phase 6)
+      expect(cases.length).toBe(31);
       expect(cases).toContain('set_active');
       expect(cases).toContain('get_active');
       expect(cases).toContain('record_operation');
@@ -122,8 +122,8 @@ describe('AST Schema Parser', () => {
       const handlerPath = path.join(PROJECT_ROOT, 'src/handlers/data.ts');
       const cases = extractHandlerCases(handlerPath);
 
-      // Data has 19 actions (added detect_spill_ranges in v1.7.0)
-      expect(cases.length).toBe(19);
+      // Data has 24 actions (19 original + 4 F2 cross-spreadsheet actions + smart_fill)
+      expect(cases.length).toBe(24);
       expect(cases).toContain('read');
       expect(cases).toContain('write');
       expect(cases).toContain('append');
@@ -153,7 +153,7 @@ describe('AST Schema Parser', () => {
       const handlerPath = path.join(PROJECT_ROOT, 'src/handlers/webhooks.ts');
       const cases = extractHandlerCases(handlerPath);
 
-      expect(cases.length).toBe(7);
+      expect(cases.length).toBe(10);
       expect(cases).toContain('register');
       expect(cases).toContain('unregister');
       expect(cases).toContain('watch_changes');

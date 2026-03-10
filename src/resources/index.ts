@@ -50,7 +50,11 @@ export { registerDecisionResources, readDecisionResource } from './decisions.js'
 export { registerExamplesResources, readExamplesResource } from './examples.js';
 
 // Temporary resource storage (Phase 3: Resource URI Fallback)
-export { getTemporaryResourceStore, TemporaryResourceStore } from './temporary-storage.js';
+export {
+  getTemporaryResourceStore,
+  disposeTemporaryResourceStore,
+  TemporaryResourceStore,
+} from './temporary-storage.js';
 
 // Workflow patterns resources (UASEV+R protocol demonstrations)
 export { registerPatternResources, readPatternResource } from './patterns.js';
@@ -62,7 +66,13 @@ export { registerSheetResources, readSheetResource } from './sheets.js';
 export { registerTimeTravelResources } from './time-travel.js';
 
 // Schema resources for deferred loading (SERVAL_DEFER_SCHEMAS=true)
-export { registerSchemaResources, readSchemaResource, getToolSchema } from './schemas.js';
+export {
+  registerSchemaResources,
+  readSchemaResource,
+  getToolSchema,
+  getActionGuidance,
+  getActionGuidanceIndex,
+} from './schemas.js';
 
 // Discovery resources for API health monitoring (Phase 4)
 export { registerDiscoveryResources } from './discovery.js';

@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Request Replay CLI Tool
  *
@@ -300,26 +299,14 @@ async function createToolExecutorFromEnv(): Promise<ToolExecutor> {
     refreshToken,
   });
 
-  const context: HandlerContext = {
+  // Replay tool doesn't use the batch/caching/merging infrastructure — cast is intentional
+  const context = {
     googleClient,
-    batchCompiler: null as any,
-    rangeResolver: null as any,
-    batchingSystem: null as any,
-    cachedSheetsApi: null as any,
-    requestMerger: null as any,
-    parallelExecutor: null as any,
-    prefetchPredictor: null as any,
-    accessPatternTracker: null as any,
-    queryOptimizer: null as any,
-    snapshotService: null as any,
     auth: {
       hasElevatedAccess: googleClient.hasElevatedAccess,
       scopes: googleClient.scopes,
     },
-    samplingServer: null as any,
-    server: null as any,
-    requestDeduplicator: null as any,
-  };
+  } as unknown as HandlerContext;
 
   const handlers = createHandlers({
     context,
@@ -328,8 +315,13 @@ async function createToolExecutorFromEnv(): Promise<ToolExecutor> {
   });
 
   return {
-    async execute(toolName: string, request: any): Promise<any> {
-      const handler = (handlers as any)[toolName.replace('sheets_', '')];
+    async execute(toolName: string, request: unknown): Promise<unknown> {
+      const handler = (
+        handlers as unknown as Record<
+          string,
+          { executeAction: (input: unknown) => Promise<unknown> }
+        >
+      )[toolName.replace('sheets_', '')];
       if (!handler) {
         throw new Error(`Handler for tool ${toolName} not found`);
       }

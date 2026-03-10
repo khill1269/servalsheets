@@ -17,11 +17,7 @@ export default defineConfig({
 
     // Run tests sequentially to avoid resource contention
     pool: 'threads',
-    poolOptions: {
-      threads: {
-        singleThread: true, // Run one test at a time for accurate metrics
-      },
-    },
+    maxWorkers: 1, // Run one test at a time for accurate metrics
 
     // Include only load test files
     include: ['tests/load/**/*.test.ts'],

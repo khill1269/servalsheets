@@ -10,6 +10,10 @@ import { SheetsCoreHandler } from '../../src/handlers/core.js';
 import { SheetsCoreOutputSchema } from '../../src/schemas/core.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4, drive_v3 } from 'googleapis';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 // Mock Google Sheets API
 const createMockSheetsApi = () => ({
@@ -91,12 +95,31 @@ const createMockSheetsApi = () => ({
         },
       }),
     },
+    values: {
+      batchGet: vi.fn().mockResolvedValue({
+        data: { valueRanges: [] },
+      }),
+      get: vi.fn().mockResolvedValue({
+        data: { values: [] },
+      }),
+      update: vi.fn().mockResolvedValue({ data: {} }),
+      batchUpdate: vi.fn().mockResolvedValue({ data: {} }),
+      clear: vi.fn().mockResolvedValue({ data: {} }),
+      batchClear: vi.fn().mockResolvedValue({ data: {} }),
+      append: vi.fn().mockResolvedValue({ data: {} }),
+    },
   },
 });
 
 // Mock Google Drive API
 const createMockDriveApi = () => ({
   files: {
+    get: vi.fn().mockResolvedValue({
+      data: {
+        id: 'test-spreadsheet-id',
+        mimeType: 'application/vnd.google-apps.spreadsheet',
+      },
+    }),
     copy: vi.fn().mockResolvedValue({
       data: {
         id: 'copied-spreadsheet-id',
@@ -278,6 +301,44 @@ describe('SheetsCoreHandler', () => {
         });
       });
 
+      it('should apply preview response_format to sheet metadata list', async () => {
+        const largeSheets = Array.from({ length: 30 }, (_, index) => ({
+          properties: {
+            sheetId: index,
+            title: `Sheet${index + 1}`,
+            index,
+            gridProperties: { rowCount: 1000, columnCount: 26 },
+          },
+        }));
+
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'test-spreadsheet-id',
+            properties: {
+              title: 'Test Spreadsheet',
+              locale: 'en_US',
+              timeZone: 'America/Los_Angeles',
+            },
+            sheets: largeSheets,
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'get',
+          spreadsheetId: 'test-spreadsheet-id',
+          response_format: 'preview',
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect((result.response as any).responseFormat).toBe('preview');
+        expect((result.response as any).truncated).toBe(true);
+        expect((result.response as any).totalSheets).toBe(30);
+        expect((result.response as any).returnedSheets).toBe(10);
+        expect((result.response as any).spreadsheet.sheets).toHaveLength(10);
+        expect((result.response as any)._meta?.truncated).toBe(true);
+        expect((result.response as any)._meta?.continuationHint).toContain('response_format');
+      });
+
       it('should handle API errors gracefully', async () => {
         mockApi.spreadsheets.get.mockRejectedValueOnce(new Error('Spreadsheet not found'));
 
@@ -295,6 +356,45 @@ describe('SheetsCoreHandler', () => {
         });
 
         expect((result.response as any).error.message).toBeDefined();
+      });
+
+      it('should resolve Drive shortcut IDs before fetching spreadsheet metadata', async () => {
+        mockDriveApi.files.get.mockResolvedValueOnce({
+          data: {
+            id: 'shortcut-sheet-id',
+            mimeType: 'application/vnd.google-apps.shortcut',
+            shortcutDetails: {
+              targetId: 'resolved-sheet-id',
+              targetMimeType: 'application/vnd.google-apps.spreadsheet',
+            },
+          },
+        });
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'resolved-sheet-id',
+            properties: {
+              title: 'Resolved Spreadsheet',
+            },
+            sheets: [],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'get',
+          spreadsheetId: 'shortcut-sheet-id',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockDriveApi.files.get).toHaveBeenCalledWith(
+          expect.objectContaining({
+            fileId: 'shortcut-sheet-id',
+          })
+        );
+        expect(mockApi.spreadsheets.get).toHaveBeenCalledWith(
+          expect.objectContaining({
+            spreadsheetId: 'resolved-sheet-id',
+          })
+        );
       });
     });
 
@@ -466,6 +566,92 @@ describe('SheetsCoreHandler', () => {
         const parseResult = SheetsCoreOutputSchema.safeParse(result);
         expect(parseResult.success).toBe(true);
       });
+
+      it('should apply preview response_format to spreadsheet batch list', async () => {
+        const spreadsheetIds = Array.from({ length: 12 }, (_, i) => `id-${i + 1}`);
+
+        const result = await handler.handle({
+          action: 'batch_get',
+          spreadsheetIds,
+          response_format: 'preview',
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect((result.response as any).responseFormat).toBe('preview');
+        expect((result.response as any).truncated).toBe(true);
+        expect((result.response as any).totalSpreadsheets).toBe(12);
+        expect((result.response as any).returnedSpreadsheets).toBe(10);
+        expect((result.response as any).spreadsheets).toHaveLength(10);
+        expect((result.response as any)._meta?.truncated).toBe(true);
+        expect((result.response as any)._meta?.continuationHint).toContain('response_format');
+      });
+
+      it('should resolve shortcut IDs in batch_get requests', async () => {
+        mockDriveApi.files.get.mockImplementation(async ({ fileId }: { fileId?: string }) => {
+          if (fileId === 'shortcut-batch-id') {
+            return {
+              data: {
+                id: 'shortcut-batch-id',
+                mimeType: 'application/vnd.google-apps.shortcut',
+                shortcutDetails: {
+                  targetId: 'resolved-batch-id',
+                  targetMimeType: 'application/vnd.google-apps.spreadsheet',
+                },
+              },
+            };
+          }
+          return {
+            data: {
+              id: fileId,
+              mimeType: 'application/vnd.google-apps.spreadsheet',
+            },
+          };
+        });
+
+        const result = await handler.handle({
+          action: 'batch_get',
+          spreadsheetIds: ['shortcut-batch-id', 'regular-batch-id'],
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.get).toHaveBeenCalledWith(
+          expect.objectContaining({
+            spreadsheetId: 'resolved-batch-id',
+          })
+        );
+        expect(mockApi.spreadsheets.get).toHaveBeenCalledWith(
+          expect.objectContaining({
+            spreadsheetId: 'regular-batch-id',
+          })
+        );
+      });
+
+      it('should emit progress notifications for large batch_get requests', async () => {
+        const notification = vi.fn().mockResolvedValue(undefined);
+        const requestContext = createRequestContext({
+          requestId: 'core-batch-get-progress',
+          progressToken: 'core-batch-get-progress',
+          sendNotification: notification,
+        });
+
+        const spreadsheetIds = Array.from({ length: 20 }, (_, i) => `id-${i + 1}`);
+        const result = await runWithRequestContext(requestContext, () =>
+          handler.handle({
+            action: 'batch_get',
+            spreadsheetIds,
+          })
+        );
+
+        expect(result.response.success).toBe(true);
+        expect(notification).toHaveBeenCalled();
+        expect(notification.mock.calls[0]?.[0]).toMatchObject({
+          method: 'notifications/progress',
+          params: expect.objectContaining({
+            total: 20,
+            progress: 0,
+          }),
+        });
+      });
     });
 
     describe('get_comprehensive action', () => {
@@ -488,6 +674,108 @@ describe('SheetsCoreHandler', () => {
       });
     });
 
+    describe('describe_workbook action', () => {
+      it('should return structured workbook summary', async () => {
+        // resolveSpreadsheetShortcutId() calls files.get before the action runs — queue a no-op response
+        mockDriveApi.files.get.mockResolvedValueOnce({
+          data: { id: 'test-spreadsheet-id', mimeType: 'application/vnd.google-apps.spreadsheet' },
+        });
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'test-spreadsheet-id',
+            properties: { title: 'My Budget', locale: 'en_US', timeZone: 'America/New_York' },
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  gridProperties: { rowCount: 1000, columnCount: 26 },
+                },
+              },
+            ],
+          },
+        });
+        // Pass 2: bounded values.batchGet returns formula data for formula/cell counting
+        mockApi.spreadsheets.values.batchGet.mockResolvedValueOnce({
+          data: {
+            valueRanges: [
+              {
+                range: "'Sheet1'!A1:Z1000",
+                values: [['100', '=A1*2']],
+              },
+            ],
+          },
+        });
+        mockDriveApi.files.get.mockResolvedValueOnce({
+          data: {
+            modifiedTime: '2024-06-01T12:00:00Z',
+            owners: [{ emailAddress: 'owner@example.com' }],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'describe_workbook',
+          spreadsheetId: 'test-spreadsheet-id',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'describe_workbook');
+        const summary = (result.response as any).workbookSummary;
+        expect(summary).toBeDefined();
+        expect(summary.title).toBe('My Budget');
+        expect(summary.sheetCount).toBe(1);
+        expect(summary.sheets).toHaveLength(1);
+        expect(summary.sheets[0].name).toBe('Sheet1');
+        expect(summary.sheets[0].formulaCount).toBe(1);
+        expect(summary.sheets[0].nonEmptyCells).toBe(2);
+        expect(summary.sheets[0].isEmpty).toBe(false);
+        expect(summary.totalFormulaCount).toBe(1);
+        // Drive API call is optional but should work when driveApi is passed
+        expect(mockDriveApi.files.get).toHaveBeenCalledWith({
+          fileId: 'test-spreadsheet-id',
+          fields: 'modifiedTime,owners(emailAddress)',
+        });
+        expect(summary.lastModifiedTime).toBe('2024-06-01T12:00:00Z');
+        expect(summary.ownerEmail).toBe('owner@example.com');
+
+        const parseResult = SheetsCoreOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should return isEmpty true for sheets with no data', async () => {
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'empty-sheet-id',
+            properties: { title: 'Empty' },
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  gridProperties: { rowCount: 1000, columnCount: 26 },
+                },
+              },
+            ],
+          },
+        });
+        // Pass 2: values.batchGet returns empty for an empty sheet
+        mockApi.spreadsheets.values.batchGet.mockResolvedValueOnce({
+          data: { valueRanges: [{ range: "'Sheet1'!A1:Z1000", values: [] }] },
+        });
+
+        const result = await handler.handle({
+          action: 'describe_workbook',
+          spreadsheetId: 'empty-sheet-id',
+        });
+
+        expect(result.response.success).toBe(true);
+        const summary = (result.response as any).workbookSummary;
+        expect(summary.sheets[0].isEmpty).toBe(true);
+        expect(summary.sheets[0].formulaCount).toBe(0);
+        expect(summary.totalCells).toBe(0);
+      });
+    });
+
     describe('list action', () => {
       it('should list spreadsheets', async () => {
         const result = await handler.handle({
@@ -503,6 +791,36 @@ describe('SheetsCoreHandler', () => {
 
         const parseResult = SheetsCoreOutputSchema.safeParse(result);
         expect(parseResult.success).toBe(true);
+      });
+
+      it('should apply preview response_format to spreadsheet list results', async () => {
+        const files = Array.from({ length: 14 }, (_, i) => ({
+          id: `spreadsheet-${i + 1}`,
+          name: `Spreadsheet ${i + 1}`,
+          mimeType: 'application/vnd.google-apps.spreadsheet',
+          createdTime: '2024-01-01T00:00:00Z',
+          modifiedTime: '2024-01-02T00:00:00Z',
+        }));
+        mockDriveApi.files.list.mockResolvedValueOnce({
+          data: {
+            files,
+            nextPageToken: undefined,
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'list',
+          response_format: 'preview',
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect((result.response as any).responseFormat).toBe('preview');
+        expect((result.response as any).truncated).toBe(true);
+        expect((result.response as any).totalSpreadsheets).toBe(14);
+        expect((result.response as any).returnedSpreadsheets).toBe(10);
+        expect((result.response as any).spreadsheets).toHaveLength(10);
+        expect((result.response as any)._meta?.truncated).toBe(true);
+        expect((result.response as any)._meta?.continuationHint).toContain('response_format');
       });
 
       it('should filter by query', async () => {
@@ -814,6 +1132,38 @@ describe('SheetsCoreHandler', () => {
 
         const parseResult = SheetsCoreOutputSchema.safeParse(result);
         expect(parseResult.success).toBe(true);
+      });
+
+      it('should apply compact response_format to long sheet lists', async () => {
+        const largeSheets = Array.from({ length: 60 }, (_, index) => ({
+          properties: {
+            sheetId: index,
+            title: `Sheet${index + 1}`,
+            index,
+            gridProperties: { rowCount: 1000, columnCount: 26 },
+          },
+        }));
+
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            sheets: largeSheets,
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'list_sheets',
+          spreadsheetId: 'test-spreadsheet-id',
+          response_format: 'compact',
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect((result.response as any).responseFormat).toBe('compact');
+        expect((result.response as any).truncated).toBe(true);
+        expect((result.response as any).totalSheets).toBe(60);
+        expect((result.response as any).returnedSheets).toBe(50);
+        expect((result.response as any).sheets).toHaveLength(50);
+        expect((result.response as any)._meta?.truncated).toBe(true);
+        expect((result.response as any)._meta?.continuationHint).toContain('response_format');
       });
     });
 

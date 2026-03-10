@@ -10,6 +10,10 @@ import { SheetsConfirmOutputSchema } from '../../src/schemas/confirm.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import { resetConfirmationService } from '../../src/services/confirm-service.js';
 import { getCapabilityCacheService } from '../../src/services/capability-cache.js';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 // Mock MCP Server with elicitation capability
 const createMockServer = () => ({
@@ -268,6 +272,57 @@ describe('ConfirmHandler', () => {
 
       const parseResult = SheetsConfirmOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
+    });
+
+    it('should isolate elicitation capability cache by live request context when handler requestId is unset', async () => {
+      const sharedContext = createMockContext({ requestId: undefined });
+      const sharedHandler = new ConfirmHandler({ context: sharedContext });
+
+      vi.mocked(sharedContext.server!.getClientCapabilities).mockReturnValueOnce({} as any);
+
+      const firstResult = await runWithRequestContext(
+        createRequestContext({ requestId: 'req-no-elicitation' }),
+        () =>
+          sharedHandler.handle({
+            action: 'request',
+            plan: {
+              title: 'First Plan',
+              description: 'Should fail due to missing elicitation',
+              steps: [],
+            },
+          })
+      );
+
+      expect(firstResult.response.success).toBe(false);
+      if (!firstResult.response.success) {
+        expect(firstResult.response.error.code).toBe('ELICITATION_UNAVAILABLE');
+      }
+
+      vi.mocked(sharedContext.server!.getClientCapabilities).mockReturnValueOnce({
+        elicitation: true,
+      } as any);
+      vi.mocked(sharedContext.server!.elicitInput).mockResolvedValueOnce({
+        action: 'accept',
+        content: {
+          approved: true,
+        },
+      } as any);
+
+      const secondResult = await runWithRequestContext(
+        createRequestContext({ requestId: 'req-with-elicitation' }),
+        () =>
+          sharedHandler.handle({
+            action: 'request',
+            plan: {
+              title: 'Second Plan',
+              description: 'Should succeed with distinct capability cache key',
+              steps: [],
+            },
+          })
+      );
+
+      expect(secondResult.response.success).toBe(true);
+      expect(sharedContext.server!.getClientCapabilities).toHaveBeenCalledTimes(2);
     });
 
     it('should handle user cancelling the plan', async () => {
@@ -703,6 +758,20 @@ describe('ConfirmHandler', () => {
 
       const parseResult = SheetsConfirmOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
+    });
+
+    it('should apply default empty message for success responses missing message', () => {
+      const parsed = SheetsConfirmOutputSchema.parse({
+        response: {
+          success: true,
+          action: 'request',
+        },
+      });
+
+      expect(parsed.response.success).toBe(true);
+      if (parsed.response.success) {
+        expect(parsed.response.message).toBe('');
+      }
     });
 
     it('should validate output schema for errors', async () => {

@@ -2,17 +2,17 @@
 title: ServalSheets - Action Reference
 category: guide
 last_updated: 2026-01-31
-description: 'Version: v1.5.0'
-version: 1.6.0
+description: 'Version: v1.7.0'
+version: 1.7.0
 audience: user
 difficulty: intermediate
 ---
 
 # ServalSheets - Action Reference
 
-**Version**: v1.5.0
-**Date**: 2026-01-20
-**Total**: 22 tools, 305 actions
+**Version**: v1.7.0
+**Date**: 2026-03-08
+**Total**: 25 tools, 397 actions
 
 ## Current Tool List
 

@@ -68,6 +68,40 @@ export interface HandlerDeviation {
 }
 
 /**
+ * Documented protocol-level deviations that are intentionally retained.
+ * These are not schema/handler switch mismatches, but they are tracked in the
+ * same file so audits have a single source for sanctioned exceptions.
+ */
+export interface ProtocolDeviation {
+  /** Stable identifier (issue id or short code) */
+  id: string;
+
+  /** Protocol area this deviation affects */
+  area: 'mcp';
+
+  /** Short behavior label */
+  behavior: string;
+
+  /** Expected behavior per specification */
+  specExpectation: string;
+
+  /** Current implementation behavior */
+  actualBehavior: string;
+
+  /** Why this deviation exists today */
+  rationale: string;
+
+  /** How to disable or enforce strict behavior */
+  control: string;
+
+  /** Date documented (YYYY-MM-DD) */
+  addedDate: string;
+
+  /** Optional issue/PR reference */
+  reference?: string;
+}
+
+/**
  * Acceptable Handler-Schema Deviations
  *
  * RULES:
@@ -116,6 +150,34 @@ Example: case 'hide_sheet': return this.handleUpdateSheet({ ...params, hidden: t
   //   justification: 'Legacy read action maps to read_range for backward compatibility',
   //   addedDate: 'YYYY-MM-DD',
   // },
+
+  // NOTE: sheets_collaborate has a schema-design workaround (not a handler deviation).
+  // The MCP SDK v1.26.0 bug with z.discriminatedUnion() on large unions means collaborate
+  // uses a flat z.object() + refine() instead. There are NO missing or extra handler cases —
+  // the handler switch still matches the schema 1-for-1.
+  // See: src/schemas/collaborate.ts (workaround comment)
+  // See: tests/contracts/collaborate-discriminated-union.test.ts (regression tests)
+];
+
+/**
+ * Protocol deviations (non-alignment) with explicit operator controls.
+ */
+export const KNOWN_PROTOCOL_DEVIATIONS: ProtocolDeviation[] = [
+  {
+    id: 'ISSUE-255',
+    area: 'mcp',
+    behavior: 'Non-fatal tool failures may keep isError unset',
+    specExpectation:
+      'Tool failures should set CallToolResult.isError=true so clients can treat the result as an error.',
+    actualBehavior:
+      'If MCP_NON_FATAL_TOOL_ERRORS is not false and the error code is allowlisted, the response keeps success=false but sets response._meta.nonFatalError=true while leaving isError undefined.',
+    rationale:
+      'This keeps conversation flow recoverable for expected auth/quota re-auth states where the model can guide the user to remediate and continue.',
+    control:
+      'Set MCP_NON_FATAL_TOOL_ERRORS=false to enforce strict behavior (isError=true on all failures).',
+    addedDate: '2026-02-27',
+    reference: 'ISSUE-255',
+  },
 ];
 
 /**
@@ -142,6 +204,13 @@ export function isCaseDeviationDocumented(tool: string, caseName: string): boole
  */
 export function getToolsWithDeviations(): string[] {
   return ACCEPTABLE_DEVIATIONS.map((d) => d.tool);
+}
+
+/**
+ * Get a protocol deviation by id.
+ */
+export function getProtocolDeviation(id: string): ProtocolDeviation | undefined {
+  return KNOWN_PROTOCOL_DEVIATIONS.find((d) => d.id === id);
 }
 
 /**

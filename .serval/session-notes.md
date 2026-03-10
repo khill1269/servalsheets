@@ -1,139 +1,222 @@
 # Session Notes
+
 > Updated by each Claude session as its last act. Captures intent, decisions, and next steps
 > that code analysis alone cannot determine.
+> Full session history (Sessions 8–49): `docs/development/CODEBASE_CONTEXT.md#historical-feature-milestones`
 
 ## Current Phase
-Platform evolution. Backlog and priorities tracked in `TASKS.md` (project root).
 
-## What Was Just Completed (Session 21, 2026-02-22)
-- **P3 Future Backends — Airtable backend completes multi-platform validation**:
-  - Created `src/adapters/airtable-backend.ts` (924 lines): full implementation mapping SpreadsheetBackend to Airtable REST API
-  - **Better multi-sheet mapping than Notion**: Airtable bases contain multiple tables, which map naturally to sheets in a workbook. Each table has its own fields (columns) and records (rows).
-  - Batch operation handling: Airtable limits batch create/update/delete to 10 records per request. All write operations chunk automatically.
-  - Schema caching: `fieldOrderCache` for column mapping, `recordIdCache` for row-index mapping (cache invalidated on append)
-  - `coerceCellValue()` handles all Airtable field types: singleLineText, number, checkbox, singleSelect, multipleSelects, date, email, url, multipleRecordLinks, multipleAttachments, formula, rollup, rating, autoNumber, collaborators
-  - Honest limitations: `deleteSheet` throws (API doesn't support table deletion), `copySheet`/`copyDocument` throw (no native API), `listRevisions` returns empty (no version API)
-  - Exported from `src/adapters/index.ts` (AirtableBackend + AirtableClient + AirtableBackendConfig types)
-  - **Interface verdict**: Zero modifications needed. Three scaffold backends (Excel Online, Notion, Airtable) all implement SpreadsheetBackend without any interface changes. The abstraction is proven.
-- **Verification**: Per-file typecheck clean (zero errors). Contract tests: **815/815 pass**.
+**Session 55 (2026-03-03) — MCP/API fixes + workspace hygiene committed.** All G0–G5 gates green. `remediation/phase-1` branch has all work committed and PR is open against `feat/phase-0-mcp-protocol-compliance`.
 
-## What Was Just Completed (Session 20, 2026-02-22)
-- **P3 Future Backends — Notion backend validates interface for non-grid platforms**:
-  - Created `src/adapters/notion-backend.ts` (924 lines): full implementation mapping SpreadsheetBackend to Notion API
-  - **Key design challenge**: Notion uses property-based databases (not cell grids). Required synthetic A1 range mapping:
-    - Properties sorted (title first, then alphabetical) → column indices (A, B, C...)
-    - Pages in query order → row indices (1, 2, 3...)
-    - `parseNotionRange()` converts A1 references to row/col bounds
-  - Schema cache for property order (needed for consistent column mapping)
-  - `extractCellValue()` coerces 13 Notion property types → `CellValue` (string | number | boolean | null)
-  - `buildPropertyValue()` reverse-maps CellValue back to Notion property format
-  - Honest limitations documented: `copySheet`/`copyDocument` throw (no native API), `listRevisions` returns empty (API limitation), `deleteSheet` throws (archive only)
-  - Added `'notion' | 'airtable'` to `SpreadsheetPlatform` union in core interface
-  - Exported from `src/adapters/index.ts` (NotionBackend + NotionClient + NotionBackendConfig types)
-  - **Interface verdict**: Zero modifications needed to SpreadsheetBackend. Even a fundamentally different data model (property-based vs cell-grid) maps cleanly through the interface.
-- **Verification**: Per-file typecheck clean (zero errors). Contract tests: **815/815 pass**.
+## Genuine Remaining Work
 
-## What Was Just Completed (Session 19, 2026-02-22)
-- **P3 Future Backends — Excel Online scaffold validates interface**:
-  - Audited `SpreadsheetBackend` interface (417 lines in `packages/serval-core/src/interfaces/backend.ts`): genuinely platform-agnostic — no Google-specific leaks
-  - Created `src/adapters/excel-online-backend.ts` (607 lines): full implementation mapping all SpreadsheetBackend methods to Microsoft Graph API
-  - Key design points: `parseRange()` helper for A1 notation, `itemPath()` for OneDrive paths, parallel individual calls for batch ops (Graph $batch is complex), `copySheet` throws with workaround (not natively supported)
-  - Added `put()` to `GraphRequest` interface for `createDocument` support
-  - Exported from `src/adapters/index.ts` (ExcelOnlineBackend + GraphClient + GraphRequest + ExcelOnlineConfig types)
-  - **Interface verdict**: Zero modifications needed to SpreadsheetBackend. The `unknown[]` for mutations, `string` for fields/query, and `native<T>()` escape hatch provide the right flexibility for a second platform.
-- **Verification**: Per-file typecheck clean (zero errors from excel-online-backend.ts or adapters/index.ts). Contract tests: **815/815 pass**.
+1. **P18-D1–D10**: Handler decomposition — file-size budget system in place; actual decomposition deferred
+2. **16-F1–F6**: Formula evaluation engine — **BLOCKED** on HyperFormula license
+3. **ISSUE-073**: Git worktree cleanup (maintainer-only)
+4. **ISSUE-075**: npm publish @serval/core v0.2.0 (maintainer-only)
 
-## What Was Just Completed (Session 18, 2026-02-22)
-- **P2 Feature Flags — audited all 6, enabled 3**:
-  - Audited: Every flag has complete implementation (164-576 lines), middleware, tests (104 total tests pass)
-  - **ENABLE_PARALLEL_EXECUTOR** → ON: 40% faster batch reads for 100+ ranges, 19 unit/integration tests
-  - **ENABLE_AUDIT_LOGGING** → ON: Non-critical compliance logging (try/catch wrapped), 8 tests
-  - **ENABLE_IDEMPOTENCY** → ON: Retry-safe tool calls via key-based dedup, 3 test files
-  - Kept opt-in: RBAC (needs role config), TENANT_ISOLATION (needs API keys), COST_TRACKING (SaaS only)
-- **Verification**: Contract tests **815/815 pass** with new defaults. All enterprise tests (85/85) pass.
+## What Was Just Completed
 
-## What Was Just Completed (Session 17, 2026-02-21)
-- **P1 Build & DX Polish — all items complete**:
-  - Fixed stale entries in `PROJECT_STATUS.md` and `.serval/state.md` (drift check status, FP counts)
-  - Updated `.serval/generate-state.mjs` drift timeout (5s→15s) and template text
-  - **ESLint OOM fix**: Switched from `project` to `projectService` (typescript-eslint v8 feature), excluded `src/ui/**` and `**/node_modules/` from linting, removed stale `--ext .ts` flag. Heap requirement reduced from **4GB→3GB** (tested at 2.5GB).
-  - **Silent fallback FPs**: Added inline intent comments to all 13 guard-clause returns across 9 files. Checker now reports **0 false positives**.
-  - Formatting fixes: Prettier applied to 4 files (completions.ts, retry.ts, google-sheets-backend.ts, server.ts)
-- **Verification**: Contract tests **815/815 pass**. All checks clean (silent fallbacks, placeholders, debug prints, formatting).
+### Session 55 (2026-03-03) — MCP/API Fixes + Workspace Hygiene
 
-## What Was Just Completed (Session 16, 2026-02-21)
-- **P0 adapter wiring complete**:
-  - Added `backend?: SpreadsheetBackend` to `HandlerContext` (`src/handlers/base.ts`) — optional field, non-breaking for existing handlers.
-  - `server.ts`: Creates `GoogleSheetsBackend` from `GoogleApiClient`, calls `initialize()`, injects as `context.backend`.
-  - `server.ts` shutdown: Calls `backend.dispose()` before destroying `GoogleApiClient`.
-  - Handlers can now access `this.context.backend` for platform-agnostic operations, or continue using Google-specific APIs directly.
-- **Verification**: Per-file typecheck clean (only pre-existing errors). Contract tests: **815/815 pass**.
-- **P0 status**: Only `@serval/core` v0.2.0 publish remains.
+**MCP/API Fixes (6):**
+- Fix 1A: `bootstrap.ts` error message `=true` → `=strict` (GDPR consent env var)
+- Fix 1B: Removed duplicate `registerSamplingConsentChecker` from `http-server.ts` + orphaned imports
+- Fix 1C: Stale "16 tools" comment → "all 25 tools" in `features-2025-11-25.ts`
+- Fix 2A: `tools: { listChanged: true }` declared in `createServerCapabilities()` when STAGED_REGISTRATION active
+- Fix 2B: `audience` annotations on all content items in `response-builder.ts` (`['assistant']` / `['user','assistant']` for errors)
+- Fix 3A: Hardened `is304NotModified()` in `etag-helpers.ts` to check all GaxiosError shapes
 
-## What Was Just Completed (Session 15, 2026-02-21)
-- **P0 serval-core extraction — remaining modules audited**:
-  - `redact.ts` + `bounded-cache.ts`: Already migrated (thin re-exports from `@serval/core`).
-  - `metrics.ts`: DEFERRED — core uses `serval_*` prefix, src/ uses `servalsheets_*` (697 vs 120 lines). Changing breaks dashboards.
-  - `google-api.ts`: Already transitively uses core via migrated retry.ts + circuit-breaker.ts.
-  - `GoogleSheetsBackend` adapter: Exists (509 lines), implements core interfaces, but not wired into handlers.
-- **P0 status**: Module migration phase complete. Only adapter wiring + core v0.2.0 publish remain.
+**VERIFIED_FIX_PLAN (9 fixes):**
+- Fix 1: `manifest.json` rewritten to MCPB v0.3 format (version 1.7.0, 25/391, correct icon)
+- Fix 2: 19 doc files updated (22→25 tools, stale counts→391 actions); RELEASE_NOTES_1.6.0.md preserved
+- Fix 3: `CODEBASE_CONTEXT.md` + `PROJECT_STATUS.md` 377→391
+- Fix 4: 10 untracked root files deleted/moved to `docs/audits/`
+- Fix 5: `git mv GOOGLE_API_ISSUES.md docs/audits/` + `ISSUES.md docs/historical/`
+- Fix 6: `docs/archive/abandoned-v2/` deleted (git rm -rf)
+- Fix 7: `.data/` deleted; Fix 8: `.bak` files deleted
+- Fix 9: Action list extracted to `docs/development/ACTION_REGISTRY.md`; Feature Flags table removed from CODEBASE_CONTEXT.md (~45-line savings per session)
 
-## What Was Just Completed (Session 14, 2026-02-21)
-- **P0 serval-core extraction — first 3 modules migrated**:
-  - `src/utils/retry.ts`: Now imports `executeWithRetry`, `isRetryableError`, `RetryOptions`, `RetryConfig`, `DEFAULT_RETRY_CONFIG` from `@serval/core`. Adds Google Sheets-specific extensions (env var config, request context deadlines, HTTP/2 GOAWAY detection, 401/403 body inspection).
-  - `src/utils/circuit-breaker.ts`: Rewritten from 552 → ~63 lines. Re-exports everything from `@serval/core`, adds `readOnlyMode` fallback strategy (Sheets-specific).
-  - `src/core/errors.ts`: All concrete error classes now extend `ServalError` from `@serval/core` instead of local `ServalSheetsError`. `RangeResolutionError` stays local (A1 notation, sheet name resolution steps).
-- **Deferred migrations** (documented in TASKS.md):
-  - `logger.ts`: 126 callers, deep AsyncLocalStorage integration for requestId/traceId/spanId. High risk, low value.
-  - `history-service.ts`: Uses `spreadsheetId` pervasively; core uses `documentId`. Rename is P3 (multi-backend).
-- **Verification**: Per-file typecheck clean (full project OOMs in sandbox). Contract tests: **815/815 pass**.
+**Result:** 0 TS errors, 2452/2452 tests, drift PASS, G0–G5 all green
 
-## What Was Just Completed (Session 13, 2026-02-21)
-- **CLAUDE.md restructured**: 1081 → 195 lines. Architecture/reference moved to `docs/development/ARCHITECTURE.md`. Added 300-line size cap.
-- **TASKS.md created**: Persistent backlog with P0–P3 priorities. Separates "what to do" from "what happened" (session-notes.md).
-- **PROJECT_STATUS.md fixed**: Drift check status updated from "hangs" to "pass".
-- **Git commit + push**: All Sessions 8–12 work committed as `4a6e3e9`, pushed to origin/main.
+## What Was Just Completed
 
-## What Was Just Completed (Session 12, 2026-02-21)
-- **ESLint AJV crash fixed**: Global `ajv@^8.18.0` override was breaking `@eslint/eslintrc` (needs ajv@6). Added nested override in `package.json` and manually installed ajv@6.12.6 into eslintrc's node_modules.
-- **generate-metadata.ts hang fixed**: Root cause was two `execSync('npx prettier --write ...')` calls creating IPC pipe conflicts. Removed all prettier calls from the script (formatting is a separate concern). Removed non-deterministic `generatedAt` timestamp. Added semantic JSON comparison in validate mode.
-- **check-metadata-drift.sh simplified**: Replaced 122-line script with 20-line wrapper that calls `node --import tsx scripts/generate-metadata.ts --validate`.
-- **npm run verify pipeline restored**: `check:drift` now works (no longer hangs). Updated CLAUDE.md known issues section.
-- **Silent fallback checker improved**: Increased lookback to 5 lines, added 6 new exclusion patterns (switch/case, typeof guards, for..of loops, inline comments). False positives reduced from 48 → 13 (73% reduction).
-- **`.claude/agents/README.md` created**: Index of all 17 specialized agents organized by category (Core Development, Quality & Testing, Google API, Protocol & Config) with "when to use which" guide.
+### Session 54 (2026-03-03) — Project Audit Execution & Doc Hygiene
 
-## Next Steps
-See `TASKS.md` for the full prioritized backlog. P0–P2 complete (except core publish + 3 infra-dependent flags). P3: Excel Online + Notion + Airtable scaffolds done. Only Google Docs backend remains in P3, plus core v0.2.0 publish.
+- Executed all 9 fixes from VERIFIED_FIX_PLAN.md (Fixes 1-8 were already done in prior sessions):
+  - **Fix 2 remaining**: Added current-count notes to 3 historical docs (RELEASE_NOTES_1.6.0.md, ISSUES.md, GOOGLE_API_ISSUES.md)
+  - **Fix 9c**: Created `scripts/sync-doc-counts.mjs` with progression-pattern detection and historical-doc skipping
+  - Fixed 5 stale count references in non-historical docs via sync script (`--fix` mode)
+  - Fixed "22-tool" → "25-tool" in FEATURE_PLAN.md line 18
+- Verified all fixes: 0 stale "22 tools" in non-historical docs, 0 stale "377 actions", manifest.json correct (v1.7.0/25/391), 0 untracked root clutter
+- Note: `scripts/sync-doc-counts.ts` (TS version, Session 18) already exists in package.json but lacks progression-pattern detection; `.mjs` version is more robust
+- Note: `FULL_PROJECT_AUDIT_AND_PLAN.md` and `VERIFIED_FIX_PLAN.md` remain on disk (untracked, deletion blocked by sandbox permissions)
+- Note: `docs/archive/abandoned-v2/package-v2.json` remains on disk (untracked, 0 git-tracked files, deletion blocked)
+- Typecheck: OOM in sandbox (known issue — needs 3GB+ heap)
+
+### Session 53 (2026-03-03) — P2 Hardening Follow-Through
+
+- Added consent gates to remaining direct sampling call paths in decomposed handlers/services:
+  - `analyze-actions/query-natural-language.ts`
+  - `analyze-actions/explain.ts`
+  - `format-actions/validation.ts`
+  - `services/llm-fallback.ts`
+  - `services/sheet-generator.ts`
+- Added core progress streaming coverage for `sheets_core.batch_get`:
+  - `core-actions/spreadsheet-read.ts` emits MCP progress notifications for large request sets
+  - `core.ts` now injects `sendProgress` into spreadsheet-read deps
+- Added regression tests:
+  - `tests/unit/llm-fallback-consent.test.ts` (new)
+  - `tests/handlers/core.test.ts` progress assertion for `batch_get`
+- Fixed strict typing regressions in decomposed analyze actions (`query-natural-language.ts`, `suggest-visualization.ts`).
+- Verification run:
+  - `npm run typecheck` ✅
+  - targeted `eslint` (with `NODE_OPTIONS=--max-old-space-size=8192`) ✅
+  - `npx vitest run tests/handlers/core.test.ts tests/unit/llm-fallback-consent.test.ts tests/mcp/sampling-consent-cache.test.ts` ✅ (`44/44`)
+
+### Session 53 (2026-03-03) — P2 Deep Sampling-Consent Audit Closure
+
+- Completed helper-level consent audit and hardening:
+  - `src/mcp/sampling.ts`: added `assertSamplingConsent()` to `analyzeDataStreaming` summary call and `streamAgenticOperation` loop entry.
+  - `src/services/agent-engine.ts`: local consent guard now falls back to global MCP sampling consent guard when no agent-local checker is configured.
+- Added explicit regression tests:
+  - `tests/mcp/sampling-agentic-consent.test.ts`
+  - `tests/services/agent-engine-consent.test.ts`
+- Verification run:
+  - `npm run typecheck` ✅
+  - targeted `eslint` (`sampling.ts`, `agent-engine.ts`, new tests) ✅
+  - `npx vitest run tests/mcp/sampling-consent-cache.test.ts tests/mcp/sampling-agentic-consent.test.ts tests/services/agent-engine-consent.test.ts tests/unit/llm-fallback-consent.test.ts tests/handlers/core.test.ts` ✅ (`47/47`)
+
+### Session 53 (2026-03-03) — P2 Progress Coverage Phase-2 (Tranche A)
+
+- Added progress notifications for additional long-running handlers:
+  - `src/handlers/analyze-actions/formulas.ts` (`analyze_formulas` full-grid scan)
+  - `src/handlers/advanced-actions/chips.ts` (`list_chips` multi-sheet chip scan)
+- Wired progress callbacks from parent handlers:
+  - `src/handlers/analyze.ts`
+  - `src/handlers/advanced.ts`
+- Added regression assertions:
+  - `tests/handlers/analyze.test.ts` (analyze_formulas progress emission)
+  - `tests/handlers/advanced.test.ts` (list_chips progress emission)
+- Verification run:
+  - `npm run typecheck` ✅
+  - targeted source `eslint` ✅ (`formulas.ts`, `analyze.ts`, `chips.ts`, `advanced.ts`)
+  - `npx vitest run tests/handlers/analyze.test.ts tests/handlers/advanced.test.ts tests/handlers/core.test.ts tests/mcp/sampling-agentic-consent.test.ts tests/services/agent-engine-consent.test.ts` ✅ (`101/101`)
+
+### Session 53 (2026-03-03) — P2 Progress Coverage Phase-2 (Tranche B)
+
+- Added progress notifications for composite orchestration loops:
+  - `src/handlers/composite-actions/batch.ts` (`batch_operations` sequential operation execution)
+- Wired progress callback from parent handler:
+  - `src/handlers/composite.ts`
+- Added regression assertion:
+  - `tests/handlers/composite.test.ts` (batch_operations progress emission)
+- Verification run:
+  - `npm run typecheck` ✅
+  - targeted source `eslint` ✅ (`batch.ts`, `composite.ts`)
+  - `npx vitest run tests/handlers/composite.test.ts tests/handlers/core.test.ts tests/handlers/analyze.test.ts tests/handlers/advanced.test.ts` ✅ (`187/187`)
+
+### Session 53 (2026-03-03) — P2 Progress Coverage Phase-2 (Tranche C)
+
+- Added progress notifications for dependency scenario analysis loops:
+  - `src/handlers/dependencies.ts`:
+    - `model_scenario` multi-change impact/evaluation phases
+    - `compare_scenarios` multi-scenario phase progression
+- Added regression assertions:
+  - `tests/handlers/dependencies.test.ts` (request-context progress notification checks for `model_scenario` and `compare_scenarios`)
+- Verification run:
+  - `npm run typecheck` ✅
+  - targeted source `eslint` ✅ (`dependencies.ts`)
+  - `npx vitest run tests/handlers/dependencies.test.ts tests/handlers/composite.test.ts tests/handlers/core.test.ts tests/handlers/analyze.test.ts tests/handlers/advanced.test.ts` ✅ (`222/222`)
+
+### Session 53 (2026-03-03) — P2 Progress Coverage Phase-2 (Tranche D)
+
+- Added progress notifications for template application workflows:
+  - `src/handlers/templates.ts`:
+    - multi-sheet `apply` progress milestones (start, periodic sheet preparation, completion)
+- Added regression assertion:
+  - `tests/handlers/templates.test.ts` (progress notification check for multi-sheet `apply`)
+- Verification run:
+  - `npm run typecheck` ✅
+  - targeted source `eslint` ✅ (`templates.ts`)
+  - `npx vitest run tests/handlers/templates.test.ts tests/handlers/dependencies.test.ts tests/handlers/composite.test.ts tests/handlers/core.test.ts tests/handlers/analyze.test.ts tests/handlers/advanced.test.ts` ✅ (`264/264`)
+  - Extended focused suite (consent + progress coverage): `npx vitest run tests/mcp/sampling-consent-cache.test.ts tests/mcp/sampling-agentic-consent.test.ts tests/services/agent-engine-consent.test.ts tests/unit/llm-fallback-consent.test.ts tests/handlers/core.test.ts tests/handlers/analyze.test.ts tests/handlers/advanced.test.ts tests/handlers/composite.test.ts tests/handlers/dependencies.test.ts tests/handlers/templates.test.ts` ✅ (`272/272`)
+
+### Session 52 (2026-03-02) — P18 Verification Sprint
+
+- **P18-P1–P4**: `pipeline-executor.ts` + `execute_pipeline` on sheets_session already implemented ✅
+- **P18-X4**: `sampling-validator.ts` (96 lines) with 5 Zod schemas already implemented ✅
+- **P18-X1–X3**: DuckDB (sql_query/sql_join + duckdb-engine.ts), Pyodide (ENABLE_PYTHON_COMPUTE), Workspace Events (auto-renewal at expireTime-12h) — all already implemented ✅
+- **P18-X5**: `progress: {}` in ServerCapabilities blocked by TS2353 (SDK type gap) — marked N/A; sendProgress() already works per-request ✅
+- **P18-G3**: Updated 7 stale `377`→`391` references in competitive gap analysis doc ✅
+- **Result**: 0 TS errors, 2444/2444 tests, check:drift PASS
+
+### Session 51 (2026-03-02) — P16 Backlog Verification
+
+- All P16 items (16-B4, 16-B5, 16-C1–C2, 16-S1–S5, 16-A1–A6, 16-U1–U4) already implemented — TASKS.md was stale
+- **16-U5 (genuine)**: Added 5 missing prompt registrations to `prompt-registration.ts` (`audit_sheet`, `publish_report`, `data_pipeline`, `instantiate_template`, `migrate_spreadsheet`); schemas existed in `src/schemas/prompts.ts:259-301`
+- state.md regenerated (377→391), TASKS.md marked all P16 `[x]`, UNIFIED_IMPROVEMENT_PLAN.md updated to Rev 7
+
+### Session 50 (2026-03-01) — Advanced Integrations (+14 actions, 377→391)
+
+- **DuckDB**: sql_query + sql_join on sheets_compute; `duckdb-engine.ts` + `duckdb-worker.ts`
+- **Pyodide**: python_eval, pandas_profile, sklearn_model, matplotlib_chart; `python-engine.ts`
+- **Drive Activity**: WHO/WHEN attribution on history.timeline; `drive.activity.readonly` scope
+- **Workspace Events**: subscribe/unsubscribe/list; `workspace-events.ts` (7-day auto-renewal)
+- **SERVAL() Formula AI**: install_serval_function; HMAC-SHA256 signing; `formula-callback.ts`
+- **Scheduler**: schedule_create/list/cancel/run_now; `scheduler.ts` with node-cron + JSON persistence
+- **Sampling Validator**: `sampling-validator.ts` wired into 5 sampling call sites
+- **Result**: 377→391 actions, 2444/2444 tests, 0 TS errors
+
+### Session 49 (2026-02-28) — P16 LLM Usability + Elicitation Wiring
+
+- `features-2025-11-25.ts`: 5-GROUP MENTAL MODEL, 11 new few-shot examples, INTERACTIVE WIZARDS section
+- Wired `elicitSpreadsheetCreation` (title + locale + timezone) → sheets_core.create
+- Wired `elicitSharingSettings` (email + role + notification) → sheets_collaborate.share_add
+- **Result**: 0 TS errors, 2427/2427 tests
+
+### Session 47-48 (2026-02-28) — G0–G5 Gates Green + LLM UX Polish
+
+- Fixed connectors.ts:106 TS2322 (last gate blocker)
+- Added 5 test registry entries, updated stale action names in 3 test files
+- 45 errorRecovery blocks across annotations.ts; 17 action aliases in completions.ts
+- **Gate status**: G0✅ G1✅ G2✅ G3✅ G4✅ G5✅ (25 tools, 391 actions, 2425 tests)
 
 ## Key Decisions Made
-- **Option D chosen** for context continuity: auto-generated state + manual session notes
-- **Simulation proved**: 100% fact recovery vs 49% with CLAUDE.md alone, at ~4k extra tokens
-- **Native Claude Code mechanics**: SessionStart hook + @import syntax (no custom infrastructure)
-- **Audit infrastructure complete**: 8/8 steps, 981 audit tests, CI gate script operational
 
-## Architecture Notes
-- serval-core v0.1.0 exists at `packages/serval-core/`
-- GoogleSheetsBackend adapter at `src/adapters/google-sheets-backend.ts` (509 lines)
-- ExcelOnlineBackend adapter at `src/adapters/excel-online-backend.ts` (607 lines, scaffold)
-- NotionBackend adapter at `src/adapters/notion-backend.ts` (924 lines, scaffold)
-- AirtableBackend adapter at `src/adapters/airtable-backend.ts` (924 lines, scaffold)
-- Multi-LLM exporter Phase 3 complete
-- 22 tools with 315 actions (source: `src/schemas/action-counts.ts`)
+- **Option D continuity**: auto-generated state.md + manual session-notes.md (no custom infrastructure)
+- **Safety rail order**: `createSnapshotIfNeeded()` BEFORE `confirmDestructiveAction()` (snapshot must exist before user approves)
+- **P18-X5 N/A**: SDK `ServerCapabilities` type doesn't include `progress` field — not fixable without SDK change; `sendProgress()` already works per-request
+- **HyperFormula blocked**: Formula evaluation engine (16-F1–F6) requires commercial license; deferred indefinitely
+- **Minimal change policy**: ≤3 src/ files per fix unless tests require more; no refactors while debugging
 
-## Session History
-| Date | Session | What Happened |
-|------|---------|---------------|
-| 2026-02-20 | 8+ | Completed audit steps 1-2 (fixtures + coverage test, 976 tests passing) |
-| 2026-02-20 | 9 | Completed audit steps 3-8, researched continuity, built simulation |
-| 2026-02-21 | 10 | Implemented Option D continuity system, fixed stale files |
-| 2026-02-21 | 11 | DX overhaul: state generator upgrade, CLAUDE.md style guide + architecture + recipe, stale count fixes across 6 files, verify:safe script, bash syntax fix |
-| 2026-02-21 | 12 | Pipeline restoration: ESLint AJV fix, drift hang fix (removed npx prettier), verify pipeline restored, silent fallback checker improved (48→13 FP), agents README index created |
-| 2026-02-21 | 13 | CLAUDE.md restructure (1081→195 lines), ARCHITECTURE.md created, TASKS.md backlog, PROJECT_STATUS.md fix, git commit+push |
-| 2026-02-21 | 14 | P0 serval-core: migrated retry.ts, circuit-breaker.ts, errors.ts to import from @serval/core; deferred logger + history-service; 815/815 contract tests pass |
-| 2026-02-21 | 15 | P0 audit: redact.ts + bounded-cache.ts already migrated; metrics.ts deferred (prefix conflict); google-api.ts transitively done; adapter scaffolded but unwired; module migration phase complete |
-| 2026-02-21 | 16 | P0 adapter wiring: added backend to HandlerContext, injected GoogleSheetsBackend in server.ts, dispose in shutdown; 815/815 tests pass; only core v0.2.0 publish remains |
-| 2026-02-21 | 17 | P1 complete: ESLint OOM fix (projectService, 4GB→3GB), silent fallback FPs (13→0), stale docs fixed, formatting cleaned up; 815/815 tests pass |
-| 2026-02-22 | 18 | P2 feature flags: audited all 6, enabled 3 (parallel executor, audit logging, idempotency); 104 enterprise tests pass; 815/815 contract tests pass |
-| 2026-02-22 | 19 | P3 Excel Online backend scaffold (607 lines); validates SpreadsheetBackend interface is platform-agnostic (zero modifications needed); 815/815 contract tests pass |
-| 2026-02-22 | 20 | P3 Notion backend scaffold (924 lines); validates interface works for non-grid platforms (property-based DB model); added 'notion'+'airtable' to SpreadsheetPlatform; 815/815 tests pass |
-| 2026-02-22 | 21 | P3 Airtable backend scaffold (924 lines); multi-table base maps naturally to multi-sheet; batch ops chunked at 10; 3 scaffold backends prove interface abstraction; 815/815 tests pass |
+## Architecture Quick Reference
+
+- Full handler map, service inventory, anti-patterns: `docs/development/CODEBASE_CONTEXT.md`
+- Feature specs (F1–F6): `docs/development/FEATURE_PLAN.md`
+- Current metrics (tools/actions/tests): `src/schemas/action-counts.ts` + `.serval/state.md`
+- TASKS.md: open backlog (P2 phase-2 progress coverage tranche E, 16-F1–F6 blocked, ISSUE-073, ISSUE-075)
+
+## Session History (recent)
+
+| Date       | Session | Summary                                                                                                                               |
+| ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-03-03 | 54      | Project audit execution: fixed 5 stale doc counts, created sync-doc-counts.mjs, added historical-doc notes, all verifications green |
+| 2026-03-03 | 53      | P2 phase-2 progress coverage tranche D: added progress notifications for templates.apply (multi-sheet), tests green                 |
+| 2026-03-03 | 53      | P2 phase-2 progress coverage tranche C: added progress notifications for dependencies.model_scenario + compare_scenarios, tests green |
+| 2026-03-03 | 53      | P2 phase-2 progress coverage tranche B: added progress notifications for composite.batch_operations, tests green                      |
+| 2026-03-03 | 53      | P2 phase-2 progress coverage tranche A: added progress notifications for analyze_formulas + list_chips, tests green                   |
+| 2026-03-03 | 53      | P2 follow-through: sampling-consent hardening + core.batch_get progress notifications + focused regression tests                      |
+| 2026-03-02 | 52      | P18 verification sprint — all items closed or N/A                                                                                     |
+| 2026-03-02 | 51      | P16 backlog verification, 5 prompt registrations added, state.md updated                                                              |
+| 2026-03-01 | 50      | Advanced integrations: DuckDB/Pyodide/Drive Activity/Workspace Events/Scheduler/SERVAL Formula                                        |
+| 2026-02-28 | 49      | P16 LLM usability, elicitation wiring (core.create + collaborate.share_add)                                                           |
+| 2026-02-28 | 47-48   | G0–G5 gates green, connectors.ts fix, LLM UX polish (annotations, aliases)                                                            |
+| 2026-02-27 | 46      | sheets_connectors metadata + full wiring verification (10 actions)                                                                    |
+| 2026-02-25 | 41      | ISSUE-226/234/237 fixes; 24 issues verified already fixed                                                                             |
+| 2026-02-24 | 39      | Remediation Phase 1: 9 tests fixed, security fixes, gate pipeline restored                                                            |
+| 2026-02-23 | 35-38   | P6 API fixes, P7–P15 implementation (cache, safety rails, MCP wiring, 5 composite actions)                                            |
+| 2026-02-23 | 24-34   | P4 features: F4 Suggestions, F3 Cleaning, F1 Generator, F5 Time-Travel, F6 Scenarios, F2 Federation                                   |
+| 2026-02-22 | 18-23   | P2 feature flags, P3 backends (Excel/Notion/Airtable), P4 feature plan                                                                |
+| 2026-02-21 | 13-17   | P0 serval-core migration, P1 DX polish (ESLint fix, drift check, silent FPs)                                                          |
+| 2026-02-20 | 8-12    | Audit infrastructure (fixtures, coverage, gates, drift, agents)                                                                       |

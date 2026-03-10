@@ -19,6 +19,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { assertSamplingConsent, withSamplingTimeout } from '../mcp/sampling.js';
 
 // ============================================================================
 // Types
@@ -345,14 +346,18 @@ export async function createMessageWithFallback(
     logger.debug('Using MCP sampling', { component: 'llm-fallback' });
 
     // Use MCP sampling
-    const result = (await server.createMessage({
-      messages: options.messages.map((m) => ({
-        role: m.role,
-        content: { type: 'text', text: m.content },
-      })),
-      systemPrompt: options.systemPrompt,
-      maxTokens: options.maxTokens || 4096,
-    })) as {
+    await assertSamplingConsent();
+
+    const result = (await withSamplingTimeout(() =>
+      server.createMessage!({
+        messages: options.messages.map((m) => ({
+          role: m.role,
+          content: { type: 'text', text: m.content },
+        })),
+        systemPrompt: options.systemPrompt,
+        maxTokens: options.maxTokens || 4096,
+      })
+    )) as {
       content: Array<{ type: string; text: string }> | { type: string; text: string };
       model?: string;
     };

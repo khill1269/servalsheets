@@ -11,6 +11,7 @@
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { DEFAULT_CHECKPOINT_DIR } from '../config/env.js';
 import { logger } from './logger.js';
 
 // ============================================================================
@@ -45,7 +46,6 @@ export interface CheckpointSummary {
 // CONFIGURATION
 // ============================================================================
 
-const DEFAULT_CHECKPOINT_DIR = '/tmp/servalsheets-checkpoints';
 const MAX_CHECKPOINTS_PER_SESSION = 10;
 const CHECKPOINT_FILE_EXTENSION = '.checkpoint.json';
 

@@ -136,6 +136,41 @@ describe('FormatHandler', () => {
       expect(call.requestBody.requests[0].repeatCell.fields).toContain('backgroundColor');
       expect(call.requestBody.requests[0].repeatCell.fields).toContain('textFormat');
     });
+
+    it('should report exact cellsFormatted count for A1:E1', async () => {
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: {} });
+      mockContext.rangeResolver.resolve = vi.fn().mockResolvedValue({
+        a1Notation: 'Sheet1!A1:E1',
+        sheetId: 0,
+        sheetName: 'Sheet1',
+        gridRange: {
+          sheetId: 0,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: 5,
+        },
+        resolution: {
+          method: 'a1_direct',
+          confidence: 1.0,
+          path: '',
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'set_format',
+        spreadsheetId: 'test-id',
+        range: { a1: 'Sheet1!A1:E1' },
+        format: {
+          backgroundColor: { red: 0.2, green: 0.4, blue: 0.6 },
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.cellsFormatted).toBe(5);
+      }
+    });
   });
 
   describe('set_background action', () => {
@@ -557,17 +592,54 @@ describe('FormatHandler', () => {
   // ============================================================
 
   describe('suggest_format action', () => {
-    it('should return FEATURE_UNAVAILABLE when server context is not available', async () => {
-      // Handler context has no server → sampling not supported
+    beforeEach(() => {
+      // suggest_format fetches grid data (includeGridData:true) before checking sampling support.
+      // Override the global mock (which only returns sheet properties) with rowData.
+      mockApi.spreadsheets.get.mockResolvedValue({
+        data: {
+          sheets: [
+            {
+              properties: { sheetId: 0, title: 'Sheet1' },
+              data: [
+                {
+                  rowData: [
+                    {
+                      values: [
+                        { formattedValue: 'Name' },
+                        { formattedValue: 'Revenue' },
+                        { formattedValue: 'Cost' },
+                        { formattedValue: 'Margin' },
+                      ],
+                    },
+                    {
+                      values: [
+                        { formattedValue: 'Acme' },
+                        { effectiveValue: { numberValue: 50000 } },
+                        { effectiveValue: { numberValue: 30000 } },
+                        { effectiveValue: { numberValue: 0.4 } },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+    });
+
+    it('should return rule-based suggestions when server context is not available (graceful degradation)', async () => {
+      // ISSUE-170: handler now degrades to rule-based suggestions instead of FEATURE_UNAVAILABLE
+      // when MCP Sampling and LLM fallback are both unavailable
       const result = await handler.handle({
         action: 'suggest_format',
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:D10' },
       });
 
-      expect(result.response.success).toBe(false);
-      if (!result.response.success) {
-        expect(result.response.error.code).toBe('FEATURE_UNAVAILABLE');
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(Array.isArray((result.response as { suggestions?: unknown }).suggestions)).toBe(true);
       }
 
       const parseResult = SheetsFormatOutputSchema.safeParse(result);
@@ -1226,50 +1298,39 @@ describe('FormatHandler', () => {
 
   describe('list_data_validations action', () => {
     it('should list data validations in a range', async () => {
-      // First call: sheet metadata (size check)
-      mockApi.spreadsheets.get
-        .mockResolvedValueOnce({
-          data: {
-            sheets: [
-              {
-                properties: {
-                  sheetId: 0,
-                  gridProperties: { rowCount: 100, columnCount: 10 },
-                },
+      // Single call: sheet metadata (size check) + grid data with validations combined
+      mockApi.spreadsheets.get.mockResolvedValueOnce({
+        data: {
+          sheets: [
+            {
+              properties: {
+                sheetId: 0,
+                gridProperties: { rowCount: 100, columnCount: 10 },
               },
-            ],
-          },
-        })
-        // Second call: grid data with validations
-        .mockResolvedValueOnce({
-          data: {
-            sheets: [
-              {
-                properties: { sheetId: 0 },
-                data: [
-                  {
-                    startRow: 0,
-                    startColumn: 0,
-                    rowData: [
-                      {
-                        values: [
-                          {
-                            dataValidation: {
-                              condition: {
-                                type: 'ONE_OF_LIST',
-                                values: [{ userEnteredValue: 'Yes' }, { userEnteredValue: 'No' }],
-                              },
+              data: [
+                {
+                  startRow: 0,
+                  startColumn: 0,
+                  rowData: [
+                    {
+                      values: [
+                        {
+                          dataValidation: {
+                            condition: {
+                              type: 'ONE_OF_LIST',
+                              values: [{ userEnteredValue: 'Yes' }, { userEnteredValue: 'No' }],
                             },
                           },
-                        ],
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
-          },
-        });
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
 
       const result = await handler.handle({
         action: 'list_data_validations',

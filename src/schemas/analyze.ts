@@ -27,6 +27,7 @@ import {
   SheetIdSchema,
   RangeInputSchema,
   ChartPositionSchema,
+  ChartTypeSchema,
   LegendPositionSchema,
   ColorSchema,
   SummarizeFunctionSchema,
@@ -358,6 +359,14 @@ const ComprehensiveActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(5)
     .describe('Number of sheets to return per page'),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(500)
+    .optional()
+    .default(50)
+    .describe('Maximum number of items to return per page (default: 50, max: 500)'),
   context: z.string().optional().describe('Additional context for analysis'),
   timeoutMs: z
     .number()
@@ -486,6 +495,16 @@ const AnalyzeQualityActionSchema = CommonFieldsSchema.extend({
 const AnalyzePerformanceActionSchema = CommonFieldsSchema.extend({
   action: z.literal('analyze_performance').describe('Optimization suggestions'),
   range: RangeInputSchema.optional().describe('Range to analyze'),
+  maxSheets: z
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .optional()
+    .default(5)
+    .describe(
+      'Maximum sheets to fetch grid data for (default 5). Prevents unbounded fetches on large spreadsheets.'
+    ),
 });
 
 const AnalyzeFormulasActionSchema = CommonFieldsSchema.extend({
@@ -946,6 +965,120 @@ const AutoEnhanceActionSchema = CommonFieldsSchema.extend({
     .describe('Maximum enhancements to apply (default 3)'),
 });
 
+// ===== ACTION DISCOVERY - Meta-tool for finding actions by natural language =====
+
+/**
+ * Discovery result for a single action
+ */
+export const ActionDiscoveryMatchSchema = z.object({
+  tool: z.string().describe('Tool name (e.g., sheets_data, sheets_format)'),
+  action: z.string().describe('Action name (e.g., read, write)'),
+  confidence: z.number().min(0).max(1).describe('Match confidence score 0-1'),
+  description: z.string().describe('What this action does'),
+  whenToUse: z.string().optional().describe('When to use this action'),
+  whenNotToUse: z.string().optional().describe('When to avoid this action'),
+  commonMistake: z.string().optional().describe('Top common mistake to avoid'),
+});
+
+/**
+ * Discover Action - Find actions using natural language search
+ *
+ * DESIGN: This is a meta-tool that helps Claude find the right action
+ * when they're not sure what to use. Instead of guessing, the user can ask:
+ * "How do I merge cells?" → discover_action finds sheets_dimensions.merge
+ * "I want to combine two spreadsheets" → discover_action finds sheets_data.cross_read
+ *
+ * Powered by ACTION_ANNOTATIONS which contains all registered actions
+ * with whenToUse descriptions that get indexed for search.
+ */
+const DiscoverActionActionSchema = z.object({
+  action: z
+    .literal('discover_action')
+    .describe(
+      'Find the right action using natural language. Ask in plain English: "merge cells", "combine spreadsheets", "find duplicates", etc.'
+    ),
+  query: z
+    .string()
+    .min(2)
+    .describe(
+      'Natural language search query (e.g., "merge cells", "combine data", "find missing values"). Be specific about what you want to do.'
+    ),
+  category: z
+    .enum(['data', 'format', 'analysis', 'structure', 'collaboration', 'automation', 'all'])
+    .optional()
+    .default('all')
+    .describe('Optional category filter for faster results'),
+  maxResults: z
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .optional()
+    .default(5)
+    .describe('Maximum results to return (default 5, max 10)'),
+});
+
+/**
+ * Check overall formula health: volatile functions, deeply nested formulas,
+ * missing error guards (IFERROR/IFNA), inconsistent column formulas, and
+ * named range coverage. Returns a scored health report with actionable findings.
+ */
+const FormulaHealthCheckActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('formula_health_check')
+    .describe(
+      'Audit formula health across the spreadsheet. Detects volatile functions (NOW, RAND, INDIRECT), ' +
+        'deeply nested formulas (depth > 5), missing IFERROR/IFNA guards on VLOOKUP/INDEX-MATCH, ' +
+        'inconsistent formulas within a column, and orphaned named ranges. ' +
+        'Returns a health score (0–100) with severity-ranked findings and fix suggestions.'
+    ),
+  range: RangeInputSchema.optional().describe(
+    'Range to audit. If omitted, scans all sheets with formulas.'
+  ),
+  maxDepthThreshold: z
+    .number()
+    .int()
+    .min(1)
+    .max(20)
+    .optional()
+    .default(5)
+    .describe('Nesting depth at which a formula is flagged as overly complex (default 5)'),
+  checkVolatile: z.boolean().optional().default(true).describe('Flag volatile functions'),
+  checkConsistency: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Flag columns where some rows have formulas and others have hardcoded values'),
+  checkErrorGuards: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Flag lookup formulas missing IFERROR/IFNA protection'),
+});
+
+/**
+ * Diagnose formula errors (#REF!, #VALUE!, #NAME?, #DIV/0!, #N/A, circular refs)
+ * with root cause analysis and suggested fixes.
+ * Competitive parity: Claude in Excel's #1 feature — traces formula errors with cell-level citations.
+ */
+const DiagnoseErrorsActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('diagnose_errors')
+    .describe(
+      'Diagnose and explain errors in spreadsheet formulas and data. ' +
+        'Traces #REF!, #VALUE!, #NAME?, #DIV/0!, #NULL!, #N/A errors and circular references ' +
+        'with root cause analysis, dependency chain, and suggested fixes.'
+    ),
+  range: RangeInputSchema.optional().describe(
+    'Range to scan for errors. If omitted, scans all sheets.'
+  ),
+  includeFormulas: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Include formula text in error diagnosis for context'),
+});
+
 /**
  * All analysis operation inputs
  *
@@ -980,6 +1113,11 @@ export const SheetsAnalyzeInputSchema = z.object({
     // Smart suggestions actions (2) - F4
     SuggestNextActionsActionSchema,
     AutoEnhanceActionSchema,
+    // Meta-tools (1)
+    DiscoverActionActionSchema,
+    // Diagnostic actions (2) - competitive parity with Claude in Excel
+    DiagnoseErrorsActionSchema,
+    FormulaHealthCheckActionSchema,
   ]),
 });
 
@@ -1017,7 +1155,7 @@ const FormulaSuggestionSchema = z.object({
  * Chart recommendation schema with executable parameters
  */
 const ChartRecommendationSchema = z.object({
-  chartType: z.string(),
+  chartType: ChartTypeSchema,
   suitabilityScore: z.coerce.number().min(0).max(100),
   reasoning: z.string(),
   configuration: z
@@ -1037,7 +1175,7 @@ const ChartRecommendationSchema = z.object({
       params: z.object({
         spreadsheetId: z.string(),
         sheetId: z.coerce.number().int(),
-        chartType: z.string(),
+        chartType: ChartTypeSchema,
         data: z.object({
           sourceRange: RangeInputSchema,
           series: z
@@ -1315,6 +1453,7 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
+    aiInsight: z.string().optional().describe('Optional AI-generated narrative insight'),
 
     // analyze_data results
     summary: z.string().optional(),
@@ -1433,6 +1572,19 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
             reasoning: z.string(),
           })
         ),
+        upgradeOpportunities: z
+          .array(
+            z.object({
+              cell: z.string(),
+              pattern: z.string(),
+              currentFormula: z.string(),
+              suggestedFormula: z.string(),
+              reason: z.string(),
+              confidence: z.coerce.number(),
+              executable: z.boolean().optional(),
+            })
+          )
+          .optional(),
         circularReferences: z
           .array(
             z.object({
@@ -1472,7 +1624,7 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
           .optional(),
         visualizationSuggestion: z
           .object({
-            chartType: z.string(),
+            chartType: ChartTypeSchema,
             reasoning: z.string(),
           })
           .optional(),
@@ -1583,7 +1735,7 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
     visualizations: z
       .array(
         z.object({
-          chartType: z.string(),
+          chartType: ChartTypeSchema,
           suitabilityScore: z.coerce.number(),
           reasoning: z.string(),
           suggestedConfig: z.record(
@@ -1626,6 +1778,11 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
       .optional()
       .describe('Next page cursor for pagination (format: "sheet:N")'),
     hasMore: z.boolean().optional().describe('True if more sheets available'),
+    totalCount: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Total number of items available (comprehensive)'),
     resourceUri: z
       .string()
       .optional()
@@ -1912,17 +2069,7 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
           action: z.object({
             tool: z.string(),
             action: z.string(),
-            params: z.record(
-              z.string(),
-              z.union([
-                z.string(),
-                z.number(),
-                z.boolean(),
-                z.null(),
-                z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
-                z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
-              ])
-            ),
+            params: z.record(z.string(), z.unknown()),
           }),
         })
       )
@@ -1954,17 +2101,7 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
             action: z.object({
               tool: z.string(),
               action: z.string(),
-              params: z.record(
-                z.string(),
-                z.union([
-                  z.string(),
-                  z.number(),
-                  z.boolean(),
-                  z.null(),
-                  z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
-                  z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
-                ])
-              ),
+              params: z.record(z.string(), z.unknown()),
             }),
           }),
           status: z.enum(['applied', 'skipped', 'failed']),
@@ -1983,6 +2120,41 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
       .optional()
       .describe('Enhancement summary counts'),
     mode: z.enum(['preview', 'apply']).optional().describe('Enhancement mode (preview or apply)'),
+
+    // discover_action results (meta-tool for finding actions)
+    query: z.string().optional().describe('Original search query'),
+    category: z.string().optional().describe('Category filter used'),
+    matches: z
+      .array(
+        z.object({
+          tool: z.string().describe('Tool name (e.g., sheets_data)'),
+          action: z.string().describe('Action name (e.g., read)'),
+          confidence: z.number().min(0).max(1).describe('Match confidence score'),
+          description: z.string().describe('What this action does'),
+          whenToUse: z.string().optional().describe('When to use this action'),
+          whenNotToUse: z.string().optional().describe('When to avoid this action'),
+          commonMistake: z.string().optional().describe('Top common mistake to avoid'),
+        })
+      )
+      .optional()
+      .describe('List of matching actions ranked by relevance'),
+    matchCount: z.number().int().min(0).optional().describe('Total number of matches found'),
+    needsClarification: z
+      .boolean()
+      .optional()
+      .describe('True when the query is ambiguous and should be clarified'),
+    clarificationReason: z
+      .enum(['no_matches', 'underspecified_query', 'low_confidence', 'close_competition'])
+      .optional()
+      .describe('Why clarification is needed'),
+    clarificationQuestion: z
+      .string()
+      .optional()
+      .describe('Question to ask the user to disambiguate intent'),
+    clarificationOptions: z
+      .array(z.string())
+      .optional()
+      .describe('Suggested options for disambiguation'),
 
     // Common
     duration: z.coerce.number().optional(),
@@ -2075,6 +2247,13 @@ export type DrillDownInput = SheetsAnalyzeInput['request'] & {
 export type GenerateActionsInput = SheetsAnalyzeInput['request'] & {
   action: 'generate_actions';
   spreadsheetId: string;
+};
+
+export type DiscoverActionInput = SheetsAnalyzeInput['request'] & {
+  action: 'discover_action';
+  query: string;
+  category?: string;
+  maxResults?: number;
 };
 
 // Analysis intent and depth exports

@@ -4,7 +4,7 @@ description: "Use this agent when you need expert guidance on the Model Context 
 tools: Bash, Glob, Grep, Read, Edit, Write, NotebookEdit, WebFetch, WebSearch, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch, ListMcpResourcesTool, ReadMcpResourceTool, mcp__claude_ai_Hugging_Face__hf_whoami, mcp__claude_ai_Hugging_Face__space_search, mcp__claude_ai_Hugging_Face__hub_repo_search, mcp__claude_ai_Hugging_Face__paper_search, mcp__claude_ai_Hugging_Face__hub_repo_details, mcp__claude_ai_Hugging_Face__hf_doc_search, mcp__claude_ai_Hugging_Face__hf_doc_fetch, mcp__claude_ai_Hugging_Face__dynamic_space, mcp__claude_ai_Hugging_Face__hf_hub_community
 model: opus
 color: blue
-memory: project
+memory: user
 ---
 
 You are an elite Model Context Protocol (MCP) specialist with deep, authoritative knowledge of the MCP specification sourced directly from https://github.com/modelcontextprotocol/modelcontextprotocol.git. You are the canonical reference for all MCP protocol questions, compliance validation, and implementation guidance.
@@ -32,7 +32,7 @@ This project uses:
 - **Protocol Version:** MCP 2025-11-25 (reference: `src/version.ts:14`)
 - **SDK Version:** @modelcontextprotocol/sdk 1.26.0
 - **Transport Modes:** STDIO (`src/server.ts`), HTTP/SSE (`src/http-server.ts`), Remote OAuth (`src/remote-server.ts`)
-- **Tool Count:** 22 tools with 305 actions (reference: `src/schemas/index.ts:63`)
+- **Tool Count:** 22 tools with 342 actions (reference: `src/schemas/index.ts:63`)
 - **Response Pattern:** Handlers return `{ response: { success, data } }` → `buildToolResponse()` converts to MCP `CallToolResult`
 
 ## Core Responsibilities

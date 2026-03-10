@@ -43,6 +43,16 @@ import {
   UltimateAnalysisPromptArgsSchema,
   CreateVisualizationPromptArgsSchema,
   AnalyzeWithHistoryPromptArgsSchema,
+  GenerateSheetPromptArgsSchema,
+  CleanDataAutomatedPromptArgsSchema,
+  ScenarioModelingPromptArgsSchema,
+  SmartSuggestionsPromptArgsSchema,
+  CrossSheetFederationPromptArgsSchema,
+  AuditSheetPromptArgsSchema,
+  PublishReportPromptArgsSchema,
+  DataPipelinePromptArgsSchema,
+  InstantiateTemplatePromptArgsSchema,
+  MigrateSpreadsheetPromptArgsSchema,
 } from '../../schemas/prompts.js';
 
 // ============================================================================
@@ -475,7 +485,13 @@ Pro tip: Use sheets_transaction to batch all operations into 1 API call.`,
     },
     async (args: Record<string, unknown>) => {
       const role = args['role'] || 'writer';
-      const collaborators = args['collaborators'] as string[];
+      const collaboratorsValue = args['collaborators'];
+      const collaborators = Array.isArray(collaboratorsValue)
+        ? collaboratorsValue.filter((value): value is string => typeof value === 'string')
+        : String(collaboratorsValue ?? '')
+            .split(',')
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0);
 
       return {
         messages: [
@@ -4610,6 +4626,518 @@ Summary:
 - Parallel edit reconciliation
 
 Please proceed with this comparison and provide a detailed diff report.`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  // === P4-P14 FEATURE PROMPTS (ISSUE-236) ===
+
+  server.registerPrompt(
+    'generate_sheet_from_description',
+    {
+      description: '🪄 Generate a complete spreadsheet from a natural language description',
+      argsSchema: GenerateSheetPromptArgsSchema,
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async ({ description, style }: any) => {
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `🪄 Sheet Generation Workflow
+
+**Goal:** Create a spreadsheet from this description: "${description}"
+**Style:** ${style ?? 'professional'}
+
+## Step 1: Preview (Dry Run)
+Use sheets_composite action "preview_generation" to see proposed structure without creating:
+\`\`\`json
+{"action":"preview_generation","description":"${description}"}
+\`\`\`
+
+## Step 2: Review proposed structure
+- Review the columns, formulas, formatting, and sample data
+- Confirm it matches your intent before creating
+
+## Step 3: Generate
+Use sheets_composite action "generate_sheet" to create the spreadsheet:
+\`\`\`json
+{"action":"generate_sheet","description":"${description}","style":"${style ?? 'professional'}"}
+\`\`\`
+
+## Step 4: Enhance (optional)
+After creation, use sheets_analyze action "suggest_next_actions" to get improvement recommendations:
+\`\`\`json
+{"action":"suggest_next_actions","spreadsheetId":"<from step 3>"}
+\`\`\`
+
+The generator uses AI (MCP Sampling) to design structure and formulas. For complex sheets, describe the columns, data types, and calculations you need.`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'automated_data_cleaning',
+    {
+      description: '🧹 Auto-detect and fix data quality issues in a range',
+      argsSchema: CleanDataAutomatedPromptArgsSchema,
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async ({ spreadsheetId, range }: any) => {
+      const rangeStr = range ?? 'full sheet';
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `🧹 Automated Data Cleaning Workflow
+
+**Spreadsheet:** ${spreadsheetId}
+**Range:** ${rangeStr}
+
+## Step 1: Get AI Recommendations
+Use sheets_fix action "suggest_cleaning" to identify issues:
+\`\`\`json
+{"action":"suggest_cleaning","spreadsheetId":"${spreadsheetId}"${range ? `,"range":"${range}"` : ''}}
+\`\`\`
+
+## Step 2: Preview Changes
+Use sheets_fix action "clean" in preview mode to see what will change:
+\`\`\`json
+{"action":"clean","spreadsheetId":"${spreadsheetId}"${range ? `,"range":"${range}"` : ''},"mode":"preview"}
+\`\`\`
+
+## Step 3: Review & Apply
+If the preview looks good, apply the fixes:
+\`\`\`json
+{"action":"clean","spreadsheetId":"${spreadsheetId}"${range ? `,"range":"${range}"` : ''},"mode":"apply"}
+\`\`\`
+
+## Step 4: Standardize Formats (optional)
+For date/currency/phone inconsistencies, use:
+\`\`\`json
+{"action":"standardize_formats","spreadsheetId":"${spreadsheetId}"${range ? `,"range":"${range}"` : ''},"columns":[{"column":"A","targetFormat":"iso_date"}]}
+\`\`\`
+
+**Built-in rules:** trim_whitespace, normalize_case, fix_dates, fix_numbers, fix_booleans, remove_duplicates, fix_emails, fix_phones, fix_urls, fix_currency`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'what_if_scenario_modeling',
+    {
+      description: '📊 Model a what-if scenario and trace cascading formula effects',
+      argsSchema: ScenarioModelingPromptArgsSchema,
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async ({ spreadsheetId, scenario }: any) => {
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `📊 What-If Scenario Modeling Workflow
+
+**Spreadsheet:** ${spreadsheetId}
+**Scenario:** "${scenario}"
+
+## Step 1: Understand Dependencies
+Use sheets_dependencies action "build" to map formula relationships:
+\`\`\`json
+{"action":"build","spreadsheetId":"${spreadsheetId}"}
+\`\`\`
+
+## Step 2: Identify Input Cells
+Determine which cells to change for this scenario. Example for "revenue drops 20%":
+- Find the revenue input cell (e.g., B2)
+- New value = current value × 0.8
+
+## Step 3: Model the Scenario
+Use sheets_dependencies action "model_scenario" to trace all cascading effects:
+\`\`\`json
+{"action":"model_scenario","spreadsheetId":"${spreadsheetId}","changes":[{"cell":"Sheet1!B2","newValue":80000}]}
+\`\`\`
+
+## Step 4: Compare Multiple Scenarios (optional)
+\`\`\`json
+{"action":"compare_scenarios","spreadsheetId":"${spreadsheetId}","scenarios":[{"name":"Base Case","changes":[]},{"name":"${scenario}","changes":[{"cell":"Sheet1!B2","newValue":80000}]}]}
+\`\`\`
+
+## Step 5: Materialize as Sheet (optional)
+Create a side-by-side comparison sheet without modifying the original:
+\`\`\`json
+{"action":"create_scenario_sheet","spreadsheetId":"${spreadsheetId}","scenario":{"name":"${scenario}","changes":[{"cell":"Sheet1!B2","newValue":80000}]}}
+\`\`\``,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'smart_suggestions_copilot',
+    {
+      description: '💡 Get proactive AI suggestions for improving a spreadsheet',
+      argsSchema: SmartSuggestionsPromptArgsSchema,
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async ({ spreadsheetId }: any) => {
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `💡 Smart Suggestions (Copilot) Workflow
+
+**Spreadsheet:** ${spreadsheetId}
+
+## Step 1: Quick Scan
+Use sheets_analyze action "scout" to understand structure (fast, 1 API call):
+\`\`\`json
+{"action":"scout","spreadsheetId":"${spreadsheetId}"}
+\`\`\`
+
+## Step 2: Get Ranked Suggestions
+Use sheets_analyze action "suggest_next_actions" for AI-powered recommendations:
+\`\`\`json
+{"action":"suggest_next_actions","spreadsheetId":"${spreadsheetId}","maxSuggestions":5}
+\`\`\`
+
+Each suggestion includes:
+- Title and description
+- Confidence score (0-1)
+- Category (formulas, formatting, structure, data_quality, visualization)
+- Ready-to-execute params — copy them directly into the next tool call
+
+## Step 3: Apply Safe Improvements Automatically (optional)
+Use sheets_analyze action "auto_enhance" in preview mode first:
+\`\`\`json
+{"action":"auto_enhance","spreadsheetId":"${spreadsheetId}","mode":"preview"}
+\`\`\`
+Then apply:
+\`\`\`json
+{"action":"auto_enhance","spreadsheetId":"${spreadsheetId}","mode":"apply"}
+\`\`\`
+
+## Step 4: Reject Unwanted Suggestions
+If a suggestion doesn't apply, reject it so it won't repeat:
+\`\`\`json
+{"action":"reject_suggestion","spreadsheetId":"${spreadsheetId}","suggestionId":"<id from step 2>"}
+\`\`\``,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'cross_spreadsheet_federation',
+    {
+      description: '🔗 Query and join data across multiple spreadsheets',
+      argsSchema: CrossSheetFederationPromptArgsSchema,
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async ({ spreadsheetIds }: any) => {
+      const ids = spreadsheetIds.split(',').map((s: string) => s.trim());
+      const sourcesJson = JSON.stringify(
+        ids.map((id: string) => ({ spreadsheetId: id, range: 'Sheet1!A1:Z1000' }))
+      );
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `🔗 Cross-Spreadsheet Federation Workflow
+
+**Sources:** ${spreadsheetIds}
+
+## Step 1: Read from Multiple Spreadsheets
+Use sheets_data action "cross_read" to fetch and merge data:
+\`\`\`json
+{"action":"cross_read","sources":${sourcesJson}}
+\`\`\`
+
+To join on a common key (e.g., customer ID in column A):
+\`\`\`json
+{"action":"cross_read","sources":${sourcesJson},"joinKey":"A","joinType":"inner"}
+\`\`\`
+
+## Step 2: Natural Language Query (optional)
+Use sheets_data action "cross_query" for plain-language questions:
+\`\`\`json
+{"action":"cross_query","sources":${sourcesJson},"query":"Show total revenue by month from the Sales sheet joined with region from the CRM sheet"}
+\`\`\`
+
+## Step 3: Compare Two Spreadsheets
+Use sheets_data action "cross_compare" to diff two sources:
+\`\`\`json
+{"action":"cross_compare","source1":{"spreadsheetId":"${ids[0] ?? 'ID_A'}","range":"Sheet1!A1:Z1000"},"source2":{"spreadsheetId":"${ids[1] ?? 'ID_B'}","range":"Sheet1!A1:Z1000"},"compareColumns":["A"]}
+\`\`\`
+
+## Step 4: Write Results to a New Spreadsheet (optional)
+Use sheets_data action "cross_write" to copy merged data:
+\`\`\`json
+{"action":"cross_write","source":{"spreadsheetId":"${ids[0] ?? 'SOURCE_ID'}","range":"Sheet1!A1:Z1000"},"destination":{"spreadsheetId":"DEST_ID","range":"Sheet1!A1"}}
+\`\`\`
+
+**Tip:** All cross-spreadsheet operations use parallel fetching for speed and ETag caching to avoid redundant API calls.`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  // === P14 COMPOSITE WORKFLOW PROMPTS ===
+
+  server.registerPrompt(
+    'audit_sheet',
+    {
+      description:
+        '🔍 Run a full quality audit on a spreadsheet (formulas, structure, data, performance)',
+      argsSchema: AuditSheetPromptArgsSchema,
+    },
+    async (args: Record<string, unknown>) => {
+      const focus = args['focusAreas'] ? ` (focus: ${args['focusAreas']})` : '';
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `🔍 Spreadsheet Audit${focus}: ${args['spreadsheetId']}
+
+## Step 1: Run Full Audit
+\`\`\`json
+{"action":"audit_sheet","spreadsheetId":"${args['spreadsheetId']}"${
+                args['focusAreas']
+                  ? `,"focusAreas":["${String(args['focusAreas'])
+                      .split(',')
+                      .map((s: string) => s.trim())
+                      .join('","')}"]`
+                  : ''
+              }}
+\`\`\`
+
+## Step 2: Review Findings
+The audit returns issues grouped by severity (critical, high, medium, low). Review each category.
+
+## Step 3: Fix Critical Issues First
+For formula errors: use \`sheets_fix action:"fix"\` or \`sheets_analyze action:"explain_analysis"\`
+For data quality: use \`sheets_fix action:"clean"\` or \`sheets_fix action:"standardize_formats"\`
+For structure: use \`sheets_dimensions\` or \`sheets_advanced\` as appropriate
+
+## Step 4: Publish Results (optional)
+\`\`\`json
+{"action":"publish_report","spreadsheetId":"${args['spreadsheetId']}","reportType":"detailed"}
+\`\`\`
+
+**Tip:** Use \`focusAreas\` to limit the audit scope: "quality,formulas" for data-heavy sheets, "performance,structure" for large workbooks.`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'publish_report',
+    {
+      description: '📤 Publish a formatted summary report to a new sheet or spreadsheet',
+      argsSchema: PublishReportPromptArgsSchema,
+    },
+    async (args: Record<string, unknown>) => {
+      const reportType = args['reportType'] || 'summary';
+      const target = args['targetSheet'] || 'Report';
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `📤 Publishing ${reportType} report from ${args['spreadsheetId']} → "${target}"
+
+## Step 1: Analyze Source Data
+\`\`\`json
+{"action":"scout","spreadsheetId":"${args['spreadsheetId']}"}
+\`\`\`
+
+## Step 2: Publish Report
+\`\`\`json
+{"action":"publish_report","spreadsheetId":"${args['spreadsheetId']}","reportType":"${reportType}","targetSheet":"${target}"}
+\`\`\`
+
+The action creates a formatted sheet with:
+- Executive summary table (key metrics, date range, data quality score)
+- Section headers with formatting
+- Charts for numeric columns (if reportType is "detailed")
+- Timestamp and source attribution footer
+
+## Step 3: Share (optional)
+\`\`\`json
+{"action":"share_set_link","spreadsheetId":"${args['spreadsheetId']}","access":"reader"}
+\`\`\`
+
+**Tip:** Use \`reportType:"executive"\` for a 1-page overview, \`"detailed"\` for full findings with charts.`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'data_pipeline',
+    {
+      description:
+        '🔄 Build a recurring ETL pipeline (fetch → transform → write) for a spreadsheet',
+      argsSchema: DataPipelinePromptArgsSchema,
+    },
+    async (args: Record<string, unknown>) => {
+      const sourceType = args['sourceType'] || 'csv';
+      const frequency = args['frequency'] || 'daily';
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `🔄 Data Pipeline: ${sourceType} → ${args['spreadsheetId']} (${frequency})
+
+## Step 1: Configure Data Source
+${sourceType === 'other_sheet' ? `Use \`sheets_data action:"cross_read"\` to pull from another spreadsheet.` : `Use \`sheets_connectors action:"configure"\` to connect to your ${sourceType} source.`}
+
+## Step 2: Define the Pipeline
+\`\`\`json
+{
+  "action": "data_pipeline",
+  "spreadsheetId": "${args['spreadsheetId']}",
+  "source": {"type": "${sourceType}"},
+  "transformations": ${args['transformations'] ? `"${args['transformations']}"` : '"clean,deduplicate,standardize_formats"'},
+  "outputRange": "Sheet1!A1",
+  "mode": "preview"
+}
+\`\`\`
+
+## Step 3: Preview Then Apply
+Run in preview mode first to verify the output, then remove \`"mode":"preview"\` to apply.
+
+## Step 4: Schedule (optional)
+\`\`\`json
+{"action":"schedule_create","spreadsheetId":"${args['spreadsheetId']}","cronExpression":"0 9 * * *","description":"Daily ${sourceType} pipeline","actionName":"data_pipeline"}
+\`\`\`
+
+**Tip:** Always preview before applying. Use \`sheets_session action:"save_checkpoint"\` before running for safe rollback.`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'instantiate_template',
+    {
+      description: '📋 Create a new spreadsheet from a saved template with custom values',
+      argsSchema: InstantiateTemplatePromptArgsSchema,
+    },
+    async (args: Record<string, unknown>) => {
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `📋 Instantiating Template${args['templateName'] ? `: ${args['templateName']}` : ''}
+
+## Step 1: Browse Available Templates (if needed)
+\`\`\`json
+{"action":"list","spreadsheetId":"any"}
+\`\`\`
+
+## Step 2: Preview Template
+\`\`\`json
+{"action":"preview","templateId":"${args['templateId'] || '<template-id>'}"}
+\`\`\`
+
+## Step 3: Instantiate with Custom Values
+\`\`\`json
+{
+  "action": "instantiate_template",
+  ${args['templateId'] ? `"templateId": "${args['templateId']}",` : ''}
+  ${args['templateName'] ? `"templateName": "${args['templateName']}",` : ''}
+  "values": ${args['values'] || '{"company":"Acme Corp","quarter":"Q1 2026","currency":"USD"}'},
+  ${args['targetSpreadsheetId'] ? `"targetSpreadsheetId": "${args['targetSpreadsheetId']}"` : '"createNew": true'}
+}
+\`\`\`
+
+The action replaces all \`{{placeholder}}\` tokens in the template with your provided values.
+
+**Tip:** Use \`sheets_templates action:"list"\` to see all saved templates. Use \`"createNew":true\` to create a fresh spreadsheet.`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'migrate_spreadsheet',
+    {
+      description: "📦 Move or copy a spreadsheet's data and structure to a new destination",
+      argsSchema: MigrateSpreadsheetPromptArgsSchema,
+    },
+    async (args: Record<string, unknown>) => {
+      const migrationType = args['migrationType'] || 'full';
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `📦 Spreadsheet Migration: ${args['sourceSpreadsheetId']} → ${args['targetSpreadsheetId'] || 'new spreadsheet'} (${migrationType})
+
+## Step 1: Scout the Source
+\`\`\`json
+{"action":"scout","spreadsheetId":"${args['sourceSpreadsheetId']}"}
+\`\`\`
+
+## Step 2: Migrate
+\`\`\`json
+{
+  "action": "migrate_spreadsheet",
+  "spreadsheetId": "${args['sourceSpreadsheetId']}",
+  ${args['targetSpreadsheetId'] ? `"targetSpreadsheetId": "${args['targetSpreadsheetId']}",` : '"createNew": true,'}
+  "migrationType": "${migrationType}",
+  "preserveFormatting": ${args['preserveFormatting'] !== false}
+}
+\`\`\`
+
+## Step 3: Verify Destination
+\`\`\`json
+{"action":"scout","spreadsheetId":"${args['targetSpreadsheetId'] || '<new-spreadsheet-id>'}"}
+\`\`\`
+Compare row/column counts and spot-check formula references.
+
+**Tip:** Use \`"migrationType":"structure_only"\` to copy headers and formatting without data — useful for creating blank templates. \`"selective"\` mode prompts for which sheets to include.`,
             },
           },
         ],

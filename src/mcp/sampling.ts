@@ -13,12 +13,178 @@ import type {
   ClientCapabilities,
   CreateMessageRequest,
   CreateMessageResult,
+  CreateMessageResultWithTools,
   SamplingMessage,
   Tool,
   TextContent,
   ModelPreferences,
 } from '@modelcontextprotocol/sdk/types.js';
+import {
+  CreateMessageResultSchema,
+  CreateMessageResultWithToolsSchema,
+} from '@modelcontextprotocol/sdk/types.js';
+import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
+import { createRequestAbortError, getRequestContext } from '../utils/request-context.js';
+import { getEnv } from '../config/env.js';
+import {
+  getSpreadsheetContext,
+  formatContextForPrompt,
+} from '../services/sampling-context-cache.js';
+import { compressContext, formatCompressedContext } from '../services/context-compressor.js';
+
+// ============================================================================
+// ISSUE-117: GDPR consent gate for Sampling calls
+// ============================================================================
+
+/**
+ * Optional consent checker registered at server startup.
+ * Throws if consent is required but not granted.
+ * When null (default), all sampling calls are allowed (backwards-compatible).
+ */
+let _consentChecker: (() => Promise<void>) | null = null;
+const _consentCache = new Map<string, { expiresAt: number; errorMessage?: string }>();
+
+/**
+ * Register a GDPR consent check callback. Called before every createMessage().
+ * Throw an Error with message 'GDPR_CONSENT_REQUIRED' to block the sampling call.
+ *
+ * @example
+ * registerSamplingConsentChecker(async () => {
+ *   const hasConsent = await profileManager.hasConsent(getCurrentUserId());
+ *   if (!hasConsent) throw new Error('GDPR_CONSENT_REQUIRED: ...');
+ * });
+ */
+export function registerSamplingConsentChecker(checker: () => Promise<void>): void {
+  _consentChecker = checker;
+}
+
+function getConsentCacheKey(): string {
+  const context = getRequestContext();
+  return context?.principalId ?? context?.requestId ?? 'global';
+}
+
+function purgeExpiredConsentEntries(nowMs: number): void {
+  for (const [key, entry] of _consentCache.entries()) {
+    if (entry.expiresAt <= nowMs) {
+      _consentCache.delete(key);
+    }
+  }
+}
+
+export function clearSamplingConsentCache(): void {
+  _consentCache.clear();
+}
+
+export async function assertSamplingConsent(): Promise<void> {
+  if (!_consentChecker) {
+    return;
+  }
+
+  const ttlMs = getEnv().SAMPLING_CONSENT_CACHE_TTL_MS;
+  if (ttlMs <= 0) {
+    await _consentChecker();
+    return;
+  }
+
+  const nowMs = Date.now();
+  purgeExpiredConsentEntries(nowMs);
+
+  const cacheKey = getConsentCacheKey();
+  const cached = _consentCache.get(cacheKey);
+  if (cached && cached.expiresAt > nowMs) {
+    if (cached.errorMessage) {
+      throw new Error(cached.errorMessage);
+    }
+    return;
+  }
+
+  try {
+    await _consentChecker();
+    _consentCache.set(cacheKey, { expiresAt: nowMs + ttlMs });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    _consentCache.set(cacheKey, { expiresAt: nowMs + ttlMs, errorMessage: message });
+    throw error;
+  }
+}
+
+// ============================================================================
+// Timeout Wrapper (ISSUE-088)
+// ============================================================================
+
+type SamplingOperation<T> = Promise<T> | (() => Promise<T>);
+
+function getEffectiveSamplingTimeout(deadline: number | undefined): number {
+  // Lazy read — avoids module-level getEnv() call that fails in test environments
+  const timeoutMs = getEnv().SAMPLING_TIMEOUT_MS;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return 30000;
+  }
+  if (!Number.isFinite(deadline)) {
+    return timeoutMs;
+  }
+  return Math.min(timeoutMs, Math.max(0, (deadline as number) - Date.now()));
+}
+
+/**
+ * Wrap a sampling request with a configurable timeout.
+ * Respects the current request deadline so sampling never outlasts its parent request.
+ * Rejects with a descriptive error if the request exceeds the effective timeout.
+ */
+export function withSamplingTimeout<T>(operation: SamplingOperation<T>): Promise<T> {
+  // Use the remaining request deadline if available, capped at SAMPLING_TIMEOUT_MS
+  const ctx = getRequestContext();
+  const abortSignal = ctx?.abortSignal;
+  const effectiveTimeout = getEffectiveSamplingTimeout(ctx?.deadline);
+  const execute = typeof operation === 'function' ? operation : () => operation;
+
+  if (abortSignal?.aborted) {
+    return Promise.reject(
+      createRequestAbortError(abortSignal.reason, 'Sampling request cancelled by client')
+    );
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    let timer: NodeJS.Timeout | undefined;
+    const cleanup = (): void => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+      abortSignal?.removeEventListener('abort', onAbort);
+    };
+    const settle = (callback: () => void): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      callback();
+    };
+    const onAbort = (): void => {
+      settle(() =>
+        reject(createRequestAbortError(abortSignal?.reason, 'Sampling request cancelled by client'))
+      );
+    };
+
+    abortSignal?.addEventListener('abort', onAbort, { once: true });
+    timer = setTimeout(() => {
+      settle(() => reject(new Error(`Sampling request timed out after ${effectiveTimeout}ms`)));
+    }, effectiveTimeout);
+
+    Promise.resolve()
+      .then(() => execute())
+      .then(
+        (value) => {
+          settle(() => resolve(value));
+        },
+        (error: unknown) => {
+          settle(() => reject(error));
+        }
+      );
+  });
+}
 
 // ============================================================================
 // Types
@@ -48,6 +214,14 @@ export interface AnalyzeDataOptions {
   modelPreferences?: ModelPreferences;
   /** Temperature for creativity (0-1) */
   temperature?: number;
+  /**
+   * 16-A1: Optional context enrichment. When provided, pre-fetches spreadsheet
+   * schema (headers, column types, formula count) from the sampling-context-cache
+   * and prepends it to the prompt. Saves 200-400ms on repeat calls via TTL cache.
+   */
+  sheetsApi?: sheets_v4.Sheets;
+  /** Spreadsheet ID to enrich prompt with cached schema context (requires sheetsApi) */
+  spreadsheetId?: string;
 }
 
 /**
@@ -85,7 +259,132 @@ export interface AgenticResult {
  */
 export interface SamplingServer {
   getClientCapabilities(): ClientCapabilities | undefined;
-  createMessage(params: CreateMessageRequest['params']): Promise<CreateMessageResult>;
+  createMessage(
+    params: CreateMessageRequest['params']
+  ): Promise<CreateMessageResult | CreateMessageResultWithTools>;
+}
+
+interface TaskAwareSamplingServer extends SamplingServer {
+  createMessage(
+    params: CreateMessageRequest['params'],
+    options?: {
+      signal?: AbortSignal;
+      relatedTask?: { taskId: string };
+    }
+  ): Promise<CreateMessageResult | CreateMessageResultWithTools>;
+}
+
+const taskAwareSamplingServerCache = new WeakMap<SamplingServer, SamplingServer>();
+
+function supportsSamplingTools(
+  params: CreateMessageRequest['params'],
+  clientCapabilities: ClientCapabilities | undefined
+): boolean {
+  return (
+    Array.isArray((params as { tools?: unknown }).tools) || !!clientCapabilities?.sampling?.tools
+  );
+}
+
+/**
+ * Wraps an MCP server so nested sampling requests prefer the current request's
+ * task-aware sendRequest channel when available.
+ */
+export function createTaskAwareSamplingServer(baseServer: SamplingServer): SamplingServer {
+  const cached = taskAwareSamplingServerCache.get(baseServer);
+  if (cached) {
+    return cached;
+  }
+
+  const wrappedServer: SamplingServer = {
+    getClientCapabilities(): ClientCapabilities | undefined {
+      return baseServer.getClientCapabilities();
+    },
+    async createMessage(
+      params: CreateMessageRequest['params']
+    ): Promise<CreateMessageResult | CreateMessageResultWithTools> {
+      const requestContext = getRequestContext();
+      if (requestContext?.taskId && requestContext.taskStore) {
+        await requestContext.taskStore.updateTaskStatus(requestContext.taskId, 'input_required');
+        return await (baseServer as TaskAwareSamplingServer).createMessage(params, {
+          signal: requestContext.abortSignal,
+          relatedTask: { taskId: requestContext.taskId },
+        });
+      }
+
+      if (!requestContext?.sendRequest) {
+        return await baseServer.createMessage(params);
+      }
+
+      const resultSchema = supportsSamplingTools(params, baseServer.getClientCapabilities())
+        ? CreateMessageResultWithToolsSchema
+        : CreateMessageResultSchema;
+
+      return (await requestContext.sendRequest(
+        {
+          method: 'sampling/createMessage',
+          params,
+        },
+        resultSchema,
+        {
+          signal: requestContext.abortSignal,
+        }
+      )) as CreateMessageResult | CreateMessageResultWithTools;
+    },
+  };
+
+  taskAwareSamplingServerCache.set(baseServer, wrappedServer);
+  return wrappedServer;
+}
+
+/**
+ * Advisory model preferences per operation type.
+ * These are hints to the client — the client always chooses the final model.
+ * Per MCP 2025-11-25, modelPreferences.hints are advisory, not binding.
+ */
+const DEFAULT_MODEL_HINTS: Record<string, { hints: Array<{ name: string }>; temperature: number }> =
+  {
+    formulaGeneration: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.1 },
+    dataAnalysis: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.5 },
+    chartRecommendation: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
+    formulaExplanation: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.2 },
+    dataIssues: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
+    scenarioNarrative: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.4 },
+    cleaningStrategy: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.3 },
+    structureDesign: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.5 },
+    queryInterpretation: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.2 },
+    anomalyExplanation: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
+    templateSuggestion: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.4 },
+    pipelineDesign: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.3 },
+    diffNarrative: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
+    connectorDiscovery: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
+    agentPlanning: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.2 },
+  };
+
+/**
+ * Adaptive model selection based on action type and data size.
+ * Returns model hints and temperature for a given operation context.
+ *
+ * Rules:
+ * - Analysis/narrative actions → Sonnet (deeper reasoning)
+ * - Simple classification/summary → Haiku (speed)
+ * - Large data (>1000 cells) → Sonnet (better at scale)
+ * - Write-path operations → Haiku (speed matters for UX)
+ */
+export function getModelHint(
+  operationType: string,
+  dataSize?: number
+): { hints: Array<{ name: string }>; temperature: number } {
+  const knownHint = DEFAULT_MODEL_HINTS[operationType];
+  if (knownHint) {
+    if (dataSize && dataSize > 1000 && knownHint.hints[0]?.name.includes('haiku')) {
+      return { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: knownHint.temperature };
+    }
+    return knownHint;
+  }
+  if (dataSize && dataSize > 1000) {
+    return { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.4 };
+  }
+  return { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 };
 }
 
 // ============================================================================
@@ -133,7 +432,9 @@ export function assertSamplingToolsSupport(
 /**
  * Extract text content from sampling result
  */
-export function extractTextFromResult(result: CreateMessageResult): string {
+export function extractTextFromResult(
+  result: CreateMessageResult | CreateMessageResultWithTools
+): string {
   const content = Array.isArray(result.content) ? result.content : [result.content];
   return content
     .filter((block): block is TextContent => block.type === 'text')
@@ -162,6 +463,33 @@ export function createAssistantMessage(text: string): SamplingMessage {
 }
 
 /**
+ * 16-A1: Enrich a system prompt string with cached spreadsheet schema context.
+ * Use this in handlers that call `server.createMessage()` directly:
+ *
+ * ```typescript
+ * const enrichedPrompt = await enrichSystemPromptWithContext(
+ *   this.sheetsApi, req.spreadsheetId, baseSystemPrompt
+ * );
+ * await server.createMessage({ ..., systemPrompt: enrichedPrompt });
+ * ```
+ *
+ * Non-blocking: returns baseSystemPrompt unchanged on error.
+ */
+export async function enrichSystemPromptWithContext(
+  sheetsApi: sheets_v4.Sheets,
+  spreadsheetId: string,
+  baseSystemPrompt: string
+): Promise<string> {
+  try {
+    const ctx = await getSpreadsheetContext(sheetsApi, spreadsheetId);
+    const hint = formatContextForPrompt(ctx);
+    return hint ? `${hint}\n\n${baseSystemPrompt}` : baseSystemPrompt;
+  } catch {
+    return baseSystemPrompt;
+  }
+}
+
+/**
  * Format spreadsheet data for LLM consumption
  */
 export function formatDataForLLM(
@@ -170,9 +498,24 @@ export function formatDataForLLM(
     maxRows?: number;
     includeRowNumbers?: boolean;
     format?: 'json' | 'csv' | 'markdown';
+    /** Use context compression for large datasets (default: true) */
+    compress?: boolean;
   } = {}
 ): string {
-  const { maxRows = 100, includeRowNumbers = true, format = 'markdown' } = options;
+  const { maxRows = 100, includeRowNumbers = true, format = 'markdown', compress = true } = options;
+
+  // Context compression for large datasets (80-96% token reduction)
+  // Threshold: 200+ rows triggers compression instead of naive truncation
+  if (compress && data.length > 200) {
+    const compressed = compressContext(data, {
+      strategy: 'auto',
+      maxSampleRows: Math.min(maxRows, 15),
+      maxColumns: 20,
+      includeTypes: true,
+      includeStats: true,
+    });
+    return formatCompressedContext(compressed);
+  }
 
   const truncatedData = data.slice(0, maxRows);
   const wasTruncated = data.length > maxRows;
@@ -266,6 +609,61 @@ Explain why your recommendation fits the data.`,
 Explain formulas in simple terms.
 Break down complex formulas into steps.
 Provide examples of how each part works.`,
+
+  scenarioNarrative: `You are a financial modeling expert explaining what-if scenarios.
+Explain the cascade of changes in plain language — how one change propagates through formulas.
+Highlight the most impactful downstream effects and quantify percentage changes.
+Flag any cells where the impact exceeds 20% as high-risk.`,
+
+  cleaningStrategy: `You are a data quality engineer advising on data cleaning.
+Given the column profiles and sample data, recommend which cleaning rules to apply and in what order.
+Prioritize rules that fix the most issues. Explain why each rule matters.
+Flag ambiguous cases (e.g., date formats that could be MM/DD or DD/MM).`,
+
+  structureDesign: `You are a spreadsheet architect designing sheet structures.
+Given a natural language description, design a complete spreadsheet with:
+- Column headers with appropriate types (text, number, currency, date, percentage)
+- Formulas for calculated columns (use Google Sheets syntax)
+- Conditional formatting rules for key metrics
+- Sample data rows that demonstrate the structure
+Return a JSON object with sheets, columns, formulas, and formatting.`,
+
+  queryInterpretation: `You are a data query translator.
+Convert natural language questions into structured query operations.
+Identify: which columns to filter, sort criteria, aggregation functions, join keys.
+Return a JSON object with: filters, sort, aggregations, joinConfig.
+Always explain your interpretation so the user can verify.`,
+
+  anomalyExplanation: `You are a statistical analyst explaining data anomalies.
+For each flagged outlier, explain: what makes it unusual, possible causes, and whether it's likely a data error or a genuine extreme value.
+Reference the column context and surrounding values.
+Suggest whether to fix, investigate, or keep each anomaly.`,
+
+  templateSuggestion: `You are a productivity consultant recommending spreadsheet templates.
+Based on the user's description, suggest which template category fits best.
+Recommend specific column structures and formulas for their use case.
+Consider industry-specific conventions and best practices.`,
+
+  pipelineDesign: `You are a data pipeline architect.
+Design a sequence of transformation steps to move data from source to destination.
+Each step should reference a specific ServalSheets action (tool.action format).
+Include validation checks between steps and rollback strategies.`,
+
+  diffNarrative: `You are a change management analyst reviewing spreadsheet modifications.
+Summarize what changed between revisions in plain language.
+Group related changes together (e.g., "Updated all Q2 projections").
+Highlight potentially problematic changes (deleted formulas, large value swings).`,
+
+  connectorDiscovery: `You are a data integration specialist.
+Given a user's data need description, recommend which data connector to use.
+Explain what data each connector provides and how to configure it.
+If multiple connectors could work, rank them by relevance and ease of setup.`,
+
+  agentPlanning: `You are a task planning expert for spreadsheet operations.
+Given a natural language description of what the user wants to accomplish, generate a step-by-step execution plan.
+Each step must reference a specific ServalSheets tool and action (e.g., sheets_data.read, sheets_format.set_format).
+Include required parameters for each step. Order steps by dependency.
+Return a JSON array of plan steps: [{ tool, action, params, description }].`,
 };
 
 // ============================================================================
@@ -293,29 +691,45 @@ export async function analyzeData(
   options: AnalyzeDataOptions = {}
 ): Promise<string> {
   assertSamplingSupport(server.getClientCapabilities());
+  await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
   const {
     systemPrompt = SAMPLING_PROMPTS.dataAnalysis,
     maxTokens = 1000,
     modelPreferences,
     temperature,
+    sheetsApi,
+    spreadsheetId,
   } = options;
 
   const formattedData = formatDataForLLM(params.data);
 
+  // 16-A1: Enrich prompt with cached spreadsheet schema context (saves 200-400ms on repeat calls)
+  let schemaContext = params.context ?? '';
+  if (!schemaContext && sheetsApi && spreadsheetId) {
+    try {
+      const ctx = await getSpreadsheetContext(sheetsApi, spreadsheetId);
+      schemaContext = formatContextForPrompt(ctx);
+    } catch {
+      // Non-blocking: schema context enrichment is best-effort
+    }
+  }
+
   let prompt = `Analyze this spreadsheet data and answer: ${params.question}\n\n`;
-  if (params.context) {
-    prompt += `Context: ${params.context}\n\n`;
+  if (schemaContext) {
+    prompt += `Context: ${schemaContext}\n\n`;
   }
   prompt += `Data:\n${formattedData}`;
 
-  const result = await server.createMessage({
-    messages: [createUserMessage(prompt)],
-    systemPrompt,
-    maxTokens,
-    ...(modelPreferences && { modelPreferences }),
-    ...(temperature !== undefined && { temperature }),
-  });
+  const result = await withSamplingTimeout(() =>
+    server.createMessage({
+      messages: [createUserMessage(prompt)],
+      systemPrompt,
+      maxTokens,
+      ...(modelPreferences && { modelPreferences }),
+      ...(temperature !== undefined && { temperature }),
+    })
+  );
 
   return extractTextFromResult(result);
 }
@@ -343,6 +757,7 @@ export async function generateFormula(
   options: GenerateFormulaOptions = {}
 ): Promise<string> {
   assertSamplingSupport(server.getClientCapabilities());
+  await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
   const { includeExplanation = false, maxTokens = 300, style = 'readable' } = options;
 
@@ -366,11 +781,16 @@ export async function generateFormula(
     prompt += '\n\nReturn ONLY the formula, no explanation.';
   }
 
-  const result = await server.createMessage({
-    messages: [createUserMessage(prompt)],
-    systemPrompt: SAMPLING_PROMPTS.formulaGeneration,
-    maxTokens,
-  });
+  const defaults = DEFAULT_MODEL_HINTS['formulaGeneration']!;
+  const result = await withSamplingTimeout(() =>
+    server.createMessage({
+      messages: [createUserMessage(prompt)],
+      systemPrompt: SAMPLING_PROMPTS.formulaGeneration,
+      maxTokens,
+      modelPreferences: { hints: defaults.hints },
+      temperature: defaults.temperature,
+    })
+  );
 
   let formula = extractTextFromResult(result).trim();
 
@@ -405,6 +825,7 @@ export async function recommendChart(
   alternatives: string[];
 }> {
   assertSamplingSupport(server.getClientCapabilities());
+  await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
   let prompt = 'Recommend the best chart type for this data.\n\n';
   prompt += `Data:\n${formatDataForLLM(params.data, { maxRows: 20 })}\n\n`;
@@ -423,11 +844,16 @@ export async function recommendChart(
   "alternatives": ["Alternative1", "Alternative2"]
 }`;
 
-  const result = await server.createMessage({
-    messages: [createUserMessage(prompt)],
-    systemPrompt: SAMPLING_PROMPTS.chartRecommendation,
-    maxTokens: 300,
-  });
+  const chartDefaults = DEFAULT_MODEL_HINTS['chartRecommendation']!;
+  const result = await withSamplingTimeout(() =>
+    server.createMessage({
+      messages: [createUserMessage(prompt)],
+      systemPrompt: SAMPLING_PROMPTS.chartRecommendation,
+      maxTokens: 300,
+      modelPreferences: { hints: chartDefaults.hints },
+      temperature: chartDefaults.temperature,
+    })
+  );
 
   const text = extractTextFromResult(result);
 
@@ -460,16 +886,22 @@ export async function explainFormula(
   options: { detailed?: boolean } = {}
 ): Promise<string> {
   assertSamplingSupport(server.getClientCapabilities());
+  await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
   const prompt = options.detailed
     ? `Explain this Google Sheets formula in detail, breaking down each part:\n\n${formula}`
     : `Briefly explain what this Google Sheets formula does:\n\n${formula}`;
 
-  const result = await server.createMessage({
-    messages: [createUserMessage(prompt)],
-    systemPrompt: SAMPLING_PROMPTS.formulaExplanation,
-    maxTokens: options.detailed ? 800 : 300,
-  });
+  const explainDefaults = DEFAULT_MODEL_HINTS['formulaExplanation']!;
+  const result = await withSamplingTimeout(() =>
+    server.createMessage({
+      messages: [createUserMessage(prompt)],
+      systemPrompt: SAMPLING_PROMPTS.formulaExplanation,
+      maxTokens: options.detailed ? 800 : 300,
+      modelPreferences: { hints: explainDefaults.hints },
+      temperature: explainDefaults.temperature,
+    })
+  );
 
   return extractTextFromResult(result);
 }
@@ -493,6 +925,7 @@ export async function identifyDataIssues(
   }>
 > {
   assertSamplingSupport(server.getClientCapabilities());
+  await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
   let prompt = 'Identify data quality issues in this spreadsheet data.\n\n';
   prompt += `Data:\n${formatDataForLLM(params.data, { maxRows: 50 })}\n\n`;
@@ -510,11 +943,13 @@ export async function identifyDataIssues(
   "suggestedFix": "How to fix it"
 }]`;
 
-  const result = await server.createMessage({
-    messages: [createUserMessage(prompt)],
-    systemPrompt: SAMPLING_PROMPTS.dataCleaning,
-    maxTokens: 1500,
-  });
+  const result = await withSamplingTimeout(() =>
+    server.createMessage({
+      messages: [createUserMessage(prompt)],
+      systemPrompt: SAMPLING_PROMPTS.dataCleaning,
+      maxTokens: 1500,
+    })
+  );
 
   const text = extractTextFromResult(result);
 
@@ -848,13 +1283,16 @@ Original question: ${params.question}
 
 Provide a cohesive summary that synthesizes insights from all chunks.`;
 
-  const summary = await server.createMessage({
-    messages: [createUserMessage(summaryPrompt)],
-    systemPrompt:
-      'Synthesize multiple partial analyses into a cohesive summary. Identify patterns that span across chunks. Be concise but comprehensive.',
-    maxTokens: maxTokens * 2, // More tokens for summary
-    ...(modelPreferences && { modelPreferences }),
-  });
+  await assertSamplingConsent(); // ISSUE-117: consent gate for summary generation
+  const summary = await withSamplingTimeout(() =>
+    server.createMessage({
+      messages: [createUserMessage(summaryPrompt)],
+      systemPrompt:
+        'Synthesize multiple partial analyses into a cohesive summary. Identify patterns that span across chunks. Be concise but comprehensive.',
+      maxTokens: maxTokens * 2, // More tokens for summary
+      ...(modelPreferences && { modelPreferences }),
+    })
+  );
 
   onProgress?.({
     phase: 'complete',
@@ -894,23 +1332,30 @@ export async function* streamAgenticOperation(
   undefined
 > {
   assertSamplingToolsSupport(server.getClientCapabilities());
+  await assertSamplingConsent(); // ISSUE-117: consent gate for agentic sampling loop
 
   const actions: AgenticResult['actions'] = [];
   let continueLoop = true;
   let iterationCount = 0;
   const maxIterations = 10;
 
-  const params = createAgenticRequest(task, context);
+  let params = createAgenticRequest(task, context);
 
   while (continueLoop && iterationCount < maxIterations) {
     iterationCount++;
 
-    const result = await server.createMessage(params);
+    const result = await withSamplingTimeout(() => server.createMessage(params));
 
     // Process content
-    const content = Array.isArray(result.content) ? result.content : [result.content];
+    const contentBlocks = Array.isArray(result.content) ? result.content : [result.content];
 
-    for (const block of content) {
+    // Preserve assistant turn in conversation history for subsequent iterations
+    params = {
+      ...params,
+      messages: [...params.messages, { role: 'assistant', content: result.content }],
+    };
+
+    for (const block of contentBlocks) {
       if (block.type === 'text') {
         yield { type: 'text', data: block.text };
       } else if (block.type === 'tool_use') {
@@ -920,24 +1365,52 @@ export async function* streamAgenticOperation(
         };
 
         // Execute tool
-        const toolResult = await toolHandler(block.name, block.input as Record<string, unknown>);
+        const actionResult = await toolHandler(block.name, block.input as Record<string, unknown>);
 
-        yield { type: 'tool_result', data: toolResult.result };
+        yield { type: 'tool_result', data: actionResult.result };
 
         actions.push({
           type: block.name,
           target: JSON.stringify(block.input),
-          details: JSON.stringify(toolResult.result),
+          details: JSON.stringify(actionResult.result),
         });
 
-        if (!toolResult.continue) {
+        const serializedResult = (() => {
+          try {
+            return JSON.stringify(actionResult.result);
+          } catch {
+            return String(actionResult.result);
+          }
+        })();
+
+        params = {
+          ...params,
+          messages: [
+            ...params.messages,
+            {
+              role: 'user',
+              content: {
+                type: 'tool_result',
+                toolUseId: block.id,
+                content: [{ type: 'text', text: serializedResult }],
+              },
+            },
+          ],
+        };
+
+        if (!actionResult.continue) {
           continueLoop = false;
         }
       }
     }
 
     // Check stop reason
-    if (result.stopReason === 'end_turn' || result.stopReason === 'stop_sequence') {
+    if (
+      result.stopReason === 'endTurn' ||
+      result.stopReason === 'stopSequence' ||
+      result.stopReason === 'maxTokens' ||
+      result.stopReason === 'toolUse'
+    ) {
       continueLoop = false;
     }
   }
@@ -953,7 +1426,80 @@ export async function* streamAgenticOperation(
 }
 
 // ============================================================================
+// AI Insight Helper (P1 Sampling Explosion)
+// ============================================================================
+
+/**
+ * Generate an AI insight for any handler action. Gracefully returns undefined
+ * if sampling is unavailable, consent is denied, or the call times out.
+ * This is the standard pattern for adding sampling to handler actions.
+ *
+ * @param server - SamplingServer from handler context (may be undefined)
+ * @param promptType - Key from SAMPLING_PROMPTS (e.g., 'scenarioNarrative')
+ * @param question - The specific question to answer
+ * @param data - Relevant data to include in the prompt
+ * @param options - Optional overrides for maxTokens, temperature, etc.
+ * @returns AI-generated insight string, or undefined if unavailable
+ */
+export async function generateAIInsight(
+  server: SamplingServer | undefined,
+  promptType: keyof typeof SAMPLING_PROMPTS,
+  question: string,
+  data?: unknown,
+  options?: { maxTokens?: number; context?: string }
+): Promise<string | undefined> {
+  if (!server) return undefined;
+
+  try {
+    assertSamplingSupport(server.getClientCapabilities());
+    await assertSamplingConsent();
+
+    const systemPrompt = SAMPLING_PROMPTS[promptType] ?? SAMPLING_PROMPTS.dataAnalysis;
+    const modelHint = getModelHint(promptType);
+
+    let prompt = question;
+    if (data) {
+      const formattedData =
+        Array.isArray(data) && Array.isArray(data[0])
+          ? formatDataForLLM(data as unknown[][])
+          : typeof data === 'string'
+            ? data
+            : JSON.stringify(data, null, 2).slice(0, 4000);
+      prompt += `\n\nData:\n${formattedData}`;
+    }
+    if (options?.context) {
+      prompt += `\n\nContext: ${options.context}`;
+    }
+
+    const result = await withSamplingTimeout(() =>
+      server.createMessage({
+        messages: [createUserMessage(prompt)],
+        systemPrompt,
+        maxTokens: options?.maxTokens ?? 500,
+        modelPreferences: { hints: modelHint.hints },
+        temperature: modelHint.temperature,
+      })
+    );
+
+    return extractTextFromResult(result);
+  } catch (err) {
+    logger.debug('AI insight generation skipped', {
+      promptType,
+      reason: err instanceof Error ? err.message : 'unknown',
+    });
+    return undefined;
+  }
+}
+
+// ============================================================================
 // Exports
 // ============================================================================
 
-export type { CreateMessageRequest, CreateMessageResult, SamplingMessage, Tool, ModelPreferences };
+export type {
+  CreateMessageRequest,
+  CreateMessageResult,
+  CreateMessageResultWithTools,
+  SamplingMessage,
+  Tool,
+  ModelPreferences,
+};

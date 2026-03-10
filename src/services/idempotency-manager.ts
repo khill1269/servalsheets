@@ -13,9 +13,19 @@
  * @category Services
  */
 
+import fs from 'node:fs';
 import { LRUCache } from 'lru-cache';
 import { logger } from '../utils/logger.js';
 import { ACTION_METADATA } from '../schemas/action-metadata.js';
+import { sanitizeTokenStorePath } from '../utils/auth-paths.js';
+
+/**
+ * Path to persist idempotency keys across restarts.
+ * When set, entries are loaded on startup and saved on each store.
+ * For stateless deployments, use Redis instead (document only).
+ * ISSUE-094: prevents duplicate execution after server restart.
+ */
+const IDEMPOTENCY_STORE_PATH = process.env['IDEMPOTENCY_STORE_PATH'] ?? '';
 
 /**
  * Idempotency key configuration
@@ -77,7 +87,68 @@ export class IdempotencyManager {
     logger.info('Idempotency Manager initialized', {
       maxSize: this.config.maxSize,
       ttlHours: this.config.ttl / (60 * 60 * 1000),
+      persistPath: IDEMPOTENCY_STORE_PATH || '(in-memory only)',
     });
+
+    // ISSUE-094: load persisted keys from disk if IDEMPOTENCY_STORE_PATH is configured
+    if (IDEMPOTENCY_STORE_PATH) {
+      this.loadFromDisk();
+    }
+  }
+
+  /** Persist cache snapshot to disk (fire-and-forget, non-blocking). */
+  private saveToDisk(): void {
+    if (!IDEMPOTENCY_STORE_PATH) return;
+    const storePath = sanitizeTokenStorePath(IDEMPOTENCY_STORE_PATH);
+    const now = Date.now();
+    const entries: Record<string, CachedResult & { expiresAt: number }> = {};
+    for (const [key, value] of this.cache.entries()) {
+      // Only persist entries that haven't expired
+      const age = now - value.timestamp;
+      if (age < this.config.ttl) {
+        entries[key] = { ...value, expiresAt: value.timestamp + this.config.ttl };
+      }
+    }
+    const data = JSON.stringify(entries);
+    fs.writeFile(storePath, data, 'utf8', (err) => {
+      if (err) {
+        logger.warn('Failed to persist idempotency keys to disk', {
+          path: storePath,
+          error: err.message,
+        });
+      }
+    });
+  }
+
+  /** Load previously persisted keys from disk, evicting any that have expired. */
+  private loadFromDisk(): void {
+    const storePath = sanitizeTokenStorePath(IDEMPOTENCY_STORE_PATH);
+    try {
+      if (!fs.existsSync(storePath)) return;
+      const raw = fs.readFileSync(storePath, 'utf8');
+      const entries = JSON.parse(raw) as Record<string, CachedResult & { expiresAt: number }>;
+      const now = Date.now();
+      let loaded = 0;
+      for (const [key, entry] of Object.entries(entries)) {
+        if (entry.expiresAt > now) {
+          const { expiresAt: _, ...cached } = entry;
+          // Use remaining TTL so the cache entry expires at the right time
+          const remainingTtl = entry.expiresAt - now;
+          this.cache.set(key, cached, { ttl: remainingTtl });
+          loaded++;
+        }
+      }
+      logger.info('Loaded persisted idempotency keys', {
+        loaded,
+        total: Object.keys(entries).length,
+        path: storePath,
+      });
+    } catch (err) {
+      logger.warn('Failed to load persisted idempotency keys', {
+        path: storePath,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   /**
@@ -171,6 +242,9 @@ export class IdempotencyManager {
         cacheSize: this.cache.size,
       });
     }
+
+    // ISSUE-094: persist to disk so keys survive server restarts
+    this.saveToDisk();
   }
 
   /**

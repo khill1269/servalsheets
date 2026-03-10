@@ -264,11 +264,13 @@ export class AirtableBackend implements SpreadsheetBackend {
 
         const fields: Record<string, CellValue> = {};
         const rowValues = params.values[rowIdx];
+        if (!rowValues) continue; // Guard against undefined rows
 
         for (let colIdx = 0; colIdx < rowValues.length; colIdx++) {
           const fieldName = fieldNames[startCol + colIdx];
           if (!fieldName) continue;
-          fields[fieldName] = rowValues[colIdx];
+          const cellValue = rowValues[colIdx];
+          if (cellValue !== undefined) fields[fieldName] = cellValue;
           updatedCells++;
         }
 
@@ -308,11 +310,13 @@ export class AirtableBackend implements SpreadsheetBackend {
       for (let rowIdx = batchStart; rowIdx < batchEnd; rowIdx++) {
         const fields: Record<string, CellValue> = {};
         const rowValues = params.values[rowIdx];
+        if (!rowValues) continue; // Guard against undefined rows
 
         for (let colIdx = 0; colIdx < rowValues.length; colIdx++) {
           const fieldName = fieldNames[startCol + colIdx];
           if (!fieldName) continue;
-          fields[fieldName] = rowValues[colIdx];
+          const cellValue = rowValues[colIdx];
+          if (cellValue !== undefined) fields[fieldName] = cellValue;
           totalCells++;
         }
 
@@ -420,9 +424,7 @@ export class AirtableBackend implements SpreadsheetBackend {
 
   async batchClear(params: BatchClearParams): Promise<BatchClearResult> {
     await Promise.all(
-      params.ranges.map((range) =>
-        this.clearRange({ documentId: params.documentId, range })
-      )
+      params.ranges.map((range) => this.clearRange({ documentId: params.documentId, range }))
     );
 
     return { clearedRanges: params.ranges };
@@ -432,9 +434,9 @@ export class AirtableBackend implements SpreadsheetBackend {
 
   async getDocument(params: GetDocumentParams): Promise<SpreadsheetMetadata> {
     // Airtable: GET /v0/meta/bases/{baseId}/tables
-    const response = (await this.client.get(
-      `/v0/meta/bases/${params.documentId}/tables`
-    )) as { tables: AirtableTable[] };
+    const response = (await this.client.get(`/v0/meta/bases/${params.documentId}/tables`)) as {
+      tables: AirtableTable[];
+    };
 
     const sheets: SheetMetadata[] = response.tables.map((table, index) => ({
       sheetId: index,
@@ -466,13 +468,10 @@ export class AirtableBackend implements SpreadsheetBackend {
       fields: [
         { name: 'Name', type: 'singleLineText' },
         // Add additional text fields based on requested column count
-        ...Array.from(
-          { length: Math.max(0, (sheet.columnCount ?? 5) - 1) },
-          (_, i) => ({
-            name: `Field ${i + 2}`,
-            type: 'singleLineText' as const,
-          })
-        ),
+        ...Array.from({ length: Math.max(0, (sheet.columnCount ?? 5) - 1) }, (_, i) => ({
+          name: `Field ${i + 2}`,
+          type: 'singleLineText' as const,
+        })),
       ],
     }));
 
@@ -511,13 +510,10 @@ export class AirtableBackend implements SpreadsheetBackend {
       })),
     ];
 
-    const response = (await this.client.post(
-      `/v0/meta/bases/${params.documentId}/tables`,
-      {
-        name: params.title,
-        fields,
-      }
-    )) as AirtableTable;
+    const response = (await this.client.post(`/v0/meta/bases/${params.documentId}/tables`, {
+      name: params.title,
+      fields,
+    })) as AirtableTable;
 
     return {
       sheetId: params.index ?? 0,
@@ -578,7 +574,7 @@ export class AirtableBackend implements SpreadsheetBackend {
           break;
         }
         case 'delete_records': {
-          const recordIds = m.params.records as string[];
+          const recordIds = m.params['records'] as string[];
           const response = await this.client.delete(
             `/v0/${documentId}/${encodeURIComponent(m.table)}`,
             { records: recordIds }
@@ -596,7 +592,7 @@ export class AirtableBackend implements SpreadsheetBackend {
         }
         case 'update_field': {
           const response = await this.client.patch(
-            `/v0/meta/bases/${documentId}/tables/${encodeURIComponent(m.table)}/fields/${m.params.fieldId as string}`,
+            `/v0/meta/bases/${documentId}/tables/${encodeURIComponent(m.table)}/fields/${m.params['fieldId'] as string}`,
             m.params
           );
           replies.push(response);
@@ -711,13 +707,11 @@ export class AirtableBackend implements SpreadsheetBackend {
     const cached = this.fieldOrderCache.get(cacheKey);
     if (cached) return cached;
 
-    const response = (await this.client.get(
-      `/v0/meta/bases/${baseId}/tables`
-    )) as { tables: AirtableTable[] };
+    const response = (await this.client.get(`/v0/meta/bases/${baseId}/tables`)) as {
+      tables: AirtableTable[];
+    };
 
-    const table = response.tables.find(
-      (t) => t.name === tableName || t.id === tableName
-    );
+    const table = response.tables.find((t) => t.name === tableName || t.id === tableName);
     if (!table) {
       throw new Error(`Table "${tableName}" not found in base ${baseId}`);
     }
@@ -754,7 +748,7 @@ export class AirtableBackend implements SpreadsheetBackend {
       };
 
       if (offset) {
-        params.offset = offset;
+        params['offset'] = offset;
       }
 
       // Airtable field filtering uses repeated fields[] params
@@ -903,8 +897,8 @@ export class AirtableBackend implements SpreadsheetBackend {
       };
     }
 
-    const startCol = this.colLetterToIndex(match[1]);
-    const startRow = parseInt(match[2], 10) - 1; // 1-based → 0-based
+    const startCol = this.colLetterToIndex(match[1]!);
+    const startRow = parseInt(match[2]!, 10) - 1; // 1-based → 0-based
     const endCol = match[3] ? this.colLetterToIndex(match[3]) + 1 : startCol + 1;
     const endRow = match[4] ? parseInt(match[4], 10) : startRow + 1;
 

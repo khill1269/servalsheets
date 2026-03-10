@@ -445,6 +445,22 @@ export class CostTracker extends EventEmitter {
     const budgetStatus = this.getBudgetStatus(tenantId);
     const suggestedTier = this.suggestTierUpgrade(tenantId);
 
+    // QUOTA-01: API quota approaching 80% of monthly limit
+    const usage = this.getOrCreateUsage(tenantId);
+    const tier = this.getTier(tenantId);
+    if (tier.limits.apiCallsPerMonth > 0) {
+      const pct = (usage.apiCalls.total / tier.limits.apiCallsPerMonth) * 100;
+      if (pct >= this.alertThresholds.warning * 100) {
+        this.emitAlert({
+          tenantId,
+          type: 'limit_approaching',
+          message: `API calls at ${pct.toFixed(1)}% of monthly limit (${usage.apiCalls.total}/${tier.limits.apiCallsPerMonth})`,
+          currentCost: budgetStatus.current,
+          timestamp: new Date(),
+        });
+      }
+    }
+
     // Budget alerts
     if (budgetStatus.budget && budgetStatus.percentUsed >= 100) {
       this.emitAlert({

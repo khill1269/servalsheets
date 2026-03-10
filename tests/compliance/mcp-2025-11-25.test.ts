@@ -39,7 +39,7 @@ describe('MCP Protocol 2025-11-25 Compliance', () => {
 
     it('should have expected action count defined', () => {
       expect(ACTION_COUNT).toBeGreaterThan(0);
-      expect(ACTION_COUNT).toBeLessThanOrEqual(350); // Reasonable upper bound
+      expect(ACTION_COUNT).toBeLessThanOrEqual(400); // Reasonable upper bound
     });
   });
 

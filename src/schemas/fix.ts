@@ -159,7 +159,7 @@ export const AnomalyMethodSchema = z.enum(['iqr', 'zscore', 'modified_zscore']);
 export type AnomalyMethod = z.infer<typeof AnomalyMethodSchema>;
 
 // Cell change record (used in cleaning results)
-export const CellChangeSchema = z.object({
+export const CleanCellChangeSchema = z.object({
   row: z.number(),
   col: z.number(),
   cell: z.string().describe('A1 reference (e.g., B5)'),
@@ -168,7 +168,7 @@ export const CellChangeSchema = z.object({
   rule: z.string().describe('Rule that triggered this change'),
 });
 
-export type CellChange = z.infer<typeof CellChangeSchema>;
+export type CleanCellChange = z.infer<typeof CleanCellChangeSchema>;
 
 // Anomaly record
 export const AnomalyRecordSchema = z.object({
@@ -226,7 +226,7 @@ export const SheetsFixResponseSchema = z.discriminatedUnion('success', [
 
     // clean action results
     changes: z
-      .array(CellChangeSchema)
+      .array(CleanCellChangeSchema)
       .optional()
       .describe('Cell-level changes applied or previewed'),
     cleaningSummary: z
@@ -240,7 +240,10 @@ export const SheetsFixResponseSchema = z.discriminatedUnion('success', [
       .describe('Cleaning operation summary'),
 
     // standardize_formats results
-    formatChanges: z.array(CellChangeSchema).optional().describe('Format normalization changes'),
+    formatChanges: z
+      .array(CleanCellChangeSchema)
+      .optional()
+      .describe('Format normalization changes'),
     formatSummary: z
       .object({
         columnsProcessed: z.number(),
@@ -251,7 +254,7 @@ export const SheetsFixResponseSchema = z.discriminatedUnion('success', [
       .describe('Format standardization summary'),
 
     // fill_missing results
-    fillChanges: z.array(CellChangeSchema).optional().describe('Cells that were filled'),
+    fillChanges: z.array(CleanCellChangeSchema).optional().describe('Cells that were filled'),
     fillSummary: z
       .object({
         totalEmpty: z.number(),
@@ -357,7 +360,7 @@ const FixActionSchema = z.object({
 const CleanActionSchema = z.object({
   action: z.literal('clean').describe('Auto-detect and fix common data quality issues'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().describe('A1 range to clean (e.g., "Sheet1!A1:Z100")'),
+  range: z.string().min(1).describe('A1 range to clean (e.g., "Sheet1!A1:Z100")'),
   rules: z
     .array(CleanRuleSchema)
     .optional()
@@ -376,7 +379,7 @@ const StandardizeFormatsActionSchema = z.object({
     .literal('standardize_formats')
     .describe('Normalize date, currency, phone, and text formats in specified columns'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().describe('A1 range to standardize (e.g., "Sheet1!A1:Z100")'),
+  range: z.string().min(1).describe('A1 range to standardize (e.g., "Sheet1!A1:Z100")'),
   columns: z
     .array(FormatSpecSchema)
     .describe(
@@ -394,7 +397,7 @@ const FillMissingActionSchema = z.object({
     .literal('fill_missing')
     .describe('Fill empty cells using a statistical or fixed strategy'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().describe('A1 range to fill (e.g., "Sheet1!A1:Z100")'),
+  range: z.string().min(1).describe('A1 range to fill (e.g., "Sheet1!A1:Z100")'),
   strategy: FillStrategySchema.describe(
     'Fill strategy: forward (last known value), backward (next known value), mean, median, mode (column statistics), constant (user-provided value)'
   ),
@@ -416,7 +419,7 @@ const FillMissingActionSchema = z.object({
 const DetectAnomaliesActionSchema = z.object({
   action: z.literal('detect_anomalies').describe('Flag statistical outliers in numeric columns'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().describe('A1 range to analyze (e.g., "Sheet1!A1:Z100")'),
+  range: z.string().min(1).describe('A1 range to analyze (e.g., "Sheet1!A1:Z100")'),
   method: AnomalyMethodSchema.optional()
     .default('iqr')
     .describe(
@@ -438,7 +441,7 @@ const SuggestCleaningActionSchema = z.object({
     .literal('suggest_cleaning')
     .describe('Profile data and provide AI-powered cleaning recommendations (read-only)'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().describe('A1 range to profile (e.g., "Sheet1!A1:Z100")'),
+  range: z.string().min(1).describe('A1 range to profile (e.g., "Sheet1!A1:Z100")'),
   maxRecommendations: z
     .number()
     .min(1)
@@ -471,44 +474,22 @@ export type SheetsFixOutput = z.infer<typeof SheetsFixOutputSchema>;
 /** The unwrapped request type (the discriminated union of actions) */
 export type FixRequest = SheetsFixInput['request'];
 
-// Type narrowing helpers for handler methods
-export type FixInput = SheetsFixInput['request'] & {
-  action: 'fix';
-  spreadsheetId: string;
-  issues: IssueToFix[];
-};
-
-export type CleanInput = SheetsFixInput['request'] & {
-  action: 'clean';
-  spreadsheetId: string;
-  range: string;
-};
-
-export type StandardizeFormatsInput = SheetsFixInput['request'] & {
-  action: 'standardize_formats';
-  spreadsheetId: string;
-  range: string;
-  columns: FormatSpec[];
-};
-
-export type FillMissingInput = SheetsFixInput['request'] & {
-  action: 'fill_missing';
-  spreadsheetId: string;
-  range: string;
-  strategy: FillStrategy;
-};
-
-export type DetectAnomaliesInput = SheetsFixInput['request'] & {
-  action: 'detect_anomalies';
-  spreadsheetId: string;
-  range: string;
-};
-
-export type SuggestCleaningInput = SheetsFixInput['request'] & {
-  action: 'suggest_cleaning';
-  spreadsheetId: string;
-  range: string;
-};
+// Type narrowing helpers for handler methods — Extract<> narrows to the exact union variant
+export type FixInput = Extract<SheetsFixInput['request'], { action: 'fix' }>;
+export type CleanInput = Extract<SheetsFixInput['request'], { action: 'clean' }>;
+export type StandardizeFormatsInput = Extract<
+  SheetsFixInput['request'],
+  { action: 'standardize_formats' }
+>;
+export type FillMissingInput = Extract<SheetsFixInput['request'], { action: 'fill_missing' }>;
+export type DetectAnomaliesInput = Extract<
+  SheetsFixInput['request'],
+  { action: 'detect_anomalies' }
+>;
+export type SuggestCleaningInput = Extract<
+  SheetsFixInput['request'],
+  { action: 'suggest_cleaning' }
+>;
 
 // Tool annotations for MCP registration
 import type { ToolAnnotations } from './shared.js';

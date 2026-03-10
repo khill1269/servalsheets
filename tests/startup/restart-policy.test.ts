@@ -8,10 +8,12 @@
 // Set test environment variables BEFORE importing the module
 process.env['SUCCESS_THRESHOLD_MS'] = '100';
 process.env['MIN_RESTART_BACKOFF_MS'] = '100';
+process.env['RESTART_STATE_FILE'] =
+  process.env['RESTART_STATE_FILE'] ?? `/tmp/servalsheets-restart-policy-${process.pid}.json`;
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'fs';
-import { join } from 'path';
+import { dirname } from 'path';
 import {
   checkRestartBackoff,
   recordStartupAttempt,
@@ -20,6 +22,7 @@ import {
   getRestartState,
   formatBackoffDelay,
 } from '../../src/startup/restart-policy.js';
+import { waitFor } from '../helpers/wait-for.js';
 
 // Mock logger
 vi.mock('../../src/utils/logger.js', () => ({
@@ -31,8 +34,7 @@ vi.mock('../../src/utils/logger.js', () => ({
   },
 }));
 
-const homeDir = process.env['HOME'] || process.env['USERPROFILE'] || '/tmp';
-const STATE_FILE = join(homeDir, '.servalsheets', 'restart-state.json');
+const STATE_FILE = process.env['RESTART_STATE_FILE']!;
 
 describe('Restart Policy', () => {
   beforeEach(async () => {
@@ -51,10 +53,10 @@ describe('Restart Policy', () => {
       expect(delay).toBe(0);
     });
 
-    it.skip('should return 0 delay after successful startup — requires SUCCESS_THRESHOLD_MS env override before module load', async () => {
+    it('should return 0 delay after successful startup', async () => {
       // Record a successful startup
       await recordStartupAttempt();
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
       await recordSuccessfulStartup();
 
       // Next startup should have no delay
@@ -76,9 +78,9 @@ describe('Restart Policy', () => {
     it('should increase backoff with more failures', async () => {
       // Record multiple failures
       await recordStartupAttempt();
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
       await recordStartupAttempt();
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitFor(10);
       await recordStartupAttempt();
 
       const state = await getRestartState();
@@ -116,13 +118,13 @@ describe('Restart Policy', () => {
   });
 
   describe('recordSuccessfulStartup', () => {
-    it.skip('should reset failure counter after successful run — requires SUCCESS_THRESHOLD_MS env override before module load', async () => {
+    it('should reset failure counter after successful run', async () => {
       // Record some failures
       await recordStartupAttempt();
       await recordStartupAttempt();
 
       // Wait long enough to be considered successful (> SUCCESS_THRESHOLD_MS)
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       // Record success
       await recordSuccessfulStartup();
@@ -143,9 +145,9 @@ describe('Restart Policy', () => {
       expect(state.consecutiveFailures).toBeGreaterThan(0);
     });
 
-    it.skip('should record lastSuccessfulStart timestamp — requires SUCCESS_THRESHOLD_MS env override before module load', async () => {
+    it('should record lastSuccessfulStart timestamp', async () => {
       await recordStartupAttempt();
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
 
       const before = Date.now();
       await recordSuccessfulStartup();
@@ -262,7 +264,7 @@ describe('Restart Policy', () => {
 
     it('should handle corrupted state file', async () => {
       // Write invalid JSON to state file
-      await fs.mkdir(join(homeDir, '.servalsheets'), { recursive: true });
+      await fs.mkdir(dirname(STATE_FILE), { recursive: true });
       await fs.writeFile(STATE_FILE, 'invalid json', 'utf-8');
 
       // Should return default state instead of throwing
@@ -280,7 +282,7 @@ describe('Restart Policy', () => {
       for (let i = 0; i < 5; i++) {
         await recordStartupAttempt();
         // Wait a bit to ensure backoff would trigger
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        await waitFor(10);
       }
 
       // The delays should grow exponentially
@@ -311,7 +313,7 @@ describe('Restart Policy', () => {
       expect(delay1).toBeGreaterThanOrEqual(0);
 
       // After waiting and recording another attempt
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitFor(50);
       await recordStartupAttempt();
 
       // Delay should increase
@@ -319,7 +321,7 @@ describe('Restart Policy', () => {
       expect(delay2).toBeGreaterThanOrEqual(delay1);
     });
 
-    it.skip('should reset after successful long run — requires SUCCESS_THRESHOLD_MS env override before module load', async () => {
+    it('should reset after successful long run', async () => {
       // Record some failures
       await recordStartupAttempt();
       await recordStartupAttempt();
@@ -328,7 +330,7 @@ describe('Restart Policy', () => {
       expect(state.consecutiveFailures).toBe(2);
 
       // Simulate successful run
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitFor(200);
       await recordSuccessfulStartup();
 
       state = await getRestartState();

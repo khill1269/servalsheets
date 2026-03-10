@@ -2,10 +2,11 @@
  * ServalSheets - Collaborate Handler
  *
  * Consolidated collaboration operations: sharing, comments, version control, and approvals
- * Merges: sharing.ts (8 actions) + comments.ts (10 actions) + versions.ts (10 actions) + approvals (7 actions) = 35 actions
+ * Merges: sharing.ts (8 actions) + comments.ts (10 actions) + versions.ts (10 actions) + approvals (7 actions) + access_proposals (2 actions) = 37 actions
  * MCP Protocol: 2025-11-25
  */
 
+import { ErrorCodes } from './error-codes.js';
 import type { drive_v3 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
@@ -49,7 +50,11 @@ import type {
   CollaborateApprovalListPendingInput,
   CollaborateApprovalDelegateInput,
   CollaborateApprovalCancelInput,
-  Approval,
+  CollaborateListAccessProposalsInput,
+  CollaborateResolveAccessProposalInput,
+  CollaborateLabelListInput,
+  CollaborateLabelApplyInput,
+  CollaborateLabelRemoveInput,
 } from '../schemas/index.js';
 import { logger } from '../utils/logger.js';
 import {
@@ -57,19 +62,56 @@ import {
   ScopeCategory,
   IncrementalScopeRequiredError,
 } from '../security/incremental-scope.js';
-import { confirmDestructiveAction } from '../mcp/elicitation.js';
-import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
-import { createNotFoundError, createValidationError } from '../utils/error-factory.js';
-import { parseA1Notation } from '../utils/google-sheets-helpers.js';
-
-const DRIVE_MIME_TYPES = {
-  GOOGLE_SHEETS: 'application/vnd.google-apps.spreadsheet',
-  GOOGLE_DRIVE_FOLDER: 'application/vnd.google-apps.folder',
-  XLSX: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  CSV: 'text/csv',
-  PDF: 'application/pdf',
-  ODS: 'application/vnd.oasis.opendocument.spreadsheet',
-} as const;
+import {
+  handleShareAddAction,
+  handleShareUpdateAction,
+  handleShareRemoveAction,
+  handleShareListAction,
+  handleShareGetAction,
+  handleShareTransferOwnershipAction,
+  handleShareSetLinkAction,
+  handleShareGetLinkAction,
+} from './collaborate-actions/sharing.js';
+import {
+  handleCommentAddAction,
+  handleCommentUpdateAction,
+  handleCommentDeleteAction,
+  handleCommentListAction,
+  handleCommentGetAction,
+  handleCommentResolveAction,
+  handleCommentReopenAction,
+  handleCommentAddReplyAction,
+  handleCommentUpdateReplyAction,
+  handleCommentDeleteReplyAction,
+} from './collaborate-actions/comments.js';
+import {
+  handleVersionListRevisionsAction,
+  handleVersionGetRevisionAction,
+  handleVersionRestoreRevisionAction,
+  handleVersionKeepRevisionAction,
+  handleVersionCreateSnapshotAction,
+  handleVersionListSnapshotsAction,
+  handleVersionRestoreSnapshotAction,
+  handleVersionDeleteSnapshotAction,
+  handleVersionCompareAction,
+  handleVersionExportAction,
+} from './collaborate-actions/versions.js';
+import {
+  handleApprovalCreateAction,
+  handleApprovalApproveAction,
+  handleApprovalRejectAction,
+  handleApprovalGetStatusAction,
+  handleApprovalListPendingAction,
+  handleApprovalDelegateAction,
+  handleApprovalCancelAction,
+} from './collaborate-actions/approvals.js';
+import {
+  handleListAccessProposalsAction,
+  handleResolveAccessProposalAction,
+  handleLabelListAction,
+  handleLabelApplyAction,
+  handleLabelRemoveAction,
+} from './collaborate-actions/access-labels.js';
 
 type CollaborateSuccess = Extract<CollaborateResponse, { success: true }>;
 
@@ -106,7 +148,7 @@ export class CollaborateHandler extends BaseHandler<
       if (error instanceof IncrementalScopeRequiredError) {
         return {
           response: this.error({
-            code: 'INCREMENTAL_SCOPE_REQUIRED',
+            code: ErrorCodes.INCREMENTAL_SCOPE_REQUIRED,
             message: error.message,
             category: 'auth',
             retryable: true,
@@ -133,7 +175,7 @@ export class CollaborateHandler extends BaseHandler<
     if (!this.driveApi) {
       return {
         response: this.error({
-          code: 'INTERNAL_ERROR',
+          code: ErrorCodes.INTERNAL_ERROR,
           message: 'Drive API not available - required for collaboration operations',
           details: {
             action: req.action,
@@ -172,7 +214,7 @@ export class CollaborateHandler extends BaseHandler<
         // Return properly formatted error response
         return {
           response: this.error({
-            code: 'PERMISSION_DENIED',
+            code: ErrorCodes.PERMISSION_DENIED,
             message:
               requirements?.description ?? 'Sharing operations require additional Drive access',
             category: 'auth',
@@ -221,160 +263,308 @@ export class CollaborateHandler extends BaseHandler<
     }
 
     try {
+      const sharingDeps = {
+        driveApi: this.driveApi!,
+        context: this.context,
+        mapPermission: (permission: drive_v3.Schema$Permission | undefined) =>
+          this.mapPermission(permission),
+        success: (...args: Parameters<typeof this.success>) => this.success(...args),
+        error: (...args: Parameters<typeof this.error>) => this.error(...args),
+      } satisfies Parameters<typeof handleShareAddAction>[1];
+
+      const commentsDeps = {
+        driveApi: this.driveApi!,
+        context: this.context,
+        mapComment: (comment: drive_v3.Schema$Comment | undefined) => this.mapComment(comment),
+        success: (...args: Parameters<typeof this.success>) => this.success(...args),
+        error: (...args: Parameters<typeof this.error>) => this.error(...args),
+      } satisfies Parameters<typeof handleCommentAddAction>[1];
+
+      const versionsDeps = {
+        driveApi: this.driveApi!,
+        context: this.context,
+        checkOperationScopes: (operation: string) => this.checkOperationScopes(operation),
+        success: (...args: Parameters<typeof this.success>) => this.success(...args),
+        error: (...args: Parameters<typeof this.error>) => this.error(...args),
+        mapError: (error: unknown) => this.mapError(error),
+      } satisfies Parameters<typeof handleVersionListRevisionsAction>[1];
+
+      const approvalsDeps = {
+        driveApi: this.driveApi!,
+        sheetsApi: this.sheetsApi!,
+        context: this.context,
+        mapError: (error: unknown) => this.mapError(error),
+        error: (...args: Parameters<typeof this.error>) => this.error(...args),
+      } satisfies Parameters<typeof handleApprovalCreateAction>[1];
+
+      const accessLabelsDeps = {
+        driveApi: this.driveApi!,
+        success: (...args: Parameters<typeof this.success>) => this.success(...args),
+      } satisfies Parameters<typeof handleListAccessProposalsAction>[1];
+
       let response: CollaborateResponse;
       switch (inferredReq.action) {
         // ========== SHARING ACTIONS ==========
         case 'share_add':
-          response = await this.handleShareAdd(inferredReq as CollaborateShareAddInput);
+          response = await handleShareAddAction(
+            inferredReq as CollaborateShareAddInput,
+            sharingDeps
+          );
           break;
         case 'share_update':
-          response = await this.handleShareUpdate(inferredReq as CollaborateShareUpdateInput);
+          response = await handleShareUpdateAction(
+            inferredReq as CollaborateShareUpdateInput,
+            sharingDeps
+          );
           break;
         case 'share_remove':
-          response = await this.handleShareRemove(inferredReq as CollaborateShareRemoveInput);
+          response = await handleShareRemoveAction(
+            inferredReq as CollaborateShareRemoveInput,
+            sharingDeps
+          );
           break;
         case 'share_list':
-          response = await this.handleShareList(inferredReq as CollaborateShareListInput);
+          response = await handleShareListAction(
+            inferredReq as CollaborateShareListInput,
+            sharingDeps
+          );
           break;
         case 'share_get':
-          response = await this.handleShareGet(inferredReq as CollaborateShareGetInput);
+          response = await handleShareGetAction(
+            inferredReq as CollaborateShareGetInput,
+            sharingDeps
+          );
           break;
         case 'share_transfer_ownership':
-          response = await this.handleShareTransferOwnership(
-            inferredReq as CollaborateShareTransferOwnershipInput
+          response = await handleShareTransferOwnershipAction(
+            inferredReq as CollaborateShareTransferOwnershipInput,
+            sharingDeps
           );
           break;
         case 'share_set_link':
-          response = await this.handleShareSetLink(inferredReq as CollaborateShareSetLinkInput);
+          response = await handleShareSetLinkAction(
+            inferredReq as CollaborateShareSetLinkInput,
+            sharingDeps
+          );
           break;
         case 'share_get_link':
-          response = await this.handleShareGetLink(inferredReq as CollaborateShareGetLinkInput);
+          response = await handleShareGetLinkAction(
+            inferredReq as CollaborateShareGetLinkInput,
+            sharingDeps
+          );
           break;
 
         // ========== COMMENT ACTIONS ==========
         case 'comment_add':
-          response = await this.handleCommentAdd(inferredReq as CollaborateCommentAddInput);
+          response = await handleCommentAddAction(
+            inferredReq as CollaborateCommentAddInput,
+            commentsDeps
+          );
           break;
         case 'comment_update':
-          response = await this.handleCommentUpdate(inferredReq as CollaborateCommentUpdateInput);
+          response = await handleCommentUpdateAction(
+            inferredReq as CollaborateCommentUpdateInput,
+            commentsDeps
+          );
           break;
         case 'comment_delete':
-          response = await this.handleCommentDelete(inferredReq as CollaborateCommentDeleteInput);
+          response = await handleCommentDeleteAction(
+            inferredReq as CollaborateCommentDeleteInput,
+            commentsDeps
+          );
           break;
         case 'comment_list':
-          response = await this.handleCommentList(inferredReq as CollaborateCommentListInput);
+          response = await handleCommentListAction(
+            inferredReq as CollaborateCommentListInput,
+            commentsDeps
+          );
           break;
         case 'comment_get':
-          response = await this.handleCommentGet(inferredReq as CollaborateCommentGetInput);
+          response = await handleCommentGetAction(
+            inferredReq as CollaborateCommentGetInput,
+            commentsDeps
+          );
           break;
         case 'comment_resolve':
-          response = await this.handleCommentResolve(inferredReq as CollaborateCommentResolveInput);
+          response = await handleCommentResolveAction(
+            inferredReq as CollaborateCommentResolveInput,
+            commentsDeps
+          );
           break;
         case 'comment_reopen':
-          response = await this.handleCommentReopen(inferredReq as CollaborateCommentReopenInput);
+          response = await handleCommentReopenAction(
+            inferredReq as CollaborateCommentReopenInput,
+            commentsDeps
+          );
           break;
         case 'comment_add_reply':
-          response = await this.handleCommentAddReply(
-            inferredReq as CollaborateCommentAddReplyInput
+          response = await handleCommentAddReplyAction(
+            inferredReq as CollaborateCommentAddReplyInput,
+            commentsDeps
           );
           break;
         case 'comment_update_reply':
-          response = await this.handleCommentUpdateReply(
-            inferredReq as CollaborateCommentUpdateReplyInput
+          response = await handleCommentUpdateReplyAction(
+            inferredReq as CollaborateCommentUpdateReplyInput,
+            commentsDeps
           );
           break;
         case 'comment_delete_reply':
-          response = await this.handleCommentDeleteReply(
-            inferredReq as CollaborateCommentDeleteReplyInput
+          response = await handleCommentDeleteReplyAction(
+            inferredReq as CollaborateCommentDeleteReplyInput,
+            commentsDeps
           );
           break;
 
         // ========== VERSION ACTIONS ==========
         case 'version_list_revisions':
-          response = await this.handleVersionListRevisions(
-            inferredReq as CollaborateVersionListRevisionsInput
+          response = await handleVersionListRevisionsAction(
+            inferredReq as CollaborateVersionListRevisionsInput,
+            versionsDeps
           );
           break;
         case 'version_get_revision':
-          response = await this.handleVersionGetRevision(
-            inferredReq as CollaborateVersionGetRevisionInput
+          response = await handleVersionGetRevisionAction(
+            inferredReq as CollaborateVersionGetRevisionInput,
+            versionsDeps
           );
           break;
         case 'version_restore_revision':
-          response = await this.handleVersionRestoreRevision(
-            inferredReq as CollaborateVersionRestoreRevisionInput
+          response = await handleVersionRestoreRevisionAction(
+            inferredReq as CollaborateVersionRestoreRevisionInput,
+            versionsDeps
           );
           break;
         case 'version_keep_revision':
-          response = await this.handleVersionKeepRevision(
-            inferredReq as CollaborateVersionKeepRevisionInput
+          response = await handleVersionKeepRevisionAction(
+            inferredReq as CollaborateVersionKeepRevisionInput,
+            versionsDeps
           );
           break;
         case 'version_create_snapshot':
-          response = await this.handleVersionCreateSnapshot(
-            inferredReq as CollaborateVersionCreateSnapshotInput
+          response = await handleVersionCreateSnapshotAction(
+            inferredReq as CollaborateVersionCreateSnapshotInput,
+            versionsDeps
           );
           break;
         case 'version_list_snapshots':
-          response = await this.handleVersionListSnapshots(
-            inferredReq as CollaborateVersionListSnapshotsInput
+          response = await handleVersionListSnapshotsAction(
+            inferredReq as CollaborateVersionListSnapshotsInput,
+            versionsDeps
           );
           break;
         case 'version_restore_snapshot':
-          response = await this.handleVersionRestoreSnapshot(
-            inferredReq as CollaborateVersionRestoreSnapshotInput
+          response = await handleVersionRestoreSnapshotAction(
+            inferredReq as CollaborateVersionRestoreSnapshotInput,
+            versionsDeps
           );
           break;
         case 'version_delete_snapshot':
-          response = await this.handleVersionDeleteSnapshot(
-            inferredReq as CollaborateVersionDeleteSnapshotInput
+          response = await handleVersionDeleteSnapshotAction(
+            inferredReq as CollaborateVersionDeleteSnapshotInput,
+            versionsDeps
           );
           break;
         case 'version_compare':
-          response = await this.handleVersionCompare(inferredReq as CollaborateVersionCompareInput);
+          response = await handleVersionCompareAction(
+            inferredReq as CollaborateVersionCompareInput,
+            versionsDeps
+          );
           break;
         case 'version_export':
-          response = await this.handleVersionExport(inferredReq as CollaborateVersionExportInput);
+          response = await handleVersionExportAction(
+            inferredReq as CollaborateVersionExportInput,
+            versionsDeps
+          );
           break;
 
         // ========== APPROVAL ACTIONS ==========
         case 'approval_create':
-          response = await this.handleApprovalCreate(inferredReq as CollaborateApprovalCreateInput);
+          response = await handleApprovalCreateAction(
+            inferredReq as CollaborateApprovalCreateInput,
+            approvalsDeps
+          );
           break;
         case 'approval_approve':
-          response = await this.handleApprovalApprove(
-            inferredReq as CollaborateApprovalApproveInput
+          response = await handleApprovalApproveAction(
+            inferredReq as CollaborateApprovalApproveInput,
+            approvalsDeps
           );
           break;
         case 'approval_reject':
-          response = await this.handleApprovalReject(inferredReq as CollaborateApprovalRejectInput);
+          response = await handleApprovalRejectAction(
+            inferredReq as CollaborateApprovalRejectInput,
+            approvalsDeps
+          );
           break;
         case 'approval_get_status':
-          response = await this.handleApprovalGetStatus(
-            inferredReq as CollaborateApprovalGetStatusInput
+          response = await handleApprovalGetStatusAction(
+            inferredReq as CollaborateApprovalGetStatusInput,
+            approvalsDeps
           );
           break;
         case 'approval_list_pending':
-          response = await this.handleApprovalListPending(
-            inferredReq as CollaborateApprovalListPendingInput
+          response = await handleApprovalListPendingAction(
+            inferredReq as CollaborateApprovalListPendingInput,
+            approvalsDeps
           );
           break;
         case 'approval_delegate':
-          response = await this.handleApprovalDelegate(
-            inferredReq as CollaborateApprovalDelegateInput
+          response = await handleApprovalDelegateAction(
+            inferredReq as CollaborateApprovalDelegateInput,
+            approvalsDeps
           );
           break;
         case 'approval_cancel':
-          response = await this.handleApprovalCancel(inferredReq as CollaborateApprovalCancelInput);
+          response = await handleApprovalCancelAction(
+            inferredReq as CollaborateApprovalCancelInput,
+            approvalsDeps
+          );
           break;
 
-        default:
+        // ========== ACCESS PROPOSAL ACTIONS ==========
+        case 'list_access_proposals':
+          response = await handleListAccessProposalsAction(
+            inferredReq as CollaborateListAccessProposalsInput,
+            accessLabelsDeps
+          );
+          break;
+        case 'resolve_access_proposal':
+          response = await handleResolveAccessProposalAction(
+            inferredReq as CollaborateResolveAccessProposalInput,
+            accessLabelsDeps
+          );
+          break;
+
+        // ========== DRIVE LABEL ACTIONS ==========
+        case 'label_list':
+          response = await handleLabelListAction(
+            inferredReq as CollaborateLabelListInput,
+            accessLabelsDeps
+          );
+          break;
+        case 'label_apply':
+          response = await handleLabelApplyAction(
+            inferredReq as CollaborateLabelApplyInput,
+            accessLabelsDeps
+          );
+          break;
+        case 'label_remove':
+          response = await handleLabelRemoveAction(
+            inferredReq as CollaborateLabelRemoveInput,
+            accessLabelsDeps
+          );
+          break;
+
+        default: {
+          const _exhaustiveCheck: never = inferredReq.action;
           response = this.error({
-            code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(inferredReq as { action: string }).action}`,
+            code: ErrorCodes.INVALID_PARAMS,
+            message: `Unknown action: ${String(_exhaustiveCheck)}`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
+        }
       }
 
       // Apply verbosity filtering (LLM optimization) - uses base handler implementation
@@ -398,826 +588,13 @@ export class CollaborateHandler extends BaseHandler<
   // SHARING ACTIONS
   // ============================================================
 
-  private async handleShareAdd(input: CollaborateShareAddInput): Promise<CollaborateResponse> {
-    const requestBody: drive_v3.Schema$Permission = {
-      type: input.type,
-      role: input.role,
-    };
-    if (input.emailAddress) requestBody.emailAddress = input.emailAddress;
-    if (input.domain) requestBody.domain = input.domain;
-    if (input.expirationTime) requestBody.expirationTime = input.expirationTime;
-
-    const response = await this.driveApi!.permissions.create({
-      fileId: input.spreadsheetId!,
-      sendNotificationEmail: input.sendNotification ?? true,
-      emailMessage: input.emailMessage,
-      requestBody,
-      fields: 'id,type,role,emailAddress,displayName',
-      supportsAllDrives: true,
-    });
-
-    return this.success('share_add', {
-      permission: this.mapPermission(response.data),
-    });
-  }
-
-  private async handleShareUpdate(
-    input: CollaborateShareUpdateInput
-  ): Promise<CollaborateResponse> {
-    if (input.role === 'owner') {
-      return this.error({
-        code: 'VALIDATION_ERROR',
-        message:
-          'Cannot change role to "owner" via share_update. Use share_transfer_ownership instead, ' +
-          'which handles the required transferOwnership flag and pending acceptance flow.',
-        retryable: false,
-      });
-    }
-
-    if (input.safety?.dryRun) {
-      return this.success('share_update', {}, undefined, true);
-    }
-
-    const response = await this.driveApi!.permissions.update({
-      fileId: input.spreadsheetId!,
-      permissionId: input.permissionId!,
-      transferOwnership: false,
-      requestBody: {
-        role: input.role,
-        expirationTime: input.expirationTime,
-      },
-      fields: 'id,type,role,emailAddress,displayName',
-      supportsAllDrives: true,
-    });
-
-    return this.success('share_update', {
-      permission: this.mapPermission(response.data),
-    });
-  }
-
-  private async handleShareRemove(
-    input: CollaborateShareRemoveInput
-  ): Promise<CollaborateResponse> {
-    if (input.safety?.dryRun) {
-      return this.success('share_remove', {}, undefined, true);
-    }
-
-    // Request confirmation if elicitation available
-    if (this.context.elicitationServer) {
-      const confirmation = await confirmDestructiveAction(
-        this.context.elicitationServer,
-        'share_remove',
-        `Remove permission (ID: ${input.permissionId}) from spreadsheet ${input.spreadsheetId}. This will revoke access for the user. This action cannot be undone.`
-      );
-
-      if (!confirmation.confirmed) {
-        return this.error({
-          code: 'PRECONDITION_FAILED',
-          message: confirmation.reason || 'User cancelled the operation',
-          retryable: false,
-          suggestedFix: 'Review the operation requirements and try again',
-        });
-      }
-    }
-
-    // Create snapshot if requested
-    const snapshot = await createSnapshotIfNeeded(
-      this.context.snapshotService,
-      {
-        operationType: 'share_remove',
-        isDestructive: true,
-        spreadsheetId: input.spreadsheetId,
-      },
-      input.safety
-    );
-
-    await this.driveApi!.permissions.delete({
-      fileId: input.spreadsheetId!,
-      permissionId: input.permissionId!,
-      supportsAllDrives: true,
-    });
-
-    return this.success('share_remove', {
-      snapshotId: snapshot?.snapshotId,
-    });
-  }
-
-  private async handleShareList(input: CollaborateShareListInput): Promise<CollaborateResponse> {
-    const response = await this.driveApi!.permissions.list({
-      fileId: input.spreadsheetId!,
-      supportsAllDrives: true,
-      pageSize: 100,
-      pageToken: (input as typeof input & { pageToken?: string }).pageToken ?? undefined,
-      fields:
-        'nextPageToken,permissions(id,type,role,emailAddress,domain,displayName,expirationTime)',
-    });
-
-    const permissions = (response.data.permissions ?? []).map(this.mapPermission);
-    return this.success('share_list', {
-      permissions,
-      nextPageToken: response.data.nextPageToken ?? undefined,
-    });
-  }
-
-  private async handleShareGet(input: CollaborateShareGetInput): Promise<CollaborateResponse> {
-    const response = await this.driveApi!.permissions.get({
-      fileId: input.spreadsheetId!,
-      permissionId: input.permissionId!,
-      supportsAllDrives: true,
-      fields: 'id,type,role,emailAddress,domain,displayName,expirationTime',
-    });
-
-    return this.success('share_get', {
-      permission: this.mapPermission(response.data),
-    });
-  }
-
-  private async handleShareTransferOwnership(
-    input: CollaborateShareTransferOwnershipInput
-  ): Promise<CollaborateResponse> {
-    if (input.safety?.dryRun) {
-      return this.success('share_transfer_ownership', {}, undefined, true);
-    }
-
-    const response = await this.driveApi!.permissions.create({
-      fileId: input.spreadsheetId!,
-      transferOwnership: true,
-      sendNotificationEmail: true,
-      requestBody: {
-        type: 'user',
-        role: 'owner',
-        emailAddress: input.newOwnerEmail!,
-      },
-      fields: 'id,type,role,emailAddress,displayName',
-      supportsAllDrives: true,
-    });
-
-    return this.success('share_transfer_ownership', {
-      permission: this.mapPermission(response.data),
-      pendingAcceptance: (response.data as Record<string, unknown>)['pendingOwner'] === true,
-    });
-  }
-
-  private async handleShareSetLink(
-    input: CollaborateShareSetLinkInput
-  ): Promise<CollaborateResponse> {
-    if (!input.enabled) {
-      // Disable: delete existing anyone permission if present
-      const list = await this.driveApi!.permissions.list({
-        fileId: input.spreadsheetId!,
-        supportsAllDrives: true,
-        pageSize: 100,
-        fields: 'permissions(id,type)',
-      });
-      const anyone = (list.data.permissions ?? []).find((p) => p.type === 'anyone');
-      // Only delete if we have a valid permission ID
-      if (anyone?.id && !input.safety?.dryRun) {
-        await this.driveApi!.permissions.delete({
-          fileId: input.spreadsheetId!,
-          permissionId: anyone.id,
-          supportsAllDrives: true,
-        });
-      }
-      return this.success('share_set_link', {}, undefined, input.safety?.dryRun ?? false);
-    }
-
-    const response = await this.driveApi!.permissions.create({
-      fileId: input.spreadsheetId!,
-      supportsAllDrives: true,
-      requestBody: {
-        type: 'anyone',
-        role: input.role ?? 'reader',
-        allowFileDiscovery: (input as Record<string, unknown>)['allowFileDiscovery'] === true,
-      },
-      fields: 'id,type,role,emailAddress,displayName,allowFileDiscovery',
-    });
-
-    return this.success('share_set_link', {
-      permission: this.mapPermission(response.data),
-    });
-  }
-
-  private async handleShareGetLink(
-    input: CollaborateShareGetLinkInput
-  ): Promise<CollaborateResponse> {
-    // Verify the spreadsheet exists before returning a URL
-    await this.sheetsApi!.spreadsheets.get({
-      spreadsheetId: input.spreadsheetId!,
-      fields: 'spreadsheetId',
-    });
-
-    const baseUrl = `https://docs.google.com/spreadsheets/d/${input.spreadsheetId}`;
-    const sharingLink = `${baseUrl}/edit?usp=sharing`;
-    return this.success('share_get_link', { sharingLink });
-  }
-
   // ============================================================
   // COMMENT ACTIONS
   // ============================================================
 
-  private async handleCommentAdd(input: CollaborateCommentAddInput): Promise<CollaborateResponse> {
-    const response = await this.driveApi!.comments.create({
-      fileId: input.spreadsheetId!,
-      requestBody: {
-        content: input.content!,
-        anchor: input.anchor,
-      },
-      fields:
-        'id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor',
-    });
-
-    return this.success('comment_add', { comment: this.mapComment(response.data) });
-  }
-
-  private async handleCommentUpdate(
-    input: CollaborateCommentUpdateInput
-  ): Promise<CollaborateResponse> {
-    if (input.safety?.dryRun) {
-      return this.success('comment_update', {}, undefined, true);
-    }
-
-    const response = await this.driveApi!.comments.update({
-      fileId: input.spreadsheetId!,
-      commentId: input.commentId!,
-      requestBody: { content: input.content! },
-      fields:
-        'id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor',
-    });
-
-    return this.success('comment_update', { comment: this.mapComment(response.data) });
-  }
-
-  private async handleCommentDelete(
-    input: CollaborateCommentDeleteInput
-  ): Promise<CollaborateResponse> {
-    if (input.safety?.dryRun) {
-      return this.success('comment_delete', {}, undefined, true);
-    }
-
-    // Request confirmation if elicitation available
-    if (this.context.elicitationServer) {
-      const confirmation = await confirmDestructiveAction(
-        this.context.elicitationServer,
-        'comment_delete',
-        `Delete comment (ID: ${input.commentId}) from spreadsheet ${input.spreadsheetId}. This will permanently remove the comment and all its replies. This action cannot be undone.`
-      );
-
-      if (!confirmation.confirmed) {
-        return this.error({
-          code: 'PRECONDITION_FAILED',
-          message: confirmation.reason || 'User cancelled the operation',
-          retryable: false,
-          suggestedFix: 'Review the operation requirements and try again',
-        });
-      }
-    }
-
-    // Create snapshot if requested
-    const snapshot = await createSnapshotIfNeeded(
-      this.context.snapshotService,
-      {
-        operationType: 'comment_delete',
-        isDestructive: true,
-        spreadsheetId: input.spreadsheetId,
-      },
-      input.safety
-    );
-
-    await this.driveApi!.comments.delete({
-      fileId: input.spreadsheetId!,
-      commentId: input.commentId!,
-    });
-
-    return this.success('comment_delete', {
-      snapshotId: snapshot?.snapshotId,
-    });
-  }
-
-  private async handleCommentList(
-    input: CollaborateCommentListInput
-  ): Promise<CollaborateResponse> {
-    const response = await this.driveApi!.comments.list({
-      fileId: input.spreadsheetId!,
-      includeDeleted: input.includeDeleted ?? false,
-      pageToken:
-        (input as typeof input & { commentPageToken?: string }).commentPageToken ?? undefined,
-      pageSize: input.maxResults ?? 100,
-      fields:
-        'nextPageToken,comments(id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor,replies(id,content,createdTime,author(displayName)))',
-    });
-
-    const comments = (response.data.comments ?? []).map(this.mapComment);
-    return this.success('comment_list', {
-      comments,
-      nextPageToken: response.data.nextPageToken ?? undefined,
-    });
-  }
-
-  private async handleCommentGet(input: CollaborateCommentGetInput): Promise<CollaborateResponse> {
-    const response = await this.driveApi!.comments.get({
-      fileId: input.spreadsheetId!,
-      commentId: input.commentId!,
-      fields:
-        'id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor,replies(id,content,createdTime,author(displayName))',
-    });
-
-    return this.success('comment_get', { comment: this.mapComment(response.data) });
-  }
-
-  private async handleCommentResolve(
-    input: CollaborateCommentResolveInput
-  ): Promise<CollaborateResponse> {
-    // Per Drive API v3: resolve via replies.create with action:'resolve'
-    await this.driveApi!.replies.create({
-      fileId: input.spreadsheetId!,
-      commentId: input.commentId!,
-      requestBody: { content: '', action: 'resolve' },
-      fields: 'id',
-    });
-    // Fetch updated comment to return current state
-    const response = await this.driveApi!.comments.get({
-      fileId: input.spreadsheetId!,
-      commentId: input.commentId!,
-      fields:
-        'id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor',
-    });
-    return this.success('comment_resolve', { comment: this.mapComment(response.data) });
-  }
-
-  private async handleCommentReopen(
-    input: CollaborateCommentReopenInput
-  ): Promise<CollaborateResponse> {
-    // Per Drive API v3: reopen via replies.create with action:'reopen'
-    await this.driveApi!.replies.create({
-      fileId: input.spreadsheetId!,
-      commentId: input.commentId!,
-      requestBody: { content: '', action: 'reopen' },
-      fields: 'id',
-    });
-    // Fetch updated comment to return current state
-    const response = await this.driveApi!.comments.get({
-      fileId: input.spreadsheetId!,
-      commentId: input.commentId!,
-      fields:
-        'id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor',
-    });
-    return this.success('comment_reopen', { comment: this.mapComment(response.data) });
-  }
-
-  private async handleCommentAddReply(
-    input: CollaborateCommentAddReplyInput
-  ): Promise<CollaborateResponse> {
-    const response = await this.driveApi!.replies.create({
-      fileId: input.spreadsheetId!,
-      commentId: input.commentId!,
-      requestBody: { content: input.content! },
-      fields: 'id',
-    });
-
-    return this.success('comment_add_reply', { replyId: response.data.id ?? '' });
-  }
-
-  private async handleCommentUpdateReply(
-    input: CollaborateCommentUpdateReplyInput
-  ): Promise<CollaborateResponse> {
-    if (input.safety?.dryRun) {
-      return this.success('comment_update_reply', {}, undefined, true);
-    }
-
-    await this.driveApi!.replies.update({
-      fileId: input.spreadsheetId!,
-      commentId: input.commentId!,
-      replyId: input.replyId!,
-      requestBody: { content: input.content! },
-      fields: 'id',
-    });
-
-    return this.success('comment_update_reply', { replyId: input.replyId! });
-  }
-
-  private async handleCommentDeleteReply(
-    input: CollaborateCommentDeleteReplyInput
-  ): Promise<CollaborateResponse> {
-    if (input.safety?.dryRun) {
-      return this.success('comment_delete_reply', {}, undefined, true);
-    }
-
-    // Request confirmation if elicitation available
-    if (this.context.elicitationServer) {
-      const confirmation = await confirmDestructiveAction(
-        this.context.elicitationServer,
-        'comment_delete_reply',
-        `Delete reply (ID: ${input.replyId}) from comment ${input.commentId} in spreadsheet ${input.spreadsheetId}. This action cannot be undone.`
-      );
-
-      if (!confirmation.confirmed) {
-        return this.error({
-          code: 'PRECONDITION_FAILED',
-          message: confirmation.reason || 'User cancelled the operation',
-          retryable: false,
-          suggestedFix: 'Review the operation requirements and try again',
-        });
-      }
-    }
-
-    // Create snapshot if requested
-    const snapshot = await createSnapshotIfNeeded(
-      this.context.snapshotService,
-      {
-        operationType: 'comment_delete_reply',
-        isDestructive: true,
-        spreadsheetId: input.spreadsheetId,
-      },
-      input.safety
-    );
-
-    await this.driveApi!.replies.delete({
-      fileId: input.spreadsheetId!,
-      commentId: input.commentId!,
-      replyId: input.replyId!,
-    });
-
-    return this.success('comment_delete_reply', {
-      snapshotId: snapshot?.snapshotId,
-    });
-  }
-
   // ============================================================
   // VERSION ACTIONS
   // ============================================================
-
-  private async handleVersionListRevisions(
-    input: CollaborateVersionListRevisionsInput
-  ): Promise<CollaborateResponse> {
-    const response = await this.driveApi!.revisions.list({
-      fileId: input.spreadsheetId!,
-      pageSize: input.pageSize ?? 100,
-      pageToken: input.pageToken,
-      fields:
-        'revisions(id,modifiedTime,lastModifyingUser/displayName,lastModifyingUser/emailAddress,size,keepForever),nextPageToken',
-    });
-
-    const revisions = (response.data.revisions ?? []).map(this.mapRevision);
-    return this.success('version_list_revisions', {
-      revisions,
-      nextPageToken: response.data.nextPageToken ?? undefined,
-    });
-  }
-
-  private async handleVersionGetRevision(
-    input: CollaborateVersionGetRevisionInput
-  ): Promise<CollaborateResponse> {
-    const response = await this.driveApi!.revisions.get({
-      fileId: input.spreadsheetId!,
-      revisionId: input.revisionId!,
-      fields:
-        'id,modifiedTime,lastModifyingUser/displayName,lastModifyingUser/emailAddress,size,keepForever',
-    });
-
-    return this.success('version_get_revision', {
-      revision: this.mapRevision(response.data),
-    });
-  }
-
-  private async handleVersionRestoreRevision(
-    input: CollaborateVersionRestoreRevisionInput
-  ): Promise<CollaborateResponse> {
-    if (input.safety?.dryRun) {
-      return this.success('version_restore_revision', {}, undefined, true);
-    }
-
-    // Sheets API doesn't support direct revision restore; suggest snapshot copy.
-    return this.featureUnavailable('version_restore_revision');
-  }
-
-  private async handleVersionKeepRevision(
-    input: CollaborateVersionKeepRevisionInput
-  ): Promise<CollaborateResponse> {
-    const response = await this.driveApi!.revisions.update({
-      fileId: input.spreadsheetId!,
-      revisionId: input.revisionId!,
-      requestBody: { keepForever: input.keepForever! },
-      fields:
-        'id,modifiedTime,lastModifyingUser/displayName,lastModifyingUser/emailAddress,size,keepForever',
-    });
-
-    return this.success('version_keep_revision', {
-      revision: this.mapRevision(response.data),
-    });
-  }
-
-  private async handleVersionCreateSnapshot(
-    input: CollaborateVersionCreateSnapshotInput
-  ): Promise<CollaborateResponse> {
-    const name = input.name ?? `Snapshot - ${new Date().toISOString()}`;
-    const response = await this.driveApi!.files.copy({
-      fileId: input.spreadsheetId!,
-      requestBody: {
-        name,
-        parents: input.destinationFolderId ? [input.destinationFolderId] : undefined,
-        description: input.description,
-        appProperties: { sourceSpreadsheetId: input.spreadsheetId! },
-      },
-      fields: 'id,name,createdTime,size',
-      supportsAllDrives: true,
-    });
-
-    return this.success('version_create_snapshot', {
-      snapshot: {
-        id: response.data.id ?? '',
-        name: response.data.name ?? name,
-        createdAt: response.data.createdTime ?? new Date().toISOString(),
-        spreadsheetId: input.spreadsheetId!,
-        copyId: response.data.id ?? '',
-        size: response.data.size ? Number(response.data.size) : undefined,
-      },
-    });
-  }
-
-  private async handleVersionListSnapshots(
-    input: CollaborateVersionListSnapshotsInput
-  ): Promise<CollaborateResponse> {
-    this.checkOperationScopes('version_list_snapshots');
-
-    const response = await this.driveApi!.files.list({
-      q: `appProperties has { key='sourceSpreadsheetId' and value='${input.spreadsheetId}' } and trashed=false`,
-      spaces: 'drive',
-      fields: 'files(id,name,createdTime,size),nextPageToken',
-      pageSize: 50,
-      supportsAllDrives: true,
-      includeItemsFromAllDrives: true,
-    });
-
-    const snapshots = (response.data.files ?? []).map((f) => ({
-      id: f.id ?? '',
-      name: f.name ?? '',
-      createdAt: f.createdTime ?? '',
-      spreadsheetId: input.spreadsheetId!,
-      copyId: f.id ?? '',
-      size: f.size ? Number(f.size) : undefined,
-    }));
-
-    return this.success('version_list_snapshots', {
-      snapshots,
-      nextPageToken: response.data.nextPageToken ?? undefined,
-    });
-  }
-
-  private async handleVersionRestoreSnapshot(
-    input: CollaborateVersionRestoreSnapshotInput
-  ): Promise<CollaborateResponse> {
-    if (input.safety?.dryRun) {
-      return this.success('version_restore_snapshot', {}, undefined, true);
-    }
-
-    // Copy the snapshot file to a new spreadsheet as a restored version
-    const original = await this.driveApi!.files.get({
-      fileId: input.spreadsheetId!,
-      fields: 'name',
-      supportsAllDrives: true,
-    });
-
-    const response = await this.driveApi!.files.copy({
-      fileId: input.snapshotId!,
-      supportsAllDrives: true,
-      requestBody: {
-        name: `${original.data.name ?? 'Restored Spreadsheet'} (restored from snapshot)`,
-      },
-      fields: 'id,name,createdTime,size',
-    });
-
-    return this.success('version_restore_snapshot', {
-      snapshot: response.data.id
-        ? {
-            id: input.snapshotId!,
-            name: response.data.name ?? '',
-            createdAt: response.data.createdTime ?? '',
-            spreadsheetId: input.spreadsheetId!,
-            copyId: response.data.id,
-            size: response.data.size ? Number(response.data.size) : undefined,
-          }
-        : undefined,
-    });
-  }
-
-  private async handleVersionDeleteSnapshot(
-    input: CollaborateVersionDeleteSnapshotInput
-  ): Promise<CollaborateResponse> {
-    if (input.safety?.dryRun) {
-      return this.success('version_delete_snapshot', {}, undefined, true);
-    }
-
-    // Request confirmation if elicitation available
-    if (this.context.elicitationServer) {
-      const confirmation = await confirmDestructiveAction(
-        this.context.elicitationServer,
-        'version_delete_snapshot',
-        `Delete Drive snapshot (ID: ${input.snapshotId}). This will permanently remove the snapshot file from Drive. This action cannot be undone.`
-      );
-
-      if (!confirmation.confirmed) {
-        return this.error({
-          code: 'PRECONDITION_FAILED',
-          message: confirmation.reason || 'User cancelled the operation',
-          retryable: false,
-          suggestedFix: 'Review the operation requirements and try again',
-        });
-      }
-    }
-
-    // Create snapshot if requested (snapshot of snapshots - meta!)
-    const snapshot = await createSnapshotIfNeeded(
-      this.context.snapshotService,
-      {
-        operationType: 'version_delete_snapshot',
-        isDestructive: true,
-        spreadsheetId: input.spreadsheetId,
-      },
-      input.safety
-    );
-
-    await this.driveApi!.files.delete({
-      fileId: input.snapshotId!,
-      supportsAllDrives: true,
-    });
-
-    return this.success('version_delete_snapshot', {
-      snapshotId: snapshot?.snapshotId,
-    });
-  }
-
-  private async handleVersionCompare(
-    input: CollaborateVersionCompareInput
-  ): Promise<CollaborateResponse> {
-    if (!this.driveApi) {
-      return this.error({
-        code: 'INTERNAL_ERROR',
-        message: 'Drive API not available for version operations',
-        retryable: false,
-        suggestedFix: 'Please try again. If the issue persists, contact support',
-      });
-    }
-
-    try {
-      // Drive revision IDs must be opaque numeric strings from revisions.list
-      // Resolve symbolic IDs ('head', 'head~1') via a pre-flight revisions.list call
-      const needsResolution =
-        !input.revisionId1 ||
-        !input.revisionId2 ||
-        input.revisionId1 === 'head' ||
-        input.revisionId1 === 'head~1' ||
-        input.revisionId2 === 'head' ||
-        input.revisionId2 === 'head~1';
-
-      let resolvedId1 = input.revisionId1;
-      let resolvedId2 = input.revisionId2;
-
-      if (needsResolution) {
-        const revisionsResponse = await this.driveApi.revisions.list({
-          fileId: input.spreadsheetId!,
-          pageSize: 1000,
-          fields: 'revisions(id)',
-        });
-        const revisionIds = (revisionsResponse.data.revisions ?? [])
-          .map((r) => r.id!)
-          .filter(Boolean);
-
-        if (revisionIds.length < 2) {
-          return this.error({
-            code: 'INVALID_PARAMS',
-            message: 'Spreadsheet has fewer than 2 revisions to compare',
-            retryable: false,
-          });
-        }
-
-        // 'head' = latest, 'head~1' = second-to-last
-        const headId = revisionIds[revisionIds.length - 1]!;
-        const prevId = revisionIds[revisionIds.length - 2]!;
-
-        resolvedId1 =
-          resolvedId1 === 'head'
-            ? headId
-            : resolvedId1 === 'head~1'
-              ? prevId
-              : (resolvedId1 ?? prevId);
-        resolvedId2 =
-          resolvedId2 === 'head'
-            ? headId
-            : resolvedId2 === 'head~1'
-              ? prevId
-              : (resolvedId2 ?? headId);
-      }
-
-      // Fetch both revisions
-      const [rev1Response, rev2Response] = await Promise.all([
-        this.driveApi.revisions.get({
-          fileId: input.spreadsheetId!,
-          revisionId: resolvedId1!,
-          fields: 'id,modifiedTime,lastModifyingUser,size',
-        }),
-        this.driveApi.revisions.get({
-          fileId: input.spreadsheetId!,
-          revisionId: resolvedId2!,
-          fields: 'id,modifiedTime,lastModifyingUser,size',
-        }),
-      ]);
-
-      const rev1 = rev1Response.data;
-      const rev2 = rev2Response.data;
-
-      // Return basic metadata comparison
-      // Note: Full semantic diff (sheets added/removed/modified) requires downloading and parsing both versions
-      return this.success('version_compare', {
-        revisions: [this.mapRevision(rev1), this.mapRevision(rev2)],
-        comparison: {
-          // Basic comparison - full semantic diff would require downloading both versions
-          cellChanges: undefined, // Cannot determine without full content analysis
-        },
-      });
-    } catch (error) {
-      return this.mapError(error);
-    }
-  }
-
-  private async handleVersionExport(
-    input: CollaborateVersionExportInput
-  ): Promise<CollaborateResponse> {
-    const format = input.format ?? 'xlsx';
-    const mimeMap: Record<string, string> = {
-      xlsx: DRIVE_MIME_TYPES.XLSX,
-      csv: DRIVE_MIME_TYPES.CSV,
-      pdf: DRIVE_MIME_TYPES.PDF,
-      ods: DRIVE_MIME_TYPES.ODS,
-    };
-    const mimeType = mimeMap[format] ?? mimeMap['xlsx'];
-
-    // NOTE: Google Drive API doesn't support exporting specific revisions directly.
-    // files.export only works on the current version. To export a specific revision,
-    // you would need to: (1) restore the revision first, (2) export, then (3) restore back.
-    // This is too disruptive, so we only support exporting the current version.
-    if (input.revisionId && input.revisionId !== 'head') {
-      return this.error({
-        code: 'FEATURE_UNAVAILABLE',
-        message:
-          'Exporting specific revisions is not supported. Use revisionId="head" or omit it to export the current version.',
-        details: {
-          revisionId: input.revisionId,
-          reason:
-            'Google Drive API does not support exporting historical revisions without restoring them first',
-        },
-        retryable: false,
-        suggestedFix:
-          'To export a specific revision: (1) Use restore_revision to restore it, (2) Use export_version without revisionId, (3) Optionally restore back to current version.',
-      });
-    }
-
-    try {
-      const response = await this.driveApi!.files.export(
-        {
-          fileId: input.spreadsheetId!,
-          mimeType,
-        },
-        { responseType: 'arraybuffer' }
-      );
-
-      const buffer = Buffer.from(response.data as ArrayBuffer);
-      const exportData = buffer.toString('base64');
-
-      return this.success('version_export', {
-        exportData,
-      });
-    } catch (err) {
-      // Check for specific error codes
-      const error = err as { code?: number; message?: string; name?: string };
-
-      if (error.code === 404) {
-        return this.error(
-          createNotFoundError({
-            resourceType: 'spreadsheet',
-            resourceId: input.spreadsheetId!,
-            searchSuggestion:
-              'Verify the spreadsheet ID is correct and you have permission to access it',
-          })
-        );
-      }
-
-      return this.error({
-        code: 'INTERNAL_ERROR',
-        message: `Failed to export spreadsheet: ${error?.message ?? 'unknown error'}`,
-        details: {
-          spreadsheetId: input.spreadsheetId!,
-          format: input.format,
-          errorType: error?.name,
-          errorCode: error?.code,
-        },
-        retryable: true,
-        suggestedFix: 'Please try again. If the issue persists, contact support',
-        retryStrategy: 'exponential_backoff',
-        resolution:
-          'Retry the operation. If error persists, check spreadsheet permissions and Google Drive API status.',
-      });
-    }
-  }
 
   // ============================================================
   // HELPER METHODS
@@ -1256,701 +633,11 @@ export class CollaborateHandler extends BaseHandler<
     })),
   });
 
-  private mapRevision = (
-    rev: drive_v3.Schema$Revision | undefined
-  ): NonNullable<CollaborateSuccess['revision']> => ({
-    id: rev?.id ?? '',
-    modifiedTime: rev?.modifiedTime ?? '',
-    lastModifyingUser: rev?.lastModifyingUser
-      ? {
-          displayName: rev.lastModifyingUser.displayName ?? '',
-          emailAddress: rev.lastModifyingUser.emailAddress ?? undefined,
-        }
-      : undefined,
-    size: rev?.size ?? undefined,
-    keepForever: rev?.keepForever ?? false,
-  });
-
-  /**
-   * Return error for unavailable features
-   *
-   * Currently unavailable:
-   * - version_restore_revision: Requires complex restore operation
-   * - version_restore_revision: Drive API does not support restoring Google Sheets revisions
-   *   in-place. Use version_create_snapshot to export, then manually restore.
-   */
-  private featureUnavailable(action: CollaborateRequest['action']): CollaborateResponse {
-    return this.error({
-      code: 'FEATURE_UNAVAILABLE',
-      message: `${action} is not supported. ${
-        action === 'version_restore_revision'
-          ? 'The Drive API does not support restoring Google Sheets revisions in-place. Use version_create_snapshot to export a copy, then restore manually.'
-          : 'This feature requires additional implementation work.'
-      }`,
-      details: {
-        action,
-        reason:
-          action === 'version_restore_revision'
-            ? 'Drive API does not support restoring Google Sheets revisions in-place'
-            : 'Feature unavailable',
-      },
-      retryable: false,
-      suggestedFix:
-        'Perform this action via Google Drive UI or extend the handler with custom implementation.',
-    });
-  }
-
   // ============================================================
   // APPROVAL ACTIONS
   // ============================================================
 
-  /**
-   * Create an approval request
-   * Uses developer metadata for state tracking and protected ranges for access control
-   */
-  private async handleApprovalCreate(
-    input: CollaborateApprovalCreateInput
-  ): Promise<CollaborateResponse> {
-    try {
-      // Generate approval ID
-      const approvalId = `approval_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-
-      // Calculate expiration
-      const now = new Date();
-      const expiresAt = input.expirationDays
-        ? new Date(now.getTime() + input.expirationDays * 24 * 60 * 60 * 1000)
-        : undefined;
-
-      // Create approval metadata
-      const metadata = {
-        approvalId,
-        status: 'pending',
-        approvers: input.approvers,
-        approvedBy: [],
-        requiredApprovals: input.requiredApprovals ?? 1,
-        createdAt: now.toISOString(),
-        expiresAt: expiresAt?.toISOString(),
-        message: input.message,
-        range: input.range,
-      };
-
-      // Store metadata in developer metadata
-      await this.sheetsApi!.spreadsheets.batchUpdate({
-        spreadsheetId: input.spreadsheetId!,
-        requestBody: {
-          requests: [
-            {
-              createDeveloperMetadata: {
-                developerMetadata: {
-                  metadataKey: `servalsheets_approval_${approvalId}`,
-                  metadataValue: JSON.stringify(metadata),
-                  location: {
-                    spreadsheet: true,
-                  },
-                  visibility: 'DOCUMENT',
-                },
-              },
-            },
-          ],
-        },
-      });
-
-      // Add protected range (editors = approvers only)
-      // Parse the range to get sheet ID and grid coordinates
-      const parsed = parseA1Notation(input.range);
-      if (!parsed) {
-        return this.error(
-          createValidationError({
-            field: 'range',
-            value: input.range,
-            expectedFormat: 'A1 notation (e.g., "Sheet1!A1:C10")',
-            reason: 'Range specification could not be parsed',
-          })
-        );
-      }
-
-      // Get sheet ID
-      const sheetResponse = await this.sheetsApi!.spreadsheets.get({
-        spreadsheetId: input.spreadsheetId!,
-        fields: 'sheets(properties(sheetId,title))',
-      });
-
-      const sheet = sheetResponse.data.sheets?.find(
-        (s) => s.properties?.title === (parsed.sheetName || 'Sheet1')
-      );
-      const sheetId = sheet?.properties?.sheetId;
-
-      if (sheetId === undefined) {
-        return this.error(
-          createNotFoundError({
-            resourceType: 'sheet',
-            resourceId: parsed.sheetName || 'Sheet1',
-            parentResourceId: input.spreadsheetId,
-          })
-        );
-      }
-
-      await this.sheetsApi!.spreadsheets.batchUpdate({
-        spreadsheetId: input.spreadsheetId!,
-        requestBody: {
-          requests: [
-            {
-              addProtectedRange: {
-                protectedRange: {
-                  range: {
-                    sheetId,
-                    startRowIndex: parsed.startRow,
-                    endRowIndex: parsed.endRow,
-                    startColumnIndex: parsed.startCol,
-                    endColumnIndex: parsed.endCol,
-                  },
-                  description: `Approval ${approvalId}: ${input.message || 'Pending approval'}`,
-                  editors: {
-                    users: input.approvers,
-                  },
-                  warningOnly: false,
-                },
-              },
-            },
-          ],
-        },
-      });
-
-      // Add comment with @mentions for approvers
-      const commentContent = `Approval requested: ${input.message || 'Please review and approve'}\n\nApprovers: ${input.approvers.map((email) => `@${email}`).join(', ')}`;
-
-      try {
-        await this.driveApi!.comments.create({
-          fileId: input.spreadsheetId!,
-          requestBody: {
-            content: commentContent,
-          },
-        });
-      } catch (error) {
-        // Comment creation is non-critical, log and continue
-        logger.warn('Failed to add approval comment', { approvalId, error });
-      }
-
-      // Get requester info (using default values since context doesn't expose user)
-      const requester = {
-        displayName: 'Request Creator',
-        emailAddress: undefined,
-      };
-
-      const approval: Approval = {
-        approvalId,
-        spreadsheetId: input.spreadsheetId!,
-        range: input.range,
-        status: 'pending',
-        requester,
-        approvers: input.approvers,
-        approvedBy: [],
-        requiredApprovals: input.requiredApprovals ?? 1,
-        createdAt: now.toISOString(),
-        expiresAt: expiresAt?.toISOString(),
-        message: input.message,
-      };
-
-      return {
-        success: true,
-        action: 'approval_create',
-        approval,
-      };
-    } catch (error) {
-      return this.mapError(error);
-    }
-  }
-
-  /**
-   * Approve an approval request
-   */
-  private async handleApprovalApprove(
-    input: CollaborateApprovalApproveInput
-  ): Promise<CollaborateResponse> {
-    try {
-      // Get approval metadata
-      const approval = await this.getApprovalMetadata(input.spreadsheetId!, input.approvalId);
-
-      if (!approval) {
-        return this.error({
-          code: 'NOT_FOUND',
-          message: `Approval ${input.approvalId} not found`,
-          details: { approvalId: input.approvalId },
-          retryable: false,
-          suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
-        });
-      }
-
-      // Check if user is an approver
-      const userEmail = await this.getCurrentUserEmail();
-      if (!userEmail || !approval.approvers.includes(userEmail)) {
-        return this.error({
-          code: 'PERMISSION_DENIED',
-          message: 'You are not authorized to approve this request',
-          details: { approvalId: input.approvalId, userEmail },
-          retryable: false,
-          suggestedFix:
-            'Check that the spreadsheet is shared with the right account, or verify sharing settings',
-        });
-      }
-
-      // Check if already approved by this user
-      if (approval.approvedBy.includes(userEmail)) {
-        return this.error({
-          code: 'PRECONDITION_FAILED',
-          message: 'You have already approved this request',
-          details: { approvalId: input.approvalId, userEmail },
-          retryable: false,
-          suggestedFix: 'Review the operation requirements and try again',
-        });
-      }
-
-      // Add approval
-      approval.approvedBy.push(userEmail);
-
-      // Check if approval threshold reached
-      if (approval.approvedBy.length >= approval.requiredApprovals) {
-        approval.status = 'approved';
-
-        // Remove protection
-        await this.removeApprovalProtection(input.spreadsheetId!, input.approvalId);
-      }
-
-      // Update metadata
-      await this.updateApprovalMetadata(input.spreadsheetId!, input.approvalId, approval);
-
-      // Add comment
-      try {
-        await this.driveApi!.comments.create({
-          fileId: input.spreadsheetId!,
-          requestBody: {
-            content: `Approved by ${userEmail}${approval.status === 'approved' ? '. All required approvals received.' : ''}`,
-            anchor: approval.range,
-          },
-        });
-      } catch (error) {
-        logger.warn('Failed to add approval comment', { approvalId: input.approvalId, error });
-      }
-
-      return {
-        success: true,
-        action: 'approval_approve',
-        approval,
-      };
-    } catch (error) {
-      return this.mapError(error);
-    }
-  }
-
-  /**
-   * Reject an approval request
-   */
-  private async handleApprovalReject(
-    input: CollaborateApprovalRejectInput
-  ): Promise<CollaborateResponse> {
-    try {
-      // Get approval metadata
-      const approval = await this.getApprovalMetadata(input.spreadsheetId!, input.approvalId);
-
-      if (!approval) {
-        return this.error({
-          code: 'NOT_FOUND',
-          message: `Approval ${input.approvalId} not found`,
-          details: { approvalId: input.approvalId },
-          retryable: false,
-          suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
-        });
-      }
-
-      // Check if user is an approver
-      const userEmail = await this.getCurrentUserEmail();
-      if (!userEmail || !approval.approvers.includes(userEmail)) {
-        return this.error({
-          code: 'PERMISSION_DENIED',
-          message: 'You are not authorized to reject this request',
-          details: { approvalId: input.approvalId, userEmail },
-          retryable: false,
-          suggestedFix:
-            'Check that the spreadsheet is shared with the right account, or verify sharing settings',
-        });
-      }
-
-      // Update status
-      approval.status = 'rejected';
-
-      // Update metadata
-      await this.updateApprovalMetadata(input.spreadsheetId!, input.approvalId, approval);
-
-      // Add comment
-      try {
-        await this.driveApi!.comments.create({
-          fileId: input.spreadsheetId!,
-          requestBody: {
-            content: `Rejected by ${userEmail}`,
-            anchor: approval.range,
-          },
-        });
-      } catch (error) {
-        logger.warn('Failed to add rejection comment', { approvalId: input.approvalId, error });
-      }
-
-      return {
-        success: true,
-        action: 'approval_reject',
-        approval,
-      };
-    } catch (error) {
-      return this.mapError(error);
-    }
-  }
-
-  /**
-   * Get approval status
-   */
-  private async handleApprovalGetStatus(
-    input: CollaborateApprovalGetStatusInput
-  ): Promise<CollaborateResponse> {
-    try {
-      const approval = await this.getApprovalMetadata(input.spreadsheetId!, input.approvalId);
-
-      if (!approval) {
-        return this.error({
-          code: 'NOT_FOUND',
-          message: `Approval ${input.approvalId} not found`,
-          details: { approvalId: input.approvalId },
-          retryable: false,
-          suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
-        });
-      }
-
-      return {
-        success: true,
-        action: 'approval_get_status',
-        approval,
-      };
-    } catch (error) {
-      return this.mapError(error);
-    }
-  }
-
-  /**
-   * List pending approvals
-   */
-  private async handleApprovalListPending(
-    input: CollaborateApprovalListPendingInput
-  ): Promise<CollaborateResponse> {
-    try {
-      const response = await this.sheetsApi!.spreadsheets.developerMetadata.search({
-        spreadsheetId: input.spreadsheetId!,
-        requestBody: {
-          dataFilters: [
-            {
-              developerMetadataLookup: {
-                metadataKey: 'servalsheets_approval_*',
-              },
-            },
-          ],
-        },
-      });
-
-      const approvals: Approval[] = [];
-
-      for (const item of response.data.matchedDeveloperMetadata ?? []) {
-        const metadataValue = item.developerMetadata?.metadataValue;
-        if (metadataValue) {
-          try {
-            const approval = JSON.parse(metadataValue) as Approval;
-            if (approval.status === 'pending') {
-              approvals.push(approval);
-            }
-          } catch {
-            // Skip invalid metadata
-          }
-        }
-      }
-
-      return {
-        success: true,
-        action: 'approval_list_pending',
-        approvals,
-      };
-    } catch (error) {
-      return this.mapError(error);
-    }
-  }
-
-  /**
-   * Delegate approval to another user
-   */
-  private async handleApprovalDelegate(
-    input: CollaborateApprovalDelegateInput
-  ): Promise<CollaborateResponse> {
-    try {
-      const approval = await this.getApprovalMetadata(input.spreadsheetId!, input.approvalId);
-
-      if (!approval) {
-        return this.error({
-          code: 'NOT_FOUND',
-          message: `Approval ${input.approvalId} not found`,
-          details: { approvalId: input.approvalId },
-          retryable: false,
-          suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
-        });
-      }
-
-      // Check if user is an approver
-      const userEmail = await this.getCurrentUserEmail();
-      if (!userEmail || !approval.approvers.includes(userEmail)) {
-        return this.error({
-          code: 'PERMISSION_DENIED',
-          message: 'You are not authorized to delegate this approval',
-          details: { approvalId: input.approvalId, userEmail },
-          retryable: false,
-          suggestedFix:
-            'Check that the spreadsheet is shared with the right account, or verify sharing settings',
-        });
-      }
-
-      // Replace approver
-      const index = approval.approvers.indexOf(userEmail);
-      approval.approvers[index] = input.delegateTo;
-
-      // Update metadata
-      await this.updateApprovalMetadata(input.spreadsheetId!, input.approvalId, approval);
-
-      // Add comment
-      try {
-        await this.driveApi!.comments.create({
-          fileId: input.spreadsheetId!,
-          requestBody: {
-            content: `Approval delegated from ${userEmail} to ${input.delegateTo}`,
-            anchor: approval.range,
-          },
-        });
-      } catch (error) {
-        logger.warn('Failed to add delegation comment', { approvalId: input.approvalId, error });
-      }
-
-      return {
-        success: true,
-        action: 'approval_delegate',
-        approval,
-      };
-    } catch (error) {
-      return this.mapError(error);
-    }
-  }
-
-  /**
-   * Cancel an approval request
-   */
-  private async handleApprovalCancel(
-    input: CollaborateApprovalCancelInput
-  ): Promise<CollaborateResponse> {
-    try {
-      const approval = await this.getApprovalMetadata(input.spreadsheetId!, input.approvalId);
-
-      if (!approval) {
-        return this.error({
-          code: 'NOT_FOUND',
-          message: `Approval ${input.approvalId} not found`,
-          details: { approvalId: input.approvalId },
-          retryable: false,
-          suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
-        });
-      }
-
-      // Check if user is the requester (allow if requester email is undefined)
-      const userEmail = await this.getCurrentUserEmail();
-      if (approval.requester.emailAddress && userEmail !== approval.requester.emailAddress) {
-        return this.error({
-          code: 'PERMISSION_DENIED',
-          message: 'Only the requester can cancel an approval',
-          details: { approvalId: input.approvalId, userEmail },
-          retryable: false,
-          suggestedFix:
-            'Check that the spreadsheet is shared with the right account, or verify sharing settings',
-        });
-      }
-
-      // Update status
-      approval.status = 'cancelled';
-
-      // Remove protection
-      await this.removeApprovalProtection(input.spreadsheetId!, input.approvalId);
-
-      // Update metadata
-      await this.updateApprovalMetadata(input.spreadsheetId!, input.approvalId, approval);
-
-      // Add comment
-      try {
-        await this.driveApi!.comments.create({
-          fileId: input.spreadsheetId!,
-          requestBody: {
-            content: `Approval cancelled by ${userEmail}`,
-            anchor: approval.range,
-          },
-        });
-      } catch (error) {
-        logger.warn('Failed to add cancellation comment', { approvalId: input.approvalId, error });
-      }
-
-      return {
-        success: true,
-        action: 'approval_cancel',
-        approval,
-      };
-    } catch (error) {
-      return this.mapError(error);
-    }
-  }
-
-  // Helper methods for approval operations
-
-  /**
-   * Get current user email from Drive API
-   */
-  private async getCurrentUserEmail(): Promise<string | undefined> {
-    try {
-      const response = await this.driveApi!.about.get({
-        fields: 'user(emailAddress)',
-      });
-      return response.data.user?.emailAddress ?? undefined;
-    } catch (err) {
-      logger.debug('Failed to get current user email from Drive API', { error: String(err) });
-      return undefined;
-    }
-  }
-
-  private async getApprovalMetadata(
-    spreadsheetId: string,
-    approvalId: string
-  ): Promise<Approval | null> {
-    try {
-      const response = await this.sheetsApi!.spreadsheets.developerMetadata.search({
-        spreadsheetId,
-        requestBody: {
-          dataFilters: [
-            {
-              developerMetadataLookup: {
-                metadataKey: `servalsheets_approval_${approvalId}`,
-              },
-            },
-          ],
-        },
-      });
-
-      const item = response.data.matchedDeveloperMetadata?.[0];
-      if (!item?.developerMetadata?.metadataValue) {
-        return null;
-      }
-
-      return JSON.parse(item.developerMetadata.metadataValue) as Approval;
-    } catch (err) {
-      logger.debug('Failed to get approval metadata', {
-        approvalId,
-        spreadsheetId,
-        error: String(err),
-      });
-      return null;
-    }
-  }
-
-  private async updateApprovalMetadata(
-    spreadsheetId: string,
-    approvalId: string,
-    approval: Approval
-  ): Promise<void> {
-    // Get metadata ID
-    const response = await this.sheetsApi!.spreadsheets.developerMetadata.search({
-      spreadsheetId,
-      requestBody: {
-        dataFilters: [
-          {
-            developerMetadataLookup: {
-              metadataKey: `servalsheets_approval_${approvalId}`,
-            },
-          },
-        ],
-      },
-    });
-
-    const metadataId = response.data.matchedDeveloperMetadata?.[0]?.developerMetadata?.metadataId;
-
-    if (!metadataId) {
-      throw createNotFoundError({
-        resourceType: 'operation',
-        resourceId: approvalId,
-        searchSuggestion:
-          'Check if the approval ID is correct or if the approval was already processed',
-      });
-    }
-
-    // Update metadata
-    await this.sheetsApi!.spreadsheets.batchUpdate({
-      spreadsheetId,
-      requestBody: {
-        requests: [
-          {
-            updateDeveloperMetadata: {
-              dataFilters: [
-                {
-                  developerMetadataLookup: {
-                    metadataId,
-                  },
-                },
-              ],
-              developerMetadata: {
-                metadataValue: JSON.stringify(approval),
-              },
-              fields: 'metadataValue',
-            },
-          },
-        ],
-      },
-    });
-  }
-
-  private async removeApprovalProtection(spreadsheetId: string, approvalId: string): Promise<void> {
-    try {
-      // Get spreadsheet to find protected range
-      const response = await this.sheetsApi!.spreadsheets.get({
-        spreadsheetId,
-        fields: 'sheets(protectedRanges(protectedRangeId,description))',
-      });
-
-      // Find protected range for this approval
-      let protectedRangeId: number | undefined;
-      for (const sheet of response.data.sheets ?? []) {
-        for (const pr of sheet.protectedRanges ?? []) {
-          if (pr.description?.includes(approvalId)) {
-            protectedRangeId = pr.protectedRangeId ?? undefined;
-            break;
-          }
-        }
-        if (protectedRangeId) break;
-      }
-
-      if (!protectedRangeId) {
-        logger.warn('Protected range not found for approval', { approvalId });
-        return;
-      }
-
-      // Remove protection
-      await this.sheetsApi!.spreadsheets.batchUpdate({
-        spreadsheetId,
-        requestBody: {
-          requests: [
-            {
-              deleteProtectedRange: {
-                protectedRangeId,
-              },
-            },
-          ],
-        },
-      });
-    } catch (error) {
-      logger.warn('Failed to remove approval protection', { approvalId, error });
-    }
-  }
+  // ============================================================
+  // ACCESS PROPOSAL ACTIONS
+  // ============================================================
 }

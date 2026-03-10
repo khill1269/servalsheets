@@ -768,8 +768,9 @@ describe('CodeQualityAgent - Integration', () => {
     expect(issuesWithSuggestions.length).toBeGreaterThan(0);
 
     for (const issue of issuesWithSuggestions) {
-      expect(issue.suggestion).toBeTruthy();
-      expect(issue.estimatedEffort).toBeTruthy();
+      expect(issue.suggestion).toEqual(expect.any(String));
+      expect((issue.suggestion ?? '').length).toBeGreaterThan(0);
+      expect(issue.estimatedEffort).toBeDefined();
     }
   });
 });

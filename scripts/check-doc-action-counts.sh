@@ -25,17 +25,21 @@ NC='\033[0m' # No Color
 echo "🔍 Comprehensive documentation validation..."
 echo ""
 
-# Get source of truth from built files
-if [ ! -d "dist" ]; then
-  echo "❌ dist/ directory not found. Run 'npm run build' first."
+# Get source of truth from TypeScript source (no build required)
+COUNTS_FILE="src/schemas/action-counts.ts"
+
+if [ ! -f "$COUNTS_FILE" ]; then
+  echo "❌ Source file not found: $COUNTS_FILE"
   exit 1
 fi
 
-SOURCE_TOOL_COUNT=$(node -p "require('./dist/schemas/index.js').TOOL_COUNT" 2>/dev/null || echo "0")
-SOURCE_ACTION_COUNT=$(node -p "require('./dist/schemas/index.js').ACTION_COUNT" 2>/dev/null || echo "0")
+# Count tools = number of sheets_* entries in ACTION_COUNTS object
+SOURCE_TOOL_COUNT=$(grep -cE '^\s+sheets_[a-z_]+:' "$COUNTS_FILE" 2>/dev/null || echo "0")
+# Sum action counts = sum of all numeric values in ACTION_COUNTS object
+SOURCE_ACTION_COUNT=$(grep -oE ':\s*[0-9]+,' "$COUNTS_FILE" | grep -oE '[0-9]+' | awk '{sum+=$1} END {print sum}' 2>/dev/null || echo "0")
 
 if [ "$SOURCE_TOOL_COUNT" = "0" ] || [ "$SOURCE_ACTION_COUNT" = "0" ]; then
-  echo "❌ Failed to load constants from dist/schemas/index.js"
+  echo "❌ Failed to parse constants from $COUNTS_FILE"
   exit 1
 fi
 
@@ -63,12 +67,19 @@ ADDITIONAL_DOCS=(
 # Files to EXCLUDE (historical records, archived content)
 EXCLUDE_FILES=(
   "CHANGELOG.md"
+  "MCP_AUDIT_REPORT.md"
+  "ISSUES.md"
+  "TASKS.md"
 )
 EXCLUDE_DIRS=(
   "docs/archive/"
   "docs/generated/"
   "docs/releases/"
+  "docs/reference/api/"
   ".plan/"
+  "audit-output/"
+  ".claude/agent-memory/"
+  ".claude/worktrees/"
   "node_modules/"
   "dist/"
   ".git/"
@@ -182,7 +193,7 @@ echo "Scanning for obsolete count references..."
 
 # Known old counts to flag
 OLD_TOOL_COUNTS=("20" "21")
-OLD_ACTION_COUNTS=("272" "291" "293" "294" "298" "299")
+OLD_ACTION_COUNTS=("272" "291" "293" "294" "298" "299" "305" "341")
 
 OBSOLETE_FOUND=0
 
@@ -227,6 +238,23 @@ for old_count in "${OLD_ACTION_COUNTS[@]}"; do
 
   if [ -n "$FOUND" ]; then
     echo -e "${YELLOW}⚠️  Found obsolete count '$old_count actions':${NC}"
+    echo "$FOUND" | head -5
+    OBSOLETE_FOUND=$((OBSOLETE_FOUND + 1))
+    echo ""
+  fi
+done
+
+# Check for obsolete lifecycle patterns from pre-MCP-2025-11-25 APIs
+LIFECYCLE_PATTERNS=("server\\.tool\\(")
+for pattern in "${LIFECYCLE_PATTERNS[@]}"; do
+  FOUND=$(grep -rnE "$pattern" \
+    --include="*.md" \
+    --include="*.ts" \
+    $GREP_EXCLUDES \
+    . 2>/dev/null || true)
+
+  if [ -n "$FOUND" ]; then
+    echo -e "${YELLOW}⚠️  Found obsolete lifecycle pattern '$pattern':${NC}"
     echo "$FOUND" | head -5
     OBSOLETE_FOUND=$((OBSOLETE_FOUND + 1))
     echo ""

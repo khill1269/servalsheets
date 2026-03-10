@@ -1,7 +1,7 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { sheets_v4 } from 'googleapis';
 import { requestDeduplicator, createRequestKey } from '../utils/request-deduplication.js';
-import { completeSpreadsheetId } from '../mcp/completions.js';
+import { completeSpreadsheetId, completeChartId } from '../mcp/completions.js';
 import { createResourceNotFoundError, createResourceReadError } from '../utils/mcp-errors.js';
 
 export function registerChartResources(
@@ -96,6 +96,7 @@ export function registerChartResources(
     list: undefined,
     complete: {
       spreadsheetId: async (value) => completeSpreadsheetId(value),
+      chartId: async (value) => completeChartId(value),
     },
   });
 

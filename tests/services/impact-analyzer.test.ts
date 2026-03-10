@@ -136,7 +136,7 @@ describe('ImpactAnalyzer', () => {
       const hasRelevantWarning = impact.warnings.some(
         (w) => w.resourceType === 'cells' || w.resourceType === 'formulas'
       );
-      expect(hasRelevantWarning).toBeTruthy();
+      expect(hasRelevantWarning).toBe(true);
     });
 
     it('should calculate high severity for 1000+ cells with many formulas/charts', async () => {
@@ -293,7 +293,7 @@ describe('ImpactAnalyzer', () => {
       }
       expect(
         impact.warnings.some((w) => w.resourceType === 'formulas' && w.severity === 'high')
-      ).toBeTruthy();
+      ).toBe(true);
     });
 
     it('should calculate critical severity for protected ranges', async () => {
@@ -354,7 +354,7 @@ describe('ImpactAnalyzer', () => {
           impact.warnings.some(
             (w) => w.resourceType === 'protected_ranges' && w.severity === 'critical'
           )
-        ).toBeTruthy();
+        ).toBe(true);
       }
       expect(impact.recommendations).toContain('Review all warnings carefully before proceeding');
       expect(impact.recommendations).toContain('Consider creating a backup snapshot');
@@ -390,7 +390,7 @@ describe('ImpactAnalyzer', () => {
       expect(impact.cellsAffected).toBeGreaterThan(10000);
       expect(
         impact.warnings.some((w) => w.resourceType === 'cells' && w.severity === 'critical')
-      ).toBeTruthy();
+      ).toBe(true);
       const cellWarning = impact.warnings.find((w) => w.resourceType === 'cells');
       expect(cellWarning?.suggestedAction).toContain('smaller operations');
     });
@@ -521,9 +521,11 @@ describe('ImpactAnalyzer', () => {
       if (impact.chartsAffected.length > 0) {
         const chart = impact.chartsAffected[0];
         expect(chart.chartId).toBeDefined();
-        expect(chart.title).toBeTruthy();
+        expect(typeof chart.title).toBe('string');
+        expect(chart.title.length).toBeGreaterThan(0);
         expect(chart.sheetName).toBe('Sheet1');
-        expect(chart.chartType).toBeTruthy();
+        expect(typeof chart.chartType).toBe('string');
+        expect(chart.chartType.length).toBeGreaterThan(0);
         expect(chart.impactType).toBe('data_source_affected');
         expect(chart.description).toContain('affected range');
 
@@ -581,7 +583,8 @@ describe('ImpactAnalyzer', () => {
         const pivot = impact.pivotTablesAffected[0];
         expect(pivot.pivotTableId).toBe(789);
         expect(pivot.sheetName).toBe('Sheet1');
-        expect(pivot.sourceRange).toBeTruthy();
+        expect(typeof pivot.sourceRange).toBe('string');
+        expect(pivot.sourceRange.length).toBeGreaterThan(0);
         expect(pivot.impactType).toBe('source_data_affected');
         expect(pivot.description).toContain('source data');
         expect(pivot.description).toContain('overlaps');
@@ -633,9 +636,11 @@ describe('ImpactAnalyzer', () => {
       // Assert
       expect(impact.validationRulesAffected.length).toBeGreaterThan(0);
       const validation = impact.validationRulesAffected[0];
-      expect(validation.ruleId).toBeTruthy();
-      expect(validation.range).toBeTruthy();
-      expect(validation.ruleType).toBeTruthy();
+      expect(validation.ruleId).toBeDefined();
+      expect(typeof validation.range).toBe('string');
+      expect(validation.range.length).toBeGreaterThan(0);
+      expect(typeof validation.ruleType).toBe('string');
+      expect(validation.ruleType.length).toBeGreaterThan(0);
       expect(validation.impactType).toBe('may_conflict');
       expect(validation.description).toContain('Validation');
     });
@@ -1119,7 +1124,7 @@ describe('ImpactAnalyzer', () => {
       expect(impact.recommendations).toContain('Consider creating a backup snapshot');
       expect(
         impact.recommendations.some((r) => r.includes('transaction') || r.includes('batches'))
-      ).toBeTruthy();
+      ).toBe(true);
     });
   });
 });

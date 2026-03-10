@@ -22,6 +22,8 @@ import { createHash } from 'crypto';
 import { VERSION, SERVER_INFO, SERVER_ICONS } from '../version.js';
 import { TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
 import { DEFAULT_SCOPES, ELEVATED_SCOPES, READONLY_SCOPES } from '../services/google-api.js';
+import { getEnv } from '../config/env.js';
+import { getPromptsCatalogCount } from '../resources/prompts-catalog.js';
 
 /**
  * Compute ETag for JSON content
@@ -166,6 +168,7 @@ export interface McpServerCard {
     elicitation?: boolean | { form?: boolean; url?: boolean };
     completions?: boolean;
     logging?: boolean;
+    progress?: boolean;
   };
   /** Authentication requirements */
   authentication?: {
@@ -222,9 +225,25 @@ export interface OAuthProtectedResourceMetadata {
 }
 
 /**
+ * Runtime configuration values surfaced in discovery metadata.
+ */
+export interface WellKnownRuntimeConfig {
+  corsOrigins?: string[];
+  rateLimitMax?: number;
+  legacySseEnabled?: boolean;
+  authenticationRequired?: boolean;
+}
+
+/**
  * Get MCP server configuration for discovery
  */
 export function getMcpConfiguration(): McpServerConfiguration {
+  const env = getEnv();
+  const promptCount = getPromptsCatalogCount();
+  const transports: McpServerConfiguration['transports'] = env.ENABLE_LEGACY_SSE
+    ? ['stdio', 'sse', 'streamable-http']
+    : ['stdio', 'streamable-http'];
+
   return {
     name: SERVER_INFO.name,
     version: VERSION,
@@ -240,11 +259,11 @@ export function getMcpConfiguration(): McpServerConfiguration {
       resources: {
         supported: true,
         templates: true,
-        subscriptions: false,
+        subscriptions: true,
       },
       prompts: {
         supported: true,
-        count: 17,
+        count: promptCount,
       },
       tasks: {
         supported: true,
@@ -263,7 +282,7 @@ export function getMcpConfiguration(): McpServerConfiguration {
         supported: true,
       },
     },
-    transports: ['stdio', 'sse', 'streamable-http'],
+    transports,
     authentication: {
       type: 'oauth2',
       flows: ['authorization_code'],
@@ -295,6 +314,39 @@ export function getMcpServerCard(serverUrl?: string): McpServerCard {
   const allScopes = [...DEFAULT_SCOPES, ...ELEVATED_SCOPES, ...READONLY_SCOPES].filter(
     (v, i, a) => a.indexOf(v) === i
   );
+  const env = getEnv();
+  const corsOrigins = env.CORS_ORIGINS.split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+  const effectiveCorsOrigins =
+    corsOrigins.length > 0 ? corsOrigins : ['https://claude.ai', 'https://claude.com'];
+
+  return composeMcpServerCard(baseUrl, allScopes, {
+    corsOrigins: effectiveCorsOrigins,
+    rateLimitMax: env.RATE_LIMIT_MAX,
+    legacySseEnabled: env.ENABLE_LEGACY_SSE,
+    authenticationRequired: false,
+  });
+}
+
+function composeMcpServerCard(
+  baseUrl: string,
+  allScopes: string[],
+  runtimeConfig: Required<WellKnownRuntimeConfig>
+): McpServerCard {
+  const promptCount = getPromptsCatalogCount();
+  const effectiveCorsOrigins =
+    runtimeConfig.corsOrigins.length > 0
+      ? runtimeConfig.corsOrigins
+      : ['https://claude.ai', 'https://claude.com'];
+
+  const endpoints: McpServerCard['endpoints'] = {
+    streamable_http: baseUrl ? `${baseUrl}/mcp` : '/mcp',
+    stdio: true,
+  };
+  if (runtimeConfig.legacySseEnabled) {
+    endpoints['sse'] = baseUrl ? `${baseUrl}/sse` : '/sse';
+  }
 
   return {
     $schema: 'https://modelcontextprotocol.io/schemas/mcp-server-card.json',
@@ -306,11 +358,7 @@ export function getMcpServerCard(serverUrl?: string): McpServerCard {
       'Features AI-powered analysis, atomic transactions (80% API savings), MCP elicitation, ' +
       'task support with cancellation, and comprehensive error handling.',
     icons: SERVER_ICONS,
-    endpoints: {
-      streamable_http: baseUrl ? `${baseUrl}/mcp` : '/mcp',
-      sse: baseUrl ? `${baseUrl}/sse` : '/sse',
-      stdio: true,
-    },
+    endpoints,
     capabilities: {
       tools: {
         count: TOOL_COUNT,
@@ -318,10 +366,10 @@ export function getMcpServerCard(serverUrl?: string): McpServerCard {
       },
       resources: {
         templates: true,
-        subscriptions: false,
+        subscriptions: true,
       },
       prompts: {
-        count: 17,
+        count: promptCount,
       },
       sampling: true,
       roots: false,
@@ -332,9 +380,10 @@ export function getMcpServerCard(serverUrl?: string): McpServerCard {
       },
       completions: true,
       logging: true,
+      progress: true,
     },
     authentication: {
-      required: true,
+      required: runtimeConfig.authenticationRequired,
       methods: ['oauth2'],
       oauth2: {
         authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
@@ -346,10 +395,10 @@ export function getMcpServerCard(serverUrl?: string): McpServerCard {
     security: {
       tls_required: true,
       min_tls_version: '1.2',
-      cors_origins: ['*'],
+      cors_origins: effectiveCorsOrigins,
     },
     rate_limits: {
-      requests_per_minute: 60,
+      requests_per_minute: runtimeConfig.rateLimitMax,
     },
     links: {
       documentation: 'https://github.com/khill1269/servalsheets#readme',
@@ -377,6 +426,23 @@ export function getMcpServerCard(serverUrl?: string): McpServerCard {
     ],
     license: 'MIT',
   };
+}
+
+export function getMcpServerCardWithRuntimeConfig(
+  runtimeConfig: WellKnownRuntimeConfig,
+  serverUrl?: string
+): McpServerCard {
+  const baseUrl = serverUrl || '';
+  const allScopes = [...DEFAULT_SCOPES, ...ELEVATED_SCOPES, ...READONLY_SCOPES].filter(
+    (v, i, a) => a.indexOf(v) === i
+  );
+  const env = getEnv();
+  return composeMcpServerCard(baseUrl, allScopes, {
+    corsOrigins: runtimeConfig.corsOrigins ?? env.CORS_ORIGINS.split(',').map((v) => v.trim()),
+    rateLimitMax: runtimeConfig.rateLimitMax ?? env.RATE_LIMIT_MAX,
+    legacySseEnabled: runtimeConfig.legacySseEnabled ?? env.ENABLE_LEGACY_SSE,
+    authenticationRequired: runtimeConfig.authenticationRequired ?? false,
+  });
 }
 
 /**
@@ -431,11 +497,12 @@ export function getOAuthAuthorizationServerMetadata(
  * Describes this server as an OAuth-protected resource
  */
 export function getOAuthProtectedResourceMetadata(
-  serverUrl: string
+  serverUrl: string,
+  authorizationServer?: string
 ): OAuthProtectedResourceMetadata {
   return {
     resource: serverUrl,
-    authorization_servers: ['https://accounts.google.com'],
+    authorization_servers: [authorizationServer ?? 'https://accounts.google.com'],
     scopes_supported: [...DEFAULT_SCOPES, ...ELEVATED_SCOPES, ...READONLY_SCOPES].filter(
       (v, i, a) => a.indexOf(v) === i
     ),
@@ -473,6 +540,29 @@ export function mcpServerCardHandler(req: Request, res: Response): void {
   res.json(card);
 }
 
+function createMcpServerCardHandler(runtimeConfig: WellKnownRuntimeConfig) {
+  return (req: Request, res: Response): void => {
+    const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+    const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+    const serverUrl = `${protocol}://${host}`;
+
+    const card = getMcpServerCardWithRuntimeConfig(runtimeConfig, serverUrl);
+    const etag = computeETag(card);
+
+    if (req.headers['if-none-match'] === etag) {
+      res.status(304).end();
+      return;
+    }
+
+    res.set('Content-Type', 'application/json');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.set('ETag', etag);
+    res.set('Vary', 'Accept-Encoding, Host');
+    res.set('Access-Control-Allow-Origin', '*');
+    res.json(card);
+  };
+}
+
 /**
  * Express handler for /.well-known/mcp-configuration
  */
@@ -498,7 +588,7 @@ export function mcpConfigurationHandler(req: Request, res: Response): void {
  * Express handler for /.well-known/oauth-authorization-server
  */
 export function oauthAuthorizationServerHandler(req: Request, res: Response): void {
-  const metadata = getOAuthAuthorizationServerMetadata();
+  const metadata = getOAuthAuthorizationServerMetadata(getEnv().OAUTH_ISSUER);
   const etag = computeETag(metadata);
 
   // Check If-None-Match for conditional request
@@ -524,7 +614,7 @@ export function oauthProtectedResourceHandler(req: Request, res: Response): void
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
   const serverUrl = `${protocol}://${host}`;
 
-  const metadata = getOAuthProtectedResourceMetadata(serverUrl);
+  const metadata = getOAuthProtectedResourceMetadata(serverUrl, getEnv().OAUTH_ISSUER);
   const etag = computeETag(metadata);
 
   // Check If-None-Match for conditional request
@@ -544,11 +634,18 @@ export function oauthProtectedResourceHandler(req: Request, res: Response): void
 /**
  * Register all well-known handlers with an Express app
  */
-export function registerWellKnownHandlers(app: {
-  get: (path: string, handler: (req: Request, res: Response) => void) => void;
-}): void {
+export function registerWellKnownHandlers(
+  app: {
+    get: (path: string, handler: (req: Request, res: Response) => void) => void;
+  },
+  runtimeConfig?: WellKnownRuntimeConfig
+): void {
+  const cardHandler = runtimeConfig
+    ? createMcpServerCardHandler(runtimeConfig)
+    : mcpServerCardHandler;
+
   // SEP-1649: MCP Server Card - primary discovery endpoint
-  app.get('/.well-known/mcp.json', mcpServerCardHandler);
+  app.get('/.well-known/mcp.json', cardHandler);
   // Legacy MCP configuration endpoint
   app.get('/.well-known/mcp-configuration', mcpConfigurationHandler);
   // OAuth endpoints (RFC 8414, RFC 9728)

@@ -82,6 +82,16 @@ const RedoActionSchema = CommonFieldsSchema.extend({
 const RevertToActionSchema = CommonFieldsSchema.extend({
   action: z.literal('revert_to').describe('Revert to a specific operation in history'),
   operationId: z.string().min(1).describe('Operation ID to revert to'),
+  safety: z
+    .object({
+      dryRun: z
+        .boolean()
+        .optional()
+        .describe(
+          'If true, compute and return the diff of what would be reverted without executing'
+        ),
+    })
+    .optional(),
 });
 
 const ClearActionSchema = CommonFieldsSchema.extend({
@@ -107,9 +117,7 @@ const TimelineActionSchema = CommonFieldsSchema.extend({
 });
 
 const DiffRevisionsActionSchema = CommonFieldsSchema.extend({
-  action: z
-    .literal('diff_revisions')
-    .describe('Compare two revisions to see cell-level changes'),
+  action: z.literal('diff_revisions').describe('Compare two revisions to see cell-level changes'),
   spreadsheetId: z.string().min(1).describe('Spreadsheet ID'),
   revisionId1: z.string().min(1).describe('First revision ID (older)'),
   revisionId2: z.string().min(1).describe('Second revision ID (newer)'),
@@ -130,7 +138,11 @@ const RestoreCellsActionSchema = CommonFieldsSchema.extend({
   safety: z
     .object({
       dryRun: z.boolean().optional().describe('Preview what would be restored without writing'),
-      createSnapshot: z.boolean().optional().default(true).describe('Create backup before restoring'),
+      createSnapshot: z
+        .boolean()
+        .optional()
+        .default(true)
+        .describe('Create backup before restoring'),
     })
     .optional(),
 });
@@ -261,15 +273,41 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
           user: z.string().optional().describe('Email of user who made the change'),
           displayName: z.string().optional(),
           sizeBytes: z.coerce.number().optional(),
+          activityType: z.string().optional().describe('Drive Activity API event type (Phase 3)'),
         })
       )
       .optional()
       .describe('Chronological list of revisions'),
+    activityAvailable: z
+      .boolean()
+      .optional()
+      .describe('True if Drive Activity API provided WHO/WHEN attribution data'),
+    totalFetched: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Total number of revisions fetched before local filtering/limits'),
+    truncated: z
+      .boolean()
+      .optional()
+      .describe('True if the Drive revisions history was truncated due to pagination caps'),
+    nextPageToken: z
+      .string()
+      .optional()
+      .describe('Opaque Drive revisions page token when history truncation occurred'),
     // F5: diff_revisions response
     diff: z
       .object({
-        revision1: z.object({ id: z.string(), timestamp: z.string().optional(), user: z.string().optional() }),
-        revision2: z.object({ id: z.string(), timestamp: z.string().optional(), user: z.string().optional() }),
+        revision1: z.object({
+          id: z.string(),
+          timestamp: z.string().optional(),
+          user: z.string().optional(),
+        }),
+        revision2: z.object({
+          id: z.string(),
+          timestamp: z.string().optional(),
+          user: z.string().optional(),
+        }),
         cellChanges: z
           .array(
             z.object({
@@ -281,11 +319,13 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
           )
           .optional()
           .describe('Cell-level changes (null if content comparison unavailable)'),
-        summary: z.object({
-          metadataOnly: z.boolean().describe('True if only metadata comparison was possible'),
-          rev1Size: z.coerce.number().optional(),
-          rev2Size: z.coerce.number().optional(),
-        }).optional(),
+        summary: z
+          .object({
+            metadataOnly: z.boolean().describe('True if only metadata comparison was possible'),
+            rev1Size: z.coerce.number().optional(),
+            rev2Size: z.coerce.number().optional(),
+          })
+          .optional(),
       })
       .optional(),
     // F5: restore_cells response
@@ -299,6 +339,19 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
       .optional()
       .describe('Cells that were restored'),
     snapshotId: z.string().optional().describe('Backup snapshot ID (for undo)'),
+    // ISSUE-011: dryRun response fields for revert_to
+    dryRun: z.boolean().optional().describe('True when request was a dry run (no changes made)'),
+    wouldRevert: z
+      .object({
+        operationId: z.string(),
+        tool: z.string(),
+        action: z.string(),
+        timestamp: z.coerce.number(),
+        snapshotId: z.string().optional(),
+        spreadsheetId: z.string().optional(),
+      })
+      .optional()
+      .describe('What would be reverted (only present in dryRun responses)'),
     message: z.string().optional(),
     _meta: ResponseMetaSchema.optional(),
   }),

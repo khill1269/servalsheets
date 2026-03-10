@@ -45,18 +45,63 @@ import { AsyncLocalStorage } from 'async_hooks';
 import { randomUUID } from 'crypto';
 import type { Logger } from 'winston';
 import type { ServerNotification } from '@modelcontextprotocol/sdk/types.js';
+import type { MetadataCache } from '../services/metadata-cache.js';
 import { baseLogger } from './base-logger.js';
+
+export interface RelatedMcpRequest {
+  method: string;
+  params?: Record<string, unknown>;
+}
+
+export interface RelatedRequestOptions {
+  signal?: AbortSignal;
+}
+
+export type TaskRequestStatus = 'working' | 'input_required' | 'completed' | 'failed' | 'cancelled';
+
+export interface TaskStatusUpdater {
+  updateTaskStatus: (
+    taskId: string,
+    status: TaskRequestStatus,
+    statusMessage?: string
+  ) => Promise<unknown>;
+}
+
+export type RelatedRequestSender = (
+  request: RelatedMcpRequest,
+  resultSchema: unknown,
+  options?: RelatedRequestOptions
+) => Promise<unknown>;
 
 export interface RequestContext {
   requestId: string;
   logger: Logger;
   timeoutMs: number;
   deadline: number;
+  abortSignal?: AbortSignal;
+  /**
+   * Stable caller identity when available (session/user/client).
+   * Used for per-principal caching and correction metrics.
+   */
+  principalId?: string;
   /**
    * MCP progress notification function
    * Available when client requests progress updates via _meta.progressToken
    */
   sendNotification?: (notification: ServerNotification) => Promise<void>;
+  /**
+   * MCP nested request sender bound to the current request/task context.
+   * When available, this preserves related-request and related-task metadata.
+   */
+  sendRequest?: RelatedRequestSender;
+  /**
+   * Active MCP task identifier when execution is happening in a background task.
+   */
+  taskId?: string;
+  /**
+   * Task status updater used to mark input_required while nested task requests are pending.
+   */
+  taskStore?: TaskStatusUpdater;
   /**
    * MCP progress token from request _meta
    * Used to associate progress notifications with the original request
@@ -74,27 +119,45 @@ export interface RequestContext {
    * Can be client-provided or auto-generated for non-idempotent operations
    */
   idempotencyKey?: string;
+  metadataCache?: MetadataCache;
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
-const DEFAULT_TIMEOUT_MS = parseInt(
-  process.env['REQUEST_TIMEOUT_MS'] ?? process.env['GOOGLE_API_TIMEOUT_MS'] ?? '30000',
-  10
+
+function parseTimeoutMs(rawValue: string | undefined, fallbackMs: number): number {
+  const parsed = Number.parseInt(rawValue ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackMs;
+}
+
+const DEFAULT_TIMEOUT_MS = parseTimeoutMs(
+  process.env['REQUEST_TIMEOUT_MS'] ?? process.env['GOOGLE_API_TIMEOUT_MS'],
+  30000
 );
 
 export function createRequestContext(options?: {
   requestId?: string;
   logger?: Logger;
   timeoutMs?: number;
+  abortSignal?: AbortSignal;
+  principalId?: string;
   sendNotification?: (notification: ServerNotification) => Promise<void>;
+  sendRequest?: RelatedRequestSender;
+  taskId?: string;
+  taskStore?: TaskStatusUpdater;
   progressToken?: string | number;
   traceId?: string;
   spanId?: string;
   parentSpanId?: string;
   idempotencyKey?: string;
+  metadataCache?: MetadataCache;
 }): RequestContext {
   const requestId = options?.requestId ?? randomUUID();
-  const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs =
+    typeof options?.timeoutMs === 'number' &&
+    Number.isFinite(options.timeoutMs) &&
+    options.timeoutMs > 0
+      ? options.timeoutMs
+      : DEFAULT_TIMEOUT_MS;
 
   // Include trace context in logger metadata
   const loggerMeta: Record<string, string> = { requestId };
@@ -115,12 +178,18 @@ export function createRequestContext(options?: {
     logger,
     timeoutMs,
     deadline: Date.now() + timeoutMs,
+    abortSignal: options?.abortSignal,
+    principalId: options?.principalId,
     sendNotification: options?.sendNotification,
+    sendRequest: options?.sendRequest,
+    taskId: options?.taskId,
+    taskStore: options?.taskStore,
     progressToken: options?.progressToken,
     traceId: options?.traceId,
     spanId: options?.spanId,
     parentSpanId: options?.parentSpanId,
     idempotencyKey: options?.idempotencyKey,
+    metadataCache: options?.metadataCache,
   };
 }
 
@@ -133,6 +202,36 @@ export function runWithRequestContext<T>(
 
 export function getRequestContext(): RequestContext | undefined {
   return storage.getStore();
+}
+
+export function getRequestAbortSignal(): AbortSignal | undefined {
+  return storage.getStore()?.abortSignal;
+}
+
+export function createRequestAbortError(
+  reason?: unknown,
+  fallbackMessage = 'Operation cancelled by client'
+): Error & { code: 'OPERATION_CANCELLED' } {
+  const message =
+    typeof reason === 'string' && reason.trim()
+      ? reason
+      : reason instanceof Error && reason.message
+        ? reason.message
+        : fallbackMessage;
+  const error = new Error(message) as Error & { code: 'OPERATION_CANCELLED'; cause?: unknown };
+  error.name = 'AbortError';
+  error.code = 'OPERATION_CANCELLED';
+  if (reason !== undefined) {
+    error.cause = reason;
+  }
+  return error;
+}
+
+export function throwIfRequestAborted(fallbackMessage = 'Operation cancelled by client'): void {
+  const abortSignal = getRequestAbortSignal();
+  if (abortSignal?.aborted) {
+    throw createRequestAbortError(abortSignal.reason, fallbackMessage);
+  }
 }
 
 export function getRequestLogger(): Logger {

@@ -239,7 +239,8 @@ describe('Response Enhancer - Quick Win #1', () => {
 
       // All suggestions should have reasons with impact information
       for (const suggestion of suggestions) {
-        expect(suggestion.reason).toBeTruthy();
+        expect(suggestion.reason).toEqual(expect.any(String));
+        expect(suggestion.reason.length).toBeGreaterThan(0);
         expect(suggestion.reason.length).toBeGreaterThan(20);
       }
 
