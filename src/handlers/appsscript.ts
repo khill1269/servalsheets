@@ -1304,6 +1304,33 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     }
     const callbackUrl = callbackBaseUrlRaw.replace(/\/+$/, '');
 
+    // SECURITY: Validate callbackUrl is a legitimate HTTPS URL before embedding in Apps Script source.
+    // A malicious URL containing single-quotes could inject arbitrary JavaScript into the script.
+    try {
+      const parsedUrl = new URL(callbackUrl);
+      if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
+        return this.error({
+          code: ErrorCodes.VALIDATION_ERROR,
+          message: 'callbackUrl must use https:// or http:// protocol',
+          retryable: false,
+        });
+      }
+      // Prevent quote injection: URL must not contain single quotes or backticks
+      if (callbackUrl.includes("'") || callbackUrl.includes('`') || callbackUrl.includes('\\')) {
+        return this.error({
+          code: ErrorCodes.VALIDATION_ERROR,
+          message: 'callbackUrl contains invalid characters',
+          retryable: false,
+        });
+      }
+    } catch {
+      return this.error({
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: 'callbackUrl is not a valid URL',
+        retryable: false,
+      });
+    }
+
     // Build the Apps Script source.
     // SECURITY: The HMAC secret is NEVER embedded in the script source — it is registered
     // server-side only (via registerSpreadsheetSecret below). The script reads the secret

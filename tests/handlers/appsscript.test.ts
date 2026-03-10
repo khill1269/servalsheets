@@ -865,6 +865,38 @@ describe('SheetsAppsScriptHandler', () => {
     });
   });
 
+  describe('install_serval_function action', () => {
+    it('rejects callback URLs with invalid protocols before making API calls', async () => {
+      const result = await handler.handle({
+        request: {
+          action: 'install_serval_function',
+          spreadsheetId: 'sheet-123',
+          callbackUrl: 'javascript:alert(1)',
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error.code).toBe('VALIDATION_ERROR');
+      expect(result.response.error.message).toContain('callbackUrl must use');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('rejects callback URLs with characters that could break script source', async () => {
+      const result = await handler.handle({
+        request: {
+          action: 'install_serval_function',
+          spreadsheetId: 'sheet-123',
+          callbackUrl: "https://example.com/o'hai",
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error.code).toBe('VALIDATION_ERROR');
+      expect(result.response.error.message).toContain('invalid characters');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
   // ===========================================================================
   // Execution Actions
   // ===========================================================================

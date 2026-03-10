@@ -95,6 +95,19 @@ const createMockSheetsApi = () => ({
         },
       }),
     },
+    values: {
+      batchGet: vi.fn().mockResolvedValue({
+        data: { valueRanges: [] },
+      }),
+      get: vi.fn().mockResolvedValue({
+        data: { values: [] },
+      }),
+      update: vi.fn().mockResolvedValue({ data: {} }),
+      batchUpdate: vi.fn().mockResolvedValue({ data: {} }),
+      clear: vi.fn().mockResolvedValue({ data: {} }),
+      batchClear: vi.fn().mockResolvedValue({ data: {} }),
+      append: vi.fn().mockResolvedValue({ data: {} }),
+    },
   },
 });
 
@@ -678,18 +691,17 @@ describe('SheetsCoreHandler', () => {
                   title: 'Sheet1',
                   gridProperties: { rowCount: 1000, columnCount: 26 },
                 },
-                data: [
-                  {
-                    rowData: [
-                      {
-                        values: [
-                          { formattedValue: '100', userEnteredValue: { numberValue: 100 } },
-                          { formattedValue: '=A1*2', userEnteredValue: { formulaValue: '=A1*2' } },
-                        ],
-                      },
-                    ],
-                  },
-                ],
+              },
+            ],
+          },
+        });
+        // Pass 2: bounded values.batchGet returns formula data for formula/cell counting
+        mockApi.spreadsheets.values.batchGet.mockResolvedValueOnce({
+          data: {
+            valueRanges: [
+              {
+                range: "'Sheet1'!A1:Z1000",
+                values: [['100', '=A1*2']],
               },
             ],
           },
@@ -742,10 +754,13 @@ describe('SheetsCoreHandler', () => {
                   title: 'Sheet1',
                   gridProperties: { rowCount: 1000, columnCount: 26 },
                 },
-                data: [],
               },
             ],
           },
+        });
+        // Pass 2: values.batchGet returns empty for an empty sheet
+        mockApi.spreadsheets.values.batchGet.mockResolvedValueOnce({
+          data: { valueRanges: [{ range: "'Sheet1'!A1:Z1000", values: [] }] },
         });
 
         const result = await handler.handle({
