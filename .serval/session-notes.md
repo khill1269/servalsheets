@@ -6,14 +6,16 @@
 
 ## Current Phase
 
-**Session 56 (2026-03-10) — Full audit pass + doc hardening.** All G0–G5 gates green. 2,559/2,559 tests. Branch `remediation/phase-1` is clean; PR open against `feat/phase-0-mcp-protocol-compliance`.
+**Session 57 (2026-03-10) — B+ audit remediation complete.** 2,569/2,569 tests. 25/25 tools aligned. All gates green. Branch `remediation/phase-1`. Committed: `d189c18`.
 
 ## Genuine Remaining Work
 
-1. **P18-D1–D10**: Handler decomposition — file-size budget system in place; actual decomposition deferred
-2. **16-F1–F6**: Formula evaluation engine — **BLOCKED** on HyperFormula license
-3. **ISSUE-073**: Git worktree cleanup (maintainer-only)
-4. **ISSUE-075**: npm publish @serval/core v0.2.0 (maintainer-only)
+1. **Error typing (Sprint 2 remainder)**: 281 → ~100 generic throws remain in src/services/ (google-api.ts, analysis/, etc.) — handlers already clean
+2. **P18-D1–D10**: Handler decomposition — file-size budget system in place; actual decomposition deferred
+3. **16-F1–F6**: Formula evaluation engine — **BLOCKED** on HyperFormula license
+4. **ISSUE-073**: Git worktree cleanup (maintainer-only)
+5. **ISSUE-075**: npm publish @serval/core v0.2.0 (maintainer-only)
+6. **Sampling**: Add `ANTHROPIC_API_KEY` to claude_desktop_config.json env block (manual — user must add own key)
 
 ## Verified False Claims (do not re-investigate)
 
