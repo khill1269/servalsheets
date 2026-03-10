@@ -8,6 +8,7 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
+COPY packages/serval-core/package*.json ./packages/serval-core/
 
 # Install dependencies (including devDependencies for build)
 RUN npm ci

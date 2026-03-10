@@ -9,6 +9,7 @@
 
 import { parentPort, workerData } from 'worker_threads';
 import { pathToFileURL } from 'url';
+import { assertAllowedWorkerScriptPath } from './allowed-worker-scripts.js';
 
 interface WorkerMessage {
   taskId: string;
@@ -28,6 +29,9 @@ parentPort.on('message', async (message: WorkerMessage) => {
   const { taskId, taskType: _taskType, scriptPath, data } = message;
 
   try {
+    // Defense-in-depth: reject path traversal and enforce basename allowlist
+    assertAllowedWorkerScriptPath(scriptPath);
+
     // Dynamically import worker script
     const scriptUrl = pathToFileURL(scriptPath).href;
     const workerModule = await import(scriptUrl);
