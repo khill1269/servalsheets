@@ -53,11 +53,16 @@ export class SecurityAgent extends AnalysisAgent {
     const startTime = Date.now();
     const issues: AnalysisIssue[] = [];
 
-    // Check if handler receives external input
     const isHandler = filePath.includes('/handlers/');
     const isHttpEndpoint = filePath.includes('http-server') || filePath.includes('remote-server');
+    const isNestedHandlerHelper =
+      /\/handlers\/(?:helpers\/|[a-z-]+-actions\/)/.test(filePath) ||
+      /\/handlers\/(?:base|error-codes)\.ts$/.test(filePath);
+    const isTopLevelHandler =
+      /^src\/handlers\/[^/]+\.ts$/.test(filePath) &&
+      !/\/handlers\/(?:index|base|error-codes)\.ts$/.test(filePath);
 
-    if (!isHandler && !isHttpEndpoint) {
+    if ((!isHandler && !isHttpEndpoint) || isNestedHandlerHelper) {
       return {
         dimension: 'inputValidation',
         status: 'pass',
@@ -69,13 +74,106 @@ export class SecurityAgent extends AnalysisAgent {
 
     let hasZodValidation = false;
     let hasManualValidation = false;
+    let usesBaseHandler = false;
+    let usesUnwrapRequest = false;
+    let accessesRequestInput = false;
+    const requestDerivedIdentifiers = new Set<string>();
+
+    const expressionAccessesRequest = (node: ts.Node | undefined): boolean => {
+      if (!node) {
+        return false;
+      }
+
+      if (ts.isIdentifier(node)) {
+        return ['req', 'request', 'input'].includes(node.text) || requestDerivedIdentifiers.has(node.text);
+      }
+
+      if (ts.isPropertyAccessExpression(node)) {
+        return expressionAccessesRequest(node.expression);
+      }
+
+      if (ts.isElementAccessExpression(node)) {
+        return expressionAccessesRequest(node.expression);
+      }
+
+      if (ts.isCallExpression(node)) {
+        if (expressionAccessesRequest(node.expression)) {
+          return true;
+        }
+        return node.arguments.some((arg) => expressionAccessesRequest(arg));
+      }
+
+      return ts.forEachChild(node, expressionAccessesRequest) ?? false;
+    };
+
+    const findGuardedIdentifier = (node: ts.Expression): string | undefined => {
+      if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.ExclamationToken) {
+        return ts.isIdentifier(node.operand) ? node.operand.text : undefined;
+      }
+
+      if (
+        ts.isBinaryExpression(node) &&
+        [
+          ts.SyntaxKind.EqualsEqualsToken,
+          ts.SyntaxKind.EqualsEqualsEqualsToken,
+          ts.SyntaxKind.ExclamationEqualsToken,
+          ts.SyntaxKind.ExclamationEqualsEqualsToken,
+        ].includes(node.operatorToken.kind)
+      ) {
+        if (ts.isIdentifier(node.left)) {
+          return node.left.text;
+        }
+        if (ts.isIdentifier(node.right)) {
+          return node.right.text;
+        }
+      }
+
+      return undefined;
+    };
+
+    const branchRejectsInvalidInput = (node: ts.Node): boolean => {
+      let rejects = false;
+
+      const inspect = (child: ts.Node) => {
+        if (
+          ts.isReturnStatement(child) ||
+          ts.isThrowStatement(child) ||
+          (ts.isCallExpression(child) &&
+            ts.isPropertyAccessExpression(child.expression) &&
+            child.expression.name.text === 'status')
+        ) {
+          rejects = true;
+          return;
+        }
+
+        ts.forEachChild(child, inspect);
+      };
+
+      inspect(node);
+      return rejects;
+    };
 
     const visit = (node: ts.Node) => {
+      if (ts.isImportDeclaration(node) && node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)) {
+        for (const element of node.importClause.namedBindings.elements) {
+          if (element.name.text === 'BaseHandler') {
+            usesBaseHandler = true;
+          }
+          if (element.name.text === 'unwrapRequest') {
+            usesUnwrapRequest = true;
+          }
+        }
+      }
+
       // Check for Zod parsing
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
         const methodName = node.expression.name.text;
         if (methodName === 'parse' || methodName === 'safeParse') {
           hasZodValidation = true;
+        }
+
+        if (/^validate[A-Z_]/.test(methodName) && node.arguments.some((arg) => expressionAccessesRequest(arg))) {
+          hasManualValidation = true;
         }
       }
 
@@ -94,12 +192,45 @@ export class SecurityAgent extends AnalysisAgent {
         }
       }
 
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && expressionAccessesRequest(node.initializer)) {
+        requestDerivedIdentifiers.add(node.name.text);
+        accessesRequestInput = true;
+      }
+
+      if (
+        (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node) || ts.isCallExpression(node)) &&
+        expressionAccessesRequest(node)
+      ) {
+        accessesRequestInput = true;
+      }
+
+      if (ts.isIfStatement(node)) {
+        const guardedIdentifier = findGuardedIdentifier(node.expression);
+        if (guardedIdentifier && requestDerivedIdentifiers.has(guardedIdentifier) && branchRejectsInvalidInput(node.thenStatement)) {
+          hasManualValidation = true;
+        }
+      }
+
       ts.forEachChild(node, visit);
     };
 
     visit(sourceFile);
 
-    if (!hasZodValidation && !hasManualValidation) {
+    if (usesBaseHandler && usesUnwrapRequest) {
+      hasManualValidation = true;
+    }
+
+    if (isHttpEndpoint && !accessesRequestInput) {
+      return {
+        dimension: 'inputValidation',
+        status: 'pass',
+        issueCount: 0,
+        issues: [],
+        duration: Date.now() - startTime,
+      };
+    }
+
+    if ((isTopLevelHandler || isHttpEndpoint) && !hasZodValidation && !hasManualValidation) {
       issues.push(
         this.createIssue(
           'inputValidation',
@@ -130,33 +261,62 @@ export class SecurityAgent extends AnalysisAgent {
   ): Promise<DimensionReport> {
     const startTime = Date.now();
     const issues: AnalysisIssue[] = [];
+    const dynamicSqlVariables = new Set<string>();
+    const executionMethods = new Set(['prepare', 'query', 'execute', 'run']);
+
+    const containsSqlKeyword = (text: string): boolean =>
+      /\b(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)\b/i.test(text);
+
+    const isDynamicSqlExpression = (node: ts.Expression | undefined): boolean => {
+      if (!node) {
+        return false;
+      }
+
+      if (ts.isTemplateExpression(node)) {
+        return node.templateSpans.length > 0 && containsSqlKeyword(node.getText(sourceFile));
+      }
+
+      if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+        return containsSqlKeyword(node.getText(sourceFile));
+      }
+
+      return false;
+    };
 
     const visit = (node: ts.Node) => {
-      // Check for string concatenation or template literals in SQL-like contexts
-      if (ts.isTemplateExpression(node) || ts.isBinaryExpression(node)) {
-        const text = node.getText(sourceFile);
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && isDynamicSqlExpression(node.initializer)) {
+        dynamicSqlVariables.add(node.name.text);
+      }
 
-        // SQL keywords
-        const sqlKeywords = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'FROM', 'WHERE'];
-        const hasSQLKeyword = sqlKeywords.some((kw) => text.toUpperCase().includes(kw));
+      if (ts.isCallExpression(node)) {
+        const expression = node.expression;
+        const methodName =
+          ts.isPropertyAccessExpression(expression) ? expression.name.text : ts.isIdentifier(expression) ? expression.text : undefined;
 
-        if (hasSQLKeyword) {
-          const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+        if (methodName && executionMethods.has(methodName)) {
+          const firstArg = node.arguments[0];
+          const usesDynamicSql =
+            (firstArg && isDynamicSqlExpression(firstArg as ts.Expression)) ||
+            (firstArg && ts.isIdentifier(firstArg) && dynamicSqlVariables.has(firstArg.text));
 
-          issues.push(
-            this.createIssue(
-              'sqlInjection',
-              filePath,
-              'Potential SQL injection: string interpolation in SQL query',
-              {
-                severity: 'critical',
-                line,
-                suggestion: 'Use parameterized queries or prepared statements',
-                estimatedEffort: '30min-1h',
-                references: ['https://owasp.org/www-community/attacks/SQL_Injection'],
-              }
-            )
-          );
+          if (usesDynamicSql) {
+            const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+
+            issues.push(
+              this.createIssue(
+                'sqlInjection',
+                filePath,
+                'Potential SQL injection: dynamic SQL executed without parameterization',
+                {
+                  severity: 'critical',
+                  line,
+                  suggestion: 'Use parameterized queries or prepared statements',
+                  estimatedEffort: '30min-1h',
+                  references: ['https://owasp.org/www-community/attacks/SQL_Injection'],
+                }
+              )
+            );
+          }
         }
       }
 

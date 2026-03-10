@@ -41,7 +41,7 @@ ServalSheets is a **production-grade MCP (Model Context Protocol) server** that 
 **Key Stats:**
 
 - 25 tools with 391 actions
-- 1,700+ tests (100% critical path coverage)
+- 8,500+ tests with CI coverage reporting
 - TypeScript strict mode
 - MCP 2025-11-25 protocol compliant
 - ~50,000 lines of code
@@ -463,7 +463,7 @@ Follow complete tutorial: [ADDING_A_HANDLER.md](./ADDING_A_HANDLER.md)
 
 ## Testing Philosophy
 
-ServalSheets has **1,700+ tests** with strict coverage requirements:
+ServalSheets has **8,500+ tests** with CI coverage reporting:
 
 ### Test Categories
 

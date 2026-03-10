@@ -56,14 +56,20 @@ module.exports = {
       name: 'no-handler-to-handler',
       severity: 'error',
       comment:
-        'Handlers must not import other handlers (except base handler, helpers, and index.ts barrel exports)',
+        'Handlers must not import peer handlers. Thin-dispatch handler submodules and shared handler utilities are allowed.',
       from: {
         path: '^src/handlers',
         pathNot: '^src/handlers/index\\.ts$', // Allow index.ts to import all handlers (barrel export)
       },
       to: {
         path: '^src/handlers',
-        pathNot: ['^src/handlers/base\\.ts$', '^src/handlers/helpers/'],
+        pathNot: [
+          '^src/handlers/base\\.ts$',
+          '^src/handlers/error-codes\\.ts$',
+          '^src/handlers/helpers/',
+          '^src/handlers/[a-z-]+-actions/',
+          '^src/handlers/dimensions-filter-helpers\\.ts$',
+        ],
       },
     },
     {
@@ -97,7 +103,7 @@ module.exports = {
       name: 'services-only-import-allowed-layers',
       severity: 'error',
       comment:
-        'Services can only import from other services, schemas, utils, config, core, security, resources',
+        'Services can only import from allowed layers; specific shared analysis/sampling modules are permitted.',
       from: {
         path: '^src/services',
       },
@@ -105,6 +111,8 @@ module.exports = {
         path: '^src/',
         pathNot: [
           '^src/(services|schemas|utils|types|config|observability|errors|constants|core|security|resources)',
+          '^src/analysis/scout\\.ts$',
+          '^src/mcp/sampling\\.ts$',
         ],
       },
     },

@@ -129,6 +129,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { source: 'Sheet1!A1:B2', destination: 'Sheet1!C1' },
       requiredFields: ['spreadsheetId', 'source', 'destination'],
     },
+    smart_fill: {
+      validInput: { sourceRange: 'Sheet1!A1:A5', fillRange: 'Sheet1!A6:A10' },
+      requiredFields: ['spreadsheetId', 'sourceRange', 'fillRange'],
+    },
     detect_spill_ranges: {
       requiredFields: ['spreadsheetId'],
     },
@@ -370,6 +374,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     sort_range: {
       validInput: { range: 'Sheet1!A1:D10', sortSpecs: [{ columnIndex: 0 }] },
       requiredFields: ['spreadsheetId', 'range', 'sortSpecs'],
+    },
+    delete_duplicates: {
+      validInput: { range: 'Sheet1!A1:D10' },
+      requiredFields: ['spreadsheetId', 'range'],
     },
     trim_whitespace: {
       validInput: { range: 'Sheet1!A1:D10' },
