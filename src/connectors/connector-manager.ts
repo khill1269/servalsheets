@@ -37,8 +37,6 @@ import { GenericRestConnector } from './rest-generic.js';
 const CONNECTOR_CONFIG_DIR =
   process.env['CONNECTOR_CONFIG_DIR'] || path.join(process.cwd(), '.serval', 'connectors');
 
-const SALT_FILE = path.join(CONNECTOR_CONFIG_DIR, '.salt');
-
 interface EncryptedConfigRecord {
   version: 1;
   iv: string;
@@ -46,18 +44,23 @@ interface EncryptedConfigRecord {
   ciphertext: string;
 }
 
-function getOrCreateSalt(): Buffer {
+function getSaltFile(configDir: string = CONNECTOR_CONFIG_DIR): string {
+  return path.join(configDir, '.salt');
+}
+
+function getOrCreateSalt(configDir: string = CONNECTOR_CONFIG_DIR): Buffer {
+  const saltFile = getSaltFile(configDir);
   try {
-    return fs.readFileSync(SALT_FILE);
+    return fs.readFileSync(saltFile);
   } catch {
     const salt = randomBytes(32);
     try {
-      fs.mkdirSync(path.dirname(SALT_FILE), { recursive: true });
-      fs.writeFileSync(SALT_FILE, salt, { flag: 'wx', mode: 0o600 });
+      fs.mkdirSync(path.dirname(saltFile), { recursive: true });
+      fs.writeFileSync(saltFile, salt, { flag: 'wx', mode: 0o600 });
       return salt;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-        return fs.readFileSync(SALT_FILE);
+        return fs.readFileSync(saltFile);
       }
       // If we can't persist the salt, use it for this session only
     }
@@ -65,17 +68,18 @@ function getOrCreateSalt(): Buffer {
   }
 }
 
-function deriveKey(): Buffer | null {
+function deriveKey(configDir: string = CONNECTOR_CONFIG_DIR): Buffer | null {
   const password = process.env['CONNECTOR_ENCRYPTION_KEY'];
   if (!password) return null;
-  const salt = getOrCreateSalt();
+  const salt = getOrCreateSalt(configDir);
   // OWASP-recommended scrypt parameters: N=131072 (2^17), r=8, p=1
   // Node.js defaults (N=16384) are insufficient for credential encryption.
-  return scryptSync(password, salt, 32, { N: 131072, r: 8, p: 1 });
+  // Explicit maxmem is required for these stronger parameters; Node's default limit is too low.
+  return scryptSync(password, salt, 32, { N: 131072, r: 8, p: 1, maxmem: 256 * 1024 * 1024 });
 }
 
-function encryptConfig(plaintext: string): string {
-  const key = deriveKey();
+function encryptConfig(plaintext: string, configDir: string = CONNECTOR_CONFIG_DIR): string {
+  const key = deriveKey(configDir);
   if (!key) {
     throw new Error(
       'Cannot save connector credentials: CONNECTOR_ENCRYPTION_KEY is not set. ' +
@@ -97,7 +101,7 @@ function encryptConfig(plaintext: string): string {
   return JSON.stringify(record);
 }
 
-function decryptConfig(content: string): string {
+function decryptConfig(content: string, configDir: string = CONNECTOR_CONFIG_DIR): string {
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
@@ -121,7 +125,7 @@ function decryptConfig(content: string): string {
     return content;
   }
 
-  const key = deriveKey();
+  const key = deriveKey(configDir);
   if (!key) {
     logger.warn(
       '[SECURITY] Encrypted connector config found but CONNECTOR_ENCRYPTION_KEY is not set — cannot decrypt'
@@ -172,7 +176,7 @@ class ConnectorConfigStore {
         configuredAt: new Date().toISOString(),
       };
       const filePath = path.join(this.configDir, `${connectorId}.json`);
-      const content = encryptConfig(JSON.stringify(config, null, 2));
+      const content = encryptConfig(JSON.stringify(config, null, 2), this.configDir);
       await fs.promises.writeFile(filePath, content, { encoding: 'utf-8', mode: 0o600 });
       logger.info('Connector config persisted', { connectorId });
     } catch (err) {
@@ -192,7 +196,7 @@ class ConnectorConfigStore {
         if (!file.endsWith('.json') || file.startsWith('sub_')) continue;
         try {
           const raw = await fs.promises.readFile(path.join(this.configDir, file), 'utf-8');
-          const content = decryptConfig(raw);
+          const content = decryptConfig(raw, this.configDir);
           configs.push(JSON.parse(content) as PersistedConnectorConfig);
         } catch {
           // Skip corrupted config files
