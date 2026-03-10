@@ -1,3 +1,12 @@
+---
+title: ServalSheets Architecture Reference
+category: development
+last_updated: 2026-03-10
+description: > Detailed architecture documentation moved from CLAUDE.md.
+version: 1.6.0
+tags: [sheets, prometheus]
+---
+
 # ServalSheets Architecture Reference
 
 > Detailed architecture documentation moved from CLAUDE.md.
@@ -230,7 +239,7 @@ return { response: this.mapError(error) };
 | Request deduplication                | `src/utils/request-deduplication.ts`                       | ON                  |
 | Read merging (overlapping ranges)    | `src/services/request-merger.ts`                           | ON                  |
 | Output schema validation             | `src/mcp/registration/tool-handlers.ts`                    | ON (advisory)       |
-| Response redaction (tokens/keys)     | `src/middleware/redaction.ts`                               | ON in production    |
+| Response redaction (tokens/keys)     | `src/middleware/redaction.ts`                              | ON in production    |
 | Per-user rate limiting               | `src/http-server.ts` + `src/services/user-rate-limiter.ts` | ON (requires Redis) |
 | HTTP/2 connection pooling            | `src/services/google-api.ts`                               | ON                  |
 | Proactive token refresh              | `src/services/token-manager.ts`                            | ON                  |
@@ -290,11 +299,11 @@ git restore --source=<commit-hash> -- <file>          # From specific commit
 
 ## Deleted Files (Do Not Reference)
 
-| File                                | Deleted    | Reason                     |
-| ----------------------------------- | ---------- | -------------------------- |
+| File                               | Deleted    | Reason                     |
+| ---------------------------------- | ---------- | -------------------------- |
 | `src/mcp/sdk-compat.ts`            | 2026-01-11 | Schema flattening complete |
 | `src/server-v2.ts`                 | 2026-01-14 | V2 architecture abandoned  |
 | `src/server-compat.ts`             | 2026-01-14 | V2 architecture abandoned  |
 | `src/migration-v1-to-v2.ts`        | 2026-01-14 | V2 architecture abandoned  |
 | `src/schemas-v2/`, `handlers-v2/`  | 2026-01-14 | V2 architecture abandoned  |
-| `src/services/snapshot-service.ts`  | 2026-01-14 | Unused V2 service          |
+| `src/services/snapshot-service.ts` | 2026-01-14 | Unused V2 service          |

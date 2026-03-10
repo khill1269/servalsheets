@@ -1,3 +1,11 @@
+---
+title: Build Time Optimization
+category: development
+last_updated: 2026-03-10
+description: This document explains the build performance optimizations implemented in ServalSheets to achieve 75% faster incremental builds.
+version: 1.6.0
+---
+
 # Build Time Optimization
 
 This document explains the build performance optimizations implemented in ServalSheets to achieve 75% faster incremental builds.

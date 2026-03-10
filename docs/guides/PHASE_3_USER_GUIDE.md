@@ -1,3 +1,13 @@
+---
+title: 'Phase 3 Features: User Guide'
+category: guide
+last_updated: 2026-03-10
+description: Complete guide to ServalSheets' cutting-edge MCP features
+version: 1.6.0
+audience: user
+difficulty: intermediate
+---
+
 # Phase 3 Features: User Guide
 
 **Complete guide to ServalSheets' cutting-edge MCP features**

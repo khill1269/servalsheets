@@ -1,3 +1,14 @@
+---
+title: GraphQL API
+category: guide
+last_updated: 2026-03-10
+description: ServalSheets provides a comprehensive GraphQL API as an alternative to the REST/MCP interfaces. The GraphQL API offers type-safe queries and mutations
+version: 1.6.0
+tags: [api, sheets]
+audience: user
+difficulty: intermediate
+---
+
 **Status:** Implemented (P3-1) ✅
 **Priority:** Nice-to-have
 **Complexity:** High

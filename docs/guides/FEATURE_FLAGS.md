@@ -1,3 +1,14 @@
+---
+title: Feature Flags & Environment Variables Reference
+category: guide
+last_updated: 2026-03-10
+description: Comprehensive reference for all environment variables and feature flags that control ServalSheets behavior. All variables are defined in src/config/en
+version: 1.6.0
+tags: [sheets, prometheus, docker]
+audience: user
+difficulty: intermediate
+---
+
 # Feature Flags & Environment Variables Reference
 
 Comprehensive reference for all environment variables and feature flags that control ServalSheets behavior. All variables are defined in `src/config/env.ts` and validated using Zod schema on startup.

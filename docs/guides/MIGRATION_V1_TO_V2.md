@@ -1,3 +1,13 @@
+---
+title: 'Migration Guide: V1 → V2'
+category: guide
+last_updated: 2026-03-10
+description: 'Last Updated: 2026-02-17'
+version: 1.6.0
+audience: user
+difficulty: intermediate
+---
+
 # Migration Guide: V1 → V2
 
 **Last Updated:** 2026-02-17

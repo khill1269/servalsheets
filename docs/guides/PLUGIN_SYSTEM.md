@@ -1,3 +1,13 @@
+---
+title: ServalSheets Plugin System
+category: guide
+last_updated: 2026-03-10
+description: Secure JavaScript plugin system with sandboxing, hot-reload, and marketplace support.
+version: 1.6.0
+audience: user
+difficulty: intermediate
+---
+
 # ServalSheets Plugin System
 
 Secure JavaScript plugin system with sandboxing, hot-reload, and marketplace support.
