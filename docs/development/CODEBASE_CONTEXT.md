@@ -98,7 +98,7 @@ Client → MCP Request (STDIO/HTTP/Streamable HTTP)
 
 ---
 
-## All 391 Actions by Tool
+## All 397 Actions by Tool
 
 > Full action-by-action list moved to `docs/development/ACTION_REGISTRY.md` to reduce session context load.
 > Load that file when verifying action names or adding new actions.

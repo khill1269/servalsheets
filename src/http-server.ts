@@ -11,6 +11,7 @@ import { randomUUID, randomBytes, createHash } from 'crypto';
 import type { Server as NodeHttpServer } from 'node:http';
 import { fileURLToPath } from 'url';
 import { resolve } from 'path';
+import { InMemoryTaskMessageQueue } from '@modelcontextprotocol/sdk/experimental/tasks/stores/in-memory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SetLevelRequestSchema, type LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
@@ -78,6 +79,7 @@ import { registerServalSheetsResources } from './mcp/registration/resource-regis
 import { registerServalSheetsTools } from './mcp/registration/tool-handlers.js';
 import { TOOL_DEFINITIONS } from './mcp/registration/tool-definitions.js';
 import { createServerCapabilities, SERVER_INSTRUCTIONS } from './mcp/features-2025-11-25.js';
+import { createTaskAwareSamplingServer } from './mcp/sampling.js';
 import {
   startBackgroundTasks,
   registerSignalHandlers,
@@ -227,6 +229,7 @@ async function createMcpServerInstance(
       capabilities: createServerCapabilities(),
       instructions: SERVER_INSTRUCTIONS,
       taskStore,
+      taskMessageQueue: new InMemoryTaskMessageQueue(),
     }
   );
 
@@ -294,7 +297,7 @@ async function createMcpServerInstance(
           return googleClient?.scopes ?? [];
         },
       },
-      samplingServer: mcpServer.server, // Pass underlying Server instance for sampling
+      samplingServer: createTaskAwareSamplingServer(mcpServer.server),
       server: mcpServer.server, // Pass Server instance for elicitation/sampling (SEP-1036, SEP-1577)
       requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
       ...(sessionId ? { sessionContext: getOrCreateSessionContext(sessionId) } : {}),

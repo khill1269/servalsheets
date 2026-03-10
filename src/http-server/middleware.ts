@@ -321,7 +321,23 @@ export function registerHttpFoundationMiddleware(params: {
     }
 
     const clientVersion = req.headers['mcp-protocol-version'] as string | undefined;
-    if (envConfig.STRICT_MCP_PROTOCOL_VERSION && !clientVersion) {
+    const body = req.body as unknown;
+    const isInitializeRequest =
+      req.method === 'POST' &&
+      req.path.startsWith('/mcp') &&
+      (Array.isArray(body)
+        ? body.some(
+            (entry) =>
+              entry &&
+              typeof entry === 'object' &&
+              'method' in entry &&
+              entry.method === 'initialize'
+          )
+        : Boolean(
+            body && typeof body === 'object' && 'method' in body && body.method === 'initialize'
+          ));
+
+    if (envConfig.STRICT_MCP_PROTOCOL_VERSION && !clientVersion && !isInitializeRequest) {
       res.status(400).json({
         error: {
           code: 'INVALID_REQUEST',

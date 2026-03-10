@@ -1273,6 +1273,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       const sheetData = await this.sheetsApi.spreadsheets.values.get({
         spreadsheetId: req.spreadsheetId,
         range,
+        valueRenderOption: 'UNFORMATTED_VALUE', // Preserve raw numbers/dates for BigQuery ingestion
       });
 
       const values = sheetData.data.values ?? [];
@@ -1304,12 +1305,14 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         });
         const jobId = countJob.data.jobReference?.jobId;
         if (jobId) {
-          // Poll until the count job finishes (simple poll, max 30s)
+          // Poll with exponential backoff (500ms → 5s cap, max 30s total)
           for (let attempt = 0; attempt < 15; attempt++) {
-            await new Promise((r) => setTimeout(r, 2000));
+            const delay = Math.min(500 * Math.pow(2, attempt), 5000);
+            await new Promise((r) => setTimeout(r, delay));
             const pollResp = await bigquery.jobs.get({
               projectId: req.destination.projectId,
               jobId,
+              location: req.destination.location,
             });
             if (pollResp.data.status?.state === 'DONE') {
               const queryResults = await bigquery.jobs.getQueryResults({
@@ -1347,11 +1350,14 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         });
         const truncJobId = truncateJob.data.jobReference?.jobId;
         if (truncJobId) {
-          for (let attempt = 0; attempt < 30; attempt++) {
-            await new Promise((r) => setTimeout(r, 2000));
+          // Poll with exponential backoff (500ms → 5s cap, max 60s total)
+          for (let attempt = 0; attempt < 20; attempt++) {
+            const delay = Math.min(500 * Math.pow(2, attempt), 5000);
+            await new Promise((r) => setTimeout(r, delay));
             const pollResp = await bigquery.jobs.get({
               projectId: req.destination.projectId,
               jobId: truncJobId,
+              location: req.destination.location,
             });
             if (pollResp.data.status?.state === 'DONE') {
               if (pollResp.data.status.errorResult) {
@@ -1385,14 +1391,23 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       });
 
       // Use streaming insert with chunking for large datasets (P1-3)
-      // BigQuery streaming insert has a soft limit of ~10,000 rows per call
-      const CHUNK_SIZE = 500;
+      // BigQuery recommends 10,000 rows per streaming insert request for spreadsheet-sized rows
+      const CHUNK_SIZE = 10_000;
+      // For very large exports (>500K rows), GCS-staged load jobs would be more efficient
+      // but require Cloud Storage access not yet wired. Log advisory for operators.
+      const LOAD_JOB_THRESHOLD = 500_000;
       const totalRows = rows.length;
       const allInsertErrors: unknown[] = [];
       // Generate a stable batch ID for insertId deduplication (prevents duplicate rows on retry)
       const batchId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-      if (totalRows > CHUNK_SIZE) {
+      if (totalRows >= LOAD_JOB_THRESHOLD) {
+        logger.warn('Very large BigQuery export: GCS-staged load jobs would be more efficient', {
+          totalRows,
+          threshold: LOAD_JOB_THRESHOLD,
+          note: 'Proceeding with streaming insert. For >500K rows, consider using a GCS load job instead.',
+        });
+      } else if (totalRows > CHUNK_SIZE) {
         logger.info('Chunking large export', {
           totalRows,
           chunkSize: CHUNK_SIZE,
@@ -1422,6 +1437,8 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
             datasetId: req.destination.datasetId,
             tableId: req.destination.tableId,
             requestBody: {
+              skipInvalidRows: true, // Don't fail entire chunk on single bad row
+              ignoreUnknownValues: true, // Tolerate extra columns not in schema
               rows: chunk.map((row, rowIdx) => ({
                 insertId: `${batchId}-${i + rowIdx}`,
                 ...row,

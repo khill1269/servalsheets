@@ -17,33 +17,33 @@ All verification checks are currently passing.
 
 ### Verification Results
 
-| Check            | Status               | Command                          |
-| ---------------- | -------------------- | -------------------------------- |
-| TypeScript       | ✅ Pass              | `npm run typecheck`              |
-| Linting          | ✅ Pass              | `npm run lint`                   |
-| Tests            | ✅ Pass              | `npm run test`                   |
-| Metadata Drift   | ✅ Pass              | `npm run check:drift`            |
-| Silent Fallbacks | ✅ Pass (13 FP)      | `npm run check:silent-fallbacks` |
-| Placeholders     | ✅ None              | `npm run check:placeholders`     |
+| Check            | Status          | Command                          |
+| ---------------- | --------------- | -------------------------------- |
+| TypeScript       | ✅ Pass         | `npm run typecheck`              |
+| Linting          | ✅ Pass         | `npm run lint`                   |
+| Tests            | ✅ Pass         | `npm run test`                   |
+| Metadata Drift   | ✅ Pass         | `npm run check:drift`            |
+| Silent Fallbacks | ✅ Pass (13 FP) | `npm run check:silent-fallbacks` |
+| Placeholders     | ✅ None         | `npm run check:placeholders`     |
 
 ### Current Metrics
 
-| Metric     | Value | Source                          |
-| ---------- | ----- | ------------------------------- |
-| Tools      | 25    | `src/schemas/action-counts.ts`  |
-| Actions    | 391   | `src/schemas/action-counts.ts`  |
-| Version    | 1.7.0 | `package.json`                  |
-| Protocol   | MCP 2025-11-25 | `src/version.ts`       |
+| Metric   | Value          | Source                         |
+| -------- | -------------- | ------------------------------ |
+| Tools    | 25             | `src/schemas/action-counts.ts` |
+| Actions  | 397            | `src/schemas/action-counts.ts` |
+| Version  | 1.7.0          | `package.json`                 |
+| Protocol | MCP 2025-11-25 | `src/version.ts`               |
 
 ### Audit Infrastructure
 
-| Check | Command | Status |
-| ----- | ------- | ------ |
-| Action Coverage | `npm run audit:coverage` | ✅ 981 tests |
-| Performance     | `npm run audit:perf`     | ✅ Benchmarks passing |
-| Memory Leaks    | `npm run audit:memory`   | ✅ 5 tests passing |
+| Check           | Command                  | Status                        |
+| --------------- | ------------------------ | ----------------------------- |
+| Action Coverage | `npm run audit:coverage` | ✅ 981 tests                  |
+| Performance     | `npm run audit:perf`     | ✅ Benchmarks passing         |
+| Memory Leaks    | `npm run audit:memory`   | ✅ 5 tests passing            |
 | CI Gate         | `npm run audit:gate`     | ✅ 5/7 gates (2 pre-existing) |
-| Health Snapshot | `npm run audit:snapshot` | ✅ Working |
+| Health Snapshot | `npm run audit:snapshot` | ✅ Working                    |
 
 ## Quick Verification
 

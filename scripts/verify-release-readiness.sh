@@ -41,4 +41,13 @@ npm run test:services
 echo "Release readiness: check:integration-wiring"
 npm run check:integration-wiring
 
+echo "Release readiness: test:mcp-http-task-contract"
+npm run test:mcp-http-task-contract
+
+echo "Release readiness: build"
+npm run build
+
+echo "Release readiness: smoke"
+npm run smoke
+
 echo "Release readiness checks passed."

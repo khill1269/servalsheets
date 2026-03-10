@@ -112,12 +112,13 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       restoreEnv();
     });
 
-    it('rejects initialize requests missing MCP-Protocol-Version header', async () => {
+    it('accepts initialize requests missing MCP-Protocol-Version header', async () => {
       const response = await httpRequest(app, {
         method: 'POST',
         path: '/mcp',
         headers: {
           'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
         },
         body: {
           ...INITIALIZE_REQUEST,
@@ -125,14 +126,9 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
         },
       });
 
-      expect(response.status).toBe(400);
-      const error = (response.body as { error: string | Record<string, unknown> }).error;
-      if (typeof error === 'string') {
-        expect(error).toBe('INVALID_REQUEST');
-      } else {
-        expect(error).toMatchObject({
-          code: 'INVALID_REQUEST',
-        });
+      expect([200, 406, 426]).toContain(response.status);
+      if (response.status === 200) {
+        expect(extractSessionId(response.headers)).toBeTruthy();
       }
     });
 
@@ -179,6 +175,50 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       expect([200, 406, 426]).toContain(response.status);
       if (response.status === 200) {
         expect(extractSessionId(response.headers)).toBeTruthy();
+      }
+    });
+
+    it('rejects subsequent MCP requests missing MCP-Protocol-Version header', async () => {
+      const initializeResponse = await httpRequest(app, {
+        method: 'POST',
+        path: '/mcp',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+        },
+        body: {
+          ...INITIALIZE_REQUEST,
+          id: 104,
+        },
+      });
+
+      expect(initializeResponse.status).toBe(200);
+      const sessionId = extractSessionId(initializeResponse.headers);
+
+      const response = await httpRequest(app, {
+        method: 'POST',
+        path: '/mcp',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          'Mcp-Session-Id': sessionId,
+        },
+        body: {
+          jsonrpc: '2.0',
+          id: 105,
+          method: 'tools/list',
+          params: {},
+        },
+      });
+
+      expect(response.status).toBe(400);
+      const error = (response.body as { error: string | Record<string, unknown> }).error;
+      if (typeof error === 'string') {
+        expect(error).toBe('INVALID_REQUEST');
+      } else {
+        expect(error).toMatchObject({
+          code: 'INVALID_REQUEST',
+        });
       }
     });
   });

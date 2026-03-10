@@ -19,6 +19,10 @@ import type {
   TextContent,
   ModelPreferences,
 } from '@modelcontextprotocol/sdk/types.js';
+import {
+  CreateMessageResultSchema,
+  CreateMessageResultWithToolsSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
 import { createRequestAbortError, getRequestContext } from '../utils/request-context.js';
@@ -258,6 +262,78 @@ export interface SamplingServer {
   createMessage(
     params: CreateMessageRequest['params']
   ): Promise<CreateMessageResult | CreateMessageResultWithTools>;
+}
+
+interface TaskAwareSamplingServer extends SamplingServer {
+  createMessage(
+    params: CreateMessageRequest['params'],
+    options?: {
+      signal?: AbortSignal;
+      relatedTask?: { taskId: string };
+    }
+  ): Promise<CreateMessageResult | CreateMessageResultWithTools>;
+}
+
+const taskAwareSamplingServerCache = new WeakMap<SamplingServer, SamplingServer>();
+
+function supportsSamplingTools(
+  params: CreateMessageRequest['params'],
+  clientCapabilities: ClientCapabilities | undefined
+): boolean {
+  return (
+    Array.isArray((params as { tools?: unknown }).tools) || !!clientCapabilities?.sampling?.tools
+  );
+}
+
+/**
+ * Wraps an MCP server so nested sampling requests prefer the current request's
+ * task-aware sendRequest channel when available.
+ */
+export function createTaskAwareSamplingServer(baseServer: SamplingServer): SamplingServer {
+  const cached = taskAwareSamplingServerCache.get(baseServer);
+  if (cached) {
+    return cached;
+  }
+
+  const wrappedServer: SamplingServer = {
+    getClientCapabilities(): ClientCapabilities | undefined {
+      return baseServer.getClientCapabilities();
+    },
+    async createMessage(
+      params: CreateMessageRequest['params']
+    ): Promise<CreateMessageResult | CreateMessageResultWithTools> {
+      const requestContext = getRequestContext();
+      if (requestContext?.taskId && requestContext.taskStore) {
+        await requestContext.taskStore.updateTaskStatus(requestContext.taskId, 'input_required');
+        return await (baseServer as TaskAwareSamplingServer).createMessage(params, {
+          signal: requestContext.abortSignal,
+          relatedTask: { taskId: requestContext.taskId },
+        });
+      }
+
+      if (!requestContext?.sendRequest) {
+        return await baseServer.createMessage(params);
+      }
+
+      const resultSchema = supportsSamplingTools(params, baseServer.getClientCapabilities())
+        ? CreateMessageResultWithToolsSchema
+        : CreateMessageResultSchema;
+
+      return (await requestContext.sendRequest(
+        {
+          method: 'sampling/createMessage',
+          params,
+        },
+        resultSchema,
+        {
+          signal: requestContext.abortSignal,
+        }
+      )) as CreateMessageResult | CreateMessageResultWithTools;
+    },
+  };
+
+  taskAwareSamplingServerCache.set(baseServer, wrappedServer);
+  return wrappedServer;
 }
 
 /**
