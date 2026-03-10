@@ -34,7 +34,7 @@ ServalSheets backup and restore procedures for production deployments. This guid
 
 - Location: Configured via `GOOGLE_TOKEN_STORE_PATH`
 - Contains: Encrypted Google OAuth tokens
-- **Critical**: Also backup `TOKEN_STORE_KEY` (from `.env`)
+- **Critical**: Also backup `ENCRYPTION_KEY` (from `.env`)
 
 ### 4. **Logs** (optional, for audit/forensics)
 
@@ -158,7 +158,7 @@ ls -t "$BACKUP_DIR"/token-store-*.enc | tail -n +31 | xargs rm -f
 echo "Token store backup completed"
 ```
 
-**IMPORTANT**: The token store is encrypted with `TOKEN_STORE_KEY`. Without this key, backups are useless!
+**IMPORTANT**: The token store is encrypted with `ENCRYPTION_KEY`. Without this key, backups are useless!
 
 ---
 
@@ -344,10 +344,10 @@ cp "$TOKEN_STORE_PATH" "$TOKEN_STORE_PATH.pre-restore" 2>/dev/null || true
 # Restore from backup
 cp "$BACKUP_FILE" "$TOKEN_STORE_PATH"
 
-echo "Token store restored. Verify TOKEN_STORE_KEY in .env matches!"
+echo "Token store restored. Verify ENCRYPTION_KEY in .env matches!"
 ```
 
-**CRITICAL**: The `TOKEN_STORE_KEY` in `.env` must match the key used when the backup was created!
+**CRITICAL**: The `ENCRYPTION_KEY` in `.env` must match the key used when the backup was created!
 
 ---
 
@@ -645,7 +645,7 @@ redis-cli CONFIG SET save ""
 
 **Solution**:
 
-- Verify `TOKEN_STORE_KEY` in `.env` matches the key used when backup was created
+- Verify `ENCRYPTION_KEY` in `.env` matches the key used when backup was created
 - Check for whitespace or hidden characters in key
 - Regenerate tokens if key is permanently lost
 

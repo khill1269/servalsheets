@@ -282,6 +282,19 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
       .boolean()
       .optional()
       .describe('True if Drive Activity API provided WHO/WHEN attribution data'),
+    totalFetched: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Total number of revisions fetched before local filtering/limits'),
+    truncated: z
+      .boolean()
+      .optional()
+      .describe('True if the Drive revisions history was truncated due to pagination caps'),
+    nextPageToken: z
+      .string()
+      .optional()
+      .describe('Opaque Drive revisions page token when history truncation occurred'),
     // F5: diff_revisions response
     diff: z
       .object({

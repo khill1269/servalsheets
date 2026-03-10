@@ -16,7 +16,7 @@
 import { logger } from '../utils/logger.js';
 import { LRUCache } from 'lru-cache';
 import { recordCacheEviction } from '../observability/metrics.js';
-import { env } from '../config/env.js';
+import { getEnv } from '../config/env.js';
 
 // Use generic Redis client type to avoid complex type compatibility issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,6 +56,10 @@ interface CacheKey {
 const REDIS_KEY_PREFIX = 'servalsheets:etag:';
 const REDIS_TTL_SECONDS = 600; // 10 minutes (longer than L1)
 
+function getDefaultMaxEntries(): number {
+  return getEnv().ETAG_CACHE_MAX_ENTRIES;
+}
+
 /**
  * ETag Cache Service
  *
@@ -74,7 +78,7 @@ export class ETagCache {
 
   constructor(options: { maxAge?: number; maxSize?: number; redis?: RedisClient } = {}) {
     this.maxAge = options.maxAge ?? 5 * 60 * 1000; // 5 minutes default
-    this.maxSize = options.maxSize ?? env.ETAG_CACHE_MAX_ENTRIES;
+    this.maxSize = options.maxSize ?? getDefaultMaxEntries();
     this.redis = options.redis;
     this.cache = new LRUCache<string, ETagEntry>({
       max: this.maxSize,
@@ -430,7 +434,7 @@ export function getETagCache(): ETagCache {
   if (!instance) {
     instance = new ETagCache({
       maxAge: 5 * 60 * 1000, // 5 minutes
-      maxSize: env.ETAG_CACHE_MAX_ENTRIES,
+      maxSize: getDefaultMaxEntries(),
       // Redis initialized via initETagCache() if needed
     });
   }
@@ -446,7 +450,7 @@ export function getETagCache(): ETagCache {
 export function initETagCache(redis?: RedisClient): ETagCache {
   instance = new ETagCache({
     maxAge: 5 * 60 * 1000, // 5 minutes
-    maxSize: env.ETAG_CACHE_MAX_ENTRIES,
+    maxSize: getDefaultMaxEntries(),
     redis,
   });
   return instance;

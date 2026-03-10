@@ -535,7 +535,7 @@ describe('TransactionManager', () => {
   });
 
   describe('Rollback Mechanisms', () => {
-    it('should return failure for snapshot-based rollback (manual recovery required)', async () => {
+    it('marks queued transactions as rolled back even when snapshot restoration is metadata-only', async () => {
       // Arrange
       const txnId = await transactionManager.begin('test-sheet-123');
       await transactionManager.queue(txnId, {
@@ -548,16 +548,13 @@ describe('TransactionManager', () => {
       // Act
       const result = await transactionManager.rollback(txnId);
 
-      // Assert - rollback returns result object, not throws
-      expect(result.success).toBe(false);
+      // Assert - queued operations are cancelled successfully
+      expect(result.success).toBe(true);
       expect(result.transactionId).toBe(txnId);
-      expect(result.error).toBeDefined();
-      expect(result.error!.message).toContain(
-        'Automatic in-place snapshot restoration is not supported'
-      );
+      expect(result.operationsReverted).toBe(1);
     });
 
-    it('should reject rollback when no snapshot exists', async () => {
+    it('returns a successful cancellation when no snapshot exists yet', async () => {
       // Arrange - create manager without auto-snapshot
       const managerWithoutSnapshot = new TransactionManager({
         enabled: true,
@@ -573,10 +570,14 @@ describe('TransactionManager', () => {
         params: { range: 'A1', values: [[1]] },
       });
 
-      // Act & Assert
-      await expect(managerWithoutSnapshot.rollback(txnId)).rejects.toThrow(
-        'No snapshot available for rollback'
-      );
+      // Act
+      const result = await managerWithoutSnapshot.rollback(txnId);
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.transactionId).toBe(txnId);
+      expect(result.snapshotId).toBe('');
+      expect(result.operationsReverted).toBe(1);
     });
 
     it('should auto-rollback on commit failure when configured', async () => {

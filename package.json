@@ -412,6 +412,7 @@
     "start:remote": "node dist/remote-server.js",
     "test": "vitest",
     "test:agentic": "vitest run tests/services/agentic-reasoning.test.ts",
+    "test:admin": "vitest run tests/admin",
     "test:all": "vitest run",
     "test:quick": "vitest run tests/unit tests/handlers tests/contracts --exclude='**/*.slow.test.ts' --exclude='**/*.snapshot.test.ts' --exclude='**/benchmarks/**'",
     "test:shard:1": "vitest run --shard=1/4",

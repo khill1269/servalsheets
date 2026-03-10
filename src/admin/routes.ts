@@ -8,6 +8,7 @@ import type { Express, Request, Response } from 'express';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { timingSafeEqual } from 'crypto';
+import { getEnv } from '../config/env.js';
 import { VERSION, MCP_PROTOCOL_VERSION } from '../version.js';
 import { TOOL_COUNT, ACTION_COUNT } from '../schemas/action-counts.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
@@ -33,17 +34,27 @@ export interface AdminSessionManager {
 
 /**
  * Admin authentication middleware.
- * Mutation endpoints (POST, DELETE) require ADMIN_SECRET to be set and
- * the caller to present a matching Bearer token.  When ADMIN_SECRET is
- * not configured, mutations are disabled (403).
+ * Read-only endpoints accept ADMIN_VIEWER_KEY, ADMIN_API_KEY, or legacy ADMIN_SECRET.
+ * Mutation endpoints require ADMIN_API_KEY or legacy ADMIN_SECRET.
  */
 export function requireAdminAuth(req: Request, res: Response, next: () => void): void {
-  const adminSecret = process.env['ADMIN_SECRET'];
+  const env = getEnv();
+  const legacySecret = env.ADMIN_SECRET;
+  const adminKey = env.ADMIN_API_KEY ?? legacySecret;
+  const viewerKey = env.ADMIN_VIEWER_KEY ?? adminKey;
+  const needsAdminKey = req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS';
+  const allowedSecrets = needsAdminKey
+    ? [adminKey].filter((value): value is string => Boolean(value))
+    : [viewerKey, adminKey].filter((value, index, array): value is string => {
+        return Boolean(value) && array.indexOf(value) === index;
+      });
 
-  if (!adminSecret) {
+  if (allowedSecrets.length === 0) {
     res.status(403).json({
-      error: 'Admin mutations disabled',
-      message: 'Set ADMIN_SECRET environment variable to enable admin mutations',
+      error: needsAdminKey ? 'Admin mutations disabled' : 'Admin access disabled',
+      message: needsAdminKey
+        ? 'Set ADMIN_API_KEY or ADMIN_SECRET to enable admin mutations'
+        : 'Set ADMIN_VIEWER_KEY, ADMIN_API_KEY, or ADMIN_SECRET to enable admin access',
     });
     return;
   }
@@ -52,8 +63,12 @@ export function requireAdminAuth(req: Request, res: Response, next: () => void):
 
   // Use constant-time comparison to prevent timing attacks (OWASP recommendation)
   const tokenBuf = Buffer.from(token);
-  const secretBuf = Buffer.from(adminSecret);
-  if (tokenBuf.length !== secretBuf.length || !timingSafeEqual(tokenBuf, secretBuf)) {
+  const authorized = allowedSecrets.some((secret) => {
+    const secretBuf = Buffer.from(secret);
+    return tokenBuf.length === secretBuf.length && timingSafeEqual(tokenBuf, secretBuf);
+  });
+
+  if (!authorized) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }

@@ -897,9 +897,15 @@ export async function startRemoteServer(options: { port?: number } = {}): Promis
   // Validate environment variables
   validateEnv();
 
-  if (!env.JWT_SECRET || !env.STATE_SECRET) {
+  if (
+    !env.JWT_SECRET ||
+    !env.STATE_SECRET ||
+    !env.OAUTH_CLIENT_SECRET ||
+    !env.GOOGLE_CLIENT_ID ||
+    !env.GOOGLE_CLIENT_SECRET
+  ) {
     throw new Error(
-      'JWT_SECRET and STATE_SECRET must be set (≥32 chars) when using OAuth mode. Generate with: openssl rand -base64 32'
+      'JWT_SECRET, STATE_SECRET, OAUTH_CLIENT_SECRET, GOOGLE_CLIENT_ID, and GOOGLE_CLIENT_SECRET must be set when using OAuth mode'
     );
   }
 

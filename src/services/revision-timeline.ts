@@ -20,7 +20,10 @@ export interface TimelineEntry {
 }
 
 export interface TimelineResult {
-  entries: TimelineEntry[];
+  items: TimelineEntry[];
+  totalFetched: number;
+  truncated: boolean;
+  nextPageToken?: string;
   activityAvailable: boolean;
 }
 
@@ -106,14 +109,16 @@ export async function getTimeline(
     since?: string;
     until?: string;
     limit?: number;
+    maxPages?: number;
     googleClient?: GoogleApiClient;
   } = {}
-): Promise<TimelineEntry[]> {
+): Promise<TimelineResult> {
   const limit = options.limit ?? 50;
-  const MAX_PAGES = 50;
+  const maxPages = options.maxPages ?? 50;
 
   const allRevisionItems: drive_v3.Schema$Revision[] = [];
   let pageToken: string | undefined;
+  let nextPageToken: string | undefined;
   let pagesRead = 0;
 
   do {
@@ -127,14 +132,13 @@ export async function getTimeline(
     allRevisionItems.push(...(response.data.revisions ?? []));
     pageToken = response.data.nextPageToken ?? undefined;
     pagesRead++;
-    if (pagesRead >= MAX_PAGES && pageToken) {
-      logger.warn(
-        'revision-timeline: hit 50-page cap (10,000 revisions at pageSize=200); history may be truncated',
-        {
-          spreadsheetId,
-          pagesRead,
-        }
-      );
+    if (pagesRead >= maxPages && pageToken) {
+      nextPageToken = pageToken;
+      logger.warn('revision-timeline: hit pagination cap; history may be truncated', {
+        spreadsheetId,
+        pagesRead,
+        maxPages,
+      });
       break;
     }
   } while (pageToken);
@@ -158,6 +162,7 @@ export async function getTimeline(
   }
 
   const sliced = revisions.slice(0, limit);
+  let activityAvailable = false;
 
   // Merge Drive Activity events for richer WHO/WHEN attribution
   if (options.googleClient && sliced.length > 0) {
@@ -170,6 +175,7 @@ export async function getTimeline(
       );
 
       if (activityEvents.length > 0) {
+        activityAvailable = true;
         // Match activity events to revisions by proximity in time (within 60 seconds)
         for (const entry of sliced) {
           const entryTime = new Date(entry.timestamp).getTime();
@@ -188,7 +194,13 @@ export async function getTimeline(
     }
   }
 
-  return sliced;
+  return {
+    items: sliced,
+    totalFetched: allRevisionItems.length,
+    truncated: nextPageToken !== undefined,
+    nextPageToken,
+    activityAvailable,
+  };
 }
 
 /**

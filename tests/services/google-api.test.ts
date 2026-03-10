@@ -125,6 +125,7 @@ import {
   DEFAULT_SCOPES,
   ELEVATED_SCOPES,
   READONLY_SCOPES,
+  resolveGoogleApiAgentTimeoutMs,
 } from '../../src/services/google-api.js';
 
 describe('GoogleApiClient', () => {
@@ -208,6 +209,35 @@ describe('GoogleApiClient', () => {
     it('should export READONLY_SCOPES', () => {
       expect(READONLY_SCOPES).toContain('https://www.googleapis.com/auth/spreadsheets.readonly');
       expect(READONLY_SCOPES).toContain('https://www.googleapis.com/auth/drive.readonly');
+    });
+  });
+
+  describe('resolveGoogleApiAgentTimeoutMs', () => {
+    const originalEnv = { ...process.env };
+
+    afterEach(() => {
+      process.env = { ...originalEnv };
+    });
+
+    it('prefers GOOGLE_API_TIMEOUT_MS', () => {
+      process.env['GOOGLE_API_TIMEOUT_MS'] = '45000';
+      process.env['GOOGLE_API_REQUEST_TIMEOUT_MS'] = '15000';
+
+      expect(resolveGoogleApiAgentTimeoutMs()).toBe(45000);
+    });
+
+    it('falls back to the legacy GOOGLE_API_REQUEST_TIMEOUT_MS alias', () => {
+      delete process.env['GOOGLE_API_TIMEOUT_MS'];
+      process.env['GOOGLE_API_REQUEST_TIMEOUT_MS'] = '15000';
+
+      expect(resolveGoogleApiAgentTimeoutMs()).toBe(15000);
+    });
+
+    it('uses the default timeout when neither env var is set', () => {
+      delete process.env['GOOGLE_API_TIMEOUT_MS'];
+      delete process.env['GOOGLE_API_REQUEST_TIMEOUT_MS'];
+
+      expect(resolveGoogleApiAgentTimeoutMs()).toBe(60000);
     });
   });
 

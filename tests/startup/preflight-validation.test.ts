@@ -180,9 +180,9 @@ describe('Pre-Flight Validation', () => {
       ).toBe(true);
     });
 
-    it('should fail with incomplete OAuth configuration', async () => {
-      process.env['OAUTH_CLIENT_ID'] = 'test-client-id';
-      // Missing OAUTH_CLIENT_SECRET and SESSION_SECRET
+    it('should fail with incomplete local OAuth client configuration', async () => {
+      process.env['GOOGLE_CLIENT_ID'] = 'test-client-id';
+      // Missing GOOGLE_CLIENT_SECRET
       vi.mocked(existsSync).mockReturnValue(true);
       vi.mocked(accessSync).mockImplementation(() => {});
 
@@ -193,9 +193,42 @@ describe('Pre-Flight Validation', () => {
       expect(configCheck?.result.message).toContain('Configuration validation failed');
       const issues = configCheck?.result.details?.issues as string[];
       expect(issues).toBeDefined();
-      expect(issues.some((issue: string) => issue.includes('Incomplete OAuth configuration'))).toBe(
-        true
-      );
+      expect(
+        issues.some((issue: string) => issue.includes('Incomplete OAuth client configuration'))
+      ).toBe(true);
+    });
+
+    it('should fail with incomplete remote OAuth configuration', async () => {
+      process.env['JWT_SECRET'] = 'a'.repeat(64);
+      process.env['STATE_SECRET'] = 'b'.repeat(64);
+      process.env['OAUTH_CLIENT_SECRET'] = 'c'.repeat(32);
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(accessSync).mockImplementation(() => {});
+
+      const result = await runPreflightChecks();
+
+      const configCheck = result.checks.find((c) => c.name === 'Configuration Validation');
+      expect(configCheck?.result.passed).toBe(false);
+      const issues = configCheck?.result.details?.issues as string[];
+      expect(issues).toBeDefined();
+      expect(
+        issues.some((issue: string) => issue.includes('Incomplete remote OAuth configuration'))
+      ).toBe(true);
+    });
+
+    it('should pass with complete remote OAuth configuration', async () => {
+      process.env['JWT_SECRET'] = 'a'.repeat(64);
+      process.env['STATE_SECRET'] = 'b'.repeat(64);
+      process.env['OAUTH_CLIENT_SECRET'] = 'c'.repeat(32);
+      process.env['GOOGLE_CLIENT_ID'] = 'google-client-id';
+      process.env['GOOGLE_CLIENT_SECRET'] = 'google-client-secret';
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(accessSync).mockImplementation(() => {});
+
+      const result = await runPreflightChecks();
+
+      const configCheck = result.checks.find((c) => c.name === 'Configuration Validation');
+      expect(configCheck?.result.passed).toBe(true);
     });
 
     it('should fail with invalid REDIS_URL format', async () => {
