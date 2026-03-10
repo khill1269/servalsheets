@@ -148,7 +148,7 @@ describe('Metadata Fetch Optimization', () => {
       const sheetAnalyses = [
         {
           sheetId: 0,
-          sheetTitle: 'Sheet1',
+          sheetName: 'Sheet1',
           rowCount: 10,
           columnCount: 5,
           dataRowCount: 10,
@@ -213,7 +213,7 @@ describe('Metadata Fetch Optimization', () => {
       const sheetAnalyses = [
         {
           sheetId: 0,
-          sheetTitle: 'Sheet1',
+          sheetName: 'Sheet1',
           rowCount: 10,
           columnCount: 5,
           dataRowCount: 10,

@@ -22,6 +22,15 @@ function previewFormula(value: string): string {
   return value.length <= 60 ? value : `${value.slice(0, 57)}...`;
 }
 
+function hasFormulaPassthroughSafety(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+
+  const safety = (value as Record<string, unknown>)['safety'];
+  if (typeof safety !== 'object' || safety === null) return false;
+
+  return (safety as Record<string, unknown>)['sanitizeFormulas'] === false;
+}
+
 function scanFormulaCandidate(
   value: unknown,
   path: string,
@@ -66,6 +75,10 @@ function scanMutationRequest(
   depth: number
 ): MutationSafetyViolation | null {
   if (depth > 12 || value == null) return null;
+
+  if (hasFormulaPassthroughSafety(value)) {
+    return null;
+  }
 
   if (parentKey && FORMULA_CANDIDATE_KEYS.has(parentKey)) {
     return scanFormulaCandidate(value, path, visited, depth + 1);
@@ -112,6 +125,7 @@ export function detectMutationSafetyViolation(
   const req = request as Record<string, unknown>;
   const action = req['action'];
   if (typeof action !== 'string' || !isLikelyMutationAction(action)) return null;
+  if (hasFormulaPassthroughSafety(req)) return null;
 
   if (process.env['SERVAL_ALLOW_FORMULA_PASSTHROUGH'] === 'true') {
     if (process.env['NODE_ENV'] === 'production') {
