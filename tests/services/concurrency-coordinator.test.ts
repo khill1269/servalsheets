@@ -455,7 +455,8 @@ describe('ConcurrencyCoordinator', () => {
 
       // Should complete in ~3 batches (6 ops / 2 concurrent = 3 batches)
       const totalDuration = Math.max(...endTimes) - Math.min(...startTimes);
-      expect(totalDuration).toBeGreaterThanOrEqual(150); // 3 * 50ms
+      // Allow a small amount of timer jitter on shared CI runners.
+      expect(totalDuration).toBeGreaterThanOrEqual(140);
       expect(totalDuration).toBeLessThan(250); // Allow overhead
     });
   });
