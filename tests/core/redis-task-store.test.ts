@@ -196,8 +196,8 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
     });
 
     it('should allow status transition to all valid states', async () => {
-      const task = await store.createTask();
-
+      // Each status is tested on a fresh task — cancelled is terminal per MCP spec (SEP-1686),
+      // so subsequent updates to a cancelled task are ignored by design.
       const states: TaskStatus[] = [
         'working',
         'completed',
@@ -207,6 +207,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       ];
 
       for (const status of states) {
+        const task = await store.createTask();
         await store.updateTaskStatus(task.taskId, status);
         const updated = await store.getTask(task.taskId);
         expect(updated?.status).toBe(status);

@@ -444,6 +444,7 @@ export class GoogleApiClient {
     const driveLabelsApi = google.drivelabels({
       version: 'v2',
       auth: this.auth,
+      http2: enableHTTP2,
     });
 
     // Drive Activity API for WHO/WHEN change attribution
@@ -593,6 +594,7 @@ export class GoogleApiClient {
     const driveLabelsApi = google.drivelabels({
       version: 'v2',
       auth: this.auth,
+      http2: enableHTTP2,
     });
 
     // Reconfigure transporter with new agents
@@ -1619,6 +1621,11 @@ export class GoogleApiClient {
         supportsAllDrives: true,
       });
       const isSharedDrive = Boolean(response.data.driveId);
+      // Cap at 500 entries to prevent unbounded memory growth in long-running servers
+      if (this.sharedDriveMembershipCache.size >= 500) {
+        const firstKey = this.sharedDriveMembershipCache.keys().next().value;
+        if (firstKey !== undefined) this.sharedDriveMembershipCache.delete(firstKey);
+      }
       this.sharedDriveMembershipCache.set(fileId, isSharedDrive);
       return isSharedDrive;
     } catch (error) {

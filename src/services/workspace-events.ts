@@ -53,12 +53,19 @@ export class WorkspaceEventsService {
         },
       });
 
-      // Operation name serves as the subscription ID
+      // The create call returns a long-running Operation. The subscription resource name
+      // is in operation.response.name (not operation.name which is the operation resource).
+      // We use the operation name as a fallback since we don't poll the operation to completion.
       const operationData = response.data as {
         name?: string;
-        metadata?: { subscription?: { expireTime?: string } };
+        response?: { name?: string };
+        metadata?: { subscription?: { name?: string; expireTime?: string } };
       };
-      const subscriptionId = operationData?.name ?? `ws-sub-${Date.now()}`;
+      const subscriptionId =
+        operationData?.response?.name ??
+        operationData?.metadata?.subscription?.name ??
+        operationData?.name ??
+        `ws-sub-${Date.now()}`;
       const expireTime =
         operationData?.metadata?.subscription?.expireTime ??
         new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();

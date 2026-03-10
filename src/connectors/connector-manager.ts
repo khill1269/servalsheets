@@ -69,7 +69,9 @@ function deriveKey(): Buffer | null {
   const password = process.env['CONNECTOR_ENCRYPTION_KEY'];
   if (!password) return null;
   const salt = getOrCreateSalt();
-  return scryptSync(password, salt, 32);
+  // OWASP-recommended scrypt parameters: N=131072 (2^17), r=8, p=1
+  // Node.js defaults (N=16384) are insufficient for credential encryption.
+  return scryptSync(password, salt, 32, { N: 131072, r: 8, p: 1 });
 }
 
 function encryptConfig(plaintext: string): string {
@@ -109,11 +111,23 @@ function decryptConfig(content: string): string {
     (parsed as Record<string, unknown>)['version'] !== 1 ||
     !(parsed as Record<string, unknown>)['ciphertext']
   ) {
+    // Content is not encrypted — log a security warning if it looks like credentials JSON
+    const keys = Object.keys(parsed as object);
+    if (keys.some((k) => ['apiKey', 'token', 'secret', 'password', 'credentials'].includes(k))) {
+      logger.warn(
+        '[SECURITY] Connector config loaded from plaintext storage — re-save with CONNECTOR_ENCRYPTION_KEY set'
+      );
+    }
     return content;
   }
 
   const key = deriveKey();
-  if (!key) return content;
+  if (!key) {
+    logger.warn(
+      '[SECURITY] Encrypted connector config found but CONNECTOR_ENCRYPTION_KEY is not set — cannot decrypt'
+    );
+    return content;
+  }
 
   const record = parsed as EncryptedConfigRecord;
   const iv = Buffer.from(record.iv, 'base64');
