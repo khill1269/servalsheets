@@ -485,7 +485,13 @@ Pro tip: Use sheets_transaction to batch all operations into 1 API call.`,
     },
     async (args: Record<string, unknown>) => {
       const role = args['role'] || 'writer';
-      const collaborators = args['collaborators'] as string[];
+      const collaboratorsValue = args['collaborators'];
+      const collaborators = Array.isArray(collaboratorsValue)
+        ? collaboratorsValue.filter((value): value is string => typeof value === 'string')
+        : String(collaboratorsValue ?? '')
+            .split(',')
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0);
 
       return {
         messages: [
@@ -4905,7 +4911,8 @@ Use sheets_data action "cross_write" to copy merged data:
   server.registerPrompt(
     'audit_sheet',
     {
-      description: '🔍 Run a full quality audit on a spreadsheet (formulas, structure, data, performance)',
+      description:
+        '🔍 Run a full quality audit on a spreadsheet (formulas, structure, data, performance)',
       argsSchema: AuditSheetPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
@@ -4920,7 +4927,14 @@ Use sheets_data action "cross_write" to copy merged data:
 
 ## Step 1: Run Full Audit
 \`\`\`json
-{"action":"audit_sheet","spreadsheetId":"${args['spreadsheetId']}"${args['focusAreas'] ? `,"focusAreas":["${String(args['focusAreas']).split(',').map((s: string) => s.trim()).join('","')}"]` : ''}}
+{"action":"audit_sheet","spreadsheetId":"${args['spreadsheetId']}"${
+                args['focusAreas']
+                  ? `,"focusAreas":["${String(args['focusAreas'])
+                      .split(',')
+                      .map((s: string) => s.trim())
+                      .join('","')}"]`
+                  : ''
+              }}
 \`\`\`
 
 ## Step 2: Review Findings
@@ -4993,7 +5007,8 @@ The action creates a formatted sheet with:
   server.registerPrompt(
     'data_pipeline',
     {
-      description: '🔄 Build a recurring ETL pipeline (fetch → transform → write) for a spreadsheet',
+      description:
+        '🔄 Build a recurring ETL pipeline (fetch → transform → write) for a spreadsheet',
       argsSchema: DataPipelinePromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
@@ -5087,7 +5102,7 @@ The action replaces all \`{{placeholder}}\` tokens in the template with your pro
   server.registerPrompt(
     'migrate_spreadsheet',
     {
-      description: '📦 Move or copy a spreadsheet\'s data and structure to a new destination',
+      description: "📦 Move or copy a spreadsheet's data and structure to a new destination",
       argsSchema: MigrateSpreadsheetPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
