@@ -8,10 +8,11 @@
  */
 
 import type { CompleteResult } from '@modelcontextprotocol/sdk/types.js';
+import { getAvailableToolActions, getAvailableToolNames } from './tool-registry-state.js';
 
 /**
  * Action names for each tool (for autocompletion)
- * Total: 397 actions across 25 tools
+ * Total: 399 actions across 25 tools
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
@@ -194,6 +195,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'generate_template',
     'preview_generation',
     'batch_operations',
+    'build_dashboard',
   ],
   sheets_compute: [
     'evaluate',
@@ -364,6 +366,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'batch_format',
     'set_rich_text',
     'generate_conditional_format',
+    'build_dependent_dropdown',
   ],
   sheets_history: [
     'list',
@@ -486,7 +489,6 @@ export const CHART_TYPES = [
   'HISTOGRAM',
   'CANDLESTICK',
   'ORG',
-  'RADAR',
   'SCORECARD',
   'BUBBLE',
 ];
@@ -876,13 +878,24 @@ const ACTION_ALIASES: Record<string, string> = {
   standardize: 'standardize_formats',
 };
 
+export function completeToolName(partial: string): string[] {
+  if (!partial || typeof partial !== 'string') {
+    return [];
+  }
+
+  const lower = partial.toLowerCase();
+  return getAvailableToolNames(Object.keys(TOOL_ACTIONS))
+    .filter((toolName) => toolName.toLowerCase().startsWith(lower))
+    .slice(0, 20);
+}
+
 export function completeAction(toolName: string, partial: string): string[] {
   // Defensive: handle undefined/null partial
   if (!partial || typeof partial !== 'string') {
     return [];
   }
 
-  const actions = TOOL_ACTIONS[toolName] ?? [];
+  const actions = getAvailableToolActions(toolName, TOOL_ACTIONS, Object.keys(TOOL_ACTIONS));
   const lower = partial.toLowerCase();
 
   // First, try direct action name matching

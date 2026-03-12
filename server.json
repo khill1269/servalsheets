@@ -2,7 +2,7 @@
   "$schema": "https://cdn.jsdelivr.net/npm/@anthropic-ai/mcp-registry@latest/dist/registry-schema.json",
   "name": "io.github.khill1269/servalsheets",
   "version": "1.7.0",
-  "description": "Production-grade Google Sheets MCP server with 25 tools and 397 actions",
+  "description": "Production-grade Google Sheets MCP server with 25 tools and 399 actions",
   "icons": [
     {
       "src": "https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/serval-icon.png",
@@ -29,7 +29,7 @@
       "transport": {
         "type": "stdio"
       },
-      "description": "Production-grade Google Sheets MCP server - 25 tools, 397 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
+      "description": "Production-grade Google Sheets MCP server - 25 tools, 399 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
     }
   ],
   "tools": [
@@ -217,7 +217,7 @@
     },
     {
       "name": "sheets_composite",
-      "description": "composite operations (20 actions)",
+      "description": "composite operations (21 actions)",
       "actions": [
         "import_csv",
         "smart_append",
@@ -238,7 +238,8 @@
         "generate_sheet",
         "generate_template",
         "preview_generation",
-        "batch_operations"
+        "batch_operations",
+        "build_dashboard"
       ]
     },
     {
@@ -423,7 +424,7 @@
     },
     {
       "name": "sheets_format",
-      "description": "format operations (24 actions)",
+      "description": "format operations (25 actions)",
       "actions": [
         "set_format",
         "suggest_format",
@@ -448,7 +449,8 @@
         "add_conditional_format_rule",
         "batch_format",
         "set_rich_text",
-        "generate_conditional_format"
+        "generate_conditional_format",
+        "build_dependent_dropdown"
       ]
     },
     {
@@ -591,7 +593,7 @@
   ],
   "metadata": {
     "toolCount": 25,
-    "actionCount": 397,
+    "actionCount": 399,
     "categories": [
       "Core Operations (5 tools): auth, core, data, format, dimensions",
       "Visual Analytics (1 tool): visualize",

@@ -54,6 +54,8 @@ import type {
   CompositeMigrateSpreadsheetInput,
   // Orchestration types
   CompositeBatchOperationsInput,
+  // Dashboard types
+  CompositeBuildDashboardInput,
 } from '../schemas/composite.js';
 import type { Intent } from '../core/intent.js';
 import { getRequestLogger, sendProgress } from '../utils/request-context.js';
@@ -86,6 +88,7 @@ import {
 } from './composite-actions/workflow.js';
 import { handleBatchOperationsAction } from './composite-actions/batch.js';
 import { handleExportLargeDatasetAction } from './composite-actions/streaming.js';
+import { ensureRetriableGoogleApi } from '../utils/google-api-retry-wrapper.js';
 
 // ============================================================================
 // Handler
@@ -104,14 +107,14 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
   constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets, driveApi?: drive_v3.Drive) {
     super('sheets_composite', context);
-    this.sheetsApi = sheetsApi;
-    this.driveApi = driveApi;
+    this.sheetsApi = ensureRetriableGoogleApi(sheetsApi) as sheets_v4.Sheets;
+    this.driveApi = ensureRetriableGoogleApi(driveApi) as drive_v3.Drive | undefined;
 
     // Initialize sheet resolver
-    this.sheetResolver = initializeSheetResolver(sheetsApi);
+    this.sheetResolver = initializeSheetResolver(this.sheetsApi);
 
     // Initialize composite operations service
-    this.compositeService = new CompositeOperationsService(sheetsApi, this.sheetResolver);
+    this.compositeService = new CompositeOperationsService(this.sheetsApi, this.sheetResolver);
   }
 
   /**
@@ -328,13 +331,16 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
               this.generateMeta(action, i, output, options),
           });
           break;
+        case 'build_dashboard':
+          response = await this.handleBuildDashboard(req as CompositeBuildDashboardInput);
+          break;
         default: {
           // Exhaustive check - TypeScript ensures this is unreachable
           const _exhaustiveCheck: never = req;
           throw new ValidationError(
             `Unknown action: ${(req as { action: string }).action}`,
             'action',
-            'import_csv | smart_append | bulk_update | deduplicate | export_xlsx | import_xlsx | get_form_responses | setup_sheet | import_and_format | clone_structure | export_large_dataset | generate_sheet | generate_template | preview_generation | audit_sheet | publish_report | data_pipeline | instantiate_template | migrate_spreadsheet | batch_operations'
+            'import_csv | smart_append | bulk_update | deduplicate | export_xlsx | import_xlsx | get_form_responses | setup_sheet | import_and_format | clone_structure | export_large_dataset | generate_sheet | generate_template | preview_generation | audit_sheet | publish_report | data_pipeline | instantiate_template | migrate_spreadsheet | batch_operations | build_dashboard'
           );
         }
       }
@@ -784,6 +790,197 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         result as unknown as Record<string, unknown>,
         { cellsAffected: result.rowsDeleted }
       ),
+    };
+  }
+
+  // ==========================================================================
+  // build_dashboard
+  // ==========================================================================
+
+  private async handleBuildDashboard(
+    input: CompositeBuildDashboardInput
+  ): Promise<CompositeOutput['response']> {
+    const { spreadsheetId, dataSheet, dashboardSheet, layout, kpis, charts, slicers } = input;
+    const logger = getRequestLogger();
+
+    logger.info('Building dashboard', { spreadsheetId, dataSheet, dashboardSheet, layout });
+
+    this.sendProgress(0, 10, 'Setting up dashboard sheet');
+
+    // Step 1: Ensure dashboard sheet exists (add it if missing)
+    const spreadsheet = await this.sheetsApi.spreadsheets.get({ spreadsheetId });
+    const existingSheets = spreadsheet.data.sheets ?? [];
+    const dashboardExists = existingSheets.some((s) => s.properties?.title === dashboardSheet);
+
+    if (!dashboardExists) {
+      await this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [{ addSheet: { properties: { title: dashboardSheet } } }],
+        },
+      });
+    }
+
+    this.sendProgress(3, 10, 'Writing KPI metrics');
+
+    // Step 2: Write KPIs if provided
+    if (kpis && kpis.length > 0) {
+      const labelRow = kpis.map((k) => k.label);
+      const formulaRow = kpis.map((k) => k.formula);
+      const kpiRange = `${dashboardSheet}!A1:${String.fromCharCode(65 + kpis.length - 1)}2`;
+      await this.sheetsApi.spreadsheets.values.update({
+        spreadsheetId,
+        range: kpiRange,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [labelRow, formulaRow] },
+      });
+    }
+
+    this.sendProgress(5, 10, 'Applying formatting');
+
+    // Step 3: Bold the label row via batchUpdate if KPIs present
+    if (kpis && kpis.length > 0) {
+      const dashboardSheetObj = (
+        await this.sheetsApi.spreadsheets.get({ spreadsheetId })
+      ).data.sheets?.find((s) => s.properties?.title === dashboardSheet);
+      const dashboardSheetId = dashboardSheetObj?.properties?.sheetId ?? 0;
+      await this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId: dashboardSheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 0,
+                  endColumnIndex: kpis.length,
+                },
+                cell: {
+                  userEnteredFormat: {
+                    textFormat: { bold: true },
+                  },
+                },
+                fields: 'userEnteredFormat.textFormat.bold',
+              },
+            },
+          ],
+        },
+      });
+    }
+
+    this.sendProgress(7, 10, 'Adding charts');
+
+    // Step 4: Create charts if provided (simplified — charts use addChart request)
+    let chartsAddedCount = 0;
+    if (charts && charts.length > 0 && layout !== 'kpi_header') {
+      const dashboardSheetObj2 = (
+        await this.sheetsApi.spreadsheets.get({ spreadsheetId })
+      ).data.sheets?.find((s) => s.properties?.title === dashboardSheet);
+      const dashboardSheetId2 = dashboardSheetObj2?.properties?.sheetId ?? 0;
+
+      for (const [i, chart] of charts.entries()) {
+        const anchorRow = (kpis ? 4 : 1) + i * 20;
+        await this.sheetsApi.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            requests: [
+              {
+                addChart: {
+                  chart: {
+                    spec: {
+                      title: chart.title,
+                      basicChart: {
+                        chartType: chart.type,
+                        series: [{ series: { sourceRange: { sources: [] } } }],
+                      },
+                    },
+                    position: {
+                      overlayPosition: {
+                        anchorCell: {
+                          sheetId: dashboardSheetId2,
+                          rowIndex: anchorRow,
+                          columnIndex: 0,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        });
+        chartsAddedCount++;
+      }
+    }
+
+    this.sendProgress(9, 10, 'Adding slicers');
+
+    // Step 5: Create slicers if provided and layout includes them
+    let slicersAddedCount = 0;
+    if (slicers && slicers.length > 0 && layout === 'full_analytics') {
+      const dataSheetObj = (
+        await this.sheetsApi.spreadsheets.get({ spreadsheetId })
+      ).data.sheets?.find((s) => s.properties?.title === dataSheet);
+      const dataSheetId = dataSheetObj?.properties?.sheetId ?? 0;
+      const dashboardSheetObj3 = (
+        await this.sheetsApi.spreadsheets.get({ spreadsheetId })
+      ).data.sheets?.find((s) => s.properties?.title === dashboardSheet);
+      const dashboardSheetId3 = dashboardSheetObj3?.properties?.sheetId ?? 0;
+
+      for (const slicer of slicers) {
+        await this.sheetsApi.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            requests: [
+              {
+                addSlicer: {
+                  slicer: {
+                    spec: {
+                      dataRange: {
+                        sheetId: dataSheetId,
+                        startRowIndex: 0,
+                        endRowIndex: 1000,
+                        startColumnIndex: slicer.filterColumn,
+                        endColumnIndex: slicer.filterColumn + 1,
+                      },
+                      columnIndex: slicer.filterColumn,
+                      title: slicer.title,
+                    },
+                    position: {
+                      overlayPosition: {
+                        anchorCell: {
+                          sheetId: dashboardSheetId3,
+                          rowIndex: 0,
+                          columnIndex: 0,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        });
+        slicersAddedCount++;
+      }
+    }
+
+    this.sendProgress(10, 10, 'Dashboard complete');
+
+    const kpisAdded = kpis?.length ?? 0;
+    const chartsAdded = chartsAddedCount;
+    const slicersAdded = slicersAddedCount;
+
+    return {
+      success: true as const,
+      action: 'build_dashboard' as const,
+      dashboardSheet,
+      kpisAdded,
+      chartsAdded,
+      slicersAdded,
+      message: `Dashboard "${dashboardSheet}" created with ${kpisAdded} KPIs, ${chartsAdded} charts`,
     };
   }
 }

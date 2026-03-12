@@ -11,6 +11,7 @@ import {
   RangeInputSchema,
   CellFormatSchema,
   ColorSchema,
+  ColorStyleSchema,
   TextFormatSchema,
   NumberFormatSchema,
   BorderSchema,
@@ -29,40 +30,85 @@ import {
 } from './shared.js';
 
 // Rules-related schema definitions
+const InterpolationPointTypeSchema = z.preprocess(
+  (val) => {
+    if (typeof val !== 'string') return val;
+    const normalized = val.toUpperCase();
+    if (normalized === 'MIN_VALUE') return 'MIN';
+    if (normalized === 'MAX_VALUE') return 'MAX';
+    return normalized;
+  },
+  z.enum(['MIN', 'MAX', 'NUMBER', 'PERCENT', 'PERCENTILE'])
+);
+
 const BooleanRuleSchema = z.object({
   type: z.literal('boolean'),
   condition: ConditionSchema,
-  format: z.object({
-    backgroundColor: ColorSchema.optional(),
-    textFormat: TextFormatSchema.optional(),
-  }),
+  format: CellFormatSchema,
 });
+
+const GradientColorPointBaseSchema = z.object({
+  color: ColorSchema.optional(),
+  colorStyle: ColorStyleSchema.optional(),
+});
+
+const GradientColorPointSchema = GradientColorPointBaseSchema.superRefine((value, ctx) => {
+  if (!value.color && !value.colorStyle) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Either color or colorStyle is required',
+      path: ['colorStyle'],
+    });
+  }
+});
+
+const requireGradientColorPoint = (
+  value: z.infer<typeof GradientColorPointBaseSchema>,
+  ctx: z.RefinementCtx
+): void => {
+  if (!GradientColorPointSchema.safeParse(value).success) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Either color or colorStyle is required',
+      path: ['colorStyle'],
+    });
+  }
+};
+
+const GradientEndpointSchema = z
+  .object({
+    type: InterpolationPointTypeSchema,
+    value: z.string().optional(),
+  })
+  .merge(GradientColorPointBaseSchema)
+  .superRefine(requireGradientColorPoint);
+
+const GradientMidpointSchema = z
+  .object({
+    type: z.preprocess(
+      (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+      z.enum(['NUMBER', 'PERCENT', 'PERCENTILE'])
+    ),
+    value: z.string(),
+  })
+  .merge(GradientColorPointBaseSchema)
+  .superRefine(requireGradientColorPoint);
 
 const GradientRuleSchema = z.object({
   type: z.literal('gradient'),
-  minpoint: z.object({
-    type: z.enum(['MIN', 'MAX', 'NUMBER', 'PERCENT', 'PERCENTILE']),
-    value: z.string().optional(),
-    color: ColorSchema,
-  }),
-  midpoint: z
-    .object({
-      type: z.enum(['NUMBER', 'PERCENT', 'PERCENTILE']),
-      value: z.string(),
-      color: ColorSchema,
-    })
-    .optional(),
-  maxpoint: z.object({
-    type: z.enum(['MIN', 'MAX', 'NUMBER', 'PERCENT', 'PERCENTILE']),
-    value: z.string().optional(),
-    color: ColorSchema,
-  }),
+  minpoint: GradientEndpointSchema,
+  midpoint: GradientMidpointSchema.optional(),
+  maxpoint: GradientEndpointSchema,
 });
 
 const ConditionalFormatRuleSchema = z.discriminatedUnion('type', [
   BooleanRuleSchema,
   GradientRuleSchema,
 ]);
+
+const SparklineColorInputSchema = z
+  .union([ColorStyleSchema, ColorSchema])
+  .describe('Sparkline color as RGB/hex/named color, or ColorStyle with rgbColor/themeColor');
 
 // ============================================================================
 // SPARKLINE SCHEMAS (3 new actions)
@@ -72,21 +118,23 @@ const ConditionalFormatRuleSchema = z.discriminatedUnion('type', [
 const SparklineTypeSchema = z
   .preprocess(
     (val) => (typeof val === 'string' ? val.toUpperCase() : val),
-    z.enum(['LINE', 'BAR', 'COLUMN'])
+    z.enum(['LINE', 'BAR', 'COLUMN', 'WINLOSS'])
   )
   .describe('Sparkline chart type (case-insensitive)');
 
 // Sparkline configuration options
 const SparklineConfigSchema = z
   .object({
-    type: SparklineTypeSchema.default('LINE').describe('Sparkline chart type (LINE, BAR, COLUMN)'),
-    color: ColorSchema.optional().describe('Line/bar color'),
-    negativeColor: ColorSchema.optional().describe('Color for negative values'),
-    axisColor: ColorSchema.optional().describe('Horizontal axis line color'),
-    firstColor: ColorSchema.optional().describe('First data point highlight color'),
-    lastColor: ColorSchema.optional().describe('Last data point highlight color'),
-    highColor: ColorSchema.optional().describe('Highest value highlight color'),
-    lowColor: ColorSchema.optional().describe('Lowest value highlight color'),
+    type: SparklineTypeSchema.default('LINE').describe(
+      'Sparkline chart type (LINE, BAR, COLUMN, WINLOSS)'
+    ),
+    color: SparklineColorInputSchema.optional().describe('Line/bar color'),
+    negativeColor: SparklineColorInputSchema.optional().describe('Color for negative values'),
+    axisColor: SparklineColorInputSchema.optional().describe('Horizontal axis line color'),
+    firstColor: SparklineColorInputSchema.optional().describe('First data point highlight color'),
+    lastColor: SparklineColorInputSchema.optional().describe('Last data point highlight color'),
+    highColor: SparklineColorInputSchema.optional().describe('Highest value highlight color'),
+    lowColor: SparklineColorInputSchema.optional().describe('Lowest value highlight color'),
     lineWidth: z.coerce
       .number()
       .min(0.5)
@@ -858,6 +906,48 @@ Parses the description into the correct rule type and applies it to the range.`
     ),
 });
 
+const BuildDependentDropdownActionSchema = z
+  .object({
+    action: z.literal('build_dependent_dropdown'),
+    spreadsheetId: SpreadsheetIdSchema.describe(
+      'ID of the spreadsheet. Example: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"'
+    ),
+    parentRange: z
+      .string()
+      .describe(
+        'A1 notation range of the parent (level-1) dropdown cells. ' +
+          'These cells will get a simple dropdown of unique values from the lookup table. ' +
+          'Example: "Sheet1!A2:A100"'
+      ),
+    dependentRange: z
+      .string()
+      .describe(
+        'A1 notation range of the dependent (level-2) dropdown cells. ' +
+          'Each cell in this range will show options based on the corresponding parent cell. ' +
+          'Must be same number of rows as parentRange. Example: "Sheet1!B2:B100"'
+      ),
+    lookupSheet: z
+      .string()
+      .describe(
+        'Name of the lookup table sheet. ' +
+          'Column A must contain parent values. Subsequent columns contain child options for each parent. ' +
+          'Example: A1=USA, B1=California, C1=Texas / A2=Canada, B2=Ontario, C2=Quebec. ' +
+          'Sheet name: "Lookup"'
+      ),
+    verbosity: z
+      .enum(['minimal', 'standard', 'detailed'])
+      .optional()
+      .default('standard')
+      .describe('Response detail level'),
+  })
+  .describe(
+    'Create dependent dropdown validation where the options in column B depend on the selection in column A. ' +
+      'Handles the full workflow: reads unique parent values from lookup table, creates named ranges ' +
+      'for each parent group, sets INDIRECT formula-based validation on the dependent column. ' +
+      'Requires a lookup table sheet where column A = parent values and columns B+ = child options per parent. ' +
+      'Example: parentRange:"Sheet1!A2:A100" dependentRange:"Sheet1!B2:B100" lookupSheet:"Lookup"'
+  );
+
 /**
  * All format operation inputs (cell formatting and rules)
  *
@@ -900,6 +990,7 @@ export const SheetsFormatInputSchema = z.object({
       ListDataValidationsActionSchema,
       AddConditionalFormatRuleActionSchema,
       GenerateConditionalFormatActionSchema,
+      BuildDependentDropdownActionSchema,
     ])
   ),
 });

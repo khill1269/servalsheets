@@ -19,6 +19,7 @@ import { assertSamplingConsent as assertGlobalSamplingConsent } from '../mcp/sam
 import { logger } from '../utils/logger.js';
 import { createRequestAbortError, getRequestContext } from '../utils/request-context.js';
 import { NotFoundError, ValidationError } from '../core/errors.js';
+import type { ErrorDetail } from '../schemas/shared.js';
 
 interface SamplingTextContent {
   type: 'text';
@@ -171,6 +172,10 @@ export interface ExecutionStep {
   params: Record<string, unknown>;
   description: string;
   dependsOn?: string[];
+  /** Set to 1 after the first auto-retry; prevents infinite retry loops */
+  retryCount?: number;
+  /** True if this step was auto-inserted as a recovery step */
+  autoInserted?: boolean;
 }
 
 export interface StepResult {
@@ -202,6 +207,8 @@ export interface PlanState {
   updatedAt: string;
   currentStepIndex: number;
   error?: string;
+  /** Structured error detail for the last failure, if available */
+  errorDetail?: ErrorDetail;
 }
 
 export type ExecuteHandlerFn = (
@@ -889,6 +896,50 @@ export function listTemplates(): Array<{
 }
 
 // ============================================================================
+// Error Classification Helpers (B1)
+// ============================================================================
+
+/**
+ * Extract a structured ErrorDetail from an unknown thrown value.
+ * Returns null if the error cannot be parsed as a structured error.
+ */
+function extractErrorDetail(err: unknown): ErrorDetail | null {
+  if (!err || typeof err !== 'object') return null;
+  const e = err as Record<string, unknown>;
+
+  // Case 1: error already has an attached errorDetail property
+  if (e['errorDetail'] && typeof e['errorDetail'] === 'object') {
+    return e['errorDetail'] as ErrorDetail;
+  }
+
+  // Case 2: error has toErrorDetail() method
+  if (typeof e['toErrorDetail'] === 'function') {
+    try {
+      return (e['toErrorDetail'] as () => ErrorDetail)();
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Build a recovery ExecutionStep from an error's fixableVia definition.
+ */
+function buildRecoveryStep(errorDetail: ErrorDetail): ExecutionStep | null {
+  if (!errorDetail.fixableVia) return null;
+  return {
+    stepId: `recovery-${randomUUID().slice(0, 8)}`,
+    tool: errorDetail.fixableVia.tool,
+    action: errorDetail.fixableVia.action,
+    params: (errorDetail.fixableVia.params as Record<string, unknown> | undefined) ?? {},
+    description: `Auto-recovery: ${errorDetail.suggestedFix ?? 'Fix error condition'}`,
+    autoInserted: true,
+  };
+}
+
+// ============================================================================
 // Plan Execution
 // ============================================================================
 
@@ -957,6 +1008,33 @@ export async function executePlan(
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
 
+      // B1: Extract structured error detail for classification
+      const errorDetail = extractErrorDetail(err);
+
+      // B1: Auto-retry once for retryable errors with a retry delay
+      const errAsObj = err as unknown as Record<string, unknown>;
+      const isRetryable =
+        errorDetail?.retryable === true ||
+        (err instanceof Error && errAsObj['isRetryable'] === true);
+      const retryAfterMs =
+        errorDetail?.retryAfterMs ??
+        (typeof errAsObj['retryAfterMs'] === 'number'
+          ? (errAsObj['retryAfterMs'] as number)
+          : undefined);
+
+      if (isRetryable && retryAfterMs !== undefined && step.retryCount === undefined) {
+        step.retryCount = 1;
+        logger.debug('Auto-retrying retryable step error', {
+          stepId: step.stepId,
+          retryAfterMs,
+          errorCode: errorDetail?.code,
+        });
+        await new Promise<void>((resolve) => setTimeout(resolve, Math.min(retryAfterMs, 30000)));
+        // Decrement so the for-loop increment brings i back to the same index
+        i--;
+        continue;
+      }
+
       const stepResult: StepResult = {
         stepId: step.stepId,
         success: false,
@@ -968,6 +1046,24 @@ export async function executePlan(
       plan.results.push(stepResult);
       plan.status = 'paused';
       plan.error = error;
+
+      // B1: Store structured error detail on plan
+      if (errorDetail) {
+        plan.errorDetail = errorDetail;
+      }
+
+      // B1: Insert recovery step if error provides fixableVia
+      const recoveryStep = errorDetail ? buildRecoveryStep(errorDetail) : null;
+      if (recoveryStep) {
+        plan.steps.splice(i + 1, 0, recoveryStep);
+        logger.debug('Inserted auto-recovery step', {
+          planId,
+          recoveryStepId: recoveryStep.stepId,
+          tool: recoveryStep.tool,
+          action: recoveryStep.action,
+        });
+      }
+
       plan.updatedAt = new Date().toISOString();
       planStore.set(planId, plan);
       persistPlan(plan).catch(() => {});
@@ -1038,6 +1134,13 @@ export async function executeStep(
     };
 
     plan.error = error;
+
+    // B1: Store structured error detail on plan
+    const errorDetail = extractErrorDetail(err);
+    if (errorDetail) {
+      plan.errorDetail = errorDetail;
+    }
+
     plan.updatedAt = new Date().toISOString();
     planStore.set(planId, plan);
     persistPlan(plan).catch(() => {});

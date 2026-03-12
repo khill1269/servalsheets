@@ -1182,6 +1182,65 @@ export async function runWizard<T>(
 }
 
 // ============================================================================
+// B2: Clarification Elicitation
+// ============================================================================
+
+/**
+ * A single clarification question to ask the user mid-analysis.
+ */
+export interface ClarificationQuestion {
+  /** The question to display to the user */
+  question: string;
+  /** Optional set of allowed answers (renders as a dropdown) */
+  options?: string[];
+  /** Field name in the form schema */
+  field?: string;
+}
+
+/**
+ * Elicit user clarification when analysis confidence is low.
+ *
+ * Asks at most one question (the first in the array) to avoid overwhelming
+ * the user. Returns the collected answers, or null if elicitation is
+ * unsupported or the user declined.
+ *
+ * Non-blocking: catches all errors and degrades gracefully.
+ */
+export async function elicitUserClarification(
+  server: ElicitationServer,
+  questions: ClarificationQuestion[],
+  context?: string
+): Promise<Record<string, string> | null> {
+  try {
+    const firstQ = questions[0];
+    if (!firstQ) return null;
+
+    const field = firstQ.field ?? 'clarification';
+    const fieldSchema: PrimitiveSchema =
+      firstQ.options && firstQ.options.length > 0
+        ? { type: 'string', title: firstQ.question, enum: firstQ.options }
+        : { type: 'string', title: firstQ.question };
+
+    const result = await server.elicitInput({
+      mode: 'form',
+      message: context ?? 'I need a quick clarification to give you the best analysis.',
+      requestedSchema: {
+        type: 'object',
+        properties: { [field]: fieldSchema },
+      },
+    });
+
+    if (result.action === 'accept' && result.content) {
+      return result.content as Record<string, string>;
+    }
+  } catch {
+    // Client doesn't support elicitation, declined, or timed out — degrade gracefully
+  }
+
+  return null;
+}
+
+// ============================================================================
 // Exports
 // ============================================================================
 

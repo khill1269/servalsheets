@@ -301,6 +301,15 @@ export class SessionContextManager {
   private profileManager = new UserProfileManager();
   private currentUserId?: string;
 
+  // B3: Elicitation rejection tracking (bounded at 50)
+  private elicitationRejections: Array<{
+    type: string;
+    tool?: string;
+    action?: string;
+    spreadsheetId?: string;
+    timestamp: number;
+  }> = [];
+
   constructor(initialState?: Partial<SessionState>) {
     this.state = {
       ...createDefaultState(),
@@ -1307,6 +1316,45 @@ export class SessionContextManager {
       return false;
     }
     return await this.profileManager.shouldAvoidSuggestion(this.currentUserId, suggestion);
+  }
+
+  // ===========================================================================
+  // B3: ELICITATION REJECTION TRACKING
+  // ===========================================================================
+
+  /**
+   * Record that the user rejected an elicitation prompt.
+   * Bounded at 50 entries (evicts oldest when full).
+   */
+  recordElicitationRejection(rejection: {
+    type: string;
+    tool?: string;
+    action?: string;
+    spreadsheetId?: string;
+  }): void {
+    this.elicitationRejections.push({
+      ...rejection,
+      timestamp: Date.now(),
+    });
+    // Keep bounded at 50 entries
+    if (this.elicitationRejections.length > 50) {
+      this.elicitationRejections = this.elicitationRejections.slice(-50);
+    }
+  }
+
+  /**
+   * Check if an elicitation type was recently rejected (within 30 minutes).
+   * Optionally filters by tool and/or action.
+   */
+  wasRecentlyRejected(type: string, context?: { tool?: string; action?: string }): boolean {
+    const cutoff = Date.now() - 30 * 60 * 1000; // 30 minutes
+    return this.elicitationRejections.some(
+      (r) =>
+        r.type === type &&
+        r.timestamp > cutoff &&
+        (!context?.tool || r.tool === context.tool) &&
+        (!context?.action || r.action === context.action)
+    );
   }
 }
 

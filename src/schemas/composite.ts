@@ -1193,11 +1193,116 @@ export const BatchOperationsOutputSchema = z.object({
 });
 
 // ============================================================================
+// Build Dashboard Action
+// ============================================================================
+
+/**
+ * build_dashboard — Create an analytics dashboard sheet with KPIs, charts, and slicers
+ */
+export const BuildDashboardInputSchema = z
+  .object({
+    action: z.literal('build_dashboard'),
+    spreadsheetId: SpreadsheetIdSchema.describe(
+      'ID of the spreadsheet containing the data source. ' +
+        'Example: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"'
+    ),
+    dataSheet: z
+      .string()
+      .describe(
+        'Name of the sheet tab containing the source data to visualize. ' +
+          'This sheet must already exist with data. Example: "Sales Data"'
+      ),
+    dashboardSheet: z
+      .string()
+      .default('Dashboard')
+      .describe(
+        'Name for the new dashboard sheet tab to create. ' +
+          'Will be created if it does not exist. Default: "Dashboard"'
+      ),
+    layout: z
+      .enum(['kpi_header', 'full_analytics', 'executive_summary'])
+      .default('full_analytics')
+      .describe(
+        'Dashboard layout style. ' +
+          '"kpi_header": KPI metrics row at top only. ' +
+          '"full_analytics": KPIs + charts + slicers (recommended). ' +
+          '"executive_summary": Condensed single-page summary.'
+      ),
+    kpis: z
+      .array(
+        z.object({
+          label: z.string().describe('Display label for the KPI. Example: "Total Revenue"'),
+          formula: z
+            .string()
+            .describe(
+              'Google Sheets formula for the KPI value. Must include = prefix. ' +
+                'Example: "=SUM(\'Sales Data\'!B:B)"'
+            ),
+          format: z
+            .enum(['currency', 'percentage', 'number', 'date'])
+            .default('number')
+            .describe('Number format for the KPI value display.'),
+        })
+      )
+      .optional()
+      .describe(
+        'KPI metrics to display in the header row. Each becomes a labeled metric cell. ' +
+          'Example: [{ label: "Revenue", formula: "=SUM(B:B)", format: "currency" }]'
+      ),
+    charts: z
+      .array(
+        z.object({
+          type: z.string().describe('Chart type. Examples: BAR, LINE, PIE, COLUMN, SCATTER'),
+          dataRange: z
+            .string()
+            .describe('A1 notation range for chart data. Example: "\'Sales Data\'!A1:B12"'),
+          title: z.string().describe('Chart title. Example: "Monthly Revenue"'),
+        })
+      )
+      .optional()
+      .describe('Charts to embed in the dashboard.'),
+    slicers: z
+      .array(
+        z.object({
+          filterColumn: z
+            .number()
+            .int()
+            .min(0)
+            .describe('0-based column index to filter on. Column A = 0, B = 1, etc.'),
+          title: z.string().describe('Slicer title. Example: "Filter by Region"'),
+        })
+      )
+      .optional()
+      .describe('Interactive filter slicers to add below charts.'),
+    verbosity: z
+      .enum(['minimal', 'standard', 'detailed'])
+      .optional()
+      .default('standard')
+      .describe('Response detail level'),
+  })
+  .describe(
+    'Build a complete analytics dashboard sheet with KPI metrics, charts, and optional slicers. ' +
+      'Creates a new sheet tab with formatted KPI row, embedded charts, and filter controls. ' +
+      'Example: build_dashboard dataSheet:"Sales" layout:"full_analytics" kpis:[{ label:"Revenue", formula:"=SUM(\'Sales\'!B:B)", format:"currency" }]'
+  );
+
+export const BuildDashboardOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('build_dashboard'),
+  dashboardSheet: z.string().describe('Name of the created dashboard sheet'),
+  kpisAdded: z.coerce.number().int().min(0).describe('Number of KPI metrics added'),
+  chartsAdded: z.coerce.number().int().min(0).describe('Number of charts embedded'),
+  slicersAdded: z.coerce.number().int().min(0).describe('Number of slicers added'),
+  message: z.string().describe('Summary of the dashboard creation'),
+  _meta: ResponseMetaSchema.optional(),
+});
+
+// ============================================================================
 // Combined Composite Input/Output
 // ============================================================================
 
 /**
- * All composite operation inputs (20 actions)
+ * All composite operation inputs (21 actions)
  *
  * Original (7): import_csv, smart_append, bulk_update, deduplicate, export_xlsx, import_xlsx, get_form_responses
  * LLM-Optimized Workflows (3): setup_sheet, import_and_format, clone_structure
@@ -1239,6 +1344,8 @@ export const CompositeInputSchema = z.object({
     MigrateSpreadsheetInputSchema,
     // Orchestration actions (1)
     BatchOperationsInputSchema,
+    // Dashboard (1)
+    BuildDashboardInputSchema,
   ]),
 });
 
@@ -1275,6 +1382,8 @@ export const CompositeSuccessOutputSchema = z.union([
   MigrateSpreadsheetOutputSchema,
   // Orchestration outputs
   BatchOperationsOutputSchema,
+  // Dashboard outputs
+  BuildDashboardOutputSchema,
 ]);
 
 /**
@@ -1312,6 +1421,8 @@ export const CompositeResponseSchema = z.discriminatedUnion('success', [
   MigrateSpreadsheetOutputSchema,
   // Orchestration outputs
   BatchOperationsOutputSchema,
+  // Dashboard outputs
+  BuildDashboardOutputSchema,
   CompositeErrorOutputSchema,
 ]);
 
@@ -1520,6 +1631,16 @@ export type CompositeBatchOperationsInput = CompositeInput['request'] & {
   action: 'batch_operations';
   spreadsheetId: string;
   operations: BatchOperationRequest[];
+};
+
+// Dashboard types
+export type BuildDashboardInput = z.infer<typeof BuildDashboardInputSchema>;
+export type BuildDashboardOutput = z.infer<typeof BuildDashboardOutputSchema>;
+
+export type CompositeBuildDashboardInput = CompositeInput['request'] & {
+  action: 'build_dashboard';
+  spreadsheetId: string;
+  dataSheet: string;
 };
 
 // ============================================================================
