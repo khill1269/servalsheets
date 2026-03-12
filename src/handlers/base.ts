@@ -26,6 +26,7 @@ import {
   createPermissionError,
   createRateLimitError,
   createNotFoundError,
+  createAuthenticationError,
   createValidationError,
   createZodValidationError,
   parseGoogleApiError,
@@ -35,6 +36,7 @@ import {
   estimateCost,
   type EnhancementContext,
 } from '../utils/response-enhancer.js';
+import { getErrorPatternLearner } from '../services/error-pattern-learner.js';
 import { compactResponse } from '../utils/response-compactor.js';
 import type { SamplingServer } from '../mcp/sampling.js';
 import type { RequestDeduplicator } from '../utils/request-deduplication.js';
@@ -567,18 +569,39 @@ export abstract class BaseHandler<TInput, TOutput> {
     if (err instanceof Error) {
       const errAny = err as unknown as Record<string, unknown>;
 
-      const enrichDetail = (detail: ErrorDetail): ErrorDetail => {
+      const enrichDetail = (detail: ErrorDetail, action?: string): ErrorDetail => {
         if (detail.resolution || detail.resolutionSteps) {
           return detail;
         }
 
         const enhanced = enhanceError(detail.code, detail.message, detail.details);
-        return {
+        let enriched: ErrorDetail = {
           ...detail,
           resolution: detail.resolution ?? enhanced.resolution,
           resolutionSteps: detail.resolutionSteps ?? enhanced.resolutionSteps,
           retryable: detail.retryable ?? enhanced.retryable,
         };
+
+        // Inject learned fix from error pattern learner (non-blocking)
+        try {
+          const patternLearner = getErrorPatternLearner();
+          const patterns = patternLearner.getPatterns(detail.code, {
+            tool: this.toolName,
+            action,
+          });
+          if (patterns?.topResolution && patterns.topResolution.occurrenceCount >= 3) {
+            enriched = {
+              ...enriched,
+              suggestedFix:
+                enriched.suggestedFix ??
+                `Learned fix (${Math.round(patterns.topResolution.successRate * 100)}% success): ${patterns.topResolution.fix}`,
+            };
+          }
+        } catch {
+          // Non-blocking: pattern learner failure must not affect error reporting
+        }
+
+        return enriched;
       };
 
       if (typeof errAny['toErrorDetail'] === 'function') {
@@ -726,6 +749,17 @@ export abstract class BaseHandler<TInput, TOutput> {
         circuitBreakerState,
       });
     }
+    if (httpStatus === 401) {
+      const authMessage = error.message.toLowerCase();
+      const reason =
+        authMessage.includes('expired') ||
+        authMessage.includes('revoked') ||
+        authMessage.includes('invalid_grant')
+          ? 'expired_token'
+          : 'invalid_token';
+
+      return createAuthenticationError({ reason });
+    }
     if (httpStatus === 403) {
       return createPermissionError({
         operation: 'perform this operation',
@@ -770,6 +804,22 @@ export abstract class BaseHandler<TInput, TOutput> {
         retryAfterMs: 3600000,
         circuitBreakerState,
       });
+    }
+
+    // Permission denied (403)
+    if (
+      message.includes('401') ||
+      message.includes('invalid credentials') ||
+      message.includes('autherror') ||
+      message.includes('unauthenticated')
+    ) {
+      const reason =
+        message.includes('expired') ||
+        message.includes('revoked') ||
+        message.includes('invalid_grant')
+          ? 'expired_token'
+          : 'invalid_token';
+      return createAuthenticationError({ reason });
     }
 
     // Permission denied (403)

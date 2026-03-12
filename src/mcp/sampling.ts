@@ -32,6 +32,7 @@ import {
   formatContextForPrompt,
 } from '../services/sampling-context-cache.js';
 import { compressContext, formatCompressedContext } from '../services/context-compressor.js';
+import type { SessionContextManager } from '../services/session-context.js';
 
 // ============================================================================
 // ISSUE-117: GDPR consent gate for Sampling calls
@@ -222,6 +223,12 @@ export interface AnalyzeDataOptions {
   sheetsApi?: sheets_v4.Sheets;
   /** Spreadsheet ID to enrich prompt with cached schema context (requires sheetsApi) */
   spreadsheetId?: string;
+  /**
+   * Optional session context manager. When provided, recent operations and the
+   * active spreadsheet title are prepended to the user prompt so the LLM has
+   * richer context about what the user is currently working on.
+   */
+  sessionContext?: SessionContextManager;
 }
 
 /**
@@ -700,6 +707,7 @@ export async function analyzeData(
     temperature,
     sheetsApi,
     spreadsheetId,
+    sessionContext,
   } = options;
 
   const formattedData = formatDataForLLM(params.data);
@@ -715,7 +723,31 @@ export async function analyzeData(
     }
   }
 
+  // Build session context prefix (non-blocking)
+  let sessionPrefix = '';
+  try {
+    const sessionCtx = sessionContext?.getSummary?.();
+    if (sessionCtx) {
+      if (sessionCtx.recentOperations && sessionCtx.recentOperations.length > 0) {
+        sessionPrefix += `\nRecent operations (last 5):\n${sessionCtx.recentOperations
+          .slice(-5)
+          .map((op) => `- ${op.tool ?? '?'}.${op.action ?? '?'} on ${op.range ?? 'unknown range'}`)
+          .join('\n')}`;
+      }
+      if (sessionCtx.activeSpreadsheet) {
+        sessionPrefix += `\nActive spreadsheet: ${sessionCtx.activeSpreadsheet.title} (sheets: ${
+          sessionCtx.activeSpreadsheet.sheetNames?.join(', ') ?? 'none'
+        })`;
+      }
+    }
+  } catch {
+    // Non-blocking: session context enrichment must not fail sampling
+  }
+
   let prompt = `Analyze this spreadsheet data and answer: ${params.question}\n\n`;
+  if (sessionPrefix) {
+    prompt = sessionPrefix.trimStart() + '\n\n' + prompt;
+  }
   if (schemaContext) {
     prompt += `Context: ${schemaContext}\n\n`;
   }

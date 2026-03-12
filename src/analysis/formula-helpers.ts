@@ -15,6 +15,188 @@
  */
 
 // ============================================================================
+// Formula Pattern Library
+// ============================================================================
+
+/**
+ * A reusable formula pattern with template, example, and keyword metadata.
+ */
+export interface FormulaPattern {
+  key: string;
+  template: string; // formula with {param} substitution tokens
+  example: string; // concrete working example
+  keywords: string[]; // for matching to user requests
+  description: string;
+}
+
+/**
+ * Library of common Google Sheets formula patterns indexed by key.
+ * Used by generate_formula to inject relevant examples into the sampling prompt.
+ */
+export const FORMULA_PATTERN_LIBRARY: Record<string, FormulaPattern> = {
+  xlookup: {
+    key: 'xlookup',
+    template: '=IFERROR(XLOOKUP({key}, {lookup_range}, {return_range}, ""), "")',
+    example: '=IFERROR(XLOOKUP(A2, Products!A:A, Products!C:C, ""), "")',
+    keywords: ['lookup', 'find', 'match', 'vlookup', 'search', 'retrieve'],
+    description:
+      'Look up a value in one range and return a value from another range. Prefer over VLOOKUP.',
+  },
+  filter_rows: {
+    key: 'filter_rows',
+    template: '=FILTER({range}, {condition_column}="{value}")',
+    example: '=FILTER(A2:E100, C2:C100="Active")',
+    keywords: ['filter', 'show only', 'where', 'condition', 'active', 'dynamic'],
+    description: 'Return only rows matching a condition. Result spills dynamically.',
+  },
+  sort_filter: {
+    key: 'sort_filter',
+    template: '=SORT(FILTER({range}, {condition}), {sort_col_idx}, {ascending})',
+    example: '=SORT(FILTER(A2:D100, D2:D100>1000), 4, FALSE)',
+    keywords: ['sort', 'filter', 'order', 'top', 'ranked'],
+    description: 'Filter rows by condition then sort the results.',
+  },
+  unique_list: {
+    key: 'unique_list',
+    template: '=UNIQUE({column_range})',
+    example: '=UNIQUE(B2:B100)',
+    keywords: ['unique', 'distinct', 'list', 'deduplicate', 'categories'],
+    description: 'Return unique values from a range. Spills vertically.',
+  },
+  sequence_months: {
+    key: 'sequence_months',
+    template: '=TEXT(DATE({year}, SEQUENCE(1,12), 1), "MMM")',
+    example: '=TEXT(DATE(2026, SEQUENCE(1,12), 1), "MMM")',
+    keywords: ['months', 'header', 'january', 'calendar', 'sequence'],
+    description: 'Generate 12 month names as a horizontal row.',
+  },
+  yoy_variance: {
+    key: 'yoy_variance',
+    template: '=IFERROR(({current}-{prior})/ABS({prior}), 0)',
+    example: '=IFERROR((B2-C2)/ABS(C2), 0)',
+    keywords: ['year over year', 'yoy', 'variance', 'growth', 'change', 'delta', 'percent change'],
+    description: 'Calculate year-over-year percentage change. Handles zero prior values.',
+  },
+  sumifs_multi: {
+    key: 'sumifs_multi',
+    template:
+      '=SUMIFS({sum_range}, {criteria_range1}, {criteria1}, {criteria_range2}, {criteria2})',
+    example: '=SUMIFS(D:D, B:B, "Widget", C:C, "Q1")',
+    keywords: ['sum if', 'sumif', 'conditional sum', 'multiple criteria', 'filter sum'],
+    description: 'Sum values meeting multiple conditions simultaneously.',
+  },
+  running_total: {
+    key: 'running_total',
+    template: '=SUM($B$2:B{row})',
+    example: '=SUM($B$2:B2) — drag down to extend the running total',
+    keywords: ['running total', 'cumulative', 'cumulative sum', 'running sum'],
+    description: 'Cumulative sum that grows as you drag the formula down.',
+  },
+  arrayformula_margin: {
+    key: 'arrayformula_margin',
+    template: '=ARRAYFORMULA(IF({revenue_col}<>"", ({revenue_col}-{cost_col})/{revenue_col}, ""))',
+    example: '=ARRAYFORMULA(IF(B2:B<>"", (B2:B-C2:C)/B2:B, ""))',
+    keywords: ['arrayformula', 'whole column', 'margin', 'auto-fill', 'bulk'],
+    description: 'Apply margin calculation to entire column without dragging. Skips empty rows.',
+  },
+  ifs_classifier: {
+    key: 'ifs_classifier',
+    template:
+      '=IFS({val}>={threshold1}, "{label1}", {val}>={threshold2}, "{label2}", TRUE, "{default}")',
+    example: '=IFS(B2>=90,"A", B2>=80,"B", B2>=70,"C", TRUE,"F")',
+    keywords: ['grade', 'classify', 'tier', 'category', 'if else', 'ifs', 'bucket'],
+    description: 'Multi-condition classifier without nesting IFs. Cleaner than nested IF().',
+  },
+};
+
+/**
+ * Return up to 5 formula patterns most relevant to the given keywords.
+ * Scoring is based on how many pattern keywords overlap with the query keywords.
+ */
+export function getRelevantPatterns(keywords: string[]): FormulaPattern[] {
+  const normalizedKeywords = keywords.map((k) => k.toLowerCase());
+  const scored = Object.values(FORMULA_PATTERN_LIBRARY).map((pattern) => {
+    const score = pattern.keywords.filter((kw) =>
+      normalizedKeywords.some((nk) => nk.includes(kw) || kw.includes(nk))
+    ).length;
+    return { pattern, score };
+  });
+  return scored
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+    .map((s) => s.pattern);
+}
+
+/**
+ * Tokenize a description string into lowercase keywords, filtering stop words.
+ * Used to extract search terms from generate_formula description input.
+ */
+export function extractFormulaKeywords(description: string): string[] {
+  const stopWords = new Set([
+    'a',
+    'an',
+    'the',
+    'for',
+    'of',
+    'in',
+    'to',
+    'that',
+    'with',
+    'from',
+    'and',
+    'or',
+  ]);
+  return description
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !stopWords.has(w));
+}
+
+/**
+ * Basic structural validation for a Google Sheets formula string.
+ * Checks for balanced parentheses and that the formula starts with '='.
+ * Returns `{ valid: true }` on success or `{ valid: false, issue: string }` on failure.
+ * Used by sheet-generator to skip malformed AI-generated formulas before writing.
+ */
+export function validateFormulaStructure(formula: string): { valid: boolean; issue?: string } {
+  if (!formula || typeof formula !== 'string') {
+    return { valid: false, issue: 'Formula is empty or not a string' };
+  }
+  const trimmed = formula.trim();
+  if (!trimmed.startsWith('=')) {
+    return { valid: false, issue: 'Formula must start with =' };
+  }
+  // Check balanced parentheses
+  let depth = 0;
+  let inString = false;
+  let stringChar = '';
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i]!;
+    if (inString) {
+      if (ch === stringChar) inString = false;
+    } else if (ch === '"' || ch === "'") {
+      inString = true;
+      stringChar = ch;
+    } else if (ch === '(') {
+      depth++;
+    } else if (ch === ')') {
+      depth--;
+      if (depth < 0) {
+        return { valid: false, issue: 'Unbalanced parentheses: unexpected closing )' };
+      }
+    }
+  }
+  if (depth !== 0) {
+    return {
+      valid: false,
+      issue: `Unbalanced parentheses: ${depth} unclosed opening parenthesis(es)`,
+    };
+  }
+  return { valid: true };
+}
+
+// ============================================================================
 // Modern Google Sheets Function Registry
 // ============================================================================
 

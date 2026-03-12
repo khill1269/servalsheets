@@ -44,15 +44,42 @@ export const WebhookEventTypeSchema = z.enum([
  */
 export const WebhookRegisterInputSchema = z.object({
   action: z.literal('register').describe('Register a webhook to receive change notifications'),
-  spreadsheetId: z.string().min(1, 'Spreadsheet ID required'),
-  webhookUrl: z.string().url('Must be a valid HTTPS URL').startsWith('https://'),
-  eventTypes: z.array(WebhookEventTypeSchema).min(1, 'At least one event type required'),
+  spreadsheetId: z
+    .string()
+    .min(1, 'Spreadsheet ID required')
+    .describe(
+      'Spreadsheet ID from the Google Sheets URL — the long alphanumeric string between /d/ and /edit. ' +
+        'Example: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"'
+    ),
+  webhookUrl: z
+    .string()
+    .url('Must be a valid HTTPS URL')
+    .startsWith('https://')
+    .describe(
+      'HTTPS endpoint that receives webhook POST payloads when events fire. ' +
+        'Must be HTTPS (HTTP is rejected for security). Must be publicly reachable by Google. ' +
+        'Example: "https://your-server.example.com/webhooks/sheets"'
+    ),
+  eventTypes: z
+    .array(WebhookEventTypeSchema)
+    .min(1, 'At least one event type required')
+    .describe(
+      'List of event types to subscribe to. Available: ' +
+        '"sheet.update" (any change), "sheet.create" (new sheet), "sheet.delete" (sheet removed), ' +
+        '"sheet.rename" (sheet renamed), "cell.update" (cell values changed), ' +
+        '"format.update" (formatting changed), "all" (all events). ' +
+        'Example: ["cell.update", "sheet.create"]'
+    ),
   secret: z
     .string()
     .min(16, 'Secret must be at least 16 characters')
     .optional()
     .describe(
-      'Secret for HMAC signature verification. If not provided, one will be auto-generated.'
+      'Shared secret for HMAC-SHA256 signature verification of incoming webhook payloads. ' +
+        'When set, each delivery includes an X-Serval-Signature header computed as ' +
+        'HMAC-SHA256(secret, payload). Your endpoint should verify this to prevent spoofing. ' +
+        'Auto-generated (and returned once) if not provided. Min 16 characters. ' +
+        'Example: "my-webhook-secret-key-min-16-chars"'
     ),
   expirationMs: z
     .number()
@@ -61,7 +88,12 @@ export const WebhookRegisterInputSchema = z.object({
     .max(86400000) // 1 day max (Drive API files.watch limit)
     .optional()
     .default(43200000) // 12 hours default (safe buffer before 1-day limit)
-    .describe('Webhook expiration time in milliseconds (max 1 day for files.watch)'),
+    .describe(
+      'How long the webhook channel stays active in milliseconds. ' +
+        'Maximum: 86400000 (1 day, enforced by Google Drive files.watch API). ' +
+        'Default: 43200000 (12 hours — provides a safe buffer before the 1-day limit). ' +
+        'You must re-register after expiration. Example: 86400000 for maximum lifetime.'
+    ),
 });
 
 /**

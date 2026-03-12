@@ -11,9 +11,9 @@
  * ============================================================================
  *
  * DECLARED CAPABILITIES (via createServerCapabilities):
- * - tools: TOOL_COUNT tools with ACTION_COUNT actions (current consolidated set)
- * - resources: 3 URI templates + 28 registered resources
- * - prompts: 48 guided workflows for common operations
+ * - tools: configured tool set with the configured action count
+ * - resources: registered URI templates and reference resources
+ * - prompts: registered guided workflows for common operations
  * - completions: Argument autocompletion for prompts/resources
  * - tasks: Background execution with TaskStoreAdapter (SEP-1686)
  * - logging: Dynamic log level control via logging/setLevel handler
@@ -32,7 +32,7 @@
 
 import type { ServerCapabilities, Icon, ToolExecution } from '@modelcontextprotocol/sdk/types.js';
 import { DEFER_SCHEMAS, STAGED_REGISTRATION } from '../config/constants.js';
-import { TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
+import { getConfiguredActionCount, getConfiguredToolCount } from './tool-catalog.js';
 
 // ============================================================================
 // MCP 2025-11-25 FEATURE STATUS
@@ -47,7 +47,7 @@ import { TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
  * - Structured Outputs (content + structuredContent in responses)
  * - Discriminated Unions (action in request, success in response)
  * - Resources (spreadsheet metadata via URI template)
- * - Prompts (6 guided workflows)
+ * - Prompts (guided workflows)
  * - Knowledge Resources (formulas, colors, formats)
  * - listChanged notifications (auto-registered by McpServer)
  * - SEP-973 Icons (SVG icons for all 25 tools)
@@ -394,7 +394,9 @@ export function createServerCapabilities(): ServerCapabilities {
  */
 export function getServerInstructions(): string {
   const baseInstructions = `
-ServalSheets is a Google Sheets MCP server with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions.
+ServalSheets is a Google Sheets MCP server with ${getConfiguredToolCount()} tools and ${getConfiguredActionCount()} actions.
+
+Available tools may vary by deployment settings or staged registration. Treat \`tools/list\` as the source of truth for what is callable right now.
 
 ## 🔐 STEP 1: Authentication (MANDATORY)
 
@@ -555,7 +557,7 @@ Benefits:
 
 **Auditing, reporting, or migrating spreadsheets?**
 ├─ Full quality + formula + structure audit → \`sheets_composite.audit_sheet\`
-├─ Publish formatted report to a new sheet/file → \`sheets_composite.publish_report\`
+├─ Export formatted report as PDF/XLSX/CSV → \`sheets_composite.publish_report\`
 ├─ Build a recurring data pipeline (fetch → transform → write) → \`sheets_composite.data_pipeline\`
 ├─ Create a sheet from a saved template with custom values → \`sheets_composite.instantiate_template\`
 └─ Move data between spreadsheets with structure preservation → \`sheets_composite.migrate_spreadsheet\`
@@ -639,6 +641,17 @@ When the user's intent is ambiguous, classify it into one of 5 groups first, the
 → Use when: "undo", "automate", "trigger", "run script", "transaction", "authenticate"
 
 **Tiebreaker rule**: If two groups seem to fit, pick GROUP 1 (Data I/O) for anything involving cell values, GROUP 2 for anything involving appearance only.
+
+## 🤖 WHEN TO USE AI FEATURES
+
+These actions invoke LLM analysis automatically (Sampling SEP-1577):
+
+**Need AI data analysis?** → \`sheets_analyze action:"comprehensive"\` (Sampling auto-triggered)
+**Need formula generated from description?** → \`sheets_analyze action:"generate_formula" description:"profit margin = revenue minus costs divided by revenue"\`
+**Need chart type recommendation?** → \`sheets_visualize action:"suggest_chart"\` (Sampling picks best fit)
+**Need to understand revision changes?** → \`sheets_history action:"diff_revisions"\` (Sampling explains what changed)
+**Need to model a what-if scenario?** → \`sheets_dependencies action:"model_scenario"\` (Sampling narrates the cascade)
+**Need interactive input from user?** → \`sheets_confirm action:"request"\` (Elicitation wizard)
 
 ## 🔀 DISAMBIGUATION: Same Name, Different Tool
 
@@ -999,6 +1012,17 @@ For multi-step operations that affect shared spreadsheets:
 3. Use dryRun:true to test before actual execution
 4. For persistent errors, use sheets_analyze action:"comprehensive" to inspect the spreadsheet
 
+## 🔧 ERROR RECOVERY EXAMPLES
+
+| Error | Root Cause | Exact Recovery |
+|-------|-----------|----------------|
+| PERMISSION_DENIED 403 | Missing OAuth scope or no share access | \`sheets_auth action:"status"\` → check scopes list → re-login if scope missing |
+| SHEET_NOT_FOUND | Emoji/unicode mismatch or trailing space in sheet name | \`sheets_core action:"list_sheets"\` → copy exact name from response |
+| RATE_LIMITED 429 | Too many rapid sequential calls | Use \`sheets_transaction\` to batch ops; honor \`retryAfterMs\` from error |
+| append → duplicate rows | Timeout on first call + naive retry | NEVER retry \`append\` — it is NOT idempotent. Use \`data.write\` for known positions |
+| INVALID_RANGE | Missing sheet name prefix | Format must be \`'SheetName!A1:D10'\` — bare \`A1:D10\` fails for multi-sheet files |
+| UNAUTHENTICATED | Token expired mid-session | \`sheets_auth action:"status"\` → if expired, \`sheets_auth action:"login"\` |
+
 ## 🛡️ SAFETY CHECKLIST
 
 Before destructive operations (delete, clear, overwrite):
@@ -1043,6 +1067,39 @@ All colors use **0-1 scale** (NOT 0-255):
 - Search \`knowledge:///search?q={query}\` for domain-specific guidance (formulas, API limits, templates)
 - Read \`servalsheets://guides/{topic}\` for optimization guides (quota, batching, caching, error recovery)
 
+## 🏗️ ADVANCED SHEET PATTERNS
+
+**Multi-tab spreadsheet with cross-sheet lookups?**
+→ \`sheets_agent action:"plan" description:"Create Products + Orders sheets with XLOOKUP from Orders→Products"\`
+→ The agent generates the full multi-step plan: create sheets → write headers → inject XLOOKUP formulas
+
+**Full analytics dashboard (KPIs + charts + slicers)?**
+→ \`sheets_composite action:"build_dashboard" dataSheet:"Sales" layout:"full_analytics"\`
+→ Assembles KPI row, charts, slicers, formatting in one action
+
+**Dependent dropdowns (e.g., Country → Cities)?**
+→ \`sheets_format action:"build_dependent_dropdown" parentRange:"Sheet1!A2:A100" dependentRange:"Sheet1!B2:B100" lookupSheet:"Lookup"\`
+→ Handles named ranges + INDIRECT formula + data validation automatically
+
+**VLOOKUP detected? Upgrade to XLOOKUP?**
+→ \`sheets_analyze action:"analyze_formulas"\` → check \`upgradeOpportunities\` → \`sheets_data action:"write"\` with XLOOKUP formula
+→ XLOOKUP is more robust: left-lookup, default value, exact/approximate match control
+
+**Pivot table + interactive slicer?**
+→ \`sheets_visualize action:"pivot_create"\` → \`sheets_dimensions action:"create_slicer" dataRange:"same source range"\`
+→ Do NOT combine create_slicer with set_basic_filter on the same range
+
+**Dynamic filter formula (show only active rows)?**
+→ \`sheets_analyze action:"generate_formula" description:"FILTER formula showing rows where Status column equals Active"\`
+→ Returns FILTER formula that spills results dynamically (no manual refresh needed)
+
+**Running total column?**
+→ \`sheets_analyze action:"generate_formula" description:"running total of column B starting at row 2"\`
+→ Returns \`=SUM($B$2:B2)\` — drag down to extend
+
+**Budget vs. Actuals comparison?**
+→ \`sheets_agent action:"plan" description:"Create Budget sheet + Actuals sheet + Variance sheet with formulas =Actuals!B2-Budget!B2"\`
+
 ## 🛡️ DATA QUALITY
 
 - Run \`sheets_quality action:"validate"\` before bulk writes to catch type mismatches and missing fields
@@ -1057,7 +1114,7 @@ All colors use **0-1 scale** (NOT 0-255):
 **Tool schemas are deferred to save tokens.** Before calling a tool with complex parameters,
 read its full schema resource to see all available actions and parameters:
 
-- \`schema://tools\` - Index of all ${TOOL_COUNT} tools
+- \`schema://tools\` - Index of all configured tools in this deployment
 - \`schema://tools/{toolName}\` - Full input/output schema for a specific tool
 - \`schema://actions\` - Index of action guidance resources
 - \`schema://actions/{toolName}\` - Action-level guidance for a specific tool

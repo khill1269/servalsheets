@@ -25,17 +25,20 @@ import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
 import { logger } from '../../utils/logger.js';
 import { recordChartId } from '../../mcp/completions.js';
 
-const ELICITABLE_CHART_TYPES = [
+const BASIC_CHART_TYPES = [
   'BAR',
   'LINE',
-  'PIE',
-  'COLUMN',
-  'SCATTER',
   'AREA',
   'COMBO',
   'STEPPED_AREA',
+  'COLUMN',
+  'SCATTER',
+] as const;
+
+const ELICITABLE_CHART_TYPES = [
+  ...BASIC_CHART_TYPES,
+  'PIE',
   'DOUGHNUT',
-  'RADAR',
   'BUBBLE',
   'CANDLESTICK',
   'HISTOGRAM',
@@ -48,6 +51,10 @@ type ElicitableChartType = (typeof ELICITABLE_CHART_TYPES)[number];
 
 function isElicitableChartType(value: unknown): value is ElicitableChartType {
   return typeof value === 'string' && (ELICITABLE_CHART_TYPES as readonly string[]).includes(value);
+}
+
+function isBasicChartType(value: unknown): value is (typeof BASIC_CHART_TYPES)[number] {
+  return typeof value === 'string' && (BASIC_CHART_TYPES as readonly string[]).includes(value);
 }
 
 /**
@@ -85,6 +92,78 @@ interface ChartsDeps {
   notFoundError: (resourceType: string, resourceId: string | number) => VisualizeResponse;
 }
 
+function buildSingleColumnChartData(
+  dataRange: GridRangeInput,
+  columnIndex: number
+): sheets_v4.Schema$ChartData {
+  return {
+    sourceRange: {
+      sources: [
+        {
+          ...toApiGridRange(dataRange),
+          startColumnIndex: (dataRange.startColumnIndex ?? 0) + columnIndex,
+          endColumnIndex: (dataRange.startColumnIndex ?? 0) + columnIndex + 1,
+        },
+      ],
+    },
+  };
+}
+
+function inferChartType(spec?: sheets_v4.Schema$ChartSpec): ElicitableChartType {
+  if (spec?.basicChart?.chartType && isElicitableChartType(spec.basicChart.chartType)) {
+    return spec.basicChart.chartType;
+  }
+
+  if (spec?.bubbleChart) {
+    return 'BUBBLE';
+  }
+  if (spec?.candlestickChart) {
+    return 'CANDLESTICK';
+  }
+  if (spec?.histogramChart) {
+    return 'HISTOGRAM';
+  }
+  if (spec?.orgChart) {
+    return 'ORG';
+  }
+  if (spec?.pieChart) {
+    return spec.pieChart.pieHole && spec.pieChart.pieHole > 0 ? 'DOUGHNUT' : 'PIE';
+  }
+  if (spec?.scorecardChart) {
+    return 'SCORECARD';
+  }
+  if (spec?.treemapChart) {
+    return 'TREEMAP';
+  }
+  if (spec?.waterfallChart) {
+    return 'WATERFALL';
+  }
+
+  return 'BAR';
+}
+
+function buildChartBackground(
+  options?: ChartCreateInput['options']
+): Pick<sheets_v4.Schema$ChartSpec, 'backgroundColor' | 'backgroundColorStyle'> {
+  const backgroundColorStyle =
+    options?.backgroundColorStyle ??
+    (options?.backgroundColor ? { rgbColor: options.backgroundColor } : undefined);
+  const backgroundColor =
+    options?.backgroundColor ??
+    (backgroundColorStyle && 'rgbColor' in backgroundColorStyle
+      ? backgroundColorStyle.rgbColor
+      : undefined);
+
+  if (!backgroundColorStyle && !backgroundColor) {
+    return {}; // OK: no background color defined
+  }
+
+  return {
+    backgroundColor,
+    backgroundColorStyle,
+  };
+}
+
 export async function handleChartCreateAction(
   input: ChartCreateInput,
   deps: ChartsDeps
@@ -103,7 +182,7 @@ export async function handleChartCreateAction(
               type: 'string',
               title: 'Chart type',
               description:
-                'Choose the type of chart to create. Basic: BAR (horizontal bars), LINE (trend over time), PIE (proportions), COLUMN (vertical bars), SCATTER (correlation), AREA (cumulative trend). Advanced: COMBO (mixed bar+line), STEPPED_AREA (staircase area), DOUGHNUT (pie with hole), RADAR (multi-axis web), BUBBLE (3-variable scatter), CANDLESTICK (stock price OHLC), HISTOGRAM (frequency distribution), ORG (hierarchy/org chart), TREEMAP (hierarchical rectangles), WATERFALL (running total with positive/negative), SCORECARD (single KPI metric display)',
+                'Choose the type of chart to create. Basic: BAR (horizontal bars), LINE (trend over time), PIE (proportions), COLUMN (vertical bars), SCATTER (correlation), AREA (cumulative trend). Advanced: COMBO (mixed bar+line), STEPPED_AREA (staircase area), DOUGHNUT (pie with hole), BUBBLE (3-variable scatter), CANDLESTICK (stock price OHLC), HISTOGRAM (frequency distribution), ORG (hierarchy/org chart), TREEMAP (hierarchical rectangles), WATERFALL (running total with positive/negative), SCORECARD (single KPI metric display)',
               enum: [
                 'BAR',
                 'LINE',
@@ -114,7 +193,6 @@ export async function handleChartCreateAction(
                 'COMBO',
                 'STEPPED_AREA',
                 'DOUGHNUT',
-                'RADAR',
                 'BUBBLE',
                 'CANDLESTICK',
                 'HISTOGRAM',
@@ -271,6 +349,23 @@ export async function handleChartUpdateAction(
     if (input.options?.title) {
       updatedSpec.title = input.options.title;
     }
+    if (input.chartType && !isBasicChartType(input.chartType)) {
+      return deps.error({
+        code: ErrorCodes.INVALID_PARAMS,
+        message: `chart_update only supports switching among basic chart types. Recreate the chart to change to ${input.chartType}.`,
+        retryable: false,
+        suggestedFix:
+          'Use chart_create with the target chart type, then delete the old chart if needed',
+      });
+    }
+    if (input.chartType && !updatedSpec.basicChart) {
+      return deps.error({
+        code: ErrorCodes.INVALID_PARAMS,
+        message: 'chart_update can only change chartType for existing basic charts',
+        retryable: false,
+        suggestedFix: 'Recreate the chart when switching between chart families',
+      });
+    }
     if (input.chartType && updatedSpec.basicChart) {
       updatedSpec.basicChart = { ...updatedSpec.basicChart, chartType: input.chartType };
     }
@@ -392,24 +487,7 @@ export async function handleChartListAction(
 
   const charts: Array<{
     chartId: number;
-    chartType:
-      | 'BAR'
-      | 'LINE'
-      | 'AREA'
-      | 'COLUMN'
-      | 'SCATTER'
-      | 'COMBO'
-      | 'STEPPED_AREA'
-      | 'PIE'
-      | 'DOUGHNUT'
-      | 'TREEMAP'
-      | 'WATERFALL'
-      | 'HISTOGRAM'
-      | 'CANDLESTICK'
-      | 'ORG'
-      | 'RADAR'
-      | 'SCORECARD'
-      | 'BUBBLE';
+    chartType: ElicitableChartType;
     sheetId: number;
     title?: string;
     position: {
@@ -429,24 +507,7 @@ export async function handleChartListAction(
       const overlay = chart.position?.overlayPosition;
       charts.push({
         chartId: chart.chartId ?? 0,
-        chartType: (chart.spec?.basicChart?.chartType ?? 'BAR') as
-          | 'BAR'
-          | 'LINE'
-          | 'AREA'
-          | 'COLUMN'
-          | 'SCATTER'
-          | 'COMBO'
-          | 'STEPPED_AREA'
-          | 'PIE'
-          | 'DOUGHNUT'
-          | 'TREEMAP'
-          | 'WATERFALL'
-          | 'HISTOGRAM'
-          | 'CANDLESTICK'
-          | 'ORG'
-          | 'RADAR'
-          | 'SCORECARD'
-          | 'BUBBLE',
+        chartType: inferChartType(chart.spec),
         sheetId,
         title: chart.spec?.title ?? undefined,
         position: {
@@ -487,24 +548,7 @@ export async function handleChartGetAction(
           charts: [
             {
               chartId: chart.chartId ?? 0,
-              chartType: (chart.spec?.basicChart?.chartType ?? 'BAR') as
-                | 'BAR'
-                | 'LINE'
-                | 'AREA'
-                | 'COLUMN'
-                | 'SCATTER'
-                | 'COMBO'
-                | 'STEPPED_AREA'
-                | 'PIE'
-                | 'DOUGHNUT'
-                | 'TREEMAP'
-                | 'WATERFALL'
-                | 'HISTOGRAM'
-                | 'CANDLESTICK'
-                | 'ORG'
-                | 'RADAR'
-                | 'SCORECARD'
-                | 'BUBBLE',
+              chartType: inferChartType(chart.spec),
               sheetId: overlay?.anchorCell?.sheetId ?? 0,
               title: chart.spec?.title ?? undefined,
               position: {
@@ -948,6 +992,7 @@ function buildBasicChartSpec(
 
   return {
     title: options?.title,
+    ...buildChartBackground(options),
     basicChart: {
       chartType: chartType ?? 'BAR',
       headerCount: 1,
@@ -965,7 +1010,14 @@ function buildBasicChartSpec(
           series: { sourceRange: { sources: [range] } },
           // BAR charts require BOTTOM_AXIS, all others use LEFT_AXIS
           targetAxis: chartType === 'BAR' ? 'BOTTOM_AXIS' : 'LEFT_AXIS',
-          color: seriesData?.color,
+          color:
+            seriesData?.color ??
+            (seriesData?.colorStyle && 'rgbColor' in seriesData.colorStyle
+              ? seriesData.colorStyle.rgbColor
+              : undefined),
+          colorStyle:
+            seriesData?.colorStyle ??
+            (seriesData?.color ? { rgbColor: seriesData.color } : undefined),
         };
 
         // Add trendline if configured (only for compatible chart types)
@@ -1073,6 +1125,7 @@ function buildChartSpec(
     case 'DOUGHNUT':
       return {
         title,
+        ...buildChartBackground(options),
         pieChart: {
           domain: {
             sourceRange: {
@@ -1107,6 +1160,7 @@ function buildChartSpec(
     case 'HISTOGRAM':
       return {
         title,
+        ...buildChartBackground(options),
         histogramChart: {
           series: [
             {
@@ -1120,6 +1174,7 @@ function buildChartSpec(
     case 'SCORECARD':
       return {
         title,
+        ...buildChartBackground(options),
         scorecardChart: {
           keyValueData: {
             sourceRange: { sources: [gridRange] },
@@ -1131,6 +1186,7 @@ function buildChartSpec(
     case 'WATERFALL':
       return {
         title,
+        ...buildChartBackground(options),
         waterfallChart: {
           domain: { data: { sourceRange: { sources: [gridRange] } } },
           series: [{ data: { sourceRange: { sources: [gridRange] } } }],
@@ -1141,6 +1197,7 @@ function buildChartSpec(
     case 'CANDLESTICK':
       return {
         title,
+        ...buildChartBackground(options),
         candlestickChart: {
           domain: { data: { sourceRange: { sources: [gridRange] } } },
           data: [
@@ -1157,6 +1214,7 @@ function buildChartSpec(
     case 'TREEMAP':
       return {
         title,
+        ...buildChartBackground(options),
         treemapChart: {
           labels: { sourceRange: { sources: [gridRange] } },
           parentLabels: { sourceRange: { sources: [gridRange] } },
@@ -1165,7 +1223,64 @@ function buildChartSpec(
         },
       };
 
-    // BAR, LINE, AREA, COLUMN, SCATTER, COMBO, STEPPED_AREA, and others use BasicChartSpec
+    case 'BUBBLE': {
+      const xColumn = data.categories ?? data.series?.[0]?.column ?? 0;
+      const yColumn =
+        data.categories !== undefined
+          ? (data.series?.[0]?.column ?? data.categories + 1)
+          : (data.series?.[1]?.column ?? (data.series?.[0]?.column ?? 0) + 1);
+      const bubbleSizeColumn =
+        data.categories !== undefined ? data.series?.[1]?.column : data.series?.[2]?.column;
+      const bubbleLabelColumn =
+        data.categories !== undefined ? data.series?.[2]?.column : data.series?.[3]?.column;
+      const groupIdColumn =
+        data.categories !== undefined ? data.series?.[3]?.column : data.series?.[4]?.column;
+
+      return {
+        title,
+        ...buildChartBackground(options),
+        bubbleChart: {
+          legendPosition: options?.legendPosition,
+          domain: buildSingleColumnChartData(dataRange, xColumn),
+          series: buildSingleColumnChartData(dataRange, yColumn),
+          bubbleSizes:
+            bubbleSizeColumn !== undefined
+              ? buildSingleColumnChartData(dataRange, bubbleSizeColumn)
+              : undefined,
+          bubbleLabels:
+            bubbleLabelColumn !== undefined
+              ? buildSingleColumnChartData(dataRange, bubbleLabelColumn)
+              : undefined,
+          groupIds:
+            groupIdColumn !== undefined
+              ? buildSingleColumnChartData(dataRange, groupIdColumn)
+              : undefined,
+        },
+      };
+    }
+
+    case 'ORG': {
+      const labelColumn = data.categories ?? 0;
+      const parentLabelColumn = data.series?.[0]?.column;
+      const tooltipColumn = data.series?.[1]?.column;
+
+      return {
+        title,
+        orgChart: {
+          labels: buildSingleColumnChartData(dataRange, labelColumn),
+          parentLabels:
+            parentLabelColumn !== undefined
+              ? buildSingleColumnChartData(dataRange, parentLabelColumn)
+              : undefined,
+          tooltips:
+            tooltipColumn !== undefined
+              ? buildSingleColumnChartData(dataRange, tooltipColumn)
+              : undefined,
+        },
+      };
+    }
+
+    // BAR, LINE, AREA, COLUMN, SCATTER, COMBO, STEPPED_AREA use BasicChartSpec
     default:
       return buildBasicChartSpec(
         dataRange,

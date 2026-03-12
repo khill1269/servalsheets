@@ -34,6 +34,49 @@ interface SharingDeps {
   error: (error: ErrorDetail) => CollaborateResponse;
 }
 
+const MAX_PERMISSION_EXPIRATION_MS = 365 * 24 * 60 * 60 * 1000;
+
+function validatePermissionExpiration(
+  expirationTime: string,
+  permissionType: string | undefined
+): ErrorDetail | undefined {
+  if (permissionType !== 'user' && permissionType !== 'group') {
+    return {
+      code: ErrorCodes.VALIDATION_ERROR,
+      message: 'expirationTime is only supported for user and group permissions.',
+      retryable: false,
+    };
+  }
+
+  const expirationMs = Date.parse(expirationTime);
+  if (Number.isNaN(expirationMs)) {
+    return {
+      code: ErrorCodes.VALIDATION_ERROR,
+      message: 'expirationTime must be a valid RFC 3339 timestamp.',
+      retryable: false,
+    };
+  }
+
+  const now = Date.now();
+  if (expirationMs <= now) {
+    return {
+      code: ErrorCodes.VALIDATION_ERROR,
+      message: 'expirationTime must be in the future.',
+      retryable: false,
+    };
+  }
+
+  if (expirationMs - now > MAX_PERMISSION_EXPIRATION_MS) {
+    return {
+      code: ErrorCodes.VALIDATION_ERROR,
+      message: 'expirationTime cannot be more than one year in the future.',
+      retryable: false,
+    };
+  }
+
+  return undefined; // OK: no expiry validation needed
+}
+
 /**
  * Decomposed action handler for `share_add`.
  * Preserves original behavior while moving logic out of the main CollaborateHandler class.
@@ -69,14 +112,23 @@ export async function handleShareAddAction(
   };
   if (resolvedInput.emailAddress) requestBody.emailAddress = resolvedInput.emailAddress;
   if (resolvedInput.domain) requestBody.domain = resolvedInput.domain;
-  if (resolvedInput.expirationTime) requestBody.expirationTime = resolvedInput.expirationTime;
+  if (resolvedInput.expirationTime) {
+    const validationError = validatePermissionExpiration(
+      resolvedInput.expirationTime,
+      resolvedInput.type
+    );
+    if (validationError) {
+      return deps.error(validationError);
+    }
+    requestBody.expirationTime = resolvedInput.expirationTime;
+  }
 
   const response = await deps.driveApi.permissions.create({
     fileId: resolvedInput.spreadsheetId!,
     sendNotificationEmail: resolvedInput.sendNotification ?? true,
     emailMessage: resolvedInput.emailMessage,
     requestBody,
-    fields: 'id,type,role,emailAddress,displayName',
+    fields: 'id,type,role,emailAddress,domain,displayName,expirationTime',
     supportsAllDrives: true,
   });
 
@@ -108,6 +160,23 @@ export async function handleShareUpdateAction(
     return deps.success('share_update', {}, undefined, true);
   }
 
+  if (input.expirationTime) {
+    const permissionResponse = await deps.driveApi.permissions.get({
+      fileId: input.spreadsheetId!,
+      permissionId: input.permissionId!,
+      supportsAllDrives: true,
+      fields: 'type',
+    });
+
+    const validationError = validatePermissionExpiration(
+      input.expirationTime,
+      permissionResponse.data.type ?? undefined
+    );
+    if (validationError) {
+      return deps.error(validationError);
+    }
+  }
+
   const response = await deps.driveApi.permissions.update({
     fileId: input.spreadsheetId!,
     permissionId: input.permissionId!,
@@ -116,7 +185,7 @@ export async function handleShareUpdateAction(
       role: input.role,
       expirationTime: input.expirationTime,
     },
-    fields: 'id,type,role,emailAddress,displayName',
+    fields: 'id,type,role,emailAddress,domain,displayName,expirationTime',
     supportsAllDrives: true,
   });
 

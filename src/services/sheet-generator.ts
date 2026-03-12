@@ -27,6 +27,19 @@ import { logger } from '../utils/logger.js';
 import { generateFallback } from './sheet-generator-fallback.js';
 import type { GenerateOptions, SheetDefinition } from './sheet-generator-types.js';
 
+/**
+ * Extended column definition supporting cross-sheet XLOOKUP injection.
+ * The AI may include a lookupSource field in generated definitions even though
+ * the Zod schema does not declare it (extra fields pass-through at runtime).
+ */
+interface ColumnDefExtended extends GeneratedColumn {
+  lookupSource?: {
+    sheet: string;
+    lookupColumn: string;
+    returnColumn: string;
+  };
+}
+
 export type { GenerateOptions, SheetDefinition } from './sheet-generator-types.js';
 
 export interface ExecutionResult {
@@ -201,6 +214,20 @@ OUTPUT FORMAT:
   }]
 }
 
+MODERN FORMULA STANDARDS:
+- PREFER: XLOOKUP over VLOOKUP (supports left-lookup, defaults, exact/approximate modes)
+- PREFER: FILTER() for dynamic row filtering over manual hide/show
+- PREFER: UNIQUE() for distinct lists
+- ALWAYS: Wrap XLOOKUP and VLOOKUP in IFERROR(..., "") to handle missing matches
+- ALWAYS: Use ARRAYFORMULA() for whole-column calculations instead of dragging
+
+Formula pattern examples:
+Pattern: =IFERROR(XLOOKUP({key}, {lookup_range}, {return_range}, ""), "")  Example: =IFERROR(XLOOKUP(A2, Products!A:A, Products!C:C, ""), "")
+Pattern: =FILTER({range}, {condition_column}="{value}")  Example: =FILTER(A2:E100, C2:C100="Active")
+Pattern: =IFERROR(({current}-{prior})/ABS({prior}), 0)  Example: =IFERROR((B2-C2)/ABS(C2), 0)
+Pattern: =ARRAYFORMULA(IF({revenue_col}<>"", ({revenue_col}-{cost_col})/{revenue_col}, ""))  Example: =ARRAYFORMULA(IF(B2:B<>"", (B2:B-C2:C)/B2:B, ""))
+Pattern: =IFS({val}>={threshold1}, "{label1}", {val}>={threshold2}, "{label2}", TRUE, "{default}")  Example: =IFS(B2>=90,"A", B2>=80,"B", B2>=70,"C", TRUE,"F")
+
 DOMAIN RECIPES (use when description matches):
 - FINANCIAL MODEL: P&L structure (Revenue, COGS, Gross Profit=Revenue-COGS, OpEx, EBIT, Net Income). Add YoY variance =({current}-{prior})/{prior}. Use $#,##0 format. Conditional: negative_red on variance. Freeze row 1 + column 1.
 - PROJECT TRACKER: Status (dropdown: Not Started/In Progress/Complete/Blocked), Start Date, End Date, Duration=NETWORKDAYS(start,end), Owner. Conditional formatting for status colors. Freeze row 1.
@@ -208,7 +235,11 @@ DOMAIN RECIPES (use when description matches):
 - KPI DASHBOARD: Use =SPARKLINE for trend visualization. Target, Actual, Variance=(Actual-Target)/Target. Conditional: green >0%, red <0%. Freeze row 1.
 - INVENTORY: SKU, Product, Qty, Reorder Level, Unit Cost, Total Value=Qty*UnitCost. Reorder Alert=IF(Qty<ReorderLevel,"REORDER","OK"). Conditional highlighting for low stock.
 - HR HEADCOUNT: Department, Headcount, Start Date, Tenure=DATEDIF(StartDate,TODAY(),"M"), Status (Active/On Leave/Terminated). Department rollups with SUMIF.
-- BUDGET VS ACTUALS: Category, Budget, Actual, Variance=Actual-Budget, Variance%=(Actual-Budget)/Budget. Conditional: negative_red on variance. YTD columns with running SUMIF.`;
+- BUDGET VS ACTUALS: Category, Budget, Actual, Variance=Actual-Budget, Variance%=(Actual-Budget)/Budget. Conditional: negative_red on variance. YTD columns with running SUMIF.
+- MARKETING FUNNEL (keywords: marketing, funnel, conversion, ctr, cpl, impressions, clicks, leads): Sheet "Funnel". Columns: Stage (text), Contacts (number), ConversionRate% (formula =B3/B2), Cost (currency), CPL (formula =D2/B2). Rows: Impressions, Clicks, Leads, MQLs, SQLs, Opportunities, Closed Won. Format: percentage on ConversionRate, currency on Cost/CPL. Conditional: orange on ConversionRate% < 5%.
+- PROJECT GANTT (keywords: project, timeline, gantt, tasks, schedule, milestones): Sheet "Tasks". Columns: Task (text), Owner (text), StartDate (date), EndDate (date), Duration (formula =NETWORKDAYS(C2,D2)-1), Status (text dropdown: Not Started/In Progress/Done/Blocked), Notes (text). Conditional: red background if =AND(D2<TODAY(), E2<>"Done").
+- INVENTORY MANAGEMENT (keywords: inventory, stock, warehouse, products, sku, reorder, suppliers): Sheets: "Inventory" + "Suppliers". Inventory columns: SKU, ProductName, Category, QuantityOnHand, ReorderPoint, ReorderQuantity, SupplierID, StockAlert (formula =IF(D2<=E2,"⚠️ REORDER","OK")). Add SUMIF category summary sidebar.
+- HR ROSTER (keywords: hr, employees, staff, roster, headcount, department, hiring, workforce): Sheet "Roster". Columns: EmployeeID, Name, Department, StartDate, Role, HireType (FT/PT/Contract). Tenure formula =DATEDIF(D2,TODAY(),"Y")&" yrs". Add headcount COUNTIF per department. Conditional: orange highlight for HireType="Contract".`;
 
 /**
  * Generate a SheetDefinition from a natural language description.
@@ -316,6 +347,7 @@ export async function executeDefinition(
   let totalRows = 0;
   let totalFormulas = 0;
   let formattingApplied = false;
+  const allFormulaWarnings: Array<{ column: string; issue: string }> = [];
 
   for (const sheet of definition.sheets) {
     totalColumns += sheet.columns.length;
@@ -329,6 +361,51 @@ export async function executeDefinition(
       requestBody: { values: [headers] },
     });
 
+    // Validate formulas before writing and collect warnings
+    const formulaWarnings: Array<{ column: string; issue: string }> = [];
+    {
+      let validateFormulaStructure:
+        | ((formula: string) => { valid: boolean; issue?: string })
+        | undefined;
+      try {
+        const helpers = await import('../analysis/formula-helpers.js');
+        if (typeof helpers.validateFormulaStructure === 'function') {
+          validateFormulaStructure = helpers.validateFormulaStructure as (formula: string) => {
+            valid: boolean;
+            issue?: string;
+          };
+        }
+      } catch {
+        // Optional dependency — skip validation if unavailable
+      }
+
+      if (validateFormulaStructure) {
+        for (const col of sheet.columns) {
+          if (col.formula) {
+            // Test with a concrete row number substituted in
+            const testFormula = col.formula.replace(/\{row\}/g, '2');
+            const validation = validateFormulaStructure(testFormula);
+            if (!validation.valid) {
+              formulaWarnings.push({
+                column: col.header,
+                issue: validation.issue ?? 'Invalid formula syntax',
+              });
+              logger.warn('Sheet generator formula validation failed', {
+                column: col.header,
+                formula: col.formula,
+                issue: validation.issue,
+              });
+              // Clear the formula so the cell is left blank rather than erroring
+              (col as { formula?: string }).formula = undefined;
+            }
+          }
+        }
+      }
+    }
+    if (formulaWarnings.length > 0) {
+      allFormulaWarnings.push(...formulaWarnings);
+    }
+
     // Write data rows with formulas
     if (sheet.rows && sheet.rows.length > 0) {
       const dataValues: (string | number | boolean | null)[][] = [];
@@ -338,12 +415,18 @@ export async function executeDefinition(
         const cells: (string | number | boolean | null)[] = [];
 
         for (let c = 0; c < sheet.columns.length; c++) {
-          const col = sheet.columns[c]!;
+          const col = sheet.columns[c] as ColumnDefExtended;
           const explicitFormula = row.formulas?.[c];
           const value = row.values[c] ?? null;
 
           if (explicitFormula) {
             cells.push(explicitFormula);
+            totalFormulas++;
+          } else if (col.lookupSource) {
+            // Cross-sheet XLOOKUP injection
+            const { sheet: srcSheet, lookupColumn, returnColumn } = col.lookupSource;
+            const xlookup = `=IFERROR(XLOOKUP(A${rowNum}, '${srcSheet}'!${lookupColumn}:${lookupColumn}, '${srcSheet}'!${returnColumn}:${returnColumn}, ""), "")`;
+            cells.push(xlookup);
             totalFormulas++;
           } else if (col.formula && value === null) {
             cells.push(col.formula.replace(/\{row\}/g, String(rowNum)));
@@ -372,7 +455,7 @@ export async function executeDefinition(
     }
   }
 
-  return {
+  const result: ExecutionResult & { formulaWarnings?: Array<{ column: string; issue: string }> } = {
     spreadsheetId,
     spreadsheetUrl,
     title: definition.title,
@@ -383,6 +466,10 @@ export async function executeDefinition(
     formattingApplied,
     definition,
   };
+  if (allFormulaWarnings.length > 0) {
+    result.formulaWarnings = allFormulaWarnings;
+  }
+  return result;
 }
 
 async function applyFormatting(

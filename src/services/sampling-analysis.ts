@@ -67,6 +67,8 @@ export interface SamplingRequest {
     speedPriority?: number;
   };
   maxTokens: number;
+  // MCP 2025-11-25 soft-deprecates includeContext hints; omit by default unless
+  // the caller has verified the client advertises sampling.context support.
   includeContext?: 'none' | 'thisServer' | 'allServers';
 }
 
@@ -165,7 +167,6 @@ Format your response as JSON with this structure:
       speedPriority: 0.5,
     },
     maxTokens: request.maxTokens ?? 4096,
-    includeContext: 'thisServer',
   };
 }
 
@@ -188,10 +189,29 @@ export function buildFormulaSamplingRequest(
   const targetInfo = context.targetCell ? `\n**Target cell:** ${context.targetCell}` : '';
   const sheetInfo = context.sheetName ? `\n**Sheet:** ${context.sheetName}` : '';
 
+  // Inject relevant formula patterns as examples for the LLM
+  let patternExamplesText = '';
+  try {
+    // Dynamic import to avoid circular deps at module load time
+    const { extractFormulaKeywords, getRelevantPatterns } =
+      require('../analysis/formula-helpers.js') as typeof import('../analysis/formula-helpers.js');
+    const keywords = extractFormulaKeywords(description);
+    const relevantPatterns = getRelevantPatterns(keywords);
+    if (relevantPatterns.length > 0) {
+      patternExamplesText =
+        '\n\n**Relevant formula patterns for reference:**\n' +
+        relevantPatterns
+          .map((p) => `Pattern: ${p.template}\nExample: ${p.example}\nUse case: ${p.description}`)
+          .join('\n\n');
+    }
+  } catch {
+    // Pattern injection is best-effort; never block formula generation
+  }
+
   const prompt = `Generate a Google Sheets formula for the following requirement:
 
 **Requirement:** ${description}
-${sheetInfo}${headerInfo}${targetInfo}${sampleInfo}
+${sheetInfo}${headerInfo}${targetInfo}${sampleInfo}${patternExamplesText}
 
 Please provide:
 1. The formula
@@ -230,7 +250,6 @@ Format your response as JSON:
       speedPriority: 0.5,
     },
     maxTokens: 2048,
-    includeContext: 'thisServer',
   };
 }
 
@@ -311,7 +330,6 @@ Format your response as JSON:
       speedPriority: 0.6,
     },
     maxTokens: 2048,
-    includeContext: 'thisServer',
   };
 }
 

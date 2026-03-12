@@ -45,6 +45,83 @@ interface SpreadsheetOpsDeps {
   mapError: (error: unknown) => CoreResponse;
 }
 
+function toRgbTabColor(
+  tabColor?: SheetInfo['tabColor'],
+  tabColorStyle?: sheets_v4.Schema$ColorStyle | null
+): sheets_v4.Schema$Color | undefined {
+  if (tabColorStyle?.rgbColor) {
+    return tabColorStyle.rgbColor;
+  }
+
+  if (tabColor) {
+    return {
+      red: tabColor.red,
+      green: tabColor.green,
+      blue: tabColor.blue,
+      alpha: tabColor.alpha,
+    };
+  }
+
+  return tabColorStyle?.rgbColor ?? undefined;
+}
+
+function toTabColorStyle(
+  tabColor?: SheetInfo['tabColor'],
+  tabColorStyle?: sheets_v4.Schema$ColorStyle | null
+): sheets_v4.Schema$ColorStyle | undefined {
+  if (tabColorStyle) {
+    return tabColorStyle;
+  }
+
+  const rgbColor = toRgbTabColor(tabColor);
+  return rgbColor ? { rgbColor } : undefined;
+}
+
+function toSchemaTabColorStyle(
+  tabColor?: sheets_v4.Schema$Color | null,
+  tabColorStyle?: sheets_v4.Schema$ColorStyle | null
+): SheetInfo['tabColorStyle'] {
+  if (tabColorStyle?.themeColor) {
+    return {
+      themeColor: tabColorStyle.themeColor as NonNullable<SheetInfo['tabColorStyle']> extends {
+        themeColor: infer T;
+      }
+        ? T
+        : never,
+    };
+  }
+
+  const rgbColor = tabColorStyle?.rgbColor ?? tabColor;
+  if (!rgbColor) {
+    return undefined; // OK: no color specified
+  }
+
+  return {
+    rgbColor: {
+      red: rgbColor.red ?? 0,
+      green: rgbColor.green ?? 0,
+      blue: rgbColor.blue ?? 0,
+      alpha: rgbColor.alpha ?? 1,
+    },
+  };
+}
+
+function toSheetInfo(
+  properties: sheets_v4.Schema$SheetProperties | undefined,
+  deps: SpreadsheetOpsDeps
+): SheetInfo {
+  return {
+    sheetId: properties?.sheetId ?? 0,
+    title: properties?.title ?? '',
+    index: properties?.index ?? 0,
+    rowCount: properties?.gridProperties?.rowCount ?? 0,
+    columnCount: properties?.gridProperties?.columnCount ?? 0,
+    hidden: properties?.hidden ?? false,
+    tabColor: deps.convertTabColor(properties?.tabColor, properties?.tabColorStyle),
+    tabColorStyle: toSchemaTabColorStyle(properties?.tabColor, properties?.tabColorStyle),
+  };
+}
+
 /**
  * Decomposed action handler for `get`.
  * Preserves original behavior while moving logic out of the main SheetsCoreHandler class.
@@ -58,7 +135,7 @@ export async function handleGetAction(
     spreadsheetId: input.spreadsheetId,
     includeGridData: input.includeGridData ?? false,
     fields:
-      'spreadsheetId,properties,spreadsheetUrl,sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount)))',
+      'spreadsheetId,properties,spreadsheetUrl,sheets(properties(sheetId,title,index,hidden,tabColor,tabColorStyle,gridProperties(rowCount,columnCount)))',
   };
   if (input.ranges && input.ranges.length > 0) {
     params.ranges = input.ranges;
@@ -82,15 +159,9 @@ export async function handleGetAction(
       return result;
     })());
 
-  const sheets: SheetInfo[] = (data.sheets ?? []).map((s: sheets_v4.Schema$Sheet) => ({
-    sheetId: s.properties?.sheetId ?? 0,
-    title: s.properties?.title ?? '',
-    index: s.properties?.index ?? 0,
-    rowCount: s.properties?.gridProperties?.rowCount ?? 0,
-    columnCount: s.properties?.gridProperties?.columnCount ?? 0,
-    hidden: s.properties?.hidden ?? false,
-    tabColor: deps.convertTabColor(s.properties?.tabColor, s.properties?.tabColorStyle),
-  }));
+  const sheets: SheetInfo[] = (data.sheets ?? []).map((s: sheets_v4.Schema$Sheet) =>
+    toSheetInfo(s.properties, deps)
+  );
 
   if (!data.spreadsheetId) {
     return deps.error({
@@ -217,13 +288,13 @@ export async function handleCreateAction(
         columnCount: s.columnCount ?? 26,
       },
     };
-    if (s.tabColor) {
-      sheetProps.tabColor = {
-        red: s.tabColor.red,
-        green: s.tabColor.green,
-        blue: s.tabColor.blue,
-        alpha: s.tabColor.alpha,
-      };
+    const tabColor = toRgbTabColor(s.tabColor, s.tabColorStyle);
+    const tabColorStyle = toTabColorStyle(s.tabColor, s.tabColorStyle);
+    if (tabColor) {
+      sheetProps.tabColor = tabColor;
+    }
+    if (tabColorStyle) {
+      sheetProps.tabColorStyle = tabColorStyle;
     }
     return { properties: sheetProps };
   });
@@ -246,18 +317,13 @@ export async function handleCreateAction(
   const response = await deps.sheetsApi.spreadsheets.create({
     requestBody,
     fields:
-      'spreadsheetId,spreadsheetUrl,properties(title,locale,timeZone),sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount),hidden))',
+      'spreadsheetId,spreadsheetUrl,properties(title,locale,timeZone),sheets(properties(sheetId,title,index,hidden,tabColor,tabColorStyle,gridProperties(rowCount,columnCount)))',
   });
 
   const data = response.data;
-  const sheets: SheetInfo[] = (data.sheets ?? []).map((s: sheets_v4.Schema$Sheet) => ({
-    sheetId: s.properties?.sheetId ?? 0,
-    title: s.properties?.title ?? '',
-    index: s.properties?.index ?? 0,
-    rowCount: s.properties?.gridProperties?.rowCount ?? 0,
-    columnCount: s.properties?.gridProperties?.columnCount ?? 0,
-    hidden: s.properties?.hidden ?? false,
-  }));
+  const sheets: SheetInfo[] = (data.sheets ?? []).map((s: sheets_v4.Schema$Sheet) =>
+    toSheetInfo(s.properties, deps)
+  );
 
   if (!data.spreadsheetId) {
     return deps.error({

@@ -77,12 +77,23 @@ export const MUTATION_ACTIONS = new Set<MutationEvent['action']>([
   'batch_write',
   'batch_clear',
   'cross_write',
+  'import_csv',
+  'import_xlsx',
+  'smart_append',
+  'smart_fill',
   // sheets_fix — mutating fixes
   'clean',
   'standardize_formats',
   'fill_missing',
   // sheets_composite — bulk write operations
   'bulk_update',
+  'deduplicate',
+  'setup_sheet',
+  'import_and_format',
+  'clone_structure',
+  'generate_sheet',
+  'generate_template',
+  'batch_operations',
   'data_pipeline',
   'instantiate_template',
   'migrate_spreadsheet',
@@ -165,6 +176,7 @@ const EXPORT_ACTIONS = new Set<ExportEvent['action']>([
   'export_csv',
   'export_xlsx',
   'export_pdf',
+  'publish_report',
   'export_to_bigquery',
   'download_attachment',
 ]);
@@ -206,7 +218,7 @@ export class AuditMiddleware {
     // Extract user context
     const userId = this.extractUserId(args);
     const ipAddress = this.extractIpAddress();
-    const resource = this.extractResource(args);
+    const resource = this.extractResource(action, args);
 
     let outcome: 'success' | 'failure' | 'partial' = 'success';
     let errorCode: string | undefined;
@@ -290,7 +302,7 @@ export class AuditMiddleware {
             durationMs,
             userAgent: this.extractUserAgent(),
             scopes: this.extractScopes(args),
-            format: this.extractExportFormat(action),
+            format: this.extractExportFormat(action, args, result),
             recordCount: this.extractRecordCount(result),
             fileSize: this.extractFileSize(result),
           });
@@ -400,7 +412,10 @@ export class AuditMiddleware {
   /**
    * Extract resource from args
    */
-  private extractResource(args: Record<string, unknown>): {
+  private extractResource(
+    action: string,
+    args: Record<string, unknown>
+  ): {
     type: 'spreadsheet' | 'range' | 'permission' | 'token' | 'config' | 'export';
     spreadsheetId?: string;
     spreadsheetName?: string;
@@ -408,8 +423,17 @@ export class AuditMiddleware {
     sheetId?: string;
     sheetName?: string;
   } {
+    const type = this.isSetAction(EXPORT_ACTIONS, action)
+      ? 'export'
+      : this.isSetAction(PERMISSION_ACTIONS, action)
+        ? 'permission'
+        : this.isSetAction(AUTHENTICATION_ACTIONS, action)
+          ? 'token'
+          : this.isSetAction(CONFIGURATION_ACTIONS, action)
+            ? 'config'
+            : 'spreadsheet';
     return {
-      type: 'spreadsheet', // Default
+      type,
       spreadsheetId: typeof args['spreadsheetId'] === 'string' ? args['spreadsheetId'] : undefined,
       spreadsheetName:
         typeof args['spreadsheetName'] === 'string' ? args['spreadsheetName'] : undefined,
@@ -451,12 +475,25 @@ export class AuditMiddleware {
   /**
    * Extract export format from action
    */
-  private extractExportFormat(action: ExportEvent['action']): string | undefined {
+  private extractExportFormat(
+    action: ExportEvent['action'],
+    args: Record<string, unknown>,
+    result: unknown
+  ): string | undefined {
+    if (action === 'publish_report') {
+      if (typeof args['format'] === 'string') {
+        return args['format'];
+      }
+      const report = this.getNestedRecord(result, 'report');
+      if (report && typeof report['format'] === 'string') {
+        return report['format'];
+      }
+    }
     if (action === 'export_csv') return 'csv';
     if (action === 'export_xlsx') return 'xlsx';
     if (action === 'export_pdf') return 'pdf';
     if (action === 'export_bigquery' || action === 'export_to_bigquery') return 'bigquery';
-    return undefined;
+    return undefined; // OK: unknown format type
   }
 
   /**
@@ -569,7 +606,27 @@ export class AuditMiddleware {
     ) {
       return result.fileSize;
     }
+    if (
+      result &&
+      typeof result === 'object' &&
+      'sizeBytes' in result &&
+      typeof result.sizeBytes === 'number'
+    ) {
+      return result.sizeBytes;
+    }
+    const report = this.getNestedRecord(result, 'report');
+    if (report && typeof report['sizeBytes'] === 'number') {
+      return report['sizeBytes'];
+    }
     return undefined;
+  }
+
+  private getNestedRecord(result: unknown, key: string): Record<string, unknown> | undefined {
+    if (!result || typeof result !== 'object' || !(key in result)) {
+      return undefined;
+    }
+    const value = (result as Record<string, unknown>)[key];
+    return value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
   }
 }
 

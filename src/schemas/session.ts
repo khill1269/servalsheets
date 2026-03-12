@@ -30,18 +30,30 @@ const CommonFieldsSchema = z.object({
 
 const SetActiveActionSchema = CommonFieldsSchema.extend({
   action: z.literal('set_active').describe('Set the active spreadsheet for natural references'),
-  spreadsheetId: z.string().describe('Spreadsheet ID from URL'),
+  spreadsheetId: z
+    .string()
+    .describe(
+      'Spreadsheet ID from the Google Sheets URL (the long alphanumeric string between /d/ and /edit). ' +
+        'Setting this enables natural references like "the spreadsheet" or "this sheet" in subsequent calls. ' +
+        'Example: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"'
+    ),
   title: z
     .string()
     .optional()
     .describe(
-      'Spreadsheet title for natural reference (optional - will be fetched from API if not provided)'
+      'Human-readable title for natural language references like "my budget" or "Q1 report". ' +
+        'Optional — fetched from the API if not provided. ' +
+        'Example: "Q1 2026 Sales Report"'
     ),
   sheetNames: z
     .array(z.string())
     .optional()
     .default([])
-    .describe('List of sheet names in the spreadsheet (optional, will be fetched if not provided)'),
+    .describe(
+      'Names of the sheets (tabs) in this spreadsheet. Used to resolve references like "the Revenue sheet". ' +
+        'Optional — fetched from the API if not provided. ' +
+        'Example: ["Sheet1", "Revenue", "Costs", "Summary"]'
+    ),
 });
 
 const GetActiveActionSchema = CommonFieldsSchema.extend({
@@ -155,31 +167,68 @@ const SaveCheckpointActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('save_checkpoint')
     .describe('Save session state for resuming after context reset'),
-  sessionId: z.string().describe('Unique session identifier (e.g., "test-run-1")'),
-  description: z.string().optional().describe('Optional description of checkpoint'),
+  sessionId: z
+    .string()
+    .describe(
+      'Unique identifier for this session checkpoint. Choose a descriptive name so you can resume it later. ' +
+        'Must be consistent across save and load calls. ' +
+        'Example: "quarterly-review-2026-03" or "budget-update-session"'
+    ),
+  description: z
+    .string()
+    .optional()
+    .describe(
+      'Human-readable description of what work this checkpoint captures. ' +
+        'Helps identify the right checkpoint when listing them. ' +
+        'Example: "After updating Q1 revenue formulas, before formatting pass"'
+    ),
 });
 
 const LoadCheckpointActionSchema = CommonFieldsSchema.extend({
   action: z.literal('load_checkpoint').describe('Load and resume from a saved checkpoint'),
-  sessionId: z.string().describe('Session ID to resume'),
+  sessionId: z
+    .string()
+    .describe(
+      'Session identifier to resume — must match the sessionId used in save_checkpoint. ' +
+        'Use list_checkpoints to see available sessions. ' +
+        'Example: "quarterly-review-2026-03"'
+    ),
   timestamp: z.coerce
     .number()
     .optional()
-    .describe('Specific checkpoint timestamp (latest if omitted)'),
+    .describe(
+      'Unix timestamp (ms) of the specific checkpoint to restore. ' +
+        'Omit to load the most recent checkpoint for this sessionId. ' +
+        'Use list_checkpoints to see available timestamps.'
+    ),
 });
 
 const ListCheckpointsActionSchema = CommonFieldsSchema.extend({
   action: z.literal('list_checkpoints').describe('List available checkpoints'),
-  sessionId: z.string().optional().describe('Filter by session ID (all if omitted)'),
+  sessionId: z
+    .string()
+    .optional()
+    .describe(
+      'Filter checkpoints by session ID. Omit to list checkpoints for all sessions. ' +
+        'Example: "quarterly-review-2026-03"'
+    ),
 });
 
 const DeleteCheckpointActionSchema = CommonFieldsSchema.extend({
   action: z.literal('delete_checkpoint').describe('Delete checkpoint(s)'),
-  sessionId: z.string().describe('Session ID to delete checkpoints for'),
+  sessionId: z
+    .string()
+    .describe(
+      'Session ID whose checkpoints to delete. All checkpoints for this session are deleted unless timestamp is specified. ' +
+        'Example: "quarterly-review-2026-03"'
+    ),
   timestamp: z.coerce
     .number()
     .optional()
-    .describe('Specific checkpoint (all for session if omitted)'),
+    .describe(
+      'Unix timestamp (ms) of the specific checkpoint to delete. ' +
+        'Omit to delete all checkpoints for the given sessionId.'
+    ),
 });
 
 const ResetActionSchema = CommonFieldsSchema.extend({

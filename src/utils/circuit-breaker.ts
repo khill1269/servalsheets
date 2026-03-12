@@ -39,6 +39,12 @@ export const FallbackStrategies = {
    * Return read-only mode response.
    * Use when write operations fail but read operations still work.
    *
+   * shouldUse() uses code-based classification instead of text-based message
+   * inspection. Permanent failures (PERMISSION_DENIED, UNAUTHENTICATED,
+   * SPREADSHEET_NOT_FOUND, INVALID_ARGUMENT) do NOT enter read-only mode —
+   * those require manual intervention, not degraded retries. Transient errors
+   * (rate limits, server errors, unknown) DO enter read-only mode.
+   *
    * @example
    * circuitBreaker.registerFallback(
    *   FallbackStrategies.readOnlyMode(
@@ -52,13 +58,17 @@ export const FallbackStrategies = {
     priority,
     execute: async () => readOnlyResponse,
     shouldUse: (error: Error) => {
-      const errorMsg = error.message.toLowerCase();
-      return (
-        errorMsg.includes('write') ||
-        errorMsg.includes('update') ||
-        errorMsg.includes('delete') ||
-        errorMsg.includes('modify')
-      );
+      // Code-based classification: permanent errors do not trigger read-only mode
+      const NON_RETRYABLE_FOR_CIRCUIT_BREAKER = new Set([
+        'PERMISSION_DENIED',
+        'UNAUTHENTICATED',
+        'SPREADSHEET_NOT_FOUND',
+        'INVALID_ARGUMENT',
+      ]);
+      const errorCode = (error as Error & { errorCode?: string }).errorCode ?? '';
+      // Only permanent, non-retryable codes skip read-only mode.
+      // All other errors (transient, unknown) may benefit from read-only degradation.
+      return !NON_RETRYABLE_FOR_CIRCUIT_BREAKER.has(errorCode);
     },
   }),
 };

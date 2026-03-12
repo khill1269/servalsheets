@@ -534,6 +534,25 @@ export class SessionContextManager {
   }
 
   /**
+   * Get a lightweight summary of session state for embedding in LLM prompts.
+   * Used by sampling.ts to enrich prompt context with the user's current work.
+   */
+  getSummary(): {
+    activeSpreadsheet: { title: string; sheetNames: string[] } | undefined;
+    recentOperations: Array<{ tool?: string; action?: string; range?: string }>;
+  } {
+    const active = this.state.activeSpreadsheet;
+    return {
+      activeSpreadsheet: active
+        ? { title: active.title, sheetNames: active.sheetNames }
+        : undefined,
+      recentOperations: this.state.operationHistory
+        .slice(0, 20)
+        .map((op) => ({ tool: op.tool, action: op.action, range: op.range })),
+    };
+  }
+
+  /**
    * Get the last operation (for "undo that")
    */
   getLastOperation(): OperationRecord | null {

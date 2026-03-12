@@ -12,6 +12,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { executeWithRetry } from '../utils/retry.js';
 import type { GoogleApiClient } from './google-api.js';
 
 interface ActiveSubscription {
@@ -23,10 +24,70 @@ interface ActiveSubscription {
   createdAt: string;
 }
 
+const WORKSPACE_EVENTS_BASE_URL = 'https://workspaceevents.googleapis.com/v1beta';
+const DRIVE_CONTENT_CHANGED_EVENT = 'google.workspace.drive.file.v3.contentChanged';
+const SUBSCRIPTION_TTL = '604800s';
+
 export class WorkspaceEventsService {
   private subscriptions = new Map<string, ActiveSubscription>();
 
   constructor(private googleClient: GoogleApiClient) {}
+
+  private isSubscriptionResourceName(name: string): boolean {
+    return name.startsWith('subscriptions/');
+  }
+
+  private async getFreshAccessToken(): Promise<string> {
+    const credentials = this.googleClient.oauth2.credentials;
+    const expiryDate = credentials?.expiry_date as number | undefined;
+    const isExpiringSoon = expiryDate !== undefined && expiryDate - Date.now() < 60_000;
+
+    if (isExpiringSoon || !credentials?.access_token) {
+      const result = await this.googleClient.oauth2.getAccessToken();
+      const token = result?.token ?? credentials?.access_token;
+      if (!token) {
+        throw new Error('Workspace Events API requires an OAuth access token');
+      }
+      return token;
+    }
+
+    return credentials.access_token;
+  }
+
+  private async executeWorkspaceEventsRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+    return executeWithRetry(async (signal) => {
+      const token = await this.getFreshAccessToken();
+      const response = await fetch(`${WORKSPACE_EVENTS_BASE_URL}${path}`, {
+        ...init,
+        signal,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(init.headers ?? {}),
+        },
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        const error = new Error(
+          `Workspace Events API ${response.status}: ${body.substring(0, 200)}`
+        ) as Error & {
+          response?: { status?: number; data?: string };
+        };
+        error.response = {
+          status: response.status,
+          data: body,
+        };
+        throw error;
+      }
+
+      if (response.status === 204) {
+        return undefined as T; // OK: 204 No Content — subscription successful
+      }
+
+      return (await response.json()) as T;
+    });
+  }
 
   /**
    * Create a Workspace Events subscription for a spreadsheet.
@@ -34,33 +95,23 @@ export class WorkspaceEventsService {
    * @param pubsubTopic - Pub/Sub topic in format: projects/{project}/topics/{topic}
    */
   async createSubscription(spreadsheetId: string, pubsubTopic: string): Promise<string> {
-    const workspaceEventsApi = this.googleClient.workspaceEvents;
-    if (!workspaceEventsApi) {
-      throw new Error('Workspace Events API not initialized');
-    }
-
     try {
-      // The API returns an Operation (long-running) for subscription creation
-      const response = await workspaceEventsApi.subscriptions.create({
-        requestBody: {
-          targetResource: `//drive.googleapis.com/files/${spreadsheetId}`,
-          eventTypes: ['google.workspace.drive.file.v1.contentChanged'],
-          notificationEndpoint: {
-            // Workspace Events API delivers via Pub/Sub topic
-            pubsubTopic,
-          },
-          payloadOptions: { includeResource: false },
-        },
-      });
-
-      // The create call returns a long-running Operation. The subscription resource name
-      // is in operation.response.name (not operation.name which is the operation resource).
-      // We use the operation name as a fallback since we don't poll the operation to completion.
-      const operationData = response.data as {
+      const operationData = await this.executeWorkspaceEventsRequest<{
         name?: string;
         response?: { name?: string };
         metadata?: { subscription?: { name?: string; expireTime?: string } };
-      };
+      }>('/subscriptions', {
+        method: 'POST',
+        body: JSON.stringify({
+          targetResource: `//drive.googleapis.com/files/${spreadsheetId}`,
+          eventTypes: [DRIVE_CONTENT_CHANGED_EVENT],
+          notificationEndpoint: {
+            pubsubTopic,
+          },
+          payloadOptions: { includeResource: false },
+        }),
+      });
+
       const subscriptionId =
         operationData?.response?.name ??
         operationData?.metadata?.subscription?.name ??
@@ -79,7 +130,17 @@ export class WorkspaceEventsService {
       };
 
       this.subscriptions.set(sub.id, sub);
-      this.scheduleRenewal(sub);
+      if (this.isSubscriptionResourceName(sub.id)) {
+        this.scheduleRenewal(sub);
+      } else {
+        logger.warn(
+          'Workspace Events subscription create returned operation name without resource',
+          {
+            spreadsheetId,
+            operationName: sub.id,
+          }
+        );
+      }
       logger.info('Workspace Events subscription created', { id: sub.id, spreadsheetId });
       return sub.id;
     } catch (err) {
@@ -99,18 +160,22 @@ export class WorkspaceEventsService {
   async renewSubscription(subscriptionId: string): Promise<void> {
     const sub = this.subscriptions.get(subscriptionId);
     if (!sub) return;
-
-    const workspaceEventsApi = this.googleClient.workspaceEvents;
-    if (!workspaceEventsApi) return;
+    if (!this.isSubscriptionResourceName(subscriptionId)) {
+      logger.warn('Skipping Workspace Events renewal for unresolved operation name', {
+        id: subscriptionId,
+      });
+      return;
+    }
 
     try {
-      const response = await workspaceEventsApi.subscriptions.patch({
-        name: subscriptionId,
-        updateMask: 'ttl',
-        requestBody: { ttl: '604800s' }, // 7 days
-      });
+      const patchData = await this.executeWorkspaceEventsRequest<{ expireTime?: string }>(
+        `/${subscriptionId}?updateMask=ttl`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ ttl: SUBSCRIPTION_TTL }),
+        }
+      );
 
-      const patchData = response.data as { expireTime?: string };
       sub.expireTime =
         patchData?.expireTime ?? new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
       if (sub.renewalTimer) clearTimeout(sub.renewalTimer);
@@ -128,10 +193,11 @@ export class WorkspaceEventsService {
     const sub = this.subscriptions.get(subscriptionId);
     if (sub?.renewalTimer) clearTimeout(sub.renewalTimer);
 
-    const workspaceEventsApi = this.googleClient.workspaceEvents;
-    if (workspaceEventsApi) {
+    if (this.isSubscriptionResourceName(subscriptionId)) {
       try {
-        await workspaceEventsApi.subscriptions.delete({ name: subscriptionId });
+        await this.executeWorkspaceEventsRequest<void>(`/${subscriptionId}`, {
+          method: 'DELETE',
+        });
       } catch {
         // Best effort — remove from local tracking regardless
       }
