@@ -6,11 +6,46 @@
 
 ## Current Phase
 
-**Session 57 (2026-03-10) — B+ audit remediation complete.** 2,569/2,569 tests. 25/25 tools aligned. All gates green. Branch `remediation/phase-1`. Committed: `d189c18`.
+**Session 58 (2026-03-11) — Full LLM Intelligence plan complete.** 2,641/2,641 tests. 399 actions. All gates G0-G1 green. Branch `remediation/phase-1`. Final commit: `b2da52b`.
+
+## What Was Just Completed (Session 58)
+
+4-sprint LLM Intelligence plan fully implemented (6 commits, Tracks A-D):
+
+**Sprint 1 (A1-A7) — Response Intelligence:**
+
+- A1: `src/services/lightweight-quality-scanner.ts` (NEW) — 5 quality checks injected into every read/write response as `dataQualityWarnings`
+- A2: `src/services/action-recommender.ts` — 3-signal data-aware suggestions (data signals + confidence gaps + static fallback)
+- A3: `src/handlers/base.ts` + `src/services/error-pattern-learner.ts` — pattern learner wired into error responses
+- A4: `src/mcp/sampling.ts` + `src/services/session-context.ts` — last-5 ops + active spreadsheet injected into sampling context
+- A5: `src/mcp/features-2025-11-25.ts` — Error Recovery table + AI Features + Advanced Sheet Patterns sections added
+- A6: `src/utils/response-compactor.ts` — `_truncated` key injected when fields are compacted
+- A7: `src/schemas/session.ts`, `webhook.ts`, `transaction.ts` — enriched `.describe()` text on all params
+
+**Sprint 2 (B1-B4) — Agent Intelligence:**
+
+- B1: `src/services/agent-engine.ts` — structured `ErrorDetail` on plan state, auto-retry on retryable errors, auto-recovery step injection on `fixableVia`
+- B2: `src/mcp/elicitation.ts` — `elicitUserClarification()` for confidence-triggered mid-tool elicitation
+- B3: `src/services/session-context.ts` — `recordElicitationRejection()` + `wasRecentlyRejected()` (30-min window)
+- B4: `src/utils/circuit-breaker.ts` — code-based `NON_RETRYABLE_FOR_CIRCUIT_BREAKER` set (no more text matching)
+
+**Sprint 3 (C1-C3) — Formula Intelligence:**
+
+- C1: `src/analysis/formula-helpers.ts` — `FORMULA_PATTERN_LIBRARY` (10 patterns) + `getRelevantPatterns()` + `extractFormulaKeywords()`; wired into `src/services/sampling-analysis.ts` few-shot examples
+- C2: `src/services/sheet-generator.ts` — XLOOKUP/FILTER/ARRAYFORMULA standards + 4 new domain recipes (Marketing Funnel, Project Gantt, Inventory, HR Roster) + `lookupSource` cross-sheet injection + formula validation pass
+- C3: `src/analysis/suggestion-engine.ts` — `COLUMN_SEMANTIC_GROUPS` (6 groups) + `detectSemanticPatterns()` with 15 new rules
+
+**Sprint 4 (D1-D3) — Advanced Orchestration:**
+
+- D1: `src/services/agent-engine.ts` — `inject_cross_sheet_lookup` step type + 4 workflow templates (multi-sheet-crm, budget-vs-actuals, project-tracker, inventory-with-lookups)
+- D2: `src/handlers/composite.ts` + `src/schemas/composite.ts` — `build_dashboard` action (KPI rows, charts, slicers, layout presets)
+- D3: `src/handlers/format.ts` + `src/schemas/format.ts` — `build_dependent_dropdown` action (named ranges + ONE_OF_RANGE validation)
+
+**Result:** 397 → 399 actions, 2,641 tests passing, all pre-commit gates green.
 
 ## Genuine Remaining Work
 
-1. **Error typing (Sprint 2 remainder)**: 281 → ~100 generic throws remain in src/services/ (google-api.ts, analysis/, etc.) — handlers already clean
+1. **Error typing**: ~100 generic throws remain in src/services/ (google-api.ts, analysis/) — handlers already clean
 2. **P18-D1–D10**: Handler decomposition — file-size budget system in place; actual decomposition deferred
 3. **16-F1–F6**: Formula evaluation engine — **BLOCKED** on HyperFormula license
 4. **ISSUE-073**: Git worktree cleanup (maintainer-only)
