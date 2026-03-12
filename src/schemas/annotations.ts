@@ -1091,6 +1091,41 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     },
   },
 
+  'sheets_format.build_dependent_dropdown': {
+    apiCalls: 2,
+    idempotent: true,
+    whenToUse:
+      'Create cascading dropdowns where parent list selection filters child options (e.g., select Country → see State)',
+    whenNotToUse: 'Simple single-level dropdowns — use sheets_format.set_data_validation instead',
+    commonMistakes: [
+      'Parent values must be a named range or contiguous cells',
+      'Child data must be organized with parent values as row/column headers',
+      'Some data structures require separate sheets for clear hierarchy',
+    ],
+    errorRecovery: {
+      INVALID_ARGUMENT: 'Verify parent and child ranges exist and parent values are unique',
+      alternativeActions: [
+        {
+          tool: 'sheets_format',
+          action: 'set_data_validation',
+          when: 'for single-level dropdowns',
+        },
+        {
+          tool: 'sheets_advanced',
+          action: 'add_named_range',
+          when: 'when setting up source data ranges',
+        },
+      ],
+      diagnosticSteps: [
+        'Verify parent range exists with sheets_data.read',
+        'Check child data structure matches parent values with sheets_data.read',
+        'Test a single dropdown cell first before applying widely',
+      ],
+      userGuidance:
+        'Dependent dropdowns require well-structured data. Plan your hierarchy before running this action.',
+    },
+  },
+
   // DIMENSIONS TOOL (additional actions)
   'sheets_dimensions.move': {
     apiCalls: 1,
@@ -6567,6 +6602,39 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
       ],
       userGuidance:
         'This executes multiple operations in one call. Verify all operation parameters are correct before running atomically.',
+    },
+  },
+
+  'sheets_composite.build_dashboard': {
+    apiCalls: 5,
+    idempotent: false,
+    whenToUse: 'Create a pre-formatted dashboard sheet with KPIs, charts, and interactive slicers',
+    whenNotToUse: 'Simple charts — use sheets_visualize.chart_create instead',
+    commonMistakes: [
+      'Dashboard layout must be one of: simple_kpi, full_analytics, comparison, trend_analysis',
+      'KPIs require formula + label + optional format specifications',
+    ],
+    errorRecovery: {
+      INVALID_ARGUMENT: 'Verify layout is valid and KPI formulas reference correct ranges',
+      alternativeActions: [
+        {
+          tool: 'sheets_visualize',
+          action: 'chart_create',
+          when: 'when creating individual charts only',
+        },
+        {
+          tool: 'sheets_composite',
+          action: 'audit_sheet',
+          when: 'when analyzing existing data structure',
+        },
+      ],
+      diagnosticSteps: [
+        'Verify the source sheet exists with sheets_core.list_sheets',
+        'Test KPI formulas individually with sheets_data.evaluate_formula',
+        'Check chart type is valid with sheets_visualize.chart_create',
+      ],
+      userGuidance:
+        'Dashboards create a new formatted sheet with calculations. Review the layout and KPI definitions before running.',
     },
   },
 

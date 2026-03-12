@@ -12,7 +12,7 @@ Feature roadmap (P4 differentiators): @docs/development/FEATURE_PLAN.md
 
 ## Project Overview
 
-ServalSheets is a production-grade MCP server for Google Sheets with 25 tools and 397 actions.
+ServalSheets is a production-grade MCP server for Google Sheets with 25 tools and 399 actions.
 Runtime: Node.js + TypeScript (strict). See `src/schemas/index.ts` for authoritative counts.
 
 ### Core Pipeline
@@ -136,7 +136,7 @@ Run `npm run check:integration-wiring` after any action rename to catch mismatch
 
 - `src/server.ts` — MCP server entrypoint
 - `src/mcp/registration/*` — Tool + schema registration
-- `src/handlers/*` — 22 tool handlers (13 extend BaseHandler, 9 standalone)
+- `src/handlers/*` — 25 tool handlers (13 extend BaseHandler, 12 standalone)
 - `src/schemas/*` — Zod schemas (validation source of truth)
 - `tests/contracts/*` — Contract tests (schema guarantees)
 

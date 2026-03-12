@@ -1,14 +1,12 @@
 # ServalSheets
 
-![Audit Score](https://img.shields.io/badge/audit-130.83%25-brightgreen)
-
-Production-grade Google Sheets MCP Server with 25 tools, 397 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 25 tools, 399 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-1800%2B%20passing-brightgreen)](https://github.com/khill1269/servalsheets)
-[![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen)](https://github.com/khill1269/servalsheets)
+[![Tests](https://img.shields.io/badge/tests-full%20suite%20green-brightgreen)](https://github.com/khill1269/servalsheets)
+[![Coverage](https://img.shields.io/badge/coverage-CI%20gated-brightgreen)](https://github.com/khill1269/servalsheets)
 
 <p align="center">
   <img src="docs/public/demos/hero-optimized.gif" alt="ServalSheets Demo" width="600">
@@ -54,6 +52,8 @@ On first run, ServalSheets will guide you through Google OAuth authentication.
 
 ### Previous Releases
 
+Historical release snapshots are kept here for upgrade context.
+
 <details>
 <summary>v1.6.0 - Enterprise Deployment & Infrastructure (2026-01-26)</summary>
 
@@ -92,7 +92,7 @@ On first run, ServalSheets will guide you through Google OAuth authentication.
 
 ### Core Capabilities
 
-- **25 Tools, 377 Actions**: Comprehensive Google Sheets API v4 coverage
+- **25 Tools, 399 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Compliant**: Full protocol compliance with structured outputs
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
@@ -102,8 +102,8 @@ On first run, ServalSheets will guide you through Google OAuth authentication.
 
 Full compliance with Model Context Protocol 2025-11-25:
 
-- ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.26.0
-- ✅ **Tools**: 25 tools with 397 actions using discriminated unions
+- ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.27.1
+- ✅ **Tools**: 25 tools with 399 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -112,7 +112,7 @@ Full compliance with Model Context Protocol 2025-11-25:
   - `sheets:///{spreadsheetId}/pivots` - Pivot table configurations
   - `sheets:///{spreadsheetId}/quality` - Data quality analysis
   - Knowledge resources for formulas, colors, formats
-- ✅ **Prompts**: 6 guided workflows for common operations
+- ✅ **Prompts**: 48 guided workflows for common operations
 - ✅ **Completions**: Argument autocompletion for prompts/resources
 - ✅ **Tasks**: Background execution with full cancellation support (SEP-1686)
 - ✅ **Elicitation**: Plan confirmation via sheets_confirm (SEP-1036)
@@ -339,7 +339,7 @@ npm run check:drift         # Metadata synchronization
 npm run check:placeholders  # No TODO/FIXME in src/
 npm run check:silent-fallbacks  # No silent {} returns
 npm run check:debug-prints  # No console.log in src/
-npm test                    # Run 1761 tests
+npm run test:all            # Run the full test suite
 ```
 
 ### Before Creating a PR
@@ -354,15 +354,15 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ## Tools Reference
 
-### Tool Summary (25 tools, 397 actions)
+### Tool Summary (25 tools, 399 actions)
 
 | Tool                  | Actions | Description                                                        |
 | --------------------- | ------- | ------------------------------------------------------------------ |
 | `sheets_auth`         | 4       | Authentication & OAuth 2.1                                         |
-| `sheets_core`         | 19      | Spreadsheet and sheet metadata/management                          |
-| `sheets_data`         | 23      | Read/write values, notes, hyperlinks, clipboard, cross-spreadsheet |
+| `sheets_core`         | 21      | Spreadsheet and sheet metadata/management                          |
+| `sheets_data`         | 24      | Read/write values, notes, hyperlinks, clipboard, cross-spreadsheet |
 | `sheets_format`       | 24      | Cell formatting, conditional formats, data validation, sparklines  |
-| `sheets_dimensions`   | 29      | Rows/columns, filters, sorts, groups, freezes, views, slicers      |
+| `sheets_dimensions`   | 30      | Rows/columns, filters, sorts, groups, freezes, views, slicers      |
 | `sheets_visualize`    | 18      | Charts and pivot tables                                            |
 | `sheets_collaborate`  | 40      | Sharing, comments, versions/snapshots, approvals, labels           |
 | `sheets_advanced`     | 31      | Named ranges, protected ranges, metadata, banding, tables, chips   |
@@ -370,18 +370,18 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 | `sheets_quality`      | 4       | Validation, conflicts, impact analysis                             |
 | `sheets_history`      | 10      | Undo/redo, history, revert, time-travel debugger                   |
 | `sheets_confirm`      | 5       | Elicitation confirmations & wizards                                |
-| `sheets_analyze`      | 19      | AI-assisted analysis, suggestions & recommendations                |
+| `sheets_analyze`      | 21      | AI-assisted analysis, suggestions & recommendations                |
 | `sheets_fix`          | 6       | Automated fixes & data cleaning pipeline                           |
 | `sheets_composite`    | 20      | High-level bulk operations, NL sheet generation & ETL pipelines    |
-| `sheets_session`      | 27      | Session context, preferences, checkpoints                          |
-| `sheets_appsscript`   | 18      | Apps Script automation                                             |
+| `sheets_session`      | 31      | Session context, preferences, checkpoints                          |
+| `sheets_appsscript`   | 19      | Apps Script automation                                             |
 | `sheets_bigquery`     | 17      | BigQuery Connected Sheets                                          |
 | `sheets_templates`    | 8       | Enterprise templates                                               |
-| `sheets_webhook`      | 7       | Webhook registration & delivery                                    |
+| `sheets_webhook`      | 10      | Webhook registration & delivery                                    |
 | `sheets_federation`   | 4       | Remote MCP server federation & cross-server calls                  |
 | `sheets_dependencies` | 10      | Formula dependency analysis & scenario modeling                    |
 | `sheets_agent`        | 8       | Autonomous multi-step execution with plan/execute/rollback         |
-| `sheets_compute`      | 10      | Server-side computation (stats, regression, forecast, matrix ops)  |
+| `sheets_compute`      | 16      | Server-side computation (stats, regression, forecast, matrix ops)  |
 | `sheets_connectors`   | 10      | External data connectors (Finnhub, FRED, REST APIs)                |
 
 ## Examples
@@ -868,12 +868,13 @@ Statistics available via lifecycle methods:
 
 Prevent accidental large-scale operations:
 
-Resource limits are currently configured with hard-coded defaults:
+Effect-scope safety rails use built-in defaults in the current server:
 
-- Maximum cells per operation: 10,000
-- Maximum sheets per operation: 10
+- Estimated cells per operation default limit: 50,000
+- Destructive row deletes default limit: 10,000
+- Destructive column deletes default limit: 100
 
-_(Note: Environment variable configuration coming in future release)_
+You can tighten limits per request with `effectScope`, especially `maxCellsAffected` and `requireExplicitRange`.
 
 These limits act as safety rails. Operations exceeding limits will fail with `EFFECT_SCOPE_EXCEEDED` error.
 
@@ -1031,7 +1032,7 @@ export HEAP_SNAPSHOT_PATH=./heap-snapshots
 When enabled, heap snapshots are captured at critical threshold for post-mortem analysis:
 
 - **Chrome DevTools:** Open snapshot in Memory Profiler
-- **clinic.js:** `npm install -g clinic` then `clinic heapprofiler`
+- **clinic.js:** `npm run profile:memory` uses `npm exec` to fetch Clinic.js on demand
 
 **Recommendations by utilization:**
 
@@ -1088,8 +1089,8 @@ npm run build
 # Type check (strict mode)
 npm run typecheck
 
-# Run tests (1761 tests)
-npm test
+# Run the full test suite
+npm run test:all
 
 # Run in development mode
 npm run dev
@@ -1149,11 +1150,11 @@ graph TB
         CLI[CLI Entry Point]
         MCP[MCP Server]
 
-        subgraph "Handlers (15 Tools)"
+        subgraph "Handlers (25 Tools)"
             H1[sheets_core]
             H2[sheets_data]
             H3[sheets_format]
-            H4[... 12 more]
+            H4[... 22 more]
         end
 
         subgraph "Core Infrastructure"
@@ -1197,20 +1198,20 @@ graph TB
 - **OAuth**: 2.1 with PKCE support
 - **Transports**: STDIO, SSE, Streamable HTTP
 - **TypeScript**: Strict mode enabled, 0 errors
-- **SDK Version**: @modelcontextprotocol/sdk@1.26.0
-- **Test Coverage**: 1761 tests passing across 78 suites
+- **SDK Version**: @modelcontextprotocol/sdk@1.27.1
+- **Current test baseline**: `npm run test:all` passed on March 11, 2026 (8,613 passed, 671 skipped)
 
 ## Quality Metrics
 
 - ✅ **Type Safety**: Full TypeScript strict mode compliance
-- ✅ **Test Coverage**: 1761 tests, 100% handler coverage
+- ✅ **Test Coverage**: Full-suite baseline green; coverage thresholds remain enforced in CI
 - ✅ **Protocol Compliance**: MCP 2025-11-25 certified
 - ✅ **Production Ready**: Used in Claude Connectors Directory
 - ✅ **Error Handling**: Comprehensive error codes with retry hints
 
 ## Schema Architecture: Discriminated Unions
 
-ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 25 tools and 397 actions. This architecture provides:
+ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 25 tools and 399 actions. This architecture provides:
 
 ### Pattern Overview
 
@@ -2050,10 +2051,10 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 
 | Feature          | Status  | Version    | Implementation                              |
 | ---------------- | ------- | ---------- | ------------------------------------------- |
-| **JSON-RPC 2.0** | ✅ Full | 2.0        | @modelcontextprotocol/sdk v1.26.0           |
-| **Tools**        | ✅ Full | 2025-11-25 | 25 tools, 397 actions, discriminated unions |
+| **JSON-RPC 2.0** | ✅ Full | 2.0        | @modelcontextprotocol/sdk v1.27.1           |
+| **Tools**        | ✅ Full | 2025-11-25 | 25 tools, 399 actions, discriminated unions |
 | **Resources**    | ✅ Full | 2025-11-25 | 6 URI templates + 7 knowledge resources     |
-| **Prompts**      | ✅ Full | 2025-11-25 | 6 guided workflows with arguments           |
+| **Prompts**      | ✅ Full | 2025-11-25 | 48 guided workflows with arguments          |
 | **Completions**  | ✅ Full | 2025-11-25 | Argument autocompletion                     |
 | **Tasks**        | ✅ Full | SEP-1686   | Background execution, cancellation          |
 | **Elicitation**  | ✅ Full | SEP-1036   | User confirmations for destructive ops      |
@@ -2066,31 +2067,7 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 
 #### Tools (25 tools ✅)
 
-**Implemented & Tested** (all 25 tools):
-
-```
-✅ sheets_auth (4 actions) - OAuth, login, logout, status
-✅ sheets_core (19 actions) - Spreadsheet CRUD, metadata
-✅ sheets_data (19 actions) - Read, write, batch ops, notes, hyperlinks
-✅ sheets_format (23 actions) - Colors, borders, conditionals, validation
-✅ sheets_dimensions (28 actions) - Rows, columns, filters, sorts, freezes
-✅ sheets_visualize (18 actions) - Charts, pivot tables
-✅ sheets_collaborate (35 actions) - Sharing, comments, versions
-✅ sheets_advanced (31 actions) - Named ranges, protected ranges, banding
-✅ sheets_transaction (6 actions) - Atomic operations, rollback
-✅ sheets_quality (4 actions) - Validation, conflict detection
-✅ sheets_history (7 actions) - Undo, redo, revert
-✅ sheets_confirm (5 actions) - User confirmations, wizards
-✅ sheets_analyze (18 actions) - AI analysis, suggestions, recommendations
-✅ sheets_fix (6 actions) - Automated fixes & data cleaning pipeline
-✅ sheets_composite (14 actions) - Bulk ops, import, deduplicate, NL sheet generation
-✅ sheets_session (26 actions) - Session context
-✅ sheets_appsscript (18 actions) - Apps Script automation
-✅ sheets_bigquery (17 actions) - BigQuery integration
-✅ sheets_templates (8 actions) - Template management
-✅ sheets_webhook (7 actions) - Change notifications
-✅ sheets_dependencies (7 actions) - Formula analysis
-```
+All 25 tools are implemented and exercised in the test suite. See the [Tool Summary](#tool-summary-25-tools-399-actions) above for current per-tool action counts.
 
 **Discriminated Union Schema** ✅:
 
@@ -2295,25 +2272,19 @@ PORT=3000 npm run start:remote
 
 ### Compliance Test Results
 
-```
-Total Tests: 1761 ✅
-Test Suites: 78 ✅
-Coverage: 92% ✅
+As of March 11, 2026, `npm run test:all` completed successfully with:
 
-By Component:
-├─ Tools: 1200 tests (25 tools × ~55 tests each)
-├─ Schemas: 340 tests (validation, discriminated unions)
-├─ Error Handling: 150 tests (all error types)
-├─ Performance: 71 tests (batching, caching, rate limits)
-└─ Integration: 50 tests (real Google API)
-```
+- `315` passed test files
+- `53` skipped test files
+- `8,613` passed tests
+- `671` skipped tests
 
 ### Protocol Compatibility
 
-**SDK Version**: @modelcontextprotocol/sdk v1.26.0+
+**SDK Version**: @modelcontextprotocol/sdk v1.27.1
 **MCP Version**: 2025-11-25
 **TypeScript**: Strict mode, 0 errors
-**Node.js**: 18+ required
+**Node.js**: 20+ required
 
 ### Security Compliance
 
@@ -2337,7 +2308,7 @@ By Component:
 ✅ High availability - Redis session store, multi-instance
 ✅ Performance - Batching, caching, rate limiting
 ✅ Security - OAuth 2.1, encryption, token rotation
-✅ Testing - 1761 tests, 92% coverage
+✅ Testing - full suite green on March 11, 2026 (8,613 passed, 671 skipped)
 ✅ Documentation - 115+ pages, examples for all tools
 ```
 
