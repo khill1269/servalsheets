@@ -176,6 +176,17 @@ export interface ExecutionStep {
   retryCount?: number;
   /** True if this step was auto-inserted as a recovery step */
   autoInserted?: boolean;
+  /**
+   * Step type override. When set to 'inject_cross_sheet_lookup', the executor
+   * handles the step internally rather than delegating to executeHandler.
+   */
+  type?: 'inject_cross_sheet_lookup';
+  /**
+   * Typed configuration block for custom step types.
+   * For 'inject_cross_sheet_lookup': sourceSheet, lookupCol, returnCol,
+   * targetSheet, targetCol, targetKeyCol, startRow.
+   */
+  config?: Record<string, unknown>;
 }
 
 export interface StepResult {
@@ -221,15 +232,36 @@ export type ExecuteHandlerFn = (
 // Workflow Templates (P2.2)
 // ============================================================================
 
+/** A standard tool-call step in a workflow template. */
+export interface WorkflowTemplateToolStep {
+  type?: 'tool_call';
+  tool: string;
+  action: string;
+  description: string;
+  paramTemplate: Record<string, unknown>;
+}
+
+/** An inject_cross_sheet_lookup step in a workflow template. */
+export interface WorkflowTemplateLookupStep {
+  type: 'inject_cross_sheet_lookup';
+  description?: string;
+  config: {
+    sourceSheet: string;
+    lookupCol: string;
+    returnCol: string;
+    targetSheet: string;
+    targetCol: string;
+    targetKeyCol: string;
+    startRow: number;
+  };
+}
+
+export type WorkflowTemplateStep = WorkflowTemplateToolStep | WorkflowTemplateLookupStep;
+
 export interface WorkflowTemplate {
   name: string;
   description: string;
-  steps: Array<{
-    tool: string;
-    action: string;
-    description: string;
-    paramTemplate: Record<string, string>;
-  }>;
+  steps: WorkflowTemplateStep[];
 }
 
 const WORKFLOW_TEMPLATES: Record<string, WorkflowTemplate> = {
@@ -380,6 +412,316 @@ const WORKFLOW_TEMPLATES: Record<string, WorkflowTemplate> = {
         action: 'model_scenario',
         description: 'Model scenario impact',
         paramTemplate: {},
+      },
+    ],
+  },
+  'multi-sheet-crm': {
+    name: 'Multi-Sheet CRM',
+    description: 'Customers + Orders + Products sheets with XLOOKUP cross-references',
+    steps: [
+      {
+        type: 'tool_call',
+        tool: 'sheets_core',
+        action: 'add_sheet',
+        description: 'Create Customers sheet',
+        paramTemplate: { title: 'Customers' },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_core',
+        action: 'add_sheet',
+        description: 'Create Products sheet',
+        paramTemplate: { title: 'Products' },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_core',
+        action: 'add_sheet',
+        description: 'Create Orders sheet',
+        paramTemplate: { title: 'Orders' },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_data',
+        action: 'write',
+        description: 'Write Customers headers',
+        paramTemplate: {
+          range: 'Customers!A1:D1',
+          values: [['CustomerID', 'Name', 'Email', 'Region']],
+          valueInputOption: 'USER_ENTERED',
+        },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_data',
+        action: 'write',
+        description: 'Write Products headers',
+        paramTemplate: {
+          range: 'Products!A1:D1',
+          values: [['ProductID', 'Name', 'Price', 'Category']],
+          valueInputOption: 'USER_ENTERED',
+        },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_data',
+        action: 'write',
+        description: 'Write Orders headers',
+        paramTemplate: {
+          range: 'Orders!A1:F1',
+          values: [
+            ['OrderID', 'CustomerID', 'ProductID', 'Quantity', 'CustomerName', 'ProductName'],
+          ],
+          valueInputOption: 'USER_ENTERED',
+        },
+      },
+      {
+        type: 'inject_cross_sheet_lookup' as const,
+        config: {
+          sourceSheet: 'Customers',
+          lookupCol: 'A',
+          returnCol: 'B',
+          targetSheet: 'Orders',
+          targetCol: 'E',
+          targetKeyCol: 'B',
+          startRow: 2,
+        },
+      },
+      {
+        type: 'inject_cross_sheet_lookup' as const,
+        config: {
+          sourceSheet: 'Products',
+          lookupCol: 'A',
+          returnCol: 'B',
+          targetSheet: 'Orders',
+          targetCol: 'F',
+          targetKeyCol: 'C',
+          startRow: 2,
+        },
+      },
+    ],
+  },
+  'budget-vs-actuals': {
+    name: 'Budget vs Actuals',
+    description: 'Budget, Actuals, and auto-computed Variance sheet',
+    steps: [
+      {
+        type: 'tool_call',
+        tool: 'sheets_core',
+        action: 'add_sheet',
+        description: 'Create Budget sheet',
+        paramTemplate: { title: 'Budget' },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_core',
+        action: 'add_sheet',
+        description: 'Create Actuals sheet',
+        paramTemplate: { title: 'Actuals' },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_core',
+        action: 'add_sheet',
+        description: 'Create Variance sheet',
+        paramTemplate: { title: 'Variance' },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_data',
+        action: 'write',
+        description: 'Write Budget headers',
+        paramTemplate: {
+          range: 'Budget!A1:E1',
+          values: [['Category', 'Q1', 'Q2', 'Q3', 'Q4']],
+          valueInputOption: 'USER_ENTERED',
+        },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_data',
+        action: 'write',
+        description: 'Write Actuals headers',
+        paramTemplate: {
+          range: 'Actuals!A1:E1',
+          values: [['Category', 'Q1', 'Q2', 'Q3', 'Q4']],
+          valueInputOption: 'USER_ENTERED',
+        },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_data',
+        action: 'write',
+        description: 'Write Variance headers',
+        paramTemplate: {
+          range: 'Variance!A1:E1',
+          values: [['Category', 'Q1 Variance', 'Q2 Variance', 'Q3 Variance', 'Q4 Variance']],
+          valueInputOption: 'USER_ENTERED',
+        },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_data',
+        action: 'write',
+        description: 'Write Variance formulas',
+        paramTemplate: {
+          range: 'Variance!A2:E11',
+          values: Array.from({ length: 10 }, (_, i) => [
+            `=Budget!A${i + 2}`,
+            `=Actuals!B${i + 2}-Budget!B${i + 2}`,
+            `=Actuals!C${i + 2}-Budget!C${i + 2}`,
+            `=Actuals!D${i + 2}-Budget!D${i + 2}`,
+            `=Actuals!E${i + 2}-Budget!E${i + 2}`,
+          ]),
+          valueInputOption: 'USER_ENTERED',
+        },
+      },
+    ],
+  },
+  'project-tracker': {
+    name: 'Project Tracker',
+    description: 'Tasks + Resources + Timeline with XLOOKUP resource assignments',
+    steps: [
+      {
+        type: 'tool_call',
+        tool: 'sheets_core',
+        action: 'add_sheet',
+        description: 'Create Resources sheet',
+        paramTemplate: { title: 'Resources' },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_core',
+        action: 'add_sheet',
+        description: 'Create Tasks sheet',
+        paramTemplate: { title: 'Tasks' },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_core',
+        action: 'add_sheet',
+        description: 'Create Timeline sheet',
+        paramTemplate: { title: 'Timeline' },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_data',
+        action: 'write',
+        description: 'Write Resources headers',
+        paramTemplate: {
+          range: 'Resources!A1:C1',
+          values: [['ResourceID', 'Name', 'Role']],
+          valueInputOption: 'USER_ENTERED',
+        },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_data',
+        action: 'write',
+        description: 'Write Tasks headers',
+        paramTemplate: {
+          range: 'Tasks!A1:F1',
+          values: [['TaskID', 'Title', 'ResourceID', 'Start', 'End', 'AssigneeName']],
+          valueInputOption: 'USER_ENTERED',
+        },
+      },
+      {
+        type: 'inject_cross_sheet_lookup' as const,
+        config: {
+          sourceSheet: 'Resources',
+          lookupCol: 'A',
+          returnCol: 'B',
+          targetSheet: 'Tasks',
+          targetCol: 'F',
+          targetKeyCol: 'C',
+          startRow: 2,
+        },
+      },
+    ],
+  },
+  'inventory-with-lookups': {
+    name: 'Inventory with Lookups',
+    description: 'Inventory + Suppliers + Categories with cross-sheet XLOOKUP',
+    steps: [
+      {
+        type: 'tool_call',
+        tool: 'sheets_core',
+        action: 'add_sheet',
+        description: 'Create Categories sheet',
+        paramTemplate: { title: 'Categories' },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_core',
+        action: 'add_sheet',
+        description: 'Create Suppliers sheet',
+        paramTemplate: { title: 'Suppliers' },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_core',
+        action: 'add_sheet',
+        description: 'Create Inventory sheet',
+        paramTemplate: { title: 'Inventory' },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_data',
+        action: 'write',
+        description: 'Write Categories headers',
+        paramTemplate: {
+          range: 'Categories!A1:B1',
+          values: [['CategoryID', 'Name']],
+          valueInputOption: 'USER_ENTERED',
+        },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_data',
+        action: 'write',
+        description: 'Write Suppliers headers',
+        paramTemplate: {
+          range: 'Suppliers!A1:C1',
+          values: [['SupplierID', 'Name', 'ContactEmail']],
+          valueInputOption: 'USER_ENTERED',
+        },
+      },
+      {
+        type: 'tool_call',
+        tool: 'sheets_data',
+        action: 'write',
+        description: 'Write Inventory headers',
+        paramTemplate: {
+          range: 'Inventory!A1:G1',
+          values: [
+            ['SKU', 'Name', 'CategoryID', 'SupplierID', 'Stock', 'CategoryName', 'SupplierName'],
+          ],
+          valueInputOption: 'USER_ENTERED',
+        },
+      },
+      {
+        type: 'inject_cross_sheet_lookup' as const,
+        config: {
+          sourceSheet: 'Categories',
+          lookupCol: 'A',
+          returnCol: 'B',
+          targetSheet: 'Inventory',
+          targetCol: 'F',
+          targetKeyCol: 'C',
+          startRow: 2,
+        },
+      },
+      {
+        type: 'inject_cross_sheet_lookup' as const,
+        config: {
+          sourceSheet: 'Suppliers',
+          lookupCol: 'A',
+          returnCol: 'B',
+          targetSheet: 'Inventory',
+          targetCol: 'G',
+          targetKeyCol: 'D',
+          startRow: 2,
+        },
       },
     ],
   },
@@ -852,14 +1194,30 @@ export function compileFromTemplate(
   if (!template) return undefined;
 
   const planId = `plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const steps: ExecutionStep[] = template.steps.map((step, i) => ({
-    stepId: `step-${i + 1}`,
-    tool: step.tool,
-    action: step.action,
-    description: step.description,
-    params: { spreadsheetId, ...step.paramTemplate, ...(overrides || {}) },
-    dependsOn: i > 0 ? [`step-${i}`] : undefined,
-  }));
+  const steps: ExecutionStep[] = template.steps.map((step, i) => {
+    const base = {
+      stepId: `step-${i + 1}`,
+      dependsOn: i > 0 ? [`step-${i}`] : undefined,
+    };
+    if (step.type === 'inject_cross_sheet_lookup') {
+      return {
+        ...base,
+        tool: '__internal__',
+        action: 'inject_cross_sheet_lookup',
+        type: 'inject_cross_sheet_lookup' as const,
+        description: step.description ?? 'Inject cross-sheet XLOOKUP formulas',
+        params: { spreadsheetId },
+        config: step.config as Record<string, unknown>,
+      };
+    }
+    return {
+      ...base,
+      tool: step.tool,
+      action: step.action,
+      description: step.description,
+      params: { spreadsheetId, ...step.paramTemplate, ...(overrides || {}) },
+    };
+  });
 
   const plan: PlanState = {
     planId,
@@ -943,6 +1301,61 @@ function buildRecoveryStep(errorDetail: ErrorDetail): ExecutionStep | null {
 // Plan Execution
 // ============================================================================
 
+// ============================================================================
+// Custom Step Executors
+// ============================================================================
+
+/**
+ * Execute an inject_cross_sheet_lookup step.
+ *
+ * 1. Scouts the target sheet to discover the last occupied row.
+ * 2. Builds XLOOKUP formula strings for each data row.
+ * 3. Writes all formulas to the target column in a single write call.
+ */
+async function executeInjectCrossSheetLookup(
+  step: ExecutionStep,
+  plan: PlanState,
+  executeHandler: ExecuteHandlerFn
+): Promise<{ success: true; formulasWritten: number }> {
+  const cfg = step.config as {
+    sourceSheet: string;
+    lookupCol: string;
+    returnCol: string;
+    targetSheet: string;
+    targetCol: string;
+    targetKeyCol: string;
+    startRow: number;
+  };
+  const spreadsheetId = (step.params['spreadsheetId'] as string | undefined) ?? plan.description;
+
+  // Scout to discover the last occupied row in the target sheet
+  const metaResult = (await executeHandler('sheets_analyze', 'scout', { spreadsheetId })) as
+    | { sheets?: Array<{ name: string; rowCount: number }> }
+    | undefined;
+
+  const sheetInfo = metaResult?.sheets?.find((s) => s.name === cfg.targetSheet);
+  const lastRow = sheetInfo
+    ? cfg.startRow + Math.max(0, sheetInfo.rowCount - cfg.startRow)
+    : cfg.startRow + 99;
+
+  // Build XLOOKUP formula for each row in [startRow, lastRow]
+  const formulas: string[][] = [];
+  for (let row = cfg.startRow; row <= lastRow; row++) {
+    formulas.push([
+      `=IFERROR(XLOOKUP(${cfg.targetKeyCol}${row},'${cfg.sourceSheet}'!${cfg.lookupCol}:${cfg.lookupCol},'${cfg.sourceSheet}'!${cfg.returnCol}:${cfg.returnCol},""),"")`,
+    ]);
+  }
+
+  await executeHandler('sheets_data', 'write', {
+    spreadsheetId,
+    range: `${cfg.targetSheet}!${cfg.targetCol}${cfg.startRow}:${cfg.targetCol}${lastRow}`,
+    values: formulas,
+    valueInputOption: 'USER_ENTERED',
+  });
+
+  return { success: true, formulasWritten: formulas.length };
+}
+
 /**
  * Execute all steps in a plan sequentially.
  * Creates checkpoints before each step, records results.
@@ -990,7 +1403,10 @@ export async function executePlan(
     createCheckpoint(planId, `Before step: ${step.description}`);
 
     try {
-      const result = await executeHandler(step.tool, step.action, step.params);
+      const result =
+        step.type === 'inject_cross_sheet_lookup' || step.action === 'inject_cross_sheet_lookup'
+          ? await executeInjectCrossSheetLookup(step, plan, executeHandler)
+          : await executeHandler(step.tool, step.action, step.params);
 
       const stepResult: StepResult = {
         stepId: step.stepId,
