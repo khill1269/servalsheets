@@ -312,3 +312,186 @@ export function getRecommendedActions(toolName: string, action: string): Suggest
   const key = `${toolName}.${action}`;
   return RECOMMENDATION_RULES[key] || [];
 }
+
+// Date-like detection helpers (mirrors lightweight-quality-scanner logic without import)
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
+const MDY_DATE_RE = /^\d{1,2}\/\d{1,2}\/\d{2,4}$/;
+
+function isDateLikeValue(v: unknown): boolean {
+  if (typeof v !== 'string') return false;
+  return ISO_DATE_RE.test(v) || MDY_DATE_RE.test(v);
+}
+
+function isNumericValue(v: unknown): boolean {
+  if (typeof v === 'number') return true;
+  if (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v))) return true;
+  return false;
+}
+
+type CellValue = string | number | boolean | null;
+
+/**
+ * Build data-signal suggestions from actual response values.
+ * Returns deduplicated suggestions ordered by relevance (data signals first).
+ */
+export function getDataAwareSuggestions(
+  toolName: string,
+  action: string,
+  _result: Record<string, unknown>,
+  options?: {
+    responseValues?: CellValue[][];
+    confidenceGaps?: Array<{ question: string; options?: string[] }>;
+  }
+): SuggestedAction[] {
+  const dataSuggestions: SuggestedAction[] = [];
+  const seenKeys = new Set<string>();
+
+  function addIfNew(suggestion: SuggestedAction): void {
+    const key = `${suggestion.tool}.${suggestion.action}`;
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      dataSuggestions.push(suggestion);
+    }
+  }
+
+  // ── Signal 1: Response data signals ────────────────────────────────────────
+  if (options?.responseValues && options.responseValues.length >= 2) {
+    const values = options.responseValues;
+    const numCols = Math.max(...values.map((r) => r.length));
+
+    // Analyse columns (skip header row at index 0)
+    let hasDateCol = false;
+    let hasNumericCol = false;
+    let hasVlookup = false;
+    let dateColUnsorted = false;
+    let totalCells = 0;
+    let nullCells = 0;
+
+    for (let c = 0; c < numCols; c++) {
+      const dataRows = values.slice(1, 11); // spot-check first 10 rows max
+
+      let colDates: string[] = [];
+      let colNums = 0;
+      let colStrings = 0;
+
+      for (const row of dataRows) {
+        const cell = row[c];
+        if (cell === null || cell === undefined || cell === '') {
+          nullCells++;
+          totalCells++;
+          continue;
+        }
+        totalCells++;
+
+        if (typeof cell === 'string') {
+          if (cell.includes('VLOOKUP')) hasVlookup = true;
+          if (isDateLikeValue(cell)) {
+            hasDateCol = true;
+            colDates.push(cell);
+          } else {
+            colStrings++;
+          }
+        } else if (isNumericValue(cell)) {
+          hasNumericCol = true;
+          colNums++;
+        }
+        void colStrings;
+        void colNums;
+      }
+
+      // Check if date column is unsorted (spot-check first 10 values)
+      if (colDates.length >= 3) {
+        const sorted = [...colDates].sort();
+        if (sorted.join() !== colDates.join()) {
+          dateColUnsorted = true;
+        }
+      }
+    }
+
+    const nullRatio = totalCells > 0 ? nullCells / totalCells : 0;
+
+    // Has date + numeric → chart suggestion
+    if (hasDateCol && hasNumericCol) {
+      addIfNew({
+        tool: 'sheets_visualize',
+        action: 'suggest_chart',
+        reason: 'Data has date and numeric columns — a line chart would visualize trends',
+      });
+    }
+
+    // Contains VLOOKUP → suggest XLOOKUP upgrade
+    if (hasVlookup) {
+      addIfNew({
+        tool: 'sheets_analyze',
+        action: 'analyze_formulas',
+        reason: 'VLOOKUP detected — consider upgrading to XLOOKUP for better performance',
+      });
+    }
+
+    // Dates out of order
+    if (dateColUnsorted) {
+      addIfNew({
+        tool: 'sheets_dimensions',
+        action: 'sort_range',
+        reason: 'Date column values are not in chronological order',
+      });
+    }
+
+    // High null rate
+    if (nullRatio > 0.1) {
+      addIfNew({
+        tool: 'sheets_fix',
+        action: 'fill_missing',
+        reason: `${Math.round(nullRatio * 100)}% of cells are empty — fill missing values`,
+      });
+    }
+  }
+
+  // ── Signal 2: Confidence gaps ───────────────────────────────────────────────
+  if (options?.confidenceGaps && options.confidenceGaps.length > 0) {
+    const gapKeywords: Array<[string, SuggestedAction]> = [
+      ['formula', { tool: 'sheets_analyze', action: 'analyze_formulas', reason: '' }],
+      ['column type', { tool: 'sheets_analyze', action: 'analyze_data', reason: '' }],
+      ['chart', { tool: 'sheets_visualize', action: 'suggest_chart', reason: '' }],
+      ['format', { tool: 'sheets_format', action: 'suggest_format', reason: '' }],
+      ['duplicate', { tool: 'sheets_fix', action: 'clean', reason: '' }],
+    ];
+
+    let gapsAdded = 0;
+    for (const gap of options.confidenceGaps.slice(0, 3)) {
+      if (gapsAdded >= 3) break;
+      const lowerQ = gap.question.toLowerCase();
+
+      let matched = false;
+      for (const [keyword, template] of gapKeywords) {
+        if (lowerQ.includes(keyword)) {
+          addIfNew({
+            ...template,
+            reason: gap.question,
+          });
+          gapsAdded++;
+          matched = true;
+          break;
+        }
+      }
+
+      // Fallback: map to analyze_data if no keyword matched
+      if (!matched) {
+        addIfNew({
+          tool: 'sheets_analyze',
+          action: 'analyze_data',
+          reason: gap.question,
+        });
+        gapsAdded++;
+      }
+    }
+  }
+
+  // ── Base: static rules (appended after data signals, deduplicated) ──────────
+  const staticRules = getRecommendedActions(toolName, action);
+  for (const rule of staticRules) {
+    addIfNew(rule);
+  }
+
+  return dataSuggestions;
+}

@@ -113,6 +113,7 @@ import { wrapToolMapWithIdempotency } from '../../middleware/idempotency-middlew
 import { registerPipelineDispatch } from '../../services/pipeline-registry.js';
 import { suggestFix } from '../../services/error-fix-suggester.js';
 import { getRecommendedActions } from '../../services/action-recommender.js';
+import { scanResponseQuality } from '../../services/lightweight-quality-scanner.js';
 import { getErrorCodeCompatibility } from '../../utils/error-code-compat.js';
 import { withWriteLock } from '../../middleware/write-lock-middleware.js';
 import { checkRateLimit } from '../../middleware/rate-limit-middleware.js';
@@ -125,6 +126,7 @@ import {
   convertGoogleAuthError,
   isGoogleAuthError,
 } from '../../utils/auth-guard.js';
+import { replaceAvailableToolNames } from '../tool-registry-state.js';
 
 // Wrap input schemas for legacy envelopes during validation.
 // Keep registration schemas unwrapped to avoid MCP SDK tools/list empty schema bug.
@@ -1296,6 +1298,47 @@ export function buildToolResponse(
       logger.debug('getRecommendedActions threw, continuing without actions injection', {
         error: err,
       });
+    }
+  }
+
+  // Phase 1B.3: Inject dataQualityWarnings for sheets_data read/write actions
+  const DATA_QUALITY_ACTIONS = new Set(['read', 'write', 'append', 'batch_read', 'batch_write']);
+  if (
+    !hasFailure &&
+    'response' in structuredContent &&
+    response &&
+    typeof response === 'object' &&
+    toolName === 'sheets_data'
+  ) {
+    try {
+      const responseRecord = response as Record<string, unknown>;
+      const actionName = responseRecord['action'] as string | undefined;
+      if (actionName && DATA_QUALITY_ACTIONS.has(actionName)) {
+        // Extract values — may be at response.values or response.data.values
+        let responseValues: unknown = responseRecord['values'];
+        if (!responseValues && typeof responseRecord['data'] === 'object' && responseRecord['data']) {
+          responseValues = (responseRecord['data'] as Record<string, unknown>)['values'];
+        }
+        if (
+          Array.isArray(responseValues) &&
+          responseValues.length >= 2 &&
+          Array.isArray(responseValues[0]) &&
+          (responseValues[0] as unknown[]).length >= 2
+        ) {
+          void scanResponseQuality(
+            responseValues as (string | number | boolean | null)[][],
+            { tool: toolName, action: actionName, range: String(responseRecord['range'] ?? '') }
+          ).then((warnings) => {
+            if (warnings.length > 0) {
+              responseRecord['dataQualityWarnings'] = warnings;
+            }
+          }).catch(() => {
+            // Non-blocking: quality scan failure must never fail the response
+          });
+        }
+      }
+    } catch {
+      // Non-blocking: quality scan failure must never fail the response
     }
   }
 
@@ -2556,6 +2599,8 @@ export async function registerServalSheetsTools(
       }
     );
   }
+
+  replaceAvailableToolNames(ACTIVE_TOOL_DEFINITIONS.map((tool) => tool.name));
 
   // NOTE: We register unwrapped object schemas for tools/list compatibility.
   // Legacy request envelopes are handled during validation via wrapInputSchemaForLegacyRequest.

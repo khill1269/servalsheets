@@ -205,6 +205,8 @@ function compactInner(
 ): Record<string, unknown> {
   const compact: Record<string, unknown> = {};
   const truncatedFields: string[] = [];
+  // A6: Explicit truncation hints — field name → human-readable message
+  const truncationHints: Record<string, string> = {};
 
   // Always include essential fields
   for (const field of ESSENTIAL_FIELDS) {
@@ -222,23 +224,30 @@ function compactInner(
 
       // Track if this field was truncated
       if (compacted !== original && typeof compacted === 'object' && compacted !== null) {
-        const meta = (compacted as Record<string, unknown>)['_truncated'];
-        if (meta === true) {
-          const total =
-            (compacted as Record<string, unknown>)['totalRows'] ??
-            ((compacted as Record<string, unknown>)['_meta']
-              ? ((compacted as Record<string, unknown>)['_meta'] as Record<string, unknown>)?.[
-                  'totalCount'
-                ]
-              : undefined);
-          truncatedFields.push(total ? `${field}(${total} total)` : field);
+        if (Array.isArray(original) && Array.isArray(compacted) && compacted.length < original.length) {
+          // List field was truncated to an array slice (LIST_ACTION_FIELDS path)
+          truncatedFields.push(`${field}(${original.length} total, showing ${compacted.length})`);
+          // A6: Add explicit truncation hint for list fields
+          const hidden = original.length - compacted.length;
+          truncationHints[field] =
+            `${hidden} more ${field} not shown — use verbosity:"detailed" to see all`;
+        } else {
+          // 2D array or 1D array wrapped into an object with _truncated:true
+          const meta = (compacted as Record<string, unknown>)['_truncated'];
+          if (meta === true) {
+            const total =
+              (compacted as Record<string, unknown>)['totalRows'] ??
+              ((compacted as Record<string, unknown>)['_meta']
+                ? ((compacted as Record<string, unknown>)['_meta'] as Record<string, unknown>)?.[
+                    'totalCount'
+                  ]
+                : undefined);
+            truncatedFields.push(total ? `${field}(${total} total)` : field);
+            // A6: Add explicit truncation hint for this field
+            truncationHints[field] =
+              `${total ?? '?'} rows truncated — use verbosity:"detailed" to see all`;
+          }
         }
-      } else if (
-        Array.isArray(original) &&
-        Array.isArray(compacted) &&
-        compacted.length < original.length
-      ) {
-        truncatedFields.push(`${field}(${original.length} total, showing ${compacted.length})`);
       }
     }
   }
@@ -280,6 +289,11 @@ function compactInner(
       `Data truncated: ${truncatedFields.join(', ')}. Use verbosity:"detailed" for full data.${cursorHint}`;
   }
 
+  // A6: Inject _truncated key when any field was truncated (explicit hints for LLM)
+  if (Object.keys(truncationHints).length > 0) {
+    compact['_truncated'] = truncationHints;
+  }
+
   // Add pagination hint even when no truncation occurred
   if (
     !compact['_hint'] &&
@@ -301,6 +315,14 @@ function truncateValue(
   fieldName: string,
   options?: { verbosity?: string }
 ): unknown {
+  if (
+    fieldName === 'data' &&
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value)
+  ) {
+    return compactInner(value as Record<string, unknown>, options);
+  }
   if (Array.isArray(value)) {
     return truncateArray(value, fieldName, options);
   }
