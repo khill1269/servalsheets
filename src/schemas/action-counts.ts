@@ -12,7 +12,7 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_agent: 8,
   sheets_analyze: 21,
   sheets_appsscript: 19,
-  sheets_auth: 4,
+  sheets_auth: 5,
   sheets_bigquery: 17,
   sheets_collaborate: 40,
   sheets_composite: 21,

@@ -8,7 +8,7 @@
  * 4. **TOP 3 ACTIONS** - Most common usage patterns
  * 5. **SAFETY** - Destructive operation warnings
  *
- * Total: 25 tools, 397 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
+ * Total: 25 tools, 400 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
  *
  * SHARED CONTEXT (applies to all tools except sheets_auth):
  * - PREREQUISITE: sheets_auth must be authenticated before using any tool.
@@ -286,7 +286,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 **ACTIONS BY CATEGORY:**
 [Recommendations] suggest_chart (AI suggests chart type), suggest_pivot (AI suggests aggregation)
 [Charts] chart_create, chart_update, chart_delete, chart_list, chart_get, chart_move, chart_resize, chart_update_data_range
-[Trendlines] chart_add_trendline (DEPRECATED — use Google Sheets UI), chart_remove_trendline
+[Trendlines] chart_add_trendline (REST API support limited — may fail; falls back to helpful error with Sheets UI instructions), chart_remove_trendline
 [Pivots] pivot_create, pivot_update, pivot_delete, pivot_list, pivot_get, pivot_refresh
 
 **SAFETY:**
@@ -709,7 +709,7 @@ Example: {"action":"validate","value":"test@email.com","rules":["not_empty","val
 [Import/Export] import_csv, import_xlsx, import_and_format, export_xlsx, export_large_dataset, get_form_responses
 [Smart Operations] smart_append (auto-match columns), bulk_update (atomic), deduplicate (with preview), clone_structure
 [AI Generation] generate_sheet (description → spreadsheet), generate_template (reusable), preview_generation (dry-run)
-[Audit & Report] audit_sheet (formula/type/blank analysis), publish_report (PDF/XLSX export with formatting)
+[Audit & Report] audit_sheet (formula/type/blank analysis), publish_report (PDF/XLSX/CSV export with formatting)
 [Pipeline & Migrate] data_pipeline (ETL: filter→sort→dedup→transform), instantiate_template (template + {{placeholder}}), migrate_spreadsheet (column mapping)
 
 **⚡ TOP 3 ACTIONS:**
@@ -720,7 +720,7 @@ Example: {"action":"validate","value":"test@email.com","rules":["not_empty","val
 **Savings:** 60-80% fewer API calls. Example: setup_sheet = sheets_core.add_sheet + sheets_data.write + sheets_format (3 ops) = 1 call in composite.
 
 **SAFETY:**
-[Read-only] export_xlsx, export_large_dataset, get_form_responses, audit_sheet, publish_report (PDF only), preview_generation
+[Read-only] export_xlsx, export_large_dataset, get_form_responses, audit_sheet, publish_report (PDF/XLSX/CSV), preview_generation
 [Safe mutation] setup_sheet, smart_append, import_csv, import_xlsx, import_and_format, clone_structure, generate_sheet, generate_template, instantiate_template
 [Requires confirmation] bulk_update (>50 rows), deduplicate, migrate_spreadsheet
 [Requires snapshot] bulk_update, deduplicate (if mode:"apply")

@@ -12,7 +12,7 @@ import { getAvailableToolActions, getAvailableToolNames } from './tool-registry-
 
 /**
  * Action names for each tool (for autocompletion)
- * Total: 399 actions across 25 tools
+ * Total: 400 actions across 25 tools
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
@@ -112,6 +112,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'login',
     'callback',
     'logout',
+    'setup_feature',
   ],
   sheets_bigquery: [
     'connect',

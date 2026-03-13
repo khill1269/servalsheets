@@ -49,12 +49,41 @@ const LogoutActionSchema = z.object({
   verbosity: VerbositySchema,
 });
 
+const SetupFeatureActionSchema = z.object({
+  action: z
+    .literal('setup_feature')
+    .describe(
+      'Guided wizard to configure optional features: connector API keys (Finnhub, FRED, Alpha Vantage, Polygon, FMP), Anthropic API key for MCP sampling, Redis URL for webhooks, or MCP federation servers. Uses elicitation to collect credentials interactively — no manual config file editing required. Credentials are encrypted and persist across restarts.'
+    ),
+  feature: z
+    .enum(['connectors', 'sampling', 'webhooks', 'federation'])
+    .optional()
+    .describe(
+      'Feature to configure. If omitted the wizard will ask. connectors=data connector API keys, sampling=ANTHROPIC_API_KEY for AI insights, webhooks=REDIS_URL for push notifications, federation=remote MCP servers'
+    ),
+  connectorId: z
+    .enum(['finnhub', 'fred', 'alpha_vantage', 'polygon', 'fmp'])
+    .optional()
+    .describe(
+      'Connector to configure (only when feature=connectors). Wizard will ask if omitted. finnhub=stocks/news free, fred=economic data free, alpha_vantage=stocks/forex/crypto free, polygon=market data, fmp=financials'
+    ),
+  apiKey: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'API key to store directly — skips elicitation. Use this for programmatic setup or when the user already has the key ready.'
+    ),
+  verbosity: VerbositySchema,
+});
+
 export const SheetsAuthInputSchema = z.object({
   request: z.discriminatedUnion('action', [
     StatusActionSchema,
     LoginActionSchema,
     CallbackActionSchema,
     LogoutActionSchema,
+    SetupFeatureActionSchema,
   ]),
 });
 
@@ -110,3 +139,4 @@ export type AuthCallbackInput = SheetsAuthInput['request'] & {
   state?: string;
 };
 export type AuthLogoutInput = SheetsAuthInput['request'] & { action: 'logout' };
+export type AuthSetupFeatureInput = SheetsAuthInput['request'] & { action: 'setup_feature' };
