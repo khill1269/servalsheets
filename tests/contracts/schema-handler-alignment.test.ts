@@ -167,7 +167,7 @@ describe('Schema-Handler Alignment', () => {
         agent: 8,
         analyze: 21,
         appsscript: 19,
-        auth: 4,
+        auth: 5,
         bigquery: 17,
         collaborate: 40,
         composite: 21,

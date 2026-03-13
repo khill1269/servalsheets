@@ -978,7 +978,7 @@ export class AuthHandler {
       return {
         success: true,
         action: 'setup_feature',
-        message: `✅ ${info?.name ?? connectorId} configured, verified, and encrypted.`,
+        message: `${info?.name ?? connectorId} configured, verified, and encrypted.`,
         instructions: [
           `${info?.name ?? connectorId} is ready. Use sheets_connectors to query live data.`,
           `Example: sheets_connectors { "action": "query", "connectorId": "${connectorId}", "endpoint": "...", "params": {} }`,
@@ -1061,7 +1061,7 @@ export class AuthHandler {
     return {
       success: true,
       action: 'setup_feature',
-      message: '✅ Anthropic API key saved. MCP sampling and AI analysis are now enabled.',
+      message: 'Anthropic API key saved. MCP sampling and AI analysis are now enabled.',
       instructions: [
         'AI features unlocked for this session and future restarts:',
         '  • sheets_analyze action "generate_formula" — AI formula builder',
@@ -1129,7 +1129,7 @@ export class AuthHandler {
     return {
       success: true,
       action: 'setup_feature',
-      message: '✅ Redis URL saved. Webhook support is now enabled.',
+      message: 'Redis URL saved. Webhook support is now enabled.',
       instructions: [
         'Webhooks are ready for this session and future restarts:',
         '  • sheets_webhook action "register" — register a webhook endpoint',
@@ -1223,7 +1223,7 @@ export class AuthHandler {
     return {
       success: true,
       action: 'setup_feature',
-      message: `✅ ${serverCount} federation server${serverCount !== 1 ? 's' : ''} saved. MCP federation is now enabled.`,
+      message: `${serverCount} federation server${serverCount !== 1 ? 's' : ''} saved. MCP federation is now enabled.`,
       instructions: [
         'Federation is ready for this session and future restarts:',
         '  • sheets_federation action "list_servers" — see available remote servers',

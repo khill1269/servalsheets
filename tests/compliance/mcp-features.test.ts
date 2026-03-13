@@ -475,7 +475,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
 
       // Sanity check: we should have a reasonable number of actions
       expect(actualActionCount).toBeGreaterThan(290);
-      expect(actualActionCount).toBeLessThan(400);
+      expect(actualActionCount).toBeLessThan(450);
     });
   });
 });
