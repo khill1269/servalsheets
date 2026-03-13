@@ -36,7 +36,7 @@ import type { Intent } from '../core/intent.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { executeWithRetry } from '../utils/retry.js';
 import { getRequestAbortSignal } from '../utils/request-context.js';
-import { getCircuitBreakerConfig } from '../config/env.js';
+import { getCircuitBreakerConfig, getEnv } from '../config/env.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import { randomBytes } from 'crypto';
 import type {
@@ -74,25 +74,47 @@ const APPS_SCRIPT_API_BASE = 'https://script.googleapis.com/v1';
  * Timeout constants per Google Apps Script API documentation
  * @see https://developers.google.com/apps-script/api/how-tos/execute
  *
- * Execution limits (Google docs):
- *   - Consumer accounts:  6 minutes  (360 seconds)
- *   - Workspace accounts: 30 minutes (1800 seconds)
- *
- * SCRIPT_RUN_TIMEOUT is the HTTP request timeout — must be >= script execution limit.
- * Using the Workspace limit (30 min + 60 s buffer) so long-running Workspace scripts
- * are not cut off prematurely. Consumer scripts complete well within this window.
+ * Apps Script executions are limited to 6 minutes per run.
+ * Keep the client timeout slightly above that documented limit so run() calls
+ * are not cut off before Apps Script itself aborts the execution.
  */
-const SCRIPT_RUN_TIMEOUT_MS = 1_860_000; // 31 minutes (30 min Workspace limit + 60 s buffer)
+const SCRIPT_RUN_TIMEOUT_MS = 420_000; // 7 minutes (6 min limit + 60 s buffer)
 const SCRIPT_ADMIN_TIMEOUT_MS = 30_000; // 30 seconds (metadata operations)
 
 export class SheetsAppsScriptHandler extends BaseHandler<
   SheetsAppsScriptInput,
   SheetsAppsScriptOutput
 > {
-  // ISSUE-203: Track concurrent run() executions (Google Apps Script limit: 20/user)
+  // ISSUE-203: Track concurrent run() executions below Google's simultaneous execution cap.
   // Static so the limit applies across all handler instances (one per MCP request)
   private static activeRunExecutions = 0;
-  private static readonly MAX_CONCURRENT_RUNS = 15; // 15/20 — buffer below Google's limit
+  private static readonly MAX_CONCURRENT_RUNS = getEnv().APPSSCRIPT_MAX_CONCURRENT_RUNS;
+  private static readonly BOUND_SCRIPT_CACHE_TTL_MS = 5 * 60 * 1000;
+  private static readonly boundScriptCache = new Map<
+    string,
+    { scriptId: string; cachedAt: number }
+  >();
+
+  private static rememberBoundScript(spreadsheetId: string, scriptId: string): void {
+    SheetsAppsScriptHandler.boundScriptCache.set(spreadsheetId, {
+      scriptId,
+      cachedAt: Date.now(),
+    });
+  }
+
+  private static getRememberedBoundScript(spreadsheetId: string): string | undefined {
+    const cached = SheetsAppsScriptHandler.boundScriptCache.get(spreadsheetId);
+    if (!cached) {
+      return undefined;
+    }
+
+    if (Date.now() - cached.cachedAt > SheetsAppsScriptHandler.BOUND_SCRIPT_CACHE_TTL_MS) {
+      SheetsAppsScriptHandler.boundScriptCache.delete(spreadsheetId);
+      return undefined;
+    }
+
+    return cached.scriptId;
+  }
 
   // ============================================================================
   // Shared API response interfaces (class-level to avoid inline duplication)
@@ -323,15 +345,34 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     logger.debug(`Resolving scriptId from spreadsheetId: ${spreadsheetId}`);
     await sendProgress(0, 1, `Resolving Apps Script project for spreadsheet ${spreadsheetId}...`);
 
+    const cachedScriptId = SheetsAppsScriptHandler.getRememberedBoundScript(spreadsheetId);
+    if (cachedScriptId) {
+      logger.debug(`Resolved scriptId from in-memory cache: ${cachedScriptId}`);
+      return cachedScriptId;
+    }
+
     try {
       const drive = googleClient.drive;
-      const response = await drive.files.list({
-        q: `'${spreadsheetId}' in parents and mimeType = 'application/vnd.google-apps.script' and trashed = false`,
-        fields: 'files(id, name)',
-        pageSize: 5,
-      });
+      // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+      const listBoundScripts = async () =>
+        await drive.files.list({
+          q: `'${spreadsheetId}' in parents and mimeType = 'application/vnd.google-apps.script' and trashed = false`,
+          fields: 'files(id, name)',
+          pageSize: 5,
+        });
 
-      const files = response.data.files;
+      let files = (await listBoundScripts()).data.files;
+      if (!files || files.length === 0) {
+        const retryDelaysMs = [300, 700];
+        for (const delayMs of retryDelaysMs) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          files = (await listBoundScripts()).data.files;
+          if (files && files.length > 0) {
+            break;
+          }
+        }
+      }
+
       if (!files || files.length === 0) {
         throw new ServiceError(
           `No bound Apps Script project found for spreadsheet ${spreadsheetId}. ` +
@@ -360,6 +401,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       logger.info(
         `Resolved scriptId: ${scriptId} (from spreadsheet: ${spreadsheetId}, script name: ${firstFile?.name ?? 'unknown'})`
       );
+      SheetsAppsScriptHandler.rememberBoundScript(spreadsheetId, scriptId);
       return scriptId;
     } catch (err) {
       if (err instanceof ServiceError) throw err;
@@ -437,25 +479,11 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       'Content-Type': 'application/json',
     };
 
-    // Set up abort controller for timeout
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
-
-    const options: RequestInit = {
-      method,
-      headers,
-      signal: abortController.signal,
-    };
-
-    if (body && (method === 'POST' || method === 'PUT')) {
-      options.body = JSON.stringify(body);
-    }
+    const requestBody =
+      body && (method === 'POST' || method === 'PUT') ? JSON.stringify(body) : undefined;
 
     logger.debug(`Apps Script API ${method} ${path} (timeout: ${timeoutMs}ms)`);
 
-    // Wrap API call with retry + circuit breaker
-    // Only retry network-level transport errors (not API-level ServiceErrors like 429/403
-    // which are surfaced to the client with their original error codes)
     const RETRYABLE_NETWORK_CODES = new Set([
       'ETIMEDOUT',
       'ECONNRESET',
@@ -469,28 +497,49 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       'ERR_HTTP2_STREAM_CANCEL',
     ]);
 
-    return await executeWithRetry(
-      async (signal) => {
-        return await this.circuitBreaker.execute(async () => {
+    // Run retries inside the circuit breaker operation so transient 429/5xx retries
+    // do not each count as separate breaker failures.
+    return await this.circuitBreaker.execute(async () =>
+      executeWithRetry(
+        async (signal) => {
           // Merge retry signal + manual timeout signal + MCP cancellation signal (ISSUE-119)
           const fetchController = new AbortController();
           const requestAbortSignal = getRequestAbortSignal() ?? this.context.abortSignal;
-          signal.addEventListener('abort', () => fetchController.abort(signal.reason));
+          const timeoutId = setTimeout(() => fetchController.abort('request timeout'), timeoutMs);
+          const cleanupFns: Array<() => void> = [];
+
+          const forwardAbort = (source: AbortSignal | undefined, fallbackReason: string): void => {
+            if (!source) {
+              return;
+            }
+
+            const onAbort = (): void => {
+              fetchController.abort(source.reason ?? fallbackReason);
+            };
+            if (source.aborted) {
+              onAbort();
+              return;
+            }
+
+            source.addEventListener('abort', onAbort, { once: true });
+            cleanupFns.push(() => source.removeEventListener('abort', onAbort));
+          };
+
+          forwardAbort(signal, 'retry timeout');
           // ISSUE-119: Wire context abortSignal so client cancellation (notifications/cancelled)
           // terminates the long-running Apps Script HTTP request immediately.
-          requestAbortSignal?.addEventListener('abort', () =>
-            fetchController.abort('MCP request cancelled by client')
-          );
+          forwardAbort(requestAbortSignal, 'MCP request cancelled by client');
 
           try {
-            const fetchOptions: RequestInit = { ...options, signal: fetchController.signal };
+            const fetchOptions: RequestInit = {
+              method,
+              headers,
+              body: requestBody,
+              signal: fetchController.signal,
+            };
             const response = await fetch(url, fetchOptions);
-            clearTimeout(timeoutId);
-
             return await this.handleApiResponse<T>(response, path);
           } catch (error) {
-            clearTimeout(timeoutId);
-
             // Handle timeout/abort
             if (error instanceof Error && error.name === 'AbortError') {
               throw new ServiceError(
@@ -503,25 +552,25 @@ export class SheetsAppsScriptHandler extends BaseHandler<
             }
 
             throw error;
+          } finally {
+            clearTimeout(timeoutId);
+            cleanupFns.forEach((cleanup) => cleanup());
           }
-        });
-      },
-      {
-        timeoutMs,
-        retryable: (error) => {
-          // Don't retry API-level ServiceErrors — circuit breaker handles those.
-          // NOTE: 429 rate limits from Apps Script are ServiceError(UNAVAILABLE, RATE_LIMITED)
-          // and are not retried here because retrying would trip the circuit breaker (threshold=3)
-          // before backoff completes, producing a plain Error instead of the typed ServiceError.
-          // The correct fix requires the circuit breaker to not count 429s as failures — deferred.
-          if (error instanceof ServiceError) return false;
-          const code =
-            typeof (error as { code?: unknown }).code === 'string'
-              ? (error as { code: string }).code
-              : '';
-          return RETRYABLE_NETWORK_CODES.has(code);
         },
-      }
+        {
+          timeoutMs,
+          retryable: (error) => {
+            if (error instanceof ServiceError) {
+              return error.retryable;
+            }
+            const code =
+              typeof (error as { code?: unknown }).code === 'string'
+                ? (error as { code: string }).code
+                : '';
+            return RETRYABLE_NETWORK_CODES.has(code);
+          },
+        }
+      )
     );
   }
 
@@ -647,6 +696,10 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     }
 
     const result = await this.apiRequest<ProjectResponse>('POST', '/projects', body);
+
+    if (req.parentId) {
+      SheetsAppsScriptHandler.rememberBoundScript(req.parentId, result.scriptId);
+    }
 
     return this.success('create', {
       project: {
@@ -976,6 +1029,17 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   // ============================================================================
 
   private async handleRun(req: AppsScriptRunInput): Promise<AppsScriptResponse> {
+    if ((req as Record<string, unknown>)['files'] !== undefined) {
+      return this.error({
+        code: ErrorCodes.INVALID_PARAMS,
+        message:
+          'run does not accept files or source code. Call update_content first, then call run with scriptId + functionName.',
+        retryable: false,
+        suggestedFix:
+          '1. Use sheets_appsscript action:"update_content" with { scriptId, files }. 2. Then call action:"run" with { scriptId, functionName, parameters? }.',
+      });
+    }
+
     const requestAbortSignal = getRequestAbortSignal() ?? this.context.abortSignal;
     // ISSUE-119: Check for pre-flight cancellation (client may have cancelled before we started)
     if (requestAbortSignal?.aborted) {
