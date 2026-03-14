@@ -16,6 +16,8 @@
 
 import type { HyperFormula, ExportedCellChange } from 'hyperformula';
 import { logger } from '../utils/logger.js';
+import { AppsScriptEvaluator } from './apps-script-evaluator.js';
+import type { GoogleApiClient } from './google-api.js';
 
 // ============================================================================
 // Types
@@ -63,6 +65,7 @@ export interface SheetData {
 interface HFInstance {
   hf: HyperFormula;
   sheetIndex: number;
+  sheetName: string;
   loadedAt: number;
   /** Scenario fingerprint → result cache */
   resultCache: Map<string, ScenarioResult>;
@@ -77,6 +80,11 @@ interface HFInstance {
    * Key: `${col},${row}`.
    */
   volatileFormulaeCells: Set<string>;
+  /**
+   * Formula map for Google-specific cells: `${col},${row}` → formula string.
+   * Used by Layer 3 (AppsScriptEvaluator) to evaluate Google-only formulas.
+   */
+  googleCellFormulas: Map<string, string>;
 }
 
 // ============================================================================
@@ -178,6 +186,8 @@ export class FormulaEvaluator {
   /** Per-spreadsheet HyperFormula instances (LRU-evicted) */
   private instances = new Map<string, HFInstance>();
 
+  constructor(private readonly googleClient?: GoogleApiClient) {}
+
   /**
    * Load a sheet's data into HyperFormula (or refresh if already loaded).
    *
@@ -219,10 +229,14 @@ export class FormulaEvaluator {
     // Pre-scan formulas to classify Google-specific and volatile cells
     const googleSpecificCells = new Set<string>();
     const volatileFormulaeCells = new Set<string>();
+    const googleCellFormulas = new Map<string, string>();
     sheet.formulas.forEach((row, rowIdx) => {
       row.forEach((formula, colIdx) => {
         if (!formula) return;
-        if (requiresGoogleEval(formula)) googleSpecificCells.add(`${colIdx},${rowIdx}`);
+        if (requiresGoogleEval(formula)) {
+          googleSpecificCells.add(`${colIdx},${rowIdx}`);
+          googleCellFormulas.set(`${colIdx},${rowIdx}`, formula);
+        }
         if (isVolatileFormula(formula)) volatileFormulaeCells.add(`${colIdx},${rowIdx}`);
       });
     });
@@ -230,10 +244,12 @@ export class FormulaEvaluator {
     this.instances.set(spreadsheetId, {
       hf,
       sheetIndex: 0,
+      sheetName: sheet.sheetName,
       loadedAt: Date.now(),
       resultCache: new Map(),
       googleSpecificCells,
       volatileFormulaeCells,
+      googleCellFormulas,
     });
 
     logger.debug('formula_evaluator_loaded', {
@@ -419,9 +435,74 @@ export class FormulaEvaluator {
       localResults.push(predicted);
     }
 
+    // Layer 3: API evaluation for Google-only cells
+    // If a googleClient was provided and there are Google-only cells, evaluate them
+    // via the Sheets API and merge results into localResults.
+    const resolvedGoogleCells: string[] = [];
+    if (this.googleClient && googleFallbackCells.length > 0) {
+      const appsScriptEval = new AppsScriptEvaluator(this.googleClient);
+      for (const fullCell of googleFallbackCells) {
+        // Derive col,row key from the A1 ref to look up the formula
+        const addr = parseA1(fullCell);
+        const formulaKey = addr ? `${addr.col},${addr.row}` : null;
+        const formula = formulaKey ? instance.googleCellFormulas.get(formulaKey) : undefined;
+
+        if (!formula) {
+          resolvedGoogleCells.push(fullCell);
+          continue;
+        }
+
+        try {
+          const apiResult = await appsScriptEval.evaluateFormula(
+            spreadsheetId,
+            instance.sheetName,
+            formula
+          );
+          if (!apiResult.error) {
+            // Read old value from HyperFormula (already in base state)
+            let oldValue: CellValueType = null;
+            if (addr) {
+              try {
+                oldValue = normalizeCellValue(
+                  hf.getCellValue({ sheet: instance.sheetIndex, col: addr.col, row: addr.row })
+                );
+              } catch {
+                // Out of range — stays null
+              }
+            }
+            const apiCell: PredictedCell & { evaluatedViaApi?: boolean } = {
+              cell: fullCell,
+              formula,
+              oldValue,
+              newValue: apiResult.value as CellValueType,
+              evaluatedViaApi: true,
+            };
+            if (
+              typeof oldValue === 'number' &&
+              typeof apiResult.value === 'number' &&
+              oldValue !== 0
+            ) {
+              apiCell.percentageChange =
+                Math.round(((apiResult.value - oldValue) / Math.abs(oldValue)) * 10000) / 100;
+            }
+            localResults.push(apiCell);
+            // Successfully resolved — do NOT add to needsGoogleEval
+          } else {
+            resolvedGoogleCells.push(fullCell);
+          }
+        } catch {
+          // Non-blocking: if evaluation fails, fall back to reporting in needsGoogleEval
+          resolvedGoogleCells.push(fullCell);
+        }
+      }
+    } else {
+      // No googleClient — all Google-only cells remain in needsGoogleEval
+      resolvedGoogleCells.push(...googleFallbackCells);
+    }
+
     const result: ScenarioResult = {
       localResults,
-      needsGoogleEval: googleFallbackCells,
+      needsGoogleEval: resolvedGoogleCells,
       volatileCells,
       cellsRecalculated: exportedChanges.length,
       durationMs: Date.now() - startMs,
