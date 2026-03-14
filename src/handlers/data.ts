@@ -53,6 +53,7 @@ import {
   handleCrossCompare,
 } from './data-actions/cross.js';
 import { handleSmartFill } from './data-actions/smart-fill.js';
+import { handleAutoFill } from './data-actions/auto-fill.js';
 
 /**
  * Main handler for sheets_data tool — thin dispatch only.
@@ -318,6 +319,11 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         return handleSmartFill(
           ha,
           request as unknown as import('../schemas/data.js').DataSmartFillInput
+        );
+      case 'auto_fill':
+        return handleAutoFill(
+          ha,
+          request as unknown as import('../schemas/data.js').DataAutoFillInput
         );
 
       default: {

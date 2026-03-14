@@ -12,7 +12,7 @@ import { getAvailableToolActions, getAvailableToolNames } from './tool-registry-
 
 /**
  * Action names for each tool (for autocompletion)
- * Total: 400 actions across 25 tools
+ * Total: 402 actions across 25 tools
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
@@ -85,6 +85,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'discover_action',
     'diagnose_errors',
     'formula_health_check',
+    'quick_insights',
   ],
   sheets_appsscript: [
     'create',
@@ -279,6 +280,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'copy_paste',
     'detect_spill_ranges',
     'smart_fill',
+    'auto_fill',
     'cross_read',
     'cross_query',
     'cross_write',

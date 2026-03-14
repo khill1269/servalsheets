@@ -1,6 +1,6 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 25 tools, 400 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 25 tools, 402 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
@@ -93,17 +93,17 @@ Historical release snapshots are kept here for upgrade context.
 ### Core Capabilities
 
 - **25 Tools, 399 Actions**: Comprehensive Google Sheets API v4 coverage
-- **MCP 2025-11-25 Compliant**: Full protocol compliance with structured outputs
+- **MCP 2025-11-25 Support**: Structured outputs, tasks, prompts, resources, logging, elicitation, and sampling
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
 - **OAuth 2.1 Support**: For Claude Connectors Directory integration
 
 ### MCP Protocol Support
 
-Full compliance with Model Context Protocol 2025-11-25:
+MCP 2025-11-25 server support includes:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.27.1
-- ✅ **Tools**: 25 tools with 400 actions using discriminated unions
+- ✅ **Tools**: 25 tools with 402 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -354,7 +354,7 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ## Tools Reference
 
-### Tool Summary (25 tools, 400 actions)
+### Tool Summary (25 tools, 402 actions)
 
 | Tool                  | Actions | Description                                                        |
 | --------------------- | ------- | ------------------------------------------------------------------ |
@@ -1211,7 +1211,7 @@ graph TB
 
 ## Schema Architecture: Discriminated Unions
 
-ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 25 tools and 400 actions. This architecture provides:
+ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 25 tools and 402 actions. This architecture provides:
 
 ### Pattern Overview
 
@@ -2045,14 +2045,14 @@ export REQUEST_TIMEOUT_MS=120000
 
 ## MCP Compliance Matrix
 
-ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specification 2025-11-25 and implements all required and optional features.
+ServalSheets implements the MCP 2025-11-25 server features it advertises in discovery metadata. The matrix below summarizes the current MCP surface.
 
 ### Protocol Coverage
 
 | Feature          | Status  | Version    | Implementation                              |
 | ---------------- | ------- | ---------- | ------------------------------------------- |
 | **JSON-RPC 2.0** | ✅ Full | 2.0        | @modelcontextprotocol/sdk v1.27.1           |
-| **Tools**        | ✅ Full | 2025-11-25 | 25 tools, 400 actions, discriminated unions |
+| **Tools**        | ✅ Full | 2025-11-25 | 25 tools, 402 actions, discriminated unions |
 | **Resources**    | ✅ Full | 2025-11-25 | 6 URI templates + 7 knowledge resources     |
 | **Prompts**      | ✅ Full | 2025-11-25 | 48 guided workflows with arguments          |
 | **Completions**  | ✅ Full | 2025-11-25 | Argument autocompletion                     |

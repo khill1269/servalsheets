@@ -558,6 +558,38 @@ const SmartFillActionSchema = z.object({
 });
 
 // ============================================================================
+// Auto Fill Action (extend pattern to a fill range)
+// ============================================================================
+
+const AutoFillActionSchema = z.object({
+  action: z
+    .literal('auto_fill')
+    .describe(
+      'Fill a range by extending a pattern detected in a source range. ' +
+        'Supports arithmetic progressions, date sequences, and repeating patterns. ' +
+        'Use strategy=detect to auto-detect the pattern, or specify linear/repeat/date explicitly.'
+    ),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sourceRange: A1NotationSchema.describe(
+    'A1 notation of source cells containing the pattern (e.g. Sheet1!A1:A3)'
+  ),
+  fillRange: A1NotationSchema.describe('A1 notation of cells to fill (e.g. Sheet1!A4:A20)'),
+  strategy: z
+    .enum(['detect', 'linear', 'repeat', 'date'])
+    .optional()
+    .default('detect')
+    .describe(
+      'Fill strategy: detect (auto-detect pattern), linear (arithmetic progression), ' +
+        'repeat (copy pattern cyclically), date (date sequence)'
+    ),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+
+// ============================================================================
 // F2: Multi-Spreadsheet Federation (4 actions)
 // ============================================================================
 
@@ -726,6 +758,9 @@ export const SheetsDataInputSchema = z.object({
 
       // Smart fill (1)
       SmartFillActionSchema, // Pattern-detection fill
+
+      // Auto fill (1) - extend source pattern to fill range
+      AutoFillActionSchema,
 
       // F2: Cross-spreadsheet federation (4)
       CrossReadActionSchema, // Merge data from multiple spreadsheets
@@ -957,6 +992,13 @@ const DataResponseSchema = z.discriminatedUnion('success', [
       .optional()
       .describe('Cell-level diff result (cross_compare)'),
 
+    // auto_fill results (S3-B)
+    cellsFilled: z.coerce.number().int().optional().describe('Number of cells filled (auto_fill)'),
+    detectedPattern: z
+      .enum(['linear', 'repeat', 'date', 'unknown'])
+      .optional()
+      .describe('Pattern detected or applied during auto_fill'),
+
     // Safety
     dryRun: z.boolean().optional().describe('True if this was a dry run (no changes made)'),
     mutation: MutationSummarySchema.optional().describe('Summary of mutation for tracking'),
@@ -1144,4 +1186,12 @@ export type DataSmartFillInput = SheetsDataInput['request'] & {
   sourceRange: string;
   fillRange: string;
   useSampling?: boolean;
+};
+
+export type DataAutoFillInput = SheetsDataInput['request'] & {
+  action: 'auto_fill';
+  spreadsheetId: string;
+  sourceRange: string;
+  fillRange: string;
+  strategy?: 'detect' | 'linear' | 'repeat' | 'date';
 };

@@ -665,6 +665,17 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
           break;
         }
 
+        case 'quick_insights': {
+          // Type assertion: refine() ensures spreadsheetId is present
+          const qiInput = req as typeof req & {
+            spreadsheetId: string;
+            range?: string;
+            maxInsights?: number;
+          };
+          response = (await this.handleQuickInsights(qiInput)) as unknown as AnalyzeResponse;
+          break;
+        }
+
         default: {
           // Exhaustive check - should never reach here with discriminated union
           const _exhaustiveCheck: never = req;
@@ -747,7 +758,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
     let headers: string[] | undefined;
     let sampleData: unknown[][] | undefined;
 
-    if ('range' in req && req.range) {
+    if ('range' in req && req.range && typeof req.range !== 'string') {
       const convertedRange = this.convertRangeInput(req.range);
       const rangeStr = this.resolveAnalyzeRange(convertedRange);
       const data = await this.readData(req.spreadsheetId, rangeStr);
@@ -759,7 +770,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
 
     // Build sampling request
     const sheetName =
-      'range' in req && req.range && 'sheetName' in req.range
+      'range' in req && req.range && typeof req.range === 'object' && 'sheetName' in req.range
         ? (req.range as { sheetName: string }).sheetName
         : undefined;
 
@@ -965,6 +976,168 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
       issueCount: issues.length,
       issues: issues.slice(0, 50),
       message: `Audited ${formulaCount} formula(s). Health score: ${score}/100. ${warningCount} warning(s), ${errorCount} error(s).`,
+    };
+  }
+
+  /**
+   * Handle quick_insights action (S3-A)
+   *
+   * Fast, AI-free structural snapshot: row count, column types, empty rate,
+   * pattern-based observations, and simple actionable suggestions.
+   * No Sampling call is made — completes in milliseconds.
+   */
+  private async handleQuickInsights(req: {
+    spreadsheetId: string;
+    range?: string;
+    maxInsights?: number;
+  }): Promise<Record<string, unknown>> {
+    const { spreadsheetId, range, maxInsights = 5 } = req;
+
+    // Fetch sheet data — bounded to first 100 rows when no range given
+    const effectiveRange = range ?? undefined;
+    const data = await this.readData(spreadsheetId, effectiveRange);
+
+    if (data.length === 0) {
+      return {
+        success: true,
+        action: 'quick_insights',
+        stats: { rowCount: 0, columnCount: 0, dataTypes: [], emptyRate: 0 },
+        insights: ['Sheet appears to be empty.'],
+        suggestions: [],
+        warnings: [],
+        message: 'No data found in the specified range.',
+      };
+    }
+
+    // Treat first row as headers
+    const headers = data[0]?.map(String) ?? [];
+    const dataRows = data.slice(1);
+    const rowCount = dataRows.length;
+    const columnCount = headers.length;
+
+    // Detect data types per column and count empties
+    let totalCells = 0;
+    let emptyCells = 0;
+    const dataTypes: string[] = [];
+
+    for (let col = 0; col < columnCount; col++) {
+      totalCells += rowCount;
+      let numCount = 0;
+      let dateCount = 0;
+      let emptyCount = 0;
+      const colValues: string[] = [];
+
+      for (const row of dataRows) {
+        const val = row[col];
+        const str = val == null ? '' : String(val).trim();
+        if (str === '') {
+          emptyCount++;
+          emptyCells++;
+        } else {
+          colValues.push(str);
+          if (!isNaN(Number(str))) {
+            numCount++;
+          }
+          // Simple date detection: contains / or - and has at least 3 parts
+          if (/\d{1,4}[/-]\d{1,2}[/-]\d{1,4}/.test(str)) {
+            dateCount++;
+          }
+        }
+      }
+
+      const nonEmpty = rowCount - emptyCount;
+      if (nonEmpty === 0) {
+        dataTypes.push('empty');
+      } else if (dateCount / nonEmpty >= 0.8) {
+        dataTypes.push('date');
+      } else if (numCount / nonEmpty >= 0.8) {
+        dataTypes.push('number');
+      } else {
+        dataTypes.push('text');
+      }
+    }
+
+    const emptyRate = totalCells > 0 ? emptyCells / totalCells : 0;
+
+    // Build pattern-based insights (capped at maxInsights)
+    const allInsights: string[] = [];
+    const warnings: string[] = [];
+
+    // Empty column warnings
+    for (let col = 0; col < columnCount; col++) {
+      const colEmptyCount = dataRows.filter((row) => {
+        const val = row[col];
+        return val == null || String(val).trim() === '';
+      }).length;
+      const colEmptyRate = rowCount > 0 ? colEmptyCount / rowCount : 0;
+      if (colEmptyRate >= 0.5) {
+        const label = headers[col] ?? `Column ${col + 1}`;
+        warnings.push(`Column "${label}" is ${Math.round(colEmptyRate * 100)}% empty.`);
+      } else if (colEmptyRate > 0) {
+        const label = headers[col] ?? `Column ${col + 1}`;
+        allInsights.push(`Column "${label}" has ${Math.round(colEmptyRate * 100)}% empty cells.`);
+      }
+    }
+
+    // Row count observation
+    if (rowCount > 1000) {
+      allInsights.push(`Large dataset: ${rowCount} data rows detected.`);
+    } else if (rowCount === 0) {
+      allInsights.push('No data rows found (header row only).');
+    } else {
+      allInsights.push(`Dataset contains ${rowCount} data row(s) and ${columnCount} column(s).`);
+    }
+
+    // Numeric column observations
+    const numericCols = dataTypes
+      .map((t, i) => ({ type: t, header: headers[i] ?? `Col${i + 1}` }))
+      .filter((c) => c.type === 'number');
+    if (numericCols.length > 0) {
+      allInsights.push(`Numeric column(s): ${numericCols.map((c) => `"${c.header}"`).join(', ')}.`);
+    }
+
+    // Build suggestions
+    const suggestions: Array<{
+      title: string;
+      action: string;
+      priority: 'high' | 'medium' | 'low';
+    }> = [];
+
+    if (emptyRate > 0.1) {
+      suggestions.push({
+        title: 'Fill missing values',
+        action: 'Use sheets_fix.fill_missing to fill empty cells',
+        priority: 'medium',
+      });
+    }
+    if (numericCols.length >= 2) {
+      suggestions.push({
+        title: 'Visualize numeric data',
+        action: 'Use sheets_analyze.suggest_visualization to find the best chart type',
+        priority: 'low',
+      });
+    }
+    if (rowCount > 0 && columnCount > 0) {
+      suggestions.push({
+        title: 'Run quality check',
+        action: 'Use sheets_analyze.analyze_quality for a full data quality report',
+        priority: 'low',
+      });
+    }
+
+    return {
+      success: true,
+      action: 'quick_insights',
+      stats: {
+        rowCount,
+        columnCount,
+        dataTypes,
+        emptyRate: Math.round(emptyRate * 1000) / 1000,
+      },
+      insights: allInsights.slice(0, maxInsights),
+      suggestions,
+      warnings,
+      message: `Quick insights: ${rowCount} data rows, ${columnCount} columns, ${Math.round(emptyRate * 100)}% empty cells.`,
     };
   }
 }

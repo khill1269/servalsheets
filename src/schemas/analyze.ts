@@ -1057,6 +1057,35 @@ const FormulaHealthCheckActionSchema = CommonFieldsSchema.extend({
 });
 
 /**
+ * Quick Insights — fast, no-AI structural snapshot of a spreadsheet.
+ *
+ * Returns row/column counts, detected column data-types, empty-cell rate,
+ * pattern-based observations, and actionable suggestions. No Sampling call
+ * is made, so this completes in milliseconds even for large sheets.
+ */
+const QuickInsightsActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('quick_insights')
+    .describe(
+      'Fast, AI-free structural analysis. Returns stats (row count, column count, data types, ' +
+        'empty rate), pattern-based insights, actionable suggestions, and data-quality warnings ' +
+        'in under 500 ms. Use this for a quick overview before running deeper analysis.'
+    ),
+  range: z
+    .string()
+    .optional()
+    .describe('Optional A1 notation range to scope analysis (e.g. Sheet1!A1:D100)'),
+  maxInsights: z
+    .number()
+    .int()
+    .positive()
+    .max(20)
+    .optional()
+    .default(5)
+    .describe('Maximum number of insights to return (default: 5)'),
+});
+
+/**
  * Diagnose formula errors (#REF!, #VALUE!, #NAME?, #DIV/0!, #N/A, circular refs)
  * with root cause analysis and suggested fixes.
  * Competitive parity: Claude in Excel's #1 feature — traces formula errors with cell-level citations.
@@ -1118,6 +1147,8 @@ export const SheetsAnalyzeInputSchema = z.object({
     // Diagnostic actions (2) - competitive parity with Claude in Excel
     DiagnoseErrorsActionSchema,
     FormulaHealthCheckActionSchema,
+    // Fast insights (1) - no AI, instant structural snapshot
+    QuickInsightsActionSchema,
   ]),
 });
 
@@ -2155,6 +2186,21 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
       .array(z.string())
       .optional()
       .describe('Suggested options for disambiguation'),
+
+    // quick_insights results (S3-A)
+    stats: z
+      .object({
+        rowCount: z.number().int().describe('Number of data rows (excluding header)'),
+        columnCount: z.number().int().describe('Number of columns'),
+        dataTypes: z.array(z.string()).describe('Detected data type per column'),
+        emptyRate: z.number().describe('Fraction of empty cells (0–1)'),
+      })
+      .optional()
+      .describe('Structural statistics from quick_insights'),
+    insights: z
+      .array(z.string())
+      .optional()
+      .describe('Pattern-based observations (e.g. "Column D has 23% empty cells")'),
 
     // Common
     duration: z.coerce.number().optional(),

@@ -2,7 +2,7 @@
   "$schema": "https://cdn.jsdelivr.net/npm/@anthropic-ai/mcp-registry@latest/dist/registry-schema.json",
   "name": "io.github.khill1269/servalsheets",
   "version": "1.7.0",
-  "description": "Production-grade Google Sheets MCP server with 25 tools and 400 actions",
+  "description": "Production-grade Google Sheets MCP server with 25 tools and 402 actions",
   "icons": [
     {
       "src": "https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/serval-icon.png",
@@ -29,7 +29,7 @@
       "transport": {
         "type": "stdio"
       },
-      "description": "Production-grade Google Sheets MCP server - 25 tools, 400 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
+      "description": "Production-grade Google Sheets MCP server - 25 tools, 402 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
     }
   ],
   "tools": [
@@ -86,7 +86,7 @@
     },
     {
       "name": "sheets_analyze",
-      "description": "analyze operations (21 actions)",
+      "description": "analyze operations (22 actions)",
       "actions": [
         "comprehensive",
         "analyze_data",
@@ -108,7 +108,8 @@
         "auto_enhance",
         "discover_action",
         "diagnose_errors",
-        "formula_health_check"
+        "formula_health_check",
+        "quick_insights"
       ]
     },
     {
@@ -321,7 +322,7 @@
     },
     {
       "name": "sheets_data",
-      "description": "data operations (24 actions)",
+      "description": "data operations (25 actions)",
       "actions": [
         "read",
         "write",
@@ -343,6 +344,7 @@
         "copy_paste",
         "detect_spill_ranges",
         "smart_fill",
+        "auto_fill",
         "cross_read",
         "cross_query",
         "cross_write",
@@ -594,7 +596,7 @@
   ],
   "metadata": {
     "toolCount": 25,
-    "actionCount": 400,
+    "actionCount": 402,
     "categories": [
       "Core Operations (5 tools): auth, core, data, format, dimensions",
       "Visual Analytics (1 tool): visualize",

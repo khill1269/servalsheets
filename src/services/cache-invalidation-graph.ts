@@ -371,6 +371,9 @@ export class CacheInvalidationGraph {
     // New dynamic array action added to sheets_data (sheets_data: 18→19)
     rules['sheets_data.detect_spill_ranges'] = { invalidates: [] }; // Read-only
 
+    // Auto fill (S3-B) — writes values to fillRange
+    rules['sheets_data.auto_fill'] = { invalidates: ['values:*'] };
+
     // ========================================================================
     // sheets_transaction (6 actions)
     // ========================================================================
@@ -439,6 +442,9 @@ export class CacheInvalidationGraph {
     // P4: Smart Suggestions / Copilot (F4)
     rules['sheets_analyze.suggest_next_actions'] = { invalidates: [] }; // Read-only recommendations
     rules['sheets_analyze.auto_enhance'] = { invalidates: ['metadata:*'] }; // Applies non-destructive enhancements
+
+    // S3-A: Quick Insights — read-only structural snapshot
+    rules['sheets_analyze.quick_insights'] = { invalidates: [] };
 
     // ========================================================================
     // sheets_fix (6 actions — 1 original + 5 P4 F3 Data Cleaning)
