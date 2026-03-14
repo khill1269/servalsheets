@@ -9,12 +9,7 @@
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { ZodTypeAny } from 'zod';
 
-import {
-  TOOL_MODE,
-  ESSENTIAL_TOOLS,
-  STANDARD_TOOLS,
-  DEFER_DESCRIPTIONS,
-} from '../../config/constants.js';
+import { DEFER_DESCRIPTIONS } from '../../config/constants.js';
 import { getLazyLoadTools } from '../../config/schema-optimization.js';
 import {
   SheetsAuthInputSchema,
@@ -419,43 +414,21 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
 // ============================================================================
 
 /**
- * Get the list of allowed tool names for the current mode
- */
-function getAllowedToolNames(): readonly string[] {
-  switch (TOOL_MODE) {
-    case 'lite':
-      return ESSENTIAL_TOOLS;
-    case 'standard':
-      return STANDARD_TOOLS;
-    case 'full':
-    default:
-      return TOOL_DEFINITIONS.map((t) => t.name);
-  }
-}
-
-/**
- * Filtered tool definitions based on SERVAL_TOOL_MODE and lazy loading
+ * All 25 tools — always registered (MCP 2025-11-25 approach)
  *
- * Use this instead of TOOL_DEFINITIONS for registration.
- * - 'full': All 22 tools (~41K tokens)
- * - 'standard': 12 tools (~25K tokens)
- * - 'lite': 8 tools (~15K tokens)
+ * Payload size managed by DEFER_DESCRIPTIONS + DEFER_SCHEMAS (auto-on for
+ * STDIO / Claude Desktop): tools/list stays ~5KB regardless of action count.
+ * Full schemas load on-demand via schema://tools/{name} MCP resources.
  *
- * Additional filtering:
- * - LAZY_LOAD_ENTERPRISE=true: Excludes enterprise tools (saves ~10K tokens)
- * - LAZY_LOAD_TOOLS=tool1,tool2: Excludes specific tools
+ * The server emits notifications/tools/list_changed when runtime state
+ * changes (OAuth, session, federation). Clients re-request tools/list.
+ *
+ * LAZY_LOAD_ENTERPRISE=true or LAZY_LOAD_TOOLS=a,b can still exclude
+ * specific tools for specialized deployments.
  */
 export const ACTIVE_TOOL_DEFINITIONS: readonly ToolDefinition[] = (() => {
-  const allowedNames = getAllowedToolNames();
   const lazyLoadTools = getLazyLoadTools();
-
-  return TOOL_DEFINITIONS.filter((t) => {
-    // Must be in allowed tool mode
-    if (!allowedNames.includes(t.name)) return false;
-    // Must not be lazy-loaded
-    if (lazyLoadTools.includes(t.name)) return false;
-    return true;
-  });
+  return TOOL_DEFINITIONS.filter((t) => !lazyLoadTools.includes(t.name));
 })();
 
 /**

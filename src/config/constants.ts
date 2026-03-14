@@ -204,52 +204,6 @@ export const DEFAULT_PAGE_SIZE = 5;
  */
 export const MAX_PAGE_SIZE = 50;
 
-// ============================================================================
-// Tool Mode Configuration
-// ============================================================================
-
-/**
- * Tool registration mode
- *
- * Controls which tools are registered to manage schema payload size.
- * Large schema payloads (500KB+) can overwhelm some MCP clients.
- *
- * Modes:
- * - 'full': All 22 tools (default, ~527KB schema payload)
- * - 'standard': 12 tools - removes MCP-native + Tier 7 (~444KB)
- * - 'lite': 8 essential tools (~199KB, recommended for Claude Desktop)
- *
- * Set via SERVAL_TOOL_MODE environment variable.
- *
- * For full mode without size issues, also set SERVAL_SCHEMA_REFS=true
- * to enable $ref optimization (reduces to ~209KB). Note: some clients
- * may not handle $refs correctly - test thoroughly.
- *
- * Configuration examples for Claude Desktop:
- *
- * Option 1 - Lite mode (safest, 199KB):
- *   "SERVAL_TOOL_MODE": "lite"
- *
- * Option 2 - Full mode with $ref optimization (209KB):
- *   "SERVAL_TOOL_MODE": "full",
- *   "SERVAL_SCHEMA_REFS": "true"
- *
- * Option 3 - Standard mode (444KB, may still cause issues):
- *   "SERVAL_TOOL_MODE": "standard"
- */
-export type ToolMode = 'full' | 'standard' | 'lite';
-
-export const TOOL_MODE: ToolMode = (() => {
-  const mode = process.env['SERVAL_TOOL_MODE']?.toLowerCase();
-  if (mode === 'lite' || mode === 'standard' || mode === 'full') {
-    return mode;
-  }
-  // Default to 'full' for all transports — all 22 tools available
-  // Previously defaulted to 'standard' (12 tools) for STDIO, but this caused
-  // 9 tools to be silently unavailable in Claude Desktop / Cowork
-  return 'full';
-})();
-
 /**
  * Deferred schema loading mode
  *
@@ -407,33 +361,6 @@ export function getToolStage(toolName: string): ToolStage {
   if ((STAGE_2_TOOLS as readonly string[]).includes(toolName)) return 2;
   return 3;
 }
-
-/**
- * Essential tools (lite mode) - core spreadsheet operations
- * Reduces schema payload by 62% (527KB → 199KB)
- */
-export const ESSENTIAL_TOOLS = [
-  'sheets_auth',
-  'sheets_core',
-  'sheets_data',
-  'sheets_format',
-  'sheets_history',
-  'sheets_transaction',
-  'sheets_quality',
-  'sheets_session',
-] as const;
-
-/**
- * Standard tools - adds visualization, collaboration, dimensions, advanced
- * Removes MCP-native tools (confirm, analyze, fix) and Tier 7 enterprise tools
- */
-export const STANDARD_TOOLS = [
-  ...ESSENTIAL_TOOLS,
-  'sheets_dimensions',
-  'sheets_visualize',
-  'sheets_collaborate',
-  'sheets_advanced',
-] as const;
 
 // ============================================================================
 // Utility Functions
