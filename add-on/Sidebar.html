@@ -89,6 +89,7 @@
         max-width: 85%;
         word-wrap: break-word;
         line-height: 1.4;
+        white-space: pre-wrap;
       }
 
       .user-message .message-bubble {
@@ -110,6 +111,18 @@
         background: #fce8e6;
         color: #d93025;
         border: 1px solid #f28b82;
+      }
+
+      .warning-message .message-bubble {
+        background: #fff4e5;
+        color: #b06000;
+        border: 1px solid #f6c26b;
+      }
+
+      .system-message .message-bubble {
+        background: #eef3fd;
+        color: #185abc;
+        border: 1px solid #aecbfa;
       }
 
       .message-label {
@@ -260,6 +273,64 @@
       .empty-state p {
         font-size: 13px;
         line-height: 1.6;
+      }
+
+      /* Suggestion Cards */
+      .sugg-panel { font-size: 13px; }
+      .sugg-header { font-weight: 600; color: #1967d2; margin-bottom: 8px; font-size: 13px; }
+      .sugg-card { padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 6px;
+        margin-bottom: 6px; background: #fafafa; }
+      .sugg-title { font-weight: 500; color: #202124; font-size: 12px; }
+      .sugg-desc { font-size: 11px; color: #5f6368; margin: 3px 0 5px; }
+      .sugg-meta { display: flex; align-items: center; justify-content: space-between; }
+      .sugg-conf { font-size: 10px; color: #188038; }
+      .sugg-apply { font-size: 11px; padding: 2px 10px; background: #1967d2; color: white;
+        border: none; border-radius: 3px; cursor: pointer; }
+      .sugg-apply:disabled { background: #bdbdbd; cursor: default; }
+      .quality-warnings-container { margin-top: 8px; }
+      .quality-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: #fff3e0;
+        color: #b06000;
+        font-size: 11px;
+        cursor: pointer;
+      }
+      .quality-list {
+        display: none;
+        margin-top: 6px;
+        padding-left: 18px;
+      }
+      .quality-item {
+        margin: 4px 0;
+        font-size: 11px;
+      }
+      .quality-high { color: #c5221f; }
+      .quality-medium { color: #b06000; }
+      .quality-low { color: #137333; }
+      .quality-warning { color: #b06000; }
+      .quality-info { color: #137333; }
+      .quality-fix-btn {
+        margin-left: 8px;
+        padding: 2px 8px;
+        font-size: 10px;
+        background: #1967d2;
+        color: white;
+        border: none;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      .quality-fix-btn:disabled { background: #bdbdbd; cursor: default; }
+      .truncated-chip {
+        display: inline-block;
+        margin-top: 6px;
+        margin-right: 6px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: #e8f0fe;
+        color: #185abc;
+        font-size: 11px;
       }
 
       /* Phase 3.1: Context Suggestions Styles */
@@ -1204,6 +1275,11 @@
         <button class="quick-action" onclick="quickAction_insertRows()">➕ Rows</button>
         <button class="quick-action" onclick="quickAction_share()">👥 Share</button>
         <button class="quick-action" onclick="quickAction_comments()">💬 Comments</button>
+        <button class="quick-action" onclick="quickAction_suggestNext()">💡 Smart Suggestions</button>
+        <button class="quick-action" onclick="quickAction_buildDashboard()">📊 Build Dashboard</button>
+        <button class="quick-action" onclick="quickAction_runAgent()">🤖 Run Agent</button>
+        <button class="quick-action" onclick="quickAction_compute()">📉 Compute</button>
+        <button class="quick-action" onclick="quickAction_liveData()">🌐 Live Data</button>
       </div>
 
       <div class="input-group">
@@ -1702,7 +1778,7 @@
           .map((op) => {
             const icon = getOperationIcon(op.tool);
             const timeStr = formatTimeAgo(op.timestamp);
-            const canUndo = op.undoable !== false;
+            const canRevert = !!op.snapshotId && op.success !== false;
 
             return `
           <div class="history-item">
@@ -1713,11 +1789,11 @@
             </div>
             <div class="history-item-details">${op.tool} → ${op.action}</div>
             ${
-              canUndo
+              canRevert
                 ? `
               <div class="history-item-actions">
-                <button class="history-undo-btn" onclick="undoOperationById('${op.id}')">
-                  ↶ Undo
+                <button class="history-undo-btn" onclick="revertToOperationById('${op.id}')">
+                  ↶ Revert to Here
                 </button>
               </div>
             `
@@ -1766,8 +1842,8 @@
       /**
        * Undoes a specific operation by ID
        */
-      function undoOperationById(operationId) {
-        if (!confirm('Undo this operation?')) return;
+      function revertToOperationById(operationId) {
+        if (!confirm('Revert the sheet to the state before this operation?')) return;
 
         showLoading();
         setProcessing(true);
@@ -1778,11 +1854,11 @@
             setProcessing(false);
 
             if (result.success) {
-              addMessage('✅ Operation undone successfully', 'ai');
+              addMessage('✅ Spreadsheet reverted to the selected history point', 'ai');
               refreshHistory();
             } else {
               addMessage(
-                '❌ Failed to undo: ' + (result.error?.message || 'Unknown error'),
+                '❌ Failed to revert: ' + (result.error?.message || 'Unknown error'),
                 'error'
               );
             }
@@ -1790,9 +1866,9 @@
           .withFailureHandler(function (error) {
             hideLoading();
             setProcessing(false);
-            addMessage('❌ Undo error: ' + error.message, 'error');
+            addMessage('❌ Revert error: ' + error.message, 'error');
           })
-          .undoOperation(operationId);
+          .revertToOperation(operationId, false);
       }
 
       /**
@@ -2065,6 +2141,13 @@
           return;
         }
 
+        // Handle suggest_next_actions rich output
+        const suggestions = result.response?.suggestions;
+        if (suggestions && Array.isArray(suggestions) && suggestions.length > 0) {
+          renderSuggestionsPanel(suggestions);
+          return;
+        }
+
         // Extract response text
         let responseText = '';
         if (result.response?.analysis) {
@@ -2077,22 +2160,18 @@
           responseText = JSON.stringify(result.response, null, 2);
         }
 
-        addMessage(responseText, 'ai');
+        const bubble = addMessage(responseText, 'ai');
 
         // Show data quality warnings if present (injected by applyResponseIntelligence)
         const warnings = result.response?.dataQualityWarnings || result.dataQualityWarnings;
         if (warnings && warnings.length > 0) {
-          const warningText = '⚠️ Data quality notices:\n' + warnings.map(w => '• ' + w).join('\n');
-          addMessage(warningText, 'warning');
+          renderQualityWarnings(warnings, bubble);
         }
 
         // Show _truncated hint if response was compacted
         const truncated = result.response?._truncated || result._truncated;
         if (truncated) {
-          addMessage(
-            '📦 Response was compacted. Use verbosity: \'full\' to get complete data.',
-            'system'
-          );
+          renderTruncatedHints(truncated, bubble);
         }
 
         // Show quota warning if present
@@ -2107,13 +2186,143 @@
         addMessage(`Error: ${error.message}`, 'error');
       }
 
+      function getMessageLabel(type) {
+        if (type === 'user') return 'You';
+        if (type === 'warning') return 'Warning';
+        if (type === 'system') return 'System';
+        if (type === 'error') return 'Error';
+        return 'ServalSheets AI';
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function encodeActionSpec(actionSpec) {
+        return escapeHtml(JSON.stringify(actionSpec));
+      }
+
+      function renderQualityWarnings(warnings, bubble) {
+        if (!bubble || !Array.isArray(warnings) || warnings.length === 0) return;
+
+        const container = document.createElement('div');
+        container.className = 'quality-warnings-container';
+
+        const badge = document.createElement('div');
+        badge.className = 'quality-badge';
+        badge.textContent =
+          '⚠️ ' +
+          warnings.length +
+          ' data quality issue' +
+          (warnings.length === 1 ? '' : 's') +
+          ' detected';
+        badge.onclick = function () {
+          toggleQualityDetails(badge);
+        };
+
+        const list = document.createElement('ul');
+        list.className = 'quality-list';
+
+        warnings.forEach(function (warning) {
+          var normalizedWarning =
+            typeof warning === 'string'
+              ? { detail: warning, severity: 'warning' }
+              : warning;
+          const item = document.createElement('li');
+          item.className = 'quality-item quality-' + (normalizedWarning.severity || 'warning');
+
+          const label = document.createElement('strong');
+          label.textContent = normalizedWarning.column || normalizedWarning.type || 'Sheet';
+          item.appendChild(label);
+
+          const detail = document.createElement('span');
+          detail.textContent = ': ' + (normalizedWarning.detail || '');
+          item.appendChild(detail);
+
+          if (normalizedWarning.fixAction) {
+            const button = document.createElement('button');
+            button.className = 'quality-fix-btn';
+            button.textContent = 'Fix';
+            button.setAttribute('data-action', encodeActionSpec(normalizedWarning.fixAction));
+            button.onclick = function () {
+              applyQualityFix(button);
+            };
+            item.appendChild(button);
+          }
+
+          list.appendChild(item);
+        });
+
+        container.appendChild(badge);
+        container.appendChild(list);
+        bubble.appendChild(container);
+      }
+
+      function toggleQualityDetails(badge) {
+        const list = badge && badge.nextElementSibling;
+        if (!list) return;
+        list.style.display = list.style.display === 'block' ? 'none' : 'block';
+      }
+
+      function renderTruncatedHints(truncated, bubble) {
+        if (!bubble) return;
+
+        if (truncated && typeof truncated === 'object' && !Array.isArray(truncated)) {
+          Object.keys(truncated).forEach(function (key) {
+            const chip = document.createElement('span');
+            chip.className = 'truncated-chip';
+            chip.textContent = 'ℹ️ ' + key + ': ' + truncated[key];
+            bubble.appendChild(chip);
+          });
+          return;
+        }
+
+        const chip = document.createElement('span');
+        chip.className = 'truncated-chip';
+        chip.textContent = 'ℹ️ Response was compacted for display.';
+        bubble.appendChild(chip);
+      }
+
+      function executeStructuredAction(button, workingLabel, doneLabel) {
+        const originalLabel = button.textContent;
+        const action = JSON.parse(button.getAttribute('data-action'));
+        button.disabled = true;
+        button.textContent = workingLabel;
+
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result && result.success === false) {
+              button.disabled = false;
+              button.textContent = originalLabel;
+            } else {
+              button.textContent = doneLabel;
+            }
+            handleResponse(result);
+          })
+          .withFailureHandler(function (error) {
+            button.disabled = false;
+            button.textContent = originalLabel;
+            handleError(error);
+          })
+          .executeToolAction(action);
+      }
+
+      function applyQualityFix(button) {
+        executeStructuredAction(button, 'Fixing...', 'Fixed ✓');
+      }
+
       function addMessage(text, type) {
         const message = document.createElement('div');
         message.className = `message ${type}-message`;
 
         const label = document.createElement('div');
         label.className = 'message-label';
-        label.textContent = type === 'user' ? 'You' : type === 'ai' ? 'ServalSheets AI' : 'Error';
+        label.textContent = getMessageLabel(type);
 
         const bubble = document.createElement('div');
         bubble.className = 'message-bubble';
@@ -2125,6 +2334,7 @@
 
         // Scroll to bottom
         chat.scrollTop = chat.scrollHeight;
+        return bubble;
       }
 
       function showLoading() {
@@ -2184,6 +2394,209 @@
             );
           })
           .checkConnection();
+      }
+
+      // ── Rich Suggestions Panel ────────────────────────────────────────────
+      function renderSuggestionsPanel(suggestions) {
+        var html = '<div class="sugg-panel">' +
+          '<div class="sugg-header">💡 Smart Suggestions</div>' +
+          suggestions.slice(0, 8).map(function(s, i) {
+            var confidence = s.confidence ? Math.round(s.confidence * 100) + '%' : '';
+            var actionAttr = s.action ? 'data-action=\'' + encodeActionSpec(s.action) + '\'' : '';
+            return '<div class="sugg-card">' +
+              '<div class="sugg-title">' + escapeHtml(s.title || ('Suggestion ' + (i + 1))) + '</div>' +
+              '<div class="sugg-desc">' + escapeHtml(s.description || '') + '</div>' +
+              '<div class="sugg-meta">' +
+                (confidence ? '<span class="sugg-conf">' + confidence + ' confidence</span>' : '<span></span>') +
+                (actionAttr ? '<button class="sugg-apply" ' + actionAttr + ' onclick="applySuggestionCard(this)">Apply</button>' : '') +
+              '</div>' +
+            '</div>';
+          }).join('') +
+          '</div>';
+        addMessageHtml(html, 'ai');
+      }
+
+      function applySuggestionCard(btn) {
+        executeStructuredAction(btn, 'Applying...', 'Applied ✓');
+      }
+
+      function addMessageHtml(html, type) {
+        var message = document.createElement('div');
+        message.className = 'message ' + type + '-message';
+        var label = document.createElement('div');
+        label.className = 'message-label';
+        label.textContent = getMessageLabel(type);
+        var bubble = document.createElement('div');
+        bubble.className = 'message-bubble';
+        bubble.innerHTML = html;
+        message.appendChild(label);
+        message.appendChild(bubble);
+        chat.appendChild(message);
+        chat.scrollTop = chat.scrollHeight;
+        return bubble;
+      }
+
+      // ── New Quick Action Handlers ─────────────────────────────────────────
+      function quickAction_suggestNext() {
+        showLoading();
+        google.script.run
+          .withSuccessHandler(function(result) { hideLoading(); handleResponse(result); })
+          .withFailureHandler(function(err) { hideLoading(); addMessage(err.message, 'error'); })
+          .suggestNextActions(null);
+      }
+
+      function quickAction_buildDashboard() {
+        var dataSheet = prompt('Data sheet name (for example: Sales Data)');
+        if (!dataSheet) return;
+
+        var layout =
+          prompt('Layout: kpi_header | full_analytics | executive_summary', 'full_analytics') ||
+          'full_analytics';
+        var dashboardSheet = prompt('Dashboard sheet name', 'Dashboard') || 'Dashboard';
+
+        showLoading();
+        google.script.run
+          .withSuccessHandler(function (result) {
+            hideLoading();
+            handleResponse(result);
+          })
+          .withFailureHandler(function (err) {
+            hideLoading();
+            addMessage(err.message, 'error');
+          })
+          .buildDashboard(null, dataSheet, layout, dashboardSheet, []);
+      }
+
+      function quickAction_runAgent() {
+        var goal = prompt('Describe what you want done autonomously (e.g. "Clean all data, add summary row, create chart"):');
+        if (!goal) return;
+        showLoading();
+        google.script.run
+          .withSuccessHandler(function(result) {
+            hideLoading();
+            addMessage('Agent plan created:\n' + JSON.stringify(result.response, null, 2), 'ai');
+          })
+          .withFailureHandler(function(err) { hideLoading(); addMessage(err.message, 'error'); })
+          .runAgentPlan(null, goal, 10);
+      }
+
+      function quickAction_compute() {
+        var operation = prompt(
+          'Compute operation: statistical | aggregate | evaluate | regression | forecast | sql_query | python_eval',
+          'statistical'
+        );
+        if (!operation) return;
+
+        operation = operation.trim();
+        showLoading();
+
+        var runner = google.script.run
+          .withSuccessHandler(function(result) { hideLoading(); handleResponse(result); })
+          .withFailureHandler(function(err) { hideLoading(); addMessage(err.message, 'error'); });
+
+        if (operation === 'statistical') {
+          var statsRange = prompt('Range to analyze (e.g. Sheet1!A2:D100):');
+          if (!statsRange) {
+            hideLoading();
+            return;
+          }
+          runner.computeStatistics(null, statsRange);
+          return;
+        }
+
+        if (operation === 'aggregate') {
+          var aggregateRange = prompt('Range to aggregate (e.g. Sheet1!B2:B100):');
+          if (!aggregateRange) {
+            hideLoading();
+            return;
+          }
+          var fnInput = prompt('Functions (comma-separated: sum, average, count, min, max)', 'sum');
+          var functions = (fnInput || 'sum')
+            .split(',')
+            .map(function(value) { return value.trim(); })
+            .filter(function(value) { return value.length > 0; });
+          runner.computeAggregate(null, aggregateRange, functions);
+          return;
+        }
+
+        if (operation === 'evaluate') {
+          var formula = prompt('Formula to evaluate (e.g. =SUM(A2:A10))');
+          if (!formula) {
+            hideLoading();
+            return;
+          }
+          var contextRange = prompt('Context range for relative refs (optional)', '') || null;
+          runner.evaluateExpression(null, formula, contextRange);
+          return;
+        }
+
+        if (operation === 'regression') {
+          var regressionRange = prompt('Range containing X and Y columns (e.g. Sheet1!A1:B100):');
+          var xColumn = prompt('X column (letter or header)', 'A');
+          var yColumn = prompt('Y column (letter or header)', 'B');
+          var regressionType = prompt('Type: linear | polynomial | exponential | logarithmic | power', 'linear') || 'linear';
+          if (!regressionRange || !xColumn || !yColumn) {
+            hideLoading();
+            return;
+          }
+          runner.computeRegression(null, regressionRange, xColumn, yColumn, regressionType);
+          return;
+        }
+
+        if (operation === 'forecast') {
+          var forecastRange = prompt('Time-series range (e.g. Sheet1!A1:B100):');
+          var dateColumn = prompt('Date column', 'A');
+          var valueColumn = prompt('Value column', 'B');
+          var periods = parseInt(prompt('Forecast periods', '3') || '3', 10);
+          if (!forecastRange || !dateColumn || !valueColumn) {
+            hideLoading();
+            return;
+          }
+          runner.computeForecast(null, forecastRange, dateColumn, valueColumn, periods || 3);
+          return;
+        }
+
+        if (operation === 'sql_query') {
+          var tableRange = prompt('Source range (e.g. Sheet1!A1:D100):');
+          var tableName = prompt('SQL table alias', 'data') || 'data';
+          var sql = prompt('SQL query', 'SELECT * FROM data LIMIT 10');
+          if (!tableRange || !sql) {
+            hideLoading();
+            return;
+          }
+          runner.computeSqlQuery(null, [{ name: tableName, range: tableRange, hasHeaders: true }], sql);
+          return;
+        }
+
+        if (operation === 'python_eval') {
+          var pythonRange = prompt('Source range (e.g. Sheet1!A1:D100):');
+          var code = prompt('Python code (data and df are available)', 'len(data)');
+          if (!pythonRange || !code) {
+            hideLoading();
+            return;
+          }
+          runner.computePythonEval(null, pythonRange, code, true);
+          return;
+        }
+
+        hideLoading();
+        addMessage('Unsupported compute operation. Use one of: statistical, aggregate, evaluate, regression, forecast, sql_query, python_eval.', 'warning');
+      }
+
+      function quickAction_liveData() {
+        showLoading();
+        google.script.run
+          .withSuccessHandler(function(result) {
+            hideLoading();
+            if (result && result.response && result.response.connectors) {
+              var list = result.response.connectors.map(function(c) { return c.id + ': ' + c.name; }).join('\n');
+              addMessage('Available data connectors:\n' + list, 'ai');
+            } else {
+              handleResponse(result);
+            }
+          })
+          .withFailureHandler(function(err) { hideLoading(); addMessage(err.message, 'error'); })
+          .listConnectors();
       }
 
       // Test connection on load

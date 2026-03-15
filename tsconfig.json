@@ -17,6 +17,7 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
     "exactOptionalPropertyTypes": false /* Disabled: incompatible with googleapis types */,
     "noPropertyAccessFromIndexSignature": true,
     "incremental": true,

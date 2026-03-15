@@ -1,5 +1,43 @@
 # Add-on Changes
 
+## Session 80 — Schema Alignment + History/UI Corrections (2026-03-15)
+
+- Corrected add-on wrapper drift for `sheets_history`, `sheets_agent`, `sheets_compute`, `sheets_connectors`, and `sheets_federation` so requests now match the live 402-action schemas instead of stale aliases
+- Fixed history semantics in the sidebar: per-row action is now `Revert to Here` via `sheets_history.revert_to`, while `undoLastOperations()` loops over real `sheets_history.undo`
+- Added `executeToolAction()` helper so structured sidebar actions can inject active-sheet context when needed
+- Sidebar now renders structured `dataQualityWarnings` with expandable details and executable Fix buttons, per-field `_truncated` chips, proper `warning`/`system` labels, and a `📊 Build Dashboard` quick action
+- Updated add-on docs to 402 actions and extended doc-count validation coverage to include `add-on/README.md`
+
+## Session 79 — Full Tool Coverage + Rich Suggestions UI (2026-03-15)
+
+**4 missing tools now fully wrapped (sheets_agent, sheets_compute, sheets_connectors, sheets_federation):**
+
+- `sheets_agent`: `runAgentPlan`, `executeAgentPlan`, `executeAgentStep`, `getAgentStatus`, `rollbackAgentPlan`, `listAgentPlans`, `resumeAgentPlan` — autonomous goal-driven plan execution from sidebar
+- `sheets_compute`: `computeAggregate`, `computeStatistics`, `computeRegression`, `computeForecast`, `computeSqlQuery`, `computeSqlJoin`, `evaluateExpression`, `explainFormula`, `batchCompute` — statistics, SQL, ML from sidebar
+- `sheets_connectors`: `listConnectors`, `queryConnector`, `subscribeConnector`, `configureConnector`, `connectorStatus` — live market data (Finnhub, FRED, etc.)
+- `sheets_federation`: `listFederatedServers`, `callRemoteMcp`, `validateFederationConnection`, `getFederatedServerTools` — remote MCP server calls
+
+**High-value action gap wrappers added:**
+
+- `sheets_history`: `redoOperation`, `revertTo`, `restoreCells`
+- `sheets_analyze`: `scoutSpreadsheet`, `autoEnhance`, `analyzeFormulas`
+- `sheets_session`: `saveCheckpoint`, `loadCheckpoint`, `getSessionAlerts`
+- `sheets_composite`: `deduplicateSheet`, `setupSheet`, `publishReport`, `createDataPipeline`
+- `sheets_transaction`: `queueTransaction`, `getTransactionStatus`
+
+**Sidebar.html enhancements:**
+
+- 4 new quick action buttons: 💡 Smart Suggestions, 🤖 Run Agent, 📉 Compute, 🌐 Live Data
+- Rich suggestion cards: `suggest_next_actions` responses now render as clickable cards with confidence %, Apply button per suggestion (`renderSuggestionsPanel`, `applySuggestionCard`, `addMessageHtml`)
+- New client-side handlers: `quickAction_suggestNext`, `quickAction_runAgent`, `quickAction_compute`, `quickAction_liveData`
+
+**appsscript.json scope update:**
+
+- `spreadsheets.currentonly` → `spreadsheets` (enables cross-spreadsheet operations)
+- Added `drive.readonly` (enables revision history for `getTimeline`, `diffRevisions`)
+
+---
+
 ## Session 75 + 58 — MCP Elicitation Fixes & Response Intelligence (2026-03-14)
 
 **Session 75 — MCP 2025-11-25 Elicitation spec compliance:**

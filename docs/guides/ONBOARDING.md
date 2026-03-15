@@ -1,6 +1,6 @@
 ---
 title: ServalSheets Developer Onboarding Guide
-category: guides
+category: guide
 last_updated: 2026-02-17
 description: 'Complete onboarding guide for new ServalSheets contributors'
 version: 1.0

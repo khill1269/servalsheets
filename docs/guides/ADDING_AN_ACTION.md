@@ -1,6 +1,6 @@
 ---
 title: Adding an Action to ServalSheets
-category: guides
+category: guide
 last_updated: 2026-02-17
 description: 'Step-by-step tutorial for adding a new action to an existing tool'
 version: 1.0

@@ -739,6 +739,89 @@ function getActiveSpreadsheetInfo() {
   };
 }
 
+function getActiveSpreadsheetId_() {
+  return SpreadsheetApp.getActiveSpreadsheet().getId();
+}
+
+function resolveSpreadsheetId_(spreadsheetId) {
+  return spreadsheetId || getActiveSpreadsheetId_();
+}
+
+function normalizeDashboardLayout_(layout) {
+  const validLayouts = ['kpi_header', 'full_analytics', 'executive_summary'];
+  return validLayouts.indexOf(layout) !== -1 ? layout : 'full_analytics';
+}
+
+function normalizeArrayInput_(value, fallback) {
+  if (Array.isArray(value) && value.length > 0) {
+    return value;
+  }
+  if (value === undefined || value === null || value === '') {
+    return fallback || [];
+  }
+  return [value];
+}
+
+function buildConnectorSchedule_(schedule) {
+  if (!schedule) {
+    return { interval: 'hourly' };
+  }
+  if (typeof schedule === 'string') {
+    if (['hourly', 'daily', 'weekly', 'custom'].indexOf(schedule) !== -1) {
+      return { interval: schedule };
+    }
+    return { interval: 'custom', customCronExpression: schedule };
+  }
+  if (typeof schedule === 'number') {
+    const minutes = Math.max(1, Math.min(59, Math.floor(schedule)));
+    return { interval: 'custom', customCronExpression: '*/' + minutes + ' * * * *' };
+  }
+  return schedule;
+}
+
+function executeToolAction(actionSpec) {
+  if (!actionSpec || !actionSpec.tool) {
+    return {
+      success: false,
+      error: {
+        code: 'INVALID_ACTION_SPEC',
+        message: 'Action spec must include a tool name',
+      },
+    };
+  }
+
+  const request = Object.assign({}, actionSpec.params || {});
+  if (!request.action && actionSpec.action) {
+    request.action = actionSpec.action;
+  }
+
+  if (!request.action) {
+    return {
+      success: false,
+      error: {
+        code: 'INVALID_ACTION_SPEC',
+        message: 'Action spec must include an action',
+      },
+    };
+  }
+
+  if (!request.spreadsheetId && (actionSpec.tool === 'sheets_fix' || request.range)) {
+    request.spreadsheetId = getActiveSpreadsheetId_();
+  }
+
+  if (
+    request.destination &&
+    typeof request.destination === 'object' &&
+    !request.destination.spreadsheetId
+  ) {
+    request.destination = Object.assign({}, request.destination, {
+      spreadsheetId: getActiveSpreadsheetId_(),
+    });
+  }
+
+  return callServalSheets(actionSpec.tool, request);
+}
+
 // ============================================================================
 // Tool Actions - Wrappers for MCP tools
 // ============================================================================
@@ -1983,7 +2066,7 @@ function getOperationHistory(limit) {
     const result = callServalSheets('sheets_history', {
       action: 'list',
       spreadsheetId: info.spreadsheetId,
-      limit: limit,
+      count: limit,
     });
 
     if (result.success) {
@@ -1991,7 +2074,9 @@ function getOperationHistory(limit) {
         success: true,
         response: {
           operations: result.response?.operations || [],
-          total: result.response?.total || 0,
+          total: result.response?.totalCount || 0,
+          hasMore: result.response?.hasMore || false,
+          nextCursor: result.response?.nextCursor || null,
         },
       };
     } else {
@@ -2049,13 +2134,12 @@ function getHistoryStats() {
 }
 
 /**
- * Undoes a specific operation by ID
- * @param {string} operationId - Operation ID to undo
- * @returns {Object} Undo result
+ * Revert to the state before a specific operation
+ * @param {string} operationId - Operation ID to revert to
+ * @param {boolean} dryRun - Preview only
+ * @returns {Object} Revert result
  */
-function undoOperation(operationId) {
-  const info = getActiveSpreadsheetInfo();
-
+function revertToOperation(operationId, dryRun) {
   try {
     if (!operationId) {
       return {
@@ -2067,19 +2151,19 @@ function undoOperation(operationId) {
       };
     }
 
-    Logger.log('Undoing operation: ' + operationId);
+    Logger.log('Reverting to operation: ' + operationId);
 
     const result = callServalSheets('sheets_history', {
-      action: 'undo',
-      spreadsheetId: info.spreadsheetId,
+      action: 'revert_to',
       operationId: operationId,
+      safety: dryRun ? { dryRun: true } : undefined,
     });
 
     if (result.success) {
       return {
         success: true,
         response: {
-          message: 'Operation undone successfully',
+          message: dryRun ? 'Revert preview generated successfully' : 'Operation reverted successfully',
           operationId: operationId,
           ...result.response,
         },
@@ -2091,15 +2175,23 @@ function undoOperation(operationId) {
       };
     }
   } catch (error) {
-    Logger.log('Error undoing operation: ' + error.message);
+    Logger.log('Error reverting operation: ' + error.message);
     return {
       success: false,
       error: {
-        code: 'UNDO_ERROR',
+        code: 'REVERT_ERROR',
         message: error.message,
       },
     };
   }
+}
+
+/**
+ * Deprecated alias retained for existing callers.
+ * Historically this accepted an operation ID, but the server-side action is revert_to.
+ */
+function undoOperation(operationId) {
+  return revertToOperation(operationId, false);
 }
 
 /**
@@ -2114,27 +2206,43 @@ function undoLastOperations(count) {
   try {
     Logger.log(`Undoing last ${count} operation(s)`);
 
-    const result = callServalSheets('sheets_history', {
-      action: 'undo_last',
-      spreadsheetId: info.spreadsheetId,
-      count: count,
-    });
+    const results = [];
+    let completed = 0;
+    let lastError = null;
 
-    if (result.success) {
-      return {
-        success: true,
-        response: {
-          message: `Undone ${count} operation(s)`,
-          count: count,
-          ...result.response,
-        },
-      };
-    } else {
+    for (let i = 0; i < count; i++) {
+      const result = callServalSheets('sheets_history', {
+        action: 'undo',
+        spreadsheetId: info.spreadsheetId,
+      });
+      results.push(result);
+
+      if (!result.success) {
+        lastError = result.error;
+        break;
+      }
+
+      completed++;
+    }
+
+    if (completed === 0 && lastError) {
       return {
         success: false,
-        error: result.error,
+        error: lastError,
       };
     }
+
+    return {
+      success: true,
+      response: {
+        message: `Undone ${completed} operation(s)`,
+        count: completed,
+        requested: count,
+        partial: completed < count,
+        results: results,
+        lastError: lastError,
+      },
+    };
   } catch (error) {
     Logger.log('Error undoing operations: ' + error.message);
     return {
@@ -2917,11 +3025,23 @@ function previewGeneration(description) {
  * Build a dashboard with KPIs, charts, and slicers
  */
 function buildDashboard(spreadsheetId, dataSheet, layout) {
+  if (spreadsheetId && typeof spreadsheetId === 'object') {
+    var options = Object.assign({}, spreadsheetId);
+    options.action = 'build_dashboard';
+    options.spreadsheetId = options.spreadsheetId || getActiveSpreadsheetId_();
+    options.layout = normalizeDashboardLayout_(options.layout);
+    return callServalSheets('sheets_composite', options);
+  }
+
   return callServalSheets('sheets_composite', {
     action: 'build_dashboard',
-    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
     dataSheet: dataSheet,
-    layout: layout || 'standard'
+    dashboardSheet: arguments[3] || 'Dashboard',
+    layout: normalizeDashboardLayout_(layout),
+    kpis: arguments[4] || undefined,
+    charts: arguments[5] || undefined,
+    slicers: arguments[6] || undefined
   });
 }
 
@@ -2956,10 +3076,427 @@ function setActiveSpreadsheet(spreadsheetId, sheetName) {
 function suggestNextActions(spreadsheetId, range, maxSuggestions) {
   return callServalSheets('sheets_analyze', {
     action: 'suggest_next_actions',
-    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
     range: range,
     maxSuggestions: maxSuggestions || 5
   });
+}
+
+/**
+ * Build dependent dropdown validation (parent column drives child column options)
+ */
+function buildDependentDropdown(options) {
+  const spreadsheetId = getActiveSpreadsheetId_();
+  return callServalSheets('sheets_format', { action: 'build_dependent_dropdown', spreadsheetId, ...options });
+}
+
+// ============================================================================
+// Integration Tests
+// ============================================================================
+
+// ============================================================================
+// sheets_agent — Autonomous Plan Execution
+// ============================================================================
+
+function runAgentPlan(spreadsheetId, goal, maxSteps) {
+  return callServalSheets('sheets_agent', {
+    action: 'plan',
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
+    description: goal,
+    maxSteps: maxSteps || 10,
+    context: arguments[3]
+  });
+}
+
+function executeAgentPlan(planId, dryRun) {
+  return callServalSheets('sheets_agent', {
+    action: 'execute',
+    planId: planId,
+    dryRun: !!dryRun
+  });
+}
+
+function executeAgentStep(planId, stepId) {
+  return callServalSheets('sheets_agent', {
+    action: 'execute_step',
+    planId: planId,
+    stepId: stepId
+  });
+}
+
+function observeAgentPlan(planId, spreadsheetId, context) {
+  return callServalSheets('sheets_agent', {
+    action: 'observe',
+    planId: planId,
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
+    context: context
+  });
+}
+
+function getAgentStatus(planId) {
+  return callServalSheets('sheets_agent', { action: 'get_status', planId: planId });
+}
+
+function rollbackAgentPlan(planId, checkpointId) {
+  return callServalSheets('sheets_agent', {
+    action: 'rollback',
+    planId: planId,
+    checkpointId: checkpointId
+  });
+}
+
+function listAgentPlans(spreadsheetIdOrLimit, limit, status) {
+  var request = { action: 'list_plans', limit: 10 };
+  if (typeof spreadsheetIdOrLimit === 'number') {
+    request.limit = spreadsheetIdOrLimit;
+  } else if (typeof limit === 'number') {
+    request.limit = limit;
+  }
+  if (typeof spreadsheetIdOrLimit === 'string' &&
+      ['draft', 'executing', 'completed', 'paused', 'failed'].indexOf(spreadsheetIdOrLimit) !== -1) {
+    request.status = spreadsheetIdOrLimit;
+  } else if (typeof status === 'string') {
+    request.status = status;
+  }
+  return callServalSheets('sheets_agent', request);
+}
+
+function resumeAgentPlan(planId, fromStepId) {
+  return callServalSheets('sheets_agent', {
+    action: 'resume',
+    planId: planId,
+    fromStepId: fromStepId
+  });
+}
+
+// ============================================================================
+// sheets_compute — Statistics, SQL, and Computation
+// ============================================================================
+
+function computeAggregate(spreadsheetId, range, aggregateFn) {
+  return callServalSheets('sheets_compute', {
+    action: 'aggregate',
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
+    range: range,
+    functions: normalizeArrayInput_(aggregateFn, ['sum']),
+    groupBy: arguments[3] || undefined,
+    type: arguments[4] || undefined,
+    valueColumn: arguments[5] || undefined,
+    windowSize: arguments[6] || undefined
+  });
+}
+
+function computeStatistics(spreadsheetId, range) {
+  return callServalSheets('sheets_compute', {
+    action: 'statistical',
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
+    range: range,
+    columns: arguments[2] || undefined,
+    percentiles: arguments[3] || undefined,
+    includeCorrelations: arguments[4] || false,
+    movingWindow: arguments[5] || undefined
+  });
+}
+
+function computeRegression(spreadsheetId, range, xColumn, yColumn, type) {
+  return callServalSheets('sheets_compute', {
+    action: 'regression',
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
+    range: range,
+    xColumn: xColumn,
+    yColumn: yColumn,
+    type: type || 'linear',
+    degree: arguments[5] || undefined,
+    predict: arguments[6] || undefined
+  });
+}
+
+function computeForecast(spreadsheetId, range, dateColumn, valueColumn, periods) {
+  return callServalSheets('sheets_compute', {
+    action: 'forecast',
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
+    range: range,
+    dateColumn: dateColumn,
+    valueColumn: valueColumn,
+    periods: periods || 3,
+    method: arguments[5] || undefined,
+    seasonality: arguments[6] || undefined
+  });
+}
+
+function computeSqlQuery(spreadsheetId, tables, sql, timeoutMs) {
+  return callServalSheets('sheets_compute', {
+    action: 'sql_query',
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
+    tables: tables,
+    sql: sql,
+    timeoutMs: timeoutMs || 30000
+  });
+}
+
+function computeSqlJoin(spreadsheetId, leftRange, rightRange, on, select, joinType, timeoutMs) {
+  return callServalSheets('sheets_compute', {
+    action: 'sql_join',
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
+    left: { range: leftRange, alias: 'left' },
+    right: { range: rightRange, alias: 'right' },
+    on: on,
+    select: select || undefined,
+    joinType: joinType || 'inner',
+    timeoutMs: timeoutMs || 30000
+  });
+}
+
+function evaluateExpression(spreadsheetId, formula, contextRange) {
+  return callServalSheets('sheets_compute', {
+    action: 'evaluate',
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
+    formula: formula,
+    range: contextRange
+  });
+}
+
+function explainFormula(spreadsheetId, formula, range) {
+  return callServalSheets('sheets_compute', {
+    action: 'explain_formula',
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
+    formula: formula,
+    range: range
+  });
+}
+
+function batchCompute(spreadsheetId, computations, stopOnError) {
+  return callServalSheets('sheets_compute', {
+    action: 'batch_compute',
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
+    computations: computations,
+    stopOnError: !!stopOnError
+  });
+}
+
+function computePythonEval(spreadsheetId, range, code, hasHeaders, timeoutMs) {
+  return callServalSheets('sheets_compute', {
+    action: 'python_eval',
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
+    range: range,
+    code: code,
+    hasHeaders: hasHeaders !== false,
+    timeoutMs: timeoutMs || 60000
+  });
+}
+
+// ============================================================================
+// sheets_connectors — Live External Data
+// ============================================================================
+
+function listConnectors() {
+  return callServalSheets('sheets_connectors', { action: 'list_connectors' });
+}
+
+function queryConnector(connectorId, endpoint, params, transform, useCache) {
+  return callServalSheets('sheets_connectors', {
+    action: 'query',
+    connectorId: connectorId,
+    endpoint: endpoint,
+    params: params,
+    transform: transform || undefined,
+    useCache: useCache !== false
+  });
+}
+
+function subscribeConnector(spreadsheetId, connectorId, endpoint, params, targetRange, schedule) {
+  return callServalSheets('sheets_connectors', {
+    action: 'subscribe',
+    connectorId: connectorId,
+    endpoint: endpoint,
+    params: params,
+    schedule: buildConnectorSchedule_(schedule),
+    destination: {
+      spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
+      range: targetRange
+    }
+  });
+}
+
+function configureConnector(connectorId, config) {
+  return callServalSheets('sheets_connectors', {
+    action: 'configure',
+    connectorId: connectorId,
+    credentials: config && config.credentials ? config.credentials : config
+  });
+}
+
+function connectorStatus(connectorId) {
+  return callServalSheets('sheets_connectors', { action: 'status', connectorId: connectorId });
+}
+
+// ============================================================================
+// sheets_federation — Remote MCP Server Calls
+// ============================================================================
+
+function listFederatedServers() {
+  return callServalSheets('sheets_federation', { action: 'list_servers' });
+}
+
+function callRemoteMcp(serverId, tool, actionName, params) {
+  var toolInput =
+    typeof actionName === 'string'
+      ? Object.assign({ action: actionName }, params || {})
+      : actionName || {};
+  return callServalSheets('sheets_federation', {
+    action: 'call_remote',
+    serverName: serverId,
+    toolName: tool,
+    toolInput: toolInput
+  });
+}
+
+function validateFederationConnection(serverId) {
+  return callServalSheets('sheets_federation', {
+    action: 'validate_connection',
+    serverName: serverId
+  });
+}
+
+function getFederatedServerTools(serverId) {
+  return callServalSheets('sheets_federation', {
+    action: 'get_server_tools',
+    serverName: serverId
+  });
+}
+
+// ============================================================================
+// sheets_history — Extra Actions (redo, revert_to, restore_cells)
+// ============================================================================
+
+function redoOperation(spreadsheetId) {
+  return callServalSheets('sheets_history', {
+    action: 'redo',
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId)
+  });
+}
+
+function revertTo(spreadsheetId, operationId, dryRun) {
+  void spreadsheetId;
+  return revertToOperation(operationId, !!dryRun);
+}
+
+function restoreCells(spreadsheetId, revisionId, cells) {
+  return callServalSheets('sheets_history', {
+    action: 'restore_cells',
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
+    revisionId: revisionId,
+    cells: cells,
+    safety: arguments[3] || undefined
+  });
+}
+
+// ============================================================================
+// sheets_analyze — Extra Actions (scout, auto_enhance, analyze_formulas)
+// ============================================================================
+
+function scoutSpreadsheet(spreadsheetId) {
+  return callServalSheets('sheets_analyze', {
+    action: 'scout',
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId)
+  });
+}
+
+function autoEnhance(spreadsheetId, mode) {
+  return callServalSheets('sheets_analyze', {
+    action: 'auto_enhance',
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId),
+    mode: mode || 'preview'
+  });
+}
+
+function analyzeFormulas(spreadsheetId) {
+  return callServalSheets('sheets_analyze', {
+    action: 'analyze_formulas',
+    spreadsheetId: resolveSpreadsheetId_(spreadsheetId)
+  });
+}
+
+// ============================================================================
+// sheets_session — Extra Actions (save_checkpoint, load_checkpoint, get_alerts)
+// ============================================================================
+
+function saveCheckpoint(sessionId, label) {
+  return callServalSheets('sheets_session', {
+    action: 'save_checkpoint',
+    sessionId: sessionId,
+    label: label
+  });
+}
+
+function loadCheckpoint(sessionId, checkpointId) {
+  return callServalSheets('sheets_session', {
+    action: 'load_checkpoint',
+    sessionId: sessionId,
+    checkpointId: checkpointId
+  });
+}
+
+function getSessionAlerts(sessionId) {
+  return callServalSheets('sheets_session', {
+    action: 'get_alerts',
+    sessionId: sessionId
+  });
+}
+
+// ============================================================================
+// sheets_composite — Extra Actions (deduplicate, setup_sheet, publish_report, data_pipeline)
+// ============================================================================
+
+function deduplicateSheet(spreadsheetId, sheetName, compareColumns) {
+  return callServalSheets('sheets_composite', {
+    action: 'deduplicate',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    sheetName: sheetName,
+    compareColumns: compareColumns
+  });
+}
+
+function setupSheet(spreadsheetId, config) {
+  return callServalSheets('sheets_composite', {
+    action: 'setup_sheet',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    config: config
+  });
+}
+
+function publishReport(spreadsheetId, format, options) {
+  return callServalSheets('sheets_composite', {
+    action: 'publish_report',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    format: format || 'pdf',
+    options: options || {}
+  });
+}
+
+function createDataPipeline(spreadsheetId, config) {
+  return callServalSheets('sheets_composite', {
+    action: 'data_pipeline',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    config: config
+  });
+}
+
+// ============================================================================
+// sheets_transaction — Extra Actions (queue, status)
+// ============================================================================
+
+function queueTransaction(spreadsheetId, transactionId, operation) {
+  return callServalSheets('sheets_transaction', {
+    action: 'queue',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    transactionId: transactionId,
+    operation: operation
+  });
+}
+
+function getTransactionStatus(transactionId) {
+  return callServalSheets('sheets_transaction', { action: 'status', transactionId: transactionId });
 }
 
 // ============================================================================

@@ -28,7 +28,7 @@ jobs:
       - name: Run Multi-Agent Analysis
         id: analysis
         run: |
-          # Run analysis on changed files (or all files if specified)
+          # multi-agent-analysis: Run analysis on changed files (or all files if specified)
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             mapfile -t FILES < <(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '\.ts$' || true)
           else
