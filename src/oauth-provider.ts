@@ -1068,14 +1068,47 @@ export class OAuthProvider {
   /**
    * Middleware to validate access tokens
    */
+  private getWwwAuthenticateHeader(error: string, errorDescription: string): string {
+    const escapeHeaderValue = (value: string): string =>
+      value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+
+    return [
+      'Bearer',
+      `realm="${escapeHeaderValue(this.config.issuer)}"`,
+      `error="${escapeHeaderValue(error)}"`,
+      `error_description="${escapeHeaderValue(errorDescription)}"`,
+    ].join(', ');
+  }
+
+  private sendUnauthorized(
+    res: Response,
+    options: {
+      error: 'unauthorized' | 'invalid_token';
+      headerError: 'invalid_request' | 'invalid_token';
+      errorDescription: string;
+    }
+  ): void {
+    res
+      .set(
+        'WWW-Authenticate',
+        this.getWwwAuthenticateHeader(options.headerError, options.errorDescription)
+      )
+      .status(401)
+      .json({
+        error: options.error,
+        error_description: options.errorDescription,
+      });
+  }
+
   validateToken() {
     return (req: Request, res: Response, next: NextFunction): void => {
       const authHeader = req.headers.authorization;
 
       if (!authHeader?.startsWith('Bearer ')) {
-        res.status(401).json({
+        this.sendUnauthorized(res, {
           error: 'unauthorized',
-          error_description: 'Missing or invalid authorization header',
+          headerError: 'invalid_request',
+          errorDescription: 'Missing or invalid authorization header',
         });
         return;
       }
@@ -1107,14 +1140,26 @@ export class OAuthProvider {
 
       // All secrets failed, return error from last attempt
       if (lastError instanceof jwt.TokenExpiredError) {
-        res.status(401).json({ error: 'invalid_token', error_description: 'Token expired' });
+        this.sendUnauthorized(res, {
+          error: 'invalid_token',
+          headerError: 'invalid_token',
+          errorDescription: 'Token expired',
+        });
         return;
       }
       if (lastError instanceof jwt.JsonWebTokenError) {
-        res.status(401).json({ error: 'invalid_token', error_description: lastError.message });
+        this.sendUnauthorized(res, {
+          error: 'invalid_token',
+          headerError: 'invalid_token',
+          errorDescription: lastError.message,
+        });
         return;
       }
-      res.status(401).json({ error: 'invalid_token', error_description: 'Invalid token' });
+      this.sendUnauthorized(res, {
+        error: 'invalid_token',
+        headerError: 'invalid_token',
+        errorDescription: 'Invalid token',
+      });
     };
   }
 

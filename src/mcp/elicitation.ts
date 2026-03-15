@@ -113,7 +113,7 @@ export interface URLElicitParams {
 export interface ElicitationServer {
   getClientCapabilities(): ClientCapabilities | undefined;
   elicitInput(params: FormElicitParams | URLElicitParams): Promise<ElicitResult>;
-  sendElicitationCompleteNotification?(elicitationId: string): Promise<void>;
+  createElicitationCompletionNotifier?(elicitationId: string): () => Promise<void>;
 }
 
 // ============================================================================
@@ -1066,46 +1066,10 @@ export async function completeOAuthFlow(
   server: ElicitationServer,
   elicitationId: string
 ): Promise<void> {
-  if (server.sendElicitationCompleteNotification) {
-    await server.sendElicitationCompleteNotification(elicitationId);
+  if (server.createElicitationCompletionNotifier) {
+    const notify = server.createElicitationCompletionNotifier(elicitationId);
+    await notify();
   }
-}
-
-/**
- * Initiate external verification flow
- */
-export async function initiateVerificationFlow(
-  server: ElicitationServer,
-  params: {
-    verificationUrl: string;
-    purpose: string;
-    expiresIn?: number; // seconds
-  }
-): Promise<{
-  accepted: boolean;
-  elicitationId: string;
-}> {
-  assertURLElicitationSupport(server.getClientCapabilities());
-
-  const elicitationId = generateElicitationId('verify');
-
-  let message = params.purpose;
-  if (params.expiresIn) {
-    const minutes = Math.ceil(params.expiresIn / 60);
-    message += `\n\nThis link expires in ${minutes} minute${minutes > 1 ? 's' : ''}.`;
-  }
-
-  const result = await server.elicitInput({
-    mode: 'url',
-    message,
-    elicitationId,
-    url: params.verificationUrl,
-  });
-
-  return {
-    accepted: result.action === 'accept',
-    elicitationId,
-  };
 }
 
 // ============================================================================

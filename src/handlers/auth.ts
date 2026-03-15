@@ -19,10 +19,17 @@ import type {
   AuthCallbackInput,
   AuthSetupFeatureInput,
 } from '../schemas/auth.js';
-import { initiateOAuthFlow, safeElicit, stringField, selectField } from '../mcp/elicitation.js';
+import {
+  initiateOAuthFlow,
+  completeOAuthFlow,
+  safeElicit,
+  stringField,
+  selectField,
+} from '../mcp/elicitation.js';
 import type { ElicitationServer } from '../mcp/elicitation.js';
 import { runtimeConfigStore } from '../config/runtime-config-store.js';
 import { startCallbackServer, extractPortFromRedirectUri } from '../utils/oauth-callback-server.js';
+import { startApiKeyServer } from '../utils/api-key-server.js';
 import { TokenManager } from '../services/token-manager.js';
 import { logger } from '../utils/logger.js';
 import open from 'open';
@@ -87,6 +94,7 @@ export class AuthHandler {
   private tokenStorePath?: string;
   private tokenStoreKey?: string;
   private elicitationServer?: ElicitationServer;
+  private pendingOAuthElicitationId?: string;
   private tokenManager?: TokenManager;
   private pendingReauthState?: {
     authUrl: string;
@@ -284,11 +292,12 @@ export class AuthHandler {
         // Use elicitation API if available
         if (this.elicitationServer) {
           try {
-            await initiateOAuthFlow(this.elicitationServer, {
+            const oauthElicit = await initiateOAuthFlow(this.elicitationServer, {
               authUrl,
               provider: 'Google',
               scopes: requestedScopes,
             });
+            this.pendingOAuthElicitationId = oauthElicit.elicitationId;
           } catch {
             // Elicitation is optional; continue
           }
@@ -427,6 +436,16 @@ export class AuthHandler {
           ? undefined
           : 'ENCRYPTION_KEY not set; tokens will not persist across restarts.';
 
+        // Notify client that URL elicitation is complete (MCP 2025-11-25 spec)
+        if (this.elicitationServer && this.pendingOAuthElicitationId) {
+          try {
+            await completeOAuthFlow(this.elicitationServer, this.pendingOAuthElicitationId);
+          } catch {
+            // Non-blocking: notification failure doesn't affect auth success
+          }
+          this.pendingOAuthElicitationId = undefined;
+        }
+
         return {
           success: true,
           action: 'login',
@@ -448,11 +467,12 @@ export class AuthHandler {
     // Manual flow (fallback or if callback server disabled)
     if (this.elicitationServer) {
       try {
-        await initiateOAuthFlow(this.elicitationServer, {
+        const oauthElicit = await initiateOAuthFlow(this.elicitationServer, {
           authUrl,
           provider: 'Google',
           scopes: requestedScopes,
         });
+        this.pendingOAuthElicitationId = oauthElicit.elicitationId;
       } catch {
         // Elicitation is optional; continue
       }
@@ -606,6 +626,16 @@ export class AuthHandler {
           });
         }
       }
+    }
+
+    // Notify client that URL elicitation is complete (MCP 2025-11-25 spec)
+    if (this.elicitationServer && this.pendingOAuthElicitationId) {
+      try {
+        await completeOAuthFlow(this.elicitationServer, this.pendingOAuthElicitationId);
+      } catch {
+        // Non-blocking: notification failure doesn't affect auth success
+      }
+      this.pendingOAuthElicitationId = undefined;
     }
 
     const hasRefreshToken = Boolean(tokens.refresh_token);
@@ -906,40 +936,26 @@ export class AuthHandler {
     let apiKey = (req as { apiKey?: string }).apiKey;
 
     if (!apiKey && this.elicitationServer && info) {
-      // Open signup page so the user can get a key
+      // Spec-compliant: key is entered in a local browser form, never transits MCP client
       try {
-        await initiateOAuthFlow(this.elicitationServer, {
-          authUrl: info.signupUrl,
+        const { keyPromise, url, shutdown } = await startApiKeyServer({
+          provider: info.name,
+          signupUrl: info.signupUrl,
+          hint: info.hint,
+        });
+        const { accepted, elicitationId } = await initiateOAuthFlow(this.elicitationServer, {
+          authUrl: url,
           provider: info.name,
           scopes: [],
         });
-      } catch {
-        // Optional
-      }
-      try {
-        const keyResult = await safeElicit<{ apiKey: string } | null>(
-          this.elicitationServer,
-          {
-            mode: 'form',
-            message: `Enter your ${info.name} API key. ${info.hint}`,
-            requestedSchema: {
-              type: 'object',
-              properties: {
-                apiKey: stringField({
-                  title: 'API Key',
-                  description: `Paste your ${info.name} API key`,
-                  minLength: 4,
-                }),
-              },
-            },
-          },
-          null
-        );
-        if (keyResult?.apiKey) {
-          apiKey = keyResult.apiKey;
+        if (accepted) {
+          apiKey = await keyPromise;
+          await completeOAuthFlow(this.elicitationServer, elicitationId);
+        } else {
+          shutdown();
         }
       } catch {
-        // Elicitation not supported
+        // Elicitation unavailable or timed out — fall through to manual instructions
       }
     }
 
@@ -1001,41 +1017,26 @@ export class AuthHandler {
     let apiKey = (req as { apiKey?: string }).apiKey;
 
     if (!apiKey && this.elicitationServer) {
+      // Spec-compliant: key is entered in a local browser form, never transits MCP client
       try {
-        await initiateOAuthFlow(this.elicitationServer, {
-          authUrl: 'https://console.anthropic.com/settings/keys',
+        const { keyPromise, url, shutdown } = await startApiKeyServer({
+          provider: 'Anthropic',
+          signupUrl: 'https://console.anthropic.com/settings/keys',
+          hint: 'Starts with sk-ant-...',
+        });
+        const { accepted, elicitationId } = await initiateOAuthFlow(this.elicitationServer, {
+          authUrl: url,
           provider: 'Anthropic',
           scopes: [],
         });
-      } catch {
-        // Optional
-      }
-      try {
-        const result = await safeElicit<{ apiKey: string } | null>(
-          this.elicitationServer,
-          {
-            mode: 'form',
-            message:
-              'Enter your Anthropic API key to enable AI-powered formula suggestions, data analysis, and auto-enhance. Free tier available.',
-            requestedSchema: {
-              type: 'object',
-              properties: {
-                apiKey: stringField({
-                  title: 'Anthropic API Key',
-                  description:
-                    'Starts with sk-ant-... — get one at console.anthropic.com/settings/keys',
-                  minLength: 20,
-                }),
-              },
-            },
-          },
-          null
-        );
-        if (result?.apiKey) {
-          apiKey = result.apiKey;
+        if (accepted) {
+          apiKey = await keyPromise;
+          await completeOAuthFlow(this.elicitationServer, elicitationId);
+        } else {
+          shutdown();
         }
       } catch {
-        // Elicitation not supported
+        // Elicitation unavailable or timed out — fall through to manual instructions
       }
     }
 
