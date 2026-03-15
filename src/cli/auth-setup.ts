@@ -583,3 +583,86 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 
 export { main as runAuthSetup };
+
+export interface EnvAuthConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  encryptionKey: string;
+}
+
+/**
+ * Parse OAuth and encryption settings from .env file content
+ */
+export function parseEnvAuthConfig(envContent: string): Partial<EnvAuthConfig> {
+  const clientIdMatch = envContent.match(/OAUTH_CLIENT_ID=(.+)/);
+  const clientSecretMatch = envContent.match(/OAUTH_CLIENT_SECRET=(.+)/);
+  const redirectUriMatch = envContent.match(/OAUTH_REDIRECT_URI=(.+)/);
+  const encryptionKeyMatch = envContent.match(/ENCRYPTION_KEY=(.+)/);
+
+  const result: Partial<EnvAuthConfig> = {};
+  if (clientIdMatch) result.clientId = clientIdMatch[1]?.trim();
+  if (clientSecretMatch) result.clientSecret = clientSecretMatch[1]?.trim();
+  if (redirectUriMatch) result.redirectUri = redirectUriMatch[1]?.trim();
+  if (encryptionKeyMatch) result.encryptionKey = encryptionKeyMatch[1]?.trim();
+
+  return result;
+}
+
+export interface ValidateOAuthTokensOptions {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  tokenPath: string;
+  encryptionKey: string;
+}
+
+export interface ValidateOAuthTokensResult {
+  valid: boolean;
+  message: string;
+}
+
+/**
+ * Validate stored OAuth tokens by loading them from the encrypted token store
+ * and probing the Google API to confirm they are still active.
+ */
+export async function validateStoredOAuthTokens(
+  options: ValidateOAuthTokensOptions
+): Promise<ValidateOAuthTokensResult> {
+  const { clientId, clientSecret, redirectUri, tokenPath, encryptionKey } = options;
+  const tokenStore = new EncryptedFileTokenStore(tokenPath, encryptionKey);
+  const tokens = await tokenStore.load();
+
+  if (!tokens) {
+    return { valid: false, message: 'Token store does not contain any stored tokens' };
+  }
+
+  const oauth2Client: OAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  oauth2Client.setCredentials(tokens);
+
+  const now = Date.now();
+  const isExpired = tokens.expiry_date != null && tokens.expiry_date < now;
+
+  if (isExpired) {
+    if (!tokens.refresh_token) {
+      return { valid: false, message: 'Tokens are expired and missing a refresh token' };
+    }
+    // Attempt to refresh
+    try {
+      await oauth2Client.getAccessToken();
+      return { valid: true, message: 'Tokens refreshed successfully' };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return { valid: false, message: `Token refresh failed: ${msg}` };
+    }
+  }
+
+  // Token not expired — verify it is still valid via tokeninfo
+  try {
+    await oauth2Client.getTokenInfo(tokens.access_token ?? '');
+    return { valid: true, message: 'Tokens are valid' };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return { valid: false, message: `Token validation failed: ${msg}` };
+  }
+}

@@ -66,6 +66,13 @@ process.env['SERVALSHEETS_STARTUP_TIME'] = Date.now().toString();
 
 const args = process.argv.slice(2);
 
+// Handle `servalsheets init` subcommand — interactive setup wizard
+if (args[0] === 'init') {
+  const { runAuthSetup } = await import('./cli/auth-setup.js');
+  await runAuthSetup();
+  process.exit(0);
+}
+
 // Parse command line arguments
 const cliOptions: {
   serviceAccountKeyPath?: string;
@@ -114,7 +121,10 @@ for (let i = 0; i < args.length; i++) {
 ServalSheets - Google Sheets MCP Server
 
 Usage:
-  servalsheets [options]
+  servalsheets [command] [options]
+
+Commands:
+  init                      Interactive setup wizard (OAuth + .env configuration)
 
 Transport Options:
   --stdio                   Use STDIO transport (default)
