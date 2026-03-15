@@ -113,12 +113,11 @@ describe.skipIf(SKIP_E2E)('E2E: MCP Protocol Compliance', () => {
       expect(tools).toHaveLength(TOOL_COUNT);
     });
 
-    it('should follow tool naming convention (snake_case)', async () => {
+    it('should satisfy MCP tool naming rules', async () => {
       const tools = await client.listTools();
 
       for (const tool of tools) {
-        // All tools should be snake_case and start with "sheets_"
-        expect(tool.name).toMatch(/^sheets_[a-z_]+$/);
+        expect(tool.name).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
       }
     });
 

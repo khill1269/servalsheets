@@ -204,6 +204,7 @@ TEST_E2E=true TEST_SPREADSHEET_ID=your-id npm test tests/e2e/workflows/all-tools
    ```
 
 3. **Google OAuth tokens** - Configure authentication:
+
    ```bash
    npm run auth
    ```
@@ -246,7 +247,7 @@ Expected results when running E2E tests:
 - ✅ Initialize handshake completes successfully
 - ✅ Server declares all required capabilities
 - ✅ 22 tools registered with valid schemas
-- ✅ Tool names follow snake_case convention
+- ✅ Tool names satisfy MCP naming rules
 - ✅ Responses follow CallToolResult structure
 - ✅ Resources and prompts accessible
 - ✅ Protocol validation passes with 0 errors

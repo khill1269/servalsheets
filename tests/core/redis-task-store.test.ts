@@ -90,7 +90,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
     it('should create a task with default TTL', async () => {
       const task = await store.createTask();
 
-      expect(task.taskId).toMatch(/^task_\d+_[a-z0-9]+$/);
+      expect(task.taskId).toMatch(/^task_[0-9a-f-]+$/);
       expect(task.status).toBe('working');
       expect(task.ttl).toBe(3600000); // 1 hour
       expect(task.pollInterval).toBe(5000);

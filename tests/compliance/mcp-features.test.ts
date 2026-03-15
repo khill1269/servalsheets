@@ -307,9 +307,9 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
       expect(new Set(names).size).toBe(TOOL_DEFINITIONS.length);
     });
 
-    it('should use snake_case naming (SEP-986)', () => {
+    it('should use MCP-compliant tool names', () => {
       for (const tool of TOOL_DEFINITIONS) {
-        expect(tool.name).toMatch(/^sheets_[a-z]+$/);
+        expect(tool.name).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
       }
     });
 

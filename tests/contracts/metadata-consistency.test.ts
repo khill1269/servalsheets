@@ -57,6 +57,9 @@ describe('Metadata Consistency Contract', () => {
   it('server.json instructions prioritize auth and direct routing over blanket analysis', () => {
     const serverJson = JSON.parse(readFileSync('server.json', 'utf-8'));
 
+    expect(serverJson.instructions).toContain('{"request":{"action":"..."');
+    expect(serverJson.instructions).toContain('LEGACY compatibility format');
+    expect(serverJson.instructions).not.toContain('Use flat format for all new tool calls');
     expect(serverJson.instructions).toContain('sheets_auth action "status"');
     expect(serverJson.instructions).toContain('route directly to the matching tool');
     expect(serverJson.instructions).toContain('sheets_analyze action "scout"');

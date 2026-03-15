@@ -57,8 +57,8 @@ describe('AST Schema Parser', () => {
       const schemaPath = path.join(PROJECT_ROOT, 'src/schemas/data.ts');
       const actions = extractSchemaActions(schemaPath);
 
-      // Data has 24 actions (19 original + 4 F2 cross-spreadsheet actions + smart_fill)
-      expect(actions.length).toBe(24);
+      // Data has 25 actions (19 original + 4 F2 cross-spreadsheet actions + smart_fill + auto_fill)
+      expect(actions.length).toBe(25);
       expect(actions).toContain('read');
       expect(actions).toContain('write');
       expect(actions).toContain('append');
@@ -122,8 +122,8 @@ describe('AST Schema Parser', () => {
       const handlerPath = path.join(PROJECT_ROOT, 'src/handlers/data.ts');
       const cases = extractHandlerCases(handlerPath);
 
-      // Data has 24 actions (19 original + 4 F2 cross-spreadsheet actions + smart_fill)
-      expect(cases.length).toBe(24);
+      // Data has 25 actions (19 original + 4 F2 cross-spreadsheet actions + smart_fill + auto_fill)
+      expect(cases.length).toBe(25);
       expect(cases).toContain('read');
       expect(cases).toContain('write');
       expect(cases).toContain('append');

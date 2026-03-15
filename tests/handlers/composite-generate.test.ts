@@ -238,7 +238,7 @@ describe('CompositeHandler (F1 Sheet Generator)', () => {
 
       // Verify executeDefinition was called
       expect(mockExecuteDefinition).toHaveBeenCalledWith(
-        mockSheetsApi,
+        expect.any(Object), // handler wraps sheetsApi via ensureRetriableGoogleApi
         SAMPLE_DEFINITION,
         undefined
       );
@@ -303,7 +303,7 @@ describe('CompositeHandler (F1 Sheet Generator)', () => {
       );
 
       expect(mockExecuteDefinition).toHaveBeenCalledWith(
-        mockSheetsApi,
+        expect.any(Object), // handler wraps sheetsApi via ensureRetriableGoogleApi
         SAMPLE_DEFINITION,
         'existing-sheet-123'
       );

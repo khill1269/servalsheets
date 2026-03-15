@@ -109,7 +109,7 @@ describe('buildMcpConfiguration', () => {
 
     expect(config.capabilities.resources.supported).toBe(true);
     expect(config.capabilities.resources.templates).toBe(true);
-    expect(config.capabilities.resources.subscriptions).toBe(true);
+    expect(config.capabilities.resources.subscriptions).toBe(false);
   });
 
   it('should include prompt capabilities', () => {

@@ -14,6 +14,19 @@ const TEST_SERVER_OPTIONS: HttpServerOptions = {
   trustProxy: false,
 };
 
+const TEST_OAUTH_CONFIG: NonNullable<HttpServerOptions['oauthConfig']> = {
+  issuer: 'https://registry.example.com',
+  clientId: 'test-client',
+  clientSecret: 'test-secret',
+  jwtSecret: 'jwt-secret-jwt-secret-jwt-secret-jwt-secret',
+  stateSecret: 'state-secret-state-secret-state-secret-state-secret',
+  allowedRedirectUris: ['http://localhost/callback'],
+  googleClientId: 'google-client-id',
+  googleClientSecret: 'google-client-secret',
+  accessTokenTtl: 3600,
+  refreshTokenTtl: 86400,
+};
+
 const INITIALIZE_REQUEST = {
   jsonrpc: '2.0',
   id: 1,
@@ -415,6 +428,10 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       expect(body.endpoints.streamable_http).toBe('https://registry.example.com/mcp');
       expect(body.authentication.required).toBe(false);
       expect(body.authentication.methods).toContain('oauth2');
+      expect(body.capabilities.resources).toEqual({
+        templates: true,
+        subscriptions: false,
+      });
       expect(body.security.tls_required).toBe(true);
       expect(body.security.min_tls_version).toBe('1.2');
     });
@@ -438,6 +455,82 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
         },
       });
       expect(conditionalResponse.status).toBe(304);
+    });
+  });
+
+  describe('OAuth bearer challenge contract', () => {
+    let server: TestServer;
+    let app: Express;
+
+    beforeAll(async () => {
+      server = createHttpServer({
+        ...TEST_SERVER_OPTIONS,
+        enableOAuth: true,
+        oauthConfig: TEST_OAUTH_CONFIG,
+      });
+      app = server.app as Express;
+    });
+
+    afterAll(async () => {
+      await cleanupServer(server);
+    });
+
+    it('returns WWW-Authenticate on missing bearer token', async () => {
+      const response = await httpRequest(app, {
+        method: 'POST',
+        path: '/mcp',
+        headers: {
+          'Content-Type': 'application/json',
+          'MCP-Protocol-Version': '2025-11-25',
+        },
+        body: INITIALIZE_REQUEST,
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers['www-authenticate']).toContain('Bearer');
+      expect(response.headers['www-authenticate']).toContain('error="invalid_request"');
+      expect(response.headers['www-authenticate']).toContain(
+        'error_description="Missing or invalid authorization header"'
+      );
+      expect(response.body).toMatchObject({
+        error: 'unauthorized',
+        error_description: 'Missing or invalid authorization header',
+      });
+    });
+
+    it('returns WWW-Authenticate on missing bearer token for /sse', async () => {
+      const response = await httpRequest(app, {
+        method: 'GET',
+        path: '/sse',
+        headers: {
+          'MCP-Protocol-Version': '2025-11-25',
+        },
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers['www-authenticate']).toContain('Bearer');
+      expect(response.headers['www-authenticate']).toContain('error="invalid_request"');
+      expect(response.headers['www-authenticate']).toContain(
+        'error_description="Missing or invalid authorization header"'
+      );
+    });
+
+    it('returns WWW-Authenticate on invalid bearer token', async () => {
+      const response = await httpRequest(app, {
+        method: 'POST',
+        path: '/mcp',
+        headers: {
+          'Content-Type': 'application/json',
+          'MCP-Protocol-Version': '2025-11-25',
+          Authorization: 'Bearer not-a-real-token',
+        },
+        body: INITIALIZE_REQUEST,
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers['www-authenticate']).toContain('Bearer');
+      expect(response.headers['www-authenticate']).toContain('error="invalid_token"');
+      expect(response.headers['www-authenticate']).toContain('error_description=');
     });
   });
 });

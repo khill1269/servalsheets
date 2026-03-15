@@ -20,6 +20,16 @@ exports[`Schema Snapshots > Input Schemas > BatchOperationsInputSchema should ma
 }
 `;
 
+exports[`Schema Snapshots > Input Schemas > BuildDashboardInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/BuildDashboardInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "BuildDashboardInputSchema": {},
+  },
+}
+`;
+
 exports[`Schema Snapshots > Input Schemas > BulkUpdateInputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/BulkUpdateInputSchema",
@@ -646,6 +656,16 @@ exports[`Schema Snapshots > Output Schemas > BatchOperationsOutputSchema should 
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "BatchOperationsOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > BuildDashboardOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/BuildDashboardOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "BuildDashboardOutputSchema": {},
   },
 }
 `;

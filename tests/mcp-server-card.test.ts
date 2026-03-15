@@ -61,7 +61,7 @@ describe('MCP Server Card (SEP-1649)', () => {
       });
       expect(card.capabilities.resources).toEqual({
         templates: true,
-        subscriptions: true,
+        subscriptions: false,
       });
       expect(card.capabilities.prompts).toEqual({
         count: getPromptsCatalogCount(),
