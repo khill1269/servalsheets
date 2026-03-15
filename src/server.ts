@@ -173,6 +173,7 @@ export class ServalSheetsServer {
   // Resource lazy loading state
   private resourcesRegistered = false;
   private resourceRegistrationPromise: Promise<void> | null = null;
+  private resourceRegistrationFailed = false;
 
   constructor(options: ServalSheetsServerOptions = {}) {
     this.options = options;
@@ -1038,12 +1039,16 @@ export class ServalSheetsServer {
     await ensureServerResourcesRegistered({
       resourcesRegistered: this.resourcesRegistered,
       resourceRegistrationPromise: this.resourceRegistrationPromise,
+      resourceRegistrationFailed: this.resourceRegistrationFailed,
       registerResources: () => this.registerResources(),
       setResourcesRegistered: (value) => {
         this.resourcesRegistered = value;
       },
       setResourceRegistrationPromise: (value) => {
         this.resourceRegistrationPromise = value;
+      },
+      setResourceRegistrationFailed: (value) => {
+        this.resourceRegistrationFailed = value;
       },
       log: baseLogger,
     });

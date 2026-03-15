@@ -41,8 +41,8 @@ import { getConfiguredActionCount, getConfiguredToolCount } from './tool-catalog
 /**
  * MCP 2025-11-25 Feature Implementation Status
  *
- * ✅ FULLY IMPLEMENTED (100% MCP 2025-11-25 Compliant):
- * - SEP-986 Tool Naming (snake_case, validated)
+ * ✅ IMPLEMENTED MCP 2025-11-25 SERVER FEATURES:
+ * - MCP-compliant tool naming validation (letters, numbers, hyphens, underscores)
  * - Tool Annotations (all 4 hints: readOnlyHint, destructiveHint, idempotentHint, openWorldHint)
  * - Structured Outputs (content + structuredContent in responses)
  * - Discriminated Unions (action in request, success in response)
@@ -57,8 +57,6 @@ import { getConfiguredActionCount, getConfiguredToolCount } from './tool-catalog
  * - Completions capability (argument autocompletion for actions, IDs, types)
  * - SEP-1577 Sampling (server-to-client LLM requests for AI-powered analysis)
  * - SEP-1036 Elicitation (user input collection via forms and URLs)
- *
- * All MCP 2025-11-25 features are now implemented!
  */
 
 // ============================================================================

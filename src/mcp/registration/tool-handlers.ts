@@ -64,6 +64,8 @@ import {
   prepareSchemaForRegistrationCached,
   wrapInputSchemaForLegacyRequest,
 } from './schema-helpers.js';
+import { detectLegacyInvocation, normalizeToolArgs } from './tool-arg-normalization.js';
+import { assertValidMcpToolNames } from './tool-name-validation.js';
 import type { ToolDefinition } from './tool-definitions.js';
 import { redactSensitiveData } from '../../middleware/redaction.js';
 import { ACTIVE_TOOL_DEFINITIONS, isToolCallAuthExempt } from './tool-definitions.js';
@@ -1316,7 +1318,11 @@ export function buildToolResponse(
       if (actionName && DATA_QUALITY_ACTIONS.has(actionName)) {
         // Extract values — may be at response.values or response.data.values
         let responseValues: unknown = responseRecord['values'];
-        if (!responseValues && typeof responseRecord['data'] === 'object' && responseRecord['data']) {
+        if (
+          !responseValues &&
+          typeof responseRecord['data'] === 'object' &&
+          responseRecord['data']
+        ) {
           responseValues = (responseRecord['data'] as Record<string, unknown>)['values'];
         }
         if (
@@ -1325,16 +1331,19 @@ export function buildToolResponse(
           Array.isArray(responseValues[0]) &&
           (responseValues[0] as unknown[]).length >= 2
         ) {
-          void scanResponseQuality(
-            responseValues as (string | number | boolean | null)[][],
-            { tool: toolName, action: actionName, range: String(responseRecord['range'] ?? '') }
-          ).then((warnings) => {
-            if (warnings.length > 0) {
-              responseRecord['dataQualityWarnings'] = warnings;
-            }
-          }).catch(() => {
-            // Non-blocking: quality scan failure must never fail the response
-          });
+          void scanResponseQuality(responseValues as (string | number | boolean | null)[][], {
+            tool: toolName,
+            action: actionName,
+            range: String(responseRecord['range'] ?? ''),
+          })
+            .then((warnings) => {
+              if (warnings.length > 0) {
+                responseRecord['dataQualityWarnings'] = warnings;
+              }
+            })
+            .catch(() => {
+              // Non-blocking: quality scan failure must never fail the response
+            });
         }
       }
     } catch {
@@ -1465,120 +1474,7 @@ export function buildToolResponse(
 // TOOL CALL HANDLER
 // ============================================================================
 
-/**
- * ISSUE-107: Detect legacy invocation patterns so we can add deprecation metadata.
- * Returns a human-readable warning string if the client used a legacy pattern, null otherwise.
- */
-function detectLegacyInvocation(args: unknown): string | null {
-  if (!args || typeof args !== 'object') return null;
-  const record = args as Record<string, unknown>;
-
-  // Pattern 1: flat root-level { action, params: {...} } (old SDK format)
-  if (record['params'] && typeof record['params'] === 'object') {
-    return 'Flat { action, params } invocation detected. Upgrade to { request: { action, ... } } format (MCP 2025-11-25).';
-  }
-
-  // Pattern 2: flat args without request envelope — action at root level
-  if (!record['request'] && typeof record['action'] === 'string') {
-    return 'Flat { action, ... } invocation without request envelope. Upgrade to { request: { action, ... } } format (MCP 2025-11-25).';
-  }
-
-  // Pattern 3: nested request.params (double-wrapped)
-  const req = record['request'];
-  if (req && typeof req === 'object') {
-    const reqRecord = req as Record<string, unknown>;
-    if (reqRecord['params'] && typeof reqRecord['params'] === 'object') {
-      return 'Nested { request: { action, params: {...} } } format. Upgrade to { request: { action, ... } } (flatten params into request).';
-    }
-  }
-
-  return null;
-}
-
-export function normalizeToolArgs(args: unknown): Record<string, unknown> {
-  if (!args || typeof args !== 'object') {
-    logger.warn(
-      'normalizeToolArgs: received non-object args, falling back to empty record for Zod validation',
-      { args }
-    );
-    return {};
-  }
-  const record = args as Record<string, unknown>;
-
-  // Legacy root-level wrapper: { action, params: {...} }
-  const rootParams = record['params'];
-  if (rootParams && typeof rootParams === 'object') {
-    const action = typeof record['action'] === 'string' ? { action: record['action'] } : {};
-    return {
-      request: normalizeRangeFields({ ...(rootParams as Record<string, unknown>), ...action }),
-    };
-  }
-
-  const request = record['request'];
-  if (!request || typeof request !== 'object') {
-    return { request: normalizeRangeFields(record) };
-  }
-
-  const requestRecord = request as Record<string, unknown>;
-  const params = requestRecord['params'];
-  if (params && typeof params === 'object') {
-    const action =
-      typeof requestRecord['action'] === 'string' ? { action: requestRecord['action'] } : {};
-    return { request: normalizeRangeFields({ ...(params as Record<string, unknown>), ...action }) };
-  }
-
-  return { request: normalizeRangeFields(requestRecord) };
-}
-
-/**
- * Normalize range fields from object format {a1: "..."} to plain string.
- * Claude clients sometimes send range as {a1: "Sheet1!A1:B2"} instead of "Sheet1!A1:B2".
- * This prevents "range is required and must be a non-empty string" errors.
- */
-function normalizeRangeFields(record: Record<string, unknown>): Record<string, unknown> {
-  const result = { ...record };
-
-  // Normalize top-level 'range' field
-  if (result['range'] && typeof result['range'] === 'object' && result['range'] !== null) {
-    const rangeObj = result['range'] as Record<string, unknown>;
-    if (typeof rangeObj['a1'] === 'string') {
-      result['range'] = rangeObj['a1'];
-    }
-  }
-
-  // Normalize 'ranges' array (for batch_read)
-  if (Array.isArray(result['ranges'])) {
-    result['ranges'] = (result['ranges'] as unknown[]).map((r) => {
-      if (r && typeof r === 'object' && 'a1' in (r as Record<string, unknown>)) {
-        return (r as Record<string, unknown>)['a1'];
-      }
-      return r;
-    });
-  }
-
-  // Normalize 'data' array items (for batch_write)
-  if (Array.isArray(result['data'])) {
-    result['data'] = (result['data'] as unknown[]).map((item) => {
-      if (item && typeof item === 'object') {
-        const dataItem = { ...(item as Record<string, unknown>) };
-        if (
-          dataItem['range'] &&
-          typeof dataItem['range'] === 'object' &&
-          dataItem['range'] !== null
-        ) {
-          const rangeObj = dataItem['range'] as Record<string, unknown>;
-          if (typeof rangeObj['a1'] === 'string') {
-            dataItem['range'] = rangeObj['a1'];
-          }
-        }
-        return dataItem;
-      }
-      return item;
-    });
-  }
-
-  return result;
-}
+export { normalizeToolArgs } from './tool-arg-normalization.js';
 
 function createToolCallHandler(
   tool: ToolDefinition,
@@ -2493,15 +2389,7 @@ export async function registerServalSheetsTools(
         return preAuthHandlerMap;
       })();
 
-  // Validate tool names comply with MCP spec (SEP-986: snake_case only)
-  const TOOL_NAME_REGEX = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
-  for (const tool of ACTIVE_TOOL_DEFINITIONS) {
-    if (!TOOL_NAME_REGEX.test(tool.name)) {
-      throw new Error(
-        `Tool name "${tool.name}" violates MCP naming convention: must be snake_case (lowercase, digits, underscores)`
-      );
-    }
-  }
+  assertValidMcpToolNames(ACTIVE_TOOL_DEFINITIONS);
 
   for (const tool of ACTIVE_TOOL_DEFINITIONS) {
     // Prepare schemas for SDK registration with caching (P0-2 optimization)

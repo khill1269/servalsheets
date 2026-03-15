@@ -371,11 +371,11 @@ export function prepareSchemaForRegistrationCached(
 }
 
 /**
- * Wrap input schema to accept legacy request envelopes.
+ * Wrap input schema to accept older compatibility envelopes.
  *
  * Supports:
- * - direct inputs (current format)
- * - { request: <input> } (legacy wrapper)
+ * - the canonical schema shape
+ * - { request: <canonical-schema> } (double-wrapped legacy envelope)
  * - { request: { action, params } } (legacy params wrapper)
  */
 export function wrapInputSchemaForLegacyRequest(schema: ZodSchema): ZodSchema {

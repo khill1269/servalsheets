@@ -114,21 +114,32 @@ export function registerServerPrompts(server: McpServer): void {
 export async function ensureServerResourcesRegistered(params: {
   resourcesRegistered: boolean;
   resourceRegistrationPromise: Promise<void> | null;
+  resourceRegistrationFailed: boolean;
   registerResources: () => Promise<void>;
   setResourcesRegistered: (value: boolean) => void;
   setResourceRegistrationPromise: (value: Promise<void> | null) => void;
+  setResourceRegistrationFailed: (value: boolean) => void;
   log?: typeof baseLogger;
 }): Promise<void> {
   const {
     resourcesRegistered,
     resourceRegistrationPromise,
+    resourceRegistrationFailed,
     registerResources,
     setResourcesRegistered,
     setResourceRegistrationPromise,
+    setResourceRegistrationFailed,
     log = baseLogger,
   } = params;
 
   if (resourcesRegistered) {
+    return;
+  }
+
+  // Poisoned: a previous attempt partially registered resources into the SDK's
+  // internal maps before throwing. Retrying would cause "already registered" errors.
+  // Resources will be unavailable this session; tools still function.
+  if (resourceRegistrationFailed) {
     return;
   }
 
@@ -144,7 +155,11 @@ export async function ensureServerResourcesRegistered(params: {
       setResourcesRegistered(true);
       log.info('Resources registered successfully');
     } catch (error) {
-      log.error('Failed to register resources', { error });
+      log.error(
+        'Failed to register resources — poisoning retry guard to prevent cascading "already registered" errors',
+        { error }
+      );
+      setResourceRegistrationFailed(true);
       setResourceRegistrationPromise(null);
       throw error;
     }
