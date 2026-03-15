@@ -346,7 +346,7 @@
     "gates:g4": "npm run build > /dev/null 2>&1 && node scripts/check-source-truth.mjs",
     "gates:g5": "npm run audit:quick > /dev/null 2>&1 && node scripts/check-audit-score.mjs",
     "gen:metadata": "node --import tsx scripts/generate-metadata.ts",
-    "fix:metadata": "npm run gen:metadata && node scripts/sync-doc-counts.mjs --fix && echo '✓ All metadata synchronized'",
+    "fix:metadata": "npm run gen:metadata && node scripts/gen-doc-tables.mjs && node scripts/sync-doc-counts.mjs --fix && echo '✓ All metadata synchronized'",
     "validate:metadata": "tsx scripts/generate-metadata.ts --validate",
     "gen:openapi": "node --import tsx scripts/generate-openapi.ts",
     "gen:openapi:json": "node --import tsx scripts/generate-openapi.ts json",
@@ -396,7 +396,7 @@
     "ui:dev": "cd src/ui/tracing-dashboard && npm run dev",
     "ui:typecheck": "cd src/ui/tracing-dashboard && npm run typecheck",
     "schema:clear-cache": "tsx src/cli/schema-manager.ts clear-cache",
-    "schema:commit": "npm run gen:metadata && node scripts/sync-doc-counts.mjs --fix && npm run check:drift && npm run typecheck && npm run test:fast && echo '✓ Schema changes ready to commit' && git add src/schemas/index.ts src/schemas/action-counts.ts src/mcp/completions.ts src/generated/manifest.json manifest.json server.json package.json",
+    "schema:commit": "npm run gen:metadata && node scripts/gen-doc-tables.mjs && node scripts/sync-doc-counts.mjs --fix && npm run check:drift && npm run typecheck && npm run test:fast && echo '✓ Schema changes ready to commit' && git add src/schemas/index.ts src/schemas/action-counts.ts src/mcp/completions.ts src/generated/manifest.json manifest.json server.json package.json",
     "schema:compare": "tsx src/cli/schema-manager.ts compare",
     "schema:fetch": "tsx src/cli/schema-manager.ts fetch",
     "schema:migration-report": "tsx src/cli/schema-manager.ts migration-report",
@@ -497,7 +497,9 @@
     "turbo:build": "turbo build",
     "turbo:test": "turbo test",
     "turbo:lint": "turbo lint",
-    "turbo:typecheck": "turbo typecheck"
+    "turbo:typecheck": "turbo typecheck",
+    "gen:docs": "node scripts/gen-doc-tables.mjs",
+    "validate:doc-tables": "node scripts/gen-doc-tables.mjs --check"
   },
   "type": "module",
   "types": "dist/index.d.ts"

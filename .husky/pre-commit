@@ -142,10 +142,18 @@ if [ -n "$STAGED_MD_FILES" ]; then
     echo "$STAGED_DOCS_MD" | xargs npx tsx scripts/check-frontmatter.ts || { echo "❌ Frontmatter validation failed"; exit 1; }
   fi
 
-  # Verify documentation action counts if README.md or SKILL.md changed
-  if echo "$STAGED_MD_FILES" | grep -q "README.md\|docs/guides/SKILL.md"; then
-    echo "  → Verifying action counts in documentation"
+  # Verify documentation action counts — check ALL staged docs for stale counts
+  echo "  → Verifying action counts in staged docs"
+  # Count only non-historical stale references (HISTORICAL ones are intentional; skip Total line)
+  STALE_COUNT=$(node scripts/sync-doc-counts.mjs 2>/dev/null | grep "stale reference" | grep -v "HISTORICAL\|^Total" | wc -l | tr -d ' ' || echo 0)
+  if [ "$STALE_COUNT" -gt "0" ]; then
+    echo "❌ Staged docs contain stale action/tool counts. Run: npm run docs:sync"
+    node scripts/sync-doc-counts.mjs 2>/dev/null | grep "^docs\|^src\|^README\|^CLAUDE" | grep -v "HISTORICAL" | head -20
+    exit 1
+  fi
 
+  # Legacy check: explicit README.md / SKILL.md count verification
+  if echo "$STAGED_MD_FILES" | grep -q "README.md\|docs/guides/SKILL.md"; then
     # Dynamically read expected counts from source of truth
     EXPECTED=$(node -e "const {TOOL_COUNT,ACTION_COUNT}=require('./src/schemas/action-counts.ts');console.log(\`\${TOOL_COUNT} tools, \${ACTION_COUNT} actions\`);")
     EXPECTED_WITH=$(echo "$EXPECTED" | sed 's/, / with /')
