@@ -33,7 +33,7 @@ export class SecurityAgent extends AnalysisAgent {
   async analyze(
     filePath: string,
     sourceFile: ts.SourceFile,
-    context: AnalysisContext
+    _context: AnalysisContext
   ): Promise<DimensionReport[]> {
     const reports: DimensionReport[] = [];
 
@@ -54,10 +54,15 @@ export class SecurityAgent extends AnalysisAgent {
     const issues: AnalysisIssue[] = [];
 
     // Check if handler receives external input
-    const isHandler = filePath.includes('/handlers/');
+    // Nested helper/action modules under /handlers/ are not input boundaries
+    const isTopLevelHandler =
+      filePath.includes('/handlers/') &&
+      !filePath.includes('/handlers/helpers/') &&
+      !filePath.includes('/handlers/actions/') &&
+      !filePath.includes('/handlers/utils/');
     const isHttpEndpoint = filePath.includes('http-server') || filePath.includes('remote-server');
 
-    if (!isHandler && !isHttpEndpoint) {
+    if (!isTopLevelHandler && !isHttpEndpoint) {
       return {
         dimension: 'inputValidation',
         status: 'pass',
@@ -69,6 +74,7 @@ export class SecurityAgent extends AnalysisAgent {
 
     let hasZodValidation = false;
     let hasManualValidation = false;
+    let hasDirectReqAccess = false;
 
     const visit = (node: ts.Node) => {
       // Check for Zod parsing
@@ -77,6 +83,35 @@ export class SecurityAgent extends AnalysisAgent {
         if (methodName === 'parse' || methodName === 'safeParse') {
           hasZodValidation = true;
         }
+      }
+
+      // Check for calls to validate* helpers or framework validation functions
+      if (ts.isCallExpression(node)) {
+        const expr = node.expression;
+        const callName = ts.isIdentifier(expr) ? expr.text : undefined;
+        if (
+          callName &&
+          (callName.startsWith('validate') ||
+            callName.startsWith('Validate') ||
+            callName === 'unwrapRequest' ||
+            callName === 'parse' ||
+            callName === 'safeParse')
+        ) {
+          hasManualValidation = true;
+        }
+      }
+
+      // Check for BaseHandler extends pattern (framework-validated entrypoints)
+      if (
+        ts.isClassDeclaration(node) &&
+        node.heritageClauses?.some((h) =>
+          h.types.some((t) => {
+            const typeName = t.expression.getText(sourceFile);
+            return typeName === 'BaseHandler' || typeName.includes('Handler');
+          })
+        )
+      ) {
+        hasManualValidation = true;
       }
 
       // Check for manual validation (typeof, instanceof, etc.)
@@ -94,10 +129,53 @@ export class SecurityAgent extends AnalysisAgent {
         }
       }
 
+      // Check for guard patterns: if (!x) { return/throw/res.status(...) }
+      if (ts.isIfStatement(node)) {
+        const condition = node.expression;
+        if (
+          ts.isPrefixUnaryExpression(condition) &&
+          condition.operator === ts.SyntaxKind.ExclamationToken
+        ) {
+          // Pattern: if (!x) { ... return/throw/res.status }
+          const thenText = node.thenStatement.getText(sourceFile);
+          if (
+            thenText.includes('return') ||
+            thenText.includes('throw') ||
+            thenText.includes('status(')
+          ) {
+            hasManualValidation = true;
+          }
+        }
+      }
+
+      // Track direct req.body / req.params / req.query / req.path access
+      if (
+        ts.isPropertyAccessExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === 'req'
+      ) {
+        const prop = node.name.text;
+        if (['body', 'params', 'query', 'path', 'headers', 'files', 'get'].includes(prop)) {
+          hasDirectReqAccess = true;
+        }
+      }
+
       ts.forEachChild(node, visit);
     };
 
     visit(sourceFile);
+
+    // If this is an HTTP endpoint file but never accesses req.body/params/query/path directly,
+    // treat it as a wiring-only file (not a direct input handler)
+    if (isHttpEndpoint && !hasDirectReqAccess) {
+      return {
+        dimension: 'inputValidation',
+        status: 'pass',
+        issueCount: 0,
+        issues: [],
+        duration: Date.now() - startTime,
+      };
+    }
 
     if (!hasZodValidation && !hasManualValidation) {
       issues.push(
@@ -131,32 +209,84 @@ export class SecurityAgent extends AnalysisAgent {
     const startTime = Date.now();
     const issues: AnalysisIssue[] = [];
 
+    const SQL_EXECUTION_METHODS = new Set([
+      'prepare',
+      'execute',
+      'query',
+      'run',
+      'exec',
+      'all',
+      'get',
+    ]);
+    const SQL_KEYWORDS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'FROM', 'WHERE'];
+
+    /** Check whether an expression contains a dynamic (interpolated) SQL string */
+    const isDynamicSql = (expr: ts.Expression): boolean => {
+      // Direct template with interpolation
+      if (ts.isTemplateExpression(expr)) {
+        const text = expr.getText(sourceFile).toUpperCase();
+        return SQL_KEYWORDS.some((kw) => text.includes(kw));
+      }
+      // Binary concat: "SELECT" + variable
+      if (ts.isBinaryExpression(expr)) {
+        const text = expr.getText(sourceFile).toUpperCase();
+        return SQL_KEYWORDS.some((kw) => text.includes(kw));
+      }
+      // Variable reference — look up its initializer if it's a local const/let
+      return false;
+    };
+
+    /** Collect all variable initializers in the source for taint tracking */
+    const dynamicVars = new Set<string>();
+    const collectVars = (node: ts.Node) => {
+      if (ts.isVariableDeclaration(node) && node.initializer) {
+        const init = node.initializer;
+        if (
+          (ts.isTemplateExpression(init) || ts.isBinaryExpression(init)) &&
+          SQL_KEYWORDS.some((kw) => init.getText(sourceFile).toUpperCase().includes(kw))
+        ) {
+          const name = ts.isIdentifier(node.name) ? node.name.text : null;
+          if (name) dynamicVars.add(name);
+        }
+      }
+      ts.forEachChild(node, collectVars);
+    };
+    collectVars(sourceFile);
+
     const visit = (node: ts.Node) => {
-      // Check for string concatenation or template literals in SQL-like contexts
-      if (ts.isTemplateExpression(node) || ts.isBinaryExpression(node)) {
-        const text = node.getText(sourceFile);
+      // Only flag SQL execution call sites
+      if (
+        ts.isCallExpression(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        SQL_EXECUTION_METHODS.has(node.expression.name.text)
+      ) {
+        for (const arg of node.arguments) {
+          let flagged = false;
 
-        // SQL keywords
-        const sqlKeywords = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'FROM', 'WHERE'];
-        const hasSQLKeyword = sqlKeywords.some((kw) => text.toUpperCase().includes(kw));
+          if (isDynamicSql(arg as ts.Expression)) {
+            flagged = true;
+          } else if (ts.isIdentifier(arg) && dynamicVars.has(arg.text)) {
+            flagged = true;
+          }
 
-        if (hasSQLKeyword) {
-          const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
-
-          issues.push(
-            this.createIssue(
-              'sqlInjection',
-              filePath,
-              'Potential SQL injection: string interpolation in SQL query',
-              {
-                severity: 'critical',
-                line,
-                suggestion: 'Use parameterized queries or prepared statements',
-                estimatedEffort: '30min-1h',
-                references: ['https://owasp.org/www-community/attacks/SQL_Injection'],
-              }
-            )
-          );
+          if (flagged) {
+            const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+            issues.push(
+              this.createIssue(
+                'sqlInjection',
+                filePath,
+                'Potential SQL injection: dynamic SQL passed to execution method',
+                {
+                  severity: 'critical',
+                  line,
+                  suggestion: 'Use parameterized queries or prepared statements',
+                  estimatedEffort: '30min-1h',
+                  references: ['https://owasp.org/www-community/attacks/SQL_Injection'],
+                }
+              )
+            );
+            break;
+          }
         }
       }
 

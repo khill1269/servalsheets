@@ -522,13 +522,10 @@ const serverJson = {
   ],
   mcpProtocol: '2025-11-25',
   instructions:
-    '⚠️ CRITICAL PARAMETER FORMAT (read this first) ⚠️\n\n' +
-    'NEVER wrap arguments in {"request":{...}} object.\n\n' +
-    '✅ CORRECT format for ALL tools:\n' +
+    'ServalSheets uses an envelope parameter format:\n' +
+    '{"request":{"action":"...", "spreadsheetId":"...", "range":"..."}}\n\n' +
+    'LEGACY compatibility format (also accepted, normalized at runtime):\n' +
     '{"action":"...", "spreadsheetId":"...", "range":"..."}\n\n' +
-    '❌ LEGACY format (normalized at runtime, avoid in new integrations):\n' +
-    '{"request": {"action":"...", "spreadsheetId":"..."}}\n\n' +
-    'Use flat format for all new tool calls. No exceptions.\n\n' +
     '---\n\n' +
     'ServalSheets provides ' +
     TOOL_COUNT +
