@@ -226,7 +226,7 @@ Cmd+G Cmd+A  → All gates (G0-G4)
 
 **Output (Generated - DO NOT edit manually):**
 
-- `package.json` - Updates description with `"25 tools, 391 actions"`
+- `package.json` - Updates description with `"25 tools, 402 actions"`
 - `src/schemas/index.ts` - Updates `TOOL_COUNT` and `ACTION_COUNT` constants
 - `src/schemas/annotations.ts` - Updates `ACTION_COUNTS` object
 - `src/mcp/completions.ts` - Updates `TOOL_ACTIONS` object
@@ -248,7 +248,7 @@ npm run gen:metadata
 # 📊 Analyzing 16 schema files...
 #   📝 advanced.ts → 19 actions [add_named_range, update_named_range, ...]
 #   ...
-# ✅ Total: 25 tools, 391 actions
+# ✅ Total: 25 tools, 402 actions
 # ✅ Updated src/schemas/index.ts constants
 # ✅ Updated src/schemas/annotations.ts ACTION_COUNTS
 # ✅ Updated src/mcp/completions.ts TOOL_ACTIONS
@@ -339,7 +339,7 @@ const mismatches = compareActions(actions, handlerActions, deviations);
 ```bash
 # Matches:
 "25 tools"           # Hardcoded count
-"391 actions"        # Hardcoded count
+"402 actions"        # Hardcoded count
 "Currently 25 tools" # Potentially stale
 "All 22 handlers"    # Hardcoded count
 
@@ -497,7 +497,7 @@ npm run check:drift
 
 # Failure output:
 # ❌ Metadata drift detected in 2 files:
-#   - package.json (expected 391 actions, found 53)
+#   - package.json (expected 402 actions, found 53)
 #   - src/schemas/index.ts (expected ACTION_COUNT = 207, found 53)
 # Run 'npm run gen:metadata' to fix
 ```

@@ -18,7 +18,7 @@ difficulty: intermediate
 
 # GraphQL API
 
-ServalSheets provides a comprehensive GraphQL API as an alternative to the REST/MCP interfaces. The GraphQL API offers type-safe queries and mutations for all 25 tools with 391 actions.
+ServalSheets provides a comprehensive GraphQL API as an alternative to the REST/MCP interfaces. The GraphQL API offers type-safe queries and mutations for all 25 tools with 402 actions.
 
 ## Overview
 

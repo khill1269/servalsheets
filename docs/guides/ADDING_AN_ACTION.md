@@ -270,7 +270,7 @@ npm run schema:commit
 
 ```
 Modified (GENERATED - do not edit manually):
-  package.json - Description now says "391 actions"
+  package.json - Description now says "402 actions"
   src/schemas/index.ts - ACTION_COUNT = 300
   src/schemas/annotations.ts - sheets_data: 19 actions
   src/mcp/completions.ts - clear_range added to TOOL_ACTIONS
@@ -546,7 +546,7 @@ Modified:
 ```bash
 ❌ Metadata drift detected in 2 files:
   - src/schemas/index.ts (expected ACTION_COUNT = 300, found 299)
-  - package.json (expected "391 actions", found "391 actions")
+  - package.json (expected "402 actions", found "402 actions")
 ```
 
 **Cause:** Didn't run `npm run schema:commit`
