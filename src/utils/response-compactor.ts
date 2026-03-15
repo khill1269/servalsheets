@@ -224,7 +224,11 @@ function compactInner(
 
       // Track if this field was truncated
       if (compacted !== original && typeof compacted === 'object' && compacted !== null) {
-        if (Array.isArray(original) && Array.isArray(compacted) && compacted.length < original.length) {
+        if (
+          Array.isArray(original) &&
+          Array.isArray(compacted) &&
+          compacted.length < original.length
+        ) {
           // List field was truncated to an array slice (LIST_ACTION_FIELDS path)
           truncatedFields.push(`${field}(${original.length} total, showing ${compacted.length})`);
           // A6: Add explicit truncation hint for list fields

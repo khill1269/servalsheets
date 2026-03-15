@@ -5332,6 +5332,40 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
         'This suggests actionable improvements for your data. Before retrying, verify the spreadsheet has data and the range is correct.',
     },
   },
+  'sheets_analyze.quick_insights': {
+    apiCalls: 1,
+    idempotent: true,
+    prerequisites: ['sheets_auth.login'],
+    whenToUse:
+      'Fast AI-free structural snapshot — column types, empty rate, top pattern-based insights and suggestions in ~200ms',
+    whenNotToUse: 'When deep AI analysis is needed — use sheets_analyze.comprehensive instead',
+    commonMistakes: [
+      'Use sheets_analyze.comprehensive for full analysis; quick_insights is intentionally lightweight',
+    ],
+    errorRecovery: {
+      SHEET_NOT_FOUND: 'Verify spreadsheetId with sheets_core.get first',
+      QUOTA_EXCEEDED: 'Wait 60s then retry',
+      alternativeActions: [
+        {
+          tool: 'sheets_analyze',
+          action: 'scout',
+          when: 'when only metadata (row/column counts) is needed',
+        },
+        {
+          tool: 'sheets_analyze',
+          action: 'comprehensive',
+          when: 'when full AI-powered analysis is needed',
+        },
+      ],
+      diagnosticSteps: [
+        'Verify the spreadsheet exists with sheets_core.get',
+        'Confirm the range is valid A1 notation if provided',
+      ],
+      userGuidance:
+        'Returns column data types, empty rates, and up to 5 pattern-based insights instantly without AI sampling. Use for quick health checks before deeper analysis.',
+    },
+  },
+
   'sheets_analyze.auto_enhance': {
     apiCalls: 5,
     idempotent: false,
@@ -7703,6 +7737,28 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
       ],
       userGuidance:
         'This clears credentials and logs out. Call status first to confirm you are logged in.',
+    },
+  },
+
+  'sheets_auth.setup_feature': {
+    apiCalls: 0,
+    idempotent: true,
+    prerequisites: ['sheets_auth.login'],
+    whenToUse:
+      'Enabling optional features — connectors (external APIs), sampling (AI analysis), webhooks, or federation — via interactive wizard',
+    whenNotToUse: 'When features are already configured via environment variables',
+    commonMistakes: ['Run sheets_auth.status first to confirm you are logged in before setup'],
+    errorRecovery: {
+      PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
+      alternativeActions: [
+        { tool: 'sheets_auth', action: 'status', when: 'when checking current feature status' },
+      ],
+      diagnosticSteps: [
+        'Check auth status with sheets_auth.status',
+        'Verify required API keys are available for the feature being configured',
+      ],
+      userGuidance:
+        'Interactive setup wizard for optional ServalSheets features. Guides through connector API keys, Anthropic sampling credentials, webhook endpoints, or federation server URLs.',
     },
   },
 
@@ -10298,6 +10354,43 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
       PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
       INVALID_RANGE:
         'Use an explicit A1 range and verify the target sheet with sheets_core.list_sheets',
+    },
+  },
+
+  'sheets_data.auto_fill': {
+    apiCalls: 2,
+    idempotent: false,
+    prerequisites: ['sheets_auth.login'],
+    whenToUse:
+      'Extending a pattern from a source range into a fill range — linear sequences (1,2,3→4,5,6), date progressions, or cyclic repeats',
+    whenNotToUse:
+      'When exact values are already known — use write instead; auto_fill is for pattern detection and extrapolation',
+    commonMistakes: [
+      'sourceRange must contain at least 2 values for linear/date detection',
+      'fillRange must be in the same column or row direction as sourceRange for linear strategy',
+    ],
+    errorRecovery: {
+      PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
+      SHEET_NOT_FOUND: 'Verify sheet name with sheets_core.list_sheets',
+      INVALID_RANGE: 'Use explicit A1 notation with sheet name — e.g. Sheet1!A1:A3',
+      alternativeActions: [
+        {
+          tool: 'sheets_data',
+          action: 'write',
+          when: 'when the exact fill values are already known',
+        },
+        {
+          tool: 'sheets_data',
+          action: 'smart_fill',
+          when: 'when extending Google Sheets-style autofill formulas',
+        },
+      ],
+      diagnosticSteps: [
+        'Verify both sourceRange and fillRange use the same sheet name prefix',
+        'Ensure sourceRange has ≥2 cells for pattern detection',
+      ],
+      userGuidance:
+        'Reads the source range, detects a pattern (linear arithmetic, date sequence, or cyclic repeat), and writes the extrapolated values into the fill range.',
     },
   },
   'sheets_dimensions.delete_duplicates': {
