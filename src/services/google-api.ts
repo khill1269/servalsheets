@@ -48,6 +48,7 @@ import {
   getRecommendedScopes,
 } from '../config/oauth-scopes.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
+import { PerSpreadsheetThrottle } from './per-spreadsheet-throttle.js';
 
 // Lazy-loaded metrics module — avoids dynamic import overhead on every API call
 let _metricsModule: typeof import('../observability/metrics.js') | null = null;
@@ -112,6 +113,11 @@ class SharedDriveRateLimiter {
     }
   }
 }
+
+// Module-level singleton — shared across all GoogleApiClient instances so that
+// concurrent calls from different client instances for the same spreadsheet
+// still respect the per-spreadsheet RPS cap (src/config/env.ts:PER_SPREADSHEET_RPS).
+const perSpreadsheetThrottle = new PerSpreadsheetThrottle();
 
 export interface GoogleApiClientOptions {
   credentials?: {
@@ -1757,6 +1763,13 @@ function wrapGoogleApi<T extends object>(
                       waitedMs: waitMs,
                     });
                   }
+                }
+
+                // Per-spreadsheet request throttle — enforces PER_SPREADSHEET_RPS
+                // to follow Google's guidance of limiting concurrent requests per
+                // spreadsheet and avoid 503 quota-exceeded responses.
+                if (sharedDriveFileId) {
+                  await perSpreadsheetThrottle.throttle(sharedDriveFileId);
                 }
               }
 

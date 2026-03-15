@@ -613,6 +613,7 @@ function safeEvaluateExpression(expr: string): number | null {
   if (!/^[\d+\-*/.()]+$/.test(cleaned)) return null;
   try {
     // Use Function constructor for arithmetic only (safer than eval, no variable access)
+
     const result = new Function(`return (${cleaned})`)();
     return typeof result === 'number' && isFinite(result) ? result : null;
   } catch {
