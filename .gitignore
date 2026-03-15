@@ -233,3 +233,25 @@ docs/business/*.xlsx
 
 # Claude Code worktrees (temporary isolated branches)
 .claude/worktrees/
+
+# Auto-generated runtime artifacts
+audit-logs/
+architecture-graph.svg
+PROJECT_SNAPSHOT.md
+
+# External framework evaluation docs (not project code)
+/AQUI-VR_*.md
+/AQUI-VR_*.pdf
+.github/AQUI-VR_AUDIT_CARD.md
+docs/AQUI-VR_*.md
+docs/AQUI-VR_*.pdf
+
+# Auto-generated competitive analysis and advancement plans
+docs/COMPETITIVE_ANALYSIS.md
+docs/COMPETITIVE_ANALYSIS.html
+docs/METRICS_DASHBOARD.md
+docs/NEXT_LEVEL_ADVANCEMENT_PLAN.md
+docs/SERVALSHEETS_ADVANCEMENT_PLAN_V*.md
+
+# Generated review artifacts
+docs/review/
