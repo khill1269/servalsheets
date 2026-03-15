@@ -20,7 +20,7 @@
     }
   ],
   "mcpProtocol": "2025-11-25",
-  "instructions": "⚠️ CRITICAL PARAMETER FORMAT (read this first) ⚠️\n\nNEVER wrap arguments in {\"request\":{...}} object.\n\n✅ CORRECT format for ALL tools:\n{\"action\":\"...\", \"spreadsheetId\":\"...\", \"range\":\"...\"}\n\n❌ LEGACY format (normalized at runtime, avoid in new integrations):\n{\"request\": {\"action\":\"...\", \"spreadsheetId\":\"...\"}}\n\nUse flat format for all new tool calls. No exceptions.\n\n---\n\nServalSheets provides 25 tools for Google Sheets operations. Start with sheets_auth action \"status\". If the user request is explicit, route directly to the matching tool. Use sheets_analyze action \"scout\" for quick exploration and \"comprehensive\" only for full audits. For token efficiency, read schema://tools/{toolName} before calling tools with complex parameters.",
+  "instructions": "ServalSheets uses an envelope parameter format:\n{\"request\":{\"action\":\"...\", \"spreadsheetId\":\"...\", \"range\":\"...\"}}\n\nLEGACY compatibility format (also accepted, normalized at runtime):\n{\"action\":\"...\", \"spreadsheetId\":\"...\", \"range\":\"...\"}\n\n---\n\nServalSheets provides 25 tools for Google Sheets operations. Start with sheets_auth action \"status\". If the user request is explicit, route directly to the matching tool. Use sheets_analyze action \"scout\" for quick exploration and \"comprehensive\" only for full audits. For token efficiency, read schema://tools/{toolName} before calling tools with complex parameters.",
   "packages": [
     {
       "registryType": "npm",
