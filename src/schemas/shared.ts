@@ -445,6 +445,7 @@ export const ErrorCodeSchema = z
     'RANGE_NOT_FOUND',
     'PROTECTED_RANGE',
     // Data & Formula Errors (5 codes)
+    'COMPUTE_ERROR', // Computation/expression evaluation failure (sheets_compute)
     'FORMULA_ERROR',
     'CIRCULAR_REFERENCE',
     'INVALID_DATA_VALIDATION',
@@ -1203,6 +1204,9 @@ export const SheetInfoSchema = z.object({
   columnCount: z.number().int(),
   hidden: z.boolean().optional().default(false),
   tabColor: ColorSchema.optional(),
+  tabColorStyle: ColorStyleSchema.optional().describe(
+    'Tab color as RGB or theme color (Google Sheets API v4 ColorStyle)'
+  ),
 });
 
 /** Spreadsheet info */

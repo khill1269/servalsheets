@@ -55,9 +55,9 @@ function validateTableName(name: string): void {
 
 async function runQuery(): Promise<void> {
   try {
-    const { Database } = await import('duckdb-async');
-    const db = await Database.create(':memory:');
-    const conn = await db.connect();
+    const { DuckDBInstance } = await import('@duckdb/node-api');
+    const instance = await DuckDBInstance.create();
+    const conn = await instance.connect();
     const req = workerData as WorkerRequest;
 
     // Validate user SQL before creating any views
@@ -91,26 +91,27 @@ async function runQuery(): Promise<void> {
       const jsonStr = JSON.stringify(jsonData).replace(/'/g, "''");
 
       const escapedTableName = table.name.replace(/"/g, '""');
-      await conn.exec(
+      await conn.run(
         `CREATE VIEW "${escapedTableName}" AS SELECT * FROM read_json_auto('${jsonStr}'::JSON)`
       );
     }
 
     const start = Date.now();
-    const rows = await conn.all(req.sql);
+    const reader = await conn.runAndReadAll(req.sql);
     const executionMs = Date.now() - start;
 
-    const columns = rows.length > 0 ? Object.keys(rows[0]!) : [];
+    const columns = reader.columnNames();
+    const rows = reader.getRowsJson() as unknown[][];
 
     const result: WorkerSuccess = {
       success: true,
       columns,
-      rows: rows.map((r) => columns.map((c) => (r as Record<string, unknown>)[c])),
+      rows,
       executionMs,
     };
 
     parentPort?.postMessage(result);
-    await db.close();
+    instance.closeSync();
   } catch (err) {
     const result: WorkerFailure = {
       success: false,

@@ -16,6 +16,7 @@ import {
   SafetyOptionsSchema,
   MutationSummarySchema,
   ColorSchema,
+  ColorStyleSchema,
   ResponseMetaSchema,
   GridRangeSchema,
   type ToolAnnotations,
@@ -58,6 +59,9 @@ const SheetSpecSchema = z.object({
     .default(26)
     .describe('Initial column count (default: 26)'),
   tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
+  tabColorStyle: ColorStyleSchema.optional().describe(
+    'Tab color as RGB or theme color (Google Sheets API v4 ColorStyle)'
+  ),
 });
 
 // ============================================================================
@@ -298,6 +302,9 @@ const AddSheetActionSchema = CommonFieldsSchema.extend({
     .default(26)
     .describe('Initial column count (default: 26)'),
   tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
+  tabColorStyle: ColorStyleSchema.optional().describe(
+    'Tab color as RGB or theme color (Google Sheets API v4 ColorStyle)'
+  ),
   hidden: z.boolean().optional().default(false).describe('Hide the sheet (default: false)'),
 });
 
@@ -339,6 +346,9 @@ const UpdateSheetActionSchema = CommonFieldsSchema.extend({
   newTitle: z.string().min(1).max(255).optional().describe('Alias for title — new sheet title'),
   index: z.coerce.number().int().min(0).optional().describe('New position (0 = first)'),
   tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
+  tabColorStyle: ColorStyleSchema.optional().describe(
+    'Tab color as RGB or theme color (Google Sheets API v4 ColorStyle)'
+  ),
   hidden: z.boolean().optional().describe('Hide/show the sheet'),
   rightToLeft: z
     .boolean()

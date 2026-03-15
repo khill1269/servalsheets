@@ -14,6 +14,7 @@ import {
   LegendPositionSchema,
   ChartPositionSchema,
   ColorSchema,
+  ColorStyleSchema,
   TextFormatSchema,
   SummarizeFunctionSchema,
   SortOrderSchema,
@@ -104,7 +105,8 @@ const DataLabelSchema = z
 // Chart series with optional trendline and data labels
 const ChartSeriesSchema = z.object({
   column: z.coerce.number().int().min(0).describe('Column index (0-based) for series data'),
-  color: ColorSchema.optional().describe('Series color'),
+  color: ColorSchema.optional().describe('Series color (RGB)'),
+  colorStyle: ColorStyleSchema.optional().describe('Series color as RGB or theme color'),
   trendline: TrendlineSchema.optional().describe('Add trendline to this series'),
   dataLabel: DataLabelSchema.optional().describe('Configure data labels for this series'),
 });
@@ -168,6 +170,9 @@ const ChartOptionsSchema = z.object({
   subtitle: z.string().optional(),
   legendPosition: LegendPositionSchema.optional(),
   backgroundColor: ColorSchema.optional(),
+  backgroundColorStyle: ColorStyleSchema.optional().describe(
+    'Background color as RGB or theme color (Google Sheets API v4 ColorStyle)'
+  ),
   is3D: z.boolean().optional(),
   pieHole: z.coerce.number().min(0).max(1).optional(),
   stacked: z.boolean().optional(),

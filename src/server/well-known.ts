@@ -259,7 +259,7 @@ export function getMcpConfiguration(): McpServerConfiguration {
       resources: {
         supported: true,
         templates: true,
-        subscriptions: true,
+        subscriptions: false,
       },
       prompts: {
         supported: true,
@@ -366,7 +366,7 @@ function composeMcpServerCard(
       },
       resources: {
         templates: true,
-        subscriptions: true,
+        subscriptions: false,
       },
       prompts: {
         count: promptCount,

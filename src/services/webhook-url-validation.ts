@@ -1,5 +1,6 @@
 import dns from 'node:dns';
 import { logger } from '../utils/logger.js';
+import { getEnv } from '../config/env.js';
 
 /**
  * Check if an IPv4 address string is in a private/internal range.
@@ -95,9 +96,19 @@ export async function validateWebhookUrl(urlString: string): Promise<void> {
       throw error;
     }
 
-    logger.warn('DNS resolution failed during SSRF validation', {
-      hostname,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    const dnsStrict = getEnv().WEBHOOK_DNS_STRICT;
+    if (dnsStrict) {
+      throw new Error(
+        `DNS resolution failed for ${hostname} — webhook URL cannot be verified (set WEBHOOK_DNS_STRICT=false to allow in flaky DNS environments)`
+      );
+    }
+
+    logger.warn(
+      'DNS resolution failed during SSRF validation (WEBHOOK_DNS_STRICT=false, allowing)',
+      {
+        hostname,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    );
   }
 }

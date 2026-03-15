@@ -5,7 +5,9 @@
  * Supports: working → input_required → completed/failed/cancelled
  */
 
+import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { randomUUID } from 'crypto';
 import type { RedisClientType } from 'redis';
 import { logger } from '../utils/logger.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
@@ -145,7 +147,7 @@ export class InMemoryTaskStore implements TaskStore {
    * @returns Task with unique ID and working status
    */
   async createTask(options: { ttl?: number } = {}): Promise<Task> {
-    const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    const taskId = `task_${randomUUID()}`;
     const now = new Date().toISOString();
     const ttl = options.ttl ?? 3600000; // Default 1 hour
 
@@ -371,9 +373,11 @@ export class InMemoryTaskStore implements TaskStore {
       throw new Error(`Task ${taskId} not found`);
     }
 
-    if (task.status === 'completed' || task.status === 'failed') {
-      // Already finished, can't cancel
-      return;
+    if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Cannot cancel task: already in terminal status '${task.status}'`
+      );
     }
 
     // Mark as cancelled
@@ -492,7 +496,7 @@ export class RedisTaskStore implements TaskStore {
   async createTask(options: { ttl?: number } = {}): Promise<Task> {
     const client = await this.ensureConnected();
 
-    const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    const taskId = `task_${randomUUID()}`;
     const now = new Date().toISOString();
     const ttl = options.ttl ?? 3600000; // Default 1 hour
 
@@ -846,8 +850,11 @@ export class RedisTaskStore implements TaskStore {
     }
 
     const status = task['status'];
-    if (status === 'completed' || status === 'failed') {
-      return;
+    if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Cannot cancel task: already in terminal status '${status}'`
+      );
     }
 
     // Store cancellation reason

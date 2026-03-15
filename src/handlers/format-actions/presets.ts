@@ -661,6 +661,22 @@ export async function handleBatchFormat(
   });
 }
 
+// ─── Sparkline color helper ───────────────────────────────────────────────────
+
+/**
+ * Unwrap SparklineColorInputSchema (ColorStyle | ColorSchema) to a flat RGB object.
+ * Theme colors have no hex equivalent and are skipped (returns undefined).
+ */
+function toFlatRgb(
+  color: Record<string, unknown>
+): { red?: number; green?: number; blue?: number } | undefined {
+  if ('themeColor' in color) return undefined;
+  if ('rgbColor' in color && color['rgbColor'] && typeof color['rgbColor'] === 'object') {
+    return color['rgbColor'] as { red?: number; green?: number; blue?: number };
+  }
+  return color as { red?: number; green?: number; blue?: number };
+}
+
 // ─── handleSparklineAdd ───────────────────────────────────────────────────────
 
 export async function handleSparklineAdd(
@@ -676,16 +692,33 @@ export async function handleSparklineAdd(
     options.push(`"charttype", "${config.type.toLowerCase()}"`);
   }
 
-  if (config?.color) options.push(`"color", "${rgbToHex(config.color)}"`);
-  if (config?.negativeColor) options.push(`"negcolor", "${rgbToHex(config.negativeColor)}"`);
-  if (config?.firstColor) options.push(`"firstcolor", "${rgbToHex(config.firstColor)}"`);
-  if (config?.lastColor) options.push(`"lastcolor", "${rgbToHex(config.lastColor)}"`);
-  if (config?.highColor) options.push(`"highcolor", "${rgbToHex(config.highColor)}"`);
-  if (config?.lowColor) options.push(`"lowcolor", "${rgbToHex(config.lowColor)}"`);
+  const flatColor = config?.color ? toFlatRgb(config.color as Record<string, unknown>) : undefined;
+  if (flatColor) options.push(`"color", "${rgbToHex(flatColor)}"`);
+  const flatNeg = config?.negativeColor
+    ? toFlatRgb(config.negativeColor as Record<string, unknown>)
+    : undefined;
+  if (flatNeg) options.push(`"negcolor", "${rgbToHex(flatNeg)}"`);
+  const flatFirst = config?.firstColor
+    ? toFlatRgb(config.firstColor as Record<string, unknown>)
+    : undefined;
+  if (flatFirst) options.push(`"firstcolor", "${rgbToHex(flatFirst)}"`);
+  const flatLast = config?.lastColor
+    ? toFlatRgb(config.lastColor as Record<string, unknown>)
+    : undefined;
+  if (flatLast) options.push(`"lastcolor", "${rgbToHex(flatLast)}"`);
+  const flatHigh = config?.highColor
+    ? toFlatRgb(config.highColor as Record<string, unknown>)
+    : undefined;
+  if (flatHigh) options.push(`"highcolor", "${rgbToHex(flatHigh)}"`);
+  const flatLow = config?.lowColor
+    ? toFlatRgb(config.lowColor as Record<string, unknown>)
+    : undefined;
+  if (flatLow) options.push(`"lowcolor", "${rgbToHex(flatLow)}"`);
 
   if (config?.showAxis && config.axisColor) {
     options.push(`"axis", true`);
-    options.push(`"axiscolor", "${rgbToHex(config.axisColor)}"`);
+    const flatAxis = toFlatRgb(config.axisColor as Record<string, unknown>);
+    if (flatAxis) options.push(`"axiscolor", "${rgbToHex(flatAxis)}"`);
   } else if (config?.showAxis) {
     options.push(`"axis", true`);
   }
