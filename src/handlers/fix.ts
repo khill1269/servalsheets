@@ -14,6 +14,7 @@ import { ValidationError } from '../core/errors.js';
 import type { Intent } from '../core/intent.js';
 import { CleaningEngine, parseRangeOffset } from '../services/cleaning-engine.js';
 import { generateAIInsight, withSamplingTimeout, assertSamplingConsent } from '../mcp/sampling.js';
+import { sendProgress } from '../utils/request-context.js';
 
 // ISSUE-047: CleaningEngine is stateless — use module-level singleton to avoid
 // recreating the instance (and its pre-compiled rule arrays) on every action call.
@@ -247,9 +248,13 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
+    await sendProgress(0, 3, 'Fetching data for cleaning...');
+
     // Fetch data from the range
     const data = await this.fetchRangeData(resolvedInput.spreadsheetId, resolvedInput.range);
     const rangeOffset = parseRangeOffset(resolvedInput.range);
+
+    await sendProgress(1, 3, 'Analyzing data and applying cleaning rules...');
 
     // Run cleaning
     const result = await engine.clean(data, resolvedInput.rules, rangeOffset);
@@ -288,6 +293,8 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       } catch {
         /* non-blocking */
       }
+
+      await sendProgress(3, 3, `Cleaning complete: ${result.summary.cellsCleaned} cell(s) updated`);
 
       const response = {
         success: true as const,
@@ -332,6 +339,12 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       }
     }
 
+    await sendProgress(
+      3,
+      3,
+      `Preview complete: ${result.summary.cellsCleaned} cell(s) would be cleaned`
+    );
+
     // Preview mode
     const response = {
       success: true as const,
@@ -365,8 +378,12 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
+    await sendProgress(0, 3, 'Fetching data for format standardization...');
+
     const data = await this.fetchRangeData(req.spreadsheetId, req.range);
     const rangeOffset = parseRangeOffset(req.range);
+
+    await sendProgress(1, 3, `Standardizing formats across ${req.columns.length} column(s)...`);
 
     const result = await engine.standardizeFormats(data, req.columns, rangeOffset);
 
@@ -396,6 +413,12 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       } catch {
         /* non-blocking */
       }
+
+      await sendProgress(
+        3,
+        3,
+        `Format standardization complete: ${result.summary.cellsChanged} cell(s) updated`
+      );
 
       const response = {
         success: true as const,
@@ -440,6 +463,12 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       }
     }
 
+    await sendProgress(
+      3,
+      3,
+      `Preview complete: ${result.summary.cellsChanged} cell(s) would be standardized`
+    );
+
     const response = {
       success: true as const,
       mode: 'preview' as const,
@@ -472,8 +501,12 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
+    await sendProgress(0, 3, `Fetching data for fill_missing (strategy: ${req.strategy})...`);
+
     const data = await this.fetchRangeData(req.spreadsheetId, req.range);
     const rangeOffset = parseRangeOffset(req.range);
+
+    await sendProgress(1, 3, `Computing fill values using "${req.strategy}" strategy...`);
 
     const result = await engine.fillMissing(
       data,
@@ -508,6 +541,12 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       } catch {
         /* non-blocking */
       }
+
+      await sendProgress(
+        3,
+        3,
+        `Fill complete: ${result.summary.filled} of ${result.summary.totalEmpty} cell(s) filled`
+      );
 
       const response = {
         success: true as const,
@@ -551,6 +590,12 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
         // Non-blocking: sampling failure should not block the response
       }
     }
+
+    await sendProgress(
+      3,
+      3,
+      `Preview complete: ${result.summary.filled} of ${result.summary.totalEmpty} cell(s) would be filled`
+    );
 
     const response = {
       success: true as const,
