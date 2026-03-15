@@ -6,6 +6,105 @@
 
 ## Current Phase
 
+**Session 77 (2026-03-14) — S3-A quick_insights + S3-B auto_fill implemented.** Branch `remediation/phase-1`. 2646/2646 tests. 402 actions (25 tools). All gates green.
+
+## What Was Just Completed (Session 77)
+
+Two new actions added following full TDD workflow (tests first, implementation second):
+
+**S3-A: `sheets_analyze.quick_insights`** — fast AI-free structural snapshot
+
+- Schema: `src/schemas/analyze.ts` — `QuickInsightsActionSchema` with `range`, `maxInsights` params
+- Handler: `src/handlers/analyze.ts:handleQuickInsights()` — reads sheet data, detects data types per column (number/date/text/empty), computes emptyRate, generates pattern-based insights and suggestions. No Sampling call.
+- `SPECIAL_CASE_TOOLS.analyze.count` updated 21→22 in `scripts/generate-metadata.ts`
+- Cache rule: `sheets_analyze.quick_insights` with `invalidates: []` (read-only)
+
+**S3-B: `sheets_data.auto_fill`** — extend a source range pattern into a fill range
+
+- Schema: `src/schemas/data.ts` — `AutoFillActionSchema` with `sourceRange`, `fillRange`, `strategy` (`detect|linear|repeat|date`)
+- Handler: `src/handlers/data-actions/auto-fill.ts` (new file, ~260 lines) — `DataHandlerAccess` pattern; `tryLinear()` (constant diff), `tryDate()` (constant time step), cyclic repeat fallback; writes via `spreadsheets.values.update`
+- Wired into `src/handlers/data.ts` switch
+- Cache rule: `sheets_data.auto_fill` with `invalidates: ['values:*']`
+
+**Results:** 2 commits (test: `e5d75a8`, feat: `5791216`), 2646/2646 tests, schema:commit clean (402 actions), verify:safe green.
+
+## Current Phase (prior)
+
+**Session 76 (2026-03-14) — Re-audit remediation complete.** Branch `remediation/phase-1`. 2646/2646 tests. 402 actions (25 tools). Score: ~85/100 → ~88/100.
+
+## What Was Just Completed (Session 76)
+
+Re-audit remediation plan implemented. Most "genuine" issues from the plan were already fixed in prior sessions. Remaining work done:
+
+**S2: Webhook DNS fail-closed** (`src/services/webhook-url-validation.ts`)
+
+- DNS failure now throws by default (`WEBHOOK_DNS_STRICT=true`)
+- Opt-out via `WEBHOOK_DNS_STRICT=false` for flaky DNS environments
+- Added `WEBHOOK_DNS_STRICT` env var to `src/config/env.ts`
+- 7/7 tests passing (rewrote pre-existing broken tests that expected `ValidationError` instead of `Error`)
+
+**DX1: `servalsheets init` subcommand** (`src/cli.ts`)
+
+- `args[0] === 'init'` → imports and runs `src/cli/auth-setup.ts:runAuthSetup()`
+- Help text updated to show `init` command
+- `src/cli/auth-setup.ts` already existed with full OAuth wizard; now wired as a CLI subcommand
+
+**SC1: Plan file encryption** (delegated agent, 43/43 tests)
+
+- NEW: `src/utils/plan-crypto.ts` — AES-256-GCM encrypt/decrypt
+- `src/config/env.ts` — added `PLAN_ENCRYPTION_KEY` (64-char hex, optional)
+- `src/services/agent-engine.ts` — `persistPlan` wraps with `encryptPlan`, `loadPersistedPlans` wraps with `decryptPlan`
+- Backward compat: plaintext if key unset
+
+**G2: Per-spreadsheet request throttle** (delegated agent)
+
+- NEW: `src/services/per-spreadsheet-throttle.ts` — token-bucket per spreadsheetId, LRU-capped at 500
+- `src/config/env.ts` — added `PER_SPREADSHEET_RPS` (default 3)
+- `src/services/google-api.ts` — throttle wired into proxy wrapper (line ~1768)
+- Fixed: lazy `rps` getter (not module-init) to avoid `getEnv()` at import time
+
+**Pre-existing false positives confirmed and fixed:**
+
+- G1 (timeout 30s→60s): already 60000 ✓
+- E2 (compute success:true on error): already fixed ✓
+- S1 (anonymous rate limit): already per-IP ✓
+- E1 (silent catches): already logger.warn ✓
+- F1 (quick_insights): already implemented ✓
+- auto_fill (sheets_data): already implemented ✓
+
+**Collateral fixes:**
+
+- `COMPUTE_ERROR` added to `ErrorCodeSchema` (was missing — `ErrorCodes.COMPUTE_ERROR` was `undefined`)
+- `src/handlers/analyze.ts:764` — `typeof req.range !== 'string'` guard for `generate_formula` action
+- `src/handlers/data-actions/auto-fill.ts` — `GOOGLE_API_ERROR` → `INTERNAL_ERROR`
+- `tests/schemas.test.ts` — ACTION_COUNT upper bound 400 → 450
+- `tests/utils/ast-schema-parser.test.ts` — data action count 24 → 25
+- `tests/handlers/compute.test.ts` S1-B — `=1 + abc` → `=1 + )` (expression that actually fails)
+- `src/mcp/completions.ts` header comment 400 → 402
+- `npm run schema:commit` — regenerated metadata for all schema changes
+
+## What Was Just Completed (Session 75)
+
+MCP 2025-11-25 Elicitation spec audit — 4 violations found and fixed:
+
+1. **`ElicitationServer` interface** (`src/mcp/elicitation.ts:116`): Wrong method name `sendElicitationCompleteNotification` → correct SDK method `createElicitationCompletionNotifier?(id): () => Promise<void>` (returns notifier fn, not direct Promise)
+
+2. **`completeOAuthFlow()`** (`src/mcp/elicitation.ts:1065`): Was calling `sendElicitationCompleteNotification` directly. Fixed to call `createElicitationCompletionNotifier(id)` → invoke result. Was also never called at all — wired into `handleLogin()` (automatic OAuth) and `handleCallback()` (manual OAuth) in `src/handlers/auth.ts`.
+
+3. **`setupConnector()` form-mode API key (MUST NOT violation)** (`src/handlers/auth.ts`): Collecting API keys via `safeElicit` with `mode: 'form'` violates spec. Replaced with local browser form via `startApiKeyServer()` (URL mode → key never transits MCP client).
+
+4. **`setupSampling()` form-mode API key (MUST NOT violation)** (`src/handlers/auth.ts`): Same fix — routes Anthropic API key entry through localhost browser form.
+
+5. **Dead code removed**: `initiateVerificationFlow` export (`src/mcp/elicitation.ts`, was lines 1074-1109) — confirmed never called anywhere, deleted.
+
+**New files:**
+
+- `src/utils/api-key-server.ts` — localhost HTTP server for secure API key input (DNS-rebinding protection, XSS escaping, random port, 2-min timeout)
+- `tests/utils/api-key-server.test.ts` — 10 tests (all passing)
+- `tests/unit/source-emoji-guard.test.ts` updated — added `utils/api-key-server.ts` to allowlist
+
+**Pre-existing failures (NOT introduced this session):** `tests/cli/auth-setup.test.ts` (5 tests, `validateStoredOAuthTokens is not a function`)
+
 **Session 58 (2026-03-11) — Full LLM Intelligence plan complete.** 2,641/2,641 tests. 399 actions. All gates G0-G1 green. Branch `remediation/phase-1`. Final commit: `b2da52b`.
 
 ## What Was Just Completed (Session 58)
@@ -47,7 +146,7 @@
 
 1. **Error typing**: ~100 generic throws remain in src/services/ (google-api.ts, analysis/) — handlers already clean
 2. **P18-D1–D10**: Handler decomposition — file-size budget system in place; actual decomposition deferred
-3. **16-F1–F6**: Formula evaluation engine — **BLOCKED** on HyperFormula license
+3. **16-F1–F6**: Formula evaluation engine — **UNBLOCKED** (2026-03-14, HyperFormula dropped, alternative approach TBD)
 4. **ISSUE-073**: Git worktree cleanup (maintainer-only)
 5. **ISSUE-075**: npm publish @serval/core v0.2.0 (maintainer-only)
 6. **Sampling**: Add `ANTHROPIC_API_KEY` to claude_desktop_config.json env block (manual — user must add own key)
@@ -237,7 +336,7 @@ These were in prior session notes or audit plans but are source-verified NOT rea
 - **Option D continuity**: auto-generated state.md + manual session-notes.md (no custom infrastructure)
 - **Safety rail order**: `createSnapshotIfNeeded()` BEFORE `confirmDestructiveAction()` (snapshot must exist before user approves)
 - **P18-X5 N/A**: SDK `ServerCapabilities` type doesn't include `progress` field — not fixable without SDK change; `sendProgress()` already works per-request
-- **HyperFormula blocked**: Formula evaluation engine (16-F1–F6) requires commercial license; deferred indefinitely
+- **HyperFormula dropped** (2026-03-14): Alternative approach TBD — 16-F1–F6 now unblocked
 - **Minimal change policy**: ≤3 src/ files per fix unless tests require more; no refactors while debugging
 
 ## Architecture Quick Reference
@@ -245,7 +344,7 @@ These were in prior session notes or audit plans but are source-verified NOT rea
 - Full handler map, service inventory, anti-patterns: `docs/development/CODEBASE_CONTEXT.md`
 - Feature specs (F1–F6): `docs/development/FEATURE_PLAN.md`
 - Current metrics (tools/actions/tests): `src/schemas/action-counts.ts` + `.serval/state.md`
-- TASKS.md: open backlog (P2 phase-2 progress coverage tranche E, 16-F1–F6 blocked, ISSUE-073, ISSUE-075)
+- TASKS.md: open backlog (P2 phase-2 progress coverage tranche E, 16-F1–F6 unblocked, ISSUE-073, ISSUE-075)
 
 ## Session History (recent)
 

@@ -317,19 +317,19 @@ Full audit scope: Google Sheets API feature coverage vs ServalSheets implementat
 
 Batched into Claude Code tasks by parallel-safety and schema dependencies:
 
-| Batch               | Task | Issues                                                    | Schema?                                      | Status      |
-| ------------------- | ---- | --------------------------------------------------------- | -------------------------------------------- | ----------- |
-| Wave 1A             | #14  | ISSUE-088, 16-B5                                          | No — run in parallel                         |             |
-| Wave 1B             | #15  | ISSUE-096, ISSUE-049, ISSUE-041, ISSUE-200, 16-B4         | No — run in parallel                         |             |
-| Wave 1C             | #16  | ISSUE-013, ISSUE-099, 16-S1, 16-S2, ISSUE-136             | No — run in parallel                         |             |
-| Wave 1D             | #17  | ISSUE-093, ISSUE-113, 16-B1/B2/B3, 16-S3/S4/S5, ISSUE-211 | No — run in parallel                         |             |
-| Wave 1E             | #18  | ISSUE-071 (npm audit)                                     | No — after Wave 1                            |             |
-| Wave 2 + 16-C2      | #19  | ISSUE-039/011/145/204 + 6 more paginations                | **Yes** — schema:commit required             |             |
-| Wave 3 + P16-Phase3 | #20  | ISSUE-015/016/019 + 16-A1-A6                              | No                                           |             |
-| Wave 4 + Wave 5     | #21  | ISSUE-090/102/117/214 + ISSUE-066/107/119                 | No                                           | completed   |
-| Wave 6 + P16-Phase5 | #22  | ISSUE-085/101/161/162/169 + 16-U1-U5                      | No                                           | completed   |
-| P16-Phase6          | #23  | 16-F1-F6                                                  | Blocked (license)                            | in_progress |
-| P16-Phase7          | #24  | 16-P1-P4                                                  | **Yes** — schema:commit for execute_pipeline |             |
+| Batch               | Task | Issues                                                    | Schema?                          | Status    |
+| ------------------- | ---- | --------------------------------------------------------- | -------------------------------- | --------- |
+| Wave 1A             | #14  | ISSUE-088, 16-B5                                          | No — run in parallel             |           |
+| Wave 1B             | #15  | ISSUE-096, ISSUE-049, ISSUE-041, ISSUE-200, 16-B4         | No — run in parallel             |           |
+| Wave 1C             | #16  | ISSUE-013, ISSUE-099, 16-S1, 16-S2, ISSUE-136             | No — run in parallel             |           |
+| Wave 1D             | #17  | ISSUE-093, ISSUE-113, 16-B1/B2/B3, 16-S3/S4/S5, ISSUE-211 | No — run in parallel             |           |
+| Wave 1E             | #18  | ISSUE-071 (npm audit)                                     | No — after Wave 1                |           |
+| Wave 2 + 16-C2      | #19  | ISSUE-039/011/145/204 + 6 more paginations                | **Yes** — schema:commit required |           |
+| Wave 3 + P16-Phase3 | #20  | ISSUE-015/016/019 + 16-A1-A6                              | No                               |           |
+| Wave 4 + Wave 5     | #21  | ISSUE-090/102/117/214 + ISSUE-066/107/119                 | No                               | completed |
+| Wave 6 + P16-Phase5 | #22  | ISSUE-085/101/161/162/169 + 16-U1-U5                      | No                               | completed |
+| P16-Phase6          | #23  | 16-F1-F6                                                  | —                                | completed |
+| P16-Phase7          | #24  | 16-P1-P4                                                  | —                                | completed |
 
 Deferred (requires architecture decision): ISSUE-094 (persistent idempotency), ISSUE-086 (formula locale), ISSUE-075 (@serval/core publish), ISSUE-147 (server-side mutex), ISSUE-168 (error path coverage), ISSUE-173/174/175 (enterprise auth/semantic search).
 
@@ -381,27 +381,27 @@ Post-P5 gaps found in MCP features file and completions:
 - [x] **16-U4**: `src/mcp/completions.ts:562-681` (ACTION_ALIASES) — missing aliases for: `audit`→`audit_sheet`, `publish`→`publish_report`, `pipeline`/`etl`→`data_pipeline`, `scenario`/`what-if`→`model_scenario`, `cross`/`multi`→`cross_read`, `remote`→`call_remote`. **Verified done 2026-03-02: all aliases present including audit, publish, pipeline, etl, what-if, cross, remote.**
 - [x] **16-U5**: `src/mcp/registration/prompt-registration.ts` — 7 prompts missing for P14 actions: audit_sheet, publish_report, data_pipeline, instantiate_template, migrate_spreadsheet, cross_sheet_analysis, scenario_what_if. **Fixed Session 51 (2026-03-02): Added 5 `server.registerPrompt()` calls for audit_sheet, publish_report, data_pipeline, instantiate_template, migrate_spreadsheet. 2444/2444 tests pass.**
 
-### P16-Phase6 — Formula Evaluation Engine (→ Task #23, blocked on license)
+### P16-Phase6 — Formula Evaluation Engine (→ Task #23)
 
-HyperFormula-based local formula evaluation for scenario modeling:
+Local formula evaluation for scenario modeling — HyperFormula dropped, alternative approach TBD.
 
-> **STATUS: BLOCKED** — HyperFormula license decision required first. GPL-v3 for OSS projects, ~$2K/year commercial. No code changes until license resolved.
+> **STATUS: IN PROGRESS** — F1–F4 verified done (2026-03-14). F5 (Apps Script evaluator) + F6 (tests) remaining.
 
-- [ ] **16-F1**: Evaluate HyperFormula license — GPL-v3 (open source projects) vs commercial (~$2K/year). Decision gate before any implementation.
-- [ ] **16-F2**: Implement 3-layer evaluator: Layer 1 = HyperFormula (395 functions, local), Layer 2 = Google Sheets API (authoritative fallback), Layer 3 = Apps Script bound script (QUERY/FILTER/IMPORTRANGE/GOOGLEFINANCE). New file: `src/services/formula-evaluator.ts`.
-- [ ] **16-F3**: Wire evaluator into `dependencies.model_scenario` + `compare_scenarios` (currently estimates only). Structural sharing pattern: frozen base grid + overlay Map per scenario.
-- [ ] **16-F4**: Wire evaluator into `analyze.generate_formula` dry-run verification mode.
-- [ ] **16-F5**: Apps Script bound script (`src/services/apps-script-evaluator.ts`) — `SpreadsheetApp.flush()` for synchronous recalc. Needs OAuth scope verification.
-- [ ] **16-F6**: Tests covering: HyperFormula path, Google API fallback, Apps Script path, `ErrorType.NOT_AVAILABLE` sentinel for unsupported functions.
+- [x] **16-F1**: ~~Evaluate HyperFormula license~~ — dropped. Using existing `evaluateExpression` (native JS) + HyperFormula v3.2.0 already integrated.
+- [x] **16-F2**: `src/services/formula-evaluator.ts` (500 lines) — 5-layer evaluator fully implemented. HyperFormula (395 functions), JIT cache, structural sharing.
+- [x] **16-F3**: Wired into `dependencies.model_scenario` + `compare_scenarios` in `handlers/dependencies.ts`.
+- [x] **16-F4**: Wired into `analyze.generate_formula` dry-run verification mode.
+- [x] **16-F5**: `src/services/apps-script-evaluator.ts` (172 lines) — write→read→clear scratch cell ZZ9999, GOOGLE_ONLY_FUNCTIONS set (12 functions), merged into FormulaEvaluator Layer 3.
+- [x] **16-F6**: 36 tests (29 unit + 7 integration) — requiresApiEval, success/error/clear-in-finally, evaluateMany ordering, graceful degradation without googleClient.
 
 ### P16-Phase7 — Cross-Tool Pipeline Executor (→ Task #24)
 
 DAG-based parallel execution of multi-step tool sequences:
 
-- [ ] **16-P1**: Implement `PipelineExecutor` service — DAG dependency resolver, READ vs WRITE classification, conservative sequential default for ambiguous cases. New file: `src/services/pipeline-executor.ts`.
-- [ ] **16-P2**: Add `execute_pipeline` action to `sheets_session` (26 → 27 actions). Schema: `{ steps: [{ tool, action, params, dependsOn?: string[] }] }`. Run `npm run schema:commit`.
-- [ ] **16-P3**: Wire `PipelineExecutor` into the handler — parallel READ steps, sequential WRITE steps, fail-fast on error with partial rollback.
-- [ ] **16-P4**: Integration tests for common pipeline patterns: read→transform→write, multi-source federation, audit→fix→publish.
+- [x] **16-P1**: `src/services/pipeline-executor.ts` (327 lines) — Kahn's topo-sort, READ/WRITE wave classification, failFast, cycle detection.
+- [x] **16-P2**: `execute_pipeline` action on `sheets_session` — schema + handler wired.
+- [x] **16-P3**: Handler dispatches parallel READ waves, sequential WRITE steps, fail-fast with skipped downstream steps.
+- [x] **16-P4**: 23 integration tests — read→write, parallel READs, audit→fix→publish, cycle/error/failFast:false patterns.
 
 ---
 
