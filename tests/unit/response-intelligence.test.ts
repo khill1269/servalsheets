@@ -64,6 +64,14 @@ describe('applyResponseIntelligence', () => {
         expect.objectContaining({
           type: 'empty_required_cells',
           column: 'Notes',
+          fixAction: expect.objectContaining({
+            tool: 'sheets_fix',
+            action: 'fill_missing',
+            params: expect.objectContaining({
+              action: 'fill_missing',
+              range: 'Sheet1!A1:D5',
+            }),
+          }),
         }),
       ])
     );

@@ -13,6 +13,7 @@ import {
   buildMcpConfiguration,
   buildOAuthAuthorizationServerMetadata,
   buildOAuthProtectedResourceMetadata,
+  registerWellKnownHandlers,
 } from '../../src/server/well-known.js';
 
 // Mock version
@@ -236,5 +237,37 @@ describe('handleOAuthProtectedResource', () => {
     const [jsonArg] = (res.json as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(jsonArg.resource).toBeDefined();
     expect(jsonArg.authorization_servers).toBeDefined();
+  });
+});
+
+describe('registerWellKnownHandlers', () => {
+  it('registers the server-card alias to the same MCP card handler', () => {
+    const routes = new Map<string, (req: Request, res: Response) => void>();
+    const app = {
+      get: vi.fn((path: string, handler: (req: Request, res: Response) => void) => {
+        routes.set(path, handler);
+      }),
+    };
+
+    registerWellKnownHandlers(app);
+
+    expect(routes.has('/.well-known/mcp.json')).toBe(true);
+    expect(routes.has('/.well-known/mcp/server-card.json')).toBe(true);
+
+    const primaryHandler = routes.get('/.well-known/mcp.json');
+    const aliasHandler = routes.get('/.well-known/mcp/server-card.json');
+    expect(primaryHandler).toBe(aliasHandler);
+
+    const primaryReq = createMockRequest('/.well-known/mcp.json');
+    const aliasReq = createMockRequest('/.well-known/mcp/server-card.json');
+    const primaryRes = createMockResponse();
+    const aliasRes = createMockResponse();
+
+    primaryHandler?.(primaryReq, primaryRes);
+    aliasHandler?.(aliasReq, aliasRes);
+
+    const [primaryJson] = (primaryRes.json as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [aliasJson] = (aliasRes.json as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(aliasJson).toEqual(primaryJson);
   });
 });

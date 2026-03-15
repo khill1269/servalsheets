@@ -472,7 +472,7 @@ describe('TemplateStore', () => {
         store.update('nonexistent', {
           name: 'Updated Name',
         })
-      ).rejects.toThrow('Template not found');
+      ).rejects.toThrow('template not found');
     });
   });
 

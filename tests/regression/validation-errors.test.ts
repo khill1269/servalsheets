@@ -417,10 +417,9 @@ describe('Regression: Validation Error Fixes', () => {
       });
 
       it('should accept various range formats', () => {
-        // Note: "Sheet1" alone (without cell reference) is NOT currently supported
-        // due to A1_NOTATION_REGEX. This is a known limitation.
-        // Google Sheets API does accept sheet names as ranges for the entire sheet.
-        const ranges = ['A1:B10', 'Sheet1!A1:D10', 'A:A', '1:1', "'Sheet Name'!A1:B5"];
+        // Note: Full column refs (A:A, B:B) and full row refs (1:1) are intentionally
+        // blocked by A1NotationSchema to prevent unbounded API fetches.
+        const ranges = ['A1:B10', 'Sheet1!A1:D10', 'A1:A1000', 'A1:Z1', "'Sheet Name'!A1:B5"];
 
         for (const range of ranges) {
           const input = {
@@ -556,7 +555,7 @@ describe('Regression: Validation Error Fixes', () => {
           request: {
             action: 'set_number_format',
             spreadsheetId: TEST_SPREADSHEET_ID,
-            range: 'B:B',
+            range: 'B1:B1000',
             numberFormat: {
               type: 'CURRENCY',
               pattern: '$#,##0.00',

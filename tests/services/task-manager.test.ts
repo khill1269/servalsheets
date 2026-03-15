@@ -153,7 +153,7 @@ describe('TaskManager', () => {
     it('should throw error for non-existent task', () => {
       expect(() => {
         taskManager.updateTaskProgress('non-existent', 50);
-      }).toThrow('Task not found');
+      }).toThrow('task not found');
     });
 
     it('should update progress multiple times', () => {
@@ -227,13 +227,13 @@ describe('TaskManager', () => {
     it('should throw error when completing non-existent task', () => {
       expect(() => {
         taskManager.completeTask('non-existent');
-      }).toThrow('Task not found');
+      }).toThrow('task not found');
     });
 
     it('should throw error when failing non-existent task', () => {
       expect(() => {
         taskManager.failTask('non-existent', new Error('test'));
-      }).toThrow('Task not found');
+      }).toThrow('task not found');
     });
 
     it('should store result data on completion', () => {
@@ -332,7 +332,7 @@ describe('TaskManager', () => {
     it('should throw error when cancelling non-existent task', () => {
       expect(() => {
         taskManager.cancelTask('non-existent');
-      }).toThrow('Task not found');
+      }).toThrow('task not found');
     });
   });
 

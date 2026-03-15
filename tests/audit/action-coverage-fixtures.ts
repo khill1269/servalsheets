@@ -148,6 +148,14 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { source1: { spreadsheetId: 'id1', range: 'Sheet1!A1:D10' }, source2: { spreadsheetId: 'id2', range: 'Sheet1!A1:D10' } },
       requiredFields: ['source1', 'source2'],
     },
+    smart_fill: {
+      validInput: { sourceRange: 'Sheet1!A1:A5', fillRange: 'Sheet1!A6:A20' },
+      requiredFields: ['spreadsheetId', 'sourceRange', 'fillRange'],
+    },
+    auto_fill: {
+      validInput: { sourceRange: 'Sheet1!A1:A5', fillRange: 'Sheet1!A6:A20' },
+      requiredFields: ['spreadsheetId', 'sourceRange', 'fillRange'],
+    },
   },
 
   sheets_core: {
@@ -308,6 +316,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { sheetId: 0, range: 'Sheet1!A1:A10', description: 'highlight values > 100' },
       requiredFields: ['spreadsheetId', 'sheetId', 'range', 'description'],
     },
+    build_dependent_dropdown: {
+      validInput: { parentRange: 'Sheet1!A2:A100', dependentRange: 'Sheet1!B2:B100', lookupSheet: 'Lookup' },
+      requiredFields: ['spreadsheetId', 'parentRange', 'dependentRange', 'lookupSheet'],
+    },
   },
 
   sheets_dimensions: {
@@ -424,6 +436,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     },
     list_slicers: {
       requiredFields: ['spreadsheetId'],
+    },
+    delete_duplicates: {
+      validInput: { range: 'Sheet1!A1:D100' },
+      requiredFields: ['spreadsheetId', 'range'],
     },
   },
 
@@ -1133,6 +1149,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     batch_operations: {
       validInput: { spreadsheetId: 'test-id', operations: [{ tool: 'sheets_data', action: 'read', params: { range: 'Sheet1!A1:B2' } }] },
       requiredFields: ['spreadsheetId', 'operations'],
+    },
+    build_dashboard: {
+      validInput: { spreadsheetId: 'test-id', dataSheet: 'Sales' },
+      requiredFields: ['spreadsheetId', 'dataSheet'],
     },
   },
 

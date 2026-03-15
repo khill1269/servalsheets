@@ -18,7 +18,7 @@ describe('TokenManager', () => {
   let mockOAuthClient: Partial<OAuth2Client>;
 
   beforeEach(() => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ now: 1704067200000 });
 
     mockOAuthClient = {
       credentials: {

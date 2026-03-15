@@ -221,7 +221,7 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
 
       expect(result.response.success).toBe(false);
       expect(result.response.error).toBeDefined();
-      expect(result.response.error?.code).toBe('VALIDATION_ERROR');
+      expect(result.response.error?.code).toBe('INVALID_PARAMS');
     });
 
     it('should handle missing spreadsheetId', async () => {

@@ -17,6 +17,7 @@ const mockWebhookManager = {
   get: vi.fn(),
   recordDelivery: vi.fn(),
   getEventStats: vi.fn(),
+  storeWatchChannel: vi.fn(),
 };
 
 // Mock webhook queue
@@ -144,6 +145,65 @@ describe('WebhookHandler', () => {
 
       expect(result.response.success).toBe(false);
       expect(result.response.error?.message).toContain('not initialized');
+    });
+  });
+
+  describe('watch_changes action', () => {
+    it('creates a Drive watch channel with echoed token and persists it', async () => {
+      const mockDriveApi = {
+        files: {
+          watch: vi.fn().mockResolvedValue({
+            data: {
+              resourceId: 'resource_123',
+            },
+          }),
+        },
+      };
+      handler = createWebhookHandler({ driveApi: mockDriveApi as never });
+
+      const result = await handler.handle({
+        request: {
+          action: 'watch_changes',
+          spreadsheetId: 'sheet-123',
+          webhookUrl: 'https://example.com/watch',
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+
+      const watchCall = mockDriveApi.files.watch.mock.calls[0]?.[0];
+      expect(watchCall.fileId).toBe('sheet-123');
+      expect(watchCall.requestBody).toEqual(
+        expect.objectContaining({
+          type: 'web_hook',
+          address: 'https://example.com/watch',
+          expiration: expect.any(String),
+          id: expect.any(String),
+          token: expect.any(String),
+        })
+      );
+      expect(watchCall.requestBody.token).toBe(watchCall.requestBody.id);
+
+      expect(mockWebhookManager.storeWatchChannel).toHaveBeenCalledWith(
+        watchCall.requestBody.id,
+        'resource_123',
+        'sheet-123',
+        'https://example.com/watch',
+        expect.any(Number)
+      );
+    });
+
+    it('returns config error when Drive API is unavailable', async () => {
+      const result = await handler.handle({
+        request: {
+          action: 'watch_changes',
+          spreadsheetId: 'sheet-123',
+          webhookUrl: 'https://example.com/watch',
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error?.code).toBe('CONFIG_ERROR');
     });
   });
 

@@ -436,7 +436,7 @@ describe('WebhookManager', () => {
     });
 
     it('should not clean up active webhooks', async () => {
-      const now = 1704067200000;
+      const now = Date.now();
       const activeWebhook = JSON.stringify({
         webhookId: 'webhook_active',
         spreadsheetId: '1ABC',
@@ -538,9 +538,19 @@ describe('WebhookManager', () => {
     });
 
     it('should allow HTTPS URLs with public hostnames', async () => {
-      // Use a domain that won't DNS-resolve in tests (DNS failure is non-blocking)
-      const result = await registerWith('https://user.example.com/callback');
-      expect(result.webhookUrl).toBe('https://user.example.com/callback');
+      // DNS resolution may fail in CI/test envs. Set WEBHOOK_DNS_STRICT=false to skip DNS check.
+      const orig = process.env['WEBHOOK_DNS_STRICT'];
+      process.env['WEBHOOK_DNS_STRICT'] = 'false';
+      try {
+        const result = await registerWith('https://user.example.com/callback');
+        expect(result.webhookUrl).toBe('https://user.example.com/callback');
+      } finally {
+        if (orig === undefined) {
+          delete process.env['WEBHOOK_DNS_STRICT'];
+        } else {
+          process.env['WEBHOOK_DNS_STRICT'] = orig;
+        }
+      }
     });
   });
 });

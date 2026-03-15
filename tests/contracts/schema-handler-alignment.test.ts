@@ -165,7 +165,7 @@ describe('Schema-Handler Alignment', () => {
       const expectedCounts: Record<string, number> = {
         advanced: 31,
         agent: 8,
-        analyze: 21,
+        analyze: 22,
         appsscript: 19,
         auth: 5,
         bigquery: 17,
@@ -175,7 +175,7 @@ describe('Schema-Handler Alignment', () => {
         confirm: 5,
         connectors: 10,
         core: 21,
-        data: 24,
+        data: 25,
         dependencies: 10,
         dimensions: 30,
         federation: 4,

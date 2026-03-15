@@ -1168,26 +1168,24 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
   });
 
   describe('MCP Logging Bridge', () => {
-    it('should forward logger output after logging/setLevel via MCP notifications', async () => {
-      const initializeRequest = {
-        jsonrpc: '2.0',
-        id: 9001,
-        method: 'initialize',
-        params: {
-          protocolVersion: '2025-11-25',
-          capabilities: {},
-          clientInfo: {
-            name: 'logging-bridge-test-client',
-            version: '1.0.0',
-          },
-        },
-      };
-
+    const initializeSession = async (id: number, clientName: string) => {
       const initResponse = await agent
         .post('/mcp')
         .set('Content-Type', 'application/json')
         .set('Accept', 'application/json, text/event-stream')
-        .send(initializeRequest)
+        .send({
+          jsonrpc: '2.0',
+          id,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-11-25',
+            capabilities: {},
+            clientInfo: {
+              name: clientName,
+              version: '1.0.0',
+            },
+          },
+        })
         .expect(200);
 
       const sessionIdHeader =
@@ -1195,6 +1193,11 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
       const sessionId = Array.isArray(sessionIdHeader) ? sessionIdHeader[0] : sessionIdHeader;
       expect(typeof sessionId).toBe('string');
       expect(sessionId).toBeTruthy();
+      return sessionId as string;
+    };
+
+    it('should forward logger output after logging/setLevel via MCP notifications', async () => {
+      const sessionId = await initializeSession(9001, 'logging-bridge-test-client');
 
       const sessions = server.sessions as Map<
         string,
@@ -1236,6 +1239,70 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
           })
         );
       });
+    });
+
+    it('should keep HTTP logging subscriptions scoped to each MCP session', async () => {
+      const debugSessionId = await initializeSession(9010, 'logging-debug-client');
+      const errorSessionId = await initializeSession(9011, 'logging-error-client');
+
+      const sessions = server.sessions as Map<
+        string,
+        {
+          mcpServer: {
+            server: {
+              sendLoggingMessage: (message: unknown) => Promise<void>;
+            };
+          };
+        }
+      >;
+
+      const debugSession = sessions.get(debugSessionId);
+      const errorSession = sessions.get(errorSessionId);
+      expect(debugSession).toBeDefined();
+      expect(errorSession).toBeDefined();
+
+      const debugSpy = vi
+        .spyOn(debugSession!.mcpServer.server, 'sendLoggingMessage')
+        .mockResolvedValue(undefined);
+      const errorSpy = vi
+        .spyOn(errorSession!.mcpServer.server, 'sendLoggingMessage')
+        .mockResolvedValue(undefined);
+
+      await agent
+        .post('/mcp')
+        .set('Content-Type', 'application/json')
+        .set('Accept', 'application/json, text/event-stream')
+        .set('Mcp-Session-Id', debugSessionId)
+        .set('MCP-Protocol-Version', '2025-11-25')
+        .send({
+          jsonrpc: '2.0',
+          id: 9012,
+          method: 'logging/setLevel',
+          params: { level: 'debug' },
+        })
+        .expect(200);
+
+      await agent
+        .post('/mcp')
+        .set('Content-Type', 'application/json')
+        .set('Accept', 'application/json, text/event-stream')
+        .set('Mcp-Session-Id', errorSessionId)
+        .set('MCP-Protocol-Version', '2025-11-25')
+        .send({
+          jsonrpc: '2.0',
+          id: 9013,
+          method: 'logging/setLevel',
+          params: { level: 'error' },
+        })
+        .expect(200);
+
+      logger.info('http-session-scoped-logging-test');
+
+      await vi.waitFor(() => {
+        expect(debugSpy).toHaveBeenCalled();
+      });
+
+      expect(errorSpy).not.toHaveBeenCalled();
     });
   });
 });

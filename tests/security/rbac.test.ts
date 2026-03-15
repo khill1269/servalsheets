@@ -216,7 +216,7 @@ describe('RBAC Manager', () => {
     it('should prevent assigning non-existent roles', async () => {
       await expect(
         rbacManager.assignRoles('user@example.com', ['nonexistent_role'])
-      ).rejects.toThrow('Role nonexistent_role not found');
+      ).rejects.toThrow('role not found: nonexistent_role');
     });
   });
 

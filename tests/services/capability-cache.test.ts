@@ -81,10 +81,11 @@ describe('CapabilityCacheService', () => {
         elicitation: { form: { applyDefaults: true } },
       };
 
+      const now = Date.now();
       const cached = {
         capabilities,
-        cachedAt: 1704067200000,
-        expiresAt: 1704067200000 + 3600000,
+        cachedAt: now,
+        expiresAt: now + 3600000,
       };
 
       mockRedis.get.mockResolvedValue(JSON.stringify(cached));
@@ -130,10 +131,11 @@ describe('CapabilityCacheService', () => {
     it('should update memory cache from Redis hit', async () => {
       const capabilities: ClientCapabilities = { sampling: true };
 
+      const now2 = Date.now();
       const cached = {
         capabilities,
-        cachedAt: 1704067200000,
-        expiresAt: 1704067200000 + 3600000,
+        cachedAt: now2,
+        expiresAt: now2 + 3600000,
       };
 
       mockRedis.get.mockResolvedValue(JSON.stringify(cached));

@@ -398,6 +398,13 @@ function applyActionOverrides(
     };
   }
 
+  if (toolName === 'sheets_appsscript' && action === 'get') {
+    return {
+      ...request,
+      spreadsheetId: SAMPLE_SPREADSHEET_ID,
+    };
+  }
+
   return request;
 }
 

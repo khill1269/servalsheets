@@ -683,16 +683,17 @@ describe('ConfirmService', () => {
     });
 
     it('should track average response time', () => {
+      const now = Date.now();
       // Process with known response times
       service.processElicitationResult(
         { action: 'accept', content: { approved: true } },
-        1704067200000 - 1000
+        now - 1000
       ); // 1000ms
       service.processElicitationResult(
         { action: 'accept', content: { approved: true } },
-        1704067200000 - 2000
+        now - 2000
       ); // 2000ms
-      service.processElicitationResult({ action: 'decline' }, 1704067200000 - 3000); // 3000ms
+      service.processElicitationResult({ action: 'decline' }, now - 3000); // 3000ms
 
       const stats = service.getStats();
 
@@ -724,11 +725,12 @@ describe('ConfirmService', () => {
     });
 
     it('should limit response time history to 100 entries', () => {
+      const now = Date.now();
       // Process 150 confirmations
       for (let i = 0; i < 150; i++) {
         service.processElicitationResult(
           { action: 'accept', content: { approved: true } },
-          1704067200000 - 100
+          now - 100
         );
       }
 
