@@ -56,7 +56,7 @@ export async function handlePivotCreateAction(
     filterSpecs: input.filters?.map(mapPivotFilter),
   };
 
-  const _response = await deps.sheetsApi.spreadsheets.batchUpdate({
+  await deps.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
     requestBody: {
       requests: [

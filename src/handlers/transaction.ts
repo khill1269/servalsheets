@@ -5,6 +5,7 @@
  */
 
 import { ErrorCodes } from './error-codes.js';
+import { assertNever } from '../utils/type-utils.js';
 import { getTransactionManager } from '../services/transaction-manager.js';
 import type {
   SheetsTransactionInput,
@@ -337,19 +338,8 @@ export class TransactionHandler {
           break;
         }
 
-        default: {
-          // Exhaustive check - TypeScript ensures this is unreachable
-          const _exhaustiveCheck: never = req;
-          response = {
-            success: false,
-            error: {
-              code: ErrorCodes.INVALID_PARAMS,
-              message: `Unsupported action: ${(req as { action: string }).action}`,
-              retryable: false,
-              suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
-            },
-          };
-        }
+        default:
+          assertNever(req);
       }
 
       // Apply verbosity filtering (LLM optimization)

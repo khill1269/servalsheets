@@ -94,7 +94,6 @@ interface CostDashboard {
  */
 function generateCostDashboard(tenantId: string): CostDashboard {
   const costTracker = getCostTracker();
-  const _billing = getBillingIntegration();
 
   // Get cost breakdown
   const breakdown = costTracker.calculateCost(tenantId);

@@ -1083,7 +1083,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
    */
   private async createSnapshot(spreadsheetId: string): Promise<{ revisionId: string } | undefined> {
     try {
-      const _response = await this.sheetsApi.spreadsheets.get({
+      await this.sheetsApi.spreadsheets.get({
         spreadsheetId,
         fields: 'spreadsheetUrl',
       });

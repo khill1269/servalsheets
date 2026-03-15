@@ -98,7 +98,6 @@ export interface SafetyExecutionOptions {
 export class BatchCompiler {
   private rateLimiter: RateLimiter;
   private diffEngine: DiffEngine;
-  private policyEnforcer: PolicyEnforcer;
   private snapshotService: SnapshotService;
   private sheetsApi: sheets_v4.Sheets;
   private onProgress?: (event: ProgressEvent) => void;
@@ -106,7 +105,7 @@ export class BatchCompiler {
   constructor(options: BatchCompilerOptions) {
     this.rateLimiter = options.rateLimiter;
     this.diffEngine = options.diffEngine;
-    this.policyEnforcer = options.policyEnforcer;
+    // options.policyEnforcer reserved for future policy enforcement wiring
     this.snapshotService = options.snapshotService;
     this.sheetsApi = options.sheetsApi;
     if (options.onProgress) {

@@ -9,6 +9,7 @@
  */
 
 import { ErrorCodes } from './error-codes.js';
+import { assertNever } from '../utils/type-utils.js';
 import type { sheets_v4 } from 'googleapis';
 import type { SheetsComputeInput, SheetsComputeOutput } from '../schemas/compute.js';
 import {
@@ -88,19 +89,8 @@ export class ComputeHandler {
           return await this.handleSklearnModel(req);
         case 'matplotlib_chart':
           return await this.handleMatplotlibChart(req);
-        default: {
-          const _exhaustive: never = req;
-          return {
-            response: {
-              success: false as const,
-              error: {
-                code: ErrorCodes.INVALID_PARAMS,
-                message: `Unknown compute action: ${(req as { action: string }).action}`,
-                retryable: false,
-              },
-            },
-          };
-        }
+        default:
+          assertNever(req);
       }
     } catch (error) {
       const elapsed = Date.now() - startMs;
@@ -136,7 +126,6 @@ export class ComputeHandler {
     if (req.range) {
       const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.range);
       resolvedCells = {};
-      const _headers = data[0] || [];
       for (let r = 0; r < data.length; r++) {
         for (let c = 0; c < (data[r]?.length || 0); c++) {
           const colLetter = String.fromCharCode(65 + c);

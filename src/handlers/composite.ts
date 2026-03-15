@@ -14,9 +14,9 @@
  */
 
 import { ErrorCodes } from './error-codes.js';
+import { assertNever } from '../utils/type-utils.js';
 import type { sheets_v4, drive_v3 } from 'googleapis';
 import { BaseHandler, type HandlerContext, type HandlerError, unwrapRequest } from './base.js';
-import { ValidationError } from '../core/errors.js';
 import { getRequestAbortSignal } from '../utils/request-context.js';
 import {
   CompositeOperationsService,
@@ -334,15 +334,8 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         case 'build_dashboard':
           response = await this.handleBuildDashboard(req as CompositeBuildDashboardInput);
           break;
-        default: {
-          // Exhaustive check - TypeScript ensures this is unreachable
-          const _exhaustiveCheck: never = req;
-          throw new ValidationError(
-            `Unknown action: ${(req as { action: string }).action}`,
-            'action',
-            'import_csv | smart_append | bulk_update | deduplicate | export_xlsx | import_xlsx | get_form_responses | setup_sheet | import_and_format | clone_structure | export_large_dataset | generate_sheet | generate_template | preview_generation | audit_sheet | publish_report | data_pipeline | instantiate_template | migrate_spreadsheet | batch_operations | build_dashboard'
-          );
-        }
+        default:
+          assertNever(req);
       }
 
       // Track context (skip for import_xlsx which creates a new spreadsheet)

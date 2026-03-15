@@ -120,10 +120,8 @@ import {
   handleSheetsAuthToolCall,
 } from './server-runtime/preinit-tool-routing.js';
 import { dispatchServerToolCall } from './server-runtime/handler-dispatch.js';
-import {
-  forwardServerLogMessage,
-  installServerLoggingBridge,
-} from './server-runtime/logging-bridge.js';
+import { installServerLoggingBridge } from './server-runtime/logging-bridge.js';
+import { createMcpLogRateLimitState } from './server-utils/logging-bridge-utils.js';
 import {
   ensureServerCompletionsRegistered,
   ensureServerResourcesRegistered,
@@ -163,6 +161,7 @@ export class ServalSheetsServer {
   private requestedMcpLogLevel: LoggingLevel | null = null;
   private loggingBridgeInstalled = false;
   private forwardingMcpLog = false;
+  private mcpLogRateLimitState = createMcpLogRateLimitState();
 
   // Cached handler map (rebuilt only when handlers change)
   private cachedHandlerMap: Record<
@@ -756,38 +755,6 @@ export class ServalSheetsServer {
   }
 
   /**
-   * Cancel a running task
-   *
-   * Marks the task as cancelled in the task store and aborts the operation
-   * if it's currently running.
-   *
-   * @param taskId - Task identifier
-   * @param taskStore - Task store instance
-   */
-  private async handleTaskCancel(taskId: string, taskStore: TaskStoreAdapter): Promise<void> {
-    try {
-      // Mark task as cancelled in store
-      await taskStore.cancelTask(taskId, 'Cancelled by client request');
-
-      // Abort the operation if it's running
-      const abortController = this.taskAbortControllers.get(taskId);
-      if (abortController) {
-        abortController.abort('Task cancelled by client');
-        this.taskAbortControllers.delete(taskId);
-      }
-
-      // Clear watchdog timer for cancelled task
-      clearTimeout(this.taskWatchdogTimers.get(taskId));
-      this.taskWatchdogTimers.delete(taskId);
-
-      baseLogger.info('Task cancelled', { taskId });
-    } catch (error) {
-      baseLogger.error('Failed to cancel task', { taskId, error });
-      throw error;
-    }
-  }
-
-  /**
    * Handle a tool call - routes to appropriate handler
    */
   private async handleToolCall(
@@ -1021,11 +988,22 @@ export class ServalSheetsServer {
     if (this.resourcesRegistered) {
       return; // Already registered — prevent SDK "already registered" errors
     }
-    await registerServerResources({
-      server: this._server,
-      googleClient: this.googleClient,
-      context: this.context,
-    });
+    try {
+      await registerServerResources({
+        server: this._server,
+        googleClient: this.googleClient,
+        context: this.context,
+      });
+    } catch (err) {
+      // Swallow duplicate-registration errors from the SDK (idempotent restart scenarios)
+      if (err instanceof Error && err.message.includes('already registered')) {
+        baseLogger.warn('Resource already registered — skipping duplicate registration', {
+          message: err.message,
+        });
+        return;
+      }
+      throw err;
+    }
   }
 
   /**
@@ -1101,20 +1079,7 @@ export class ServalSheetsServer {
       setForwardingMcpLog: (value) => {
         this.forwardingMcpLog = value;
       },
-      server: this._server,
-    });
-  }
-
-  private forwardLogMessage(levelOrEntry: unknown, message: unknown, meta: unknown[]): void {
-    forwardServerLogMessage({
-      levelOrEntry,
-      message,
-      meta,
-      requestedMcpLogLevel: this.requestedMcpLogLevel,
-      forwardingMcpLog: this.forwardingMcpLog,
-      setForwardingMcpLog: (value) => {
-        this.forwardingMcpLog = value;
-      },
+      getRateLimitState: () => this.mcpLogRateLimitState,
       server: this._server,
     });
   }
@@ -1363,6 +1328,12 @@ export class ServalSheetsServer {
       await this.shutdown();
       process.exit(1);
     });
+
+    // Ensure resources are registered before connect (handles deferred-discovery restarts)
+    if (!this.resourcesRegistered) {
+      await this.registerResources();
+      this.resourcesRegistered = true;
+    }
 
     // Connect after initialization (handlers are registered)
     baseLogger.info('[Phase 3/3] Connecting transport');

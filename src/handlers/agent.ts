@@ -1,4 +1,5 @@
 import { ErrorCodes } from './error-codes.js';
+import { assertNever } from '../utils/type-utils.js';
 import type { SheetsAgentInput, SheetsAgentOutput } from '../schemas/agent.js';
 import { HandlerLoadError } from '../core/errors.js';
 import {
@@ -195,19 +196,8 @@ export class AgentHandler {
             },
           };
         }
-        default: {
-          const _exhaustive: never = req;
-          return {
-            response: {
-              success: false,
-              error: {
-                code: ErrorCodes.INVALID_PARAMS,
-                message: `Unknown action: ${(req as Record<string, unknown>)['action'] as string}`,
-                retryable: false,
-              },
-            },
-          };
-        }
+        default:
+          assertNever(req);
       }
     } catch (error) {
       return {

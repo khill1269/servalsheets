@@ -91,9 +91,12 @@ import { registerWellKnownHandlers } from './server/well-known.js';
 import { initializeRbacManager } from './services/rbac-manager.js';
 import { getOrCreateSessionContext } from './services/session-context.js';
 import {
-  normalizeMcpLogLevel,
+  buildMcpLoggingMessage,
+  consumeMcpLogRateLimit,
+  createMcpLogRateLimitState,
+  extractMcpLogEntry,
+  type McpLogRateLimitState,
   shouldForwardMcpLog,
-  safeStringify,
 } from './server-utils/logging-bridge-utils.js';
 import { registerHttpFoundationMiddleware } from './http-server/middleware.js';
 import { registerHttpGraphQlAndAdmin } from './http-server/graphql-admin.js';
@@ -133,10 +136,15 @@ const DEFAULT_PORT = 3000;
 // Override with HOST=0.0.0.0 in production if external access needed
 const DEFAULT_HOST = '127.0.0.1';
 
-let httpRequestedMcpLogLevel: LoggingLevel | null = null;
 let httpLoggingBridgeInstalled = false;
-let httpForwardingMcpLog = false;
-let httpLoggingServer: McpServer | null = null;
+interface HttpLoggingSubscriber {
+  requestedMcpLogLevel: LoggingLevel;
+  forwardingMcpLog: boolean;
+  rateLimitState: McpLogRateLimitState;
+  server: McpServer;
+}
+
+const httpLoggingSubscribers = new Map<string, HttpLoggingSubscriber>();
 
 function installHttpLoggingBridge(): void {
   if (httpLoggingBridgeInstalled) {
@@ -149,55 +157,38 @@ function installHttpLoggingBridge(): void {
   logger.log = ((levelOrEntry: unknown, message?: unknown, ...meta: unknown[]) => {
     const result = (originalLog as (...args: unknown[]) => unknown)(levelOrEntry, message, ...meta);
 
-    if (!httpRequestedMcpLogLevel || httpForwardingMcpLog || !httpLoggingServer) {
+    if (httpLoggingSubscribers.size === 0) {
       return result;
     }
 
-    let level = 'info';
-    let text = '';
-    let data: unknown = message;
-
-    if (typeof levelOrEntry === 'string') {
-      level = levelOrEntry;
-      if (typeof message === 'string') {
-        text = message;
-      } else if (message !== undefined) {
-        text = safeStringify(message);
-      }
-      data = meta.length === 0 ? message : meta.length === 1 ? meta[0] : meta;
-    } else if (typeof levelOrEntry === 'object' && levelOrEntry !== null) {
-      const entry = levelOrEntry as Record<string, unknown>;
-      if (typeof entry['level'] !== 'string') {
-        return result;
-      }
-      level = entry['level'];
-      if (typeof entry['message'] === 'string') {
-        text = entry['message'];
-      } else if (entry['message'] !== undefined) {
-        text = safeStringify(entry['message']);
-      }
-      data = entry;
-    } else {
+    const extracted = extractMcpLogEntry(levelOrEntry, message, meta);
+    if (!extracted) {
       return result;
     }
 
-    if (!shouldForwardMcpLog(level, httpRequestedMcpLogLevel)) {
-      return result;
-    }
+    for (const subscriber of httpLoggingSubscribers.values()) {
+      if (subscriber.forwardingMcpLog) {
+        continue;
+      }
 
-    httpForwardingMcpLog = true;
-    void httpLoggingServer.server
-      .sendLoggingMessage({
-        level: normalizeMcpLogLevel(level),
-        logger: 'servalsheets',
-        data: { message: text, meta: data },
-      })
-      .catch(() => {
-        // Best-effort bridge: avoid recursive logging on notification failure.
-      })
-      .finally(() => {
-        httpForwardingMcpLog = false;
-      });
+      if (!shouldForwardMcpLog(extracted.level, subscriber.requestedMcpLogLevel)) {
+        continue;
+      }
+
+      if (!consumeMcpLogRateLimit(subscriber.rateLimitState)) {
+        continue;
+      }
+
+      subscriber.forwardingMcpLog = true;
+      void subscriber.server.server
+        .sendLoggingMessage(buildMcpLoggingMessage(extracted.level, extracted.text, extracted.data))
+        .catch(() => {
+          // Best-effort bridge: avoid recursive logging on notification failure.
+        })
+        .finally(() => {
+          subscriber.forwardingMcpLog = false;
+        });
+    }
 
     return result;
   }) as typeof logger.log;
@@ -391,12 +382,18 @@ async function createMcpServerInstance(
   }
 
   // Register logging handler
+  const loggingSubscriberId = sessionId ?? `http:${randomUUID()}`;
   mcpServer.server.setRequestHandler(
     SetLevelRequestSchema,
     async (request: z.infer<typeof SetLevelRequestSchema>) => {
       const level = request.params.level;
-      httpRequestedMcpLogLevel = level;
-      httpLoggingServer = mcpServer;
+      const existingSubscriber = httpLoggingSubscribers.get(loggingSubscriberId);
+      httpLoggingSubscribers.set(loggingSubscriberId, {
+        requestedMcpLogLevel: level,
+        forwardingMcpLog: existingSubscriber?.forwardingMcpLog ?? false,
+        rateLimitState: existingSubscriber?.rateLimitState ?? createMcpLogRateLimitState(),
+        server: mcpServer,
+      });
       installHttpLoggingBridge();
       const response = await handleLoggingSetLevel({ level });
       logger.info('Log level changed via logging/setLevel', {
@@ -413,6 +410,7 @@ async function createMcpServerInstance(
     mcpServer,
     taskStore,
     disposeRuntime: () => {
+      httpLoggingSubscribers.delete(loggingSubscriberId);
       toolRegistration.dispose();
     },
   };
@@ -463,9 +461,6 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   const eventStoreMaxEvents = envConfig.STREAMABLE_HTTP_EVENT_MAX_EVENTS;
 
   const app = express();
-
-  // Derive __dirname for ESM (needed for static file serving)
-  const _dirname = resolve(fileURLToPath(import.meta.url), '..', '..');
 
   // Health service for liveness/readiness probes
   // Note: GoogleClient is session-specific, so health checks will report on active sessions

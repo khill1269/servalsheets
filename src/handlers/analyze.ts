@@ -751,7 +751,6 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
       return samplingError;
     }
 
-    const _server = this.context.server!;
     const startTime = Date.now();
 
     // Read context data if range provided

@@ -98,27 +98,11 @@ interface StateData {
   codeChallengeMethod: string | undefined;
 }
 
-interface StoredState {
-  created: number;
-  clientId: string;
-  redirectUri: string;
-  used: boolean;
-}
-
 /**
  * Supported OAuth scopes
  */
 const SUPPORTED_SCOPES = ['sheets:read', 'sheets:write', 'sheets:admin'] as const;
 type SupportedScope = (typeof SUPPORTED_SCOPES)[number];
-
-/**
- * Scope hierarchy - higher scopes include lower scopes
- */
-const SCOPE_HIERARCHY: Record<string, string[]> = {
-  'sheets:admin': ['sheets:write', 'sheets:read'],
-  'sheets:write': ['sheets:read'],
-  'sheets:read': [],
-};
 
 /**
  * OAuth 2.1 Provider for MCP authentication
@@ -305,82 +289,6 @@ export class OAuthProvider {
 
     // Shouldn't reach here, but fallback to read
     return { valid: true, scope: 'sheets:read' };
-  }
-
-  /**
-   * Check if a given scope includes another scope
-   * Example: sheets:admin includes sheets:write and sheets:read
-   */
-  private scopeIncludes(grantedScope: string, requiredScope: string): boolean {
-    if (grantedScope === requiredScope) {
-      return true;
-    }
-    const hierarchy = SCOPE_HIERARCHY[grantedScope] || [];
-    return hierarchy.includes(requiredScope);
-  }
-
-  /**
-   * Generate signed state token
-   */
-  private async generateState(clientId: string, redirectUri: string): Promise<string> {
-    const nonce = randomBytes(16).toString('hex');
-    const timestamp = Date.now().toString();
-    const payload = `${nonce}:${timestamp}:${clientId}`;
-    const signature = createHmac('sha256', this.config.stateSecret).update(payload).digest('hex');
-
-    // Store state with 5-minute TTL
-    await this.sessionStore.set(
-      `state:${nonce}`,
-      {
-        created: Date.now(),
-        clientId,
-        redirectUri,
-        used: false,
-      } as StoredState,
-      300 // 5 minutes
-    );
-
-    return `${payload}:${signature}`;
-  }
-
-  /**
-   * Verify and consume state token
-   */
-  private async verifyState(state: string): Promise<{ clientId: string; redirectUri: string }> {
-    const [nonce, timestamp, clientId, signature] = state.split(':');
-
-    if (!nonce || !timestamp || !clientId || !signature) {
-      throw new Error('Invalid state format');
-    }
-
-    // Verify signature
-    const payload = `${nonce}:${timestamp}:${clientId}`;
-    const expectedSignature = createHmac('sha256', this.config.stateSecret)
-      .update(payload)
-      .digest('hex');
-
-    const sigBuf = Buffer.from(signature);
-    const expBuf = Buffer.from(expectedSignature);
-    if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
-      throw new Error('Invalid state signature');
-    }
-
-    // Check nonce exists and not used
-    const storedData = await this.sessionStore.get(`state:${nonce}`);
-    if (!storedData) {
-      throw new Error('State expired or invalid');
-    }
-
-    const stored = storedData as StoredState;
-    if (stored.used) {
-      throw new Error('State already used');
-    }
-
-    // Mark as used (one-time use) and update in store
-    stored.used = true;
-    await this.sessionStore.set(`state:${nonce}`, stored, 60); // Keep for 1 minute after use for error checking
-
-    return { clientId: stored.clientId, redirectUri: stored.redirectUri };
   }
 
   /**

@@ -949,11 +949,10 @@ function detectSemanticPatterns(scoutResult: ScoutResult, spreadsheetId: string)
  */
 export class SuggestionEngine {
   private scout: Scout;
-  private actionGenerator: ActionGenerator;
 
   constructor(config: SuggestionEngineConfig) {
     this.scout = config.scout;
-    this.actionGenerator = config.actionGenerator;
+    // config.actionGenerator reserved for future suggestion execution wiring
   }
 
   /**

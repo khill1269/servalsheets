@@ -59,9 +59,9 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
 
   protocolServer.setRequestHandler(
     ListToolsRequestSchema,
-    (request: z.infer<typeof ListToolsRequestSchema>) => {
+    (_request: z.infer<typeof ListToolsRequestSchema>) => {
       // Accept cursor param per MCP 2025-11-25 spec (single-page response for ≤25 tools)
-      const _cursor: string | undefined = request?.params?.cursor;
+      // cursor is intentionally ignored — single-page response for ≤25 tools
 
       return {
         tools: Object.entries(registeredTools ?? {})
