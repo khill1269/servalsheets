@@ -646,6 +646,7 @@ export function registerWellKnownHandlers(
 
   // SEP-1649: MCP Server Card - primary discovery endpoint
   app.get('/.well-known/mcp.json', cardHandler);
+  app.get('/.well-known/mcp/server-card.json', cardHandler);
   // Legacy MCP configuration endpoint
   app.get('/.well-known/mcp-configuration', mcpConfigurationHandler);
   // OAuth endpoints (RFC 8414, RFC 9728)

@@ -298,6 +298,70 @@ export const resolvers = {
         });
       }
     },
+
+    getCell: async (
+      _parent: unknown,
+      {
+        spreadsheetId,
+        row,
+        col,
+        sheetName = 'Sheet1',
+      }: { spreadsheetId: string; row: number; col: number; sheetName?: string },
+      context: GraphQLContext
+    ) => {
+      const googleClient = context.handlerContext.googleClient;
+      if (!googleClient) {
+        throw new GraphQLError('Authentication required', {
+          extensions: { code: 'UNAUTHENTICATED' },
+        });
+      }
+      const colLetter = String.fromCharCode(64 + col);
+      const range = `'${sheetName}'!${colLetter}${row}`;
+      const response = await googleClient.sheets.spreadsheets.values.get({ spreadsheetId, range });
+      const value = response.data.values?.[0]?.[0] ?? null;
+      return { value, formattedValue: value != null ? String(value) : null };
+    },
+
+    searchSpreadsheets: async (
+      _parent: unknown,
+      { query }: { query: string },
+      context: GraphQLContext
+    ) => {
+      const googleClient = context.handlerContext.googleClient;
+      if (!googleClient) {
+        throw new GraphQLError('Authentication required', {
+          extensions: { code: 'UNAUTHENTICATED' },
+        });
+      }
+      const response = await googleClient.drive.files.list({
+        q: `mimeType='application/vnd.google-apps.spreadsheet' and name contains '${query.replace(/'/g, "\\'")}'`,
+        fields: 'files(id,name)',
+        pageSize: 20,
+      });
+      return (response.data.files || []).map((f: { id?: string | null; name?: string | null }) => ({
+        spreadsheetId: f.id,
+        title: f.name,
+        sheets: [],
+      }));
+    },
+
+    spreadsheetMetadata: async (
+      _parent: unknown,
+      { spreadsheetId }: { spreadsheetId: string },
+      context: GraphQLContext
+    ) => {
+      const googleClient = context.handlerContext.googleClient;
+      if (!googleClient) {
+        throw new GraphQLError('Authentication required', {
+          extensions: { code: 'UNAUTHENTICATED' },
+        });
+      }
+      const response = await googleClient.sheets.spreadsheets.get({
+        spreadsheetId,
+        fields: 'spreadsheetId,properties,sheets(properties)',
+      });
+      return response.data;
+    },
   },
 
   Mutation: {
@@ -455,6 +519,124 @@ export const resolvers = {
           message: 'Failed to delete sheet',
           error: {
             code: 'DELETE_FAILED',
+            message: error instanceof Error ? error.message : String(error),
+            details: {},
+          },
+        };
+      }
+    },
+
+    updateCell: async (
+      _parent: unknown,
+      {
+        spreadsheetId,
+        row,
+        col,
+        value,
+        sheetName = 'Sheet1',
+      }: { spreadsheetId: string; row: number; col: number; value: string; sheetName?: string },
+      context: GraphQLContext
+    ) => {
+      try {
+        const googleClient = context.handlerContext.googleClient;
+        if (!googleClient) {
+          throw new GraphQLError('Authentication required', {
+            extensions: { code: 'UNAUTHENTICATED' },
+          });
+        }
+        const colLetter = String.fromCharCode(64 + col);
+        const range = `'${sheetName}'!${colLetter}${row}`;
+        await googleClient.sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: { values: [[value]] },
+        });
+        return {
+          success: true,
+          message: 'Cell updated successfully',
+          spreadsheetId,
+          updatedCells: 1,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          message: 'Failed to update cell',
+          error: {
+            code: 'UPDATE_FAILED',
+            message: error instanceof Error ? error.message : String(error),
+            details: {},
+          },
+        };
+      }
+    },
+
+    applyFormat: async (
+      _parent: unknown,
+      {
+        spreadsheetId,
+        range: _range,
+        format,
+      }: { spreadsheetId: string; range: string; format: Record<string, unknown> },
+      context: GraphQLContext
+    ) => {
+      try {
+        const googleClient = context.handlerContext.googleClient;
+        if (!googleClient) {
+          throw new GraphQLError('Authentication required', {
+            extensions: { code: 'UNAUTHENTICATED' },
+          });
+        }
+        await googleClient.sheets.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            requests: [
+              {
+                repeatCell: {
+                  cell: { userEnteredFormat: format as Record<string, unknown> },
+                  fields: 'userEnteredFormat',
+                },
+              },
+            ],
+          },
+        });
+        return { success: true, message: 'Format applied successfully', spreadsheetId };
+      } catch (error) {
+        return {
+          success: false,
+          message: 'Failed to apply format',
+          error: {
+            code: 'FORMAT_FAILED',
+            message: error instanceof Error ? error.message : String(error),
+            details: {},
+          },
+        };
+      }
+    },
+
+    batchUpdate: async (
+      _parent: unknown,
+      { spreadsheetId, requests }: { spreadsheetId: string; requests: Record<string, unknown>[] },
+      context: GraphQLContext
+    ) => {
+      try {
+        const googleClient = context.handlerContext.googleClient;
+        if (!googleClient) {
+          throw new GraphQLError('Authentication required', {
+            extensions: { code: 'UNAUTHENTICATED' },
+          });
+        }
+        await googleClient.sheets.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: { requests },
+        });
+        return { success: true, message: 'Batch update applied successfully', spreadsheetId };
+      } catch (error) {
+        return {
+          success: false,
+          message: 'Failed to apply batch update',
+          error: {
+            code: 'BATCH_FAILED',
             message: error instanceof Error ? error.message : String(error),
             details: {},
           },

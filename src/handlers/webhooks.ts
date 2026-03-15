@@ -570,8 +570,18 @@ export class WebhookHandler {
           type: 'web_hook',
           address: input.webhookUrl,
           expiration: String(expiration),
+          token: channelId, // Required: echoed as X-Goog-Channel-Token header in callbacks
         },
       });
+
+      const resourceId = response.data.resourceId ?? '';
+      await getWebhookManager()?.storeWatchChannel(
+        channelId,
+        resourceId,
+        input.spreadsheetId,
+        input.webhookUrl,
+        expiration
+      );
 
       logger.info('Drive files.watch channel created', {
         channelId,

@@ -51,7 +51,7 @@ export interface StreamingAnalysisResult {
 export class StreamingAnalyzer {
   constructor(
     private sheetsApi: sheets_v4.Sheets,
-    private tieredRetrieval: TieredRetrieval,
+    _tieredRetrieval: TieredRetrieval,
     private chunkSize: number = 1000
   ) {}
 

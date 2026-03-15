@@ -171,7 +171,7 @@ const EnvSchema = z.object({
   CIRCUIT_BREAKER_TIMEOUT_MS: z.coerce.number().positive().default(30000), // 30 seconds
 
   // Apps Script concurrency
-  APPSSCRIPT_MAX_CONCURRENT_RUNS: z.coerce.number().int().positive().default(3),
+  APPSSCRIPT_MAX_CONCURRENT_RUNS: z.coerce.number().int().positive().default(15),
 
   // Safety limits
   MAX_CONCURRENT_REQUESTS: z.coerce.number().int().positive().default(10),

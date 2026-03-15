@@ -186,19 +186,29 @@ const CreateProjectActionSchema = z.object({
   verbosity: VerbositySchema,
 });
 
-const GetProjectActionSchema = z.object({
-  action: z.literal('get').describe('Get Apps Script project metadata'),
-  scriptId: ScriptIdSchema.optional().describe(
-    'Apps Script project ID (from script URL or API). If omitted, provide spreadsheetId to auto-resolve.'
-  ),
-  spreadsheetId: z
-    .string()
-    .optional()
-    .describe(
-      'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+const GetProjectActionSchema = z
+  .object({
+    action: z.literal('get').describe('Get Apps Script project metadata'),
+    scriptId: ScriptIdSchema.optional().describe(
+      'Apps Script project ID (from script URL or API). If omitted, provide spreadsheetId to auto-resolve.'
     ),
-  verbosity: VerbositySchema,
-});
+    spreadsheetId: z
+      .string()
+      .optional()
+      .describe(
+        'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+      ),
+    verbosity: VerbositySchema,
+  })
+  .superRefine((data, ctx) => {
+    if (!data.scriptId && !data.spreadsheetId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Either scriptId or spreadsheetId is required',
+        path: ['scriptId'],
+      });
+    }
+  });
 
 const GetContentActionSchema = z.object({
   action: z.literal('get_content').describe('Get script project files and source code'),
@@ -340,40 +350,54 @@ const UndeployActionSchema = z.object({
 // Execution Action Schemas (3 actions)
 // ============================================================================
 
-const RunActionSchema = z.object({
-  action: z.literal('run').describe('Execute a function in an Apps Script project'),
-  scriptId: ScriptIdSchema,
-  functionName: z
-    .string()
-    .min(1)
-    .max(100)
-    .regex(/^[a-zA-Z_$][a-zA-Z0-9_$]*$/, 'Must be a valid JavaScript identifier')
-    .describe('Name of function to execute'),
-  parameters: z
-    .array(
-      z.union([
-        z.string(),
-        z.number(),
-        z.boolean(),
-        z.null(),
-        z.array(z.any()),
-        z.record(z.string(), z.any()),
-      ])
-    )
-    .optional()
-    .describe(
-      'Function parameters (basic types only: strings, numbers, arrays, objects, booleans, null)'
+const RunActionSchema = z
+  .object({
+    action: z.literal('run').describe('Execute a function in an Apps Script project'),
+    scriptId: ScriptIdSchema,
+    functionName: z
+      .string()
+      .min(1)
+      .max(100)
+      .regex(/^[a-zA-Z_$][a-zA-Z0-9_$]*$/, 'Must be a valid JavaScript identifier')
+      .describe('Name of function to execute'),
+    parameters: z
+      .array(
+        z.union([
+          z.string(),
+          z.number(),
+          z.boolean(),
+          z.null(),
+          z.array(z.any()),
+          z.record(z.string(), z.any()),
+        ])
+      )
+      .optional()
+      .describe(
+        'Function parameters (basic types only: strings, numbers, arrays, objects, booleans, null)'
+      ),
+    devMode: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Run most recently saved version (owner only) vs deployed version'),
+    safety: SafetyOptionsSchema.optional().describe(
+      'Safety options — use dryRun:true to validate without executing; requireConfirmation:true to require explicit user approval before running'
     ),
-  devMode: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe('Run most recently saved version (owner only) vs deployed version'),
-  safety: SafetyOptionsSchema.optional().describe(
-    'Safety options — use dryRun:true to validate without executing; requireConfirmation:true to require explicit user approval before running'
-  ),
-  verbosity: VerbositySchema,
-});
+    verbosity: VerbositySchema,
+    // Internal sentinel set by normalizer when files field is included
+    _hasFiles: z.boolean().optional(),
+  })
+  .superRefine((input, ctx) => {
+    if (input._hasFiles === true) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'The run action does not accept files. Use sheets_appsscript action:"update_content" to push source code first, then run the function.',
+        path: ['files'],
+      });
+    }
+  })
+  .transform(({ _hasFiles: _, ...rest }) => rest);
 
 const ListProcessesActionSchema = z.object({
   action: z.literal('list_processes').describe('List script execution processes (logs)'),
@@ -577,7 +601,15 @@ const AppsScriptRequestSchema = z.discriminatedUnion('action', [
 ]);
 
 export const SheetsAppsScriptInputSchema = z.object({
-  request: AppsScriptRequestSchema,
+  request: z.preprocess((val) => {
+    if (typeof val !== 'object' || val === null) return val;
+    const input = val as Record<string, unknown>;
+    // Detect files field on run action — mark for rejection in RunActionSchema superRefine
+    if (input['action'] === 'run' && input['files'] !== undefined) {
+      return { ...input, _hasFiles: true };
+    }
+    return val;
+  }, AppsScriptRequestSchema),
 });
 
 // ============================================================================

@@ -927,7 +927,7 @@ Cleanup Workflow:
    sheets_analyze action="analyze_data" range="${range}"
 
 2. Fix empty cells:
-   • Delete: sheets_dimensions action="delete_rows"
+   • Delete: sheets_dimensions action="delete" dimension="ROWS"
    • Fill: sheets_data action="write" with default values
 
 3. Standardize formats:
@@ -1097,7 +1097,7 @@ Step 1: Prepare Target Sheet
 2. Setup structure:
    • Headers: sheets_data action="write" range="A1:Z1" values=[["Col1","Col2",...]]
    • Format headers: sheets_format range="A1:Z1" bold=true backgroundColor="#4285F4"
-   • Freeze: sheets_dimensions action="freeze_rows" count=1
+   • Freeze: sheets_dimensions action="freeze" count=1
 
 Step 2: Validate Source Data
 1. Check data quality before import
@@ -1114,7 +1114,7 @@ Step 3: Import Data (Choose Strategy)
 • Transaction with chunks:
   sheets_transaction action="begin"
   For each chunk of 1000 rows:
-    sheets_transaction action="add_operation" operation=write
+    sheets_transaction action="queue" operation=write
   sheets_transaction action="commit"
 
 **Strategy C: Large Dataset (>10K rows)**
@@ -1545,11 +1545,11 @@ This guide tells you EXACTLY when to use sheets_confirm.
    • Say: "This will permanently delete the sheet and all its data."
 
 2. DELETING ROWS (>10)
-   • sheets_dimensions action="delete_rows" with count > 10
+   • sheets_dimensions action="delete" dimension="ROWS" with count > 10
    • Say: "I found {N} rows to delete. Want to see which ones first?"
 
 3. DELETING COLUMNS (>3)
-   • sheets_dimensions action="delete_columns" with count > 3
+   • sheets_dimensions action="delete" dimension="COLUMNS" with count > 3
    • Say: "Deleting {N} columns may affect formulas. Proceed?"
 
 4. CLEARING DATA (>100 cells)
@@ -1610,7 +1610,7 @@ Step 1: Build a plan
         "stepNumber": 1,
         "description": "Delete 47 empty rows",
         "tool": "sheets_dimensions",
-        "action": "delete_rows",
+        "action": "delete",
         "risk": "high",
         "isDestructive": true,
         "canUndo": true
@@ -1930,7 +1930,7 @@ Step 2: Sync Changes
 │   keyColumn="ID"                  │
 │                                    │
 │ For DELETED rows:                 │
-│   sheets_dimensions action="delete_rows"│
+│   sheets_dimensions action="delete" dimension="ROWS"│
 └────────────────────────────────────┘
 `
       : `
@@ -2151,7 +2151,7 @@ Focus: ${focusAreas.join(', ')}
 │             Use pivot tables for summaries       │
 │                                                    │
 │ • Excessive empty rows (trailing data)           │
-│   Solution: sheets_dimensions action="delete_rows"│
+│   Solution: sheets_dimensions action="delete" dimension="ROWS"│
 │             Clean up data range                  │
 └────────────────────────────────────────────────────┘
 
@@ -2292,7 +2292,7 @@ Report Sections:
 2. Fix Volatile Functions: Replace NOW() with manual timestamps
    Impact: 80% recalculation reduction
 
-3. Delete Empty Rows: sheets_dimensions action="delete_rows"
+3. Delete Empty Rows: sheets_dimensions action="delete" dimension="ROWS"
    Impact: Faster load times, cleaner data
 
 4. Use Transactions: Wrap bulk operations
@@ -2825,11 +2825,10 @@ This will modify the spreadsheet by adding a new chart object.
 **Step 3: Create**
 \`\`\`json
 {
-  "tool": "sheets_analyze",
-  "action": "create_recommended_chart",
+  "tool": "sheets_visualize",
+  "action": "suggest_chart",
   "spreadsheetId": "${args['spreadsheetId']}",
-  "chartType": "LINE",
-  "range": { "a1": "Sheet1!A1:D100" }
+  "range": "Sheet1!A1:D100"
 }
 \`\`\`
 
@@ -2849,10 +2848,10 @@ This will modify the spreadsheet by adding a new chart object.
 For pivot tables:
 \`\`\`json
 {
-  "tool": "sheets_analyze",
-  "action": "create_recommended_pivot",
+  "tool": "sheets_visualize",
+  "action": "suggest_pivot",
   "spreadsheetId": "${args['spreadsheetId']}",
-  "range": { "a1": "Data!A1:F1000" }
+  "range": "Data!A1:F1000"
 }
 \`\`\`
 
@@ -3062,7 +3061,7 @@ Learn to identify common quality problems:
 Column A: [123, "456", 789, "N/A"]
 Issue: Numbers mixed with text
 Impact: SUM() fails, charts break
-Fix: sheets_fix action:"fix_types"
+Fix: sheets_fix action:"standardize_formats"
 \`\`\`
 
 **Pattern 2: Inconsistent Formats**
@@ -3296,7 +3295,7 @@ A3: =A1
 **Pattern 3: Apps Script Alternative**
 For time-based updates:
 \`\`\`
-sheets_appsscript action:"time_trigger"
+sheets_appsscript action:"create_trigger"
   script: "Update timestamp cell every 5 minutes"
 \`\`\`
 
@@ -3656,7 +3655,7 @@ Rules covering >100K cells? → Simplify rule scope
 
 **Use: Periodic refresh**
 \`\`\`
-sheets_appsscript action:"time_trigger"
+sheets_appsscript action:"create_trigger"
   interval:"5 minutes"
   operation:"refresh_external_data"
 \`\`\`
@@ -3786,18 +3785,18 @@ Returns:
 
 **Step 5: Preview Solutions**
 \`\`\`
-sheets_fix action:"preview"
+sheets_fix action:"clean"
   spreadsheetId:"${spreadsheetId}"
-  issueType:"mixed_types"
+  mode:"preview"
 \`\`\`
 
 See exact changes before applying
 
 **Step 6: Execute Fixes**
 \`\`\`
-sheets_fix action:"fix_all"
+sheets_fix action:"clean"
   spreadsheetId:"${spreadsheetId}"
-  preview:false
+  mode:"apply"
 \`\`\`
 
 Apply all high-impact fixes
@@ -4084,8 +4083,8 @@ sheets_webhook action:"register"
 
 **Option 4: Confirmation Workflows**
 \`\`\`
-sheets_confirm action:"require_confirmation"
-  operation:"delete_rows"
+sheets_confirm action:"request"
+  operation:"delete" dimension:"ROWS"
   minimumRows:5
 \`\`\`
 
@@ -4239,7 +4238,7 @@ Implement version control system:
 
 **Pattern 1: Scheduled Snapshots**
 \`\`\`
-sheets_appsscript action:"time_trigger"
+sheets_appsscript action:"create_trigger"
   interval:"4 hours"
   operation:"create_snapshot"
   spreadsheetId:"${spreadsheetId}"
@@ -4259,14 +4258,14 @@ sheets_analyze action:"scout"
 
 # Rollback if needed
 if (quality_dropped) {
-  sheets_collaborate action:"restore_snapshot"
+  sheets_collaborate action:"version_restore_snapshot"
   snapshotId:"latest"
 }
 \`\`\`
 
 **Pattern 3: Version Comparison**
 \`\`\`
-sheets_collaborate action:"compare_versions"
+sheets_collaborate action:"version_compare"
   baseSnapshot:"morning-snapshot"
   targetSnapshot:"current"
 
@@ -4279,7 +4278,7 @@ Returns:
 
 **Pattern 4: Approval Workflow**
 \`\`\`
-sheets_confirm action:"require_approval"
+sheets_confirm action:"request"
   threshold:100
   approvers:["manager@company.com"]
   message:"Change affects \${cellCount} cells. Manager approval required."

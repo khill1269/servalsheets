@@ -696,7 +696,9 @@ const normalizeDataRequest = (val: unknown): unknown => {
   // Alias: 'range' → 'cell' for cell-based actions (LLM compatibility)
   const cellActions = ['add_note', 'get_note', 'clear_note', 'set_hyperlink', 'clear_hyperlink'];
   if (cellActions.includes(action) && obj['range'] && !obj['cell']) {
-    return { ...obj, cell: obj['range'] };
+    const { range: _range, ...rest } = obj;
+    void _range;
+    return { ...rest, cell: obj['range'] };
   }
 
   return val;

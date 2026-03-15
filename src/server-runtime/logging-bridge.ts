@@ -2,8 +2,11 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
 import { logger as baseLogger } from '../utils/logger.js';
 import {
-  normalizeMcpLogLevel,
-  safeStringify,
+  buildMcpLoggingMessage,
+  consumeMcpLogRateLimit,
+  createMcpLogRateLimitState,
+  extractMcpLogEntry,
+  type McpLogRateLimitState,
   shouldForwardMcpLog,
 } from '../server-utils/logging-bridge-utils.js';
 
@@ -14,6 +17,7 @@ interface ForwardLogMessageParams {
   requestedMcpLogLevel: LoggingLevel | null;
   forwardingMcpLog: boolean;
   setForwardingMcpLog: (value: boolean) => void;
+  rateLimitState: McpLogRateLimitState;
   server: McpServer;
 }
 
@@ -25,51 +29,29 @@ export function forwardServerLogMessage(params: ForwardLogMessageParams): void {
     requestedMcpLogLevel,
     forwardingMcpLog,
     setForwardingMcpLog,
+    rateLimitState,
     server,
   } = params;
   if (!requestedMcpLogLevel || forwardingMcpLog) {
     return;
   }
 
-  let level = 'info';
-  let text = '';
-  let data: unknown = message;
-
-  if (typeof levelOrEntry === 'string') {
-    level = levelOrEntry;
-    if (typeof message === 'string') {
-      text = message;
-    } else if (message !== undefined) {
-      text = safeStringify(message);
-    }
-    data = meta.length === 0 ? message : meta.length === 1 ? meta[0] : meta;
-  } else if (typeof levelOrEntry === 'object' && levelOrEntry !== null) {
-    const entry = levelOrEntry as Record<string, unknown>;
-    if (typeof entry['level'] !== 'string') {
-      return;
-    }
-    level = entry['level'];
-    if (typeof entry['message'] === 'string') {
-      text = entry['message'];
-    } else if (entry['message'] !== undefined) {
-      text = safeStringify(entry['message']);
-    }
-    data = entry;
-  } else {
+  const extracted = extractMcpLogEntry(levelOrEntry, message, meta);
+  if (!extracted) {
     return;
   }
 
-  if (!shouldForwardMcpLog(level, requestedMcpLogLevel)) {
+  if (!shouldForwardMcpLog(extracted.level, requestedMcpLogLevel)) {
+    return;
+  }
+
+  if (!consumeMcpLogRateLimit(rateLimitState)) {
     return;
   }
 
   setForwardingMcpLog(true);
   void server.server
-    .sendLoggingMessage({
-      level: normalizeMcpLogLevel(level),
-      logger: 'servalsheets',
-      data: { message: text, meta: data },
-    })
+    .sendLoggingMessage(buildMcpLoggingMessage(extracted.level, extracted.text, extracted.data))
     .catch(() => {
       // Best-effort bridge: avoid recursive logging on notification failure.
     })
@@ -84,6 +66,7 @@ export function installServerLoggingBridge(params: {
   getRequestedMcpLogLevel: () => LoggingLevel | null;
   getForwardingMcpLog: () => boolean;
   setForwardingMcpLog: (value: boolean) => void;
+  getRateLimitState?: () => McpLogRateLimitState;
   server: McpServer;
 }): void {
   const {
@@ -92,6 +75,7 @@ export function installServerLoggingBridge(params: {
     getRequestedMcpLogLevel,
     getForwardingMcpLog,
     setForwardingMcpLog,
+    getRateLimitState,
     server,
   } = params;
 
@@ -111,6 +95,7 @@ export function installServerLoggingBridge(params: {
       requestedMcpLogLevel: getRequestedMcpLogLevel(),
       forwardingMcpLog: getForwardingMcpLog(),
       setForwardingMcpLog,
+      rateLimitState: getRateLimitState ? getRateLimitState() : createMcpLogRateLimitState(),
       server,
     });
     return result;

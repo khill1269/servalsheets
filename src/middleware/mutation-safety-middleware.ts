@@ -89,7 +89,18 @@ function scanMutationRequest(
     if (visited.has(value)) return null;
     visited.add(value);
 
-    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    const obj = value as Record<string, unknown>;
+    // Respect per-scope opt-out: safety.sanitizeFormulas === false skips scanning this scope
+    const safetyObj = obj['safety'];
+    if (
+      safetyObj &&
+      typeof safetyObj === 'object' &&
+      (safetyObj as Record<string, unknown>)['sanitizeFormulas'] === false
+    ) {
+      return null;
+    }
+
+    for (const [key, entry] of Object.entries(obj)) {
       const violation = scanMutationRequest(entry, `${path}.${key}`, key, visited, depth + 1);
       if (violation) return violation;
     }

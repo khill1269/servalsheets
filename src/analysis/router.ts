@@ -349,21 +349,6 @@ export class AnalysisRouter {
   }
 
   /**
-   * Route create actions
-   * Fast path - creation is API calls, not analysis
-   */
-  private routeCreateAction(_request: SheetsAnalyzeInput, _cellCount: number): RoutingDecision {
-    return {
-      path: 'fast',
-      reason: 'Chart/pivot creation via Google Sheets API',
-      estimatedDuration: 2,
-      cacheable: false, // Creates new entities
-      requiresSampling: false,
-      requiresTasks: false,
-    };
-  }
-
-  /**
    * Route explain_analysis action
    * Always uses AI for conversational explanations
    */

@@ -867,7 +867,14 @@ export const ChartPositionSchema = z
           const rowIndex = Number(anchor['rowIndex']) || 0;
           const colIndex = Number(anchor['columnIndex']) || 0;
           const cellRef = `${indexToColumnLetter(colIndex)}${rowIndex + 1}`;
-          return { ...pos, anchorCell: cellRef };
+          // Extract sheetId from the anchor object if not already at top level
+          const sheetId =
+            pos['sheetId'] !== undefined
+              ? pos['sheetId']
+              : anchor['sheetId'] !== undefined
+                ? anchor['sheetId']
+                : undefined;
+          return { ...pos, anchorCell: cellRef, ...(sheetId !== undefined ? { sheetId } : {}) };
         }
       }
 
@@ -875,6 +882,7 @@ export const ChartPositionSchema = z
     },
     z.object({
       anchorCell: z.string(),
+      sheetId: z.coerce.number().int().optional().describe('Sheet ID for the chart position'),
       offsetX: z.coerce.number().optional().default(0),
       offsetY: z.coerce.number().optional().default(0),
       width: z.coerce.number().optional().default(600),

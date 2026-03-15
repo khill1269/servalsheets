@@ -75,33 +75,49 @@ const QueueActionSchema = CommonFieldsSchema.extend({
         'All queued operations with this ID are executed atomically on commit. ' +
         'Example: "txn_1709123456789_abc123"'
     ),
-  operation: z
-    .object({
-      tool: z
-        .string()
-        .min(1)
-        .max(100, 'Tool name exceeds 100 character limit')
-        .describe('Tool name (e.g., sheets_data, sheets_format)'),
-      action: z
-        .string()
-        .min(1)
-        .max(100, 'Action name exceeds 100 character limit')
-        .describe('Action name (e.g., write, update, format)'),
-      params: z
-        .record(
-          z.string(),
-          z.union([
+  operation: z.preprocess(
+    (val) => {
+      if (typeof val !== 'object' || val === null) return val;
+      const op = val as Record<string, unknown>;
+      // If tool and action are present but params is absent, collect remaining fields into params
+      if (
+        typeof op['tool'] === 'string' &&
+        typeof op['action'] === 'string' &&
+        op['params'] === undefined
+      ) {
+        const { tool, action, ...rest } = op;
+        return { tool, action, params: rest };
+      }
+      return val;
+    },
+    z
+      .object({
+        tool: z
+          .string()
+          .min(1)
+          .max(100, 'Tool name exceeds 100 character limit')
+          .describe('Tool name (e.g., sheets_data, sheets_format)'),
+        action: z
+          .string()
+          .min(1)
+          .max(100, 'Action name exceeds 100 character limit')
+          .describe('Action name (e.g., write, update, format)'),
+        params: z
+          .record(
             z.string(),
-            z.number(),
-            z.boolean(),
-            z.null(),
-            z.array(z.any()),
-            z.record(z.string(), z.any()),
-          ])
-        )
-        .describe('Operation parameters (string, number, boolean, null, array, or object)'),
-    })
-    .describe('Operation to queue for batch execution'),
+            z.union([
+              z.string(),
+              z.number(),
+              z.boolean(),
+              z.null(),
+              z.array(z.any()),
+              z.record(z.string(), z.any()),
+            ])
+          )
+          .describe('Operation parameters (string, number, boolean, null, array, or object)'),
+      })
+      .describe('Operation to queue for batch execution')
+  ),
 });
 
 const CommitActionSchema = CommonFieldsSchema.extend({

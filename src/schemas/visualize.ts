@@ -495,29 +495,101 @@ const PivotRefreshActionSchema = CommonFieldsSchema.extend({
  * - Each action has only its required fields (no optional field pollution)
  * - JSON Schema conversion handled by src/utils/schema-compat.ts
  */
+const normalizeVisualizeRequest = (val: unknown): unknown => {
+  if (typeof val !== 'object' || val === null) return val;
+  const input = { ...(val as Record<string, unknown>) };
+  const action = input['action'];
+
+  if (action === 'chart_create') {
+    // Normalize data.chartType to uppercase and move data.title/legendPosition to options
+    if (input['data'] && typeof input['data'] === 'object') {
+      const data = { ...(input['data'] as Record<string, unknown>) };
+      if (typeof data['chartType'] === 'string') {
+        const upperChartType = data['chartType'].toUpperCase();
+        data['chartType'] = upperChartType;
+        // Also promote to top-level chartType if absent
+        if (input['chartType'] === undefined) {
+          input['chartType'] = upperChartType;
+        }
+        delete data['chartType'];
+      }
+      if (data['title'] !== undefined || data['legendPosition'] !== undefined) {
+        const existingOptions =
+          typeof input['options'] === 'object' && input['options'] !== null
+            ? { ...(input['options'] as Record<string, unknown>) }
+            : {};
+        if (data['title'] !== undefined) {
+          existingOptions['title'] = data['title'];
+          delete data['title'];
+        }
+        if (data['legendPosition'] !== undefined) {
+          existingOptions['legendPosition'] = data['legendPosition'];
+          delete data['legendPosition'];
+        }
+        input['options'] = existingOptions;
+      }
+      input['data'] = data;
+    }
+    // Normalize top-level chartType to uppercase if present
+    if (typeof input['chartType'] === 'string') {
+      input['chartType'] = input['chartType'].toUpperCase();
+    }
+    // Move top-level sourceRange string into data.sourceRange as { a1: ... }
+    if (
+      typeof input['sourceRange'] === 'string' &&
+      input['data'] &&
+      typeof input['data'] === 'object'
+    ) {
+      const data = { ...(input['data'] as Record<string, unknown>) };
+      if (data['sourceRange'] === undefined) {
+        data['sourceRange'] = { a1: input['sourceRange'] };
+        input['data'] = data;
+      }
+      delete input['sourceRange'];
+    }
+  }
+
+  if (action === 'chart_move') {
+    // Handle destinationCell/destinationSheetId aliases → position
+    if (input['destinationCell'] !== undefined && input['position'] === undefined) {
+      input['position'] = {
+        anchorCell: input['destinationCell'],
+        sheetId: input['destinationSheetId'],
+      };
+      delete input['destinationCell'];
+      delete input['destinationSheetId'];
+    }
+  }
+
+  return input;
+};
+
 export const SheetsVisualizeInputSchema = z.object({
-  request: z.discriminatedUnion('action', [
-    // Chart actions (11)
-    ChartCreateActionSchema,
-    SuggestChartActionSchema,
-    ChartUpdateActionSchema,
-    ChartDeleteActionSchema,
-    ChartListActionSchema,
-    ChartGetActionSchema,
-    ChartMoveActionSchema,
-    ChartResizeActionSchema,
-    ChartUpdateDataRangeActionSchema,
-    ChartAddTrendlineActionSchema,
-    ChartRemoveTrendlineActionSchema,
-    // Pivot actions (7)
-    PivotCreateActionSchema,
-    SuggestPivotActionSchema,
-    PivotUpdateActionSchema,
-    PivotDeleteActionSchema,
-    PivotListActionSchema,
-    PivotGetActionSchema,
-    PivotRefreshActionSchema,
-  ]),
+  request: z.preprocess(
+    normalizeVisualizeRequest,
+    z.discriminatedUnion('action', [
+      // Chart actions (11)
+      ChartCreateActionSchema,
+      SuggestChartActionSchema,
+      ChartUpdateActionSchema,
+      ChartDeleteActionSchema,
+      ChartListActionSchema,
+      ChartGetActionSchema,
+      ChartMoveActionSchema,
+      ChartResizeActionSchema,
+      ChartUpdateDataRangeActionSchema,
+      ChartAddTrendlineActionSchema,
+      ChartRemoveTrendlineActionSchema,
+      // Pivot actions (7)
+      PivotCreateActionSchema,
+      SuggestPivotActionSchema,
+      PivotUpdateActionSchema,
+      PivotDeleteActionSchema,
+      PivotListActionSchema,
+      PivotGetActionSchema,
+      PivotRefreshActionSchema,
+    ])
+  ),
 });
 
 // ============================================================================

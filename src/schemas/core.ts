@@ -350,11 +350,18 @@ const UpdateSheetActionSchema = CommonFieldsSchema.extend({
     'Tab color as RGB or theme color (Google Sheets API v4 ColorStyle)'
   ),
   hidden: z.boolean().optional().describe('Hide/show the sheet'),
-  rightToLeft: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe('Right-to-left text direction (default: false)'),
+  rightToLeft: z.boolean().optional().describe('Right-to-left text direction'),
+  frozenRowCount: z.number().optional(),
+  frozenColumnCount: z.number().optional(),
+}).superRefine((input, ctx) => {
+  if (input.frozenRowCount !== undefined || input.frozenColumnCount !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        'Use sheets_dimensions action:"freeze" to update frozen rows/columns. The update_sheet action does not support frozenRowCount or frozenColumnCount.',
+      path: ['frozenRowCount'],
+    });
+  }
 });
 
 const CopySheetToActionSchema = CommonFieldsSchema.extend({
