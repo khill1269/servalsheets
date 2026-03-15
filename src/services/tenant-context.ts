@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import { logger } from '../utils/logger.js';
+import { NotFoundError } from '../core/errors.js';
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
@@ -95,7 +96,7 @@ class InMemoryTenantStorage implements TenantStorage {
   async update(tenantId: string, updates: Partial<TenantMetadata>): Promise<TenantMetadata> {
     const existing = this.tenants.get(tenantId);
     if (!existing) {
-      throw new Error(`Tenant not found: ${tenantId}`);
+      throw new NotFoundError('tenant', tenantId);
     }
     const updated: TenantMetadata = {
       ...existing,
@@ -109,7 +110,7 @@ class InMemoryTenantStorage implements TenantStorage {
   async delete(tenantId: string): Promise<void> {
     const tenant = this.tenants.get(tenantId);
     if (!tenant) {
-      throw new Error(`Tenant not found: ${tenantId}`);
+      throw new NotFoundError('tenant', tenantId);
     }
     // Soft delete - mark as deleted
     await this.update(tenantId, { status: 'deleted' });

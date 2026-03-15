@@ -108,8 +108,10 @@ export class SheetResolver {
    */
   private getSheetsApi(): sheets_v4.Sheets {
     if (!this.sheetsApi) {
-      throw new Error(
-        'SheetResolver not initialized with sheetsApi. Call constructor with { sheetsApi } options.'
+      throw new SheetResolutionError(
+        'SheetResolver not initialized with sheetsApi. Call constructor with { sheetsApi } options.',
+        'NOT_FOUND',
+        {}
       );
     }
     return this.sheetsApi;
@@ -442,7 +444,11 @@ export class SheetResolver {
       const columnIndex = await this.findColumnByHeader(spreadsheetId, sheet, column, _auth);
 
       if (columnIndex === -1) {
-        throw new Error(`Column "${column}" not found in sheet "${sheet}"`);
+        throw new SheetResolutionError(
+          `Column "${column}" not found in sheet "${sheet}"`,
+          'RANGE_NOT_FOUND',
+          { column, sheetName: sheet }
+        );
       }
 
       const columnLetter = this.columnIndexToLetter(columnIndex);
@@ -486,7 +492,9 @@ export class SheetResolver {
     const namedRange = response.data.namedRanges?.find((nr) => nr.name === range);
 
     if (!namedRange || !namedRange.range) {
-      throw new Error(`Named range "${range}" not found`);
+      throw new SheetResolutionError(`Named range "${range}" not found`, 'RANGE_NOT_FOUND', {
+        range: String(range),
+      });
     }
 
     // Convert GridRange to A1 notation

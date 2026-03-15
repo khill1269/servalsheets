@@ -19,6 +19,7 @@
 
 import type { drive_v3 } from 'googleapis';
 import { logger } from '../utils/logger.js';
+import { NotFoundError, ServiceError } from '../core/errors.js';
 import type { TemplateDefinition, TemplateSummary, TemplateSheet } from '../schemas/templates.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -105,8 +106,11 @@ export class TemplateStore {
       return templates;
     } catch (error) {
       logger.error('Failed to list templates', { error });
-      throw new Error(
-        `Failed to list templates: ${error instanceof Error ? error.message : String(error)}`
+      throw new ServiceError(
+        `Failed to list templates: ${error instanceof Error ? error.message : String(error)}`,
+        'INTERNAL_ERROR',
+        'TemplateStore',
+        true
       );
     }
   }
@@ -152,7 +156,13 @@ export class TemplateStore {
         return null;
       }
       logger.error('Failed to get template', { templateId, error });
-      throw new Error(`Failed to get template: ${err.message}`);
+      throw new ServiceError(
+        `Failed to get template: ${err.message ?? String(error)}`,
+        'INTERNAL_ERROR',
+        'TemplateStore',
+        true,
+        { templateId }
+      );
     }
   }
 
@@ -210,8 +220,11 @@ export class TemplateStore {
       };
     } catch (error) {
       logger.error('Failed to create template', { error });
-      throw new Error(
-        `Failed to create template: ${error instanceof Error ? error.message : String(error)}`
+      throw new ServiceError(
+        `Failed to create template: ${error instanceof Error ? error.message : String(error)}`,
+        'INTERNAL_ERROR',
+        'TemplateStore',
+        true
       );
     }
   }
@@ -226,7 +239,7 @@ export class TemplateStore {
     // Get existing template
     const existing = await this.get(templateId);
     if (!existing) {
-      throw new Error(`Template not found: ${templateId}`);
+      throw new NotFoundError('template', templateId);
     }
 
     // Merge updates
@@ -275,8 +288,12 @@ export class TemplateStore {
       return updated;
     } catch (error) {
       logger.error('Failed to update template', { templateId, error });
-      throw new Error(
-        `Failed to update template: ${error instanceof Error ? error.message : String(error)}`
+      throw new ServiceError(
+        `Failed to update template: ${error instanceof Error ? error.message : String(error)}`,
+        'INTERNAL_ERROR',
+        'TemplateStore',
+        true,
+        { templateId }
       );
     }
   }
@@ -300,7 +317,13 @@ export class TemplateStore {
         return false; // Already deleted
       }
       logger.error('Failed to delete template', { templateId, error });
-      throw new Error(`Failed to delete template: ${err.message}`);
+      throw new ServiceError(
+        `Failed to delete template: ${err.message ?? String(error)}`,
+        'INTERNAL_ERROR',
+        'TemplateStore',
+        true,
+        { templateId }
+      );
     }
   }
 
@@ -403,8 +426,11 @@ export class TemplateStore {
       logger.info('Created templates folder in appDataFolder', { folderId: this.folderId });
     } catch (error) {
       logger.error('Failed to ensure templates folder', { error });
-      throw new Error(
-        `Failed to initialize template storage: ${error instanceof Error ? error.message : String(error)}`
+      throw new ServiceError(
+        `Failed to initialize template storage: ${error instanceof Error ? error.message : String(error)}`,
+        'INTERNAL_ERROR',
+        'TemplateStore',
+        false
       );
     }
   }

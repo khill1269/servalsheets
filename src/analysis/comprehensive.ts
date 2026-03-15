@@ -27,6 +27,7 @@ import type { sheets_v4 } from 'googleapis';
 import { TieredRetrieval, type SheetMetadata } from './tiered-retrieval.js';
 import { getCacheAdapter } from '../utils/cache-adapter.js';
 import { logger } from '../utils/logger.js';
+import { NotFoundError } from '../core/errors.js';
 import {
   MAX_RESPONSE_SIZE_BYTES,
   // MAX_SHEETS_INLINE, // Reserved for future pagination use
@@ -357,7 +358,10 @@ export class ComprehensiveAnalyzer {
         : metadata.sheets;
 
     if (sheetsToAnalyze.length === 0) {
-      throw new Error(`No sheets found to analyze`);
+      throw new NotFoundError(
+        'sheet',
+        this.config.sheetId !== undefined ? String(this.config.sheetId) : 'any'
+      );
     }
 
     // Parse cursor for pagination (format: "sheet:N")

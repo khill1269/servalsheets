@@ -17,6 +17,7 @@
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
 import type { SheetResolver, ResolvedSheet } from './sheet-resolver.js';
+import { ValidationError } from '../core/errors.js';
 import type {
   BulkUpdateOptions,
   BulkUpdateResult,
@@ -336,7 +337,12 @@ export class CompositeOperationsService {
     );
 
     if (keyColIndex < 0) {
-      throw new Error(`Key column "${keyColumn}" not found in sheet`);
+      throw new ValidationError(
+        `Key column "${keyColumn}" not found in sheet`,
+        'keyColumn',
+        undefined,
+        { keyColumn }
+      );
     }
 
     // Build column index map
@@ -518,7 +524,9 @@ export class CompositeOperationsService {
         (h: unknown) => String(h ?? '').toLowerCase() === col.toLowerCase()
       );
       if (idx < 0) {
-        throw new Error(`Key column "${col}" not found`);
+        throw new ValidationError(`Key column "${col}" not found`, 'keyColumns', undefined, {
+          column: col,
+        });
       }
       return idx;
     });

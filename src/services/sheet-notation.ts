@@ -1,3 +1,5 @@
+import { RangeResolutionError } from '../core/errors.js';
+
 export interface A1NotationComponents {
   sheetName?: string;
   startColumn?: string;
@@ -110,7 +112,9 @@ export function parseA1Notation(notation: string): A1NotationComponents {
     const end = parts[1];
 
     if (!start || !end) {
-      throw new Error(`Invalid A1 notation: ${notation}`);
+      throw new RangeResolutionError(`Invalid A1 notation: ${notation}`, 'INVALID_RANGE', {
+        range: notation,
+      });
     }
 
     if (/^\d+$/.test(start) && /^\d+$/.test(end)) {
@@ -123,7 +127,9 @@ export function parseA1Notation(notation: string): A1NotationComponents {
 
     const startMatch = start.match(/^([A-Z]+)(\d+)?$/);
     if (!startMatch) {
-      throw new Error(`Invalid A1 notation: ${notation}`);
+      throw new RangeResolutionError(`Invalid A1 notation: ${notation}`, 'INVALID_RANGE', {
+        range: notation,
+      });
     }
 
     const startColumn = startMatch[1];
@@ -131,7 +137,9 @@ export function parseA1Notation(notation: string): A1NotationComponents {
 
     const endMatch = end.match(/^([A-Z]+)(\d+)?$/);
     if (!endMatch) {
-      throw new Error(`Invalid A1 notation: ${notation}`);
+      throw new RangeResolutionError(`Invalid A1 notation: ${notation}`, 'INVALID_RANGE', {
+        range: notation,
+      });
     }
 
     const endColumn = endMatch[1];
@@ -148,7 +156,9 @@ export function parseA1Notation(notation: string): A1NotationComponents {
 
   const match = rangeStr.match(/^([A-Z]+)(\d+)?$/);
   if (!match) {
-    throw new Error(`Invalid A1 notation: ${notation}`);
+    throw new RangeResolutionError(`Invalid A1 notation: ${notation}`, 'INVALID_RANGE', {
+      range: notation,
+    });
   }
 
   return {
