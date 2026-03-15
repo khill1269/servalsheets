@@ -87,12 +87,11 @@ export interface SchemaValidatorConfig {
 export class SchemaValidator {
   private readonly discoveryClient: DiscoveryApiClient;
   private readonly schemaCache: SchemaCache;
-  private readonly strictMode: boolean;
 
   constructor(config: SchemaValidatorConfig = {}) {
     this.discoveryClient = config.discoveryClient ?? new DiscoveryApiClient();
     this.schemaCache = config.schemaCache ?? new SchemaCache();
-    this.strictMode = config.strictMode ?? false;
+    // config.strictMode reserved for future strict validation enforcement
   }
 
   /**

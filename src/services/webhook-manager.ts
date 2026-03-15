@@ -439,6 +439,38 @@ export class WebhookManager {
   }
 
   /**
+   * Store a Drive files.watch channel as a webhook record for tracking and renewal.
+   */
+  async storeWatchChannel(
+    channelId: string,
+    resourceId: string,
+    spreadsheetId: string,
+    webhookUrl: string,
+    expiresAt: number
+  ): Promise<void> {
+    if (!this.redis) return;
+    const record: WebhookRecord = {
+      webhookId: channelId,
+      channelId,
+      resourceId,
+      spreadsheetId,
+      webhookUrl,
+      eventTypes: ['sheet.update' as WebhookEventType],
+      createdAt: Date.now(),
+      expiresAt,
+      active: true,
+      deliveryCount: 0,
+      failureCount: 0,
+    };
+    await this.redis.set(
+      `webhook:${channelId}`,
+      JSON.stringify(record),
+      'PX',
+      expiresAt - Date.now()
+    );
+  }
+
+  /**
    * List webhooks (optionally filtered by spreadsheet ID)
    */
   async list(spreadsheetId?: string, activeOnly?: boolean): Promise<WebhookInfo[]> {

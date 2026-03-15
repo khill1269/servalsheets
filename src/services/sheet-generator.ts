@@ -24,6 +24,7 @@ import type {
 import { assertSamplingConsent } from '../mcp/sampling.js';
 import { createRequestAbortError, getRequestContext } from '../utils/request-context.js';
 import { logger } from '../utils/logger.js';
+import { ServiceError, ValidationError } from '../core/errors.js';
 import { generateFallback } from './sheet-generator-fallback.js';
 import type { GenerateOptions, SheetDefinition } from './sheet-generator-types.js';
 
@@ -134,7 +135,11 @@ function withSamplingTimeout<T>(operation: SamplingOperation<T>): Promise<T> {
 
 function assertSamplingSupport(clientCapabilities: ClientCapabilities | undefined): void {
   if (!clientCapabilities?.sampling) {
-    throw new Error('Client does not support sampling capability');
+    throw new ServiceError(
+      'Client does not support sampling capability',
+      'INTERNAL_ERROR',
+      'SheetGeneratorService'
+    );
   }
 }
 
@@ -294,14 +299,17 @@ async function generateWithSampling(
 
 function validateDefinition(def: SheetDefinition): void {
   if (!def.title || typeof def.title !== 'string') {
-    throw new Error('Definition missing title');
+    throw new ValidationError('Definition missing title', 'title');
   }
   if (!Array.isArray(def.sheets) || def.sheets.length === 0) {
-    throw new Error('Definition must have at least one sheet');
+    throw new ValidationError('Definition must have at least one sheet', 'sheets');
   }
   for (const sheet of def.sheets) {
     if (!sheet.name || !Array.isArray(sheet.columns) || sheet.columns.length === 0) {
-      throw new Error(`Sheet "${sheet.name || 'unnamed'}" must have at least one column`);
+      throw new ValidationError(
+        `Sheet "${sheet.name || 'unnamed'}" must have at least one column`,
+        'columns'
+      );
     }
   }
 }

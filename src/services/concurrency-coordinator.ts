@@ -15,6 +15,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ValidationError } from '../core/errors.js';
 import {
   record429Error,
   recordConcurrencyAdjustment,
@@ -154,7 +155,6 @@ export class ConcurrencyCoordinator {
   private adjustmentTimer?: NodeJS.Timeout;
   private last429Timestamp: number | null = null;
   private adjustmentHistory: LimitAdjustment[] = [];
-  private manualLimitOverride: number | null = null;
 
   constructor(config?: Partial<ConcurrencyConfig>) {
     const maxConcurrent = config?.maxConcurrent ?? 25;
@@ -175,14 +175,16 @@ export class ConcurrencyCoordinator {
 
     // Validate configuration bounds
     if (this.config.minConcurrent! > this.config.maxConcurrent) {
-      throw new Error(
-        `Invalid configuration: minConcurrent (${this.config.minConcurrent}) cannot be greater than maxConcurrent (${this.config.maxConcurrent})`
+      throw new ValidationError(
+        `Invalid configuration: minConcurrent (${this.config.minConcurrent}) cannot be greater than maxConcurrent (${this.config.maxConcurrent})`,
+        'minConcurrent'
       );
     }
 
     if (this.config.maxConcurrent > this.config.maxConcurrentCeiling!) {
-      throw new Error(
-        `Invalid configuration: maxConcurrent (${this.config.maxConcurrent}) cannot be greater than maxConcurrentCeiling (${this.config.maxConcurrentCeiling})`
+      throw new ValidationError(
+        `Invalid configuration: maxConcurrent (${this.config.maxConcurrent}) cannot be greater than maxConcurrentCeiling (${this.config.maxConcurrentCeiling})`,
+        'maxConcurrent'
       );
     }
 
@@ -569,13 +571,12 @@ export class ConcurrencyCoordinator {
    */
   setManualLimit(limit: number): void {
     if (limit < 1 || limit > 100) {
-      throw new Error(`Manual limit must be between 1 and 100, got ${limit}`);
+      throw new ValidationError(`Manual limit must be between 1 and 100, got ${limit}`, 'limit');
     }
 
     const oldLimit = this.config.maxConcurrent;
     this.config.maxConcurrent = limit;
     this.metrics.currentLimit = limit;
-    this.manualLimitOverride = limit;
 
     logger.info('Manual concurrency limit set', {
       oldLimit,
@@ -588,7 +589,7 @@ export class ConcurrencyCoordinator {
    */
   setQuotaLimit(limit: number): void {
     if (limit < 0) {
-      throw new Error(`Quota limit must be non-negative, got ${limit}`);
+      throw new ValidationError(`Quota limit must be non-negative, got ${limit}`, 'limit');
     }
 
     this.quotaLimit = limit;

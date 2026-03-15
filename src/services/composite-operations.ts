@@ -17,7 +17,7 @@
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
 import type { SheetResolver, ResolvedSheet } from './sheet-resolver.js';
-import { ValidationError } from '../core/errors.js';
+import { ValidationError, ServiceError } from '../core/errors.js';
 import type {
   BulkUpdateOptions,
   BulkUpdateResult,
@@ -550,8 +550,6 @@ export class CompositeOperationsService {
       const existingRow = seen.get(keyValue);
       if (existingRow !== undefined) {
         const deleteRow = keep === 'first' ? i : existingRow;
-        // keepRow is the row we're keeping (opposite of deleteRow)
-        const _keepRow = keep === 'first' ? existingRow : i;
 
         if (keep === 'last') {
           duplicateRowSet.add(existingRow);
@@ -793,7 +791,11 @@ export function initializeCompositeOperations(
  */
 export function resetCompositeOperations(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetCompositeOperations() can only be called in test environment');
+    throw new ServiceError(
+      'resetCompositeOperations() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'CompositeOperations'
+    );
   }
   compositeOpsInstance = null;
 }

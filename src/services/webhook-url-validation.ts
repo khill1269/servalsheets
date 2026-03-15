@@ -1,6 +1,7 @@
 import dns from 'node:dns';
 import { logger } from '../utils/logger.js';
 import { getEnv } from '../config/env.js';
+import { ValidationError, ServiceError } from '../core/errors.js';
 
 /**
  * Check if an IPv4 address string is in a private/internal range.
@@ -51,34 +52,40 @@ export async function validateWebhookUrl(urlString: string): Promise<void> {
   try {
     parsed = new URL(urlString);
   } catch {
-    throw new Error(`Invalid webhook URL: ${urlString}`);
+    throw new ValidationError(`Invalid webhook URL: ${urlString}`, 'url');
   }
 
   if (parsed.protocol !== 'https:') {
-    throw new Error('Webhook URL must use HTTPS');
+    throw new ValidationError('Webhook URL must use HTTPS', 'url');
   }
 
   const hostname = parsed.hostname;
 
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
-    throw new Error('Webhook URL cannot target localhost');
+    throw new ValidationError('Webhook URL cannot target localhost', 'hostname');
   }
 
   if (/^\d+$/.test(hostname)) {
-    throw new Error('Webhook URL cannot use decimal IP encoding');
+    throw new ValidationError('Webhook URL cannot use decimal IP encoding', 'hostname');
   }
 
   if (/^0x[0-9a-fA-F]+$/.test(hostname)) {
-    throw new Error('Webhook URL cannot use hex IP encoding');
+    throw new ValidationError('Webhook URL cannot use hex IP encoding', 'hostname');
   }
 
   if (isPrivateIPv4(hostname)) {
-    throw new Error('Webhook URL cannot target private/internal IP addresses');
+    throw new ValidationError(
+      'Webhook URL cannot target private/internal IP addresses',
+      'hostname'
+    );
   }
 
   if (hostname.startsWith('[') || hostname.includes(':')) {
     if (isPrivateIPv6(hostname)) {
-      throw new Error('Webhook URL cannot target private/internal IPv6 addresses');
+      throw new ValidationError(
+        'Webhook URL cannot target private/internal IPv6 addresses',
+        'hostname'
+      );
     }
   }
 
@@ -86,8 +93,9 @@ export async function validateWebhookUrl(urlString: string): Promise<void> {
     const addresses = await dns.promises.resolve(hostname);
     for (const address of addresses) {
       if (isPrivateIPv4(address) || isPrivateIPv6(address)) {
-        throw new Error(
-          'Webhook URL hostname resolves to a private/internal IP address (DNS rebinding protection)'
+        throw new ValidationError(
+          'Webhook URL hostname resolves to a private/internal IP address (DNS rebinding protection)',
+          'hostname'
         );
       }
     }
@@ -98,8 +106,10 @@ export async function validateWebhookUrl(urlString: string): Promise<void> {
 
     const dnsStrict = getEnv().WEBHOOK_DNS_STRICT;
     if (dnsStrict) {
-      throw new Error(
-        `DNS resolution failed for ${hostname} — webhook URL cannot be verified (set WEBHOOK_DNS_STRICT=false to allow in flaky DNS environments)`
+      throw new ServiceError(
+        `DNS resolution failed for ${hostname} — webhook URL cannot be verified (set WEBHOOK_DNS_STRICT=false to allow in flaky DNS environments)`,
+        'INTERNAL_ERROR',
+        'webhook-url-validation'
       );
     }
 

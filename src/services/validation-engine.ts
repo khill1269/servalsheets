@@ -17,6 +17,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
 import {
   ValidationRule,
   ValidationRuleType as _ValidationRuleType,
@@ -40,14 +41,12 @@ import { LRUCache } from 'lru-cache';
  */
 export class ValidationEngine {
   private config: Required<Omit<ValidationEngineConfig, 'googleClient'>>;
-  private googleClient?: ValidationEngineConfig['googleClient'];
   private stats: ValidationEngineStats;
   private rules: LRUCache<string, ValidationRule & { _registrationOrder?: number }>;
   private validationCache: LRUCache<string, { result: ValidationResult; timestamp: number }>;
   private ruleRegistrationSequence = 0;
 
   constructor(config: ValidationEngineConfig = {}) {
-    this.googleClient = config.googleClient;
     this.config = {
       enabled: config.enabled ?? true,
       validateBeforeOperations: config.validateBeforeOperations ?? true,
@@ -705,7 +704,11 @@ export function initValidationEngine(
  */
 export function getValidationEngine(): ValidationEngine {
   if (!validationEngineInstance) {
-    throw new Error('Validation engine not initialized. Call initValidationEngine() first.');
+    throw new ServiceError(
+      'Validation engine not initialized. Call initValidationEngine() first.',
+      'SERVICE_NOT_INITIALIZED',
+      'ValidationEngine'
+    );
   }
   return validationEngineInstance;
 }
@@ -716,7 +719,11 @@ export function getValidationEngine(): ValidationEngine {
  */
 export function resetValidationEngine(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetValidationEngine() can only be called in test environment');
+    throw new ServiceError(
+      'resetValidationEngine() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'ValidationEngine'
+    );
   }
   validationEngineInstance = null;
 }

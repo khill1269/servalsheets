@@ -15,6 +15,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ConfigError, ServiceError } from '../core/errors.js';
 
 /**
  * Discovery API schema definition
@@ -187,7 +188,10 @@ export class DiscoveryApiClient {
    */
   async getApiSchema(api: 'sheets' | 'drive', version: string): Promise<DiscoverySchema> {
     if (!this.enabled) {
-      throw new Error('Discovery API is not enabled. Set DISCOVERY_API_ENABLED=true');
+      throw new ConfigError(
+        'Discovery API is not enabled. Set DISCOVERY_API_ENABLED=true',
+        'DISCOVERY_API_ENABLED'
+      );
     }
 
     const cacheKey = `${api}-${version}`;
@@ -217,7 +221,11 @@ export class DiscoveryApiClient {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error(`Discovery API returned ${response.status}: ${response.statusText}`);
+        throw new ServiceError(
+          `Discovery API returned ${response.status}: ${response.statusText}`,
+          'INTERNAL_ERROR',
+          'DiscoveryApiClient'
+        );
       }
 
       const schema = (await response.json()) as DiscoverySchema;
@@ -243,10 +251,20 @@ export class DiscoveryApiClient {
       const err = error as { name?: string; message?: string };
 
       if (err.name === 'AbortError') {
-        throw new Error(`Discovery API request timed out after ${this.timeout}ms`);
+        throw new ServiceError(
+          `Discovery API request timed out after ${this.timeout}ms`,
+          'INTERNAL_ERROR',
+          'DiscoveryApiClient',
+          true
+        );
       }
 
-      throw new Error(`Failed to fetch Discovery schema: ${err.message}`);
+      throw new ServiceError(
+        `Failed to fetch Discovery schema: ${err.message}`,
+        'INTERNAL_ERROR',
+        'DiscoveryApiClient',
+        true
+      );
     }
   }
 
@@ -255,7 +273,10 @@ export class DiscoveryApiClient {
    */
   async listAvailableVersions(api: 'sheets' | 'drive'): Promise<string[]> {
     if (!this.enabled) {
-      throw new Error('Discovery API is not enabled. Set DISCOVERY_API_ENABLED=true');
+      throw new ConfigError(
+        'Discovery API is not enabled. Set DISCOVERY_API_ENABLED=true',
+        'DISCOVERY_API_ENABLED'
+      );
     }
 
     const listUrl = this.getApiListUrl(api);
@@ -273,7 +294,11 @@ export class DiscoveryApiClient {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error(`Discovery API returned ${response.status}: ${response.statusText}`);
+        throw new ServiceError(
+          `Discovery API returned ${response.status}: ${response.statusText}`,
+          'INTERNAL_ERROR',
+          'DiscoveryApiClient'
+        );
       }
 
       const data = (await response.json()) as {
@@ -292,10 +317,20 @@ export class DiscoveryApiClient {
       const err = error as { name?: string; message?: string };
 
       if (err.name === 'AbortError') {
-        throw new Error(`Discovery API request timed out after ${this.timeout}ms`);
+        throw new ServiceError(
+          `Discovery API request timed out after ${this.timeout}ms`,
+          'INTERNAL_ERROR',
+          'DiscoveryApiClient',
+          true
+        );
       }
 
-      throw new Error(`Failed to list API versions: ${err.message}`);
+      throw new ServiceError(
+        `Failed to list API versions: ${err.message}`,
+        'INTERNAL_ERROR',
+        'DiscoveryApiClient',
+        true
+      );
     }
   }
 

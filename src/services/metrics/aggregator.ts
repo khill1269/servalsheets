@@ -8,6 +8,7 @@
  */
 
 import { logger } from '../../utils/logger.js';
+import { ServiceError } from '../../core/errors.js';
 import { OperationMetricsService } from './operation-metrics.js';
 import { CacheMetricsService } from './cache-metrics.js';
 import { ApiMetricsService } from './api-metrics.js';
@@ -480,7 +481,11 @@ export function initMetricsService(options?: {
  */
 export function resetMetricsService(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetMetricsService() can only be called in test environment');
+    throw new ServiceError(
+      'resetMetricsService() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'MetricsService'
+    );
   }
   metricsService = null;
 }

@@ -10,6 +10,7 @@
 import Stripe from 'stripe';
 import { EventEmitter } from 'events';
 import { logger } from '../utils/logger.js';
+import { NotFoundError, ServiceError } from '../core/errors.js';
 import { getCostTracker, type CostBreakdown } from './cost-tracker.js';
 
 // ============================================================================
@@ -179,7 +180,7 @@ export class BillingIntegration extends EventEmitter {
     try {
       const customerId = this.getCustomerId(tenantId);
       if (!customerId) {
-        throw new Error(`No Stripe customer found for tenant: ${tenantId}`);
+        throw new NotFoundError('Stripe customer', tenantId);
       }
 
       const subscription = await this.stripe.subscriptions.create({
@@ -264,7 +265,11 @@ export class BillingIntegration extends EventEmitter {
       const subscription = await this.stripe.subscriptions.retrieve(subscriptionId);
       const firstItem = subscription.items.data[0];
       if (!firstItem) {
-        throw new Error('No subscription items found');
+        throw new ServiceError(
+          'No subscription items found',
+          'INTERNAL_ERROR',
+          'BillingIntegration'
+        );
       }
       await this.stripe.subscriptions.update(subscriptionId, {
         items: [
@@ -293,7 +298,7 @@ export class BillingIntegration extends EventEmitter {
     try {
       const customerId = this.getCustomerId(tenantId);
       if (!customerId) {
-        throw new Error(`No Stripe customer found for tenant: ${tenantId}`);
+        throw new NotFoundError('Stripe customer', tenantId);
       }
 
       // Get cost breakdown
@@ -469,7 +474,7 @@ export class BillingIntegration extends EventEmitter {
     try {
       const customerId = this.getCustomerId(tenantId);
       if (!customerId) {
-        throw new Error(`No Stripe customer found for tenant: ${tenantId}`);
+        throw new NotFoundError('Stripe customer', tenantId);
       }
 
       await this.stripe.paymentMethods.attach(paymentMethodId, {

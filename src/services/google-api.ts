@@ -255,8 +255,6 @@ export class GoogleApiClient {
   // Token validation cache to avoid excessive API calls
   private lastValidationResult?: { valid: boolean; error?: string };
   private lastValidationTime?: number;
-  // HTTP/2 connection reset tracking
-  private lastCredentialChangeTime?: number;
   private static readonly VALIDATION_CACHE_TTL_MS = 60 * 1000; // 1 minute (reduced from 5min to detect token invalidation faster)
 
   // HTTP/2 Connection Health Management
@@ -830,19 +828,6 @@ export class GoogleApiClient {
   }
 
   /**
-   * Stop keepalive interval. Called during cleanup/destroy.
-   *
-   * @internal
-   */
-  private stopKeepalive(): void {
-    if (this.keepaliveInterval) {
-      clearInterval(this.keepaliveInterval);
-      this.keepaliveInterval = undefined;
-      logger.debug('Keepalive stopped');
-    }
-  }
-
-  /**
    * Validate API schemas using Discovery API (optional)
    * Only runs if DISCOVERY_API_ENABLED environment variable is true
    */
@@ -1000,7 +985,6 @@ export class GoogleApiClient {
         // Reset HTTP agents to prevent GOAWAY errors
         const { env } = await import('../config/env.js');
         if (env.ENABLE_AUTO_CONNECTION_RESET) {
-          this.lastCredentialChangeTime = Date.now();
           await this.resetHttpAgents();
         }
       });
@@ -1404,7 +1388,6 @@ export class GoogleApiClient {
     void (async () => {
       const { env } = await import('../config/env.js');
       if (env.ENABLE_AUTO_CONNECTION_RESET) {
-        this.lastCredentialChangeTime = Date.now();
         await this.resetHttpAgents();
       }
     })();

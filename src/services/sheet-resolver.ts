@@ -18,6 +18,7 @@
 import type { sheets_v4 } from 'googleapis';
 import { LRUCache } from 'lru-cache';
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
 import {
   buildA1Notation as buildA1NotationImpl,
   calculateSheetNameSimilarity,
@@ -685,7 +686,11 @@ export function initializeSheetResolver(
  */
 export function resetSheetResolver(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetSheetResolver() can only be called in test environment');
+    throw new ServiceError(
+      'resetSheetResolver() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'SheetResolver'
+    );
   }
   sheetResolverInstance = null;
 }

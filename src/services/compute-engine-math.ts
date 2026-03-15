@@ -1,6 +1,7 @@
 /**
  * Shared math and formula helper functions for compute engine operations.
  */
+import { ValidationError } from '../core/errors.js';
 
 export function computeMedian(values: number[]): number | null {
   if (values.length === 0) return null;
@@ -198,7 +199,7 @@ export function determinant(m: number[][]): number {
 export function invertMatrix(m: number[][]): number[][] {
   const n = m.length;
   if (n === 0 || n !== (m[0]?.length ?? 0)) {
-    throw new Error('Matrix must be square');
+    throw new ValidationError('Matrix must be square', 'matrix');
   }
 
   const augmented = m.map((row, i) => {
@@ -211,7 +212,7 @@ export function invertMatrix(m: number[][]): number[][] {
 
     if (Math.abs(pivot) < 1e-12) {
       const swapIndex = augmented.findIndex((row, idx) => idx > i && Math.abs(row[i] ?? 0) > 1e-12);
-      if (swapIndex === -1) throw new Error('Matrix is singular');
+      if (swapIndex === -1) throw new ValidationError('Matrix is singular', 'matrix');
       const temp = augmented[i];
       augmented[i] = augmented[swapIndex]!;
       augmented[swapIndex] = temp!;

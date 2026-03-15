@@ -21,6 +21,7 @@
 
 import { logger } from '../utils/logger.js';
 import { BoundedCache } from '../utils/bounded-cache.js';
+import { NotFoundError } from '../core/errors.js';
 
 /**
  * Local confidence interfaces used by the store.
@@ -334,7 +335,7 @@ export class UnderstandingStore {
   ): SpreadsheetUnderstanding {
     const understanding = this.store.get(spreadsheetId);
     if (!understanding) {
-      throw new Error(`No understanding found for ${spreadsheetId}`);
+      throw new NotFoundError('understanding', spreadsheetId);
     }
 
     const prevConfidence = understanding.latestConfidence?.overallScore ?? 0;

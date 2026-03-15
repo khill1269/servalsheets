@@ -21,6 +21,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { logger } from '../utils/logger.js';
 import { validateWebhookUrl } from './webhook-url-validation.js';
+import { ServiceError, NotFoundError } from '../core/errors.js';
 
 /**
  * Configuration for a federated MCP server
@@ -136,15 +137,17 @@ export class FederatedMcpClient {
 
     // Check connection limit
     if (this.clients.size >= this.maxConnections) {
-      throw new Error(
-        `Max connections (${this.maxConnections}) exceeded. Close existing connections or increase limit.`
+      throw new ServiceError(
+        `Max connections (${this.maxConnections}) exceeded. Close existing connections or increase limit.`,
+        'INTERNAL_ERROR',
+        'FederatedMcpClient'
       );
     }
 
     // Get server configuration
     const config = this.serverConfigs.get(serverName);
     if (!config) {
-      throw new Error(`Server config not found: ${serverName}`);
+      throw new NotFoundError('server config', serverName);
     }
 
     // Build authentication headers
@@ -253,7 +256,12 @@ export class FederatedMcpClient {
             toolName,
             timeoutMs,
           });
-          throw new Error(`Remote call timed out after ${timeoutMs}ms`);
+          throw new ServiceError(
+            `Remote call timed out after ${timeoutMs}ms`,
+            'INTERNAL_ERROR',
+            'FederatedMcpClient',
+            true
+          );
         }
 
         // Re-throw other errors

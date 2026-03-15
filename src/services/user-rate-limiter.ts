@@ -110,7 +110,6 @@ export interface UserQuotaStats {
 export class UserRateLimiter {
   private redis: RedisClient | null;
   private config: UserRateLimitConfig;
-  private _redisWarningLogged = false;
   private _fallbackRequestCount = 0;
 
   /**
@@ -136,7 +135,6 @@ export class UserRateLimiter {
           'Set REDIS_URL to enable distributed rate limiting.',
         { component: 'UserRateLimiter' }
       );
-      this._redisWarningLogged = true;
     }
   }
 

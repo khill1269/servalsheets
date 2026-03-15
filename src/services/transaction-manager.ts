@@ -1504,13 +1504,6 @@ export class TransactionManager {
   }
 
   /**
-   * Delay helper
-   */
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  /**
    * Log message
    */
   private log(message: string): void {

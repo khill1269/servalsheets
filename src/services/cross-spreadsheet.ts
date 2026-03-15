@@ -11,6 +11,7 @@
 import type { sheets_v4 } from 'googleapis';
 import type { CachedSheetsApi } from './cached-sheets-api.js';
 import { executeWithRetry } from '../utils/retry.js';
+import { ValidationError, ServiceError } from '../core/errors.js';
 
 type CellValue = string | number | boolean | null;
 type Grid = CellValue[][];
@@ -167,8 +168,9 @@ export async function crossRead(
   }
   const primaryKeyIdx = primary.headers.indexOf(joinKey);
   if (primaryKeyIdx < 0) {
-    throw new Error(
-      `Join key "${joinKey}" not found in first source. Available headers: ${primary.headers.join(', ')}`
+    throw new ValidationError(
+      `Join key "${joinKey}" not found in first source. Available headers: ${primary.headers.join(', ')}`,
+      'joinKey'
     );
   }
 
@@ -328,8 +330,18 @@ export async function crossCompare(
     fetchSource(sheetsApi, cachedApi, source2),
   ]);
 
-  if (f1.error) throw new Error(`Source 1 fetch failed: ${f1.error}`);
-  if (f2.error) throw new Error(`Source 2 fetch failed: ${f2.error}`);
+  if (f1.error)
+    throw new ServiceError(
+      `Source 1 fetch failed: ${f1.error}`,
+      'INTERNAL_ERROR',
+      'CrossSpreadsheetService'
+    );
+  if (f2.error)
+    throw new ServiceError(
+      `Source 2 fetch failed: ${f2.error}`,
+      'INTERNAL_ERROR',
+      'CrossSpreadsheetService'
+    );
 
   const cols = compareColumns ?? dedupe([...f1.headers, ...f2.headers]).filter(Boolean);
 

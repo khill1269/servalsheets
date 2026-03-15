@@ -17,6 +17,7 @@
 import type { OAuth2Client } from 'google-auth-library';
 import { logger } from '../utils/logger.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
+import { ConfigError, ServiceError } from '../core/errors.js';
 
 export interface TokenStatus {
   hasAccessToken: boolean;
@@ -207,7 +208,7 @@ export class TokenManager {
    */
   async refreshToken(): Promise<boolean> {
     if (!this.oauthClient) {
-      throw new Error('OAuth client not configured');
+      throw new ConfigError('OAuth client not configured', 'GOOGLE_CLIENT_ID');
     }
 
     const startTime = Date.now();
@@ -460,7 +461,11 @@ export function setTokenManager(manager: TokenManager): void {
  */
 export function resetTokenManager(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetTokenManager() can only be called in test environment');
+    throw new ServiceError(
+      'resetTokenManager() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'TokenManager'
+    );
   }
   if (globalTokenManager) {
     globalTokenManager.stop();

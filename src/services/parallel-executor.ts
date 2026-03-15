@@ -21,6 +21,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
 import { getTracer } from '../utils/tracing.js';
 import { getConcurrencyCoordinator } from './concurrency-coordinator.js';
 
@@ -312,7 +313,11 @@ export class ParallelExecutor {
     const failures = results.filter((r) => !r.success);
     if (failures.length > 0) {
       const errorMessages = failures.map((f) => `${f.id}: ${f.error?.message}`).join('; ');
-      throw new Error(`${failures.length} task(s) failed: ${errorMessages}`);
+      throw new ServiceError(
+        `${failures.length} task(s) failed: ${errorMessages}`,
+        'INTERNAL_ERROR',
+        'ParallelExecutor'
+      );
     }
 
     return results.map((r) => r.result!);
@@ -402,7 +407,11 @@ export function setParallelExecutor(executor: ParallelExecutor): void {
  */
 export function resetParallelExecutor(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetParallelExecutor() can only be called in test environment');
+    throw new ServiceError(
+      'resetParallelExecutor() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'ParallelExecutor'
+    );
   }
   parallelExecutor = null;
 }

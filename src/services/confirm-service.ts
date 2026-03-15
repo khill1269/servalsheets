@@ -15,6 +15,7 @@
  * if (approved) executeOperation();
  */
 import { getActionAnnotation } from '../schemas/annotations.js';
+import { ServiceError } from '../core/errors.js';
 
 /**
  * Risk level for operations
@@ -488,7 +489,11 @@ export function getConfirmationService(): ConfirmationService {
  */
 export function resetConfirmationService(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetConfirmationService() can only be called in test environment');
+    throw new ServiceError(
+      'resetConfirmationService() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'ConfirmationService'
+    );
   }
   confirmationService = null;
 }

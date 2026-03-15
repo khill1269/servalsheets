@@ -53,6 +53,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
 import { UserProfileManager, type UserProfile } from './user-profile-manager.js';
 import { UnderstandingStore } from './understanding-store.js';
 
@@ -359,9 +360,11 @@ export class SessionContextManager {
    */
   requireActiveSpreadsheet(): SpreadsheetContext {
     if (!this.state.activeSpreadsheet) {
-      throw new Error(
+      throw new ServiceError(
         'No active spreadsheet. Please specify which spreadsheet to work with, ' +
-          "or say 'open [spreadsheet name]' to set one as active."
+          "or say 'open [spreadsheet name]' to set one as active.",
+        'INTERNAL_ERROR',
+        'SessionContext'
       );
     }
     return this.state.activeSpreadsheet;

@@ -14,6 +14,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
 import { getWebhookQueue, type WebhookDeliveryJob } from './webhook-queue.js';
 import { getWebhookManager } from './webhook-manager.js';
 import { recordWebhookDelivery } from '../observability/metrics.js';
@@ -389,7 +390,11 @@ export function initWebhookWorker(config?: Partial<WebhookWorkerConfig>): void {
  */
 export function getWebhookWorker(): WebhookWorker {
   if (!webhookWorker) {
-    throw new Error('Webhook worker not initialized');
+    throw new ServiceError(
+      'Webhook worker not initialized',
+      'SERVICE_NOT_INITIALIZED',
+      'WebhookWorker'
+    );
   }
   return webhookWorker;
 }

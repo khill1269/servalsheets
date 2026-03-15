@@ -22,6 +22,7 @@ import type {
 } from '../types/history.js';
 import { logger } from '../utils/logger.js';
 import { BoundedCache } from '../utils/bounded-cache.js';
+import { ServiceError } from '../core/errors.js';
 
 /** Wrapper for operation ID arrays (required for BoundedCache object constraint) */
 interface OperationStack {
@@ -570,7 +571,11 @@ export function setHistoryService(service: HistoryService): void {
  */
 export function resetHistoryService(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetHistoryService() can only be called in test environment');
+    throw new ServiceError(
+      'resetHistoryService() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'HistoryService'
+    );
   }
   historyService = null;
 }

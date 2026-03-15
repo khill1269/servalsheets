@@ -13,6 +13,7 @@
 
 import { logger } from '../utils/logger.js';
 import { executeWithRetry } from '../utils/retry.js';
+import { AuthenticationError, ServiceError } from '../core/errors.js';
 import type { GoogleApiClient } from './google-api.js';
 
 interface ActiveSubscription {
@@ -46,7 +47,7 @@ export class WorkspaceEventsService {
       const result = await this.googleClient.oauth2.getAccessToken();
       const token = result?.token ?? credentials?.access_token;
       if (!token) {
-        throw new Error('Workspace Events API requires an OAuth access token');
+        throw new AuthenticationError('Workspace Events API requires an OAuth access token');
       }
       return token;
     }
@@ -144,8 +145,11 @@ export class WorkspaceEventsService {
       logger.info('Workspace Events subscription created', { id: sub.id, spreadsheetId });
       return sub.id;
     } catch (err) {
-      throw new Error(
-        `Failed to create Workspace Events subscription: ${err instanceof Error ? err.message : String(err)}`
+      throw new ServiceError(
+        `Failed to create Workspace Events subscription: ${err instanceof Error ? err.message : String(err)}`,
+        'INTERNAL_ERROR',
+        'WorkspaceEvents',
+        true
       );
     }
   }

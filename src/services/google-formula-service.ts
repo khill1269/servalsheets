@@ -45,7 +45,7 @@ export interface FormulaEvalResult {
  */
 export class GoogleFormulaService {
   constructor(
-    private sheetsApi: sheets_v4.Sheets,
+    _sheetsApi: sheets_v4.Sheets,
     private scriptApi: script_v1.Script
   ) {}
 

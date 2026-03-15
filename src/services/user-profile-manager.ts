@@ -10,6 +10,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { DEFAULT_PROFILE_STORAGE_DIR } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import { DataError } from '../core/errors.js';
 
 // ============================================================================
 // ISSUE-102: Optional AES-256-GCM encryption at rest
@@ -42,7 +43,8 @@ function decryptProfileData(input: string): string {
       tag: string;
       data: string;
     };
-    if (v !== 1) throw new Error(`Unsupported encryption version: ${String(v)}`);
+    if (v !== 1)
+      throw new DataError(`Unsupported encryption version: ${String(v)}`, 'VERSION_MISMATCH');
     const key = Buffer.from(ENCRYPTION_KEY_HEX, 'hex');
     const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64'));
     decipher.setAuthTag(Buffer.from(tag, 'base64'));

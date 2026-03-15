@@ -14,6 +14,8 @@
  * // { patterns: [...], insights: [...], recommendations: [...], confidence: 0.92 }
  */
 
+import { ServiceError } from '../core/errors.js';
+
 /**
  * Analysis type options
  */
@@ -167,6 +169,7 @@ Format your response as JSON with this structure:
       speedPriority: 0.5,
     },
     maxTokens: request.maxTokens ?? 4096,
+    includeContext: 'thisServer' as const,
   };
 }
 
@@ -516,7 +519,11 @@ export function getSamplingAnalysisService(): SamplingAnalysisService {
  */
 export function resetSamplingAnalysisService(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetSamplingAnalysisService() can only be called in test environment');
+    throw new ServiceError(
+      'resetSamplingAnalysisService() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'SamplingAnalysisService'
+    );
   }
   samplingAnalysisService = null;
 }

@@ -169,6 +169,7 @@ export class CacheInvalidationGraph {
     rules['sheets_format.set_validation'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.clear_validation'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.get_validation'] = { invalidates: [] }; // Read-only
+    rules['sheets_format.build_dependent_dropdown'] = { invalidates: ['metadata:*'] };
 
     // ========================================================================
     // sheets_dimensions (28 actions)

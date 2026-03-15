@@ -18,8 +18,19 @@ export interface QualityWarning {
   column?: string;
   detail: string;
   fix: string;
+  fixAction?: {
+    tool: string;
+    action: string;
+    params: Record<string, unknown>;
+  };
   severity: 'info' | 'warning';
 }
+
+type QualityScanContext = {
+  tool: string;
+  action: string;
+  range: string;
+};
 
 // Regex patterns for date format detection
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
@@ -54,6 +65,65 @@ function getColumnName(values: CellValue[][], colIndex: number): string {
     return String(header);
   }
   return getColumnLetter(colIndex);
+}
+
+function buildFixAction(
+  warning: QualityWarning,
+  context: QualityScanContext
+): QualityWarning['fixAction'] | undefined {
+  if (!context.range) {
+    return undefined;
+  }
+
+  switch (warning.type) {
+    case 'empty_required_cells':
+      return {
+        tool: 'sheets_fix',
+        action: 'fill_missing',
+        params: {
+          action: 'fill_missing',
+          range: context.range,
+          strategy: 'forward',
+        },
+      };
+    case 'mixed_types':
+    case 'inconsistent_formats':
+      return {
+        tool: 'sheets_fix',
+        action: 'standardize_formats',
+        params: {
+          action: 'standardize_formats',
+          range: context.range,
+        },
+      };
+    case 'duplicate_rows':
+      return {
+        tool: 'sheets_fix',
+        action: 'clean',
+        params: {
+          action: 'clean',
+          range: context.range,
+          rules: ['remove_duplicates'],
+          mode: 'preview',
+        },
+      };
+    case 'outliers':
+      return {
+        tool: 'sheets_fix',
+        action: 'detect_anomalies',
+        params: {
+          action: 'detect_anomalies',
+          range: context.range,
+        },
+      };
+    default:
+      return undefined;
+  }
+}
+
+function attachFixAction(warning: QualityWarning, context: QualityScanContext): QualityWarning {
+  const fixAction = buildFixAction(warning, context);
+  return fixAction ? { ...warning, fixAction } : warning;
 }
 
 /**
@@ -271,9 +341,8 @@ export function detectInconsistentFormats(values: CellValue[][]): QualityWarning
  */
 export function scanResponseQualitySync(
   values: CellValue[][],
-  context: { tool: string; action: string; range: string }
+  context: QualityScanContext
 ): QualityWarning[] {
-  void context;
   const allWarnings: QualityWarning[] = [];
   const checkers: Array<() => QualityWarning[]> = [
     () => detectEmptyRequiredCells(values),
@@ -290,7 +359,7 @@ export function scanResponseQualitySync(
     }
   }
   allWarnings.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === 'warning' ? -1 : 1));
-  return allWarnings.slice(0, 5);
+  return allWarnings.slice(0, 5).map((warning) => attachFixAction(warning, context));
 }
 
 /**
@@ -300,10 +369,8 @@ export function scanResponseQualitySync(
  */
 export async function scanResponseQuality(
   values: CellValue[][],
-  context: { tool: string; action: string; range: string }
+  context: QualityScanContext
 ): Promise<QualityWarning[]> {
-  void context; // context reserved for future filtering/logging
-
   const allWarnings: QualityWarning[] = [];
 
   const checkers: Array<() => QualityWarning[]> = [
@@ -329,5 +396,5 @@ export async function scanResponseQuality(
     return a.severity === 'warning' ? -1 : 1;
   });
 
-  return allWarnings.slice(0, 5);
+  return allWarnings.slice(0, 5).map((warning) => attachFixAction(warning, context));
 }

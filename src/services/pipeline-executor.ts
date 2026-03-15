@@ -12,6 +12,8 @@
  *   4. No automatic rollback — caller is responsible (use sheets_history.undo).
  */
 
+import { ValidationError } from '../core/errors.js';
+
 // ============================================================================
 // Public types
 // ============================================================================
@@ -143,10 +145,13 @@ function buildExecutionWaves(steps: PipelineStep[]): PipelineStep[][] {
   for (const step of steps) {
     for (const dep of step.dependsOn ?? []) {
       if (!stepMap.has(dep)) {
-        throw new Error(`Step "${step.id}" depends on unknown step "${dep}"`);
+        throw new ValidationError(
+          `Step "${step.id}" depends on unknown step "${dep}"`,
+          'dependsOn'
+        );
       }
       if (dep === step.id) {
-        throw new Error(`Step "${step.id}" depends on itself`);
+        throw new ValidationError(`Step "${step.id}" depends on itself`, 'dependsOn');
       }
     }
   }
@@ -175,7 +180,10 @@ function buildExecutionWaves(steps: PipelineStep[]): PipelineStep[][] {
       }
     }
     if (wave.length === 0) {
-      throw new Error('Cycle detected in pipeline — check dependsOn references');
+      throw new ValidationError(
+        'Cycle detected in pipeline — check dependsOn references',
+        'dependsOn'
+      );
     }
     waves.push(wave);
     for (const step of wave) {
