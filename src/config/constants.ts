@@ -213,7 +213,7 @@ export const MAX_PAGE_SIZE = 50;
  *
  * Benefits:
  * - Reduces initial tools/list payload from ~231KB to ~5KB
- * - All 22 tools available immediately
+ * - All 25 tools available immediately
  * - Claude fetches full schema only when needed via resources
  * - Optimal for Claude Desktop and other token-conscious clients
  *
@@ -248,7 +248,7 @@ export const DEFER_SCHEMAS = resolveDeferSchemas();
  * Benefits:
  * - Reduces tool description payload from ~31KB to ~3KB (~90% reduction)
  * - ~7,700 tokens saved per conversation
- * - All 22 tools available with essential routing info
+ * - All 25 tools available with essential routing info
  * - Full docs available on-demand via resources
  *
  * Trade-offs:

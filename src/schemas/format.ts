@@ -402,7 +402,20 @@ Minpoint/maxpoint types: MIN, MAX, NUMBER, PERCENT, PERCENTILE
     .min(0)
     .optional()
     .describe('Position to insert rule (0 = first, omit = append to end)'),
-});
+  // Internal sentinel set by normalizeFormatRequest when multiple ranges are provided
+  _multiRange: z.boolean().optional(),
+})
+  .superRefine((input, ctx) => {
+    if (input._multiRange === true) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'exactly one target range is required. Split into multiple rule_add_conditional_format calls for multiple ranges.',
+        path: ['ranges'],
+      });
+    }
+  })
+  .transform(({ _multiRange: _, ...rest }) => rest);
 
 const RuleUpdateConditionalFormatActionSchema = CommonFieldsSchema.extend({
   action: z
@@ -627,57 +640,121 @@ Use this UNLESS you need highly custom rules (then use rule_add_conditional_form
  * Each operation specifies a type, range, and type-specific parameters.
  * All operations are combined into a single Google Sheets batchUpdate API call.
  */
-const BatchFormatOperationSchema = z
-  .object({
-    type: z
-      .enum([
-        'background',
-        'text_format',
-        'number_format',
-        'alignment',
-        'borders',
-        'format',
-        'preset',
-      ])
-      .describe(
-        'Operation type: background (set color), text_format (bold/italic/font), number_format (currency/percentage), alignment (left/center/right), borders (cell borders), format (full CellFormat), preset (header_row/alternating_rows/etc.)'
+const BatchFormatOperationSchema = z.preprocess(
+  (val) => {
+    if (typeof val !== 'object' || val === null) return val;
+    const op = { ...(val as Record<string, unknown>) };
+
+    // Normalize set_borders alias → borders
+    if (op['type'] === 'set_borders') {
+      op['type'] = 'borders';
+    }
+
+    // Infer type from fields when absent
+    if (op['type'] === undefined) {
+      const hasColor = op['color'] !== undefined;
+      const hasTextFormat = op['textFormat'] !== undefined;
+      const hasFormatTextFormat =
+        op['format'] !== undefined &&
+        typeof op['format'] === 'object' &&
+        op['format'] !== null &&
+        'textFormat' in (op['format'] as object);
+
+      if (hasColor && hasFormatTextFormat) {
+        // Mark as ambiguous so superRefine can produce a targeted error
+        op['_ambiguous'] = true;
+      } else if (hasTextFormat) {
+        op['type'] = 'text_format';
+      } else if (hasColor) {
+        op['type'] = 'background';
+      }
+    }
+
+    return op;
+  },
+  z
+    .object({
+      type: z
+        .enum([
+          'background',
+          'text_format',
+          'number_format',
+          'alignment',
+          'borders',
+          'format',
+          'preset',
+        ])
+        .optional()
+        .describe(
+          'Operation type: background (set color), text_format (bold/italic/font), number_format (currency/percentage), alignment (left/center/right), borders (cell borders), format (full CellFormat), preset (header_row/alternating_rows/etc.)'
+        ),
+      range: RangeInputSchema.describe('Range to apply this format operation to (A1 notation)'),
+      // Type-specific fields (all optional, validated by handler based on type)
+      color: ColorSchema.optional().describe('Background color (for type: "background")'),
+      textFormat: TextFormatSchema.optional().describe(
+        'Text format spec (for type: "text_format")'
       ),
-    range: RangeInputSchema.describe('Range to apply this format operation to (A1 notation)'),
-    // Type-specific fields (all optional, validated by handler based on type)
-    color: ColorSchema.optional().describe('Background color (for type: "background")'),
-    textFormat: TextFormatSchema.optional().describe('Text format spec (for type: "text_format")'),
-    numberFormat: NumberFormatSchema.optional().describe(
-      'Number format spec (for type: "number_format")'
-    ),
-    horizontal: HorizontalAlignSchema.optional().describe(
-      'Horizontal alignment (for type: "alignment")'
-    ),
-    vertical: VerticalAlignSchema.optional().describe('Vertical alignment (for type: "alignment")'),
-    wrapStrategy: WrapStrategySchema.optional().describe('Wrap strategy (for type: "alignment")'),
-    top: LLMBorderSchema.describe('Top border (for type: "borders")'),
-    bottom: LLMBorderSchema.describe('Bottom border (for type: "borders")'),
-    left: LLMBorderSchema.describe('Left border (for type: "borders")'),
-    right: LLMBorderSchema.describe('Right border (for type: "borders")'),
-    innerHorizontal: LLMBorderSchema.describe('Inner horizontal borders (for type: "borders")'),
-    innerVertical: LLMBorderSchema.describe('Inner vertical borders (for type: "borders")'),
-    format: CellFormatSchema.optional().describe(
-      'Full cell format specification (for type: "format")'
-    ),
-    preset: z
-      .enum([
-        'header_row',
-        'alternating_rows',
-        'total_row',
-        'currency',
-        'percentage',
-        'date',
-        'highlight_positive',
-        'highlight_negative',
-      ])
-      .optional()
-      .describe('Preset name (for type: "preset")'),
-  })
-  .describe('Single format operation within a batch');
+      numberFormat: NumberFormatSchema.optional().describe(
+        'Number format spec (for type: "number_format")'
+      ),
+      horizontal: HorizontalAlignSchema.optional().describe(
+        'Horizontal alignment (for type: "alignment")'
+      ),
+      vertical: VerticalAlignSchema.optional().describe(
+        'Vertical alignment (for type: "alignment")'
+      ),
+      wrapStrategy: WrapStrategySchema.optional().describe('Wrap strategy (for type: "alignment")'),
+      top: LLMBorderSchema.describe('Top border (for type: "borders")'),
+      bottom: LLMBorderSchema.describe('Bottom border (for type: "borders")'),
+      left: LLMBorderSchema.describe('Left border (for type: "borders")'),
+      right: LLMBorderSchema.describe('Right border (for type: "borders")'),
+      innerHorizontal: LLMBorderSchema.describe('Inner horizontal borders (for type: "borders")'),
+      innerVertical: LLMBorderSchema.describe('Inner vertical borders (for type: "borders")'),
+      format: CellFormatSchema.optional().describe(
+        'Full cell format specification (for type: "format")'
+      ),
+      preset: z
+        .enum([
+          'header_row',
+          'alternating_rows',
+          'total_row',
+          'currency',
+          'percentage',
+          'date',
+          'highlight_positive',
+          'highlight_negative',
+        ])
+        .optional()
+        .describe('Preset name (for type: "preset")'),
+    })
+    .superRefine((op, ctx) => {
+      if (op.type === undefined) {
+        // Check for ambiguous case: both color and format.textFormat are present
+        const hasColor = op.color !== undefined;
+        const hasFormatTextFormat =
+          op.format !== undefined &&
+          typeof op.format === 'object' &&
+          op.format !== null &&
+          'textFormat' in op.format;
+
+        if (hasColor && hasFormatTextFormat) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              'ambiguous operation: both color and format.textFormat are present. Specify an explicit type field.',
+            path: ['type'],
+          });
+        } else {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'type is required',
+            path: ['type'],
+          });
+        }
+      }
+    })
+    .describe('Single format operation within a batch')
+);
 
 const BatchFormatActionSchema = CommonFieldsSchema.extend({
   action: z
@@ -792,22 +869,61 @@ const normalizeFormatRequest = (val: unknown): unknown => {
     }
   }
 
-  // Fix QA-2.4: Auto-infer rule.type for rule_add_conditional_format when missing
-  // LLMs often send rule without discriminator 'type' field, causing "No matching discriminator" error
-  if (action === 'rule_add_conditional_format' && obj['rule'] && typeof obj['rule'] === 'object') {
-    const rule = obj['rule'] as Record<string, unknown>;
-    if (!rule['type']) {
-      // Infer type from shape: if it has condition+format, it's boolean; if it has minpoint/maxpoint, it's gradient
-      if (rule['minpoint'] || rule['maxpoint'] || rule['gradientRule']) {
-        rule['type'] = 'gradient';
-      } else if (rule['condition'] || rule['format'] || rule['booleanRule']) {
-        rule['type'] = 'boolean';
-      }
-      // If we still can't infer, default to boolean (most common)
-      if (!rule['type']) {
-        rule['type'] = 'boolean';
+  // Normalize Google Sheets API-style payload for rule_add_conditional_format
+  // LLMs copying from Google API docs may send: { ranges: [...], booleanRule: { condition, format } }
+  if (action === 'rule_add_conditional_format') {
+    let normalized = { ...obj };
+
+    if (Array.isArray(normalized['ranges']) && normalized['range'] === undefined) {
+      const ranges = normalized['ranges'] as Record<string, unknown>[];
+      if (ranges.length > 1) {
+        // Multi-range: mark for rejection via superRefine in schema
+        normalized['_multiRange'] = true;
+        // Still need to provide required fields so schema validation reaches superRefine
+        // Set sheetId from the first range, provide required fields so superRefine is reached
+        const firstRange = ranges[0]!;
+        if (normalized['sheetId'] === undefined && firstRange['sheetId'] !== undefined) {
+          normalized['sheetId'] = firstRange['sheetId'];
+        }
+        // Provide a valid range so schema doesn't fail before superRefine
+        normalized['range'] = { grid: firstRange };
+      } else if (ranges.length === 1) {
+        const gridRange = ranges[0]!;
+        // Extract sheetId from the first range
+        if (normalized['sheetId'] === undefined && gridRange['sheetId'] !== undefined) {
+          normalized['sheetId'] = gridRange['sheetId'];
+        }
+        normalized['range'] = { grid: gridRange };
+        delete normalized['ranges'];
       }
     }
+
+    // Normalize booleanRule → rule (Google Sheets API format)
+    if (normalized['booleanRule'] !== undefined && normalized['rule'] === undefined) {
+      const booleanRule = normalized['booleanRule'] as Record<string, unknown>;
+      normalized['rule'] = {
+        type: 'boolean',
+        condition: booleanRule['condition'],
+        format: booleanRule['format'],
+      };
+      delete normalized['booleanRule'];
+    }
+
+    // QA-2.4: Auto-infer rule.type when missing
+    if (normalized['rule'] && typeof normalized['rule'] === 'object') {
+      const rule = normalized['rule'] as Record<string, unknown>;
+      if (!rule['type']) {
+        if (rule['minpoint'] || rule['maxpoint'] || rule['gradientRule']) {
+          rule['type'] = 'gradient';
+        } else if (rule['condition'] || rule['format']) {
+          rule['type'] = 'boolean';
+        } else {
+          rule['type'] = 'boolean';
+        }
+      }
+    }
+
+    return normalized;
   }
 
   // Handle rulePreset: "custom" - convert to rule_add_conditional_format with proper rule structure

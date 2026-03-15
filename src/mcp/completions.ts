@@ -17,7 +17,7 @@ import { getAvailableToolActions, getAvailableToolNames } from './tool-registry-
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
  * Total counts are derived from src/schemas/action-counts.ts.
- * Note: sheets_analyze has 20 actions (comprehensive + targeted + progressive analyses)
+ * Note: sheets_analyze has 22 actions (comprehensive + targeted + progressive analyses)
  */
 export const TOOL_ACTIONS: Record<string, string[]> = {
   sheets_advanced: [

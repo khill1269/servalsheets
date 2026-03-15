@@ -9,16 +9,16 @@ tags: [sheets, architecture, mcp]
 
 # ServalSheets — Complete Codebase Context
 
-> Persistent reference for coding sessions. Covers all 25 tools (397 actions), MCP compliance,
+> Persistent reference for coding sessions. Covers all 25 tools (402 actions), MCP compliance,
 > Google API patterns, anti-patterns, and architecture decisions.
-> Updated: 2026-03-09.
+> Updated: 2026-03-15.
 
 ## Quick Reference
 
 | Metric               | Value                          | Source                       |
 | -------------------- | ------------------------------ | ---------------------------- |
 | Tools                | 25                             | src/schemas/action-counts.ts |
-| Actions              | 397                            | src/schemas/action-counts.ts |
+| Actions              | 402                            | src/schemas/action-counts.ts |
 | Version              | 1.7.0                          | package.json                 |
 | MCP Protocol         | 2025-11-25                     | src/version.ts:14            |
 | Contract Tests       | 2376/2376 pass                 | npm run test:fast            |
@@ -98,7 +98,7 @@ Client → MCP Request (STDIO/HTTP/Streamable HTTP)
 
 ---
 
-## All 397 Actions by Tool
+## All 402 Actions by Tool
 
 > Full action-by-action list moved to `docs/development/ACTION_REGISTRY.md` to reduce session context load.
 > Load that file when verifying action names or adding new actions.
