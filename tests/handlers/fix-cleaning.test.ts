@@ -10,6 +10,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { FixHandler } from '../../src/handlers/fix.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4 } from 'googleapis';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 // ---------------------------------------------------------------------------
 // Mock factories (no vi.mock calls - created per test)
@@ -396,6 +400,108 @@ describe('FixHandler (F3 Data Cleaning)', () => {
 
       const response = await handler.handle(input);
       expect(response.response.success).toBe(true);
+    });
+  });
+
+  // =========================================================================
+  // Progress notification tests (P18-X13)
+  // =========================================================================
+
+  describe('progress notifications (P18-X13)', () => {
+    it('clean should emit progress notifications', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'fix-clean-progress',
+        progressToken: 'fix-clean-progress',
+        sendNotification: notification,
+      });
+
+      (mockSheetsApi.spreadsheets?.values?.get as any).mockResolvedValue({
+        data: { values: SAMPLE_DATA },
+      });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'clean',
+          spreadsheetId: 'test-spreadsheet-id',
+          range: 'Sheet1!A1:E6',
+          mode: 'preview' as const,
+        } as any)
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({ progress: 0 }),
+      });
+    });
+
+    it('standardize_formats should emit progress notifications', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'fix-standardize-progress',
+        progressToken: 'fix-standardize-progress',
+        sendNotification: notification,
+      });
+
+      (mockSheetsApi.spreadsheets?.values?.get as any).mockResolvedValue({
+        data: { values: SAMPLE_DATA },
+      });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'standardize_formats',
+          spreadsheetId: 'test-spreadsheet-id',
+          range: 'Sheet1!A1:E6',
+          mode: 'preview' as const,
+          columns: [{ column: 'C', targetFormat: 'date' }],
+        } as any)
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({ progress: 0 }),
+      });
+    });
+
+    it('fill_missing should emit progress notifications', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'fix-fill-progress',
+        progressToken: 'fix-fill-progress',
+        sendNotification: notification,
+      });
+
+      (mockSheetsApi.spreadsheets?.values?.get as any).mockResolvedValue({
+        data: {
+          values: [
+            ['Name', 'Value'],
+            ['A', 10],
+            ['B', null],
+            ['C', 30],
+          ],
+        },
+      });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'fill_missing',
+          spreadsheetId: 'test-spreadsheet-id',
+          range: 'Sheet1!A1:B4',
+          strategy: 'mean' as const,
+          mode: 'preview' as const,
+        } as any)
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({ progress: 0 }),
+      });
     });
   });
 });

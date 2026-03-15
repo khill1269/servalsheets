@@ -1382,6 +1382,133 @@ describe('Composite Handler', () => {
   });
 
   // ============================================================================
+  // WORKFLOW ACTIONS Progress Tests (P18-X13)
+  // ============================================================================
+
+  describe('audit_sheet progress notifications (P18-X13)', () => {
+    it('should emit progress notifications while auditing multiple sheets', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'composite-audit-progress',
+        progressToken: 'composite-audit-progress',
+        sendNotification: notification,
+      });
+
+      (mockSheetsApi.spreadsheets.get as any).mockResolvedValue({
+        data: {
+          spreadsheetId: 'test123',
+          sheets: [
+            { properties: { sheetId: 0, title: 'Sheet1' } },
+            { properties: { sheetId: 1, title: 'Sheet2' } },
+          ],
+        },
+      });
+      (mockSheetsApi.spreadsheets.values.get as any)
+        .mockResolvedValueOnce({ data: { values: [['A', 'B'], [1, 2], [3, 4]] } })
+        .mockResolvedValueOnce({ data: { values: [['C', 'D'], [5, 6]] } });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'audit_sheet',
+          spreadsheetId: 'test123',
+        } as any)
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({ progress: 0 }),
+      });
+    });
+  });
+
+  describe('data_pipeline progress notifications (P18-X13)', () => {
+    it('should emit progress notifications while running a pipeline', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'composite-pipeline-progress',
+        progressToken: 'composite-pipeline-progress',
+        sendNotification: notification,
+      });
+
+      (mockSheetsApi.spreadsheets.values.get as any).mockResolvedValue({
+        data: {
+          values: [
+            ['Name', 'Score'],
+            ['Alice', 100],
+            ['Bob', 200],
+            ['Alice', 150],
+          ],
+        },
+      });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'data_pipeline',
+          spreadsheetId: 'test123',
+          sourceRange: 'Sheet1!A1:B4',
+          steps: [
+            { type: 'filter', config: { column: 'Name', value: 'Alice' } },
+            { type: 'sort', config: { column: 'Score', order: 'asc' } },
+          ],
+          dryRun: true,
+        } as any)
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({ progress: 0 }),
+      });
+    });
+  });
+
+  describe('migrate_spreadsheet progress notifications (P18-X13)', () => {
+    it('should emit progress notifications while migrating', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'composite-migrate-progress',
+        progressToken: 'composite-migrate-progress',
+        sendNotification: notification,
+      });
+
+      (mockSheetsApi.spreadsheets.values.get as any).mockResolvedValue({
+        data: {
+          values: [
+            ['OldName', 'OldValue'],
+            ['Alice', 100],
+            ['Bob', 200],
+          ],
+        },
+      });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'migrate_spreadsheet',
+          sourceSpreadsheetId: 'source123',
+          destinationSpreadsheetId: 'dest123',
+          sourceRange: 'Sheet1!A1:B3',
+          destinationRange: 'Sheet1!A1',
+          columnMapping: [
+            { sourceColumn: 'OldName', destinationColumn: 'Name' },
+            { sourceColumn: 'OldValue', destinationColumn: 'Value' },
+          ],
+          dryRun: true,
+        } as any)
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({ progress: 0 }),
+      });
+    });
+  });
+
+  // ============================================================================
   // Error Handling and Edge Cases
   // ============================================================================
 
