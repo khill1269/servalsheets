@@ -559,10 +559,14 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       const authHeader = req.headers.authorization;
       const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
-      // Use token hash as user ID (or 'anonymous' if no token)
+      // Use token hash as user ID; for unauthenticated requests use per-IP key
+      // to prevent one client exhausting the shared anonymous quota
+      const anonymousKey = req.ip
+        ? `anon:${Buffer.from(req.ip).toString('base64').slice(0, 16)}`
+        : 'anon:unknown';
       const userId = token
         ? `user:${createHash('sha256').update(token).digest('hex').substring(0, 16)}`
-        : 'anonymous';
+        : anonymousKey;
 
       const limitCheck = await userRateLimiter.checkLimit(userId);
 

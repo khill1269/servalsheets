@@ -17,6 +17,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { assertSamplingConsent as assertGlobalSamplingConsent } from '../mcp/sampling.js';
 import { logger } from '../utils/logger.js';
+import { encryptPlan, decryptPlan } from '../utils/plan-crypto.js';
 import { createRequestAbortError, getRequestContext } from '../utils/request-context.js';
 import { NotFoundError, ValidationError } from '../core/errors.js';
 import type { ErrorDetail } from '../schemas/shared.js';
@@ -768,7 +769,7 @@ async function persistPlan(plan: PlanState): Promise<void> {
   try {
     await ensurePlanDir();
     const filePath = path.join(PLAN_STORAGE_DIR, `${plan.planId}.json`);
-    await writeFile(filePath, JSON.stringify(plan, null, 2), 'utf-8');
+    await writeFile(filePath, encryptPlan(JSON.stringify(plan, null, 2)), 'utf-8');
   } catch (err) {
     logger.debug('Failed to persist plan', {
       planId: plan.planId,
@@ -785,7 +786,8 @@ async function loadPersistedPlans(): Promise<void> {
     for (const file of files) {
       if (!file.endsWith('.json')) continue;
       try {
-        const content = await readFile(path.join(PLAN_STORAGE_DIR, file), 'utf-8');
+        const raw = await readFile(path.join(PLAN_STORAGE_DIR, file), 'utf-8');
+        const content = decryptPlan(raw);
         const plan = JSON.parse(content) as PlanState;
         if (plan.planId && !planStore.has(plan.planId)) {
           planStore.set(plan.planId, plan);
@@ -1130,7 +1132,9 @@ export async function compilePlanAI(
 
   evictOldestPlan();
   planStore.set(planId, plan);
-  persistPlan(plan).catch(() => {});
+  persistPlan(plan).catch((err: unknown) => {
+    logger.warn('Failed to persist plan state', { planId: plan.planId, error: err });
+  });
 
   return plan;
 }
@@ -1176,7 +1180,9 @@ export function compilePlan(
 
   evictOldestPlan();
   planStore.set(planId, plan);
-  persistPlan(plan).catch(() => {});
+  persistPlan(plan).catch((err: unknown) => {
+    logger.warn('Failed to persist plan state', { planId: plan.planId, error: err });
+  });
 
   return plan;
 }
@@ -1233,7 +1239,9 @@ export function compileFromTemplate(
 
   if (planStore.size >= MAX_PLANS) evictOldestPlan();
   planStore.set(planId, plan);
-  persistPlan(plan).catch(() => {});
+  persistPlan(plan).catch((err: unknown) => {
+    logger.warn('Failed to persist plan state', { planId: plan.planId, error: err });
+  });
 
   return plan;
 }
@@ -1420,7 +1428,9 @@ export async function executePlan(
       plan.currentStepIndex = i + 1;
       plan.updatedAt = new Date().toISOString();
       planStore.set(planId, plan);
-      persistPlan(plan).catch(() => {});
+      persistPlan(plan).catch((persistErr: unknown) => {
+        logger.warn('Failed to persist plan state', { planId, error: persistErr });
+      });
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
 
@@ -1482,7 +1492,9 @@ export async function executePlan(
 
       plan.updatedAt = new Date().toISOString();
       planStore.set(planId, plan);
-      persistPlan(plan).catch(() => {});
+      persistPlan(plan).catch((persistErr: unknown) => {
+        logger.warn('Failed to persist plan state', { planId, error: persistErr });
+      });
       return plan;
     }
   }
@@ -1490,7 +1502,9 @@ export async function executePlan(
   plan.status = 'completed';
   plan.updatedAt = new Date().toISOString();
   planStore.set(planId, plan);
-  persistPlan(plan).catch(() => {});
+  persistPlan(plan).catch((persistErr: unknown) => {
+    logger.warn('Failed to persist plan state', { planId, error: persistErr });
+  });
   return plan;
 }
 
@@ -1535,7 +1549,9 @@ export async function executeStep(
     }
     plan.updatedAt = new Date().toISOString();
     planStore.set(planId, plan);
-    persistPlan(plan).catch(() => {});
+    persistPlan(plan).catch((persistErr: unknown) => {
+      logger.warn('Failed to persist plan state', { planId, error: persistErr });
+    });
 
     return stepResult;
   } catch (err) {
@@ -1559,7 +1575,9 @@ export async function executeStep(
 
     plan.updatedAt = new Date().toISOString();
     planStore.set(planId, plan);
-    persistPlan(plan).catch(() => {});
+    persistPlan(plan).catch((persistErr: unknown) => {
+      logger.warn('Failed to persist plan state', { planId, error: persistErr });
+    });
 
     return stepResult;
   }
@@ -1594,7 +1612,9 @@ export function createCheckpoint(
   plan.checkpoints.push(checkpoint);
   plan.updatedAt = new Date().toISOString();
   planStore.set(planId, plan);
-  persistPlan(plan).catch(() => {});
+  persistPlan(plan).catch((persistErr: unknown) => {
+    logger.warn('Failed to persist plan state', { planId, error: persistErr });
+  });
 
   return checkpoint;
 }
@@ -1626,7 +1646,9 @@ export function rollbackToPlan(planId: string, checkpointId: string): PlanState 
   plan.error = undefined;
   plan.updatedAt = new Date().toISOString();
   planStore.set(planId, plan);
-  persistPlan(plan).catch(() => {});
+  persistPlan(plan).catch((persistErr: unknown) => {
+    logger.warn('Failed to persist plan state', { planId, error: persistErr });
+  });
 
   return plan;
 }
@@ -1706,7 +1728,9 @@ export async function resumePlan(
 export function deletePlan(planId: string): boolean {
   const deleted = planStore.delete(planId);
   if (deleted) {
-    deletePersistedPlan(planId).catch(() => {});
+    deletePersistedPlan(planId).catch((err: unknown) => {
+      logger.warn('Failed to delete persisted plan', { planId, error: err });
+    });
   }
   return deleted;
 }
@@ -1722,7 +1746,9 @@ export async function clearAllPlans(): Promise<void> {
     const files = await readdir(PLAN_STORAGE_DIR);
     for (const file of files) {
       if (file.endsWith('.json')) {
-        await unlink(path.join(PLAN_STORAGE_DIR, file)).catch(() => {});
+        await unlink(path.join(PLAN_STORAGE_DIR, file)).catch((err: unknown) => {
+          logger.warn('Failed to delete plan file', { file, error: err });
+        });
       }
     }
   } catch (err) {

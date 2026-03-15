@@ -145,6 +145,24 @@ describe('ComputeHandler', () => {
       }
     });
 
+    it('S1-B: should return success:false when expression cannot be evaluated', async () => {
+      const handler = makeHandler();
+      // Use unmatched paren — survives sanitizer and causes SyntaxError in Function constructor
+      const result = await handler.handle({
+        request: {
+          action: 'evaluate',
+          spreadsheetId: SPREADSHEET_ID,
+          formula: '=1 + )',
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('OPERATION_FAILED');
+        expect(result.response.error.message).toContain('Cannot evaluate');
+      }
+    });
+
     it('should return error when fetchRangeData throws', async () => {
       fetchRangeData.mockRejectedValue(new Error('Sheets API quota exceeded'));
 

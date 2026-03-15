@@ -170,9 +170,12 @@ const EnvSchema = z.object({
   CIRCUIT_BREAKER_SUCCESS_THRESHOLD: z.coerce.number().int().positive().default(2),
   CIRCUIT_BREAKER_TIMEOUT_MS: z.coerce.number().positive().default(30000), // 30 seconds
 
+  // Apps Script concurrency
+  APPSSCRIPT_MAX_CONCURRENT_RUNS: z.coerce.number().int().positive().default(3),
+
   // Safety limits
   MAX_CONCURRENT_REQUESTS: z.coerce.number().int().positive().default(10),
-  REQUEST_TIMEOUT_MS: z.coerce.number().positive().default(30000), // 30 seconds
+  REQUEST_TIMEOUT_MS: z.coerce.number().positive().default(60000), // 60 seconds
 
   // Per-action timeout overrides for operations that need longer than MCP 30s default
   // Use these to configure timeouts for specific actions that naturally take longer
@@ -249,6 +252,9 @@ const EnvSchema = z.object({
     .optional(),
   WEBHOOK_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(2),
   WEBHOOK_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
+  // When true, DNS resolution failures block webhook registration (fail-closed security).
+  // Set to false in environments with unreliable DNS to allow registration despite DNS errors.
+  WEBHOOK_DNS_STRICT: strictBoolean().default(true),
 
   // MCP Federation Configuration (Feature 3: Server Federation)
   // Enables calling external MCP servers for composite workflows
@@ -363,6 +369,16 @@ const EnvSchema = z.object({
   // Must be set to enable encrypted credential storage for data connectors
   CONNECTOR_ENCRYPTION_KEY: z.string().min(32).optional(),
 
+  // Agent plan file encryption key (AES-256-GCM)
+  // Must be 64 hex chars (32 bytes). If unset, plans are stored as plaintext.
+  PLAN_ENCRYPTION_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/)
+    .optional()
+    .describe(
+      'AES-256-GCM key for encrypting agent plan files (64 hex chars = 32 bytes). If unset, plans are stored as plaintext.'
+    ),
+
   // MCP non-fatal tool errors: when 'true', tool errors are returned as content not protocol errors
   MCP_NON_FATAL_TOOL_ERRORS: z.string().optional().default('true'),
   PYODIDE_CACHE_DIR: z
@@ -447,6 +463,9 @@ const EnvSchema = z.object({
   // Rate limiting (Google Sheets API quota)
   RATE_LIMIT_READS_PER_MINUTE: z.coerce.number().positive().default(300),
   RATE_LIMIT_WRITES_PER_MINUTE: z.coerce.number().positive().default(60),
+  // Per-spreadsheet request throttle (req/sec). Follows Google guidance to
+  // limit concurrent requests per spreadsheet to avoid 503s (quota exceeded).
+  PER_SPREADSHEET_RPS: z.coerce.number().positive().default(3),
 
   // Diff engine concurrency (parallel sheet fetches)
   DIFF_ENGINE_CONCURRENCY: z.coerce.number().positive().default(10),

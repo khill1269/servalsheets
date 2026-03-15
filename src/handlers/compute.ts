@@ -159,7 +159,31 @@ export class ComputeHandler {
       // Evaluate basic SUM, AVERAGE, etc.
       result = evaluateExpression(expression);
     } catch (e) {
-      result = `Evaluation error: ${e instanceof Error ? e.message : String(e)}`;
+      const message = `Evaluation error: ${e instanceof Error ? e.message : String(e)}`;
+      return {
+        response: {
+          success: false as const,
+          error: {
+            code: ErrorCodes.OPERATION_FAILED,
+            message,
+            retryable: false,
+          },
+        },
+      };
+    }
+
+    // evaluateExpression returns a string on failure (e.g. "Cannot evaluate: ...")
+    if (typeof result === 'string' && result.startsWith('Cannot evaluate:')) {
+      return {
+        response: {
+          success: false as const,
+          error: {
+            code: ErrorCodes.OPERATION_FAILED,
+            message: result,
+            retryable: false,
+          },
+        },
+      };
     }
 
     return {
