@@ -2079,6 +2079,22 @@
 
         addMessage(responseText, 'ai');
 
+        // Show data quality warnings if present (injected by applyResponseIntelligence)
+        const warnings = result.response?.dataQualityWarnings || result.dataQualityWarnings;
+        if (warnings && warnings.length > 0) {
+          const warningText = '⚠️ Data quality notices:\n' + warnings.map(w => '• ' + w).join('\n');
+          addMessage(warningText, 'warning');
+        }
+
+        // Show _truncated hint if response was compacted
+        const truncated = result.response?._truncated || result._truncated;
+        if (truncated) {
+          addMessage(
+            '📦 Response was compacted. Use verbosity: \'full\' to get complete data.',
+            'system'
+          );
+        }
+
         // Show quota warning if present
         if (result.response?.quotaWarning) {
           showQuotaStatus(result.response.quotaWarning.message, 'warning');

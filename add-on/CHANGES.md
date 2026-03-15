@@ -1,3 +1,23 @@
+# Add-on Changes
+
+## Session 75 + 58 — MCP Elicitation Fixes & Response Intelligence (2026-03-14)
+
+**Session 75 — MCP 2025-11-25 Elicitation spec compliance:**
+
+- Fixed `ElicitationServer` interface: `createElicitationCompletionNotifier` returns notifier fn (not direct Promise)
+- Fixed OAuth flows (`handleLogin`, `handleCallback`) to call the notifier correctly
+- API key collection moved off elicitation form-mode to localhost browser form (`api-key-server.ts`) — satisfies MUST NOT constraint
+- Removed dead export `initiateVerificationFlow` (was never called)
+
+**Session 58 — Response Intelligence (+8 actions, 391→399):**
+
+- `dataQualityWarnings` injected into every read/write response via `applyResponseIntelligence()`
+- `_truncated: true` flag added to compacted responses (`response-compactor.ts`)
+- New actions: `build_dashboard` (sheets_composite), `build_dependent_dropdown` (sheets_format), `suggest_next_actions` / `auto_enhance` (sheets_analyze), `model_scenario` / `compare_scenarios` / `create_scenario_sheet` (sheets_dependencies), `generate_sheet` / `preview_generation` (sheets_composite)
+- Add-on wrappers updated to expose these actions
+
+---
+
 # Add-on Changes - Phase 1.1 Complete
 
 ## Summary

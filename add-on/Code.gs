@@ -497,6 +497,7 @@ function callServalSheets(tool, request, maxRetries = 3) {
 
   // Retry logic with exponential backoff
   let lastError = null;
+  let auth401Retried = false;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -531,8 +532,44 @@ function callServalSheets(tool, request, maxRetries = 3) {
       const statusCode = response.getResponseCode();
       const result = JSON.parse(response.getContentText());
 
-      // Handle common errors (non-retryable)
+      // Handle 401: clear stored auth/session and retry once
       if (statusCode === 401) {
+        if (!auth401Retried) {
+          auth401Retried = true;
+          Logger.log('Auth expired (401), clearing session and retrying once...');
+          clearSession();
+          sessionId = getSessionId();
+
+          if (sessionId) {
+            options.headers['Mcp-Session-Id'] = sessionId;
+            const retryResponse = UrlFetchApp.fetch(url, options);
+            const retryStatusCode = retryResponse.getResponseCode();
+            const retryResult = JSON.parse(retryResponse.getContentText());
+
+            if (retryStatusCode === 401 || retryStatusCode !== 200) {
+              return {
+                success: false,
+                error: {
+                  code: 'UNAUTHORIZED',
+                  message: formatErrorMessage({ code: 'UNAUTHORIZED' }),
+                },
+              };
+            }
+
+            if (retryResult.result && retryResult.result.content && retryResult.result.content[0]) {
+              const content = retryResult.result.content[0];
+              if (content.text) {
+                try {
+                  return JSON.parse(content.text);
+                } catch (e) {
+                  return { success: true, response: { text: content.text } };
+                }
+              }
+            }
+            return retryResult.result || retryResult;
+          }
+        }
+
         return {
           success: false,
           error: {
@@ -2707,6 +2744,228 @@ function runQuickTests() {
  * Test integration with real API (requires API key and running server)
  * WARNING: Makes actual API calls - use with caution
  */
+// ============================================================================
+// History Operations (sheets_history)
+// ============================================================================
+
+/**
+ * Get operation history list
+ */
+function getHistory(spreadsheetId, limit) {
+  return callServalSheets('sheets_history', {
+    action: 'list',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    limit: limit || 50
+  });
+}
+
+/**
+ * Get chronological change timeline
+ */
+function getTimeline(spreadsheetId, since, until) {
+  return callServalSheets('sheets_history', {
+    action: 'timeline',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    since: since,
+    until: until
+  });
+}
+
+/**
+ * Diff two revisions at cell level
+ */
+function diffRevisions(spreadsheetId, revisionId1, revisionId2, range) {
+  return callServalSheets('sheets_history', {
+    action: 'diff_revisions',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    revisionId1: revisionId1,
+    revisionId2: revisionId2,
+    range: range
+  });
+}
+
+// ============================================================================
+// Data Cleaning Operations (sheets_fix)
+// ============================================================================
+
+/**
+ * Preview cleaning changes without applying
+ */
+function previewClean(spreadsheetId, range, rules) {
+  return callServalSheets('sheets_fix', {
+    action: 'clean',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    range: range,
+    rules: rules,
+    mode: 'preview'
+  });
+}
+
+/**
+ * Apply cleaning changes
+ */
+function applyClean(spreadsheetId, range, rules) {
+  return callServalSheets('sheets_fix', {
+    action: 'clean',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    range: range,
+    rules: rules,
+    mode: 'apply'
+  });
+}
+
+/**
+ * Get AI-powered cleaning recommendations
+ */
+function suggestCleaning(spreadsheetId, range) {
+  return callServalSheets('sheets_fix', {
+    action: 'suggest_cleaning',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    range: range
+  });
+}
+
+/**
+ * Normalize column formats (dates, currencies, phones, etc.)
+ */
+function standardizeFormats(spreadsheetId, range, columns) {
+  return callServalSheets('sheets_fix', {
+    action: 'standardize_formats',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    range: range,
+    columns: columns
+  });
+}
+
+/**
+ * Fill empty cells using a statistical strategy
+ */
+function fillMissing(spreadsheetId, range, strategy, constantValue) {
+  return callServalSheets('sheets_fix', {
+    action: 'fill_missing',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    range: range,
+    strategy: strategy || 'forward',
+    constantValue: constantValue
+  });
+}
+
+// ============================================================================
+// Scenario Modeling Operations (sheets_dependencies)
+// ============================================================================
+
+/**
+ * Model impact of cell changes across the dependency graph
+ */
+function modelScenario(spreadsheetId, changes, outputRange) {
+  return callServalSheets('sheets_dependencies', {
+    action: 'model_scenario',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    changes: changes,
+    outputRange: outputRange
+  });
+}
+
+/**
+ * Compare multiple named scenarios side-by-side
+ */
+function compareScenarios(spreadsheetId, scenarios) {
+  return callServalSheets('sheets_dependencies', {
+    action: 'compare_scenarios',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    scenarios: scenarios
+  });
+}
+
+/**
+ * Materialize a scenario as a new sheet
+ */
+function createScenarioSheet(spreadsheetId, scenario, targetSheet) {
+  return callServalSheets('sheets_dependencies', {
+    action: 'create_scenario_sheet',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    scenario: scenario,
+    targetSheet: targetSheet
+  });
+}
+
+// ============================================================================
+// AI Sheet Generation Operations (sheets_composite)
+// ============================================================================
+
+/**
+ * Generate a structured spreadsheet from a natural language description
+ */
+function generateSheet(description, options) {
+  var params = options || {};
+  params.action = 'generate_sheet';
+  params.description = description;
+  return callServalSheets('sheets_composite', params);
+}
+
+/**
+ * Preview proposed sheet structure without creating it
+ */
+function previewGeneration(description) {
+  return callServalSheets('sheets_composite', {
+    action: 'preview_generation',
+    description: description
+  });
+}
+
+/**
+ * Build a dashboard with KPIs, charts, and slicers
+ */
+function buildDashboard(spreadsheetId, dataSheet, layout) {
+  return callServalSheets('sheets_composite', {
+    action: 'build_dashboard',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    dataSheet: dataSheet,
+    layout: layout || 'standard'
+  });
+}
+
+/**
+ * Run a comprehensive audit of the spreadsheet
+ */
+function auditSheet(spreadsheetId) {
+  return callServalSheets('sheets_composite', {
+    action: 'audit_sheet',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId()
+  });
+}
+
+// ============================================================================
+// Session & Analyze Convenience Wrappers
+// ============================================================================
+
+/**
+ * Set active spreadsheet and sheet in session context
+ */
+function setActiveSpreadsheet(spreadsheetId, sheetName) {
+  return callServalSheets('sheets_session', {
+    action: 'set_active',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    sheetName: sheetName
+  });
+}
+
+/**
+ * Get proactive next-action suggestions for a sheet
+ */
+function suggestNextActions(spreadsheetId, range, maxSuggestions) {
+  return callServalSheets('sheets_analyze', {
+    action: 'suggest_next_actions',
+    spreadsheetId: spreadsheetId || SpreadsheetApp.getActive().getId(),
+    range: range,
+    maxSuggestions: maxSuggestions || 5
+  });
+}
+
+// ============================================================================
+// Integration Tests
+// ============================================================================
+
 function runIntegrationTests() {
   Logger.log('========================================');
   Logger.log('Integration Tests (Real API Calls)');
