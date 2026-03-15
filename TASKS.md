@@ -62,9 +62,9 @@ Status: Substantially complete; retained here as historical context while P18 is
   - [x] Add replay protection (nonce/signature cache window)
   - [x] Keep HMAC validation + rate limit + result cache behavior
 
-- [ ] P17-06: Toolchain resilience
-  - [ ] Resolve current local lint dependency mismatch (ESLint/AJV resolution)
-  - [x] Re-run: `typecheck` ✅, `check:architecture` ⚠️ (1 orphan warning), `check:file-sizes` ❌, `verify:safe` ✅, `lint` ❌
+- [x] P17-06: Toolchain resilience
+  - [x] Resolve current local lint dependency mismatch (ESLint/AJV resolution) — resolved via npm audit fix (2026-03-15)
+  - [x] `npm run verify` fully green — typecheck ✅ lint ✅ format ✅ alignment ✅ drift ✅ tests ✅ (2646/2646)
 
 - [x] P17-07: Documentation/source-of-truth sync
   - [x] Update unified plan counts and status to current action totals
