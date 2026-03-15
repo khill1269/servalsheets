@@ -6,7 +6,15 @@
 
 ## Current Phase
 
-**Session 78 (2026-03-15) — Full test suite green: 8941/8941 passed, 0 failed.** Branch `remediation/phase-1`. 402 actions (25 tools). schema:commit clean (2652 tests).
+**Session 79 (2026-03-15) — noUnusedLocals clean + 89 typed errors + all commits.** Branch `remediation/phase-1`. 402 actions (25 tools). `tsc --noUnusedLocals`: 0 errors. `src/services/` typed error sprint complete (89/93 replaced; 4 in duckdb-worker.ts intentionally plain).
+
+## What Was Just Completed (Session 79)
+
+- **Dead code removal**: 42 `noUnusedLocals` errors eliminated. Removed unused fields, functions, and exhaustiveness check vars across 16 files. `npx tsc --noEmit --noUnusedLocals`: 0 errors.
+- **Typed error sprint**: 89 `throw new Error(` in `src/services/` replaced with typed classes from `src/core/errors.ts` (ValidationError, ServiceError, ConfigError, NotFoundError, AuthenticationError, DataError). 4 throws in `duckdb-worker.ts` left as plain (runs in `worker_threads`, no module resolution to src/core/).
+- **ESLint fix**: `allowDefaultProject` extended to `scripts/*/*.ts` and `scripts/*/*/*.ts` to cover nested script files.
+- **All commits**: 8 commits landed cleanly through pre-commit hook (alignment, drift, placeholder, silent-fallback checks all green).
+- **Tests**: 2654/2654 passing after both fix sprints.
 
 ## What Was Just Completed (Session 78)
 
