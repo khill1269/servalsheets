@@ -120,6 +120,11 @@ export interface RequestContext {
    */
   idempotencyKey?: string;
   metadataCache?: MetadataCache;
+  /**
+   * Last emitted progress value — used to enforce monotonic progress notifications.
+   * Progress that does not exceed this value is silently dropped per MCP spec.
+   */
+  lastProgress?: number;
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -256,6 +261,16 @@ export async function sendProgress(
     // Progress notifications not requested by client or not in request context
     return;
   }
+
+  // Enforce monotonically increasing progress per MCP spec
+  if (context.lastProgress !== undefined && progress <= context.lastProgress) {
+    context.logger.warn('Dropping non-monotonic progress notification', {
+      last: context.lastProgress,
+      current: progress,
+    });
+    return;
+  }
+  context.lastProgress = progress;
 
   try {
     await context.sendNotification({

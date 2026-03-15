@@ -265,6 +265,35 @@ export function detectInconsistentFormats(values: CellValue[][]): QualityWarning
 }
 
 /**
+ * Synchronous version of scanResponseQuality.
+ * All 5 underlying checkers are synchronous; this wrapper exposes them
+ * without requiring an async context.
+ */
+export function scanResponseQualitySync(
+  values: CellValue[][],
+  context: { tool: string; action: string; range: string }
+): QualityWarning[] {
+  void context;
+  const allWarnings: QualityWarning[] = [];
+  const checkers: Array<() => QualityWarning[]> = [
+    () => detectEmptyRequiredCells(values),
+    () => detectMixedTypes(values),
+    () => detectDuplicateRows(values),
+    () => detectOutliers(values),
+    () => detectInconsistentFormats(values),
+  ];
+  for (const checker of checkers) {
+    try {
+      allWarnings.push(...checker());
+    } catch {
+      // Non-blocking
+    }
+  }
+  allWarnings.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === 'warning' ? -1 : 1));
+  return allWarnings.slice(0, 5);
+}
+
+/**
  * Run all 5 quality checks on a 2D cell array.
  * Returns up to 5 warnings, ordered by severity (warnings before info).
  * Each check is individually wrapped — one failure won't block others.
