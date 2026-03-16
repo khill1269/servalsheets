@@ -463,6 +463,7 @@
     "test:sim:stress": "vitest run tests/simulation/concurrent-stress.test.ts",
     "test:sim:meta": "vitest run tests/simulation/meta-contract.test.ts",
     "test:sim:pipeline": "vitest run tests/simulation/mcp-pipeline-fuzz.test.ts",
+    "test:sim:baseline": "vitest run tests/simulation/api-call-baseline.test.ts",
     "test:simulation": "vitest run tests/simulation",
     "test:matrix": "TEST_REAL_API=true vitest run tests/live-api/action-matrix.live.test.ts --config tests/config/vitest.config.live.ts",
     "test:sdks": "vitest run tests/sdks",

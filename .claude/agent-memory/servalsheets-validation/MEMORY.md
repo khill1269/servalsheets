@@ -191,8 +191,8 @@ Cmd+G Cmd+A  # All gates
 
 **Source:** `src/schemas/action-counts.ts`
 
-- Line 38: `export const TOOL_COUNT = 22` (computed from Object.keys)
-- Line 43: `export const ACTION_COUNT = 340` (computed from Object.values sum)
+- Line 38: `export const TOOL_COUNT = 25` (computed from Object.keys)
+- Line 43: `export const ACTION_COUNT = 402` (computed from Object.values sum)
 
 **Verification:**
 
@@ -224,7 +224,7 @@ export const MCP_PROTOCOL_VERSION = 'MCP 2025-11-25';
 
 - ✅ G0: Baseline Integrity
 - ✅ G1: Metadata Consistency
-- ✅ G2: Core handler tests (22 tools)
+- ✅ G2: Core handler tests (25 tools)
 - ⚠️ G2: Streaming tests (15 failures) - ACCEPTABLE
 - ⚠️ G2: Phase 2 integration (6 failures) - ACCEPTABLE (Phase +1)
 
@@ -293,7 +293,7 @@ npm run verify               # Full verification (3min)
 
 ## Best Practices
 
-### ✅ DO:
+### ✅ DO
 
 - Run G0 before every commit
 - Run full gates before phase completion
@@ -301,7 +301,7 @@ npm run verify               # Full verification (3min)
 - Use keyboard shortcuts for efficiency
 - Check gate output carefully (don't blindly trust)
 
-### ❌ DON'T:
+### ❌ DON'T
 
 - Skip validation before commit
 - Ignore failing tests in core tools
