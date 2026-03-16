@@ -5,6 +5,7 @@ on:
     branches: [main, develop, 'remediation/**', 'feat/**', 'fix/**', 'chore/**']
   pull_request:
     branches: [main, develop]
+  merge_group:
 
 permissions:
   contents: read

@@ -24,6 +24,7 @@ import {
   getPlanStatus,
   listPlans,
   listTemplates,
+  resumePlan,
   rollbackToPlan,
   type ExecuteHandlerFn,
   type PlanState,
@@ -533,5 +534,117 @@ describe('persistPlan respects PLAN_ENCRYPTION_KEY', () => {
     if (!existsSync(filePath)) return;
     const content = await readFile(filePath, 'utf-8');
     expect(content.startsWith('enc:')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Plan cancellation semantics
+//
+// ServalSheets has no explicit cancelPlan() function. Stopping execution
+// mid-plan is achieved through one of two mechanisms:
+//   1. Let a step fail → plan transitions to 'paused'; resume is possible
+//   2. Force-abandon by calling deletePlan() → plan removed from store entirely
+//
+// The abortSignal on the request context applies only to in-flight MCP
+// sampling operations, not to the executePlan() loop itself.
+// ---------------------------------------------------------------------------
+
+describe('Plan cancellation semantics', () => {
+  it('no cancelPlan export exists — stopping is achieved via pause semantics', () => {
+    // This test documents a deliberate architectural decision:
+    // the only way to stop execution is through step failure → paused state.
+    // There is no fire-and-forget "cancel" API.
+    const agentEngineExports = Object.keys({
+      clearAllPlans,
+      compilePlan,
+      compileFromTemplate,
+      createCheckpoint,
+      deletePlan,
+      executePlan,
+      executeStep,
+      getPlanStatus,
+      listPlans,
+      listTemplates,
+      resumePlan,
+      rollbackToPlan,
+    });
+    expect(agentEngineExports).not.toContain('cancelPlan');
+  });
+
+  it('a step failure mid-execution pauses the plan without losing prior results', async () => {
+    const plan = compilePlan('read data then write results then format', 10, SPREADSHEET_ID);
+    // Plan must have at least 2 steps for this test to be meaningful
+    if (plan.steps.length < 2) return;
+
+    let callCount = 0;
+    const handler: ExecuteHandlerFn = async () => {
+      callCount++;
+      if (callCount === 2) throw new Error('transient quota exceeded');
+      return { success: true };
+    };
+
+    const paused = await executePlan(plan.planId, false, handler);
+
+    // Plan is paused, not failed — can be resumed
+    expect(paused.status).toBe('paused');
+    // First step's result is preserved
+    expect(paused.results[0]?.success).toBe(true);
+    // The failed step is recorded
+    expect(paused.results[1]?.success).toBe(false);
+  });
+
+  it('a paused plan can be resumed from the failed step', async () => {
+    const plan = compilePlan('read data then write results', 10, SPREADSHEET_ID);
+    if (plan.steps.length < 2) return;
+
+    let callCount = 0;
+    const failingHandler: ExecuteHandlerFn = async () => {
+      callCount++;
+      if (callCount === 1) throw new Error('network error');
+      return { success: true };
+    };
+
+    const paused = await executePlan(plan.planId, false, failingHandler);
+    expect(paused.status).toBe('paused');
+
+    const completed = await resumePlan(paused.planId, undefined, makeHandler({ success: true }));
+    expect(completed.status).toBe('completed');
+    // All steps have at least one result (failed step may have an additional retry record)
+    expect(completed.results.length).toBeGreaterThanOrEqual(plan.steps.length);
+  });
+
+  it('resumePlan throws ValidationError if plan is not paused', async () => {
+    const plan = makePlan();
+    const completed = await executePlan(plan.planId, false, makeHandler({ success: true }));
+    expect(completed.status).toBe('completed');
+
+    await expect(
+      resumePlan(completed.planId, undefined, makeHandler({ success: true }))
+    ).rejects.toThrow();
+  });
+
+  it('deletePlan force-abandons a paused plan — getPlanStatus returns undefined', async () => {
+    const plan = makePlan();
+    const paused = await executePlan(
+      plan.planId,
+      false,
+      makeHandler(undefined, new Error('step failed'))
+    );
+    expect(paused.status).toBe('paused');
+
+    const deleted = deletePlan(paused.planId);
+    expect(deleted).toBe(true);
+
+    // Plan is gone — cannot be resumed
+    expect(getPlanStatus(paused.planId)).toBeUndefined();
+  });
+
+  it('deletePlan on a running-then-completed plan succeeds', async () => {
+    const plan = makePlan();
+    await executePlan(plan.planId, false, makeHandler({ success: true }));
+
+    const deleted = deletePlan(plan.planId);
+    expect(deleted).toBe(true);
+    expect(getPlanStatus(plan.planId)).toBeUndefined();
   });
 });

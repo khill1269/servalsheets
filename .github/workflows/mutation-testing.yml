@@ -20,6 +20,10 @@ on:
           - minimal
           - full
 
+permissions:
+  contents: read
+  issues: write
+
 # Only one mutation run at a time — they're expensive
 concurrency:
   group: mutation-${{ github.ref }}
