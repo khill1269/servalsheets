@@ -162,7 +162,12 @@ Format your response as JSON with this structure:
         },
       },
     ],
-    systemPrompt: `You are an expert data analyst specializing in spreadsheet data analysis. You provide clear, actionable insights based on the data provided. Always be specific, cite examples from the data, and indicate your confidence level. Focus on practical findings that help users understand and improve their data.`,
+    systemPrompt: `You are an expert data analyst specializing in spreadsheet data analysis. You provide clear, actionable insights based on the data provided. Always be specific, cite examples from the data, and indicate your confidence level. Focus on practical findings that help users understand and improve their data.
+
+Always respond in this JSON schema:
+{ "summary": string, "findings": [{"type": string, "severity": "critical"|"high"|"medium"|"low", "location": string, "description": string, "recommendation": string}], "confidence": number }
+
+Example finding: "Column B (Revenue) has 3 null values in rows 14, 27, 31 (4.2% of 71 rows). These are likely missing transactions. Use sheets_fix.fill_missing with strategy:'mean' to impute."`,
     modelPreferences: {
       hints: [{ name: 'claude-3-sonnet' }],
       intelligencePriority: 0.8,

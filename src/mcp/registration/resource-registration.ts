@@ -8,11 +8,17 @@
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { GoogleApiClient } from '../../services/google-api.js';
-import { completeAction, completeRange, completeSpreadsheetId, TOOL_ACTIONS } from '../completions.js';
+import {
+  completeAction,
+  completeRange,
+  completeSpreadsheetId,
+  TOOL_ACTIONS,
+} from '../completions.js';
 import { registerChartResources } from '../../resources/charts.js';
 import { registerPivotResources } from '../../resources/pivots.js';
 import { registerQualityResources } from '../../resources/quality.js';
 import { createAuthRequiredError, createResourceReadError } from '../../utils/mcp-errors.js';
+import { getHealthSnapshot } from '../../observability/metrics.js';
 
 // ============================================================================
 // RESOURCES REGISTRATION
@@ -301,8 +307,7 @@ export function registerServalSheetsResources(
   const toolActionTemplate = new ResourceTemplate('sheets://tools/{toolName}/actions/{action}', {
     list: undefined,
     complete: {
-      toolName: async (value) =>
-        Object.keys(TOOL_ACTIONS).filter((t) => t.startsWith(value || '')),
+      toolName: async (value) => Object.keys(TOOL_ACTIONS).filter((t) => t.startsWith(value || '')),
       action: async (value, context) => {
         const ctx = context as { arguments?: Record<string, string> } | undefined;
         const toolName = ctx?.arguments?.['toolName'] ?? '';
@@ -322,6 +327,21 @@ export function registerServalSheetsResources(
     async (_uri, _variables) => {
       return { contents: [] }; // completions-only resource; no read content
     }
+  );
+
+  // Server health snapshot — no auth required, returns in-process metrics
+  server.resource(
+    'metrics://servalsheets/health',
+    'Server health snapshot including circuit breakers, cache, quota, and error rates',
+    async () => ({
+      contents: [
+        {
+          uri: 'metrics://servalsheets/health',
+          mimeType: 'application/json',
+          text: JSON.stringify(getHealthSnapshot(), null, 2),
+        },
+      ],
+    })
   );
 
   // Register additional data exploration resources

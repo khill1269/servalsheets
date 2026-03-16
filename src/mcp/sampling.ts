@@ -682,7 +682,12 @@ export async function analyzeData(
   await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
   const {
-    systemPrompt = SAMPLING_PROMPTS.dataAnalysis,
+    systemPrompt = `${SAMPLING_PROMPTS.dataAnalysis}
+
+Always respond in this JSON schema:
+{ "summary": string, "findings": [{"type": string, "severity": "critical"|"high"|"medium"|"low", "location": string, "description": string, "recommendation": string}], "confidence": number }
+
+Example finding: "Column B (Revenue) has 3 null values in rows 14, 27, 31 (4.2% of 71 rows). These are likely missing transactions. Use sheets_fix.fill_missing with strategy:'mean' to impute."`,
     maxTokens = 1000,
     modelPreferences,
     temperature,
@@ -794,11 +799,30 @@ export async function generateFormula(
     prompt += '\n\nReturn ONLY the formula, no explanation.';
   }
 
-  const defaults = DEFAULT_MODEL_HINTS['formulaGeneration']!;
+  const formulaSystemPrompt = `${SAMPLING_PROMPTS.formulaGeneration}
+
+EXAMPLES:
+
+Input: "sum revenue by month where status is Closed"
+Output: =SUMIFS(C:C, A:A, "Closed", B:B, ">="&DATE(2026,1,1))
+
+Input: "lookup product name from Products sheet using SKU in column A"
+Output: =XLOOKUP(A2, Products!A:A, Products!B:B, "Not found")
+
+Input: "running total of sales column"
+Output: =SUM($B$2:B2)`;
+
+  // Select model based on complexity: complex descriptions or advanced functions → Sonnet
+  const isComplexFormula =
+    params.description.length > 80 || /QUERY|ARRAYFORMULA|pivot/i.test(params.description);
+  const defaults = isComplexFormula
+    ? { hints: [{ name: 'claude-sonnet-4-6' }], temperature: 0.1 }
+    : DEFAULT_MODEL_HINTS['formulaGeneration']!;
+
   const result = await withSamplingTimeout(() =>
     server.createMessage({
       messages: [createUserMessage(prompt)],
-      systemPrompt: SAMPLING_PROMPTS.formulaGeneration,
+      systemPrompt: formulaSystemPrompt,
       maxTokens,
       modelPreferences: { hints: defaults.hints },
       temperature: defaults.temperature,
@@ -850,9 +874,20 @@ export async function recommendChart(
     prompt += `Audience: ${params.audience}\n`;
   }
 
-  prompt += `\nRespond in this exact JSON format:
+  prompt += `\nSupported chart types: BAR, LINE, AREA, COLUMN, SCATTER, COMBO, STEPPED_AREA, PIE, DOUGHNUT, TREEMAP, WATERFALL, HISTOGRAM, CANDLESTICK, ORG, RADAR, SCORECARD, BUBBLE
+
+EXAMPLE:
+Data: dates in column A, revenue in column B, cost in column C (time-series data)
+Recommended output:
 {
-  "chartType": "COLUMN|LINE|PIE|SCATTER|AREA|BAR",
+  "chartType": "LINE",
+  "reason": "Multiple numeric values over time → LINE chart shows trends clearly. Use two series (Revenue, Cost) with dates as X-axis.",
+  "alternatives": ["AREA for cumulative emphasis", "COLUMN for discrete monthly periods"]
+}
+
+Respond in this exact JSON format:
+{
+  "chartType": "BAR|LINE|AREA|COLUMN|SCATTER|COMBO|STEPPED_AREA|PIE|DOUGHNUT|TREEMAP|WATERFALL|HISTOGRAM|CANDLESTICK|ORG|RADAR|SCORECARD|BUBBLE",
   "reason": "Brief explanation",
   "alternatives": ["Alternative1", "Alternative2"]
 }`;
@@ -956,10 +991,37 @@ export async function identifyDataIssues(
   "suggestedFix": "How to fix it"
 }]`;
 
+  const dataIssuesSystemPrompt = `${SAMPLING_PROMPTS.dataCleaning}
+
+EXAMPLE:
+
+Input data:
+| Date | Amount | Status |
+| 01/15/2026 | $1,500.00 | Closed |
+| Jan 15 2026 | 1500 | closed |
+
+Expected output:
+[
+  {
+    "type": "inconsistent_format",
+    "severity": "medium",
+    "location": "A2:A3",
+    "description": "Mixed date formats: MM/DD/YYYY vs Month DD YYYY",
+    "suggestedFix": "Standardize to YYYY-MM-DD ISO format"
+  },
+  {
+    "type": "inconsistent_format",
+    "severity": "low",
+    "location": "C2:C3",
+    "description": "Mixed case in Status column: 'Closed' vs 'closed'",
+    "suggestedFix": "Standardize to title case"
+  }
+]`;
+
   const result = await withSamplingTimeout(() =>
     server.createMessage({
       messages: [createUserMessage(prompt)],
-      systemPrompt: SAMPLING_PROMPTS.dataCleaning,
+      systemPrompt: dataIssuesSystemPrompt,
       maxTokens: 1500,
     })
   );
@@ -1074,6 +1136,203 @@ export const AGENTIC_TOOLS: Tool[] = [
         changesCount: { type: 'number', description: 'Number of changes made' },
       },
       required: ['summary', 'changesCount'],
+    },
+  },
+  {
+    name: 'write_range',
+    description: 'Write values to a spreadsheet range (proxy for sheets_data.write)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        range: { type: 'string', description: 'A1 notation range (e.g., "Sheet1!A1:C10")' },
+        values: { type: 'array', description: 'Two-dimensional array of values to write' },
+      },
+      required: ['range', 'values'],
+    },
+  },
+  {
+    name: 'append_rows',
+    description: 'Append rows to a spreadsheet range (proxy for sheets_data.append)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        range: { type: 'string', description: 'A1 notation range to append after' },
+        rows: { type: 'array', description: 'Array of row arrays to append' },
+      },
+      required: ['range', 'rows'],
+    },
+  },
+  {
+    name: 'format_range',
+    description: 'Apply formatting to a spreadsheet range (proxy for sheets_format.batch_format)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        range: { type: 'string', description: 'A1 notation range to format' },
+        backgroundColor: {
+          type: 'object',
+          description: 'Background color as {red, green, blue} (0-1)',
+        },
+        bold: { type: 'boolean', description: 'Apply bold text' },
+        fontSize: { type: 'number', description: 'Font size in points' },
+      },
+      required: ['range'],
+    },
+  },
+  {
+    name: 'sort_range',
+    description: 'Sort a spreadsheet range (proxy for sheets_dimensions.sort_range)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        range: { type: 'string', description: 'A1 notation range to sort' },
+        sortColumn: { type: 'number', description: 'Zero-based column index to sort by' },
+        order: {
+          type: 'string',
+          description: '"ASCENDING" or "DESCENDING"',
+          enum: ['ASCENDING', 'DESCENDING'],
+        },
+      },
+      required: ['range', 'sortColumn', 'order'],
+    },
+  },
+  {
+    name: 'apply_formula',
+    description: 'Write a formula to a specific cell (proxy for sheets_data.write with formula)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cell: { type: 'string', description: 'Cell address in A1 notation (e.g., "Sheet1!C2")' },
+        formula: { type: 'string', description: 'Google Sheets formula starting with =' },
+      },
+      required: ['cell', 'formula'],
+    },
+  },
+  {
+    name: 'create_chart',
+    description: 'Create a chart from spreadsheet data (proxy for sheets_visualize.chart_create)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dataRange: { type: 'string', description: 'A1 notation range containing chart data' },
+        chartType: {
+          type: 'string',
+          description: 'Chart type (e.g., LINE, COLUMN, PIE, BAR, SCATTER)',
+        },
+        title: { type: 'string', description: 'Chart title' },
+      },
+      required: ['dataRange', 'chartType'],
+    },
+  },
+  {
+    name: 'add_sheet',
+    description: 'Add a new sheet tab (proxy for sheets_core.add_sheet)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Name for the new sheet' },
+        index: { type: 'number', description: 'Position index for the new sheet (optional)' },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'clean_data',
+    description: 'Detect and fix data quality issues in a range (proxy for sheets_fix.clean)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        range: { type: 'string', description: 'A1 notation range to clean' },
+        mode: {
+          type: 'string',
+          description: '"preview" to see changes without applying, "apply" to fix in place',
+          enum: ['preview', 'apply'],
+        },
+      },
+      required: ['range', 'mode'],
+    },
+  },
+  {
+    name: 'run_analysis',
+    description:
+      'Run a quick structural analysis of the spreadsheet (proxy for sheets_analyze.scout)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'Spreadsheet ID to analyze' },
+      },
+      required: ['spreadsheetId'],
+    },
+  },
+  {
+    name: 'freeze_rows',
+    description: 'Freeze header rows in the active sheet (proxy for sheets_dimensions.freeze)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        frozenRowCount: { type: 'number', description: 'Number of rows to freeze from the top' },
+      },
+      required: ['frozenRowCount'],
+    },
+  },
+  {
+    name: 'auto_resize',
+    description: 'Auto-resize columns to fit content (proxy for sheets_dimensions.auto_resize)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        range: {
+          type: 'string',
+          description: 'A1 notation range whose columns should be auto-resized',
+        },
+      },
+      required: ['range'],
+    },
+  },
+  {
+    name: 'add_conditional_format',
+    description:
+      'Add a conditional formatting rule to a range (proxy for sheets_format.add_conditional_format_rule)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        range: { type: 'string', description: 'A1 notation range to apply the rule to' },
+        rulePreset: {
+          type: 'string',
+          description:
+            'Rule preset name (e.g., highlight_duplicates, color_scale, data_bars, top_10_percent, negative_red)',
+        },
+      },
+      required: ['range', 'rulePreset'],
+    },
+  },
+  {
+    name: 'find_replace',
+    description: 'Find and replace text in a range (proxy for sheets_data.find_replace)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        range: { type: 'string', description: 'A1 notation range to search within' },
+        find: { type: 'string', description: 'Text to find' },
+        replacement: { type: 'string', description: 'Replacement text' },
+      },
+      required: ['range', 'find', 'replacement'],
+    },
+  },
+  {
+    name: 'suggest_next',
+    description:
+      'Get AI-powered suggestions for next actions on the spreadsheet (proxy for sheets_analyze.suggest_next_actions)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'Spreadsheet ID to analyze for suggestions' },
+        maxSuggestions: {
+          type: 'number',
+          description: 'Maximum number of suggestions to return (default 5)',
+        },
+      },
+      required: ['spreadsheetId'],
     },
   },
 ];
@@ -1288,11 +1547,68 @@ export async function analyzeDataStreaming(
     message: 'Generating summary from all chunks',
   });
 
+  // P1-G: Cross-chunk deduplication — track findings by location+type across chunks
+  interface CrossChunkFinding {
+    location: string;
+    type: string;
+    occurrenceCount: number;
+    chunkIndices: number[];
+    representative: string;
+  }
+  const findingKey = (location: string, type: string): string =>
+    `${location.toLowerCase().trim()}::${type.toLowerCase().trim()}`;
+  const seenFindings = new Map<string, CrossChunkFinding>();
+
+  for (const chunkResult of chunkResults) {
+    try {
+      // Attempt to extract structured findings from the chunk analysis text
+      const jsonMatch = chunkResult.analysis.match(/\[[\s\S]*?\]/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]) as Array<{
+          location?: string;
+          type?: string;
+          description?: string;
+        }>;
+        for (const finding of parsed) {
+          if (finding.location && finding.type) {
+            const key = findingKey(finding.location, finding.type);
+            const existing = seenFindings.get(key);
+            if (existing) {
+              existing.occurrenceCount++;
+              existing.chunkIndices.push(chunkResult.chunkIndex);
+            } else {
+              seenFindings.set(key, {
+                location: finding.location,
+                type: finding.type,
+                occurrenceCount: 1,
+                chunkIndices: [chunkResult.chunkIndex],
+                representative: finding.description ?? '',
+              });
+            }
+          }
+        }
+      }
+    } catch {
+      // Best-effort deduplication; never block summary generation
+    }
+  }
+
+  const crossChunkFindings = [...seenFindings.values()].filter((f) => f.occurrenceCount >= 2);
+  const crossChunkNote =
+    crossChunkFindings.length > 0
+      ? `\n\nCross-chunk finding frequencies (appear in multiple sections):\n${crossChunkFindings
+          .map(
+            (f) =>
+              `- [${f.type}] at ${f.location}: appears in ${f.occurrenceCount} chunks — "${f.representative}"`
+          )
+          .join('\n')}`
+      : '';
+
   const summaryPrompt = `Based on these ${chunks.length} partial analyses of a ${totalRows}-row dataset, provide a unified summary:
 
 ${chunkResults.map((r) => `--- Rows ${r.startRow}-${r.endRow} ---\n${r.analysis}`).join('\n\n')}
 
-Original question: ${params.question}
+Original question: ${params.question}${crossChunkNote}
 
 Provide a cohesive summary that synthesizes insights from all chunks.`;
 
@@ -1301,7 +1617,7 @@ Provide a cohesive summary that synthesizes insights from all chunks.`;
     server.createMessage({
       messages: [createUserMessage(summaryPrompt)],
       systemPrompt:
-        'Synthesize multiple partial analyses into a cohesive summary. Identify patterns that span across chunks. Be concise but comprehensive.',
+        'Synthesize multiple partial analyses into a cohesive summary. Identify patterns that span across chunks. Be concise but comprehensive. Do not repeat findings that apply to the same column across chunks — merge frequency counts. If "null values in column B" appears in 3 chunks, report "Column B has nulls across all N sections". Findings that appear in multiple chunks are more significant and should be highlighted.',
       maxTokens: maxTokens * 2, // More tokens for summary
       ...(modelPreferences && { modelPreferences }),
     })

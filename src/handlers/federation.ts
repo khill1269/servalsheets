@@ -61,8 +61,15 @@ function buildFederationError(
  */
 export class FederationHandler {
   private circuitBreaker: CircuitBreaker;
+  private sessionContext?: import('../services/session-context.js').SessionContextManager;
 
-  constructor(_taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter) {
+  constructor(
+    _taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter,
+    options?: {
+      sessionContext?: import('../services/session-context.js').SessionContextManager;
+    }
+  ) {
+    this.sessionContext = options?.sessionContext;
     // 16-S3: Initialize circuit breaker for federation operations
     const circuitConfig = getCircuitBreakerConfig();
     this.circuitBreaker = new CircuitBreaker({
@@ -226,6 +233,21 @@ export class FederationHandler {
       serverName,
       toolName,
     });
+
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.sessionContext) {
+        this.sessionContext.recordOperation({
+          tool: 'sheets_federation',
+          action: 'call_remote',
+          spreadsheetId: serverName,
+          description: `Called remote MCP tool '${toolName}' on server '${serverName}'`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
 
     return {
       response: {

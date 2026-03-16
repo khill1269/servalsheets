@@ -1021,6 +1021,50 @@ export async function elicitPipelineConfig(server: ElicitationServer): Promise<{
   return null;
 }
 
+/**
+ * Elicit conditional format rule preset for sheets_format.add_conditional_format_rule
+ */
+export async function elicitConditionalFormatPreset(
+  server: ElicitationServer,
+  range: string
+): Promise<{ preset: string } | null> {
+  const schema: FormElicitParams['requestedSchema'] = {
+    type: 'object',
+    properties: {
+      preset: selectField({
+        title: 'Conditional formatting rule',
+        description: `Select a preset rule to apply to range ${range}`,
+        options: [
+          { value: 'highlight_duplicates', label: 'Highlight duplicate cells in red' },
+          { value: 'color_scale_green_red', label: 'Color gradient: green (low) to red (high)' },
+          { value: 'data_bars', label: 'Show data bars proportional to cell value' },
+          { value: 'top_10_percent', label: 'Bold top 10% of values' },
+          { value: 'highlight_blanks', label: 'Highlight blank cells in yellow' },
+          { value: 'above_average', label: 'Green for above-average values' },
+        ],
+        default: 'highlight_duplicates',
+      }),
+    },
+    required: ['preset'],
+  };
+
+  const result = await safeElicit<{ preset: string } | null>(
+    server,
+    {
+      mode: 'form',
+      message: 'Choose a conditional formatting rule preset:',
+      requestedSchema: schema,
+    },
+    null
+  );
+
+  if (result) {
+    return { preset: result.preset };
+  }
+
+  return null;
+}
+
 // ============================================================================
 // URL Elicitation (OAuth and External Auth)
 // ============================================================================

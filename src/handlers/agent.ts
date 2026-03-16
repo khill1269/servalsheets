@@ -23,9 +23,16 @@ export type AgentHandlerRegistry = Record<string, AgentToolHandler>;
 export class AgentHandler {
   private handlers?: AgentHandlerRegistry;
   private executeHandler: ExecuteHandlerFn;
+  private sessionContext?: import('../services/session-context.js').SessionContextManager;
 
-  constructor(handlers?: AgentHandlerRegistry) {
+  constructor(
+    handlers?: AgentHandlerRegistry,
+    options?: {
+      sessionContext?: import('../services/session-context.js').SessionContextManager;
+    }
+  ) {
     this.handlers = handlers;
+    this.sessionContext = options?.sessionContext;
     // Create executeHandler that dispatches to actual tool handlers
     this.executeHandler = async (tool: string, action: string, params: Record<string, unknown>) => {
       if (!this.handlers) {
@@ -73,6 +80,23 @@ export class AgentHandler {
         }
         case 'execute': {
           const result = await executePlan(req.planId, req.dryRun ?? false, this.executeHandler);
+          const completedSteps = result.results.filter((r) => r.success).length;
+
+          // Record operation in session context for LLM follow-up references
+          try {
+            if (this.sessionContext) {
+              this.sessionContext.recordOperation({
+                tool: 'sheets_agent',
+                action: 'execute',
+                spreadsheetId: result.planId,
+                description: `Executed agent plan ${result.planId}: ${completedSteps}/${result.steps.length} steps completed`,
+                undoable: false,
+              });
+            }
+          } catch {
+            // Non-blocking: session context recording is best-effort
+          }
+
           return {
             response: {
               success: true,
@@ -80,7 +104,7 @@ export class AgentHandler {
               planId: result.planId,
               status: result.status,
               results: result.results,
-              completedSteps: result.results.filter((r) => r.success).length,
+              completedSteps,
               totalSteps: result.steps.length,
               executionTimeMs: Date.now() - startTime,
             },

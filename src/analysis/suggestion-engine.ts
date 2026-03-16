@@ -185,7 +185,7 @@ function detectStructurePatterns(scoutResult: ScoutResult, spreadsheetId: string
       id: 'freeze_header_row',
       title: 'Freeze Header Row',
       description: `Sheet "${sheet.title}" has ${sheet.rowCount} rows but no frozen header. Freezing row 1 keeps headers visible while scrolling.`,
-      confidence: 0.9,
+      confidence: 0.9, // Near-certain structural pattern: header row present, freeze not detected
       category: 'structure',
       impact: 'low_risk',
       action: {
@@ -209,7 +209,7 @@ function detectStructurePatterns(scoutResult: ScoutResult, spreadsheetId: string
         id: 'auto_resize_columns',
         title: 'Auto-Resize Columns',
         description: `Sheet "${sheet.title}" has ${sheet.columnCount} columns. Auto-resizing ensures all content is visible without manual adjustment.`,
-        confidence: 0.75,
+        confidence: 0.75, // Strong signal: many columns → auto-resize typically beneficial
         category: 'formatting',
         impact: 'low_risk',
         action: {
@@ -231,7 +231,7 @@ function detectStructurePatterns(scoutResult: ScoutResult, spreadsheetId: string
       id: 'add_toc_sheet',
       title: 'Add Table of Contents Sheet',
       description: `Spreadsheet has ${scoutResult.sheets.length} sheets. A TOC sheet with hyperlinks improves navigation.`,
-      confidence: 0.65,
+      confidence: 0.65, // Moderate signal: multiple sheets present, TOC often helps navigation
       category: 'structure',
       impact: 'low_risk',
       action: {
@@ -275,7 +275,7 @@ function detectFormulaPatterns(scoutResult: ScoutResult, spreadsheetId: string):
       id: 'add_summary_row',
       title: 'Add Summary Row with Totals',
       description: `Found ${numericColumns.length} numeric columns (${colHeaders}) with no summary formulas. Adding SUM/AVERAGE at the bottom provides quick totals.`,
-      confidence: 0.85,
+      confidence: 0.85, // Strong signal: 2+ numeric cols with no existing formulas
       category: 'formulas',
       impact: 'low_risk',
       action: {
@@ -305,7 +305,7 @@ function detectFormulaPatterns(scoutResult: ScoutResult, spreadsheetId: string):
       id: 'add_profit_margin',
       title: 'Add Profit Margin Column',
       description: `Detected "${revenueCol.header}" (col ${revLetter}) and "${costCol.header}" (col ${costLetter}). A Profit Margin formula = (Revenue - Cost) / Revenue shows profitability.`,
-      confidence: 0.92,
+      confidence: 0.92, // Near-certain: revenue + cost columns detected, profit margin not present
       category: 'formulas',
       impact: 'low_risk',
       action: {
@@ -351,7 +351,7 @@ function detectFormattingPatterns(scoutResult: ScoutResult, spreadsheetId: strin
         id: 'format_currency_columns',
         title: 'Format Currency Columns',
         description: `Column "${firstCol.header}" appears to contain monetary values. Applying currency format ($#,##0.00) improves readability.`,
-        confidence: 0.8,
+        confidence: 0.8, // Strong signal: column name matches currency keywords (price/cost/revenue/amount)
         category: 'formatting',
         impact: 'low_risk',
         action: {
@@ -377,7 +377,7 @@ function detectFormattingPatterns(scoutResult: ScoutResult, spreadsheetId: strin
       id: 'format_date_columns',
       title: 'Standardize Date Format',
       description: `Column "${firstDateCol.header}" contains dates. Applying a consistent format (YYYY-MM-DD) prevents ambiguity.`,
-      confidence: 0.7,
+      confidence: 0.7, // Moderate-strong signal: date column detected, format consistency beneficial
       category: 'formatting',
       impact: 'low_risk',
       action: {
@@ -398,7 +398,7 @@ function detectFormattingPatterns(scoutResult: ScoutResult, spreadsheetId: strin
       id: 'add_conditional_formatting',
       title: 'Highlight Negative Values',
       description: `Found ${numericColumns.length} numeric columns. Adding conditional formatting to highlight negative values in red helps spot issues quickly.`,
-      confidence: 0.65,
+      confidence: 0.65, // Moderate signal: numeric data present, negative-value highlighting broadly useful
       category: 'formatting',
       impact: 'low_risk',
       action: {
@@ -442,7 +442,7 @@ function detectDataQualityPatterns(scoutResult: ScoutResult, spreadsheetId: stri
       id: 'add_data_validation',
       title: `Add Dropdown for "${col.header}"`,
       description: `Column "${col.header}" has ${Math.round((col.uniqueRatio ?? 0) * 100)}% unique values — likely a categorical field. Adding data validation prevents typos.`,
-      confidence: 0.78,
+      confidence: 0.78, // Strong signal: low-cardinality text column (<30% unique) — likely categorical
       category: 'data_quality',
       impact: 'low_risk',
       action: {
@@ -473,7 +473,7 @@ function detectDataQualityPatterns(scoutResult: ScoutResult, spreadsheetId: stri
       id: 'flag_missing_data',
       title: 'Review Missing Data',
       description: `Columns with missing values detected: ${colNames}. Running data quality analysis can identify patterns in missing data.`,
-      confidence: 0.6,
+      confidence: 0.6, // Weak-moderate signal: nulls present, but missing data may be intentional
       category: 'data_quality',
       impact: 'low_risk',
       action: {
@@ -515,7 +515,7 @@ function detectVisualizationPatterns(
       id: 'suggest_line_chart',
       title: 'Add Trend Chart',
       description: `Found date column with ${numericCount} numeric columns — ideal for a trend line chart to visualize changes over time.`,
-      confidence: 0.82,
+      confidence: 0.82, // Strong signal: date + numeric columns, no existing chart — time series pattern
       category: 'visualization',
       impact: 'low_risk',
       action: {
@@ -536,7 +536,7 @@ function detectVisualizationPatterns(
       id: 'suggest_bar_chart',
       title: 'Add Comparison Chart',
       description: `Found categorical and numeric columns — a bar chart can compare values across categories.`,
-      confidence: 0.72,
+      confidence: 0.72, // Moderate signal: text + numeric columns present, bar chart often useful
       category: 'visualization',
       impact: 'low_risk',
       action: {

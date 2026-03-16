@@ -889,17 +889,66 @@ Include required parameters for each step. Order steps by dependency.
 Return a JSON array of plan steps: [{ tool, action, params, description }].
 
 Available tools and their key actions:
+- sheets_core: create, get, add_sheet, delete_sheet, list, update_properties
 - sheets_data: read, write, append, clear, find_replace, cross_read, cross_query, cross_write, cross_compare
 - sheets_format: set_format, set_background, set_text_format, set_number_format, apply_preset, set_borders, clear_format, batch_format, set_rich_text
 - sheets_dimensions: sort_range, freeze, insert, delete, auto_resize, hide, show, group, ungroup, set_basic_filter, clear_basic_filter
 - sheets_visualize: chart_create, chart_update, pivot_create, pivot_update, suggest_chart, suggest_pivot
-- sheets_analyze: comprehensive, scout, analyze_data, detect_patterns, suggest_next_actions, auto_enhance, discover_action
+- sheets_analyze: comprehensive, scout, analyze_data, detect_patterns, suggest_next_actions, auto_enhance, quick_insights
 - sheets_fix: clean, standardize_formats, fill_missing, detect_anomalies, suggest_cleaning, fix
 - sheets_compute: aggregate, statistical, forecast, regression, evaluate
 - sheets_composite: import_csv, deduplicate, setup_sheet, generate_sheet, import_xlsx, export_xlsx, bulk_update, data_pipeline
-- sheets_history: timeline, diff_revisions, restore_cells, undo, redo
+- sheets_history: undo, redo, revert_to, timeline, restore_cells
 - sheets_dependencies: build, model_scenario, compare_scenarios, analyze_impact
-- sheets_core: create, get, add_sheet, delete_sheet, list, update_properties
+- sheets_collaborate: share_add, comment_add, share_list, comment_list, share_remove
+- sheets_advanced: add_named_range, list_named_ranges, add_protected_range, create_table, add_banding
+- sheets_templates: list, apply, create, import_builtin, delete
+- sheets_auth: status, login, logout, refresh, callback
+- sheets_webhook: register, list, unregister, watch_changes, update
+- sheets_transaction: begin, queue, commit, rollback, status
+- sheets_federation: call_remote, list_servers, get_server_tools, validate_connection
+- sheets_bigquery: export_to_bigquery, import_from_bigquery, query, connect, list_connections
+- sheets_appsscript: run, create, deploy, list, create_trigger
+- sheets_session: set_active, get_context, save_checkpoint, restore_checkpoint, record_operation
+- sheets_quality: validate, detect_conflicts, resolve_conflict, analyze_impact
+- sheets_confirm: request, approve, deny, status, cancel
+- sheets_connectors: list, configure, query, subscribe, get_status
+
+EXAMPLE PLAN:
+
+User request: "Create a sales tracker with monthly revenue, import Q1 data, and add a chart"
+
+Generated plan:
+[
+  {
+    "step": 1,
+    "tool": "sheets_core",
+    "action": "create",
+    "params": { "title": "Sales Tracker 2026" },
+    "description": "Create new spreadsheet"
+  },
+  {
+    "step": 2,
+    "tool": "sheets_composite",
+    "action": "import_csv",
+    "params": { "source": "q1_data.csv", "createNewSheet": true },
+    "description": "Import Q1 data into a new sheet"
+  },
+  {
+    "step": 3,
+    "tool": "sheets_dimensions",
+    "action": "freeze",
+    "params": { "frozenRowCount": 1 },
+    "description": "Freeze header row"
+  },
+  {
+    "step": 4,
+    "tool": "sheets_visualize",
+    "action": "chart_create",
+    "params": { "chartType": "LINE", "dataRange": "Sheet1!A:B", "title": "Monthly Revenue" },
+    "description": "Create revenue trend chart"
+  }
+]
 
 Return ONLY valid JSON array, no markdown code blocks, no explanation.
 Maximum ${maxSteps || 10} steps.`;

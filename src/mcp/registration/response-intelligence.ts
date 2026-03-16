@@ -1,7 +1,13 @@
 import { getDataAwareSuggestions } from '../../services/action-recommender.js';
 import { suggestFix } from '../../services/error-fix-suggester.js';
+import { getErrorPatternLearner } from '../../services/error-pattern-learner.js';
 import { scanResponseQualitySync } from '../../services/lightweight-quality-scanner.js';
-import { generateResponseHints } from '../../services/response-hints-engine.js';
+import {
+  generateResponseHints,
+  generateWriteHints,
+  generateScenarioHints,
+  type ResponseHints,
+} from '../../services/response-hints-engine.js';
 
 type ResponseCellValue = string | number | boolean | null;
 
@@ -29,17 +35,6 @@ const BATCHING_HINTS: Partial<Record<string, string>> = {
   'sheets_format.set_text_format': 'For 3+ cells, use batch_format — single API call.',
   'sheets_core.get': 'For 2+ spreadsheets, use sheets_core.batch_get — single API call.',
 };
-
-const DATA_QUALITY_ACTIONS = new Set([
-  'read',
-  'write',
-  'append',
-  'batch_read',
-  'batch_write',
-  'cross_read',
-  'cross_write',
-  'cross_query',
-]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -164,6 +159,22 @@ export function applyResponseIntelligence(
     if (fix) {
       error['suggestedFix'] = fix;
     }
+
+    // Surface learned error patterns if the learner has sufficient data
+    const learner = getErrorPatternLearner();
+    const pattern = learner.getPatterns(errorCode, { tool: options.toolName });
+    if (
+      pattern?.topResolution &&
+      pattern.topResolution.successRate > 0.5 &&
+      pattern.topResolution.occurrenceCount >= 3
+    ) {
+      error['_learnedFix'] = {
+        fix: pattern.topResolution.fix,
+        confidence: pattern.topResolution.successRate,
+        seenCount: pattern.topResolution.occurrenceCount,
+      };
+    }
+
     return {}; // OK: no batching hint for failure responses
   }
 
@@ -187,9 +198,8 @@ export function applyResponseIntelligence(
     responseRecord['suggestedNextActions'] = recommendations.slice(0, 5);
   }
 
+  // Trigger quality scan on any response that returns cell data (not just sheets_data)
   if (
-    options.toolName === 'sheets_data' &&
-    DATA_QUALITY_ACTIONS.has(actionName) &&
     responseValues &&
     responseValues.length >= 2 &&
     responseValues.some((row) => row.length >= 2)
@@ -205,7 +215,7 @@ export function applyResponseIntelligence(
     }
   }
 
-  // Inject CoT _hints on successful data reads (sync, zero API calls)
+  // Inject CoT _hints on successful responses (sync, zero API calls)
   if (
     options.toolName === 'sheets_data' &&
     (actionName === 'read' || actionName === 'batch_read' || actionName === 'cross_read') &&
@@ -214,6 +224,91 @@ export function applyResponseIntelligence(
     const hints = generateResponseHints(responseValues);
     if (hints) {
       responseRecord['_hints'] = hints;
+    }
+  } else if (
+    options.toolName === 'sheets_data' &&
+    (actionName === 'write' || actionName === 'batch_write')
+  ) {
+    const writtenValues = responseValues ?? ([] as ResponseCellValue[][]);
+    const hints = generateWriteHints(writtenValues);
+    if (hints) {
+      responseRecord['_hints'] = hints;
+    }
+  } else if (options.toolName === 'sheets_data' && actionName === 'append') {
+    const appendedValues = responseValues ?? ([] as ResponseCellValue[][]);
+    const rowCount = appendedValues.length;
+    if (rowCount > 0) {
+      responseRecord['_hints'] = {
+        nextPhase: `Appended ${rowCount} row${rowCount !== 1 ? 's' : ''}. If retrying, check for duplicates first (sheets_data.read).`,
+        riskLevel: 'low' as const,
+      };
+    }
+  } else if (options.toolName === 'sheets_dependencies' && actionName === 'model_scenario') {
+    const cascadeEffects = responseRecord['cascadeEffects'];
+    const hints = generateScenarioHints(Array.isArray(cascadeEffects) ? cascadeEffects : undefined);
+    if (hints) {
+      responseRecord['_hints'] = hints;
+    }
+  } else if (options.toolName === 'sheets_analyze' && actionName === 'comprehensive') {
+    const severity = getOptionalString(responseRecord, 'overallHealth') ?? '';
+    const findingCount = isRecord(responseRecord['findings'])
+      ? Object.keys(responseRecord['findings']).length
+      : 0;
+    responseRecord['_hints'] = {
+      dataShape: findingCount > 0 ? `${findingCount} finding categories detected` : undefined,
+      nextPhase:
+        severity === 'critical' || severity === 'poor'
+          ? 'Analysis complete → clean data (sheets_fix.clean) → validate → re-analyze'
+          : 'Analysis complete → apply suggestions (sheets_analyze.auto_enhance) → format → share',
+      riskLevel: (severity === 'critical' || severity === 'poor'
+        ? 'high'
+        : severity === 'fair'
+          ? 'medium'
+          : 'low') as ResponseHints['riskLevel'],
+    };
+  } else if (options.toolName === 'sheets_fix' && actionName === 'clean') {
+    const changesCount =
+      typeof responseRecord['changesApplied'] === 'number' ? responseRecord['changesApplied'] : 0;
+    const columnsCount =
+      typeof responseRecord['columnsAffected'] === 'number' ? responseRecord['columnsAffected'] : 0;
+    if (changesCount > 0 || columnsCount > 0) {
+      responseRecord['_hints'] = {
+        dataShape:
+          changesCount > 0 || columnsCount > 0
+            ? `Cleaned ${changesCount} cell${changesCount !== 1 ? 's' : ''} across ${columnsCount} column${columnsCount !== 1 ? 's' : ''}`
+            : undefined,
+        nextPhase: 'Clean complete → validate (sheets_quality.validate) → re-read to confirm',
+        riskLevel: 'none' as const,
+      };
+    }
+  } else if (options.toolName === 'sheets_composite' && actionName === 'generate_sheet') {
+    const colCount =
+      typeof responseRecord['columnCount'] === 'number' ? responseRecord['columnCount'] : 0;
+    const formulaRowCount =
+      typeof responseRecord['formulaRows'] === 'number' ? responseRecord['formulaRows'] : 0;
+    if (colCount > 0) {
+      responseRecord['_hints'] = {
+        dataShape: `Generated ${colCount} column${colCount !== 1 ? 's' : ''}${formulaRowCount > 0 ? `, ${formulaRowCount} formula row${formulaRowCount !== 1 ? 's' : ''}` : ''}`,
+        nextPhase:
+          'Sheet generated → review structure → save as template (sheets_templates.create)',
+        riskLevel: 'none' as const,
+      };
+    }
+  } else if (options.toolName === 'sheets_agent' && actionName === 'execute') {
+    const totalSteps =
+      typeof responseRecord['totalSteps'] === 'number' ? responseRecord['totalSteps'] : 0;
+    const completedSteps =
+      typeof responseRecord['completedSteps'] === 'number' ? responseRecord['completedSteps'] : 0;
+    const lastAction = getOptionalString(responseRecord, 'lastAction') ?? '';
+    if (totalSteps > 0) {
+      responseRecord['_hints'] = {
+        dataShape: `Plan executed ${completedSteps}/${totalSteps} step${totalSteps !== 1 ? 's' : ''}${lastAction ? `, final action: ${lastAction}` : ''}`,
+        nextPhase:
+          completedSteps < totalSteps
+            ? 'Plan partially completed → check error details → retry or adjust plan'
+            : 'Plan complete → verify results → share or export',
+        riskLevel: (completedSteps < totalSteps ? 'medium' : 'none') as ResponseHints['riskLevel'],
+      };
     }
   }
 

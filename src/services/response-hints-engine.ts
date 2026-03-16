@@ -281,6 +281,45 @@ function suggestNextPhase(
 // ────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Risk level thresholds:
+ * - 'none': nullRatio < 1%, no duplicate numeric columns
+ * - 'low': nullRatio 1-5% OR 1 duplicate numeric column
+ * - 'medium': nullRatio 5-30% OR 2+ duplicate numeric columns
+ * - 'high': nullRatio > 30% OR id-like columns with duplicates
+ */
+
+/**
+ * Generate CoT `_hints` for write operations.
+ * Returns a verification nudge so the LLM confirms the write landed.
+ */
+export function generateWriteHints(values: CellValue[][]): ResponseHints | null {
+  if (!values || values.length === 0) return null;
+  const cellCount = values.reduce((sum, row) => sum + (Array.isArray(row) ? row.length : 0), 0);
+  if (cellCount === 0) return null;
+  return {
+    nextPhase: `Wrote ${cellCount} cell${cellCount !== 1 ? 's' : ''}. Consider verifying with a read operation to confirm values landed correctly.`,
+    riskLevel: 'none',
+  };
+}
+
+/**
+ * Generate CoT `_hints` for scenario modeling results.
+ * Surfaces cascade size and risk level so the LLM can decide next steps.
+ */
+export function generateScenarioHints(cascadeEffects?: unknown[]): ResponseHints | null {
+  if (!cascadeEffects || cascadeEffects.length === 0) return null;
+  const count = cascadeEffects.length;
+  return {
+    dataShape: `Scenario affects ${count} dependent cell${count !== 1 ? 's' : ''}`,
+    riskLevel: count > 20 ? 'high' : count > 5 ? 'medium' : 'low',
+    nextPhase:
+      count > 0
+        ? 'Consider materializing as a scenario sheet (sheets_dependencies.create_scenario_sheet) for side-by-side comparison'
+        : undefined,
+  };
+}
+
+/**
  * Generate CoT `_hints` from response cell values.
  * Returns null when there is not enough data to generate meaningful hints.
  */

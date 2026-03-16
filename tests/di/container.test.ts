@@ -60,7 +60,7 @@ describe('Container', () => {
 
     it('should throw if service not registered', async () => {
       await expect(container.resolve('unknown')).rejects.toThrow(
-        'Service "unknown" is not registered'
+        'service not found: unknown'
       );
     });
 

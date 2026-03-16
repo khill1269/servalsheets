@@ -1581,6 +1581,22 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         rowCount: rows.length,
       });
 
+      // Record operation in session context for LLM follow-up references
+      try {
+        if (this.context.sessionContext) {
+          this.context.sessionContext.recordOperation({
+            tool: 'sheets_bigquery',
+            action: 'import_from_bigquery',
+            spreadsheetId: req.spreadsheetId,
+            description: `Imported ${rows.length} rows from BigQuery to ${targetSheetName}`,
+            undoable: false,
+            cellsAffected: values.length * (columns.length || 1),
+          });
+        }
+      } catch {
+        // Non-blocking: session context recording is best-effort
+      }
+
       return this.success('import_from_bigquery', {
         rowCount: rows.length,
         columns,

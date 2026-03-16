@@ -37,6 +37,7 @@ export class ComputeHandler {
   private samplingServer?: SamplingServer;
   private duckdbEngine?: DuckDBEngine;
   private server?: { elicitInput?: ElicitFn };
+  private sessionContext?: import('../services/session-context.js').SessionContextManager;
 
   constructor(
     private sheetsApi: sheets_v4.Sheets,
@@ -44,11 +45,13 @@ export class ComputeHandler {
       samplingServer?: SamplingServer;
       duckdbEngine?: DuckDBEngine;
       server?: { elicitInput?: ElicitFn };
+      sessionContext?: import('../services/session-context.js').SessionContextManager;
     }
   ) {
     this.samplingServer = options?.samplingServer;
     this.duckdbEngine = options?.duckdbEngine;
     this.server = options?.server;
+    this.sessionContext = options?.sessionContext;
   }
 
   async handle(input: SheetsComputeInput): Promise<SheetsComputeOutput> {
@@ -321,6 +324,22 @@ export class ComputeHandler {
         statsStr,
         { maxTokens: 400 }
       );
+    }
+
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.sessionContext) {
+        this.sessionContext.recordOperation({
+          tool: 'sheets_compute',
+          action: 'statistical',
+          spreadsheetId: req.spreadsheetId,
+          range: req.range,
+          description: `Computed statistics on range ${req.range}`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
     }
 
     return {

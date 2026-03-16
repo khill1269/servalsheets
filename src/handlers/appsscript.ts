@@ -1250,6 +1250,21 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     // ISSUE-203: Always release the concurrency slot when execution completes
     SheetsAppsScriptHandler.activeRunExecutions--;
 
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.context.sessionContext) {
+        this.context.sessionContext.recordOperation({
+          tool: 'sheets_appsscript',
+          action: 'run',
+          spreadsheetId: req.scriptId,
+          description: `Ran Apps Script function '${req.functionName}' in script ${req.scriptId}`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
+
     // result.response?.result is typed as `unknown` from the RunResponse interface.
     // The schema accepts string | number | boolean | null | array | object.
     // The Apps Script API always returns one of these types at runtime.

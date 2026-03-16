@@ -80,6 +80,7 @@ const analyzerCache = new AnalyzerLRUCache();
 
 export interface DependenciesHandlerOptions {
   samplingServer?: SamplingServer;
+  sessionContext?: import('../services/session-context.js').SessionContextManager;
 }
 
 /**
@@ -88,10 +89,12 @@ export interface DependenciesHandlerOptions {
 export class DependenciesHandler {
   private sheetsApi: sheets_v4.Sheets;
   private samplingServer?: SamplingServer;
+  private sessionContext?: import('../services/session-context.js').SessionContextManager;
 
   constructor(sheetsApi: sheets_v4.Sheets, options?: DependenciesHandlerOptions) {
     this.sheetsApi = sheetsApi;
     this.samplingServer = options?.samplingServer;
+    this.sessionContext = options?.sessionContext;
   }
 
   /**
@@ -760,6 +763,22 @@ export class DependenciesHandler {
       );
     }
 
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.sessionContext) {
+        this.sessionContext.recordOperation({
+          tool: 'sheets_dependencies',
+          action: 'model_scenario',
+          spreadsheetId: req.spreadsheetId,
+          description: `Modeled scenario: ${req.changes.length} input change(s) affected ${allAffected.size} cells`,
+          undoable: false,
+          cellsAffected: allAffected.size,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
+
     return {
       success: true,
       data: {
@@ -1071,8 +1090,11 @@ export class DependenciesHandler {
 /**
  * Create dependencies handler
  */
-export function createDependenciesHandler(sheetsApi: sheets_v4.Sheets): DependenciesHandler {
-  return new DependenciesHandler(sheetsApi);
+export function createDependenciesHandler(
+  sheetsApi: sheets_v4.Sheets,
+  options?: DependenciesHandlerOptions
+): DependenciesHandler {
+  return new DependenciesHandler(sheetsApi, options);
 }
 
 /**

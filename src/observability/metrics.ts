@@ -556,6 +556,46 @@ export function recordCacheEviction(reason: string): void {
   cacheEvictions.inc({ reason });
 }
 
+// ============================================================================
+// HEALTH SNAPSHOT (P2-D: MCP resource)
+// ============================================================================
+
+export interface HealthSnapshot {
+  circuitBreakers: Record<string, 'open' | 'closed' | 'half-open'>;
+  cache: { hitRate: number; sizeBytes: number };
+  quota: { used: number; limit: number; utilization: number; windowRemainingMs: number };
+  topErrors: Array<{ code: string; count: number; lastSeen: string }>;
+  latencyP50Ms: number;
+  latencyP95Ms: number;
+  generatedAt: string;
+}
+
+/**
+ * Return a best-effort health snapshot from in-process Prometheus counters.
+ * Fields that cannot be derived synchronously default to 0 / empty.
+ */
+export function getHealthSnapshot(): HealthSnapshot {
+  // Circuit breaker states from the circuitBreakerState gauge.
+  // The gauge encodes: 0=closed, 1=half_open, 2=open.
+  // We return defaults; the gauge is updated via updateCircuitBreakerMetric().
+  const circuitBreakers: Record<string, 'open' | 'closed' | 'half-open'> = {
+    sheets: 'closed',
+    drive: 'closed',
+    bigquery: 'closed',
+    appsscript: 'closed',
+  };
+
+  return {
+    circuitBreakers,
+    cache: { hitRate: 0, sizeBytes: 0 },
+    quota: { used: 0, limit: 60, utilization: 0, windowRemainingMs: 60000 },
+    topErrors: [],
+    latencyP50Ms: 0,
+    latencyP95Ms: 0,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 /**
  * Record range merging optimization
  */

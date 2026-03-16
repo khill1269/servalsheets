@@ -213,12 +213,16 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     // Dependencies handler
     async dependencies() {
       const { createDependenciesHandler } = await import('./dependencies.js');
-      return createDependenciesHandler(options.sheetsApi);
+      return createDependenciesHandler(options.sheetsApi, {
+        sessionContext: options.context.sessionContext,
+      });
     },
     // Federation handler (Feature 3)
     async federation() {
       const { FederationHandler } = await import('./federation.js');
-      return new FederationHandler(options.context.taskStore);
+      return new FederationHandler(options.context.taskStore, {
+        sessionContext: options.context.sessionContext,
+      });
     },
     // Computation engine (Phase 5)
     async compute() {
@@ -226,17 +230,23 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
       return new ComputeHandler(options.sheetsApi, {
         samplingServer: options.context.samplingServer,
         duckdbEngine: options.context.duckdbEngine,
+        sessionContext: options.context.sessionContext,
       });
     },
     // Agent loop (Phase 6)
     async agent() {
       const { AgentHandler } = await import('./agent.js');
-      return new AgentHandler(handlersRef as unknown as import('./agent.js').AgentHandlerRegistry);
+      return new AgentHandler(handlersRef as unknown as import('./agent.js').AgentHandlerRegistry, {
+        sessionContext: options.context.sessionContext,
+      });
     },
     // Live data connectors (Wave 6)
     async connectors() {
       const { ConnectorsHandler } = await import('./connectors.js');
-      return new ConnectorsHandler({ samplingServer: options.context.samplingServer });
+      return new ConnectorsHandler({
+        samplingServer: options.context.samplingServer,
+        sessionContext: options.context.sessionContext,
+      });
     },
   };
 

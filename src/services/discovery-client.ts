@@ -186,7 +186,10 @@ export class DiscoveryApiClient {
   /**
    * Get API schema from Discovery API
    */
-  async getApiSchema(api: 'sheets' | 'drive', version: string): Promise<DiscoverySchema> {
+  async getApiSchema(
+    api: 'sheets' | 'drive' | 'bigquery' | 'script',
+    version: string
+  ): Promise<DiscoverySchema> {
     if (!this.enabled) {
       throw new ConfigError(
         'Discovery API is not enabled. Set DISCOVERY_API_ENABLED=true',
@@ -271,7 +274,7 @@ export class DiscoveryApiClient {
   /**
    * List available versions for an API
    */
-  async listAvailableVersions(api: 'sheets' | 'drive'): Promise<string[]> {
+  async listAvailableVersions(api: 'sheets' | 'drive' | 'bigquery' | 'script'): Promise<string[]> {
     if (!this.enabled) {
       throw new ConfigError(
         'Discovery API is not enabled. Set DISCOVERY_API_ENABLED=true',
@@ -393,9 +396,16 @@ export class DiscoveryApiClient {
   /**
    * Get Discovery API URL for an API
    */
-  private getDiscoveryUrl(api: 'sheets' | 'drive', version: string): string {
+  private getDiscoveryUrl(
+    api: 'sheets' | 'drive' | 'bigquery' | 'script',
+    version: string
+  ): string {
     if (api === 'sheets') {
       return `https://sheets.googleapis.com/$discovery/rest?version=${version}`;
+    } else if (api === 'bigquery') {
+      return `https://www.googleapis.com/discovery/v1/apis/bigquery/${version}/rest`;
+    } else if (api === 'script') {
+      return `https://www.googleapis.com/discovery/v1/apis/script/${version}/rest`;
     } else {
       return `https://www.googleapis.com/discovery/v1/apis/drive/${version}/rest`;
     }
@@ -404,7 +414,7 @@ export class DiscoveryApiClient {
   /**
    * Get API list URL
    */
-  private getApiListUrl(api: 'sheets' | 'drive'): string {
+  private getApiListUrl(api: 'sheets' | 'drive' | 'bigquery' | 'script'): string {
     return `https://www.googleapis.com/discovery/v1/apis?name=${api}`;
   }
 

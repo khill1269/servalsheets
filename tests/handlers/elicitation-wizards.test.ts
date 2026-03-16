@@ -55,6 +55,8 @@ vi.mock('../../src/mcp/elicitation.js', () => ({
     sendNotification: true,
     message: undefined,
   }),
+  // Required for FormatHandler.add_conditional_format_rule wizard
+  elicitConditionalFormatPreset: vi.fn().mockResolvedValue({ preset: 'highlight_blanks' }),
 }));
 
 vi.mock('../../src/utils/safety-helpers.js', () => ({
@@ -112,7 +114,7 @@ import { SheetsCoreHandler } from '../../src/handlers/core.js';
 import { TransactionHandler } from '../../src/handlers/transaction.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4 } from 'googleapis';
-import { elicitSpreadsheetCreation } from '../../src/mcp/elicitation.js';
+import { elicitSpreadsheetCreation, elicitConditionalFormatPreset } from '../../src/mcp/elicitation.js';
 
 // ---------------------------------------------------------------------------
 // Mock factories
@@ -287,7 +289,8 @@ describe('FormatHandler — add_conditional_format_rule elicitation wizard', () 
       },
     } as any);
 
-    expect(elicitServer.elicitInput).toHaveBeenCalled();
+    // elicitConditionalFormatPreset is called when elicitationServer is present and rulePreset absent
+    expect(elicitConditionalFormatPreset).toHaveBeenCalled();
     const response = result.response as any;
     expect(response.success).toBe(true);
     expect(response.action).toBe('add_conditional_format_rule');
@@ -313,6 +316,9 @@ describe('FormatHandler — add_conditional_format_rule elicitation wizard', () 
   });
 
   it('proceeds with highlight_blanks default when elicitation fails', async () => {
+    // Override the mock to return null (simulates elicitation timeout/failure)
+    vi.mocked(elicitConditionalFormatPreset).mockResolvedValueOnce(null);
+
     const elicitServer = {
       elicitInput: vi.fn().mockRejectedValue(new Error('timeout')),
       getClientCapabilities: vi.fn().mockReturnValue({ elicitation: { form: true } }),
@@ -326,7 +332,7 @@ describe('FormatHandler — add_conditional_format_rule elicitation wizard', () 
         spreadsheetId: 'test-spreadsheet-id',
         sheetId: 0,
         range: 'Sheet1!A1:A10',
-        // rulePreset absent
+        // rulePreset absent — falls back to highlight_blanks when elicitation returns null
       },
     } as any);
 

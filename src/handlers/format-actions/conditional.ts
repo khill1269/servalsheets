@@ -9,7 +9,7 @@ import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { buildGridRangeInput, toGridRange } from '../../utils/google-sheets-helpers.js';
 import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
+import { confirmDestructiveAction, elicitConditionalFormatPreset } from '../../mcp/elicitation.js';
 import type { FormatResponse, FormatRequest } from '../../schemas/index.js';
 import type { FormatHandlerAccess } from './internal.js';
 import { isElicitableRulePreset, type ConditionType } from './internal.js';
@@ -383,44 +383,19 @@ export async function handleAddConditionalFormatRule(
 ): Promise<FormatResponse> {
   // Elicitation wizard: ask for rulePreset when absent
   let resolvedInput = input;
-  if (!input.rulePreset && ha.context.server) {
-    try {
-      const elicitResult = await ha.context.server.elicitInput({
-        mode: 'form',
-        message: 'Step 1/2: Choose a conditional formatting rule preset',
-        requestedSchema: {
-          type: 'object',
-          properties: {
-            rulePreset: {
-              type: 'string',
-              title: 'Rule preset',
-              description: 'Select the type of conditional formatting rule',
-              enum: [
-                'highlight_duplicates',
-                'highlight_blanks',
-                'highlight_errors',
-                'color_scale_green_red',
-                'data_bars',
-                'top_10_percent',
-                'bottom_10_percent',
-              ],
-              default: 'highlight_blanks',
-            },
-          },
-          required: ['rulePreset'],
-        },
-      });
-      if (elicitResult.action === 'accept' && elicitResult.content?.['rulePreset']) {
-        const rulePreset = elicitResult.content['rulePreset'];
-        if (isElicitableRulePreset(rulePreset)) {
-          resolvedInput = {
-            ...input,
-            rulePreset,
-          };
-        }
-      }
-    } catch {
-      // non-blocking — proceed with default
+  if (!input.rulePreset && ha.context.elicitationServer) {
+    const rangeDisplay =
+      typeof input.range === 'string'
+        ? input.range
+        : input.range && 'a1' in input.range
+          ? input.range.a1
+          : '';
+    const elicited = await elicitConditionalFormatPreset(
+      ha.context.elicitationServer,
+      rangeDisplay
+    );
+    if (elicited && isElicitableRulePreset(elicited.preset)) {
+      resolvedInput = { ...input, rulePreset: elicited.preset };
     }
     if (!resolvedInput.rulePreset) {
       resolvedInput = { ...resolvedInput, rulePreset: 'highlight_blanks' };

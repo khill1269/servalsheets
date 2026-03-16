@@ -25,13 +25,16 @@ import { generateAIInsight } from '../mcp/sampling.js';
 
 export interface ConnectorsHandlerOptions {
   samplingServer?: SamplingServer;
+  sessionContext?: import('../services/session-context.js').SessionContextManager;
 }
 
 export class ConnectorsHandler {
   private samplingServer?: SamplingServer;
+  private sessionContext?: import('../services/session-context.js').SessionContextManager;
 
   constructor(options?: ConnectorsHandlerOptions) {
     this.samplingServer = options?.samplingServer;
+    this.sessionContext = options?.sessionContext;
   }
 
   async handle(input: SheetsConnectorsInput): Promise<SheetsConnectorsOutput> {
@@ -145,6 +148,23 @@ export class ConnectorsHandler {
       req.transform,
       req.useCache
     );
+
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.sessionContext) {
+        this.sessionContext.recordOperation({
+          tool: 'sheets_connectors',
+          action: 'query',
+          spreadsheetId: req.connectorId,
+          description: `Queried connector '${req.connectorId}' endpoint '${req.endpoint}': ${result.rows.length} rows`,
+          undoable: false,
+          cellsAffected: result.rows.length,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
+
     return {
       response: {
         success: true,

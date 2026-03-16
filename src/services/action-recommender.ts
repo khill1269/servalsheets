@@ -298,6 +298,16 @@ const RECOMMENDATION_RULES: Record<string, SuggestedAction[]> = {
       action: 'detect_patterns',
       reason: 'Analyze patterns in sorted data',
     },
+    {
+      tool: 'sheets_dimensions',
+      action: 'set_basic_filter',
+      reason: 'Add a filter for interactive sorting and filtering',
+    },
+    {
+      tool: 'sheets_dimensions',
+      action: 'create_filter_view',
+      reason: 'Create a named filter view to save this sort configuration',
+    },
   ],
 
   // After cross-sheet write
@@ -367,6 +377,165 @@ const RECOMMENDATION_RULES: Record<string, SuggestedAction[]> = {
       tool: 'sheets_session',
       action: 'get_context',
       reason: 'Review session context updated by the remote operation',
+    },
+  ],
+
+  // After freezing rows/columns
+  'sheets_dimensions.freeze': [
+    {
+      tool: 'sheets_format',
+      action: 'apply_preset',
+      reason: 'Format the header row with a professional style',
+    },
+    {
+      tool: 'sheets_dimensions',
+      action: 'auto_resize',
+      reason: 'Auto-resize columns for readability',
+    },
+  ],
+
+  // After adding a new sheet
+  'sheets_core.add_sheet': [
+    {
+      tool: 'sheets_data',
+      action: 'write',
+      reason: 'Write column headers to the new sheet',
+    },
+    {
+      tool: 'sheets_dimensions',
+      action: 'freeze',
+      reason: 'Freeze the header row on the new sheet',
+    },
+    {
+      tool: 'sheets_core',
+      action: 'update_sheet',
+      reason: 'Set a tab color to organize sheets visually',
+    },
+  ],
+
+  // After adding a named range
+  'sheets_advanced.add_named_range': [
+    {
+      tool: 'sheets_analyze',
+      action: 'generate_formula',
+      reason: 'Use the named range in a formula via generate_formula',
+    },
+    {
+      tool: 'sheets_advanced',
+      action: 'add_protected_range',
+      reason: 'Protect the named range to prevent accidental edits',
+    },
+  ],
+
+  // After comparing revisions (closest to restore_cells intent)
+  'sheets_history.diff_revisions': [
+    {
+      tool: 'sheets_data',
+      action: 'read',
+      reason: 'Read the current values to verify against the diff',
+    },
+    {
+      tool: 'sheets_collaborate',
+      action: 'comment_add',
+      reason: 'Document the revision finding with a comment',
+    },
+  ],
+
+  // After modeling a scenario
+  'sheets_dependencies.model_scenario': [
+    {
+      tool: 'sheets_dependencies',
+      action: 'create_scenario_sheet',
+      reason: 'Materialize the scenario as a separate sheet for comparison',
+    },
+    {
+      tool: 'sheets_dependencies',
+      action: 'compare_scenarios',
+      reason: 'Compare this scenario against another set of changes',
+    },
+  ],
+
+  // After importing from BigQuery
+  'sheets_bigquery.import_from_bigquery': [
+    {
+      tool: 'sheets_analyze',
+      action: 'scout',
+      reason: 'Scout the imported data structure and column types',
+    },
+    {
+      tool: 'sheets_fix',
+      action: 'clean',
+      reason: 'Clean and standardize the imported data',
+    },
+  ],
+
+  // After running an Apps Script
+  'sheets_appsscript.run': [
+    {
+      tool: 'sheets_data',
+      action: 'read',
+      reason: 'Verify the script results by reading the affected range',
+    },
+    {
+      tool: 'sheets_appsscript',
+      action: 'list_triggers',
+      reason: 'Set up a trigger to run this script automatically',
+    },
+  ],
+
+  // After committing a transaction
+  'sheets_transaction.commit': [
+    {
+      tool: 'sheets_data',
+      action: 'read',
+      reason: 'Verify the committed changes look correct',
+    },
+    {
+      tool: 'sheets_history',
+      action: 'undo',
+      reason: 'Undo the transaction if the results are unexpected',
+    },
+  ],
+
+  // After running a forecast
+  'sheets_compute.forecast': [
+    {
+      tool: 'sheets_visualize',
+      action: 'chart_create',
+      reason: 'Visualize the forecast results with a chart',
+    },
+    {
+      tool: 'sheets_composite',
+      action: 'export_xlsx',
+      reason: 'Export the forecast results as an Excel file',
+    },
+  ],
+
+  // After detecting anomalies
+  'sheets_fix.detect_anomalies': [
+    {
+      tool: 'sheets_fix',
+      action: 'clean',
+      reason: 'Clean the anomalous data identified',
+    },
+    {
+      tool: 'sheets_format',
+      action: 'add_conditional_format_rule',
+      reason: 'Highlight anomalies with conditional formatting',
+    },
+  ],
+
+  // After applying a format preset
+  'sheets_format.apply_preset': [
+    {
+      tool: 'sheets_dimensions',
+      action: 'freeze',
+      reason: 'Freeze the header row after applying the preset',
+    },
+    {
+      tool: 'sheets_dimensions',
+      action: 'auto_resize',
+      reason: 'Auto-resize columns to fit the formatted content',
     },
   ],
 };
