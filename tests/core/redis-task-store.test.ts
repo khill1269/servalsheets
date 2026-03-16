@@ -177,7 +177,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
 
     it('should throw for non-existent task', async () => {
       await expect(store.updateTaskStatus('task_nonexistent', 'completed')).rejects.toThrow(
-        'Task not found'
+        'task not found'
       );
     });
 
@@ -253,7 +253,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
     it('should throw for non-existent task when storing result', async () => {
       await expect(
         store.storeTaskResult('task_nonexistent', 'completed', { content: [], isError: false })
-      ).rejects.toThrow('Task not found');
+      ).rejects.toThrow('task not found');
     });
 
     it('should persist result across store instances', async () => {
