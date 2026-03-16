@@ -14,6 +14,21 @@ type ResponseIntelligenceOptions = {
   hasFailure: boolean;
 };
 
+type ResponseIntelligenceResult = {
+  batchingHint?: string;
+};
+
+// Actions that have a batch equivalent and benefit from consolidation
+const BATCHING_HINTS: Partial<Record<string, string>> = {
+  'sheets_data.read': 'For 3+ ranges, use batch_read — same API cost, processed in parallel.',
+  'sheets_data.write': 'For 3+ ranges, use batch_write — 70% faster than individual writes.',
+  'sheets_data.append': 'To append many rows, batch them in a single append call (values[][]).',
+  'sheets_format.set_format': 'For 3+ format changes, use batch_format — 1 API call for all.',
+  'sheets_format.set_background': 'For 3+ cells, use batch_format — single API call.',
+  'sheets_format.set_text_format': 'For 3+ cells, use batch_format — single API call.',
+  'sheets_core.get': 'For 2+ spreadsheets, use sheets_core.batch_get — single API call.',
+};
+
 const DATA_QUALITY_ACTIONS = new Set([
   'read',
   'write',
@@ -135,11 +150,11 @@ function extractConfidenceGapHints(responseRecord: Record<string, unknown>): Con
 export function applyResponseIntelligence(
   responseRecord: Record<string, unknown>,
   options: ResponseIntelligenceOptions
-): void {
+): ResponseIntelligenceResult {
   if (options.hasFailure) {
     const error = responseRecord['error'];
     if (!isRecord(error)) {
-      return;
+      return {}; // OK: no error record to enrich
     }
 
     const errorCode = getOptionalString(error, 'code') ?? '';
@@ -148,16 +163,16 @@ export function applyResponseIntelligence(
     if (fix) {
       error['suggestedFix'] = fix;
     }
-    return;
+    return {}; // OK: no batching hint for failure responses
   }
 
   if (!options.toolName) {
-    return;
+    return {}; // OK: no tool context, cannot generate hints
   }
 
   const actionName = getOptionalString(responseRecord, 'action');
   if (!actionName) {
-    return;
+    return {}; // OK: no action in response, cannot generate hints
   }
 
   const responseValues = extractResponseValues(responseRecord);
@@ -188,4 +203,8 @@ export function applyResponseIntelligence(
       responseRecord['dataQualityWarnings'] = warnings;
     }
   }
+
+  // Return batching hint for the caller to inject into _meta
+  const batchingHint = BATCHING_HINTS[`${options.toolName}.${actionName}`];
+  return batchingHint ? { batchingHint } : {};
 }

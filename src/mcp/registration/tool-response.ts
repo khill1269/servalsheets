@@ -176,8 +176,9 @@ export function buildToolResponse(
     preCompactResponseSuccess === false || structuredContent['success'] === false;
 
   if (preCompactResponse) {
+    let intelligenceResult: { batchingHint?: string } = {};
     try {
-      applyResponseIntelligence(preCompactResponse, {
+      intelligenceResult = applyResponseIntelligence(preCompactResponse, {
         toolName,
         hasFailure: preCompactHasFailure,
       });
@@ -185,6 +186,21 @@ export function buildToolResponse(
       logger.debug('applyResponseIntelligence threw, continuing without enrichment', {
         error: err,
       });
+    }
+
+    // Inject batching hint into _meta when present
+    if (intelligenceResult.batchingHint && requestContext) {
+      const scMeta = getMetaRecord(structuredContent);
+      structuredContent['_meta'] = { ...scMeta, batchingHint: intelligenceResult.batchingHint };
+    }
+
+    // Inject transaction hint when many API calls were made in a single request
+    if (requestContext && requestContext.apiCallsMade >= 5) {
+      const scMeta = getMetaRecord(structuredContent);
+      structuredContent['_meta'] = {
+        ...scMeta,
+        transactionHint: `${requestContext.apiCallsMade} API calls in this request. For 5+ operations, use sheets_transaction for 80-95% fewer API calls.`,
+      };
     }
 
     const sanitizationFindings = sanitizeToolOutput(preCompactResponse);
