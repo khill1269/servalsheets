@@ -58,6 +58,7 @@ Thumbs.db
 !claude-desktop-config.json
 service-account*.json
 credentials*.json
+gha-creds-*.json
 tests/config/test-credentials.json
 claude_desktop_config.json
 .secrets/

@@ -273,7 +273,7 @@ When using tools, relevant knowledge is automatically:
 Knowledge files are located in:
 
 ```
-bundle/server/knowledge/
+dist/knowledge/
 ├── api/
 │   ├── batch-operations.md
 │   ├── charts.md
@@ -286,7 +286,8 @@ bundle/server/knowledge/
 └── README.md
 ```
 
-**Note**: These files are bundled with ServalSheets for offline access.
+**Note**: These files are copied into the runtime `dist/knowledge/` tree during build and can
+then be staged into deployment bundles for offline access.
 
 ## Resource Metadata
 
