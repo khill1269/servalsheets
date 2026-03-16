@@ -25,11 +25,19 @@ env:
   TEST_QUOTA_DELAY_MS: '200'
   TEST_MAX_RETRIES: '3'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: test-gates-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # Gate 1: Schema Validation
   schema-gate:
     name: Schema Validation Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -69,6 +77,7 @@ jobs:
   unit-gate:
     name: Unit Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -109,6 +118,7 @@ jobs:
   integration-gate:
     name: Integration Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [schema-gate, unit-gate]
 
     steps:
@@ -134,6 +144,7 @@ jobs:
   contract-gate:
     name: Contract Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [schema-gate]
 
     steps:
@@ -185,6 +196,7 @@ jobs:
   safety-gate:
     name: Safety Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [schema-gate, unit-gate]
 
     steps:
@@ -228,6 +240,7 @@ jobs:
   infrastructure-gate:
     name: Infrastructure Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [unit-gate, integration-gate]
 
     steps:
@@ -258,6 +271,7 @@ jobs:
   all-gates-passed:
     name: All Test Gates Passed
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs:
       - schema-gate
       - unit-gate
@@ -283,6 +297,7 @@ jobs:
   live-api-gate:
     name: Live API Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     needs: [all-gates-passed]
 

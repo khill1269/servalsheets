@@ -20,9 +20,14 @@ permissions:
   contents: read
   issues: write
 
+concurrency:
+  group: schema-check-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   schema-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository

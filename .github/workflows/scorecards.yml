@@ -7,10 +7,15 @@ on:
     - cron: '37 2 * * 1'
   workflow_dispatch:
 
+concurrency:
+  group: scorecards-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   analysis:
     name: Scorecards analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       security-events: write
       id-token: write

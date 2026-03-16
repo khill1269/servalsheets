@@ -5,16 +5,27 @@ on:
     # Run every Sunday at midnight UTC
     - cron: '0 0 * * 0'
 
+  pull_request:
+    branches: [main]
+
   workflow_dispatch:
     inputs:
       score_threshold:
         description: 'Minimum audit score threshold (%)'
         required: false
-        default: '130'
+        default: 130
         type: number
 
   release:
     types: [published]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: audit-106-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   NODE_VERSION: '20'
@@ -24,12 +35,13 @@ jobs:
   audit:
     name: Run 106-Category Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0 # Full history for historical comparison
+          fetch-depth: 1
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -69,12 +81,12 @@ jobs:
           echo "Score: ${SCORE}%"
           echo "Threshold: ${THRESHOLD}%"
 
-          if (( $(echo "$SCORE < $THRESHOLD" | bc -l) )); then
+          if node -e "process.exit(parseFloat('$SCORE') < parseFloat('$THRESHOLD') ? 1 : 0)"; then
+            echo "✅ Audit score meets threshold: ${SCORE}% ≥ ${THRESHOLD}%"
+          else
             echo "❌ Audit score below threshold: ${SCORE}% < ${THRESHOLD}%"
             echo "::error::Audit score (${SCORE}%) is below the required threshold (${THRESHOLD}%)"
             exit 1
-          else
-            echo "✅ Audit score meets threshold: ${SCORE}% ≥ ${THRESHOLD}%"
           fi
 
       - name: Generate audit report
@@ -91,6 +103,13 @@ jobs:
             head -n 50 "${{ env.AUDIT_OUTPUT_DIR }}/REPORT.md" >> $GITHUB_STEP_SUMMARY
           else
             echo "⚠️ Audit report not generated"
+            echo "## Audit Summary" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ steps.audit.outcome }}" = "failure" ]; then
+              echo "❌ Audit failed — no report generated. Check job logs for details." >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⚠️ Report file not found after audit run." >> $GITHUB_STEP_SUMMARY
+            fi
           fi
 
       - name: Upload audit results
@@ -103,6 +122,7 @@ jobs:
             ${{ env.AUDIT_OUTPUT_DIR }}/REPORT.md
             ${{ env.AUDIT_OUTPUT_DIR }}/evidence/
           retention-days: 90
+          if-no-files-found: warn
 
       - name: Check for critical issues
         if: steps.audit.outcome == 'success'

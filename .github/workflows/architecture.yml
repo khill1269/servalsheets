@@ -14,10 +14,18 @@ on:
       - 'src/**/*.ts'
       - '.dependency-cruiser.cjs'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: architecture-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   dependency-analysis:
     name: Dependency Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -87,6 +95,7 @@ jobs:
   dead-code-analysis:
     name: Dead Code Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -136,6 +145,7 @@ jobs:
   architecture-summary:
     name: Architecture Summary
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: [dependency-analysis, dead-code-analysis]
     if: always()
 

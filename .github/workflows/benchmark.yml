@@ -23,6 +23,9 @@ on:
         default: true
         type: boolean
 
+permissions:
+  contents: read
+
 # Don't run on every PR to save API quota
 concurrency:
   group: benchmark-${{ github.ref }}
@@ -36,6 +39,7 @@ jobs:
   compliance-tests:
     name: MCP Compliance Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -60,6 +64,7 @@ jobs:
   tool-benchmarks:
     name: Tool-Level Benchmarks
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: compliance-tests
     # Only run if secrets are available (main branch or manual trigger)
     if: |
@@ -275,6 +280,7 @@ jobs:
   benchmark-summary:
     name: Benchmark Summary
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs:
       [compliance-tests, tool-benchmarks, action-benchmarks, optimization-tests, live-api-tests]
     if: always()

@@ -72,6 +72,10 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+      - name: Cleanup credentials
+        if: always()
+        run: rm -f tests/config/test-credentials.json
+
       - name: Summarize audit
         if: ${{ always() }}
         run: |

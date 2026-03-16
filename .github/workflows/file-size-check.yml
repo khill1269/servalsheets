@@ -13,6 +13,9 @@ on:
       - 'src/**/*.ts'
       - 'scripts/check-file-sizes.sh'
 
+permissions:
+  contents: read
+
 jobs:
   check-file-sizes:
     name: Check File Sizes

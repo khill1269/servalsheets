@@ -12,10 +12,15 @@ permissions:
   contents: read
   pull-requests: write
 
+concurrency:
+  group: auto-draft-pr-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   draft-pr:
     name: Open Draft PR
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # Skip if this is a merge commit (already has a PR)
     if: "!startsWith(github.event.head_commit.message, 'Merge')"
 

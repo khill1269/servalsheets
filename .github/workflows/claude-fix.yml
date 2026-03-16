@@ -35,7 +35,33 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check failure type (skip lint-only failures)
+        id: failure-type
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const jobs = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.payload.workflow_run.id,
+            });
+            const failedJobs = jobs.data.jobs
+              .filter(j => j.conclusion === 'failure')
+              .map(j => j.name.toLowerCase());
+            const lintOnly = failedJobs.length > 0 &&
+              failedJobs.every(j => j.includes('lint') || j.includes('format'));
+            core.setOutput('lint_only', lintOnly.toString());
+            console.log('Failed jobs:', failedJobs);
+            console.log('Lint-only failure:', lintOnly);
+
+      - name: Skip lint-only failures
+        if: steps.failure-type.outputs.lint_only == 'true'
+        run: |
+          echo "Skipping auto-fix: only lint/format jobs failed (not worth LLM cost)"
+          echo "Failed jobs were lint/format-only. Fix manually." >> $GITHUB_STEP_SUMMARY
+
       - uses: anthropics/claude-code-action@v1
+        if: steps.failure-type.outputs.lint_only != 'true'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
