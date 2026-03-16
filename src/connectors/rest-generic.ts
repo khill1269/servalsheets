@@ -9,6 +9,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ConfigError, NotFoundError, ServiceError } from '../core/errors.js';
 import { validateWebhookUrl } from '../services/webhook-url-validation.js';
 import type {
   SpreadsheetConnector,
@@ -119,9 +120,10 @@ export class GenericRestConnector implements SpreadsheetConnector {
     await validateWebhookUrl(this.config.baseUrl);
     if (this.config.auth.type !== 'none') {
       if (!credentials.apiKey && !credentials.custom?.['token']) {
-        throw new Error(
+        throw new ConfigError(
           `REST connector '${this.config.name}' requires authentication. ` +
-            `Provide apiKey or custom.token in credentials.`
+            `Provide apiKey or custom.token in credentials.`,
+          'REST_CONNECTOR_API_KEY'
         );
       }
       this.authToken = credentials.apiKey ?? credentials.custom?.['token'] ?? null;
@@ -199,7 +201,7 @@ export class GenericRestConnector implements SpreadsheetConnector {
 
     const epConfig = this.config.endpoints.find((ep) => ep.id === endpoint);
     if (!epConfig) {
-      throw new Error(`Endpoint '${endpoint}' not found in REST connector '${this.config.name}'`);
+      throw new NotFoundError('endpoint', `${endpoint} in REST connector '${this.config.name}'`);
     }
 
     const url = this.buildUrl(epConfig, params);
@@ -225,7 +227,12 @@ export class GenericRestConnector implements SpreadsheetConnector {
 
     const resp = await fetch(url, fetchOptions);
     if (!resp.ok) {
-      throw new Error(`REST API error: HTTP ${resp.status} ${resp.statusText}`);
+      throw new ServiceError(
+        `REST API error: HTTP ${resp.status} ${resp.statusText}`,
+        'INTERNAL_ERROR',
+        'rest-generic',
+        true
+      );
     }
 
     const data = (await resp.json()) as unknown;

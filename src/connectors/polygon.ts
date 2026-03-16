@@ -9,6 +9,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ConfigError, ServiceError } from '../core/errors.js';
 import type {
   SpreadsheetConnector,
   ConnectorCredentials,
@@ -41,8 +42,9 @@ export class PolygonConnector implements SpreadsheetConnector {
 
   async configure(credentials: ConnectorCredentials): Promise<void> {
     if (!credentials.apiKey) {
-      throw new Error(
-        'Polygon.io requires an API key. Get one at https://polygon.io/dashboard/signup'
+      throw new ConfigError(
+        'Polygon.io requires an API key. Get one at https://polygon.io/dashboard/signup',
+        'POLYGON_API_KEY'
       );
     }
     this.apiKey = credentials.apiKey;
@@ -267,12 +269,22 @@ export class PolygonConnector implements SpreadsheetConnector {
     const url = this.buildUrl(endpoint, params);
     const resp = await fetch(url);
     if (!resp.ok) {
-      throw new Error(`Polygon API error: HTTP ${resp.status} ${resp.statusText}`);
+      throw new ServiceError(
+        `Polygon API error: HTTP ${resp.status} ${resp.statusText}`,
+        'INTERNAL_ERROR',
+        'polygon',
+        true
+      );
     }
     const data = (await resp.json()) as Record<string, unknown>;
 
     if (data['status'] === 'ERROR') {
-      throw new Error(`Polygon: ${data['error'] ?? 'Unknown error'}`);
+      throw new ServiceError(
+        `Polygon: ${data['error'] ?? 'Unknown error'}`,
+        'INTERNAL_ERROR',
+        'polygon',
+        false
+      );
     }
 
     return this.formatResult(endpoint, data, params);

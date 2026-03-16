@@ -10,6 +10,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ConfigError, ServiceError } from '../core/errors.js';
 import type {
   SpreadsheetConnector,
   ConnectorCredentials,
@@ -42,7 +43,10 @@ export class FinnhubConnector implements SpreadsheetConnector {
 
   async configure(credentials: ConnectorCredentials): Promise<void> {
     if (!credentials.apiKey) {
-      throw new Error('Finnhub requires an API key. Get one free at https://finnhub.io/register');
+      throw new ConfigError(
+        'Finnhub requires an API key. Get one free at https://finnhub.io/register',
+        'FINNHUB_API_KEY'
+      );
     }
     this.apiKey = credentials.apiKey;
     this.configured = true;
@@ -273,7 +277,12 @@ export class FinnhubConnector implements SpreadsheetConnector {
     const url = this.buildUrl(endpoint, params);
     const resp = await fetch(url);
     if (!resp.ok) {
-      throw new Error(`Finnhub API error: HTTP ${resp.status} ${resp.statusText}`);
+      throw new ServiceError(
+        `Finnhub API error: HTTP ${resp.status} ${resp.statusText}`,
+        'INTERNAL_ERROR',
+        'finnhub',
+        true
+      );
     }
     const data = (await resp.json()) as Record<string, unknown>;
     return this.formatResult(endpoint, data, params);

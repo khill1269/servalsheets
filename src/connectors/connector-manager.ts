@@ -7,6 +7,7 @@
 
 import cron from 'node-cron';
 import { logger } from '../utils/logger.js';
+import { ConfigError, NotFoundError, ServiceError, ValidationError } from '../core/errors.js';
 import { randomBytes, createCipheriv, createDecipheriv, scryptSync } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -81,9 +82,10 @@ function deriveKey(configDir: string = CONNECTOR_CONFIG_DIR): Buffer | null {
 function encryptConfig(plaintext: string, configDir: string = CONNECTOR_CONFIG_DIR): string {
   const key = deriveKey(configDir);
   if (!key) {
-    throw new Error(
+    throw new ConfigError(
       'Cannot save connector credentials: CONNECTOR_ENCRYPTION_KEY is not set. ' +
-        'Set this environment variable to enable encrypted credential storage.'
+        'Set this environment variable to enable encrypted credential storage.',
+      'CONNECTOR_ENCRYPTION_KEY'
     );
   }
 
@@ -439,9 +441,11 @@ class SubscriptionEngine {
     let timer: ReturnType<typeof setInterval> | ReturnType<typeof cron.schedule>;
     if (schedule.interval === 'custom' && schedule.customCronExpression) {
       if (!cron.validate(schedule.customCronExpression)) {
-        throw new Error(
+        throw new ValidationError(
           `Invalid cron expression: "${schedule.customCronExpression}". ` +
-            'Use standard 5-field cron format (e.g., "0 */6 * * *" for every 6 hours).'
+            'Use standard 5-field cron format (e.g., "0 */6 * * *" for every 6 hours).',
+          'customCronExpression',
+          '0 */6 * * *'
         );
       }
       timer = cron.schedule(schedule.customCronExpression, runRefresh, {
@@ -956,10 +960,13 @@ export class ConnectorManager {
   ): Promise<DataResult> {
     const entry = this.registry.get(connectorId);
     if (!entry) {
-      throw new Error(`Connector '${connectorId}' not found`);
+      throw new NotFoundError('connector', connectorId);
     }
     if (!entry.configured) {
-      throw new Error(`Connector '${connectorId}' is not configured. Use configure action first.`);
+      throw new ConfigError(
+        `Connector '${connectorId}' is not configured. Use configure action first.`,
+        connectorId
+      );
     }
 
     // Check cache
@@ -975,7 +982,12 @@ export class ConnectorManager {
 
     // Check quota
     if (!this.quotaManager.tryConsume(connectorId)) {
-      throw new Error(`Rate limit exceeded for '${connectorId}'. Try again later.`);
+      throw new ServiceError(
+        `Rate limit exceeded for '${connectorId}'. Try again later.`,
+        'QUOTA_EXCEEDED',
+        connectorId,
+        true
+      );
     }
 
     // Execute query
@@ -1015,8 +1027,9 @@ export class ConnectorManager {
     destination: { spreadsheetId: string; range: string }
   ): Subscription {
     const entry = this.registry.get(connectorId);
-    if (!entry) throw new Error(`Connector '${connectorId}' not found`);
-    if (!entry.configured) throw new Error(`Connector '${connectorId}' is not configured`);
+    if (!entry) throw new NotFoundError('connector', connectorId);
+    if (!entry.configured)
+      throw new ConfigError(`Connector '${connectorId}' is not configured`, connectorId);
 
     return this.subscriptionEngine.add(
       connectorId,
@@ -1060,7 +1073,7 @@ export class ConnectorManager {
     quota: { used: number; limit: number };
   }> {
     const entry = this.registry.get(connectorId);
-    if (!entry) throw new Error(`Connector '${connectorId}' not found`);
+    if (!entry) throw new NotFoundError('connector', connectorId);
 
     let health: HealthStatus | null = null;
     if (entry.configured) {
@@ -1088,8 +1101,9 @@ export class ConnectorManager {
 
   async discover(connectorId: string): Promise<{ endpoints: DataEndpoint[] }> {
     const entry = this.registry.get(connectorId);
-    if (!entry) throw new Error(`Connector '${connectorId}' not found`);
-    if (!entry.configured) throw new Error(`Connector '${connectorId}' is not configured`);
+    if (!entry) throw new NotFoundError('connector', connectorId);
+    if (!entry.configured)
+      throw new ConfigError(`Connector '${connectorId}' is not configured`, connectorId);
 
     const endpoints = await entry.connector.listEndpoints();
     return { endpoints };
@@ -1097,7 +1111,7 @@ export class ConnectorManager {
 
   async getEndpointSchema(connectorId: string, endpoint: string): Promise<DataSchema> {
     const entry = this.registry.get(connectorId);
-    if (!entry) throw new Error(`Connector '${connectorId}' not found`);
+    if (!entry) throw new NotFoundError('connector', connectorId);
     return entry.connector.getSchema(endpoint);
   }
 

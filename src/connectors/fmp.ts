@@ -9,6 +9,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ConfigError, ServiceError } from '../core/errors.js';
 import type {
   SpreadsheetConnector,
   ConnectorCredentials,
@@ -41,8 +42,9 @@ export class FmpConnector implements SpreadsheetConnector {
 
   async configure(credentials: ConnectorCredentials): Promise<void> {
     if (!credentials.apiKey) {
-      throw new Error(
-        'FMP requires an API key. Get one at https://financialmodelingprep.com/developer'
+      throw new ConfigError(
+        'FMP requires an API key. Get one at https://financialmodelingprep.com/developer',
+        'FMP_API_KEY'
       );
     }
     this.apiKey = credentials.apiKey;
@@ -319,7 +321,12 @@ export class FmpConnector implements SpreadsheetConnector {
 
     const resp = await fetch(url);
     if (!resp.ok) {
-      throw new Error(`FMP API error: HTTP ${resp.status} ${resp.statusText}`);
+      throw new ServiceError(
+        `FMP API error: HTTP ${resp.status} ${resp.statusText}`,
+        'INTERNAL_ERROR',
+        'fmp',
+        true
+      );
     }
     const data = (await resp.json()) as unknown;
     return this.formatResult(endpoint, data);

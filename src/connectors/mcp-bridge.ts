@@ -9,6 +9,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { NotFoundError, ServiceError } from '../core/errors.js';
 import type {
   SpreadsheetConnector,
   ConnectorCredentials,
@@ -92,8 +93,11 @@ export class McpBridgeConnector implements SpreadsheetConnector {
         `MCP bridge connector configured: ${this.id} (${this.tools.length} tools discovered)`
       );
     } catch (err) {
-      throw new Error(
-        `Failed to connect to MCP server '${this.config.name}': ${err instanceof Error ? err.message : 'Unknown error'}`
+      throw new ServiceError(
+        `Failed to connect to MCP server '${this.config.name}': ${err instanceof Error ? err.message : 'Unknown error'}`,
+        'INTERNAL_ERROR',
+        'mcp-bridge',
+        true
       );
     }
   }
@@ -162,15 +166,18 @@ export class McpBridgeConnector implements SpreadsheetConnector {
 
     const tool = this.tools.find((t) => t.name === endpoint);
     if (!tool) {
-      throw new Error(`MCP tool '${endpoint}' not found on server '${this.config.name}'`);
+      throw new NotFoundError('MCP tool', `${endpoint} on server '${this.config.name}'`);
     }
 
     try {
       const result = await this.callTool(endpoint, params);
       return this.parseToolResult(endpoint, result);
     } catch (err) {
-      throw new Error(
-        `MCP tool '${endpoint}' failed: ${err instanceof Error ? err.message : 'Unknown error'}`
+      throw new ServiceError(
+        `MCP tool '${endpoint}' failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        'INTERNAL_ERROR',
+        'mcp-bridge',
+        true
       );
     }
   }
@@ -216,9 +223,12 @@ export class McpBridgeConnector implements SpreadsheetConnector {
     // const result = await client.callTool({ name: toolName, arguments: params });
     // return result;
 
-    throw new Error(
+    throw new ServiceError(
       `MCP bridge '${this.id}': Tool execution requires active MCP client connection. ` +
-        `Configure via sheets_federation for remote MCP server access.`
+        `Configure via sheets_federation for remote MCP server access.`,
+      'INTERNAL_ERROR',
+      'mcp-bridge',
+      false
     );
   }
 
