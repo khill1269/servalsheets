@@ -250,6 +250,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         this._generateMeta(action, input, result, options),
       getSheetId: (spreadsheetId, sheetName, api) =>
         this._getSheetId(spreadsheetId, sheetName, api),
+      resolveRange: (spreadsheetId, range) =>
+        this.resolveRange(spreadsheetId, range as Parameters<typeof this.resolveRange>[1]),
       deduplicatedApiCall: (key, call) => this._deduplicatedApiCall(key, call),
       recordAccessAndPrefetch: (params) => this._recordAccessAndPrefetch(params),
       sendProgress: (completed, total, message) => this._sendProgress(completed, total, message),

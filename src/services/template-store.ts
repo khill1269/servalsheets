@@ -32,6 +32,33 @@ const TEMPLATES_FOLDER = 'servalsheets-templates';
 const TEMPLATE_MIME_TYPE = 'application/json';
 const APP_DATA_SPACE = 'appDataFolder';
 
+function deriveBuiltinTemplateId(
+  template: Record<string, unknown>,
+  file: string,
+  index: number
+): string {
+  if (typeof template['id'] === 'string' && template['id'].trim().length > 0) {
+    return template['id'];
+  }
+
+  const fileStem = path.basename(file, '.json');
+  if (fileStem !== 'common-templates') {
+    return fileStem;
+  }
+
+  const nameSource =
+    typeof template['name'] === 'string' && template['name'].trim().length > 0
+      ? template['name']
+      : `${fileStem}-${index + 1}`;
+
+  const slug = nameSource
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return slug || `${fileStem}-${index + 1}`;
+}
+
 /**
  * Builtin template from knowledge base
  */
@@ -357,10 +384,10 @@ export class TemplateStore {
           // Handle both single template and array of templates
           const templateArray = Array.isArray(data) ? data : [data];
 
-          for (const template of templateArray) {
-            if (template.id && template.name && template.sheets) {
+          for (const [index, template] of templateArray.entries()) {
+            if (template.name && template.sheets) {
               templates.push({
-                id: template.id,
+                id: deriveBuiltinTemplateId(template as Record<string, unknown>, file, index),
                 name: template.name,
                 description: template.description || '',
                 category: template.category || file.replace('.json', ''),

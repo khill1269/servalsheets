@@ -1029,6 +1029,7 @@ export async function handleClear(
   });
 
   try {
+    const timeoutMs = parseInt(process.env['GOOGLE_API_TIMEOUT_MS'] ?? '60000', 10);
     const response = await Promise.race([
       ha.withCircuitBreaker('values.clear', () =>
         ha.api.spreadsheets.values.clear({
@@ -1038,7 +1039,10 @@ export async function handleClear(
         })
       ),
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Clear operation timed out after 30 seconds')), 30000)
+        setTimeout(
+          () => reject(new Error(`Clear operation timed out after ${timeoutMs / 1000} seconds`)),
+          timeoutMs
+        )
       ),
     ]);
 
