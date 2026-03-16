@@ -13,6 +13,7 @@ import { getBackgroundAnalyzer } from '../../services/background-analyzer.js';
 import { getRequestLogger } from '../../utils/request-context.js';
 import type { DataHandlerAccess, ResponseFormat } from './internal.js';
 import {
+  a1ToGridRange,
   resolveRangeToA1,
   applyReadResponseFormat,
   buildResponseFormatMeta,
@@ -22,6 +23,7 @@ import {
   validateValuesPayloadIfEnabled,
   checkFormulaInjection,
 } from './helpers.js';
+import { toGridRange } from '../../utils/google-sheets-helpers.js';
 
 type DataRequest = SheetsDataInput['request'];
 
@@ -1030,12 +1032,21 @@ export async function handleClear(
 
   try {
     const timeoutMs = parseInt(process.env['GOOGLE_API_TIMEOUT_MS'] ?? '60000', 10);
-    const response = await Promise.race([
+    const gridRange = await a1ToGridRange(ha, input.spreadsheetId, range);
+    await Promise.race([
       ha.withCircuitBreaker('values.clear', () =>
-        ha.api.spreadsheets.values.clear({
+        ha.api.spreadsheets.batchUpdate({
           spreadsheetId: input.spreadsheetId,
-          range,
-          fields: 'clearedRange',
+          requestBody: {
+            requests: [
+              {
+                updateCells: {
+                  range: toGridRange(gridRange),
+                  fields: 'userEnteredValue',
+                },
+              },
+            ],
+          },
         })
       ),
       new Promise<never>((_, reject) =>
@@ -1053,9 +1064,8 @@ export async function handleClear(
 
     const analysisConfig = getBackgroundAnalysisConfig();
     if (analysisConfig.enabled) {
-      const clearedRange = response.data.clearedRange ?? range;
       const analyzer = getBackgroundAnalyzer();
-      analyzer.analyzeInBackground(input.spreadsheetId, clearedRange, 100, ha.api, {
+      analyzer.analyzeInBackground(input.spreadsheetId, range, 100, ha.api, {
         qualityThreshold: 70,
         minCellsChanged: analysisConfig.minCells,
         debounceMs: analysisConfig.debounceMs,
@@ -1069,8 +1079,8 @@ export async function handleClear(
           tool: 'sheets_data',
           action: 'clear',
           spreadsheetId: input.spreadsheetId,
-          range: response.data.clearedRange ?? range,
-          description: `Cleared range ${response.data.clearedRange ?? range}`,
+          range,
+          description: `Cleared range ${range}`,
           undoable: false,
         });
       }
@@ -1079,7 +1089,7 @@ export async function handleClear(
     }
 
     return ha.makeSuccess('clear', {
-      updatedRange: response.data.clearedRange ?? range,
+      updatedRange: range,
     });
   } catch (error) {
     const duration = Date.now() - startTime;

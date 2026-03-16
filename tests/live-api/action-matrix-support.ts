@@ -16,6 +16,22 @@ export interface MaterializeRequestOptions {
   secondarySheetId?: number;
 }
 
+export interface MatrixQuotaEstimate {
+  reads: number;
+  writes: number;
+}
+
+export interface MatrixExecutionProfile {
+  quotaEstimate: MatrixQuotaEstimate;
+  baseDelayMs: number;
+  callTimeoutMs: number;
+  maxTotalTimeoutMs: number;
+  testTimeoutMs: number;
+  maxAttempts: number;
+  retryRateLimit: boolean;
+  retryTransportTimeout: boolean;
+}
+
 export interface ActionCapability {
   actionKey: string;
   tool: string;
@@ -27,6 +43,7 @@ export interface ActionCapability {
   sharedExecution: boolean;
   requiresSecondarySpreadsheet: boolean;
   probeStrategy: ProbeStrategy | null;
+  executionProfile: MatrixExecutionProfile;
 }
 
 export interface MatrixActionResult {
@@ -43,10 +60,14 @@ export interface MatrixActionResult {
   errorCode?: string;
   errorMessage?: string;
   skipped?: boolean;
+  attemptCount?: number;
+  retryCount?: number;
   mcpError?: {
     code?: string;
     message?: string;
     retryable?: boolean;
+    retryAfterMs?: number;
+    category?: string;
   };
   transportError?: {
     message: string;
@@ -213,6 +234,99 @@ const MATRIX_ROW_BANDING_DEFAULT = {
   secondBandColor: { red: 0.9, green: 0.9, blue: 0.9 },
 };
 
+const DEFAULT_MCP_EXECUTION_PROFILE: Readonly<MatrixExecutionProfile> = {
+  quotaEstimate: { reads: 2, writes: 1 },
+  baseDelayMs: 1_400,
+  callTimeoutMs: 420_000,
+  maxTotalTimeoutMs: 480_000,
+  testTimeoutMs: 540_000,
+  maxAttempts: 2,
+  retryRateLimit: true,
+  retryTransportTimeout: false,
+};
+
+const DEFAULT_READ_ONLY_MCP_EXECUTION_PROFILE: Readonly<MatrixExecutionProfile> = {
+  quotaEstimate: { reads: 2, writes: 0 },
+  baseDelayMs: 1_100,
+  callTimeoutMs: 420_000,
+  maxTotalTimeoutMs: 480_000,
+  testTimeoutMs: 540_000,
+  maxAttempts: 2,
+  retryRateLimit: true,
+  retryTransportTimeout: true,
+};
+
+const DEFAULT_PROBE_EXECUTION_PROFILE: Readonly<MatrixExecutionProfile> = {
+  quotaEstimate: { reads: 1, writes: 0 },
+  baseDelayMs: 800,
+  callTimeoutMs: 60_000,
+  maxTotalTimeoutMs: 90_000,
+  testTimeoutMs: 90_000,
+  maxAttempts: 1,
+  retryRateLimit: false,
+  retryTransportTimeout: false,
+};
+
+const DEFAULT_SKIP_EXECUTION_PROFILE: Readonly<MatrixExecutionProfile> = {
+  quotaEstimate: { reads: 0, writes: 0 },
+  baseDelayMs: 0,
+  callTimeoutMs: 0,
+  maxTotalTimeoutMs: 0,
+  testTimeoutMs: 90_000,
+  maxAttempts: 1,
+  retryRateLimit: false,
+  retryTransportTimeout: false,
+};
+
+const TIMEOUT_RETRY_SAFE_ACTIONS = new Set([
+  'sheets_core.clear_sheet',
+  'sheets_data.clear',
+  'sheets_format.sparkline_clear',
+]);
+
+type MatrixExecutionProfileOverride = Partial<Omit<MatrixExecutionProfile, 'quotaEstimate'>> & {
+  quotaEstimate?: Partial<MatrixQuotaEstimate>;
+};
+
+const MATRIX_EXECUTION_PROFILE_OVERRIDES: Readonly<Record<string, MatrixExecutionProfileOverride>> =
+  {
+    'sheets_core.batch_delete_sheets': {
+      quotaEstimate: { reads: 1, writes: 2 },
+      baseDelayMs: 2_000,
+      maxAttempts: 3,
+    },
+    'sheets_core.clear_sheet': {
+      quotaEstimate: { reads: 2, writes: 1 },
+      baseDelayMs: 2_000,
+      maxAttempts: 3,
+      retryTransportTimeout: true,
+    },
+    'sheets_data.clear': {
+      quotaEstimate: { reads: 1, writes: 1 },
+      baseDelayMs: 2_000,
+      callTimeoutMs: 570_000,
+      maxTotalTimeoutMs: 600_000,
+      testTimeoutMs: 660_000,
+      maxAttempts: 2,
+      retryTransportTimeout: true,
+    },
+    'sheets_data.read': {
+      quotaEstimate: { reads: 2, writes: 0 },
+      baseDelayMs: 1_700,
+      maxAttempts: 3,
+      retryTransportTimeout: true,
+    },
+    'sheets_format.sparkline_clear': {
+      quotaEstimate: { reads: 1, writes: 1 },
+      baseDelayMs: 2_000,
+      callTimeoutMs: 570_000,
+      maxTotalTimeoutMs: 600_000,
+      testTimeoutMs: 660_000,
+      maxAttempts: 2,
+      retryTransportTimeout: true,
+    },
+  };
+
 export const MATRIX_TOOL_DEFAULTS: Readonly<Record<string, ModeRule>> = {
   sheets_advanced: {
     mode: 'mcp_execute',
@@ -336,6 +450,11 @@ export const MATRIX_ACTION_OVERRIDES: Readonly<Record<string, ModeRule>> = {
   'sheets_confirm.get_stats': {
     mode: 'mcp_execute',
     reason: 'Confirmation stats are local state reads and can run directly in the matrix.',
+  },
+  'sheets_core.copy': {
+    mode: 'probe_only',
+    reason:
+      'Full Drive copy already has dedicated live coverage and routinely dominates the matrix runtime under quota pressure, so the matrix uses a lightweight probe.',
   },
   'sheets_history.list': {
     mode: 'mcp_execute',
@@ -506,6 +625,62 @@ function isMutatingAction(action: string): boolean {
   return !READ_ONLY_ACTION_NAMES.has(action);
 }
 
+function mergeExecutionProfile(
+  base: Readonly<MatrixExecutionProfile>,
+  override?: MatrixExecutionProfileOverride
+): MatrixExecutionProfile {
+  if (!override) {
+    return {
+      ...base,
+      quotaEstimate: { ...base.quotaEstimate },
+    };
+  }
+
+  return {
+    ...base,
+    ...override,
+    quotaEstimate: {
+      ...base.quotaEstimate,
+      ...override.quotaEstimate,
+    },
+  };
+}
+
+export function isMatrixTimeoutRetrySafe(actionKey: string, mutates: boolean): boolean {
+  return !mutates || TIMEOUT_RETRY_SAFE_ACTIONS.has(actionKey);
+}
+
+export function buildMatrixExecutionProfile(
+  actionKey: string,
+  mode: ActionExecutionMode,
+  mutates: boolean
+): MatrixExecutionProfile {
+  if (mode === 'skip_external') {
+    return mergeExecutionProfile(DEFAULT_SKIP_EXECUTION_PROFILE);
+  }
+
+  if (mode === 'probe_only') {
+    return mergeExecutionProfile(
+      DEFAULT_PROBE_EXECUTION_PROFILE,
+      MATRIX_EXECUTION_PROFILE_OVERRIDES[actionKey]
+    );
+  }
+
+  const baseProfile = mutates
+    ? DEFAULT_MCP_EXECUTION_PROFILE
+    : DEFAULT_READ_ONLY_MCP_EXECUTION_PROFILE;
+  const mergedProfile = mergeExecutionProfile(
+    baseProfile,
+    MATRIX_EXECUTION_PROFILE_OVERRIDES[actionKey]
+  );
+
+  if (!mergedProfile.retryTransportTimeout && isMatrixTimeoutRetrySafe(actionKey, mutates)) {
+    mergedProfile.retryTransportTimeout = true;
+  }
+
+  return mergedProfile;
+}
+
 export function classifyActionFixture(fixture: ActionFixture): ActionCapability {
   const actionKey = `${fixture.tool}.${fixture.action}`;
   const request = getFixtureRequest(fixture);
@@ -526,6 +701,7 @@ export function classifyActionFixture(fixture: ActionFixture): ActionCapability 
 
   const mutates = isMutatingAction(fixture.action);
   const sharedExecution = mode === 'mcp_execute' && !fixture.noSpreadsheet && !mutates;
+  const executionProfile = buildMatrixExecutionProfile(actionKey, mode, mutates);
 
   return {
     actionKey,
@@ -543,6 +719,7 @@ export function classifyActionFixture(fixture: ActionFixture): ActionCapability 
     sharedExecution,
     requiresSecondarySpreadsheet: requiresSecondarySpreadsheet(request),
     probeStrategy: mode === 'probe_only' ? inferProbeStrategy(fixture, request) : null,
+    executionProfile,
   };
 }
 

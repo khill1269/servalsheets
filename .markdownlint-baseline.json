@@ -1,5 +1,5 @@
 {
-  "baselineErrors": 235,
-  "updatedAt": "2026-03-06T17:02:22.156Z",
-  "command": "npx markdownlint-cli2 docs/**/*.md #docs/archive/** #docs/generated/** #docs/.vitepress/** #docs/development/** #docs/historical/**"
+  "baselineErrors": 238,
+  "updatedAt": "2026-03-16T09:06:37.294Z",
+  "command": "npx markdownlint-cli2 docs/**/*.md #docs/archive/** #docs/generated/** #docs/.vitepress/**"
 }

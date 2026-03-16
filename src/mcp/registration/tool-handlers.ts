@@ -183,8 +183,6 @@ const SheetsConnectorsInputSchemaLegacy = wrapInputSchemaForLegacyRequest(
 );
 
 const NON_FATAL_TOOL_ERROR_CODES = new Set<string>([
-  'VALIDATION_ERROR',
-  'INVALID_PARAMS',
   'NOT_FOUND',
   'PRECONDITION_FAILED',
   'FAILED_PRECONDITION',

@@ -251,13 +251,14 @@ describe('API call baseline — writes do not inflate read API calls', () => {
     expect(mockApi.spreadsheets.values.get).toHaveBeenCalledTimes(0);
   });
 
-  it('clear calls values.clear (not values.get)', async () => {
+  it('clear calls spreadsheets.batchUpdate (not values.get)', async () => {
     await handler.handle({
       action: 'clear',
       spreadsheetId: 'test-id',
       range: 'Sheet1!A1:D4',
+      safety: { skipConfirmation: true },
     });
-    expect(mockApi.spreadsheets.values.clear).toHaveBeenCalledTimes(1);
+    expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
     expect(mockApi.spreadsheets.values.get).toHaveBeenCalledTimes(0);
   });
 });

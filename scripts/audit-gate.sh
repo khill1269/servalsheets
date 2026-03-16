@@ -15,6 +15,8 @@
 ##   G5: Action coverage passes        (~5s)
 ##   G6: Memory leak tests pass        (~3s)
 ##   G7: Contract tests pass           (~8s)
+##   G8: Google API compliance          (~2s)
+##   G9: MCP protocol compliance        (~5s)
 ##
 ## Exit 0 = all pass. Exit 1 = failure with clear message.
 ##
@@ -36,7 +38,7 @@ fi
 
 PASS_COUNT=0
 FAIL_COUNT=0
-TOTAL_GATES=7
+TOTAL_GATES=9
 START_TIME=$SECONDS
 
 gate_pass() {
@@ -99,6 +101,14 @@ run_gate "G6: Memory leak tests pass" "npx vitest run tests/audit/memory-leaks.t
 
 # G7: Contract tests
 run_gate "G7: Contract tests pass" "npx vitest run tests/contracts/" || true
+
+# G8: Google API compliance (network-optional — uses cache if available)
+run_gate "G8: Google API compliance" \
+  "node scripts/audit-google-api-compliance.mjs --offline-ok" || true
+
+# G9: MCP protocol compliance (protocol version, features, tool schemas, transport)
+run_gate "G9: MCP protocol compliance" \
+  "npx vitest run tests/compliance/mcp-2025-11-25.test.ts tests/compliance/mcp-features.test.ts tests/contracts/mcp-protocol.test.ts tests/contracts/mcp-http-transport-auth-security.test.ts" || true
 
 # Summary
 TOTAL_DURATION=$((SECONDS - START_TIME))

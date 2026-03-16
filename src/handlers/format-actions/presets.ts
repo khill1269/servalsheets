@@ -783,9 +783,20 @@ export async function handleSparklineClear(
     return ha.makeSuccess('sparkline_clear', { cell: input.cell }, undefined, true);
   }
 
-  await ha.api.spreadsheets.values.clear({
+  const gridRange = await ha.a1ToGridRange(input.spreadsheetId, input.cell);
+
+  await ha.api.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
-    range: input.cell,
+    requestBody: {
+      requests: [
+        {
+          updateCells: {
+            range: toGridRange(gridRange),
+            fields: 'userEnteredValue',
+          },
+        },
+      ],
+    },
   });
 
   return ha.makeSuccess('sparkline_clear', { cell: input.cell });

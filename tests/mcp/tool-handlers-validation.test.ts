@@ -136,7 +136,7 @@ describe('normalizeToolArgs legacy compatibility', () => {
 });
 
 describe('buildToolResponse non-fatal classification', () => {
-  it('keeps validation/config style failures as non-fatal MCP results', () => {
+  it('sets isError=true for VALIDATION_ERROR (SEP-1303 compliance)', () => {
     const result = buildToolResponse({
       response: {
         success: false,
@@ -148,9 +148,9 @@ describe('buildToolResponse non-fatal classification', () => {
       },
     });
 
-    expect(result.isError).toBeUndefined();
+    // SEP-1303: input validation errors MUST be returned as Tool Execution Errors (isError: true)
+    expect(result.isError).toBe(true);
     expect((result.structuredContent as any).response.success).toBe(false);
-    expect((result.structuredContent as any)._meta.nonFatalError).toBe(true);
   });
 
   it('keeps internal failures as MCP errors', () => {

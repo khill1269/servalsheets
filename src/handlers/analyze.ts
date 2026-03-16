@@ -848,6 +848,8 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
       spreadsheetId,
       includeGridData: true,
       ...(ranges && { ranges }),
+      fields:
+        'sheets(properties(title),data(startRow,startColumn,rowData(values(userEnteredValue))))',
     });
     const spreadsheet = ssResponse.data;
 

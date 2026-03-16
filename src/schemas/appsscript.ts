@@ -353,7 +353,19 @@ const UndeployActionSchema = z.object({
 const RunActionSchema = z
   .object({
     action: z.literal('run').describe('Execute a function in an Apps Script project'),
-    scriptId: ScriptIdSchema,
+    scriptId: ScriptIdSchema.describe(
+      'Apps Script project ID (legacy — prefer deploymentId for the run action)'
+    ),
+    deploymentId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Deployment ID from Deploy > Manage Deployments (e.g. AKfycbxxxx). ' +
+          'Required by the Apps Script API — this is NOT the script project ID. ' +
+          'Find it in the Apps Script editor under Deploy > Manage deployments. ' +
+          'If omitted, scriptId is used as the path parameter (only works if scriptId IS a deployment ID).'
+      ),
     functionName: z
       .string()
       .min(1)

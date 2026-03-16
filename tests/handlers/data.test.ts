@@ -635,7 +635,7 @@ describe('SheetsDataHandler', () => {
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'clear');
         // Elicitation disabled for reliability - direct API call
-        expect(mockApi.spreadsheets.values.clear).toHaveBeenCalled();
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
         const parseResult = SheetsDataOutputSchema.safeParse(result);
         expect(parseResult.success).toBe(true);
@@ -714,7 +714,7 @@ describe('SheetsDataHandler', () => {
         // With destructive confirmation wired, cancellation should be respected
         expect(result.response.success).toBe(true);
         expect((result.response as any)._cancelled).toBe(true);
-        expect(mockApi.spreadsheets.values.clear).not.toHaveBeenCalled();
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
       });
 
       it('should support dryRun mode', async () => {
@@ -729,7 +729,7 @@ describe('SheetsDataHandler', () => {
 
         expect(result.response.success).toBe(true);
         expect((result.response as any).dryRun).toBe(true);
-        expect(mockApi.spreadsheets.values.clear).not.toHaveBeenCalled();
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
       });
     });
 
@@ -1117,7 +1117,7 @@ describe('SheetsDataHandler', () => {
 
     it('should handle batch operation failures', async () => {
       // Test API-level failures (replaced batchCompiler pattern with direct API calls)
-      mockApi.spreadsheets.values.clear.mockRejectedValueOnce(new Error('Clear operation failed'));
+      mockApi.spreadsheets.batchUpdate.mockRejectedValueOnce(new Error('Clear operation failed'));
 
       const result = await handler.handle({
         action: 'clear',

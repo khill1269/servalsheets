@@ -478,4 +478,34 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
       expect(actualActionCount).toBeLessThan(450);
     });
   });
+
+  // =========================================================================
+  // T5: JSON Schema 2020-12 dialect (SEP-1613)
+  // =========================================================================
+  describe('JSON Schema dialect (SEP-1613)', () => {
+    it('should not use draft-07 or older JSON Schema dialects', () => {
+      // MCP spec §1.4 / SEP-1613: Default dialect is 2020-12, NOT draft-07
+      for (const tool of TOOL_DEFINITIONS) {
+        const schema = JSON.stringify(tool.inputSchema);
+        expect(schema).not.toContain('draft-07');
+        expect(schema).not.toContain('draft-04');
+        expect(schema).not.toContain('draft-06');
+      }
+    });
+  });
+
+  // =========================================================================
+  // T10: OTel _meta key format (SEP-414)
+  // =========================================================================
+  describe('OTel _meta key format (SEP-414)', () => {
+    it('should use plain W3C names for OTel keys, not DNS prefixed', () => {
+      // SEP-414: traceparent/tracestate/baggage use plain names, not DNS prefix
+      // Scan all tool definitions and server instructions for wrong prefixes
+      const serverInstructions = JSON.stringify(TOOL_DEFINITIONS);
+      expect(serverInstructions).not.toContain('io.modelcontextprotocol.traceparent');
+      expect(serverInstructions).not.toContain('io.modelcontextprotocol.tracestate');
+      expect(serverInstructions).not.toContain('io.modelcontextprotocol.baggage');
+      expect(serverInstructions).not.toContain('dev.mcp.traceparent');
+    });
+  });
 });

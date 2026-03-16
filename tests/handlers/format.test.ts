@@ -880,7 +880,7 @@ describe('FormatHandler', () => {
 
   describe('sparkline_clear action', () => {
     it('should clear sparkline from a cell', async () => {
-      mockApi.spreadsheets.values.clear.mockResolvedValue({ data: {} });
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
         action: 'sparkline_clear',
@@ -893,10 +893,27 @@ describe('FormatHandler', () => {
       if (result.response.success) {
         expect(result.response.cell).toBe('Sheet1!E1');
       }
-      expect(mockApi.spreadsheets.values.clear).toHaveBeenCalledWith({
-        spreadsheetId: 'test-id',
-        range: 'Sheet1!E1',
-      });
+      expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          spreadsheetId: 'test-id',
+          requestBody: {
+            requests: [
+              {
+                updateCells: {
+                  range: {
+                    sheetId: 0,
+                    startRowIndex: 0,
+                    endRowIndex: 1,
+                    startColumnIndex: 4,
+                    endColumnIndex: 5,
+                  },
+                  fields: 'userEnteredValue',
+                },
+              },
+            ],
+          },
+        })
+      );
 
       const parseResult = SheetsFormatOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
@@ -911,7 +928,7 @@ describe('FormatHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(mockApi.spreadsheets.values.clear).not.toHaveBeenCalled();
+      expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
   });
 

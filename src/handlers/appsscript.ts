@@ -1170,7 +1170,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     try {
       result = await this.apiRequest<RunResponse>(
         'POST',
-        `/scripts/${req.scriptId}:run`,
+        `/scripts/${req.deploymentId ?? req.scriptId}:run`,
         body,
         SCRIPT_RUN_TIMEOUT_MS
       );
@@ -1197,7 +1197,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
             // Retry the request with fresh token
             result = await this.apiRequest<RunResponse>(
               'POST',
-              `/scripts/${req.scriptId}:run`,
+              `/scripts/${req.deploymentId ?? req.scriptId}:run`,
               body,
               SCRIPT_RUN_TIMEOUT_MS
             );

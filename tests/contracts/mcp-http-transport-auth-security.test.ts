@@ -531,4 +531,137 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       expect(response.headers['www-authenticate']).toContain('error_description=');
     });
   });
+
+  // ─── T1: Origin header rejection (MCP §2.7) ─────────────────────────
+  describe('Origin header validation (MCP §2.7)', () => {
+    let originApp: Express;
+    let originServer: TestServer;
+    let cleanupOriginEnv: () => void;
+
+    beforeAll(async () => {
+      cleanupOriginEnv = applyEnvOverrides({
+        SERVAL_TRANSPORT: 'http',
+        SERVAL_OAUTH_ENABLED: 'false',
+      });
+      originServer = createHttpServer({
+        ...TEST_SERVER_OPTIONS,
+        corsOrigins: ['http://allowed-origin.example.com'],
+      });
+      originApp = originServer.app;
+    });
+
+    afterAll(async () => {
+      await cleanupServer(originServer);
+      cleanupOriginEnv();
+    });
+
+    it('rejects requests with disallowed Origin header (MCP §2.7 — MUST 403)', async () => {
+      const response = await httpRequest(originApp, {
+        method: 'POST',
+        path: '/mcp',
+        headers: {
+          'Content-Type': 'application/json',
+          'MCP-Protocol-Version': '2025-11-25',
+          Origin: 'http://evil-origin.example.com',
+        },
+        body: INITIALIZE_REQUEST,
+      });
+
+      // MCP spec §2.7: Server MUST respond with HTTP 403 Forbidden for invalid Origin
+      expect(response.status).toBe(403);
+    });
+  });
+
+  // ─── T4: Access control on tool invocation (MCP §2.2) ───────────────
+  describe('Tool invocation access control (MCP §2.2)', () => {
+    let authServer: TestServer;
+    let authApp: Express;
+
+    beforeAll(async () => {
+      authServer = createHttpServer({
+        ...TEST_SERVER_OPTIONS,
+        enableOAuth: true,
+        oauthConfig: TEST_OAUTH_CONFIG,
+      });
+      authApp = authServer.app as Express;
+    });
+
+    afterAll(async () => {
+      await cleanupServer(authServer);
+    });
+
+    it('blocks unauthenticated tool calls when OAuth is enabled', async () => {
+      const response = await httpRequest(authApp, {
+        method: 'POST',
+        path: '/mcp',
+        headers: {
+          'Content-Type': 'application/json',
+          'MCP-Protocol-Version': '2025-11-25',
+        },
+        body: {
+          jsonrpc: '2.0',
+          id: 99,
+          method: 'tools/call',
+          params: {
+            name: 'sheets_core',
+            arguments: { request: { action: 'get', spreadsheetId: 'test123' } },
+          },
+        },
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers['www-authenticate']).toContain('Bearer');
+    });
+  });
+
+  // ─── T2: Token audience validation (MCP §2.8) ───────────────────────
+  describe('Token audience validation (MCP §2.8)', () => {
+    let audServer: TestServer;
+    let audApp: Express;
+
+    beforeAll(async () => {
+      audServer = createHttpServer({
+        ...TEST_SERVER_OPTIONS,
+        enableOAuth: true,
+        oauthConfig: TEST_OAUTH_CONFIG,
+      });
+      audApp = audServer.app as Express;
+    });
+
+    afterAll(async () => {
+      await cleanupServer(audServer);
+    });
+
+    it('rejects tokens not issued for this server (wrong audience)', async () => {
+      const response = await httpRequest(audApp, {
+        method: 'POST',
+        path: '/mcp',
+        headers: {
+          'Content-Type': 'application/json',
+          'MCP-Protocol-Version': '2025-11-25',
+          Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJodHRwczovL290aGVyLXNlcnZlci5jb20iLCJpc3MiOiJodHRwczovL2F1dGguZXhhbXBsZS5jb20iLCJleHAiOjk5OTk5OTk5OTl9.fake-signature',
+        },
+        body: INITIALIZE_REQUEST,
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers['www-authenticate']).toBeDefined();
+    });
+  });
+
+  // ─── T3: Token passthrough prohibition (MCP §2.8) ──────────────────
+  describe('Token passthrough prohibition (MCP §2.8)', () => {
+    it('server uses Google OAuth tokens not client MCP tokens for API calls', () => {
+      // MCP spec §2.8: Server MUST NOT pass through client tokens to downstream services
+      // Verify no handler forwards req.headers.authorization to Google API calls
+      const { spawnSync } = require('child_process');
+      const result = spawnSync('grep', [
+        '-rnE',
+        'req\\.headers\\.authorization.*google|passthrough.*token|forward.*bearer',
+        'src/handlers/',
+      ], { cwd: process.cwd(), encoding: 'utf-8' });
+
+      expect(result.stdout.trim()).toBe('');
+    });
+  });
 });

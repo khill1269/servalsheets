@@ -3,8 +3,10 @@ import { generateAllFixtures, type ActionFixture } from '../audit/action-coverag
 import {
   MATRIX_ACTION_OVERRIDES,
   MATRIX_TOOL_DEFAULTS,
+  buildMatrixExecutionProfile,
   buildActionCapabilityIndex,
   findStaleActionKeys,
+  isMatrixTimeoutRetrySafe,
   materializeFixtureRequest,
   summarizeMatrixResults,
   type MatrixActionResult,
@@ -174,6 +176,47 @@ describe('Action Matrix Support', () => {
     const staleOverrides = findStaleActionKeys(Object.keys(MATRIX_ACTION_OVERRIDES), fixtures);
 
     expect(staleOverrides).toEqual([]);
+  });
+
+  it('routes heavyweight copy coverage through probe mode instead of the executed lane', () => {
+    const capabilityIndex = buildActionCapabilityIndex(generateAllFixtures());
+    const copyCapability = capabilityIndex.get('sheets_core.copy');
+
+    expect(copyCapability?.mode).toBe('probe_only');
+    expect(copyCapability?.assertionSource).toBe('google_probe');
+  });
+
+  it('builds execution profiles with slow lanes for high-latency actions', () => {
+    const clearSheetProfile = buildMatrixExecutionProfile('sheets_core.clear_sheet', 'mcp_execute', true);
+    const clearProfile = buildMatrixExecutionProfile('sheets_data.clear', 'mcp_execute', true);
+    const readProfile = buildMatrixExecutionProfile('sheets_data.read', 'mcp_execute', false);
+    const probeProfile = buildMatrixExecutionProfile(
+      'sheets_visualize.suggest_chart',
+      'probe_only',
+      false
+    );
+
+    expect(clearSheetProfile.maxAttempts).toBe(3);
+    expect(clearSheetProfile.retryTransportTimeout).toBe(true);
+    expect(clearSheetProfile.quotaEstimate).toEqual({ reads: 2, writes: 1 });
+
+    expect(clearProfile.retryTransportTimeout).toBe(true);
+    expect(clearProfile.quotaEstimate).toEqual({ reads: 1, writes: 1 });
+    expect(clearProfile.callTimeoutMs).toBe(570_000);
+    expect(clearProfile.maxTotalTimeoutMs).toBe(600_000);
+
+    expect(readProfile.retryTransportTimeout).toBe(true);
+    expect(readProfile.maxAttempts).toBe(3);
+    expect(readProfile.quotaEstimate).toEqual({ reads: 2, writes: 0 });
+
+    expect(probeProfile.maxAttempts).toBe(1);
+    expect(probeProfile.quotaEstimate).toEqual({ reads: 1, writes: 0 });
+  });
+
+  it('marks only idempotent or explicitly safe actions as timeout-retryable', () => {
+    expect(isMatrixTimeoutRetrySafe('sheets_data.read', false)).toBe(true);
+    expect(isMatrixTimeoutRetrySafe('sheets_data.clear', true)).toBe(true);
+    expect(isMatrixTimeoutRetrySafe('sheets_core.copy', true)).toBe(false);
   });
 
   it('summarizes report counts without mixing skipped actions into the pass rate', () => {
