@@ -17,6 +17,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { google } from 'googleapis';
+import { resetEnvForTest } from '../../src/config/env.js';
 import { createServalSheetsTestHarness, type McpTestHarness } from '../helpers/mcp-test-harness.js';
 import {
   loadTestCredentials,
@@ -43,6 +45,8 @@ const MATRIX_FIXTURES = generateAllFixtures();
 const CAPABILITY_INDEX = buildActionCapabilityIndex(MATRIX_FIXTURES);
 const DELAY_BETWEEN_ACTIONS_MS = 1100;
 const PREVIOUS_SINGLETON_RESET_FLAG = process.env['TEST_SKIP_SINGLETON_RESET'];
+const PREVIOUS_GOOGLE_API_TIMEOUT_MS = process.env['GOOGLE_API_TIMEOUT_MS'];
+const PREVIOUS_COMPOSITE_TIMEOUT_MS = process.env['COMPOSITE_TIMEOUT_MS'];
 
 interface MatrixSpreadsheet {
   id: string;
@@ -86,12 +90,16 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
 
   beforeAll(async () => {
     process.env['TEST_SKIP_SINGLETON_RESET'] = 'true';
+    process.env['GOOGLE_API_TIMEOUT_MS'] = '420000';
+    process.env['COMPOSITE_TIMEOUT_MS'] = '480000';
+    resetEnvForTest();
 
     const loadedCredentials = await loadTestCredentials();
     if (!loadedCredentials) {
       throw new Error('Test credentials not available');
     }
 
+    await refreshMatrixOAuthCredentials(loadedCredentials);
     credentials = loadedCredentials;
     client = new LiveApiClient(credentials, { trackMetrics: true });
     manager = new TestSpreadsheetManager(client);
@@ -149,6 +157,20 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
     } else {
       process.env['TEST_SKIP_SINGLETON_RESET'] = PREVIOUS_SINGLETON_RESET_FLAG;
     }
+
+    if (PREVIOUS_GOOGLE_API_TIMEOUT_MS === undefined) {
+      delete process.env['GOOGLE_API_TIMEOUT_MS'];
+    } else {
+      process.env['GOOGLE_API_TIMEOUT_MS'] = PREVIOUS_GOOGLE_API_TIMEOUT_MS;
+    }
+
+    if (PREVIOUS_COMPOSITE_TIMEOUT_MS === undefined) {
+      delete process.env['COMPOSITE_TIMEOUT_MS'];
+    } else {
+      process.env['COMPOSITE_TIMEOUT_MS'] = PREVIOUS_COMPOSITE_TIMEOUT_MS;
+    }
+
+    resetEnvForTest();
   }, 90_000);
 
   const fixturesByTool = groupFixturesByTool(MATRIX_FIXTURES);
@@ -281,8 +303,8 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
         name: fixture.tool,
         arguments: requestEnvelope,
       }, undefined, {
-        timeout: 180_000,
-        maxTotalTimeout: 240_000,
+        timeout: 420_000,
+        maxTotalTimeout: 480_000,
         resetTimeoutOnProgress: true,
       })) as CallToolResult;
       const parsed = parseMcpOutcome(result);
@@ -424,9 +446,6 @@ function createHarnessGoogleApiOptions(credentials: TestCredentials) {
       oauthTokens: {
         access_token: credentials.oauth.tokens.access_token,
         refresh_token: credentials.oauth.tokens.refresh_token,
-        // expiry_date intentionally omitted: passing a stale expiry_date causes the googleapis
-        // OAuth2 client to treat the access token as expired on startup, triggering a token
-        // refresh that fails in the test harness and breaks all subsequent API calls.
         scope: credentials.oauth.tokens.scope,
         token_type: credentials.oauth.tokens.token_type,
       },
@@ -439,12 +458,36 @@ function createHarnessGoogleApiOptions(credentials: TestCredentials) {
 
 let registeredTempServiceAccountPath: string | null = null;
 
+async function refreshMatrixOAuthCredentials(credentials: TestCredentials): Promise<void> {
+  if (!credentials.oauth?.tokens.refresh_token) {
+    return;
+  }
+
+  const oauth2Client = new google.auth.OAuth2(
+    credentials.oauth.client_id,
+    credentials.oauth.client_secret,
+    credentials.oauth.redirect_uri
+  );
+  oauth2Client.setCredentials(credentials.oauth.tokens);
+
+  const { credentials: refreshed } = await oauth2Client.refreshAccessToken();
+
+  credentials.oauth.tokens = {
+    ...credentials.oauth.tokens,
+    access_token: refreshed.access_token ?? credentials.oauth.tokens.access_token,
+    refresh_token: refreshed.refresh_token ?? credentials.oauth.tokens.refresh_token,
+    scope: refreshed.scope ?? credentials.oauth.tokens.scope,
+    token_type: refreshed.token_type ?? credentials.oauth.tokens.token_type,
+    expiry_date: refreshed.expiry_date ?? credentials.oauth.tokens.expiry_date,
+  };
+}
+
 function registerTempServiceAccountPath(filePath: string): void {
   registeredTempServiceAccountPath = filePath;
 }
 
 function getFixtureTimeoutMs(capability: ActionCapability): number {
-  return capability.mode === 'mcp_execute' ? 270_000 : 90_000;
+  return capability.mode === 'mcp_execute' ? 540_000 : 90_000;
 }
 
 function getMaterializeOptions(context: MatrixExecutionContext): MaterializeRequestOptions {
@@ -498,6 +541,7 @@ async function createMatrixSpreadsheet(
           { properties: { title: 'TestData', sheetId: 1 } },
           { properties: { title: 'Benchmarks', sheetId: 2 } },
           { properties: { title: 'Formulas', sheetId: 3 } },
+          { properties: { title: 'Lookup', sheetId: 4 } },
         ],
       },
     })
@@ -546,6 +590,14 @@ async function seedMatrixSpreadsheet(
     [15, 1.2, '=A3*B3'],
     [20, 1.3, '=A4*B4'],
   ];
+  const lookupValues = [
+    ['Status', 'FollowUp1', 'FollowUp2'],
+    ['Active', 'Call', 'Email'],
+    ['Pending', 'Review', 'Escalate'],
+    ['Complete', 'Archive', 'Report'],
+    ['Draft', 'Revise', 'Publish'],
+    ['Archived', 'Restore', 'Delete'],
+  ];
 
   await client.executeWrite('matrix.seedSpreadsheet', () =>
     client.sheets.spreadsheets.values.batchUpdate({
@@ -557,6 +609,8 @@ async function seedMatrixSpreadsheet(
           { range: 'TestData!A1:F6', values: baseValues },
           { range: 'Benchmarks!A1:B4', values: benchmarkValues },
           { range: 'Formulas!A1:C4', values: formulaValues },
+          { range: 'Lookup!A1:C6', values: lookupValues },
+          { range: 'Sheet1!H1:H3', values: [['Trend'], ['=SPARKLINE(B2:B6)'], ['']] },
         ],
       },
     })
@@ -578,6 +632,56 @@ async function seedMatrixSpreadsheet(
                   startColumnIndex: 0,
                   endColumnIndex: 2,
                 },
+              },
+            },
+          },
+          {
+            addConditionalFormatRule: {
+              index: 0,
+              rule: {
+                ranges: [
+                  {
+                    sheetId: 0,
+                    startRowIndex: 1,
+                    endRowIndex: 6,
+                    startColumnIndex: 1,
+                    endColumnIndex: 2,
+                  },
+                ],
+                booleanRule: {
+                  condition: {
+                    type: 'NUMBER_GREATER',
+                    values: [{ userEnteredValue: '12000' }],
+                  },
+                  format: {
+                    backgroundColor: { red: 0.9, green: 1, blue: 0.9 },
+                  },
+                },
+              },
+            },
+          },
+          {
+            setDataValidation: {
+              range: {
+                sheetId: 0,
+                startRowIndex: 1,
+                endRowIndex: 6,
+                startColumnIndex: 4,
+                endColumnIndex: 5,
+              },
+              rule: {
+                condition: {
+                  type: 'ONE_OF_LIST',
+                  values: [
+                    { userEnteredValue: 'Active' },
+                    { userEnteredValue: 'Pending' },
+                    { userEnteredValue: 'Complete' },
+                    { userEnteredValue: 'Draft' },
+                    { userEnteredValue: 'Archived' },
+                  ],
+                },
+                strict: true,
+                showCustomUi: true,
               },
             },
           },

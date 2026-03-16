@@ -15,6 +15,27 @@ import type { FormatHandlerAccess } from './internal.js';
 import { isElicitableRulePreset, type ConditionType } from './internal.js';
 import { parseNLConditionalFormat } from './helpers.js';
 
+function toConditionValues(
+  values: unknown[] | undefined
+): sheets_v4.Schema$ConditionValue[] | undefined {
+  return values?.map((value) => {
+    if (typeof value === 'string') {
+      return { userEnteredValue: value };
+    }
+    if (
+      value &&
+      typeof value === 'object' &&
+      'userEnteredValue' in value &&
+      typeof (value as { userEnteredValue?: unknown }).userEnteredValue === 'string'
+    ) {
+      return {
+        userEnteredValue: (value as { userEnteredValue: string }).userEnteredValue,
+      };
+    }
+    return { userEnteredValue: String(value ?? '') };
+  });
+}
+
 // ─── handleRuleAddConditionalFormat ──────────────────────────────────────────
 
 export async function handleRuleAddConditionalFormat(
@@ -68,9 +89,7 @@ export async function handleRuleAddConditionalFormat(
       booleanRule: {
         condition: {
           type: input.rule!.condition.type,
-          values: input.rule!.condition.values?.map((v) => ({
-            userEnteredValue: v,
-          })),
+          values: toConditionValues(input.rule!.condition.values as unknown[] | undefined),
         },
         format: {
           backgroundColor: input.rule!.format.backgroundColor,
@@ -177,9 +196,7 @@ export async function handleRuleUpdateConditionalFormat(
       currentRule.booleanRule = {
         condition: {
           type: input.rule.condition.type,
-          values: input.rule.condition.values?.map((v) => ({
-            userEnteredValue: v,
-          })),
+          values: toConditionValues(input.rule.condition.values as unknown[] | undefined),
         },
         format: {
           backgroundColor: input.rule.format.backgroundColor,

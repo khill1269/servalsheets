@@ -349,10 +349,6 @@ export const MATRIX_ACTION_OVERRIDES: Readonly<Record<string, ModeRule>> = {
     mode: 'mcp_execute',
     reason: 'Template creation can run directly in the matrix with isolated spreadsheets.',
   },
-  'sheets_templates.import_builtin': {
-    mode: 'mcp_execute',
-    reason: 'Built-in template import can run directly in the matrix.',
-  },
   'sheets_templates.list': {
     mode: 'mcp_execute',
     reason: 'Template listing is a read-only operation suitable for direct matrix execution.',
@@ -606,6 +602,11 @@ function normalizeMatrixSpecificRequest(
   options: MaterializeRequestOptions
 ): Record<string, unknown> {
   switch (actionKey) {
+    case 'sheets_advanced.add_named_range':
+      if (request['name'] === 'TestRange') {
+        request['name'] = 'MatrixAddedRange';
+      }
+      break;
     case 'sheets_advanced.add_banding':
       if (!request['rowProperties'] && !request['columnProperties']) {
         request['rowProperties'] = MATRIX_ROW_BANDING_DEFAULT;
@@ -631,6 +632,24 @@ function normalizeMatrixSpecificRequest(
       if (typeof request['range'] !== 'string') {
         request['range'] = 'Sheet1!A1:F6';
       }
+      break;
+    case 'sheets_format.sparkline_add':
+      request['targetCell'] = 'Sheet1!H3';
+      request['dataRange'] = 'Sheet1!B2:B6';
+      break;
+    case 'sheets_format.sparkline_get':
+    case 'sheets_format.sparkline_clear':
+      request['cell'] = 'Sheet1!H2';
+      break;
+    case 'sheets_format.list_data_validations':
+      if (typeof request['range'] !== 'string') {
+        request['range'] = 'Sheet1!E2:E6';
+      }
+      break;
+    case 'sheets_format.build_dependent_dropdown':
+      request['parentRange'] = 'Sheet1!A2:A6';
+      request['dependentRange'] = 'Sheet1!B2:B6';
+      request['lookupSheet'] = 'Lookup';
       break;
     default:
       break;

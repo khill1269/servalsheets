@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { resolve } = vi.hoisted(() => ({
-  resolve: vi.fn(),
+const { lookup } = vi.hoisted(() => ({
+  lookup: vi.fn(),
 }));
 
 const { getEnvMock } = vi.hoisted(() => ({
@@ -11,7 +11,7 @@ const { getEnvMock } = vi.hoisted(() => ({
 vi.mock('node:dns', () => ({
   default: {
     promises: {
-      resolve,
+      lookup,
     },
   },
 }));
@@ -34,7 +34,8 @@ import { validateWebhookUrl } from '../../src/services/webhook-url-validation.js
 describe('validateWebhookUrl', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resolve.mockResolvedValue(['93.184.216.34']);
+    // Default: public IP, IPv4
+    lookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
     getEnvMock.mockReturnValue({ WEBHOOK_DNS_STRICT: true });
   });
 
@@ -48,27 +49,82 @@ describe('validateWebhookUrl', () => {
     await expect(validateWebhookUrl('https://localhost/webhook')).rejects.toThrow(
       'Webhook URL cannot target localhost'
     );
-    expect(resolve).not.toHaveBeenCalled();
+    expect(lookup).not.toHaveBeenCalled();
   });
 
-  it('rejects DNS rebinding to private IPs', async () => {
-    resolve.mockResolvedValue(['10.0.0.5']);
-
-    await expect(validateWebhookUrl('https://example.com/webhook')).rejects.toThrow(
-      'DNS rebinding protection'
+  it('rejects decimal IP encoding (WHATWG URL normalizes to dotted-decimal, caught as private IP)', async () => {
+    // 3232235777 = 192.168.1.1 in decimal — WHATWG URL normalizes to '192.168.1.1'
+    // which is then blocked by the isPrivateIPv4 check before DNS lookup.
+    await expect(validateWebhookUrl('https://3232235777/webhook')).rejects.toThrow(
+      'Webhook URL cannot target private/internal IP addresses'
     );
-    expect(resolve).toHaveBeenCalledWith('example.com');
+    expect(lookup).not.toHaveBeenCalled();
   });
 
-  it('accepts public HTTPS webhook URLs', async () => {
-    await expect(validateWebhookUrl('https://example.com/webhook')).resolves.toBeUndefined();
-    expect(resolve).toHaveBeenCalledWith('example.com');
+  it('rejects hex IP encoding (WHATWG URL normalizes to dotted-decimal, caught as private IP)', async () => {
+    // 0xc0a80101 = 192.168.1.1 in hex — WHATWG URL normalizes to '192.168.1.1'
+    // which is then blocked by the isPrivateIPv4 check before DNS lookup.
+    await expect(validateWebhookUrl('https://0xc0a80101/webhook')).rejects.toThrow(
+      'Webhook URL cannot target private/internal IP addresses'
+    );
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it('rejects private IPv4 literal before DNS lookup', async () => {
+    await expect(validateWebhookUrl('https://192.168.1.1/webhook')).rejects.toThrow(
+      'Webhook URL cannot target private/internal IP addresses'
+    );
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  describe('DNS resolution (lookup { all: true })', () => {
+    it('accepts public HTTPS webhook URLs', async () => {
+      await expect(validateWebhookUrl('https://example.com/webhook')).resolves.toBeUndefined();
+      expect(lookup).toHaveBeenCalledWith('example.com', { all: true });
+    });
+
+    it('rejects DNS rebinding to private IPv4', async () => {
+      lookup.mockResolvedValue([{ address: '10.0.0.5', family: 4 }]);
+
+      await expect(validateWebhookUrl('https://example.com/webhook')).rejects.toThrow(
+        'DNS rebinding protection'
+      );
+      expect(lookup).toHaveBeenCalledWith('example.com', { all: true });
+    });
+
+    it('rejects DNS rebinding to private IPv6', async () => {
+      lookup.mockResolvedValue([{ address: 'fc00::1', family: 6 }]);
+
+      await expect(validateWebhookUrl('https://example.com/webhook')).rejects.toThrow(
+        'DNS rebinding protection'
+      );
+    });
+
+    it('rejects when any resolved address is private (multi-address response)', async () => {
+      lookup.mockResolvedValue([
+        { address: '93.184.216.34', family: 4 },
+        { address: '10.0.0.1', family: 4 },
+      ]);
+
+      await expect(validateWebhookUrl('https://example.com/webhook')).rejects.toThrow(
+        'DNS rebinding protection'
+      );
+    });
+
+    it('always blocks DNS rebinding regardless of WEBHOOK_DNS_STRICT', async () => {
+      getEnvMock.mockReturnValue({ WEBHOOK_DNS_STRICT: false });
+      lookup.mockResolvedValue([{ address: '192.168.1.100', family: 4 }]);
+
+      await expect(validateWebhookUrl('https://evil.com/webhook')).rejects.toThrow(
+        'DNS rebinding'
+      );
+    });
   });
 
   describe('DNS failure policy', () => {
     it('blocks registration when DNS fails and WEBHOOK_DNS_STRICT=true (default)', async () => {
       getEnvMock.mockReturnValue({ WEBHOOK_DNS_STRICT: true });
-      resolve.mockRejectedValue(new Error('ENOTFOUND example.com'));
+      lookup.mockRejectedValue(new Error('ENOTFOUND example.com'));
 
       await expect(validateWebhookUrl('https://example.com/webhook')).rejects.toThrow(
         'DNS resolution failed for example.com'
@@ -77,20 +133,9 @@ describe('validateWebhookUrl', () => {
 
     it('allows registration when DNS fails and WEBHOOK_DNS_STRICT=false', async () => {
       getEnvMock.mockReturnValue({ WEBHOOK_DNS_STRICT: false });
-      resolve.mockRejectedValue(new Error('ENOTFOUND example.com'));
+      lookup.mockRejectedValue(new Error('ENOTFOUND example.com'));
 
       await expect(validateWebhookUrl('https://example.com/webhook')).resolves.toBeUndefined();
-    });
-
-    it('always blocks DNS rebinding regardless of WEBHOOK_DNS_STRICT', async () => {
-      getEnvMock.mockReturnValue({ WEBHOOK_DNS_STRICT: false });
-      resolve.mockRejectedValue(
-        new Error('Webhook URL hostname resolves to a private/internal IP address (DNS rebinding protection)')
-      );
-
-      await expect(validateWebhookUrl('https://evil.com/webhook')).rejects.toThrow(
-        'DNS rebinding'
-      );
     });
   });
 });

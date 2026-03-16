@@ -362,6 +362,7 @@
     "gen:sdks:typescript": "tsx scripts/generate-sdks.ts typescript",
     "init": "bash .claude/init.sh",
     "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
+    "inspect:dev": "npm run build && npx @modelcontextprotocol/inspector node dist/index.js",
     "inspect:cli": "npx @modelcontextprotocol/inspector node dist/cli.js --stdio",
     "issues:sync": "bash scripts/sync-issues-to-github.sh",
     "lint": "NODE_OPTIONS='--max-old-space-size=8192' eslint src --cache --cache-location .eslintcache",

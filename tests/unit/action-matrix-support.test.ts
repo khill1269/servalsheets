@@ -62,6 +62,88 @@ describe('Action Matrix Support', () => {
     });
   });
 
+  it('applies matrix-specific request normalization for setup-dependent live actions', () => {
+    const options = {
+      primarySpreadsheetId: 'sheet-primary',
+      primarySheetId: 42,
+      secondarySpreadsheetId: 'sheet-secondary',
+      secondarySheetId: 84,
+    };
+
+    expect(
+      materializeFixtureRequest(
+        {
+          tool: 'sheets_advanced',
+          validInput: {
+            request: {
+              action: 'add_named_range',
+              spreadsheetId: 'test-id',
+              name: 'TestRange',
+              range: 'Sheet1!A1:B10',
+            },
+          },
+        } as Pick<ActionFixture, 'tool' | 'validInput'>,
+        options
+      )
+    ).toEqual({
+      request: {
+        action: 'add_named_range',
+        spreadsheetId: 'sheet-primary',
+        name: 'MatrixAddedRange',
+        range: 'Sheet1!A1:B10',
+      },
+    });
+
+    expect(
+      materializeFixtureRequest(
+        {
+          tool: 'sheets_format',
+          validInput: {
+            request: {
+              action: 'list_data_validations',
+              spreadsheetId: 'test-id',
+              sheetId: 0,
+            },
+          },
+        } as Pick<ActionFixture, 'tool' | 'validInput'>,
+        options
+      )
+    ).toEqual({
+      request: {
+        action: 'list_data_validations',
+        spreadsheetId: 'sheet-primary',
+        sheetId: 42,
+        range: 'Sheet1!E2:E6',
+      },
+    });
+
+    expect(
+      materializeFixtureRequest(
+        {
+          tool: 'sheets_format',
+          validInput: {
+            request: {
+              action: 'build_dependent_dropdown',
+              spreadsheetId: 'test-id',
+              parentRange: 'Sheet1!A2:A100',
+              dependentRange: 'Sheet1!B2:B100',
+              lookupSheet: 'Lookup',
+            },
+          },
+        } as Pick<ActionFixture, 'tool' | 'validInput'>,
+        options
+      )
+    ).toEqual({
+      request: {
+        action: 'build_dependent_dropdown',
+        spreadsheetId: 'sheet-primary',
+        parentRange: 'Sheet1!A2:A6',
+        dependentRange: 'Sheet1!B2:B6',
+        lookupSheet: 'Lookup',
+      },
+    });
+  });
+
   it('classifies every fixture exactly once with complete tool coverage', () => {
     const fixtures = generateAllFixtures();
     const capabilityIndex = buildActionCapabilityIndex(fixtures);

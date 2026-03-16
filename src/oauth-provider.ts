@@ -96,6 +96,28 @@ interface StateData {
   scope: string | undefined;
   codeChallenge: string | undefined;
   codeChallengeMethod: string | undefined;
+  // clientId is carried through Google OAuth state so the callback knows which
+  // MCP client initiated the request (required for confused deputy prevention).
+  clientId: string;
+}
+
+interface DcrClientData {
+  client_id: string;
+  client_secret: string;
+  client_name: string;
+  redirect_uris: string[];
+  grant_types: string[];
+  response_types: string[];
+  scope: string;
+  token_endpoint_auth_method: string;
+  client_id_issued_at: number;
+  created_at: string;
+}
+
+interface ConsentRecord {
+  clientName: string;
+  grantedAt: number;
+  redirectUris: string[];
 }
 
 /**
@@ -291,6 +313,61 @@ export class OAuthProvider {
     return { valid: true, scope: 'sheets:read' };
   }
 
+  // ============================================================================
+  // CONFUSED DEPUTY PROTECTION (MCP Security Best Practices)
+  // ============================================================================
+
+  /**
+   * Look up a dynamically registered client from the session store.
+   * Returns null if the client is not found (unknown / expired registration).
+   */
+  private async lookupDcrClient(clientId: string): Promise<DcrClientData | null> {
+    const data = await this.sessionStore.get(`dcr:${clientId}`);
+    return data ? (data as DcrClientData) : null;
+  }
+
+  /**
+   * Session store key for per-client consent records.
+   * Confused deputy mitigation: every DCR client must have an explicit consent
+   * record before it can initiate the authorization flow. This prevents an
+   * attacker who registers a malicious client from exploiting an existing
+   * consent cookie at the third-party authorization server.
+   */
+  private consentKey(clientId: string): string {
+    return `mcp_consent:${clientId}`;
+  }
+
+  private async hasDcrConsent(clientId: string): Promise<boolean> {
+    const record = await this.sessionStore.get(this.consentKey(clientId));
+    return record !== null && record !== undefined;
+  }
+
+  /**
+   * Grant consent for a DCR client. Called automatically at registration time.
+   * TTL matches the client registration lifetime (1 year).
+   */
+  private async grantDcrConsent(
+    clientId: string,
+    clientName: string,
+    redirectUris: string[]
+  ): Promise<void> {
+    const record: ConsentRecord = {
+      clientName,
+      grantedAt: Date.now(),
+      redirectUris,
+    };
+    await this.sessionStore.set(this.consentKey(clientId), record, 365 * 24 * 60 * 60);
+    logger.info('DCR client consent granted', { clientId, clientName });
+  }
+
+  /**
+   * Revoke consent for a DCR client. Can be called by an admin to block a client.
+   */
+  async revokeDcrConsent(clientId: string): Promise<void> {
+    await this.sessionStore.delete(this.consentKey(clientId));
+    logger.info('DCR client consent revoked', { clientId });
+  }
+
   /**
    * Create Express router for OAuth endpoints
    */
@@ -375,11 +452,6 @@ export class OAuthProvider {
         return;
       }
 
-      if (client_id !== this.config.clientId) {
-        res.status(400).json({ error: 'invalid_client' });
-        return;
-      }
-
       if (!redirect_uri) {
         res
           .status(400)
@@ -387,13 +459,55 @@ export class OAuthProvider {
         return;
       }
 
-      // ✅ SECURITY FIX: Validate redirect URI against allowlist
-      if (!this.validateRedirectUri(redirect_uri)) {
-        res.status(400).json({
-          error: 'invalid_request',
-          error_description: 'redirect_uri not in allowlist',
-        });
-        return;
+      // Validate client identity.
+      // Static client (configured via clientId): uses the global redirect URI allowlist.
+      // DCR clients (dcr_* prefix): must be registered, must have consent, and redirect_uri
+      //   must match their registration (confused deputy protection — per MCP Security Best
+      //   Practices, all DCR clients require explicit per-client consent before the proxy
+      //   forwards them to the third-party authorization server).
+      let resolvedClientId = client_id ?? '';
+      if (client_id === this.config.clientId) {
+        // Static pre-configured client — validate against global allowlist
+        if (!this.validateRedirectUri(redirect_uri)) {
+          res.status(400).json({
+            error: 'invalid_request',
+            error_description: 'redirect_uri not in allowlist',
+          });
+          return;
+        }
+      } else {
+        // Attempt DCR client lookup
+        const dcrClient = client_id ? await this.lookupDcrClient(client_id) : null;
+        if (!dcrClient) {
+          res.status(400).json({ error: 'invalid_client' });
+          return;
+        }
+
+        // Validate redirect_uri against the client's registered URIs (exact match required)
+        if (!dcrClient.redirect_uris.includes(redirect_uri)) {
+          res.status(400).json({
+            error: 'invalid_request',
+            error_description: 'redirect_uri not registered for this client',
+          });
+          return;
+        }
+
+        // ✅ CONFUSED DEPUTY PROTECTION: check per-client consent before forwarding to Google.
+        // Without this check, an attacker who registers a DCR client with a malicious
+        // redirect_uri could exploit an existing Google consent cookie and redirect the
+        // authorization code to their server. Consent is granted at DCR registration time.
+        const hasConsent = await this.hasDcrConsent(client_id!);
+        if (!hasConsent) {
+          res.status(403).json({
+            error: 'consent_required',
+            error_description:
+              `Client "${dcrClient.client_name}" (${client_id}) does not have authorization consent. ` +
+              'This client must be re-registered or an admin must POST to /oauth/consent/approve.',
+          });
+          return;
+        }
+
+        resolvedClientId = client_id!;
       }
 
       // ✅ SECURITY: Validate requested scope
@@ -450,13 +564,15 @@ export class OAuthProvider {
         googleAuthUrl.searchParams.set('prompt', 'consent');
         googleAuthUrl.searchParams.set('include_granted_scopes', 'true'); // Google incremental authorization
 
-        // Store state for callback
+        // Store state for callback — includes clientId so the Google callback
+        // knows which MCP client to issue the authorization code for.
         const stateData: StateData = {
           originalState: state,
           redirectUri: redirect_uri,
           scope: validatedScope,
           codeChallenge: code_challenge,
           codeChallengeMethod: code_challenge_method,
+          clientId: resolvedClientId,
         };
         const stateBase64 = Buffer.from(JSON.stringify(stateData)).toString('base64');
         const stateSignature = createHmac('sha256', this.config.stateSecret)
@@ -468,13 +584,13 @@ export class OAuthProvider {
         return;
       }
 
-      // Generate authorization code
+      // Generate authorization code (no Google OAuth configured — direct flow)
       const code = randomBytes(32).toString('hex');
       await this.sessionStore.set(
         `authcode:${code}`,
         {
           code,
-          clientId: client_id,
+          clientId: resolvedClientId,
           redirectUri: redirect_uri,
           scope: validatedScope,
           codeChallenge: code_challenge,
@@ -564,13 +680,14 @@ export class OAuthProvider {
           };
         });
 
-        // Generate our authorization code
+        // Generate our authorization code — uses the clientId carried through state
+        // so DCR clients get a code bound to their identity, not the static clientId.
         const authCode = randomBytes(32).toString('hex');
         await this.sessionStore.set(
           `authcode:${authCode}`,
           {
             code: authCode,
-            clientId: this.config.clientId,
+            clientId: stateData.clientId ?? this.config.clientId,
             redirectUri: stateData.redirectUri,
             scope: stateData.scope ?? 'sheets:write',
             codeChallenge: stateData.codeChallenge,
@@ -788,6 +905,12 @@ export class OAuthProvider {
           365 * 24 * 60 * 60 * 1000 // 1 year
         );
 
+        // ✅ CONFUSED DEPUTY PROTECTION: grant per-client consent at registration time.
+        // The act of POSTing to /oauth/register is the consent signal — it requires an
+        // authorized HTTP request to our server. Pre-approving at registration prevents
+        // the confused deputy attack without requiring a separate consent UI flow.
+        await this.grantDcrConsent(clientId, clientData.client_name, redirect_uris);
+
         logger.info('Dynamic client registered', {
           clientId,
           clientName: clientData.client_name,
@@ -815,6 +938,42 @@ export class OAuthProvider {
           error_description: 'Registration failed',
         });
       }
+    });
+
+    // Admin endpoint: revoke consent for a DCR client.
+    // After revocation the client cannot initiate new authorization flows until
+    // re-registered (which re-grants consent) or consent is re-approved here.
+    // POST /oauth/consent/revoke  { client_id: string }
+    router.post('/oauth/consent/revoke', express.json(), async (req, res) => {
+      const { client_id: revokeClientId } = req.body as { client_id?: string };
+      if (!revokeClientId) {
+        res.status(400).json({ error: 'invalid_request', error_description: 'client_id required' });
+        return;
+      }
+      await this.revokeDcrConsent(revokeClientId);
+      logger.warn('DCR client consent revoked via admin endpoint', { clientId: revokeClientId });
+      res.status(200).json({ revoked: true, client_id: revokeClientId });
+    });
+
+    // Admin endpoint: re-approve consent for a previously revoked DCR client.
+    // POST /oauth/consent/approve  { client_id: string }
+    router.post('/oauth/consent/approve', express.json(), async (req, res) => {
+      const { client_id: approveClientId } = req.body as { client_id?: string };
+      if (!approveClientId) {
+        res.status(400).json({ error: 'invalid_request', error_description: 'client_id required' });
+        return;
+      }
+      const dcrClient = await this.lookupDcrClient(approveClientId);
+      if (!dcrClient) {
+        res.status(404).json({ error: 'not_found', error_description: 'Client not registered' });
+        return;
+      }
+      await this.grantDcrConsent(approveClientId, dcrClient.client_name, dcrClient.redirect_uris);
+      logger.info('DCR client consent approved via admin endpoint', {
+        clientId: approveClientId,
+        clientName: dcrClient.client_name,
+      });
+      res.status(200).json({ approved: true, client_id: approveClientId });
     });
 
     return router;

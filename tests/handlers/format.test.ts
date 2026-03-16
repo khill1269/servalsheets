@@ -957,6 +957,46 @@ describe('FormatHandler', () => {
       expect(parseResult.success).toBe(true);
     });
 
+    it('should accept condition values already shaped as Google API objects', async () => {
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+      const result = await handler.handle({
+        action: 'rule_add_conditional_format',
+        spreadsheetId: 'test-id',
+        sheetId: 0,
+        range: { a1: 'Sheet1!A1:A100' },
+        rule: {
+          type: 'boolean',
+          condition: {
+            type: 'NUMBER_GREATER',
+            values: [{ userEnteredValue: '100' }] as unknown as string[],
+          },
+          format: { backgroundColor: { red: 0.8, green: 1, blue: 0.8 } },
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            requests: [
+              expect.objectContaining({
+                addConditionalFormatRule: expect.objectContaining({
+                  rule: expect.objectContaining({
+                    booleanRule: expect.objectContaining({
+                      condition: expect.objectContaining({
+                        values: [{ userEnteredValue: '100' }],
+                      }),
+                    }),
+                  }),
+                }),
+              }),
+            ],
+          }),
+        })
+      );
+    });
+
     it('should respect dryRun for rule_add_conditional_format', async () => {
       // dryRun calls spreadsheets.get to count existing rules
       mockApi.spreadsheets.get.mockResolvedValueOnce({
