@@ -127,6 +127,7 @@ export interface GoogleApiClientOptions {
   };
   accessToken?: string;
   refreshToken?: string;
+  oauthTokens?: StoredTokens;
   serviceAccountKeyPath?: string;
   scopes?: string[];
   /** @deprecated Use scopes array directly. Retained for backward compatibility. */
@@ -929,8 +930,9 @@ export class GoogleApiClient {
     }
 
     const explicitTokens: StoredTokens = this.sanitizeTokens({
-      access_token: this.options.accessToken,
-      refresh_token: this.options.refreshToken,
+      ...(this.options.oauthTokens ?? {}),
+      access_token: this.options.accessToken ?? this.options.oauthTokens?.access_token,
+      refresh_token: this.options.refreshToken ?? this.options.oauthTokens?.refresh_token,
     });
 
     if (explicitTokens.access_token || explicitTokens.refresh_token) {

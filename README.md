@@ -12,7 +12,28 @@ Production-grade Google Sheets MCP Server with 25 tools, 402 actions, safety rai
   <img src="docs/public/demos/hero-optimized.gif" alt="ServalSheets Demo" width="600">
 </p>
 
-## What's New in v1.7.0 (2026-02-17)
+## What's New (Post-v1.7.0, 2026-02-17 → Present)
+
+🧠 **LLM Intelligence Sprint, Advanced Compute & Production Hardening**
+
+- ✅ **Chain-of-Thought Hints**: `_hints` layer on every `sheets_data.read` response — data shape, PK detection, formula opportunities, risk level, next-phase routing
+- ✅ **Response Intelligence**: Quality scanner, action recommender, batching hints, and `_meta.apiCallsMade` / `_meta.executionTimeMs` / `_meta.quotaImpact` on every response
+- ✅ **Advanced Compute**: DuckDB SQL engine (`sql_query`, `sql_join`), Pyodide Python runtime (`python_eval`, `pandas_profile`, `sklearn_model`), formula evaluator (HyperFormula v3.2.0)
+- ✅ **Quick Insights + Auto-Fill**: `sheets_analyze.quick_insights` (fast AI-free structural snapshot), `sheets_data.auto_fill` (pattern-based fill: linear, date, repeat)
+- ✅ **O(1) Cache Size Tracking**: `CacheManager._totalSizeBytes` running counter — `getStats()` / `getTotalSize()` no longer O(N)
+- ✅ **Per-Spreadsheet Throttle**: Token-bucket rate limiter per spreadsheetId (configurable via `PER_SPREADSHEET_RPS`, default 3 RPS)
+- ✅ **Plan Encryption**: AES-256-GCM agent plan persistence (opt-in via `PLAN_ENCRYPTION_KEY`)
+- ✅ **Webhook DNS Hardening**: DNS fail-closed by default (`WEBHOOK_DNS_STRICT=true`); opt-out for flaky environments
+- ✅ **Workspace Events**: Google Workspace event subscriptions with 7-day auto-renewal
+- ✅ **Scheduler**: `schedule_create/list/cancel/run_now` with node-cron + JSON persistence
+- ✅ **Typed Error Classes**: All `src/handlers/`, `src/connectors/`, `src/services/`, `src/utils/` use typed error classes (ValidationError, ServiceError, ConfigError, NotFoundError, AuthenticationError)
+- ✅ **Progress Notifications**: 25+ handler actions emit MCP progress notifications for long-running operations
+
+See [CHANGELOG.md](./CHANGELOG.md) for complete details.
+
+---
+
+### v1.7.0 (2026-02-17)
 
 🚀 **Modern Formula Intelligence & Marketplace Release**
 
@@ -21,8 +42,6 @@ Production-grade Google Sheets MCP Server with 25 tools, 402 actions, safety rai
 - ✅ **Formula Presets**: XLOOKUP, XMATCH, FILTER, BYROW/BYCOL via `sheets_analyze.generate_formula`
 - ✅ **Marketplace Ready**: `privacy_policies` array in server.json (MCP registry v0.3+)
 - ✅ **Knowledge Base**: Modern arrays & spill range patterns (`src/knowledge/formulas/modern-arrays.md`)
-
-See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
 ---
 
@@ -92,7 +111,7 @@ Historical release snapshots are kept here for upgrade context.
 
 ### Core Capabilities
 
-- **25 Tools, 399 Actions**: Comprehensive Google Sheets API v4 coverage
+- **25 Tools, 402 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Support**: Structured outputs, tasks, prompts, resources, logging, elicitation, and sampling
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
@@ -212,10 +231,10 @@ ServalSheets uses deployment-aware OAuth scopes to balance functionality and Goo
 
 | Mode               | Actions Available | Use Case                | Google Verification Time |
 | ------------------ | ----------------- | ----------------------- | ------------------------ |
-| **full** (default) | 298/298           | Self-hosted, enterprise | 4-6 weeks                |
-| **standard**       | 260/298           | SaaS, marketplace apps  | 3-5 days                 |
-| **minimal**        | ~180/298          | Basic operations only   | 3-5 days                 |
-| **readonly**       | ~120/298          | Analysis/reporting only | 3-5 days                 |
+| **full** (default) | 402/402           | Self-hosted, enterprise | 4-6 weeks                |
+| **standard**       | ~340/402          | SaaS, marketplace apps  | 3-5 days                 |
+| **minimal**        | ~200/402          | Basic operations only   | 3-5 days                 |
+| **readonly**       | ~130/402          | Analysis/reporting only | 3-5 days                 |
 
 **Self-Hosted (Default)**
 
@@ -358,10 +377,10 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 | Tool                  | Actions | Description                                                        |
 | --------------------- | ------- | ------------------------------------------------------------------ |
-| `sheets_auth`         | 4       | Authentication & OAuth 2.1                                         |
+| `sheets_auth`         | 5       | Authentication & OAuth 2.1                                         |
 | `sheets_core`         | 21      | Spreadsheet and sheet metadata/management                          |
-| `sheets_data`         | 24      | Read/write values, notes, hyperlinks, clipboard, cross-spreadsheet |
-| `sheets_format`       | 24      | Cell formatting, conditional formats, data validation, sparklines  |
+| `sheets_data`         | 25      | Read/write values, notes, hyperlinks, clipboard, cross-spreadsheet |
+| `sheets_format`       | 25      | Cell formatting, conditional formats, data validation, sparklines  |
 | `sheets_dimensions`   | 30      | Rows/columns, filters, sorts, groups, freezes, views, slicers      |
 | `sheets_visualize`    | 18      | Charts and pivot tables                                            |
 | `sheets_collaborate`  | 40      | Sharing, comments, versions/snapshots, approvals, labels           |
@@ -370,9 +389,9 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 | `sheets_quality`      | 4       | Validation, conflicts, impact analysis                             |
 | `sheets_history`      | 10      | Undo/redo, history, revert, time-travel debugger                   |
 | `sheets_confirm`      | 5       | Elicitation confirmations & wizards                                |
-| `sheets_analyze`      | 21      | AI-assisted analysis, suggestions & recommendations                |
+| `sheets_analyze`      | 22      | AI-assisted analysis, suggestions & recommendations                |
 | `sheets_fix`          | 6       | Automated fixes & data cleaning pipeline                           |
-| `sheets_composite`    | 20      | High-level bulk operations, NL sheet generation & ETL pipelines    |
+| `sheets_composite`    | 21      | High-level bulk operations, NL sheet generation & ETL pipelines    |
 | `sheets_session`      | 31      | Session context, preferences, checkpoints                          |
 | `sheets_appsscript`   | 19      | Apps Script automation                                             |
 | `sheets_bigquery`     | 17      | BigQuery Connected Sheets                                          |
@@ -2067,7 +2086,7 @@ ServalSheets implements the MCP 2025-11-25 server features it advertises in disc
 
 #### Tools (25 tools ✅)
 
-All 25 tools are implemented and exercised in the test suite. See the [Tool Summary](#tool-summary-25-tools-399-actions) above for current per-tool action counts.
+All 25 tools are implemented and exercised in the test suite. See the [Tool Summary](#tool-summary-25-tools-402-actions) above for current per-tool action counts.
 
 **Discriminated Union Schema** ✅:
 

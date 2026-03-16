@@ -11,7 +11,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Nothing yet
+- **Chain-of-Thought `_hints` layer** on `sheets_data.read`, `batch_read`, `cross_read` responses
+  - `dataShape` (time-series granularity, structured data label), `primaryKeyColumn`, `dataRelationships`, `formulaOpportunities`, `riskLevel`, `nextPhase`
+  - Sync, zero API calls, <50ms; capped at 50 data rows for profile computation
+
+- **Response Intelligence layer** (`src/services/response-intelligence.ts`)
+  - `_meta.apiCallsMade`, `_meta.executionTimeMs`, `_meta.quotaImpact` on every response
+  - `_meta.batchingHint` (7-entry hint map), `_meta.transactionHint` when apiCallsMade ≥ 5
+  - Quality scanner (5 data quality checks), action recommender (data-aware suggestions)
+
+- **Advanced Compute** in `sheets_compute`
+  - DuckDB SQL engine: `sql_query`, `sql_join` — in-process analytics via DuckDB
+  - Pyodide Python runtime: `python_eval`, `pandas_profile`, `sklearn_model`, `matplotlib_chart`
+  - Server-side formula evaluator via HyperFormula v3.2.0 (wired into `model_scenario`, `compare_scenarios`, `create_scenario_sheet`)
+
+- **`sheets_analyze.quick_insights`** — fast structural snapshot without full AI analysis
+  - Detects column data types (number/date/text/empty), emptyRate, pattern-based insights, no Sampling call
+
+- **`sheets_data.auto_fill`** — extend a source range pattern into a fill range
+  - Strategies: `detect` (auto), `linear` (constant diff), `repeat` (cyclic), `date` (time step)
+
+- **O(1) cache size tracking** in `CacheManager`
+  - `_totalSizeBytes` running counter across all 9 mutation points
+  - `getStats()` and `getTotalSize()` now O(1) instead of O(N)
+
+- **Per-spreadsheet request throttle** (`src/services/per-spreadsheet-throttle.ts`)
+  - Token-bucket per spreadsheetId, LRU-capped at 500 buckets
+  - Configurable via `PER_SPREADSHEET_RPS` env var (default: 3 RPS)
+
+- **Plan encryption** for `sheets_agent` persisted plans
+  - AES-256-GCM encrypt/decrypt in `src/utils/plan-crypto.ts`
+  - Opt-in via `PLAN_ENCRYPTION_KEY` (64-char hex); backward-compatible with plaintext
+
+- **Webhook DNS hardening** (`src/services/webhook-url-validation.ts`)
+  - DNS failures now fail-closed by default (`WEBHOOK_DNS_STRICT=true`)
+  - Opt-out via `WEBHOOK_DNS_STRICT=false` for flaky DNS environments
+
+- **Google Workspace Events** in `sheets_session`
+  - `subscribe`, `unsubscribe`, `list` with 7-day auto-renewal at `expireTime - 12h`
+
+- **Scheduler** in `sheets_session`
+  - `schedule_create`, `schedule_list`, `schedule_cancel`, `schedule_run_now`
+  - node-cron + JSON persistence
+
+- **`servalsheets init` CLI subcommand** — runs the interactive OAuth setup wizard
+
+- **Progress notifications** for 25+ long-running handler actions
+  - `sheets_core.batch_get`, `sheets_analyze.analyze_formulas`, `sheets_advanced.list_chips`
+  - `sheets_composite.batch_operations`, `sheets_dependencies.model_scenario` / `compare_scenarios`
+  - `sheets_templates.apply` (multi-sheet), `sheets_bigquery.export_to_bigquery`, `sheets_history.timeline`
+
+- **MCP Sampling consent hardening**
+  - `assertSamplingConsent()` added to `analyzeDataStreaming` and `streamAgenticOperation`
+  - Agent engine local consent checker falls back to global MCP sampling consent guard
+
+- **Live API action matrix** (`tests/live-api/action-matrix.live.test.ts`)
+  - Three-tier hybrid: `mcp_execute` (full tool call) | `probe_only` (lightweight probe) | `skip_external` (external-resource actions)
+  - ≥95% pass-rate gate across all 402 gated actions
+
+### Changed
+
+- `sheets_analyze` expanded from 20 → 22 actions (added `quick_insights`, `suggest_next_actions`)
+- `sheets_data` expanded from 24 → 25 actions (added `auto_fill`)
+- `sheets_composite` expanded from 20 → 21 actions (added `build_dashboard`)
+- `sheets_format` expanded from 24 → 25 actions (added `build_dependent_dropdown`)
+- `sheets_auth` expanded from 4 → 5 actions
+- Total: **399 → 402 actions** (25 tools, v1.7.0)
+- All `throw new Error(` in `src/handlers/`, `src/connectors/`, `src/services/`, `src/utils/` replaced with typed error classes
+
+### Fixed
+
+- Safety rail ordering: `createSnapshotIfNeeded()` now always precedes `confirmDestructiveAction()`
+- `COMPUTE_ERROR` added to `ErrorCodeSchema` (was `undefined` at runtime)
+- Token expiry detection hardened for all `GaxiosError` shapes
+- `assertNever()` pattern applied to all 25 handler switch default cases
 
 ---
 

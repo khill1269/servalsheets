@@ -42,6 +42,7 @@ const runLiveTests = shouldRunIntegrationTests();
 const MATRIX_FIXTURES = generateAllFixtures();
 const CAPABILITY_INDEX = buildActionCapabilityIndex(MATRIX_FIXTURES);
 const DELAY_BETWEEN_ACTIONS_MS = 1100;
+const PREVIOUS_SINGLETON_RESET_FLAG = process.env['TEST_SKIP_SINGLETON_RESET'];
 
 interface MatrixSpreadsheet {
   id: string;
@@ -80,6 +81,8 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
   const startTime = Date.now();
 
   beforeAll(async () => {
+    process.env['TEST_SKIP_SINGLETON_RESET'] = 'true';
+
     const loadedCredentials = await loadTestCredentials();
     if (!loadedCredentials) {
       throw new Error('Test credentials not available');
@@ -135,6 +138,12 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
     if (tempServiceAccountPath) {
       fs.rmSync(tempServiceAccountPath, { force: true });
       registeredTempServiceAccountPath = null;
+    }
+
+    if (PREVIOUS_SINGLETON_RESET_FLAG === undefined) {
+      delete process.env['TEST_SKIP_SINGLETON_RESET'];
+    } else {
+      process.env['TEST_SKIP_SINGLETON_RESET'] = PREVIOUS_SINGLETON_RESET_FLAG;
     }
   }, 90_000);
 
@@ -403,6 +412,13 @@ function createHarnessGoogleApiOptions(credentials: TestCredentials) {
       },
       accessToken: credentials.oauth.tokens.access_token,
       refreshToken: credentials.oauth.tokens.refresh_token,
+      oauthTokens: {
+        access_token: credentials.oauth.tokens.access_token,
+        refresh_token: credentials.oauth.tokens.refresh_token,
+        expiry_date: credentials.oauth.tokens.expiry_date,
+        scope: credentials.oauth.tokens.scope,
+        token_type: credentials.oauth.tokens.token_type,
+      },
       scopes,
     };
   }
