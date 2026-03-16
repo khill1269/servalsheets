@@ -12,6 +12,7 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { NotFoundError } from '../core/errors.js';
 
 /**
  * Register decision tree resources
@@ -563,7 +564,7 @@ export async function readDecisionResource(uri: string): Promise<{
 
   const decisionTree = decisionTrees[resourceId];
   if (!decisionTree) {
-    throw new Error(`Unknown decision tree: ${resourceId}`);
+    throw new NotFoundError('decision_tree', resourceId);
   }
 
   return {

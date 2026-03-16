@@ -7,6 +7,7 @@
  */
 
 import { Command } from 'commander';
+import { ConfigError, NotFoundError } from '../core/errors.js';
 import chalk from 'chalk';
 import Table from 'cli-table3';
 import { getRequestRecorder, type RecordFilter } from '../services/request-recorder.js';
@@ -291,7 +292,10 @@ async function createToolExecutorFromEnv(): Promise<ToolExecutor> {
   const refreshToken = process.env['GOOGLE_REFRESH_TOKEN'];
 
   if (!accessToken) {
-    throw new Error('GOOGLE_ACCESS_TOKEN environment variable is required for replay');
+    throw new ConfigError(
+      'GOOGLE_ACCESS_TOKEN environment variable is required for replay',
+      'GOOGLE_ACCESS_TOKEN'
+    );
   }
 
   const googleClient = await createGoogleApiClient({
@@ -323,7 +327,7 @@ async function createToolExecutorFromEnv(): Promise<ToolExecutor> {
         >
       )[toolName.replace('sheets_', '')];
       if (!handler) {
-        throw new Error(`Handler for tool ${toolName} not found`);
+        throw new NotFoundError('tool_handler', toolName);
       }
 
       return handler.executeAction(request);

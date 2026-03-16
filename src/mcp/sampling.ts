@@ -92,7 +92,7 @@ export async function assertSamplingConsent(): Promise<void> {
   const cached = _consentCache.get(cacheKey);
   if (cached && cached.expiresAt > nowMs) {
     if (cached.errorMessage) {
-      throw new Error(cached.errorMessage);
+      throw new ServiceError(cached.errorMessage, 'INTERNAL_ERROR', 'sampling', false);
     }
     return;
   }

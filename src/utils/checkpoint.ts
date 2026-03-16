@@ -13,6 +13,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { DEFAULT_CHECKPOINT_DIR } from '../config/env.js';
 import { logger } from './logger.js';
+import { ConfigError } from '../core/errors.js';
 
 // ============================================================================
 // TYPES
@@ -71,7 +72,10 @@ export function isCheckpointsEnabled(): boolean {
 
 export async function saveCheckpoint(checkpoint: Checkpoint): Promise<string> {
   if (!isCheckpointsEnabled()) {
-    throw new Error('Checkpoints disabled. Set ENABLE_CHECKPOINTS=true');
+    throw new ConfigError(
+      'Checkpoints disabled. Set ENABLE_CHECKPOINTS=true',
+      'ENABLE_CHECKPOINTS'
+    );
   }
 
   await ensureCheckpointDir();

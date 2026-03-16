@@ -2,6 +2,7 @@ import type { TaskStoreAdapter } from '../core/index.js';
 import { getDistributedCacheConfig } from '../config/env.js';
 import { warnIfDefaultCredentialsInHttpMode } from '../config/embedded-oauth.js';
 import { registerSamplingConsentChecker } from '../mcp/sampling.js';
+import { ConfigError } from '../core/errors.js';
 import { logger as baseLogger } from '../utils/logger.js';
 
 export interface ServerBootstrapOptions {
@@ -13,8 +14,9 @@ function registerSamplingConsentGuard(): void {
   // calls that lack explicit user consent will be blocked. Default: permissive (logs warning only).
   registerSamplingConsentChecker(async () => {
     if (process.env['ENABLE_SAMPLING_CONSENT'] === 'strict') {
-      throw new Error(
-        'GDPR consent required before AI sampling. Set ENABLE_SAMPLING_CONSENT=strict to enforce.'
+      throw new ConfigError(
+        'GDPR consent required before AI sampling. Set ENABLE_SAMPLING_CONSENT=strict to enforce.',
+        'ENABLE_SAMPLING_CONSENT'
       );
     }
     // Non-strict: sampling is allowed; operators can override with a stricter checker.
@@ -39,11 +41,12 @@ function enforceRedisProductionRequirements(params: {
   // Enforce Redis in production for distributed cache and session persistence
   // unless ALLOW_MEMORY_SESSIONS=true for local testing.
   if (isProduction && !redisUrl && !allowMemorySessions) {
-    throw new Error(
+    throw new ConfigError(
       'Redis is required in production mode. Set REDIS_URL environment variable.\n' +
         'Example: REDIS_URL=redis://localhost:6379\n' +
         'For development/testing, set NODE_ENV=development\n' +
-        'For local production testing, set ALLOW_MEMORY_SESSIONS=true'
+        'For local production testing, set ALLOW_MEMORY_SESSIONS=true',
+      'REDIS_URL'
     );
   }
 

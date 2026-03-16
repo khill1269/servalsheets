@@ -26,6 +26,8 @@
  * for a second platform without modification.
  */
 
+import { ServiceError, NotFoundError } from '../core/errors.js';
+
 import type {
   SpreadsheetBackend,
   SpreadsheetPlatform,
@@ -376,7 +378,7 @@ export class ExcelOnlineBackend implements SpreadsheetBackend {
 
     const target = sheetsResponse.value?.find((ws) => ws.position === params.sheetId);
     if (!target?.id) {
-      throw new Error(`Sheet with sheetId ${params.sheetId} not found`);
+      throw new NotFoundError('sheet', params.sheetId?.toString() ?? 'unknown');
     }
 
     await this.client.api(`${sheetsPath}/${target.id}`).delete();
@@ -386,10 +388,13 @@ export class ExcelOnlineBackend implements SpreadsheetBackend {
     // Excel Online doesn't have a direct "copy sheet to another workbook" API.
     // Workaround: read sheet data, create in destination, write data.
     // For scaffold, throw not implemented.
-    throw new Error(
+    throw new ServiceError(
       `copySheet across workbooks is not natively supported by Excel Online. ` +
         `Use readRange + addSheet + writeRange as a workaround. ` +
-        `Source: ${params.documentId}, destination: ${params.destinationDocumentId}`
+        `Source: ${params.documentId}, destination: ${params.destinationDocumentId}`,
+      'INTERNAL_ERROR',
+      'excel-online',
+      false
     );
   }
 

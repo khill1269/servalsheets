@@ -14,6 +14,7 @@ import type {
 } from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
 import type { TaskStore as CustomTaskStore } from './task-store.js';
 import { InMemoryTaskStore } from './task-store.js';
+import { NotFoundError } from './errors.js';
 
 /**
  * Adapter that implements SDK TaskStore interface and delegates to custom InMemoryTaskStore
@@ -96,7 +97,7 @@ export class TaskStoreAdapter implements SDKTaskStore {
     const taskResult = await this.store.getTaskResult(taskId);
 
     if (!taskResult) {
-      throw new Error(`No result found for task ${taskId}`);
+      throw new NotFoundError('task', taskId);
     }
 
     // TaskResult.result (CallToolResult) is compatible with Result

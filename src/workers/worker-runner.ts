@@ -9,6 +9,7 @@
 
 import { parentPort, workerData } from 'worker_threads';
 import { pathToFileURL } from 'url';
+import { ConfigError, ValidationError } from '../core/errors.js';
 
 interface WorkerMessage {
   taskId: string;
@@ -18,7 +19,7 @@ interface WorkerMessage {
 }
 
 if (!parentPort) {
-  throw new Error('This script must be run as a worker thread');
+  throw new ConfigError('Must run as worker thread', 'WORKER_MODE');
 }
 
 const workerId = workerData?.workerId ?? 'unknown';
@@ -32,7 +33,9 @@ parentPort.on('message', async (message: WorkerMessage) => {
     const basename = scriptPath.replace(/\\/g, '/').split('/').at(-1) ?? '';
     const allowedWorkers = new Set(['analysis-worker.js', 'formula-parser-worker.js']);
     if (scriptPath.includes('..') || !allowedWorkers.has(basename)) {
-      throw new Error(`Worker script not on allowlist: ${scriptPath}`);
+      throw new ValidationError('Worker script not on allowlist', 'scriptPath', undefined, {
+        value: scriptPath,
+      });
     }
 
     // Dynamically import worker script
@@ -40,7 +43,12 @@ parentPort.on('message', async (message: WorkerMessage) => {
     const workerModule = await import(scriptUrl);
 
     if (typeof workerModule.execute !== 'function') {
-      throw new Error(`Worker script must export 'execute' function: ${scriptPath}`);
+      throw new ValidationError(
+        'Worker script must export execute function',
+        'scriptPath',
+        undefined,
+        { value: scriptPath }
+      );
     }
 
     // Execute task

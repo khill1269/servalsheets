@@ -47,6 +47,8 @@
  * Status: SCAFFOLD — validates SpreadsheetBackend for Airtable's model.
  */
 
+import { ServiceError, NotFoundError } from '../core/errors.js';
+
 import type {
   SpreadsheetBackend,
   SpreadsheetPlatform,
@@ -528,18 +530,24 @@ export class AirtableBackend implements SpreadsheetBackend {
   async deleteSheet(params: DeleteSheetParams): Promise<void> {
     // Airtable API does not support deleting tables programmatically.
     void params;
-    throw new Error(
+    throw new ServiceError(
       'AirtableBackend.deleteSheet: The Airtable API does not support deleting tables. ' +
-        'Tables must be deleted manually through the Airtable UI.'
+        'Tables must be deleted manually through the Airtable UI.',
+      'INTERNAL_ERROR',
+      'airtable',
+      false
     );
   }
 
   async copySheet(params: CopySheetParams): Promise<CopySheetResult> {
     // Airtable doesn't support copying tables across bases natively.
     void params;
-    throw new Error(
+    throw new ServiceError(
       'AirtableBackend.copySheet: Not natively supported by Airtable API. ' +
-        'Use getDocument + addSheet + readRange + appendRows as a workaround.'
+        'Use getDocument + addSheet + readRange + appendRows as a workaround.',
+      'INTERNAL_ERROR',
+      'airtable',
+      false
     );
   }
 
@@ -614,9 +622,12 @@ export class AirtableBackend implements SpreadsheetBackend {
   async copyDocument(params: CopyDocumentParams): Promise<FileMetadata> {
     // Airtable doesn't support duplicating bases via API.
     void params;
-    throw new Error(
+    throw new ServiceError(
       'AirtableBackend.copyDocument: Not supported by Airtable API. ' +
-        'Bases can only be duplicated through the Airtable UI.'
+        'Bases can only be duplicated through the Airtable UI.',
+      'INTERNAL_ERROR',
+      'airtable',
+      false
     );
   }
 
@@ -628,7 +639,7 @@ export class AirtableBackend implements SpreadsheetBackend {
 
     const base = basesResponse.bases.find((b) => b.id === documentId);
     if (!base) {
-      throw new Error(`Base ${documentId} not found`);
+      throw new NotFoundError('base', documentId);
     }
 
     return {
@@ -681,8 +692,11 @@ export class AirtableBackend implements SpreadsheetBackend {
   }
 
   async getRevision(_documentId: string, _revisionId: string): Promise<RevisionMetadata> {
-    throw new Error(
-      'AirtableBackend.getRevision: Airtable does not expose revision history via API.'
+    throw new ServiceError(
+      'AirtableBackend.getRevision: Airtable does not expose revision history via API.',
+      'INTERNAL_ERROR',
+      'airtable',
+      false
     );
   }
 
@@ -713,7 +727,7 @@ export class AirtableBackend implements SpreadsheetBackend {
 
     const table = response.tables.find((t) => t.name === tableName || t.id === tableName);
     if (!table) {
-      throw new Error(`Table "${tableName}" not found in base ${baseId}`);
+      throw new NotFoundError('table', `${tableName} in base ${baseId}`);
     }
 
     // Primary field first, then alphabetical

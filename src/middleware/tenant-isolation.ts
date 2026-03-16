@@ -6,6 +6,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
+import { ServiceError } from '../core/errors.js';
 import {
   tenantContextService,
   TenantContext,
@@ -253,6 +254,11 @@ function collectSpreadsheetIds(value: unknown, output: Set<string>, depth = 0): 
  */
 export function requireTenantContext(req: TenantRequest): asserts req is Required<TenantRequest> {
   if (!req.tenantContext) {
-    throw new Error('Tenant context required but not found');
+    throw new ServiceError(
+      'Tenant context required but not found',
+      'INTERNAL_ERROR',
+      'tenant-isolation',
+      false
+    );
   }
 }

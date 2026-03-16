@@ -6,6 +6,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
 
 export type SchemaVersion = 'v1' | 'v2';
 export type DeprecationStatus = 'active' | 'deprecated' | 'sunset';
@@ -86,7 +87,12 @@ export class SchemaVersionManager {
   getVersionMetadata(version: SchemaVersion): VersionMetadata {
     const metadata = VERSION_REGISTRY.get(version);
     if (!metadata) {
-      throw new Error(`Unknown schema version: ${version}`);
+      throw new ServiceError(
+        `Unknown schema version: ${version}`,
+        'INTERNAL_ERROR',
+        'schema-manager',
+        false
+      );
     }
     return metadata;
   }

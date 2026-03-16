@@ -11,6 +11,7 @@
  */
 
 import express, { Request, Response, NextFunction } from 'express';
+import { ConfigError, ServiceError } from './core/errors.js';
 import jwt from 'jsonwebtoken';
 import { randomUUID, randomBytes, createHash, createHmac, timingSafeEqual } from 'crypto';
 import { rateLimit } from 'express-rate-limit';
@@ -175,9 +176,10 @@ export class OAuthProvider {
     // ✅ SECURITY: Validate production requirements
     const isProduction = process.env['NODE_ENV'] === 'production';
     if (isProduction && !config.sessionStore && !process.env['REDIS_URL']) {
-      throw new Error(
+      throw new ConfigError(
         'Redis session store required in production (REDIS_URL not set). ' +
-          'In-memory session store does not support multiple instances or persist across restarts.'
+          'In-memory session store does not support multiple instances or persist across restarts.',
+        'REDIS_URL'
       );
     }
 
@@ -194,7 +196,12 @@ export class OAuthProvider {
         // If config validation fails, fall back to in-memory (development only)
         // Production validation in lifecycle.ts will catch this earlier
         if (isProduction) {
-          throw new Error(`Failed to initialize session store in production: ${error}`);
+          throw new ServiceError(
+            `Failed to initialize session store in production: ${error}`,
+            'INTERNAL_ERROR',
+            'oauth-provider',
+            false
+          );
         }
         logger.warn('[OAuthProvider] Session store config error, using in-memory', { error });
         this.sessionStore = createSessionStore();

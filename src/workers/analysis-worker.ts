@@ -14,6 +14,8 @@
  * @module workers/analysis-worker
  */
 
+import { ServiceError } from '../core/errors.js';
+
 /**
  * Worker task input types
  */
@@ -499,6 +501,11 @@ export function execute(task: AnalysisWorkerTask): unknown {
       return runFullAnalysis(data, options);
 
     default:
-      throw new Error(`Unknown analysis operation: ${operation as string}`);
+      throw new ServiceError(
+        `Unknown analysis operation: ${operation as string}`,
+        'INTERNAL_ERROR',
+        'analysis-worker',
+        false
+      );
   }
 }

@@ -5,6 +5,7 @@ import {
   PolicyEnforcer,
   RangeResolver,
   RateLimiter,
+  AuthenticationError,
 } from '../core/index.js';
 import { addAdminRoutes, type AdminSessionManager } from '../admin/index.js';
 import { addGraphQLEndpoint } from '../graphql/index.js';
@@ -27,7 +28,7 @@ export function registerHttpGraphQlAndAdmin(params: {
   // GraphQL handler context factory
   const getHandlerContextForGraphQL = async (authToken?: string): Promise<HandlerContext> => {
     if (!authToken) {
-      throw new Error('Authentication required for GraphQL endpoint');
+      throw new AuthenticationError('Authentication required for GraphQL endpoint');
     }
 
     // Create Google API client

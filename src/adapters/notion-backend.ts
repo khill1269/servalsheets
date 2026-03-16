@@ -43,6 +43,8 @@
  * Status: SCAFFOLD — validates SpreadsheetBackend against a non-grid platform.
  */
 
+import { ServiceError } from '../core/errors.js';
+
 import type {
   SpreadsheetBackend,
   SpreadsheetPlatform,
@@ -492,9 +494,12 @@ export class NotionBackend implements SpreadsheetBackend {
 
   async createDocument(params: CreateDocumentParams): Promise<SpreadsheetMetadata> {
     if (!this.defaultParentPageId) {
-      throw new Error(
+      throw new ServiceError(
         'NotionBackend.createDocument requires defaultParentPageId in config. ' +
-          'Notion databases must be created under a parent page.'
+          'Notion databases must be created under a parent page.',
+        'INTERNAL_ERROR',
+        'notion',
+        false
       );
     }
 
@@ -541,9 +546,12 @@ export class NotionBackend implements SpreadsheetBackend {
     // In Notion, "adding a sheet" means creating a new database
     // (either as a child of the same parent, or as an inline DB)
     if (!this.defaultParentPageId) {
-      throw new Error(
+      throw new ServiceError(
         'NotionBackend.addSheet requires defaultParentPageId. ' +
-          'Use createDocument for the first database, or set defaultParentPageId in config.'
+          'Use createDocument for the first database, or set defaultParentPageId in config.',
+        'INTERNAL_ERROR',
+        'notion',
+        false
       );
     }
 
@@ -578,9 +586,12 @@ export class NotionBackend implements SpreadsheetBackend {
     // But we need the database ID, which we get from sheetId mapping.
     // For this scaffold, we assume sheetId=0 maps to documentId itself.
     void params;
-    throw new Error(
+    throw new ServiceError(
       'NotionBackend.deleteSheet: Notion databases cannot be permanently deleted via API. ' +
-        'Use blocks.delete() to archive the database block instead.'
+        'Use blocks.delete() to archive the database block instead.',
+      'INTERNAL_ERROR',
+      'notion',
+      false
     );
   }
 
@@ -588,9 +599,12 @@ export class NotionBackend implements SpreadsheetBackend {
     // Notion doesn't have a "copy database" API.
     // Workaround: retrieve source schema, create new DB with same schema, copy pages.
     void params;
-    throw new Error(
+    throw new ServiceError(
       'NotionBackend.copySheet: Notion does not support copying databases natively. ' +
-        'Use getDocument + createDocument + readRange + appendRows as a workaround.'
+        'Use getDocument + createDocument + readRange + appendRows as a workaround.',
+      'INTERNAL_ERROR',
+      'notion',
+      false
     );
   }
 
@@ -646,9 +660,12 @@ export class NotionBackend implements SpreadsheetBackend {
     // Notion doesn't support copying databases natively.
     // Full implementation would: retrieve schema, create new DB, copy all pages.
     void params;
-    throw new Error(
+    throw new ServiceError(
       'NotionBackend.copyDocument: Not natively supported. ' +
-        'Recreate the database schema and copy pages individually.'
+        'Recreate the database schema and copy pages individually.',
+      'INTERNAL_ERROR',
+      'notion',
+      false
     );
   }
 
@@ -703,8 +720,11 @@ export class NotionBackend implements SpreadsheetBackend {
 
   async getRevision(_documentId: string, _revisionId: string): Promise<RevisionMetadata> {
     // Notion API does not expose revision details for databases
-    throw new Error(
-      'NotionBackend.getRevision: Notion does not expose database revision history via API.'
+    throw new ServiceError(
+      'NotionBackend.getRevision: Notion does not expose database revision history via API.',
+      'INTERNAL_ERROR',
+      'notion',
+      false
     );
   }
 

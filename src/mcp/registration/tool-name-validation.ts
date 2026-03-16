@@ -1,3 +1,5 @@
+import { ValidationError } from '../../core/errors.js';
+
 export const MCP_TOOL_NAME_MAX_LENGTH = 64;
 export const MCP_TOOL_NAME_REGEX = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -11,7 +13,7 @@ export function getToolNameValidationMessage(name: string): string {
 export function assertValidMcpToolNames(tools: readonly { name: string }[]): void {
   for (const tool of tools) {
     if (!MCP_TOOL_NAME_REGEX.test(tool.name)) {
-      throw new Error(getToolNameValidationMessage(tool.name));
+      throw new ValidationError(getToolNameValidationMessage(tool.name), 'toolName');
     }
   }
 }

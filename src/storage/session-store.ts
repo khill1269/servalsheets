@@ -7,6 +7,7 @@
 
 import type { RedisClientType } from 'redis';
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
 import { LRUCache } from 'lru-cache';
 
 /**
@@ -237,10 +238,13 @@ export class RedisSessionStore implements SessionStore {
       console.error('[RedisSessionStore] Connected to Redis');
       return this.client;
     } catch (error) {
-      throw new Error(
+      throw new ServiceError(
         `Failed to connect to Redis at ${this.redisUrl}. ` +
           `Make sure Redis is installed (npm install redis) and running. ` +
-          `Error: ${error instanceof Error ? error.message : String(error)}`
+          `Error: ${error instanceof Error ? error.message : String(error)}`,
+        'INTERNAL_ERROR',
+        'session-store',
+        false
       );
     }
   }

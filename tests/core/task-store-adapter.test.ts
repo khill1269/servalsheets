@@ -208,13 +208,13 @@ describe('TaskStoreAdapter', () => {
 
       await expect(async () => {
         await adapter.getTaskResult(task.taskId);
-      }).rejects.toThrow(`No result found for task ${task.taskId}`);
+      }).rejects.toThrow(`task not found: ${task.taskId}`);
     });
 
     it('should throw error for non-existent task', async () => {
       await expect(async () => {
         await adapter.getTaskResult('non-existent');
-      }).rejects.toThrow('No result found for task non-existent');
+      }).rejects.toThrow('task not found: non-existent');
     });
   });
 

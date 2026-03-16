@@ -15,6 +15,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createResourceNotFoundError, createResourceReadError } from '../utils/mcp-errors.js';
+import { NotFoundError } from '../core/errors.js';
 import { resolveGuidesDirectory } from '../utils/runtime-paths.js';
 
 /**
@@ -98,7 +99,7 @@ export async function readGuideResource(uri: string): Promise<{
   try {
     const guidesDir = resolveGuidesDirectory();
     if (!guidesDir) {
-      throw new Error('Guide directory not found');
+      throw new NotFoundError('guide_directory', 'guides');
     }
 
     const filePath = join(guidesDir, fileName);
