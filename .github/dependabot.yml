@@ -2,7 +2,14 @@ version: 2
 updates:
   # npm dependencies
   - package-ecosystem: 'npm'
-    directory: '/'
+    directories:
+      - '/'
+      - '/packages/serval-core'
+      - '/tools/google-docs-server'
+      - '/tools/gcloud-console-server'
+      - '/tools/test-intelligence-server'
+      - '/src/ui/tracing-dashboard'
+      - '/k8s/operator'
     schedule:
       interval: 'weekly'
       day: 'monday'
@@ -71,7 +78,10 @@ updates:
 
   # Docker base images
   - package-ecosystem: 'docker'
-    directory: '/'
+    directories:
+      - '/'
+      - '/deployment/demo'
+      - '/deployment/docker'
     schedule:
       interval: 'weekly'
       day: 'monday'
