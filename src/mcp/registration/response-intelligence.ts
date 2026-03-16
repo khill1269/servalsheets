@@ -14,7 +14,16 @@ type ResponseIntelligenceOptions = {
   hasFailure: boolean;
 };
 
-const DATA_QUALITY_ACTIONS = new Set(['read', 'write', 'append', 'batch_read', 'batch_write']);
+const DATA_QUALITY_ACTIONS = new Set([
+  'read',
+  'write',
+  'append',
+  'batch_read',
+  'batch_write',
+  'cross_read',
+  'cross_write',
+  'cross_query',
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;

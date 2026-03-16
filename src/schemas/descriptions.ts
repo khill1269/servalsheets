@@ -1141,6 +1141,12 @@ Set MCP_FEDERATION_SERVERS environment variable with JSON array:
 // Type export for other modules
 export type ToolName = keyof typeof TOOL_DESCRIPTIONS;
 
+/**
+ * Template literal type for tool action keys (e.g. `sheets_data.write`).
+ * Catches invalid tool name prefixes at compile time.
+ */
+export type ActionKey = `${ToolName}.${string}`;
+
 // Helper to get description with fallback
 export function getToolDescription(name: string): string {
   return TOOL_DESCRIPTIONS[name as ToolName] ?? `${name} operations`;

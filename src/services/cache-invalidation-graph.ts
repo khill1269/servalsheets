@@ -22,7 +22,7 @@
 
 import { logger } from '../utils/logger.js';
 import { TOOL_ACTIONS } from '../schemas/index.js';
-import type { ActionKey } from '../schemas/shared.js';
+import type { ActionKey } from '../schemas/descriptions.js';
 
 /**
  * Cache invalidation rule
