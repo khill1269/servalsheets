@@ -22,6 +22,7 @@
 
 import { logger } from './logger.js';
 import type { RequestMerger } from '../services/request-merger.js';
+import { ValidationError } from '../core/errors.js';
 
 export interface CacheEntry<T = unknown> {
   value: T;
@@ -721,7 +722,7 @@ export class CacheManager {
       };
     }
 
-    throw new Error(`Invalid A1 notation: ${range}`);
+    throw new ValidationError(`Invalid A1 notation: ${range}`, 'range', 'Sheet1!A1:B10');
   }
 
   /**
@@ -730,7 +731,7 @@ export class CacheManager {
   private parseCell(cell: string): { row: number; col: number } {
     const match = cell.match(/^([A-Z]+)(\d+)$/);
     if (!match) {
-      throw new Error(`Invalid cell reference: ${cell}`);
+      throw new ValidationError(`Invalid cell reference: ${cell}`, 'cell', 'A1');
     }
 
     const col = this.columnToNumber(match[1]!);

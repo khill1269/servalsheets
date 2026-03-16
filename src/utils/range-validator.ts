@@ -13,6 +13,7 @@ import type { sheets_v4 } from 'googleapis';
 import type { CachedSheetsApi } from '../services/cached-sheets-api.js';
 import { parseA1Notation } from './google-sheets-helpers.js';
 import { logger } from './logger.js';
+import { RangeResolutionError } from '../core/errors.js';
 
 export interface RangeValidationResult {
   valid: boolean;
@@ -212,7 +213,11 @@ async function getDefaultSheetName(
 
   const firstName = spreadsheet.sheets?.[0]?.properties?.title;
   if (!firstName) {
-    throw new Error(`Cannot determine default sheet name for spreadsheet ${spreadsheetId}`);
+    throw new RangeResolutionError(
+      `Cannot determine default sheet name for spreadsheet ${spreadsheetId}`,
+      'SHEET_NOT_FOUND',
+      { spreadsheetId }
+    );
   }
 
   return firstName;

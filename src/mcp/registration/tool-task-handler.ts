@@ -7,6 +7,7 @@ import { registerServerTaskCancelHandler } from '../../server-runtime/control-pl
 import { logger } from '../../utils/logger.js';
 import { buildToolExecutionErrorPayload } from './tool-execution-error.js';
 import { buildToolResponse } from './tool-response.js';
+import { ServiceError } from '../../core/errors.js';
 
 type RegisteredTaskStore = Parameters<typeof registerServerTaskCancelHandler>[0]['taskStore'];
 
@@ -116,7 +117,11 @@ export function createToolTaskHandler(
   return {
     createTask: async (args, extra) => {
       if (!extra.taskStore) {
-        throw new Error(`[${toolName}] Task store not configured`);
+        throw new ServiceError(
+          `[${toolName}] Task store not configured`,
+          'INTERNAL_ERROR',
+          toolName
+        );
       }
 
       const task = await extra.taskStore.createTask({
@@ -249,13 +254,21 @@ export function createToolTaskHandler(
     },
     getTask: async (_args, extra) => {
       if (!extra.taskStore) {
-        throw new Error(`[${toolName}] Task store not configured`);
+        throw new ServiceError(
+          `[${toolName}] Task store not configured`,
+          'INTERNAL_ERROR',
+          toolName
+        );
       }
       return await extra.taskStore.getTask(extra.taskId);
     },
     getTaskResult: async (_args, extra) => {
       if (!extra.taskStore) {
-        throw new Error(`[${toolName}] Task store not configured`);
+        throw new ServiceError(
+          `[${toolName}] Task store not configured`,
+          'INTERNAL_ERROR',
+          toolName
+        );
       }
       return (await extra.taskStore.getTaskResult(extra.taskId)) as CallToolResult;
     },

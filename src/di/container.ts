@@ -7,6 +7,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { NotFoundError, ServiceError, ConfigError } from '../core/errors.js';
 
 export type ServiceLifecycle = 'singleton' | 'transient' | 'scoped';
 
@@ -46,7 +47,7 @@ export class Container {
    */
   register<T>(name: string, definition: ServiceDefinition<T>): void {
     if (this.definitions.has(name)) {
-      throw new Error(`Service "${name}" is already registered`);
+      throw new ServiceError(`Service "${name}" is already registered`, 'INTERNAL_ERROR', name);
     }
 
     this.definitions.set(name, definition as ServiceDefinition);
@@ -87,12 +88,16 @@ export class Container {
     // Check for circular dependencies
     if (this.resolving.has(name)) {
       const chain = Array.from(this.resolving).join(' -> ');
-      throw new Error(`Circular dependency detected: ${chain} -> ${name}`);
+      throw new ServiceError(
+        `Circular dependency detected: ${chain} -> ${name}`,
+        'INTERNAL_ERROR',
+        name
+      );
     }
 
     const definition = this.definitions.get(name);
     if (!definition) {
-      throw new Error(`Service "${name}" is not registered`);
+      throw new NotFoundError('service', name);
     }
 
     // Return cached singleton
@@ -241,7 +246,10 @@ export class Container {
 
     const validation = this.validateDependencies();
     if (!validation.valid) {
-      throw new Error(`Dependency validation failed:\n${validation.errors.join('\n')}`);
+      throw new ConfigError(
+        `Dependency validation failed:\n${validation.errors.join('\n')}`,
+        'service-dependencies'
+      );
     }
 
     const singletons = Array.from(this.definitions.entries())

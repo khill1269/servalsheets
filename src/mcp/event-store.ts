@@ -14,6 +14,7 @@ import type {
 } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { RedisClientType } from 'redis';
 import { logger } from '../utils/logger.js';
+import { ConfigError, ServiceError } from '../core/errors.js';
 
 type StoredEvent = {
   streamId: StreamId;
@@ -283,7 +284,7 @@ export class RedisEventStore implements EventStore {
     }
 
     if (RedisEventStore.redisUrl && RedisEventStore.redisUrl !== this.redisUrl) {
-      throw new Error('RedisEventStore configured with multiple Redis URLs.');
+      throw new ConfigError('RedisEventStore configured with multiple Redis URLs.', 'REDIS_URL');
     }
 
     if (!RedisEventStore.connecting) {
@@ -305,10 +306,13 @@ export class RedisEventStore implements EventStore {
           logger.info('Redis event store connected');
         } catch (error) {
           RedisEventStore.connecting = null;
-          throw new Error(
+          throw new ServiceError(
             `Failed to connect to Redis at ${this.redisUrl}. ` +
               `Make sure Redis is installed (npm install redis) and running. ` +
-              `Error: ${error instanceof Error ? error.message : String(error)}`
+              `Error: ${error instanceof Error ? error.message : String(error)}`,
+            'INTERNAL_ERROR',
+            'redis',
+            true
           );
         }
       })();
@@ -370,7 +374,7 @@ export class RedisEventStore implements EventStore {
   private async deleteStream(streamId: StreamId): Promise<void> {
     const client = RedisEventStore.client;
     if (!client) {
-      throw new Error('Redis client not connected');
+      throw new ServiceError('Redis client not connected', 'INTERNAL_ERROR', 'redis');
     }
 
     const eventsKey = this.getEventsKey(streamId);

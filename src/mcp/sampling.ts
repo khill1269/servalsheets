@@ -29,6 +29,7 @@ import {
 } from '../services/sampling-context-cache.js';
 import { compressContext, formatCompressedContext } from '../services/context-compressor.js';
 import type { SessionContextManager } from '../services/session-context.js';
+import { ServiceError } from '../core/errors.js';
 
 // ============================================================================
 // ISSUE-117: GDPR consent gate for Sampling calls
@@ -388,7 +389,11 @@ export function checkSamplingSupport(
  */
 export function assertSamplingSupport(clientCapabilities: ClientCapabilities | undefined): void {
   if (!clientCapabilities?.sampling) {
-    throw new Error('Client does not support sampling capability');
+    throw new ServiceError(
+      'Client does not support sampling capability',
+      'INTERNAL_ERROR',
+      'sampling'
+    );
   }
 }
 
@@ -400,7 +405,11 @@ export function assertSamplingToolsSupport(
 ): void {
   assertSamplingSupport(clientCapabilities);
   if (!clientCapabilities?.sampling?.tools) {
-    throw new Error('Client does not support tool use in sampling');
+    throw new ServiceError(
+      'Client does not support tool use in sampling',
+      'INTERNAL_ERROR',
+      'sampling'
+    );
   }
 }
 

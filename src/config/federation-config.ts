@@ -9,6 +9,7 @@
  */
 
 import { z } from 'zod';
+import { ValidationError } from '../core/errors.js';
 
 /** RFC 1918 / loopback / link-local ranges blocked to prevent SSRF */
 const BLOCKED_HOST_PATTERNS = [
@@ -28,15 +29,21 @@ function validateFederationUrl(url: string): void {
   try {
     parsed = new URL(url);
   } catch {
-    throw new Error(`Invalid federation URL: ${url}`);
+    throw new ValidationError(`Invalid federation URL: ${url}`, 'url', 'https://hostname/path');
   }
   if (parsed.protocol !== 'https:') {
-    throw new Error(`Federation URL must use HTTPS (got ${parsed.protocol}): ${url}`);
+    throw new ValidationError(
+      `Federation URL must use HTTPS (got ${parsed.protocol}): ${url}`,
+      'url',
+      'https://'
+    );
   }
   const hostname = parsed.hostname;
   if (BLOCKED_HOST_PATTERNS.some((r) => r.test(hostname))) {
-    throw new Error(
-      `Federation URL targets a private/loopback address (SSRF prevention): ${hostname}`
+    throw new ValidationError(
+      `Federation URL targets a private/loopback address (SSRF prevention): ${hostname}`,
+      'url',
+      'public HTTPS hostname'
     );
   }
 }

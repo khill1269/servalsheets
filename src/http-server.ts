@@ -107,6 +107,7 @@ import {
   type HttpTransportSession,
 } from './http-server/routes-transport.js';
 import { registerHttpWebhookRoutes } from './http-server/routes-webhooks.js';
+import { ConfigError } from './core/errors.js';
 
 export interface HttpServerOptions {
   port?: number;
@@ -847,9 +848,10 @@ export function createHttpServer(options: HttpServerOptions = {}): {
 
       if (envConfig.ENABLE_METRICS_SERVER) {
         if (envConfig.METRICS_PORT === port && envConfig.METRICS_HOST === host) {
-          throw new Error(
+          throw new ConfigError(
             'METRICS_PORT/METRICS_HOST cannot match main HTTP server bind address. ' +
-              'Use a dedicated metrics port.'
+              'Use a dedicated metrics port.',
+            'METRICS_PORT'
           );
         }
 
@@ -915,8 +917,9 @@ export async function startRemoteServer(options: { port?: number } = {}): Promis
     !env.GOOGLE_CLIENT_ID ||
     !env.GOOGLE_CLIENT_SECRET
   ) {
-    throw new Error(
-      'JWT_SECRET, STATE_SECRET, OAUTH_CLIENT_SECRET, GOOGLE_CLIENT_ID, and GOOGLE_CLIENT_SECRET must be set when using OAuth mode'
+    throw new ConfigError(
+      'JWT_SECRET, STATE_SECRET, OAUTH_CLIENT_SECRET, GOOGLE_CLIENT_ID, and GOOGLE_CLIENT_SECRET must be set when using OAuth mode',
+      'JWT_SECRET'
     );
   }
 

@@ -35,6 +35,7 @@
 
 import { z, type ZodTypeAny } from 'zod';
 import { logger } from './logger.js';
+import { ValidationError } from '../core/errors.js';
 
 /**
  * Detects if a Zod schema is a discriminated union
@@ -221,7 +222,7 @@ export function zodSchemaToJsonSchema(
  */
 export function validateMcpSchema(schema: unknown, name: string): void {
   if (!schema || typeof schema !== 'object') {
-    throw new Error(`[${name}] Schema must be an object`);
+    throw new ValidationError(`[${name}] Schema must be an object`, 'schema', 'object');
   }
 
   const obj = schema as Record<string, unknown>;
@@ -235,7 +236,11 @@ export function validateMcpSchema(schema: unknown, name: string): void {
 
   // Check if it's a JSON Schema (has type: 'object')
   if (obj['type'] !== 'object' && !obj['oneOf'] && !obj['anyOf']) {
-    throw new Error(`[${name}] JSON Schema must have type: 'object' or oneOf/anyOf at root`);
+    throw new ValidationError(
+      `[${name}] JSON Schema must have type: 'object' or oneOf/anyOf at root`,
+      'schema',
+      "{ type: 'object' } or oneOf/anyOf"
+    );
   }
 }
 
@@ -274,9 +279,11 @@ export function verifyJsonSchema(schema: unknown): void {
   const foundZodProps = zodProperties.filter((prop) => prop in obj);
 
   if (foundZodProps.length > 0) {
-    throw new Error(
+    throw new ValidationError(
       `Schema transformation failed: JSON Schema contains Zod properties: ${foundZodProps.join(', ')}\n` +
-        `This means a Zod schema was not properly converted before registration.`
+        `This means a Zod schema was not properly converted before registration.`,
+      'schema',
+      'plain JSON Schema object'
     );
   }
 }

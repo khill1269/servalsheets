@@ -11,6 +11,7 @@
  */
 
 import type { ClientCapabilities, ElicitResult } from '@modelcontextprotocol/sdk/types.js';
+import { ServiceError } from '../core/errors.js';
 
 // ============================================================================
 // Types
@@ -141,7 +142,11 @@ export function assertFormElicitationSupport(
   clientCapabilities: ClientCapabilities | undefined
 ): void {
   if (!clientCapabilities?.elicitation?.form) {
-    throw new Error('Client does not support form-based elicitation');
+    throw new ServiceError(
+      'Client does not support form-based elicitation',
+      'INTERNAL_ERROR',
+      'elicitation'
+    );
   }
 }
 
@@ -152,7 +157,11 @@ export function assertURLElicitationSupport(
   clientCapabilities: ClientCapabilities | undefined
 ): void {
   if (!clientCapabilities?.elicitation?.url) {
-    throw new Error('Client does not support URL-based elicitation');
+    throw new ServiceError(
+      'Client does not support URL-based elicitation',
+      'INTERNAL_ERROR',
+      'elicitation'
+    );
   }
 }
 

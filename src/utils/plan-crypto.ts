@@ -11,6 +11,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import { getEnv } from '../config/env.js';
 import { logger } from './logger.js';
+import { ConfigError, DataError } from '../core/errors.js';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
@@ -51,11 +52,14 @@ export function decryptPlan(data: string): string {
   const key = getKey();
   if (!key) {
     logger.warn('Plan file is encrypted but PLAN_ENCRYPTION_KEY is not set; cannot decrypt');
-    throw new Error('Cannot decrypt plan: PLAN_ENCRYPTION_KEY not configured');
+    throw new ConfigError(
+      'Cannot decrypt plan: PLAN_ENCRYPTION_KEY not configured',
+      'PLAN_ENCRYPTION_KEY'
+    );
   }
 
   const parts = data.split(':');
-  if (parts.length !== 4) throw new Error('Malformed encrypted plan data');
+  if (parts.length !== 4) throw new DataError('Malformed encrypted plan data');
 
   const iv = Buffer.from(parts[1]!, 'hex');
   const tag = Buffer.from(parts[2]!, 'hex');

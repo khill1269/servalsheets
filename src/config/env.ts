@@ -16,6 +16,7 @@ import { tmpdir } from 'os';
 import { resolve, sep } from 'path';
 import { logger } from '../utils/logger.js';
 import { URL_REGEX } from './google-limits.js';
+import { ConfigError } from '../core/errors.js';
 
 /**
  * Strict boolean parser for environment variables.
@@ -531,7 +532,10 @@ export function validateEnv(): Env {
       );
     }
     if (env.NODE_ENV === 'production' && env.ENABLE_TENANT_ISOLATION && !env.ENABLE_RBAC) {
-      throw new Error('ENABLE_TENANT_ISOLATION requires ENABLE_RBAC=true in production');
+      throw new ConfigError(
+        'ENABLE_TENANT_ISOLATION requires ENABLE_RBAC=true in production',
+        'ENABLE_RBAC'
+      );
     }
 
     if (env.ENABLE_BILLING_INTEGRATION && !env.STRIPE_SECRET_KEY) {
@@ -558,17 +562,19 @@ export function validateEnv(): Env {
       );
     }
     if (env.NODE_ENV === 'production' && isTemporaryDataDir(env.DATA_DIR)) {
-      throw new Error(
+      throw new ConfigError(
         `DATA_DIR must point to persistent storage in production. ` +
           `Current value "${env.DATA_DIR}" resolves to a temporary directory. ` +
-          'Set DATA_DIR to a durable path such as /var/lib/servalsheets or a mounted volume.'
+          'Set DATA_DIR to a durable path such as /var/lib/servalsheets or a mounted volume.',
+        'DATA_DIR'
       );
     }
     const profileStorageDir = env.PROFILE_STORAGE_DIR ?? DEFAULT_PROFILE_STORAGE_DIR;
     if (env.NODE_ENV === 'production' && isTemporaryDataDir(profileStorageDir)) {
-      throw new Error(
+      throw new ConfigError(
         `PROFILE_STORAGE_DIR must point to persistent storage in production. ` +
-          `Current value "${profileStorageDir}" resolves to a temporary directory.`
+          `Current value "${profileStorageDir}" resolves to a temporary directory.`,
+        'PROFILE_STORAGE_DIR'
       );
     }
     const checkpointDir = env.CHECKPOINT_DIR ?? DEFAULT_CHECKPOINT_DIR;
@@ -577,9 +583,10 @@ export function validateEnv(): Env {
       env.ENABLE_CHECKPOINTS &&
       isTemporaryDataDir(checkpointDir)
     ) {
-      throw new Error(
+      throw new ConfigError(
         `CHECKPOINT_DIR must point to persistent storage when checkpoints are enabled in production. ` +
-          `Current value "${checkpointDir}" resolves to a temporary directory.`
+          `Current value "${checkpointDir}" resolves to a temporary directory.`,
+        'CHECKPOINT_DIR'
       );
     }
     return env;
@@ -759,9 +766,10 @@ export function getSessionStoreConfig(): {
   const redisUrl = current.REDIS_URL;
 
   if (type === 'redis' && !redisUrl) {
-    throw new Error(
+    throw new ConfigError(
       'REDIS_URL is required when SESSION_STORE_TYPE=redis. ' +
-        'Please provide a Redis connection URL (e.g., redis://localhost:6379)'
+        'Please provide a Redis connection URL (e.g., redis://localhost:6379)',
+      'REDIS_URL'
     );
   }
 

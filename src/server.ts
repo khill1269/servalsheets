@@ -129,6 +129,7 @@ import {
   registerServerResources,
 } from './server-runtime/resource-registration.js';
 import { prepareServerBootstrap } from './server-runtime/bootstrap.js';
+import { ServiceError } from './core/errors.js';
 import {
   registerServerLoggingSetLevelHandler,
   registerServerTaskCancelHandler,
@@ -284,7 +285,11 @@ export class ServalSheetsServer {
 
         const isError = (result as { isError?: boolean }).isError === true;
         if (isError) {
-          throw new Error(`Scheduled job ${job.id} failed for ${job.action.tool}`);
+          throw new ServiceError(
+            `Scheduled job ${job.id} failed for ${job.action.tool}`,
+            'INTERNAL_ERROR',
+            'scheduler'
+          );
         }
       });
 
@@ -614,7 +619,11 @@ export class ServalSheetsServer {
     return {
       createTask: async (args, extra) => {
         if (!extra.taskStore) {
-          throw new Error(`[${toolName}] Task store not configured`);
+          throw new ServiceError(
+            `[${toolName}] Task store not configured`,
+            'INTERNAL_ERROR',
+            toolName
+          );
         }
 
         const task = await extra.taskStore.createTask({
@@ -724,13 +733,21 @@ export class ServalSheetsServer {
       },
       getTask: async (_args, extra) => {
         if (!extra.taskStore) {
-          throw new Error(`[${toolName}] Task store not configured`);
+          throw new ServiceError(
+            `[${toolName}] Task store not configured`,
+            'INTERNAL_ERROR',
+            toolName
+          );
         }
         return await extra.taskStore.getTask(extra.taskId);
       },
       getTaskResult: async (_args, extra) => {
         if (!extra.taskStore) {
-          throw new Error(`[${toolName}] Task store not configured`);
+          throw new ServiceError(
+            `[${toolName}] Task store not configured`,
+            'INTERNAL_ERROR',
+            toolName
+          );
         }
         return (await extra.taskStore.getTaskResult(extra.taskId)) as CallToolResult;
       },

@@ -76,7 +76,7 @@ const PROMPT_MINIMAL_ARGS: Record<string, Record<string, string | number | strin
     targetSpreadsheetId: '1abc2defGHIJ',
   },
   performance_audit: { spreadsheetId: TEST_SPREADSHEET_ID },
-  batch_optimizer: { spreadsheetId: TEST_SPREADSHEET_ID },
+  batch_optimizer: { spreadsheetId: TEST_SPREADSHEET_ID, operationType: 'read' },
   ultimate_analysis: { spreadsheetId: TEST_SPREADSHEET_ID },
   create_visualization: { spreadsheetId: TEST_SPREADSHEET_ID },
   analyze_with_history: { spreadsheetId: TEST_SPREADSHEET_ID },
@@ -93,10 +93,13 @@ const PROMPT_MINIMAL_ARGS: Record<string, Record<string, string | number | strin
     spreadsheetId1: TEST_SPREADSHEET_ID,
     spreadsheetId2: '1abc2defGHIJ',
   },
-  generate_sheet_from_description: {},
-  what_if_scenario_modeling: { spreadsheetId: TEST_SPREADSHEET_ID },
-  cross_spreadsheet_federation: {},
-  migrate_spreadsheet: { spreadsheetId: TEST_SPREADSHEET_ID },
+  generate_sheet_from_description: { description: 'Q1 budget tracker with revenue and expenses' },
+  what_if_scenario_modeling: {
+    spreadsheetId: TEST_SPREADSHEET_ID,
+    scenario: 'revenue drops 20%',
+  },
+  cross_spreadsheet_federation: { spreadsheetIds: TEST_SPREADSHEET_ID },
+  migrate_spreadsheet: { sourceSpreadsheetId: TEST_SPREADSHEET_ID },
 };
 
 // Extract all tool.action pairs mentioned in a prompt text block.

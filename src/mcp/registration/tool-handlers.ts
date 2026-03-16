@@ -134,6 +134,7 @@ import {
   isGoogleAuthError,
 } from '../../utils/auth-guard.js';
 import { replaceAvailableToolNames } from '../tool-registry-state.js';
+import { ServiceError } from '../../core/errors.js';
 
 // Wrap input schemas for legacy envelopes during validation.
 // Keep registration schemas unwrapped to avoid MCP SDK tools/list empty schema bug.
@@ -2196,7 +2197,11 @@ export function createToolTaskHandler(
   return {
     createTask: async (args, extra) => {
       if (!extra.taskStore) {
-        throw new Error(`[${toolName}] Task store not configured`);
+        throw new ServiceError(
+          `[${toolName}] Task store not configured`,
+          'INTERNAL_ERROR',
+          toolName
+        );
       }
 
       const task = await extra.taskStore.createTask({
@@ -2341,13 +2346,21 @@ export function createToolTaskHandler(
     },
     getTask: async (_args, extra) => {
       if (!extra.taskStore) {
-        throw new Error(`[${toolName}] Task store not configured`);
+        throw new ServiceError(
+          `[${toolName}] Task store not configured`,
+          'INTERNAL_ERROR',
+          toolName
+        );
       }
       return await extra.taskStore.getTask(extra.taskId);
     },
     getTaskResult: async (_args, extra) => {
       if (!extra.taskStore) {
-        throw new Error(`[${toolName}] Task store not configured`);
+        throw new ServiceError(
+          `[${toolName}] Task store not configured`,
+          'INTERNAL_ERROR',
+          toolName
+        );
       }
       return (await extra.taskStore.getTaskResult(extra.taskId)) as CallToolResult;
     },
