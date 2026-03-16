@@ -11,7 +11,7 @@ import type {
 import type { SamplingServer } from '../../mcp/sampling.js';
 
 export interface GenerationDeps {
-  sheetsApi: sheets_v4.Sheets;
+  sheetsApi?: sheets_v4.Sheets;
   samplingServer?: SamplingServer;
   abortSignal?: AbortSignal;
 }
@@ -71,6 +71,15 @@ export async function handleGenerateSheetAction(
     throw new ServiceError(
       'Operation cancelled by client',
       'OPERATION_CANCELLED',
+      'composite',
+      false
+    );
+  }
+
+  if (!deps.sheetsApi) {
+    throw new ServiceError(
+      'Google Sheets API client is required to create spreadsheets',
+      'AUTHENTICATION_REQUIRED',
       'composite',
       false
     );

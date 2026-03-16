@@ -9,6 +9,10 @@ import type {
 import { AuthHandler } from '../../handlers/auth.js';
 import { ConfirmHandler } from '../../handlers/confirm.js';
 import { SessionHandler } from '../../handlers/session.js';
+import {
+  handleGenerateTemplateAction,
+  handlePreviewGenerationAction,
+} from '../../handlers/composite-actions/generation.js';
 import { getEnv } from '../../config/env.js';
 import { resourceNotifications } from '../../resources/notifications.js';
 import { SheetsAuthInputSchema } from '../../schemas/index.js';
@@ -22,6 +26,7 @@ import { ACTIVE_TOOL_DEFINITIONS } from './tool-definitions.js';
 import { parseForHandler } from './tool-arg-normalization.js';
 import { assertValidMcpToolNames } from './tool-name-validation.js';
 import {
+  CompositeInputSchemaLegacy,
   SheetsConfirmInputSchemaLegacy,
   SheetsSessionInputSchemaLegacy,
   type ToolHandlerMap,
@@ -65,6 +70,7 @@ export function createPreAuthToolHandlerMap(options: {
   authHandler: AuthHandler;
 }): ToolHandlerMap {
   const sessionHandler = new SessionHandler();
+  const samplingServer = createTaskAwareSamplingServer(options.server.server);
 
   return {
     sheets_auth: (args: unknown, _extra?: unknown) =>
@@ -84,7 +90,7 @@ export function createPreAuthToolHandlerMap(options: {
           rangeResolver: {} as never,
           server: options.server.server,
           elicitationServer: options.server.server,
-          samplingServer: createTaskAwareSamplingServer(options.server.server),
+          samplingServer,
           requestId: requestExtra?.requestId ? String(requestExtra.requestId) : undefined,
         },
       }).handle(
@@ -95,6 +101,41 @@ export function createPreAuthToolHandlerMap(options: {
           'sheets_confirm'
         )
       );
+    },
+    sheets_composite: async (args: unknown, _extra?: unknown) => {
+      const parsed = parseForHandler<{ request: { action: string } }>(
+        CompositeInputSchemaLegacy,
+        args,
+        'CompositeInput',
+        'sheets_composite'
+      );
+
+      if (parsed.request.action === 'generate_template') {
+        return {
+          response: await handleGenerateTemplateAction(parsed.request as never, {
+            samplingServer,
+          }),
+        };
+      }
+
+      if (parsed.request.action === 'preview_generation') {
+        return {
+          response: await handlePreviewGenerationAction(parsed.request as never, {
+            samplingServer,
+          }),
+        };
+      }
+
+      return {
+        response: {
+          success: false,
+          error: {
+            code: 'AUTHENTICATION_REQUIRED',
+            message: 'Google authentication is required for this sheets_composite action.',
+            retryable: false,
+          },
+        },
+      };
     },
     sheets_session: (args: unknown, _extra?: unknown) =>
       sessionHandler.handle(

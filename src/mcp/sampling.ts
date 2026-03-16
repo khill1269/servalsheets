@@ -19,10 +19,6 @@ import type {
   TextContent,
   ModelPreferences,
 } from '@modelcontextprotocol/sdk/types.js';
-import {
-  CreateMessageResultSchema,
-  CreateMessageResultWithToolsSchema,
-} from '@modelcontextprotocol/sdk/types.js';
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
 import { createRequestAbortError, getRequestContext } from '../utils/request-context.js';
@@ -276,25 +272,20 @@ interface TaskAwareSamplingServer extends SamplingServer {
     params: CreateMessageRequest['params'],
     options?: {
       signal?: AbortSignal;
-      relatedTask?: { taskId: string };
     }
   ): Promise<CreateMessageResult | CreateMessageResultWithTools>;
 }
 
 const taskAwareSamplingServerCache = new WeakMap<SamplingServer, SamplingServer>();
 
-function supportsSamplingTools(
-  params: CreateMessageRequest['params'],
-  clientCapabilities: ClientCapabilities | undefined
-): boolean {
-  return (
-    Array.isArray((params as { tools?: unknown }).tools) || !!clientCapabilities?.sampling?.tools
-  );
-}
-
 /**
- * Wraps an MCP server so nested sampling requests prefer the current request's
- * task-aware sendRequest channel when available.
+ * Wraps an MCP server so nested sampling requests preserve task status updates
+ * without depending on request-bound related-request delivery.
+ *
+ * Streamable HTTP clients can miss request-bound nested sampling messages when
+ * they are emitted before the per-request SSE response stream is fully ready.
+ * Sending sampling via the base server path targets the normal client request
+ * channel instead, which is reliable across stdio and Streamable HTTP.
  */
 export function createTaskAwareSamplingServer(baseServer: SamplingServer): SamplingServer {
   const cached = taskAwareSamplingServerCache.get(baseServer);
@@ -312,30 +303,11 @@ export function createTaskAwareSamplingServer(baseServer: SamplingServer): Sampl
       const requestContext = getRequestContext();
       if (requestContext?.taskId && requestContext.taskStore) {
         await requestContext.taskStore.updateTaskStatus(requestContext.taskId, 'input_required');
-        return await (baseServer as TaskAwareSamplingServer).createMessage(params, {
-          signal: requestContext.abortSignal,
-          relatedTask: { taskId: requestContext.taskId },
-        });
       }
 
-      if (!requestContext?.sendRequest) {
-        return await baseServer.createMessage(params);
-      }
-
-      const resultSchema = supportsSamplingTools(params, baseServer.getClientCapabilities())
-        ? CreateMessageResultWithToolsSchema
-        : CreateMessageResultSchema;
-
-      return (await requestContext.sendRequest(
-        {
-          method: 'sampling/createMessage',
-          params,
-        },
-        resultSchema,
-        {
-          signal: requestContext.abortSignal,
-        }
-      )) as CreateMessageResult | CreateMessageResultWithTools;
+      return await (baseServer as TaskAwareSamplingServer).createMessage(params, {
+        signal: requestContext?.abortSignal,
+      });
     },
   };
 

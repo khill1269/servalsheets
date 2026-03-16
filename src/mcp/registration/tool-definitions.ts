@@ -301,6 +301,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     inputSchema: CompositeInputSchema,
     outputSchema: CompositeOutputSchema,
     annotations: SHEETS_COMPOSITE_ANNOTATIONS,
+    authPolicy: { exemptActions: ['generate_template', 'preview_generation'] },
   },
   {
     name: 'sheets_session',

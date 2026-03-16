@@ -16,6 +16,7 @@ import {
   type TraceSpan,
 } from '../../services/trace-aggregator.js';
 import { invalidateContext as invalidateSamplingContext } from '../../services/sampling-context-cache.js';
+import { resourceNotifications } from '../../resources/notifications.js';
 import type { OperationHistory } from '../../types/history.js';
 import { logger } from '../../utils/logger.js';
 import { getTracer } from '../../utils/tracing.js';
@@ -88,6 +89,10 @@ export interface ToolExecutionSideEffectDeps {
   recordErrorMetric: typeof recordError;
   recordSelfCorrectionMetric: typeof recordSelfCorrection;
   invalidateSamplingContext: (spreadsheetId: string) => void;
+  resourceNotifications: {
+    notifyCacheInvalidated(spreadsheetId?: string): void;
+    notifySpreadsheetMutation(spreadsheetId: string, reason?: string): void;
+  };
   collectTraceSpans: () => Promise<TraceSpan[]>;
 }
 
@@ -140,6 +145,7 @@ function createDefaultDeps(): ToolExecutionSideEffectDeps {
     recordErrorMetric: recordError,
     recordSelfCorrectionMetric: recordSelfCorrection,
     invalidateSamplingContext,
+    resourceNotifications,
     collectTraceSpans: async () => {
       const tracer = getTracer();
       const recordedSpans = tracer.getSpans();
@@ -388,20 +394,25 @@ export async function recordSuccessfulToolExecution(
     status,
   });
 
-  if (
-    status === 'success' &&
-    spreadsheetId &&
-    shouldInvalidateSamplingContext(input.toolName, input.action)
-  ) {
-    try {
-      deps.invalidateSamplingContext(spreadsheetId);
-    } catch (error) {
-      deps.log.debug('Sampling context invalidation skipped', {
-        tool: input.toolName,
-        action: input.action,
+  if (status === 'success' && shouldInvalidateSamplingContext(input.toolName, input.action)) {
+    deps.resourceNotifications.notifyCacheInvalidated(spreadsheetId);
+
+    if (spreadsheetId) {
+      try {
+        deps.invalidateSamplingContext(spreadsheetId);
+      } catch (error) {
+        deps.log.debug('Sampling context invalidation skipped', {
+          tool: input.toolName,
+          action: input.action,
+          spreadsheetId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      deps.resourceNotifications.notifySpreadsheetMutation(
         spreadsheetId,
-        error: error instanceof Error ? error.message : String(error),
-      });
+        `${input.toolName}.${input.action} mutated spreadsheet ${spreadsheetId}`
+      );
     }
   }
 }

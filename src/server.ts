@@ -86,7 +86,7 @@ import { buildToolResponse } from './mcp/registration/tool-handlers.js';
 import { prepareSchemaForRegistrationCached } from './mcp/registration/schema-helpers.js';
 import { registerToolsListCompatibilityHandler } from './mcp/registration/tools-list-compat.js';
 import { recordSpreadsheetId } from './mcp/completions.js';
-import { resourceNotifications } from './resources/notifications.js';
+import { resourceNotifications, teardownResourceNotifications } from './resources/notifications.js';
 import { cacheManager } from './utils/cache-manager.js';
 import { requestDeduplicator } from './utils/request-deduplication.js';
 import {
@@ -1228,6 +1228,8 @@ export class ServalSheetsServer {
 
     // Dispose temporary resource store (stops cleanup interval)
     disposeTemporaryResourceStore();
+
+    teardownResourceNotifications(this._server);
 
     // Clear references
     this.googleClient = null;

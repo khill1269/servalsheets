@@ -282,7 +282,9 @@ export const TOOL_EXECUTION_CONFIG: Record<string, ToolExecution> = {
   // Visualization - can be slow with large datasets
   sheets_visualize: { taskSupport: 'optional' },
 
-  // Composite operations - can be slow with large imports
+  // Composite operations can be long-running and may require cancellation.
+  // Nested sampling requests use the base server channel so task mode remains
+  // compatible with the official Streamable HTTP SDK client.
   sheets_composite: { taskSupport: 'optional' },
 
   // Standard operations - typically fast, no task support needed
@@ -336,6 +338,13 @@ export const TOOL_EXECUTION_CONFIG: Record<string, ToolExecution> = {
  */
 export function createServerCapabilities(): ServerCapabilities {
   return {
+    // Resource update support - clients can subscribe to concrete resource URIs
+    // and re-read them after notifications/resources/updated.
+    resources: {
+      subscribe: true,
+      listChanged: true,
+    },
+
     // Task support (MCP 2025-11-25 standard capability)
     // Tools with taskSupport: 'optional'/'required' can be invoked with task mode
     // Registered via server.experimental.tasks.registerToolTask() SDK API

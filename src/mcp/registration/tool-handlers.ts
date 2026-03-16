@@ -31,6 +31,10 @@ import { z, type ZodSchema, type ZodTypeAny } from 'zod';
 
 import type { Handlers } from '../../handlers/index.js';
 import { AuthHandler } from '../../handlers/auth.js';
+import {
+  handleGenerateTemplateAction,
+  handlePreviewGenerationAction,
+} from '../../handlers/composite-actions/generation.js';
 import { ConfirmHandler } from '../../handlers/confirm.js';
 import { SessionHandler } from '../../handlers/session.js';
 import type { GoogleApiClient } from '../../services/google-api.js';
@@ -2343,6 +2347,7 @@ export async function registerServalSheetsTools(
     : (() => {
         // Pre-auth: only sheets_auth (for login) and local-only tools available
         const sessionHandler = new SessionHandler();
+        const samplingServer = createTaskAwareSamplingServer(server.server);
         const preAuthHandlerMap: Record<
           string,
           (args: unknown, extra?: unknown) => Promise<unknown>
@@ -2364,7 +2369,7 @@ export async function registerServalSheetsTools(
                 rangeResolver: {} as never,
                 server: server.server,
                 elicitationServer: server.server,
-                samplingServer: createTaskAwareSamplingServer(server.server),
+                samplingServer,
                 requestId: requestExtra?.requestId ? String(requestExtra.requestId) : undefined,
               },
             }).handle(
@@ -2375,6 +2380,41 @@ export async function registerServalSheetsTools(
                 'sheets_confirm'
               )
             );
+          },
+          sheets_composite: async (args: unknown, _extra?: unknown) => {
+            const parsed = parseForHandler<{ request: { action: string } }>(
+              CompositeInputSchemaLegacy,
+              args,
+              'CompositeInput',
+              'sheets_composite'
+            );
+
+            if (parsed.request.action === 'generate_template') {
+              return {
+                response: await handleGenerateTemplateAction(parsed.request as never, {
+                  samplingServer,
+                }),
+              };
+            }
+
+            if (parsed.request.action === 'preview_generation') {
+              return {
+                response: await handlePreviewGenerationAction(parsed.request as never, {
+                  samplingServer,
+                }),
+              };
+            }
+
+            return {
+              response: {
+                success: false,
+                error: {
+                  code: 'AUTHENTICATION_REQUIRED',
+                  message: 'Google authentication is required for this sheets_composite action.',
+                  retryable: false,
+                },
+              },
+            };
           },
           sheets_session: (args: unknown, _extra?: unknown) =>
             sessionHandler.handle(

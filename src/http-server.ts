@@ -70,6 +70,7 @@ import {
   registerKnowledgeSearchResource,
   initializeResourceNotifications,
   resourceNotifications,
+  teardownResourceNotifications,
 } from './resources/index.js';
 import { getCostTracker } from './services/cost-tracker.js';
 import { initializeBillingIntegration } from './services/billing-integration.js';
@@ -410,6 +411,7 @@ async function createMcpServerInstance(
     mcpServer,
     taskStore,
     disposeRuntime: () => {
+      teardownResourceNotifications(mcpServer);
       httpLoggingSubscribers.delete(loggingSubscriberId);
       toolRegistration.dispose();
     },

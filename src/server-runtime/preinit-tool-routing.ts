@@ -36,5 +36,26 @@ export async function handlePreInitExemptToolCall(
     );
   }
 
+  if (toolName === 'sheets_composite') {
+    const { CompositeInputSchema } = await import('../schemas/composite.js');
+    const { handleGenerateTemplateAction, handlePreviewGenerationAction } =
+      await import('../handlers/composite-actions/generation.js');
+
+    const parsed = parseWithCache(CompositeInputSchema, args, 'CompositeInput');
+    const request = parsed.request;
+
+    if (request.action === 'generate_template') {
+      return {
+        response: await handleGenerateTemplateAction(request, {}),
+      };
+    }
+
+    if (request.action === 'preview_generation') {
+      return {
+        response: await handlePreviewGenerationAction(request, {}),
+      };
+    }
+  }
+
   return null;
 }
