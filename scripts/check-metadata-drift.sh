@@ -21,6 +21,14 @@ node --import tsx scripts/generate-metadata.ts --validate
 
 echo ""
 echo "🔍 Checking source/dist runtime artifact consistency..."
-timeout 30 node --import tsx scripts/check-source-dist-consistency.ts --allow-missing-dist || {
-  echo "⚠️  Source/dist consistency check skipped (timeout or missing dist)"
-}
+# Use gtimeout (macOS/brew coreutils) or timeout (Linux), fall back gracefully if neither available
+_TIMEOUT_CMD=$(command -v gtimeout || command -v timeout || echo "")
+if [ -n "$_TIMEOUT_CMD" ]; then
+  "$_TIMEOUT_CMD" 30 node --import tsx scripts/check-source-dist-consistency.ts --allow-missing-dist || {
+    echo "⚠️  Source/dist consistency check skipped (timeout or missing dist)"
+  }
+else
+  node --import tsx scripts/check-source-dist-consistency.ts --allow-missing-dist || {
+    echo "⚠️  Source/dist consistency check skipped (missing dist)"
+  }
+fi
