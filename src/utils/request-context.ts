@@ -125,6 +125,17 @@ export interface RequestContext {
    * Progress that does not exceed this value is silently dropped per MCP spec.
    */
   lastProgress?: number;
+  /**
+   * Number of Google API calls made during this request.
+   * Incremented by wrapGoogleApi on each API call (success or failure).
+   * Exposed in _meta.apiCallsMade for LLM cost awareness.
+   */
+  apiCallsMade: number;
+  /**
+   * Epoch ms when this request context was created.
+   * Used to compute _meta.executionTimeMs at response build time.
+   */
+  requestStartTime: number;
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -178,11 +189,12 @@ export function createRequestContext(options?: {
 
   const logger = (options?.logger ?? baseLogger).child(loggerMeta);
 
+  const now = Date.now();
   return {
     requestId,
     logger,
     timeoutMs,
-    deadline: Date.now() + timeoutMs,
+    deadline: now + timeoutMs,
     abortSignal: options?.abortSignal,
     principalId: options?.principalId,
     sendNotification: options?.sendNotification,
@@ -195,6 +207,8 @@ export function createRequestContext(options?: {
     parentSpanId: options?.parentSpanId,
     idempotencyKey: options?.idempotencyKey,
     metadataCache: options?.metadataCache,
+    apiCallsMade: 0,
+    requestStartTime: now,
   };
 }
 

@@ -1792,13 +1792,21 @@ function wrapGoogleApi<T extends object>(
               // Wrap with circuit breaker if available
               const result = circuit ? await circuit.execute(operation) : await operation();
 
-              // Track successful API call
+              // Track successful API call (connection health + per-request counter)
               client?.recordCallResult(true);
+              const ctx = getRequestContext();
+              if (ctx) {
+                ctx.apiCallsMade++;
+              }
 
               return result;
             } catch (error) {
-              // Track failed API call
+              // Track failed API call (connection health + per-request counter)
               client?.recordCallResult(false);
+              const ctx = getRequestContext();
+              if (ctx) {
+                ctx.apiCallsMade++;
+              }
               throw error;
             }
           };

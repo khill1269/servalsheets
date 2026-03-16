@@ -142,11 +142,19 @@ export function buildToolResponse(
     if (requestContext) {
       const scMeta = getMetaRecord(structuredContent);
       const quotaStatus = getConcurrencyCoordinator().getQuotaStatus();
+      const executionTimeMs = Date.now() - requestContext.requestStartTime;
+      const apiCallsMade = requestContext.apiCallsMade;
+      // Quota impact: each API call costs ~1 unit against the 60 req/min per-user quota
+      const quotaImpact =
+        apiCallsMade > 0 ? { apiCalls: apiCallsMade, quotaUnits: apiCallsMade } : undefined;
       structuredContent['_meta'] = {
         ...scMeta,
         requestId: requestContext.requestId,
         ...(requestContext.traceId ? { traceId: requestContext.traceId } : {}),
         ...(requestContext.spanId ? { spanId: requestContext.spanId } : {}),
+        executionTimeMs,
+        apiCallsMade,
+        ...(quotaImpact ? { quotaImpact } : {}),
         quotaStatus: {
           used: quotaStatus.used,
           limit: quotaStatus.limit,
