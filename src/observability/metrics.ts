@@ -130,6 +130,14 @@ export const errorsByType = new Counter({
   registers: [register],
 });
 
+// Retry-After header observability (Fix 1 / Fix 5 — tracks when Google's Retry-After is respected)
+export const googleApiRetryAfterWaitMs = new Histogram({
+  name: 'servalsheets_google_api_retry_after_wait_ms',
+  help: 'Wait duration (ms) dictated by Retry-After header from Google API 429 responses',
+  buckets: [1000, 5000, 10000, 30000, 60000, 120000],
+  registers: [register],
+});
+
 // HTTP/2 connection reset metrics
 export const http2ConnectionResetsTotal = new Counter({
   name: 'servalsheets_http2_connection_resets_total',
