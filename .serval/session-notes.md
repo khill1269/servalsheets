@@ -6,6 +6,35 @@
 
 ## Current Phase
 
+**Session 82 (2026-03-15) — Cache O(1) + CoT `_hints` intelligence layer.** Branch `remediation/phase-1`. 402 actions (25 tools). 8991/8991 tests. All gates green.
+
+## What Was Just Completed (Session 82)
+
+**Stash cleanup:** Audited all 7 git stashes against HEAD. All confirmed superseded or inferior to current code — dropped all 7.
+
+**`perf(cache): O(1) size tracking via _totalSizeBytes running counter`** (`src/utils/cache-manager.ts`):
+
+- Added `private _totalSizeBytes = 0` field to `CacheManager`
+- 9 mutation points updated to increment/decrement the counter: `get()` (expire), `set()` (overwrite + new), `delete()`, `cleanup()`, `clear()`, `evictOldest()`, `invalidatePattern()`, `clearNamespace()`, `invalidateRange()`
+- `getStats()` and `getTotalSize()` now O(1) (was O(N) full-scan loop)
+
+**`feat(intelligence): CoT _hints layer for sheets_data read responses`** — NEW `src/services/response-hints-engine.ts` (270 lines):
+
+- `generateResponseHints(values: CellValue[][]): ResponseHints | null` — sync, zero API calls, <50ms
+- `ResponseHints`: `{ dataShape?, primaryKeyColumn?, dataRelationships?, formulaOpportunities?, riskLevel?, nextPhase? }`
+- Column profiling: `isDate` (content-based), `isNumeric`, `isId` (keyword), `uniqueRatio`, `nullRatio` per column, capped at 50 data rows
+- `buildDataShape()`: time-series granularity detection (daily/weekly/monthly), structured data label
+- `detectPrimaryKey()`: ID-keyword + 100% unique first, any 100% unique fallback
+- `detectRelationships()`: revenue+cost→profit margin formula, date×numeric→trend, 2 dates→DAYS() duration
+- `assessRisk()`: `none/low/medium/high` based on nullRatio + duplicate numeric cols
+- `suggestNextPhase()`: workflow string routing based on risk + data shape
+- Wired into `applyResponseIntelligence()` in `response-intelligence.ts` for `sheets_data.read/batch_read/cross_read`
+- NEW `tests/services/response-hints-engine.test.ts` — 17 tests, all passing
+
+**Test count**: 8991/8991 (up from 8941 — added 17 hints tests + 33 tranche E regression tests)
+
+## Session 81 Summary (2026-03-15)
+
 **Session 81 (2026-03-15) — Type safety sprint + progress tranche E + recommender coverage.** Branch `remediation/phase-1`. 402 actions (25 tools). 2674/2674 tests. All gates green.
 
 ## What Was Just Completed (Session 80)
