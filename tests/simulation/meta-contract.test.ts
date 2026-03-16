@@ -479,3 +479,118 @@ describe('_meta contract — nonFatalError injection', () => {
     }
   });
 });
+
+// ─── Suite 11: _hints in primary pipeline (buildToolResponse) ─────────────────
+//
+// Regression guard: _hints are injected via generateResponseHints inside
+// buildToolResponse (Phase 1B.4). This ensures _hints survive the full
+// tool-handlers.ts → CallToolResult path (not just the task handler path).
+
+describe('_meta contract — _hints injection in primary pipeline', () => {
+  it('_hints present on sheets_data.read with grid data', async () => {
+    const ctx = createRequestContext({ requestId: 'hints-pipeline-001' });
+    const result = await runWithRequestContext(ctx, () =>
+      Promise.resolve(
+        buildToolResponse(
+          {
+            response: {
+              success: true,
+              action: 'read',
+              range: 'Sheet1!A1:D6',
+              values: [
+                ['Date', 'Revenue', 'Cost', 'Units'],
+                ['2024-01-01', 12000, 7500, 130],
+                ['2024-01-02', 13000, 8000, 145],
+                ['2024-01-03', 11500, 7100, 125],
+                ['2024-01-04', 14000, 8700, 155],
+                ['2024-01-05', 15000, 9200, 168],
+              ],
+            },
+          },
+          'sheets_data'
+        )
+      )
+    );
+
+    const resp = getResponse(result);
+    expect(resp).toBeDefined();
+    expect(resp!['_hints']).toBeDefined();
+
+    const hints = resp!['_hints'] as Record<string, unknown>;
+    expect(['none', 'low', 'medium', 'high']).toContain(hints['riskLevel']);
+    expect(typeof hints['nextPhase']).toBe('string');
+    expect((hints['nextPhase'] as string).length).toBeGreaterThan(0);
+  });
+
+  it('_hints absent on sheets_data.write (no read values)', async () => {
+    const ctx = createRequestContext({ requestId: 'hints-pipeline-002' });
+    const result = await runWithRequestContext(ctx, () =>
+      Promise.resolve(
+        buildToolResponse(
+          {
+            response: {
+              success: true,
+              action: 'write',
+              updatedCells: 4,
+              updatedRange: 'Sheet1!A1:B2',
+            },
+          },
+          'sheets_data'
+        )
+      )
+    );
+
+    const resp = getResponse(result);
+    expect(resp!['_hints']).toBeUndefined();
+  });
+
+  it('_hints absent on sheets_format responses (wrong tool)', async () => {
+    const ctx = createRequestContext({ requestId: 'hints-pipeline-003' });
+    const result = await runWithRequestContext(ctx, () =>
+      Promise.resolve(
+        buildToolResponse(
+          {
+            response: {
+              success: true,
+              action: 'read',
+              values: [['A', 'B'], [1, 2], [3, 4]],
+            },
+          },
+          'sheets_format'
+        )
+      )
+    );
+
+    const resp = getResponse(result);
+    expect(resp!['_hints']).toBeUndefined();
+  });
+
+  it('_hints present on sheets_data.batch_read with nested data.values', async () => {
+    const ctx = createRequestContext({ requestId: 'hints-pipeline-004' });
+    const result = await runWithRequestContext(ctx, () =>
+      Promise.resolve(
+        buildToolResponse(
+          {
+            response: {
+              success: true,
+              action: 'batch_read',
+              data: {
+                values: [
+                  ['Name', 'Score', 'Grade'],
+                  ['Alice', 95, 'A'],
+                  ['Bob', 87, 'B'],
+                  ['Charlie', 92, 'A'],
+                  ['Diana', 78, 'C'],
+                ],
+              },
+            },
+          },
+          'sheets_data'
+        )
+      )
+    );
+
+    const resp = getResponse(result);
+    expect(resp!['_hints']).toBeDefined();
+  });
+});

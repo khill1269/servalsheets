@@ -58,6 +58,8 @@ npm run test:handlers
 npm run test:integration
 npm run test:compliance
 npm run test:simulation
+npm run audit:memory
+npx vitest run tests/benchmarks/performance-regression.test.ts
 echo "✅ G2 passed"
 
 # G3: API/protocol/docs quality

@@ -120,6 +120,7 @@ import { registerPipelineDispatch } from '../../services/pipeline-registry.js';
 import { suggestFix } from '../../services/error-fix-suggester.js';
 import { getRecommendedActions } from '../../services/action-recommender.js';
 import { scanResponseQuality } from '../../services/lightweight-quality-scanner.js';
+import { generateResponseHints } from '../../services/response-hints-engine.js';
 import { getErrorCodeCompatibility } from '../../utils/error-code-compat.js';
 import { withWriteLock } from '../../middleware/write-lock-middleware.js';
 import { checkRateLimit } from '../../middleware/rate-limit-middleware.js';
@@ -1352,6 +1353,47 @@ export function buildToolResponse(
       }
     } catch {
       // Non-blocking: quality scan failure must never fail the response
+    }
+  }
+
+  // Phase 1B.4: Inject CoT _hints on sheets_data read responses (sync, zero API calls)
+  const HINTS_ACTIONS = new Set(['read', 'batch_read', 'cross_read']);
+  if (
+    !hasFailure &&
+    'response' in structuredContent &&
+    response &&
+    typeof response === 'object' &&
+    toolName === 'sheets_data'
+  ) {
+    try {
+      const responseRecord = response as Record<string, unknown>;
+      const actionName = responseRecord['action'] as string | undefined;
+      if (actionName && HINTS_ACTIONS.has(actionName)) {
+        // Extract values — may be at response.values or response.data.values
+        let responseValues: unknown = responseRecord['values'];
+        if (
+          !responseValues &&
+          typeof responseRecord['data'] === 'object' &&
+          responseRecord['data']
+        ) {
+          responseValues = (responseRecord['data'] as Record<string, unknown>)['values'];
+        }
+        if (
+          Array.isArray(responseValues) &&
+          responseValues.length >= 2 &&
+          Array.isArray(responseValues[0]) &&
+          (responseValues[0] as unknown[]).length >= 1
+        ) {
+          const hints = generateResponseHints(
+            responseValues as (string | number | boolean | null)[][]
+          );
+          if (hints) {
+            responseRecord['_hints'] = hints;
+          }
+        }
+      }
+    } catch {
+      // Non-blocking: hints injection failure must never fail the response
     }
   }
 
