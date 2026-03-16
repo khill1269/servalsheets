@@ -16,12 +16,24 @@ import { unwrapRequest, type HandlerContext } from './base.js';
 import { ValidationError, ServiceError } from '../core/errors.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
+import { resourceNotifications } from '../resources/notifications.js';
 import { sendProgress } from '../utils/request-context.js';
 import { logger } from '../utils/logger.js';
 import { getEnv } from '../config/env.js';
 
 export interface TransactionHandlerOptions {
   context?: HandlerContext;
+}
+
+function tryGetTransactionSpreadsheetId(
+  transactionManager: Pick<ReturnType<typeof getTransactionManager>, 'getTransaction'>,
+  transactionId: string
+): string | undefined {
+  try {
+    return transactionManager.getTransaction(transactionId)?.spreadsheetId;
+  } catch {
+    return undefined;
+  }
 }
 
 export class TransactionHandler {
@@ -98,6 +110,7 @@ export class TransactionHandler {
             operationsQueued: 0,
             message: `Transaction ${txId} started for spreadsheet ${req.spreadsheetId}.${snapshotWarning}${descriptionNote}`,
           };
+          resourceNotifications.notifyTransactionStateChanged(txId, 'pending', req.spreadsheetId);
           break;
         }
 
@@ -163,6 +176,10 @@ export class TransactionHandler {
           }
 
           await sendProgress(0, 100, 'Committing transaction...');
+          const spreadsheetId = tryGetTransactionSpreadsheetId(
+            transactionManager,
+            req.transactionId
+          );
           const result = await transactionManager.commit(req.transactionId);
           await sendProgress(100, 100, 'Transaction committed');
 
@@ -177,6 +194,11 @@ export class TransactionHandler {
               duration: result.duration,
               message: `Transaction committed successfully. ${result.operationResults.length} operation(s) executed, ${result.apiCallsSaved} API call(s) saved.`,
             };
+            resourceNotifications.notifyTransactionStateChanged(
+              req.transactionId,
+              'committed',
+              spreadsheetId
+            );
           } else {
             response = {
               success: false,
@@ -189,6 +211,11 @@ export class TransactionHandler {
                   : undefined,
               },
             };
+            resourceNotifications.notifyTransactionStateChanged(
+              req.transactionId,
+              'failed',
+              spreadsheetId
+            );
           }
           break;
         }
@@ -202,6 +229,10 @@ export class TransactionHandler {
             );
           }
 
+          const spreadsheetId = tryGetTransactionSpreadsheetId(
+            transactionManager,
+            req.transactionId
+          );
           const rollbackResult = await transactionManager.rollback(req.transactionId);
 
           const recoveryHint = rollbackResult.snapshotId
@@ -217,6 +248,11 @@ export class TransactionHandler {
             operationsExecuted: rollbackResult.operationsReverted,
             message: `Transaction ${req.transactionId} rolled back successfully (${rollbackResult.operationsReverted ?? 0} operation(s) reverted).${recoveryHint}`,
           };
+          resourceNotifications.notifyTransactionStateChanged(
+            req.transactionId,
+            'rolled_back',
+            spreadsheetId
+          );
           break;
         }
 
