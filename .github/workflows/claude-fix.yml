@@ -7,18 +7,33 @@ on:
     types: [completed]
     branches: [main, "remediation/**"]
 
+concurrency:
+  group: claude-fix-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: true
+
 jobs:
   fix-failures:
     if: ${{ github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: write
       pull-requests: write
       issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 1
+
+      # Node.js required so Claude can run npm commands (verify:safe, schema:commit, test:fast)
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
 
       - uses: anthropics/claude-code-action@v1
         with:
@@ -28,4 +43,5 @@ jobs:
             (per CLAUDE.md: ≤3 src/ files unless tests require more), and open a PR with the fix.
             Run `npm run verify:safe` to confirm the fix before committing.
             If the failure is in schema files, run `npm run schema:commit` first.
+            Do NOT push directly to main or remediation branches — always open a new fix/ branch PR.
           claude_args: "--max-turns 15 --model claude-opus-4-6"

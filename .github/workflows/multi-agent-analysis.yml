@@ -2,22 +2,31 @@ name: Multi-Agent Analysis
 
 on:
   push:
-    branches: ['**']
+    branches: [main, develop, 'remediation/**', 'feat/**', 'fix/**']
+    paths:
+      - 'src/**'
   pull_request:
-    branches: [main, feat/*, phase-*]
+    branches: [main, develop]
+    paths:
+      - 'src/**'
 
 jobs:
   analyze:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0 # Full history for better analysis
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -77,7 +86,7 @@ jobs:
 
       - name: Comment on PR
         if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v6
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
@@ -135,19 +144,29 @@ jobs:
       - name: Apply Auto-fixes
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          # Only auto-fix on main branch pushes
+          # Only auto-fix on main branch pushes — open a PR, never push directly to main
           npx tsx scripts/analysis/auto-fixer.ts analysis-report.json
 
-          # Commit fixes if any were made
+          # Open a PR if any fixes were made
           if [ -n "$(git status --porcelain)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
+            BRANCH="chore/auto-fix-$(date +%Y%m%d-%H%M%S)"
+            git checkout -b "$BRANCH"
             git add -A
             git commit -m "chore: apply auto-fixes from multi-agent analysis
 
-            Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
-            git push
+            Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+            git push origin "$BRANCH"
+            gh pr create \
+              --title "chore: auto-fixes from multi-agent analysis" \
+              --body "Auto-generated fixes from the multi-agent analysis workflow. Review before merging." \
+              --base main \
+              --head "$BRANCH" \
+              --label "chore" || true
           fi
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Block on Critical Issues
         if: github.event_name == 'pull_request'
