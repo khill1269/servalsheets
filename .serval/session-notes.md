@@ -6,6 +6,59 @@
 
 ## Current Phase
 
+**Session 83 (2026-03-16) — Google API quota cascade hardening (Fixes 1–5).** Branch `remediation/phase-1`. 402 actions (25 tools). 2678/2678 tests. All gates green.
+
+## What Was Just Completed (Session 83)
+
+**Google Cloud Monitoring analysis** — 90-min live API window (Mar 15 23:15–Mar 16 00:55 UTC) showed three failure modes: 429 bursts (23:37–23:42, 00:37–00:46), 404 cascade (23:43–23:47, 60–71% error rate triggered by quota exhaustion), and scattered 400s.
+
+**Fix 1 — Retry-After deadline alignment** (`src/utils/retry.ts`):
+
+- Added `extractRetryAfterMs(error)` helper (mirrors serval-core's internal `parseRetryAfter`)
+- `onRetry` deadline check now uses Retry-After value when present, so deadline math matches the actual wait time serval-core enforces
+- Records `googleApiRetryAfterWaitMs` metric (Fix 5) and logs when header is respected
+- Note: serval-core already respects Retry-After in actual sleep (line 106–109); this fix makes the deadline check consistent with it
+
+**Fix 2 — Spreadsheet existence pre-caching** (`src/services/cached-sheets-api.ts`):
+
+- Added `private knownSpreadsheets = new Map<string, number>()` with 5-min TTL
+- Added `async ensureSpreadsheetExists(spreadsheetId)` public method — minimal-field GET (`fields: 'spreadsheetId'`), cached result
+- `invalidateSpreadsheet()` also clears the existence entry
+- Call before mutations to convert 404 quota-waste into fast local throw
+
+**Fix 3 — QuotaCircuitBreaker** (`src/utils/circuit-breaker.ts`):
+
+- Added `QuotaCircuitBreaker` wrapper class — wraps core `CircuitBreaker`, tracks 429s separately
+- Opens quota gate after `ceil(failureThreshold/2)` consecutive quota failures (default 3) with `2×timeout` reset (default 60s)
+- Standard breaker still handles all other error types at normal threshold
+
+**Fix 4 — Test harness pre-flight** (`tests/live-api/action-matrix.live.test.ts`):
+
+- Added spreadsheet accessibility verification in `createMatrixSpreadsheet` after creation and tracking
+- Throws with clear message before seeding/running 300+ actions against an inaccessible spreadsheet
+
+**Fix 5 — Retry-After metric** (`src/observability/metrics.ts`):
+
+- Added `googleApiRetryAfterWaitMs` Histogram (buckets 1s–120s) observed by Fix 1
+
+**Fix A — Wire QuotaCircuitBreaker into production path** (`src/services/google-api.ts`, `src/services/circuit-breaker-registry.ts`):
+
+- `ICircuitBreaker` interface (structural) added to `circuit-breaker.ts:40-47` — satisfied by both `CircuitBreaker` and `QuotaCircuitBreaker`
+- `circuit-breaker-registry.ts`: changed `breaker` field and `register()` param from `CircuitBreaker` → `ICircuitBreaker`
+- `google-api.ts`: `sheetsCircuit` field type changed to `QuotaCircuitBreaker`; `new CircuitBreaker({...})` → `new QuotaCircuitBreaker({...})` for the Sheets API breaker; `wrapGoogleApi` `circuit` option widened to `ICircuitBreaker`
+- Result: 429 quota cascade now trips the fast gate (after ~3 hits) instead of waiting for 5-failure standard threshold
+
+**Fix B — Wire ensureSpreadsheetExists into mutation path** (`src/services/google-api.ts`):
+
+- Added `existenceChecker?: (spreadsheetId: string) => Promise<void>` option to `wrapGoogleApi`
+- Proxy checks existence BEFORE executing write ops when `sharedDriveFileId` is known
+- Existence cache lives on `GoogleApiClient` instance (`spreadsheetExistenceCache`, `EXISTENCE_TTL_MS = 5min`) to survive `reinitializeApis()`
+- Raw pre-wrap `sheetsApi` captured in closure to avoid proxy recursion
+- Both `initialize()` and `reinitializeApis()` wire the closure as `existenceChecker`
+- Result: bad spreadsheetIds fail fast locally instead of consuming quota on a doomed 404
+
+**Verification**: `npx tsc --noEmit` → 0 errors; `npm run test:fast` → all passing (parallel flakes in data-clear-bugfix are pre-existing, pass when isolated)
+
 **Session 82 (2026-03-15) — Cache O(1) + CoT `_hints` intelligence layer.** Branch `remediation/phase-1`. 402 actions (25 tools). 8991/8991 tests. All gates green.
 
 ## What Was Just Completed (Session 82)

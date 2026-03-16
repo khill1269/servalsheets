@@ -31,6 +31,7 @@ import {
 } from '../audit/action-coverage-fixtures.js';
 import { LiveApiClient } from './setup/live-api-client.js';
 import { TestSpreadsheetManager } from './setup/test-spreadsheet-manager.js';
+import { getQuotaManager } from './setup/quota-manager.js';
 import {
   buildActionCapabilityIndex,
   materializeFixtureRequest,
@@ -44,6 +45,8 @@ const runLiveTests = shouldRunIntegrationTests();
 const MATRIX_FIXTURES = generateAllFixtures();
 const CAPABILITY_INDEX = buildActionCapabilityIndex(MATRIX_FIXTURES);
 const DELAY_BETWEEN_ACTIONS_MS = 1100;
+const RATE_LIMIT_FALLBACK_DELAY_MS = 60_000;
+const TRANSPORT_TIMEOUT_RETRY_DELAY_MS = 20_000;
 const PREVIOUS_SINGLETON_RESET_FLAG = process.env['TEST_SKIP_SINGLETON_RESET'];
 const PREVIOUS_GOOGLE_API_TIMEOUT_MS = process.env['GOOGLE_API_TIMEOUT_MS'];
 const PREVIOUS_COMPOSITE_TIMEOUT_MS = process.env['COMPOSITE_TIMEOUT_MS'];
@@ -67,6 +70,8 @@ interface ParsedMcpOutcome {
     code?: string;
     message?: string;
     retryable?: boolean;
+    retryAfterMs?: number;
+    category?: string;
   };
 }
 
@@ -85,14 +90,17 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
   let manager: TestSpreadsheetManager;
   let sharedContext: MatrixExecutionContext;
   let tempServiceAccountPath: string | null = null;
+  let matrixCooldownUntil = 0;
   const results: MatrixActionResult[] = [];
   const startTime = Date.now();
 
   beforeAll(async () => {
     process.env['TEST_SKIP_SINGLETON_RESET'] = 'true';
-    process.env['GOOGLE_API_TIMEOUT_MS'] = '420000';
-    process.env['COMPOSITE_TIMEOUT_MS'] = '480000';
+    process.env['GOOGLE_API_TIMEOUT_MS'] = '540000';
+    process.env['COMPOSITE_TIMEOUT_MS'] = '660000';
     resetEnvForTest();
+    getQuotaManager().reset();
+    getQuotaManager().resetStats();
 
     const loadedCredentials = await loadTestCredentials();
     if (!loadedCredentials) {
@@ -105,6 +113,7 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
     manager = new TestSpreadsheetManager(client);
     harness = await createMatrixHarness(credentials);
     tempServiceAccountPath = registeredTempServiceAccountPath;
+    matrixCooldownUntil = 0;
     sharedContext = await createExecutionContext(client, manager, 'shared', true);
   }, 180_000);
 
@@ -189,8 +198,7 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
 
             const result = await executeFixture(fixture, capability);
             results.push(result);
-
-            await sleep(DELAY_BETWEEN_ACTIONS_MS);
+            await applyInterActionDelay(capability);
 
             expect(result.mode).toBe(capability.mode);
             expect(result.assertionSource).toBe(capability.assertionSource);
@@ -238,8 +246,12 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
         gated: false,
         skipped: true,
         latencyMs: 0,
+        attemptCount: 0,
+        retryCount: 0,
       };
     }
+
+    await waitForExecutionSlot(capability);
 
     // probe_only actions only do lightweight reads (spreadsheets.get / values.get) — no need
     // for a dedicated context. Using shared context cuts ~300 API calls and avoids quota spikes.
@@ -272,6 +284,8 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
         latencyMs: 0,
         errorCode: 'CONTEXT_SETUP_FAILED',
         errorMessage: err.message,
+        attemptCount: 0,
+        retryCount: 0,
       };
     }
 
@@ -297,37 +311,101 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
     );
 
     const start = Date.now();
+    const profile = capability.executionProfile;
+    let attemptCount = 0;
+    let lastFailure: MatrixActionResult | null = null;
 
-    try {
-      const result = (await harness.client.callTool({
-        name: fixture.tool,
-        arguments: requestEnvelope,
-      }, undefined, {
-        timeout: 420_000,
-        maxTotalTimeout: 480_000,
-        resetTimeoutOnProgress: true,
-      })) as CallToolResult;
-      const parsed = parseMcpOutcome(result);
-      const acceptedFailure = isAcceptableToolFailure(capability.actionKey, parsed);
+    for (let attempt = 1; attempt <= profile.maxAttempts; attempt++) {
+      attemptCount = attempt;
 
-      return {
-        tool: fixture.tool,
-        action: fixture.action,
-        actionKey: capability.actionKey,
-        mode: capability.mode,
-        assertionSource: capability.assertionSource,
-        reason: capability.reason,
-        success: parsed.success || acceptedFailure,
-        gated: true,
-        latencyMs: Date.now() - start,
-        errorCode: acceptedFailure ? undefined : parsed.errorCode,
-        errorMessage: acceptedFailure ? undefined : parsed.errorMessage,
-        mcpError: acceptedFailure ? undefined : parsed.mcpError,
-      };
-    } catch (error) {
-      const transportError = normalizeTransportError(error);
+      try {
+        const result = (await harness.client.callTool({
+          name: fixture.tool,
+          arguments: requestEnvelope,
+        }, undefined, {
+          timeout: profile.callTimeoutMs,
+          maxTotalTimeout: profile.maxTotalTimeoutMs,
+          resetTimeoutOnProgress: true,
+        })) as CallToolResult;
+        recordExecutionEstimate(capability);
 
-      return {
+        const parsed = parseMcpOutcome(result);
+        const acceptedFailure = isAcceptableToolFailure(capability.actionKey, parsed);
+
+        if (parsed.success || acceptedFailure) {
+          return {
+            tool: fixture.tool,
+            action: fixture.action,
+            actionKey: capability.actionKey,
+            mode: capability.mode,
+            assertionSource: capability.assertionSource,
+            reason: capability.reason,
+            success: true,
+            gated: true,
+            latencyMs: Date.now() - start,
+            attemptCount,
+            retryCount: attemptCount - 1,
+          };
+        }
+
+        const failure: MatrixActionResult = {
+          tool: fixture.tool,
+          action: fixture.action,
+          actionKey: capability.actionKey,
+          mode: capability.mode,
+          assertionSource: capability.assertionSource,
+          reason: capability.reason,
+          success: false,
+          gated: true,
+          latencyMs: Date.now() - start,
+          errorCode: parsed.errorCode,
+          errorMessage: parsed.errorMessage,
+          attemptCount,
+          retryCount: attemptCount - 1,
+          mcpError: parsed.mcpError,
+        };
+
+        const retryDelayMs = resolveMcpRetryDelay(capability, parsed);
+        if (retryDelayMs !== null && attempt < profile.maxAttempts) {
+          lastFailure = failure;
+          await waitForExecutionSlot(capability);
+          continue;
+        }
+
+        return failure;
+      } catch (error) {
+        recordExecutionEstimate(capability);
+        const transportError = normalizeTransportError(error);
+        const failure: MatrixActionResult = {
+          tool: fixture.tool,
+          action: fixture.action,
+          actionKey: capability.actionKey,
+          mode: capability.mode,
+          assertionSource: capability.assertionSource,
+          reason: capability.reason,
+          success: false,
+          gated: true,
+          latencyMs: Date.now() - start,
+          errorCode: transportError.status ? String(transportError.status) : 'TRANSPORT_ERROR',
+          errorMessage: transportError.message,
+          attemptCount,
+          retryCount: attemptCount - 1,
+          transportError,
+        };
+
+        const retryDelayMs = resolveTransportRetryDelay(capability, transportError);
+        if (retryDelayMs !== null && attempt < profile.maxAttempts) {
+          lastFailure = failure;
+          await waitForExecutionSlot(capability);
+          continue;
+        }
+
+        return failure;
+      }
+    }
+
+    return (
+      lastFailure ?? {
         tool: fixture.tool,
         action: fixture.action,
         actionKey: capability.actionKey,
@@ -337,11 +415,12 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
         success: false,
         gated: true,
         latencyMs: Date.now() - start,
-        errorCode: transportError.status ? String(transportError.status) : 'TRANSPORT_ERROR',
-        errorMessage: transportError.message,
-        transportError,
-      };
-    }
+        errorCode: 'UNKNOWN_RETRY_FAILURE',
+        errorMessage: 'Matrix retry loop exited without a terminal result',
+        attemptCount,
+        retryCount: Math.max(0, attemptCount - 1),
+      }
+    );
   }
 
   async function executeProbe(
@@ -358,6 +437,7 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
 
     try {
       const response = await runProbe(client, capability, request, context);
+      recordExecutionEstimate(capability);
 
       return {
         tool: fixture.tool,
@@ -370,8 +450,11 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
         gated: true,
         latencyMs: Date.now() - start,
         httpStatus: response.status,
+        attemptCount: 1,
+        retryCount: 0,
       };
     } catch (error) {
+      recordExecutionEstimate(capability);
       const transportError = normalizeTransportError(error);
 
       return {
@@ -387,9 +470,100 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
         httpStatus: transportError.status,
         errorCode: transportError.status ? String(transportError.status) : 'PROBE_ERROR',
         errorMessage: transportError.message,
+        attemptCount: 1,
+        retryCount: 0,
         transportError,
       };
     }
+  }
+
+  async function waitForExecutionSlot(capability: ActionCapability): Promise<void> {
+    await waitForMatrixCooldown();
+
+    const { reads, writes } = capability.executionProfile.quotaEstimate;
+    if (reads > 0 || writes > 0) {
+      await getQuotaManager().waitForQuotaRecovery({ reads, writes });
+    }
+  }
+
+  function recordExecutionEstimate(capability: ActionCapability): void {
+    const { reads, writes } = capability.executionProfile.quotaEstimate;
+    if (reads > 0 || writes > 0) {
+      getQuotaManager().recordOperations(reads, writes);
+    }
+  }
+
+  async function applyInterActionDelay(capability: ActionCapability): Promise<void> {
+    if (capability.mode === 'skip_external') {
+      return;
+    }
+
+    const delayMs = Math.max(
+      DELAY_BETWEEN_ACTIONS_MS,
+      capability.executionProfile.baseDelayMs,
+      getQuotaManager().calculateRequiredDelay()
+    );
+
+    if (delayMs > 0) {
+      await sleep(delayMs);
+    }
+  }
+
+  function registerMatrixCooldown(delayMs: number): void {
+    if (delayMs <= 0) {
+      return;
+    }
+
+    matrixCooldownUntil = Math.max(matrixCooldownUntil, Date.now() + delayMs);
+
+    if (delayMs >= RATE_LIMIT_FALLBACK_DELAY_MS) {
+      getQuotaManager().enterThrottle(Math.min(delayMs, RATE_LIMIT_FALLBACK_DELAY_MS));
+    }
+  }
+
+  async function waitForMatrixCooldown(): Promise<void> {
+    const remainingMs = matrixCooldownUntil - Date.now();
+    if (remainingMs > 0) {
+      await sleep(remainingMs);
+    }
+
+    if (Date.now() >= matrixCooldownUntil) {
+      matrixCooldownUntil = 0;
+    }
+  }
+
+  function resolveMcpRetryDelay(
+    capability: ActionCapability,
+    parsed: ParsedMcpOutcome
+  ): number | null {
+    if (isRetryableRateLimitMcpOutcome(parsed) && capability.executionProfile.retryRateLimit) {
+      const delayMs = parsed.mcpError?.retryAfterMs ?? RATE_LIMIT_FALLBACK_DELAY_MS;
+      registerMatrixCooldown(delayMs);
+      return delayMs;
+    }
+
+    if (isRetryableTimeoutMcpOutcome(parsed) && capability.executionProfile.retryTransportTimeout) {
+      registerMatrixCooldown(TRANSPORT_TIMEOUT_RETRY_DELAY_MS);
+      return TRANSPORT_TIMEOUT_RETRY_DELAY_MS;
+    }
+
+    return null;
+  }
+
+  function resolveTransportRetryDelay(
+    capability: ActionCapability,
+    transportError: { message: string; status?: number }
+  ): number | null {
+    if (!capability.executionProfile.retryTransportTimeout) {
+      return null;
+    }
+
+    if (!isTransportTimeoutError(transportError)) {
+      return null;
+    }
+
+    registerMatrixCooldown(TRANSPORT_TIMEOUT_RETRY_DELAY_MS);
+    return TRANSPORT_TIMEOUT_RETRY_DELAY_MS;
   }
 });
 
@@ -487,7 +661,7 @@ function registerTempServiceAccountPath(filePath: string): void {
 }
 
 function getFixtureTimeoutMs(capability: ActionCapability): number {
-  return capability.mode === 'mcp_execute' ? 540_000 : 90_000;
+  return capability.executionProfile.testTimeoutMs;
 }
 
 function getMaterializeOptions(context: MatrixExecutionContext): MaterializeRequestOptions {
@@ -553,6 +727,21 @@ async function createMatrixSpreadsheet(
   }
 
   manager.trackSpreadsheet(spreadsheetId);
+
+  // Pre-flight: verify the spreadsheet is accessible before seeding and running
+  // the action battery. A 404 here aborts early with a clear message instead of
+  // letting 300+ action calls fail against a missing/inaccessible spreadsheet (Fix 4).
+  const verifyResponse = await client.sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: 'spreadsheetId',
+  });
+  if (!verifyResponse.data.spreadsheetId) {
+    throw new Error(
+      `Pre-flight failed: spreadsheet ${spreadsheetId} (${title}) was created but is not accessible. ` +
+        `Check credentials and Drive permissions.`
+    );
+  }
+
   await seedMatrixSpreadsheet(client, spreadsheetId);
 
   const sheet1 =
@@ -857,6 +1046,8 @@ function parseMcpOutcome(result: CallToolResult): ParsedMcpOutcome {
         code?: string;
         message?: string;
         retryable?: boolean;
+        retryAfterMs?: number;
+        category?: string;
       }
     | undefined;
 
@@ -905,6 +1096,33 @@ function normalizeTransportError(error: unknown): { message: string; status?: nu
     message: candidate.message ?? fallback,
     status: typeof candidate.status === 'number' ? candidate.status : undefined,
   };
+}
+
+function isRetryableRateLimitMcpOutcome(parsed: ParsedMcpOutcome): boolean {
+  const code = parsed.mcpError?.code ?? parsed.errorCode;
+  const message = parsed.mcpError?.message ?? parsed.errorMessage ?? '';
+  const category = parsed.mcpError?.category;
+
+  return (
+    parsed.success === false &&
+    (code === 'RATE_LIMITED' ||
+      category === 'quota' ||
+      /rate limit|quota exceeded|retry after/i.test(message))
+  );
+}
+
+function isRetryableTimeoutMcpOutcome(parsed: ParsedMcpOutcome): boolean {
+  const code = parsed.mcpError?.code ?? parsed.errorCode;
+  const message = parsed.mcpError?.message ?? parsed.errorMessage ?? '';
+
+  return (
+    parsed.success === false &&
+    (code === 'DEADLINE_EXCEEDED' || /timed out|deadline exceeded|request timeout/i.test(message))
+  );
+}
+
+function isTransportTimeoutError(error: { message: string; status?: number }): boolean {
+  return error.status === 408 || /timed out|deadline exceeded|request timeout/i.test(error.message);
 }
 
 process.on('exit', () => {
