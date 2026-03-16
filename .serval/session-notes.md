@@ -241,7 +241,7 @@ MCP 2025-11-25 Elicitation spec audit — 4 violations found and fixed:
 
 1. **Error typing**: ~100 generic throws remain in src/services/ (google-api.ts, analysis/) — handlers already clean
 2. **P18-D1–D10**: Handler decomposition — file-size budget system in place; actual decomposition deferred
-3. **16-F1–F6**: Formula evaluation engine — **UNBLOCKED** (2026-03-14, HyperFormula dropped, alternative approach TBD)
+3. ~~**16-F1–F6**: Formula evaluation engine~~ — **COMPLETE** ✅ `src/services/formula-evaluator.ts` (582 lines, HyperFormula v3.2.0, 5-layer evaluator) + `src/services/apps-script-evaluator.ts` (166 lines, Apps Script fallback). Wired into `model_scenario`, `compare_scenarios`, `create_scenario_sheet`.
 4. **ISSUE-073**: Git worktree cleanup (maintainer-only)
 5. **ISSUE-075**: npm publish @serval/core v0.2.0 (maintainer-only)
 6. **Sampling**: Add `ANTHROPIC_API_KEY` to claude_desktop_config.json env block (manual — user must add own key)
@@ -431,7 +431,7 @@ These were in prior session notes or audit plans but are source-verified NOT rea
 - **Option D continuity**: auto-generated state.md + manual session-notes.md (no custom infrastructure)
 - **Safety rail order**: `createSnapshotIfNeeded()` BEFORE `confirmDestructiveAction()` (snapshot must exist before user approves)
 - **P18-X5 N/A**: SDK `ServerCapabilities` type doesn't include `progress` field — not fixable without SDK change; `sendProgress()` already works per-request
-- **HyperFormula dropped** (2026-03-14): Alternative approach TBD — 16-F1–F6 now unblocked
+- **16-F1–F6 COMPLETE** (2026-03-15): `formula-evaluator.ts` (582 lines, HyperFormula v3.2.0) + `apps-script-evaluator.ts` (166 lines). Wired into scenario modeling actions.
 - **Minimal change policy**: ≤3 src/ files per fix unless tests require more; no refactors while debugging
 
 ## Architecture Quick Reference
@@ -439,7 +439,7 @@ These were in prior session notes or audit plans but are source-verified NOT rea
 - Full handler map, service inventory, anti-patterns: `docs/development/CODEBASE_CONTEXT.md`
 - Feature specs (F1–F6): `docs/development/FEATURE_PLAN.md`
 - Current metrics (tools/actions/tests): `src/schemas/action-counts.ts` + `.serval/state.md`
-- TASKS.md: open backlog (P2 phase-2 progress coverage tranche E, 16-F1–F6 unblocked, ISSUE-073, ISSUE-075)
+- TASKS.md: open backlog (P2 phase-2 progress coverage tranche E, ISSUE-073, ISSUE-075)
 
 ## Session History (recent)
 
