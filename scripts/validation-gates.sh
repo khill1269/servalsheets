@@ -57,6 +57,7 @@ echo "────────────────────────�
 npm run test:handlers
 npm run test:integration
 npm run test:compliance
+npm run test:simulation
 echo "✅ G2 passed"
 
 # G3: API/protocol/docs quality

@@ -6,6 +6,7 @@
  * Derived outputs:
  * - Tool/action counts
  * - package.json description
+ * - manifest.json registry metadata
  * - src/schemas/index.ts exports
  * - src/schemas/action-counts.ts ACTION_COUNTS
  * - src/mcp/completions.ts TOOL_ACTIONS
@@ -378,6 +379,54 @@ const ACTION_COUNT = totalActions;
 
 console.log(`\n✅ Total: ${TOOL_COUNT} tools, ${ACTION_COUNT} actions\n`);
 
+function updateToolAndActionCounts(text: string, separator: ',' | 'and' | 'with'): string {
+  if (separator === ',') {
+    return text.replace(
+      /\d+\s+tools\s*,\s+\d+\s+actions/gi,
+      `${TOOL_COUNT} tools, ${ACTION_COUNT} actions`
+    );
+  }
+  if (separator === 'and') {
+    return text.replace(
+      /\d+\s+tools\s+and\s+\d+\s+actions/gi,
+      `${TOOL_COUNT} tools and ${ACTION_COUNT} actions`
+    );
+  }
+  return text.replace(
+    /\d+\s+tools\s+with\s+\d+\s+actions/gi,
+    `${TOOL_COUNT} tools with ${ACTION_COUNT} actions`
+  );
+}
+
+function syncCountedDescription(text: string): string {
+  let updated = updateToolAndActionCounts(text, ',');
+  updated = updateToolAndActionCounts(updated, 'and');
+  updated = updateToolAndActionCounts(updated, 'with');
+  return updated;
+}
+
+function syncToolDescription(
+  existingDescription: unknown,
+  toolName: string,
+  actionCount: number
+): string {
+  if (typeof existingDescription === 'string' && existingDescription.trim().length > 0) {
+    if (/\(\d+\s+actions\)/i.test(existingDescription)) {
+      return existingDescription.replace(/\(\d+\s+actions\)/i, `(${actionCount} actions)`);
+    }
+    if (/\d+\s+actions/i.test(existingDescription)) {
+      return existingDescription.replace(/\d+\s+actions/i, `${actionCount} actions`);
+    }
+    return `${existingDescription.trim()} (${actionCount} actions)`;
+  }
+
+  return `${toolName} operations (${actionCount} actions)`;
+}
+
+const sortedToolAnalyses = [...toolAnalyses].sort((left, right) =>
+  left.toolName.localeCompare(right.toolName)
+);
+
 // ============================================================================
 // UPDATE PACKAGE.JSON
 // ============================================================================
@@ -386,10 +435,7 @@ const pkgPath = join(ROOT, 'package.json');
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
 
 const oldDescription = pkg.description;
-pkg.description = oldDescription.replace(
-  /\d+ tools, \d+ actions/,
-  `${TOOL_COUNT} tools, ${ACTION_COUNT} actions`
-);
+pkg.description = syncCountedDescription(oldDescription);
 
 if (oldDescription !== pkg.description) {
   writeOrTrack(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
@@ -541,13 +587,11 @@ const serverJson = {
       description: pkg.description,
     },
   ],
-  tools: analyses
-    .filter((a) => a.actionCount > 0)
-    .map((a) => ({
-      name: `sheets_${a.toolName}`,
-      description: `${a.toolName} operations (${a.actionCount} actions)`,
-      actions: a.actions,
-    })),
+  tools: sortedToolAnalyses.map((a) => ({
+    name: `sheets_${a.toolName}`,
+    description: `${a.toolName} operations (${a.actionCount} actions)`,
+    actions: a.actions,
+  })),
   capabilities: ['tools', 'resources', 'prompts', 'logging', 'completions', 'tasks'],
   metadata: {
     toolCount: TOOL_COUNT,
@@ -607,6 +651,62 @@ writeOrTrack(serverJsonPath, JSON.stringify(serverJson, null, 2) + '\n');
 console.log('✅ Generated server.json');
 
 // ============================================================================
+// GENERATE ROOT MANIFEST.JSON
+// ============================================================================
+
+const registryManifestPath = join(ROOT, 'manifest.json');
+const existingRegistryManifest = existsSync(registryManifestPath)
+  ? JSON.parse(readFileSync(registryManifestPath, 'utf-8'))
+  : {};
+const existingManifestTools = new Map(
+  Array.isArray(existingRegistryManifest.tools)
+    ? existingRegistryManifest.tools
+        .filter((tool): tool is { name: string; description?: string } => Boolean(tool?.name))
+        .map((tool) => [tool.name, tool.description])
+    : []
+);
+
+const registryManifest = {
+  ...existingRegistryManifest,
+  version: pkg.version,
+  description: syncCountedDescription(
+    existingRegistryManifest.description ||
+      `Production-grade Google Sheets MCP server with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions`
+  ),
+  long_description: syncCountedDescription(
+    existingRegistryManifest.long_description ||
+      `ServalSheets is a production-grade MCP server for Google Sheets with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions.`
+  ),
+  server: {
+    ...existingRegistryManifest.server,
+    entry_point: 'dist/cli.js',
+    mcp_config: {
+      ...(existingRegistryManifest.server?.mcp_config || {}),
+      command: 'node',
+      args: ['${__dirname}/dist/cli.js'],
+    },
+  },
+  compatibility: {
+    ...existingRegistryManifest.compatibility,
+    runtimes: {
+      ...(existingRegistryManifest.compatibility?.runtimes || {}),
+      node: pkg.engines?.node,
+    },
+  },
+  tools: sortedToolAnalyses.map((analysis) => ({
+    name: `sheets_${analysis.toolName}`,
+    description: syncToolDescription(
+      existingManifestTools.get(`sheets_${analysis.toolName}`),
+      analysis.toolName,
+      analysis.actionCount
+    ),
+  })),
+};
+
+writeOrTrack(registryManifestPath, JSON.stringify(registryManifest, null, 2) + '\n');
+console.log('✅ Generated manifest.json');
+
+// ============================================================================
 // GENERATE MANIFEST (src/generated/manifest.json)
 // ============================================================================
 
@@ -619,7 +719,7 @@ const manifest = {
   _comment: 'Auto-generated by scripts/generate-metadata.ts — DO NOT EDIT',
   toolCount: TOOL_COUNT,
   actionCount: ACTION_COUNT,
-  tools: toolAnalyses.map((a) => ({
+  tools: sortedToolAnalyses.map((a) => ({
     name: `sheets_${a.toolName}`,
     actionCount: a.actionCount,
     actions: a.actions,
@@ -788,6 +888,7 @@ console.log(`
 ║  ✓ src/schemas/index.ts                ║
 ║  ✓ src/schemas/action-counts.ts         ║
 ║  ✓ src/mcp/completions.ts              ║
+║  ✓ manifest.json                       ║
 ║  ✓ server.json                         ║
 ║  ✓ src/generated/manifest.json         ║
 ╚════════════════════════════════════════╝

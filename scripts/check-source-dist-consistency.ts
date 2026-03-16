@@ -59,6 +59,20 @@ function getDeclaredCompletionsTotal(filePath: string): number | null {
   return Number.parseInt(match[1]!, 10);
 }
 
+function checkRuntimeAsset(
+  sourceRelativePath: string,
+  distRelativePath: string,
+  errors: string[]
+): void {
+  const sourcePath = resolve(sourceRelativePath);
+  const distPath = resolve(distRelativePath);
+  if (existsSync(sourcePath) && !existsSync(distPath)) {
+    errors.push(
+      `runtime asset missing from dist: ${distRelativePath} (source: ${sourceRelativePath})`
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const allowMissingDist = hasArg('--allow-missing-dist');
   const distActionCountsPath = resolve('dist/schemas/action-counts.js');
@@ -119,6 +133,32 @@ async function main(): Promise<void> {
   const distTotal = sumCounts(distActionCounts);
   if (sourceTotal !== distTotal) {
     errors.push(`total action counts mismatch: source=${sourceTotal}, dist=${distTotal}`);
+  }
+
+  if (!existsSync(resolve('dist/knowledge'))) {
+    errors.push('runtime asset missing from dist: dist/knowledge');
+  }
+
+  const runtimeAssets: Array<[string, string]> = [
+    ['src/cli/auth-error.html', 'dist/cli/auth-error.html'],
+    ['src/cli/auth-success.html', 'dist/cli/auth-success.html'],
+    ['src/admin/dashboard.html', 'dist/admin/dashboard.html'],
+    ['src/admin/dashboard.js', 'dist/admin/dashboard.js'],
+    ['src/admin/styles.css', 'dist/admin/styles.css'],
+    ['src/security/tool-hashes.baseline.json', 'dist/security/tool-hashes.baseline.json'],
+  ];
+
+  for (const [sourceRelativePath, distRelativePath] of runtimeAssets) {
+    checkRuntimeAsset(sourceRelativePath, distRelativePath, errors);
+  }
+
+  if (
+    existsSync(resolve('src/ui/tracing-dashboard/dist')) &&
+    !existsSync(resolve('dist/ui/tracing/index.html'))
+  ) {
+    errors.push(
+      'runtime asset missing from dist: dist/ui/tracing/index.html (source: src/ui/tracing-dashboard/dist)'
+    );
   }
 
   const declaredSourceTotal = getDeclaredCompletionsTotal(srcCompletionsPath);
