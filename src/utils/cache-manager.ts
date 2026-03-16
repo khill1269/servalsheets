@@ -76,6 +76,7 @@ export class CacheManager {
   // Statistics
   private hits = 0;
   private misses = 0;
+  private _totalSizeBytes = 0; // Running counter — avoids O(N) full-scan on every set()
 
   constructor(
     options: {
@@ -164,6 +165,7 @@ export class CacheManager {
 
     // Check if expired
     if (Date.now() > entry.expires) {
+      this._totalSizeBytes -= entry.size;
       this.cache.delete(cacheKey);
       this.misses++;
       logger.debug('Cache entry expired', { key, namespace });
@@ -197,6 +199,12 @@ export class CacheManager {
       this.evictOldest();
     }
 
+    // Subtract existing entry size if overwriting
+    const existing = this.cache.get(cacheKey);
+    if (existing) {
+      this._totalSizeBytes -= existing.size;
+    }
+
     const entry: CacheEntry<T> = {
       value,
       expires: Date.now() + ttl,
@@ -205,6 +213,7 @@ export class CacheManager {
     };
 
     this.cache.set(cacheKey, entry);
+    this._totalSizeBytes += size;
     logger.debug('Cache entry set', {
       key,
       namespace: options.namespace,
@@ -218,9 +227,11 @@ export class CacheManager {
    */
   delete(key: string, namespace?: string): boolean {
     const cacheKey = this.buildKey(key, namespace);
+    const entry = this.cache.get(cacheKey);
     const deleted = this.cache.delete(cacheKey);
 
-    if (deleted) {
+    if (deleted && entry) {
+      this._totalSizeBytes -= entry.size;
       logger.debug('Cache entry deleted', { key, namespace });
     }
 
@@ -274,11 +285,12 @@ export class CacheManager {
     const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
     let count = 0;
 
-    for (const [key] of this.cache) {
+    for (const [key, entry] of this.cache) {
       const matches = regex.test(key);
       const inNamespace = !namespace || key.startsWith(`${namespace}:`);
 
       if (matches && inNamespace) {
+        this._totalSizeBytes -= entry.size;
         this.cache.delete(key);
         count++;
       }
@@ -302,8 +314,9 @@ export class CacheManager {
     let count = 0;
     const prefix = `${namespace}:`;
 
-    for (const [key] of this.cache) {
+    for (const [key, entry] of this.cache) {
       if (key.startsWith(prefix)) {
+        this._totalSizeBytes -= entry.size;
         this.cache.delete(key);
         count++;
       }
@@ -322,6 +335,7 @@ export class CacheManager {
   clear(): void {
     const count = this.cache.size;
     this.cache.clear();
+    this._totalSizeBytes = 0;
     logger.debug('Cache cleared', { entriesCleared: count });
   }
 
@@ -334,6 +348,7 @@ export class CacheManager {
 
     for (const [key, entry] of this.cache) {
       if (now > entry.expires) {
+        this._totalSizeBytes -= entry.size;
         this.cache.delete(key);
         expired++;
       }
@@ -390,7 +405,8 @@ export class CacheManager {
       .sort((a, b) => a[1].expires - b[1].expires)
       .slice(0, countToRemove);
 
-    sortedByExpiry.forEach(([key]) => {
+    sortedByExpiry.forEach(([key, entry]) => {
+      this._totalSizeBytes -= entry.size;
       this.cache.delete(key);
     });
 
@@ -404,14 +420,12 @@ export class CacheManager {
    * Get cache statistics
    */
   getStats(): CacheStats {
-    let totalSize = 0;
+    const totalSize = this._totalSizeBytes;
     let oldestExpiry: number | null = null;
     let newestExpiry: number | null = null;
     const byNamespace: Record<string, number> = {};
 
     for (const [, entry] of this.cache) {
-      totalSize += entry.size;
-
       if (oldestExpiry === null || entry.expires < oldestExpiry) {
         oldestExpiry = entry.expires;
       }
@@ -486,14 +500,10 @@ export class CacheManager {
   }
 
   /**
-   * Get total cache size in bytes
+   * Get total cache size in bytes (O(1) via running counter)
    */
   private getTotalSize(): number {
-    let total = 0;
-    for (const [, entry] of this.cache) {
-      total += entry.size;
-    }
-    return total;
+    return this._totalSizeBytes;
   }
 
   /**
@@ -536,7 +546,9 @@ export class CacheManager {
       if (deps) {
         const keysInvalidated = deps.size;
         for (const cacheKey of deps) {
+          const cacheEntry = this.cache.get(cacheKey);
           if (this.cache.delete(cacheKey)) {
+            if (cacheEntry) this._totalSizeBytes -= cacheEntry.size;
             count++;
           }
         }
