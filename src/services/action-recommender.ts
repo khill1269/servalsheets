@@ -299,6 +299,76 @@ const RECOMMENDATION_RULES: Record<string, SuggestedAction[]> = {
       reason: 'Analyze patterns in sorted data',
     },
   ],
+
+  // After cross-sheet write
+  'sheets_data.cross_write': [
+    {
+      tool: 'sheets_data',
+      action: 'cross_read',
+      reason: 'Verify data written to destination spreadsheet',
+    },
+    {
+      tool: 'sheets_data',
+      action: 'cross_compare',
+      reason: 'Compare source and destination to confirm accuracy',
+    },
+  ],
+
+  // After cross-sheet query
+  'sheets_data.cross_query': [
+    {
+      tool: 'sheets_data',
+      action: 'cross_read',
+      reason: 'Fetch raw data from source spreadsheets for deeper analysis',
+    },
+    {
+      tool: 'sheets_analyze',
+      action: 'scout',
+      reason: 'Explore the structure of queried spreadsheets',
+    },
+  ],
+
+  // After quick insights
+  'sheets_analyze.quick_insights': [
+    {
+      tool: 'sheets_analyze',
+      action: 'comprehensive',
+      reason: 'Run a full analysis to go beyond the quick structural snapshot',
+    },
+    {
+      tool: 'sheets_fix',
+      action: 'suggest_cleaning',
+      reason: 'Get AI-powered cleaning recommendations for any issues found',
+    },
+  ],
+
+  // After auto_enhance
+  'sheets_analyze.auto_enhance': [
+    {
+      tool: 'sheets_analyze',
+      action: 'suggest_next_actions',
+      reason: 'Get further ranked suggestions after applying enhancements',
+    },
+    {
+      tool: 'sheets_visualize',
+      action: 'suggest_chart',
+      reason: 'Visualize the enhanced data with a recommended chart',
+    },
+  ],
+
+  // After federation remote call
+  'sheets_federation.call_remote': [
+    {
+      tool: 'sheets_data',
+      action: 'write',
+      reason: 'Store remote results in the active spreadsheet',
+    },
+    {
+      tool: 'sheets_session',
+      action: 'get_context',
+      reason: 'Review session context updated by the remote operation',
+    },
+  ],
 };
 
 /**

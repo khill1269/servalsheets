@@ -134,3 +134,63 @@ describe('getDataAwareSuggestions', () => {
     expect(uniqueKeys.size).toBe(keys.length);
   });
 });
+
+describe('getRecommendedActions — previously uncovered actions', () => {
+  it('cross_write: suggests cross_read to verify + cross_compare to diff', () => {
+    const suggestions = getRecommendedActions('sheets_data', 'cross_write');
+    expect(suggestions.length).toBeGreaterThan(0);
+    const tools = suggestions.map((s) => `${s.tool}.${s.action}`);
+    expect(tools).toContain('sheets_data.cross_read');
+    expect(tools).toContain('sheets_data.cross_compare');
+  });
+
+  it('cross_query: suggests cross_read for raw data + scout for structure', () => {
+    const suggestions = getRecommendedActions('sheets_data', 'cross_query');
+    expect(suggestions.length).toBeGreaterThan(0);
+    const tools = suggestions.map((s) => `${s.tool}.${s.action}`);
+    expect(tools).toContain('sheets_data.cross_read');
+    expect(tools).toContain('sheets_analyze.scout');
+  });
+
+  it('quick_insights: suggests comprehensive for deeper analysis + suggest_cleaning', () => {
+    const suggestions = getRecommendedActions('sheets_analyze', 'quick_insights');
+    expect(suggestions.length).toBeGreaterThan(0);
+    const tools = suggestions.map((s) => `${s.tool}.${s.action}`);
+    expect(tools).toContain('sheets_analyze.comprehensive');
+    expect(tools).toContain('sheets_fix.suggest_cleaning');
+  });
+
+  it('auto_enhance: suggests suggest_next_actions + suggest_chart', () => {
+    const suggestions = getRecommendedActions('sheets_analyze', 'auto_enhance');
+    expect(suggestions.length).toBeGreaterThan(0);
+    const tools = suggestions.map((s) => `${s.tool}.${s.action}`);
+    expect(tools).toContain('sheets_analyze.suggest_next_actions');
+    expect(tools).toContain('sheets_visualize.suggest_chart');
+  });
+
+  it('federation.call_remote: suggests write to store results + get_context', () => {
+    const suggestions = getRecommendedActions('sheets_federation', 'call_remote');
+    expect(suggestions.length).toBeGreaterThan(0);
+    const tools = suggestions.map((s) => `${s.tool}.${s.action}`);
+    expect(tools).toContain('sheets_data.write');
+    expect(tools).toContain('sheets_session.get_context');
+  });
+
+  it('each new rule returns suggestions with non-empty tool, action, and reason', () => {
+    const newActions: [string, string][] = [
+      ['sheets_data', 'cross_write'],
+      ['sheets_data', 'cross_query'],
+      ['sheets_analyze', 'quick_insights'],
+      ['sheets_analyze', 'auto_enhance'],
+      ['sheets_federation', 'call_remote'],
+    ];
+    for (const [tool, action] of newActions) {
+      const suggestions = getRecommendedActions(tool, action);
+      for (const s of suggestions) {
+        expect(s.tool).toBeTruthy();
+        expect(s.action).toBeTruthy();
+        expect(s.reason).toBeTruthy();
+      }
+    }
+  });
+});
