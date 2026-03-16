@@ -1,374 +1,755 @@
 /**
  * ServalSheets — Live API Action Matrix
  *
- * Executes every action across all 25 tools against the real Google Sheets API
- * using representative inputs from action-coverage-fixtures.ts.
+ * Executes a hybrid action matrix across all fixtures:
+ * - runnable actions use live in-memory MCP execution
+ * - risky/stateful actions use explicit lightweight probes
+ * - external-infrastructure actions are skipped with machine-readable reasons
  *
- * Records for each action:
- *   - success / failure status
- *   - HTTP status code
- *   - Latency (ms)
- *   - Error code if failed
- *
- * Results written to tests/benchmarks/action-matrix-{YYYY-MM-DD}.json
- * so failures can be tracked across releases.
+ * Results are written to tests/benchmarks/action-matrix-v2-{timestamp}.json.
  *
  * Run: TEST_REAL_API=true npm run test:matrix
- *
- * Quota: Each action fires once = ~402 API calls total.
- * With a 500ms delay between actions this completes in ~3.5 minutes.
- * Well within Google's 10K daily quota and 60 req/min rate limit.
- *
- * Gate: Matrix fails if > 5% of actions error on known-good credentials.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
-import { LiveApiClient } from './setup/live-api-client.js';
-import { TestSpreadsheetManager, type TestSpreadsheet } from './setup/test-spreadsheet-manager.js';
-import { loadTestCredentials, shouldRunIntegrationTests } from '../helpers/credential-loader.js';
+import { randomUUID } from 'node:crypto';
+import { createServalSheetsTestHarness, type McpTestHarness } from '../helpers/mcp-test-harness.js';
+import {
+  loadTestCredentials,
+  shouldRunIntegrationTests,
+  type TestCredentials,
+} from '../helpers/credential-loader.js';
 import {
   generateAllFixtures,
   type ActionFixture,
 } from '../audit/action-coverage-fixtures.js';
+import { LiveApiClient } from './setup/live-api-client.js';
+import { TestSpreadsheetManager } from './setup/test-spreadsheet-manager.js';
+import {
+  buildActionCapabilityIndex,
+  materializeFixtureRequest,
+  summarizeMatrixResults,
+  type ActionCapability,
+  type MaterializeRequestOptions,
+  type MatrixActionResult,
+} from './action-matrix-support.js';
 
 const runLiveTests = shouldRunIntegrationTests();
+const MATRIX_FIXTURES = generateAllFixtures();
+const CAPABILITY_INDEX = buildActionCapabilityIndex(MATRIX_FIXTURES);
+const DELAY_BETWEEN_ACTIONS_MS = 1100;
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+interface MatrixSpreadsheet {
+  id: string;
+  title: string;
+  sheetId: number;
+}
 
-interface ActionResult {
-  tool: string;
-  action: string;
+interface MatrixExecutionContext {
+  primary: MatrixSpreadsheet;
+  secondary?: MatrixSpreadsheet;
+}
+
+interface ParsedMcpOutcome {
   success: boolean;
-  latencyMs: number;
-  httpStatus?: number;
   errorCode?: string;
   errorMessage?: string;
-  skipped?: boolean;
-  skipReason?: string;
+  mcpError?: {
+    code?: string;
+    message?: string;
+    retryable?: boolean;
+  };
 }
-
-interface MatrixReport {
-  date: string;
-  totalActions: number;
-  passed: number;
-  failed: number;
-  skipped: number;
-  passRate: string;
-  results: ActionResult[];
-  durationMs: number;
-}
-
-// ─── Actions that require live infrastructure not available in CI ─────────────
-// These are SKIPPED (not failed) — they need BigQuery, Apps Script, etc.
-
-const SKIP_ACTIONS = new Set([
-  'sheets_bigquery.connect',
-  'sheets_bigquery.export_to_bigquery',
-  'sheets_bigquery.import_from_bigquery',
-  'sheets_bigquery.query',
-  'sheets_bigquery.create_linked_sheet',
-  'sheets_appsscript.run',
-  'sheets_appsscript.deploy',
-  'sheets_appsscript.list_deployments',
-  'sheets_federation.call_remote',
-  'sheets_federation.list_servers',
-  'sheets_connectors.configure',
-  'sheets_connectors.query',
-  'sheets_connectors.subscribe',
-  'sheets_webhook.register',
-  'sheets_webhook.watch_changes',
-  // Auth flow — requires interactive OAuth
-  'sheets_auth.login',
-  'sheets_auth.callback',
-  'sheets_auth.logout',
-  // Agent multi-step — tested separately in workflow tests
-  'sheets_agent.execute',
-  'sheets_agent.rollback',
-]);
-
-// ─── Rate limiting ────────────────────────────────────────────────────────────
-
-const DELAY_BETWEEN_ACTIONS_MS = 600; // stay well under 60 req/min
 
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// ─── Test Suite ───────────────────────────────────────────────────────────────
-
 describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
+  let credentials: TestCredentials;
   let client: LiveApiClient;
+  let harness: McpTestHarness;
   let manager: TestSpreadsheetManager;
-  let testSpreadsheet: TestSpreadsheet;
-  let sheetId: number;
-  const results: ActionResult[] = [];
+  let sharedContext: MatrixExecutionContext;
+  let tempServiceAccountPath: string | null = null;
+  const results: MatrixActionResult[] = [];
   const startTime = Date.now();
 
   beforeAll(async () => {
-    const credentials = await loadTestCredentials();
-    if (!credentials) throw new Error('Test credentials not available');
+    const loadedCredentials = await loadTestCredentials();
+    if (!loadedCredentials) {
+      throw new Error('Test credentials not available');
+    }
 
+    credentials = loadedCredentials;
     client = new LiveApiClient(credentials, { trackMetrics: true });
     manager = new TestSpreadsheetManager(client);
-
-    // Create one test spreadsheet reused across all actions
-    testSpreadsheet = await manager.createTestSpreadsheet('action-matrix');
-
-    // Pre-populate with some data so read actions have something to return
-    await client.sheets.spreadsheets.values.update({
-      spreadsheetId: testSpreadsheet.id,
-      range: 'Sheet1!A1:D6',
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [
-          ['Name', 'Revenue', 'Cost', 'Date'],
-          ['Alice', 12500, 7800, '2024-01-01'],
-          ['Bob', 13200, 8100, '2024-01-02'],
-          ['Charlie', 11800, 7200, '2024-01-03'],
-          ['Dave', 14500, 8900, '2024-01-04'],
-          ['Eve', 15200, 9300, '2024-01-05'],
-        ],
-      },
-    });
-
-    const meta = await client.sheets.spreadsheets.get({
-      spreadsheetId: testSpreadsheet.id,
-    });
-    sheetId = meta.data.sheets![0].properties!.sheetId!;
-  }, 120_000);
+    harness = await createMatrixHarness(credentials);
+    tempServiceAccountPath = registeredTempServiceAccountPath;
+    sharedContext = await createExecutionContext(client, manager, 'shared', true);
+  }, 180_000);
 
   afterAll(async () => {
-    // Write results to disk
-    const report: MatrixReport = {
-      date: new Date().toISOString().split('T')[0]!,
-      totalActions: results.length,
-      passed: results.filter((r) => r.success && !r.skipped).length,
-      failed: results.filter((r) => !r.success && !r.skipped).length,
-      skipped: results.filter((r) => r.skipped).length,
-      passRate: (() => {
-        const attempted = results.filter((r) => !r.skipped).length;
-        const passed = results.filter((r) => r.success && !r.skipped).length;
-        return attempted ? `${((passed / attempted) * 100).toFixed(1)}%` : 'N/A';
-      })(),
-      durationMs: Date.now() - startTime,
-      results,
-    };
-
+    const generatedAt = new Date().toISOString();
+    const report = summarizeMatrixResults(results, generatedAt, Date.now() - startTime);
     const benchDir = path.resolve('tests/benchmarks');
+    const timestamp = generatedAt.replace(/[:.]/g, '-');
+
     fs.mkdirSync(benchDir, { recursive: true });
     fs.writeFileSync(
-      path.join(benchDir, `action-matrix-${report.date}.json`),
+      path.join(benchDir, `action-matrix-v2-${timestamp}.json`),
       JSON.stringify(report, null, 2)
     );
 
     console.log('\n═══════════════════════════════════════');
-    console.log('Action Matrix Results');
+    console.log('Action Matrix Results (V2)');
     console.log('═══════════════════════════════════════');
-    console.log(`Total:   ${report.totalActions}`);
-    console.log(`Passed:  ${report.passed}`);
-    console.log(`Failed:  ${report.failed}`);
-    console.log(`Skipped: ${report.skipped}`);
-    console.log(`Rate:    ${report.passRate}`);
-    console.log(`Time:    ${(report.durationMs / 1000).toFixed(1)}s`);
+    console.log(`Total:    ${report.totalActions}`);
+    console.log(`Executed: ${report.executed}`);
+    console.log(`Probed:   ${report.probed}`);
+    console.log(`Skipped:  ${report.skipped}`);
+    console.log(`Passed:   ${report.passed}`);
+    console.log(`Failed:   ${report.failed}`);
+    console.log(`Rate:     ${report.passRate}`);
+    console.log(`Time:     ${(report.durationMs / 1000).toFixed(1)}s`);
 
     if (report.failed > 0) {
       console.log('\nFailed actions:');
-      results
-        .filter((r) => !r.success && !r.skipped)
-        .forEach((r) =>
-          console.log(`  ✗ ${r.tool}.${r.action}: [${r.errorCode}] ${r.errorMessage}`)
-        );
+      for (const result of report.results.filter((entry) => entry.gated && !entry.success)) {
+        const detail =
+          result.errorMessage ??
+          result.transportError?.message ??
+          result.mcpError?.message ??
+          'No error details';
+        console.log(`  ✗ ${result.actionKey} [${result.mode}] ${detail}`);
+      }
     }
 
+    await harness.close();
     await manager.cleanup();
-  }, 30_000);
 
-  // ─── Execute each action via the live client ────────────────────────────────
+    if (tempServiceAccountPath) {
+      fs.rmSync(tempServiceAccountPath, { force: true });
+      registeredTempServiceAccountPath = null;
+    }
+  }, 90_000);
 
-  // We use a single describe block and generate tests from fixtures
-  // Each test is independent and adds its result to the shared `results` array
-
-  const allFixtures = generateAllFixtures();
-
-  // Group fixtures by tool for better test reporting
-  const fixturesByTool = new Map<string, ActionFixture[]>();
-  for (const fixture of allFixtures) {
-    const existing = fixturesByTool.get(fixture.tool) ?? [];
-    existing.push(fixture);
-    fixturesByTool.set(fixture.tool, existing);
-  }
+  const fixturesByTool = groupFixturesByTool(MATRIX_FIXTURES);
 
   for (const [tool, fixtures] of fixturesByTool) {
     describe(`${tool} (${fixtures.length} actions)`, () => {
       for (const fixture of fixtures) {
-        const actionKey = `${tool}.${fixture.action}`;
-        const isSkipped = SKIP_ACTIONS.has(actionKey);
+        const capability = CAPABILITY_INDEX.get(`${fixture.tool}.${fixture.action}`);
 
         it(
-          `${fixture.action}`,
+          fixture.action,
           async () => {
-            if (isSkipped) {
-              results.push({
-                tool,
-                action: fixture.action,
-                success: false,
-                latencyMs: 0,
-                skipped: true,
-                skipReason: 'requires external infrastructure',
-              });
-              return;
+            if (!capability) {
+              throw new Error(`Missing action capability for ${fixture.tool}.${fixture.action}`);
             }
 
-            // Build the live API input: substitute real spreadsheetId and sheetId
-            const liveInput = buildLiveInput(fixture, testSpreadsheet.id, sheetId);
+            const result = await executeFixture(fixture, capability);
+            results.push(result);
 
-            const t0 = Date.now();
-            let success = false;
-            let httpStatus: number | undefined;
-            let errorCode: string | undefined;
-            let errorMessage: string | undefined;
-
-            try {
-              const response = await client.sheets.spreadsheets.get({
-                spreadsheetId: testSpreadsheet.id,
-                fields: 'spreadsheetId',
-              });
-              httpStatus = response.status;
-              // Use live input to determine if it would succeed
-              // (We can't call MCP tool directly here without the full server stack,
-              //  so we verify the core Google API call the action would make)
-              success = await executeActionProbe(client, tool, fixture.action, liveInput);
-            } catch (e: unknown) {
-              const err = e as { code?: string; message?: string; status?: number };
-              errorCode = err.code ?? 'UNKNOWN';
-              errorMessage = err.message?.slice(0, 120);
-              httpStatus = err.status;
-            }
-
-            const latencyMs = Date.now() - t0;
-
-            results.push({
-              tool,
-              action: fixture.action,
-              success,
-              latencyMs,
-              httpStatus,
-              errorCode,
-              errorMessage,
-            });
-
-            // Throttle to respect Google's rate limit
             await sleep(DELAY_BETWEEN_ACTIONS_MS);
 
-            // Individual test passes unless it's a hard server error (5xx)
-            // 4xx errors are expected for some actions (missing required params, etc.)
-            // The matrix report captures the full picture
-            if (httpStatus && httpStatus >= 500) {
-              expect(httpStatus, `${actionKey} returned 5xx: ${httpStatus}`).toBeLessThan(500);
-            }
+            expect(result.mode).toBe(capability.mode);
+            expect(result.assertionSource).toBe(capability.assertionSource);
           },
-          30_000
+          90_000
         );
       }
     });
   }
 
-  // ─── Gate: overall pass rate ────────────────────────────────────────────────
+  it('overall: action accounting matches fixture coverage', () => {
+    const report = summarizeMatrixResults(results, new Date().toISOString(), Date.now() - startTime);
 
-  it('overall: pass rate > 95% for non-skipped actions', () => {
-    const attempted = results.filter((r) => !r.skipped);
-    const passed = attempted.filter((r) => r.success);
+    expect(results).toHaveLength(MATRIX_FIXTURES.length);
+    expect(report.executed + report.probed + report.skipped).toBe(MATRIX_FIXTURES.length);
+  });
+
+  it('overall: pass rate >= 95% for executed and probed actions', () => {
+    const attempted = results.filter((result) => result.gated);
+    const passed = attempted.filter((result) => result.success);
     const rate = attempted.length ? passed.length / attempted.length : 1;
 
-    if (attempted.length > 0) {
-      expect(
-        rate,
-        `Pass rate ${(rate * 100).toFixed(1)}% below 95% threshold. Failed: ${
-          attempted
-            .filter((r) => !r.success)
-            .map((r) => `${r.tool}.${r.action}`)
-            .join(', ')
-        }`
-      ).toBeGreaterThanOrEqual(0.95);
-    }
+    expect(
+      rate,
+      `Pass rate ${(rate * 100).toFixed(1)}% below 95% threshold. Failed: ${attempted
+        .filter((result) => !result.success)
+        .map((result) => result.actionKey)
+        .join(', ')}`
+    ).toBeGreaterThanOrEqual(0.95);
   });
+
+  async function executeFixture(
+    fixture: ActionFixture,
+    capability: ActionCapability
+  ): Promise<MatrixActionResult> {
+    if (capability.mode === 'skip_external') {
+      return {
+        tool: fixture.tool,
+        action: fixture.action,
+        actionKey: capability.actionKey,
+        mode: capability.mode,
+        assertionSource: capability.assertionSource,
+        reason: capability.reason,
+        success: false,
+        gated: false,
+        skipped: true,
+        latencyMs: 0,
+      };
+    }
+
+    // probe_only actions only do lightweight reads (spreadsheets.get / values.get) — no need
+    // for a dedicated context. Using shared context cuts ~300 API calls and avoids quota spikes.
+    const useSharedContext =
+      fixture.noSpreadsheet || capability.sharedExecution || capability.mode === 'probe_only';
+
+    let executionContext: MatrixExecutionContext;
+    try {
+      executionContext = useSharedContext
+        ? sharedContext
+        : await createExecutionContext(
+            client,
+            manager,
+            capability.actionKey.replace(/\W+/g, '-'),
+            capability.requiresSecondarySpreadsheet
+          );
+    } catch (contextError) {
+      // Context setup failed (e.g. quota exhausted) — record as a failure rather than throwing,
+      // so the accounting assertion (results.length === fixtures.length) stays valid.
+      const err = contextError instanceof Error ? contextError : new Error(String(contextError));
+      return {
+        tool: fixture.tool,
+        action: fixture.action,
+        actionKey: capability.actionKey,
+        mode: capability.mode,
+        assertionSource: capability.assertionSource,
+        reason: capability.reason,
+        success: false,
+        gated: true,
+        latencyMs: 0,
+        errorCode: 'CONTEXT_SETUP_FAILED',
+        errorMessage: err.message,
+      };
+    }
+
+    try {
+      return capability.mode === 'mcp_execute'
+        ? await executeMcpAction(fixture, capability, executionContext)
+        : await executeProbe(fixture, capability, executionContext);
+    } finally {
+      if (!useSharedContext) {
+        await cleanupExecutionContext(manager, executionContext);
+      }
+    }
+  }
+
+  async function executeMcpAction(
+    fixture: ActionFixture,
+    capability: ActionCapability,
+    context: MatrixExecutionContext
+  ): Promise<MatrixActionResult> {
+    const requestEnvelope = materializeFixtureRequest(
+      fixture,
+      getMaterializeOptions(context)
+    );
+
+    const start = Date.now();
+
+    try {
+      const result = (await harness.client.callTool({
+        name: fixture.tool,
+        arguments: requestEnvelope,
+      })) as CallToolResult;
+      const parsed = parseMcpOutcome(result);
+
+      return {
+        tool: fixture.tool,
+        action: fixture.action,
+        actionKey: capability.actionKey,
+        mode: capability.mode,
+        assertionSource: capability.assertionSource,
+        reason: capability.reason,
+        success: parsed.success,
+        gated: true,
+        latencyMs: Date.now() - start,
+        errorCode: parsed.errorCode,
+        errorMessage: parsed.errorMessage,
+        mcpError: parsed.mcpError,
+      };
+    } catch (error) {
+      const transportError = normalizeTransportError(error);
+
+      return {
+        tool: fixture.tool,
+        action: fixture.action,
+        actionKey: capability.actionKey,
+        mode: capability.mode,
+        assertionSource: capability.assertionSource,
+        reason: capability.reason,
+        success: false,
+        gated: true,
+        latencyMs: Date.now() - start,
+        errorCode: transportError.status ? String(transportError.status) : 'TRANSPORT_ERROR',
+        errorMessage: transportError.message,
+        transportError,
+      };
+    }
+  }
+
+  async function executeProbe(
+    fixture: ActionFixture,
+    capability: ActionCapability,
+    context: MatrixExecutionContext
+  ): Promise<MatrixActionResult> {
+    const requestEnvelope = materializeFixtureRequest(
+      fixture,
+      getMaterializeOptions(context)
+    );
+    const request = requestEnvelope['request'] as Record<string, unknown>;
+    const start = Date.now();
+
+    try {
+      const response = await runProbe(client, capability, request, context);
+
+      return {
+        tool: fixture.tool,
+        action: fixture.action,
+        actionKey: capability.actionKey,
+        mode: capability.mode,
+        assertionSource: capability.assertionSource,
+        reason: capability.reason,
+        success: response.status >= 200 && response.status < 400,
+        gated: true,
+        latencyMs: Date.now() - start,
+        httpStatus: response.status,
+      };
+    } catch (error) {
+      const transportError = normalizeTransportError(error);
+
+      return {
+        tool: fixture.tool,
+        action: fixture.action,
+        actionKey: capability.actionKey,
+        mode: capability.mode,
+        assertionSource: capability.assertionSource,
+        reason: capability.reason,
+        success: false,
+        gated: true,
+        latencyMs: Date.now() - start,
+        httpStatus: transportError.status,
+        errorCode: transportError.status ? String(transportError.status) : 'PROBE_ERROR',
+        errorMessage: transportError.message,
+        transportError,
+      };
+    }
+  }
 });
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+function groupFixturesByTool(fixtures: ActionFixture[]): Map<string, ActionFixture[]> {
+  const grouped = new Map<string, ActionFixture[]>();
 
-function buildLiveInput(
-  fixture: ActionFixture,
-  spreadsheetId: string,
-  sheetId: number
-): Record<string, unknown> {
-  const base = { ...fixture.validInput };
-
-  // Replace placeholder spreadsheetId with real one
-  if ('spreadsheetId' in base && base['spreadsheetId'] === 'test-id') {
-    base['spreadsheetId'] = spreadsheetId;
+  for (const fixture of fixtures) {
+    const entries = grouped.get(fixture.tool) ?? [];
+    entries.push(fixture);
+    grouped.set(fixture.tool, entries);
   }
 
-  // Replace placeholder sheetId with real one
-  if ('sheetId' in base && base['sheetId'] === 0) {
-    base['sheetId'] = sheetId;
-  }
-
-  return base;
+  return grouped;
 }
 
-/**
- * Probes whether the core Google Sheets API call for a given action would succeed.
- * This is a lightweight check (metadata fetch, not full MCP handler execution)
- * that validates credentials + spreadsheet access without running the full tool stack.
- */
-async function executeActionProbe(
+async function createMatrixHarness(credentials: TestCredentials): Promise<McpTestHarness> {
+  const googleApiOptions = createHarnessGoogleApiOptions(credentials);
+
+  return createServalSheetsTestHarness({
+    serverOptions: {
+      googleApiOptions,
+    },
+  });
+}
+
+function createHarnessGoogleApiOptions(credentials: TestCredentials) {
+  if (credentials.serviceAccount) {
+    const tempFilePath = path.join(
+      os.tmpdir(),
+      `servalsheets-action-matrix-${randomUUID()}.json`
+    );
+
+    fs.writeFileSync(tempFilePath, JSON.stringify(credentials.serviceAccount, null, 2));
+    registerTempServiceAccountPath(tempFilePath);
+
+    return {
+      serviceAccountKeyPath: tempFilePath,
+    };
+  }
+
+  if (credentials.oauth) {
+    const scopes = credentials.oauth.tokens.scope
+      ? credentials.oauth.tokens.scope.split(/\s+/).filter(Boolean)
+      : undefined;
+
+    return {
+      credentials: {
+        clientId: credentials.oauth.client_id,
+        clientSecret: credentials.oauth.client_secret,
+        redirectUri: credentials.oauth.redirect_uri,
+      },
+      accessToken: credentials.oauth.tokens.access_token,
+      refreshToken: credentials.oauth.tokens.refresh_token,
+      scopes,
+    };
+  }
+
+  throw new Error('No supported credential type found for MCP harness');
+}
+
+let registeredTempServiceAccountPath: string | null = null;
+
+function registerTempServiceAccountPath(filePath: string): void {
+  registeredTempServiceAccountPath = filePath;
+}
+
+function getMaterializeOptions(context: MatrixExecutionContext): MaterializeRequestOptions {
+  return {
+    primarySpreadsheetId: context.primary.id,
+    primarySheetId: context.primary.sheetId,
+    secondarySpreadsheetId: context.secondary?.id,
+    secondarySheetId: context.secondary?.sheetId,
+  };
+}
+
+async function createExecutionContext(
   client: LiveApiClient,
-  tool: string,
-  action: string,
-  _input: Record<string, unknown>
-): Promise<boolean> {
-  // All non-skipped actions share the same credential + spreadsheet access.
-  // A successful probe means the API is reachable and the spreadsheet is accessible.
-  // We use a lightweight metadata call rather than the full handler to avoid
-  // accidentally mutating the test spreadsheet in ways that affect subsequent actions.
+  manager: TestSpreadsheetManager,
+  label: string,
+  requiresSecondarySpreadsheet: boolean
+): Promise<MatrixExecutionContext> {
+  const primary = await createMatrixSpreadsheet(client, manager, `${label}-primary`);
 
-  // For destructive / write actions, we verify the API is reachable but don't execute
-  const writeActions = new Set([
-    'write', 'append', 'clear', 'batch_write', 'batch_clear', 'find_replace',
-    'delete', 'delete_sheet', 'add_sheet', 'merge_cells', 'unmerge_cells',
-    'insert', 'resize', 'hide', 'freeze', 'sort_range',
-    'set_background', 'set_text_format', 'apply_preset', 'batch_format',
-    'share_add', 'share_remove', 'set_data_validation',
-    'undo', 'redo', 'revert_to', 'restore_cells',
-    'clean', 'fill_missing', 'standardize_formats',
-  ]);
+  return {
+    primary,
+    secondary: requiresSecondarySpreadsheet
+      ? await createMatrixSpreadsheet(client, manager, `${label}-secondary`)
+      : undefined,
+  };
+}
 
-  // For read-only actions, make the actual call
-  const readActions = new Set([
-    'read', 'batch_read', 'get', 'list', 'list_sheets', 'scout',
-    'status', 'get_scopes', 'check_auth',
-  ]);
+async function cleanupExecutionContext(
+  manager: TestSpreadsheetManager,
+  context: MatrixExecutionContext
+): Promise<void> {
+  const spreadsheetIds = new Set([context.primary.id, context.secondary?.id].filter(Boolean));
 
-  if (readActions.has(action)) {
-    // Actually execute the probe
-    try {
-      await client.sheets.spreadsheets.get({
-        spreadsheetId: (_input['spreadsheetId'] as string) ?? 'test-id',
-        fields: 'spreadsheetId,properties(title)',
-      });
-      return true;
-    } catch {
-      return false;
+  for (const spreadsheetId of spreadsheetIds) {
+    await manager.deleteSpreadsheet(spreadsheetId as string);
+  }
+}
+
+async function createMatrixSpreadsheet(
+  client: LiveApiClient,
+  manager: TestSpreadsheetManager,
+  suffix: string
+): Promise<MatrixSpreadsheet> {
+  const title = `SERVAL_MATRIX_${suffix}_${Date.now()}`;
+  const response = await client.executeWrite('matrix.createSpreadsheet', () =>
+    client.sheets.spreadsheets.create({
+      requestBody: {
+        properties: { title },
+        sheets: [
+          { properties: { title: 'Sheet1', sheetId: 0 } },
+          { properties: { title: 'TestData', sheetId: 1 } },
+          { properties: { title: 'Benchmarks', sheetId: 2 } },
+          { properties: { title: 'Formulas', sheetId: 3 } },
+        ],
+      },
+    })
+  );
+
+  const spreadsheetId = response.data.spreadsheetId;
+  if (!spreadsheetId) {
+    throw new Error('Matrix spreadsheet creation did not return a spreadsheetId');
+  }
+
+  manager.trackSpreadsheet(spreadsheetId);
+  await seedMatrixSpreadsheet(client, spreadsheetId);
+
+  const sheet1 =
+    response.data.sheets?.find((sheet) => sheet.properties?.title === 'Sheet1')?.properties?.sheetId ??
+    0;
+
+  return {
+    id: spreadsheetId,
+    title,
+    sheetId: sheet1,
+  };
+}
+
+async function seedMatrixSpreadsheet(
+  client: LiveApiClient,
+  spreadsheetId: string
+): Promise<void> {
+  const baseValues = [
+    ['Name', 'Revenue', 'Cost', 'Date', 'Status', 'Profit'],
+    ['Alice', 12500, 7800, '2024-01-01', 'Active', '=B2-C2'],
+    ['Bob', 13200, 8100, '2024-01-02', 'Pending', '=B3-C3'],
+    ['Charlie', 11800, 7200, '2024-01-03', 'Complete', '=B4-C4'],
+    ['Dave', 14500, 8900, '2024-01-04', 'Draft', '=B5-C5'],
+    ['Eve', 15200, 9300, '2024-01-05', 'Archived', '=B6-C6'],
+  ];
+  const benchmarkValues = [
+    ['Metric', 'Value'],
+    ['Rows', 5],
+    ['Columns', 6],
+    ['Checks', '=B2+B3'],
+  ];
+  const formulaValues = [
+    ['Input', 'Rate', 'Output'],
+    [10, 1.1, '=A2*B2'],
+    [15, 1.2, '=A3*B3'],
+    [20, 1.3, '=A4*B4'],
+  ];
+
+  await client.executeWrite('matrix.seedSpreadsheet', () =>
+    client.sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        valueInputOption: 'USER_ENTERED',
+        data: [
+          { range: 'Sheet1!A1:F6', values: baseValues },
+          { range: 'TestData!A1:F6', values: baseValues },
+          { range: 'Benchmarks!A1:B4', values: benchmarkValues },
+          { range: 'Formulas!A1:C4', values: formulaValues },
+        ],
+      },
+    })
+  );
+}
+
+async function runProbe(
+  client: LiveApiClient,
+  capability: ActionCapability,
+  request: Record<string, unknown>,
+  context: MatrixExecutionContext
+): Promise<{ status: number }> {
+  switch (capability.probeStrategy) {
+    case 'auth_connectivity':
+      return client.executeRead('matrix.probe.auth', async () =>
+        client.sheets.spreadsheets.get({
+          spreadsheetId: context.primary.id,
+          fields: 'spreadsheetId',
+        })
+      );
+
+    case 'multi_spreadsheet_metadata': {
+      const spreadsheetIds = [...collectSpreadsheetIds(request)];
+      if (spreadsheetIds.length === 0) {
+        throw new Error('Probe expected spreadsheet IDs but none were materialized');
+      }
+
+      let lastStatus = 200;
+      for (const spreadsheetId of spreadsheetIds) {
+        const response = await client.executeRead('matrix.probe.multiSpreadsheet', async () =>
+          client.sheets.spreadsheets.get({
+            spreadsheetId,
+            fields: 'spreadsheetId',
+          })
+        );
+        lastStatus = response.status;
+      }
+
+      return { status: lastStatus };
+    }
+
+    case 'range_readability': {
+      const spreadsheetId = getFirstSpreadsheetId(request) ?? context.primary.id;
+      const ranges = getProbeRanges(request);
+
+      if (ranges.length > 1) {
+        const response = await client.executeRead('matrix.probe.batchRange', async () =>
+          client.sheets.spreadsheets.values.batchGet({
+            spreadsheetId,
+            ranges,
+          })
+        );
+        return { status: response.status };
+      }
+
+      const range = ranges[0] ?? 'Sheet1!A1:F6';
+      const response = await client.executeRead('matrix.probe.range', async () =>
+        client.sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range,
+        })
+      );
+      return { status: response.status };
+    }
+
+    case 'sheet_metadata': {
+      const spreadsheetId = getFirstSpreadsheetId(request) ?? context.primary.id;
+      const response = await client.executeRead('matrix.probe.sheetMetadata', async () =>
+        client.sheets.spreadsheets.get({
+          spreadsheetId,
+          fields: 'spreadsheetId,sheets.properties(sheetId,title)',
+        })
+      );
+      return { status: response.status };
+    }
+
+    case 'spreadsheet_metadata':
+    default: {
+      const spreadsheetId = getFirstSpreadsheetId(request) ?? context.primary.id;
+      const response = await client.executeRead('matrix.probe.spreadsheetMetadata', async () =>
+        client.sheets.spreadsheets.get({
+          spreadsheetId,
+          fields: 'spreadsheetId,properties(title)',
+        })
+      );
+      return { status: response.status };
+    }
+  }
+}
+
+function collectSpreadsheetIds(
+  value: unknown,
+  parentKey?: string,
+  found: Set<string> = new Set()
+): Set<string> {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectSpreadsheetIds(item, parentKey, found);
+    }
+    return found;
+  }
+
+  if (!value || typeof value !== 'object') {
+    if (typeof value === 'string') {
+      if (
+        parentKey === 'spreadsheetId' ||
+        parentKey === 'sourceSpreadsheetId' ||
+        parentKey === 'destinationSpreadsheetId'
+      ) {
+        found.add(value);
+      }
+      if (parentKey === 'spreadsheetIds') {
+        found.add(value);
+      }
+    }
+    return found;
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    collectSpreadsheetIds(child, key, found);
+  }
+
+  return found;
+}
+
+function getFirstSpreadsheetId(request: Record<string, unknown>): string | undefined {
+  return [...collectSpreadsheetIds(request)][0];
+}
+
+function getProbeRanges(request: Record<string, unknown>): string[] {
+  const ranges: string[] = [];
+  const rangeKeys = [
+    'range',
+    'sourceRange',
+    'dataRange',
+    'parentRange',
+    'dependentRange',
+    'destinationRange',
+    'fillRange',
+  ];
+
+  for (const key of rangeKeys) {
+    const value = request[key];
+    if (typeof value === 'string') {
+      ranges.push(value);
     }
   }
 
-  if (writeActions.has(action)) {
-    // Don't execute — just verify API connectivity
-    return true;
+  const explicitRanges = request['ranges'];
+  if (Array.isArray(explicitRanges)) {
+    for (const value of explicitRanges) {
+      if (typeof value === 'string') {
+        ranges.push(value);
+      }
+    }
   }
 
-  // Default: mark as success (non-critical probe)
-  return true;
+  return [...new Set(ranges)].slice(0, 3);
 }
+
+function parseMcpOutcome(result: CallToolResult): ParsedMcpOutcome {
+  const payload = extractToolPayload(result);
+  const response =
+    payload && typeof payload === 'object' && !Array.isArray(payload) && 'response' in payload
+      ? (payload['response'] as Record<string, unknown> | undefined)
+      : (payload as Record<string, unknown> | undefined);
+
+  const error = response?.['error'] as
+    | {
+        code?: string;
+        message?: string;
+        retryable?: boolean;
+      }
+    | undefined;
+
+  if (typeof response?.['success'] === 'boolean') {
+    return {
+      success: response['success'] as boolean,
+      errorCode: error?.code,
+      errorMessage: error?.message,
+      mcpError: error,
+    };
+  }
+
+  return {
+    success: result.isError !== true,
+    errorCode: error?.code,
+    errorMessage: error?.message,
+    mcpError: error,
+  };
+}
+
+function extractToolPayload(result: CallToolResult): Record<string, unknown> | null {
+  if (result.structuredContent && typeof result.structuredContent === 'object') {
+    return result.structuredContent as Record<string, unknown>;
+  }
+
+  const textBlock = result.content.find(
+    (block) => block.type === 'text' && typeof block.text === 'string'
+  );
+
+  if (!textBlock?.text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(textBlock.text) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeTransportError(error: unknown): { message: string; status?: number } {
+  const candidate = error as { message?: string; status?: number; code?: string | number };
+  const fallback = candidate.code ? String(candidate.code) : 'Unknown transport error';
+
+  return {
+    message: candidate.message ?? fallback,
+    status: typeof candidate.status === 'number' ? candidate.status : undefined,
+  };
+}
+
+process.on('exit', () => {
+  if (registeredTempServiceAccountPath) {
+    fs.rmSync(registeredTempServiceAccountPath, { force: true });
+  }
+});
