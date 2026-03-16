@@ -6,7 +6,23 @@
 
 ## Current Phase
 
-**Session 79 (2026-03-15) — noUnusedLocals clean + 89 typed errors + all commits.** Branch `remediation/phase-1`. 402 actions (25 tools). `tsc --noUnusedLocals`: 0 errors. `src/services/` typed error sprint complete (89/93 replaced; 4 in duckdb-worker.ts intentionally plain).
+**Session 80 (2026-03-15) — LLM Intelligence Phases 1-3 + codebase enhancement plan items A/C/D.** Branch `remediation/phase-1`. 402 actions (25 tools). 2654/2654 tests. All gates green.
+
+## What Was Just Completed (Session 80)
+
+**Codebase Enhancement Plan (items A, C, D):**
+
+- **A: task-aware-sampling-server.test.ts** — staged and committed (was untracked `??`)
+- **C: ActionKey template literal** — `src/schemas/descriptions.ts` exports `ActionKey`; `cache-invalidation-graph.ts` uses `Partial<Record<ActionKey, InvalidationRule>>` for compile-time rule key validation
+- **D: Zod v4 native `z.toJSONSchema()`** — snapshot tests migrated from `zod-to-json-schema` to native; 13 snapshots regenerated (draft-07→draft/2020-12); `zod-to-json-schema` removed
+
+**34 uncommitted session files committed** in 5 batches: resources/notifications expansion, MCP sampling/features, tests, docs, audit doc.
+
+**LLM Intelligence Sprint Phases 1-3:**
+
+- **Phase 1**: `_meta.apiCallsMade` + `_meta.executionTimeMs` + `_meta.quotaImpact` — tracks Google API calls per-request via `RequestContext.apiCallsMade` (incremented in `wrapGoogleApi`); wall-clock time from `requestStartTime`
+- **Phase 2**: Performance tier table in `features-2025-11-25.ts` (5 tiers Instant→Background); smarter `SHEET_NOT_FOUND` in `error-fix-suggester.ts` (extracts attempted name, detects emoji/whitespace/case issues)
+- **Phase 3**: Batching hints in `_meta` — `applyResponseIntelligence()` now returns `{ batchingHint? }` (was void); 7-entry BATCHING_HINTS map; `transactionHint` when `apiCallsMade >= 5`
 
 ## What Was Just Completed (Session 79)
 
