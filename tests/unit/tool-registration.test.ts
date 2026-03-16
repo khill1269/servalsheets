@@ -20,6 +20,25 @@ function createMockServer() {
   const server = {
     server: {
       setRequestHandler: vi.fn(),
+      getClientCapabilities: vi.fn(() => ({ sampling: {} })),
+      createMessage: vi.fn().mockResolvedValue({
+        model: 'mock-sampling-model',
+        role: 'assistant',
+        content: {
+          type: 'text',
+          text: JSON.stringify({
+            title: 'Generated Budget Planner',
+            sheets: [
+              {
+                name: 'Budget',
+                columns: [{ header: 'Category', type: 'text', width: 160 }],
+                rows: [{ values: ['Marketing'] }],
+                formatting: { freezeRows: 1 },
+              },
+            ],
+          }),
+        },
+      }),
     },
     experimental: {
       tasks: {
@@ -54,6 +73,7 @@ describe('tool registration helpers', () => {
 
     expect(Object.keys(handlerMap).sort()).toEqual([
       'sheets_auth',
+      'sheets_composite',
       'sheets_confirm',
       'sheets_session',
     ]);
@@ -66,6 +86,20 @@ describe('tool registration helpers', () => {
       response: {
         success: true,
         action: 'get_active',
+      },
+    });
+
+    const previewResult = await handlerMap['sheets_composite']({
+      request: {
+        action: 'preview_generation',
+        description: 'Create a department budget tracker',
+      },
+    });
+
+    expect(previewResult).toMatchObject({
+      response: {
+        success: true,
+        action: 'preview_generation',
       },
     });
   });
@@ -119,21 +153,19 @@ describe('tool registration helpers', () => {
       },
     ] as const satisfies readonly ToolDefinition[];
 
-    const createRunTool = vi.fn<ToolExecutionHandler, [ToolDefinition]>(
-      () =>
-        vi.fn(async () => ({
-          content: [],
-          structuredContent: {},
-        }))
+    const createRunTool = vi.fn<ToolExecutionHandler, [ToolDefinition]>(() =>
+      vi.fn(async () => ({
+        content: [],
+        structuredContent: {},
+      }))
     );
-    const createTaskHandler = vi.fn<
-      ToolTaskHandler<AnySchema>,
-      [string, ToolExecutionHandler]
-    >(() => ({
-      createTask: vi.fn(),
-      getTask: vi.fn(),
-      getTaskResult: vi.fn(),
-    }));
+    const createTaskHandler = vi.fn<ToolTaskHandler<AnySchema>, [string, ToolExecutionHandler]>(
+      () => ({
+        createTask: vi.fn(),
+        getTask: vi.fn(),
+        getTaskResult: vi.fn(),
+      })
+    );
 
     registerActiveTools({
       server,

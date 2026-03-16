@@ -725,13 +725,18 @@ describe('ConfirmService', () => {
     });
 
     it('should limit response time history to 100 entries', () => {
-      const now = Date.now();
+      const now = 1704067200100;
+      const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
       // Process 150 confirmations
-      for (let i = 0; i < 150; i++) {
-        service.processElicitationResult(
-          { action: 'accept', content: { approved: true } },
-          now - 100
-        );
+      try {
+        for (let i = 0; i < 150; i++) {
+          service.processElicitationResult(
+            { action: 'accept', content: { approved: true } },
+            now - 100
+          );
+        }
+      } finally {
+        dateNowSpy.mockRestore();
       }
 
       const stats = service.getStats();

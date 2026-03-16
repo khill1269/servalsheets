@@ -41,12 +41,18 @@ function createDeps(
     recordErrorMetric: vi.fn(),
     recordSelfCorrectionMetric: vi.fn(),
     invalidateSamplingContext: vi.fn(),
+    resourceNotifications: {
+      notifyCacheInvalidated: vi.fn(),
+      notifySpreadsheetMutation: vi.fn(),
+    },
     collectTraceSpans: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }
 
-function createStore(entries: Array<[string, { action: string; timestampMs: number }]> = []): SelfCorrectionStore {
+function createStore(
+  entries: Array<[string, { action: string; timestampMs: number }]> = []
+): SelfCorrectionStore {
   return {
     recentFailuresByPrincipal: new Map(entries),
     selfCorrectionWindowMs: 5 * 60 * 1000,
@@ -137,6 +143,11 @@ describe('tool execution side effects', () => {
         spreadsheetId: 'sheet-123',
         outcome: 'success',
       })
+    );
+    expect(deps.resourceNotifications.notifyCacheInvalidated).toHaveBeenCalledWith('sheet-123');
+    expect(deps.resourceNotifications.notifySpreadsheetMutation).toHaveBeenCalledWith(
+      'sheet-123',
+      'sheets_data.write mutated spreadsheet sheet-123'
     );
     expect(store.recentFailuresByPrincipal.has('alice:sheets_data')).toBe(false);
   });

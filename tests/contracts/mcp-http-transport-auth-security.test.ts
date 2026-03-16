@@ -387,9 +387,7 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
 
       const body = response.body as Record<string, any>;
       expect(body.issuer).toBe('https://registry.example.com');
-      expect(body.authorization_endpoint).toBe(
-        'https://registry.example.com/oauth/authorize'
-      );
+      expect(body.authorization_endpoint).toBe('https://registry.example.com/oauth/authorize');
       expect(body.response_types_supported).toContain('code');
       expect(body.grant_types_supported).toContain('authorization_code');
       expect(body.code_challenge_methods_supported).toContain('S256');
@@ -430,7 +428,7 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       expect(body.authentication.methods).toContain('oauth2');
       expect(body.capabilities.resources).toEqual({
         templates: true,
-        subscriptions: false,
+        subscriptions: true,
       });
       expect(body.security.tls_required).toBe(true);
       expect(body.security.min_tls_version).toBe('1.2');

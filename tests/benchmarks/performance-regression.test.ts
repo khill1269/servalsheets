@@ -295,12 +295,14 @@ describe('Performance Regression Tests', () => {
   });
 
   describe('Memory Usage', () => {
-    it('schema validation should not allocate excessive memory', () => {
-      const largeValues = Array(1000)
-        .fill(null)
-        .map((_, i) => Array(26).fill(`value-${i}`));
+    it.skipIf(typeof global.gc !== 'function')(
+      'schema validation should not allocate excessive memory',
+      () => {
+        const largeValues = Array(1000)
+          .fill(null)
+          .map((_, i) => Array(26).fill(`value-${i}`));
 
-      const input = {
+        const input = {
         request: {
           action: 'write' as const,
           spreadsheetId: 'test-spreadsheet-id-12345',
@@ -309,15 +311,16 @@ describe('Performance Regression Tests', () => {
         },
       };
 
-      const { usedBytes } = measureMemory(() => {
-        for (let i = 0; i < 10; i++) {
-          SheetsDataInputSchema.safeParse(input);
-        }
-      });
+        const { usedBytes } = measureMemory(() => {
+          for (let i = 0; i < 10; i++) {
+            SheetsDataInputSchema.safeParse(input);
+          }
+        });
 
-      expect(usedBytes).toBeLessThan(THRESHOLDS.memory.schemaValidation);
-      console.log(`Memory for 10 large validations: ${(usedBytes / 1024).toFixed(2)}KB`);
-    });
+        expect(usedBytes).toBeLessThan(THRESHOLDS.memory.schemaValidation);
+        console.log(`Memory for 10 large validations: ${(usedBytes / 1024).toFixed(2)}KB`);
+      }
+    );
   });
 
   describe('Mock Handler Performance', () => {

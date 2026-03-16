@@ -4,7 +4,8 @@
  * Validates webhook registration, lifecycle management, and Redis integration.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import dns from 'node:dns';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   initWebhookManager,
   getWebhookManager,
@@ -20,6 +21,7 @@ describe('WebhookManager', () => {
   beforeEach(() => {
     // Reset singleton
     resetWebhookManager();
+    vi.spyOn(dns.promises, 'resolve').mockResolvedValue(['93.184.216.34']);
 
     // Mock Redis client
     mockRedis = {
@@ -49,6 +51,10 @@ describe('WebhookManager', () => {
         },
       },
     };
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('Initialization', () => {

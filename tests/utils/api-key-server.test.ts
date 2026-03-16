@@ -4,7 +4,16 @@
 
 import { describe, it, expect, afterEach } from 'vitest';
 import http from 'http';
+import net from 'node:net';
 import { startApiKeyServer } from '../../src/utils/api-key-server.js';
+
+const canListenLocalhost = await new Promise<boolean>((resolve) => {
+  const server = net.createServer();
+  server.once('error', () => resolve(false));
+  server.listen(0, '127.0.0.1', () => {
+    server.close(() => resolve(true));
+  });
+});
 
 // Helper: make an HTTP request to the test server
 function request(options: {
@@ -39,7 +48,7 @@ function request(options: {
   });
 }
 
-describe('startApiKeyServer', () => {
+describe.skipIf(!canListenLocalhost)('startApiKeyServer', () => {
   const opts = {
     provider: 'TestProvider',
     signupUrl: 'https://example.com/signup',

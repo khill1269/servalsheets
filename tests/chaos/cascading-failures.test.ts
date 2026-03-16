@@ -66,8 +66,10 @@ describe('Chaos: Cascading Failures', () => {
         name: 'cascading-breaker',
       });
 
+      let attempts = 0;
       const operation = async () => {
-        if (Math.random() < 0.7) {
+        attempts += 1;
+        if (attempts <= 3) {
           throw new Error('Cascading failure');
         }
         return 'success';

@@ -3,10 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  getMcpServerCard,
-  getMcpServerCardWithRuntimeConfig,
-} from '../src/server/well-known.js';
+import { getMcpServerCard, getMcpServerCardWithRuntimeConfig } from '../src/server/well-known.js';
 import { validateEnv } from '../src/config/env.js';
 import { getPromptsCatalogCount } from '../src/resources/prompts-catalog.js';
 
@@ -61,7 +58,7 @@ describe('MCP Server Card (SEP-1649)', () => {
       });
       expect(card.capabilities.resources).toEqual({
         templates: true,
-        subscriptions: false,
+        subscriptions: true,
       });
       expect(card.capabilities.prompts).toEqual({
         count: getPromptsCatalogCount(),

@@ -70,6 +70,9 @@ describe.skipIf(SKIP_E2E)('E2E: MCP Protocol Compliance', () => {
       const session = client.getSession();
 
       expect(session.serverCapabilities?.resources).toBeDefined();
+      expect(session.serverCapabilities?.resources).toMatchObject({
+        subscribe: true,
+      });
     });
 
     it('should declare prompts capability', async () => {
