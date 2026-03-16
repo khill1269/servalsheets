@@ -200,12 +200,12 @@ Cmd+G Cmd+A  # All gates
 node -e "const {TOOL_COUNT,ACTION_COUNT}=require('./dist/schemas/action-counts.js'); console.log('Tools:',TOOL_COUNT,'Actions:',ACTION_COUNT)"
 ```
 
-### Line Counts (Verified 2026-02-17)
+### Line Counts (Verified 2026-03-16)
 
 ```bash
-wc -l src/server.ts          # 1383 lines
-wc -l src/http-server.ts     # 2402 lines
-wc -l src/handlers/base.ts   # 1605 lines
+wc -l src/server.ts          # 1426 lines
+wc -l src/http-server.ts     # 983 lines
+wc -l src/handlers/base.ts   # 1613 lines
 ```
 
 ### Protocol Version

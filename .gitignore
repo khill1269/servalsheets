@@ -54,6 +54,7 @@ Thumbs.db
 !scripts/handler-metadata.json
 !turbo.json
 !src/security/tool-hashes.baseline.json
+!.discovery-cache/snapshots/*.json
 !vitest.config.ts
 !tests/config/test-credentials.example.json
 !claude_desktop_config.example.json
@@ -96,8 +97,9 @@ temp/
 *.backup
 *.orig
 
-# Discovery API cache
-.discovery-cache/
+# Discovery API cache (volatile — regenerate with --force-refresh)
+# Root-level JSON cache files are volatile; snapshots/ subdir is committed
+.discovery-cache/*.json
 .test-discovery-cache/
 
 # Debug and tracing files
@@ -242,6 +244,7 @@ docs/business/*.xlsx
 audit-logs/
 architecture-graph.svg
 PROJECT_SNAPSHOT.md
+.serval/wal/
 
 # External framework evaluation docs (not project code)
 /AQUI-VR_*.md
