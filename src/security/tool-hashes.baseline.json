@@ -1,0 +1,106 @@
+{
+  "generated": "2026-03-12T07:55:32.094Z",
+  "version": "1.7.0",
+  "tools": {
+    "sheets_auth": {
+      "sha256": "eec1a740493320cf2aff493eb698b95722e6fcbbe54cbea2569e4720330ede4c",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_core": {
+      "sha256": "9ae0d8548ecae84397115676ae69f936adac2b631342270c69de35f00bab049d",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_data": {
+      "sha256": "317be82aea3a0ae0845088a0dd5d0796897677cad63d6f02ac3671c12feb3c21",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_format": {
+      "sha256": "0476e8aab90f2c04c629ec3a5b0e90b34b0b419d52641794ecc989abf060b568",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_dimensions": {
+      "sha256": "3b520a71351400a6aae8c91c403cbe8f606df90194ab72ede4a27b71c7c411fe",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_visualize": {
+      "sha256": "c30eed93e9ada551b1c2f1431c989bd8f27c844f4eb162b2d8d754c49c434ae9",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_collaborate": {
+      "sha256": "9b71ac1fe2bbea1a050ed033e13ca4a841f9498b874407f1701848f874a88c35",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_advanced": {
+      "sha256": "46750d9796b99921617510a71b04be571b09455fe887e1b50368b67684f5d7c8",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_transaction": {
+      "sha256": "16ee54419fd8f2edac5f1a80e429737298952eead5efb65c8295f625051aab77",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_quality": {
+      "sha256": "127374ee27d61c15bf93f7cc3e1411f94ac7db1b08c866486146a5bcae4a8efa",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_history": {
+      "sha256": "1659f2c172699e474bb84ded0d09a6e15d8a94aa0f148dbd24844ffd34295fb0",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_confirm": {
+      "sha256": "5fba20bad7660912726f26a6f2deb2a60d28bfc8549a4691bcb81a2ed644107f",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_analyze": {
+      "sha256": "ffddbad5d4d7b3225a167eb06a5e8c08417f99815a00b851b1b6192b076836dd",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_fix": {
+      "sha256": "c5c16294eab5a8f70668880c55b9a93f33e6ea2f385a7010ebcae7558f79cbb0",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_composite": {
+      "sha256": "154d98e1d77ff4423801b9189edef1eb396bee48737f3e4bb99a322b6610e3a7",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_session": {
+      "sha256": "45c0e1850df46e9d473a31835d50faf63cfa023bfbe577a25b028d455f5ce604",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_templates": {
+      "sha256": "3e7977a5943f557d3906a5eced338e437500f599d70727cd5a49681b53a0897c",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_bigquery": {
+      "sha256": "810732bf374f07ceb947963f8e9e6713c05456c9cdbbf946bd51648b0b605f55",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_appsscript": {
+      "sha256": "c88edbfa5e748b1371dec47259df9419bdfb08452fdfcc0a9f5d97f30d651f0a",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_webhook": {
+      "sha256": "73c5cee7d4535feb84ae8176946835018272d847b91855f9f8c40419bc03bf87",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_dependencies": {
+      "sha256": "4967f82de91ec66a58a11dcc5f1dfc7c6904e1612328c2478e13527d65ce8d42",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_federation": {
+      "sha256": "4633da82ad83cbc55e3e6f8442e982a2f8bc2ae8b09f5c5fb7e72fb523bc8f54",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_compute": {
+      "sha256": "9ef5e5b594e6ae33081bce3e85e627a9fbaf892d0a9f3a7b933ed4b0446a7027",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_agent": {
+      "sha256": "251b3c01672556067bcd8318c0ee273bdaff245fd17688cd9b829e7755305193",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    },
+    "sheets_connectors": {
+      "sha256": "b182ceb0e473fab0a2fb62b12202bf20756d9cd41681ce4c951849546110ae58",
+      "updatedAt": "2026-03-12T07:55:32.094Z"
+    }
+  }
+}

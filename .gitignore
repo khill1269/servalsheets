@@ -52,6 +52,8 @@ Thumbs.db
 !server.json
 !.prettierrc.json
 !scripts/handler-metadata.json
+!turbo.json
+!src/security/tool-hashes.baseline.json
 !vitest.config.ts
 !tests/config/test-credentials.example.json
 !claude_desktop_config.example.json

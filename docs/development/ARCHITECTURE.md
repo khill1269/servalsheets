@@ -2,7 +2,7 @@
 title: ServalSheets Architecture Reference
 category: development
 last_updated: 2026-03-10
-description: > Detailed architecture documentation moved from CLAUDE.md.
+description: 'Detailed architecture documentation moved from CLAUDE.md.'
 version: 1.6.0
 tags: [sheets, prometheus]
 ---

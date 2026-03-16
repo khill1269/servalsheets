@@ -91,6 +91,7 @@ jobs:
 
       - name: Generate audit report
         if: always()
+        continue-on-error: true
         run: |
           npm run audit:report
 

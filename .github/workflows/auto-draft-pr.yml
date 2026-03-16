@@ -100,15 +100,26 @@ jobs:
             ---
             *Auto-drafted — convert to ready when complete*`;
 
-            const { data: pr } = await github.rest.pulls.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: title,
-              body: body,
-              head: branch,
-              base: 'main',
-              draft: true,
-            });
+            let pr;
+            try {
+              ({ data: pr } = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                head: branch,
+                base: 'main',
+                draft: true,
+              }));
+            } catch (e) {
+              if (e.status === 403 || (e.message && e.message.includes('not permitted'))) {
+                console.log(`⚠️  Cannot create PR — Actions may not have pull-request write permission.`);
+                console.log(`Enable "Allow GitHub Actions to create and approve pull requests" in Settings > Actions > General.`);
+                console.log(`Branch: ${branch} — create the PR manually.`);
+                return;
+              }
+              throw e;
+            }
 
             console.log(`Draft PR created: ${pr.html_url}`);
 
