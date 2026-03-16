@@ -79,8 +79,8 @@ ISSUE-077,OPEN,,,,,,
 ISSUE-078,OPEN,,,,,,
 ISSUE-079,OPEN,,,,,,
 ISSUE-240,OPEN,codex-protocol,mcp-audit-2026-03,,,,"Official MCP landing page revision differs from the pinned 2025-11-25 audit target; decide whether to document a long-term compatibility boundary or plan an upgrade."
-ISSUE-241,OPEN,codex-protocol,mcp-audit-2026-03,,,,"Runtime discovery advertises resources.subscriptions=false and only list-changed notifications are wired; decide whether to implement full resources/subscribe and notifications/resources/updated support."
-ISSUE-242,OPEN,codex-protocol,mcp-audit-2026-03,,,,"Ancillary docs and simulator materials outside the refreshed checklist still mention resources/subscribe or stale tool counts more broadly than the verified runtime surface."
+ISSUE-241,FIXED_PRE,codex-protocol,mcp-audit-2026-03,,,,"Implemented session-scoped resources/subscribe and resources/unsubscribe handlers, enabled notifications/resources/updated emission, and updated discovery metadata to advertise resources.subscriptions=true."
+ISSUE-242,FIXED_PRE,codex-protocol,mcp-audit-2026-03,,,,"Refreshed coordinator/compliance audit artifacts to match the verified runtime resource-subscription surface and current tool/action counts."
 ISSUE-080,FIXED_PRE,,,,,,
 ISSUE-081,FALSE_ALARM,,,,,,
 ISSUE-082,OPEN,,,,,,
