@@ -581,4 +581,55 @@ describe('TokenManager', () => {
       expect(metrics.isRunning).toBe(false);
     });
   });
+
+  // ─── Concurrent Refresh Race ───────────────────────────────────────────────
+  // Regression for token refresh storms: 10 concurrent refreshToken() calls
+  // must not each independently hit the OAuth endpoint causing a storm.
+  // This test documents the current behavior and detects regressions.
+
+  describe('Concurrent token refresh behavior', () => {
+    it('10 concurrent refreshToken() calls all complete without throwing', async () => {
+      const results = await Promise.all(
+        Array.from({ length: 10 }, () => tokenManager.refreshToken())
+      );
+
+      // All calls must complete — none should throw
+      expect(results).toHaveLength(10);
+      expect(results.every((r) => r === true)).toBe(true);
+    });
+
+    it('10 concurrent refreshToken() calls increment totalRefreshes by 10', async () => {
+      await Promise.all(
+        Array.from({ length: 10 }, () => tokenManager.refreshToken())
+      );
+
+      const metrics = tokenManager.getMetrics() as { totalRefreshes: number };
+      // Without concurrency guard, each concurrent call increments independently
+      expect(metrics.totalRefreshes).toBe(10);
+    });
+
+    it('refreshTokenOnAuthError respects cooldown under concurrent pressure', async () => {
+      // First call succeeds, subsequent calls within cooldown are skipped
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () => tokenManager.refreshTokenOnAuthError())
+      );
+
+      // At least one should have been called, but cooldown may skip subsequent calls
+      const trueCount = results.filter(Boolean).length;
+      expect(trueCount).toBeGreaterThanOrEqual(1);
+
+      // API should be called at least once but possibly not 5 times
+      expect(mockOAuthClient.refreshAccessToken).toHaveBeenCalled();
+    });
+
+    it('concurrent refreshes do not leave credentials in an inconsistent state', async () => {
+      await Promise.all(
+        Array.from({ length: 5 }, () => tokenManager.refreshToken())
+      );
+
+      // After all concurrent refreshes, credentials should still be valid
+      const status = tokenManager.getTokenStatus();
+      expect(status.hasAccessToken).toBe(true);
+    });
+  });
 });

@@ -91,4 +91,147 @@ describe('applyResponseIntelligence', () => {
     expect(responseRecord['suggestedNextActions']).toBeUndefined();
     expect(responseRecord['dataQualityWarnings']).toBeUndefined();
   });
+
+  // ─── _hints integration (Session 82 CoT layer) ──────────────────────────────
+
+  it('injects _hints on sheets_data.read with 2D cell values', () => {
+    const responseRecord: Record<string, unknown> = {
+      success: true,
+      action: 'read',
+      range: 'Sheet1!A1:D8',
+      values: [
+        ['Date', 'Revenue', 'Cost', 'Units'],
+        ['2024-01-01', 12500, 7800, 142],
+        ['2024-01-02', 13200, 8100, 156],
+        ['2024-01-03', 11800, 7200, 138],
+        ['2024-01-04', 14500, 8900, 167],
+        ['2024-01-05', 15200, 9300, 175],
+        ['2024-01-06', 13900, 8500, 160],
+        ['2024-01-07', 16100, 9800, 182],
+      ],
+    };
+
+    applyResponseIntelligence(responseRecord, {
+      toolName: 'sheets_data',
+      hasFailure: false,
+    });
+
+    expect(responseRecord['_hints']).toBeDefined();
+    const hints = responseRecord['_hints'] as Record<string, unknown>;
+
+    // Shape detection
+    expect(typeof hints['dataShape']).toBe('string');
+    expect(hints['dataShape']).toMatch(/time series/);
+
+    // Risk assessment always present
+    expect(['none', 'low', 'medium', 'high']).toContain(hints['riskLevel']);
+
+    // Workflow phase always a string
+    expect(typeof hints['nextPhase']).toBe('string');
+    expect((hints['nextPhase'] as string).length).toBeGreaterThan(0);
+  });
+
+  it('injects _hints on sheets_data.batch_read with nested data.values', () => {
+    const responseRecord: Record<string, unknown> = {
+      success: true,
+      action: 'batch_read',
+      data: {
+        values: [
+          ['Name', 'Score'],
+          ['Alice', 95],
+          ['Bob', 87],
+          ['Charlie', 92],
+        ],
+      },
+    };
+
+    applyResponseIntelligence(responseRecord, {
+      toolName: 'sheets_data',
+      hasFailure: false,
+    });
+
+    // _hints injected for extractable grid values
+    expect(responseRecord['_hints']).toBeDefined();
+  });
+
+  it('injects _hints on sheets_data.cross_read', () => {
+    const responseRecord: Record<string, unknown> = {
+      success: true,
+      action: 'cross_read',
+      values: [
+        ['Product', 'Revenue', 'Cost'],
+        ['Widget A', 50000, 32000],
+        ['Widget B', 45000, 28000],
+        ['Widget C', 62000, 38000],
+      ],
+    };
+
+    applyResponseIntelligence(responseRecord, {
+      toolName: 'sheets_data',
+      hasFailure: false,
+    });
+
+    expect(responseRecord['_hints']).toBeDefined();
+    const hints = responseRecord['_hints'] as Record<string, unknown>;
+    // Revenue + Cost columns → profit margin relationship
+    const relationships = hints['dataRelationships'] as string[] | undefined;
+    if (relationships) {
+      const hasProfit = relationships.some(
+        (r) => r.toLowerCase().includes('profit') || r.toLowerCase().includes('margin')
+      );
+      expect(hasProfit).toBe(true);
+    }
+  });
+
+  it('does NOT inject _hints for sheets_data.write (no response values)', () => {
+    const responseRecord: Record<string, unknown> = {
+      success: true,
+      action: 'write',
+      updatedCells: 4,
+      updatedRange: 'Sheet1!A1:B2',
+    };
+
+    applyResponseIntelligence(responseRecord, {
+      toolName: 'sheets_data',
+      hasFailure: false,
+    });
+
+    // write does not return cell values — no _hints should be injected
+    expect(responseRecord['_hints']).toBeUndefined();
+  });
+
+  it('does NOT inject _hints for other tools (format, analyze, etc.)', () => {
+    const responseRecord: Record<string, unknown> = {
+      success: true,
+      action: 'set_background',
+      values: [['incidental values']],
+    };
+
+    applyResponseIntelligence(responseRecord, {
+      toolName: 'sheets_format',
+      hasFailure: false,
+    });
+
+    expect(responseRecord['_hints']).toBeUndefined();
+  });
+
+  it('_hints absent when response has failure', () => {
+    const responseRecord: Record<string, unknown> = {
+      success: false,
+      action: 'read',
+      values: [['Name', 'Revenue'], ['Alice', 1000]],
+      error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
+    };
+
+    applyResponseIntelligence(responseRecord, {
+      toolName: 'sheets_data',
+      hasFailure: true,
+    });
+
+    // Failure path — _hints not injected
+    expect(responseRecord['_hints']).toBeUndefined();
+    // But suggestedFix should be on the error
+    const error = responseRecord['error'] as Record<string, unknown>;
+    expect(error['suggestedFix']).toBeDefined();
+  });
 });
