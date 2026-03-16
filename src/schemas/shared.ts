@@ -1761,3 +1761,40 @@ export type AnalysisSummary = z.infer<typeof AnalysisSummarySchema>;
 export type AnalysisSession = z.infer<typeof AnalysisSessionSchema>;
 export type ActionRiskLevel = z.infer<typeof ActionRiskLevelSchema>;
 export type ActionCategory = z.infer<typeof ActionCategorySchema>;
+
+/**
+ * Union of all 25 tool names. Used to type-check cache invalidation rule keys
+ * and other tool-keyed records at compile time.
+ */
+export type ToolName =
+  | 'sheets_advanced'
+  | 'sheets_agent'
+  | 'sheets_analyze'
+  | 'sheets_appsscript'
+  | 'sheets_auth'
+  | 'sheets_bigquery'
+  | 'sheets_collaborate'
+  | 'sheets_composite'
+  | 'sheets_compute'
+  | 'sheets_confirm'
+  | 'sheets_connectors'
+  | 'sheets_core'
+  | 'sheets_data'
+  | 'sheets_dependencies'
+  | 'sheets_dimensions'
+  | 'sheets_federation'
+  | 'sheets_fix'
+  | 'sheets_format'
+  | 'sheets_history'
+  | 'sheets_quality'
+  | 'sheets_session'
+  | 'sheets_templates'
+  | 'sheets_transaction'
+  | 'sheets_visualize'
+  | 'sheets_webhook';
+
+/**
+ * Template literal type for tool action keys (e.g. `sheets_data.write`).
+ * Catches invalid tool name prefixes at compile time.
+ */
+export type ActionKey = `${ToolName}.${string}`;

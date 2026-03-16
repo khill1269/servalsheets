@@ -22,6 +22,7 @@
 
 import { logger } from '../utils/logger.js';
 import { TOOL_ACTIONS } from '../schemas/index.js';
+import type { ActionKey } from '../schemas/shared.js';
 
 /**
  * Cache invalidation rule
@@ -40,9 +41,13 @@ export interface InvalidationRule {
 }
 
 /**
- * Cache invalidation rules by tool.action
+ * Cache invalidation rules by tool.action.
+ * Partial because not every possible ActionKey is required to have a rule —
+ * the auto-generation loop fills in missing entries at runtime.
+ * Using ActionKey (instead of string) enforces valid tool name prefixes on
+ * every manually-written rule assignment, catching typos at compile time.
  */
-export type InvalidationRules = Record<string, InvalidationRule>;
+export type InvalidationRules = Partial<Record<ActionKey, InvalidationRule>>;
 
 /**
  * Cache Invalidation Graph
@@ -655,7 +660,8 @@ export class CacheInvalidationGraph {
 
     for (const [tool, actions] of Object.entries(TOOL_ACTIONS)) {
       for (const action of actions) {
-        const key = `${tool}.${action}`;
+        // Safe cast: tool comes from TOOL_ACTIONS keys which are all valid ToolNames.
+        const key = `${tool}.${action}` as ActionKey;
         if (!rules[key]) {
           // Determine if this is a read or write operation based on action name prefix
           const isRead = READ_PREFIXES.some(
@@ -677,7 +683,7 @@ export class CacheInvalidationGraph {
    * @returns Array of cache key patterns to invalidate
    */
   getInvalidationKeys(tool: string, action: string): string[] {
-    const key = `${tool}.${action}`;
+    const key = `${tool}.${action}` as ActionKey;
     const rule = this.rules[key];
 
     if (!rule) {
@@ -697,7 +703,7 @@ export class CacheInvalidationGraph {
    * @returns True if cascade is enabled
    */
   shouldCascade(tool: string, action: string): boolean {
-    const key = `${tool}.${action}`;
+    const key = `${tool}.${action}` as ActionKey;
     const rule = this.rules[key];
     return rule?.cascade ?? false;
   }
