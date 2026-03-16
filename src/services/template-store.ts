@@ -21,8 +21,9 @@ import type { drive_v3 } from 'googleapis';
 import { logger } from '../utils/logger.js';
 import { NotFoundError, ServiceError } from '../core/errors.js';
 import type { TemplateDefinition, TemplateSummary, TemplateSheet } from '../schemas/templates.js';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import { resolveBuiltinTemplatesPath } from '../utils/runtime-paths.js';
 
 /**
  * Template storage configuration
@@ -336,7 +337,12 @@ export class TemplateStore {
     }
 
     const templates: BuiltinTemplate[] = [];
-    const knowledgePath = path.join(process.cwd(), 'src', 'knowledge', 'templates');
+    const knowledgePath = resolveBuiltinTemplatesPath();
+
+    if (!knowledgePath) {
+      logger.warn('Builtin template directory not found');
+      return [];
+    }
 
     try {
       const files = await fs.readdir(knowledgePath);

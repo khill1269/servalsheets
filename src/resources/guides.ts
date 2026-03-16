@@ -15,6 +15,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createResourceNotFoundError, createResourceReadError } from '../utils/mcp-errors.js';
+import { resolveGuidesDirectory } from '../utils/runtime-paths.js';
 
 /**
  * Register performance guide resources
@@ -95,8 +96,12 @@ export async function readGuideResource(uri: string): Promise<{
   }
 
   try {
-    // Read markdown file from docs/guides/
-    const filePath = join(process.cwd(), 'docs', 'guides', fileName);
+    const guidesDir = resolveGuidesDirectory();
+    if (!guidesDir) {
+      throw new Error('Guide directory not found');
+    }
+
+    const filePath = join(guidesDir, fileName);
     const content = await readFile(filePath, 'utf-8');
 
     return {

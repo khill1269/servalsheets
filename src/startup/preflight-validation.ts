@@ -13,7 +13,7 @@
  * 6. Port availability (HTTP mode only)
  */
 
-import { existsSync, accessSync, constants as fsConstants } from 'fs';
+import { existsSync, accessSync, constants as fsConstants, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { logger } from '../utils/logger.js';
@@ -89,27 +89,43 @@ async function checkBuildArtifacts(): Promise<PreflightResult> {
 
 /**
  * Check 2: Node.js Version
- * Verifies Node.js version meets minimum requirement (18.0.0)
+ * Verifies Node.js version meets the package.json engine requirement
  */
+function getRequiredNodeVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf-8')) as {
+      engines?: { node?: string };
+    };
+    if (pkg.engines?.node) {
+      return pkg.engines.node;
+    }
+  } catch {
+    // Fall back to the published engine floor if package metadata is unavailable.
+  }
+
+  return '>=20.0.0';
+}
+
 async function checkNodeVersion(): Promise<PreflightResult> {
   const current = process.version; // e.g., "v20.11.0"
   const versionParts = current.slice(1).split('.');
   const currentMajor = parseInt(versionParts[0] || '0', 10);
-  const requiredMajor = 18;
+  const required = getRequiredNodeVersion();
+  const requiredMajor = parseInt(required.match(/>=\s*(\d+)/)?.[1] || '20', 10);
 
   if (currentMajor < requiredMajor) {
     return {
       passed: false,
-      message: `Node.js ${current} is too old (requires >= ${requiredMajor}.0.0)`,
+      message: `Node.js ${current} is too old (requires ${required})`,
       fix: `Upgrade Node.js to version ${requiredMajor} or higher`,
-      details: { current, required: `${requiredMajor}.0.0` },
+      details: { current, required },
     };
   }
 
   return {
     passed: true,
     message: `Node.js ${current} meets requirements`,
-    details: { current, required: `>= ${requiredMajor}.0.0` },
+    details: { current, required },
   };
 }
 

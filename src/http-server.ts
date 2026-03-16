@@ -823,8 +823,15 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     app,
     start: async () => {
       await Promise.all([rateLimiterReady, initializeRbac()]);
-      await new Promise<void>((resolve) => {
-        httpServer = app.listen(port, host, () => {
+      await new Promise<void>((resolve, reject) => {
+        httpServer = app.listen(port, host);
+
+        httpServer.once('error', (error) => {
+          logger.error('HTTP server failed to bind', { error, host, port });
+          reject(error);
+        });
+
+        httpServer.once('listening', () => {
           logger.info(`ServalSheets HTTP server listening on ${host}:${port}`);
           if (legacySseEnabled) {
             logger.info(`SSE endpoint: http://${host}:${port}/sse`);

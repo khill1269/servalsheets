@@ -15,8 +15,8 @@
 
 import { createHash } from 'crypto';
 import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
 import { logger } from '../utils/logger.js';
+import { resolveToolHashBaselinePath } from '../utils/runtime-paths.js';
 
 export interface ToolHashEntry {
   /** SHA-256 hex digest of `name + '\x00' + description` */
@@ -77,21 +77,13 @@ export async function generateToolHashManifest(version = 'unknown'): Promise<Too
  * Returns null if the file doesn't exist (first run before baseline is generated).
  */
 export function loadBaseline(): ToolHashManifest | null {
-  // Look for baseline relative to project root (works in both dev and dist/)
-  const candidates = [
-    join(process.cwd(), 'src', 'security', 'tool-hashes.baseline.json'),
-    join(process.cwd(), 'dist', 'security', 'tool-hashes.baseline.json'),
-    // Relative to this file's compiled location
-    new URL('./tool-hashes.baseline.json', import.meta.url).pathname,
-  ];
+  const baselinePath = resolveToolHashBaselinePath();
 
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) {
-      try {
-        return JSON.parse(readFileSync(candidate, 'utf-8')) as ToolHashManifest;
-      } catch {
-        // Corrupted baseline — treat as missing
-      }
+  if (baselinePath && existsSync(baselinePath)) {
+    try {
+      return JSON.parse(readFileSync(baselinePath, 'utf-8')) as ToolHashManifest;
+    } catch {
+      // Corrupted baseline — treat as missing
     }
   }
 

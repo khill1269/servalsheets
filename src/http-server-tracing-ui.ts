@@ -5,44 +5,60 @@
 
 import type { Express, Request, Response } from 'express';
 import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { getTraceAggregator } from './services/trace-aggregator.js';
+import { resolveTracingDashboardPath } from './utils/runtime-paths.js';
 import { logger } from './utils/logger.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+function sendTracingUiUnavailable(res: Response): void {
+  res.status(500).json({
+    error: {
+      code: 'UI_LOAD_FAILED',
+      message: 'Failed to load tracing UI. Run `npm run build:ui` to build the dashboard.',
+    },
+  });
+}
 
 /**
  * Add tracing UI routes to Express app
  */
 export function addTracingUIRoutes(app: Express): void {
-  const dashboardPath = join(__dirname, '../ui/tracing-dashboard/dist');
+  const dashboardPath = resolveTracingDashboardPath();
 
   // Serve static assets
   app.get('/ui/tracing/assets/*', (req: Request, res: Response) => {
-    const assetPath = req.path.replace('/ui/tracing/', '');
-    try {
-      res.sendFile(join(dashboardPath, assetPath));
-    } catch (error) {
-      logger.error('Failed to serve tracing UI asset', { assetPath, error });
-      res.status(404).send('Asset not found');
+    if (!dashboardPath) {
+      sendTracingUiUnavailable(res);
+      return;
     }
+
+    const assetPath = req.path.replace('/ui/tracing/', '');
+    res.sendFile(assetPath, { root: dashboardPath }, (error) => {
+      if (!error) {
+        return;
+      }
+
+      logger.error('Failed to serve tracing UI asset', { assetPath, error });
+      if (!res.headersSent) {
+        res.status(404).send('Asset not found');
+      }
+    });
   });
 
   // Serve main HTML
   app.get('/ui/tracing', (_req: Request, res: Response) => {
+    if (!dashboardPath) {
+      sendTracingUiUnavailable(res);
+      return;
+    }
+
     try {
       const html = readFileSync(join(dashboardPath, 'index.html'), 'utf-8');
       res.setHeader('Content-Type', 'text/html');
       res.send(html);
     } catch (error) {
       logger.error('Failed to serve tracing UI', { error });
-      res.status(500).json({
-        error: {
-          code: 'UI_LOAD_FAILED',
-          message: 'Failed to load tracing UI. Run `npm run build:ui` to build the dashboard.',
-        },
-      });
+      sendTracingUiUnavailable(res);
     }
   });
 
@@ -112,5 +128,6 @@ export function addTracingUIRoutes(app: Express): void {
   logger.info('Tracing UI routes registered', {
     dashboardUrl: '/ui/tracing',
     streamUrl: '/traces/stream',
+    dashboardPath: dashboardPath ?? 'not-built',
   });
 }

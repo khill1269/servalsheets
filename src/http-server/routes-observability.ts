@@ -1,7 +1,6 @@
 import { createHash } from 'crypto';
 import type { Express, Request, Response } from 'express';
 import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
 import * as swaggerUi from 'swagger-ui-express';
 import { metricsHandler } from '../observability/metrics.js';
 import { ACTION_COUNT, TOOL_COUNT } from '../schemas/action-counts.js';
@@ -18,6 +17,7 @@ import {
 } from '../startup/lifecycle.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import type { HealthService } from '../server/health.js';
+import { resolveOpenApiJsonPath, resolveOpenApiYamlPath } from '../utils/runtime-paths.js';
 
 interface HttpServerObservabilityOptions {
   enableOAuth?: boolean;
@@ -171,13 +171,13 @@ export function registerHttpObservabilityRoutes(params: {
   app.head('/info', (_req: Request, res: Response) => res.status(200).end());
 
   // OpenAPI/Swagger documentation
-  const openapiJsonPath = join(process.cwd(), 'openapi.json');
-  const openapiYamlPath = join(process.cwd(), 'openapi.yaml');
+  const openapiJsonPath = resolveOpenApiJsonPath();
+  const openapiYamlPath = resolveOpenApiYamlPath();
 
   // Serve OpenAPI spec (JSON)
   app.get('/api-docs/openapi.json', (_req: Request, res: Response) => {
     try {
-      if (existsSync(openapiJsonPath)) {
+      if (openapiJsonPath && existsSync(openapiJsonPath)) {
         const spec = JSON.parse(readFileSync(openapiJsonPath, 'utf-8'));
         res.json(spec);
       } else {
@@ -202,7 +202,7 @@ export function registerHttpObservabilityRoutes(params: {
   // Serve OpenAPI spec (YAML)
   app.get('/api-docs/openapi.yaml', (_req: Request, res: Response) => {
     try {
-      if (existsSync(openapiYamlPath)) {
+      if (openapiYamlPath && existsSync(openapiYamlPath)) {
         const spec = readFileSync(openapiYamlPath, 'utf-8');
         res.set('Content-Type', 'text/yaml');
         res.send(spec);
@@ -226,7 +226,7 @@ export function registerHttpObservabilityRoutes(params: {
   });
 
   // Swagger UI
-  if (existsSync(openapiJsonPath)) {
+  if (openapiJsonPath && existsSync(openapiJsonPath)) {
     try {
       const openapiSpec = JSON.parse(readFileSync(openapiJsonPath, 'utf-8'));
       app.use(
