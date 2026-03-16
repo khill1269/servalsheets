@@ -5,12 +5,12 @@
  * Allows endpoints to expose circuit breaker metrics for monitoring.
  */
 
-import type { CircuitBreaker } from '../utils/circuit-breaker.js';
+import type { ICircuitBreaker } from '../utils/circuit-breaker.js';
 import { logger } from '../utils/logger.js';
 
 interface CircuitBreakerEntry {
   name: string;
-  breaker: CircuitBreaker;
+  breaker: ICircuitBreaker;
   description?: string;
 }
 
@@ -20,7 +20,7 @@ class CircuitBreakerRegistry {
   /**
    * Register a circuit breaker
    */
-  register(name: string, breaker: CircuitBreaker, description?: string): void {
+  register(name: string, breaker: ICircuitBreaker, description?: string): void {
     this.breakers.set(name, { name, breaker, description });
     logger.debug('Circuit breaker registered', { name, description });
   }

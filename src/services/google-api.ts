@@ -31,7 +31,12 @@ import { executeWithRetry, type RetryOptions } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
 import { EncryptedFileTokenStore, type TokenStore, type StoredTokens } from './token-store.js';
 import { HybridTokenStore } from './keychain-store.js';
-import { CircuitBreaker, FallbackStrategies } from '../utils/circuit-breaker.js';
+import {
+  CircuitBreaker,
+  QuotaCircuitBreaker,
+  FallbackStrategies,
+  type ICircuitBreaker,
+} from '../utils/circuit-breaker.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
 import { circuitBreakerRegistry } from './circuit-breaker-registry.js';
 import PQueue from 'p-queue';
@@ -242,7 +247,7 @@ export class GoogleApiClient {
   private retryOptions?: RetryOptions;
   private timeoutMs?: number;
   private tokenStore?: TokenStore;
-  private sheetsCircuit: CircuitBreaker;
+  private sheetsCircuit: QuotaCircuitBreaker;
   private driveCircuit: CircuitBreaker;
   private bigqueryCircuit: CircuitBreaker;
   private docsCircuit: CircuitBreaker;
@@ -252,6 +257,10 @@ export class GoogleApiClient {
   private httpAgents: { http: HttpAgent; https: HttpsAgent };
   private _authType: GoogleAuthType;
   private tokenManager?: TokenManager;
+  // Existence pre-check cache: spreadsheetId → expiry timestamp (Fix B).
+  // Survives reinitializeApis() calls; invalidated explicitly on 404.
+  private readonly spreadsheetExistenceCache = new Map<string, number>();
+  private static readonly EXISTENCE_TTL_MS = 5 * 60 * 1000;
   private poolMonitorInterval?: NodeJS.Timeout;
   // Token validation cache to avoid excessive API calls
   private lastValidationResult?: { valid: boolean; error?: string };
@@ -297,7 +306,7 @@ export class GoogleApiClient {
 
     // Initialize per-API circuit breakers (separate so a Sheets outage doesn't block Drive/BigQuery)
     const circuitConfig = getCircuitBreakerConfig();
-    this.sheetsCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-sheets-api' });
+    this.sheetsCircuit = new QuotaCircuitBreaker({ ...circuitConfig, name: 'google-sheets-api' });
     this.driveCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-drive-api' });
     this.bigqueryCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-bigquery-api' });
     this.docsCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-docs-api' });
@@ -495,11 +504,24 @@ export class GoogleApiClient {
       }
     }
 
+    // Capture raw (pre-wrap) sheetsApi so the existence checker never re-enters the proxy.
+    const rawSheetsForExistenceInit = sheetsApi;
+    const existenceCheckerInit = async (spreadsheetId: string): Promise<void> => {
+      const expiry = this.spreadsheetExistenceCache.get(spreadsheetId);
+      if (expiry !== undefined && Date.now() < expiry) return;
+      await rawSheetsForExistenceInit.spreadsheets.get({ spreadsheetId, fields: 'spreadsheetId' });
+      this.spreadsheetExistenceCache.set(
+        spreadsheetId,
+        Date.now() + GoogleApiClient.EXISTENCE_TTL_MS
+      );
+    };
+
     this._sheets = wrapGoogleApi(sheetsApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
       circuit: this.sheetsCircuit,
       client: this,
+      existenceChecker: existenceCheckerInit,
     });
     this._drive = wrapGoogleApi(driveApi, {
       ...(this.retryOptions ?? {}),
@@ -617,11 +639,27 @@ export class GoogleApiClient {
     }
 
     // Wrap with retry/circuit breaker (maintain existing error handling)
+    // Rebuild existence checker against the new raw sheetsApi after reinit.
+    const rawSheetsForExistenceReinit = sheetsApi;
+    const existenceCheckerReinit = async (spreadsheetId: string): Promise<void> => {
+      const expiry = this.spreadsheetExistenceCache.get(spreadsheetId);
+      if (expiry !== undefined && Date.now() < expiry) return;
+      await rawSheetsForExistenceReinit.spreadsheets.get({
+        spreadsheetId,
+        fields: 'spreadsheetId',
+      });
+      this.spreadsheetExistenceCache.set(
+        spreadsheetId,
+        Date.now() + GoogleApiClient.EXISTENCE_TTL_MS
+      );
+    };
+
     this._sheets = wrapGoogleApi(sheetsApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
       circuit: this.sheetsCircuit,
       client: this,
+      existenceChecker: existenceCheckerReinit,
     });
     this._drive = wrapGoogleApi(driveApi, {
       ...(this.retryOptions ?? {}),
@@ -1679,7 +1717,12 @@ export async function createGoogleApiClient(
 
 function wrapGoogleApi<T extends object>(
   api: T,
-  options?: RetryOptions & { circuit?: CircuitBreaker; client?: GoogleApiClient }
+  options?: RetryOptions & {
+    circuit?: ICircuitBreaker;
+    client?: GoogleApiClient;
+    /** Called before write operations to fast-fail on unknown spreadsheetIds (Fix B). */
+    existenceChecker?: (spreadsheetId: string) => Promise<void>;
+  }
 ): T {
   const cache = new WeakMap<object, unknown>();
   const circuit = options?.circuit;
@@ -1739,6 +1782,12 @@ function wrapGoogleApi<T extends object>(
                   methodName === 'delete';
                 const sharedDriveFileId =
                   typeof params['spreadsheetId'] === 'string' ? params['spreadsheetId'] : undefined;
+
+                // Fast-fail on unknown spreadsheetId before consuming quota (Fix B).
+                // Uses raw (pre-wrap) sheets API; cached 5 min to avoid redundant probes.
+                if (isWriteOp && sharedDriveFileId && options?.existenceChecker) {
+                  await options.existenceChecker(sharedDriveFileId);
+                }
 
                 if (isWriteOp && (await client.isSharedDriveFile(sharedDriveFileId))) {
                   const waitMs = await client.waitForSharedDriveWriteToken();
