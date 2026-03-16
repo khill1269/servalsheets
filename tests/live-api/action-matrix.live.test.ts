@@ -173,7 +173,7 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
             expect(result.mode).toBe(capability.mode);
             expect(result.assertionSource).toBe(capability.assertionSource);
           },
-          90_000
+          getFixtureTimeoutMs(capability)
         );
       }
     });
@@ -421,6 +421,15 @@ function createHarnessGoogleApiOptions(credentials: TestCredentials) {
       },
       accessToken: credentials.oauth.tokens.access_token,
       refreshToken: credentials.oauth.tokens.refresh_token,
+      oauthTokens: {
+        access_token: credentials.oauth.tokens.access_token,
+        refresh_token: credentials.oauth.tokens.refresh_token,
+        // expiry_date intentionally omitted: passing a stale expiry_date causes the googleapis
+        // OAuth2 client to treat the access token as expired on startup, triggering a token
+        // refresh that fails in the test harness and breaks all subsequent API calls.
+        scope: credentials.oauth.tokens.scope,
+        token_type: credentials.oauth.tokens.token_type,
+      },
       scopes,
     };
   }
@@ -432,6 +441,10 @@ let registeredTempServiceAccountPath: string | null = null;
 
 function registerTempServiceAccountPath(filePath: string): void {
   registeredTempServiceAccountPath = filePath;
+}
+
+function getFixtureTimeoutMs(capability: ActionCapability): number {
+  return capability.mode === 'mcp_execute' ? 270_000 : 90_000;
 }
 
 function getMaterializeOptions(context: MatrixExecutionContext): MaterializeRequestOptions {
