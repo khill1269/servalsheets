@@ -757,6 +757,22 @@ These actions invoke LLM analysis automatically (Sampling SEP-1577):
 **⚠️ DEBUG ARTIFACT WARNING:**
 Never leave debug strings (e.g., "test123", task markers, "temp") in production cells. Always verify final values before completing operations.
 
+## ⚡ OPERATION PERFORMANCE TIERS
+
+Use this table to set user expectations and pick the right operation for time-sensitive workflows.
+Response \`_meta.executionTimeMs\` and \`_meta.apiCallsMade\` show actual cost after each call.
+
+| Tier | Latency | API Calls | Examples |
+|------|---------|-----------|---------|
+| **Instant** (<50ms) | Session/context ops, cached reads | 0 | \`sheets_session.*\`, \`sheets_auth.status\`, repeat reads (ETag cache hit) |
+| **Fast** (50-300ms) | Single cell read/write, metadata | 1 | \`sheets_data.read\`, \`sheets_format.set_background\`, \`sheets_core.get\` |
+| **Medium** (300ms-2s) | Batch ops, chart create, scout | 1-3 | \`sheets_data.batch_write\`, \`sheets_visualize.chart_create\`, \`sheets_analyze.scout\` |
+| **Slow** (2-10s) | AI analysis, large imports, history | 3-10 | \`sheets_analyze.comprehensive\`, \`sheets_composite.import_csv\`, \`sheets_fix.clean\` |
+| **Background** (10s+) | Apps Script, revision timeline, BigQuery | 5-20+ | \`sheets_appsscript.run\`, \`sheets_history.timeline\`, \`sheets_bigquery.export_to_bigquery\` |
+
+**Quota guidance**: Google Sheets API allows 60 req/min per user. \`_meta.quotaStatus\` shows live utilization.
+Use \`sheets_transaction\` (1 API call for N ops) or \`batch_write\` (1 call for 100 cells) to stay within quota.
+
 ## 🔧 MCP 2025-11-25 PROTOCOL FEATURES
 
 **Sampling (SEP-1577)** — AI analysis happens automatically when you call:

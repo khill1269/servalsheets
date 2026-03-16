@@ -55,14 +55,39 @@ export function suggestFix(
     }
   }
 
-  // 2. SHEET_NOT_FOUND - suggest listing sheets
+  // 2. SHEET_NOT_FOUND - suggest listing sheets with fuzzy-match hint
   if (errorCode === 'SHEET_NOT_FOUND' || errorCode === 'NOT_FOUND') {
     if (errorMessage.toLowerCase().includes('sheet')) {
+      // Extract attempted sheet name from error message (e.g. "Sheet 'Sales Data' not found")
+      const nameMatch = errorMessage.match(/['"]([^'"]+)['"]/);
+      const attemptedName = nameMatch?.[1];
+
+      // Build a targeted explanation covering the most common SHEET_NOT_FOUND causes
+      let explanation = 'Sheet not found. List available sheets to find the correct name.';
+      if (attemptedName) {
+        const hasEmoji = /\p{Emoji_Presentation}/u.test(attemptedName);
+        const hasTrailingSpace = attemptedName !== attemptedName.trim();
+        const hints: string[] = [];
+        if (hasEmoji) {
+          hints.push(
+            'emoji sheet names must be copied exactly — visually identical emoji can have different Unicode codepoints'
+          );
+        }
+        if (hasTrailingSpace) {
+          hints.push('sheet name has leading/trailing whitespace — trim it');
+        }
+        if (!hasEmoji && !hasTrailingSpace) {
+          hints.push('check for wrong case (Sheet names are case-sensitive in the API)');
+          hints.push('copy the exact name from sheets_core.list_sheets response');
+        }
+        explanation = `Sheet '${attemptedName}' not found. ${hints.join('; ')}.`;
+      }
+
       return {
         tool: 'sheets_core',
         action: 'list_sheets',
         params: { spreadsheetId: params?.['spreadsheetId'] as string },
-        explanation: 'Sheet not found. List available sheets to find the correct name.',
+        explanation,
       };
     }
   }
