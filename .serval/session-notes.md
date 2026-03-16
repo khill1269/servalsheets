@@ -6,7 +6,7 @@
 
 ## Current Phase
 
-**Session 80 (2026-03-15) — LLM Intelligence Phases 1-3 + codebase enhancement plan items A/C/D.** Branch `remediation/phase-1`. 402 actions (25 tools). 2654/2654 tests. All gates green.
+**Session 81 (2026-03-15) — Type safety sprint + progress tranche E + recommender coverage.** Branch `remediation/phase-1`. 402 actions (25 tools). 2674/2674 tests. All gates green.
 
 ## What Was Just Completed (Session 80)
 
@@ -23,6 +23,28 @@
 - **Phase 1**: `_meta.apiCallsMade` + `_meta.executionTimeMs` + `_meta.quotaImpact` — tracks Google API calls per-request via `RequestContext.apiCallsMade` (incremented in `wrapGoogleApi`); wall-clock time from `requestStartTime`
 - **Phase 2**: Performance tier table in `features-2025-11-25.ts` (5 tiers Instant→Background); smarter `SHEET_NOT_FOUND` in `error-fix-suggester.ts` (extracts attempted name, detects emoji/whitespace/case issues)
 - **Phase 3**: Batching hints in `_meta` — `applyResponseIntelligence()` now returns `{ batchingHint? }` (was void); 7-entry BATCHING_HINTS map; `transactionHint` when `apiCallsMade >= 5`
+
+## What Was Just Completed (Session 81)
+
+**Type safety sprint (53 generic throws → typed error classes, 11 files):**
+
+- `src/connectors/{alpha-vantage,fred,polygon,finnhub,fmp,mcp-bridge,rest-generic}.ts` — ConfigError (API key missing), ServiceError/INTERNAL_ERROR (HTTP failures), ServiceError/QUOTA_EXCEEDED (rate limits), NotFoundError (tool/endpoint not found)
+- `src/connectors/connector-manager.ts` — NotFoundError (connector not found), ConfigError (not configured), ServiceError/QUOTA_EXCEEDED (rate limit), ValidationError
+- `src/utils/google-sheets-helpers.ts` — ValidationError for all A1 notation, spreadsheetId, URI limit, chip type errors
+- `src/startup/lifecycle.ts` — ConfigError for all startup/init failures
+- `src/security/webhook-signature.ts` — ConfigError (secret length), ValidationError (encoding/signature)
+
+**Progress coverage tranche E** — bigquery/composite.generate_sheet/history.timeline already had sendProgress calls; added regression tests to lock in the behavior (218 lines across 3 test files).
+
+**action-recommender.ts coverage** — 5 new RECOMMENDATION_RULES + 6 test cases:
+
+- sheets_data.cross_write, sheets_data.cross_query, sheets_analyze.quick_insights, sheets_analyze.auto_enhance, sheets_federation.call_remote now all have relevant follow-up suggestions
+
+**2674/2674 tests passing** (up from 2658).
+
+## Session 80 Summary (2026-03-15)
+
+LLM Intelligence Phases 1-3 + codebase enhancement plan items A/C/D (see prior session block).
 
 ## What Was Just Completed (Session 79)
 
