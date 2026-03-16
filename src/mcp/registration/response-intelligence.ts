@@ -1,6 +1,7 @@
 import { getDataAwareSuggestions } from '../../services/action-recommender.js';
 import { suggestFix } from '../../services/error-fix-suggester.js';
 import { scanResponseQualitySync } from '../../services/lightweight-quality-scanner.js';
+import { generateResponseHints } from '../../services/response-hints-engine.js';
 
 type ResponseCellValue = string | number | boolean | null;
 
@@ -201,6 +202,18 @@ export function applyResponseIntelligence(
 
     if (warnings.length > 0) {
       responseRecord['dataQualityWarnings'] = warnings;
+    }
+  }
+
+  // Inject CoT _hints on successful data reads (sync, zero API calls)
+  if (
+    options.toolName === 'sheets_data' &&
+    (actionName === 'read' || actionName === 'batch_read' || actionName === 'cross_read') &&
+    responseValues
+  ) {
+    const hints = generateResponseHints(responseValues);
+    if (hints) {
+      responseRecord['_hints'] = hints;
     }
   }
 
