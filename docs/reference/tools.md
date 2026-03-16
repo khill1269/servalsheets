@@ -2,7 +2,7 @@
 title: Tools Overview
 category: reference
 last_updated: 2026-03-08
-description: ServalSheets provides 25 MCP tools with 397 total actions covering the complete Google Sheets API v4.
+description: ServalSheets provides 25 MCP tools with 402 total actions covering the complete Google Sheets API v4.
 version: 1.7.0
 tags: [sheets]
 stability: stable
@@ -10,7 +10,7 @@ stability: stable
 
 # Tools Overview
 
-ServalSheets provides 25 MCP tools with 397 total actions covering the complete Google Sheets API v4.
+ServalSheets provides 25 MCP tools with 402 total actions covering the complete Google Sheets API v4.
 
 ## Tool Categories
 

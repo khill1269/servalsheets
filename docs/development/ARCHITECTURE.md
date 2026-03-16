@@ -51,7 +51,7 @@ src/handlers/{tool-name}.ts:executeAction()
    { response: { success: true, data: {...} } }
 ```
 
-All 22 handlers follow this exact structure.
+All 25 tools follow this exact structure.
 
 ### Layer 3: Response Building
 
@@ -134,7 +134,7 @@ src/
 ├── handlers/                 # Business logic (1 per tool)
 │   ├── base.ts               # BaseHandler (circuit breaker, instrumented API)
 │   ├── helpers/              # Shared helpers
-│   ├── auth.ts ... deps.ts   # 22 handler files
+│   ├── auth.ts ... deps.ts   # 25 handler files
 │   └── index.ts              # Handler factory + registry
 ├── mcp/                      # MCP protocol layer
 │   ├── registration/         # Tool definitions, handlers, schema helpers

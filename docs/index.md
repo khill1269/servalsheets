@@ -87,7 +87,7 @@ await claude.chat('Create a sales report with Q1 data and add a chart');
 | MCP Protocol     | ✅ Full 2025-11-25 | ❌     |
 | Safety Rails     | ✅ Comprehensive   | ❌     |
 | AI Features      | ✅ Built-in        | ❌     |
-| Actions          | 397                | ~30    |
+| Actions          | 402                | ~30    |
 | Enterprise Ready | ✅                 | ⚠️     |
 
 </div>

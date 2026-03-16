@@ -116,7 +116,7 @@ npm run gates:g2
 
 **What it checks:**
 
-- All 22 handlers work correctly
+- All 25 tools work correctly
 - Integration between layers
 - MCP protocol compliance
 
@@ -341,7 +341,7 @@ const mismatches = compareActions(actions, handlerActions, deviations);
 "25 tools"           # Hardcoded count
 "402 actions"        # Hardcoded count
 "Currently 25 tools" # Potentially stale
-"All 22 handlers"    # Hardcoded count
+"All 25 tools"       # Hardcoded count
 
 # Ignores:
 "See src/schemas/index.ts:63" # Reference to source
@@ -362,11 +362,11 @@ bash scripts/check-hardcoded-counts.sh
 # ❌ Found hardcoded counts in 3 files:
 #
 # README.md:42
-#   "ServalSheets provides 25 tools with 391 actions"
+#   "ServalSheets provides 25 tools with 402 actions"
 #   → Should reference: src/schemas/index.ts:63
 #
 # docs/guides/QUICKSTART.md:18
-#   "All 22 handlers implement BaseHandler"
+#   "All 25 tools registered in server"
 #   → Should reference: src/handlers/index.ts
 #
 # Fix: Replace hardcoded numbers with source references

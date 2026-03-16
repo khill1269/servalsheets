@@ -105,10 +105,8 @@ npm run audit:full       # All of the above
 
 ## Known Issues
 
-- .agent-context/metadata.json is STALE (says 25/397, actual 25/402)
 - docs/development/PROJECT_STATUS.md may have stale counts (expected 25/402/1.7.0)
 - npm run check:drift hangs/times out
-- .claude/agent-memory/servalsheets-validation/MEMORY.md has stale count: TOOL_COUNT = 22 (actual: 25 tools, 402 actions)
 
 ## Verification Commands
 

@@ -140,7 +140,7 @@ servalsheets/
 │   │   ├── index.ts        # TOOL_COUNT, ACTION_COUNT (GENERATED)
 │   │   ├── annotations.ts  # Per-tool metadata (GENERATED)
 │   │   └── *.ts            # Individual tool schemas
-│   ├── handlers/           # Business logic (22 handlers)
+│   ├── handlers/           # Business logic (25 handlers)
 │   │   ├── base.ts         # BaseHandler class (1425 lines)
 │   │   └── *.ts            # Tool handlers
 │   ├── mcp/                # MCP protocol layer
@@ -312,7 +312,7 @@ validateOutput(result, outputSchema);
 
 ### 6. Handler Pattern
 
-All 22 handlers follow this exact structure:
+All 25 tools follow this exact structure:
 
 ```typescript
 export class DataHandler extends BaseHandler<DataInput, DataOutput> {
