@@ -10,6 +10,10 @@ import type { HistoryService } from '../../src/services/history-service.js';
 import type { SnapshotService } from '../../src/services/snapshot.js';
 import type { OperationHistory, OperationHistoryStats } from '../../src/types/history.js';
 import { SheetsHistoryOutputSchema } from '../../src/schemas/history.js';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 // Mock HistoryService
 const createMockHistoryService = (): HistoryService =>
@@ -70,6 +74,14 @@ vi.mock('../../src/services/history-service.js', () => {
     }),
   };
 });
+
+// Mock revision-timeline for timeline progress tests
+const mockGetTimeline = vi.hoisted(() => vi.fn());
+vi.mock('../../src/services/revision-timeline.js', () => ({
+  getTimeline: mockGetTimeline,
+  diffRevisions: vi.fn(),
+  restoreCells: vi.fn(),
+}));
 
 describe('HistoryHandler', () => {
   let handler: HistoryHandler;
@@ -777,6 +789,54 @@ describe('HistoryHandler', () => {
 
       const parseResult = SheetsHistoryOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
+    });
+  });
+
+  // ============================================================================
+  // timeline progress notifications (Tranche E)
+  // ============================================================================
+
+  describe('timeline progress notifications', () => {
+    it('should emit progress notifications while scanning revision history', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'history-timeline-progress',
+        progressToken: 'history-timeline-progress',
+        sendNotification: notification,
+      });
+
+      mockGetTimeline.mockResolvedValue({
+        items: [
+          { revisionId: 'rev-2', timestamp: '2024-01-15T10:00:00Z', author: 'Alice' },
+          { revisionId: 'rev-1', timestamp: '2024-01-14T10:00:00Z', author: 'Bob' },
+        ],
+        activityAvailable: false,
+        totalFetched: 2,
+        truncated: false,
+        nextPageToken: undefined,
+      });
+
+      const mockDriveApi = {} as any;
+      const handlerWithDrive = new HistoryHandler({
+        snapshotService: mockSnapshotService,
+        driveApi: mockDriveApi,
+      });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handlerWithDrive.handle({
+          action: 'timeline',
+          spreadsheetId: 'test-sheet',
+        })
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({
+          progress: 0,
+        }),
+      });
     });
   });
 });

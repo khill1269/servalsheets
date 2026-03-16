@@ -8,6 +8,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SheetsBigQueryHandler } from '../../src/handlers/bigquery.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 describe('SheetsBigQueryHandler', () => {
   let handler: SheetsBigQueryHandler;
@@ -1074,6 +1078,100 @@ describe('SheetsBigQueryHandler', () => {
         error: {
           code: 'AUTH_REQUIRED',
         },
+      });
+    });
+  });
+
+  // ============================================================================
+  // Progress notification tests (Tranche E)
+  // ============================================================================
+
+  describe('export_to_bigquery progress notifications', () => {
+    it('should emit progress notifications during export', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'bq-export-progress',
+        progressToken: 'bq-export-progress',
+        sendNotification: notification,
+      });
+
+      mockSheetsApi.spreadsheets.values = {
+        get: vi.fn().mockResolvedValue({
+          data: {
+            values: [
+              ['col1', 'col2'],
+              ['val1', 'val2'],
+              ['val3', 'val4'],
+            ],
+          },
+        }),
+      };
+      mockBigQueryApi.tabledata = {
+        insertAll: vi.fn().mockResolvedValue({ data: {} }),
+      };
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          request: {
+            action: 'export_to_bigquery',
+            spreadsheetId: 'test-id',
+            range: 'Sheet1!A1:B3',
+            destination: {
+              projectId: 'my-project',
+              datasetId: 'my-dataset',
+              tableId: 'my-table',
+            },
+          },
+        })
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({
+          progress: 0,
+        }),
+      });
+    });
+  });
+
+  describe('import_from_bigquery progress notifications', () => {
+    it('should emit progress notifications during import', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'bq-import-progress',
+        progressToken: 'bq-import-progress',
+        sendNotification: notification,
+      });
+
+      mockSheetsApi.spreadsheets.values = {
+        update: vi.fn().mockResolvedValue({ data: {} }),
+      };
+      mockSheetsApi.spreadsheets.batchUpdate = vi.fn().mockResolvedValue({
+        data: {
+          replies: [{ addSheet: { properties: { sheetId: 99, title: 'BigQuery Results' } } }],
+        },
+      });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          request: {
+            action: 'import_from_bigquery',
+            spreadsheetId: 'test-id',
+            projectId: 'my-project',
+            query: 'SELECT id, name FROM my_table',
+          },
+        })
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({
+          progress: 0,
+        }),
       });
     });
   });

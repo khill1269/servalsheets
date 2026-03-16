@@ -15,9 +15,16 @@ import {
 } from '../../src/utils/request-context.js';
 
 const mockDispatchCompositeOperation = vi.hoisted(() => vi.fn());
+const mockGenerateDefinition = vi.hoisted(() => vi.fn());
+const mockExecuteDefinition = vi.hoisted(() => vi.fn());
 
 vi.mock('../../src/resources/composite-operation-dispatcher.js', () => ({
   dispatchCompositeOperation: mockDispatchCompositeOperation,
+}));
+
+vi.mock('../../src/services/sheet-generator.js', () => ({
+  generateDefinition: mockGenerateDefinition,
+  executeDefinition: mockExecuteDefinition,
 }));
 
 describe('Composite Handler', () => {
@@ -1728,6 +1735,59 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
       expect(result).toHaveProperty('response');
+    });
+  });
+
+  // ============================================================================
+  // generate_sheet Progress Notifications (Tranche E)
+  // ============================================================================
+
+  describe('generate_sheet progress notifications', () => {
+    it('should emit progress notifications during sheet generation', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'composite-generate-progress',
+        progressToken: 'composite-generate-progress',
+        sendNotification: notification,
+      });
+
+      const mockDefinition = {
+        title: 'Test Sheet',
+        sheets: [
+          {
+            name: 'Sheet1',
+            columns: [{ header: 'Name', type: 'text' }],
+            rows: [],
+          },
+        ],
+      };
+      mockGenerateDefinition.mockResolvedValue(mockDefinition);
+      mockExecuteDefinition.mockResolvedValue({
+        spreadsheetId: 'new-sheet-id',
+        spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/new-sheet-id',
+        title: 'Test Sheet',
+        sheetsCreated: 1,
+        columnsCreated: 1,
+        rowsCreated: 0,
+        formulasApplied: 0,
+        formattingApplied: false,
+      });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'generate_sheet',
+          description: 'A simple budget tracker',
+        } as any)
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({
+          progress: 0,
+        }),
+      });
     });
   });
 });
