@@ -300,10 +300,10 @@ if (TOOL_COUNT < 20 || TOOL_COUNT > 30) {
   sanityPassed = false;
 }
 
-// Action count should be reasonable (280-350)
-if (ACTION_COUNT < 280 || ACTION_COUNT > 350) {
+// Action count should be reasonable (350-500)
+if (ACTION_COUNT < 350 || ACTION_COUNT > 500) {
   warnings.push(
-    `ACTION_COUNT (${ACTION_COUNT}) outside expected range (280-350). This may indicate a data issue.`
+    `ACTION_COUNT (${ACTION_COUNT}) outside expected range (350-500). This may indicate a data issue.`
   );
   sanityPassed = false;
 }

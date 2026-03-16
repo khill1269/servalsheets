@@ -1,6 +1,6 @@
 ---
 title: Adding a Handler to ServalSheets
-category: guides
+category: guide
 last_updated: 2026-02-17
 description: 'Step-by-step tutorial for adding a new MCP tool handler'
 version: 1.0
