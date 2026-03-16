@@ -2,7 +2,7 @@ name: Test Gates
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, 'remediation/**', 'feat/**', 'fix/**', 'chore/**']
     paths:
       - 'src/**'
       - 'tests/**'
@@ -10,7 +10,7 @@ on:
       - 'tsconfig.json'
       - 'vitest.config.ts'
   pull_request:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - 'src/**'
       - 'tests/**'
