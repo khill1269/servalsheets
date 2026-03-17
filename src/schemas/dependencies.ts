@@ -263,64 +263,76 @@ export const DependencyBuildResultSchema = z.object({
  * Dependencies output response
  */
 const DependenciesResponseSchema = z.discriminatedUnion('success', [
-  z.object({
-    success: z.literal(true),
-    data: z.union([
-      DependencyBuildResultSchema,
-      ImpactAnalysisSchema,
-      z.object({ circularDependencies: z.array(CircularDependencySchema) }),
-      z.object({ dependencies: z.array(z.string()) }),
-      z.object({ dependents: z.array(z.string()) }),
-      DependencyStatsSchema,
-      z.object({ dot: z.string() }),
-      // F6: Scenario results
-      z.object({
-        action: z.string(),
-        inputChanges: z.array(
-          z.object({
-            cell: z.string(),
-            from: z.union([z.string(), z.number(), z.null()]).optional(),
-            to: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+  z
+    .object({
+      success: z.literal(true),
+      data: z.union([
+        DependencyBuildResultSchema,
+        ImpactAnalysisSchema,
+        z.object({ circularDependencies: z.array(CircularDependencySchema) }),
+        z.object({ dependencies: z.array(z.string()) }),
+        z.object({ dependents: z.array(z.string()) }),
+        DependencyStatsSchema,
+        z.object({ dot: z.string() }),
+        // F6: Scenario results
+        z
+          .object({
+            action: z.literal('model_scenario'),
+            inputChanges: z.array(
+              z.object({
+                cell: z.string(),
+                from: z.union([z.string(), z.number(), z.null()]).optional(),
+                to: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+              })
+            ),
+            cascadeEffects: z.array(
+              z.object({
+                cell: z.string(),
+                formula: z.string().optional(),
+                currentValue: z.union([z.string(), z.number(), z.null()]).optional(),
+                affectedBy: z.array(z.string()).optional(),
+              })
+            ),
+            summary: z.object({
+              cellsAffected: z.number().int(),
+              message: z.string(),
+            }),
           })
-        ),
-        cascadeEffects: z.array(
-          z.object({
-            cell: z.string(),
-            formula: z.string().optional(),
-            currentValue: z.union([z.string(), z.number(), z.null()]).optional(),
-            affectedBy: z.array(z.string()).optional(),
+          .passthrough(),
+        // F6: compare_scenarios result
+        z
+          .object({
+            action: z.literal('compare_scenarios'),
+            scenarios: z.array(
+              z
+                .object({
+                  name: z.string(),
+                  cellsAffected: z.number().int(),
+                })
+                .passthrough()
+            ),
+            message: z.string(),
           })
-        ),
-        summary: z.object({
-          cellsAffected: z.number().int(),
-          message: z.string(),
-        }),
-      }),
-      // F6: compare_scenarios result
-      z.object({
-        action: z.string(),
-        scenarios: z.array(
-          z.object({
-            name: z.string(),
-            cellsAffected: z.number().int(),
-          }).passthrough()
-        ),
-        message: z.string(),
-      }).passthrough(),
-      // F6: create_scenario_sheet result
-      z.object({
-        action: z.string(),
-        newSheetId: z.number().int(),
-        newSheetName: z.string(),
-        cellsModified: z.number().int(),
-        message: z.string(),
-      }).passthrough(),
-    ]),
-  }).passthrough(),
-  z.object({
-    success: z.literal(false),
-    error: ErrorDetailSchema,
-  }).passthrough(),
+          .passthrough(),
+        // F6: create_scenario_sheet result
+        z
+          .object({
+            action: z.literal('create_scenario_sheet'),
+            newSheetId: z.number().int(),
+            newSheetName: z.string(),
+            cellsModified: z.number().int(),
+            message: z.string(),
+          })
+          .passthrough(),
+      ]),
+    })
+    .passthrough(),
+  z
+    .object({
+      success: z.literal(false),
+      error: ErrorDetailSchema,
+    })
+    .passthrough(),
 ]);
 
 export const SheetsDependenciesOutputSchema = z.object({

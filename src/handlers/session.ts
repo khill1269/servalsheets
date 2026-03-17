@@ -227,6 +227,10 @@ export async function handleSheetsSession(
           activatedAt: Date.now(),
         };
         session.setActiveSpreadsheet(context);
+        // Non-blocking: signal cache warm for faster subsequent operations
+        logger.debug('set_active: session context updated, ready for cache warm', {
+          spreadsheetId,
+        });
         return {
           response: {
             success: true,

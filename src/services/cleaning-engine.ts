@@ -72,6 +72,7 @@ export interface ColumnProfile {
 }
 
 export interface DataProfile {
+  [x: string]: unknown;
   totalRows: number;
   totalColumns: number;
   nullRate: number;

@@ -757,6 +757,60 @@ These actions invoke LLM analysis automatically (Sampling SEP-1577):
 **⚠️ DEBUG ARTIFACT WARNING:**
 Never leave debug strings (e.g., "test123", task markers, "temp") in production cells. Always verify final values before completing operations.
 
+## 🔄 SELF-CORRECTION & INTELLIGENT ERROR RECOVERY
+
+Error responses include structured recovery data to enable autonomous self-correction:
+
+**\`fixableVia\`** — On error, check \`response.error.fixableVia\` for an executable fix:
+\`\`\`json
+{ "tool": "sheets_core", "action": "list_sheets", "params": { "spreadsheetId": "..." } }
+\`\`\`
+Call this tool+action directly to resolve the issue, then retry the original operation.
+
+**\`alternatives\`** — Array of alternative approaches if the primary fix doesn't work:
+\`\`\`json
+[{ "tool": "sheets_analyze", "action": "scout", "description": "Scan structure to find valid ranges" }]
+\`\`\`
+
+**\`resolutionSteps\`** — Step-by-step human-readable guidance for complex failures.
+
+**\`suggestedTools\`** — Tools relevant to diagnosing the issue.
+
+**\`_learnedFix\`** — When the server has seen this error pattern before and knows a fix that worked:
+\`\`\`json
+{ "fix": "Use Sheet1 instead of sheet1 (case-sensitive)", "confidence": 0.85, "seenCount": 7 }
+\`\`\`
+Higher confidence + higher seenCount = more reliable fix. Apply it directly.
+
+**\`suggestedNextActions\`** — On success, response includes recommended follow-up actions:
+\`\`\`json
+[{ "tool": "sheets_format", "action": "apply_preset", "reason": "Data written — apply formatting" }]
+\`\`\`
+
+**\`_hints\`** — Chain-of-thought hints for data-aware planning (on read responses):
+\`\`\`json
+{ "dataShape": "time-series (monthly)", "primaryKeyColumn": "Date", "riskLevel": "low", "nextPhase": "..." }
+\`\`\`
+
+**TAER Self-Correction Pattern:**
+When an operation fails, follow this loop:
+1. **Think** — Read \`fixableVia\`, \`alternatives\`, \`_learnedFix\` from the error response
+2. **Analyze** — Determine root cause from \`resolutionSteps\` and error code
+3. **Execute** — Call the \`fixableVia\` tool/action, or apply \`_learnedFix\`
+4. **Review** — Verify the fix resolved the issue; retry original operation
+5. **Plan** — If still failing after 2 attempts, use \`sheets_analyze.scout\` to re-examine the spreadsheet structure before trying a different approach
+
+## 🔁 ERROR SELF-CORRECTION PROTOCOL
+
+When any ServalSheets tool returns an error:
+1. Check \`error.retryable\` — if true, retry after \`error.retryAfterMs\` milliseconds
+2. Check \`error.fixableVia\` — if present, call that tool/action with those params FIRST, then retry
+3. Follow \`error.resolutionSteps\` — numbered steps in order
+4. Use \`error.suggestedTools\` — listed tools for diagnosis
+5. If error persists after 2 retries, report to user with \`error.resolution\`
+
+Example: \`ELICITATION_UNAVAILABLE\` error includes \`fixableVia: { tool: "sheets_confirm", action: "wizard_start" }\` — call that first, then retry the original operation.
+
 ## ⚡ OPERATION PERFORMANCE TIERS
 
 Use this table to set user expectations and pick the right operation for time-sensitive workflows.

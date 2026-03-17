@@ -11,6 +11,7 @@ import { getRequestContext } from '../../utils/request-context.js';
 import { compactResponse, isCompactModeEnabled } from '../../utils/response-compactor.js';
 import { applyResponseIntelligence } from './response-intelligence.js';
 import { sanitizeToolOutput } from './tool-output-sanitization.js';
+import { getEnv } from '../../config/env.js';
 import {
   getErrorRecord,
   getMetaRecord,
@@ -51,7 +52,7 @@ function validateOutputSchema(
   result: unknown,
   outputSchema: ZodTypeAny | undefined
 ): void {
-  if (process.env['VALIDATE_OUTPUT_SCHEMAS'] === 'false' || !outputSchema) {
+  if (!getEnv().VALIDATE_OUTPUT_SCHEMAS || !outputSchema) {
     return;
   }
 
@@ -173,11 +174,21 @@ export function buildToolResponse(
     preCompactResponseSuccess === false || structuredContent['success'] === false;
 
   if (preCompactResponse) {
-    let intelligenceResult: { batchingHint?: string } = {};
+    let intelligenceResult: { batchingHint?: string; aiMode?: string } = {};
     try {
+      // Extract action/spreadsheetId from response for recovery engine context
+      const responseAction =
+        typeof preCompactResponse['action'] === 'string' ? preCompactResponse['action'] : undefined;
+      const responseSpreadsheetId =
+        typeof preCompactResponse['spreadsheetId'] === 'string'
+          ? preCompactResponse['spreadsheetId']
+          : undefined;
       intelligenceResult = applyResponseIntelligence(preCompactResponse, {
         toolName,
+        actionName: responseAction,
         hasFailure: preCompactHasFailure,
+        spreadsheetId: responseSpreadsheetId,
+        aiMode: 'heuristic',
       });
     } catch (err) {
       logger.debug('applyResponseIntelligence threw, continuing without enrichment', {
@@ -222,9 +233,10 @@ export function buildToolResponse(
   const errorCodeCompatibility = getErrorCodeCompatibility(responseErrorCode);
 
   const hasFailure = responseSuccess === false || structuredContent['success'] === false;
+  const env = getEnv();
   const treatAsNonFatal =
     hasFailure &&
-    process.env['MCP_NON_FATAL_TOOL_ERRORS'] !== 'false' &&
+    env.MCP_NON_FATAL_TOOL_ERRORS !== 'false' &&
     typeof responseErrorCode === 'string' &&
     NON_FATAL_TOOL_ERROR_CODES.has(responseErrorCode);
   const isError = hasFailure && !treatAsNonFatal;

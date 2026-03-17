@@ -3,11 +3,18 @@ import { suggestFix } from '../../services/error-fix-suggester.js';
 import { getErrorPatternLearner } from '../../services/error-pattern-learner.js';
 import { scanResponseQualitySync } from '../../services/lightweight-quality-scanner.js';
 import {
+  suggestRecovery,
+  applyRecoveryToError,
+  type RecoveryContext,
+} from '../../services/recovery-engine.js';
+import {
   generateResponseHints,
   generateWriteHints,
   generateScenarioHints,
   type ResponseHints,
 } from '../../services/response-hints-engine.js';
+import { compressSheetForLLM } from '../../utils/response-compactor.js';
+import { selfCorrectionsTotal } from '../../observability/metrics.js';
 
 type ResponseCellValue = string | number | boolean | null;
 
@@ -18,11 +25,16 @@ type ConfidenceGapHint = {
 
 type ResponseIntelligenceOptions = {
   toolName?: string;
+  actionName?: string;
   hasFailure: boolean;
+  spreadsheetId?: string;
+  params?: Record<string, unknown>;
+  aiMode?: 'sampling' | 'heuristic' | 'cached';
 };
 
 type ResponseIntelligenceResult = {
   batchingHint?: string;
+  aiMode?: 'sampling' | 'heuristic' | 'cached';
 };
 
 // Actions that have a batch equivalent and benefit from consolidation
@@ -173,7 +185,24 @@ export function applyResponseIntelligence(
         confidence: pattern.topResolution.successRate,
         seenCount: pattern.topResolution.occurrenceCount,
       };
+
+      // Increment self-correction metric when a learned fix is available
+      selfCorrectionsTotal.inc({
+        tool: options.toolName || 'unknown',
+        from_action: options.actionName || 'unknown',
+        to_action: pattern.topResolution.fix || 'unknown',
+      });
     }
+
+    // ── Recovery Engine: enrich error with alternatives + resolution steps ──
+    const recoveryCtx: RecoveryContext = {
+      toolName: options.toolName,
+      actionName: options.actionName,
+      spreadsheetId: options.spreadsheetId,
+      params: options.params,
+    };
+    const recovery = suggestRecovery(errorCode, errorMessage, recoveryCtx);
+    applyRecoveryToError(error, recovery);
 
     return {}; // OK: no batching hint for failure responses
   }
@@ -224,6 +253,22 @@ export function applyResponseIntelligence(
     const hints = generateResponseHints(responseValues);
     if (hints) {
       responseRecord['_hints'] = hints;
+    }
+
+    // Compress large sheets for LLM context (SpreadsheetLLM compression)
+    // Only compress if > 100 rows AND verbosity is not "detailed" (preserve raw data if requested)
+    // Skip if data is already in a compressed/preview format (_truncated present)
+    if (
+      responseValues.length > 100 &&
+      !responseRecord['_truncated'] &&
+      !(options.params?.['verbosity'] === 'detailed')
+    ) {
+      const compressed = compressSheetForLLM(responseValues, {
+        maxAnchors: 20,
+        maxExamples: 5,
+      });
+      // Inject compressed representation alongside raw (LLMs can choose which to use)
+      responseRecord['_compressed'] = compressed;
     }
   } else if (
     options.toolName === 'sheets_data' &&
@@ -312,7 +357,18 @@ export function applyResponseIntelligence(
     }
   }
 
+  // Inject aiMode into _meta if provided
+  if (options.aiMode) {
+    const existing = responseRecord['_meta'];
+    const meta: Record<string, unknown> = isRecord(existing) ? existing : {};
+    meta['aiMode'] = options.aiMode;
+    responseRecord['_meta'] = meta;
+  }
+
   // Return batching hint for the caller to inject into _meta
   const batchingHint = BATCHING_HINTS[`${options.toolName}.${actionName}`];
-  return batchingHint ? { batchingHint } : {};
+  return {
+    ...(batchingHint ? { batchingHint } : {}),
+    ...(options.aiMode ? { aiMode: options.aiMode } : {}),
+  };
 }

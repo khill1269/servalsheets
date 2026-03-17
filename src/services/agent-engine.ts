@@ -21,6 +21,7 @@ import { encryptPlan, decryptPlan } from '../utils/plan-crypto.js';
 import { createRequestAbortError, getRequestContext } from '../utils/request-context.js';
 import { NotFoundError, ValidationError } from '../core/errors.js';
 import type { ErrorDetail } from '../schemas/shared.js';
+import { getSessionContext } from './session-context.js';
 
 interface SamplingTextContent {
   type: 'text';
@@ -957,6 +958,25 @@ Maximum ${maxSteps || 10} steps.`;
     if (spreadsheetId) prompt += `\nTarget spreadsheet ID: ${spreadsheetId}`;
     if (context) prompt += `\nAdditional context: ${context}`;
 
+    // Inject spreadsheet context if available from session
+    if (spreadsheetId) {
+      try {
+        const sessionCtx = getSessionContext();
+        const activeCtx = sessionCtx.getActiveSpreadsheet();
+        if (
+          activeCtx &&
+          activeCtx.spreadsheetId === spreadsheetId &&
+          activeCtx.sheetNames.length > 0
+        ) {
+          prompt += `\nSpreadsheet context:`;
+          prompt += `\n- Sheets: ${activeCtx.sheetNames.join(', ')}`;
+          prompt += `\nIMPORTANT: Use these exact sheet names (case-sensitive, including spaces and emoji) in your params.`;
+        }
+      } catch {
+        // OK: Session context may not be initialized — skip enrichment
+      }
+    }
+
     const modelHint = getModelHint('agentPlanning');
     const result = await withSamplingTimeout(() =>
       _samplingServer!.createMessage({
@@ -1414,6 +1434,45 @@ async function executeInjectCrossSheetLookup(
 }
 
 /**
+ * AI reflexion validation for step results (IMP-03).
+ * Uses MCP Sampling to check whether a step result looks correct.
+ * Fails open — returns valid:true on any error to avoid blocking execution.
+ */
+export async function aiValidateStepResult(
+  step: ExecutionStep,
+  result: unknown
+): Promise<{ valid: boolean; issue?: string; suggestedFix?: string }> {
+  if (!_samplingServer) return { valid: true };
+
+  try {
+    await assertSamplingConsent();
+    const resultStr = JSON.stringify(result, null, 2).slice(0, 500);
+    const prompt = `Step "${step.description}" (${step.tool}.${step.action}) returned:
+${resultStr}
+
+Did this step succeed as expected? If the response shows success:false or an unexpected error, report it.
+Reply with ONLY JSON (no markdown): { "valid": boolean, "issue"?: string, "suggestedFix"?: string }`;
+
+    const response = await withSamplingTimeout(() =>
+      _samplingServer!.createMessage({
+        messages: [createUserMessage(prompt)],
+        systemPrompt:
+          'You are validating spreadsheet operation results. Reply with only valid JSON.',
+        maxTokens: 200,
+      })
+    );
+
+    const text = extractTextFromResult(response);
+    if (!text) return { valid: true }; // OK: Empty sampling response — fail open
+    const cleaned = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    const parsed = JSON.parse(cleaned) as { valid: boolean; issue?: string; suggestedFix?: string };
+    return { valid: parsed.valid ?? true, issue: parsed.issue, suggestedFix: parsed.suggestedFix };
+  } catch {
+    return { valid: true }; // OK: Fail open — don't block execution on validation errors
+  }
+}
+
+/**
  * Execute all steps in a plan sequentially.
  * Creates checkpoints before each step, records results.
  * On error: pauses execution, records error.
@@ -1465,15 +1524,53 @@ export async function executePlan(
           ? await executeInjectCrossSheetLookup(step, plan, executeHandler)
           : await executeHandler(step.tool, step.action, step.params);
 
+      // Validate step result — detect hidden failures (success:false buried in response)
+      const validationIssue = validateStepResult(result, step);
+      if (validationIssue) {
+        logger.warn('Step result validation failed', {
+          planId,
+          stepId: step.stepId,
+          issue: validationIssue,
+        });
+      }
+
+      // AI reflexion validation (IMP-03): only when sampling is available and rule-based check passed
+      if (!validationIssue && _samplingServer) {
+        const aiValidation = await aiValidateStepResult(step, result);
+        if (!aiValidation.valid && aiValidation.issue) {
+          logger.warn('AI step validation detected issue', {
+            planId,
+            stepId: step.stepId,
+            issue: aiValidation.issue,
+            suggestedFix: aiValidation.suggestedFix,
+          });
+          // Informational only — don't pause the plan on AI validation alone
+        }
+      }
+
       const stepResult: StepResult = {
         stepId: step.stepId,
-        success: true,
+        success: !validationIssue, // Mark as failed if validation caught a hidden error
         result,
+        error: validationIssue ?? undefined,
         startedAt: startTime,
         completedAt: new Date().toISOString(),
       };
 
       plan.results.push(stepResult);
+
+      // If validation detected a hidden failure, pause the plan
+      if (validationIssue) {
+        plan.status = 'paused';
+        plan.error = validationIssue;
+        plan.updatedAt = new Date().toISOString();
+        planStore.set(planId, plan);
+        persistPlan(plan).catch((persistErr: unknown) => {
+          logger.warn('Failed to persist plan state', { planId, error: persistErr });
+        });
+        return plan;
+      }
+
       plan.currentStepIndex = i + 1;
       plan.updatedAt = new Date().toISOString();
       planStore.set(planId, plan);
@@ -1555,6 +1652,39 @@ export async function executePlan(
     logger.warn('Failed to persist plan state', { planId, error: persistErr });
   });
   return plan;
+}
+
+/**
+ * Validate a step result to detect hidden failures.
+ *
+ * Some tool responses return success:false buried inside the response object
+ * without throwing. This function catches those cases and returns a diagnostic
+ * string if the result is invalid, or null if it looks valid.
+ */
+function validateStepResult(result: unknown, step: ExecutionStep): string | null {
+  if (result === null || result === undefined) {
+    return `Step ${step.stepId} (${step.tool}.${step.action}) returned null/undefined`;
+  }
+
+  // Check for buried error in response.response.success === false
+  const resultObj = result as Record<string, unknown>;
+  const response = resultObj['response'] as Record<string, unknown> | undefined;
+  if (response && response['success'] === false) {
+    const error = response['error'] as Record<string, unknown> | undefined;
+    const errorMsg = error?.['message'] ?? response['message'] ?? 'unknown error';
+    return `Step ${step.stepId} (${step.tool}.${step.action}) returned success:false — ${errorMsg}`;
+  }
+
+  // Check for top-level success:false
+  if (resultObj['success'] === false) {
+    const errorMsg =
+      (resultObj['error'] as Record<string, unknown>)?.['message'] ??
+      resultObj['message'] ??
+      'unknown error';
+    return `Step ${step.stepId} (${step.tool}.${step.action}) returned success:false — ${errorMsg}`;
+  }
+
+  return null; // OK: Explicit valid result
 }
 
 /**
