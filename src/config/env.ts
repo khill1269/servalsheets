@@ -166,10 +166,20 @@ const EnvSchema = z.object({
   METRICS_PORT: z.coerce.number().int().positive().max(65535).default(9090),
   METRICS_HOST: z.string().default('127.0.0.1'),
 
-  // Circuit Breaker
+  // Circuit Breaker (Google Sheets API defaults)
   CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().default(5),
   CIRCUIT_BREAKER_SUCCESS_THRESHOLD: z.coerce.number().int().positive().default(2),
   CIRCUIT_BREAKER_TIMEOUT_MS: z.coerce.number().positive().default(30000), // 30 seconds
+
+  // Circuit Breaker overrides for specific APIs (optional - defaults match base config above)
+  OAUTH_CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().optional(),
+  OAUTH_CIRCUIT_BREAKER_SUCCESS_THRESHOLD: z.coerce.number().int().positive().optional(),
+  OAUTH_CIRCUIT_BREAKER_TIMEOUT_MS: z.coerce.number().positive().optional(),
+  APPSSCRIPT_CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().optional(),
+  SNAPSHOT_CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().optional(),
+  WEBHOOK_DELIVERY_CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().optional(),
+  WEBHOOK_WORKER_CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().optional(),
+  FEDERATION_CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().optional(),
 
   // Apps Script concurrency
   APPSSCRIPT_MAX_CONCURRENT_RUNS: z.coerce.number().int().positive().default(15),
@@ -318,9 +328,6 @@ const EnvSchema = z.object({
   BILLING_CURRENCY: z.string().default('usd'),
   BILLING_CYCLE: z.enum(['monthly', 'annual']).default('monthly'),
   BILLING_AUTO_INVOICING: strictBoolean().default(true),
-
-  // Post-mutation verification: read back affected ranges to verify writes succeeded
-  ENABLE_MUTATION_VERIFICATION: strictBoolean().default(false),
 
   // Strict output schema validation: reject responses failing schema validation (opt-in for CI/test)
   STRICT_OUTPUT_VALIDATION: strictBoolean().default(true), // MCP-01: declared outputSchema MUST conform per spec
@@ -789,6 +796,74 @@ export function getCircuitBreakerConfig(): {
     failureThreshold: current.CIRCUIT_BREAKER_FAILURE_THRESHOLD,
     successThreshold: current.CIRCUIT_BREAKER_SUCCESS_THRESHOLD,
     timeout: current.CIRCUIT_BREAKER_TIMEOUT_MS,
+  };
+}
+
+/**
+ * Get API-specific circuit breaker configuration
+ * Falls back to base config values if specific overrides are not set.
+ *
+ * @param apiName API identifier: 'oauth', 'appsscript', 'snapshot', 'webhook_delivery', 'webhook_worker', 'federation'
+ * @returns Circuit breaker config with environment-based or default values
+ */
+export function getApiSpecificCircuitBreakerConfig(
+  apiName:
+    | 'oauth'
+    | 'appsscript'
+    | 'snapshot'
+    | 'webhook_delivery'
+    | 'webhook_worker'
+    | 'federation'
+): {
+  failureThreshold: number;
+  successThreshold: number;
+  timeout: number;
+} {
+  const current = ensureEnv();
+  const baseConfig = getCircuitBreakerConfig();
+
+  // Type-safe mapping of API names to env vars
+  let failureThreshold: number | undefined;
+  let successThreshold: number | undefined;
+  let timeout: number | undefined;
+
+  switch (apiName) {
+    case 'oauth':
+      failureThreshold = current.OAUTH_CIRCUIT_BREAKER_FAILURE_THRESHOLD;
+      successThreshold = current.OAUTH_CIRCUIT_BREAKER_SUCCESS_THRESHOLD;
+      timeout = current.OAUTH_CIRCUIT_BREAKER_TIMEOUT_MS;
+      break;
+    case 'appsscript':
+      failureThreshold = current.APPSSCRIPT_CIRCUIT_BREAKER_FAILURE_THRESHOLD;
+      successThreshold = undefined; // use default
+      timeout = undefined; // use default
+      break;
+    case 'snapshot':
+      failureThreshold = current.SNAPSHOT_CIRCUIT_BREAKER_FAILURE_THRESHOLD;
+      successThreshold = undefined;
+      timeout = undefined;
+      break;
+    case 'webhook_delivery':
+      failureThreshold = current.WEBHOOK_DELIVERY_CIRCUIT_BREAKER_FAILURE_THRESHOLD;
+      successThreshold = undefined;
+      timeout = undefined;
+      break;
+    case 'webhook_worker':
+      failureThreshold = current.WEBHOOK_WORKER_CIRCUIT_BREAKER_FAILURE_THRESHOLD;
+      successThreshold = undefined;
+      timeout = undefined;
+      break;
+    case 'federation':
+      failureThreshold = current.FEDERATION_CIRCUIT_BREAKER_FAILURE_THRESHOLD;
+      successThreshold = undefined;
+      timeout = undefined;
+      break;
+  }
+
+  return {
+    failureThreshold: failureThreshold ?? baseConfig.failureThreshold,
+    successThreshold: successThreshold ?? baseConfig.successThreshold,
+    timeout: timeout ?? baseConfig.timeout,
   };
 }
 

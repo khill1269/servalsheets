@@ -54,6 +54,106 @@ export class AgentHandler {
     };
   }
 
+  private getResponsePayload(result: unknown): Record<string, unknown> | null {
+    if (typeof result !== 'object' || result === null) {
+      return null;
+    }
+
+    const resultRecord = result as Record<string, unknown>;
+    const response = resultRecord['response'];
+    if (typeof response === 'object' && response !== null) {
+      return response as Record<string, unknown>;
+    }
+
+    return resultRecord;
+  }
+
+  private quoteSheetName(sheetName: string): string {
+    return /^[A-Za-z0-9_]+$/.test(sheetName) ? sheetName : `'${sheetName.replace(/'/g, "''")}'`;
+  }
+
+  private async gatherLivePlanningContext(spreadsheetId?: string): Promise<string | undefined> {
+    if (!spreadsheetId || !this.handlers) {
+      return undefined;
+    }
+
+    try {
+      const scoutResult = await this.executeHandler('sheets_analyze', 'scout', {
+        spreadsheetId,
+        verbosity: 'minimal',
+      });
+      const scoutPayload = this.getResponsePayload(scoutResult);
+      const scout = scoutPayload?.['scout'];
+      if (typeof scout !== 'object' || scout === null) {
+        return undefined;
+      }
+
+      const scoutSheets = Array.isArray((scout as Record<string, unknown>)['sheets'])
+        ? ((scout as Record<string, unknown>)['sheets'] as Array<Record<string, unknown>>)
+        : [];
+      const rankedSheets = scoutSheets
+        .filter((sheet) => typeof sheet === 'object' && sheet !== null)
+        .sort((left, right) => {
+          const leftEmpty =
+            (left['flags'] as Record<string, unknown> | undefined)?.['isEmpty'] === true;
+          const rightEmpty =
+            (right['flags'] as Record<string, unknown> | undefined)?.['isEmpty'] === true;
+          if (leftEmpty === rightEmpty) {
+            return Number(right['rowCount'] ?? 0) - Number(left['rowCount'] ?? 0);
+          }
+          return leftEmpty ? 1 : -1;
+        })
+        .slice(0, 3);
+
+      const parts: string[] = [];
+      for (const sheet of rankedSheets) {
+        const title = typeof sheet['title'] === 'string' ? sheet['title'] : undefined;
+        if (!title) {
+          continue;
+        }
+
+        const summaryParts = [
+          `sheet="${title}"`,
+          `rows=${Number(sheet['rowCount'] ?? 0)}`,
+          `cols=${Number(sheet['columnCount'] ?? 0)}`,
+        ];
+
+        try {
+          const readResult = await this.executeHandler('sheets_data', 'read', {
+            spreadsheetId,
+            range: `${this.quoteSheetName(title)}!1:3`,
+            verbosity: 'minimal',
+          });
+          const readPayload = this.getResponsePayload(readResult);
+          const values = Array.isArray(readPayload?.['values'])
+            ? (readPayload?.['values'] as unknown[][])
+            : [];
+          const headerRow = Array.isArray(values[0]) ? values[0] : [];
+          const sampleRow = Array.isArray(values[1]) ? values[1] : [];
+
+          if (headerRow.length > 0) {
+            summaryParts.push(`headers=${JSON.stringify(headerRow)}`);
+          }
+          if (sampleRow.length > 0) {
+            summaryParts.push(`sample=${JSON.stringify(sampleRow)}`);
+          }
+        } catch {
+          // Best-effort live context only.
+        }
+
+        parts.push(summaryParts.join(', '));
+      }
+
+      if (parts.length === 0) {
+        return undefined; // OK: Explicit empty — no scout data to inject
+      }
+
+      return `\nSpreadsheet scout (live): ${parts.join(' | ')}`;
+    } catch {
+      return undefined; // OK: Explicit empty — scout is best-effort, never blocks plan
+    }
+  }
+
   async handle(input: SheetsAgentInput): Promise<SheetsAgentOutput> {
     const req = input.request;
     const startTime = Date.now();
@@ -61,11 +161,46 @@ export class AgentHandler {
     try {
       switch (req.action) {
         case 'plan': {
+          // Enrich context with spreadsheet metadata from session for smarter planning
+          let enrichedContext = req.context || '';
+          if (this.sessionContext) {
+            try {
+              const summary = this.sessionContext.getSummary();
+              if (summary.activeSpreadsheet) {
+                const metaParts: string[] = [];
+                if (summary.activeSpreadsheet.title) {
+                  metaParts.push(`Title: ${summary.activeSpreadsheet.title}`);
+                }
+                if (summary.activeSpreadsheet.sheetNames?.length) {
+                  metaParts.push(`Sheet names: ${summary.activeSpreadsheet.sheetNames.join(', ')}`);
+                }
+                if (summary.recentOperations?.length) {
+                  const recentOps = summary.recentOperations
+                    .slice(0, 5)
+                    .map((op) => `${op.tool}.${op.action}${op.range ? ` on ${op.range}` : ''}`)
+                    .join('; ');
+                  metaParts.push(`Recent operations: ${recentOps}`);
+                }
+                if (metaParts.length > 0) {
+                  const sessionMeta = `\nSpreadsheet metadata (from session): ${metaParts.join('; ')}`;
+                  enrichedContext = enrichedContext ? enrichedContext + sessionMeta : sessionMeta;
+                }
+              }
+            } catch {
+              // Non-blocking: metadata enrichment is best-effort
+            }
+          }
+          const livePlanningContext = await this.gatherLivePlanningContext(req.spreadsheetId);
+          if (livePlanningContext) {
+            enrichedContext = enrichedContext
+              ? enrichedContext + livePlanningContext
+              : livePlanningContext;
+          }
           const plan = await compilePlanAI(
             req.description,
             req.maxSteps ?? 10,
             req.spreadsheetId,
-            req.context
+            enrichedContext || undefined
           );
           return {
             response: {

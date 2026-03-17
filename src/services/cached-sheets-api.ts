@@ -23,6 +23,7 @@ import { logger } from '../utils/logger.js';
 import { cacheHitsTotal, cacheMissesTotal } from '../observability/metrics.js';
 import { getTracer } from '../utils/tracing.js';
 import { getAccessPatternTracker } from './access-pattern-tracker.js';
+import { getEnv } from '../config/env.js';
 
 /**
  * Statistics for cached API operations
@@ -89,7 +90,7 @@ export class CachedSheetsApi {
     };
 
     // Check if conditional requests are enabled (Priority 9)
-    const conditionalRequestsEnabled = process.env['ENABLE_CONDITIONAL_REQUESTS'] !== 'false';
+    const conditionalRequestsEnabled = getEnv().ENABLE_CONDITIONAL_REQUESTS;
 
     if (conditionalRequestsEnabled) {
       // Try conditional request with If-None-Match header
@@ -214,7 +215,7 @@ export class CachedSheetsApi {
     };
 
     // Check if conditional requests are enabled (Priority 9)
-    const conditionalRequestsEnabled = process.env['ENABLE_CONDITIONAL_REQUESTS'] !== 'false';
+    const conditionalRequestsEnabled = getEnv().ENABLE_CONDITIONAL_REQUESTS;
 
     if (conditionalRequestsEnabled) {
       // Try conditional request with If-None-Match header

@@ -22,6 +22,7 @@ import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { logger } from '../utils/logger.js';
 import { validateWebhookUrl } from './webhook-url-validation.js';
 import { ServiceError, NotFoundError } from '../core/errors.js';
+import { getApiSpecificCircuitBreakerConfig } from '../config/env.js';
 
 /**
  * Configuration for a federated MCP server
@@ -82,9 +83,10 @@ export class FederatedMcpClient {
     let breaker = this.circuitBreakers.get(serverName);
     if (!breaker) {
       const config = this.serverConfigs.get(serverName);
+      const federationConfig = getApiSpecificCircuitBreakerConfig('federation');
       breaker = new CircuitBreaker({
-        failureThreshold: 5,
-        successThreshold: 2,
+        failureThreshold: federationConfig.failureThreshold,
+        successThreshold: federationConfig.successThreshold,
         timeout: config?.timeoutMs ?? this.defaultTimeoutMs,
       });
       this.circuitBreakers.set(serverName, breaker);

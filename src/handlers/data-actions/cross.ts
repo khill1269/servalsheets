@@ -5,6 +5,7 @@
 import type { DataResponse, SheetsDataInput } from '../../schemas/data.js';
 import type { ValuesArray } from '../../schemas/index.js';
 import { generateAIInsight } from '../../mcp/sampling.js';
+import { recordCrossSpreadsheetOp } from '../../observability/metrics.js';
 import type { DataHandlerAccess, ResponseFormat } from './internal.js';
 import {
   shapeValuesByResponseFormat,
@@ -72,6 +73,7 @@ export async function handleCrossRead(
       `of ${shapedRows.originalRowCount}x${shapedRows.originalColumnCount}. Use response_format:"full" for complete rows.`;
   }
 
+  recordCrossSpreadsheetOp('cross_read', 'success');
   return ha.makeSuccess(
     'cross_read',
     responseData,
@@ -135,6 +137,8 @@ export async function handleCrossQuery(
     responseData['interpretation'] = interpretation;
   }
 
+  recordCrossSpreadsheetOp('cross_query', 'success');
+
   return ha.makeSuccess(
     'cross_query',
     responseData,
@@ -173,6 +177,7 @@ export async function handleCrossWrite(
     /* non-blocking */
   }
 
+  recordCrossSpreadsheetOp('cross_write', 'success');
   return ha.makeSuccess('cross_write', {
     cellsCopied: result.cellsCopied,
     updatedRange: result.updatedRange,
@@ -247,6 +252,8 @@ export async function handleCrossCompare(
   if (narrative) {
     responseData['narrative'] = narrative;
   }
+
+  recordCrossSpreadsheetOp('cross_compare', 'success');
 
   return ha.makeSuccess(
     'cross_compare',

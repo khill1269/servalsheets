@@ -36,7 +36,7 @@ import type { Intent } from '../core/intent.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { executeWithRetry } from '../utils/retry.js';
 import { getRequestAbortSignal } from '../utils/request-context.js';
-import { getCircuitBreakerConfig, getEnv } from '../config/env.js';
+import { getApiSpecificCircuitBreakerConfig, getEnv } from '../config/env.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import { randomBytes } from 'crypto';
 import type {
@@ -179,11 +179,11 @@ export class SheetsAppsScriptHandler extends BaseHandler<
 
     // Initialize circuit breaker for Apps Script API
     // Lower failure threshold (3 vs 5) due to lower quotas
-    const circuitConfig = getCircuitBreakerConfig();
+    const appsscriptConfig = getApiSpecificCircuitBreakerConfig('appsscript');
     this.circuitBreaker = new CircuitBreaker({
-      failureThreshold: 3,
-      successThreshold: circuitConfig.successThreshold,
-      timeout: 60000, // 60 seconds (longer due to script execution time)
+      failureThreshold: appsscriptConfig.failureThreshold,
+      successThreshold: appsscriptConfig.successThreshold,
+      timeout: appsscriptConfig.timeout,
       name: 'appsscript-api',
     });
 

@@ -94,6 +94,12 @@ export interface RequestScopedSessionContext {
   trackRequest(): void;
 }
 
+export interface RequestLlmProvenance {
+  aiMode: 'sampling' | 'fallback';
+  aiProvider?: string;
+  aiModelUsed?: string;
+}
+
 export interface RequestContext {
   requestId: string;
   logger: Logger;
@@ -158,6 +164,11 @@ export interface RequestContext {
    * Used to compute _meta.executionTimeMs at response build time.
    */
   requestStartTime: number;
+  /**
+   * Last AI provenance recorded during this request.
+   * Used to surface whether a response came from MCP sampling or fallback.
+   */
+  llmProvenance?: RequestLlmProvenance;
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -245,6 +256,18 @@ export function runWithRequestContext<T>(
 
 export function getRequestContext(): RequestContext | undefined {
   return storage.getStore();
+}
+
+export function recordRequestLlmProvenance(provenance: RequestLlmProvenance): void {
+  const context = storage.getStore();
+  if (!context) {
+    return;
+  }
+  context.llmProvenance = provenance;
+}
+
+export function getRequestLlmProvenance(): RequestLlmProvenance | undefined {
+  return storage.getStore()?.llmProvenance;
 }
 
 export function getRequestAbortSignal(): AbortSignal | undefined {

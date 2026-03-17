@@ -12,6 +12,7 @@
 
 import type { ClientCapabilities, ElicitResult } from '@modelcontextprotocol/sdk/types.js';
 import { ServiceError } from '../core/errors.js';
+import { recordElicitationRequest } from '../observability/metrics.js';
 
 // ============================================================================
 // Types
@@ -559,18 +560,21 @@ export async function confirmDestructiveAction(
 
     const result = await Promise.race([elicitPromise, timeoutPromise]);
 
+    recordElicitationRequest(action, 'accepted');
     if (result.action === 'accept' && result.content?.['confirm'] === true) {
       return {
         confirmed: true,
         reason: result.content['reason'] as string | undefined,
       };
     }
+    recordElicitationRequest(action, 'declined');
 
     // User declined or cancelled
     return { confirmed: false };
   } catch (_error) {
     // Client doesn't support elicitation or timed out — proceed by default since
     // user explicitly requested the action (safe per MCP spec backward compatibility)
+    recordElicitationRequest(action, 'unavailable');
     return { confirmed: true };
   }
 }

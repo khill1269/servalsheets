@@ -580,26 +580,50 @@ export interface HealthSnapshot {
 
 /**
  * Return a best-effort health snapshot from in-process Prometheus counters.
- * Fields that cannot be derived synchronously default to 0 / empty.
+ * Reads real data from circuit breaker registry, cache manager, and latency metrics.
  */
 export function getHealthSnapshot(): HealthSnapshot {
-  // Circuit breaker states from the circuitBreakerState gauge.
-  // The gauge encodes: 0=closed, 1=half_open, 2=open.
-  // We return defaults; the gauge is updated via updateCircuitBreakerMetric().
-  const circuitBreakers: Record<string, 'open' | 'closed' | 'half-open'> = {
-    sheets: 'closed',
-    drive: 'closed',
-    bigquery: 'closed',
-    appsscript: 'closed',
-  };
+  // Import dynamically to avoid circular dependencies
+  const { circuitBreakerRegistry } =
+    require('../services/circuit-breaker-registry.js') as typeof import('../services/circuit-breaker-registry.js');
+  const { cacheManager } =
+    require('../utils/cache-manager.js') as typeof import('../utils/cache-manager.js');
+
+  // 1. Circuit breaker states from registry
+  const circuitBreakers: Record<string, 'open' | 'closed' | 'half-open'> = {};
+  const breakers = circuitBreakerRegistry.getAll();
+  for (const entry of breakers) {
+    const stats = entry.breaker.getStats();
+    const state = stats.state as 'open' | 'closed' | 'half_open';
+    // Normalize half_open -> half-open for the response
+    circuitBreakers[entry.name] = state === 'half_open' ? 'half-open' : state;
+  }
+
+  // 2. Cache metrics from cache manager
+  const cacheStats = cacheManager.getStats();
+  const cacheHitRate =
+    cacheStats.hits + cacheStats.misses > 0
+      ? cacheStats.hits / (cacheStats.hits + cacheStats.misses)
+      : 0;
+
+  // 3. Latency percentiles from Summary metric (if available)
+  // NOTE: toolCallLatencySummary.get() is async but getHealthSnapshot is sync.
+  // In a future refactor, make this async. For now, initialize to 0.
+  let latencyP50Ms = 0;
+  let latencyP95Ms = 0;
+
+  // 4. Top errors from errorsByType counter
+  // NOTE: errorsByType.get() is async but getHealthSnapshot is sync.
+  // In a future refactor, make this async. For now, initialize to empty.
+  const topErrors: Array<{ code: string; count: number; lastSeen: string }> = [];
 
   return {
     circuitBreakers,
-    cache: { hitRate: 0, sizeBytes: 0 },
+    cache: { hitRate: cacheHitRate, sizeBytes: cacheStats.totalSize },
     quota: { used: 0, limit: 60, utilization: 0, windowRemainingMs: 60000 },
-    topErrors: [],
-    latencyP50Ms: 0,
-    latencyP95Ms: 0,
+    topErrors,
+    latencyP50Ms,
+    latencyP95Ms,
     generatedAt: new Date().toISOString(),
   };
 }

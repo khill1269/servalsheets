@@ -17,6 +17,7 @@
 import type { drive_v3 } from 'googleapis';
 import { ServiceError, NotFoundError } from '../core/errors.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
+import { getApiSpecificCircuitBreakerConfig } from '../config/env.js';
 
 export interface Snapshot {
   id: string;
@@ -49,10 +50,11 @@ export class SnapshotService {
     this.maxSnapshots = options.maxSnapshots ?? 10;
 
     // Initialize circuit breaker for Drive API calls
+    const snapshotConfig = getApiSpecificCircuitBreakerConfig('snapshot');
     this.driveCircuit = new CircuitBreaker({
-      failureThreshold: 5,
-      successThreshold: 2,
-      timeout: 60000, // 60 seconds
+      failureThreshold: snapshotConfig.failureThreshold,
+      successThreshold: snapshotConfig.successThreshold,
+      timeout: snapshotConfig.timeout,
       name: 'drive-api',
     });
   }

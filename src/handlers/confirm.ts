@@ -84,6 +84,26 @@ export interface ConfirmHandlerOptions {
   context: HandlerContext;
 }
 
+function buildElicitationUnavailableError(message: string): {
+  code: typeof ErrorCodes.ELICITATION_UNAVAILABLE;
+  message: string;
+  retryable: false;
+  fixableVia: { tool: string; action: string; params: { title: string } };
+} {
+  return {
+    code: ErrorCodes.ELICITATION_UNAVAILABLE,
+    message,
+    retryable: false,
+    fixableVia: {
+      tool: 'sheets_confirm',
+      action: 'wizard_start',
+      params: {
+        title: 'Confirm operation',
+      },
+    },
+  } as const;
+}
+
 /**
  * Confirmation Handler
  *
@@ -142,11 +162,9 @@ export class ConfirmHandler {
           if (!this.context.server) {
             response = {
               success: false,
-              error: {
-                code: ErrorCodes.ELICITATION_UNAVAILABLE,
-                message: 'MCP Server instance not available. Cannot perform elicitation.',
-                retryable: false,
-              },
+              error: buildElicitationUnavailableError(
+                'MCP Server instance not available. Cannot perform elicitation.'
+              ),
             };
             break;
           }
@@ -157,19 +175,9 @@ export class ConfirmHandler {
           if (!clientCapabilities?.elicitation) {
             response = {
               success: false,
-              error: {
-                code: ErrorCodes.ELICITATION_UNAVAILABLE,
-                message:
-                  'MCP Elicitation not available. The MCP client must declare elicitation capability during initialize (SEP-1036). Claude Desktop does not yet support this. Use sheets_confirm.wizard_start for multi-step confirmation flows as an alternative, or use the HTTP transport with an elicitation-capable client.',
-                retryable: false,
-                fixableVia: {
-                  tool: 'sheets_confirm',
-                  action: 'wizard_start',
-                  params: {
-                    title: 'Confirm operation',
-                  },
-                },
-              },
+              error: buildElicitationUnavailableError(
+                'MCP Elicitation not available. The MCP client must declare elicitation capability during initialize (SEP-1036). Claude Desktop does not yet support this. Use sheets_confirm.wizard_start for multi-step confirmation flows as an alternative, or use the HTTP transport with an elicitation-capable client.'
+              ),
             };
             break;
           }

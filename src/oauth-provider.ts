@@ -16,7 +16,7 @@ import jwt from 'jsonwebtoken';
 import { randomUUID, randomBytes, createHash, createHmac, timingSafeEqual } from 'crypto';
 import { rateLimit } from 'express-rate-limit';
 import { SessionStore, createSessionStore } from './storage/session-store.js';
-import { getSessionStoreConfig } from './config/env.js';
+import { getSessionStoreConfig, getApiSpecificCircuitBreakerConfig } from './config/env.js';
 import { logger } from './utils/logger.js';
 import { CircuitBreaker } from './utils/circuit-breaker.js';
 import { circuitBreakerRegistry } from './services/circuit-breaker-registry.js';
@@ -159,10 +159,11 @@ export class OAuthProvider {
     }
 
     // Initialize circuit breaker for OAuth token exchanges
+    const oauthConfig = getApiSpecificCircuitBreakerConfig('oauth');
     this.oauthCircuit = new CircuitBreaker({
-      failureThreshold: 5,
-      successThreshold: 2,
-      timeout: 30000, // 30 seconds for OAuth calls
+      failureThreshold: oauthConfig.failureThreshold,
+      successThreshold: oauthConfig.successThreshold,
+      timeout: oauthConfig.timeout,
       name: 'google-oauth',
     });
 

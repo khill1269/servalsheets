@@ -18,6 +18,7 @@ import {
   type UserPreferences,
 } from '../services/session-context.js';
 import { getHistoryService } from '../services/history-service.js';
+import { getPrefetchingSystem } from '../services/prefetching-system.js';
 import { unwrapRequest } from './base.js';
 import { ValidationError } from '../core/errors.js';
 import {
@@ -227,10 +228,19 @@ export async function handleSheetsSession(
           activatedAt: Date.now(),
         };
         session.setActiveSpreadsheet(context);
-        // Non-blocking: signal cache warm for faster subsequent operations
-        logger.debug('set_active: session context updated, ready for cache warm', {
-          spreadsheetId,
-        });
+        const prefetchingSystem = getPrefetchingSystem();
+        if (prefetchingSystem) {
+          void prefetchingSystem.prefetchOnOpen(spreadsheetId).catch((error: unknown) => {
+            logger.debug('set_active prefetch warmup failed', {
+              spreadsheetId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          });
+        } else {
+          logger.debug('set_active: session context updated, no prefetch system available', {
+            spreadsheetId,
+          });
+        }
         return {
           response: {
             success: true,

@@ -13,6 +13,8 @@
  * @module utils/response-compactor
  */
 
+import { getEnv } from '../config/env.js';
+
 export type SamplingStrategy = 'first-last' | 'evenly-spaced' | 'first-only';
 
 export interface TruncationMetadata {
@@ -151,7 +153,7 @@ const MAX_STRING_LENGTH = 200;
  * (disabled only if explicitly set to 'false')
  */
 export function isCompactModeEnabled(): boolean {
-  return process.env['COMPACT_RESPONSES'] !== 'false';
+  return getEnv().COMPACT_RESPONSES;
 }
 
 /**
@@ -160,7 +162,7 @@ export function isCompactModeEnabled(): boolean {
  * @returns True if truncation should be skipped
  */
 export function shouldSkipTruncation(verbosity?: string): boolean {
-  return verbosity === 'detailed' || process.env['COMPACT_RESPONSES'] === 'false';
+  return verbosity === 'detailed' || !getEnv().COMPACT_RESPONSES;
 }
 
 /**

@@ -1636,8 +1636,8 @@ export function initTransactionManager(
     const env = getEnv();
     transactionManagerInstance = new TransactionManager({
       enabled: env.TRANSACTIONS_ENABLED,
-      autoSnapshot: process.env['TRANSACTIONS_AUTO_SNAPSHOT'] !== 'false',
-      autoRollback: process.env['TRANSACTIONS_AUTO_ROLLBACK'] !== 'false',
+      autoSnapshot: env.TRANSACTIONS_AUTO_SNAPSHOT,
+      autoRollback: env.TRANSACTIONS_AUTO_ROLLBACK,
       maxOperationsPerTransaction: parseInt(process.env['TRANSACTIONS_MAX_OPERATIONS'] || '100'),
       transactionTimeoutMs: parseInt(process.env['TRANSACTIONS_TIMEOUT_MS'] || '300000'),
       snapshotRetentionMs: parseInt(process.env['TRANSACTIONS_SNAPSHOT_RETENTION_MS'] || '3600000'),

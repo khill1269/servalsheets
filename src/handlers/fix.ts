@@ -15,6 +15,7 @@ import type { Intent } from '../core/intent.js';
 import { CleaningEngine, parseRangeOffset } from '../services/cleaning-engine.js';
 import { generateAIInsight, withSamplingTimeout, assertSamplingConsent } from '../mcp/sampling.js';
 import { sendProgress } from '../utils/request-context.js';
+import { recordCleaningOp } from '../observability/metrics.js';
 
 // ISSUE-047: CleaningEngine is stateless — use module-level singleton to avoid
 // recreating the instance (and its pre-compiled rule arrays) on every action call.
@@ -239,6 +240,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     }
 
     if (!resolvedInput.spreadsheetId || !resolvedInput.range) {
+      recordCleaningOp('clean', 'unknown', 'error');
       return {
         response: this.mapError(new Error('Missing required fields: spreadsheetId and range')),
       };
@@ -307,6 +309,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
         changes: result.changes,
         cleaningSummary: result.summary,
       };
+      recordCleaningOp('clean', 'apply', 'success');
       return { response: super.applyVerbosityFilter(response, verbosity) };
     }
 
@@ -357,6 +360,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       cleaningSummary: result.summary,
       ...(aiRecommendation !== undefined ? { aiRecommendation } : {}),
     };
+    recordCleaningOp('clean', 'preview', 'success');
     return { response: super.applyVerbosityFilter(response, verbosity) };
   }
 
@@ -367,6 +371,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<SheetsFixOutput> {
     if (!req.spreadsheetId || !req.range || !req.columns) {
+      recordCleaningOp('standardize_formats', 'unknown', 'error');
       return {
         response: this.mapError(
           new Error('Missing required fields: spreadsheetId, range, and columns')
@@ -431,6 +436,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
         formatChanges: result.changes,
         formatSummary: result.summary,
       };
+      recordCleaningOp('standardize_formats', 'apply', 'success');
       return { response: super.applyVerbosityFilter(response, verbosity) };
     }
 
@@ -480,6 +486,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       formatSummary: result.summary,
       ...(aiWarnings !== undefined ? { aiWarnings } : {}),
     };
+    recordCleaningOp('standardize_formats', 'preview', 'success');
     return { response: super.applyVerbosityFilter(response, verbosity) };
   }
 
@@ -490,6 +497,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<SheetsFixOutput> {
     if (!req.spreadsheetId || !req.range || !req.strategy) {
+      recordCleaningOp('fill_missing', 'unknown', 'error');
       return {
         response: this.mapError(
           new Error('Missing required fields: spreadsheetId, range, and strategy')
@@ -559,6 +567,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
         fillChanges: result.changes,
         fillSummary: result.summary,
       };
+      recordCleaningOp('fill_missing', 'apply', 'success');
       return { response: super.applyVerbosityFilter(response, verbosity) };
     }
 
@@ -608,6 +617,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       fillSummary: result.summary,
       ...(aiEvaluation !== undefined ? { aiEvaluation } : {}),
     };
+    recordCleaningOp('fill_missing', 'preview', 'success');
     return { response: super.applyVerbosityFilter(response, verbosity) };
   }
 
@@ -618,6 +628,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<SheetsFixOutput> {
     if (!req.spreadsheetId || !req.range) {
+      recordCleaningOp('detect_anomalies', 'unknown', 'error');
       return {
         response: this.mapError(new Error('Missing required fields: spreadsheetId and range')),
       };
@@ -663,6 +674,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       anomalySummary: result.summary,
       ...(aiInsight !== undefined ? { aiInsight } : {}),
     };
+    recordCleaningOp('detect_anomalies', 'preview', 'success');
     return { response: super.applyVerbosityFilter(response, verbosity) };
   }
 
@@ -673,6 +685,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     verbosity: 'minimal' | 'standard' | 'detailed'
   ): Promise<SheetsFixOutput> {
     if (!req.spreadsheetId || !req.range) {
+      recordCleaningOp('suggest_cleaning', 'preview', 'error');
       return {
         response: this.mapError(new Error('Missing required fields: spreadsheetId and range')),
       };
@@ -732,6 +745,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       /* non-blocking */
     }
 
+    recordCleaningOp('suggest_cleaning', 'preview', 'success');
     return { response: super.applyVerbosityFilter(response, verbosity) };
   }
 

@@ -16,6 +16,7 @@
 
 import { logger } from '../utils/logger.js';
 import { ConfigError, ServiceError } from '../core/errors.js';
+import { getEnv } from '../config/env.js';
 
 /**
  * Discovery API schema definition
@@ -171,8 +172,8 @@ export class DiscoveryApiClient {
   constructor(config: DiscoveryClientConfig = {}) {
     // Phase 2.2: Enable Discovery API by default for schema validation
     // Users can disable by setting DISCOVERY_API_ENABLED=false
-    this.enabled = config.enabled ?? process.env['DISCOVERY_API_ENABLED'] !== 'false';
-    this.cacheTTL = config.cacheTTL ?? parseInt(process.env['DISCOVERY_CACHE_TTL'] ?? '86400', 10);
+    this.enabled = config.enabled ?? getEnv().DISCOVERY_API_ENABLED;
+    this.cacheTTL = config.cacheTTL ?? getEnv().DISCOVERY_CACHE_TTL;
     this.timeout = config.timeout ?? 30000;
   }
 
@@ -604,12 +605,11 @@ let globalDiscoveryClient: DiscoveryApiClient | null = null;
  */
 export function getDiscoveryApiClient(): DiscoveryApiClient {
   if (!globalDiscoveryClient) {
+    const env = getEnv();
     globalDiscoveryClient = new DiscoveryApiClient({
       // Phase 2.2: Enabled by default, disable with DISCOVERY_API_ENABLED=false
-      enabled: process.env['DISCOVERY_API_ENABLED'] !== 'false',
-      cacheTTL: process.env['DISCOVERY_CACHE_TTL']
-        ? parseInt(process.env['DISCOVERY_CACHE_TTL'], 10)
-        : undefined,
+      enabled: env.DISCOVERY_API_ENABLED,
+      cacheTTL: env.DISCOVERY_CACHE_TTL,
     });
   }
   return globalDiscoveryClient;

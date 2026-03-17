@@ -37,7 +37,7 @@ import {
   FallbackStrategies,
   type ICircuitBreaker,
 } from '../utils/circuit-breaker.js';
-import { getCircuitBreakerConfig } from '../config/env.js';
+import { getCircuitBreakerConfig, getEnv } from '../config/env.js';
 import { circuitBreakerRegistry } from './circuit-breaker-registry.js';
 import PQueue from 'p-queue';
 import { getRequestContext } from '../utils/request-context.js';
@@ -418,7 +418,7 @@ export class GoogleApiClient {
 
     // Enable HTTP/2 for improved performance (5-15% latency reduction)
     // gaxios automatically negotiates HTTP/2 via ALPN if server supports it
-    const enableHTTP2 = process.env['GOOGLE_API_HTTP2_ENABLED'] !== 'false'; // Enabled by default
+    const enableHTTP2 = getEnv().GOOGLE_API_HTTP2_ENABLED; // Enabled by default
 
     // Validate HTTP/2 configuration
     const validation = validateHTTP2Config(enableHTTP2);
@@ -591,7 +591,7 @@ export class GoogleApiClient {
     this.httpAgents = createHttpAgents();
 
     // Recreate API clients with new agents
-    const enableHTTP2 = process.env['GOOGLE_API_HTTP2_ENABLED'] !== 'false';
+    const enableHTTP2 = getEnv().GOOGLE_API_HTTP2_ENABLED;
 
     const sheetsApi = google.sheets({
       version: 'v4',
@@ -871,7 +871,7 @@ export class GoogleApiClient {
    * Only runs if DISCOVERY_API_ENABLED environment variable is true
    */
   private async validateSchemasWithDiscovery(): Promise<void> {
-    if (process.env['DISCOVERY_API_ENABLED'] !== 'true') {
+    if (!getEnv().DISCOVERY_API_ENABLED) {
       return;
     }
 

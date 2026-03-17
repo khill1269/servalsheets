@@ -422,6 +422,13 @@ describe('ConfirmHandler', () => {
       if (!result.response.success) {
         expect(result.response.error.code).toBe('ELICITATION_UNAVAILABLE');
         expect(result.response.error.message).toContain('Server instance not available');
+        expect(result.response.error.fixableVia).toEqual({
+          tool: 'sheets_confirm',
+          action: 'wizard_start',
+          params: {
+            title: 'Confirm operation',
+          },
+        });
       }
 
       const parseResult = SheetsConfirmOutputSchema.safeParse(result);
@@ -456,6 +463,13 @@ describe('ConfirmHandler', () => {
         expect(result.response.error.code).toBe('ELICITATION_UNAVAILABLE');
         expect(result.response.error.message).toContain('MCP Elicitation not available');
         expect(result.response.error.retryable).toBe(false);
+        expect(result.response.error.fixableVia).toEqual({
+          tool: 'sheets_confirm',
+          action: 'wizard_start',
+          params: {
+            title: 'Confirm operation',
+          },
+        });
       }
 
       const parseResult = SheetsConfirmOutputSchema.safeParse(result);

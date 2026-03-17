@@ -8,6 +8,7 @@
 import { isLikelyMutationAction } from './write-lock-middleware.js';
 import { logger } from '../utils/logger.js';
 import { ConfigError } from '../core/errors.js';
+import { getEnv } from '../config/env.js';
 
 const DANGEROUS_FORMULA_PATTERN =
   /^[=+\-@].*(?:IMPORTDATA|IMPORTRANGE|IMPORTFEED|IMPORTHTML|IMPORTXML|GOOGLEFINANCE|QUERY)\s*\(/i;
@@ -125,8 +126,9 @@ export function detectMutationSafetyViolation(
   const action = req['action'];
   if (typeof action !== 'string' || !isLikelyMutationAction(action)) return null;
 
-  if (process.env['SERVAL_ALLOW_FORMULA_PASSTHROUGH'] === 'true') {
-    if (process.env['NODE_ENV'] === 'production') {
+  const env = getEnv();
+  if (env.SERVAL_ALLOW_FORMULA_PASSTHROUGH) {
+    if (env.NODE_ENV === 'production') {
       throw new ConfigError(
         'SERVAL_ALLOW_FORMULA_PASSTHROUGH cannot be enabled in production. ' +
           'This flag disables formula injection protection and is not permitted in production environments.',

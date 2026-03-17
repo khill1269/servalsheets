@@ -17,6 +17,7 @@ import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
 import type { SnapshotService } from '../../services/snapshot.js';
 import type { SessionContextManager } from '../../services/session-context.js';
 import type { ResponseMeta } from '../../schemas/shared.js';
+import { recordCompositeWorkflow } from '../../observability/metrics.js';
 
 type GenerateMetaFn = (
   action: string,
@@ -215,6 +216,7 @@ export async function handleAuditSheetAction(
     `Audit complete: ${totalCells} cells checked, ${issues.length} issue(s) found`
   );
 
+  recordCompositeWorkflow('audit_sheet', 'success');
   return {
     success: true as const,
     action: 'audit_sheet' as const,
@@ -372,6 +374,7 @@ export async function handlePublishReportAction(
   const buffer = Buffer.from(exportResponse.data as ArrayBuffer);
   const base64Content = buffer.toString('base64');
 
+  recordCompositeWorkflow('publish_report', 'success');
   return {
     success: true as const,
     action: 'publish_report' as const,
@@ -488,6 +491,7 @@ export async function handleDataPipelineAction(
     `Pipeline complete: ${stepsExecuted} step(s), ${rowsIn} → ${dataRows.length} row(s)`
   );
 
+  recordCompositeWorkflow('data_pipeline', 'success');
   return {
     success: true as const,
     action: 'data_pipeline' as const,
@@ -590,6 +594,7 @@ export async function handleInstantiateTemplateAction(
     snapshotId: snapshot?.snapshotId,
   });
 
+  recordCompositeWorkflow('instantiate_template', 'success');
   return {
     success: true as const,
     action: 'instantiate_template' as const,
@@ -716,6 +721,7 @@ export async function handleMigrateSpreadsheetAction(
     `Migration complete: ${migratedRows.length} row(s), ${input.columnMapping.length} column(s) mapped`
   );
 
+  recordCompositeWorkflow('migrate_spreadsheet', 'success');
   return {
     success: true as const,
     action: 'migrate_spreadsheet' as const,

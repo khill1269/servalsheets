@@ -7,7 +7,7 @@ import { getSessionContext } from '../../services/session-context.js';
 import { redactSensitiveData } from '../../middleware/redaction.js';
 import { getErrorCodeCompatibility } from '../../utils/error-code-compat.js';
 import { logger } from '../../utils/logger.js';
-import { getRequestContext } from '../../utils/request-context.js';
+import { getRequestContext, getRequestLlmProvenance } from '../../utils/request-context.js';
 import { compactResponse, isCompactModeEnabled } from '../../utils/response-compactor.js';
 import { applyResponseIntelligence } from './response-intelligence.js';
 import { sanitizeToolOutput } from './tool-output-sanitization.js';
@@ -139,6 +139,7 @@ export function buildToolResponse(
   if (initialResponse) {
     if (requestContext) {
       const scMeta = getMetaRecord(structuredContent);
+      const llmProvenance = getRequestLlmProvenance();
       const quotaStatus = getConcurrencyCoordinator().getQuotaStatus();
       const executionTimeMs = Date.now() - requestContext.requestStartTime;
       const apiCallsMade = requestContext.apiCallsMade;
@@ -153,6 +154,7 @@ export function buildToolResponse(
         executionTimeMs,
         apiCallsMade,
         ...(quotaImpact ? { quotaImpact } : {}),
+        ...(llmProvenance ?? {}),
         quotaStatus: {
           used: quotaStatus.used,
           limit: quotaStatus.limit,
@@ -183,12 +185,16 @@ export function buildToolResponse(
         typeof preCompactResponse['spreadsheetId'] === 'string'
           ? preCompactResponse['spreadsheetId']
           : undefined;
+      const existingMeta = getMetaRecord(structuredContent);
+      const rawAiMode = existingMeta['aiMode'];
+      const aiMode: 'sampling' | 'heuristic' | 'cached' =
+        rawAiMode === 'sampling' || rawAiMode === 'cached' ? rawAiMode : 'heuristic';
       intelligenceResult = applyResponseIntelligence(preCompactResponse, {
         toolName,
         actionName: responseAction,
         hasFailure: preCompactHasFailure,
         spreadsheetId: responseSpreadsheetId,
-        aiMode: 'heuristic',
+        aiMode,
       });
     } catch (err) {
       logger.debug('applyResponseIntelligence threw, continuing without enrichment', {

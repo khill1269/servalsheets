@@ -9,6 +9,7 @@ import type {
   CompositeOutput,
 } from '../../schemas/composite.js';
 import type { SamplingServer } from '../../mcp/sampling.js';
+import { recordGenerationRequest } from '../../observability/metrics.js';
 
 export interface GenerationDeps {
   sheetsApi?: sheets_v4.Sheets;
@@ -51,6 +52,7 @@ export async function handleGenerateSheetAction(
   );
 
   if (input.safety?.dryRun) {
+    recordGenerationRequest('generate_sheet', 'success');
     return {
       success: true,
       action: 'generate_sheet',
@@ -89,6 +91,7 @@ export async function handleGenerateSheetAction(
 
   await sendProgress(3, 3, 'Complete');
 
+  recordGenerationRequest('generate_sheet', 'success');
   return {
     success: true,
     action: 'generate_sheet',
@@ -134,6 +137,7 @@ export async function handleGenerateTemplateAction(
       )
     : undefined;
 
+  recordGenerationRequest('generate_template', 'success');
   return {
     success: true,
     action: 'generate_template',
@@ -198,6 +202,7 @@ export async function handlePreviewGenerationAction(
     }
   }
 
+  recordGenerationRequest('preview_generation', 'success');
   return {
     success: true,
     action: 'preview_generation',

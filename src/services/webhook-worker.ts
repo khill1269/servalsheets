@@ -22,6 +22,7 @@ import { signWebhookPayload } from '../security/webhook-signature.js';
 import { resourceNotifications } from '../resources/notifications.js';
 import { getCostTracker } from './cost-tracker.js';
 import { CircuitBreaker, CircuitBreakerError } from '../utils/circuit-breaker.js';
+import { getApiSpecificCircuitBreakerConfig } from '../config/env.js';
 
 /**
  * Webhook worker configuration
@@ -56,13 +57,14 @@ export class WebhookWorker {
       origin = url; // fallback for non-standard URLs
     }
     if (!this.urlBreakers.has(origin)) {
+      const workerConfig = getApiSpecificCircuitBreakerConfig('webhook_worker');
       this.urlBreakers.set(
         origin,
         new CircuitBreaker({
           name: `webhook:${origin}`,
-          failureThreshold: 5, // open after 5 network failures
-          successThreshold: 2, // close after 2 successes
-          timeout: 60000, // reset after 60s
+          failureThreshold: workerConfig.failureThreshold,
+          successThreshold: workerConfig.successThreshold,
+          timeout: workerConfig.timeout,
         })
       );
     }

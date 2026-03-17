@@ -15,6 +15,3 @@ export * from './tenant-isolation.js';
 
 // RBAC middleware
 export * from './rbac-middleware.js';
-
-// Audit middleware (compliance-grade logging)
-export { AuditMiddleware, createAuditMiddleware } from './audit-middleware.js';

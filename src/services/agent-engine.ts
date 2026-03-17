@@ -21,6 +21,7 @@ import { encryptPlan, decryptPlan } from '../utils/plan-crypto.js';
 import { createRequestAbortError, getRequestContext } from '../utils/request-context.js';
 import { NotFoundError, ValidationError } from '../core/errors.js';
 import type { ErrorDetail } from '../schemas/shared.js';
+import { TOOL_DEFINITIONS } from '../mcp/registration/tool-definitions.js';
 import { getSessionContext } from './session-context.js';
 
 interface SamplingTextContent {
@@ -231,6 +232,474 @@ export type ExecuteHandlerFn = (
   action: string,
   params: Record<string, unknown>
 ) => Promise<unknown>;
+
+type StepRunStatus = 'success' | 'retry' | 'pause';
+
+type StepRunOutcome = {
+  status: StepRunStatus;
+  stepResult?: StepResult;
+  errorDetail?: ErrorDetail;
+  recoveryStep?: ExecutionStep | null;
+  retryAfterMs?: number;
+};
+
+type ParsedHandlerResponse = {
+  success?: boolean;
+  action?: string;
+  error?: Record<string, unknown>;
+  values?: unknown;
+  scout?: Record<string, unknown>;
+  spreadsheet?: Record<string, unknown>;
+};
+
+type StepVerificationIssue = {
+  message: string;
+  details?: Record<string, unknown>;
+};
+
+type RangeVerificationTarget = {
+  kind: 'range';
+  action: 'write' | 'append' | 'clear';
+  spreadsheetId: string;
+  range: string;
+  expectedValues?: unknown[][];
+};
+
+type SheetVerificationTarget = {
+  kind: 'sheet';
+  action: 'add_sheet' | 'delete_sheet';
+  spreadsheetId: string;
+  sheetId?: number;
+  sheetName?: string;
+  shouldExist: boolean;
+};
+
+type VerificationTarget = RangeVerificationTarget | SheetVerificationTarget;
+
+const TOOL_INPUT_SCHEMAS = new Map(
+  TOOL_DEFINITIONS.map((tool) => [tool.name, tool.inputSchema] as const)
+);
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function getResponsePayload(result: unknown): ParsedHandlerResponse | null {
+  if (!isPlainRecord(result)) {
+    return null;
+  }
+
+  if (isPlainRecord(result['response'])) {
+    return result['response'] as ParsedHandlerResponse;
+  }
+
+  return result as ParsedHandlerResponse;
+}
+
+function extractValuesFromResult(result: unknown): unknown[][] | undefined {
+  const payload = getResponsePayload(result);
+  if (!payload || !Array.isArray(payload.values)) {
+    return undefined;
+  }
+  return payload.values as unknown[][];
+}
+
+function extractScoutSheets(
+  result: unknown
+): Array<Record<string, unknown> & { sheetId?: number; title?: string; rowCount?: number }> {
+  const payload = getResponsePayload(result);
+  const scout = payload?.scout;
+  if (isPlainRecord(scout) && Array.isArray(scout['sheets'])) {
+    return scout['sheets'].filter(isPlainRecord) as Array<
+      Record<string, unknown> & { sheetId?: number; title?: string; rowCount?: number }
+    >;
+  }
+
+  const payloadRecord = payload as Record<string, unknown> | null;
+  if (isPlainRecord(payloadRecord) && Array.isArray(payloadRecord['sheets'])) {
+    return payloadRecord['sheets'].filter(isPlainRecord) as Array<
+      Record<string, unknown> & { sheetId?: number; title?: string; rowCount?: number }
+    >;
+  }
+
+  return [];
+}
+
+function quoteSheetName(sheetName: string): string {
+  return /^[A-Za-z0-9_]+$/.test(sheetName) ? sheetName : `'${sheetName.replace(/'/g, "''")}'`;
+}
+
+function summarizePlanningContext(context?: string): string | undefined {
+  const trimmed = context?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return trimmed.length <= 2000 ? trimmed : `${trimmed.slice(0, 2000)}...`;
+}
+
+function buildPlanState(args: {
+  planId: string;
+  description: string;
+  steps: ExecutionStep[];
+  now: string;
+  spreadsheetId?: string;
+  planningContextSummary?: string;
+}): PlanState {
+  return {
+    planId: args.planId,
+    description: args.description,
+    spreadsheetId: args.spreadsheetId,
+    planningContextSummary: args.planningContextSummary,
+    steps: args.steps,
+    status: 'draft',
+    results: [],
+    checkpoints: [],
+    createdAt: args.now,
+    updatedAt: args.now,
+    currentStepIndex: 0,
+  };
+}
+
+function getEffectiveStepParams(
+  step: ExecutionStep,
+  plan: Pick<PlanState, 'spreadsheetId'>
+): Record<string, unknown> {
+  return {
+    ...(plan.spreadsheetId && step.params['spreadsheetId'] === undefined
+      ? { spreadsheetId: plan.spreadsheetId }
+      : {}),
+    ...step.params,
+  };
+}
+
+function formatIssuePath(pathSegments: Array<string | number>): string {
+  const normalized = pathSegments[0] === 'request' ? pathSegments.slice(1) : pathSegments;
+  return normalized.length > 0 ? normalized.join('.') : 'request';
+}
+
+function buildStepParamValidationError(
+  step: ExecutionStep,
+  issues: Array<{ path: Array<string | number>; message: string }>
+): ErrorDetail {
+  const fieldErrors = issues.slice(0, 5).map((issue) => ({
+    field: formatIssuePath(issue.path),
+    message: issue.message,
+  }));
+  const issueSummary = fieldErrors.map((issue) => `${issue.field}: ${issue.message}`).join('; ');
+
+  return {
+    code: 'INVALID_PARAMS',
+    message: `Step ${step.stepId} has invalid params for ${step.tool}.${step.action}: ${issueSummary}`,
+    retryable: false,
+    suggestedFix: 'Correct the step parameters so they match the tool input schema.',
+    resolutionSteps: [
+      `Inspect the params for ${step.tool}.${step.action}`,
+      'Fill in required fields and remove incompatible values',
+      'Retry the step after the request validates',
+    ],
+    suggestedTools: [step.tool],
+    details: {
+      validationIssues: fieldErrors,
+    },
+  };
+}
+
+function buildStepVerificationError(
+  step: ExecutionStep,
+  issue: StepVerificationIssue
+): ErrorDetail {
+  return {
+    code: 'FAILED_PRECONDITION',
+    message: `Post-step verification failed for ${step.tool}.${step.action}: ${issue.message}`,
+    retryable: false,
+    suggestedFix: 'Inspect the target range or sheet, then correct the step before retrying.',
+    resolutionSteps: [
+      `Review the target affected by ${step.tool}.${step.action}`,
+      'Confirm the intended cells or sheet changed as expected',
+      'Retry the step only after the mismatch is understood',
+    ],
+    suggestedTools: ['sheets_data', 'sheets_analyze', 'sheets_core'],
+    details: issue.details,
+  };
+}
+
+function buildHiddenFailureError(step: ExecutionStep, message: string): ErrorDetail {
+  return {
+    code: 'FAILED_PRECONDITION',
+    message,
+    retryable: false,
+    suggestedFix: 'Inspect the tool response and correct the step before retrying.',
+    resolutionSteps: [
+      'Review the returned tool response for embedded error details',
+      'Correct the underlying params or sheet state',
+      'Retry the step once the hidden failure is resolved',
+    ],
+    suggestedTools: [step.tool],
+  };
+}
+
+function validateStepParamsAgainstSchema(
+  step: ExecutionStep,
+  plan: Pick<PlanState, 'spreadsheetId'>
+): { params: Record<string, unknown>; errorDetail?: ErrorDetail } {
+  const params = getEffectiveStepParams(step, plan);
+
+  if (step.type === 'inject_cross_sheet_lookup' || step.tool === '__internal__') {
+    return { params };
+  }
+
+  const inputSchema = TOOL_INPUT_SCHEMAS.get(step.tool);
+  if (!inputSchema) {
+    return { params };
+  }
+
+  const parseResult = inputSchema.safeParse({
+    request: {
+      action: step.action,
+      ...params,
+    },
+  });
+
+  if (parseResult.success) {
+    const parsedData = parseResult.data as Record<string, unknown>;
+    const parsedRequest = parsedData['request'];
+    if (isPlainRecord(parsedRequest)) {
+      const { action: _action, ...normalizedParams } = parsedRequest;
+      return {
+        params: normalizedParams,
+      };
+    }
+    return {
+      params,
+    };
+  }
+
+  return {
+    params,
+    errorDetail: buildStepParamValidationError(
+      step,
+      parseResult.error.issues.map((issue) => ({
+        path: issue.path.filter((p): p is string | number => typeof p !== 'symbol'),
+        message: issue.message,
+      }))
+    ),
+  };
+}
+
+function isCellEmpty(value: unknown): boolean {
+  return value === undefined || value === null || value === '';
+}
+
+function hasExpectedRows(actualValues: unknown[][], expectedValues: unknown[][]): boolean {
+  if (expectedValues.length === 0) {
+    return true;
+  }
+
+  const serializedExpected = expectedValues.map((row) => JSON.stringify(row));
+  const serializedActual = actualValues.map((row) => JSON.stringify(row));
+
+  for (let start = 0; start <= serializedActual.length - serializedExpected.length; start++) {
+    const window = serializedActual.slice(start, start + serializedExpected.length);
+    if (window.every((row, index) => row === serializedExpected[index])) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function getA1Range(range: unknown): string | undefined {
+  if (typeof range === 'string') {
+    return range;
+  }
+
+  if (!isPlainRecord(range)) {
+    return undefined;
+  }
+
+  if (typeof range['a1'] === 'string') {
+    return range['a1'] as string;
+  }
+
+  if (typeof range['sheetName'] === 'string') {
+    const sheetName = quoteSheetName(range['sheetName'] as string);
+    const innerRange = typeof range['range'] === 'string' ? (range['range'] as string) : undefined;
+    return innerRange ? `${sheetName}!${innerRange}` : sheetName;
+  }
+
+  return undefined;
+}
+
+function buildVerificationTarget(
+  step: ExecutionStep,
+  params: Record<string, unknown>
+): VerificationTarget | null {
+  const spreadsheetId =
+    typeof params['spreadsheetId'] === 'string' ? (params['spreadsheetId'] as string) : undefined;
+  const a1Range = getA1Range(params['range']);
+  if (!spreadsheetId) {
+    return null;
+  }
+
+  if (step.tool === 'sheets_data' && a1Range) {
+    if (step.action === 'write' || step.action === 'append') {
+      return {
+        kind: 'range',
+        action: step.action,
+        spreadsheetId,
+        range: a1Range,
+        expectedValues: Array.isArray(params['values'])
+          ? (params['values'] as unknown[][])
+          : undefined,
+      };
+    }
+
+    if (step.action === 'clear') {
+      return {
+        kind: 'range',
+        action: 'clear',
+        spreadsheetId,
+        range: a1Range,
+      };
+    }
+  }
+
+  if (
+    step.tool === 'sheets_core' &&
+    step.action === 'add_sheet' &&
+    typeof params['title'] === 'string'
+  ) {
+    return {
+      kind: 'sheet',
+      action: 'add_sheet',
+      spreadsheetId,
+      sheetName: params['title'] as string,
+      shouldExist: true,
+    };
+  }
+
+  if (step.tool === 'sheets_core' && step.action === 'delete_sheet') {
+    return {
+      kind: 'sheet',
+      action: 'delete_sheet',
+      spreadsheetId,
+      sheetId: typeof params['sheetId'] === 'number' ? (params['sheetId'] as number) : undefined,
+      shouldExist: false,
+    };
+  }
+
+  return null;
+}
+
+async function verifyStepExecution(
+  step: ExecutionStep,
+  params: Record<string, unknown>,
+  executeHandler: ExecuteHandlerFn
+): Promise<StepVerificationIssue | null> {
+  const target = buildVerificationTarget(step, params);
+  if (!target) {
+    return null;
+  }
+
+  try {
+    if (target.kind === 'range') {
+      const readResult = await executeHandler('sheets_data', 'read', {
+        spreadsheetId: target.spreadsheetId,
+        range: target.range,
+        verbosity: 'minimal',
+      });
+      const actualValues = extractValuesFromResult(readResult) ?? [];
+
+      if (target.action === 'clear') {
+        const hasResidualValues = actualValues.some(
+          (row) => Array.isArray(row) && row.some((cell) => !isCellEmpty(cell))
+        );
+        if (hasResidualValues) {
+          return {
+            message: `Range ${target.range} still contains values after clear`,
+            details: {
+              range: target.range,
+              actualValues,
+            },
+          };
+        }
+        return null;
+      }
+
+      if (target.expectedValues && !hasExpectedRows(actualValues, target.expectedValues)) {
+        return {
+          message: `Range ${target.range} did not contain the expected values after ${target.action}`,
+          details: {
+            range: target.range,
+            expectedValues: target.expectedValues,
+            actualValues,
+          },
+        };
+      }
+
+      return null;
+    }
+
+    const scoutResult = await executeHandler('sheets_analyze', 'scout', {
+      spreadsheetId: target.spreadsheetId,
+      verbosity: 'minimal',
+    });
+    const sheets = extractScoutSheets(scoutResult);
+    const matchedSheet = sheets.find((sheet) => {
+      if (target.sheetId !== undefined && sheet['sheetId'] === target.sheetId) {
+        return true;
+      }
+      if (target.sheetName !== undefined && sheet['title'] === target.sheetName) {
+        return true;
+      }
+      return false;
+    });
+
+    if (target.shouldExist && !matchedSheet) {
+      return {
+        message: `Sheet ${target.sheetName ?? target.sheetId ?? 'unknown'} was not present after ${target.action}`,
+        details: {
+          sheetName: target.sheetName,
+          sheetId: target.sheetId,
+          availableSheets: sheets.map((sheet) => ({
+            sheetId: sheet['sheetId'],
+            title: sheet['title'],
+          })),
+        },
+      };
+    }
+
+    if (!target.shouldExist && matchedSheet) {
+      return {
+        message: `Sheet ${target.sheetName ?? target.sheetId ?? 'unknown'} still exists after ${target.action}`,
+        details: {
+          sheetName: target.sheetName,
+          sheetId: target.sheetId,
+          matchedSheet,
+        },
+      };
+    }
+
+    return null;
+  } catch (error) {
+    return {
+      message: `Could not confirm the post-step state for ${step.tool}.${step.action}`,
+      details: {
+        verificationTarget: target,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+}
+
+function upsertStepResult(plan: PlanState, stepResult: StepResult): void {
+  const existingIndex = plan.results.findIndex((result) => result.stepId === stepResult.stepId);
+  if (existingIndex >= 0) {
+    plan.results[existingIndex] = stepResult;
+    return;
+  }
+  plan.results.push(stepResult);
+}
 
 // ============================================================================
 // Workflow Templates (P2.2)
@@ -1189,17 +1658,14 @@ export async function compilePlanAI(
     }));
   }
 
-  const plan: PlanState = {
+  const plan = buildPlanState({
     planId,
     description,
     steps,
-    status: 'draft',
-    results: [],
-    checkpoints: [],
-    createdAt: now,
-    updatedAt: now,
-    currentStepIndex: 0,
-  };
+    now,
+    spreadsheetId,
+    planningContextSummary: summarizePlanningContext(context),
+  });
 
   evictOldestPlan();
   planStore.set(planId, plan);
@@ -1237,17 +1703,14 @@ export function compilePlan(
     },
   }));
 
-  const plan: PlanState = {
+  const plan = buildPlanState({
     planId,
     description,
     steps,
-    status: 'draft',
-    results: [],
-    checkpoints: [],
-    createdAt: now,
-    updatedAt: now,
-    currentStepIndex: 0,
-  };
+    now,
+    spreadsheetId,
+    planningContextSummary: summarizePlanningContext(context),
+  });
 
   evictOldestPlan();
   planStore.set(planId, plan);
@@ -1296,17 +1759,15 @@ export function compileFromTemplate(
     };
   });
 
-  const plan: PlanState = {
+  const now = new Date().toISOString();
+  const plan = buildPlanState({
     planId,
     description: `${template.name}: ${template.description}`,
     steps,
-    status: 'draft',
-    results: [],
-    checkpoints: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    currentStepIndex: 0,
-  };
+    now,
+    spreadsheetId,
+    planningContextSummary: template.description,
+  });
 
   if (planStore.size >= MAX_PLANS) evictOldestPlan();
   planStore.set(planId, plan);
@@ -1405,16 +1866,19 @@ async function executeInjectCrossSheetLookup(
     targetKeyCol: string;
     startRow: number;
   };
-  const spreadsheetId = (step.params['spreadsheetId'] as string | undefined) ?? plan.description;
+  const spreadsheetId =
+    (step.params['spreadsheetId'] as string | undefined) ?? plan.spreadsheetId ?? plan.description;
 
   // Scout to discover the last occupied row in the target sheet
-  const metaResult = (await executeHandler('sheets_analyze', 'scout', { spreadsheetId })) as
-    | { sheets?: Array<{ name: string; rowCount: number }> }
-    | undefined;
-
-  const sheetInfo = metaResult?.sheets?.find((s) => s.name === cfg.targetSheet);
+  const metaResult = await executeHandler('sheets_analyze', 'scout', {
+    spreadsheetId,
+    verbosity: 'minimal',
+  });
+  const sheetInfo = extractScoutSheets(metaResult).find(
+    (sheet) => sheet['title'] === cfg.targetSheet
+  );
   const lastRow = sheetInfo
-    ? cfg.startRow + Math.max(0, sheetInfo.rowCount - cfg.startRow)
+    ? cfg.startRow + Math.max(0, Number(sheetInfo['rowCount'] ?? 0) - cfg.startRow)
     : cfg.startRow + 99;
 
   // Build XLOOKUP formula for each row in [startRow, lastRow]
@@ -1427,7 +1891,7 @@ async function executeInjectCrossSheetLookup(
 
   await executeHandler('sheets_data', 'write', {
     spreadsheetId,
-    range: `${cfg.targetSheet}!${cfg.targetCol}${cfg.startRow}:${cfg.targetCol}${lastRow}`,
+    range: `${quoteSheetName(cfg.targetSheet)}!${cfg.targetCol}${cfg.startRow}:${cfg.targetCol}${lastRow}`,
     values: formulas,
     valueInputOption: 'USER_ENTERED',
   });
@@ -1474,6 +1938,148 @@ Reply with ONLY JSON (no markdown): { "valid": boolean, "issue"?: string, "sugge
   }
 }
 
+async function runStepWithGuards(
+  plan: PlanState,
+  step: ExecutionStep,
+  executeHandler: ExecuteHandlerFn,
+  checkpointContext: string
+): Promise<StepRunOutcome> {
+  const startedAt = new Date().toISOString();
+  createCheckpoint(plan.planId, checkpointContext);
+
+  const validation = validateStepParamsAgainstSchema(step, plan);
+  step.params = validation.params;
+
+  if (validation.errorDetail) {
+    return {
+      status: 'pause',
+      errorDetail: validation.errorDetail,
+      stepResult: {
+        stepId: step.stepId,
+        success: false,
+        error: validation.errorDetail.message,
+        startedAt,
+        completedAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  try {
+    const result =
+      step.type === 'inject_cross_sheet_lookup' || step.action === 'inject_cross_sheet_lookup'
+        ? await executeInjectCrossSheetLookup(step, plan, executeHandler)
+        : await executeHandler(step.tool, step.action, validation.params);
+
+    const validationIssue = validateStepResult(result, step);
+    if (validationIssue) {
+      logger.warn('Step result validation failed', {
+        planId: plan.planId,
+        stepId: step.stepId,
+        issue: validationIssue,
+      });
+      return {
+        status: 'pause',
+        errorDetail: buildHiddenFailureError(step, validationIssue),
+        stepResult: {
+          stepId: step.stepId,
+          success: false,
+          result,
+          error: validationIssue,
+          startedAt,
+          completedAt: new Date().toISOString(),
+        },
+      };
+    }
+
+    if (_samplingServer) {
+      const aiValidation = await aiValidateStepResult(step, result);
+      if (!aiValidation.valid && aiValidation.issue) {
+        logger.warn('AI step validation detected issue', {
+          planId: plan.planId,
+          stepId: step.stepId,
+          issue: aiValidation.issue,
+          suggestedFix: aiValidation.suggestedFix,
+        });
+      }
+    }
+
+    const verificationIssue = await verifyStepExecution(step, validation.params, executeHandler);
+    if (verificationIssue) {
+      const errorDetail = buildStepVerificationError(step, verificationIssue);
+      return {
+        status: 'pause',
+        errorDetail,
+        stepResult: {
+          stepId: step.stepId,
+          success: false,
+          result,
+          error: errorDetail.message,
+          startedAt,
+          completedAt: new Date().toISOString(),
+        },
+      };
+    }
+
+    return {
+      status: 'success',
+      stepResult: {
+        stepId: step.stepId,
+        success: true,
+        result,
+        startedAt,
+        completedAt: new Date().toISOString(),
+      },
+    };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    const errorDetail = extractErrorDetail(err);
+    const errAsObj = err as Record<string, unknown>;
+    const isRetryable =
+      errorDetail?.retryable === true || (err instanceof Error && errAsObj['isRetryable'] === true);
+    const retryAfterMs =
+      errorDetail?.retryAfterMs ??
+      (typeof errAsObj['retryAfterMs'] === 'number'
+        ? (errAsObj['retryAfterMs'] as number)
+        : undefined);
+
+    if (isRetryable && retryAfterMs !== undefined && step.retryCount === undefined) {
+      step.retryCount = 1;
+      logger.debug('Auto-retrying retryable step error', {
+        planId: plan.planId,
+        stepId: step.stepId,
+        retryAfterMs,
+        errorCode: errorDetail?.code,
+      });
+      await new Promise<void>((resolve) => setTimeout(resolve, Math.min(retryAfterMs, 30000)));
+      return {
+        status: 'retry',
+        retryAfterMs,
+      };
+    }
+
+    return {
+      status: 'pause',
+      errorDetail: errorDetail ?? undefined,
+      recoveryStep: errorDetail ? buildRecoveryStep(errorDetail) : null,
+      stepResult: {
+        stepId: step.stepId,
+        success: false,
+        error,
+        startedAt,
+        completedAt: new Date().toISOString(),
+      },
+    };
+  }
+}
+
+function persistPlanState(plan: PlanState): void {
+  plan.updatedAt = new Date().toISOString();
+  planStore.set(plan.planId, plan);
+  persistPlan(plan).catch((persistErr: unknown) => {
+    logger.warn('Failed to persist plan state', { planId: plan.planId, error: persistErr });
+  });
+}
+
 /**
  * Execute all steps in a plan sequentially.
  * Creates checkpoints before each step, records results.
@@ -1515,144 +2121,49 @@ export async function executePlan(
   for (let i = plan.currentStepIndex; i < plan.steps.length; i++) {
     const step = plan.steps[i];
     if (!step) continue; // Safety: skip if step is undefined
-    const startTime = new Date().toISOString();
+    const outcome = await runStepWithGuards(
+      plan,
+      step,
+      executeHandler,
+      `Before step: ${step.description}`
+    );
 
-    // Create checkpoint before step
-    createCheckpoint(planId, `Before step: ${step.description}`);
+    if (outcome.status === 'retry') {
+      i--;
+      continue;
+    }
 
-    try {
-      const result =
-        step.type === 'inject_cross_sheet_lookup' || step.action === 'inject_cross_sheet_lookup'
-          ? await executeInjectCrossSheetLookup(step, plan, executeHandler)
-          : await executeHandler(step.tool, step.action, step.params);
+    if (outcome.stepResult) {
+      upsertStepResult(plan, outcome.stepResult);
+    }
 
-      // Validate step result — detect hidden failures (success:false buried in response)
-      const validationIssue = validateStepResult(result, step);
-      if (validationIssue) {
-        logger.warn('Step result validation failed', {
-          planId,
-          stepId: step.stepId,
-          issue: validationIssue,
-        });
-      }
-
-      // AI reflexion validation (IMP-03): only when sampling is available and rule-based check passed
-      if (!validationIssue && _samplingServer) {
-        const aiValidation = await aiValidateStepResult(step, result);
-        if (!aiValidation.valid && aiValidation.issue) {
-          logger.warn('AI step validation detected issue', {
-            planId,
-            stepId: step.stepId,
-            issue: aiValidation.issue,
-            suggestedFix: aiValidation.suggestedFix,
-          });
-          // Informational only — don't pause the plan on AI validation alone
-        }
-      }
-
-      const stepResult: StepResult = {
-        stepId: step.stepId,
-        success: !validationIssue, // Mark as failed if validation caught a hidden error
-        result,
-        error: validationIssue ?? undefined,
-        startedAt: startTime,
-        completedAt: new Date().toISOString(),
-      };
-
-      plan.results.push(stepResult);
-
-      // If validation detected a hidden failure, pause the plan
-      if (validationIssue) {
-        plan.status = 'paused';
-        plan.error = validationIssue;
-        plan.updatedAt = new Date().toISOString();
-        planStore.set(planId, plan);
-        persistPlan(plan).catch((persistErr: unknown) => {
-          logger.warn('Failed to persist plan state', { planId, error: persistErr });
-        });
-        return plan;
-      }
-
-      plan.currentStepIndex = i + 1;
-      plan.updatedAt = new Date().toISOString();
-      planStore.set(planId, plan);
-      persistPlan(plan).catch((persistErr: unknown) => {
-        logger.warn('Failed to persist plan state', { planId, error: persistErr });
-      });
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err);
-
-      // B1: Extract structured error detail for classification
-      const errorDetail = extractErrorDetail(err);
-
-      // B1: Auto-retry once for retryable errors with a retry delay
-      const errAsObj = err as unknown as Record<string, unknown>;
-      const isRetryable =
-        errorDetail?.retryable === true ||
-        (err instanceof Error && errAsObj['isRetryable'] === true);
-      const retryAfterMs =
-        errorDetail?.retryAfterMs ??
-        (typeof errAsObj['retryAfterMs'] === 'number'
-          ? (errAsObj['retryAfterMs'] as number)
-          : undefined);
-
-      if (isRetryable && retryAfterMs !== undefined && step.retryCount === undefined) {
-        step.retryCount = 1;
-        logger.debug('Auto-retrying retryable step error', {
-          stepId: step.stepId,
-          retryAfterMs,
-          errorCode: errorDetail?.code,
-        });
-        await new Promise<void>((resolve) => setTimeout(resolve, Math.min(retryAfterMs, 30000)));
-        // Decrement so the for-loop increment brings i back to the same index
-        i--;
-        continue;
-      }
-
-      const stepResult: StepResult = {
-        stepId: step.stepId,
-        success: false,
-        error,
-        startedAt: startTime,
-        completedAt: new Date().toISOString(),
-      };
-
-      plan.results.push(stepResult);
+    if (outcome.status === 'pause') {
       plan.status = 'paused';
-      plan.error = error;
+      plan.error = outcome.stepResult?.error ?? outcome.errorDetail?.message;
+      plan.errorDetail = outcome.errorDetail;
 
-      // B1: Store structured error detail on plan
-      if (errorDetail) {
-        plan.errorDetail = errorDetail;
-      }
-
-      // B1: Insert recovery step if error provides fixableVia
-      const recoveryStep = errorDetail ? buildRecoveryStep(errorDetail) : null;
-      if (recoveryStep) {
-        plan.steps.splice(i + 1, 0, recoveryStep);
+      if (outcome.recoveryStep) {
+        plan.steps.splice(i + 1, 0, outcome.recoveryStep);
         logger.debug('Inserted auto-recovery step', {
           planId,
-          recoveryStepId: recoveryStep.stepId,
-          tool: recoveryStep.tool,
-          action: recoveryStep.action,
+          recoveryStepId: outcome.recoveryStep.stepId,
+          tool: outcome.recoveryStep.tool,
+          action: outcome.recoveryStep.action,
         });
       }
 
-      plan.updatedAt = new Date().toISOString();
-      planStore.set(planId, plan);
-      persistPlan(plan).catch((persistErr: unknown) => {
-        logger.warn('Failed to persist plan state', { planId, error: persistErr });
-      });
+      persistPlanState(plan);
       return plan;
     }
+
+    plan.currentStepIndex = i + 1;
+    plan.error = undefined;
+    plan.errorDetail = undefined;
+    persistPlanState(plan);
   }
 
   plan.status = 'completed';
-  plan.updatedAt = new Date().toISOString();
-  planStore.set(planId, plan);
-  persistPlan(plan).catch((persistErr: unknown) => {
-    logger.warn('Failed to persist plan state', { planId, error: persistErr });
-  });
+  persistPlanState(plan);
   return plan;
 }
 
@@ -1707,59 +2218,51 @@ export async function executeStep(
     throw new NotFoundError('step', `${stepId} in plan ${planId}`);
   }
 
-  const startTime = new Date().toISOString();
-  createCheckpoint(planId, `Execute step: ${step.description}`);
+  const stepIndex = plan.steps.findIndex((candidate) => candidate.stepId === stepId);
+  while (true) {
+    const outcome = await runStepWithGuards(
+      plan,
+      step,
+      executeHandler,
+      `Execute step: ${step.description}`
+    );
 
-  try {
-    const result = await executeHandler(step.tool, step.action, step.params);
-
-    const stepResult: StepResult = {
-      stepId,
-      success: true,
-      result,
-      startedAt: startTime,
-      completedAt: new Date().toISOString(),
-    };
-
-    // Update plan results
-    const existingIdx = plan.results.findIndex((r) => r.stepId === stepId);
-    if (existingIdx >= 0) {
-      plan.results[existingIdx] = stepResult;
-    } else {
-      plan.results.push(stepResult);
-    }
-    plan.updatedAt = new Date().toISOString();
-    planStore.set(planId, plan);
-    persistPlan(plan).catch((persistErr: unknown) => {
-      logger.warn('Failed to persist plan state', { planId, error: persistErr });
-    });
-
-    return stepResult;
-  } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
-
-    const stepResult: StepResult = {
-      stepId,
-      success: false,
-      error,
-      startedAt: startTime,
-      completedAt: new Date().toISOString(),
-    };
-
-    plan.error = error;
-
-    // B1: Store structured error detail on plan
-    const errorDetail = extractErrorDetail(err);
-    if (errorDetail) {
-      plan.errorDetail = errorDetail;
+    if (outcome.status === 'retry') {
+      continue;
     }
 
-    plan.updatedAt = new Date().toISOString();
-    planStore.set(planId, plan);
-    persistPlan(plan).catch((persistErr: unknown) => {
-      logger.warn('Failed to persist plan state', { planId, error: persistErr });
-    });
+    const stepResult =
+      outcome.stepResult ??
+      ({
+        stepId,
+        success: false,
+        error: outcome.errorDetail?.message ?? 'Step execution failed',
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+      } satisfies StepResult);
 
+    upsertStepResult(plan, stepResult);
+
+    if (outcome.status === 'pause') {
+      plan.status = 'paused';
+      plan.error = stepResult.error ?? outcome.errorDetail?.message;
+      plan.errorDetail = outcome.errorDetail;
+
+      if (outcome.recoveryStep && stepIndex >= 0) {
+        plan.steps.splice(stepIndex + 1, 0, outcome.recoveryStep);
+      }
+
+      persistPlanState(plan);
+      return stepResult;
+    }
+
+    plan.error = undefined;
+    plan.errorDetail = undefined;
+    plan.currentStepIndex = Math.max(plan.currentStepIndex, stepIndex + 1);
+    if (plan.currentStepIndex >= plan.steps.length) {
+      plan.status = 'completed';
+    }
+    persistPlanState(plan);
     return stepResult;
   }
 }

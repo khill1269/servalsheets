@@ -16,6 +16,7 @@
  */
 
 import { logger } from './logger.js';
+import { getEnv } from '../config/env.js';
 
 // ==================== Types ====================
 
@@ -198,9 +199,10 @@ class TracerImpl {
   private currentSpan: SpanImpl | undefined;
 
   constructor(options: TracerOptions = {}) {
+    const env = getEnv();
     this.serviceName = options.serviceName || 'servalsheets';
-    this.enabled = options.enabled ?? process.env['OTEL_ENABLED'] === 'true';
-    this.logSpans = options.logSpans ?? process.env['OTEL_LOG_SPANS'] === 'true';
+    this.enabled = options.enabled ?? env.OTEL_ENABLED;
+    this.logSpans = options.logSpans ?? env.OTEL_LOG_SPANS;
 
     if (this.enabled) {
       logger.info('OpenTelemetry tracing enabled', {

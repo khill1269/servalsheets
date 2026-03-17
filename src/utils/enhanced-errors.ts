@@ -502,8 +502,17 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
       return undefined;
 
     case 'ELICITATION_UNAVAILABLE':
+      // Elicitation unavailable → use wizard alternative via sheets_confirm
+      return {
+        tool: 'sheets_confirm',
+        action: 'wizard_start',
+        params: {
+          title: 'Confirm operation',
+        },
+      };
+
     case 'SAMPLING_UNAVAILABLE':
-      // Missing MCP capability → cannot be fixed automatically
+      // Missing MCP Sampling → cannot be fixed automatically
       return undefined;
 
     default:

@@ -11,7 +11,7 @@
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { DEFAULT_CHECKPOINT_DIR } from '../config/env.js';
+import { DEFAULT_CHECKPOINT_DIR, getEnv } from '../config/env.js';
 import { logger } from './logger.js';
 import { ConfigError } from '../core/errors.js';
 
@@ -51,7 +51,7 @@ const MAX_CHECKPOINTS_PER_SESSION = 10;
 const CHECKPOINT_FILE_EXTENSION = '.checkpoint.json';
 
 function getCheckpointDir(): string {
-  return process.env['CHECKPOINT_DIR'] || DEFAULT_CHECKPOINT_DIR;
+  return getEnv().CHECKPOINT_DIR || DEFAULT_CHECKPOINT_DIR;
 }
 
 async function ensureCheckpointDir(): Promise<void> {
@@ -63,7 +63,7 @@ async function ensureCheckpointDir(): Promise<void> {
 }
 
 export function isCheckpointsEnabled(): boolean {
-  return process.env['ENABLE_CHECKPOINTS'] === 'true';
+  return getEnv().ENABLE_CHECKPOINTS;
 }
 
 // ============================================================================

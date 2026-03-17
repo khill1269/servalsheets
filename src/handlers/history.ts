@@ -26,6 +26,7 @@ import { withSamplingTimeout, assertSamplingConsent, generateAIInsight } from '.
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { recordRevisionId } from '../mcp/completions.js';
+import { recordTimeTravelOp } from '../observability/metrics.js';
 import { getSessionContext } from '../services/session-context.js';
 import { logger } from '../utils/logger.js';
 import { sendProgress } from '../utils/request-context.js';
@@ -588,6 +589,7 @@ export class HistoryHandler {
             ...(aiNarrative !== undefined ? { aiNarrative } : {}),
             message: `Found ${timeline.items.length} revision(s)`,
           };
+          recordTimeTravelOp('timeline', 'success');
           break;
         }
 
@@ -680,6 +682,7 @@ export class HistoryHandler {
             ...(aiExplanation !== undefined ? { aiExplanation } : {}),
             ...(aiNarrative !== undefined ? { aiNarrative } : {}),
           };
+          recordTimeTravelOp('diff_revisions', 'success');
           break;
         }
 
@@ -752,6 +755,7 @@ export class HistoryHandler {
             snapshotId,
             message: `Restored ${restored.length} cell(s) from revision ${restoreReq.revisionId}`,
           };
+          recordTimeTravelOp('restore_cells', 'success');
           break;
         }
 

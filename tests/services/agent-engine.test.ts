@@ -48,9 +48,29 @@ function makeHandler(
   };
 }
 
+function makePlanExecutable(plan: PlanState): PlanState {
+  for (const step of plan.steps) {
+    if (step.tool === 'sheets_data' && step.action === 'read' && step.params['range'] === undefined) {
+      step.params['range'] = 'Sheet1!A1:B5';
+    }
+    if (
+      step.tool === 'sheets_data' &&
+      step.action === 'write' &&
+      step.params['range'] === undefined
+    ) {
+      step.params['range'] = 'Sheet1!A1:B2';
+      step.params['values'] = [
+        ['Name', 'Value'],
+        ['Alice', 42],
+      ];
+    }
+  }
+  return plan;
+}
+
 /** Create a plan with at least one step ("read" maps to sheets_data.read). */
 function makePlan(description = 'read data from spreadsheet'): PlanState {
-  return compilePlan(description, 10, SPREADSHEET_ID);
+  return makePlanExecutable(compilePlan(description, 10, SPREADSHEET_ID));
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +123,18 @@ describe('compilePlan', () => {
     expect(plan.results).toHaveLength(0);
     expect(plan.checkpoints).toHaveLength(0);
     expect(plan.currentStepIndex).toBe(0);
+  });
+
+  it('persists spreadsheetId and planning context summary on plan state', () => {
+    const plan = compilePlan(
+      'read data from spreadsheet',
+      10,
+      SPREADSHEET_ID,
+      'Sheet names: Revenue, Costs'
+    );
+
+    expect(plan.spreadsheetId).toBe(SPREADSHEET_ID);
+    expect(plan.planningContextSummary).toContain('Sheet names: Revenue, Costs');
   });
 });
 
@@ -233,7 +265,7 @@ describe('executePlan real execution', () => {
   });
 
   it('resumes from currentStepIndex after prior partial execution', async () => {
-    const plan = compilePlan('read data then write results', 5, SPREADSHEET_ID);
+    const plan = makePlanExecutable(compilePlan('read data then write results', 5, SPREADSHEET_ID));
     if (plan.steps.length < 2) return; // Skip if not enough steps
 
     // Execute first step only by manipulating the handler
@@ -253,6 +285,78 @@ describe('executePlan real execution', () => {
     const completed = await executePlan(pausedPlan.planId, false, resumeHandler);
     expect(completed.results.length).toBeGreaterThanOrEqual(stepsRemaining);
   });
+
+  it('pauses before execution when step params fail tool-schema validation', async () => {
+    const plan = makePlan();
+    plan.steps = [
+      {
+        stepId: 'invalid-write',
+        tool: 'sheets_data',
+        action: 'write',
+        description: 'Attempt invalid write',
+        params: {
+          spreadsheetId: SPREADSHEET_ID,
+        },
+      },
+    ];
+
+    const handler = vi.fn(makeHandler({ success: true }));
+    const result = await executePlan(plan.planId, false, handler);
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(result.status).toBe('paused');
+    expect(result.errorDetail?.code).toBe('INVALID_PARAMS');
+    expect(result.results[0]?.success).toBe(false);
+    expect(result.results[0]?.error).toContain('invalid params');
+  });
+
+  it('pauses when deterministic post-step verification cannot confirm a clear', async () => {
+    const plan = makePlan();
+    plan.steps = [
+      {
+        stepId: 'verified-write',
+        tool: 'sheets_data',
+        action: 'clear',
+        description: 'Clear values from Sheet1',
+        params: {
+          spreadsheetId: SPREADSHEET_ID,
+          range: 'Sheet1!A1:B2',
+        },
+      },
+    ];
+
+    const handlerMock = vi.fn(async (_tool: string, action: string) => {
+      if (action === 'clear') {
+        return {
+          response: {
+            success: true,
+            action: 'clear',
+          },
+        };
+      }
+
+      if (action === 'read') {
+        return {
+          response: {
+            success: true,
+            action: 'read',
+            values: [['Mismatch', 'Value']],
+          },
+        };
+      }
+
+      throw new Error(`Unexpected action ${action}`);
+    });
+    const handler = handlerMock as ExecuteHandlerFn;
+
+    const result = await executePlan(plan.planId, false, handler);
+
+    expect(result.status).toBe('paused');
+    expect(result.errorDetail?.code).toBe('FAILED_PRECONDITION');
+    expect(result.results[0]?.success).toBe(false);
+    expect(result.results[0]?.error).toContain('Post-step verification failed');
+    expect(handlerMock).toHaveBeenCalledTimes(2);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -260,6 +364,29 @@ describe('executePlan real execution', () => {
 // ---------------------------------------------------------------------------
 
 describe('executeStep', () => {
+  it('uses the shared validation guard before calling the handler', async () => {
+    const plan = makePlan();
+    plan.steps = [
+      {
+        stepId: 'invalid-step',
+        tool: 'sheets_data',
+        action: 'write',
+        description: 'Invalid write',
+        params: {
+          spreadsheetId: SPREADSHEET_ID,
+        },
+      },
+    ];
+
+    const handler = vi.fn(makeHandler({ success: true }));
+    const result = await executeStep(plan.planId, 'invalid-step', handler);
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('invalid params');
+    expect(getPlanStatus(plan.planId)?.status).toBe('paused');
+  });
+
   it('executes a named step and returns a successful StepResult', async () => {
     const plan = makePlan();
     const step = plan.steps[0]!;
@@ -572,7 +699,9 @@ describe('Plan cancellation semantics', () => {
   });
 
   it('a step failure mid-execution pauses the plan without losing prior results', async () => {
-    const plan = compilePlan('read data then write results then format', 10, SPREADSHEET_ID);
+    const plan = makePlanExecutable(
+      compilePlan('read data then write results then format', 10, SPREADSHEET_ID)
+    );
     // Plan must have at least 2 steps for this test to be meaningful
     if (plan.steps.length < 2) return;
 
@@ -594,7 +723,9 @@ describe('Plan cancellation semantics', () => {
   });
 
   it('a paused plan can be resumed from the failed step', async () => {
-    const plan = compilePlan('read data then write results', 10, SPREADSHEET_ID);
+    const plan = makePlanExecutable(
+      compilePlan('read data then write results', 10, SPREADSHEET_ID)
+    );
     if (plan.steps.length < 2) return;
 
     let callCount = 0;
@@ -607,7 +738,33 @@ describe('Plan cancellation semantics', () => {
     const paused = await executePlan(plan.planId, false, failingHandler);
     expect(paused.status).toBe('paused');
 
-    const completed = await resumePlan(paused.planId, undefined, makeHandler({ success: true }));
+    const resumeHandler: ExecuteHandlerFn = async (_tool, action) => {
+      if (action === 'write') {
+        return {
+          response: {
+            success: true,
+            action: 'write',
+          },
+        };
+      }
+
+      if (action === 'read') {
+        return {
+          response: {
+            success: true,
+            action: 'read',
+            values: [
+              ['Name', 'Value'],
+              ['Alice', 42],
+            ],
+          },
+        };
+      }
+
+      return { success: true };
+    };
+
+    const completed = await resumePlan(paused.planId, undefined, resumeHandler);
     expect(completed.status).toBe('completed');
     // All steps have at least one result (failed step may have an additional retry record)
     expect(completed.results.length).toBeGreaterThanOrEqual(plan.steps.length);

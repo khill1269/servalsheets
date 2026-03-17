@@ -23,6 +23,7 @@ import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
 import { createRequestAbortError, getRequestContext } from '../utils/request-context.js';
 import { getEnv } from '../config/env.js';
+import { recordSamplingRequest } from '../observability/metrics.js';
 import {
   getSpreadsheetContext,
   formatContextForPrompt,
@@ -749,6 +750,7 @@ Example finding: "Column B (Revenue) has 3 null values in rows 14, 27, 31 (4.2% 
     })
   );
 
+  recordSamplingRequest('analyzeData', 'success');
   return extractTextFromResult(result);
 }
 
@@ -843,6 +845,7 @@ Output: =SUM($B$2:B2)`;
     }
   }
 
+  recordSamplingRequest('generateFormula', 'success');
   return formula;
 }
 
@@ -918,6 +921,7 @@ Respond in this exact JSON format:
     });
   }
 
+  recordSamplingRequest('recommendChart', 'success');
   return {
     chartType: 'COLUMN',
     reason: text,

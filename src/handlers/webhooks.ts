@@ -37,7 +37,7 @@ import { mapStandaloneError } from './helpers/error-mapping.js';
 import { ServiceError } from '../core/errors.js';
 import { recordWebhookId } from '../mcp/completions.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
-import { getCircuitBreakerConfig } from '../config/env.js';
+import { getApiSpecificCircuitBreakerConfig } from '../config/env.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 
 const REDIS_REQUIRED_WEBHOOK_ACTIONS = new Set([
@@ -65,11 +65,12 @@ export class WebhookHandler {
     this.workspaceEventsService = options?.workspaceEventsService;
 
     // 16-S4: Initialize circuit breaker for webhook delivery operations
-    const circuitConfig = getCircuitBreakerConfig();
+    const deliveryConfig = getApiSpecificCircuitBreakerConfig('webhook_delivery');
     this.deliveryCircuitBreaker = new CircuitBreaker({
-      ...circuitConfig,
+      failureThreshold: deliveryConfig.failureThreshold,
+      successThreshold: deliveryConfig.successThreshold,
+      timeout: deliveryConfig.timeout,
       name: 'webhook-delivery',
-      failureThreshold: 10, // More lenient than general API breaker
     });
 
     // Register fallback strategy for delivery circuit breaker

@@ -32,6 +32,7 @@ import { executeWithRetry } from '../utils/retry.js';
 import { sendProgress } from '../utils/request-context.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { formulaEvaluator, type SheetData } from '../services/formula-evaluator.js';
+import { recordScenarioModel } from '../observability/metrics.js';
 
 const ANALYZER_CACHE_MAX = 25;
 const ANALYZER_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
@@ -778,6 +779,7 @@ export class DependenciesHandler {
     } catch {
       // Non-blocking: session context recording is best-effort
     }
+    recordScenarioModel('model_scenario', 'success');
 
     return {
       success: true,
@@ -985,6 +987,7 @@ export class DependenciesHandler {
         `Scenario comparison complete (${totalProgressSteps}/${totalProgressSteps})`
       );
     }
+    recordScenarioModel('compare_scenarios', 'success');
 
     return {
       success: true,
@@ -1073,6 +1076,7 @@ export class DependenciesHandler {
         },
       });
     }
+    recordScenarioModel('create_scenario_sheet', 'success');
 
     return {
       success: true,
