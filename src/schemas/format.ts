@@ -510,7 +510,9 @@ Common presets: highlight_duplicates, highlight_blanks, highlight_errors, color_
 
 Use this UNLESS you need highly custom rules (then use rule_add_conditional_format).`
   ),
-  sheetId: SheetIdSchema.describe('Numeric sheet ID where rule will be applied'),
+  sheetId: SheetIdSchema.optional().describe(
+    'Numeric sheet ID where rule will be applied. Optional — auto-derived from the range sheet name when omitted.'
+  ),
   range: RangeInputSchema.describe('Range for the preset rule'),
   rulePreset: z
     .preprocess(
@@ -645,9 +647,22 @@ const BatchFormatOperationSchema = z.preprocess(
     if (typeof val !== 'object' || val === null) return val;
     const op = { ...(val as Record<string, unknown>) };
 
-    // Normalize set_borders alias → borders
-    if (op['type'] === 'set_borders') {
-      op['type'] = 'borders';
+    // Normalize set_* aliases → batch_format operation types.
+    // Individual format actions use set_background, set_text_format, etc. but
+    // batch_format operations use shorter names (background, text_format, etc.).
+    // Accept both conventions to prevent first-try failures.
+    const typeAliases: Record<string, string> = {
+      set_background: 'background',
+      set_text_format: 'text_format',
+      set_number_format: 'number_format',
+      set_alignment: 'alignment',
+      set_borders: 'borders',
+      set_format: 'format',
+      apply_preset: 'preset',
+    };
+    const aliased = typeof op['type'] === 'string' ? typeAliases[op['type']] : undefined;
+    if (aliased) {
+      op['type'] = aliased;
     }
 
     // Infer type from fields when absent

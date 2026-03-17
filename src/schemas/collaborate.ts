@@ -476,7 +476,9 @@ export const SheetsCollaborateInputSchema = z.object({
         switch (data.action) {
           // Sharing actions
           case 'share_add':
-            return !!data.spreadsheetId && !!data.type && !!data.role;
+            // share_add required-field checks are handled by the superRefine below,
+            // which provides path-specific error messages instead of a generic failure.
+            return true;
           case 'share_update':
             return !!data.spreadsheetId && !!data.permissionId && !!data.role;
           case 'share_remove':
@@ -569,7 +571,36 @@ export const SheetsCollaborateInputSchema = z.object({
       {
         message: 'Missing required fields for the specified action',
       }
-    ),
+    )
+    .superRefine((data, ctx) => {
+      // Path-specific required-field errors for share_add so LLMs receive
+      // actionable messages (e.g. "type is required") instead of a generic failure.
+      if (data.action === 'share_add') {
+        if (!data.spreadsheetId) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['spreadsheetId'],
+            message: 'spreadsheetId is required for share_add',
+          });
+        }
+        if (!data.type) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['type'],
+            message:
+              'type is required for share_add (valid values: user, group, domain, anyone)',
+          });
+        }
+        if (!data.role) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['role'],
+            message:
+              'role is required for share_add (valid values: owner, writer, commenter, reader)',
+          });
+        }
+      }
+    }),
 });
 
 // ========== OUTPUT SCHEMA ==========

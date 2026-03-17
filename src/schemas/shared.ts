@@ -302,7 +302,15 @@ export const PasteTypeSchema = z
 
 export const ChartTypeSchema = z
   .preprocess(
-    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+    (val) => {
+      if (typeof val !== 'string') return val;
+      const upper = val.toUpperCase();
+      // COMBO is a valid Sheets API enum but requires series-level chartType
+      // overrides to work. Without them, Google API returns "No basic chart
+      // type specified." Fall back to COLUMN which is the closest visual.
+      if (upper === 'COMBO') return 'COLUMN';
+      return upper;
+    },
     z.enum([
       'BAR',
       'LINE',
@@ -323,7 +331,7 @@ export const ChartTypeSchema = z
       'BUBBLE',
     ])
   )
-  .describe('Chart type (e.g., BAR, LINE, PIE, COLUMN). Case-insensitive.');
+  .describe('Chart type (e.g., BAR, LINE, PIE, COLUMN). Case-insensitive. Note: COMBO requires series-level type overrides; auto-falls back to COLUMN.');
 
 export const LegendPositionSchema = z
   .preprocess(

@@ -234,6 +234,20 @@ describe('CollaborateHandler', () => {
       expect(result.response.success).toBe(true);
     });
 
+    it('should fail fast when type is missing', async () => {
+      const result = await handler.handle({
+        action: 'share_add',
+        spreadsheetId: 'test-spreadsheet-id',
+        role: 'reader',
+        emailAddress: 'user@example.com',
+      } as Parameters<typeof handler.handle>[0]);
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as { error?: { message?: string } }).error?.message).toContain(
+        'type is required'
+      );
+    });
+
     it('should fail fast when type=user and emailAddress is missing', async () => {
       const result = await handler.handle({
         action: 'share_add',

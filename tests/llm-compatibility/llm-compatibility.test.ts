@@ -398,7 +398,8 @@ function applyActionOverrides(
     };
   }
 
-  if (toolName === 'sheets_appsscript' && action === 'get') {
+  if (toolName === 'sheets_appsscript') {
+    // All appsscript actions use superRefine requiring scriptId OR spreadsheetId
     return {
       ...request,
       spreadsheetId: SAMPLE_SPREADSHEET_ID,

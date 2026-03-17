@@ -12,6 +12,7 @@ import { DEFER_SCHEMAS } from '../../config/constants.js';
 import { isWebhookRedisConfigured } from '../../services/webhook-manager.js';
 import { logger } from '../../utils/logger.js';
 import { zodSchemaToJsonSchema } from '../../utils/schema-compat.js';
+import { prepareSchemaForRegistrationCached, buildDeferredFallbackSchema } from './schema-helpers.js';
 import { getToolDiscoveryHint } from './tool-discovery-hints.js';
 
 const EMPTY_OBJECT_JSON_SCHEMA = { type: 'object', properties: {} };
@@ -41,25 +42,58 @@ function isZodSchema(schema: unknown): boolean {
 // P1-2 fix: Track tools that failed schema conversion so we can annotate them
 const schemaConversionErrors = new Map<string, string>();
 
-function toJsonSchema(schema: unknown, toolName?: string): Record<string, unknown> {
+function toJsonSchema(
+  schema: unknown,
+  options?: { toolName?: string; schemaType?: 'input' | 'output' }
+): Record<string, unknown> {
   if (!schema) {
     return EMPTY_OBJECT_JSON_SCHEMA;
   }
+
+  const { toolName, schemaType = 'input' } = options ?? {};
+  const schemaForSerialization =
+    toolName && isZodSchema(schema)
+      ? prepareSchemaForRegistrationCached(toolName, schema as z.ZodType, schemaType)
+      : schema;
+
   let result: Record<string, unknown>;
-  if (isZodSchema(schema)) {
+  if (isZodSchema(schemaForSerialization)) {
     try {
-      result = zodSchemaToJsonSchema(schema as unknown as import('zod').ZodTypeAny);
+      result = zodSchemaToJsonSchema(
+        schemaForSerialization as unknown as import('zod').ZodTypeAny
+      );
     } catch (err) {
-      // P1-2: Record the error for this tool so it can be annotated/excluded
+      // P1-2: Full conversion failed — try deferred fallback before giving up.
+      // The deferred builder extracts action enums + property names from the Zod
+      // schema, producing a useful ~300-800 byte schema instead of empty {}.
       if (toolName) {
         const msg = err instanceof Error ? err.message : String(err);
+        logger.warn('Full schema conversion failed, trying deferred fallback', {
+          tool: toolName,
+          error: msg,
+        });
+
+        try {
+          const fallback = buildDeferredFallbackSchema(
+            schema as z.ZodType,
+            schemaType ?? 'input'
+          );
+          if (fallback && typeof fallback === 'object' && Object.keys(fallback).length > 0) {
+            return fallback;
+          }
+        } catch (fallbackErr) {
+          logger.error('Deferred fallback also failed', {
+            tool: toolName,
+            error: fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr),
+          });
+        }
+
         schemaConversionErrors.set(toolName, msg);
-        logger.error('Tool schema conversion failed', { tool: toolName, error: msg });
       }
       return EMPTY_OBJECT_JSON_SCHEMA;
     }
-  } else if (typeof schema === 'object') {
-    result = schema as Record<string, unknown>;
+  } else if (typeof schemaForSerialization === 'object') {
+    result = schemaForSerialization as Record<string, unknown>;
   } else {
     return EMPTY_OBJECT_JSON_SCHEMA;
   }
@@ -236,7 +270,10 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
             return true;
           })
           .map(([name, tool]) => {
-            const inputSchema = enrichInputSchema(name, toJsonSchema(tool.inputSchema, name));
+            const inputSchema = enrichInputSchema(
+              name,
+              toJsonSchema(tool.inputSchema, { toolName: name, schemaType: 'input' })
+            );
             const toolDefinition: Record<string, unknown> = {
               name,
               title: tool.title,
@@ -248,7 +285,10 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
             };
 
             if (tool.outputSchema) {
-              toolDefinition['outputSchema'] = toJsonSchema(tool.outputSchema);
+              toolDefinition['outputSchema'] = toJsonSchema(tool.outputSchema, {
+                toolName: name,
+                schemaType: 'output',
+              });
             }
 
             return toolDefinition;

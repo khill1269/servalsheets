@@ -197,7 +197,17 @@ function isValidDomain(value: string): boolean {
  * when required fields are missing or obviously malformed.
  */
 function validateShareAddInput(input: CollaborateShareAddInput): ErrorDetail | undefined {
-  const permType = input.type ?? 'user';
+  if (!input.type) {
+    return {
+      code: ErrorCodes.VALIDATION_ERROR,
+      message:
+        'type is required for share_add (valid values: user, group, domain, anyone). ' +
+        'Use "user" to share with a specific email, "domain" to share with a whole domain, or "anyone" for public access.',
+      retryable: false,
+      suggestedFix: 'Add type to the request, e.g. "type": "user".',
+    };
+  }
+  const permType = input.type;
 
   if (permType === 'user' || permType === 'group') {
     if (!input.emailAddress) {

@@ -93,9 +93,24 @@ export class CompositeOperationsService {
 
     // Resolve or create target sheet
     if (mode === 'new_sheet' || !options.sheet) {
-      const sheetName = options.newSheetName ?? `Import_${new Date().toISOString().slice(0, 10)}`;
-      const result = await this.createSheet(spreadsheetId, sheetName);
-      targetSheet = result;
+      const baseName = options.newSheetName ?? `Import_${new Date().toISOString().slice(0, 10)}`;
+      let sheetName = baseName;
+
+      // Avoid collision with existing sheets by appending a suffix
+      try {
+        const result = await this.createSheet(spreadsheetId, sheetName);
+        targetSheet = result;
+      } catch (createErr: unknown) {
+        const errMsg = createErr instanceof Error ? createErr.message : String(createErr);
+        if (errMsg.includes('already exists') || errMsg.includes('400')) {
+          // Sheet name collision — append a unique suffix
+          sheetName = `${baseName}_${Date.now().toString(36)}`;
+          const result = await this.createSheet(spreadsheetId, sheetName);
+          targetSheet = result;
+        } else {
+          throw createErr;
+        }
+      }
       newSheetCreated = true;
     } else {
       const resolved = await this.sheetResolver.resolve(spreadsheetId, {

@@ -375,6 +375,21 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     input: CompositeImportCsvInput
   ): Promise<CompositeOutput['response']> {
     let resolvedInput = input;
+    const legacySheetName =
+      typeof (input as { sheetName?: unknown }).sheetName === 'string'
+        ? ((input as { sheetName?: string }).sheetName ?? '').trim()
+        : '';
+
+    if (
+      legacySheetName.length > 0 &&
+      resolvedInput.sheet === undefined &&
+      resolvedInput.newSheetName === undefined
+    ) {
+      resolvedInput = {
+        ...resolvedInput,
+        newSheetName: legacySheetName,
+      };
+    }
 
     // Wizard: If csvData is provided but delimiter is missing, elicit delimiter
     if (resolvedInput.csvData && !resolvedInput.delimiter && this.context?.server?.elicitInput) {

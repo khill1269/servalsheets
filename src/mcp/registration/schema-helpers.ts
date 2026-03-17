@@ -654,3 +654,22 @@ export function verifySchemaIfNeeded(schema: unknown): void {
     }
   }
 }
+
+/**
+ * Public wrapper for buildFlatDeferredSchema.
+ *
+ * Used by tools-list-compat.ts as a fallback when full JSON Schema conversion
+ * fails. Instead of returning empty `{ type: 'object', properties: {} }`,
+ * this extracts action enum values and common property names from the Zod
+ * schema to produce a useful ~300-800 byte schema.
+ *
+ * @param schema - Zod schema to build deferred schema from
+ * @param schemaType - 'input' or 'output'
+ * @returns Flat JSON Schema with action enum + property names
+ */
+export function buildDeferredFallbackSchema(
+  schema: ZodSchema,
+  schemaType: SchemaType
+): Record<string, unknown> {
+  return buildFlatDeferredSchema(schema, schemaType);
+}

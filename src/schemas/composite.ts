@@ -42,6 +42,32 @@ export const VerbositySchema = z
   .default('standard')
   .describe('Response verbosity level');
 
+const normalizeCompositeRequest = (val: unknown): unknown => {
+  if (typeof val !== 'object' || val === null) {
+    return val;
+  }
+
+  const input = val as Record<string, unknown>;
+  if (input['action'] !== 'import_csv') {
+    return val;
+  }
+
+  const legacySheetName = input['sheetName'];
+  if (
+    typeof legacySheetName === 'string' &&
+    legacySheetName.trim().length > 0 &&
+    input['sheet'] === undefined &&
+    input['newSheetName'] === undefined
+  ) {
+    return {
+      ...input,
+      newSheetName: legacySheetName,
+    };
+  }
+
+  return val;
+};
+
 // ============================================================================
 // Import CSV Action
 // ============================================================================
@@ -69,7 +95,7 @@ export const ImportCsvInputSchema = z.object({
   mode: ImportCsvModeSchema.default('replace').describe(
     'How to handle existing data (default: replace | alternatives: append, new_sheet)'
   ),
-  newSheetName: z.string().max(255).optional().describe('Name for new sheet if mode is new_sheet'),
+  newSheetName: z.string().max(255).optional().describe('Name for new sheet. Used when mode is new_sheet OR when no existing sheet is specified. Defaults to Import_YYYY-MM-DD if omitted.'),
   skipEmptyRows: z
     .boolean()
     .default(true)
@@ -128,7 +154,7 @@ export const SmartAppendInputSchema = z.object({
     )
     .min(1)
     .describe(
-      'Array of objects with column headers as keys (values can be string, number, boolean, null, array, or object)'
+      'MUST be array of objects keyed by header names, e.g. [{"Name": "Alice", "Age": 30}]. Do NOT use arrays of arrays [[val1, val2]] — that format will fail. Values can be string, number, boolean, null, array, or object.'
     ),
   matchHeaders: z
     .boolean()
@@ -1317,36 +1343,39 @@ export const BuildDashboardOutputSchema = z.object({
  * - Each action has only its required fields (no optional field pollution)
  */
 export const CompositeInputSchema = z.object({
-  request: z.discriminatedUnion('action', [
-    // Original composite actions (7)
-    ImportCsvInputSchema,
-    SmartAppendInputSchema,
-    BulkUpdateInputSchema,
-    DeduplicateInputSchema,
-    ExportXlsxInputSchema,
-    ImportXlsxInputSchema,
-    GetFormResponsesInputSchema,
-    // LLM-optimized workflow actions (3)
-    SetupSheetInputSchema,
-    ImportAndFormatInputSchema,
-    CloneStructureInputSchema,
-    // Streaming actions (1)
-    ExportLargeDatasetInputSchema,
-    // NL Sheet Generator actions (3) — F1
-    GenerateSheetInputSchema,
-    GenerateTemplateInputSchema,
-    PreviewGenerationInputSchema,
-    // P14-C1 Composite Workflow actions (5)
-    AuditSheetInputSchema,
-    PublishReportInputSchema,
-    DataPipelineInputSchema,
-    InstantiateTemplateInputSchema,
-    MigrateSpreadsheetInputSchema,
-    // Orchestration actions (1)
-    BatchOperationsInputSchema,
-    // Dashboard (1)
-    BuildDashboardInputSchema,
-  ]),
+  request: z.preprocess(
+    normalizeCompositeRequest,
+    z.discriminatedUnion('action', [
+      // Original composite actions (7)
+      ImportCsvInputSchema,
+      SmartAppendInputSchema,
+      BulkUpdateInputSchema,
+      DeduplicateInputSchema,
+      ExportXlsxInputSchema,
+      ImportXlsxInputSchema,
+      GetFormResponsesInputSchema,
+      // LLM-optimized workflow actions (3)
+      SetupSheetInputSchema,
+      ImportAndFormatInputSchema,
+      CloneStructureInputSchema,
+      // Streaming actions (1)
+      ExportLargeDatasetInputSchema,
+      // NL Sheet Generator actions (3) — F1
+      GenerateSheetInputSchema,
+      GenerateTemplateInputSchema,
+      PreviewGenerationInputSchema,
+      // P14-C1 Composite Workflow actions (5)
+      AuditSheetInputSchema,
+      PublishReportInputSchema,
+      DataPipelineInputSchema,
+      InstantiateTemplateInputSchema,
+      MigrateSpreadsheetInputSchema,
+      // Orchestration actions (1)
+      BatchOperationsInputSchema,
+      // Dashboard (1)
+      BuildDashboardInputSchema,
+    ])
+  ),
 });
 
 /**

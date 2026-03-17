@@ -1530,6 +1530,7 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
         issues: z.array(DataQualityIssueSchema),
         summary: z.string(),
       })
+      .passthrough()
       .optional(),
 
     // analyze_performance results (and comprehensive)
@@ -1625,6 +1626,7 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
           )
           .optional(),
       })
+      .passthrough()
       .optional(),
 
     // query_natural_language results
@@ -2206,11 +2208,11 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
     duration: z.coerce.number().optional(),
     message: z.string().optional(),
     _meta: ResponseMetaSchema.optional(),
-  }),
+  }).passthrough(),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,
-  }),
+  }).passthrough(),
 ]);
 
 export const SheetsAnalyzeOutputSchema = z.object({

@@ -14,6 +14,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { CompositeHandler } from '../../src/handlers/composite.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
+import { CompositeInputSchema } from '../../src/schemas/composite.js';
 
 describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
   let handler: CompositeHandler;
@@ -52,6 +53,7 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
               ],
             },
           }),
+          clear: vi.fn().mockResolvedValue({ data: { clearedRange: 'Sheet1!A:Z' } }),
           update: vi.fn().mockResolvedValue({ data: {} }),
           append: vi.fn().mockResolvedValue({ data: {} }),
         },
@@ -114,6 +116,22 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
   });
 
   describe('parameter naming consistency (BUG FIX 0.10)', () => {
+    it('should normalize import_csv sheetName to newSheetName during schema parsing', () => {
+      const parsed = CompositeInputSchema.parse({
+        request: {
+          action: 'import_csv',
+          spreadsheetId: 'test-id',
+          sheetName: 'Imported CSV',
+          csvData: 'Header1,Header2\nValue1,Value2',
+        },
+      });
+
+      expect(parsed.request.action).toBe('import_csv');
+      if (parsed.request.action === 'import_csv') {
+        expect(parsed.request.newSheetName).toBe('Imported CSV');
+      }
+    });
+
     it('should reject sheetName parameter with helpful error', async () => {
       // Try using sheetName instead of sheet (common mistake)
       const result = await handler.handle({
@@ -162,6 +180,52 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
 
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
+    });
+
+    it('should treat import_csv sheetName as a newSheetName alias when creating a sheet', async () => {
+      const authorizedContext = {
+        ...mockContext,
+        auth: {
+          hasElevatedAccess: false,
+          scopes: [
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive.file',
+          ],
+        },
+      };
+      const importHandler = new CompositeHandler(
+        authorizedContext,
+        mockSheetsApi,
+        mockDriveApi
+      );
+      const result = await importHandler.handle({
+        request: {
+          action: 'import_csv',
+          spreadsheetId: 'test-id',
+          // @ts-expect-error - Testing legacy alias that bypasses schema parsing in direct handler tests
+          sheetName: 'Imported CSV',
+          csvData: 'Header1,Header2\nValue1,Value2',
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.sheetName).toBe('Imported CSV');
+      }
+      expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          spreadsheetId: 'test-id',
+          requestBody: {
+            requests: [
+              {
+                addSheet: {
+                  properties: { title: 'Imported CSV' },
+                },
+              },
+            ],
+          },
+        })
+      );
     });
 
     it('should use sheet parameter for bulk_update', async () => {

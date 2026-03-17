@@ -803,7 +803,7 @@ const AppsScriptResponseSchema = z.discriminatedUnion('success', [
     installedAt: z.string().optional().describe('ISO timestamp when function was installed'),
     // Standard fields
     _meta: ResponseMetaSchema.optional().describe('Response metadata'),
-  }),
+  }).passthrough(),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,

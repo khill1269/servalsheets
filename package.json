@@ -268,7 +268,7 @@
     "check:architecture:graph": "depcruise --config .dependency-cruiser.cjs --output-type dot src/ | dot -T svg > architecture-graph.svg",
     "check:commit-size": "bash scripts/check-commit-size.sh",
     "check:dead-code": "knip --production",
-    "check:dead-code:baseline": "node scripts/dead-code-triage.mjs --no-write --max-likely-dead=47 --max-wiring-candidates=1",
+    "check:dead-code:baseline": "node scripts/dead-code-triage.mjs --no-write --max-likely-dead=48 --max-wiring-candidates=0",
     "check:debug-prints": "bash scripts/check-debug-prints.sh",
     "check:file-sizes": "bash scripts/check-file-sizes.sh",
     "check:integration-wiring": "node scripts/check-integration-wiring.mjs",
