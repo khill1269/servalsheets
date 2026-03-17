@@ -186,6 +186,60 @@ function validatePermissionExpiration(
   return undefined; // OK: no expiry validation needed
 }
 
+/** Basic domain format check: e.g. "example.com" or "sub.domain.co.uk" */
+function isValidDomain(value: string): boolean {
+  return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i.test(value);
+}
+
+/**
+ * Pre-flight validation for share_add to fail fast before API call.
+ * Prevents unnecessary Drive API requests (and the associated 15s timeout)
+ * when required fields are missing or obviously malformed.
+ */
+function validateShareAddInput(input: CollaborateShareAddInput): ErrorDetail | undefined {
+  const permType = input.type ?? 'user';
+
+  if (permType === 'user' || permType === 'group') {
+    if (!input.emailAddress) {
+      return {
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: `emailAddress is required when type="${permType}". Provide a valid Google account or Google Group email.`,
+        retryable: false,
+        suggestedFix: 'Add emailAddress to the request, e.g. "emailAddress": "user@example.com".',
+      };
+    }
+    // Zod has already validated format via .email(), but if somehow it bypassed:
+    if (!input.emailAddress.includes('@')) {
+      return {
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: `Invalid email address format: "${input.emailAddress}". Must be a valid email.`,
+        retryable: false,
+      };
+    }
+  }
+
+  if (permType === 'domain') {
+    if (!input.domain) {
+      return {
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: 'domain is required when type="domain". Provide a domain like "example.com".',
+        retryable: false,
+        suggestedFix: 'Add domain to the request, e.g. "domain": "example.com".',
+      };
+    }
+    if (!isValidDomain(input.domain)) {
+      return {
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: `Invalid domain format: "${input.domain}". Provide a domain like "example.com" (not a URL or email).`,
+        retryable: false,
+        suggestedFix: 'Use just the domain name, e.g. "example.com", not "https://example.com".',
+      };
+    }
+  }
+
+  return undefined; // OK: no validation error — input is acceptable
+}
+
 /**
  * Decomposed action handler for `share_add`.
  * Preserves original behavior while moving logic out of the main CollaborateHandler class.
@@ -212,6 +266,12 @@ export async function handleShareAddAction(
     } catch {
       // non-blocking - proceed with provided input
     }
+  }
+
+  // Pre-flight validation: fail fast before any API call
+  const preflightError = validateShareAddInput(resolvedInput);
+  if (preflightError) {
+    return deps.error(preflightError);
   }
 
   await driveRateLimiter.acquire();

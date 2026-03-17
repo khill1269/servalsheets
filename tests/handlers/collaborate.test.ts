@@ -233,6 +233,49 @@ describe('CollaborateHandler', () => {
 
       expect(result.response.success).toBe(true);
     });
+
+    it('should fail fast when type=user and emailAddress is missing', async () => {
+      const result = await handler.handle({
+        action: 'share_add',
+        spreadsheetId: 'test-spreadsheet-id',
+        type: 'user',
+        role: 'reader',
+      });
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as { error?: { message?: string } }).error?.message).toContain(
+        'emailAddress is required'
+      );
+    });
+
+    it('should fail fast when type=domain and domain is missing', async () => {
+      const result = await handler.handle({
+        action: 'share_add',
+        spreadsheetId: 'test-spreadsheet-id',
+        type: 'domain',
+        role: 'reader',
+      });
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as { error?: { message?: string } }).error?.message).toContain(
+        'domain is required'
+      );
+    });
+
+    it('should fail fast when domain format is invalid', async () => {
+      const result = await handler.handle({
+        action: 'share_add',
+        spreadsheetId: 'test-spreadsheet-id',
+        type: 'domain',
+        role: 'reader',
+        domain: 'https://example.com',
+      });
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as { error?: { message?: string } }).error?.message).toContain(
+        'Invalid domain format'
+      );
+    });
   });
 
   describe('share_update', () => {
