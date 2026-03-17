@@ -223,6 +223,26 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
       [['fileId', 'spreadsheetId']]
     ),
   },
+  sheets_federation: {
+    call_remote: {
+      required: ['serverName', 'toolName'],
+      optional: ['toolInput'],
+      description:
+        'Call a tool on a remote MCP server. toolInput is the arguments object for the remote tool.',
+    },
+    list_servers: {
+      required: [],
+      description: 'List all configured remote MCP servers and their connection status.',
+    },
+    get_server_tools: {
+      required: ['serverName'],
+      description: 'List tools available on a specific remote MCP server.',
+    },
+    validate_connection: {
+      required: ['serverName'],
+      description: 'Test the connection to a remote MCP server.',
+    },
+  },
 };
 
 function asRecord(value: unknown): JsonRecord | null {
