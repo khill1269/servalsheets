@@ -213,52 +213,6 @@ export class ConnectorsHandler {
     return null;
   }
 
-  private async elicitApiKeyViaForm(
-    connector: ConnectorCatalogEntry,
-    setupHint?: { signupUrl?: string; hint?: string }
-  ): Promise<string | null> {
-    const descriptionParts = [
-      'Enter the API key used to configure this connector.',
-      setupHint?.hint,
-      setupHint?.signupUrl ? `Get one at: ${setupHint.signupUrl}` : undefined,
-    ].filter((part): part is string => Boolean(part));
-
-    try {
-      if (!this.elicitationServer) {
-        return null;
-      }
-
-      const result = await safeElicit<{ apiKey: string } | null>(
-        this.elicitationServer,
-        {
-          mode: 'form',
-          message: `Configure ${connector.name}`,
-          requestedSchema: {
-            type: 'object',
-            properties: {
-              apiKey: stringField({
-                title: `${connector.name} API Key`,
-                description: descriptionParts.join(' '),
-                minLength: 1,
-              }),
-            },
-            required: ['apiKey'],
-          },
-        },
-        null
-      );
-
-      if (typeof result?.apiKey === 'string') {
-        const apiKey = result.apiKey.trim();
-        return apiKey.length > 0 ? apiKey : null;
-      }
-    } catch {
-      // Elicitation unsupported or unavailable — fall through to manual error response
-    }
-
-    return null;
-  }
-
   private async elicitApiKey(connector: ConnectorCatalogEntry): Promise<string | null> {
     if (!this.elicitationServer) {
       return null;
@@ -309,7 +263,9 @@ export class ConnectorsHandler {
       }
     }
 
-    return this.elicitApiKeyViaForm(connector, setupHint);
+    // MCP 2025-11-25 MUST NOT: never collect API keys via form mode (key would transit MCP payload).
+    // URL mode is the only secure path — if unavailable, caller will ask user to provide key directly.
+    return null; // OK: Explicit empty — no secure fallback when URL elicitation unavailable
   }
 
   private async elicitOAuthCredentials(
