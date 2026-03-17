@@ -55,7 +55,7 @@ describe('WebhookHandler - Initialization (BUG FIX 0.8)', () => {
       // Should return error (not throw)
       expect(result.response.success).toBe(false);
       expect(result.response.error).toBeDefined();
-      expect(result.response.error?.message).toContain('Webhook manager not initialized');
+      expect(result.response.error?.message).toContain('Redis required');
     });
 
     it('should work after manager is initialized', async () => {
