@@ -212,6 +212,8 @@ export interface Checkpoint {
 export interface PlanState {
   planId: string;
   description: string;
+  spreadsheetId?: string;
+  planningContextSummary?: string;
   steps: ExecutionStep[];
   status: PlanStatus;
   results: StepResult[];

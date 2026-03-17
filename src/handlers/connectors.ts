@@ -20,8 +20,8 @@ import type { SamplingServer } from '../mcp/sampling.js';
 import { generateAIInsight } from '../mcp/sampling.js';
 import type { ConnectorCredentials } from '../connectors/types.js';
 import type { ElicitationServer } from '../mcp/elicitation.js';
-import { generateElicitationId, safeElicit, selectField, stringField } from '../mcp/elicitation.js';
-import { startApiKeyServer } from '../utils/api-key-server.js';
+import { generateElicitationId, safeElicit, selectField } from '../mcp/elicitation.js';
+import { startApiKeyServer, startOAuthCredentialsServer } from '../utils/api-key-server.js';
 
 type ConnectorCatalogEntry = ReturnType<
   typeof connectorManager.listConnectors
@@ -275,65 +275,51 @@ export class ConnectorsHandler {
       return null;
     }
 
+    // MCP 2025-11-25 MUST NOT: never collect clientSecret via form mode (transits MCP payload).
+    // Use URL mode — credentials are submitted directly to localhost and never leave the machine.
+    const supportsUrl = !!this.elicitationServer.getClientCapabilities()?.elicitation?.url;
+    if (!supportsUrl) {
+      return null;
+    }
+
+    let shutdown: (() => void) | undefined;
     try {
-      const result = await safeElicit<{
-        clientId: string;
-        clientSecret: string;
-        accessToken?: string;
-        refreshToken?: string;
-      } | null>(
-        this.elicitationServer,
-        {
-          mode: 'form',
-          message: `Configure OAuth credentials for ${connector.name}`,
-          requestedSchema: {
-            type: 'object',
-            properties: {
-              clientId: stringField({
-                title: 'Client ID',
-                description: 'OAuth client identifier',
-                minLength: 1,
-              }),
-              clientSecret: stringField({
-                title: 'Client Secret',
-                description: 'OAuth client secret',
-                minLength: 1,
-              }),
-              accessToken: stringField({
-                title: 'Access Token',
-                description: 'Optional existing access token',
-              }),
-              refreshToken: stringField({
-                title: 'Refresh Token',
-                description: 'Optional refresh token',
-              }),
-            },
-            required: ['clientId', 'clientSecret'],
-          },
-        },
-        null
-      );
+      const handle = await startOAuthCredentialsServer({ provider: connector.name });
+      shutdown = handle.shutdown;
 
-      if (result) {
-        const clientId = String(result.clientId ?? '').trim();
-        const clientSecret = String(result.clientSecret ?? '').trim();
+      const elicitationId = generateElicitationId('connector_oauth');
+      const result = await this.elicitationServer.elicitInput({
+        mode: 'url',
+        message:
+          `Open the local ${connector.name} OAuth setup page to enter your credentials. ` +
+          'Credentials are stored locally and never transit through the MCP payload.',
+        elicitationId,
+        url: handle.url,
+      });
 
-        if (!clientId || !clientSecret) {
-          return null;
-        }
-
-        const accessToken = String(result.accessToken ?? '').trim();
-        const refreshToken = String(result.refreshToken ?? '').trim();
-
-        return {
-          clientId,
-          clientSecret,
-          ...(accessToken ? { accessToken } : {}),
-          ...(refreshToken ? { refreshToken } : {}),
-        };
+      if (result.action !== 'accept') {
+        shutdown();
+        return null;
       }
+
+      const creds = await handle.credentialsPromise;
+      if (!creds.clientId || !creds.clientSecret) {
+        return null;
+      }
+
+      if (this.elicitationServer.createElicitationCompletionNotifier) {
+        const notify = this.elicitationServer.createElicitationCompletionNotifier(elicitationId);
+        await notify();
+      }
+
+      return {
+        clientId: creds.clientId,
+        clientSecret: creds.clientSecret,
+        ...(creds.accessToken ? { accessToken: creds.accessToken } : {}),
+        ...(creds.refreshToken ? { refreshToken: creds.refreshToken } : {}),
+      };
     } catch {
-      // Elicitation unsupported or unavailable — fall through to manual error response
+      shutdown?.();
     }
 
     return null;
