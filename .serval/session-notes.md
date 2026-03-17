@@ -6,7 +6,39 @@
 
 ## Current Phase
 
-**Session 84 (2026-03-16) — LLM usability audit fixes + MCP 2025-11-25 verification.** Branch `remediation/phase-1`. 402 actions (25 tools). 2691/2691 tests. All gates green.
+**Session 86 (2026-03-17) — Task backlog closure: elicitation compliance, spec verification.** Branch `remediation/phase-1`. 402 actions (25 tools). 2698/2699 tests (1 pre-existing webhook failure). Commits `aa1565c`, `75b8787`, `0ae700c`, `ac224de`.
+
+## What Was Just Completed (Session 86)
+
+**Task #10 — Conditional webhook filtering** (committed `75b8787`): `enrichInputSchema()` in tools-list-compat.ts now hides Redis-required actions (register, unregister, list, get, test, get_stats) from both `actionParams` hints and `oneOf` schema variants when Redis is absent. The 4 non-Redis actions remain visible.
+
+**Task #11 — share_add pre-flight validation** (committed `aa1565c`): Added `validateShareAddInput()` + `isValidDomain()` to sharing.ts. Runs before `driveRateLimiter.acquire()` — fails fast vs 15s API timeout. 3 new test cases cover missing emailAddress, missing domain, invalid domain format.
+
+**Task #15 — MCP 2025-11-25 elicitation compliance** (committed `ac224de`): Removed `elicitApiKeyViaForm()` fallback from `connectors.ts:elicitApiKey()` (MUST NOT: API key via form transits MCP payload). URL-mode path (startApiKeyServer) is the only remaining path. Verified no `type: 'array'` in any requestedSchema.
+
+**Verified already done (no code changes needed):**
+
+- Task #9 (federation hints), Task #12 (schema compliance audit), Task #14 (heap watchdog in comprehensive.ts)
+- Task #16 (descriptions.ts fixes in a7721a2), Task #17 (quality custom rules exist), Task #18 (fill_missing parses correctly)
+- Task #7 (Redis in webhook description), Task #8 (quality limitations documented), Task #13 (RBAC_GUIDE.md)
+
+**Remaining known issue:** `elicitOAuthCredentials()` in connectors.ts collects clientSecret/tokens via form mode (MUST NOT — no URL-based OAuth alternative available yet). Pre-existing test failure: `webhooks-initialization-bugfix.test.ts` expects old error message string.
+
+## What Was Just Completed (Session 85)
+
+**Round 2 description fixes** (all in `src/schemas/descriptions.ts`, committed `a7721a2`):
+
+- C2 (batch_format): Fixed `"requests"` → `"operations"` in example; added 7-value `type` enum
+- H5 (chart_create): Replaced partial 7-value chartType list with full 17-value enum; added legendPosition enum
+- H6 (model_scenario): Added `changes[].newValue` field name disambiguation
+- M1 (auto_resize): Added sheetId required note + dimension enum
+- Task #7 (sheets_webhook): Added prominent Redis-required warning block to description
+- Task #8 (sheets*quality): Added 11 builtin rule IDs with `builtin*` prefix; ⚠️ limitations note
+- Task #13 (RBAC_GUIDE.md): Added Best Practice #4 for orchestration tool allowlists
+
+**Task #9 completion** — `sheets_federation` ACTION_HINT_OVERRIDES added (committed `0ae700c`). Federation uses flat z.object (not discriminated union) → dynamic extractor returned null. Added 4-action hints: call_remote (serverName+toolName required), list_servers, get_server_tools (serverName), validate_connection (serverName). All 25 tools now have correct required-field hints.
+
+**Task #12 audit** — Full-schema mode JSON Schema output confirmed MCP-compliant (no code changes needed). All 25 schemas: type:object, $schema 2020-12, properties.request present, no Zod leaks. SERVAL_SCHEMA_REFS=true compression: 913KB → ~173KB.
 
 ## What Was Just Completed (Session 84)
 
