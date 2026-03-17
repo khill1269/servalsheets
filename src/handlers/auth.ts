@@ -1075,36 +1075,31 @@ export class AuthHandler {
   }
 
   private async setupWebhooks(req: AuthSetupFeatureInput): Promise<AuthResponse> {
-    // apiKey field repurposed to carry the Redis URL (no dedicated URL field in schema)
-    let redisUrl = (req as { apiKey?: string }).apiKey;
+    // Prefer explicit redisUrl field; fall back to apiKey for legacy callers
+    let redisUrl = (req as { redisUrl?: string }).redisUrl ?? (req as { apiKey?: string }).apiKey;
 
     if (!redisUrl && this.elicitationServer) {
+      // URL-mode: Redis URLs can contain passwords — use localhost browser form so
+      // the credential never transits the MCP payload (same pattern as setupSampling).
       try {
-        const result = await safeElicit<{ redisUrl: string } | null>(
-          this.elicitationServer,
-          {
-            mode: 'form',
-            message:
-              'Enter your Redis connection URL to enable spreadsheet change webhooks. Free options: Upstash (upstash.com) or Redis Cloud.',
-            requestedSchema: {
-              type: 'object',
-              properties: {
-                redisUrl: stringField({
-                  title: 'Redis URL',
-                  description:
-                    'Format: redis://[:password@]host[:port][/db] or rediss:// for TLS. Example: redis://localhost:6379',
-                  minLength: 8,
-                }),
-              },
-            },
-          },
-          null
-        );
-        if (result?.redisUrl) {
-          redisUrl = result.redisUrl;
+        const { keyPromise, url, shutdown } = await startApiKeyServer({
+          provider: 'Redis',
+          signupUrl: 'https://upstash.com',
+          hint: 'redis://[:password@]host[:port][/db] or rediss:// for TLS',
+        });
+        const { accepted, elicitationId } = await initiateOAuthFlow(this.elicitationServer, {
+          authUrl: url,
+          provider: 'Redis',
+          scopes: [],
+        });
+        if (accepted) {
+          redisUrl = await keyPromise;
+          await completeOAuthFlow(this.elicitationServer, elicitationId);
+        } else {
+          shutdown();
         }
       } catch {
-        // Elicitation not supported
+        // Elicitation unavailable or timed out — fall through to manual instructions
       }
     }
 
@@ -1112,14 +1107,14 @@ export class AuthHandler {
       return {
         success: true,
         action: 'setup_feature',
-        message: 'Provide a Redis URL via apiKey parameter to enable webhooks.',
+        message: 'Provide a Redis URL to enable webhooks.',
         instructions: [
           'Free Redis options:',
-          '  • Upstash (serverless): https://upstash.com',
+          '  • Upstash (serverless, free tier): https://upstash.com',
           '  • Redis Cloud free tier: https://redis.com/try-free/',
           '',
-          'Then call: sheets_auth { "action": "setup_feature", "feature": "webhooks", "apiKey": "redis://..." }',
-          'Note: Pass the Redis URL as the apiKey parameter value.',
+          'Then call:',
+          '  sheets_auth { "action": "setup_feature", "feature": "webhooks", "redisUrl": "redis://..." }',
         ],
       };
     }
@@ -1127,12 +1122,41 @@ export class AuthHandler {
     process.env['REDIS_URL'] = redisUrl;
     await runtimeConfigStore.save('REDIS_URL', redisUrl);
 
+    // Hot-wire the running singletons so webhooks activate immediately
+    // without requiring a server restart.
+    let hotWired = false;
+    try {
+      const { createClient } = await import('redis');
+      const redisClient = createClient({ url: redisUrl });
+      await redisClient.connect();
+
+      const { resetWebhookManager, initWebhookManager } =
+        await import('../services/webhook-manager.js');
+      const { resetWebhookQueue, initWebhookQueue } = await import('../services/webhook-queue.js');
+      const webhookEndpoint = process.env['WEBHOOK_ENDPOINT'] ?? 'https://localhost:3000/webhook';
+
+      resetWebhookQueue();
+      resetWebhookManager();
+      initWebhookQueue(redisClient);
+      initWebhookManager(redisClient, this.googleClient!, webhookEndpoint);
+      hotWired = true;
+      logger.info('WebhookManager hot-wired with Redis after setup_feature');
+    } catch (err) {
+      logger.warn('Redis hot-wire failed; restart required to activate webhooks', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
     return {
       success: true,
       action: 'setup_feature',
-      message: 'Redis URL saved. Webhook support is now enabled.',
+      message: hotWired
+        ? 'Redis connected. Webhooks are active immediately.'
+        : 'Redis URL saved. Restart to activate webhooks.',
       instructions: [
-        'Webhooks are ready for this session and future restarts:',
+        hotWired
+          ? 'Webhooks are active now (no restart needed):'
+          : 'Webhooks will be active after restart:',
         '  • sheets_webhook action "register" — register a webhook endpoint',
         '  • sheets_webhook action "watch_changes" — subscribe to cell/range changes',
         '  • sheets_webhook action "list" — see active webhooks',

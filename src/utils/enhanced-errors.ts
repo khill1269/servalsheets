@@ -459,14 +459,35 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
       };
 
     case 'VALIDATION_FAILED':
-    case 'ACTION_REQUIRED':
-    case 'INTERNAL_ERROR':
     case 'INVALID_ARGUMENT':
-      // Validation/generic errors → check auth status as basic diagnostic
+      // Validation errors → re-read spreadsheet structure to understand schema
+      if (spreadsheetId) {
+        return {
+          tool: 'sheets_core',
+          action: 'get',
+          params: { spreadsheetId },
+        };
+      }
+      return undefined; // OK: no context to suggest a fix
+
+    case 'ACTION_REQUIRED':
+      // Action required → use wizard to complete missing params
       return {
-        tool: 'sheets_auth',
-        action: 'status',
+        tool: 'sheets_confirm',
+        action: 'wizard_start',
+        params: { title: 'Complete required action' },
       };
+
+    case 'INTERNAL_ERROR':
+      // Internal errors → context-aware: read spreadsheet if available, otherwise no suggestion
+      if (spreadsheetId) {
+        return {
+          tool: 'sheets_core',
+          action: 'get',
+          params: { spreadsheetId },
+        };
+      }
+      return undefined; // OK: no automated fix for generic internal errors
 
     case 'AMBIGUOUS_RANGE':
       // Ambiguous range → analyze sheet to see column structure
@@ -513,6 +534,35 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
 
     case 'SAMPLING_UNAVAILABLE':
       // Missing MCP Sampling → cannot be fixed automatically
+      return undefined;
+
+    case 'OPERATION_FAILED':
+      // Operation failed → retry with minimal verbosity to reduce payload
+      if (spreadsheetId) {
+        return {
+          tool: 'sheets_core',
+          action: 'get',
+          params: { spreadsheetId },
+        };
+      }
+      return undefined; // OK: Explicit empty — no fix action available without spreadsheetId
+
+    case 'SERVICE_NOT_INITIALIZED':
+      // Service not initialized → check auth status and re-login
+      return {
+        tool: 'sheets_auth',
+        action: 'login',
+      };
+
+    case 'COMPUTE_ERROR':
+      // Compute error → re-read source data to verify inputs
+      if (spreadsheetId && range) {
+        return {
+          tool: 'sheets_data',
+          action: 'read',
+          params: { spreadsheetId, range },
+        };
+      }
       return undefined;
 
     default:

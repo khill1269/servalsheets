@@ -568,6 +568,83 @@ describe('AuthHandler', () => {
     });
   });
 
+  describe('setup_feature webhooks', () => {
+    beforeEach(() => {
+      delete process.env['REDIS_URL'];
+      vi.resetModules();
+    });
+
+    afterEach(() => {
+      delete process.env['REDIS_URL'];
+    });
+
+    it('returns instructions when no redisUrl provided', async () => {
+      const handler = new AuthHandler({});
+      const result = await handler.handle({
+        action: 'setup_feature',
+        feature: 'webhooks',
+      });
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.message).toMatch(/Provide a Redis URL/i);
+        expect(result.response.instructions).toEqual(
+          expect.arrayContaining([expect.stringMatching(/upstash|redis\.com/i)])
+        );
+      }
+    });
+
+    it('saves REDIS_URL from redisUrl field and reports hot-wire outcome', async () => {
+      // Mock redis createClient to fail — confirms graceful fallback to restart-required
+      vi.doMock('redis', () => ({
+        createClient: () => ({
+          connect: vi.fn().mockRejectedValue(new Error('connection refused')),
+        }),
+      }));
+
+      const handler = new AuthHandler({});
+      const result = await handler.handle({
+        action: 'setup_feature',
+        feature: 'webhooks',
+        redisUrl: 'redis://localhost:6379',
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        // URL was persisted even if hot-wire failed
+        expect(process.env['REDIS_URL']).toBe('redis://localhost:6379');
+        // Message indicates restart path
+        expect(result.response.message).toMatch(/saved|restart/i);
+      }
+    });
+
+    it('accepts legacy apiKey field as redis URL for backward compat', async () => {
+      vi.doMock('redis', () => ({
+        createClient: () => ({
+          connect: vi.fn().mockRejectedValue(new Error('connection refused')),
+        }),
+      }));
+
+      const handler = new AuthHandler({});
+      const result = await handler.handle({
+        action: 'setup_feature',
+        feature: 'webhooks',
+        apiKey: 'redis://legacy:6379',
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(process.env['REDIS_URL']).toBe('redis://legacy:6379');
+    });
+
+    it('response validates against output schema', async () => {
+      const handler = new AuthHandler({});
+      const result = await handler.handle({
+        action: 'setup_feature',
+        feature: 'webhooks',
+      });
+      expect(SheetsAuthOutputSchema.safeParse(result).success).toBe(true);
+    });
+  });
+
   describe('token manager integration', () => {
     it('should start token manager after successful login', async () => {
       const handler = new AuthHandler({

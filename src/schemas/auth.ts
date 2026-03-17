@@ -74,6 +74,13 @@ const SetupFeatureActionSchema = z.object({
     .describe(
       'API key to store directly — skips elicitation. Use this for programmatic setup or when the user already has the key ready.'
     ),
+  redisUrl: z
+    .string()
+    .regex(/^rediss?:\/\//, 'Must be a redis:// or rediss:// URL')
+    .optional()
+    .describe(
+      'Redis connection URL for feature=webhooks — skips elicitation. Format: redis://[:password@]host[:port][/db] or rediss:// for TLS. Free options: Upstash (upstash.com) or Redis Cloud.'
+    ),
   verbosity: VerbositySchema,
 });
 
