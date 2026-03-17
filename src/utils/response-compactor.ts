@@ -270,18 +270,18 @@ function compactInner(
       continue;
     }
 
+    if (Array.isArray(value)) {
+      compact[key] = truncateArray(value, key, options);
+      continue;
+    }
+
     // Include if it's a simple value
     if (isSimpleValue(value)) {
       compact[key] = truncateString(value);
     }
-    // Include small objects
+    // Keep object fields schema-compatible instead of collapsing them into strings.
     else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      const size = JSON.stringify(value).length;
-      if (size < 500) {
-        compact[key] = value;
-      } else {
-        compact[key] = '[object truncated]';
-      }
+      compact[key] = truncateObject(value as Record<string, unknown>, options);
     }
   }
 
@@ -336,7 +336,7 @@ function truncateValue(
     return truncateString(value);
   }
   if (typeof value === 'object' && value !== null) {
-    return truncateObject(value as Record<string, unknown>);
+    return truncateObject(value as Record<string, unknown>, options);
   }
   return value;
 }
@@ -377,7 +377,8 @@ function truncateArray(
 }
 
 /**
- * Truncate 2D arrays (spreadsheet data) with row sampling
+ * Truncate 2D arrays (spreadsheet data) with row sampling while preserving
+ * the array type for output-schema compatibility.
  */
 function truncate2DArray(values: unknown[][], fieldName: string): unknown {
   const totalRows = values.length;
@@ -394,25 +395,13 @@ function truncate2DArray(values: unknown[][], fieldName: string): unknown {
   const lastRows = previewRows - firstRows; // 40% from end
 
   const sampled: unknown[][] = [...values.slice(0, firstRows), ...values.slice(-lastRows)];
-
-  const samplingStrategy: SamplingStrategy = 'first-last';
-
-  return {
-    _truncated: true,
-    totalRows,
-    totalCells,
-    preview: sampled,
-    _meta: {
-      samplingStrategy,
-      totalCount: totalRows,
-      truncatedCount: totalRows - sampled.length,
-      hint: `Set verbosity:"detailed" in ${fieldName} request to see all ${totalRows} rows`,
-    },
-  };
+  void fieldName;
+  return sampled;
 }
 
 /**
- * Truncate 1D arrays with intelligent sampling
+ * Truncate 1D arrays with intelligent sampling while preserving the array type
+ * for output-schema compatibility.
  */
 function truncate1DArray(arr: unknown[], fieldName: string): unknown {
   if (arr.length <= MAX_INLINE_ITEMS) {
@@ -427,19 +416,8 @@ function truncate1DArray(arr: unknown[], fieldName: string): unknown {
   const lastCount = maxSampleSize - firstCount;
 
   const sampled = [...arr.slice(0, firstCount), ...arr.slice(-lastCount)];
-
-  const samplingStrategy: SamplingStrategy = 'first-last';
-
-  return {
-    _truncated: true,
-    items: sampled,
-    _meta: {
-      samplingStrategy,
-      totalCount: arr.length,
-      truncatedCount: arr.length - sampled.length,
-      hint: `Set verbosity:"detailed" in ${fieldName} request to see all ${arr.length} items`,
-    },
-  };
+  void fieldName;
+  return sampled;
 }
 
 /**
@@ -455,27 +433,25 @@ function truncateString(value: unknown): unknown {
 }
 
 /**
- * Truncate an object, removing nested complexity
+ * Truncate an object while preserving JSON types recursively so compacted
+ * responses still validate against output schemas.
  */
-function truncateObject(obj: Record<string, unknown>): Record<string, unknown> {
+function truncateObject(
+  obj: Record<string, unknown>,
+  options?: { verbosity?: string }
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
-  let fieldCount = 0;
 
   for (const [key, value] of Object.entries(obj)) {
     if (STRIPPED_FIELDS.has(key)) continue;
-    if (fieldCount >= 10) {
-      result['_moreFields'] = Object.keys(obj).length - fieldCount;
-      break;
-    }
 
     if (isSimpleValue(value)) {
       result[key] = truncateString(value);
     } else if (Array.isArray(value)) {
-      result[key] = `[${value.length} items]`;
+      result[key] = truncateArray(value, key, options);
     } else if (typeof value === 'object' && value !== null) {
-      result[key] = `{${Object.keys(value).length} fields}`;
+      result[key] = truncateObject(value as Record<string, unknown>, options);
     }
-    fieldCount++;
   }
 
   return result;
