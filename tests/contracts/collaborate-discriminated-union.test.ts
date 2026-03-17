@@ -59,7 +59,13 @@ describe('sheets_collaborate: all 35 actions accept valid minimal inputs', () =>
 
   it('share_add: valid input accepted', () => {
     expectValid(
-      wrap({ action: 'share_add', spreadsheetId: SPREADSHEET_ID, type: 'user', role: 'writer' })
+      wrap({
+        action: 'share_add',
+        spreadsheetId: SPREADSHEET_ID,
+        type: 'user',
+        role: 'writer',
+        emailAddress: 'user@example.com',
+      })
     );
   });
 

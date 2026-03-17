@@ -25,16 +25,45 @@ export const FederationActionSchema = z.enum([
  * Federation input schema
  */
 export const SheetsFederationInputSchema = z.object({
-  request: z.object({
-    /** Action to perform */
-    action: FederationActionSchema,
-    /** Server name (required for call_remote, get_server_tools, validate_connection) */
-    serverName: z.string().optional(),
-    /** Tool name on remote server (required for call_remote) */
-    toolName: z.string().optional(),
-    /** Tool input arguments (required for call_remote) */
-    toolInput: z.record(z.string(), z.unknown()).optional(),
-  }),
+  request: z
+    .object({
+      /** Action to perform */
+      action: FederationActionSchema,
+      /** Server name (required for call_remote, get_server_tools, validate_connection) */
+      serverName: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Name of the remote MCP server. Required for call_remote, get_server_tools, and validate_connection.'
+        ),
+      /** Tool name on remote server (required for call_remote) */
+      toolName: z
+        .string()
+        .min(1)
+        .optional()
+        .describe('Tool name on the remote server. Required for call_remote.'),
+      /** Tool input arguments (optional for call_remote) */
+      toolInput: z.record(z.string(), z.unknown()).optional(),
+    })
+    .superRefine((data, ctx) => {
+      const needsServer = ['call_remote', 'get_server_tools', 'validate_connection'];
+      if (needsServer.includes(data.action) && !data.serverName) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['serverName'],
+          message: `serverName is required for ${data.action}. Use list_servers to see configured servers.`,
+        });
+      }
+      if (data.action === 'call_remote' && !data.toolName) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['toolName'],
+          message:
+            'toolName is required for call_remote. Use get_server_tools to discover available tools.',
+        });
+      }
+    }),
 });
 
 /**

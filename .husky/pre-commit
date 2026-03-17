@@ -49,7 +49,9 @@ if [ -n "$STAGED_ALL" ]; then
       SECRET_HITS="$SECRET_HITS\n  ❌ $staged_file — PEM private key block"
     fi
 
-  done <<< "$STAGED_ALL"
+  done <<EOF
+$STAGED_ALL
+EOF
 
   if [ -n "$SECRET_HITS" ]; then
     echo "❌ SECRET SCANNER: Potential credentials detected in staged files:"

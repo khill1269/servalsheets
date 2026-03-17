@@ -342,8 +342,8 @@ const UpdateSheetActionSchema = CommonFieldsSchema.extend({
     .min(1)
     .max(255)
     .optional()
-    .describe('New sheet title (also accepts newTitle as alias)'),
-  newTitle: z.string().min(1).max(255).optional().describe('Alias for title — new sheet title'),
+    .describe('New sheet title'),
+  newTitle: z.string().min(1).max(255).optional().describe('Alias for title (deprecated — use title instead)'),
   index: z.coerce.number().int().min(0).optional().describe('New position (0 = first)'),
   tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
   tabColorStyle: ColorStyleSchema.optional().describe(

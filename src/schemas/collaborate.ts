@@ -599,6 +599,32 @@ export const SheetsCollaborateInputSchema = z.object({
               'role is required for share_add (valid values: owner, writer, commenter, reader)',
           });
         }
+        // Validate emailAddress/domain based on type
+        if (data.type === 'user' || data.type === 'group') {
+          if (!data.emailAddress) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['emailAddress'],
+              message: `emailAddress is required when type is '${data.type}'`,
+            });
+          }
+        }
+        if (data.type === 'domain') {
+          if (!data.domain) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['domain'],
+              message: "domain is required when type is 'domain' (e.g. 'example.com')",
+            });
+          } else if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/.test(data.domain)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['domain'],
+              message:
+                'domain must be a valid domain name (e.g. "example.com", "corp.example.org")',
+            });
+          }
+        }
       }
     }),
 });

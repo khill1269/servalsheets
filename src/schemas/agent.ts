@@ -58,9 +58,10 @@ const PlanActionSchema = CommonFieldsSchema.extend({
     .number()
     .int()
     .positive()
+    .max(50)
     .optional()
     .default(10)
-    .describe('Maximum number of steps to generate in the plan (default: 10)'),
+    .describe('Maximum number of steps to generate in the plan (default: 10, max: 50)'),
   context: z
     .string()
     .optional()
