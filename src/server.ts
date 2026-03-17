@@ -8,7 +8,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { InMemoryTaskMessageQueue } from '@modelcontextprotocol/sdk/experimental/tasks/stores/in-memory.js';
-import type { CallToolResult, LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
+import { type CallToolResult, type LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
 import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import type {
   ToolTaskHandler,
@@ -78,12 +78,10 @@ import {
   type RelatedRequestSender,
   type TaskStatusUpdater,
 } from './utils/request-context.js';
-import { verifyJsonSchema } from './utils/schema-compat.js';
 import { extractIdempotencyKeyFromHeaders } from './utils/idempotency-key-generator.js';
 import { TOOL_DEFINITIONS, isToolCallAuthExempt } from './mcp/registration/tool-definitions.js';
 import { createTaskAwareSamplingServer } from './mcp/sampling.js';
 import { buildToolResponse } from './mcp/registration/tool-handlers.js';
-import { prepareSchemaForRegistrationCached } from './mcp/registration/schema-helpers.js';
 import { registerToolsListCompatibilityHandler } from './mcp/registration/tools-list-compat.js';
 import { recordSpreadsheetId } from './mcp/completions.js';
 import { resourceNotifications, teardownResourceNotifications } from './resources/notifications.js';
@@ -102,6 +100,7 @@ import { STAGED_REGISTRATION } from './config/constants.js';
 import { toolStageManager } from './mcp/registration/tool-stage-manager.js';
 import { getEnv, validateEnv } from './config/env.js';
 import { resolveCostTrackingTenantId } from './utils/tenant-identification.js';
+import { verifyToolIntegrity } from './security/tool-hash-registry.js';
 import {
   initializeBuiltinConnectors,
   connectorManager,
@@ -163,6 +162,8 @@ export class ServalSheetsServer {
   private loggingBridgeInstalled = false;
   private forwardingMcpLog = false;
   private mcpLogRateLimitState = createMcpLogRateLimitState();
+  private protectedInitializeRequestIds = new Set<string | number>();
+  private toolIntegrityVerified = false;
 
   // Cached handler map (rebuilt only when handlers change)
   private cachedHandlerMap: Record<
@@ -201,6 +202,7 @@ export class ServalSheetsServer {
         taskMessageQueue: new InMemoryTaskMessageQueue(),
       }
     );
+    this.installInitializeCancellationGuard();
 
     // Initialize request queue with concurrency limit
     const maxConcurrent = parseInt(process.env['MAX_CONCURRENT_REQUESTS'] ?? '10', 10);
@@ -234,9 +236,65 @@ export class ServalSheetsServer {
   }
 
   /**
+   * MCP §1.5 forbids clients from cancelling `initialize`.
+   * The SDK's generic cancellation path would otherwise abort the in-flight init
+   * request before its response is emitted if a notifications/cancelled arrives
+   * in the same read cycle.
+   */
+  private installInitializeCancellationGuard(): void {
+    const rawServer = this._server.server as unknown as {
+      _onrequest?: (
+        request: { id?: string | number; method?: string },
+        extra?: unknown
+      ) => Promise<void> | void;
+      _oncancel?: (notification: { params?: { requestId?: string | number } }) => unknown;
+    };
+
+    if (typeof rawServer._onrequest !== 'function' || typeof rawServer._oncancel !== 'function') {
+      return;
+    }
+
+    const originalOnRequest = rawServer._onrequest.bind(rawServer);
+    const originalOnCancel = rawServer._oncancel.bind(rawServer);
+
+    rawServer._onrequest = (request, extra) => {
+      if (request.method === 'initialize' && request.id !== undefined) {
+        const requestId = request.id;
+        this.protectedInitializeRequestIds.add(requestId);
+        setTimeout(() => {
+          this.protectedInitializeRequestIds.delete(requestId);
+        }, 0);
+      }
+
+      return originalOnRequest(request, extra);
+    };
+
+    rawServer._oncancel = (notification) => {
+      const requestId = notification.params?.requestId;
+      if (requestId !== undefined && this.protectedInitializeRequestIds.has(requestId)) {
+        baseLogger.warn('Ignoring cancellation for initialize request', { requestId });
+        return;
+      }
+
+      return originalOnCancel(notification);
+    };
+  }
+
+  private async ensureToolIntegrityVerified(): Promise<void> {
+    if (this.toolIntegrityVerified) {
+      return;
+    }
+
+    await verifyToolIntegrity();
+    this.toolIntegrityVerified = true;
+  }
+
+  /**
    * Initialize the server
    */
   async initialize(): Promise<void> {
+    await this.ensureToolIntegrityVerified();
+
     const envConfig = getEnv();
     const costTrackingEnabled =
       envConfig.ENABLE_COST_TRACKING || envConfig.ENABLE_BILLING_INTEGRATION;
@@ -463,35 +521,10 @@ export class ServalSheetsServer {
    */
   private registerToolSet(tools: readonly (typeof TOOL_DEFINITIONS)[number][]): void {
     for (const tool of tools) {
-      // Prepare schemas for SDK registration with caching (P0-2 optimization)
-      // Caching saves 8-40ms at startup by avoiding redundant schema transformations
-      const inputSchemaForRegistration = prepareSchemaForRegistrationCached(
-        tool.name,
-        tool.inputSchema,
-        'input'
-      ) as unknown as AnySchema;
-      const outputSchemaForRegistration = prepareSchemaForRegistrationCached(
-        tool.name,
-        tool.outputSchema,
-        'output'
-      ) as unknown as AnySchema;
-
-      // SAFETY CHECK: Verify schemas are properly transformed JSON Schema objects (not Zod objects)
-      // This prevents "v3Schema.safeParseAsync is not a function" errors
-      // Only run in development to avoid performance overhead in production
-      if (process.env['NODE_ENV'] !== 'production') {
-        const isZodSchema = (schema: unknown): boolean =>
-          Boolean(
-            schema && typeof schema === 'object' && '_def' in (schema as Record<string, unknown>)
-          );
-
-        if (!isZodSchema(inputSchemaForRegistration)) {
-          verifyJsonSchema(inputSchemaForRegistration);
-        }
-        if (!isZodSchema(outputSchemaForRegistration)) {
-          verifyJsonSchema(outputSchemaForRegistration);
-        }
-      }
+      // Keep SDK registration on native Zod schemas. Deferred / compact JSON Schema
+      // serialization is handled separately by the tools/list compatibility handler.
+      const inputSchemaForRegistration = tool.inputSchema as unknown as AnySchema;
+      const outputSchemaForRegistration = tool.outputSchema as unknown as AnySchema;
 
       // Get icons and execution config for this tool
       const toolIcons = TOOL_ICONS[tool.name];
@@ -512,7 +545,6 @@ export class ServalSheetsServer {
           {
             title: tool.annotations.title,
             description: tool.description,
-            // FIX: Use prepared schemas (deferred/optimized) instead of full Zod schemas
             inputSchema: inputSchemaForRegistration,
             outputSchema: outputSchemaForRegistration,
             annotations: tool.annotations,
@@ -1275,6 +1307,7 @@ export class ServalSheetsServer {
 
     // Validate required environment variables before any initialization
     validateEnv();
+    await this.ensureToolIntegrityVerified();
 
     // Initialize first (register handlers), then connect
     baseLogger.info('[Phase 1/3] Initializing handlers...');

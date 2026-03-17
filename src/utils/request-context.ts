@@ -45,8 +45,6 @@ import { AsyncLocalStorage } from 'async_hooks';
 import { randomUUID } from 'crypto';
 import type { Logger } from 'winston';
 import type { ServerNotification } from '@modelcontextprotocol/sdk/types.js';
-import type { MetadataCache } from '../services/metadata-cache.js';
-import type { SessionContextManager } from '../services/session-context.js';
 import { baseLogger } from './base-logger.js';
 
 export interface RelatedMcpRequest {
@@ -73,6 +71,28 @@ export type RelatedRequestSender = (
   resultSchema: unknown,
   options?: RelatedRequestOptions
 ) => Promise<unknown>;
+
+interface RequestScopedSpreadsheetMetadata {
+  sheets: Array<{
+    sheetId: number;
+    title: string;
+  }>;
+}
+
+/**
+ * Keep request-context decoupled from service implementations.
+ * Concrete metadata/session services are injected, but the protocol layer
+ * only depends on the small surface it actually carries between requests.
+ */
+export interface RequestScopedMetadataCache {
+  getOrFetch(spreadsheetId: string): Promise<RequestScopedSpreadsheetMetadata>;
+  getSheetId(spreadsheetId: string, sheetName: string): Promise<number | undefined>;
+  clear(): void;
+}
+
+export interface RequestScopedSessionContext {
+  trackRequest(): void;
+}
 
 export interface RequestContext {
   requestId: string;
@@ -120,8 +140,8 @@ export interface RequestContext {
    * Can be client-provided or auto-generated for non-idempotent operations
    */
   idempotencyKey?: string;
-  metadataCache?: MetadataCache;
-  sessionContext?: SessionContextManager;
+  metadataCache?: RequestScopedMetadataCache;
+  sessionContext?: RequestScopedSessionContext;
   /**
    * Last emitted progress value — used to enforce monotonic progress notifications.
    * Progress that does not exceed this value is silently dropped per MCP spec.
@@ -167,8 +187,8 @@ export function createRequestContext(options?: {
   spanId?: string;
   parentSpanId?: string;
   idempotencyKey?: string;
-  metadataCache?: MetadataCache;
-  sessionContext?: SessionContextManager;
+  metadataCache?: RequestScopedMetadataCache;
+  sessionContext?: RequestScopedSessionContext;
 }): RequestContext {
   const requestId = options?.requestId ?? randomUUID();
   const timeoutMs =

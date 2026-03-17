@@ -40,6 +40,8 @@ module.exports = {
           '^src/workers/(worker-runner|formula-parser-worker|analysis-worker)\\.ts$',
           // DuckDB worker loaded via new URL('./duckdb-worker.js', import.meta.url) — not a static import
           '^src/services/duckdb-worker\\.ts$',
+          // Python worker loaded by python-engine via worker_threads path join
+          '^src/services/python-worker\\.ts$',
           // Test/tooling modules intentionally imported from tests/scripts only
           '^src/utils/(schema-inspection|infrastructure|ast-schema-parser)\\.ts$',
           '^src/services/confirmation-policy\\.ts$',
@@ -56,14 +58,20 @@ module.exports = {
       name: 'no-handler-to-handler',
       severity: 'error',
       comment:
-        'Handlers must not import other handlers (except base handler, helpers, and index.ts barrel exports)',
+        'Handlers must not import peer tool handlers; shared error codes, helper modules, and tool-local action submodules are allowed',
       from: {
         path: '^src/handlers',
         pathNot: '^src/handlers/index\\.ts$', // Allow index.ts to import all handlers (barrel export)
       },
       to: {
         path: '^src/handlers',
-        pathNot: ['^src/handlers/base\\.ts$', '^src/handlers/helpers/'],
+        pathNot: [
+          '^src/handlers/base\\.ts$',
+          '^src/handlers/error-codes\\.ts$',
+          '^src/handlers/helpers/',
+          '^src/handlers/[^/]+-helpers\\.ts$',
+          '^src/handlers/[^/]+-actions/',
+        ],
       },
     },
     {
@@ -88,7 +96,7 @@ module.exports = {
       to: {
         path: '^src/',
         pathNot: [
-          '^src/(services|schemas|utils|types|config|observability|errors|constants|core|mcp|security|analysis|resources)',
+          '^src/(services|schemas|utils|types|config|observability|errors|constants|core|mcp|security|analysis|resources|connectors)',
           '^src/handlers/',
         ],
       },
@@ -97,14 +105,15 @@ module.exports = {
       name: 'services-only-import-allowed-layers',
       severity: 'error',
       comment:
-        'Services can only import from other services, schemas, utils, config, core, security, resources',
+        'Services can only import from other services plus shared analysis helpers and MCP sampling surfaces',
       from: {
         path: '^src/services',
       },
       to: {
         path: '^src/',
         pathNot: [
-          '^src/(services|schemas|utils|types|config|observability|errors|constants|core|security|resources)',
+          '^src/(services|schemas|utils|types|config|observability|errors|constants|core|security|resources|analysis)',
+          '^src/mcp/sampling\\.ts$',
         ],
       },
     },

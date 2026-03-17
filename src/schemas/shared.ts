@@ -427,8 +427,10 @@ export const ErrorCodeSchema = z
     'INTERNAL_ERROR',
     // Authentication & Authorization (5 codes)
     'UNAUTHENTICATED',
+    'NOT_AUTHENTICATED',
     'PERMISSION_DENIED',
     'INVALID_CREDENTIALS',
+    'TOKEN_EXPIRED',
     'INSUFFICIENT_PERMISSIONS',
     'INCREMENTAL_SCOPE_REQUIRED', // Phase 0: OAuth incremental consent
     // Quota & Rate Limiting (3 codes)
@@ -487,6 +489,7 @@ export const ErrorCodeSchema = z
     'AUTHENTICATION_REQUIRED',
     'AUTH_ERROR',
     'CONFIG_ERROR',
+    'NOT_CONFIGURED',
     'VALIDATION_ERROR',
     // Resource/handler lifecycle
     'NOT_FOUND',

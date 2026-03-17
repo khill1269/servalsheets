@@ -11,6 +11,8 @@ import {
   type SpreadsheetContext,
   initSessionRedis,
   getSessionContext,
+  getOrCreateSessionContext,
+  getOrCreateSessionContextAsync,
   resetSessionContext,
   resetSessionRedis,
 } from '../../src/services/session-context.js';
@@ -758,6 +760,10 @@ describe('Redis session persistence (SCALE-01)', () => {
       stored[key] = value;
       return 'OK';
     }),
+    del: vi.fn(async (key: string) => {
+      delete stored[key];
+      return 1;
+    }),
   };
 
   beforeEach(() => {
@@ -837,5 +843,42 @@ describe('Redis session persistence (SCALE-01)', () => {
     // Just verify the get was called with a key matching our namespace pattern
     const callArgs = mockRedis.get.mock.calls[0];
     expect(callArgs?.[0]).toMatch(/^servalsheets:session:.+:state$/);
+  });
+
+  it('restores session-scoped state from Redis on first getOrCreateSessionContextAsync() call', async () => {
+    const manager = new SessionContextManager();
+    manager.setActiveSpreadsheet({
+      spreadsheetId: 'http-session-sheet',
+      title: 'Persisted HTTP Session',
+      activatedAt: 1704067200000,
+      sheetNames: ['Dashboard'],
+    });
+    stored['servalsheets:http-session:http-session-123:state'] = manager.exportState();
+
+    initSessionRedis(mockRedis);
+    const ctx = await getOrCreateSessionContextAsync('http-session-123');
+
+    expect(mockRedis.get).toHaveBeenCalledWith('servalsheets:http-session:http-session-123:state');
+    expect(ctx.getActiveSpreadsheet()?.spreadsheetId).toBe('http-session-sheet');
+  });
+
+  it('persists session-scoped state to Redis when the HTTP session context changes', async () => {
+    initSessionRedis(mockRedis);
+    const ctx = await getOrCreateSessionContextAsync('persist-on-write');
+
+    ctx.setActiveSpreadsheet({
+      spreadsheetId: 'write-through-sheet',
+      title: 'Write Through',
+      activatedAt: 1704067200000,
+      sheetNames: ['Sheet1'],
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(mockRedis.set).toHaveBeenCalled();
+    expect(stored['servalsheets:http-session:persist-on-write:state']).toContain(
+      'write-through-sheet'
+    );
+    expect(getOrCreateSessionContext('persist-on-write')).toBe(ctx);
   });
 });

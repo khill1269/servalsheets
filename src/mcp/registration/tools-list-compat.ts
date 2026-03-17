@@ -41,11 +41,6 @@ function isZodSchema(schema: unknown): boolean {
 // P1-2 fix: Track tools that failed schema conversion so we can annotate them
 const schemaConversionErrors = new Map<string, string>();
 
-/** @internal Exported for testing */
-export function getSchemaConversionErrors(): ReadonlyMap<string, string> {
-  return schemaConversionErrors;
-}
-
 function toJsonSchema(schema: unknown, toolName?: string): Record<string, unknown> {
   if (!schema) {
     return EMPTY_OBJECT_JSON_SCHEMA;
@@ -132,10 +127,10 @@ function enrichInputSchema(
   toolName: string,
   inputSchema: Record<string, unknown>
 ): Record<string, unknown> {
-  if (!DEFER_SCHEMAS) {
-    return inputSchema;
-  }
-
+  // Always inject x-servalsheets.actionParams hints regardless of schema mode.
+  // In deferred mode (STDIO) these are the primary parameter guide.
+  // In full-schema mode (HTTP) they supplement the JSON Schema with compact
+  // per-action required/optional/enum summaries that are faster to scan.
   const hint = getToolDiscoveryHint(toolName);
   if (!hint) {
     return inputSchema;

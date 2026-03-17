@@ -1,25 +1,25 @@
 /**
- * ServalSheets - Prompts Catalog Resource
+ * ServalSheets Prompt Catalog
  *
- * Organizes registered prompts into scenario buckets so LLMs
- * can quickly find the right prompt for a given task.
- *
- * URI: servalsheets://prompts/catalog
- *
- * @module resources/prompts-catalog
+ * Scenario-grouped prompt discovery data used by discovery surfaces such as the
+ * master index and server card. The executable prompt surface remains
+ * prompts/list and prompts/get; this module only provides metadata.
  */
 
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-
-interface PromptEntry {
+export interface PromptEntry {
   name: string;
   description: string;
 }
 
-interface PromptBucket {
+export interface PromptBucket {
   description: string;
   whenToUse: string;
   prompts: PromptEntry[];
+}
+
+export interface PromptCatalogBucketSummary extends PromptBucket {
+  id: string;
+  promptCount: number;
 }
 
 const PROMPT_CATALOG: Record<string, PromptBucket> = {
@@ -227,6 +227,16 @@ const PROMPT_CATALOG: Record<string, PromptBucket> = {
   },
 };
 
+export function listPromptCatalogBuckets(): PromptCatalogBucketSummary[] {
+  return Object.entries(PROMPT_CATALOG).map(([id, bucket]) => ({
+    id,
+    description: bucket.description,
+    whenToUse: bucket.whenToUse,
+    prompts: bucket.prompts.map((prompt) => ({ ...prompt })),
+    promptCount: bucket.prompts.length,
+  }));
+}
+
 export function getPromptsCatalogCount(): number {
   const promptNames = new Set<string>();
   for (const bucket of Object.values(PROMPT_CATALOG)) {
@@ -235,38 +245,4 @@ export function getPromptsCatalogCount(): number {
     }
   }
   return promptNames.size;
-}
-
-/**
- * Register the prompts catalog resource.
- */
-export function registerPromptsCatalogResource(server: McpServer): void {
-  const totalPrompts = getPromptsCatalogCount();
-
-  server.registerResource(
-    'ServalSheets Prompts Catalog',
-    'servalsheets://prompts/catalog',
-    {
-      description: `All ${totalPrompts} ServalSheets prompts organized by scenario. Use to find the right prompt for analyze, clean, import, automate, troubleshoot, formulas, collaborate, visualize, and advanced workflows.`,
-      mimeType: 'application/json',
-    },
-    async (uri) => {
-      const catalog = {
-        $schema: 'servalsheets://prompts/catalog',
-        total: totalPrompts,
-        usage: 'Find your scenario in the buckets below. Use the prompt name with MCP prompts/get.',
-        buckets: PROMPT_CATALOG,
-      };
-
-      return {
-        contents: [
-          {
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'application/json',
-            text: JSON.stringify(catalog, null, 2),
-          },
-        ],
-      };
-    }
-  );
 }

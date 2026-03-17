@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const startupMocks = vi.hoisted(() => ({
   registerServerResources: vi.fn(),
   validateEnv: vi.fn(),
+  verifyToolIntegrity: vi.fn(),
 }));
 
 vi.mock('../../src/server-runtime/resource-registration.js', async (importOriginal) => {
@@ -21,12 +22,18 @@ vi.mock('../../src/config/env.js', async (importOriginal) => {
   };
 });
 
+vi.mock('../../src/security/tool-hash-registry.js', () => ({
+  verifyToolIntegrity: startupMocks.verifyToolIntegrity,
+}));
+
 import { ServalSheetsServer } from '../../src/server.js';
 
 describe('server resource registration safeguards', () => {
   beforeEach(() => {
     startupMocks.validateEnv.mockImplementation(() => undefined);
     startupMocks.registerServerResources.mockReset();
+    startupMocks.verifyToolIntegrity.mockReset();
+    startupMocks.verifyToolIntegrity.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -91,6 +98,33 @@ describe('server resource registration safeguards', () => {
         }
       ).resourcesRegistered
     ).toBe(true);
+
+    await server.shutdown();
+  });
+
+  it('verifies tool integrity before startup initialization', async () => {
+    const server = new ServalSheetsServer();
+
+    const initializeSpy = vi.spyOn(server, 'initialize').mockResolvedValue(undefined);
+    const registerResourcesSpy = vi
+      .spyOn(
+        server as unknown as {
+          registerResources: () => Promise<void>;
+        },
+        'registerResources'
+      )
+      .mockResolvedValue(undefined);
+    const connectSpy = vi.spyOn(server.server, 'connect').mockImplementation(async () => undefined);
+    vi.spyOn(process, 'on').mockReturnValue(process);
+
+    await server.start();
+
+    expect(startupMocks.verifyToolIntegrity).toHaveBeenCalledTimes(1);
+    expect(startupMocks.verifyToolIntegrity.mock.invocationCallOrder[0]).toBeLessThan(
+      initializeSpy.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
+    );
+    expect(registerResourcesSpy).toHaveBeenCalledTimes(1);
+    expect(connectSpy).toHaveBeenCalledTimes(1);
 
     await server.shutdown();
   });

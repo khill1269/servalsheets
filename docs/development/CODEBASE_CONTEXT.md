@@ -49,7 +49,7 @@ verbosity filtering, scope validation, progress reporting, error mapping.
 | sheets_fix         | FixHandler              | handlers/fix.ts (1225 lines)        | 6       | CleaningEngine, quality validators |
 | sheets_templates   | SheetsTemplatesHandler  | handlers/templates.ts (785 lines)   | 8       | Drive appDataFolder                |
 | sheets_bigquery    | SheetsBigQueryHandler   | handlers/bigquery.ts (1938 lines)   | 17      | BigQuery API, circuit breaker      |
-| sheets_appsscript  | SheetsAppsScriptHandler | handlers/appsscript.ts (1647 lines) | 19      | Apps Script API, circuit breaker   |
+| sheets_appsscript  | SheetsAppsScriptHandler | handlers/appsscript.ts (1658 lines) | 19      | Apps Script API, circuit breaker   |
 
 <!-- END_GENERATED:handler-table-base -->
 
@@ -65,15 +65,15 @@ handling, verbosity filtering, and service access.
 | sheets_auth         | AuthHandler                            | handlers/auth.ts (1274 lines)         | 5       | EncryptedFileTokenStore                            |
 | sheets_confirm      | ConfirmHandler                         | handlers/confirm.ts (440 lines)       | 5       | ElicitationServer, WizardSessions                  |
 | sheets_dependencies | DependenciesHandler                    | handlers/dependencies.ts (1107 lines) | 10      | ImpactAnalyzer (cached), ScenarioEngine            |
-| sheets_quality      | QualityHandler                         | handlers/quality.ts (367 lines)       | 4       | ValidationEngine, ConflictDetector                 |
+| sheets_quality      | QualityHandler                         | handlers/quality.ts (610 lines)       | 4       | ValidationEngine, ConflictDetector                 |
 | sheets_history      | HistoryHandler                         | handlers/history.ts (792 lines)       | 10      | HistoryService, SnapshotService, TimeTravelService |
 | sheets_session      | SessionHandler + handleSheetsSession() | handlers/session.ts (920 lines)       | 31      | SessionContextManager                              |
 | sheets_transaction  | TransactionHandler                     | handlers/transaction.ts (401 lines)   | 6       | TransactionManager                                 |
 | sheets_federation   | FederationHandler                      | handlers/federation.ts (403 lines)    | 4       | FederatedMcpClient                                 |
-| sheets_webhook      | WebhookHandler                         | handlers/webhooks.ts (627 lines)      | 10      | WebhookManager, Redis                              |
+| sheets_webhook      | WebhookHandler                         | handlers/webhooks.ts (669 lines)      | 10      | WebhookManager, Redis                              |
 | sheets_agent        | AgentHandler                           | handlers/agent.ts (240 lines)         | 8       | AgentEngine (plan/execute/rollback)                |
-| sheets_compute      | ComputeHandler                         | handlers/compute.ts (1396 lines)      | 16      | ComputeEngine (stats, regression, forecast)        |
-| sheets_connectors   | ConnectorsHandler                      | handlers/connectors.ts (349 lines)    | 10      | ConnectorManager (external API connector registry) |
+| sheets_compute      | ComputeHandler                         | handlers/compute.ts (1607 lines)      | 16      | ComputeEngine (stats, regression, forecast)        |
+| sheets_connectors   | ConnectorsHandler                      | handlers/connectors.ts (743 lines)    | 10      | ConnectorManager (external API connector registry) |
 
 <!-- END_GENERATED:handler-table-standalone -->
 

@@ -51,6 +51,16 @@ describe('servalsheets://index resource', () => {
     expect(descriptions.get('sheets_agent')).toContain('Autonomous');
     expect(descriptions.get('sheets_connectors')).toContain('external data');
     expect(descriptions.get('sheets_federation')).toContain('cross-server');
+
+    expect(payload.promptCatalog.total).toBe(getPromptsCatalogCount());
+    expect(payload.promptCatalog.bucketCount).toBeGreaterThan(0);
+    expect(
+      payload.promptCatalog.buckets.some(
+        (bucket: { id: string; prompts: Array<{ name: string }> }) =>
+          bucket.id === 'analyze' &&
+          bucket.prompts.some((prompt) => prompt.name === 'analyze_spreadsheet')
+      )
+    ).toBe(true);
   });
 
   it('routes full analysis through scout before comprehensive', async () => {
@@ -67,5 +77,18 @@ describe('servalsheets://index resource', () => {
     expect(fullAnalysis.steps[1]).toBe('sheets_analyze scout');
     expect(fullAnalysis.steps[2]).toBe('sheets_analyze comprehensive');
     expect(payload.usage.toolSelection).toContain('route directly when intent is explicit');
+
+    expect(payload.workflowCatalog.total).toBeGreaterThan(0);
+    expect(payload.workflowCatalog.usage).toContain('action:"plan"');
+    expect(payload.workflowCatalog.usage).toContain('action:"execute_plan"');
+    expect(payload.workflowCatalog.usage).not.toContain('plan_execute');
+
+    const smartCleanup = payload.workflowCatalog.flows.find(
+      (flow: { type: string }) => flow.type === 'smart_cleanup'
+    );
+
+    expect(smartCleanup).toBeDefined();
+    expect(smartCleanup.stepCount).toBeGreaterThan(0);
+    expect(typeof smartCleanup.hasMutatingSteps).toBe('boolean');
   });
 });

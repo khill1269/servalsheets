@@ -74,7 +74,7 @@ console.log(response.content[0].text);
 ```typescript
 // Subscribe to spreadsheet changes
 const subscription = await transport.subscribe({
-  resourceUri: 'spreadsheet://your-spreadsheet-id',
+  resourceUri: 'sheets:///your-spreadsheet-id',
   events: ['cell_change', 'sheet_add', 'sheet_delete'],
 });
 
@@ -763,7 +763,7 @@ const checkpoint = await timeTravelService.createCheckpoint(
 
 // 3. Subscribe to real-time changes
 await transport.subscribe({
-  resourceUri: 'spreadsheet://dashboard-spreadsheet',
+  resourceUri: 'sheets:///dashboard-spreadsheet',
   events: ['cell_change'],
 });
 

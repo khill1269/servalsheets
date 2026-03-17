@@ -197,37 +197,3 @@ export class LRUCache<K, V> {
     return total > 0 ? this.hitCount / total : 0;
   }
 }
-
-/**
- * Create a simple LRU cache with minimal configuration
- *
- * @param maxSize - Maximum number of entries
- * @param ttl - Optional time to live in milliseconds
- * @returns LRU cache instance
- *
- * @example
- * ```typescript
- * const cache = createCache<string, number>(100, 60000);
- * ```
- */
-export function createCache<K, V>(maxSize: number, ttl?: number): LRUCache<K, V> {
-  return new LRUCache({ maxSize, ttl });
-}
-
-/**
- * Create an LRU cache with hit tracking enabled
- *
- * @param maxSize - Maximum number of entries
- * @param ttl - Optional time to live in milliseconds
- * @returns LRU cache with statistics tracking
- *
- * @example
- * ```typescript
- * const cache = createTrackedCache<string, User>(1000);
- * cache.set('key', value);
- * const hitRate = cache.getHitRate(); // 0.75
- * ```
- */
-export function createTrackedCache<K, V>(maxSize: number, ttl?: number): LRUCache<K, V> {
-  return new LRUCache({ maxSize, ttl, trackHits: true });
-}

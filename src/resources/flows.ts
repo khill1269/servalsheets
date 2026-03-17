@@ -1,133 +1,101 @@
 /**
- * Flow Catalog Resource
+ * ServalSheets Flow Catalog
  *
- * Exposes static descriptions of all 7 pre-built multi-step workflows
- * as MCP resources, without requiring a spreadsheetId at registration time.
- *
- * @category Resources
+ * Canonical workflow metadata used by discovery surfaces such as the master
+ * index. This is intentionally not an MCP resource registration layer: the
+ * runtime exposes the flow information through servalsheets://index and the
+ * executable actions live on sheets_analyze (`plan` and `execute_plan`).
  */
 
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { FlowType } from '../analysis/flow-orchestrator.js';
+import { FlowOrchestrator, type FlowType } from '../analysis/flow-orchestrator.js';
 
-const FLOW_DESCRIPTIONS: Record<
+export interface FlowCatalogEntry {
+  type: FlowType;
+  name: string;
+  description: string;
+  estimatedTotalMs: number;
+  stepCount: number;
+  hasMutatingSteps: boolean;
+  useWhen: string;
+}
+
+const FLOW_DISCOVERY_METADATA: Record<
   FlowType,
   {
     name: string;
     description: string;
-    estimatedTotalMs: number;
-    stepCount: number;
     useWhen: string;
   }
 > = {
   deep_understanding: {
     name: 'Deep Understanding',
     description:
-      'Scout → Confidence → Elicit → Comprehensive → Store. Builds complete knowledge of a spreadsheet before taking any actions.',
-    estimatedTotalMs: 15000,
-    stepCount: 5,
+      'Scout the spreadsheet, score confidence, and build a deeper understanding before taking action.',
     useWhen:
-      'Starting work on an unfamiliar spreadsheet or after receiving a complex user request.',
+      'Starting work on an unfamiliar spreadsheet or when the user request is broad or ambiguous.',
   },
   smart_cleanup: {
     name: 'Smart Cleanup',
     description:
-      'Analyze quality → Generate actions → Confirm → Execute batch. Systematically finds and fixes data quality issues.',
-    estimatedTotalMs: 30000,
-    stepCount: 4,
-    useWhen: 'User asks to clean data, fix errors, or improve data quality.',
+      'Assess data quality, generate recommended fixes, and prepare a safe cleanup sequence.',
+    useWhen: 'Cleaning messy data, resolving duplicates, or fixing inconsistent formatting.',
   },
   sheet_setup: {
     name: 'Sheet Setup',
     description:
-      'Analyze template → Create structure → Format → Validate. Sets up a new sheet with proper structure and formatting.',
-    estimatedTotalMs: 20000,
-    stepCount: 4,
-    useWhen: 'Creating a new sheet or reorganizing an existing one from scratch.',
+      'Recommend structure, create foundational tabs or layout, and prepare a sheet for use.',
+    useWhen:
+      'Creating a new spreadsheet structure or reorganizing an existing workbook around a goal.',
   },
   data_import: {
     name: 'Data Import',
     description:
-      'Import → Analyze → Clean → Validate → Report. End-to-end data import with quality assurance.',
-    estimatedTotalMs: 45000,
-    stepCount: 5,
-    useWhen: 'Importing data from CSV, JSON, or external sources into a spreadsheet.',
+      'Ingest data, analyze what arrived, validate it, and prepare the next cleanup or reporting steps.',
+    useWhen: 'Importing CSV/XLSX data or migrating data from another source into Sheets.',
   },
   visualization_builder: {
     name: 'Visualization Builder',
     description:
-      'Analyze data → Suggest viz → Create charts → Format. Builds optimal visualizations from data.',
-    estimatedTotalMs: 25000,
-    stepCount: 4,
-    useWhen: 'Creating charts, graphs, or visualizations from existing data.',
+      'Inspect the data shape, choose a visualization approach, and prepare the chart-building path.',
+    useWhen: 'Turning existing spreadsheet data into charts, pivots, or dashboards.',
   },
   audit_and_fix: {
     name: 'Audit and Fix',
     description:
-      'Comprehensive → Quality → Performance → Generate fixes → Apply. Deep audit with automated remediation.',
-    estimatedTotalMs: 60000,
-    stepCount: 5,
-    useWhen:
-      'Full audit of a production spreadsheet; finding and fixing all issues systematically.',
+      'Run a broader audit across structure, quality, and performance, then recommend remediation.',
+    useWhen: 'Reviewing a production spreadsheet end-to-end before making targeted fixes.',
   },
   relationship_mapping: {
     name: 'Relationship Mapping',
     description:
-      'Scout → Analyze formulas → Dependencies → Visualize. Maps all formula dependencies and cell relationships.',
-    estimatedTotalMs: 20000,
-    stepCount: 4,
+      'Map sheet structure and dependencies to understand how formulas and references connect.',
     useWhen:
-      'Understanding complex formula chains, auditing formula dependencies, or debugging reference errors.',
+      'Debugging formulas, tracing dependencies, or understanding a complex workbook before edits.',
   },
 };
 
-const FLOW_TYPES: FlowType[] = Object.keys(FLOW_DESCRIPTIONS) as FlowType[];
+const FLOW_TYPES = Object.keys(FLOW_DISCOVERY_METADATA) as FlowType[];
+const FLOW_TEMPLATE_SPREADSHEET_ID = '__catalog__';
 
-export function registerFlowResources(server: McpServer): void {
-  // List all available flows
-  server.registerResource(
-    'Available Workflow Definitions',
-    'flows://list',
-    {
-      description: 'All 7 pre-built multi-step workflows for common spreadsheet operations',
-      mimeType: 'application/json',
-    },
-    async () => ({
-      contents: [
-        {
-          uri: 'flows://list',
-          mimeType: 'application/json',
-          text: JSON.stringify({
-            flows: FLOW_TYPES.map((type) => ({ type, ...FLOW_DESCRIPTIONS[type] })),
-            total: FLOW_TYPES.length,
-            usage:
-              'Use sheets_analyze.plan_execute with a flowType to execute a workflow. See flows://{type} for individual step details.',
-          }),
-        },
-      ],
-    })
-  );
+export function listFlowCatalogEntries(): FlowCatalogEntry[] {
+  const orchestrator = new FlowOrchestrator();
 
-  // Individual flow definitions
-  for (const flowType of FLOW_TYPES) {
-    const capturedType = flowType;
-    const capturedDef = FLOW_DESCRIPTIONS[flowType];
-    server.registerResource(
-      capturedDef.name,
-      `flows://${capturedType}`,
-      {
-        description: capturedDef.description,
-        mimeType: 'application/json',
-      },
-      async () => ({
-        contents: [
-          {
-            uri: `flows://${capturedType}`,
-            mimeType: 'application/json',
-            text: JSON.stringify({ type: capturedType, ...capturedDef }),
-          },
-        ],
-      })
-    );
-  }
+  return FLOW_TYPES.map((type) => {
+    const definition = orchestrator.buildFlow(type, FLOW_TEMPLATE_SPREADSHEET_ID);
+    const metadata = FLOW_DISCOVERY_METADATA[type];
+
+    return {
+      type,
+      name: metadata.name,
+      description: metadata.description,
+      estimatedTotalMs: definition.estimatedTotalMs,
+      stepCount: definition.steps.length,
+      hasMutatingSteps: definition.hasMutatingSteps,
+      useWhen: metadata.useWhen,
+    };
+  });
+}
+
+export function getFlowCatalogCount(): number {
+  return FLOW_TYPES.length;
 }

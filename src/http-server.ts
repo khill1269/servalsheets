@@ -90,7 +90,8 @@ import {
 import { requestDeduplicator } from './utils/request-deduplication.js';
 import { registerWellKnownHandlers } from './server/well-known.js';
 import { initializeRbacManager } from './services/rbac-manager.js';
-import { getOrCreateSessionContext } from './services/session-context.js';
+import { getOrCreateSessionContextAsync } from './services/session-context.js';
+import { verifyToolIntegrity } from './security/tool-hash-registry.js';
 import {
   buildMcpLoggingMessage,
   consumeMcpLogRateLimit,
@@ -294,7 +295,7 @@ async function createMcpServerInstance(
       elicitationServer: mcpServer.server,
       server: mcpServer.server, // Pass Server instance for elicitation/sampling (SEP-1036, SEP-1577)
       requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
-      ...(sessionId ? { sessionContext: getOrCreateSessionContext(sessionId) } : {}),
+      ...(sessionId ? { sessionContext: await getOrCreateSessionContextAsync(sessionId) } : {}),
       taskStore, // ISSUE-225: Pass taskStore so Task IDs are emitted via HTTP transport (SEP-1686)
     };
 
@@ -430,6 +431,16 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   sessions: unknown;
 } {
   const envConfig = getEnv();
+  let toolIntegrityVerified = false;
+
+  const ensureToolIntegrityVerified = async (): Promise<void> => {
+    if (toolIntegrityVerified) {
+      return;
+    }
+
+    await verifyToolIntegrity();
+    toolIntegrityVerified = true;
+  };
 
   const configuredCorsOrigins = envConfig.CORS_ORIGINS.split(',')
     .map((origin) => origin.trim())
@@ -824,6 +835,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   return {
     app,
     start: async () => {
+      await ensureToolIntegrityVerified();
       await Promise.all([rateLimiterReady, initializeRbac()]);
       await new Promise<void>((resolve, reject) => {
         httpServer = app.listen(port, host);

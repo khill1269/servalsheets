@@ -223,16 +223,20 @@ export const MAX_PAGE_SIZE = 50;
  *
  * Auto-detection:
  * - STDIO transport (default): auto-enabled (Claude Desktop optimization)
- * - HTTP transport (--http flag): disabled by default
+ * - HTTP transport (--http flag OR http-server.ts entry point): disabled by default
  * - Override: SERVAL_DEFER_SCHEMAS=true|false always takes precedence
+ *
+ * NOTE: The --http argv check alone is insufficient when http-server.ts is the
+ * entry point (e.g., `node dist/http-server.js`) because cli.ts never propagates
+ * the --http flag to process.argv. We also check process.argv[1] for 'http-server'.
  */
 function resolveDeferSchemas(): boolean {
   const envVal = process.env['SERVAL_DEFER_SCHEMAS'];
   // Explicit env var takes precedence
   if (envVal === 'true') return true;
   if (envVal === 'false') return false;
-  // Auto-detect: enable for STDIO (default), disable for HTTP
-  const isHttp = process.argv.includes('--http');
+  // Auto-detect: --http flag OR http-server.ts entry point
+  const isHttp = process.argv.includes('--http') || (process.argv[1] ?? '').includes('http-server');
   return !isHttp;
 }
 export const DEFER_SCHEMAS = resolveDeferSchemas();

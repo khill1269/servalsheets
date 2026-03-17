@@ -27,6 +27,11 @@ interface WorkerFailure {
   error: string;
 }
 
+function suppressPyodideOutput(_message?: string): void {
+  // Worker-side package progress is not useful to callers and must never bleed
+  // into the parent process stdout stream.
+}
+
 // Allowlisted modules — only these can be imported in sandboxed code
 const ALLOWED_MODULES = new Set([
   'math',
@@ -123,12 +128,24 @@ async function runPython(): Promise<void> {
     const req = workerData as WorkerRequest;
 
     const pyodideModule = (await import('pyodide')) as {
-      loadPyodide: (opts?: { indexURL?: string; packageCacheDir?: string }) => Promise<unknown>;
+      loadPyodide: (opts?: {
+        indexURL?: string;
+        packageCacheDir?: string;
+        stdout?: (msg: string) => void;
+        stderr?: (msg: string) => void;
+      }) => Promise<unknown>;
     };
 
     // FIX-03: Wire PYODIDE_CACHE_DIR to worker's loadPyodide for faster cold starts
     const cacheDir = process.env['PYODIDE_CACHE_DIR'];
-    const loadOptions: { packageCacheDir?: string } = {};
+    const loadOptions: {
+      packageCacheDir?: string;
+      stdout?: (msg: string) => void;
+      stderr?: (msg: string) => void;
+    } = {
+      stdout: suppressPyodideOutput,
+      stderr: suppressPyodideOutput,
+    };
     if (cacheDir) {
       loadOptions.packageCacheDir = cacheDir;
     }
@@ -136,7 +153,17 @@ async function runPython(): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const py: any = await pyodideModule.loadPyodide(loadOptions);
 
-    await py.loadPackage(['numpy', 'pandas', 'scipy', 'matplotlib']);
+    if (typeof py.setStdout === 'function') {
+      py.setStdout({ batched: suppressPyodideOutput });
+    }
+    if (typeof py.setStderr === 'function') {
+      py.setStderr({ batched: suppressPyodideOutput });
+    }
+
+    await py.loadPackage(['numpy', 'pandas', 'scipy', 'matplotlib'], {
+      messageCallback: suppressPyodideOutput,
+      errorCallback: suppressPyodideOutput,
+    });
 
     // Inject caller globals into the Python namespace
     for (const [k, v] of Object.entries(req.globals)) {

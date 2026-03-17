@@ -522,7 +522,6 @@ import {
   columnToIndex,
   indexToColumn,
   isValidA1Notation,
-  expandRange,
 } from '../../../src/utils/a1-notation';
 
 describe('A1 Notation Utilities', () => {

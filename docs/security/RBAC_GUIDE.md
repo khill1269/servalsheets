@@ -462,7 +462,35 @@ const { apiKey } = await rbacManager.createApiKey({
 });
 ```
 
-### 4. Regular Audit Reviews
+### 4. Include Essential Orchestration Tools in Allowed Lists
+
+When scoping `allowedTools` for API keys, always include the three essential orchestration tools alongside data tools — omitting them silently degrades functionality:
+
+| Tool                 | Why it matters                                                                                            |
+| -------------------- | --------------------------------------------------------------------------------------------------------- |
+| `sheets_session`     | Enables context tracking: omit spreadsheetId in subsequent calls, use column names instead of A1 notation |
+| `sheets_transaction` | Required for atomic batch writes (5+ operations); omitting forces slow sequential calls with no rollback  |
+| `sheets_composite`   | High-level operations: import_csv, smart_append, setup_sheet, generate_sheet                              |
+
+```typescript
+// ❌ Missing orchestration tools — batch ops broken, no context
+allowedTools: ['sheets_data', 'sheets_core'];
+
+// ✅ Recommended minimum for interactive editor workflows
+allowedTools: [
+  'sheets_data',
+  'sheets_core',
+  'sheets_format',
+  'sheets_session', // context tracking (omit spreadsheetId)
+  'sheets_transaction', // atomic batch writes
+  'sheets_composite', // import_csv, smart_append, setup_sheet
+];
+
+// ✅ Read-only minimum (no mutation tools)
+allowedTools: ['sheets_data', 'sheets_core', 'sheets_analyze', 'sheets_session'];
+```
+
+### 6. Regular Audit Reviews
 
 Review audit logs periodically:
 
@@ -477,7 +505,7 @@ const deniedAccess = logs.filter((log) => !log.allowed);
 console.log('Denied access attempts:', deniedAccess.length);
 ```
 
-### 5. Use Role Expiration for Temporary Access
+### 7. Use Role Expiration for Temporary Access
 
 ```typescript
 const oneWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);

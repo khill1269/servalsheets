@@ -227,6 +227,14 @@ export interface SessionState {
   }>;
 }
 
+interface SessionStateMutationOptions {
+  persist?: boolean;
+}
+
+interface SessionContextManagerOptions {
+  onStateChanged?: (serializedState: string) => Promise<void> | void;
+}
+
 // ============================================================================
 // DEFAULT STATE
 // ============================================================================
@@ -266,6 +274,7 @@ function createDefaultState(): SessionState {
  */
 export class SessionContextManager {
   private state: SessionState;
+  private readonly onStateChanged?: SessionContextManagerOptions['onStateChanged'];
   private readonly maxRecentSpreadsheets = 5;
   private readonly maxOperationHistory = 20;
   private readonly maxSheetNames = 100; // Limit sheet names to prevent memory issues
@@ -311,11 +320,46 @@ export class SessionContextManager {
     timestamp: number;
   }> = [];
 
-  constructor(initialState?: Partial<SessionState>) {
+  constructor(initialState?: Partial<SessionState>, options: SessionContextManagerOptions = {}) {
     this.state = {
       ...createDefaultState(),
       ...initialState,
     };
+    this.onStateChanged = options.onStateChanged;
+  }
+
+  private persistState(): void {
+    if (!this.onStateChanged) {
+      return;
+    }
+
+    let serialized: string;
+    try {
+      serialized = this.exportState();
+    } catch (error) {
+      logger.warn('Failed to serialize session state for persistence', {
+        component: 'session-context',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
+
+    try {
+      const pending = this.onStateChanged(serialized);
+      if (pending && typeof (pending as PromiseLike<unknown>).then === 'function') {
+        void Promise.resolve(pending).catch((error: unknown) => {
+          logger.warn('Failed to persist session state', {
+            component: 'session-context',
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      }
+    } catch (error) {
+      logger.warn('Failed to persist session state', {
+        component: 'session-context',
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   // ===========================================================================
@@ -343,6 +387,7 @@ export class SessionContextManager {
       activatedAt: Date.now(),
     };
     this.state.lastActivityAt = Date.now();
+    this.persistState();
   }
 
   /**
@@ -509,6 +554,7 @@ export class SessionContextManager {
       this.state.activeSpreadsheet.lastRange = range;
     }
     this.state.lastActivityAt = Date.now();
+    this.persistState();
   }
 
   // ===========================================================================
@@ -542,6 +588,7 @@ export class SessionContextManager {
     }
 
     this.state.lastActivityAt = Date.now();
+    this.persistState();
     return id;
   }
 
@@ -596,6 +643,7 @@ export class SessionContextManager {
     if (this.state.recentReads.length > 20) {
       this.state.recentReads.shift();
     }
+    this.persistState();
   }
 
   /**
@@ -745,6 +793,7 @@ export class SessionContextManager {
       ...updates,
     };
     this.state.lastActivityAt = Date.now();
+    this.persistState();
   }
 
   /**
@@ -779,6 +828,7 @@ export class SessionContextManager {
         break;
     }
     this.state.lastActivityAt = Date.now();
+    this.persistState();
   }
 
   // ===========================================================================
@@ -793,6 +843,7 @@ export class SessionContextManager {
   setPendingOperation(operation: SessionState['pendingOperation']): void {
     this.state.pendingOperation = operation;
     this.state.lastActivityAt = Date.now();
+    this.persistState();
   }
 
   /**
@@ -808,6 +859,7 @@ export class SessionContextManager {
   clearPendingOperation(): void {
     this.state.pendingOperation = null;
     this.state.lastActivityAt = Date.now();
+    this.persistState();
   }
 
   // ===========================================================================
@@ -824,8 +876,11 @@ export class SessionContextManager {
   /**
    * Reset session state
    */
-  reset(): void {
+  reset(options: SessionStateMutationOptions = {}): void {
     this.state = createDefaultState();
+    if (options.persist !== false) {
+      this.persistState();
+    }
   }
 
   /**
@@ -886,13 +941,16 @@ export class SessionContextManager {
   /**
    * Import state from persistence
    */
-  importState(json: string): void {
+  importState(json: string, options: SessionStateMutationOptions = {}): void {
     try {
       const imported = JSON.parse(json) as SessionState;
       this.state = {
         ...createDefaultState(),
         ...imported,
       };
+      if (options.persist !== false) {
+        this.persistState();
+      }
     } catch (error) {
       logger.error('Failed to import session state', {
         component: 'session-context',
@@ -1232,6 +1290,7 @@ export class SessionContextManager {
       component: 'session-context',
       userId,
     });
+    this.persistState();
   }
 
   /**
@@ -1267,6 +1326,7 @@ export class SessionContextManager {
       userId: this.currentUserId,
       preferences,
     });
+    this.persistState();
   }
 
   /**
@@ -1373,16 +1433,81 @@ function getSessionRedisKey(): string {
   return `servalsheets:session:${process.env['SESSION_INSTANCE_ID'] ?? 'default'}:state`;
 }
 
+function getHttpSessionRedisKey(sessionId: string): string {
+  return `servalsheets:http-session:${sessionId}:state`;
+}
+
 let sessionContext: SessionContextManager | null = null;
 const sessionContexts = new Map<string, SessionContextManager>();
+const hydratedSessionContexts = new Set<string>();
+const sessionContextHydrations = new Map<string, Promise<SessionContextManager>>();
 
 // SCALE-01: Duck-typed Redis client interface (compatible with 'redis' npm package)
 interface RedisSessionClient {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, options: { EX: number }): Promise<unknown>;
+  del?(key: string): Promise<unknown>;
 }
 
 let sessionRedisClient: RedisSessionClient | null = null;
+
+function isSessionStateExpired(lastActivityAt: number): boolean {
+  return Date.now() - lastActivityAt > getSessionTtlMs();
+}
+
+async function persistSerializedSessionState(
+  sessionRedisKey: string,
+  serializedState: string
+): Promise<void> {
+  if (!sessionRedisClient) {
+    return;
+  }
+
+  const ttlSeconds = Math.ceil(getSessionTtlMs() / 1000);
+  await sessionRedisClient.set(sessionRedisKey, serializedState, { EX: ttlSeconds });
+}
+
+function createSessionContextManager(sessionRedisKey?: string): SessionContextManager {
+  return new SessionContextManager(undefined, {
+    onStateChanged: sessionRedisKey
+      ? async (serializedState: string) => {
+          await persistSerializedSessionState(sessionRedisKey, serializedState);
+        }
+      : undefined,
+  });
+}
+
+async function hydrateSessionContextFromRedis(
+  manager: SessionContextManager,
+  sessionRedisKey: string,
+  logContext: Record<string, unknown>
+): Promise<SessionContextManager> {
+  if (!sessionRedisClient) {
+    return manager;
+  }
+
+  const stored = await sessionRedisClient.get(sessionRedisKey);
+  if (!stored) {
+    return manager;
+  }
+
+  manager.importState(stored, { persist: false });
+
+  if (isSessionStateExpired(manager.getState().lastActivityAt)) {
+    logger.info('Discarding expired session state restored from Redis', {
+      component: 'session-context',
+      ...logContext,
+    });
+    manager.reset({ persist: false });
+    return manager;
+  }
+
+  logger.info('Session state restored from Redis', {
+    component: 'session-context',
+    ...logContext,
+  });
+  return manager;
+}
 
 /**
  * SCALE-01: Wire a Redis client for session persistence.
@@ -1399,24 +1524,18 @@ export function initSessionRedis(client: RedisSessionClient): void {
  */
 export function getSessionContext(): SessionContextManager {
   if (!sessionContext) {
-    sessionContext = new SessionContextManager();
+    sessionContext = createSessionContextManager(getSessionRedisKey());
     const sessionRedisKey = getSessionRedisKey();
     // SCALE-01: Restore from Redis asynchronously (fire-and-forget; state is valid in-memory)
     if (sessionRedisClient) {
-      void sessionRedisClient
-        .get(sessionRedisKey)
-        .then((stored) => {
-          if (stored && sessionContext) {
-            sessionContext.importState(stored);
-            logger.info('Session state restored from Redis', { component: 'session-context' });
-          }
-        })
-        .catch((err: unknown) => {
-          logger.warn('Failed to restore session from Redis', {
-            component: 'session-context',
-            error: err instanceof Error ? err.message : String(err),
-          });
+      void hydrateSessionContextFromRedis(sessionContext, sessionRedisKey, {
+        scope: 'singleton',
+      }).catch((err: unknown) => {
+        logger.warn('Failed to restore session from Redis', {
+          component: 'session-context',
+          error: err instanceof Error ? err.message : String(err),
         });
+      });
     }
   } else if (Date.now() - sessionContext.getState().lastActivityAt > getSessionTtlMs()) {
     logger.info('Session expired — creating new SessionContextManager', {
@@ -1427,17 +1546,14 @@ export function getSessionContext(): SessionContextManager {
     // SCALE-01: Persist expired session to Redis before evicting
     if (sessionRedisClient) {
       const serialized = sessionContext.exportState();
-      const ttlSeconds = Math.ceil(getSessionTtlMs() / 1000);
-      void sessionRedisClient
-        .set(getSessionRedisKey(), serialized, { EX: ttlSeconds })
-        .catch((err: unknown) => {
-          logger.warn('Failed to persist session to Redis on expiry', {
-            component: 'session-context',
-            error: err instanceof Error ? err.message : String(err),
-          });
+      void persistSerializedSessionState(getSessionRedisKey(), serialized).catch((err: unknown) => {
+        logger.warn('Failed to persist session to Redis on expiry', {
+          component: 'session-context',
+          error: err instanceof Error ? err.message : String(err),
         });
+      });
     }
-    sessionContext = new SessionContextManager();
+    sessionContext = createSessionContextManager(getSessionRedisKey());
   }
   return sessionContext;
 }
@@ -1461,9 +1577,61 @@ export function getOrCreateSessionContext(sessionId: string): SessionContextMana
     });
   }
 
-  const created = new SessionContextManager();
+  const created = createSessionContextManager(getHttpSessionRedisKey(sessionId));
   sessionContexts.set(sessionId, created);
+  hydratedSessionContexts.delete(sessionId);
   return created;
+}
+
+export async function getOrCreateSessionContextAsync(
+  sessionId: string
+): Promise<SessionContextManager> {
+  const existing = sessionContexts.get(sessionId);
+  if (existing) {
+    const idleMs = Date.now() - existing.getState().lastActivityAt;
+    if (idleMs <= getSessionTtlMs() && hydratedSessionContexts.has(sessionId)) {
+      return existing;
+    }
+    if (idleMs > getSessionTtlMs()) {
+      logger.info('Session expired — creating new SessionContextManager', {
+        component: 'session-context',
+        sessionId,
+        idleMs,
+        ttlMs: getSessionTtlMs(),
+      });
+      sessionContexts.delete(sessionId);
+      hydratedSessionContexts.delete(sessionId);
+    }
+  }
+
+  const inFlight = sessionContextHydrations.get(sessionId);
+  if (inFlight) {
+    return await inFlight;
+  }
+
+  const manager = sessionContexts.get(sessionId) ?? getOrCreateSessionContext(sessionId);
+  const hydration = hydrateSessionContextFromRedis(manager, getHttpSessionRedisKey(sessionId), {
+    sessionId,
+    scope: 'http',
+  })
+    .catch((err: unknown) => {
+      logger.warn('Failed to restore HTTP session from Redis', {
+        component: 'session-context',
+        sessionId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return manager;
+    })
+    .then((hydrated) => {
+      hydratedSessionContexts.add(sessionId);
+      return hydrated;
+    })
+    .finally(() => {
+      sessionContextHydrations.delete(sessionId);
+    });
+
+  sessionContextHydrations.set(sessionId, hydration);
+  return await hydration;
 }
 
 /**
@@ -1472,6 +1640,8 @@ export function getOrCreateSessionContext(sessionId: string): SessionContextMana
  */
 export function removeSessionContext(sessionId: string): void {
   sessionContexts.delete(sessionId);
+  hydratedSessionContexts.delete(sessionId);
+  sessionContextHydrations.delete(sessionId);
 }
 
 /**
@@ -1480,6 +1650,8 @@ export function removeSessionContext(sessionId: string): void {
 export function resetSessionContext(): void {
   sessionContext = null;
   sessionContexts.clear();
+  hydratedSessionContexts.clear();
+  sessionContextHydrations.clear();
 }
 
 /**
@@ -1498,6 +1670,7 @@ export const SessionContext = {
   SessionContextManager,
   getSessionContext,
   getOrCreateSessionContext,
+  getOrCreateSessionContextAsync,
   removeSessionContext,
   resetSessionContext,
 };

@@ -148,9 +148,19 @@ export interface JsonSchemaOptions {
  *
  * WARNING: Not all MCP clients handle `$refs` correctly. Test thoroughly.
  *
- * Set via SERVAL_SCHEMA_REFS=true environment variable.
+ * Set via SERVAL_SCHEMA_REFS=true environment variable, or auto-enabled for HTTP
+ * transport to reduce the ~231KB full-schema payload by ~60% while preserving
+ * complete fidelity (all enums, descriptions, required arrays retained via $defs).
  */
-export const USE_SCHEMA_REFS = process.env['SERVAL_SCHEMA_REFS'] === 'true';
+function resolveSchemaRefs(): boolean {
+  const envVal = process.env['SERVAL_SCHEMA_REFS'];
+  if (envVal !== undefined) return envVal === 'true';
+  // Auto-enable for HTTP: full schemas are large (~231KB); $defs compression
+  // reduces to ~100KB with no information loss.
+  const isHttp = process.argv.includes('--http') || (process.argv[1] ?? '').includes('http-server');
+  return isHttp;
+}
+export const USE_SCHEMA_REFS = resolveSchemaRefs();
 
 /**
  * Converts a Zod schema to JSON Schema format

@@ -5,10 +5,17 @@
  * These tests work without live API credentials.
  */
 
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createServalSheetsTestHarness, type McpTestHarness } from '../helpers/mcp-test-harness.js';
 import { TOOL_COUNT, ACTION_COUNT } from '../../src/schemas/index.js';
 import { MCP_PROTOCOL_VERSION, VERSION } from '../../src/version.js';
+
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const projectRoot = resolve(currentDir, '../..');
+const CLI_ENTRYPOINT = resolve(projectRoot, 'src/cli.ts');
 
 describe('MCP Protocol 2025-11-25 Compliance', () => {
   let harness: McpTestHarness;
@@ -137,13 +144,134 @@ describe('MCP Protocol 2025-11-25 Compliance', () => {
 
   // ─── T6: Initialize cannot be cancelled (MCP §1.5) ─────────────────
   describe('Initialize protection (MCP §1.5)', () => {
-    it('should complete initialization without interruption', async () => {
-      // MCP spec §1.5: initialize MUST NOT be cancelled by clients
-      // Verify the server completed initialization successfully (tested via harness)
-      // The harness already called initialize — if it succeeded, the server handled it
-      const tools = await harness.client.listTools();
-      expect(tools.tools.length).toBeGreaterThan(0);
-      // Server is fully operational after init — cancellation was not possible
+    it('ignores cancellation notifications for in-flight initialize requests', async () => {
+      const child = spawn(process.execPath, ['--import', 'tsx', CLI_ENTRYPOINT, '--stdio'], {
+        cwd: projectRoot,
+        env: {
+          ...process.env,
+          NODE_ENV: 'test',
+          MCP_TRANSPORT: 'stdio',
+          SKIP_PREFLIGHT: 'true',
+          ENABLE_PYTHON_COMPUTE: 'false',
+        },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      let stderrBuffer = '';
+      let lineBuffer = '';
+      const pending = new Map<
+        number,
+        { resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void }
+      >();
+
+      const onStdout = (chunk: Buffer) => {
+        lineBuffer += chunk.toString();
+        const lines = lineBuffer.split('\n');
+        lineBuffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) {
+            continue;
+          }
+
+          const json = JSON.parse(trimmed) as Record<string, unknown>;
+          const id = json['id'];
+          if (typeof id === 'number') {
+            const pendingEntry = pending.get(id);
+            if (pendingEntry) {
+              pending.delete(id);
+              pendingEntry.resolve(json);
+            }
+          }
+        }
+      };
+
+      const onStderr = (chunk: Buffer) => {
+        stderrBuffer += chunk.toString();
+      };
+
+      child.stdout?.on('data', onStdout);
+      child.stderr?.on('data', onStderr);
+
+      const request = (
+        payload: Record<string, unknown>,
+        timeoutMs = 15000
+      ): Promise<Record<string, unknown>> => {
+        const id = payload['id'];
+        if (typeof id !== 'number') {
+          return Promise.reject(new Error('Request payload must include numeric id'));
+        }
+
+        return new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            pending.delete(id);
+            reject(new Error(`Timed out waiting for response ${id}\n${stderrBuffer}`));
+          }, timeoutMs);
+
+          pending.set(id, {
+            resolve: (value) => {
+              clearTimeout(timeout);
+              resolve(value);
+            },
+            reject: (error) => {
+              clearTimeout(timeout);
+              reject(error);
+            },
+          });
+
+          child.stdin?.write(JSON.stringify(payload) + '\n');
+        });
+      };
+
+      const notify = (payload: Record<string, unknown>) => {
+        child.stdin?.write(JSON.stringify(payload) + '\n');
+      };
+
+      try {
+        const initializePromise = request({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-11-25',
+            capabilities: {},
+            clientInfo: {
+              name: 'cancel-test-client',
+              version: '1.0.0',
+            },
+          },
+        });
+        notify({
+          jsonrpc: '2.0',
+          method: 'notifications/cancelled',
+          params: {
+            requestId: 1,
+            reason: 'Client must not cancel initialize',
+          },
+        });
+        const initializeResponse = await initializePromise;
+        expect(initializeResponse['result']).toBeDefined();
+
+        notify({
+          jsonrpc: '2.0',
+          method: 'notifications/initialized',
+        });
+        const toolsResponse = await request({
+          jsonrpc: '2.0',
+          id: 2,
+          method: 'tools/list',
+        });
+        const result = toolsResponse['result'] as { tools?: unknown[] } | undefined;
+        expect(Array.isArray(result?.tools)).toBe(true);
+        expect(result?.tools?.length).toBeGreaterThan(0);
+      } finally {
+        child.stdout?.off('data', onStdout);
+        child.stderr?.off('data', onStderr);
+        if (!child.killed) {
+          child.kill('SIGTERM');
+        }
+      }
     });
   });
 

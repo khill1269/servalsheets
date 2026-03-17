@@ -167,7 +167,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 **DECISION GUIDE - Which action should I use?**
 → **Formatting 3+ ranges?** Use batch_format (1 API call, 80%+ savings vs sequential)
 → **Need professional look?** Use apply_preset or sheets_composite.setup_sheet (2 calls total)
-→ **Conditional formatting?** Use add_conditional_format_rule with presets (simpler than rule_add_)
+→ **Conditional formatting?** Use add_conditional_format_rule with presets (simpler than rule_add_). REQUIRED: sheetId (numeric — get from sheets_core.list_sheets, NOT sheet name). rulePreset enum: highlight_duplicates | highlight_blanks | highlight_errors | color_scale_green_red | color_scale_blue_red | data_bars | top_10_percent | bottom_10_percent | above_average | below_average | negative_red_positive_green | traffic_light | variance_highlight
 → **Data validation dropdowns?** Use set_data_validation
 → **Just 1-2 changes?** Use individual set_format (simple, direct)
 
@@ -200,7 +200,8 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 [Destructive] rule_delete_conditional_format
 
 **TOP 3 ACTIONS:**
-1. batch_format: {"action":"batch_format","spreadsheetId":"1ABC...","requests":[...]} — 2+ ranges, 1 call
+1. batch_format: {"action":"batch_format","spreadsheetId":"1ABC...","operations":[{"type":"background","range":"Sheet1!A1:A10","color":{"red":0.8,"green":0.9,"blue":1}},{"type":"text_format","range":"Sheet1!1:1","bold":true}]} — 2+ ranges, 1 call
+   NOTE: param is "operations" (NOT "requests"). type enum: background | text_format | number_format | alignment | borders | format | preset
 2. apply_preset: {"action":"apply_preset","spreadsheetId":"1ABC...","range":"Sheet1!A1:D10","preset":"header_row"} — Instant professional look
 3. set_data_validation: {"action":"set_data_validation","spreadsheetId":"1ABC...","range":"Sheet1!D2:D100","type":"list","values":["Option 1","Option 2"]} — Dropdowns`,
 
@@ -256,6 +257,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 - dimension: "ROWS" or "COLUMNS" (uppercase)
 - sheetId: Numeric ID from sheets_core.list_sheets (0, 123456789, etc.)
 - range: "Sheet1!A1:D100" (required for sort_range, case-sensitive)
+- auto_resize: REQUIRES numeric sheetId (NOT sheetName). dimension enum: "ROWS" | "COLUMNS" (omit for both axes)
 
 **COMMON WORKFLOWS:**
 - New sheet + headers? → sheets_composite.setup_sheet (freeze + format in 2 calls)
@@ -299,7 +301,8 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 3. pivot_create: {"action":"pivot_create","spreadsheetId":"1ABC...","sourceRange":"Sheet1!A1:D100","rows":[{"sourceColumnOffset":0}],"values":[{"sourceColumnOffset":3,"summarizeFunction":"SUM"}]} — Create pivot
 
 **PARAMETERS:**
-- chartType: BAR, LINE, PIE, SCATTER, COLUMN, AREA, COMBO (not TREEMAP, SPARKLINE)
+- chartType enum (17 values): BAR | LINE | AREA | COLUMN | SCATTER | COMBO | STEPPED_AREA | PIE | DOUGHNUT | TREEMAP | WATERFALL | HISTOGRAM | CANDLESTICK | ORG | RADAR | SCORECARD | BUBBLE (case-insensitive)
+- legendPosition enum: BOTTOM_LEGEND | LEFT_LEGEND | RIGHT_LEGEND | TOP_LEGEND | NO_LEGEND (case-insensitive)
 - anchorCell: Prefer "Sheet1!E2"; if you only have "E2", also set position.sheetId
 - sourceRange: "Sheet1!A1:D100" (case-sensitive)
 - sheetId: Numeric from sheets_core.list_sheets (0, 123456789)
@@ -316,7 +319,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   sheets_collaborate: `👥 COLLABORATE - Sharing, comments, versions, snapshots & approvals (${ACTION_COUNTS['sheets_collaborate']} actions).
 
 **DECISION GUIDE - Which action should I use?**
-→ **Need to share with users or change permissions?** Use share_add/share_update/share_remove (editor/viewer/commenter roles)
+→ **Need to share with users or change permissions?** Use share_add/share_update/share_remove. REQUIRED for share_add: type (user|group|domain|anyone) AND role (writer|reader|commenter) AND emailAddress
 → **Adding comments or building discussion?** Use comment_add/comment_update/comment_resolve (with optional replies)
 → **Before destructive operation (delete, clear)?** Use version_create_snapshot (backup point, can restore later)
 → **Find when data changed?** Use version_list_revisions + version_compare (across-session file history, NOT this session)
@@ -527,7 +530,9 @@ Example: {"action":"validate","value":"test@email.com","rules":["not_empty","val
    analyze_impact (description form): {"action":"analyze_impact","spreadsheetId":"1ABC...","operation":{"description":"delete rows A1:A100"}}
 3. detect_conflicts: {"action":"detect_conflicts","spreadsheetId":"1ABC..."}
 
-**validate rules examples:** not_empty, valid_email, is_number, is_date, min_length, max_length, matches_pattern
+**validate builtin rule IDs — 11 values (use in \`rules\` array, MUST be exact strings):**
+builtin_string | builtin_number | builtin_boolean | builtin_date | builtin_positive | builtin_non_negative | builtin_email | builtin_url | builtin_phone | builtin_required | builtin_non_empty_string
+⚠️ LIMITATIONS: No custom rule expressions. No natural language rules. Only these 11 builtin IDs are supported. For complex validation, use sheets_format.set_data_validation instead.
 **impact operation object:** at least one of \`type\`, \`tool\`, \`action\`, or \`description\` required.
 - Tool+action form: \`{ "tool": "sheets_data", "action": "write", "params": { "spreadsheetId": "...", "range": "Sheet1!A1:B10" } }\`
 - Description form: \`{ "description": "delete column B" }\` (simpler, uses natural language)
@@ -643,7 +648,7 @@ Example: {"action":"validate","value":"test@email.com","rules":["not_empty","val
 → **sheets_analyze found issues?** Use fix (resolves volatile formulas, missing freezes)
 → **Messy data (whitespace, duplicates)?** Use suggest_cleaning first, then clean
 → **Different date/currency formats?** Use standardize_formats (normalize to one format)
-→ **Empty cells?** Use fill_missing (forward fill, mean, median, constant)
+→ **Empty cells?** Use fill_missing (strategy enum: forward | backward | mean | median | mode | constant). IMPORTANT: add mode:"apply" to write values — default mode:"preview" only shows what would change
 → **Statistical outliers?** Use detect_anomalies (IQR or z-score)
 
 **Use when:** Auto-fixing formula/structure issues, cleaning messy data, standardizing formats, filling gaps, detecting anomalies
@@ -675,7 +680,7 @@ Example: {"action":"validate","value":"test@email.com","rules":["not_empty","val
 3. clean mode:"apply" → Execute (with rollback via snapshot)
 
 **BUILT-IN RULES:** trim_whitespace, fix_dates, fix_numbers, fix_booleans, remove_duplicates, fix_emails, fix_phones
-**FORMAT TARGETS:** iso_date, currency_usd, phone_e164, email_lowercase, title_case, percentage
+**FORMAT TARGETS (all 16):** iso_date | us_date | eu_date | currency_usd | currency_eur | currency_gbp | number_plain | percentage | phone_e164 | phone_national | email_lowercase | url_https | title_case | upper_case | lower_case | boolean
 **FILL STRATEGIES:** forward, backward, mean, median, mode, constant`,
 
   //=============================================================================
@@ -881,13 +886,21 @@ Example workflow:
 3. run: {"action":"run","scriptId":"1ABC...","deploymentId":"AKfycb...","functionName":"myFunction","parameters":["arg1"]}
 
 **⚠️ SAFETY:** run executes code with SIDE EFFECTS. deploy creates PUBLIC endpoints.
+**IDENTIFIER GUIDE:**
+- create, get, get_content, update_content, run → accept spreadsheetId (auto-resolves to bound script) OR scriptId
+- list_triggers, create_trigger, delete_trigger → REQUIRE scriptId (get it from create response or get action)
 **scriptId:** From Apps Script editor. **deploymentId:** From Deploy > Manage deployments. **deploymentType:** WEB_APP, EXECUTION_API
 **SUPPORTED WORKFLOW:** create → update_content → create_version → deploy → run with deploymentId
 **TIP:** Use devMode:true to test latest saved code (owner only). Trigger actions are compatibility stubs; use ScriptApp in the script itself.`,
 
   sheets_webhook: `🔔 WEBHOOK - Event-driven automation and real-time notifications (${ACTION_COUNTS['sheets_webhook']} actions).
 
-**Requires:** Redis backend (set \`REDIS_URL\` env var) + HTTPS endpoint that returns 200 OK within 10s. Without \`REDIS_URL\`, all actions return \`CONFIG_ERROR\`.
+⚠️ **REDIS REQUIRED for most actions:** Set \`REDIS_URL\` env var. Without it:
+- ❌ UNAVAILABLE (CONFIG_ERROR): register, unregister, list, get, test, get_stats
+- ✅ AVAILABLE without Redis: watch_changes, subscribe_workspace, unsubscribe_workspace, list_workspace_subscriptions
+Check server availability in the \`x-servalsheets.availability\` field of tools/list before calling.
+
+**Requires (when Redis configured):** HTTPS endpoint returning 200 OK within 10s.
 
 **ROUTING - Pick this tool when:**
 > Setting up REAL-TIME notifications for spreadsheet changes
@@ -961,6 +974,7 @@ Example workflow:
 - Materialize: {"action":"create_scenario_sheet","spreadsheetId":"1ABC...","scenario":{"name":"Q2 Conservative","changes":[{"cell":"B2","newValue":90000}]}}
 
 **cell format:** "Sheet1!A1" or "Sheet1!A1:C10"
+**changes[] field name:** Use "newValue" (NOT "value") — e.g., {"cell":"Sheet1!B2","newValue":80000}
 
 **SCENARIO WORKFLOW:**
 1. build → Create dependency graph
@@ -1050,6 +1064,8 @@ Set MCP_FEDERATION_SERVERS environment variable with JSON array:
 • statistical: {"action":"statistical","range":"Sheet1!B2:B100","includeCorrelations":true,"includePercentiles":true} → Stats with P25/P75
 • regression: {"action":"regression","range":"Sheet1!A1:B50","type":"linear","confidenceLevel":0.95} → Linear trend with R²
 • forecast: {"action":"forecast","range":"Sheet1!A1:B50","periods":12,"method":"exponential_smoothing"} → 12-month forecast
+  REQUIRES: 3+ distinct aggregated time periods in the data. Aggregate repeated dates before calling.
+  method enum: linear | exponential_smoothing | moving_average | holt_winters
 • matrix_op: {"action":"matrix_op","range":"Sheet1!A1:D4","operation":"transpose"} → Swap rows/columns
 • pivot_compute: {"action":"pivot_compute","dataRange":"Sheet1!A1:D100","rowFields":["Category"],"valueFields":[{"field":"Amount","function":"sum"}]} → Pivot by category
 • batch_compute: {"action":"batch_compute","operations":[{"operation":"sum","range":"B2:B100"},{"operation":"avg","range":"C2:C100"}]} → Multiple computations

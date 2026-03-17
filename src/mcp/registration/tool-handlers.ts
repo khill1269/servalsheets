@@ -21,10 +21,8 @@ import {
   recordToolCallLatency,
   recordError,
   recordSelfCorrection,
-  recordErrorCodeCompatibility,
   updateQueueMetrics,
 } from '../../observability/metrics.js';
-import { getTemporaryResourceStore } from '../../resources/temporary-storage.js';
 import { resourceNotifications } from '../../resources/notifications.js';
 import { withToolSpan } from '../../utils/tracing.js';
 import { z, type ZodSchema, type ZodTypeAny } from 'zod';
@@ -47,15 +45,13 @@ import {
   type TaskStatusUpdater,
 } from '../../utils/request-context.js';
 import { extractIdempotencyKeyFromHeaders } from '../../utils/idempotency-key-generator.js';
-import { compactResponse, isCompactModeEnabled } from '../../utils/response-compactor.js';
 import { recordSpreadsheetId, TOOL_ACTIONS } from '../completions.js';
 import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from '../features-2025-11-25.js';
 import { getHistoryService } from '../../services/history-service.js';
 import { getTraceAggregator } from '../../services/trace-aggregator.js';
-import { getSessionContext } from '../../services/session-context.js';
-import { getConcurrencyCoordinator } from '../../services/concurrency-coordinator.js';
 import { getCostTracker } from '../../services/cost-tracker.js';
 import { getAuditLogger } from '../../services/audit-logger.js';
+import { appendAuditLogRow } from '../../services/audit-log-sheet.js';
 import { getCacheInvalidationGraph } from '../../services/cache-invalidation-graph.js';
 import { createMetadataCache } from '../../services/metadata-cache.js';
 import { invalidateContext as invalidateSamplingContext } from '../../services/sampling-context-cache.js';
@@ -64,14 +60,10 @@ import { registerServerTaskCancelHandler } from '../../server-runtime/control-pl
 import { handlePreInitExemptToolCall } from '../../server-runtime/preinit-tool-routing.js';
 import { resolveCostTrackingTenantId } from '../../utils/tenant-identification.js';
 import type { OperationHistory } from '../../types/history.js';
-import {
-  prepareSchemaForRegistrationCached,
-  wrapInputSchemaForLegacyRequest,
-} from './schema-helpers.js';
+import { wrapInputSchemaForLegacyRequest } from './schema-helpers.js';
 import { detectLegacyInvocation, normalizeToolArgs } from './tool-arg-normalization.js';
 import { assertValidMcpToolNames } from './tool-name-validation.js';
 import type { ToolDefinition } from './tool-definitions.js';
-import { redactSensitiveData } from '../../middleware/redaction.js';
 import { ACTIVE_TOOL_DEFINITIONS, isToolCallAuthExempt } from './tool-definitions.js';
 import {
   extractAction,
@@ -116,13 +108,8 @@ import { parseWithCache } from '../../utils/schema-cache.js';
 import { registerToolsListCompatibilityHandler } from './tools-list-compat.js';
 import { wrapToolMapWithIdempotency } from '../../middleware/idempotency-middleware.js';
 import { registerPipelineDispatch } from '../../services/pipeline-registry.js';
-import { suggestFix } from '../../services/error-fix-suggester.js';
 import { buildToolExecutionErrorPayload } from './tool-execution-error.js';
-import { getRecommendedActions } from '../../services/action-recommender.js';
-import { scanResponseQuality } from '../../services/lightweight-quality-scanner.js';
-import { generateResponseHints } from '../../services/response-hints-engine.js';
-import { getErrorCodeCompatibility } from '../../utils/error-code-compat.js';
-import { withWriteLock } from '../../middleware/write-lock-middleware.js';
+import { isLikelyMutationAction, withWriteLock } from '../../middleware/write-lock-middleware.js';
 import { checkRateLimit } from '../../middleware/rate-limit-middleware.js';
 import { detectMutationSafetyViolation } from '../../middleware/mutation-safety-middleware.js';
 import { startKeepalive } from '../../utils/keepalive.js';
@@ -135,6 +122,7 @@ import {
 } from '../../utils/auth-guard.js';
 import { replaceAvailableToolNames } from '../tool-registry-state.js';
 import { ServiceError } from '../../core/errors.js';
+import { buildToolResponse as buildNormalizedToolResponse } from './tool-response.js';
 
 // Wrap input schemas for legacy envelopes during validation.
 // Keep registration schemas unwrapped to avoid MCP SDK tools/list empty schema bug.
@@ -181,22 +169,6 @@ const SheetsAgentInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsAgent
 const SheetsConnectorsInputSchemaLegacy = wrapInputSchemaForLegacyRequest(
   SheetsConnectorsInputSchema
 );
-
-const NON_FATAL_TOOL_ERROR_CODES = new Set<string>([
-  'NOT_FOUND',
-  'PRECONDITION_FAILED',
-  'FAILED_PRECONDITION',
-  'INCREMENTAL_SCOPE_REQUIRED',
-  'PERMISSION_DENIED',
-  'ELICITATION_UNAVAILABLE',
-  'CONFIG_ERROR',
-  'FEATURE_UNAVAILABLE',
-  'AUTHENTICATION_REQUIRED',
-  'NOT_AUTHENTICATED',
-  'NOT_CONFIGURED',
-  'TOKEN_EXPIRED',
-  'QUOTA_EXCEEDED',
-]);
 
 const SELF_CORRECTION_WINDOW_MS = 5 * 60 * 1000;
 const recentFailuresByPrincipal = new Map<string, { action: string; timestampMs: number }>();
@@ -365,6 +337,101 @@ function shouldEnhanceActionIssue(issue: z.ZodIssue, attemptedAction: string | n
 function shouldInvalidateSamplingContext(toolName: string, action: string): boolean {
   const invalidationKeys = getCacheInvalidationGraph().getInvalidationKeys(toolName, action);
   return invalidationKeys.length > 0;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function extractSpreadsheetIdFromResult(result: unknown): string | undefined {
+  if (!isRecord(result)) {
+    return undefined;
+  }
+
+  const response = isRecord(result['response']) ? result['response'] : undefined;
+  if (!response) {
+    return undefined;
+  }
+
+  if (typeof response['spreadsheetId'] === 'string') {
+    return response['spreadsheetId'];
+  }
+
+  if (typeof response['newSpreadsheetId'] === 'string') {
+    return response['newSpreadsheetId'];
+  }
+
+  const spreadsheet = response['spreadsheet'];
+  if (isRecord(spreadsheet) && typeof spreadsheet['spreadsheetId'] === 'string') {
+    return spreadsheet['spreadsheetId'];
+  }
+
+  const updatedSpreadsheet = response['updatedSpreadsheet'];
+  if (isRecord(updatedSpreadsheet) && typeof updatedSpreadsheet['spreadsheetId'] === 'string') {
+    return updatedSpreadsheet['spreadsheetId'];
+  }
+
+  return undefined;
+}
+
+function resolveActionLogSpreadsheetId(
+  args: Record<string, unknown>,
+  result?: unknown
+): string | undefined {
+  return extractSpreadsheetId(args) ?? extractSpreadsheetIdFromResult(result);
+}
+
+function isActionLogMutation(action: string): boolean {
+  return isLikelyMutationAction(action) || action === 'create' || action === 'copy';
+}
+
+async function appendActionLogSheetRowIfEnabled(input: {
+  envConfig: ReturnType<typeof getEnv>;
+  googleClient: GoogleApiClient | null;
+  toolName: string;
+  action: string;
+  args: Record<string, unknown>;
+  result?: unknown;
+  principalId?: string;
+  requestId?: string;
+  duration: number;
+  success: boolean;
+}): Promise<void> {
+  if (!input.envConfig.ENABLE_ACTION_LOG_SHEET) {
+    return;
+  }
+
+  if (!input.envConfig.ACTION_LOG_SPREADSHEET_ID || !input.googleClient?.sheets) {
+    return;
+  }
+
+  if (!isActionLogMutation(input.action)) {
+    return;
+  }
+
+  const spreadsheetId = resolveActionLogSpreadsheetId(input.args, input.result);
+  if (!spreadsheetId) {
+    return;
+  }
+
+  try {
+    await appendAuditLogRow(
+      input.googleClient.sheets,
+      input.envConfig.ACTION_LOG_SPREADSHEET_ID,
+      input.envConfig.ACTION_LOG_SHEET_NAME,
+      {
+        timestamp: new Date().toISOString(),
+        tool: input.toolName,
+        action: input.action,
+        spreadsheetId,
+        userId: input.principalId ?? input.requestId ?? 'anonymous',
+        success: input.success,
+        durationMs: input.duration,
+      }
+    );
+  } catch {
+    // Action log sheet writes are non-critical — never block tool execution.
+  }
 }
 
 function getTaskAbortControllers(taskStore: RegisteredTaskStore): Map<string, AbortController> {
@@ -766,746 +833,12 @@ export function createToolHandlerMap(
 // RESPONSE BUILDING
 // ============================================================================
 
-/**
- * Truncate large objects for preview (Phase 3: Resource URI Fallback)
- */
-function truncateForPreview(data: unknown, maxChars: number): unknown {
-  const str = JSON.stringify(data);
-  if (str.length <= maxChars) {
-    return data;
-  }
-
-  // Try to intelligently truncate arrays
-  if (Array.isArray(data)) {
-    const preview = data.slice(0, 100); // First 100 items
-    return {
-      _truncated: true,
-      _totalItems: data.length,
-      _preview: preview,
-      _hint: 'Showing first 100 items. Use resourceUri to access full data.',
-    };
-  }
-
-  // For objects, try to truncate string fields
-  if (data && typeof data === 'object') {
-    const truncated: Record<string, unknown> = { _truncated: true };
-    for (const [key, value] of Object.entries(data)) {
-      const valueStr = JSON.stringify(value);
-      if (valueStr.length > 200) {
-        truncated[key] = `${valueStr.substring(0, 200)}... [truncated]`;
-      } else {
-        truncated[key] = value;
-      }
-    }
-    return truncated;
-  }
-
-  // Last resort: just truncate the string
-  return `${str.substring(0, maxChars)}... [truncated]`;
-}
-
-type StandardPaginationMeta = {
-  hasMore: boolean;
-  nextCursor?: string;
-  totalCount?: number;
-  count?: number;
-  offset?: number;
-  limit?: number;
-};
-
-type StandardCollectionMeta = {
-  itemsField: string;
-  count: number;
-  totalCount?: number;
-  hasMore?: boolean;
-  nextCursor?: string;
-  offset?: number;
-  limit?: number;
-};
-
-const KNOWN_COLLECTION_FIELDS = [
-  'items',
-  'permissions',
-  'comments',
-  'replies',
-  'revisions',
-  'operations',
-  'sheets',
-  'templates',
-  'charts',
-  'valueRanges',
-  'results',
-  'tools',
-  'servers',
-] as const;
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return null;
-  }
-  return value as Record<string, unknown>;
-}
-
-function asNonEmptyString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
-}
-
-function asNonNegativeInt(value: unknown): number | undefined {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return undefined;
-  }
-  const normalized = Math.trunc(value);
-  return normalized >= 0 ? normalized : undefined;
-}
-
-function deriveStandardPaginationMeta(
-  response: Record<string, unknown>
-): StandardPaginationMeta | null {
-  const responsePagination = asRecord(response['pagination']);
-  const source = responsePagination ?? response;
-
-  const nextCursor =
-    asNonEmptyString(source['nextCursor']) ??
-    asNonEmptyString(source['next_cursor']) ??
-    asNonEmptyString(source['nextPageToken']) ??
-    asNonEmptyString(source['next_page_token']);
-
-  const explicitHasMore = source['hasMore'];
-  const explicitHasMoreSnake = source['has_more'];
-  const hasMore =
-    typeof explicitHasMore === 'boolean'
-      ? explicitHasMore
-      : typeof explicitHasMoreSnake === 'boolean'
-        ? explicitHasMoreSnake
-        : nextCursor !== undefined;
-
-  if (typeof hasMore !== 'boolean') {
-    return null;
-  }
-
-  const totalCount =
-    asNonNegativeInt(source['totalCount']) ??
-    asNonNegativeInt(source['total_count']) ??
-    asNonNegativeInt(source['totalRows']) ??
-    asNonNegativeInt(source['totalRanges']) ??
-    asNonNegativeInt(source['totalSheets']) ??
-    asNonNegativeInt(source['totalTemplates']) ??
-    asNonNegativeInt(response['totalCount']) ??
-    asNonNegativeInt(response['total_count']) ??
-    asNonNegativeInt(response['totalRows']) ??
-    asNonNegativeInt(response['totalRanges']) ??
-    asNonNegativeInt(response['totalSheets']) ??
-    asNonNegativeInt(response['totalTemplates']);
-
-  const count =
-    asNonNegativeInt(source['count']) ??
-    asNonNegativeInt(response['count']) ??
-    (Array.isArray(response['items']) ? response['items'].length : undefined) ??
-    (Array.isArray(response['valueRanges']) ? response['valueRanges'].length : undefined);
-
-  const offset = asNonNegativeInt(source['offset']) ?? asNonNegativeInt(response['offset']);
-  const limit =
-    asNonNegativeInt(source['limit']) ??
-    asNonNegativeInt(source['pageSize']) ??
-    asNonNegativeInt(source['maxResults']) ??
-    asNonNegativeInt(response['limit']) ??
-    asNonNegativeInt(response['pageSize']) ??
-    asNonNegativeInt(response['maxResults']);
-
-  return {
-    hasMore,
-    ...(nextCursor ? { nextCursor } : {}),
-    ...(totalCount !== undefined ? { totalCount } : {}),
-    ...(count !== undefined ? { count } : {}),
-    ...(offset !== undefined ? { offset } : {}),
-    ...(limit !== undefined ? { limit } : {}),
-  };
-}
-
-function injectStandardPaginationMeta(response: Record<string, unknown>): void {
-  const pagination = deriveStandardPaginationMeta(response);
-  if (!pagination) {
-    return;
-  }
-
-  const existingMeta =
-    response['_meta'] && typeof response['_meta'] === 'object'
-      ? (response['_meta'] as Record<string, unknown>)
-      : {};
-  const existingPagination = asRecord(existingMeta['pagination']) ?? {};
-
-  response['_meta'] = {
-    ...existingMeta,
-    pagination: {
-      ...pagination,
-      ...existingPagination,
-    },
-  };
-
-  const existingTopLevelPagination = asRecord(response['pagination']) ?? {};
-  response['pagination'] = {
-    ...pagination,
-    ...existingTopLevelPagination,
-  };
-}
-
-function deriveStandardCollectionMeta(
-  response: Record<string, unknown>
-): StandardCollectionMeta | null {
-  let itemsField: string | undefined;
-  let count: number | undefined;
-
-  for (const field of KNOWN_COLLECTION_FIELDS) {
-    const maybeItems = response[field];
-    if (Array.isArray(maybeItems)) {
-      itemsField = field;
-      count = maybeItems.length;
-      break;
-    }
-  }
-
-  if (!itemsField) {
-    for (const [key, value] of Object.entries(response)) {
-      if (key === 'pagination' || key === '_meta' || key.startsWith('_')) {
-        continue;
-      }
-      if (Array.isArray(value)) {
-        itemsField = key;
-        count = value.length;
-        break;
-      }
-    }
-  }
-
-  if (!itemsField || count === undefined) {
-    return null;
-  }
-
-  const pagination = asRecord(asRecord(response['_meta'])?.['pagination']);
-  const totalCount =
-    asNonNegativeInt(pagination?.['totalCount']) ??
-    asNonNegativeInt(response['totalCount']) ??
-    asNonNegativeInt(response['total_count']) ??
-    asNonNegativeInt(response['totalRows']) ??
-    asNonNegativeInt(response['totalRanges']) ??
-    asNonNegativeInt(response['totalSheets']);
-
-  const hasMore =
-    typeof pagination?.['hasMore'] === 'boolean' ? (pagination['hasMore'] as boolean) : undefined;
-  const nextCursor = asNonEmptyString(pagination?.['nextCursor']);
-  const offset = asNonNegativeInt(pagination?.['offset']);
-  const limit = asNonNegativeInt(pagination?.['limit']);
-
-  return {
-    itemsField,
-    count,
-    ...(totalCount !== undefined ? { totalCount } : {}),
-    ...(hasMore !== undefined ? { hasMore } : {}),
-    ...(nextCursor ? { nextCursor } : {}),
-    ...(offset !== undefined ? { offset } : {}),
-    ...(limit !== undefined ? { limit } : {}),
-  };
-}
-
-function injectStandardCollectionMeta(response: Record<string, unknown>): void {
-  const collection = deriveStandardCollectionMeta(response);
-  if (!collection) {
-    return;
-  }
-
-  const existingMeta = asRecord(response['_meta']) ?? {};
-  const existingCollection = asRecord(existingMeta['collection']) ?? {};
-  response['_meta'] = {
-    ...existingMeta,
-    collection: {
-      ...collection,
-      ...existingCollection,
-    },
-  };
-}
-
-/**
- * Validate handler result against tool's output Zod schema.
- * In dev mode: logs detailed warnings. In prod mode: logs concise warnings.
- * Never rejects responses — validation is advisory only.
- *
- * @param toolName - The tool name for schema lookup
- * @param result - The handler result to validate
- * @param outputSchema - The Zod output schema for this tool
- */
-function validateOutputSchema(
-  toolName: string,
-  result: unknown,
-  outputSchema: ZodTypeAny | undefined
-): void {
-  // Skip if disabled or no schema available
-  if (process.env['VALIDATE_OUTPUT_SCHEMAS'] === 'false' || !outputSchema) {
-    return;
-  }
-
-  // Only validate object results (errors and non-objects skip validation)
-  if (!result || typeof result !== 'object') {
-    return;
-  }
-
-  try {
-    const parseResult = outputSchema.safeParse(result);
-    if (!parseResult.success) {
-      const isDev = process.env['NODE_ENV'] !== 'production';
-      const issues = parseResult.error.issues;
-
-      if (isDev) {
-        // Detailed logging in development
-        logger.warn('Output schema validation failed', {
-          tool: toolName,
-          issueCount: issues.length,
-          issues: issues.slice(0, 5).map((issue) => ({
-            path: issue.path.join('.'),
-            code: issue.code,
-            message: issue.message,
-          })),
-          hint: 'Handler response does not match output schema. Fix the handler or update the schema.',
-        });
-      } else {
-        // Concise logging in production
-        logger.debug('Output schema validation mismatch', {
-          tool: toolName,
-          issueCount: issues.length,
-          firstIssue: issues[0] ? `${issues[0].path.join('.')}: ${issues[0].message}` : 'unknown',
-        });
-      }
-    }
-  } catch (err) {
-    // Validation itself should never crash the response pipeline
-    logger.debug('Output schema validation error', {
-      tool: toolName,
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-}
-
-/**
- * Builds a compliant MCP tool response
- *
- * MCP 2025-11-25 Response Requirements:
- * - content: Array of content blocks (always present)
- * - structuredContent: Typed object matching outputSchema
- * - isError: true for tool errors (LLM can retry), undefined for success
- *
- * @param result - The handler result (should match output schema)
- * @param toolName - Optional tool name for output schema validation
- * @param outputSchema - Optional Zod output schema for validation
- * @returns CallToolResult with content, structuredContent, and optional isError
- */
 export function buildToolResponse(
   result: unknown,
   toolName?: string,
   outputSchema?: ZodTypeAny
 ): CallToolResult {
-  // Validate output against schema if available (advisory only, never blocks)
-  if (toolName && outputSchema) {
-    validateOutputSchema(toolName, result, outputSchema);
-  }
-  let structuredContent: Record<string, unknown>;
-
-  if (typeof result !== 'object' || result === null) {
-    structuredContent = {
-      response: {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Tool handler returned non-object result',
-          retryable: false,
-        },
-      },
-    };
-  } else if ('response' in result) {
-    structuredContent = result as Record<string, unknown>;
-  } else if ('success' in result) {
-    structuredContent = { response: result as Record<string, unknown> };
-  } else {
-    structuredContent = {
-      response: {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Tool handler returned invalid response shape',
-          retryable: false,
-        },
-      },
-    };
-  }
-
-  // Strip stack traces and file paths from error responses before MCP serialization (security)
-  // ISSUE-193: Prevent leaking internal paths (/home, /Users, node_modules) and stacks
-  if ('response' in structuredContent) {
-    const resp = structuredContent['response'] as Record<string, unknown>;
-    if (resp?.['error'] && typeof resp['error'] === 'object') {
-      const err = resp['error'] as Record<string, unknown>;
-      if (err['details'] && typeof err['details'] === 'object') {
-        const details = err['details'] as Record<string, unknown>;
-        delete details['stack'];
-        // Redact values containing internal filesystem paths
-        const pathPattern = /\/home\/|\/Users\/|node_modules\//;
-        for (const key of Object.keys(details)) {
-          if (typeof details[key] === 'string' && pathPattern.test(details[key] as string)) {
-            details[key] = '[REDACTED_PATH]';
-          }
-        }
-      }
-      delete err['stackTrace'];
-    }
-  }
-
-  // Track request for quota prediction
-  // Add request correlation ID for tracing (if available)
-  const requestContext = getRequestContext();
-  (requestContext?.sessionContext ?? getSessionContext()).trackRequest();
-  if ('response' in structuredContent) {
-    const resp = structuredContent['response'] as Record<string, unknown>;
-    if (resp && typeof resp === 'object') {
-      if (requestContext) {
-        // Inject correlation metadata at structuredContent._meta (not inside response),
-        // keeping response clean and conformant with the tool's declared outputSchema.
-        // MCP 2025-11-25: _meta is a protocol-level reserved key on result objects.
-        const scMeta = (
-          typeof structuredContent['_meta'] === 'object' && structuredContent['_meta'] !== null
-            ? structuredContent['_meta']
-            : {}
-        ) as Record<string, unknown>;
-        const quotaStatus = getConcurrencyCoordinator().getQuotaStatus();
-        structuredContent['_meta'] = {
-          ...scMeta,
-          requestId: requestContext.requestId,
-          ...(requestContext.traceId && { traceId: requestContext.traceId }),
-          ...(requestContext.spanId && { spanId: requestContext.spanId }),
-          quotaStatus: {
-            used: quotaStatus.used,
-            limit: quotaStatus.limit,
-            utilization: Math.round(quotaStatus.utilization * 100) / 100,
-            windowRemainingMs: quotaStatus.windowRemainingMs,
-          },
-        };
-      }
-
-      // Standardize pagination envelope so clients can rely on one location.
-      injectStandardPaginationMeta(resp);
-      // Standardize collection/list metadata for list-style responses.
-      injectStandardCollectionMeta(resp);
-    }
-  }
-
-  // Apply response compaction if enabled (reduces context window pressure)
-  if (isCompactModeEnabled()) {
-    structuredContent = compactResponse(structuredContent);
-  }
-
-  const response = structuredContent['response'];
-  const responseSuccess =
-    response && typeof response === 'object'
-      ? (response as { success?: boolean }).success
-      : undefined;
-  const responseErrorCode =
-    response && typeof response === 'object'
-      ? (response as { error?: { code?: unknown } }).error?.code
-      : undefined;
-  const errorCodeCompatibility = getErrorCodeCompatibility(responseErrorCode);
-
-  // Detect errors from success: false in response (or legacy top-level success)
-  const hasFailure = responseSuccess === false || structuredContent['success'] === false;
-  const treatAsNonFatal =
-    hasFailure &&
-    process.env['MCP_NON_FATAL_TOOL_ERRORS'] !== 'false' &&
-    typeof responseErrorCode === 'string' &&
-    NON_FATAL_TOOL_ERROR_CODES.has(responseErrorCode);
-  const isError = hasFailure && !treatAsNonFatal;
-
-  if (treatAsNonFatal) {
-    // Inject at structuredContent._meta level (not inside response) per MCP 2025-11-25
-    const scMeta = (
-      typeof structuredContent['_meta'] === 'object' && structuredContent['_meta'] !== null
-        ? structuredContent['_meta']
-        : {}
-    ) as Record<string, unknown>;
-    structuredContent['_meta'] = {
-      ...scMeta,
-      nonFatalError: true,
-      nonFatalReason: `error_code:${responseErrorCode}`,
-    };
-  }
-
-  if (hasFailure && response && typeof response === 'object' && errorCodeCompatibility) {
-    recordErrorCodeCompatibility({
-      reportedCode: errorCodeCompatibility.reportedCode,
-      canonicalCode: errorCodeCompatibility.canonicalCode,
-      family: errorCodeCompatibility.family,
-      isAlias: errorCodeCompatibility.isAlias,
-      isKnown: errorCodeCompatibility.isKnown,
-    });
-
-    // Inject error code compat metadata at structuredContent._meta (not inside response)
-    const scMeta = (
-      typeof structuredContent['_meta'] === 'object' && structuredContent['_meta'] !== null
-        ? structuredContent['_meta']
-        : {}
-    ) as Record<string, unknown>;
-    structuredContent['_meta'] = {
-      ...scMeta,
-      errorCode: scMeta['errorCode'] ?? errorCodeCompatibility.reportedCode,
-      errorCodeCanonical: scMeta['errorCodeCanonical'] ?? errorCodeCompatibility.canonicalCode,
-      errorCodeFamily: scMeta['errorCodeFamily'] ?? errorCodeCompatibility.family,
-      ...(errorCodeCompatibility.isAlias && typeof scMeta['errorCodeIsAlias'] !== 'boolean'
-        ? { errorCodeIsAlias: true }
-        : {}),
-    };
-  }
-
-  // Phase 1B.1: Inject suggestedFix for error responses
-  if (hasFailure && 'response' in structuredContent && response && typeof response === 'object') {
-    try {
-      const responseRecord = response as Record<string, unknown>;
-      const err = responseRecord['error'] as Record<string, unknown> | undefined;
-      if (err && typeof err === 'object') {
-        const errorCode = (err['code'] as string | undefined) || '';
-        const errorMessage = (err['message'] as string | undefined) || '';
-        // Extract tool/action context from the request if available
-        const fix = suggestFix(errorCode, errorMessage, toolName, undefined, undefined);
-        if (fix) {
-          err['suggestedFix'] = fix;
-        }
-      }
-    } catch (err) {
-      // Non-blocking: if suggestion fails, continue without it
-      logger.debug('suggestFix threw, continuing without fix injection', { error: err });
-    }
-  }
-
-  // Phase 1B.2: Inject suggestedNextActions for successful responses
-  if (
-    !hasFailure &&
-    'response' in structuredContent &&
-    response &&
-    typeof response === 'object' &&
-    toolName
-  ) {
-    try {
-      const responseRecord = response as Record<string, unknown>;
-      const actionName = responseRecord['action'] as string | undefined;
-      if (actionName) {
-        const recommendations = getRecommendedActions(toolName, actionName);
-        if (recommendations.length > 0) {
-          responseRecord['suggestedNextActions'] = recommendations.slice(0, 3);
-        }
-      }
-    } catch (err) {
-      // Non-blocking: if recommendations fail, continue without them
-      logger.debug('getRecommendedActions threw, continuing without actions injection', {
-        error: err,
-      });
-    }
-  }
-
-  // Phase 1B.3: Inject dataQualityWarnings for sheets_data read/write actions
-  const DATA_QUALITY_ACTIONS = new Set(['read', 'write', 'append', 'batch_read', 'batch_write']);
-  if (
-    !hasFailure &&
-    'response' in structuredContent &&
-    response &&
-    typeof response === 'object' &&
-    toolName === 'sheets_data'
-  ) {
-    try {
-      const responseRecord = response as Record<string, unknown>;
-      const actionName = responseRecord['action'] as string | undefined;
-      if (actionName && DATA_QUALITY_ACTIONS.has(actionName)) {
-        // Extract values — may be at response.values or response.data.values
-        let responseValues: unknown = responseRecord['values'];
-        if (
-          !responseValues &&
-          typeof responseRecord['data'] === 'object' &&
-          responseRecord['data']
-        ) {
-          responseValues = (responseRecord['data'] as Record<string, unknown>)['values'];
-        }
-        if (
-          Array.isArray(responseValues) &&
-          responseValues.length >= 2 &&
-          Array.isArray(responseValues[0]) &&
-          (responseValues[0] as unknown[]).length >= 2
-        ) {
-          void scanResponseQuality(responseValues as (string | number | boolean | null)[][], {
-            tool: toolName,
-            action: actionName,
-            range: String(responseRecord['range'] ?? ''),
-          })
-            .then((warnings) => {
-              if (warnings.length > 0) {
-                responseRecord['dataQualityWarnings'] = warnings;
-              }
-            })
-            .catch(() => {
-              // Non-blocking: quality scan failure must never fail the response
-            });
-        }
-      }
-    } catch {
-      // Non-blocking: quality scan failure must never fail the response
-    }
-  }
-
-  // Phase 1B.4: Inject CoT _hints on sheets_data read responses (sync, zero API calls)
-  const HINTS_ACTIONS = new Set(['read', 'batch_read', 'cross_read']);
-  if (
-    !hasFailure &&
-    'response' in structuredContent &&
-    response &&
-    typeof response === 'object' &&
-    toolName === 'sheets_data'
-  ) {
-    try {
-      const responseRecord = response as Record<string, unknown>;
-      const actionName = responseRecord['action'] as string | undefined;
-      if (actionName && HINTS_ACTIONS.has(actionName)) {
-        // Extract values — may be at response.values or response.data.values
-        let responseValues: unknown = responseRecord['values'];
-        if (
-          !responseValues &&
-          typeof responseRecord['data'] === 'object' &&
-          responseRecord['data']
-        ) {
-          responseValues = (responseRecord['data'] as Record<string, unknown>)['values'];
-        }
-        if (
-          Array.isArray(responseValues) &&
-          responseValues.length >= 2 &&
-          Array.isArray(responseValues[0]) &&
-          (responseValues[0] as unknown[]).length >= 1
-        ) {
-          const hints = generateResponseHints(
-            responseValues as (string | number | boolean | null)[][]
-          );
-          if (hints) {
-            responseRecord['_hints'] = hints;
-          }
-        }
-      }
-    } catch {
-      // Non-blocking: hints injection failure must never fail the response
-    }
-  }
-
-  // P1-3: Response size validation to prevent MCP protocol issues
-  // Limit responses to 10MB to avoid overwhelming MCP clients
-  const MAX_RESPONSE_SIZE = 10 * 1024 * 1024; // 10MB
-  // Approximate token budget: ~25,000 tokens ≈ ~100KB of JSON text
-  // Anthropic MCP Marketplace recommends ≤25K tokens per tool result
-  const MAX_RESPONSE_TOKENS_BYTES = parseInt(process.env['MCP_MAX_RESPONSE_BYTES'] || '100000', 10); // ~25K tokens
-  // Use compact JSON for large responses (>50KB) to reduce payload by 10-20%
-  const COMPACT_THRESHOLD = 50 * 1024; // 50KB
-  const compactStr = JSON.stringify(structuredContent);
-  const sizeBytes = Buffer.byteLength(compactStr, 'utf8');
-  const rawResponseStr =
-    sizeBytes > COMPACT_THRESHOLD ? compactStr : JSON.stringify(structuredContent, null, 2);
-  // Redact sensitive data (tokens, API keys, emails) from STDIO and HTTP text content
-  const responseStr = redactSensitiveData(rawResponseStr).output;
-
-  // Token budget enforcement: truncate responses exceeding ~25K tokens
-  // This prevents overwhelming LLM context windows in MCP clients like Claude
-  if (sizeBytes > MAX_RESPONSE_TOKENS_BYTES && sizeBytes <= MAX_RESPONSE_SIZE) {
-    // Store full data as temporary resource and return a truncated preview
-    const store = getTemporaryResourceStore();
-    const resourceUri = store.store(structuredContent, 1800); // 30 min TTL
-    const preview = truncateForPreview(structuredContent, 2000);
-    const continuationHint = `resources/read uri="${resourceUri}"`;
-
-    const budgetContent: Record<string, unknown> = {
-      response: {
-        success: true,
-        resourceUri,
-        preview,
-        message: `Response size ${(sizeBytes / 1024).toFixed(0)}KB exceeds token budget (~25K tokens). Full data stored as temporary resource.`,
-        _hint: `Full data available via: ${continuationHint} (expires in 30 minutes)`,
-        details: {
-          sizeBytes,
-          maxTokenBytes: MAX_RESPONSE_TOKENS_BYTES,
-          expiresIn: '30 minutes',
-        },
-        _meta: {
-          truncated: true,
-          originalSizeBytes: sizeBytes,
-          retrievalUri: resourceUri,
-          continuationHint,
-        },
-      },
-    };
-    const budgetResponse = budgetContent['response'] as Record<string, unknown>;
-    const budgetMeta = budgetResponse['_meta'] as Record<string, unknown>;
-    budgetMeta['deliveredSizeBytes'] = Buffer.byteLength(JSON.stringify(budgetContent), 'utf8');
-
-    return {
-      content: [{ type: 'text', text: JSON.stringify(budgetContent, null, 2) }],
-      structuredContent: budgetContent,
-      isError: undefined,
-    };
-  }
-
-  if (sizeBytes > MAX_RESPONSE_SIZE) {
-    // Phase 3: Store as temporary resource instead of failing (edge case: <0.1% of requests)
-    const store = getTemporaryResourceStore();
-    const resourceUri = store.store(structuredContent, 1800); // 30 min TTL
-
-    // Create preview (first 100 rows or 1000 chars)
-    const preview = truncateForPreview(structuredContent, 1000);
-    const continuationHint = `resources/read uri="${resourceUri}"`;
-
-    const fallbackContent: Record<string, unknown> = {
-      response: {
-        success: true,
-        resourceUri,
-        preview,
-        message: `Response size ${(sizeBytes / 1024 / 1024).toFixed(2)}MB exceeds transport limit. Stored as temporary resource.`,
-        _hint: `Full data available via: ${continuationHint} (expires in 30 minutes)`,
-        details: {
-          sizeBytes,
-          maxSizeBytes: MAX_RESPONSE_SIZE,
-          expiresIn: '30 minutes',
-        },
-        _meta: {
-          truncated: true,
-          originalSizeBytes: sizeBytes,
-          retrievalUri: resourceUri,
-          continuationHint,
-        },
-      },
-    };
-    const fallbackResponse = fallbackContent['response'] as Record<string, unknown>;
-    const fallbackMeta = fallbackResponse['_meta'] as Record<string, unknown>;
-    fallbackMeta['deliveredSizeBytes'] = Buffer.byteLength(JSON.stringify(fallbackContent), 'utf8');
-
-    return {
-      content: [{ type: 'text', text: JSON.stringify(fallbackContent, null, 2) }],
-      structuredContent: fallbackContent,
-      isError: undefined,
-    };
-  }
-
-  return {
-    // Human-readable content for display
-    content: [
-      {
-        type: 'text',
-        text: responseStr,
-        // MCP 2025-11-25: audience annotations guide client rendering
-        annotations: {
-          audience: isError ? (['user', 'assistant'] as const) : (['assistant'] as const),
-        },
-      },
-    ],
-    // Typed structured content for programmatic access
-    structuredContent,
-    // Error flag - only set when true, undefined otherwise (MCP convention)
-    isError: isError ? true : undefined,
-  };
+  return buildNormalizedToolResponse(result, toolName, outputSchema);
 }
 
 // ============================================================================
@@ -1889,7 +1222,7 @@ function createToolCallHandler(
           );
 
           const duration = Date.now() - startTime;
-          const spreadsheetId = extractSpreadsheetId(args);
+          const spreadsheetId = resolveActionLogSpreadsheetId(args, result);
           const action = extractAction(args);
           const status = isSuccessResult(result) ? 'success' : 'error';
           const principalId = requestContext.principalId ?? 'anonymous';
@@ -2018,6 +1351,19 @@ function createToolCallHandler(
             }
           }
 
+          await appendActionLogSheetRowIfEnabled({
+            envConfig,
+            googleClient,
+            toolName: tool.name,
+            action,
+            args,
+            result,
+            principalId,
+            requestId,
+            duration,
+            success: status === 'success',
+          });
+
           // Invalidate sampling context cache after successful mutating operations.
           if (
             status === 'success' &&
@@ -2104,6 +1450,18 @@ function createToolCallHandler(
               spans: convertedSpans,
             });
           }
+
+          await appendActionLogSheetRowIfEnabled({
+            envConfig: getEnv(),
+            googleClient,
+            toolName: tool.name,
+            action,
+            args,
+            principalId,
+            requestId,
+            duration,
+            success: false,
+          });
 
           if (isGoogleAuthError(error)) {
             return buildToolResponse(convertGoogleAuthError(error));
@@ -2445,17 +1803,10 @@ export async function registerServalSheetsTools(
   assertValidMcpToolNames(ACTIVE_TOOL_DEFINITIONS);
 
   for (const tool of ACTIVE_TOOL_DEFINITIONS) {
-    // Prepare schemas for SDK registration with caching (P0-2 optimization)
-    const inputSchemaForRegistration = prepareSchemaForRegistrationCached(
-      tool.name,
-      tool.inputSchema,
-      'input'
-    );
-    const outputSchemaForRegistration = prepareSchemaForRegistrationCached(
-      tool.name,
-      tool.outputSchema,
-      'output'
-    );
+    // Live SDK registration must stay on native Zod schemas. tools/list uses a
+    // separate compatibility layer for deferred and compact JSON Schema output.
+    const inputSchemaForRegistration = tool.inputSchema;
+    const outputSchemaForRegistration = tool.outputSchema;
 
     // Register tool with prepared schemas
     // Type assertion needed due to TypeScript's deep type instantiation limits

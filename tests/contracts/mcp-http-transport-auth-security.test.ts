@@ -352,6 +352,56 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       });
       expect(deleteResponse.status).toBe(200);
     });
+
+    it('returns 404 for follow-up requests after session termination', async () => {
+      const ownerUserAgent = 'terminated-owner-agent';
+      const sessionId = await initializeSession(ownerUserAgent, 203);
+
+      const deleteResponse = await httpRequest(app, {
+        method: 'DELETE',
+        path: '/mcp',
+        headers: {
+          'Mcp-Session-Id': sessionId,
+          'User-Agent': ownerUserAgent,
+        },
+      });
+      expect(deleteResponse.status).toBe(200);
+
+      const getResponse = await httpRequest(app, {
+        method: 'GET',
+        path: '/mcp',
+        headers: {
+          'Mcp-Session-Id': sessionId,
+          'MCP-Protocol-Version': '2025-11-25',
+          'User-Agent': ownerUserAgent,
+        },
+      });
+      expect(getResponse.status).toBe(404);
+      expect((getResponse.body as { error: Record<string, unknown> }).error).toMatchObject({
+        code: 'SESSION_NOT_FOUND',
+      });
+
+      const postResponse = await httpRequest(app, {
+        method: 'POST',
+        path: '/mcp',
+        headers: {
+          'Content-Type': 'application/json',
+          'Mcp-Session-Id': sessionId,
+          'MCP-Protocol-Version': '2025-11-25',
+          'User-Agent': ownerUserAgent,
+        },
+        body: {
+          jsonrpc: '2.0',
+          id: 204,
+          method: 'tools/list',
+          params: {},
+        },
+      });
+      expect(postResponse.status).toBe(404);
+      expect((postResponse.body as { error: Record<string, unknown> }).error).toMatchObject({
+        code: 'SESSION_NOT_FOUND',
+      });
+    });
   });
 
   describe('Well-known auth/security discovery contract', () => {
@@ -432,6 +482,25 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       });
       expect(body.security.tls_required).toBe(true);
       expect(body.security.min_tls_version).toBe('1.2');
+    });
+
+    it('publishes tool hash manifest for integrity discovery', async () => {
+      const response = await httpRequest(app, {
+        method: 'GET',
+        path: '/.well-known/mcp/tool-hashes',
+        headers: {
+          Host: 'registry.example.com',
+          'X-Forwarded-Proto': 'https',
+        },
+      });
+      expect(response.status).toBe(200);
+
+      const body = response.body as Record<string, any>;
+      expect(typeof body.generated).toBe('string');
+      expect(typeof body.version).toBe('string');
+      expect(body.tools).toBeDefined();
+      expect(Object.keys(body.tools).length).toBeGreaterThan(0);
+      expect(response.headers['etag']).toBeTruthy();
     });
 
     it('supports conditional requests for server card discovery', async () => {

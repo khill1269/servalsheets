@@ -21,7 +21,7 @@ import { getWorkerPool } from '../services/worker-pool.js';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { memoizeWithStats, type MemoStats } from '../utils/memoization.js';
+import { memoizeWithStats } from '../utils/memoization.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -306,27 +306,6 @@ export async function parseFormulaAsync(formula: string): Promise<ParsedFormula>
 }
 
 /**
- * Extract cell references only (no functions or named ranges)
- *
- * @param formula - Google Sheets formula
- * @returns Array of cell references
- */
-export function extractCellReferences(formula: string): CellReference[] {
-  return parseFormula(formula).references;
-}
-
-/**
- * Extract cell references using worker thread (async)
- *
- * @param formula - Google Sheets formula
- * @returns Array of cell references
- */
-export async function extractCellReferencesAsync(formula: string): Promise<CellReference[]> {
-  const parsed = await parseFormulaAsync(formula);
-  return parsed.references;
-}
-
-/**
  * Normalize cell reference to standard form
  *
  * Removes $ signs for absolute references and normalizes sheet names.
@@ -346,155 +325,4 @@ export function normalizeReference(ref: string): string {
   }
 
   return normalized;
-}
-
-/**
- * Check if a reference is a range (includes multiple cells)
- *
- * @param ref - Cell reference
- * @returns True if range, false if single cell
- */
-export function isRange(ref: CellReference): boolean {
-  return ref.type === 'range' || ref.type === 'column' || ref.type === 'row';
-}
-
-/**
- * Expand a range reference to individual cells (limited to reasonable size)
- *
- * For large ranges (>1000 cells), returns a summary instead of all cells.
- *
- * @param ref - Range reference
- * @param maxCells - Maximum cells to expand (default: 1000)
- * @returns Array of cell references or summary
- */
-export function expandRange(
-  ref: CellReference,
-  maxCells = 1000
-): string[] | { summary: string; size: number } {
-  if (ref.type === 'cell') {
-    return [ref.start];
-  }
-
-  if (ref.type === 'column' || ref.type === 'row') {
-    return {
-      summary: `Full ${ref.type} reference: ${ref.raw}`,
-      size: Infinity,
-    };
-  }
-
-  // Parse start and end cells
-  const startMatch = ref.start.match(/([A-Z]+)(\d+)/);
-  const endMatch = ref.end?.match(/([A-Z]+)(\d+)/);
-
-  if (!startMatch || !endMatch) {
-    return [ref.start];
-  }
-
-  const startCol = columnToIndex(startMatch[1]!);
-  const startRow = Number.parseInt(startMatch[2]!, 10);
-  const endCol = columnToIndex(endMatch[1]!);
-  const endRow = Number.parseInt(endMatch[2]!, 10);
-
-  const cols = endCol - startCol + 1;
-  const rows = endRow - startRow + 1;
-  const totalCells = cols * rows;
-
-  if (totalCells > maxCells) {
-    return {
-      summary: `Large range: ${ref.raw} (${rows} rows × ${cols} cols = ${totalCells} cells)`,
-      size: totalCells,
-    };
-  }
-
-  const cells: string[] = [];
-  for (let row = startRow; row <= endRow; row++) {
-    for (let col = startCol; col <= endCol; col++) {
-      const cellRef = `${indexToColumn(col)}${row}`;
-      cells.push(ref.sheet ? `${ref.sheet}!${cellRef}` : cellRef);
-    }
-  }
-
-  return cells;
-}
-
-/**
- * Convert column letter to index (A=1, B=2, ..., Z=26, AA=27, ...)
- */
-function columnToIndex(col: string): number {
-  let index = 0;
-  for (let i = 0; i < col.length; i++) {
-    index = index * 26 + (col.charCodeAt(i) - 64);
-  }
-  return index;
-}
-
-/**
- * Convert column index to letter (1=A, 2=B, ..., 26=Z, 27=AA, ...)
- */
-function indexToColumn(index: number): string {
-  let col = '';
-  while (index > 0) {
-    const remainder = (index - 1) % 26;
-    col = String.fromCharCode(65 + remainder) + col;
-    index = Math.floor((index - 1) / 26);
-  }
-  return col;
-}
-
-/**
- * Get all unique cells referenced by a formula
- *
- * Expands ranges up to maxCells limit.
- * Formula parsing results are memoized for performance.
- *
- * @param formula - Google Sheets formula
- * @param maxCells - Maximum cells to expand per range
- * @returns Set of normalized cell references
- */
-export function getReferencedCells(formula: string, maxCells = 1000): Set<string> {
-  const parsed = parseFormula(formula);
-  const cells = new Set<string>();
-
-  for (const ref of parsed.references) {
-    const expanded = expandRange(ref, maxCells);
-
-    if (Array.isArray(expanded)) {
-      for (const cell of expanded) {
-        cells.add(normalizeReference(cell));
-      }
-    } else {
-      // Large range - add the range itself as a reference
-      cells.add(normalizeReference(ref.raw));
-    }
-  }
-
-  return cells;
-}
-
-/**
- * Get memoization cache statistics for formula parsing
- *
- * Useful for performance monitoring and cache optimization.
- * Returns hit rate, cache size, and utilization metrics.
- *
- * @returns Cache statistics including hits, misses, and hitRate
- *
- * @example
- * ```typescript
- * const stats = getFormulaCacheStats();
- * console.log(`Cache hit rate: ${(stats.hitRate * 100).toFixed(1)}%`);
- * console.log(`Cache size: ${stats.cacheSize} / 500`);
- * ```
- */
-export function getFormulaCacheStats(): MemoStats {
-  return memoizedParseFormula.getStats();
-}
-
-/**
- * Clear the formula parsing cache
- *
- * Use when reconfiguring formula parsing behavior or to reset statistics.
- */
-export function clearFormulaCache(): void {
-  memoizedParseFormula.clearCache();
 }

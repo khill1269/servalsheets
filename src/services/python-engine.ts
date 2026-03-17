@@ -30,6 +30,11 @@ type PyodideInterface = any;
 let pyodideInstance: PyodideInterface | null = null;
 let pyodideLoadPromise: Promise<PyodideInterface> | null = null;
 
+function suppressPyodideOutput(_message?: string): void {
+  // Pyodide package progress writes to stdout by default in Node.
+  // In STDIO transport that would corrupt the MCP JSON-RPC channel.
+}
+
 /**
  * Return (or lazy-initialize) the shared Pyodide instance.
  *
@@ -45,18 +50,38 @@ export async function getPyodide(): Promise<PyodideInterface> {
 
       // Dynamic import avoids bundling issues with the WASM binary
       const pyodideModule = (await import('pyodide')) as {
-        loadPyodide: (opts?: { indexURL?: string }) => Promise<PyodideInterface>;
+        loadPyodide: (opts?: {
+          indexURL?: string;
+          stdout?: (msg: string) => void;
+          stderr?: (msg: string) => void;
+        }) => Promise<PyodideInterface>;
       };
 
-      const py: PyodideInterface = await pyodideModule.loadPyodide();
+      const py: PyodideInterface = await pyodideModule.loadPyodide({
+        stdout: suppressPyodideOutput,
+        stderr: suppressPyodideOutput,
+      });
+
+      if (typeof py.setStdout === 'function') {
+        py.setStdout({ batched: suppressPyodideOutput });
+      }
+      if (typeof py.setStderr === 'function') {
+        py.setStderr({ batched: suppressPyodideOutput });
+      }
 
       // Pre-install the packages most useful for spreadsheet analytics.
       // scikit-learn is loaded via micropip (not available as a built-in package).
-      await py.loadPackage(['numpy', 'pandas', 'scipy', 'matplotlib']);
+      await py.loadPackage(['numpy', 'pandas', 'scipy', 'matplotlib'], {
+        messageCallback: suppressPyodideOutput,
+        errorCallback: suppressPyodideOutput,
+      });
 
       // Install scikit-learn via micropip
       try {
-        await py.loadPackage('micropip');
+        await py.loadPackage('micropip', {
+          messageCallback: suppressPyodideOutput,
+          errorCallback: suppressPyodideOutput,
+        });
         await py.runPythonAsync(`
 import micropip
 await micropip.install('scikit-learn')

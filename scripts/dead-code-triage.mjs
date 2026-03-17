@@ -8,6 +8,11 @@
  * Outputs:
  * - audit-output/dead-code-triage-YYYY-MM-DD.md
  * - audit-output/dead-code-triage-YYYY-MM-DD.json
+ *
+ * Flags:
+ * - --no-write: Print summary only; do not update audit-output files
+ * - --max-likely-dead=N: Fail if likely-dead count exceeds N
+ * - --max-wiring-candidates=N: Fail if wiring-candidate count exceeds N
  */
 
 import { mkdirSync, writeFileSync } from 'fs';
@@ -18,6 +23,34 @@ const ROOT = process.cwd();
 const TODAY = new Date().toISOString().slice(0, 10);
 const OUT_MD = join(ROOT, 'audit-output', `dead-code-triage-${TODAY}.md`);
 const OUT_JSON = join(ROOT, 'audit-output', `dead-code-triage-${TODAY}.json`);
+
+function parseArgs(argv) {
+  const options = {
+    write: true,
+    maxLikelyDead: null,
+    maxWiringCandidates: null,
+  };
+
+  for (const arg of argv) {
+    if (arg === '--no-write') {
+      options.write = false;
+      continue;
+    }
+    if (arg.startsWith('--max-likely-dead=')) {
+      options.maxLikelyDead = Number.parseInt(arg.split('=')[1] ?? '', 10);
+      continue;
+    }
+    if (arg.startsWith('--max-wiring-candidates=')) {
+      options.maxWiringCandidates = Number.parseInt(arg.split('=')[1] ?? '', 10);
+      continue;
+    }
+    throw new Error(`Unknown argument: ${arg}`);
+  }
+
+  return options;
+}
+
+const OPTIONS = parseArgs(process.argv.slice(2));
 
 const TS_PRUNE_IGNORE =
   'src/(index|cli|server|http-server|remote-server).ts|src/.*/index.ts|packages/serval-core/dist/.*|.*.test.ts';
@@ -242,9 +275,11 @@ function main() {
   const parsed = rawLines.map(parseTsPruneLine).filter(Boolean);
   const triaged = parsed.map((candidate) => classifyCandidate(candidate, rgSymbol(candidate.symbol)));
 
-  mkdirSync(join(ROOT, 'audit-output'), { recursive: true });
-  writeFileSync(OUT_JSON, JSON.stringify(triaged, null, 2) + '\n');
-  writeFileSync(OUT_MD, toMarkdown(triaged) + '\n');
+  if (OPTIONS.write) {
+    mkdirSync(join(ROOT, 'audit-output'), { recursive: true });
+    writeFileSync(OUT_JSON, JSON.stringify(triaged, null, 2) + '\n');
+    writeFileSync(OUT_MD, toMarkdown(triaged) + '\n');
+  }
 
   const likelyDead = triaged.filter((r) => r.classification === 'likely_dead').length;
   const wiring = triaged.filter((r) => r.classification === 'wiring_candidate').length;
@@ -259,8 +294,32 @@ function main() {
   console.log(`- Script/dev tooling: ${scriptInUse}`);
   console.log(`- Wiring candidates: ${wiring}`);
   console.log(`- Likely dead: ${likelyDead}`);
-  console.log(`- Markdown report: ${OUT_MD}`);
-  console.log(`- JSON report: ${OUT_JSON}`);
+  if (OPTIONS.write) {
+    console.log(`- Markdown report: ${OUT_MD}`);
+    console.log(`- JSON report: ${OUT_JSON}`);
+  } else {
+    console.log(`- Report files: skipped (--no-write)`);
+  }
+
+  const failures = [];
+  if (Number.isInteger(OPTIONS.maxLikelyDead) && likelyDead > OPTIONS.maxLikelyDead) {
+    failures.push(`likely-dead count ${likelyDead} exceeds max ${OPTIONS.maxLikelyDead}`);
+  }
+  if (
+    Number.isInteger(OPTIONS.maxWiringCandidates) &&
+    wiring > OPTIONS.maxWiringCandidates
+  ) {
+    failures.push(
+      `wiring-candidate count ${wiring} exceeds max ${OPTIONS.maxWiringCandidates}`
+    );
+  }
+
+  if (failures.length > 0) {
+    for (const failure of failures) {
+      console.error(`Dead code triage threshold failed: ${failure}`);
+    }
+    process.exit(1);
+  }
 }
 
 main();

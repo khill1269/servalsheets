@@ -14,7 +14,6 @@
  */
 
 import { FIELD_MASKS } from '../constants/field-masks.js';
-import { ACTION_COUNT } from '../schemas/action-counts.js';
 
 /**
  * Field mask configuration per action
@@ -366,17 +365,6 @@ export function getFieldMask(tool: string, action: string): string | undefined {
 }
 
 /**
- * Check if action has optimized field mask configured
- *
- * @param tool - Tool name
- * @param action - Action name
- * @returns True if field mask is configured
- */
-export function hasFieldMask(tool: string, action: string): boolean {
-  return getFieldMaskForAction(tool, action) !== undefined;
-}
-
-/**
  * Get estimated payload reduction for an action
  *
  * @param tool - Tool name
@@ -386,41 +374,4 @@ export function hasFieldMask(tool: string, action: string): boolean {
 export function getEstimatedReduction(tool: string, action: string): number {
   const config = getFieldMaskForAction(tool, action);
   return config?.estimatedReduction ?? 0;
-}
-
-/**
- * Get all actions with field masks for a specific tool
- *
- * @param tool - Tool name
- * @returns Array of action field mask configurations
- */
-export function getFieldMasksForTool(tool: string): ActionFieldMask[] {
-  return Object.values(ACTION_FIELD_MASKS).filter((config) => config.tool === tool);
-}
-
-/**
- * Get coverage statistics
- *
- * @returns Field mask coverage stats
- */
-export function getFieldMaskCoverage(): {
-  total: number;
-  configured: number;
-  coveragePercent: number;
-  byOperationType: Record<string, number>;
-} {
-  const totalActions = ACTION_COUNT;
-  const configured = Object.keys(ACTION_FIELD_MASKS).length;
-
-  const byOperationType: Record<string, number> = {};
-  for (const config of Object.values(ACTION_FIELD_MASKS)) {
-    byOperationType[config.operationType] = (byOperationType[config.operationType] ?? 0) + 1;
-  }
-
-  return {
-    total: totalActions,
-    configured,
-    coveragePercent: Math.round((configured / totalActions) * 100),
-    byOperationType,
-  };
 }

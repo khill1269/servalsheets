@@ -185,11 +185,6 @@ if (googleFormulaService.includes('deploymentId')) {
   );
 }
 ensureExists(
-  'src/utils/field-mask-injection.ts',
-  'src/utils/field-mask-injection.ts is missing; delete only after an explicit optimization decision.',
-  issues
-);
-ensureExists(
   'src/config/action-field-masks.ts',
   'src/config/action-field-masks.ts is missing; delete only after an explicit optimization decision.',
   issues

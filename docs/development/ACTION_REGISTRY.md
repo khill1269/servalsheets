@@ -1,7 +1,7 @@
 ---
 title: ServalSheets — Action Registry (402 Actions, 25 Tools)
 category: development
-last_updated: 2026-03-16
+last_updated: 2026-03-17
 description: '> Complete action list by tool. Source of truth for counts: src/schemas/action-counts.ts.'
 version: 1.7.0
 ---

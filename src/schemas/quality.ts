@@ -54,8 +54,96 @@ export const BuiltinValidationRuleSchema = z.enum([
   'builtin_non_empty_string',
 ]);
 
+const ValidationSeveritySchema = z.enum(['error', 'warning', 'info']);
+
+const ComparableLiteralSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+
+const ComparisonTargetSchema = z.union([
+  z.object({
+    value: ComparableLiteralSchema.describe('Literal value to compare against'),
+  }),
+  z.object({
+    contextKey: z
+      .string()
+      .min(1)
+      .describe('Lookup key in validate.context or validate.context.metadata'),
+  }),
+]);
+
+const CustomComparisonRuleSchema = z.object({
+  type: z.literal('comparison'),
+  id: z.string().min(1).optional().describe('Optional stable rule ID. Auto-generated if omitted'),
+  name: z.string().min(1).optional().describe('Optional rule name'),
+  operator: z
+    .enum(['gt', 'gte', 'lt', 'lte', 'eq', 'neq'])
+    .describe('Comparison operator: gt, gte, lt, lte, eq, or neq'),
+  compareTo: ComparisonTargetSchema.describe(
+    'Comparison target. Example: { contextKey: "cogs" } or { value: 100 }'
+  ),
+  severity: ValidationSeveritySchema.optional().default('error'),
+  message: z
+    .string()
+    .optional()
+    .describe('Optional custom failure message shown when the rule fails'),
+});
+
+const CustomPatternRuleSchema = z.object({
+  type: z.literal('pattern'),
+  id: z.string().min(1).optional().describe('Optional stable rule ID. Auto-generated if omitted'),
+  name: z.string().min(1).optional().describe('Optional rule name'),
+  pattern: z.string().min(1).describe('Regular expression pattern without surrounding slashes'),
+  flags: z.string().optional().describe('Optional RegExp flags, e.g. "i"'),
+  severity: ValidationSeveritySchema.optional().default('error'),
+  message: z.string().optional().describe('Optional custom failure message'),
+});
+
+const CustomLengthRuleSchema = z
+  .object({
+    type: z.literal('length'),
+    id: z.string().min(1).optional().describe('Optional stable rule ID. Auto-generated if omitted'),
+    name: z.string().min(1).optional().describe('Optional rule name'),
+    min: z.number().optional().describe('Minimum string/array length'),
+    max: z.number().optional().describe('Maximum string/array length'),
+    severity: ValidationSeveritySchema.optional().default('error'),
+    message: z.string().optional().describe('Optional custom failure message'),
+  })
+  .refine((rule) => rule.min !== undefined || rule.max !== undefined, {
+    message: 'At least one of min or max must be provided',
+  });
+
+const CustomOneOfRuleSchema = z.object({
+  type: z.literal('one_of'),
+  id: z.string().min(1).optional().describe('Optional stable rule ID. Auto-generated if omitted'),
+  name: z.string().min(1).optional().describe('Optional rule name'),
+  values: z
+    .array(ComparableLiteralSchema)
+    .min(1)
+    .describe('Allowed literal values. Example: ["draft", "approved", "archived"]'),
+  caseSensitive: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('For string comparisons, whether matching is case-sensitive'),
+  severity: ValidationSeveritySchema.optional().default('error'),
+  message: z.string().optional().describe('Optional custom failure message'),
+});
+
+export const CustomValidationRuleSchema = z.discriminatedUnion('type', [
+  CustomComparisonRuleSchema,
+  CustomPatternRuleSchema,
+  CustomLengthRuleSchema,
+  CustomOneOfRuleSchema,
+]);
+
+export const ValidationRuleInputSchema = z.union([
+  BuiltinValidationRuleSchema,
+  CustomValidationRuleSchema,
+]);
+
 const ValidateActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('validate').describe('Validate data using built-in validators'),
+  action: z
+    .literal('validate')
+    .describe('Validate data using built-in validators and custom single-value rules'),
   value: z
     .union([
       z.string(),
@@ -67,10 +155,10 @@ const ValidateActionSchema = CommonFieldsSchema.extend({
     ])
     .describe('Value to validate (can be string, number, boolean, null, array, or object)'),
   rules: z
-    .array(BuiltinValidationRuleSchema)
+    .array(ValidationRuleInputSchema)
     .optional()
     .describe(
-      'Built-in rule IDs to apply (all if omitted). Type checks: builtin_string, builtin_number, builtin_boolean, builtin_date. Range checks: builtin_positive, builtin_non_negative. Format checks: builtin_email, builtin_url, builtin_phone. Presence checks: builtin_required, builtin_non_empty_string. Example: ["builtin_email", "builtin_required"]'
+      'Rules to apply. Built-ins: builtin_string, builtin_number, builtin_boolean, builtin_date, builtin_positive, builtin_non_negative, builtin_email, builtin_url, builtin_phone, builtin_required, builtin_non_empty_string. Custom object rules support comparison, pattern, length, and one_of checks. Example: ["builtin_required", { "type": "comparison", "operator": "gt", "compareTo": { "contextKey": "cogs" }, "message": "Unit Price must exceed COGS" }]'
     ),
   context: z
     .record(
@@ -388,6 +476,9 @@ export const SHEETS_QUALITY_ANNOTATIONS: ToolAnnotations = {
 export type SheetsQualityInput = z.infer<typeof SheetsQualityInputSchema>;
 export type SheetsQualityOutput = z.infer<typeof SheetsQualityOutputSchema>;
 export type QualityResponse = z.infer<typeof QualityResponseSchema>;
+export type BuiltinValidationRuleInput = z.infer<typeof BuiltinValidationRuleSchema>;
+export type CustomValidationRuleInput = z.infer<typeof CustomValidationRuleSchema>;
+export type ValidationRuleInput = z.infer<typeof ValidationRuleInputSchema>;
 
 // Type narrowing helpers for handler methods
 // These provide type safety similar to discriminated union Extract<>

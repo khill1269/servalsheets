@@ -230,4 +230,52 @@ describe('MCP capability workflow integration', () => {
     },
     30_000
   );
+
+  it('advertises the current discovery surface and excludes retired legacy resource URIs', async () => {
+    const resources = await harness.client.listResources();
+    const resourceUris = resources.resources.map((resource) => resource.uri);
+
+    expect(resourceUris).toContain('servalsheets://index');
+    expect(resourceUris).not.toContain('servalsheets://prompts/catalog');
+    expect(resourceUris).not.toContain('flows://list');
+    expect(resourceUris.every((uri) => !uri.startsWith('spreadsheet://'))).toBe(true);
+
+    const resourceTemplates = await harness.client.listResourceTemplates();
+    const templates = resourceTemplates.resourceTemplates.map((template) => template.uriTemplate);
+
+    expect(templates).toContain('sheets:///{spreadsheetId}');
+    expect(templates).not.toContain('spreadsheet://{spreadsheetId}');
+    expect(templates.every((template) => !template.startsWith('flows://'))).toBe(true);
+
+    const masterIndexContent = await harness.client.readResource({
+      uri: 'servalsheets://index',
+    });
+    const masterIndexText =
+      masterIndexContent.contents[0] && 'text' in masterIndexContent.contents[0]
+        ? masterIndexContent.contents[0].text
+        : '';
+    const masterIndex = JSON.parse(masterIndexText) as {
+      promptCatalog: {
+        total: number;
+        buckets: Array<{ id: string; prompts: Array<{ name: string }> }>;
+      };
+      workflowCatalog: {
+        total: number;
+        usage: string;
+      };
+    };
+
+    expect(masterIndex.promptCatalog.total).toBeGreaterThan(0);
+    expect(
+      masterIndex.promptCatalog.buckets.some(
+        (bucket) =>
+          bucket.id === 'analyze' &&
+          bucket.prompts.some((prompt) => prompt.name === 'analyze_spreadsheet')
+      )
+    ).toBe(true);
+    expect(masterIndex.workflowCatalog.total).toBeGreaterThan(0);
+    expect(masterIndex.workflowCatalog.usage).toContain('action:"plan"');
+    expect(masterIndex.workflowCatalog.usage).toContain('action:"execute_plan"');
+    expect(masterIndex.workflowCatalog.usage).not.toContain('plan_execute');
+  });
 });

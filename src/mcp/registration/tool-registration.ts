@@ -20,7 +20,6 @@ import type { RelatedRequestSender, TaskStatusUpdater } from '../../utils/reques
 import { createTaskAwareSamplingServer } from '../sampling.js';
 import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from '../features-2025-11-25.js';
 import { replaceAvailableToolNames } from '../tool-registry-state.js';
-import { prepareSchemaForRegistrationCached } from './schema-helpers.js';
 import type { ToolDefinition } from './tool-definitions.js';
 import { ACTIVE_TOOL_DEFINITIONS } from './tool-definitions.js';
 import { parseForHandler } from './tool-arg-normalization.js';
@@ -162,16 +161,10 @@ export function registerActiveTools(options: {
   assertValidToolDefinitionNames(tools);
 
   for (const tool of tools) {
-    const inputSchemaForRegistration = prepareSchemaForRegistrationCached(
-      tool.name,
-      tool.inputSchema,
-      'input'
-    );
-    const outputSchemaForRegistration = prepareSchemaForRegistrationCached(
-      tool.name,
-      tool.outputSchema,
-      'output'
-    );
+    // Native Zod schemas are required for live SDK registration. Deferred /
+    // compact schema serialization is exposed separately via tools/list.
+    const inputSchemaForRegistration = tool.inputSchema;
+    const outputSchemaForRegistration = tool.outputSchema;
 
     const execution = TOOL_EXECUTION_CONFIG[tool.name];
     const supportsTasks = execution?.taskSupport && execution.taskSupport !== 'forbidden';
