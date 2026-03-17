@@ -262,3 +262,5 @@ docs/SERVALSHEETS_ADVANCEMENT_PLAN_V*.md
 
 # Generated review artifacts
 docs/review/
+.probe-data/
+.probe-profiles/

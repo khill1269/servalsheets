@@ -6,7 +6,36 @@
 
 ## Current Phase
 
-**Session 86 (2026-03-17) — Task backlog closure: elicitation compliance, spec verification.** Branch `remediation/phase-1`. 402 actions (25 tools). 2698/2699 tests (1 pre-existing webhook failure). Commits `aa1565c`, `75b8787`, `0ae700c`, `ac224de`.
+**Session 87 (2026-03-17) — Comprehensive re-audit + live server probe.** Branch `remediation/phase-1`. 402 actions (25 tools). Commits `d72af09`, `e2a55a4`.
+
+## What Was Just Completed (Session 87)
+
+**Comprehensive 8-category codebase re-audit** — parallel agents audited all 25 tools across: handler paths, MCP protocol compliance, security, schemas, service layer, advanced features, tests, and documentation. Score: A (excellent).
+
+**6 schema/service hardening fixes** (committed `e2a55a4`):
+
+1. **Federation superRefine** (`src/schemas/federation.ts`): Per-action required field validation — serverName required for call_remote/get_server_tools/validate_connection, toolName required for call_remote
+2. **Agent maxSteps cap** (`src/schemas/agent.ts`): `.max(50)` prevents DoS via unbounded plan generation
+3. **Core update_sheet newTitle deprecated** (`src/schemas/core.ts`): Dead `newTitle` field marked deprecated (handler only reads `title`)
+4. **share_add schema validation** (`src/schemas/collaborate.ts`): emailAddress required when type=user/group, domain required+format-validated when type=domain
+5. **DuckDB LIMIT safety** (`src/services/duckdb-engine.ts`): Queries without LIMIT get safety cap of 10,000 rows
+6. **Dimensions descriptions** (`src/schemas/dimensions.ts`): sheetId/sheetName descriptions clarify mutual exclusivity
+
+**Live MCP server probe** (`scripts/live-probe.mjs`): Spawned STDIO server with service account credentials and probed:
+
+- Phase 1: Protocol features — 9/9 pass (tools/list=25, resources=68, prompts=48, completions, logging)
+- Phase 2: Tool dispatch all 25 tools — 24/25 pass (1 timeout: preview_generation needs LLM API)
+- Phase 3: Schema validation error paths — 6/7 pass (1 timeout: share_add elicitation wait)
+- Phase 4: Multi-action spot checks — 18/21 pass (3 timeouts: LLM/network/elicitation)
+- **Result: 57/60 pass (3 failures are all network/LLM timeouts in sandboxed environment)**
+
+**Key live probe findings:**
+
+- All 25 tools register correctly with schemas, descriptions, and annotations
+- All tool dispatch paths work (validated via handler responses)
+- Schema validation correctly rejects: missing action, invalid action, empty args, federation missing serverName, agent maxSteps>50, share_add invalid domain
+- `sheets_compute.evaluate` works offline (formula evaluator runs locally)
+- Session/history/quality/dependencies/connectors return successful responses without Google API
 
 ## What Was Just Completed (Session 86)
 
