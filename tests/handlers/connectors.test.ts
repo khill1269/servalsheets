@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../src/utils/api-key-server.js', () => ({
+  startApiKeyServer: vi.fn(),
+}));
+
 import { ConnectorsHandler } from '../../src/handlers/connectors.js';
 import { connectorManager } from '../../src/connectors/connector-manager.js';
+import { startApiKeyServer } from '../../src/utils/api-key-server.js';
 
 const baseResult = {
   headers: ['symbol', 'price'],
@@ -15,11 +21,14 @@ const baseResult = {
   },
 };
 
+const mockedStartApiKeyServer = vi.mocked(startApiKeyServer);
+
 describe('ConnectorsHandler', () => {
   let handler: ConnectorsHandler;
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockedStartApiKeyServer.mockReset();
     handler = new ConnectorsHandler();
   });
 
@@ -86,6 +95,95 @@ describe('ConnectorsHandler', () => {
     expect(configureResult.response.action).toBe('configure');
     expect(queryResult.response.action).toBe('query');
     expect(batchResult.response.action).toBe('batch_query');
+  });
+
+  it('elicits missing connector selection and opens an MCP URL flow for API key setup', async () => {
+    const completionNotifier = vi.fn().mockResolvedValue(undefined);
+    const elicitationServer = {
+      elicitInput: vi
+        .fn()
+        .mockResolvedValueOnce({ action: 'accept', content: { connectorId: 'finnhub' } })
+        .mockResolvedValueOnce({ action: 'accept', content: {} }),
+      getClientCapabilities: vi.fn().mockReturnValue({ elicitation: { form: true, url: true } }),
+      createElicitationCompletionNotifier: vi.fn().mockReturnValue(completionNotifier),
+    };
+
+    handler = new ConnectorsHandler({ elicitationServer });
+
+    vi.spyOn(connectorManager, 'listConnectors').mockReturnValue({
+      connectors: [
+        {
+          id: 'finnhub',
+          name: 'Finnhub',
+          description: 'Market data',
+          authType: 'api_key',
+          configured: false,
+        },
+      ],
+    });
+    const configureSpy = vi
+      .spyOn(connectorManager, 'configure')
+      .mockResolvedValue({ success: true, message: 'configured' });
+    const shutdown = vi.fn();
+    mockedStartApiKeyServer.mockResolvedValue({
+      keyPromise: Promise.resolve('prompted-key'),
+      url: 'http://localhost:4321/setup-key',
+      shutdown,
+    });
+
+    const result = await handler.handle({
+      request: {
+        action: 'configure',
+      },
+    } as any);
+
+    expect(result.response.success).toBe(true);
+    expect(configureSpy).toHaveBeenCalledWith('finnhub', {
+      type: 'api_key',
+      apiKey: 'prompted-key',
+    });
+    expect(elicitationServer.elicitInput).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ mode: 'form' })
+    );
+    expect(elicitationServer.elicitInput).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        mode: 'url',
+        url: 'http://localhost:4321/setup-key',
+      })
+    );
+    expect(completionNotifier).toHaveBeenCalledTimes(1);
+    expect(shutdown).not.toHaveBeenCalled();
+  });
+
+  it('returns INVALID_PARAMS when configuring an API-key connector without credentials or elicitation', async () => {
+    vi.spyOn(connectorManager, 'listConnectors').mockReturnValue({
+      connectors: [
+        {
+          id: 'finnhub',
+          name: 'Finnhub',
+          description: 'Market data',
+          authType: 'api_key',
+          configured: false,
+        },
+      ],
+    });
+    const configureSpy = vi.spyOn(connectorManager, 'configure');
+
+    const result = await handler.handle({
+      request: {
+        action: 'configure',
+        connectorId: 'finnhub',
+      },
+    } as any);
+
+    expect(result.response.success).toBe(false);
+    expect(configureSpy).not.toHaveBeenCalled();
+    if (!result.response.success) {
+      expect(result.response.error.code).toBe('INVALID_PARAMS');
+      expect(result.response.error.message).toContain('requires credentials.apiKey');
+    }
   });
 
   it('routes subscribe, unsubscribe, and list_subscriptions', async () => {

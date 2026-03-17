@@ -1296,6 +1296,7 @@ async function toOverlayPosition(
   spreadsheetId: string,
   anchorCell: string,
   position: {
+    sheetId?: number;
     offsetX?: number;
     offsetY?: number;
     width?: number;
@@ -1303,7 +1304,10 @@ async function toOverlayPosition(
   }
 ): Promise<sheets_v4.Schema$EmbeddedObjectPosition> {
   const parsed = parseCellReference(anchorCell);
-  const sheetId = await deps.resolveSheetId(spreadsheetId, parsed.sheetName);
+  // P2-3 fix: Honor explicit sheetId from position object when anchor cell
+  // doesn't include a sheet prefix (e.g. "A1" vs "KPI Dashboard!A1").
+  // Without this, charts always land on sheetId 0 when anchorCell has no prefix.
+  const sheetId = position.sheetId ?? (await deps.resolveSheetId(spreadsheetId, parsed.sheetName));
 
   return {
     overlayPosition: {

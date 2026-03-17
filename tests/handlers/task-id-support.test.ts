@@ -200,6 +200,7 @@ describe('handler task ID cleanup', () => {
         action: 'run',
         scriptId: 'script-abc-123',
         functionName: 'myFunction',
+        devMode: true,
       },
     });
 

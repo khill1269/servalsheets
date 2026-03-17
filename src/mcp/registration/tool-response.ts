@@ -134,9 +134,8 @@ export function buildToolResponse(
   let structuredContent = normalizeStructuredContent(result);
   sanitizeErrorPayload(structuredContent);
 
-  getSessionContext().trackRequest();
-
   const requestContext = getRequestContext();
+  (requestContext?.sessionContext ?? getSessionContext()).trackRequest();
   const initialResponse = getResponseRecord(structuredContent);
   if (initialResponse) {
     if (requestContext) {

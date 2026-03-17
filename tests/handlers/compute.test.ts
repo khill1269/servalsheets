@@ -346,6 +346,12 @@ describe('ComputeHandler', () => {
 
   describe('forecast', () => {
     it('should generate time series forecast', async () => {
+      fetchRangeData.mockResolvedValue([
+        ['Month', 'Revenue'],
+        ['2024-01-01', 100],
+        ['2024-02-01', 150],
+        ['2024-03-01', 200],
+      ]);
       computeForecast.mockReturnValue({
         forecast: [
           { period: '2024-04', value: 220, lowerBound: 200, upperBound: 240 },
@@ -375,6 +381,12 @@ describe('ComputeHandler', () => {
     });
 
     it('should return error when forecast fails', async () => {
+      fetchRangeData.mockResolvedValue([
+        ['Month', 'Revenue'],
+        ['2024-01-01', 100],
+        ['2024-02-01', 150],
+        ['2024-03-01', 200],
+      ]);
       computeForecast.mockImplementation(() => {
         throw new Error('Cannot parse date column');
       });
@@ -399,6 +411,12 @@ describe('ComputeHandler', () => {
         action: 'accept',
         content: { periods: '4' },
       });
+      fetchRangeData.mockResolvedValue([
+        ['Month', 'Revenue'],
+        ['2024-01-01', 100],
+        ['2024-02-01', 150],
+        ['2024-03-01', 200],
+      ]);
       computeForecast.mockReturnValue({
         forecast: [{ period: '2024-04', value: 220 }],
         trend: { direction: 'increasing', strength: 0.7, seasonalityDetected: false },
@@ -422,6 +440,36 @@ describe('ComputeHandler', () => {
         expect.objectContaining({ periods: 4 })
       );
       expect(result.response.success).toBe(true);
+    });
+
+    it('rejects forecast input with repeated periods and skips computeForecast', async () => {
+      fetchRangeData.mockResolvedValue([
+        ['Month', 'Revenue'],
+        ['2024-01-01', 100],
+        ['2024-01-01', 120],
+        ['2024-02-01', 180],
+        ['2024-03-01', 240],
+      ]);
+
+      const handler = makeHandler();
+      const result = await handler.handle({
+        request: {
+          action: 'forecast',
+          spreadsheetId: SPREADSHEET_ID,
+          range: 'Sheet1!A1:B5',
+          dateColumn: 'Month',
+          valueColumn: 'Revenue',
+          periods: 2,
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('INVALID_PARAMS');
+        expect(result.response.error.message).toContain('multiple rows');
+        expect(result.response.error.suggestedFix).toContain('Aggregate');
+      }
+      expect(computeForecast).not.toHaveBeenCalled();
     });
   });
 

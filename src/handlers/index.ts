@@ -145,6 +145,7 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
         server: options.context.server,
         taskStore: options.context.taskStore,
         googleClient: options.context.googleClient ?? undefined,
+        sessionContext: options.context.sessionContext,
       });
     },
     // New MCP-native handlers
@@ -166,7 +167,7 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     },
     async session() {
       const { SessionHandler } = await import('./session.js');
-      const handler = new SessionHandler();
+      const handler = new SessionHandler(options.context.sessionContext);
       if (options.context.scheduler) {
         handler.setScheduler(options.context.scheduler);
       }
@@ -246,6 +247,7 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
       return new ConnectorsHandler({
         samplingServer: options.context.samplingServer,
         sessionContext: options.context.sessionContext,
+        elicitationServer: options.context.elicitationServer ?? options.context.server,
       });
     },
   };

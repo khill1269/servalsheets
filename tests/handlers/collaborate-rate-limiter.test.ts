@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CollaborateHandler } from '../../src/handlers/collaborate.js';
 import { driveRateLimiter } from '../../src/utils/drive-rate-limiter.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
@@ -62,6 +62,10 @@ function createMockDriveApi() {
 describe('CollaborateHandler rate limiter integration', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('acquires rate limiter for Drive permission writes', async () => {
@@ -133,6 +137,59 @@ describe('CollaborateHandler rate limiter integration', () => {
     expect(result.response.success).toBe(false);
     if (!result.response.success) {
       expect(result.response.error).toBeDefined();
+    }
+  });
+
+  it('returns a validation error when Google rejects the share target', async () => {
+    vi.spyOn(driveRateLimiter, 'acquire').mockResolvedValue();
+    const mockDriveApi = createMockDriveApi();
+    mockDriveApi.permissions.create.mockRejectedValue(
+      Object.assign(new Error('Invalid sharing request: user not found'), { code: 400 })
+    );
+    const handler = new CollaborateHandler(createMockContext(), mockDriveApi as any);
+
+    const result = await handler.handle({
+      action: 'share_add',
+      spreadsheetId: 'spreadsheet-id',
+      type: 'user',
+      role: 'reader',
+      emailAddress: 'missing-user@example.com',
+    });
+
+    expect(result.response.success).toBe(false);
+    if (!result.response.success) {
+      expect(result.response.error.code).toBe('VALIDATION_ERROR');
+      expect(result.response.error.message).toContain('missing-user@example.com');
+    }
+  });
+
+  it('returns a deadline error when share_add takes too long', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(driveRateLimiter, 'acquire').mockResolvedValue();
+    const mockDriveApi = createMockDriveApi();
+    mockDriveApi.permissions.create.mockImplementation(
+      () =>
+        new Promise(() => {
+          // Intentionally never resolve to exercise timeout handling
+        })
+    );
+    const handler = new CollaborateHandler(createMockContext(), mockDriveApi as any);
+
+    const pendingResult = handler.handle({
+      action: 'share_add',
+      spreadsheetId: 'spreadsheet-id',
+      type: 'user',
+      role: 'reader',
+      emailAddress: 'slow-user@example.com',
+    });
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    const result = await pendingResult;
+
+    expect(result.response.success).toBe(false);
+    if (!result.response.success) {
+      expect(result.response.error.code).toBe('DEADLINE_EXCEEDED');
+      expect(result.response.error.message).toContain('slow-user@example.com');
     }
   });
 });

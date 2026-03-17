@@ -7295,7 +7295,7 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
   'sheets_advanced.create_table': {
     apiCalls: 1,
     idempotent: false,
-    whenToUse: 'Creating a formatted table with headers and column filters',
+    whenToUse: 'Creating a table object with headers and column filters',
 
     errorRecovery: {
       PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
@@ -7314,7 +7314,7 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
         'Check the sheet name exists with sheets_core.list_sheets',
       ],
       userGuidance:
-        'This creates a formatted table with headers. Verify the range has a header row.',
+        'This creates the table object and headers metadata. Add banding separately with sheets_advanced.add_banding if you want alternating colors.',
     },
   },
   'sheets_advanced.delete_table': {
@@ -8947,7 +8947,8 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
   'sheets_appsscript.create_trigger': {
     apiCalls: 1,
     idempotent: false,
-    whenToUse: 'Setting up automated trigger (on edit, on open, timed, etc.)',
+    whenToUse:
+      'Compatibility stub only. Use ScriptApp inside the Apps Script project to create triggers.',
 
     errorRecovery: {
       PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
@@ -8969,13 +8970,14 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
         'Confirm credentials with sheets_auth.status',
       ],
       userGuidance:
-        'This sets up an automated trigger. Verify the function name and trigger type are correct.',
+        'This server currently does not manage triggers through the Apps Script API. Create them inside the script with ScriptApp.',
     },
   },
   'sheets_appsscript.list_triggers': {
     apiCalls: 1,
     idempotent: true,
-    whenToUse: 'Getting all triggers',
+    whenToUse:
+      'Compatibility stub only. Use ScriptApp inside the Apps Script project to inspect triggers.',
 
     errorRecovery: {
       PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
@@ -8996,40 +8998,15 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
         'Verify the spreadsheet ID is correct with sheets_core.get',
         'Confirm read access with sheets_auth.status',
       ],
-      userGuidance: 'This lists all triggers. Safe to call at any time—read-only.',
+      userGuidance:
+        'This server currently does not list triggers through the Apps Script API. Inspect them inside the script with ScriptApp.',
     },
   },
   'sheets_appsscript.delete_trigger': {
     apiCalls: 1,
     idempotent: true,
-    whenToUse: 'Removing a trigger',
-
-    errorRecovery: {
-      PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
-      QUOTA_EXCEEDED: 'Wait 60s then retry',
-      alternativeActions: [
-        {
-          tool: 'sheets_appsscript',
-          action: 'get',
-          when: 'when retrieving project metadata first',
-        },
-        {
-          tool: 'sheets_appsscript',
-          action: 'list_deployments',
-          when: 'when checking existing deployments',
-        },
-      ],
-      diagnosticSteps: [
-        'Verify the Apps Script project with sheets_appsscript.get',
-        'Confirm credentials with sheets_auth.status',
-      ],
-      userGuidance: 'This removes a trigger. List triggers first to confirm the trigger ID.',
-    },
-  },
-  'sheets_appsscript.update_trigger': {
-    apiCalls: 1,
-    idempotent: true,
-    whenToUse: 'Modifying trigger conditions',
+    whenToUse:
+      'Compatibility stub only. Use ScriptApp inside the Apps Script project to delete triggers.',
 
     errorRecovery: {
       PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
@@ -9051,7 +9028,36 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
         'Confirm credentials with sheets_auth.status',
       ],
       userGuidance:
-        'This modifies trigger conditions. List triggers first to confirm the trigger ID exists.',
+        'This server currently does not delete triggers through the Apps Script API. Delete them inside the script with ScriptApp.',
+    },
+  },
+  'sheets_appsscript.update_trigger': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse:
+      'Compatibility stub only. Use ScriptApp inside the Apps Script project to update triggers.',
+
+    errorRecovery: {
+      PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
+      QUOTA_EXCEEDED: 'Wait 60s then retry',
+      alternativeActions: [
+        {
+          tool: 'sheets_appsscript',
+          action: 'get',
+          when: 'when retrieving project metadata first',
+        },
+        {
+          tool: 'sheets_appsscript',
+          action: 'list_deployments',
+          when: 'when checking existing deployments',
+        },
+      ],
+      diagnosticSteps: [
+        'Verify the Apps Script project with sheets_appsscript.get',
+        'Confirm credentials with sheets_auth.status',
+      ],
+      userGuidance:
+        'This server currently does not update triggers through the Apps Script API. Recreate them inside the script with ScriptApp.',
     },
   },
   'sheets_appsscript.install_serval_function': {

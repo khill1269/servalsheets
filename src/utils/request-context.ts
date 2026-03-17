@@ -46,6 +46,7 @@ import { randomUUID } from 'crypto';
 import type { Logger } from 'winston';
 import type { ServerNotification } from '@modelcontextprotocol/sdk/types.js';
 import type { MetadataCache } from '../services/metadata-cache.js';
+import type { SessionContextManager } from '../services/session-context.js';
 import { baseLogger } from './base-logger.js';
 
 export interface RelatedMcpRequest {
@@ -120,6 +121,7 @@ export interface RequestContext {
    */
   idempotencyKey?: string;
   metadataCache?: MetadataCache;
+  sessionContext?: SessionContextManager;
   /**
    * Last emitted progress value — used to enforce monotonic progress notifications.
    * Progress that does not exceed this value is silently dropped per MCP spec.
@@ -166,6 +168,7 @@ export function createRequestContext(options?: {
   parentSpanId?: string;
   idempotencyKey?: string;
   metadataCache?: MetadataCache;
+  sessionContext?: SessionContextManager;
 }): RequestContext {
   const requestId = options?.requestId ?? randomUUID();
   const timeoutMs =
@@ -207,6 +210,7 @@ export function createRequestContext(options?: {
     parentSpanId: options?.parentSpanId,
     idempotencyKey: options?.idempotencyKey,
     metadataCache: options?.metadataCache,
+    sessionContext: options?.sessionContext,
     apiCallsMade: 0,
     requestStartTime: now,
   };

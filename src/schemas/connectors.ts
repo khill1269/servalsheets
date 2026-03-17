@@ -112,9 +112,21 @@ const ListConnectorsActionSchema = CommonFieldsSchema.extend({
 }).strict();
 
 const ConfigureActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('configure').describe('Configure credentials for a data connector'),
-  connectorId: z.string().min(1).describe('Connector ID (e.g., "finnhub", "fred", "rest")'),
-  credentials: CredentialsSchema.describe('Credentials to configure the connector with'),
+  action: z
+    .literal('configure')
+    .describe(
+      'Configure credentials for a data connector. If connectorId or credentials are omitted and the MCP client supports elicitation, the server will prompt for the missing setup fields. API-key connectors can use MCP URL elicitation to open a local setup page so the key does not need to travel in the request payload.'
+    ),
+  connectorId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Connector ID (e.g., "finnhub", "fred", "public_json"). Optional when MCP elicitation is available; the server can prompt for it.'
+    ),
+  credentials: CredentialsSchema.optional().describe(
+    'Credentials to configure the connector with. Optional when MCP elicitation is available; the server can prompt for the required auth fields. For API-key connectors, the server can open a local setup page via MCP URL elicitation instead of requiring the secret inline.'
+  ),
 }).strict();
 
 const QueryActionSchema = CommonFieldsSchema.extend({

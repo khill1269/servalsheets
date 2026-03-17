@@ -278,7 +278,6 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 **Use when:** Creating charts, pivot tables, updating visualizations, moving/resizing, refreshing data sources
 
 **NOT this tool - use instead:**
-> sheets_analyze - Getting chart/pivot RECOMMENDATIONS first (suggest_chart, suggest_pivot)
 > sheets_data - Reading/writing SOURCE DATA
 > sheets_format - Styling the SOURCE data (not the chart itself)
 > sheets_dimensions - Source data structure changes
@@ -301,7 +300,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 
 **PARAMETERS:**
 - chartType: BAR, LINE, PIE, SCATTER, COLUMN, AREA, COMBO (not TREEMAP, SPARKLINE)
-- anchorCell: Must include sheet name: "Sheet1!E2" (not just "E2")
+- anchorCell: Prefer "Sheet1!E2"; if you only have "E2", also set position.sheetId
 - sourceRange: "Sheet1!A1:D100" (case-sensitive)
 - sheetId: Numeric from sheets_core.list_sheets (0, 123456789)
 
@@ -426,7 +425,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 → **Need cells to reference other cells by name?** Use add_named_range (formulas: =SUM(Revenue) instead of =SUM(B2:B100))
 → **Prevent users from editing specific cells?** Use add_protected_range (lock formula cells, unlock data entry cells)
 → **Add alternating row colors for readability?** Use add_banding then list_banding first (check if exists to avoid error)
-→ **Organize data as structured table?** Use create_table (enables filters, structured references, auto-expand)
+→ **Organize data as structured table?** Use create_table for the table object, then add_banding separately if you want alternating colors
 → **Store custom metadata for programmatic access?** Use set_metadata (custom attributes, not visible in UI)
 
 **Use when:** Creating named ranges, protecting ranges, organizing data as tables, adding alternating row colors, storing custom metadata, creating smart chips (person/file links)
@@ -442,7 +441,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 [Protection] add_protected_range, update_protected_range, delete_protected_range, list_protected_ranges — Lock formula cells, unlock data cells
 [Metadata] set_metadata, get_metadata, delete_metadata — Custom app attributes (not visible to users)
 [Banding] add_banding, update_banding, delete_banding, list_banding — Alternating row colors
-[Tables] create_table, delete_table, list_tables, update_table, rename_table_column, set_table_column_properties — Structured ranges with filters
+[Tables] create_table, delete_table, list_tables, update_table, rename_table_column, set_table_column_properties — Structured ranges with filters (banding is a separate add_banding step)
 [Smart Chips] add_person_chip, add_drive_chip, add_rich_link_chip, list_chips — Linked references. Note: For write operations, only Drive file links are supported via add_rich_link_chip. Reading back smart chips via list_chips can return YouTube, Calendar, and People chip types, but these cannot be created via the API.
 [Named Functions] create_named_function, update_named_function, delete_named_function, list_named_functions, get_named_function — Custom formula functions
 
@@ -755,7 +754,7 @@ Example: {"action":"validate","value":"test@email.com","rules":["not_empty","val
 
 **ACTIONS BY CATEGORY:**
 [Context] set_active, get_active, get_context
-[History] record_operation, get_last_operation, get_history
+[History] record_operation (manual/external steps), get_last_operation, get_history
 [References] find_by_reference
 [Preferences] update_preferences, get_preferences
 [Pending] set_pending, get_pending, clear_pending
@@ -858,8 +857,8 @@ Example workflow:
 
 **ROUTING - Pick this tool when:**
 > Creating, updating, or managing Apps Script projects
-> Deploying scripts as web apps, API executables, or scheduled triggers
-> Running Apps Script functions remotely
+> Deploying scripts as web apps or Execution API deployments
+> Running Apps Script functions remotely after deployment
 > Monitoring script execution, logs, and performance
 > Creating automation workflows extending Sheets functionality
 
@@ -874,16 +873,17 @@ Example workflow:
 [Version] create_version, list_versions, get_version
 [Deploy] deploy, list_deployments, get_deployment, undeploy
 [Execute] run (execute function), list_processes (logs), get_metrics
-[Trigger] create_trigger, list_triggers, delete_trigger, update_trigger
+[Trigger compatibility only] create_trigger, list_triggers, delete_trigger, update_trigger → currently return NOT_IMPLEMENTED; create/manage triggers inside the script with ScriptApp
 
 **TOP 3 ACTIONS:**
-1. run: {"action":"run","scriptId":"1ABC...","functionName":"myFunction","parameters":["arg1"]}
-2. get_content: {"action":"get_content","scriptId":"1ABC..."}
-3. deploy: {"action":"deploy","scriptId":"1ABC...","deploymentType":"WEB_APP","access":"ANYONE"}
+1. update_content: {"action":"update_content","scriptId":"1ABC...","files":[{"name":"Code","type":"SERVER_JS","source":"function myFunction() {}"}]}
+2. deploy: {"action":"deploy","scriptId":"1ABC...","deploymentType":"EXECUTION_API","versionNumber":1}
+3. run: {"action":"run","scriptId":"1ABC...","deploymentId":"AKfycb...","functionName":"myFunction","parameters":["arg1"]}
 
 **⚠️ SAFETY:** run executes code with SIDE EFFECTS. deploy creates PUBLIC endpoints.
-**scriptId:** From Apps Script editor. **deploymentType:** WEB_APP, EXECUTION_API
-**TIP:** Use devMode:true to test latest code (owner only) before deploying.`,
+**scriptId:** From Apps Script editor. **deploymentId:** From Deploy > Manage deployments. **deploymentType:** WEB_APP, EXECUTION_API
+**SUPPORTED WORKFLOW:** create → update_content → create_version → deploy → run with deploymentId
+**TIP:** Use devMode:true to test latest saved code (owner only). Trigger actions are compatibility stubs; use ScriptApp in the script itself.`,
 
   sheets_webhook: `🔔 WEBHOOK - Event-driven automation and real-time notifications (${ACTION_COUNTS['sheets_webhook']} actions).
 

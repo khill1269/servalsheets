@@ -45,11 +45,11 @@ verbosity filtering, scope validation, progress reporting, error mapping.
 | sheets_visualize   | VisualizeHandler        | handlers/visualize.ts (335 lines)   | 18      | Sampling (chart suggestions)       |
 | sheets_collaborate | CollaborateHandler      | handlers/collaborate.ts (644 lines) | 40      | Drive API (sharing)                |
 | sheets_composite   | CompositeHandler        | handlers/composite.ts (980 lines)   | 21      | CompositeOperationsService         |
-| sheets_analyze     | AnalyzeHandler          | handlers/analyze.ts (1145 lines)    | 22      | Sampling, BackgroundAnalyzer       |
+| sheets_analyze     | AnalyzeHandler          | handlers/analyze.ts (1150 lines)    | 22      | Sampling, BackgroundAnalyzer       |
 | sheets_fix         | FixHandler              | handlers/fix.ts (1225 lines)        | 6       | CleaningEngine, quality validators |
 | sheets_templates   | SheetsTemplatesHandler  | handlers/templates.ts (785 lines)   | 8       | Drive appDataFolder                |
 | sheets_bigquery    | SheetsBigQueryHandler   | handlers/bigquery.ts (1938 lines)   | 17      | BigQuery API, circuit breaker      |
-| sheets_appsscript  | SheetsAppsScriptHandler | handlers/appsscript.ts (1636 lines) | 19      | Apps Script API, circuit breaker   |
+| sheets_appsscript  | SheetsAppsScriptHandler | handlers/appsscript.ts (1647 lines) | 19      | Apps Script API, circuit breaker   |
 
 <!-- END_GENERATED:handler-table-base -->
 
@@ -66,8 +66,8 @@ handling, verbosity filtering, and service access.
 | sheets_confirm      | ConfirmHandler                         | handlers/confirm.ts (440 lines)       | 5       | ElicitationServer, WizardSessions                  |
 | sheets_dependencies | DependenciesHandler                    | handlers/dependencies.ts (1107 lines) | 10      | ImpactAnalyzer (cached), ScenarioEngine            |
 | sheets_quality      | QualityHandler                         | handlers/quality.ts (367 lines)       | 4       | ValidationEngine, ConflictDetector                 |
-| sheets_history      | HistoryHandler                         | handlers/history.ts (790 lines)       | 10      | HistoryService, SnapshotService, TimeTravelService |
-| sheets_session      | SessionHandler + handleSheetsSession() | handlers/session.ts (911 lines)       | 31      | SessionContextManager                              |
+| sheets_history      | HistoryHandler                         | handlers/history.ts (792 lines)       | 10      | HistoryService, SnapshotService, TimeTravelService |
+| sheets_session      | SessionHandler + handleSheetsSession() | handlers/session.ts (920 lines)       | 31      | SessionContextManager                              |
 | sheets_transaction  | TransactionHandler                     | handlers/transaction.ts (401 lines)   | 6       | TransactionManager                                 |
 | sheets_federation   | FederationHandler                      | handlers/federation.ts (403 lines)    | 4       | FederatedMcpClient                                 |
 | sheets_webhook      | WebhookHandler                         | handlers/webhooks.ts (627 lines)      | 10      | WebhookManager, Redis                              |

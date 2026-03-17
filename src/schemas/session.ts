@@ -728,7 +728,7 @@ This tool tracks what we're working with so Claude can understand natural refere
 • Set active: {"action":"set_active","spreadsheetId":"1ABC...","title":"Q4 Budget"} (sheetNames optional)
 • Get context: {"action":"get_context"} → Returns summary + suggestions
 • Find reference: {"action":"find_by_reference","reference":"that","type":"operation"} → Finds last operation
-• Record op: {"action":"record_operation","tool":"sheets_data","toolAction":"write",...}
+• Record op manually: {"action":"record_operation","tool":"external","toolAction":"sync",...} (optional for work done outside normal tool calls)
 
 **Natural Language Support:**
 • "the spreadsheet" → get_active returns current spreadsheet
@@ -739,13 +739,13 @@ This tool tracks what we're working with so Claude can understand natural refere
 **When to Use:**
 1. ALWAYS call get_context at conversation start
 2. Call set_active after opening/creating a spreadsheet
-3. Call record_operation after any write operation
+3. Use record_operation only for manual/external work that is not already captured by a normal tool call
 4. Call find_by_reference when user uses natural references
 
 **Common Workflows:**
 1. Start: get_context → Understand current state
 2. After open: set_active → Remember which spreadsheet
-3. After write: record_operation → Enable undo
+3. After write: get_context/history → inspect the auto-tracked operation
 4. User says "undo": find_by_reference → Find operation to undo
 
 **Best Practice:**
@@ -763,8 +763,8 @@ Use the collaborative workflow pattern for natural language requests:
 3. **Plan ready**: Switch to \`type:"awaiting_approval"\` when you have enough context
    Example: \`{"action":"set_pending","type":"awaiting_approval","context":{"plan":{"steps":[...]}}}\`
 
-4. **Execute**: After approval, perform operations and use \`record_operation\` for each step
-   Example: \`{"action":"record_operation","tool":"sheets_data","toolAction":"write","description":"Wrote report data",...}\`
+4. **Execute**: After approval, perform operations. Successful tool calls are auto-recorded; use \`record_operation\` only for manual or external steps.
+   Example: \`{"action":"record_operation","tool":"external","toolAction":"sync","description":"Ran external backfill",...}\`
 
 5. **Complete**: Clear the pending state when done
    Example: \`{"action":"clear_pending"}\`
@@ -802,6 +802,6 @@ User: "Use spreadsheet 1ABC, Q1 2024"
 User: "Total revenue by region"
 → set_pending (type: awaiting_approval, include plan)
 User: "Go ahead"
-→ Execute operations with record_operation for each step
+→ Execute operations (auto-recorded) and optionally record external/manual steps
 → clear_pending when complete
 \`\`\``;

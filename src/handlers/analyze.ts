@@ -492,7 +492,9 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
               };
 
               const scorer = new ConfidenceScorer();
-              const store = getSessionContext().understandingStore;
+              const store =
+                this.context.sessionContext?.understandingStore ??
+                getSessionContext().understandingStore;
               const spreadsheetId = (req as Record<string, unknown>)['spreadsheetId'] as string;
 
               const assessment = scorer.scoreFromComprehensive(spreadsheetId, comprehensiveData);
@@ -536,6 +538,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
           response = await handleScoutAction(scoutInput, {
             sheetsApi: this.sheetsApi,
             samplingServer: this.context.samplingServer,
+            context: this.context,
           });
           break;
         }
@@ -589,7 +592,9 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             findings?: unknown;
             maxActions?: number;
           };
-          response = await handleGenerateActionsAction(generateActionsInput);
+          response = await handleGenerateActionsAction(generateActionsInput, {
+            sessionContext: this.context.sessionContext,
+          });
           break;
         }
 

@@ -18,6 +18,7 @@
 import { ErrorCodes } from './error-codes.js';
 import {
   getWebhookManager,
+  isWebhookRedisConfigured,
   validateWebhookUrl,
   WEBHOOK_DURABILITY_MODE,
 } from '../services/webhook-manager.js';
@@ -38,6 +39,15 @@ import { recordWebhookId } from '../mcp/completions.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
+
+const REDIS_REQUIRED_WEBHOOK_ACTIONS = new Set([
+  'register',
+  'unregister',
+  'list',
+  'get',
+  'test',
+  'get_stats',
+]);
 
 /**
  * Webhook handler
@@ -126,12 +136,44 @@ export class WebhookHandler {
     };
   }
 
+  private createRedisUnavailableError(
+    action: string
+  ): Extract<SheetsWebhookOutput['response'], { success: false }>['error'] {
+    return {
+      code: ErrorCodes.CONFIG_ERROR,
+      message: `Redis required: ${action} depends on the Redis-backed webhook store`,
+      details: {
+        action,
+        dependency: 'redis',
+        durabilityMode: WEBHOOK_DURABILITY_MODE,
+      },
+      retryable: false,
+      resolution:
+        'Configure a reachable Redis instance before using Redis-backed sheets_webhook actions.',
+      resolutionSteps: [
+        '1. Set REDIS_URL (or equivalent Redis connection env vars)',
+        '2. Ensure Redis is reachable from this ServalSheets process',
+        '3. Restart ServalSheets so webhook services initialize with Redis',
+        '4. Retry register, list, get, test, get_stats, or unregister',
+      ],
+    };
+  }
+
   /**
    * Handle sheets_webhook tool calls
    */
   async handle(input: SheetsWebhookInput): Promise<SheetsWebhookOutput> {
     const req = input.request;
     try {
+      if (REDIS_REQUIRED_WEBHOOK_ACTIONS.has(req.action) && !isWebhookRedisConfigured()) {
+        return {
+          response: {
+            success: false,
+            error: this.createRedisUnavailableError(req.action),
+          },
+        };
+      }
+
       switch (req.action) {
         case 'register':
           return { response: await this.handleRegister(req) };

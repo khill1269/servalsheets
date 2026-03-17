@@ -227,7 +227,11 @@ export function createToolTaskHandler(
             return;
           }
 
-          const { errorPayload } = buildToolExecutionErrorPayload(error, toolName);
+          const { errorPayload } = buildToolExecutionErrorPayload(
+            error,
+            toolName,
+            args as Record<string, unknown>
+          );
           const errorResult = buildToolResponse({
             response: {
               success: false,

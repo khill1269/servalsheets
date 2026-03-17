@@ -131,6 +131,7 @@ export function buildToolCallExecutionContext(
     idempotencyKey: requestHeaders
       ? extractIdempotencyKeyFromHeaders(requestHeaders)
       : parentRequestContext?.idempotencyKey,
+    sessionContext: parentRequestContext?.sessionContext,
   });
 
   const startTime = Date.now();

@@ -313,6 +313,7 @@ describe('Claude-facing request normalization regressions', () => {
       request: {
         action: 'run',
         scriptId: 'script-123',
+        deploymentId: 'AKfycb-deployment',
         functionName: 'buildTracker',
         files: [{ name: 'Code.gs', type: 'SERVER_JS', source: 'function buildTracker() {}' }],
       },

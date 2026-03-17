@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ServalSheetsServer } from '../../src/server.js';
+import { DEFER_SCHEMAS } from '../../src/config/constants.js';
 import { TOOL_COUNT } from '../../src/schemas/action-counts.js';
 
 type ListToolsResponse = {
@@ -126,6 +127,183 @@ describe('tools/list Schema Serialization', () => {
           propertyCount,
           `Tool ${tool.name} should have non-empty output schema`
         ).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('should expose inline action parameter hints in deferred schema mode', async () => {
+    if (!DEFER_SCHEMAS) return;
+
+    const response = await requestToolsList(server);
+    const dataTool = response.tools.find((tool) => tool.name === 'sheets_data');
+
+    expect(dataTool).toBeDefined();
+
+    const metadata = (dataTool!.inputSchema as Record<string, unknown>)['x-servalsheets'] as
+      | Record<string, unknown>
+      | undefined;
+    expect(metadata).toBeDefined();
+
+    const actionParams = metadata?.['actionParams'] as Record<string, unknown> | undefined;
+    expect(actionParams).toBeDefined();
+
+    const writeHint = actionParams?.['write'] as Record<string, unknown> | undefined;
+    expect(writeHint).toBeDefined();
+    expect(writeHint?.['required']).toEqual(expect.arrayContaining(['spreadsheetId', 'values']));
+
+    const requestSchema = (dataTool!.inputSchema.properties?.['request'] ?? {}) as Record<
+      string,
+      unknown
+    >;
+    expect(String(requestSchema['description'] ?? '')).toContain('Required fields by action:');
+    expect(String(requestSchema['description'] ?? '')).toContain('write(');
+    expect(String(requestSchema['description'] ?? '')).not.toContain('schema://tools/');
+  });
+
+  it('should expose compact nested enum/type hints for deferred schemas', async () => {
+    if (!DEFER_SCHEMAS) return;
+
+    const response = await requestToolsList(server);
+
+    const getActionParams = (toolName: string): Record<string, any> => {
+      const tool = response.tools.find((entry) => entry.name === toolName);
+      expect(tool, `Tool ${toolName} should be present`).toBeDefined();
+
+      const metadata = (tool!.inputSchema as Record<string, unknown>)['x-servalsheets'] as
+        | Record<string, unknown>
+        | undefined;
+      expect(metadata, `Tool ${toolName} should expose x-servalsheets metadata`).toBeDefined();
+
+      const actionParams = metadata?.['actionParams'] as Record<string, any> | undefined;
+      expect(actionParams, `Tool ${toolName} should expose actionParams`).toBeDefined();
+      return actionParams ?? {};
+    };
+
+    const fixActionParams = getActionParams('sheets_fix');
+    expect(fixActionParams['fill_missing']?.params?.strategy).toMatchObject({
+      type: 'string',
+      enum: ['forward', 'backward', 'mean', 'median', 'mode', 'constant'],
+    });
+    expect(
+      fixActionParams['standardize_formats']?.params?.columns?.items?.properties?.targetFormat?.enum
+    ).toContain('title_case');
+
+    const formatActionParams = getActionParams('sheets_format');
+    expect(formatActionParams['batch_format']?.params?.operations?.items?.properties?.type?.enum).toEqual(
+      expect.arrayContaining(['background', 'text_format', 'borders'])
+    );
+    expect(formatActionParams['auto_fit']?.requiredOneOf).toEqual([['range', 'sheetId']]);
+
+    const visualizeActionParams = getActionParams('sheets_visualize');
+    expect(
+      visualizeActionParams['chart_create']?.params?.options?.properties?.legendPosition?.enum
+    ).toContain('BOTTOM_LEGEND');
+
+    const appsscriptActionParams = getActionParams('sheets_appsscript');
+    expect(appsscriptActionParams['list_triggers']?.requiredOneOf).toEqual([
+      ['scriptId', 'spreadsheetId'],
+    ]);
+    expect(appsscriptActionParams['update_content']?.requiredOneOf).toEqual([
+      ['scriptId', 'spreadsheetId'],
+    ]);
+
+    const collaborateActionParams = getActionParams('sheets_collaborate');
+    expect(collaborateActionParams['share_add']?.required).toEqual(
+      expect.arrayContaining(['spreadsheetId', 'type', 'role'])
+    );
+    expect(collaborateActionParams['share_add']?.params?.type?.enum).toEqual(
+      expect.arrayContaining(['user', 'group', 'domain', 'anyone'])
+    );
+    expect(collaborateActionParams['label_apply']?.requiredOneOf).toEqual([
+      ['fileId', 'spreadsheetId'],
+    ]);
+
+    const connectorsActionParams = getActionParams('sheets_connectors');
+    expect(connectorsActionParams['configure']?.required).toEqual([]);
+    expect(String(connectorsActionParams['configure']?.description ?? '')).toContain(
+      'MCP URL elicitation'
+    );
+  });
+
+  it('should expose typed flat request properties in deferred input schemas', async () => {
+    if (!DEFER_SCHEMAS) return;
+
+    const response = await requestToolsList(server);
+
+    const getRequestProperties = (toolName: string): Record<string, any> => {
+      const tool = response.tools.find((entry) => entry.name === toolName);
+      expect(tool, `Tool ${toolName} should be present`).toBeDefined();
+
+      const request = (tool!.inputSchema.properties?.['request'] ?? {}) as Record<string, any>;
+      expect(request['type'], `Tool ${toolName} request should be an object`).toBe('object');
+      expect(request['additionalProperties'], `Tool ${toolName} request should stay permissive`).toBe(
+        true
+      );
+
+      return (request['properties'] ?? {}) as Record<string, any>;
+    };
+
+    const fixProperties = getRequestProperties('sheets_fix');
+    expect(fixProperties['strategy']).toMatchObject({
+      type: 'string',
+      enum: ['forward', 'backward', 'mean', 'median', 'mode', 'constant'],
+    });
+
+    const dataProperties = getRequestProperties('sheets_data');
+    expect(dataProperties['values']?.type).toBe('array');
+    expect(dataProperties['values']?.items?.type).toBe('array');
+
+    const qualityProperties = getRequestProperties('sheets_quality');
+    expect(
+      qualityProperties['value']?.oneOf ??
+        qualityProperties['value']?.anyOf ??
+        qualityProperties['value']?.type
+    ).toBeDefined();
+
+    const visualizeProperties = getRequestProperties('sheets_visualize');
+    expect(['number', 'integer']).toContain(visualizeProperties['sheetId']?.type);
+
+    const connectorsProperties = getRequestProperties('sheets_connectors');
+    expect(connectorsProperties['credentials']?.type).toBe('object');
+    expect(connectorsProperties['connectorId']?.type).toBe('string');
+  });
+
+  it('should expose partial availability metadata for sheets_webhook when Redis is not configured', async () => {
+    const previousRedisUrl = process.env['REDIS_URL'];
+    delete process.env['REDIS_URL'];
+
+    try {
+      const response = await requestToolsList(server);
+      const webhookTool = response.tools.find((tool) => tool.name === 'sheets_webhook');
+
+      expect(webhookTool).toBeDefined();
+      expect(String(webhookTool!.description ?? '')).toContain(
+        'Redis is not configured in this server process'
+      );
+
+      if (DEFER_SCHEMAS) {
+        const metadata = (webhookTool!.inputSchema as Record<string, unknown>)['x-servalsheets'] as
+          | Record<string, unknown>
+          | undefined;
+        expect(metadata).toBeDefined();
+
+        const availability = metadata?.['availability'] as Record<string, unknown> | undefined;
+        expect(availability).toMatchObject({
+          status: 'partial',
+          reason: 'Redis backend not configured in this server process',
+        });
+        expect(availability?.['unavailableActions']).toEqual(
+          expect.arrayContaining(['register', 'list', 'test', 'get_stats'])
+        );
+        expect(availability?.['availableActions']).toEqual(
+          expect.arrayContaining(['watch_changes', 'subscribe_workspace'])
+        );
+      }
+    } finally {
+      if (previousRedisUrl === undefined) {
+        delete process.env['REDIS_URL'];
+      } else {
+        process.env['REDIS_URL'] = previousRedisUrl;
       }
     }
   });

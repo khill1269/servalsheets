@@ -210,44 +210,66 @@ const GetProjectActionSchema = z
     }
   });
 
-const GetContentActionSchema = z.object({
-  action: z.literal('get_content').describe('Get script project files and source code'),
-  scriptId: ScriptIdSchema.optional().describe(
-    'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
-  ),
-  spreadsheetId: z
-    .string()
-    .optional()
-    .describe(
-      'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+const GetContentActionSchema = z
+  .object({
+    action: z.literal('get_content').describe('Get script project files and source code'),
+    scriptId: ScriptIdSchema.optional().describe(
+      'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
     ),
-  versionNumber: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe('Specific version to retrieve (omit for HEAD)'),
-  verbosity: VerbositySchema,
-});
+    spreadsheetId: z
+      .string()
+      .optional()
+      .describe(
+        'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+      ),
+    versionNumber: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe('Specific version to retrieve (omit for HEAD)'),
+    verbosity: VerbositySchema,
+  })
+  .superRefine((data, ctx) => {
+    if (!data.scriptId && !data.spreadsheetId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Either scriptId or spreadsheetId is required',
+        path: ['scriptId'],
+      });
+    }
+  });
 
-const UpdateContentActionSchema = z.object({
-  action: z.literal('update_content').describe('Update script project files (replaces all files)'),
-  scriptId: ScriptIdSchema.optional().describe(
-    'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
-  ),
-  spreadsheetId: z
-    .string()
-    .optional()
-    .describe(
-      'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+const UpdateContentActionSchema = z
+  .object({
+    action: z
+      .literal('update_content')
+      .describe('Update script project files (replaces all files)'),
+    scriptId: ScriptIdSchema.optional().describe(
+      'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
     ),
-  files: z
-    .array(ScriptFileSchema)
-    .min(1)
-    .max(50)
-    .describe('Complete set of files for the project (max 50)'),
-  verbosity: VerbositySchema,
-});
+    spreadsheetId: z
+      .string()
+      .optional()
+      .describe(
+        'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+      ),
+    files: z
+      .array(ScriptFileSchema)
+      .min(1)
+      .max(50)
+      .describe('Complete set of files for the project (max 50)'),
+    verbosity: VerbositySchema,
+  })
+  .superRefine((data, ctx) => {
+    if (!data.scriptId && !data.spreadsheetId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Either scriptId or spreadsheetId is required',
+        path: ['scriptId'],
+      });
+    }
+  });
 
 // ============================================================================
 // Version Management Action Schemas (3 actions)
@@ -354,7 +376,7 @@ const RunActionSchema = z
   .object({
     action: z.literal('run').describe('Execute a function in an Apps Script project'),
     scriptId: ScriptIdSchema.describe(
-      'Apps Script project ID (legacy — prefer deploymentId for the run action)'
+      'Apps Script project ID. Required for devMode runs and as the project identifier for deploy/list actions.'
     ),
     deploymentId: z
       .string()
@@ -362,9 +384,8 @@ const RunActionSchema = z
       .optional()
       .describe(
         'Deployment ID from Deploy > Manage Deployments (e.g. AKfycbxxxx). ' +
-          'Required by the Apps Script API — this is NOT the script project ID. ' +
-          'Find it in the Apps Script editor under Deploy > Manage deployments. ' +
-          'If omitted, scriptId is used as the path parameter (only works if scriptId IS a deployment ID).'
+          'Required for normal run calls. This is NOT the script project ID. ' +
+          'Supported workflow: create -> update_content -> create_version -> deploy -> run with deploymentId.'
       ),
     functionName: z
       .string()
@@ -406,6 +427,15 @@ const RunActionSchema = z
         message:
           'The run action does not accept files. Use sheets_appsscript action:"update_content" to push source code first, then run the function.',
         path: ['files'],
+      });
+    }
+
+    if (!input.devMode && !input.deploymentId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'deploymentId is required unless devMode:true. Deploy the script first, then call run with that deploymentId.',
+        path: ['deploymentId'],
       });
     }
   })
@@ -470,81 +500,163 @@ const GetMetricsActionSchema = z.object({
 // Trigger Management Schemas (4 new actions)
 // ============================================================================
 
-const CreateTriggerActionSchema = z.object({
-  action: z
-    .literal('create_trigger')
-    .describe('Create a time-driven or event-driven trigger for a script function'),
-  scriptId: ScriptIdSchema,
-  functionName: z
-    .string()
-    .min(1)
-    .describe('Function to trigger (must exist in the script project)'),
-  triggerType: z
-    .enum(['CLOCK', 'ON_OPEN', 'ON_EDIT', 'ON_FORM_SUBMIT', 'ON_CHANGE'])
-    .describe(
-      'Trigger type: CLOCK (time-based), ON_OPEN, ON_EDIT, ON_FORM_SUBMIT, ON_CHANGE (event-based)'
+const CreateTriggerActionSchema = z
+  .object({
+    action: z
+      .literal('create_trigger')
+      .describe(
+        'Create a time-based or event-based trigger. NOTE: Triggers require ScriptApp inside the script code — the Apps Script REST API does not expose trigger management for external clients.'
+      ),
+    scriptId: ScriptIdSchema.optional().describe(
+      'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
     ),
-  everyMinutes: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(1440)
-    .optional()
-    .describe('For CLOCK triggers: interval in minutes (1, 5, 10, 15, 30, 60, 360, 720, 1440)'),
-  atHour: z.coerce
-    .number()
-    .int()
-    .min(0)
-    .max(23)
-    .optional()
-    .describe('For daily CLOCK triggers: hour to run (0-23, UTC)'),
-  weekDay: z
-    .enum(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'])
-    .optional()
-    .describe('For weekly CLOCK triggers: day of the week'),
-  verbosity: VerbositySchema,
-});
+    spreadsheetId: z
+      .string()
+      .optional()
+      .describe(
+        'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+      ),
+    functionName: z
+      .string()
+      .min(1)
+      .describe('Function to trigger (must exist in the script project)'),
+    triggerType: z
+      .enum(['CLOCK', 'ON_OPEN', 'ON_EDIT', 'ON_FORM_SUBMIT', 'ON_CHANGE'])
+      .describe(
+        'Trigger type: CLOCK (time-based), ON_OPEN, ON_EDIT, ON_FORM_SUBMIT, ON_CHANGE (event-based)'
+      ),
+    everyMinutes: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(1440)
+      .optional()
+      .describe('For CLOCK triggers: interval in minutes (1, 5, 10, 15, 30, 60, 360, 720, 1440)'),
+    atHour: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(23)
+      .optional()
+      .describe('For daily CLOCK triggers: hour to run (0-23, UTC)'),
+    weekDay: z
+      .enum(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'])
+      .optional()
+      .describe('For weekly CLOCK triggers: day of the week'),
+    verbosity: VerbositySchema,
+  })
+  .superRefine((data, ctx) => {
+    if (!data.scriptId && !data.spreadsheetId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Either scriptId or spreadsheetId is required',
+        path: ['scriptId'],
+      });
+    }
+  });
 
-const ListTriggersActionSchema = z.object({
-  action: z.literal('list_triggers').describe('List all triggers for a script project'),
-  scriptId: ScriptIdSchema,
-  pageSize: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(100)
-    .optional()
-    .default(50)
-    .describe('Max triggers to return'),
-  pageToken: z.string().optional().describe('Page token for pagination'),
-  verbosity: VerbositySchema,
-});
-
-const DeleteTriggerActionSchema = z.object({
-  action: z.literal('delete_trigger').describe('Delete a specific trigger by ID'),
-  scriptId: ScriptIdSchema,
-  triggerId: z.string().min(1).describe('Trigger ID to delete (from list_triggers)'),
-  verbosity: VerbositySchema,
-});
-
-const UpdateTriggerActionSchema = z.object({
-  action: z
-    .literal('update_trigger')
-    .describe(
-      'Update a trigger — deletes the old trigger and creates a new one with updated settings'
+const ListTriggersActionSchema = z
+  .object({
+    action: z
+      .literal('list_triggers')
+      .describe(
+        'List triggers for a script project. NOTE: Trigger enumeration requires ScriptApp inside the script code — the Apps Script REST API does not expose trigger management for external clients.'
+      ),
+    scriptId: ScriptIdSchema.optional().describe(
+      'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
     ),
-  scriptId: ScriptIdSchema,
-  triggerId: z.string().min(1).describe('Existing trigger ID to replace'),
-  functionName: z.string().min(1).optional().describe('New function name (if changing)'),
-  everyMinutes: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(1440)
-    .optional()
-    .describe('New interval for CLOCK triggers'),
-  verbosity: VerbositySchema,
-});
+    spreadsheetId: z
+      .string()
+      .optional()
+      .describe(
+        'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+      ),
+    pageSize: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .optional()
+      .default(50)
+      .describe('Max triggers to return'),
+    pageToken: z.string().optional().describe('Page token for pagination'),
+    verbosity: VerbositySchema,
+  })
+  .superRefine((data, ctx) => {
+    if (!data.scriptId && !data.spreadsheetId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Either scriptId or spreadsheetId is required',
+        path: ['scriptId'],
+      });
+    }
+  });
+
+const DeleteTriggerActionSchema = z
+  .object({
+    action: z
+      .literal('delete_trigger')
+      .describe(
+        'Delete a trigger by ID. NOTE: Trigger deletion requires ScriptApp inside the script code — the Apps Script REST API does not expose trigger management for external clients.'
+      ),
+    scriptId: ScriptIdSchema.optional().describe(
+      'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
+    ),
+    spreadsheetId: z
+      .string()
+      .optional()
+      .describe(
+        'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+      ),
+    triggerId: z.string().min(1).describe('Trigger ID to delete (from list_triggers)'),
+    verbosity: VerbositySchema,
+  })
+  .superRefine((data, ctx) => {
+    if (!data.scriptId && !data.spreadsheetId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Either scriptId or spreadsheetId is required',
+        path: ['scriptId'],
+      });
+    }
+  });
+
+const UpdateTriggerActionSchema = z
+  .object({
+    action: z
+      .literal('update_trigger')
+      .describe(
+        'Update an existing trigger (replace by ID). NOTE: Trigger updates require ScriptApp inside the script code — the Apps Script REST API does not expose trigger management for external clients.'
+      ),
+    scriptId: ScriptIdSchema.optional().describe(
+      'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
+    ),
+    spreadsheetId: z
+      .string()
+      .optional()
+      .describe(
+        'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+      ),
+    triggerId: z.string().min(1).describe('Existing trigger ID to replace'),
+    functionName: z.string().min(1).optional().describe('New function name (if changing)'),
+    everyMinutes: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(1440)
+      .optional()
+      .describe('New interval for CLOCK triggers'),
+    verbosity: VerbositySchema,
+  })
+  .superRefine((data, ctx) => {
+    if (!data.scriptId && !data.spreadsheetId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Either scriptId or spreadsheetId is required',
+        path: ['scriptId'],
+      });
+    }
+  });
 
 // SERVAL() formula installer schema
 const InstallServalFunctionActionSchema = z.object({

@@ -172,10 +172,22 @@ const RegressionActionSchema = CommonFieldsSchema.extend({
 const ForecastActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('forecast')
-    .describe('Time-series forecasting with trend and seasonality detection'),
-  range: A1NotationSchema.describe('Range containing time series data (A1 notation)'),
-  dateColumn: z.string().describe('Column containing dates/timestamps (letter or header name)'),
-  valueColumn: z.string().describe('Column containing values to forecast (letter or header name)'),
+    .describe(
+      'Time-series forecasting with trend and seasonality detection. Requires one numeric row per distinct period; aggregate repeated dates/timestamps before calling.'
+    ),
+  range: A1NotationSchema.describe(
+    'Range containing time series data with headers (A1 notation). Use a pre-aggregated range with one row per period.'
+  ),
+  dateColumn: z
+    .string()
+    .describe(
+      'Column containing dates/timestamps (letter or header name). Needs at least 3 distinct periods.'
+    ),
+  valueColumn: z
+    .string()
+    .describe(
+      'Column containing numeric values to forecast (letter or header name). One value per period.'
+    ),
   periods: z.number().int().min(1).max(365).describe('Number of future periods to forecast'),
   method: z
     .enum(['linear_trend', 'moving_average', 'exponential_smoothing', 'auto'])

@@ -23,9 +23,50 @@ import {
   validateValuesPayloadIfEnabled,
   checkFormulaInjection,
 } from './helpers.js';
-import { toGridRange } from '../../utils/google-sheets-helpers.js';
+import {
+  buildA1Notation,
+  parseA1Notation,
+  toGridRange,
+} from '../../utils/google-sheets-helpers.js';
 
 type DataRequest = SheetsDataInput['request'];
+
+const FULL_COLUMN_A1_RE = /^(?:'([^']+)'!|([^!]+)!)?[A-Z]+:[A-Z]+$/i;
+
+function expandWriteRangeToFitValues(range: string, values: ValuesArray): string {
+  if (range === '(dynamic)' || FULL_COLUMN_A1_RE.test(range)) {
+    return range;
+  }
+
+  if (values.length === 0) {
+    return range;
+  }
+
+  const payloadColumnCount = values.reduce((max, row) => Math.max(max, row.length), 0);
+  if (payloadColumnCount === 0) {
+    return range;
+  }
+
+  try {
+    const parsed = parseA1Notation(range);
+    const requiredEndRow = Math.max(parsed.endRow, parsed.startRow + values.length);
+    const requiredEndCol = Math.max(parsed.endCol, parsed.startCol + payloadColumnCount);
+
+    if (requiredEndRow === parsed.endRow && requiredEndCol === parsed.endCol) {
+      return range;
+    }
+
+    return buildA1Notation(
+      parsed.sheetName,
+      parsed.startCol,
+      parsed.startRow,
+      requiredEndCol,
+      requiredEndRow
+    );
+  } catch {
+    return range;
+  }
+}
 
 // ─── handleRead ───────────────────────────────────────────────────────────────
 
@@ -295,7 +336,16 @@ export async function handleWrite(
   const range = input.range
     ? await resolveRangeToA1(ha, input.spreadsheetId, input.range)
     : '(dynamic)';
-  const payloadValidation = validateValuesPayloadIfEnabled(ha, input.values, range);
+  const writeRange = expandWriteRangeToFitValues(range, input.values);
+  if (writeRange !== range) {
+    ha.context.logger?.info('Expanded bounded write range to fit payload', {
+      originalRange: range,
+      expandedRange: writeRange,
+      payloadRows: input.values.length,
+      payloadColumns: input.values.reduce((max, row) => Math.max(max, row.length), 0),
+    });
+  }
+  const payloadValidation = validateValuesPayloadIfEnabled(ha, input.values, writeRange);
   if (!payloadValidation.withinLimits) {
     return payloadTooLargeError(ha, 'write', payloadValidation);
   }
@@ -390,7 +440,7 @@ export async function handleWrite(
               input.values.length > 0
                 ? Math.max(...input.values.map((row: unknown[]) => row.length))
                 : 0,
-            updatedRange: range,
+            updatedRange: writeRange,
           }),
           warnings,
         }
@@ -405,7 +455,7 @@ export async function handleWrite(
           input.values.length > 0
             ? Math.max(...input.values.map((row: unknown[]) => row.length))
             : 0,
-        updatedRange: range,
+        updatedRange: writeRange,
       },
       undefined,
       true,
@@ -421,7 +471,7 @@ export async function handleWrite(
           type: 'values:update',
           spreadsheetId: input.spreadsheetId,
           params: {
-            range,
+            range: writeRange,
             values: input.values,
             valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
           },
@@ -434,7 +484,7 @@ export async function handleWrite(
         updatedCells: result?.updatedCells ?? cellCount,
         updatedRows: result?.updatedRows ?? input.values.length,
         updatedColumns: result?.updatedColumns ?? 0,
-        updatedRange: result?.updatedRange ?? range,
+        updatedRange: result?.updatedRange ?? writeRange,
         _batched: true,
       };
 
@@ -442,7 +492,7 @@ export async function handleWrite(
       const cellsAffected = (responseData['updatedCells'] as number | undefined) ?? cellCount;
       if (analysisConfig.enabled && cellsAffected >= analysisConfig.minCells) {
         const analyzer = getBackgroundAnalyzer();
-        analyzer.analyzeInBackground(input.spreadsheetId, range, cellsAffected, ha.api, {
+        analyzer.analyzeInBackground(input.spreadsheetId, writeRange, cellsAffected, ha.api, {
           qualityThreshold: 70,
           minCellsChanged: analysisConfig.minCells,
           debounceMs: analysisConfig.debounceMs,
@@ -466,8 +516,8 @@ export async function handleWrite(
             tool: 'sheets_data',
             action: 'write',
             spreadsheetId: input.spreadsheetId,
-            range: (responseData['updatedRange'] as string) ?? range,
-            description: `Wrote ${(responseData['updatedCells'] as number) ?? 0} cell(s) to ${(responseData['updatedRange'] as string) ?? range}`,
+            range: (responseData['updatedRange'] as string) ?? writeRange,
+            description: `Wrote ${(responseData['updatedCells'] as number) ?? 0} cell(s) to ${(responseData['updatedRange'] as string) ?? writeRange}`,
             undoable: false,
             cellsAffected: (responseData['updatedCells'] as number) ?? 0,
           });
@@ -487,7 +537,7 @@ export async function handleWrite(
   const response = await ha.withCircuitBreaker('values.update', () =>
     ha.api.spreadsheets.values.update({
       spreadsheetId: input.spreadsheetId,
-      range,
+      range: writeRange,
       valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
       includeValuesInResponse: input.includeValuesInResponse ?? false,
       requestBody: { values: input.values },
@@ -501,14 +551,14 @@ export async function handleWrite(
     updatedCells: response.data.updatedCells ?? 0,
     updatedRows: response.data.updatedRows ?? 0,
     updatedColumns: response.data.updatedColumns ?? 0,
-    updatedRange: response.data.updatedRange ?? range,
+    updatedRange: response.data.updatedRange ?? writeRange,
   };
 
   const analysisConfig = getBackgroundAnalysisConfig();
   const cellsAffected = response.data.updatedCells ?? 0;
   if (analysisConfig.enabled && cellsAffected >= analysisConfig.minCells) {
     const analyzer = getBackgroundAnalyzer();
-    analyzer.analyzeInBackground(input.spreadsheetId, range, cellsAffected, ha.api, {
+    analyzer.analyzeInBackground(input.spreadsheetId, writeRange, cellsAffected, ha.api, {
       qualityThreshold: 70,
       minCellsChanged: analysisConfig.minCells,
       debounceMs: analysisConfig.debounceMs,
@@ -522,8 +572,8 @@ export async function handleWrite(
         tool: 'sheets_data',
         action: 'write',
         spreadsheetId: input.spreadsheetId,
-        range: response.data.updatedRange ?? range,
-        description: `Wrote ${response.data.updatedCells ?? 0} cell(s) to ${response.data.updatedRange ?? range}`,
+        range: response.data.updatedRange ?? writeRange,
+        description: `Wrote ${response.data.updatedCells ?? 0} cell(s) to ${response.data.updatedRange ?? writeRange}`,
         undoable: false,
         cellsAffected: response.data.updatedCells ?? 0,
       });

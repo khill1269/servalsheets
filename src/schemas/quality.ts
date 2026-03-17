@@ -40,6 +40,20 @@ const CommonFieldsSchema = z.object({
 // Individual Action Schemas
 // ============================================================================
 
+export const BuiltinValidationRuleSchema = z.enum([
+  'builtin_string',
+  'builtin_number',
+  'builtin_boolean',
+  'builtin_date',
+  'builtin_positive',
+  'builtin_non_negative',
+  'builtin_email',
+  'builtin_url',
+  'builtin_phone',
+  'builtin_required',
+  'builtin_non_empty_string',
+]);
+
 const ValidateActionSchema = CommonFieldsSchema.extend({
   action: z.literal('validate').describe('Validate data using built-in validators'),
   value: z
@@ -53,10 +67,10 @@ const ValidateActionSchema = CommonFieldsSchema.extend({
     ])
     .describe('Value to validate (can be string, number, boolean, null, array, or object)'),
   rules: z
-    .array(z.string())
+    .array(BuiltinValidationRuleSchema)
     .optional()
     .describe(
-      'Built-in rule IDs to apply (all if omitted). Available: builtin_string, builtin_number, builtin_boolean, builtin_date (type checks); builtin_positive, builtin_non_negative (range checks); builtin_email, builtin_url, builtin_phone (format checks); builtin_required, builtin_non_empty_string (presence checks). Example: ["builtin_email", "builtin_required"]'
+      'Built-in rule IDs to apply (all if omitted). Type checks: builtin_string, builtin_number, builtin_boolean, builtin_date. Range checks: builtin_positive, builtin_non_negative. Format checks: builtin_email, builtin_url, builtin_phone. Presence checks: builtin_required, builtin_non_empty_string. Example: ["builtin_email", "builtin_required"]'
     ),
   context: z
     .record(

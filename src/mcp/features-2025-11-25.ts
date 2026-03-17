@@ -744,7 +744,7 @@ These actions invoke LLM analysis automatically (Sampling SEP-1577):
 
 ## 🔁 ERROR RECOVERY
 
-**Same error twice? STOP.** Read \`schema://tools/{toolName}\` or ask user for clarification. Never retry unchanged params.
+**Same error twice? STOP.** Check the tool description and inline action parameter hints, or ask the user for clarification. Never retry unchanged params.
 
 **Key error patterns:**
 - \`invalid_union\` on conditional format → Use \`add_conditional_format_rule\` with preset
@@ -819,7 +819,7 @@ waiting on the foreground \`tools/call\` response.
 \`sheets_composite import_csv\` → \`sheets_quality validate\` → \`sheets_format apply_preset\`
 
 **Automation workflow:**
-\`sheets_appsscript create\` → \`sheets_appsscript deploy\` → \`sheets_webhook register\`
+\`sheets_appsscript create\` → \`sheets_appsscript update_content\` → \`sheets_appsscript create_version\` → \`sheets_appsscript deploy\` → \`sheets_appsscript run\`
 
 **Data cleaning workflow:**
 \`sheets_fix suggest_cleaning\` → \`sheets_fix clean mode:"preview"\` → \`sheets_fix clean mode:"apply"\`
@@ -864,7 +864,7 @@ waiting on the foreground \`tools/call\` response.
 \`sheets_federation list_servers\` → \`sheets_federation get_server_tools\` → \`sheets_federation call_remote\` (execute action on remote MCP) → \`sheets_data cross_read\` (optionally fetch results back)
 
 **LLM Continuity Pattern (Session Context):**
-\`sheets_session set_active\` (establish context) → \`sheets_data read\` (records last read range) → \`sheets_session record_operation\` (track changes) → \`sheets_session get_context\` (retrieve for follow-ups) → use returned context in next action descriptions
+\`sheets_session set_active\` (establish context) → \`sheets_data read\` (records last read range) → \`sheets_session get_context\` (retrieve auto-tracked context/history for follow-ups) → use returned context in next action descriptions
 
 ## 🪄 INTERACTIVE WIZARDS (Elicitation)
 
@@ -1083,9 +1083,8 @@ All colors use **0-1 scale** (NOT 0-255):
 
 ## 📚 RESOURCE DISCOVERY
 
-- Read \`servalsheets://index\` to discover all available resources and their URIs
-- Read \`schema://tools/{name}\` before calling tools with complex parameters
-- Read \`schema://actions/{name}\` for action-level guidance (idempotency, pitfalls, alternatives)
+- Use \`tools/list\` descriptions plus inline \`x-servalsheets.actionParams\` hints as the primary source for request shapes
+- Read \`servalsheets://index\` when you need a resource catalog and your client supports MCP resource reads
 - Read \`sheets:///{spreadsheetId}/context\` for full structural metadata (sheets, charts, named ranges, protection, filters — 1 API call, no cell data)
 - Search \`knowledge:///search?q={query}\` for domain-specific guidance (formulas, API limits, templates)
 - Read \`servalsheets://guides/{topic}\` for optimization guides (quota, batching, caching, error recovery)
@@ -1132,22 +1131,16 @@ All colors use **0-1 scale** (NOT 0-255):
 `;
 
   const deferredSchemaInstructions = `
-## 📋 SCHEMA RESOURCES (IMPORTANT)
+## 📋 INLINE PARAMETER HINTS (IMPORTANT)
 
-**Tool schemas are deferred to save tokens.** Before calling a tool with complex parameters,
-read its full schema resource to see all available actions and parameters:
+**Tool schemas may be deferred to save tokens.** Treat the tool description and inline
+\`x-servalsheets.actionParams\` hints from \`tools/list\` as the canonical source for actions,
+required fields, and common request shapes.
 
-- \`schema://tools\` - Index of all configured tools in this deployment
-- \`schema://tools/{toolName}\` - Full input/output schema for a specific tool
-- \`schema://actions\` - Index of action guidance resources
-- \`schema://actions/{toolName}\` - Action-level guidance for a specific tool
-
-**When to read schemas:**
+**When to re-check inline hints:**
 - First time using a tool in this conversation
 - When you need to know which actions are available
-- When you get validation errors (check required fields)
-
-Example: Read \`schema://tools/sheets_data\` before your first sheets_data call.
+- When you get validation errors (check required fields for the selected action)
 `;
 
   // Include deferred schema instructions when DEFER_SCHEMAS is enabled

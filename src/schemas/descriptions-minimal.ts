@@ -24,7 +24,7 @@ export const TOOL_DESCRIPTIONS_MINIMAL: Record<string, string> = {
 
   sheets_dimensions: `📐 DIMENSIONS - Rows/columns (${ACTION_COUNTS['sheets_dimensions']} actions). insert, delete, resize, hide, freeze, sort, filter. Use dimension:"ROWS"/"COLUMNS". sheetId preferred, sheetName supported.`,
 
-  sheets_visualize: `📊 VISUALIZE - Charts & pivots (${ACTION_COUNTS['sheets_visualize']} actions). chart_create, chart_update, pivot_create. Use sheets_analyze.suggest_chart only when the user wants help choosing a chart.`,
+  sheets_visualize: `📊 VISUALIZE - Charts & pivots (${ACTION_COUNTS['sheets_visualize']} actions). chart_create, chart_update, pivot_create. Use sheets_visualize.suggest_chart when the user wants help choosing a chart.`,
 
   sheets_collaborate: `👥 COLLABORATE - Sharing/comments/versions (${ACTION_COUNTS['sheets_collaborate']} actions). share_add, comment_add, version_create_snapshot, approval_*. Requires elevated Drive scopes.`,
 
@@ -50,7 +50,7 @@ export const TOOL_DESCRIPTIONS_MINIMAL: Record<string, string> = {
 
   sheets_bigquery: `📊 BIGQUERY - Connected Sheets (${ACTION_COUNTS['sheets_bigquery']} actions). query, connect_looker, cancel_refresh, import_from_bigquery, scheduled queries. Requires BigQuery API enabled.`,
 
-  sheets_appsscript: `⚡ APPSSCRIPT - Apps Script (${ACTION_COUNTS['sheets_appsscript']} actions). run, deploy, get_content, triggers. USER OAuth only. ⚠️ run executes with side effects.`,
+  sheets_appsscript: `⚡ APPSSCRIPT - Apps Script (${ACTION_COUNTS['sheets_appsscript']} actions). create, update_content, create_version, deploy, run. Pass deploymentId to run unless devMode:true. Trigger actions are exposed for compatibility but currently return NOT_IMPLEMENTED with a ScriptApp workaround. USER OAuth only.`,
 
   sheets_webhook: `🔔 WEBHOOK - Change notifications (${ACTION_COUNTS['sheets_webhook']} actions). register, unregister, list, test, watch_changes. Requires Redis backend + HTTPS endpoint. HMAC signature verification.`,
 

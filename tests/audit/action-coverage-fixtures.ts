@@ -1305,8 +1305,8 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['scriptId', 'deploymentId'],
     },
     run: {
-      validInput: { scriptId: 'script1', functionName: 'test' },
-      requiredFields: ['scriptId', 'functionName'],
+      validInput: { scriptId: 'script1', functionName: 'test', devMode: true },
+      requiredFields: ['scriptId', 'functionName', 'devMode'],
     },
     list_processes: {
       validInput: { scriptId: 'script1' },
@@ -1561,7 +1561,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     },
     configure: {
       validInput: { connectorId: 'finnhub', credentials: { type: 'api_key', apiKey: 'test-key' } },
-      requiredFields: ['connectorId', 'credentials'],
+      requiredFields: [],
     },
     query: {
       validInput: { connectorId: 'finnhub', endpoint: 'stock/quote' },

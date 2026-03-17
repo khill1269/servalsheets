@@ -889,7 +889,9 @@ export const ChartPositionSchema = z
       height: z.coerce.number().optional().default(400),
     })
   )
-  .describe('Chart position. anchorCell can be "E1" or object { rowIndex, columnIndex }');
+  .describe(
+    'Chart position. Use "Sheet1!E1" when you know the sheet name, or use "E1" together with position.sheetId.'
+  );
 
 /** Sort specification */
 export const SortSpecSchema = z.object({

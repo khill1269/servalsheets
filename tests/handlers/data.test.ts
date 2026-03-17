@@ -443,6 +443,36 @@ describe('SheetsDataHandler', () => {
           })
         );
       });
+
+      it('auto-expands bounded ranges to fit the payload before writing', async () => {
+        mockApi.spreadsheets.values.update.mockResolvedValueOnce({
+          data: {
+            updatedRange: 'Sheet1!A1:B3',
+            updatedRows: 3,
+            updatedColumns: 2,
+            updatedCells: 6,
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'write',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B2',
+          values: [
+            ['Name', 'Age'],
+            ['Alice', '30'],
+            ['Bob', '25'],
+          ],
+        });
+
+        expect(result.response.success).toBe(true);
+        expect((result.response as any).updatedRange).toBe('Sheet1!A1:B3');
+        expect(mockApi.spreadsheets.values.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            range: 'Sheet1!A1:B3',
+          })
+        );
+      });
     });
 
     describe('append action', () => {

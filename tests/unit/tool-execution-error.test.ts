@@ -35,7 +35,11 @@ describe('buildToolExecutionErrorPayload', () => {
     });
 
     expect(parsed.success).toBe(false);
-    const result = buildToolExecutionErrorPayload(parsed.error, 'sheets_data');
+    const result = buildToolExecutionErrorPayload(parsed.error, 'sheets_data', {
+      request: {
+        action: 'write',
+      },
+    });
 
     expect(result.errorCode).toBe('INVALID_PARAMS');
     expect(result.errorMessage).toContain('Invalid option');
@@ -46,7 +50,12 @@ describe('buildToolExecutionErrorPayload', () => {
       severity: 'medium',
       resolution: expect.stringContaining('sheets_data'),
       resolutionSteps: expect.any(Array),
-      suggestedFix: expect.stringContaining('schema://tools/sheets_data'),
+      suggestedFix: expect.stringContaining('request.action="write"'),
+      expectedParams: expect.objectContaining({
+        action: 'write',
+        required: expect.arrayContaining(['spreadsheetId', 'values']),
+      }),
     });
+    expect(String(result.errorPayload['suggestedFix'])).not.toContain('schema://tools/');
   });
 });

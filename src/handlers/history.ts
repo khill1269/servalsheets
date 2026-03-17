@@ -40,6 +40,7 @@ export class HistoryHandler {
   private server?: ElicitationServer;
   private samplingServer?: SamplingServer;
   private googleClient?: import('../services/google-api.js').GoogleApiClient;
+  private sessionContext?: HistoryHandlerOptions['sessionContext'];
 
   constructor(options: HistoryHandlerOptions = {}) {
     this.snapshotService = options.snapshotService;
@@ -48,6 +49,7 @@ export class HistoryHandler {
     this.server = options.server;
     this.samplingServer = options.samplingServer;
     this.googleClient = options.googleClient;
+    this.sessionContext = options.sessionContext;
   }
 
   async handle(input: SheetsHistoryInput): Promise<SheetsHistoryOutput> {
@@ -522,7 +524,7 @@ export class HistoryHandler {
 
           // Wire session context: cache timeline for quick follow-up diff_revisions
           try {
-            const session = getSessionContext();
+            const session = this.sessionContext ?? getSessionContext();
             if (timeline.items.length >= 2) {
               const latestId = (timeline.items[0] as { revisionId?: string }).revisionId;
               const previousId = (timeline.items[1] as { revisionId?: string }).revisionId;

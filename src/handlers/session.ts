@@ -13,6 +13,7 @@ import { getPipelineDispatch } from '../services/pipeline-registry.js';
 import type { SchedulerService } from '../services/scheduler.js';
 import {
   getSessionContext,
+  SessionContextManager,
   type SpreadsheetContext,
   type UserPreferences,
 } from '../services/session-context.js';
@@ -99,6 +100,11 @@ function stripMatchScore<T extends { matchScore: number }>(obj: T): Omit<T, 'mat
 export class SessionHandler {
   /** Lazily-initialized pipeline executor (populated on first execute_pipeline call). */
   private pipeline: PipelineExecutor | null = null;
+  private readonly sessionContext?: SessionContextManager;
+
+  constructor(sessionContext?: SessionContextManager) {
+    this.sessionContext = sessionContext;
+  }
 
   /** Register a SchedulerService so schedule_* actions are available. */
   setScheduler(scheduler: SchedulerService): void {
@@ -123,7 +129,7 @@ export class SessionHandler {
       return { response: filteredResponse };
     }
 
-    const result = await handleSheetsSession(input);
+    const result = await handleSheetsSession(input, this.sessionContext);
 
     // Apply verbosity filtering (LLM optimization)
     const filteredResponse = applyVerbosityFilter(result.response, verbosity);
@@ -196,8 +202,11 @@ export class SessionHandler {
 /**
  * Handle session context operations
  */
-export async function handleSheetsSession(input: SheetsSessionInput): Promise<SheetsSessionOutput> {
-  const session = getSessionContext();
+export async function handleSheetsSession(
+  input: SheetsSessionInput,
+  sessionContext?: SessionContextManager
+): Promise<SheetsSessionOutput> {
+  const session = sessionContext ?? getSessionContext();
   const req = unwrapRequest<SheetsSessionInput['request']>(input);
   const { action } = req;
 

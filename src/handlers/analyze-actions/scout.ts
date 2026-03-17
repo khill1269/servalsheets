@@ -5,7 +5,7 @@ import { ElicitationEngine } from '../../analysis/elicitation-engine.js';
 import { Scout, type ScoutResult } from '../../analysis/scout.js';
 import { generateAIInsight, type SamplingServer } from '../../mcp/sampling.js';
 import type { AnalyzeResponse } from '../../schemas/analyze.js';
-import { getSessionContext } from '../../services/session-context.js';
+import { getSessionContext, type SessionContextManager } from '../../services/session-context.js';
 import { getCacheAdapter } from '../../utils/cache-adapter.js';
 import { logger } from '../../utils/logger.js';
 
@@ -19,7 +19,9 @@ type ScoutRequest = {
 export interface ScoutDeps {
   sheetsApi: sheets_v4.Sheets;
   samplingServer?: SamplingServer;
-  context?: { sessionContext?: { recordOperation: (op: Record<string, unknown>) => void } };
+  context?: {
+    sessionContext?: Pick<SessionContextManager, 'recordOperation' | 'understandingStore'>;
+  };
 }
 
 /**
@@ -125,7 +127,8 @@ export async function handleScoutAction(
     // Intelligence cluster: confidence scoring + elicitation (non-critical)
     try {
       const scorer = new ConfidenceScorer();
-      const store = getSessionContext().understandingStore;
+      const store =
+        deps.context?.sessionContext?.understandingStore ?? getSessionContext().understandingStore;
       const engine = new ElicitationEngine();
 
       const assessment = scorer.scoreFromScout(scoutResult);

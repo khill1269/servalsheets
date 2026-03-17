@@ -292,7 +292,7 @@ const ChartCreateActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('chart_create')
     .describe(
-      'Create a new chart. Minimal example: { "action": "chart_create", "spreadsheetId": "abc123", "sheetId": 0, "chartType": "LINE", "data": { "sourceRange": "Sheet1!A1:B10" }, "position": { "anchorCell": "Sheet1!E2" } }'
+      'Create a new chart. Minimal example: { "action": "chart_create", "spreadsheetId": "abc123", "sheetId": 0, "chartType": "LINE", "data": { "sourceRange": "Sheet1!A1:B10" }, "position": { "anchorCell": "E2", "sheetId": 0 } }'
     ),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.describe('Numeric sheet ID where chart will be placed'),
@@ -303,7 +303,7 @@ const ChartCreateActionSchema = CommonFieldsSchema.extend({
     'Chart data source. NOTE: BAR charts only support BOTTOM_AXIS (horizontal bars). Use COLUMN for vertical bars.'
   ),
   position: ChartPositionSchema.describe(
-    'Chart position. anchorCell MUST include sheet name: "Sheet1!E2" not just "E2"'
+    'Chart position. Prefer "Sheet1!E2". If anchorCell omits the sheet name, set position.sheetId so the chart lands on the correct sheet.'
   ),
   options: ChartOptionsSchema.optional().describe(
     'Chart options (title, subtitle, legend, colors, 3D, stacking, etc.)'
@@ -357,7 +357,7 @@ const ChartMoveActionSchema = CommonFieldsSchema.extend({
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   chartId: z.coerce.number().int().describe('Numeric chart ID to move'),
   position: ChartPositionSchema.describe(
-    'New position. anchorCell MUST include sheet name: "Sheet1!E2" not just "E2"'
+    'New position. Prefer "Sheet1!E2". If anchorCell omits the sheet name, set position.sheetId.'
   ),
 });
 

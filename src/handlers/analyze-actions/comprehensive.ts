@@ -7,12 +7,87 @@ import { logger } from '../../utils/logger.js';
 import { getRequestAbortSignal, sendProgress } from '../../utils/request-context.js';
 import type { AnalyzeResponse, ComprehensiveInput } from '../../schemas/analyze.js';
 import type { HandlerContext } from '../base.js';
+import { handleScoutAction } from './scout.js';
 
 type TaskStore = NonNullable<HandlerContext['taskStore']>;
 
 export interface ComprehensiveDeps {
   sheetsApi: sheets_v4.Sheets;
   context: HandlerContext;
+}
+
+function isMemoryPressureFailure(error: unknown): boolean {
+  if (isHeapCritical()) {
+    return true;
+  }
+
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+
+  return (
+    message.includes('out of memory') ||
+    message.includes('heap memory') ||
+    message.includes('heap') ||
+    message.includes('oom') ||
+    message.includes('resource exhausted')
+  );
+}
+
+async function buildComprehensiveScoutFallback(
+  input: ComprehensiveInput,
+  deps: ComprehensiveDeps,
+  reason: string
+): Promise<AnalyzeResponse> {
+  logger.warn('Degrading comprehensive analysis to scout', {
+    spreadsheetId: input.spreadsheetId,
+    reason,
+  });
+
+  const scoutResponse = await handleScoutAction(
+    {
+      spreadsheetId: input.spreadsheetId,
+      includeColumnTypes: false,
+      includeQuickIndicators: true,
+      detectIntent: false,
+    },
+    {
+      sheetsApi: deps.sheetsApi,
+      context: {
+        sessionContext: deps.context.sessionContext,
+      },
+    }
+  );
+
+  if (!scoutResponse.success) {
+    return {
+      success: false,
+      error: {
+        code: ErrorCodes.RESOURCE_EXHAUSTED,
+        message:
+          'Comprehensive analysis was degraded because the server is under memory pressure, ' +
+          'but the scout fallback also failed. Retry after current operations finish.',
+        retryable: true,
+        suggestedFix:
+          'Wait for other analysis operations to complete, then retry comprehensive or use scout directly.',
+      },
+    };
+  }
+
+  const scoutInsights =
+    scoutResponse.scout?.quickIndicators?.potentialIssues?.slice(0, 3) ??
+    scoutResponse.scout?.suggestedAnalyses?.slice(0, 3).map((analysis) => analysis.reason) ??
+    [];
+
+  return {
+    ...scoutResponse,
+    action: 'comprehensive',
+    summary:
+      'Comprehensive analysis was automatically degraded to a scout scan because the server is under memory pressure.',
+    topInsights: scoutInsights,
+    message:
+      `Comprehensive analysis degraded to scout: ${reason}. ` +
+      'Use scout now, then retry comprehensive after memory pressure subsides.',
+  };
 }
 
 async function shouldUseTaskForComprehensive(
@@ -68,10 +143,29 @@ async function runComprehensiveAnalysisTask(
   taskId: string,
   input: ComprehensiveInput,
   sheetsApi: sheets_v4.Sheets,
-  taskStore: TaskStore
+  taskStore: TaskStore,
+  context: HandlerContext
 ): Promise<void> {
   try {
     await taskStore.updateTaskStatus(taskId, 'working', 'Analyzing spreadsheet...');
+
+    if (isHeapCritical()) {
+      const degraded = await buildComprehensiveScoutFallback(
+        input,
+        { sheetsApi, context },
+        'server heap memory is critically full'
+      );
+      await taskStore.storeTaskResult(taskId, 'completed', {
+        content: [
+          {
+            type: 'text',
+            text: 'Comprehensive analysis degraded to scout because the server is under memory pressure.',
+          },
+        ],
+        structuredContent: degraded,
+      });
+      return;
+    }
 
     const analyzer = new ComprehensiveAnalyzer(sheetsApi, {
       includeFormulas: 'includeFormulas' in input ? (input.includeFormulas as boolean) : true,
@@ -106,6 +200,24 @@ async function runComprehensiveAnalysisTask(
       sheetCount: result.sheets.length,
     });
   } catch (error) {
+    if (isMemoryPressureFailure(error)) {
+      const degraded = await buildComprehensiveScoutFallback(
+        input,
+        { sheetsApi, context },
+        error instanceof Error ? error.message : 'memory pressure detected during analysis'
+      );
+      await taskStore.storeTaskResult(taskId, 'completed', {
+        content: [
+          {
+            type: 'text',
+            text: 'Comprehensive analysis degraded to scout after encountering memory pressure.',
+          },
+        ],
+        structuredContent: degraded,
+      });
+      return;
+    }
+
     logger.error('Comprehensive analysis task failed', {
       taskId,
       error: error instanceof Error ? error.message : String(error),
@@ -183,16 +295,11 @@ export async function handleComprehensiveAction(
   }
 
   if (isHeapCritical()) {
-    return {
-      success: false,
-      error: {
-        code: ErrorCodes.RESOURCE_EXHAUSTED,
-        message:
-          'Server heap memory is critically full (>90%). Comprehensive analysis rejected to prevent OOM crash. Try again after current operations complete.',
-        retryable: true,
-        suggestedFix: 'Wait a few seconds and retry. If the issue persists, restart the server.',
-      },
-    };
+    return await buildComprehensiveScoutFallback(
+      resolvedReq,
+      deps,
+      'server heap memory is critically full'
+    );
   }
 
   const isQuickScan = 'quickScan' in resolvedReq && resolvedReq.quickScan === true;
@@ -230,7 +337,8 @@ export async function handleComprehensiveAction(
       task.taskId,
       resolvedReq,
       deps.sheetsApi,
-      deps.context.taskStore
+      deps.context.taskStore,
+      deps.context
     ).catch((error) => {
       logger.error('Background comprehensive analysis failed', {
         taskId: task.taskId,
@@ -319,6 +427,14 @@ export async function handleComprehensiveAction(
 
     return result as unknown as AnalyzeResponse;
   } catch (error) {
+    if (isMemoryPressureFailure(error)) {
+      return await buildComprehensiveScoutFallback(
+        req,
+        deps,
+        error instanceof Error ? error.message : 'memory pressure detected during analysis'
+      );
+    }
+
     logger.error('Comprehensive analysis failed', {
       error: error instanceof Error ? error.message : String(error),
       spreadsheetId: req.spreadsheetId,

@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { createZodValidationError } from '../../utils/error-factory.js';
+import { extractAction } from './extraction-helpers.js';
 import { getIssueCode, normalizeIssuePath } from './tool-arg-normalization.js';
+import { getToolDiscoveryHint } from './tool-discovery-hints.js';
 
 type PlainRecord = Record<string, unknown>;
 
@@ -8,6 +10,56 @@ export interface ToolExecutionErrorPayload {
   errorCode: string;
   errorMessage: string;
   errorPayload: PlainRecord;
+}
+
+function buildValidationGuidance(
+  toolName: string,
+  args: Record<string, unknown> | undefined
+): PlainRecord {
+  const hint = getToolDiscoveryHint(toolName);
+  if (!hint) {
+    return {
+      suggestedFix:
+        'Check the tool description and inline action parameter hints for the required fields and request shape.',
+    };
+  }
+
+  const attemptedAction = args ? extractAction(args) : 'unknown';
+  const actionHint = hint.actionParams[attemptedAction];
+
+  if (!actionHint) {
+    const availableActions = Object.keys(hint.actionParams).sort();
+    const preview = availableActions.slice(0, 10).join(', ');
+    const suffix =
+      availableActions.length > 10 ? ` (showing 10 of ${availableActions.length})` : '';
+
+    return {
+      availableActions,
+      suggestedFix:
+        `Use a valid action and include its required fields. Available actions include: ${preview}${suffix}. ` +
+        'Action-specific parameter hints are inline in the tool input schema description.',
+    };
+  }
+
+  const requiredSegments = [...actionHint.required];
+  if (actionHint.requiredOneOf) {
+    requiredSegments.push(...actionHint.requiredOneOf.map((group) => group.join(' or ')));
+  }
+  const requiredFields =
+    requiredSegments.length > 0 ? requiredSegments.join(', ') : 'no additional fields';
+
+  return {
+    expectedParams: {
+      action: attemptedAction,
+      required: actionHint.required,
+      ...(actionHint.requiredOneOf ? { requiredOneOf: actionHint.requiredOneOf } : {}),
+      ...(actionHint.optional ? { optional: actionHint.optional } : {}),
+      ...(actionHint.description ? { description: actionHint.description } : {}),
+    },
+    suggestedFix:
+      `Use request.action="${attemptedAction}" with required fields: ${requiredFields}. ` +
+      'Check the tool description for the canonical request shape and examples.',
+  };
 }
 
 function isPlainRecord(value: unknown): value is PlainRecord {
@@ -24,7 +76,8 @@ function getThrownErrorCode(error: unknown): string | undefined {
 
 export function buildToolExecutionErrorPayload(
   error: unknown,
-  toolName: string
+  toolName: string,
+  args?: Record<string, unknown>
 ): ToolExecutionErrorPayload {
   const errorMessage = error instanceof Error ? error.message : String(error);
   let errorCode = getThrownErrorCode(error) ?? 'INTERNAL_ERROR';
@@ -58,8 +111,7 @@ export function buildToolExecutionErrorPayload(
     errorPayload['code'] = 'INVALID_PARAMS';
     errorPayload['message'] = validationError.message;
     errorPayload['retryable'] = validationError.retryable;
-    errorPayload['suggestedFix'] =
-      `Read schema://tools/${toolName} to see the correct parameter format and required fields.`;
+    Object.assign(errorPayload, buildValidationGuidance(toolName, args));
     if (validationError.category) {
       errorPayload['category'] = validationError.category;
     }

@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { WebhookHandler, createWebhookHandler } from '../../src/handlers/webhooks.js';
 import type { WebhookEventType } from '../../src/schemas/webhook.js';
+import { isWebhookRedisConfigured } from '../../src/services/webhook-manager.js';
 
 // Mock webhook manager
 const mockWebhookManager = {
@@ -29,6 +30,7 @@ const mockWebhookQueue = {
 // Mock getWebhookManager and getWebhookQueue
 vi.mock('../../src/services/webhook-manager.js', () => ({
   getWebhookManager: vi.fn(() => mockWebhookManager),
+  isWebhookRedisConfigured: vi.fn(() => true),
   initWebhookManager: vi.fn(),
   resetWebhookManager: vi.fn(),
   validateWebhookUrl: vi.fn().mockResolvedValue(undefined),
@@ -43,9 +45,11 @@ vi.mock('../../src/services/webhook-queue.js', () => ({
 
 describe('WebhookHandler', () => {
   let handler: WebhookHandler;
+  const mockedIsWebhookRedisConfigured = vi.mocked(isWebhookRedisConfigured);
 
   beforeEach(() => {
     handler = createWebhookHandler();
+    mockedIsWebhookRedisConfigured.mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -145,6 +149,25 @@ describe('WebhookHandler', () => {
 
       expect(result.response.success).toBe(false);
       expect(result.response.error?.message).toContain('not initialized');
+    });
+
+    it('returns CONFIG_ERROR before register when Redis-backed webhook storage is unavailable', async () => {
+      mockedIsWebhookRedisConfigured.mockReturnValue(false);
+
+      const result = await handler.handle({
+        request: {
+          action: 'register',
+          webhookUrl: 'https://example.com/webhook',
+          eventTypes: ['all'],
+          spreadsheetId: 'sheet-123',
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error?.code).toBe('CONFIG_ERROR');
+      expect(result.response.error?.message).toContain('Redis required');
+      expect(mockWebhookManager.list).not.toHaveBeenCalled();
+      expect(mockWebhookManager.register).not.toHaveBeenCalled();
     });
   });
 

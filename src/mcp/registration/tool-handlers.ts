@@ -83,7 +83,6 @@ import {
   extractErrorCode,
   isSuccessResult,
 } from './extraction-helpers.js';
-import { createZodValidationError } from '../../utils/error-factory.js';
 import { logger } from '../../utils/logger.js';
 import {
   SheetsAuthInputSchema,
@@ -118,6 +117,7 @@ import { registerToolsListCompatibilityHandler } from './tools-list-compat.js';
 import { wrapToolMapWithIdempotency } from '../../middleware/idempotency-middleware.js';
 import { registerPipelineDispatch } from '../../services/pipeline-registry.js';
 import { suggestFix } from '../../services/error-fix-suggester.js';
+import { buildToolExecutionErrorPayload } from './tool-execution-error.js';
 import { getRecommendedActions } from '../../services/action-recommender.js';
 import { scanResponseQuality } from '../../services/lightweight-quality-scanner.js';
 import { generateResponseHints } from '../../services/response-hints-engine.js';
@@ -1158,11 +1158,9 @@ export function buildToolResponse(
   }
 
   // Track request for quota prediction
-  const sessionContext = getSessionContext();
-  sessionContext.trackRequest();
-
   // Add request correlation ID for tracing (if available)
   const requestContext = getRequestContext();
+  (requestContext?.sessionContext ?? getSessionContext()).trackRequest();
   if ('response' in structuredContent) {
     const resp = structuredContent['response'] as Record<string, unknown>;
     if (resp && typeof resp === 'object') {
@@ -1614,6 +1612,7 @@ function createToolCallHandler(
       idempotencyKey: requestHeaders
         ? extractIdempotencyKeyFromHeaders(requestHeaders)
         : parentRequestContext?.idempotencyKey,
+      sessionContext: parentRequestContext?.sessionContext,
     });
     const costTrackingTenantId = resolveCostTrackingTenantId({
       headers: requestHeaders,
@@ -2046,51 +2045,12 @@ function createToolCallHandler(
               ? String((error as { code?: unknown }).code)
               : undefined;
 
-          let errorCode = errorCodeFromThrown ?? 'INTERNAL_ERROR';
-          const errorPayload: Record<string, unknown> = {
-            code: errorCode,
-            message: errorMessage,
-            retryable: false,
-          };
-
-          if (error instanceof z.ZodError) {
-            const validationError = createZodValidationError(
-              error.issues.map((issue) => ({
-                code: getIssueCode(issue),
-                path: normalizeIssuePath(issue.path),
-                message: issue.message,
-                options: Array.isArray((issue as { options?: unknown }).options)
-                  ? ((issue as { options?: unknown[] }).options ?? [])
-                  : undefined,
-                expected:
-                  typeof (issue as { expected?: unknown }).expected === 'string'
-                    ? String((issue as { expected?: unknown }).expected)
-                    : undefined,
-                received:
-                  typeof (issue as { received?: unknown }).received === 'string'
-                    ? String((issue as { received?: unknown }).received)
-                    : undefined,
-              })),
-              tool.name
-            );
-
-            errorCode = validationError.code;
-            errorPayload['code'] = validationError.code;
-            errorPayload['message'] = validationError.message;
-            errorPayload['retryable'] = validationError.retryable;
-            if (validationError.category) {
-              errorPayload['category'] = validationError.category;
-            }
-            if (validationError.severity) {
-              errorPayload['severity'] = validationError.severity;
-            }
-            if (validationError.resolution) {
-              errorPayload['resolution'] = validationError.resolution;
-            }
-            if (validationError.resolutionSteps) {
-              errorPayload['resolutionSteps'] = validationError.resolutionSteps;
-            }
-          }
+          const { errorCode: normalizedErrorCode, errorPayload } = buildToolExecutionErrorPayload(
+            error,
+            tool.name,
+            args
+          );
+          const errorCode = errorCodeFromThrown ?? normalizedErrorCode;
 
           // Record failed operation in history
           const historyService = getHistoryService();

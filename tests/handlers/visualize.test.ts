@@ -242,6 +242,44 @@ describe('VisualizeHandler', () => {
       expect(result.response.success).toBe(true);
     });
 
+    it('respects position.sheetId when anchorCell omits the sheet prefix', async () => {
+      const result = await handler.handle({
+        action: 'chart_create',
+        spreadsheetId: 'test-spreadsheet-id',
+        sheetId: 0,
+        chartType: 'LINE',
+        data: {
+          sourceRange: { a1: 'Sheet1!A1:B10' },
+          categories: 0,
+          series: [{ column: 1 }],
+        },
+        position: { anchorCell: 'E2', sheetId: 88964099 },
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            requests: [
+              expect.objectContaining({
+                addChart: expect.objectContaining({
+                  chart: expect.objectContaining({
+                    position: expect.objectContaining({
+                      overlayPosition: expect.objectContaining({
+                        anchorCell: expect.objectContaining({
+                          sheetId: 88964099,
+                        }),
+                      }),
+                    }),
+                  }),
+                }),
+              }),
+            ],
+          }),
+        })
+      );
+    });
+
     it('should create a COLUMN chart', async () => {
       const result = await handler.handle({
         action: 'chart_create',

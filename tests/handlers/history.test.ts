@@ -10,6 +10,7 @@ import type { HistoryService } from '../../src/services/history-service.js';
 import type { SnapshotService } from '../../src/services/snapshot.js';
 import type { OperationHistory, OperationHistoryStats } from '../../src/types/history.js';
 import { SheetsHistoryOutputSchema } from '../../src/schemas/history.js';
+import { SessionContextManager } from '../../src/services/session-context.js';
 import {
   createRequestContext,
   runWithRequestContext,
@@ -231,6 +232,38 @@ describe('HistoryHandler', () => {
         expect(typeof result.response.operations![0].timestamp).toBe('number');
         expect(result.response.operations![0].timestamp).toBeGreaterThan(0);
       }
+    });
+  });
+
+  describe('timeline action', () => {
+    it('stores pending revision context on the injected session manager', async () => {
+      const sessionContext = new SessionContextManager();
+      const timelineHandler = new HistoryHandler({
+        driveApi: {} as any,
+        sessionContext,
+      });
+
+      mockGetTimeline.mockResolvedValue({
+        items: [
+          { revisionId: 'rev-new', timestamp: '2026-03-16T10:00:00Z' },
+          { revisionId: 'rev-old', timestamp: '2026-03-15T10:00:00Z' },
+        ],
+      });
+
+      const result = await timelineHandler.handle({
+        action: 'timeline',
+        spreadsheetId: 'sheet-123',
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(sessionContext.getPendingOperation()).toMatchObject({
+        type: 'timeline',
+        context: expect.objectContaining({
+          spreadsheetId: 'sheet-123',
+          latestRevisionId: 'rev-new',
+          previousRevisionId: 'rev-old',
+        }),
+      });
     });
   });
 

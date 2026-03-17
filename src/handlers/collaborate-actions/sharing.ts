@@ -16,6 +16,7 @@ import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
 import { elicitSharingSettings, confirmDestructiveAction } from '../../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
 import { driveRateLimiter } from '../../utils/drive-rate-limiter.js';
+import { TimeoutError, withTimeout } from '../../utils/timeout.js';
 
 type CollaborateSuccess = Extract<CollaborateResponse, { success: true }>;
 
@@ -35,6 +36,114 @@ interface SharingDeps {
 }
 
 const MAX_PERMISSION_EXPIRATION_MS = 365 * 24 * 60 * 60 * 1000;
+const SHARE_PERMISSION_TIMEOUT_MS = 15_000;
+
+function extractDriveErrorCode(error: unknown): number | string | undefined {
+  if (typeof error !== 'object' || error === null) {
+    return undefined; // OK: Explicit empty — non-object has no error code
+  }
+
+  const candidate = error as {
+    code?: number | string;
+    status?: number | string;
+    response?: { status?: number | string };
+    errors?: Array<{ reason?: string }>;
+  };
+
+  return (
+    candidate.code ??
+    candidate.status ??
+    candidate.response?.status ??
+    candidate.errors?.[0]?.reason
+  );
+}
+
+function extractDriveErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (typeof error === 'object' && error !== null) {
+    const candidate = error as {
+      message?: string;
+      response?: { data?: { error?: { message?: string } } };
+      errors?: Array<{ message?: string }>;
+    };
+
+    return (
+      candidate.message ??
+      candidate.response?.data?.error?.message ??
+      candidate.errors?.[0]?.message ??
+      String(error)
+    );
+  }
+
+  return String(error);
+}
+
+function describeShareTarget(input: CollaborateShareAddInput): string {
+  if (input.emailAddress) {
+    return input.emailAddress;
+  }
+  if (input.domain) {
+    return input.domain;
+  }
+  return input.type ?? 'recipient';
+}
+
+function classifyShareAddFailure(
+  error: unknown,
+  input: CollaborateShareAddInput
+): ErrorDetail | undefined {
+  const target = describeShareTarget(input);
+
+  if (error instanceof TimeoutError) {
+    return {
+      code: ErrorCodes.DEADLINE_EXCEEDED,
+      message:
+        `Drive permission creation for "${target}" timed out after ${error.timeoutMs}ms. ` +
+        'This often happens when Google is slow to validate the recipient account or group.',
+      retryable: true,
+      suggestedFix:
+        'Verify the recipient is a real Google account or Google Group, then retry. If the target is valid, retry later.',
+      details: {
+        target,
+        timeoutMs: error.timeoutMs,
+      },
+    };
+  }
+
+  const errorCode = extractDriveErrorCode(error);
+  const message = extractDriveErrorMessage(error);
+  const normalized = message.toLowerCase();
+
+  if (
+    (errorCode === 400 || errorCode === '400') &&
+    (normalized.includes('invalid sharing request') ||
+      normalized.includes('email address') ||
+      normalized.includes('invalid email') ||
+      normalized.includes('not a valid') ||
+      normalized.includes('not found') ||
+      normalized.includes('cannot share'))
+  ) {
+    return {
+      code: ErrorCodes.VALIDATION_ERROR,
+      message:
+        `Google Drive rejected the share target "${target}". ` +
+        'Verify it is a valid Google account, Google Group, or allowed domain before retrying.',
+      retryable: false,
+      suggestedFix:
+        'Use a valid Google account or Google Group email address, or switch the share type to a valid domain/anyone mode.',
+      details: {
+        target,
+        originalMessage: message,
+        errorCode,
+      },
+    };
+  }
+
+  return undefined; // OK: Explicit empty — unrecognized Drive error shape
+}
 
 function validatePermissionExpiration(
   expirationTime: string,
@@ -123,14 +232,28 @@ export async function handleShareAddAction(
     requestBody.expirationTime = resolvedInput.expirationTime;
   }
 
-  const response = await deps.driveApi.permissions.create({
-    fileId: resolvedInput.spreadsheetId!,
-    sendNotificationEmail: resolvedInput.sendNotification ?? true,
-    emailMessage: resolvedInput.emailMessage,
-    requestBody,
-    fields: 'id,type,role,emailAddress,domain,displayName,expirationTime',
-    supportsAllDrives: true,
-  });
+  let response;
+  try {
+    response = await withTimeout(
+      () =>
+        deps.driveApi.permissions.create({
+          fileId: resolvedInput.spreadsheetId!,
+          sendNotificationEmail: resolvedInput.sendNotification ?? true,
+          emailMessage: resolvedInput.emailMessage,
+          requestBody,
+          fields: 'id,type,role,emailAddress,domain,displayName,expirationTime',
+          supportsAllDrives: true,
+        }),
+      SHARE_PERMISSION_TIMEOUT_MS,
+      'sheets_collaborate.share_add'
+    );
+  } catch (error) {
+    const classified = classifyShareAddFailure(error, resolvedInput);
+    if (classified) {
+      return deps.error(classified);
+    }
+    throw error;
+  }
 
   return deps.success('share_add', {
     permission: deps.mapPermission(response.data),

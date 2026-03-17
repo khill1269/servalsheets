@@ -384,18 +384,23 @@ export async function handleAddConditionalFormatRule(
   // Elicitation wizard: ask for rulePreset when absent
   let resolvedInput = input;
   if (!input.rulePreset && ha.context.elicitationServer) {
-    const rangeDisplay =
-      typeof input.range === 'string'
-        ? input.range
-        : input.range && 'a1' in input.range
-          ? input.range.a1
-          : '';
-    const elicited = await elicitConditionalFormatPreset(
-      ha.context.elicitationServer,
-      rangeDisplay
-    );
-    if (elicited && isElicitableRulePreset(elicited.preset)) {
-      resolvedInput = { ...input, rulePreset: elicited.preset };
+    // P0-1 defensive guard: elicitConditionalFormatPreset may be unavailable if the
+    // compiled JS is stale. Fall back to default preset instead of crashing the entire
+    // sheets_format tool. See BUG_REPORT_2026-03-16.md §P0-1.
+    if (typeof elicitConditionalFormatPreset === 'function') {
+      const rangeDisplay =
+        typeof input.range === 'string'
+          ? input.range
+          : input.range && 'a1' in input.range
+            ? input.range.a1
+            : '';
+      const elicited = await elicitConditionalFormatPreset(
+        ha.context.elicitationServer,
+        rangeDisplay
+      );
+      if (elicited && isElicitableRulePreset(elicited.preset)) {
+        resolvedInput = { ...input, rulePreset: elicited.preset };
+      }
     }
     if (!resolvedInput.rulePreset) {
       resolvedInput = { ...resolvedInput, rulePreset: 'highlight_blanks' };

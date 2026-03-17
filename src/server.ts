@@ -337,6 +337,7 @@ export class ServalSheetsServer {
           },
         },
         samplingServer: createTaskAwareSamplingServer(this._server.server),
+        elicitationServer: this._server.server,
         server: this._server.server, // Pass Server instance for elicitation/sampling (SEP-1036, SEP-1577)
         requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
         taskStore: this.taskStore, // For task-based execution (SEP-1686)
@@ -826,6 +827,7 @@ export class ServalSheetsServer {
         idempotencyKey,
         principalId,
         metadataCache,
+        sessionContext: this.context?.sessionContext ?? undefined,
         sendRequest: extra?.sendRequest,
         taskId: extra?.taskId,
         taskStore: extra?.taskStore,

@@ -25,6 +25,15 @@ const createMockGoogleClient = () => ({
     },
     getAccessToken: vi.fn().mockResolvedValue({ token: 'test-access-token' }),
   },
+  drive: {
+    files: {
+      list: vi.fn().mockResolvedValue({
+        data: {
+          files: [],
+        },
+      }),
+    },
+  },
   getTokenStatus: vi.fn().mockReturnValue({
     hasAccessToken: true,
     hasRefreshToken: true,
@@ -85,6 +94,7 @@ describe('SheetsAppsScriptHandler', () => {
 
       expect(result.response.success).toBe(true);
       expect(result.response.action).toBe('create');
+      expect(result.response.scriptId).toBe('script-123');
       expect(result.response.project).toBeDefined();
       expect(result.response.project.scriptId).toBe('script-123');
       expect(result.response.project.title).toBe('My Script');
@@ -308,6 +318,19 @@ describe('SheetsAppsScriptHandler', () => {
       expect(result.response.success).toBe(true);
       expect(result.response.files).toHaveLength(0);
     });
+
+    it('should require scriptId or spreadsheetId', async () => {
+      const result = await handler.handle({
+        request: {
+          action: 'get_content',
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error.code).toBe('INVALID_PARAMS');
+      expect(result.response.error.message).toContain('scriptId or spreadsheetId');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
   });
 
   describe('update_content action', () => {
@@ -404,6 +427,20 @@ describe('SheetsAppsScriptHandler', () => {
 
       expect(result.response.success).toBe(false);
       expect(result.response.error.code).toBe('INVALID_PARAMS');
+    });
+
+    it('should require scriptId or spreadsheetId', async () => {
+      const result = await handler.handle({
+        request: {
+          action: 'update_content',
+          files: [{ name: 'Code.gs', type: 'SERVER_JS', source: 'function test() {}' }],
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error.code).toBe('INVALID_PARAMS');
+      expect(result.response.error.message).toContain('scriptId or spreadsheetId');
+      expect(mockFetch).not.toHaveBeenCalled();
     });
   });
 
@@ -638,11 +675,18 @@ describe('SheetsAppsScriptHandler', () => {
       expect(result.response.deployment.deploymentId).toBe('deployment-123');
       expect(result.response.webAppUrl).toBe('https://script.google.com/macros/s/abc123/exec');
 
+      const deployRequest = mockFetch.mock.calls[0]?.[1] as { body?: string } | undefined;
+      expect(deployRequest?.body).toBeDefined();
+      expect(JSON.parse(deployRequest!.body!)).toEqual({
+        versionNumber: 1,
+        description: 'Production',
+      });
+
       expect(mockFetch).toHaveBeenCalledWith(
         'https://script.googleapis.com/v1/projects/script-123/deployments',
         expect.objectContaining({
           method: 'POST',
-          body: expect.stringContaining('versionNumber'),
+          body: expect.any(String),
         })
       );
     });
@@ -944,6 +988,7 @@ describe('SheetsAppsScriptHandler', () => {
         request: {
           action: 'run',
           scriptId: 'script-123',
+          deploymentId: 'deployment-123',
           functionName: 'myFunction',
         },
       });
@@ -954,7 +999,7 @@ describe('SheetsAppsScriptHandler', () => {
       expect(result.response.executionError).toBeUndefined();
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://script.googleapis.com/v1/scripts/script-123:run',
+        'https://script.googleapis.com/v1/scripts/deployment-123:run',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({ function: 'myFunction' }),
@@ -979,6 +1024,7 @@ describe('SheetsAppsScriptHandler', () => {
         request: {
           action: 'run',
           scriptId: 'script-123',
+          deploymentId: 'deployment-123',
           functionName: 'add',
           parameters: [10, 5],
         },
@@ -1023,6 +1069,21 @@ describe('SheetsAppsScriptHandler', () => {
       );
     });
 
+    it('fails fast when deploymentId is missing outside dev mode', async () => {
+      const result = await handler.handle({
+        request: {
+          action: 'run',
+          scriptId: 'script-123',
+          functionName: 'myFunction',
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error.code).toBe('FAILED_PRECONDITION');
+      expect(result.response.error.message).toContain('deploymentId');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
     it('should handle script execution error', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
@@ -1054,6 +1115,7 @@ describe('SheetsAppsScriptHandler', () => {
         request: {
           action: 'run',
           scriptId: 'script-123',
+          deploymentId: 'deployment-123',
           functionName: 'myFunction',
         },
       });
@@ -1080,6 +1142,7 @@ describe('SheetsAppsScriptHandler', () => {
         request: {
           action: 'run',
           scriptId: 'script-123',
+          deploymentId: 'deployment-123',
           functionName: 'myFunction',
         },
       });
@@ -1302,6 +1365,33 @@ describe('SheetsAppsScriptHandler', () => {
     });
   });
 
+  describe('trigger actions', () => {
+    it('auto-resolves scriptId from spreadsheetId before listing triggers', async () => {
+      mockGoogleClient.drive.files.list.mockResolvedValueOnce({
+        data: {
+          files: [{ id: 'script-from-drive', name: 'Bound Script' }],
+        },
+      });
+
+      const result = await handler.handle({
+        request: {
+          action: 'list_triggers',
+          spreadsheetId: 'sheet-for-trigger-resolution',
+        },
+      });
+
+      expect(mockGoogleClient.drive.files.list).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: expect.stringContaining("'sheet-for-trigger-resolution' in parents"),
+        })
+      );
+      expect(result.response.success).toBe(false);
+      expect(result.response.error.code).toBe('NOT_IMPLEMENTED');
+      expect(result.response.error.message).toContain('Trigger management');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
   // ===========================================================================
   // Authentication & Error Handling
   // ===========================================================================
@@ -1414,6 +1504,7 @@ describe('SheetsAppsScriptHandler', () => {
         request: {
           action: 'run',
           scriptId: 'script-123',
+          deploymentId: 'deployment-123',
           functionName: 'test',
         },
       });

@@ -10,7 +10,7 @@ import { Planner, type AnalysisPlan } from '../../analysis/planner.js';
 import { Scout, type ScoutResult } from '../../analysis/scout.js';
 import { generateAIInsight, type SamplingServer } from '../../mcp/sampling.js';
 import type { AnalyzeResponse } from '../../schemas/analyze.js';
-import { getSessionContext } from '../../services/session-context.js';
+import { getSessionContext, type SessionContextManager } from '../../services/session-context.js';
 import { getCacheAdapter } from '../../utils/cache-adapter.js';
 import { logger } from '../../utils/logger.js';
 
@@ -48,6 +48,10 @@ type GenerateActionsRequest = {
   findings?: unknown;
   maxActions?: number;
 };
+
+interface GenerateActionsDeps {
+  sessionContext?: Pick<SessionContextManager, 'understandingStore'>;
+}
 
 function mapActionToStepType(
   action: string
@@ -281,7 +285,8 @@ export async function handleDrillDownAction(
  * Preserves original behavior while moving logic out of the main AnalyzeHandler class.
  */
 export async function handleGenerateActionsAction(
-  input: GenerateActionsRequest
+  input: GenerateActionsRequest,
+  deps?: GenerateActionsDeps
 ): Promise<AnalyzeResponse> {
   logger.info('Generate actions', { spreadsheetId: input.spreadsheetId, intent: input.intent });
 
@@ -341,7 +346,8 @@ export async function handleGenerateActionsAction(
 
     try {
       const orchestrator = new FlowOrchestrator();
-      const store = getSessionContext().understandingStore;
+      const store =
+        deps?.sessionContext?.understandingStore ?? getSessionContext().understandingStore;
       const summary = store.getSummary(input.spreadsheetId);
       const suggestions = orchestrator.suggestMultiToolChains(summary, {
         tool: 'sheets_analyze',

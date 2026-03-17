@@ -18,6 +18,37 @@ import { connectorManager } from '../resources/connectors-runtime.js';
 import type { SheetsConnectorsInput, SheetsConnectorsOutput } from '../schemas/connectors.js';
 import type { SamplingServer } from '../mcp/sampling.js';
 import { generateAIInsight } from '../mcp/sampling.js';
+import type { ConnectorCredentials } from '../connectors/types.js';
+import type { ElicitationServer } from '../mcp/elicitation.js';
+import { generateElicitationId, safeElicit, selectField, stringField } from '../mcp/elicitation.js';
+import { startApiKeyServer } from '../utils/api-key-server.js';
+
+type ConnectorCatalogEntry = ReturnType<
+  typeof connectorManager.listConnectors
+>['connectors'][number];
+
+const CONNECTOR_SETUP_HINTS: Record<string, { signupUrl?: string; hint?: string }> = {
+  finnhub: {
+    signupUrl: 'https://finnhub.io/register',
+    hint: 'Free tier: stocks, earnings, and market news',
+  },
+  fred: {
+    signupUrl: 'https://fred.stlouisfed.org/docs/api/api_key.html',
+    hint: 'Free economic indicators, interest rates, and macro data',
+  },
+  alpha_vantage: {
+    signupUrl: 'https://www.alphavantage.co/support/#api-key',
+    hint: 'Free tier: stocks, forex, and crypto data',
+  },
+  polygon: {
+    signupUrl: 'https://polygon.io/dashboard/signup',
+    hint: 'Real-time and historical market data',
+  },
+  fmp: {
+    signupUrl: 'https://financialmodelingprep.com/developer/docs',
+    hint: 'Fundamentals, statements, and company metrics',
+  },
+};
 
 // ============================================================================
 // Handler
@@ -26,15 +57,18 @@ import { generateAIInsight } from '../mcp/sampling.js';
 export interface ConnectorsHandlerOptions {
   samplingServer?: SamplingServer;
   sessionContext?: import('../services/session-context.js').SessionContextManager;
+  elicitationServer?: ElicitationServer;
 }
 
 export class ConnectorsHandler {
   private samplingServer?: SamplingServer;
   private sessionContext?: import('../services/session-context.js').SessionContextManager;
+  private elicitationServer?: ElicitationServer;
 
   constructor(options?: ConnectorsHandlerOptions) {
     this.samplingServer = options?.samplingServer;
     this.sessionContext = options?.sessionContext;
+    this.elicitationServer = options?.elicitationServer;
   }
 
   async handle(input: SheetsConnectorsInput): Promise<SheetsConnectorsOutput> {
@@ -105,6 +139,361 @@ export class ConnectorsHandler {
   // Action Handlers
   // ---------------------------------------------------------------------------
 
+  private makeErrorResponse(
+    action: SheetsConnectorsInput['request']['action'],
+    code: (typeof ErrorCodes)[keyof typeof ErrorCodes],
+    message: string,
+    suggestedFix?: string
+  ): SheetsConnectorsOutput {
+    return {
+      response: {
+        success: false,
+        action,
+        error: {
+          code,
+          message,
+          retryable: false,
+          ...(suggestedFix ? { suggestedFix } : {}),
+        },
+      },
+    };
+  }
+
+  private getConnectorCatalog(): ConnectorCatalogEntry[] {
+    return connectorManager.listConnectors().connectors;
+  }
+
+  private getConnectorEntry(connectorId: string | undefined): ConnectorCatalogEntry | undefined {
+    if (!connectorId) {
+      return undefined;
+    }
+
+    return this.getConnectorCatalog().find((connector) => connector.id === connectorId);
+  }
+
+  private async elicitConnectorSelection(): Promise<string | null> {
+    if (!this.elicitationServer) {
+      return null;
+    }
+
+    const connectors = this.getConnectorCatalog();
+
+    try {
+      const result = await safeElicit<{ connectorId: string } | null>(
+        this.elicitationServer,
+        {
+          mode: 'form',
+          message:
+            'Choose the connector you want to configure. ServalSheets will then ask only for the auth fields that connector requires.',
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              connectorId: selectField({
+                title: 'Connector',
+                description: 'Available built-in connectors',
+                options: connectors.map((connector) => ({
+                  value: connector.id,
+                  label: `${connector.name} — ${connector.description}`,
+                })),
+              }),
+            },
+            required: ['connectorId'],
+          },
+        },
+        null
+      );
+
+      if (typeof result?.connectorId === 'string' && result.connectorId.trim()) {
+        return result.connectorId.trim();
+      }
+    } catch {
+      // Elicitation unsupported or unavailable — fall through to manual error response
+    }
+
+    return null;
+  }
+
+  private async elicitApiKeyViaForm(
+    connector: ConnectorCatalogEntry,
+    setupHint?: { signupUrl?: string; hint?: string }
+  ): Promise<string | null> {
+    const descriptionParts = [
+      'Enter the API key used to configure this connector.',
+      setupHint?.hint,
+      setupHint?.signupUrl ? `Get one at: ${setupHint.signupUrl}` : undefined,
+    ].filter((part): part is string => Boolean(part));
+
+    try {
+      if (!this.elicitationServer) {
+        return null;
+      }
+
+      const result = await safeElicit<{ apiKey: string } | null>(
+        this.elicitationServer,
+        {
+          mode: 'form',
+          message: `Configure ${connector.name}`,
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              apiKey: stringField({
+                title: `${connector.name} API Key`,
+                description: descriptionParts.join(' '),
+                minLength: 1,
+              }),
+            },
+            required: ['apiKey'],
+          },
+        },
+        null
+      );
+
+      if (typeof result?.apiKey === 'string') {
+        const apiKey = result.apiKey.trim();
+        return apiKey.length > 0 ? apiKey : null;
+      }
+    } catch {
+      // Elicitation unsupported or unavailable — fall through to manual error response
+    }
+
+    return null;
+  }
+
+  private async elicitApiKey(connector: ConnectorCatalogEntry): Promise<string | null> {
+    if (!this.elicitationServer) {
+      return null;
+    }
+
+    const setupHint = CONNECTOR_SETUP_HINTS[connector.id];
+    const supportsUrl = !!this.elicitationServer.getClientCapabilities()?.elicitation?.url;
+
+    if (supportsUrl) {
+      let shutdown: (() => void) | undefined;
+
+      try {
+        const handle = await startApiKeyServer({
+          provider: connector.name,
+          signupUrl: setupHint?.signupUrl ?? 'https://example.com',
+          hint: setupHint?.hint ?? 'Paste your API key',
+        });
+        shutdown = handle.shutdown;
+
+        const elicitationId = generateElicitationId('connector_key');
+        const result = await this.elicitationServer.elicitInput({
+          mode: 'url',
+          message:
+            `Open the local ${connector.name} setup page to paste your API key. ` +
+            'The key is stored locally and does not need to travel in the MCP request payload.',
+          elicitationId,
+          url: handle.url,
+        });
+
+        if (result.action !== 'accept') {
+          shutdown();
+          return null;
+        }
+
+        const apiKey = (await handle.keyPromise).trim();
+        if (!apiKey) {
+          return null;
+        }
+
+        if (this.elicitationServer.createElicitationCompletionNotifier) {
+          const notify = this.elicitationServer.createElicitationCompletionNotifier(elicitationId);
+          await notify();
+        }
+
+        return apiKey;
+      } catch {
+        shutdown?.();
+      }
+    }
+
+    return this.elicitApiKeyViaForm(connector, setupHint);
+  }
+
+  private async elicitOAuthCredentials(
+    connector: ConnectorCatalogEntry
+  ): Promise<ConnectorCredentials['oauth'] | null> {
+    if (!this.elicitationServer) {
+      return null;
+    }
+
+    try {
+      const result = await safeElicit<{
+        clientId: string;
+        clientSecret: string;
+        accessToken?: string;
+        refreshToken?: string;
+      } | null>(
+        this.elicitationServer,
+        {
+          mode: 'form',
+          message: `Configure OAuth credentials for ${connector.name}`,
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              clientId: stringField({
+                title: 'Client ID',
+                description: 'OAuth client identifier',
+                minLength: 1,
+              }),
+              clientSecret: stringField({
+                title: 'Client Secret',
+                description: 'OAuth client secret',
+                minLength: 1,
+              }),
+              accessToken: stringField({
+                title: 'Access Token',
+                description: 'Optional existing access token',
+              }),
+              refreshToken: stringField({
+                title: 'Refresh Token',
+                description: 'Optional refresh token',
+              }),
+            },
+            required: ['clientId', 'clientSecret'],
+          },
+        },
+        null
+      );
+
+      if (result) {
+        const clientId = String(result.clientId ?? '').trim();
+        const clientSecret = String(result.clientSecret ?? '').trim();
+
+        if (!clientId || !clientSecret) {
+          return null;
+        }
+
+        const accessToken = String(result.accessToken ?? '').trim();
+        const refreshToken = String(result.refreshToken ?? '').trim();
+
+        return {
+          clientId,
+          clientSecret,
+          ...(accessToken ? { accessToken } : {}),
+          ...(refreshToken ? { refreshToken } : {}),
+        };
+      }
+    } catch {
+      // Elicitation unsupported or unavailable — fall through to manual error response
+    }
+
+    return null;
+  }
+
+  private async resolveConfigureRequest(
+    req: Extract<SheetsConnectorsInput['request'], { action: 'configure' }>
+  ): Promise<
+    | { connector: ConnectorCatalogEntry; credentials: ConnectorCredentials }
+    | { error: SheetsConnectorsOutput }
+  > {
+    let connectorId = req.connectorId?.trim();
+
+    if (!connectorId) {
+      connectorId = (await this.elicitConnectorSelection()) ?? undefined;
+    }
+
+    if (!connectorId) {
+      return {
+        error: this.makeErrorResponse(
+          'configure',
+          ErrorCodes.INVALID_PARAMS,
+          'Connector configuration needs a connectorId. On elicitation-capable MCP clients, the server can prompt for it; otherwise provide connectorId explicitly.',
+          'Call list_connectors to see valid connector IDs, then retry configure with connectorId and credentials.'
+        ),
+      };
+    }
+
+    const connector = this.getConnectorEntry(connectorId);
+    if (!connector) {
+      return {
+        error: this.makeErrorResponse(
+          'configure',
+          ErrorCodes.INVALID_PARAMS,
+          `Unknown connector "${connectorId}".`,
+          'Use list_connectors to see available connector IDs before configuring one.'
+        ),
+      };
+    }
+
+    const providedCredentials = req.credentials;
+    if (connector.authType === 'none') {
+      return {
+        connector,
+        credentials: { type: 'none' },
+      };
+    }
+
+    if (connector.authType === 'api_key') {
+      const providedApiKey = providedCredentials?.apiKey?.trim();
+      if (providedApiKey) {
+        return {
+          connector,
+          credentials: {
+            type: 'api_key',
+            apiKey: providedApiKey,
+          },
+        };
+      }
+
+      const apiKey = await this.elicitApiKey(connector);
+      if (!apiKey) {
+        return {
+          error: this.makeErrorResponse(
+            'configure',
+            this.elicitationServer ? ErrorCodes.OPERATION_CANCELLED : ErrorCodes.INVALID_PARAMS,
+            this.elicitationServer
+              ? `Connector configuration for "${connector.name}" was cancelled before an API key was provided.`
+              : `Connector "${connector.name}" requires credentials.apiKey.`,
+            this.elicitationServer
+              ? 'Retry configure with credentials.apiKey, or accept the MCP elicitation prompt so the server can open a local setup page for the key.'
+              : 'Retry configure with credentials.apiKey, or use an elicitation-capable MCP client so the server can prompt for it.'
+          ),
+        };
+      }
+
+      return {
+        connector,
+        credentials: {
+          type: 'api_key',
+          apiKey,
+        },
+      };
+    }
+
+    const oauth =
+      providedCredentials?.oauth &&
+      providedCredentials.oauth.clientId &&
+      providedCredentials.oauth.clientSecret
+        ? providedCredentials.oauth
+        : await this.elicitOAuthCredentials(connector);
+
+    if (!oauth) {
+      return {
+        error: this.makeErrorResponse(
+          'configure',
+          this.elicitationServer ? ErrorCodes.OPERATION_CANCELLED : ErrorCodes.INVALID_PARAMS,
+          this.elicitationServer
+            ? `Connector configuration for "${connector.name}" was cancelled before OAuth credentials were provided.`
+            : `Connector "${connector.name}" requires credentials.oauth with clientId and clientSecret.`,
+          this.elicitationServer
+            ? 'Retry configure with credentials.oauth, or accept the MCP elicitation prompt so the server can collect the OAuth fields.'
+            : 'Retry configure with credentials.oauth, or use an elicitation-capable MCP client so the server can prompt for the fields.'
+        ),
+      };
+    }
+
+    return {
+      connector,
+      credentials: {
+        type: 'oauth2',
+        oauth,
+      },
+    };
+  }
+
   private handleListConnectors(): SheetsConnectorsOutput {
     const result = connectorManager.listConnectors();
     return {
@@ -119,7 +508,12 @@ export class ConnectorsHandler {
   private async handleConfigure(
     req: Extract<SheetsConnectorsInput['request'], { action: 'configure' }>
   ): Promise<SheetsConnectorsOutput> {
-    const result = await connectorManager.configure(req.connectorId, req.credentials);
+    const resolved = await this.resolveConfigureRequest(req);
+    if ('error' in resolved) {
+      return resolved.error;
+    }
+
+    const result = await connectorManager.configure(resolved.connector.id, resolved.credentials);
     if (!result.success) {
       return {
         response: {

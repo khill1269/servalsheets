@@ -275,18 +275,26 @@ export class SheetsAppsScriptHandler extends BaseHandler<
         case 'get_metrics':
           response = await this.handleGetMetrics(req as AppsScriptGetMetricsInput);
           break;
-        case 'create_trigger':
-          response = await this.handleCreateTrigger(req as AppsScriptCreateTriggerInput);
+        case 'create_trigger': {
+          const createTriggerReq = await this.ensureScriptId(req as AppsScriptCreateTriggerInput);
+          response = await this.handleCreateTrigger(createTriggerReq);
           break;
-        case 'list_triggers':
-          response = await this.handleListTriggers(req as AppsScriptListTriggersInput);
+        }
+        case 'list_triggers': {
+          const listTriggersReq = await this.ensureScriptId(req as AppsScriptListTriggersInput);
+          response = await this.handleListTriggers(listTriggersReq);
           break;
-        case 'delete_trigger':
-          response = await this.handleDeleteTrigger(req as AppsScriptDeleteTriggerInput);
+        }
+        case 'delete_trigger': {
+          const deleteTriggerReq = await this.ensureScriptId(req as AppsScriptDeleteTriggerInput);
+          response = await this.handleDeleteTrigger(deleteTriggerReq);
           break;
-        case 'update_trigger':
-          response = await this.handleUpdateTrigger(req as AppsScriptUpdateTriggerInput);
+        }
+        case 'update_trigger': {
+          const updateTriggerReq = await this.ensureScriptId(req as AppsScriptUpdateTriggerInput);
+          response = await this.handleUpdateTrigger(updateTriggerReq);
           break;
+        }
         case 'install_serval_function':
           response = await this.handleInstallServalFunction(
             req as AppsScriptInstallServalFunctionInput
@@ -419,8 +427,8 @@ export class SheetsAppsScriptHandler extends BaseHandler<
    * Ensure scriptId is present on the request. If only spreadsheetId is provided,
    * auto-resolve scriptId via Drive API lookup.
    *
-   * FIX P1-1: Allows LLMs to pass spreadsheetId instead of scriptId for
-   * get, get_content, and update_content actions.
+   * FIX P1-1: Allows callers to pass spreadsheetId instead of scriptId for
+   * metadata, content, and trigger-management actions.
    */
   private async ensureScriptId<T extends { scriptId?: string; spreadsheetId?: string }>(
     req: T
@@ -702,6 +710,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     }
 
     return this.success('create', {
+      scriptId: result.scriptId,
       project: {
         scriptId: result.scriptId,
         title: result.title,
@@ -721,6 +730,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     const result = await this.apiRequest<ProjectResponse>('GET', `/projects/${req.scriptId}`);
 
     return this.success('get', {
+      scriptId: result.scriptId,
       project: {
         scriptId: result.scriptId,
         title: result.title,
@@ -745,6 +755,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     const result = await this.apiRequest<ContentResponse>('GET', path);
 
     return this.success('get_content', {
+      scriptId: result.scriptId ?? req.scriptId,
       files: result.files.map((f) => ({
         name: f.name,
         type: f.type,
@@ -778,6 +789,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     );
 
     return this.success('update_content', {
+      scriptId: result.scriptId ?? req.scriptId,
       files: result.files.map((f) => ({
         name: f.name,
         type: f.type,
@@ -878,37 +890,36 @@ export class SheetsAppsScriptHandler extends BaseHandler<
 
     type DeploymentResponse = (typeof this._interfaces)['DeploymentResponse'];
 
-    interface DeploymentConfig {
-      scriptId: string;
+    interface DeploymentCreateBody {
       description?: string;
       versionNumber?: number;
     }
 
-    const deploymentConfig: DeploymentConfig = {
-      scriptId: req.scriptId,
-    };
+    const deploymentBody: DeploymentCreateBody = {};
 
     if (req.description) {
-      deploymentConfig.description = req.description;
+      deploymentBody.description = req.description;
     }
 
     if (req.versionNumber) {
-      deploymentConfig.versionNumber = req.versionNumber;
+      deploymentBody.versionNumber = req.versionNumber;
     }
 
-    if (!deploymentConfig.versionNumber) {
+    if (!deploymentBody.versionNumber) {
       logger.warn(
         'Deploying Apps Script to HEAD version (volatile). Specify versionNumber for a stable, pinned deployment.',
         { scriptId: req.scriptId }
       );
     }
 
-    // Per Apps Script API: request body is a Deployment resource with deploymentConfig nested
+    // Apps Script create deployment expects a flat deployment resource body.
+    // The nested deploymentConfig shape is used in API responses and update flows,
+    // not in projects.deployments.create requests.
     // https://developers.google.com/apps-script/api/reference/rest/v1/projects.deployments/create
     const result = await this.apiRequest<DeploymentResponse>(
       'POST',
       `/projects/${req.scriptId}/deployments`,
-      { deploymentConfig }
+      deploymentBody
     );
 
     // Extract web app URL if available
@@ -1078,6 +1089,15 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       });
     }
 
+    if (!req.devMode && !req.deploymentId) {
+      return this.error({
+        code: ErrorCodes.FAILED_PRECONDITION,
+        message:
+          'run requires deploymentId unless devMode:true. Supported workflow: create -> update_content -> create_version -> deploy -> run with deploymentId.',
+        retryable: false,
+      });
+    }
+
     // Safety gate: confirm by default before executing (script runs can have side effects)
     const confirmed = await this.confirmOperation(
       `Execute Apps Script function '${req.functionName}'`,
@@ -1165,12 +1185,14 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       body.devMode = req.devMode;
     }
 
+    const runTarget = req.devMode ? req.scriptId : req.deploymentId!;
+
     // Use 380s timeout for script execution (6 min max + overhead)
     let result: RunResponse;
     try {
       result = await this.apiRequest<RunResponse>(
         'POST',
-        `/scripts/${req.deploymentId ?? req.scriptId}:run`,
+        `/scripts/${runTarget}:run`,
         body,
         SCRIPT_RUN_TIMEOUT_MS
       );
@@ -1197,7 +1219,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
             // Retry the request with fresh token
             result = await this.apiRequest<RunResponse>(
               'POST',
-              `/scripts/${req.deploymentId ?? req.scriptId}:run`,
+              `/scripts/${runTarget}:run`,
               body,
               SCRIPT_RUN_TIMEOUT_MS
             );

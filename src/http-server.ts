@@ -291,6 +291,7 @@ async function createMcpServerInstance(
         },
       },
       samplingServer: createTaskAwareSamplingServer(mcpServer.server),
+      elicitationServer: mcpServer.server,
       server: mcpServer.server, // Pass Server instance for elicitation/sampling (SEP-1036, SEP-1577)
       requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
       ...(sessionId ? { sessionContext: getOrCreateSessionContext(sessionId) } : {}),

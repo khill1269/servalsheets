@@ -115,6 +115,10 @@ export class WebhookManager {
     });
   }
 
+  hasRedisBackend(): boolean {
+    return this.redis !== null;
+  }
+
   /**
    * Parse and process a Workspace Events push payload.
    * Supports both direct CloudEvent payloads and Pub/Sub push envelopes.
@@ -951,6 +955,14 @@ export function getWebhookManager(): WebhookManager {
     );
   }
   return webhookManager;
+}
+
+export function isWebhookRedisConfigured(): boolean {
+  if (webhookManager) {
+    return webhookManager.hasRedisBackend();
+  }
+
+  return Boolean(process.env['REDIS_URL']);
 }
 
 /**
