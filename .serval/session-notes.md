@@ -6,7 +6,26 @@
 
 ## Current Phase
 
-**Session 87 (2026-03-17) — Comprehensive re-audit + live server probe.** Branch `remediation/phase-1`. 402 actions (25 tools). Commits `d72af09`, `e2a55a4`.
+**Session 88 (2026-03-17) — Audit remediation plan complete + working tree commit.** Branch `remediation/phase-1`. 402 actions (25 tools). Final commit `fd00c00`.
+
+## What Was Just Completed (Session 88)
+
+**Audit remediation plan (8 steps) fully implemented** across 3 sessions (87-88):
+
+1. **`z.discriminatedUnion` / `.passthrough()` schema fixes** (`src/schemas/dependencies.ts`, `fix.ts`): F6 scenario action fields now use `z.literal()`, `dataProfile` nested objects use `.passthrough()`
+2. **`DataProfile` index signature** (`src/services/cleaning-engine.ts`): `[x: string]: unknown` added for type compatibility
+3. **`fixableVia` on ELICITATION_UNAVAILABLE** (`src/handlers/confirm.ts`): Error now includes `fixableVia: { tool: 'sheets_confirm', action: 'wizard_start' }`
+4. **Error self-correction protocol** (`src/mcp/features-2025-11-25.ts`): 5-step `## 🔁 ERROR SELF-CORRECTION PROTOCOL` section added to server instructions
+5. **Spreadsheet context injection into `aiParsePlan`** (`src/services/agent-engine.ts`): Session context sheet names injected into LLM system prompt when spreadsheetId matches
+6. **`aiValidateStepResult()` implemented** (`src/services/agent-engine.ts`): Reflexion-style sampling-based soft validation after each step (IMP-03). Tests: `tests/services/agent-engine-selfeval.test.ts` (5/5 pass)
+7. **`_meta.aiMode` in responses** (`src/mcp/registration/response-intelligence.ts`, `tool-response.ts`): `aiMode: 'sampling' | 'heuristic' | 'cached'` now injected into `_meta` on all responses
+8. **`startOAuthCredentialsServer()`** (`src/utils/api-key-server.ts`, `src/handlers/connectors.ts`): Replaced MUST NOT-violating form-mode OAuth credential collection with localhost URL-mode server (MCP 2025-11-25 compliance)
+
+**Working tree commit** (`fd00c00`): 45 files, 1870 insertions. Resolved 5 TypeScript errors, fixed ESLint issues (unreachable code, missing return type), annotated silent fallback returns.
+
+**ISSUE-073 resolved**: All stale git worktrees removed (`/private/tmp/servalsheets-audit-5pqvit`, `.claude/worktrees/kind-poincare`). 15 stale branches deleted (wave1-6-codex, backup-zod3, feat/zod-v4, fix/concurrency, publish/\*, wip/agent-batch, worktree-agent-aef381df, claude/kind-poincare).
+
+**Remaining**: `main-local-pre-sync-2026-03-10` and `remediation/phase-1-local-pre-sync-2026-03-09` kept as safety backups. ISSUE-075 (npm publish @serval/core) remains as maintainer-only task.
 
 ## What Was Just Completed (Session 87)
 
