@@ -136,11 +136,22 @@ function enrichInputSchema(
     return inputSchema;
   }
 
+  // When Redis is absent, only expose non-Redis action hints so LLMs don't
+  // attempt actions that will immediately fail.
+  const actionParams =
+    toolName === 'sheets_webhook' && !isWebhookRedisConfigured()
+      ? Object.fromEntries(
+          Object.entries(hint.actionParams).filter(([action]) =>
+            WEBHOOK_NON_REDIS_ACTIONS.includes(action)
+          )
+        )
+      : hint.actionParams;
+
   const enriched: Record<string, unknown> = {
     ...inputSchema,
     'x-servalsheets': {
       ...(asRecord(inputSchema['x-servalsheets']) ?? {}),
-      actionParams: hint.actionParams,
+      actionParams,
       ...(getToolAvailabilityMetadata(toolName)
         ? { availability: getToolAvailabilityMetadata(toolName) }
         : {}),
@@ -159,12 +170,34 @@ function enrichInputSchema(
     return enriched;
   }
 
+  let finalRequestSchema: Record<string, unknown> = {
+    ...requestSchema,
+    description: mergeDescription(requestSchema['description'], hint.requestDescription),
+  };
+
+  // When Redis is not configured, filter the webhook schema to only expose
+  // the non-Redis actions. This prevents LLMs from attempting Redis-required
+  // actions (register, unregister, list, get, test, get_stats) that will always fail.
+  if (toolName === 'sheets_webhook' && !isWebhookRedisConfigured()) {
+    const oneOf = Array.isArray(requestSchema['oneOf']) ? requestSchema['oneOf'] : null;
+    if (oneOf) {
+      const filtered = oneOf.filter((variant) => {
+        const variantRecord = asRecord(variant);
+        const action = (variantRecord?.['properties'] as Record<string, unknown> | undefined)?.[
+          'action'
+        ] as Record<string, unknown> | undefined;
+        const actionName = action?.['const'] ?? (action?.['enum'] as unknown[])?.[0];
+        return typeof actionName === 'string'
+          ? WEBHOOK_NON_REDIS_ACTIONS.includes(actionName)
+          : true;
+      });
+      finalRequestSchema = { ...finalRequestSchema, oneOf: filtered };
+    }
+  }
+
   enriched['properties'] = {
     ...properties,
-    request: {
-      ...requestSchema,
-      description: mergeDescription(requestSchema['description'], hint.requestDescription),
-    },
+    request: finalRequestSchema,
   };
 
   return enriched;
