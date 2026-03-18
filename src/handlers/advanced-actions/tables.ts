@@ -47,6 +47,130 @@ interface TablesDeps {
   error: (error: ErrorDetail) => AdvancedResponse;
 }
 
+function rangesOverlap(
+  left: sheets_v4.Schema$GridRange | undefined,
+  right: sheets_v4.Schema$GridRange | undefined
+): boolean {
+  if (!left || !right) {
+    return false;
+  }
+  if ((left.sheetId ?? 0) !== (right.sheetId ?? 0)) {
+    return false;
+  }
+
+  const leftStartRow = left.startRowIndex ?? 0;
+  const leftEndRow = left.endRowIndex ?? Number.MAX_SAFE_INTEGER;
+  const leftStartCol = left.startColumnIndex ?? 0;
+  const leftEndCol = left.endColumnIndex ?? Number.MAX_SAFE_INTEGER;
+  const rightStartRow = right.startRowIndex ?? 0;
+  const rightEndRow = right.endRowIndex ?? Number.MAX_SAFE_INTEGER;
+  const rightStartCol = right.startColumnIndex ?? 0;
+  const rightEndCol = right.endColumnIndex ?? Number.MAX_SAFE_INTEGER;
+
+  return (
+    leftStartRow < rightEndRow &&
+    rightStartRow < leftEndRow &&
+    leftStartCol < rightEndCol &&
+    rightStartCol < leftEndCol
+  );
+}
+
+function formatGridRange(range: sheets_v4.Schema$GridRange | undefined, sheetName: string): string {
+  if (!range) {
+    return sheetName;
+  }
+
+  return buildA1Notation(
+    sheetName,
+    range.startColumnIndex ?? 0,
+    range.startRowIndex ?? 0,
+    range.endColumnIndex ?? undefined,
+    range.endRowIndex ?? undefined
+  );
+}
+
+async function validateCreateTablePreconditions(
+  spreadsheetId: string,
+  targetRange: sheets_v4.Schema$GridRange,
+  deps: TablesDeps
+): Promise<AdvancedResponse | null> {
+  const metadata = await deps.sheetsApi.spreadsheets.get({
+    spreadsheetId,
+    fields:
+      'sheets(properties(sheetId,title),basicFilter.range,bandedRanges.range,tables(tableId,range))',
+  });
+
+  const targetSheet = (metadata.data.sheets ?? []).find(
+    (sheet) => sheet.properties?.sheetId === targetRange.sheetId
+  );
+  const targetSheetName = targetSheet?.properties?.title ?? `Sheet ${targetRange.sheetId}`;
+  const requestedRangeA1 = formatGridRange(targetRange, targetSheetName);
+
+  if (rangesOverlap(targetRange, targetSheet?.basicFilter?.range)) {
+    return deps.error({
+      code: ErrorCodes.FAILED_PRECONDITION,
+      message: `Cannot create table on ${requestedRangeA1} because it overlaps an existing basic filter on ${targetSheetName}.`,
+      category: 'client',
+      severity: 'medium',
+      retryable: false,
+      suggestedFix: `Clear or move the existing basic filter on ${targetSheetName}, then retry create_table.`,
+      resolution:
+        'Remove overlapping filters before creating a table. Use sheets_dimensions.clear_basic_filter or choose a non-overlapping range.',
+      details: {
+        conflictType: 'basic_filter',
+        sheetId: targetRange.sheetId ?? 0,
+        range: requestedRangeA1,
+      },
+    });
+  }
+
+  const overlappingBanding = (targetSheet?.bandedRanges ?? []).find((bandedRange) =>
+    rangesOverlap(targetRange, bandedRange.range)
+  );
+  if (overlappingBanding) {
+    return deps.error({
+      code: ErrorCodes.FAILED_PRECONDITION,
+      message: `Cannot create table on ${requestedRangeA1} because it overlaps an existing banded range on ${targetSheetName}.`,
+      category: 'client',
+      severity: 'medium',
+      retryable: false,
+      suggestedFix: `Remove the overlapping banding on ${targetSheetName}, then retry create_table.`,
+      resolution:
+        'Remove overlapping alternating colors before creating a table, or choose a different range.',
+      details: {
+        conflictType: 'banding',
+        sheetId: targetRange.sheetId ?? 0,
+        range: requestedRangeA1,
+        conflictingRange: formatGridRange(overlappingBanding.range, targetSheetName),
+      },
+    });
+  }
+
+  const overlappingTable = (targetSheet?.tables ?? []).find((table) =>
+    rangesOverlap(targetRange, table.range)
+  );
+  if (overlappingTable) {
+    return deps.error({
+      code: ErrorCodes.FAILED_PRECONDITION,
+      message: `Cannot create table on ${requestedRangeA1} because it overlaps existing table ${overlappingTable.tableId ?? '(unknown table id)'}.`,
+      category: 'client',
+      severity: 'medium',
+      retryable: false,
+      suggestedFix: 'Choose a non-overlapping range or update/delete the existing table first.',
+      resolution:
+        'A table cannot overlap another table. Use list_tables to inspect the existing table layout before retrying.',
+      details: {
+        conflictType: 'table',
+        sheetId: targetRange.sheetId ?? 0,
+        range: requestedRangeA1,
+        tableId: overlappingTable.tableId ?? '',
+      },
+    });
+  }
+
+  return null;
+}
+
 export async function handleCreateTableAction(
   req: CreateTableRequest,
   deps: TablesDeps
@@ -65,6 +189,14 @@ export async function handleCreateTableAction(
     startColumnIndex: parsed.startCol,
     endColumnIndex: parsed.endCol,
   };
+  const preconditionError = await validateCreateTablePreconditions(
+    req.spreadsheetId!,
+    toGridRange(gridRange),
+    deps
+  );
+  if (preconditionError) {
+    return preconditionError;
+  }
 
   let columnProperties: sheets_v4.Schema$TableColumnProperties[] | undefined;
   const hasHeaders = req.hasHeaders ?? true;

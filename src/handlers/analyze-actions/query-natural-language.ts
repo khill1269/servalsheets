@@ -17,6 +17,7 @@ type QueryNaturalLanguageRequest = {
   query: string;
   sheetId?: number;
   conversationId?: string;
+  range?: unknown;
 };
 
 const QUERY_RESULT_CHART_TYPES = [
@@ -63,6 +64,41 @@ export interface QueryNaturalLanguageDeps {
   sheetsApi: sheets_v4.Sheets;
 }
 
+function resolveRange(range: unknown): string | undefined {
+  if (!range) {
+    return undefined;
+  }
+
+  if (typeof range === 'string') {
+    return range;
+  }
+
+  if (typeof range === 'object' && range !== null) {
+    const record = range as Record<string, unknown>;
+    if (typeof record['a1'] === 'string') {
+      return record['a1'];
+    }
+    if (typeof record['namedRange'] === 'string') {
+      return record['namedRange'];
+    }
+  }
+
+  return undefined;
+}
+
+function extractSheetName(range: string | undefined): string | undefined {
+  if (!range) {
+    return undefined;
+  }
+
+  const match = range.match(/^(?:'([^']+)'!|([^!]+)!)/);
+  return match?.[1] ?? match?.[2];
+}
+
+function quoteSheetName(sheetName: string): string {
+  return /[\s'!]/.test(sheetName) ? `'${sheetName.replace(/'/g, "''")}'` : sheetName;
+}
+
 /**
  * Decomposed action handler for `query_natural_language`.
  * Preserves original behavior while moving logic out of the main AnalyzeHandler class.
@@ -85,11 +121,14 @@ export async function handleQueryNaturalLanguageAction(
     });
 
     const metadata = await tieredRetrieval.getMetadata(input.spreadsheetId);
-    const sampleData = await tieredRetrieval.getSample(input.spreadsheetId);
+    const requestedRange = resolveRange(input.range);
+    const requestedSheetName = extractSheetName(requestedRange);
 
     const targetSheet = input.sheetId
       ? metadata.sheets.find((s) => s.sheetId === input.sheetId)
-      : metadata.sheets[0];
+      : requestedSheetName
+        ? metadata.sheets.find((s) => s.title === requestedSheetName)
+        : metadata.sheets[0];
 
     if (!targetSheet) {
       return {
@@ -107,8 +146,33 @@ export async function handleQueryNaturalLanguageAction(
       await import('../../analysis/conversational-helpers.js');
     const { inferSchema } = await import('../../analysis/structure-helpers.js');
 
-    const sheetSample = sampleData.sampleData.rows || [];
-    const schema = inferSchema(sheetSample, 0);
+    let sampleHeaders: unknown[] = [];
+    let sampleRows: unknown[][] = [];
+    let snapshotRowCount = targetSheet.rowCount;
+    let snapshotColumnCount = targetSheet.columnCount;
+
+    if (requestedRange) {
+      const effectiveRange = requestedSheetName
+        ? requestedRange
+        : `${quoteSheetName(targetSheet.title)}!${requestedRange}`;
+      const scopedSample = await deps.sheetsApi.spreadsheets.values.get({
+        spreadsheetId: input.spreadsheetId,
+        range: effectiveRange,
+        valueRenderOption: 'UNFORMATTED_VALUE',
+      });
+      const scopedValues = (scopedSample.data.values as unknown[][]) ?? [];
+      sampleHeaders = scopedValues[0] ?? [];
+      sampleRows = scopedValues.slice(1);
+      snapshotRowCount = sampleRows.length;
+      snapshotColumnCount = Math.max(sampleHeaders.length, ...sampleRows.map((row) => row.length));
+    } else {
+      const sampleData = await tieredRetrieval.getSample(input.spreadsheetId, targetSheet.sheetId);
+      sampleHeaders = sampleData.sampleData.headers ?? [];
+      sampleRows = sampleData.sampleData.rows ?? [];
+    }
+
+    const schemaSource = sampleHeaders.length > 0 ? [sampleHeaders, ...sampleRows] : sampleRows;
+    const schema = inferSchema(schemaSource, sampleHeaders.length > 0 ? 0 : undefined);
 
     const context = {
       spreadsheetId: input.spreadsheetId,
@@ -116,9 +180,9 @@ export async function handleQueryNaturalLanguageAction(
       schema,
       previousQueries: [],
       dataSnapshot: {
-        sampleRows: sheetSample,
-        rowCount: targetSheet.rowCount,
-        columnCount: targetSheet.columnCount,
+        sampleRows: sampleRows,
+        rowCount: snapshotRowCount,
+        columnCount: snapshotColumnCount,
       },
     };
 

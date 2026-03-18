@@ -1,15 +1,15 @@
 ---
 title: ServalSheets - Source of Truth Reference
 category: development
-last_updated: 2026-02-17
-description: 'Last Updated: 2026-02-17'
-version: 1.6.0
+last_updated: 2026-03-17
+description: 'Last Updated: 2026-03-17'
+version: 1.7.0
 tags: [sheets, prometheus]
 ---
 
 # ServalSheets - Source of Truth Reference
 
-**Last Updated:** 2026-02-17
+**Last Updated:** 2026-03-17
 **Purpose:** Single authoritative reference for all quantitative facts about the codebase
 
 ---
@@ -21,7 +21,7 @@ tags: [sheets, prometheus]
 | Metric           | Source File                    | Line              | Current Value | Verification Command                                            |
 | ---------------- | ------------------------------ | ----------------- | ------------- | --------------------------------------------------------------- |
 | **TOOL_COUNT**   | `src/schemas/action-counts.ts` | exported constant | `25`          | `grep "export const TOOL_COUNT" src/schemas/action-counts.ts`   |
-| **ACTION_COUNT** | `src/schemas/action-counts.ts` | exported constant | `402`         | `grep "export const ACTION_COUNT" src/schemas/action-counts.ts` |
+| **ACTION_COUNT** | `src/schemas/action-counts.ts` | exported constant | `403`         | `grep "export const ACTION_COUNT" src/schemas/action-counts.ts` |
 
 **Verification:**
 
@@ -30,7 +30,7 @@ tags: [sheets, prometheus]
 npm run check:drift
 
 # Output should show:
-# ✅ Total: 25 tools, 402 actions
+# ✅ Total: 25 tools, 403 actions
 ```
 
 **⚠️ CRITICAL:** Never hardcode `53` or `188` or any other outdated values. Always verify from source.
@@ -100,35 +100,38 @@ Run `wc -l <file>` to get exact counts. **Do not estimate.**
 
 | Tool                  | Actions | Schema File                   |
 | --------------------- | ------- | ----------------------------- |
-| `sheets_advanced`     | 26      | `src/schemas/advanced.ts`     |
-| `sheets_analyze`      | 16      | `src/schemas/analyze.ts`      |
-| `sheets_appsscript`   | 14      | `src/schemas/appsscript.ts`   |
-| `sheets_auth`         | 4       | `src/schemas/auth.ts`         |
-| `sheets_bigquery`     | 14      | `src/schemas/bigquery.ts`     |
-| `sheets_collaborate`  | 35      | `src/schemas/collaborate.ts`  |
-| `sheets_composite`    | 11      | `src/schemas/composite.ts`    |
+| `sheets_advanced`     | 31      | `src/schemas/advanced.ts`     |
+| `sheets_agent`        | 8       | `src/schemas/agent.ts`        |
+| `sheets_analyze`      | 22      | `src/schemas/analyze.ts`      |
+| `sheets_appsscript`   | 19      | `src/schemas/appsscript.ts`   |
+| `sheets_auth`         | 5       | `src/schemas/auth.ts`         |
+| `sheets_bigquery`     | 17      | `src/schemas/bigquery.ts`     |
+| `sheets_collaborate`  | 41      | `src/schemas/collaborate.ts`  |
+| `sheets_composite`    | 21      | `src/schemas/composite.ts`    |
+| `sheets_compute`      | 16      | `src/schemas/compute.ts`      |
 | `sheets_confirm`      | 5       | `src/schemas/confirm.ts`      |
-| `sheets_core`         | 19      | `src/schemas/core.ts`         |
-| `sheets_data`         | 18      | `src/schemas/data.ts`         |
-| `sheets_dependencies` | 7       | `src/schemas/dependencies.ts` |
-| `sheets_dimensions`   | 28      | `src/schemas/dimensions.ts`   |
+| `sheets_connectors`   | 10      | `src/schemas/connectors.ts`   |
+| `sheets_core`         | 21      | `src/schemas/core.ts`         |
+| `sheets_data`         | 25      | `src/schemas/data.ts`         |
+| `sheets_dependencies` | 10      | `src/schemas/dependencies.ts` |
+| `sheets_dimensions`   | 30      | `src/schemas/dimensions.ts`   |
 | `sheets_federation`   | 4       | `src/schemas/federation.ts`   |
-| `sheets_fix`          | 1       | `src/schemas/fix.ts`          |
-| `sheets_format`       | 22      | `src/schemas/format.ts`       |
-| `sheets_history`      | 7       | `src/schemas/history.ts`      |
+| `sheets_fix`          | 6       | `src/schemas/fix.ts`          |
+| `sheets_format`       | 25      | `src/schemas/format.ts`       |
+| `sheets_history`      | 10      | `src/schemas/history.ts`      |
 | `sheets_quality`      | 4       | `src/schemas/quality.ts`      |
-| `sheets_session`      | 26      | `src/schemas/session.ts`      |
+| `sheets_session`      | 31      | `src/schemas/session.ts`      |
 | `sheets_templates`    | 8       | `src/schemas/templates.ts`    |
 | `sheets_transaction`  | 6       | `src/schemas/transaction.ts`  |
 | `sheets_visualize`    | 18      | `src/schemas/visualize.ts`    |
-| `sheets_webhook`      | 7       | `src/schemas/webhook.ts`      |
-| **TOTAL**             | **402** | —                             |
+| `sheets_webhook`      | 10      | `src/schemas/webhook.ts`      |
+| **TOTAL**             | **403** | —                             |
 
 **Verification:**
 
 ```bash
 npm run check:drift | grep "Total:"
-# Output: ✅ Total: 25 tools, 402 actions
+# Output: ✅ Total: 25 tools, 403 actions
 ```
 
 ---
@@ -207,8 +210,8 @@ Evidence: <file:line> OR <command → output>
 ✅ **Good:**
 
 ```
-Claim: ServalSheets has 402 actions
-Evidence: src/schemas/action-counts.ts exports ACTION_COUNT = 402
+Claim: ServalSheets has 403 actions
+Evidence: src/schemas/action-counts.ts exports ACTION_COUNT = 403
 Command: grep "export const ACTION_COUNT" src/schemas/action-counts.ts
 Output: export const ACTION_COUNT = Object.values(ACTION_COUNTS).reduce((sum, count) => sum + count, 0);
 ```
@@ -254,7 +257,7 @@ npm run verify
 
 ```
 TOOL_COUNT:         25
-ACTION_COUNT:       402
+ACTION_COUNT:       403
 MCP_PROTOCOL:       2025-11-25
 ZOD_VERSION:        4.3.5
 SDK_VERSION:        ^1.25.2
@@ -271,7 +274,7 @@ Build Status:
   Metadata Drift:      ✅ PASSING
 ```
 
-**Last Verified:** 2026-02-17 via `npm run verify`
+**Last Verified:** 2026-03-17 via `npm run verify:release`
 
 ---
 
@@ -303,8 +306,8 @@ A: Let me verify...
 Command: grep "export const ACTION_COUNT" src/schemas/action-counts.ts
 Output: export const ACTION_COUNT = Object.values(ACTION_COUNTS).reduce((sum, count) => sum + count, 0);
 
-ServalSheets has 402 actions across 25 tools.
-Evidence: src/schemas/action-counts.ts exports ACTION_COUNT = 402
+ServalSheets has 403 actions across 25 tools.
+Evidence: src/schemas/action-counts.ts exports ACTION_COUNT = 403
 ```
 
 ---

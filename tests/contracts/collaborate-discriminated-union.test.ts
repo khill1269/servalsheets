@@ -51,10 +51,10 @@ function expectInvalid(input: unknown) {
 }
 
 // ============================================================
-// SECTION 1: All 35 actions accept a valid minimal input
+// SECTION 1: All 41 actions accept a valid minimal input
 // ============================================================
 
-describe('sheets_collaborate: all 35 actions accept valid minimal inputs', () => {
+describe('sheets_collaborate: all 41 actions accept valid minimal inputs', () => {
   // ---- Sharing (8) ----
 
   it('share_add: valid input accepted', () => {
@@ -236,6 +236,16 @@ describe('sheets_collaborate: all 35 actions accept valid minimal inputs', () =>
 
   it('version_create_snapshot: valid input accepted', () => {
     expectValid(wrap({ action: 'version_create_snapshot', spreadsheetId: SPREADSHEET_ID }));
+  });
+
+  it('version_snapshot_status: valid input accepted', () => {
+    expectValid(
+      wrap({
+        action: 'version_snapshot_status',
+        spreadsheetId: SPREADSHEET_ID,
+        taskId: 'snapshot_task_1',
+      })
+    );
   });
 
   it('version_list_snapshots: valid input accepted', () => {

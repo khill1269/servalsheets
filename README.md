@@ -1,6 +1,6 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 25 tools, 402 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 25 tools, 403 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
@@ -37,7 +37,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
 🚀 **Modern Formula Intelligence & Marketplace Release**
 
-- ✅ **Named Functions**: LAMBDA-based custom functions via `sheets_advanced` (+5 actions)
+- ✅ **Advanced Compatibility Surface**: named-function actions remain exposed for compatibility and now return clear `FEATURE_UNAVAILABLE` guidance when the live Sheets API cannot support them
 - ✅ **Spill Range Detection**: Find dynamic array formulas via `sheets_data.detect_spill_ranges`
 - ✅ **Formula Presets**: XLOOKUP, XMATCH, FILTER, BYROW/BYCOL via `sheets_analyze.generate_formula`
 - ✅ **Marketplace Ready**: `privacy_policies` array in server.json (MCP registry v0.3+)
@@ -111,7 +111,7 @@ Historical release snapshots are kept here for upgrade context.
 
 ### Core Capabilities
 
-- **25 Tools, 402 Actions**: Comprehensive Google Sheets API v4 coverage
+- **25 Tools, 403 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Support**: Structured outputs, tasks, prompts, resources, logging, elicitation, and sampling
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
@@ -122,7 +122,7 @@ Historical release snapshots are kept here for upgrade context.
 MCP 2025-11-25 server support includes:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.27.1
-- ✅ **Tools**: 25 tools with 402 actions using discriminated unions
+- ✅ **Tools**: 25 tools with 403 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -231,7 +231,7 @@ ServalSheets uses deployment-aware OAuth scopes to balance functionality and Goo
 
 | Mode               | Actions Available | Use Case                | Google Verification Time |
 | ------------------ | ----------------- | ----------------------- | ------------------------ |
-| **full** (default) | 402/402           | Self-hosted, enterprise | 4-6 weeks                |
+| **full** (default) | 403/403           | Self-hosted, enterprise | 4-6 weeks                |
 | **standard**       | ~340/402          | SaaS, marketplace apps  | 3-5 days                 |
 | **minimal**        | ~200/402          | Basic operations only   | 3-5 days                 |
 | **readonly**       | ~130/402          | Analysis/reporting only | 3-5 days                 |
@@ -373,7 +373,7 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ## Tools Reference
 
-### Tool Summary (25 tools, 402 actions)
+### Tool Summary (25 tools, 403 actions)
 
 | Tool                  | Actions | Description                                                        |
 | --------------------- | ------- | ------------------------------------------------------------------ |
@@ -589,42 +589,43 @@ Complete, copy-pasteable prompts for Claude Desktop or any MCP client.
 { "action": "version_create_snapshot", "spreadsheetId": "1BxiMVs0...",
   "name": "Pre-Q4-Budget-Edit", "description": "Snapshot before Q4 budget update" }
 
-// Step 2: Share with the team
+// Step 2: Poll until the snapshot task completes
+{ "action": "version_snapshot_status", "spreadsheetId": "1BxiMVs0...",
+  "taskId": "task_123" }
+
+// Step 3: Share with the team
 { "action": "share_add", "spreadsheetId": "1BxiMVs0...",
   "emailAddress": "finance-team@company.com", "role": "writer",
   "sendNotification": true, "emailMessage": "Q4 budget ready for review" }
 
-// Step 3: Make changes, then create another snapshot
+// Step 4: Make changes, then create another snapshot
 { "action": "version_create_snapshot", "spreadsheetId": "1BxiMVs0...",
   "name": "Post-Q4-Budget-Edit" }
 ```
 
 ---
 
-### Example 5: Build a Named Function Library for Reuse
+### Example 5: Create Reusable Named Ranges And Protections
 
-> "Create reusable named functions for profit margin and CAGR calculations, then apply them to my financial model."
+> "Name my key financial ranges and protect the assumptions section before I share this model."
 
 ```json
-// Step 1: Create a profit margin named function
-{ "action": "create_named_function", "spreadsheetId": "1BxiMVs0...",
-  "functionName": "PROFIT_MARGIN",
-  "functionBody": "LAMBDA(revenue, cost, (revenue-cost)/revenue)",
-  "description": "Calculate profit margin as a decimal",
-  "parameterDefinitions": [
-    { "name": "revenue", "description": "Total revenue" },
-    { "name": "cost", "description": "Total cost" }
-  ] }
+// Step 1: Name a key assumptions range
+{ "action": "add_named_range", "spreadsheetId": "1BxiMVs0...",
+  "name": "ASSUMPTIONS",
+  "range": "Model!B2:D10" }
 
-// Step 2: Create a CAGR function
-{ "action": "create_named_function", "spreadsheetId": "1BxiMVs0...",
-  "functionName": "CAGR",
-  "functionBody": "LAMBDA(start_val, end_val, periods, (end_val/start_val)^(1/periods)-1)",
-  "description": "Compound Annual Growth Rate" }
+// Step 2: Protect it before collaboration
+{ "action": "add_protected_range", "spreadsheetId": "1BxiMVs0...",
+  "range": "Model!B2:D10",
+  "description": "Locked financial assumptions",
+  "warningOnly": false }
 
-// Step 3: Use in your sheet
-{ "action": "write", "spreadsheetId": "1BxiMVs0...", "range": "Model!D2",
-  "values": [["=PROFIT_MARGIN(B2,C2)"]] }
+// Step 3: Add metadata for downstream automation
+{ "action": "add_developer_metadata", "spreadsheetId": "1BxiMVs0...",
+  "metadataKey": "section",
+  "metadataValue": "financial_assumptions",
+  "visibility": "DOCUMENT" }
 ```
 
 ---
@@ -1230,7 +1231,7 @@ graph TB
 
 ## Schema Architecture: Discriminated Unions
 
-ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 25 tools and 402 actions. This architecture provides:
+ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 25 tools and 403 actions. This architecture provides:
 
 ### Pattern Overview
 
@@ -2071,7 +2072,7 @@ ServalSheets implements the MCP 2025-11-25 server features it advertises in disc
 | Feature          | Status  | Version    | Implementation                              |
 | ---------------- | ------- | ---------- | ------------------------------------------- |
 | **JSON-RPC 2.0** | ✅ Full | 2.0        | @modelcontextprotocol/sdk v1.27.1           |
-| **Tools**        | ✅ Full | 2025-11-25 | 25 tools, 402 actions, discriminated unions |
+| **Tools**        | ✅ Full | 2025-11-25 | 25 tools, 403 actions, discriminated unions |
 | **Resources**    | ✅ Full | 2025-11-25 | 6 URI templates + 7 knowledge resources     |
 | **Prompts**      | ✅ Full | 2025-11-25 | 48 guided workflows with arguments          |
 | **Completions**  | ✅ Full | 2025-11-25 | Argument autocompletion                     |

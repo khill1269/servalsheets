@@ -1122,6 +1122,11 @@ export const OPERATION_SCOPES: Record<
     category: ScopeCategory.DRIVE_FULL,
     description: 'Create version snapshot',
   },
+  'sheets_collaborate.version_snapshot_status': {
+    required: [],
+    category: ScopeCategory.DRIVE_FULL,
+    description: 'Check version snapshot task status',
+  },
   'sheets_collaborate.version_list_snapshots': {
     required: ['https://www.googleapis.com/auth/drive.readonly'],
     category: ScopeCategory.DRIVE_FULL,

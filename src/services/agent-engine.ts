@@ -306,19 +306,31 @@ function extractValuesFromResult(result: unknown): unknown[][] | undefined {
 
 function extractScoutSheets(
   result: unknown
-): Array<Record<string, unknown> & { sheetId?: number; title?: string; rowCount?: number }> {
+): Array<
+  Record<string, unknown> & { sheetId?: number; title?: string; name?: string; rowCount?: number }
+> {
   const payload = getResponsePayload(result);
   const scout = payload?.scout;
   if (isPlainRecord(scout) && Array.isArray(scout['sheets'])) {
     return scout['sheets'].filter(isPlainRecord) as Array<
-      Record<string, unknown> & { sheetId?: number; title?: string; rowCount?: number }
+      Record<string, unknown> & {
+        sheetId?: number;
+        title?: string;
+        name?: string;
+        rowCount?: number;
+      }
     >;
   }
 
   const payloadRecord = payload as Record<string, unknown> | null;
   if (isPlainRecord(payloadRecord) && Array.isArray(payloadRecord['sheets'])) {
     return payloadRecord['sheets'].filter(isPlainRecord) as Array<
-      Record<string, unknown> & { sheetId?: number; title?: string; rowCount?: number }
+      Record<string, unknown> & {
+        sheetId?: number;
+        title?: string;
+        name?: string;
+        rowCount?: number;
+      }
     >;
   }
 
@@ -1875,7 +1887,7 @@ async function executeInjectCrossSheetLookup(
     verbosity: 'minimal',
   });
   const sheetInfo = extractScoutSheets(metaResult).find(
-    (sheet) => sheet['title'] === cfg.targetSheet
+    (sheet) => sheet['title'] === cfg.targetSheet || sheet['name'] === cfg.targetSheet
   );
   const lastRow = sheetInfo
     ? cfg.startRow + Math.max(0, Number(sheetInfo['rowCount'] ?? 0) - cfg.startRow)

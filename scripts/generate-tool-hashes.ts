@@ -57,7 +57,11 @@ async function main(): Promise<void> {
       const entry = baseline.tools[tool.name];
       if (!entry) {
         newTools.push(tool.name);
-      } else if (entry.sha256 !== actual) {
+      } else {
+        const allowed = new Set([entry.sha256, ...(entry.allowedSha256 ?? [])]);
+        if (allowed.has(actual)) {
+          continue;
+        }
         violations.push(
           `  ${tool.name}: baseline=${entry.sha256.slice(0, 12)}… actual=${actual.slice(0, 12)}…`
         );

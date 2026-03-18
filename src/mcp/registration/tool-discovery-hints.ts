@@ -116,9 +116,17 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
     },
   },
   sheets_connectors: {
+    list_connectors: {
+      description:
+        'Start here for external data onboarding. Returns configured status, signupUrl, recommendedUseCases, and nextStep for each connector.',
+    },
     configure: {
       description:
-        'Configure a connector. If connectorId or credentials are omitted, the server can prompt for them. API-key connectors can open a local setup page via MCP URL elicitation.',
+        'Configure a connector. If connectorId or credentials are omitted, the server can prompt for them. API-key connectors can open a local setup page via MCP URL elicitation and the response ends with verification guidance.',
+    },
+    status: {
+      description:
+        'Use after configure to distinguish not configured vs configured but failing and to get the recommended next query.',
     },
   },
   sheets_webhook: {
@@ -146,6 +154,20 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
       description:
         'Create a native Drive files.watch channel. Does not require Redis, but without Redis the channel is not persisted for renewal or later listing.',
     },
+    subscribe_workspace: {
+      required: ['spreadsheetId'],
+      description:
+        'Create a Google Workspace Events subscription for real-time change notifications. No Redis required.',
+    },
+    unsubscribe_workspace: {
+      required: ['subscriptionId'],
+      description:
+        'Remove a Google Workspace Events subscription. Requires the subscriptionId from subscribe_workspace.',
+    },
+    list_workspace_subscriptions: {
+      required: [],
+      description: 'List active Google Workspace Events subscriptions. No Redis required.',
+    },
   },
   sheets_collaborate: {
     share_add: collaborateAction(
@@ -153,57 +175,191 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
       ['emailAddress', 'domain', 'sendNotification', 'emailMessage', 'expirationTime'],
       'Add a sharing permission. If type=user or group, include emailAddress. If type=domain, include domain.'
     ),
-    share_update: collaborateAction(['spreadsheetId', 'permissionId', 'role'], ['expirationTime']),
-    share_remove: collaborateAction(['spreadsheetId', 'permissionId']),
-    share_list: collaborateAction(['spreadsheetId']),
-    share_get: collaborateAction(['spreadsheetId', 'permissionId']),
-    share_transfer_ownership: collaborateAction(['spreadsheetId', 'newOwnerEmail']),
+    share_update: collaborateAction(
+      ['spreadsheetId', 'permissionId', 'role'],
+      ['expirationTime'],
+      'Update an existing sharing permission for a user, group, domain, or public link.'
+    ),
+    share_remove: collaborateAction(
+      ['spreadsheetId', 'permissionId'],
+      [],
+      'Remove a sharing permission from the spreadsheet.'
+    ),
+    share_list: collaborateAction(
+      ['spreadsheetId'],
+      [],
+      'List current sharing permissions and roles for the spreadsheet.'
+    ),
+    share_get: collaborateAction(
+      ['spreadsheetId', 'permissionId'],
+      [],
+      'Get details for one sharing permission by permissionId.'
+    ),
+    share_transfer_ownership: collaborateAction(
+      ['spreadsheetId', 'newOwnerEmail'],
+      [],
+      'Transfer spreadsheet ownership to a new user email.'
+    ),
     share_set_link: collaborateAction(
       ['spreadsheetId', 'enabled'],
-      ['type', 'role', 'allowFileDiscovery']
+      ['type', 'role', 'allowFileDiscovery'],
+      'Enable, disable, or change link-sharing settings for the spreadsheet.'
     ),
-    share_get_link: collaborateAction(['spreadsheetId']),
-    comment_add: collaborateAction(['spreadsheetId', 'content'], ['anchor']),
-    comment_update: collaborateAction(['spreadsheetId', 'commentId', 'content']),
-    comment_delete: collaborateAction(['spreadsheetId', 'commentId']),
+    share_get_link: collaborateAction(
+      ['spreadsheetId'],
+      [],
+      'Get the current link-sharing configuration for the spreadsheet.'
+    ),
+    comment_add: collaborateAction(
+      ['spreadsheetId', 'content'],
+      ['anchor'],
+      'Add a new comment to the spreadsheet, optionally anchored to content.'
+    ),
+    comment_update: collaborateAction(
+      ['spreadsheetId', 'commentId', 'content'],
+      [],
+      'Update the text of an existing comment.'
+    ),
+    comment_delete: collaborateAction(
+      ['spreadsheetId', 'commentId'],
+      [],
+      'Delete an existing comment.'
+    ),
     comment_list: collaborateAction(
       ['spreadsheetId'],
-      ['includeDeleted', 'commentPageToken', 'maxResults']
+      ['includeDeleted', 'commentPageToken', 'maxResults'],
+      'List spreadsheet comments with optional pagination and deleted-comment visibility.'
     ),
-    comment_get: collaborateAction(['spreadsheetId', 'commentId']),
-    comment_resolve: collaborateAction(['spreadsheetId', 'commentId']),
-    comment_reopen: collaborateAction(['spreadsheetId', 'commentId']),
-    comment_add_reply: collaborateAction(['spreadsheetId', 'commentId', 'content']),
-    comment_update_reply: collaborateAction(['spreadsheetId', 'commentId', 'replyId', 'content']),
-    comment_delete_reply: collaborateAction(['spreadsheetId', 'commentId', 'replyId']),
-    version_list_revisions: collaborateAction(['spreadsheetId'], ['pageSize', 'pageToken']),
-    version_get_revision: collaborateAction(['spreadsheetId', 'revisionId']),
-    version_restore_revision: collaborateAction(['spreadsheetId', 'revisionId']),
-    version_keep_revision: collaborateAction(['spreadsheetId', 'revisionId', 'keepForever']),
+    comment_get: collaborateAction(
+      ['spreadsheetId', 'commentId'],
+      [],
+      'Get one comment thread by commentId.'
+    ),
+    comment_resolve: collaborateAction(
+      ['spreadsheetId', 'commentId'],
+      [],
+      'Mark a comment thread as resolved.'
+    ),
+    comment_reopen: collaborateAction(
+      ['spreadsheetId', 'commentId'],
+      [],
+      'Reopen a previously resolved comment thread.'
+    ),
+    comment_add_reply: collaborateAction(
+      ['spreadsheetId', 'commentId', 'content'],
+      [],
+      'Add a reply to an existing comment thread.'
+    ),
+    comment_update_reply: collaborateAction(
+      ['spreadsheetId', 'commentId', 'replyId', 'content'],
+      [],
+      'Update the text of a reply in a comment thread.'
+    ),
+    comment_delete_reply: collaborateAction(
+      ['spreadsheetId', 'commentId', 'replyId'],
+      [],
+      'Delete a reply from a comment thread.'
+    ),
+    version_list_revisions: collaborateAction(
+      ['spreadsheetId'],
+      ['pageSize', 'pageToken'],
+      'List Drive revisions for the spreadsheet with optional pagination.'
+    ),
+    version_get_revision: collaborateAction(
+      ['spreadsheetId', 'revisionId'],
+      [],
+      'Get metadata for one Drive revision.'
+    ),
+    version_restore_revision: collaborateAction(
+      ['spreadsheetId', 'revisionId'],
+      [],
+      'Restore the spreadsheet from a Drive revision.'
+    ),
+    version_keep_revision: collaborateAction(
+      ['spreadsheetId', 'revisionId', 'keepForever'],
+      [],
+      'Mark a Drive revision to keep forever or clear that retention.'
+    ),
     version_create_snapshot: collaborateAction(
       ['spreadsheetId'],
-      ['name', 'description', 'destinationFolderId']
+      ['name', 'description', 'destinationFolderId'],
+      'Start an async snapshot copy for rollback, audit, or manual restore. Poll version_snapshot_status with the returned taskId.'
     ),
-    version_list_snapshots: collaborateAction(['spreadsheetId']),
-    version_restore_snapshot: collaborateAction(['spreadsheetId', 'snapshotId']),
-    version_delete_snapshot: collaborateAction(['spreadsheetId', 'snapshotId']),
+    version_snapshot_status: collaborateAction(
+      ['spreadsheetId', 'taskId'],
+      [],
+      'Check the status of an async snapshot copy started by version_create_snapshot.'
+    ),
+    version_list_snapshots: collaborateAction(
+      ['spreadsheetId'],
+      [],
+      'List named snapshots created for the spreadsheet.'
+    ),
+    version_restore_snapshot: collaborateAction(
+      ['spreadsheetId', 'snapshotId'],
+      [],
+      'Restore spreadsheet content from a named snapshot.'
+    ),
+    version_delete_snapshot: collaborateAction(
+      ['spreadsheetId', 'snapshotId'],
+      [],
+      'Delete a named snapshot.'
+    ),
     version_compare: collaborateAction(
       ['spreadsheetId'],
-      ['revisionId', 'revisionId1', 'revisionId2', 'sheetId']
+      ['revisionId', 'revisionId1', 'revisionId2', 'sheetId'],
+      'Compare the current spreadsheet with one revision, or compare two revisions to each other.'
     ),
-    version_export: collaborateAction(['spreadsheetId'], ['revisionId', 'format']),
+    version_export: collaborateAction(
+      ['spreadsheetId'],
+      ['revisionId', 'format'],
+      'Export the current spreadsheet or a specific revision in a chosen format.'
+    ),
     approval_create: collaborateAction(
       ['spreadsheetId', 'range', 'approvers'],
-      ['requiredApprovals', 'message', 'expirationDays']
+      ['requiredApprovals', 'message', 'expirationDays'],
+      'Create an approval request for a range with one or more approvers.'
     ),
-    approval_approve: collaborateAction(['spreadsheetId', 'approvalId']),
-    approval_reject: collaborateAction(['spreadsheetId', 'approvalId']),
-    approval_get_status: collaborateAction(['spreadsheetId', 'approvalId']),
-    approval_list_pending: collaborateAction(['spreadsheetId']),
-    approval_delegate: collaborateAction(['spreadsheetId', 'approvalId', 'delegateTo']),
-    approval_cancel: collaborateAction(['spreadsheetId', 'approvalId']),
-    list_access_proposals: collaborateAction(['spreadsheetId'], ['pageToken', 'pageSize']),
-    resolve_access_proposal: collaborateAction(['spreadsheetId', 'proposalId', 'decision']),
+    approval_approve: collaborateAction(
+      ['spreadsheetId', 'approvalId'],
+      [],
+      'Approve a pending approval request.'
+    ),
+    approval_reject: collaborateAction(
+      ['spreadsheetId', 'approvalId'],
+      [],
+      'Reject a pending approval request.'
+    ),
+    approval_get_status: collaborateAction(
+      ['spreadsheetId', 'approvalId'],
+      [],
+      'Get the current status and decisions for an approval request.'
+    ),
+    approval_list_pending: collaborateAction(
+      ['spreadsheetId'],
+      [],
+      'List pending approval requests for the spreadsheet.'
+    ),
+    approval_delegate: collaborateAction(
+      ['spreadsheetId', 'approvalId', 'delegateTo'],
+      [],
+      'Delegate an approval request to another reviewer.'
+    ),
+    approval_cancel: collaborateAction(
+      ['spreadsheetId', 'approvalId'],
+      [],
+      'Cancel an approval workflow.'
+    ),
+    list_access_proposals: collaborateAction(
+      ['spreadsheetId'],
+      ['pageToken', 'pageSize'],
+      'List pending access proposals or requests for the spreadsheet.'
+    ),
+    resolve_access_proposal: collaborateAction(
+      ['spreadsheetId', 'proposalId', 'decision'],
+      [],
+      'Approve or deny a pending access proposal.'
+    ),
     label_list: collaborateAction(
       [],
       ['fileId', 'includeLabels'],
@@ -227,20 +383,1140 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
     call_remote: {
       required: ['serverName', 'toolName'],
       optional: ['toolInput'],
+      params: ['serverName', 'toolName', 'toolInput'],
       description:
         'Call a tool on a remote MCP server. toolInput is the arguments object for the remote tool.',
     },
     list_servers: {
       required: [],
+      params: [],
       description: 'List all configured remote MCP servers and their connection status.',
     },
     get_server_tools: {
       required: ['serverName'],
+      params: ['serverName'],
       description: 'List tools available on a specific remote MCP server.',
     },
     validate_connection: {
       required: ['serverName'],
+      params: ['serverName'],
       description: 'Test the connection to a remote MCP server.',
+    },
+  },
+  sheets_auth: {
+    status: {
+      required: [],
+      description:
+        'Check authentication and readiness first. Read readiness, blockingIssues, recommendedNextAction, and recommendedPrompt before doing anything else.',
+    },
+    login: {
+      required: [],
+      description: 'Start the OAuth2 login flow. Opens browser for Google account authorization.',
+    },
+    callback: {
+      required: ['code', 'state'],
+      description: 'Handle OAuth2 callback with authorization code and state parameter.',
+    },
+    logout: {
+      required: [],
+      description: 'Revoke tokens and clear stored credentials.',
+    },
+    setup_feature: {
+      required: ['feature'],
+      description:
+        'Canonical optional-capability setup for connectors, AI fallback, webhooks, and federation. Returns configured, verified, nextStep, and fallbackInstructions.',
+    },
+  },
+  sheets_session: {
+    set_active: {
+      required: ['spreadsheetId'],
+      description:
+        'Set the active spreadsheet for the current session. Enables "that spreadsheet" references.',
+    },
+    get_active: {
+      required: [],
+      description: 'Get the currently active spreadsheet ID and metadata.',
+    },
+    get_context: {
+      required: [],
+      description:
+        'Get full session context including active spreadsheet, recent operations, and preferences.',
+    },
+    record_operation: {
+      required: ['tool', 'toolAction', 'spreadsheetId', 'description'],
+      description: 'Record a tool operation in session history for context continuity.',
+    },
+    get_last_operation: {
+      required: [],
+      description: 'Get the most recent operation recorded in this session.',
+    },
+    get_history: {
+      required: [],
+      optional: ['limit'],
+      description: 'Get recent operation history for the current session.',
+    },
+    find_by_reference: {
+      required: ['reference'],
+      description:
+        'Resolve a natural language reference like "that spreadsheet" or "the range I just read".',
+    },
+    update_preferences: {
+      required: ['preferences'],
+      description: 'Update session preferences (verbosity, timezone, locale, etc.).',
+    },
+    get_preferences: {
+      required: [],
+      description: 'Get current session preferences.',
+    },
+    set_pending: {
+      required: ['key', 'value'],
+      description: 'Store a pending value for multi-step workflows (e.g. wizard state).',
+    },
+    get_pending: {
+      required: ['key'],
+      description: 'Retrieve a stored pending value by key.',
+    },
+    clear_pending: {
+      required: ['key'],
+      description: 'Clear a stored pending value by key.',
+    },
+    save_checkpoint: {
+      required: ['name'],
+      description: 'Save current session state as a named checkpoint for later restoration.',
+    },
+    load_checkpoint: {
+      required: ['name'],
+      description: 'Restore session state from a named checkpoint.',
+    },
+    list_checkpoints: {
+      required: [],
+      description: 'List all saved session checkpoints.',
+    },
+    delete_checkpoint: {
+      required: ['name'],
+      description: 'Delete a saved session checkpoint by name.',
+    },
+    reset: {
+      required: [],
+      description: 'Reset session state (active spreadsheet, history, preferences).',
+    },
+    get_alerts: {
+      required: [],
+      description: 'Get unacknowledged session alerts (quota warnings, error patterns, etc.).',
+    },
+    acknowledge_alert: {
+      required: ['alertId'],
+      description: 'Acknowledge and dismiss a session alert.',
+    },
+    clear_alerts: {
+      required: [],
+      description: 'Clear all session alerts.',
+    },
+    set_user_id: {
+      required: ['userId'],
+      description: 'Set the user identifier for session tracking and RBAC.',
+    },
+    get_profile: {
+      required: [],
+      description: 'Get user profile including preferences and usage statistics.',
+    },
+    update_profile_preferences: {
+      required: ['preferences'],
+      description: 'Update persistent user profile preferences.',
+    },
+    record_successful_formula: {
+      required: ['formula', 'spreadsheetId'],
+      description: 'Record a formula that worked well for future suggestion ranking.',
+    },
+    reject_suggestion: {
+      required: ['suggestionId'],
+      description: 'Record a rejected suggestion so it is not repeated.',
+    },
+    get_top_formulas: {
+      required: [],
+      description: 'Get the most frequently successful formulas for suggestion context.',
+    },
+    execute_pipeline: {
+      required: ['steps'],
+      description: 'Execute a multi-step pipeline of ServalSheets operations sequentially.',
+    },
+    schedule_create: {
+      required: ['name', 'cronExpression', 'steps'],
+      description: 'Create a scheduled recurring pipeline with cron expression.',
+    },
+    schedule_list: {
+      required: [],
+      description: 'List all scheduled pipelines.',
+    },
+    schedule_cancel: {
+      required: ['scheduleId'],
+      description: 'Cancel a scheduled pipeline by ID.',
+    },
+    schedule_run_now: {
+      required: ['scheduleId'],
+      description: 'Immediately run a scheduled pipeline.',
+    },
+  },
+  sheets_data: {
+    read: {
+      required: ['spreadsheetId', 'range'],
+      description: 'Read cell values from a range. Returns 2D array of values.',
+    },
+    write: {
+      required: ['spreadsheetId', 'range', 'values'],
+      description: 'Write values to a range. Values is a 2D array matching the range dimensions.',
+    },
+    append: {
+      required: ['spreadsheetId', 'range', 'values'],
+      description: 'Append rows after the last row with data in the range.',
+    },
+    clear: {
+      required: ['spreadsheetId', 'range'],
+      description: 'Clear cell values in a range (keeps formatting).',
+    },
+    batch_read: {
+      required: ['spreadsheetId', 'ranges'],
+      description:
+        'Read multiple ranges in one API call. Ranges is an array of A1 notation strings.',
+    },
+    batch_write: {
+      required: ['spreadsheetId', 'data'],
+      description:
+        'Write to multiple ranges in one API call. Data is array of { range, values } objects.',
+    },
+    batch_clear: {
+      required: ['spreadsheetId', 'ranges'],
+      description: 'Clear multiple ranges in one API call.',
+    },
+    find_replace: {
+      required: ['spreadsheetId', 'find'],
+      optional: ['replacement', 'range', 'matchCase', 'matchEntireCell', 'useRegex', 'sheetId'],
+      description:
+        'Find and optionally replace values. Omit replacement for find-only (count matches).',
+    },
+    add_note: {
+      required: ['spreadsheetId', 'cell', 'note'],
+      description: 'Add a note (tooltip) to a cell.',
+    },
+    get_note: {
+      required: ['spreadsheetId', 'cell'],
+      description: 'Get the note on a specific cell.',
+    },
+    clear_note: {
+      required: ['spreadsheetId', 'cell'],
+      description: 'Remove the note from a cell.',
+    },
+    set_hyperlink: {
+      required: ['spreadsheetId', 'cell', 'url'],
+      optional: ['label'],
+      description: 'Set a hyperlink on a cell with an optional display label.',
+    },
+    clear_hyperlink: {
+      required: ['spreadsheetId', 'cell'],
+      description: 'Remove the hyperlink from a cell.',
+    },
+    merge_cells: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['mergeType'],
+      description: 'Merge cells in a range. mergeType: MERGE_ALL, MERGE_COLUMNS, or MERGE_ROWS.',
+    },
+    unmerge_cells: {
+      required: ['spreadsheetId', 'range'],
+      description: 'Unmerge previously merged cells.',
+    },
+    get_merges: {
+      required: ['spreadsheetId'],
+      optional: ['sheetId'],
+      description: 'List all merged cell regions in the spreadsheet or a specific sheet.',
+    },
+    cut_paste: {
+      required: ['spreadsheetId', 'source', 'destination'],
+      description: 'Cut a range and paste it to a destination cell. Source is cleared.',
+    },
+    copy_paste: {
+      required: ['spreadsheetId', 'source', 'destination'],
+      optional: ['pasteType'],
+      description:
+        'Copy a range and paste to destination. pasteType: PASTE_NORMAL, PASTE_VALUES, PASTE_FORMAT, etc.',
+    },
+    detect_spill_ranges: {
+      required: ['spreadsheetId'],
+      optional: ['sheetId', 'sheetName'],
+      description: 'Detect dynamic array spill ranges (ARRAYFORMULA, FILTER, SORT results).',
+    },
+    smart_fill: {
+      required: ['spreadsheetId', 'range'],
+      description: 'Autofill a range based on detected patterns in adjacent data.',
+    },
+    auto_fill: {
+      required: ['spreadsheetId', 'sourceRange', 'fillRange'],
+      optional: ['strategy'],
+      description:
+        'Extend source pattern into fill range. Strategy: detect, linear, repeat, or date.',
+    },
+    cross_read: {
+      required: ['sources'],
+      optional: ['joinKey', 'joinType'],
+      description:
+        'Read and merge data from multiple spreadsheets. Sources is array of { spreadsheetId, range }.',
+    },
+    cross_query: {
+      required: ['sources', 'query'],
+      description: 'Natural language query across multiple spreadsheets.',
+    },
+    cross_write: {
+      required: ['source', 'destination'],
+      description: 'Copy data from one spreadsheet range to another.',
+    },
+    cross_compare: {
+      required: ['source1', 'source2', 'compareColumns'],
+      description: 'Diff two ranges across spreadsheets by key columns.',
+    },
+  },
+  sheets_core: {
+    get: {
+      required: ['spreadsheetId'],
+      optional: ['includeGridData', 'ranges'],
+      description: 'Get spreadsheet metadata. Add includeGridData:true + ranges for cell data.',
+    },
+    create: {
+      required: [],
+      optional: ['title', 'locale', 'timeZone', 'sheets'],
+      description:
+        'Create a new spreadsheet. All params optional — defaults to "Untitled Spreadsheet".',
+    },
+    copy: {
+      required: ['spreadsheetId'],
+      optional: ['title', 'destinationFolderId'],
+      description: 'Copy an entire spreadsheet to a new file.',
+    },
+    update_properties: {
+      required: ['spreadsheetId'],
+      optional: ['title', 'locale', 'timeZone', 'autoRecalc'],
+      description: 'Update spreadsheet-level properties (title, locale, timezone, recalc mode).',
+    },
+    get_url: {
+      required: ['spreadsheetId'],
+      description: 'Get the web URL for a spreadsheet.',
+    },
+    batch_get: {
+      required: ['spreadsheetIds'],
+      description: 'Get metadata for multiple spreadsheets in one call.',
+    },
+    get_comprehensive: {
+      required: ['spreadsheetId'],
+      description:
+        'Get full spreadsheet metadata including sheets, named ranges, and developer metadata.',
+    },
+    describe_workbook: {
+      required: ['spreadsheetId'],
+      description: 'Get an LLM-friendly workbook description with sheet summaries and data shapes.',
+    },
+    workbook_fingerprint: {
+      required: ['spreadsheetId'],
+      description: 'Get a structural fingerprint for change detection (hash of sheet structure).',
+    },
+    list: {
+      required: [],
+      optional: ['query', 'pageSize', 'pageToken'],
+      description: 'List spreadsheets accessible to the user. Supports Drive query syntax.',
+    },
+    add_sheet: {
+      required: ['spreadsheetId', 'title'],
+      optional: ['rowCount', 'columnCount'],
+      description: 'Add a new sheet/tab to the spreadsheet.',
+    },
+    delete_sheet: {
+      required: ['spreadsheetId', 'sheetId'],
+      description: 'Delete a sheet/tab by numeric sheetId (not name).',
+    },
+    duplicate_sheet: {
+      required: ['spreadsheetId', 'sheetId'],
+      optional: ['newSheetName', 'targetSpreadsheetId'],
+      description: 'Duplicate a sheet within or across spreadsheets.',
+    },
+    update_sheet: {
+      required: ['spreadsheetId', 'sheetId'],
+      optional: ['title', 'hidden', 'tabColor', 'index', 'rightToLeft'],
+      description: 'Update sheet properties (rename, hide/show, tab color, position, RTL).',
+    },
+    copy_sheet_to: {
+      required: ['spreadsheetId', 'sheetId', 'destinationSpreadsheetId'],
+      description: 'Copy a sheet to a different spreadsheet.',
+    },
+    list_sheets: {
+      required: ['spreadsheetId'],
+      description: 'List all sheets/tabs in the spreadsheet with their properties.',
+    },
+    get_sheet: {
+      required: ['spreadsheetId'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      description: 'Get metadata for a specific sheet by sheetId or sheetName.',
+    },
+    batch_delete_sheets: {
+      required: ['spreadsheetId', 'sheetIds'],
+      description: 'Delete multiple sheets in one call. sheetIds is array of numeric IDs.',
+    },
+    batch_update_sheets: {
+      required: ['spreadsheetId', 'updates'],
+      description: 'Update multiple sheet properties in one call.',
+    },
+    clear_sheet: {
+      required: ['spreadsheetId'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      description: 'Clear all data from a sheet (keeps structure and formatting).',
+    },
+    move_sheet: {
+      required: ['spreadsheetId', 'sheetId', 'newIndex'],
+      description: 'Move a sheet to a new tab position (0-indexed).',
+    },
+  },
+  sheets_dimensions: {
+    insert: {
+      required: ['spreadsheetId', 'dimension', 'startIndex'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      optional: ['count'],
+      description: 'Insert rows or columns. dimension: ROWS or COLUMNS. startIndex is 0-based.',
+    },
+    delete: {
+      required: ['spreadsheetId', 'dimension', 'startIndex', 'endIndex'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      description:
+        'Delete rows or columns. dimension: ROWS or COLUMNS. Range is [startIndex, endIndex).',
+    },
+    move: {
+      required: ['spreadsheetId', 'dimension', 'startIndex', 'endIndex', 'destinationIndex'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      description: 'Move rows or columns to a new position.',
+    },
+    resize: {
+      required: ['spreadsheetId', 'dimension', 'startIndex', 'endIndex', 'pixelSize'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      description: 'Set row height or column width in pixels.',
+    },
+    auto_resize: {
+      required: ['spreadsheetId', 'dimension'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      description:
+        'Auto-fit row height or column width to content. Optionally scope with startIndex/endIndex.',
+    },
+    hide: {
+      required: ['spreadsheetId', 'dimension', 'startIndex', 'endIndex'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      description: 'Hide rows or columns in range [startIndex, endIndex).',
+    },
+    show: {
+      required: ['spreadsheetId', 'dimension', 'startIndex', 'endIndex'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      description: 'Show (unhide) rows or columns in range [startIndex, endIndex).',
+    },
+    freeze: {
+      required: ['spreadsheetId', 'dimension', 'count'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      description: 'Freeze rows or columns. count=0 to unfreeze. dimension: ROWS or COLUMNS.',
+    },
+    group: {
+      required: ['spreadsheetId', 'dimension', 'startIndex', 'endIndex'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      description: 'Create a row or column group (collapsible outline).',
+    },
+    ungroup: {
+      required: ['spreadsheetId', 'dimension', 'startIndex', 'endIndex'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      description: 'Remove a row or column group.',
+    },
+    append: {
+      required: ['spreadsheetId', 'dimension', 'count'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      description: 'Append empty rows or columns to the end of the sheet.',
+    },
+    set_basic_filter: {
+      required: ['spreadsheetId'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      optional: ['range', 'criteria', 'columnIndex'],
+      description:
+        'Set or replace the basic filter on a sheet. Optional criteria for column filtering.',
+    },
+    clear_basic_filter: {
+      required: ['spreadsheetId'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      description: 'Remove the basic filter from a sheet.',
+    },
+    get_basic_filter: {
+      required: ['spreadsheetId'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      description: 'Get the current basic filter configuration.',
+    },
+    sort_range: {
+      required: ['spreadsheetId', 'range', 'sortSpecs'],
+      description:
+        'Sort a range by one or more columns. sortSpecs: [{ dimensionIndex, sortOrder }].',
+    },
+    delete_duplicates: {
+      required: ['spreadsheetId', 'range'],
+      description: 'Remove duplicate rows from a range based on all columns.',
+    },
+    trim_whitespace: {
+      required: ['spreadsheetId', 'range'],
+      description: 'Trim leading/trailing whitespace from all cells in a range.',
+    },
+    randomize_range: {
+      required: ['spreadsheetId', 'range'],
+      description: 'Randomize the order of rows in a range.',
+    },
+    text_to_columns: {
+      required: ['spreadsheetId', 'source'],
+      optional: ['delimiter', 'delimiterType'],
+      description: 'Split a column into multiple columns by delimiter.',
+    },
+    auto_fill: {
+      required: ['spreadsheetId'],
+      optional: ['range', 'sourceRange', 'fillLength', 'dimension'],
+      description: 'Auto-fill a range by extending detected patterns.',
+    },
+    create_filter_view: {
+      required: ['spreadsheetId', 'title'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      optional: ['range', 'criteria'],
+      description: 'Create a named filter view for a sheet.',
+    },
+    duplicate_filter_view: {
+      required: ['spreadsheetId', 'filterViewId'],
+      description: 'Duplicate an existing filter view.',
+    },
+    update_filter_view: {
+      required: ['spreadsheetId', 'filterViewId'],
+      optional: ['title', 'range', 'criteria'],
+      description: 'Update a filter view (title, range, or criteria).',
+    },
+    delete_filter_view: {
+      required: ['spreadsheetId', 'filterViewId'],
+      description: 'Delete a filter view.',
+    },
+    list_filter_views: {
+      required: ['spreadsheetId'],
+      optional: ['sheetId', 'cursor', 'limit'],
+      description: 'List filter views with optional pagination.',
+    },
+    get_filter_view: {
+      required: ['spreadsheetId', 'filterViewId'],
+      description: 'Get details of a specific filter view.',
+    },
+    create_slicer: {
+      required: ['spreadsheetId', 'dataRange', 'filterColumn', 'position'],
+      requiredOneOf: [['sheetId', 'sheetName']],
+      description: 'Create a slicer control for interactive filtering.',
+    },
+    update_slicer: {
+      required: ['spreadsheetId', 'slicerId'],
+      description: 'Update slicer properties.',
+    },
+    delete_slicer: {
+      required: ['spreadsheetId', 'slicerId'],
+      description: 'Delete a slicer.',
+    },
+    list_slicers: {
+      required: ['spreadsheetId'],
+      optional: ['sheetId'],
+      description: 'List all slicers in the spreadsheet or a specific sheet.',
+    },
+  },
+  sheets_compute: {
+    evaluate: {
+      required: ['spreadsheetId', 'formula'],
+      optional: ['range'],
+      description:
+        'Evaluate a formula expression. Optionally scope to a range for cell references.',
+    },
+    aggregate: {
+      required: ['spreadsheetId', 'range', 'functions'],
+      optional: ['groupBy', 'type', 'valueColumn', 'windowSize'],
+      description:
+        'Run aggregate functions (SUM, AVG, COUNT, etc.) on a range. Optional groupBy for pivoting.',
+    },
+    statistical: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['columns', 'percentiles', 'includeCorrelations', 'movingWindow'],
+      description:
+        'Compute descriptive statistics (mean, median, stddev, percentiles) for a range.',
+    },
+    regression: {
+      required: ['spreadsheetId', 'range', 'xColumn', 'yColumn'],
+      optional: ['type', 'degree', 'predict'],
+      description: 'Fit a regression model. type: linear, polynomial, exponential, logarithmic.',
+    },
+    forecast: {
+      required: ['spreadsheetId', 'range', 'dateColumn', 'valueColumn', 'periods'],
+      optional: ['method', 'seasonality'],
+      description: 'Forecast future values from time series data.',
+    },
+    matrix_op: {
+      required: ['spreadsheetId', 'range', 'operation'],
+      optional: ['secondRange', 'outputRange'],
+      description: 'Matrix operations: transpose, multiply, inverse, determinant.',
+    },
+    pivot_compute: {
+      required: ['spreadsheetId', 'range', 'rows', 'values'],
+      optional: ['columns', 'filters'],
+      description: 'Compute a pivot table in-memory (no sheet modification).',
+    },
+    custom_function: {
+      required: ['spreadsheetId', 'range', 'expression'],
+      optional: ['outputColumn'],
+      description: 'Apply a custom expression to each row. Use $col_name for column references.',
+    },
+    batch_compute: {
+      required: ['spreadsheetId', 'computations'],
+      optional: ['stopOnError'],
+      description: 'Run multiple compute operations in one call.',
+    },
+    explain_formula: {
+      required: ['spreadsheetId', 'formula'],
+      optional: ['range'],
+      description: 'Get a plain-English explanation of a formula.',
+    },
+    sql_query: {
+      required: ['spreadsheetId', 'tables', 'sql'],
+      optional: ['timeoutMs'],
+      description:
+        'Run SQL against sheet data via DuckDB. tables maps alias to { sheetName, range }.',
+    },
+    sql_join: {
+      required: ['spreadsheetId', 'left', 'right', 'on'],
+      optional: ['select', 'joinType', 'timeoutMs'],
+      description: 'SQL JOIN two sheet ranges. joinType: INNER, LEFT, RIGHT, FULL.',
+    },
+    python_eval: {
+      required: ['spreadsheetId', 'range', 'code'],
+      optional: ['hasHeaders', 'timeoutMs'],
+      description: 'Run Python code on sheet data (Pyodide). Data available as `df` DataFrame.',
+    },
+    pandas_profile: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['hasHeaders', 'includeCorrelations'],
+      description: 'Generate a pandas profiling report for a range.',
+    },
+    sklearn_model: {
+      required: ['spreadsheetId', 'range', 'targetColumn', 'modelType'],
+      optional: ['featureColumns', 'testSize'],
+      description: 'Train a scikit-learn model. modelType: linear, logistic, tree, forest, knn.',
+    },
+    matplotlib_chart: {
+      required: ['spreadsheetId', 'range', 'chartType'],
+      optional: ['xColumn', 'yColumns', 'title', 'width', 'height'],
+      description: 'Render a matplotlib chart as base64 PNG.',
+    },
+  },
+  sheets_history: {
+    list: {
+      required: [],
+      optional: ['spreadsheetId', 'count', 'failuresOnly', 'cursor', 'pageSize'],
+      description: 'List operation history. Optionally filter by spreadsheetId or failures only.',
+    },
+    get: {
+      required: ['operationId'],
+      description: 'Get details for a specific operation by ID.',
+    },
+    stats: {
+      required: [],
+      description: 'Get aggregate operation statistics (counts, error rates, timing).',
+    },
+    undo: {
+      required: ['spreadsheetId'],
+      description: 'Undo the last undoable operation on a spreadsheet.',
+    },
+    redo: {
+      required: ['spreadsheetId'],
+      description: 'Redo the last undone operation on a spreadsheet.',
+    },
+    revert_to: {
+      required: ['operationId'],
+      description: 'Revert spreadsheet to the state before a specific operation.',
+    },
+    clear: {
+      required: [],
+      optional: ['spreadsheetId'],
+      description: 'Clear operation history. Optionally scope to one spreadsheet.',
+    },
+    timeline: {
+      required: ['spreadsheetId'],
+      optional: ['range', 'since', 'until', 'limit'],
+      description: 'Chronological change timeline from Drive revisions with who/what/when.',
+    },
+    diff_revisions: {
+      required: ['spreadsheetId', 'revisionId1', 'revisionId2'],
+      optional: ['range'],
+      description: 'Cell-level diff between two Drive revisions.',
+    },
+    restore_cells: {
+      required: ['spreadsheetId', 'revisionId', 'cells'],
+      description:
+        'Surgically restore specific cells from a past revision. cells: array of A1 refs.',
+    },
+  },
+  sheets_dependencies: {
+    build: {
+      required: ['spreadsheetId'],
+      optional: ['sheetNames'],
+      description: 'Build the formula dependency graph for a spreadsheet.',
+    },
+    analyze_impact: {
+      required: ['spreadsheetId', 'cell'],
+      description: 'Analyze what would be affected if a cell changes.',
+    },
+    detect_cycles: {
+      required: ['spreadsheetId'],
+      description: 'Detect circular references in formulas.',
+    },
+    get_dependencies: {
+      required: ['spreadsheetId', 'cell'],
+      description: 'Get cells that this cell depends on (precedents).',
+    },
+    get_dependents: {
+      required: ['spreadsheetId', 'cell'],
+      description: 'Get cells that depend on this cell (dependents).',
+    },
+    get_stats: {
+      required: ['spreadsheetId'],
+      description: 'Get dependency graph statistics (depth, complexity, hotspots).',
+    },
+    export_dot: {
+      required: ['spreadsheetId'],
+      description: 'Export dependency graph as Graphviz DOT format.',
+    },
+    model_scenario: {
+      required: ['spreadsheetId', 'changes'],
+      optional: ['outputRange'],
+      description: '"What if" analysis — trace cascade of changing cell values through formulas.',
+    },
+    compare_scenarios: {
+      required: ['spreadsheetId', 'scenarios'],
+      optional: ['compareColumns'],
+      description: 'Compare multiple what-if scenarios side by side.',
+    },
+    create_scenario_sheet: {
+      required: ['spreadsheetId', 'scenario'],
+      optional: ['targetSheet', 'sourceSheetName'],
+      description: 'Materialize a scenario as a new sheet with highlighted changes.',
+    },
+  },
+  sheets_advanced: {
+    add_named_range: {
+      required: ['spreadsheetId', 'name', 'range'],
+      description: 'Create a named range (e.g. "Revenue" for Sheet1!B2:B100).',
+    },
+    update_named_range: {
+      required: ['spreadsheetId', 'namedRangeId'],
+      optional: ['name', 'range'],
+      description: 'Update a named range. Get namedRangeId from list_named_ranges.',
+    },
+    delete_named_range: {
+      required: ['spreadsheetId', 'namedRangeId'],
+      description: 'Delete a named range.',
+    },
+    list_named_ranges: {
+      required: ['spreadsheetId'],
+      optional: ['cursor', 'pageSize'],
+      description: 'List all named ranges with pagination.',
+    },
+    get_named_range: {
+      required: ['spreadsheetId', 'name'],
+      description: 'Get a named range by name.',
+    },
+    create_named_function: {
+      required: ['spreadsheetId', 'functionName', 'functionBody'],
+      optional: ['description', 'parameterDefinitions'],
+      description:
+        'Compatibility action only. Returns FEATURE_UNAVAILABLE because named functions are not exposed consistently via the live Sheets API.',
+    },
+    list_named_functions: {
+      required: ['spreadsheetId'],
+      optional: ['cursor', 'pageSize'],
+      description:
+        'Compatibility action only. Returns FEATURE_UNAVAILABLE because named functions are not exposed consistently via the live Sheets API.',
+    },
+    get_named_function: {
+      required: ['spreadsheetId', 'functionName'],
+      description:
+        'Compatibility action only. Returns FEATURE_UNAVAILABLE because named functions are not exposed consistently via the live Sheets API.',
+    },
+    update_named_function: {
+      required: ['spreadsheetId', 'functionName'],
+      optional: ['newFunctionName', 'functionBody', 'description', 'parameterDefinitions'],
+      description:
+        'Compatibility action only. Returns FEATURE_UNAVAILABLE because named functions are not exposed consistently via the live Sheets API.',
+    },
+    delete_named_function: {
+      required: ['spreadsheetId', 'functionName'],
+      description:
+        'Compatibility action only. Returns FEATURE_UNAVAILABLE because named functions are not exposed consistently via the live Sheets API.',
+    },
+    add_protected_range: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['description', 'warningOnly', 'editors'],
+      description: 'Protect a range from editing. editors: list of allowed email addresses.',
+    },
+    update_protected_range: {
+      required: ['spreadsheetId', 'protectedRangeId'],
+      optional: ['range', 'description', 'warningOnly', 'editors'],
+      description: 'Update a protected range.',
+    },
+    delete_protected_range: {
+      required: ['spreadsheetId', 'protectedRangeId'],
+      description: 'Remove protection from a range.',
+    },
+    list_protected_ranges: {
+      required: ['spreadsheetId'],
+      optional: ['sheetId', 'cursor', 'pageSize'],
+      description: 'List protected ranges with optional sheet filter.',
+    },
+    set_metadata: {
+      required: ['spreadsheetId', 'metadataKey', 'metadataValue'],
+      optional: ['visibility', 'location'],
+      description: 'Set developer metadata (key-value pair on spreadsheet, sheet, or range).',
+    },
+    get_metadata: {
+      required: ['spreadsheetId'],
+      optional: ['metadataId', 'metadataKey'],
+      description: 'Get developer metadata by ID or key.',
+    },
+    delete_metadata: {
+      required: ['spreadsheetId', 'metadataId'],
+      description: 'Delete developer metadata by ID.',
+    },
+    add_banding: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['rowProperties', 'columnProperties'],
+      description: 'Apply alternating row/column color banding.',
+    },
+    update_banding: {
+      required: ['spreadsheetId', 'bandedRangeId'],
+      optional: ['rowProperties', 'columnProperties'],
+      description: 'Update banding colors.',
+    },
+    delete_banding: {
+      required: ['spreadsheetId', 'bandedRangeId'],
+      description: 'Remove banding from a range.',
+    },
+    list_banding: {
+      required: ['spreadsheetId'],
+      optional: ['sheetId', 'cursor', 'pageSize'],
+      description: 'List banded ranges.',
+    },
+    create_table: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['tableName', 'hasHeaders', 'headerRowCount'],
+      description: 'Create a structured table from a range.',
+    },
+    delete_table: {
+      required: ['spreadsheetId', 'tableId'],
+      description: 'Delete a table.',
+    },
+    list_tables: {
+      required: ['spreadsheetId'],
+      optional: ['cursor', 'pageSize'],
+      description: 'List all tables.',
+    },
+    update_table: {
+      required: ['spreadsheetId', 'tableId'],
+      optional: ['range'],
+      description: 'Update table range.',
+    },
+    rename_table_column: {
+      required: ['spreadsheetId', 'tableId', 'columnIndex', 'newName'],
+      description: 'Rename a table column header.',
+    },
+    set_table_column_properties: {
+      required: ['spreadsheetId', 'tableId', 'columnIndex'],
+      optional: ['columnType', 'dropdownValues', 'dropdownRange'],
+      description: 'Set table column type and dropdown properties.',
+    },
+    add_person_chip: {
+      required: ['spreadsheetId', 'range', 'email'],
+      optional: ['displayFormat'],
+      description: 'Insert a person smart chip by email address.',
+    },
+    add_drive_chip: {
+      required: ['spreadsheetId', 'range', 'fileId'],
+      optional: ['displayText'],
+      description: 'Insert a Drive file smart chip.',
+    },
+    add_rich_link_chip: {
+      required: ['spreadsheetId', 'range', 'uri'],
+      optional: ['displayText'],
+      description: 'Insert a rich link smart chip.',
+    },
+    list_chips: {
+      required: ['spreadsheetId'],
+      optional: ['range', 'sheetId', 'chipType', 'cursor', 'pageSize'],
+      description: 'List smart chips with optional type filter.',
+    },
+  },
+  sheets_visualize: {
+    chart_create: {
+      required: ['spreadsheetId', 'sheetId', 'chartType', 'data', 'position'],
+      optional: ['options'],
+      description: 'Create a chart. chartType: LINE, BAR, COLUMN, PIE, SCATTER, AREA, COMBO, etc.',
+    },
+    suggest_chart: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['maxSuggestions'],
+      description: 'AI-powered chart type suggestions based on data shape.',
+    },
+    chart_update: {
+      required: ['spreadsheetId', 'chartId'],
+      optional: ['chartType', 'data', 'position', 'options'],
+      description: 'Update chart properties, data range, or position.',
+    },
+    chart_delete: {
+      required: ['spreadsheetId', 'chartId'],
+      description: 'Delete a chart.',
+    },
+    chart_list: {
+      required: ['spreadsheetId'],
+      optional: ['sheetId'],
+      description: 'List all charts in the spreadsheet or a specific sheet.',
+    },
+    chart_get: {
+      required: ['spreadsheetId', 'chartId'],
+      description: 'Get chart details by ID.',
+    },
+    chart_move: {
+      required: ['spreadsheetId', 'chartId', 'position'],
+      description: 'Move a chart to a new position.',
+    },
+    chart_resize: {
+      required: ['spreadsheetId', 'chartId', 'width', 'height'],
+      description: 'Resize a chart in pixels.',
+    },
+    chart_update_data_range: {
+      required: ['spreadsheetId', 'chartId', 'data'],
+      description: 'Update only the data range of a chart.',
+    },
+    chart_add_trendline: {
+      required: ['spreadsheetId', 'chartId', 'trendline'],
+      optional: ['seriesIndex'],
+      description: 'Add a trendline to a chart series.',
+    },
+    chart_remove_trendline: {
+      required: ['spreadsheetId', 'chartId'],
+      optional: ['seriesIndex'],
+      description: 'Remove a trendline from a chart series.',
+    },
+    pivot_create: {
+      required: ['spreadsheetId', 'sourceRange', 'values'],
+      optional: ['rows', 'columns', 'filters', 'destinationSheetId', 'destinationCell'],
+      description: 'Create a pivot table from a data range.',
+    },
+    suggest_pivot: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['maxSuggestions'],
+      description: 'AI-powered pivot table configuration suggestions.',
+    },
+    pivot_update: {
+      required: ['spreadsheetId', 'sheetId'],
+      optional: ['rows', 'columns', 'values', 'filters'],
+      description: 'Update pivot table configuration.',
+    },
+    pivot_delete: {
+      required: ['spreadsheetId', 'sheetId'],
+      description: 'Delete a pivot table.',
+    },
+    pivot_list: {
+      required: ['spreadsheetId'],
+      description: 'List all pivot tables.',
+    },
+    pivot_get: {
+      required: ['spreadsheetId', 'sheetId'],
+      description: 'Get pivot table details.',
+    },
+    pivot_refresh: {
+      required: ['spreadsheetId', 'sheetId'],
+      description: 'Refresh a pivot table (recalculate from source data).',
+    },
+  },
+  sheets_composite: {
+    import_csv: {
+      required: ['spreadsheetId', 'csvData'],
+      optional: ['sheet', 'delimiter', 'hasHeader', 'mode', 'newSheetName'],
+      description: 'Import CSV data. mode: replace (default), append, or new_sheet.',
+    },
+    smart_append: {
+      required: ['spreadsheetId', 'data', 'sheet'],
+      description: 'Append data matching existing column headers (auto-maps columns).',
+    },
+    bulk_update: {
+      required: ['spreadsheetId', 'keyColumn', 'sheet', 'updates'],
+      description: 'Update rows by matching a key column. updates: array of row objects.',
+    },
+    deduplicate: {
+      required: ['spreadsheetId', 'keyColumns', 'sheet'],
+      optional: ['keep'],
+      description: 'Remove duplicate rows. keep: first (default) or last.',
+    },
+    export_xlsx: {
+      required: ['spreadsheetId'],
+      description: 'Export spreadsheet as XLSX (Excel) file.',
+    },
+    import_xlsx: {
+      required: ['fileContent'],
+      optional: ['title', 'destinationFolderId'],
+      description: 'Import an XLSX file as a new spreadsheet. fileContent is base64.',
+    },
+    get_form_responses: {
+      required: ['spreadsheetId'],
+      description: 'Read Google Forms responses linked to this spreadsheet.',
+    },
+    setup_sheet: {
+      required: ['spreadsheetId'],
+      optional: ['sheetName', 'headers', 'formatting', 'validations', 'sampleData'],
+      description:
+        'Create and configure a new sheet in one operation (headers, formatting, validation).',
+    },
+    import_and_format: {
+      required: ['spreadsheetId', 'data'],
+      description: 'Import data with auto-detection of types and format application.',
+    },
+    clone_structure: {
+      required: ['spreadsheetId'],
+      optional: ['targetSpreadsheetId', 'includeFormatting', 'includeValidation'],
+      description: 'Clone sheet structure (headers, formatting, validation) without data.',
+    },
+    export_large_dataset: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['format', 'chunkSize'],
+      description: 'Stream-export a large range as CSV or JSON.',
+    },
+    audit_sheet: {
+      required: ['spreadsheetId'],
+      optional: ['sheetId', 'sheetName'],
+      description: 'Run a comprehensive audit (formulas, formatting, data quality).',
+    },
+    publish_report: {
+      required: ['spreadsheetId'],
+      optional: ['range', 'format', 'template'],
+      description: 'Export a sheet/range as a formatted report (HTML, PDF, etc.).',
+    },
+    data_pipeline: {
+      required: ['spreadsheetId', 'steps'],
+      description: 'Execute a multi-step data pipeline (read → transform → write).',
+    },
+    instantiate_template: {
+      required: ['templateId'],
+      optional: ['title', 'variables', 'destinationFolderId'],
+      description: 'Create a spreadsheet from a saved template with variable substitution.',
+    },
+    migrate_spreadsheet: {
+      required: ['spreadsheetId', 'targetSpreadsheetId'],
+      optional: ['sheets', 'includeFormatting', 'includeFormulas'],
+      description: 'Migrate sheets between spreadsheets with structure preservation.',
+    },
+    generate_sheet: {
+      required: ['description'],
+      optional: ['context', 'style', 'spreadsheetId', 'sheetName'],
+      description: 'AI-generate a structured spreadsheet from a natural language description.',
+    },
+    generate_template: {
+      required: ['description'],
+      optional: ['parameterize'],
+      description: 'AI-generate a reusable template definition from a description.',
+    },
+    preview_generation: {
+      required: ['description'],
+      description: 'Dry-run: preview proposed sheet structure without creating it.',
+    },
+    batch_operations: {
+      required: ['spreadsheetId', 'operations'],
+      optional: ['stopOnError'],
+      description: 'Execute multiple ServalSheets actions in a single tool call.',
+    },
+    build_dashboard: {
+      required: ['spreadsheetId'],
+      optional: ['kpiRows', 'charts', 'slicers', 'layout'],
+      description: 'Build a dashboard sheet with KPIs, charts, and slicers.',
+    },
+  },
+  sheets_bigquery: {
+    connect: {
+      required: ['spreadsheetId', 'spec'],
+      optional: ['sheetId', 'sheetName'],
+      description:
+        'Connect a BigQuery data source to a sheet. spec: { projectId, datasetId, tableId }.',
+    },
+    connect_looker: {
+      required: ['spreadsheetId', 'spec'],
+      optional: ['sheetId', 'sheetName'],
+      description: 'Connect a Looker data source to a sheet.',
+    },
+    disconnect: {
+      required: ['spreadsheetId', 'dataSourceId'],
+      description: 'Disconnect a data source from a sheet.',
+    },
+    list_connections: {
+      required: ['spreadsheetId'],
+      description: 'List all BigQuery/Looker data source connections.',
+    },
+    get_connection: {
+      required: ['spreadsheetId', 'dataSourceId'],
+      description: 'Get connection details by data source ID.',
+    },
+    query: {
+      required: ['spreadsheetId', 'projectId', 'query'],
+      optional: ['dataSourceId', 'sheetId', 'maxResults', 'timeoutMs', 'dryRun', 'location'],
+      description: 'Run a BigQuery SQL query and write results to a sheet.',
+    },
+    preview: {
+      required: ['projectId', 'query'],
+      optional: ['maxRows', 'estimateCost', 'timeoutMs', 'dryRun', 'location'],
+      description: 'Preview a BigQuery query (results + cost estimate). No spreadsheet needed.',
+    },
+    refresh: {
+      required: ['spreadsheetId', 'dataSourceId'],
+      optional: ['force'],
+      description: 'Refresh a connected data source.',
+    },
+    cancel_refresh: {
+      required: ['spreadsheetId', 'dataSourceId'],
+      description: 'Cancel an in-progress data source refresh.',
+    },
+    list_datasets: {
+      required: ['projectId'],
+      optional: ['maxResults'],
+      description: 'List BigQuery datasets in a GCP project.',
+    },
+    list_tables: {
+      required: ['projectId', 'datasetId'],
+      optional: ['maxResults'],
+      description: 'List tables in a BigQuery dataset.',
+    },
+    get_table_schema: {
+      required: ['projectId', 'datasetId', 'tableId'],
+      description: 'Get the schema (columns, types) of a BigQuery table.',
+    },
+    export_to_bigquery: {
+      required: ['spreadsheetId', 'range', 'destination'],
+      optional: ['writeDisposition', 'headerRows', 'autoDetectSchema'],
+      description:
+        'Export sheet data to a BigQuery table. destination: { projectId, datasetId, tableId }.',
+    },
+    import_from_bigquery: {
+      required: ['spreadsheetId', 'projectId', 'query'],
+      optional: ['sheetId', 'sheetName', 'startCell', 'includeHeaders', 'maxResults'],
+      description: 'Import BigQuery query results into a sheet.',
+    },
+    create_scheduled_query: {
+      required: ['projectId', 'query', 'displayName', 'schedule'],
+      optional: ['destinationDatasetId', 'destinationTableId', 'location'],
+      description: 'Create a scheduled BigQuery query (e.g. "every 24 hours").',
+    },
+    list_scheduled_queries: {
+      required: ['projectId'],
+      optional: ['location', 'maxResults'],
+      description: 'List scheduled queries in a project.',
+    },
+    delete_scheduled_query: {
+      required: ['transferConfigName'],
+      description: 'Delete a scheduled query by transfer config name.',
     },
   },
 };
@@ -506,7 +1782,7 @@ function pickParamHints(
     }
   }
 
-  return Object.keys(params).length > 0 ? params : undefined;
+  return Object.keys(params).length > 0 || paramNames.length === 0 ? params : undefined;
 }
 
 function applyActionHintOverrides(

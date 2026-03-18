@@ -34,8 +34,8 @@ describe('AST Schema Parser', () => {
       const schemaPath = path.join(PROJECT_ROOT, 'src/schemas/collaborate.ts');
       const actions = extractSchemaActions(schemaPath);
 
-      // Collaborate has 40 actions (35 original + 2 access_proposal + 3 label_*)
-      expect(actions.length).toBe(40);
+      // Collaborate has 41 actions (40 previous + version_snapshot_status)
+      expect(actions.length).toBe(41);
       expect(actions).toContain('share_add');
       expect(actions).toContain('comment_add');
       expect(actions).toContain('version_list_revisions');

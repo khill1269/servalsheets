@@ -429,6 +429,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             query: string;
             sheetId?: number;
             conversationId?: string;
+            range?: unknown;
           };
           response = await handleQueryNaturalLanguageAction(nlInput, {
             checkSamplingCapability: () => this.checkSamplingCapability(),
@@ -875,8 +876,8 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
     let formulaCount = 0;
     let maxDepthSeen = 0;
 
-    // Track column formulas for consistency check: col index → Set of normalized formula templates
-    const colFormulas = new Map<number, Set<string>>();
+    // Track column formulas for consistency check: col index → normalized template → count
+    const colFormulas = new Map<number, Map<string, number>>();
 
     for (const sheet of spreadsheet.sheets ?? []) {
       const sheetTitle = sheet.properties?.title ?? 'Sheet1';
@@ -947,22 +948,36 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             if (checkConsistency) {
               const colIdx = startCol + ci;
               const normalized = formula.replace(/\d+/g, 'N');
-              if (!colFormulas.has(colIdx)) colFormulas.set(colIdx, new Set());
-              colFormulas.get(colIdx)!.add(normalized);
+              const templateCounts = colFormulas.get(colIdx) ?? new Map<string, number>();
+              templateCounts.set(normalized, (templateCounts.get(normalized) ?? 0) + 1);
+              colFormulas.set(colIdx, templateCounts);
             }
           }
         }
       }
     }
 
-    // Consistency issues: columns with more than one distinct formula template
+    // Consistency issues: warn only when a column has a dominant pattern plus a few outliers.
+    // Highly heterogeneous columns are often intentional mixed-model sheets, so suppress them.
     if (checkConsistency) {
-      for (const [colIdx, templates] of colFormulas) {
-        if (templates.size > 1) {
-          const colLetter = String.fromCharCode(65 + colIdx);
+      for (const [colIdx, templateCounts] of colFormulas) {
+        const templateInstances = [...templateCounts.values()];
+        const totalFormulaRows = templateInstances.reduce((sum, count) => sum + count, 0);
+        const dominantCount = Math.max(...templateInstances);
+        const dominantRatio = dominantCount / totalFormulaRows;
+        const highlyHeterogeneous = templateCounts.size > Math.ceil(totalFormulaRows / 2);
+
+        if (
+          templateCounts.size > 1 &&
+          totalFormulaRows >= 4 &&
+          dominantCount >= 3 &&
+          dominantRatio >= 0.6 &&
+          !highlyHeterogeneous
+        ) {
+          const colLetter = this.columnToLetter(colIdx);
           issues.push({
             cell: `col:${colLetter}`,
-            issue: `Column ${colLetter} has ${templates.size} distinct formula patterns — may indicate inconsistency`,
+            issue: `Column ${colLetter} has ${templateCounts.size} formula patterns, but ${dominantCount}/${totalFormulaRows} rows share one dominant pattern — check for outliers`,
             severity: 'warning',
           });
         }

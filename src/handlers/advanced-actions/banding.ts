@@ -7,6 +7,7 @@ import type { GridRangeInput } from '../../utils/google-sheets-helpers.js';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
 import { confirmDestructiveAction } from '../../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import { recordBandingId } from '../../mcp/completions.js';
 
 type AdvancedSuccess = Extract<AdvancedResponse, { success: true }>;
 
@@ -236,6 +237,10 @@ export async function handleListBandingAction(
     req.cursor,
     req.pageSize ?? 100
   );
+  for (const b of page) {
+    recordBandingId(b.bandedRangeId);
+  }
+
   return deps.success('list_banding', {
     bandedRanges: page,
     nextCursor,

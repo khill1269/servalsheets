@@ -43,6 +43,7 @@ describe('ConnectorsHandler', () => {
     expect(result.response.success).toBe(true);
     expect(result.response.action).toBe('list_connectors');
     expect(result.response.connectors).toHaveLength(1);
+    expect(result.response.connectors?.[0]).toHaveProperty('nextStep');
   });
 
   it('routes configure, query, and batch_query', async () => {
@@ -93,6 +94,8 @@ describe('ConnectorsHandler', () => {
     );
     expect(batchSpy).toHaveBeenCalledTimes(1);
     expect(configureResult.response.action).toBe('configure');
+    expect(configureResult.response).toHaveProperty('verified', true);
+    expect(configureResult.response).toHaveProperty('nextStep');
     expect(queryResult.response.action).toBe('query');
     expect(batchResult.response.action).toBe('batch_query');
   });
@@ -157,7 +160,7 @@ describe('ConnectorsHandler', () => {
     expect(shutdown).not.toHaveBeenCalled();
   });
 
-  it('returns INVALID_PARAMS when configuring an API-key connector without credentials or elicitation', async () => {
+  it('returns ELICITATION_UNAVAILABLE when configuring an API-key connector without credentials or elicitation', async () => {
     vi.spyOn(connectorManager, 'listConnectors').mockReturnValue({
       connectors: [
         {
@@ -181,7 +184,7 @@ describe('ConnectorsHandler', () => {
     expect(result.response.success).toBe(false);
     expect(configureSpy).not.toHaveBeenCalled();
     if (!result.response.success) {
-      expect(result.response.error.code).toBe('INVALID_PARAMS');
+      expect(result.response.error.code).toBe('ELICITATION_UNAVAILABLE');
       expect(result.response.error.message).toContain('requires credentials.apiKey');
     }
   });
@@ -279,6 +282,7 @@ describe('ConnectorsHandler', () => {
     expect(schemaSpy).toHaveBeenCalledWith('finnhub', 'stock/quote');
     expect(transformResult.response.action).toBe('transform');
     expect(statusResult.response.action).toBe('status');
+    expect(statusResult.response).toHaveProperty('nextStep');
     expect(discoverResult.response.action).toBe('discover');
     expect(discoverSchemaResult.response.action).toBe('discover');
   });

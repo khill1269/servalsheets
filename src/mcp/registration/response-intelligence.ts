@@ -167,9 +167,23 @@ export function applyResponseIntelligence(
 
     const errorCode = getOptionalString(error, 'code') ?? '';
     const errorMessage = getOptionalString(error, 'message') ?? '';
-    const fix = suggestFix(errorCode, errorMessage, options.toolName, undefined, undefined);
+    const fix = suggestFix(
+      errorCode,
+      errorMessage,
+      options.toolName,
+      options.actionName,
+      options.params
+    );
     if (fix) {
-      error['suggestedFix'] = fix;
+      error['suggestedFix'] = fix.explanation;
+      // Wire structured fixableVia so LLMs can execute the fix directly
+      if (!error['fixableVia']) {
+        error['fixableVia'] = {
+          tool: fix.tool,
+          action: fix.action,
+          params: fix.params,
+        };
+      }
     }
 
     // Surface learned error patterns if the learner has sufficient data
@@ -221,6 +235,8 @@ export function applyResponseIntelligence(
   const recommendations = getDataAwareSuggestions(options.toolName, actionName, responseRecord, {
     ...(responseValues ? { responseValues } : {}),
     ...(confidenceGaps.length > 0 ? { confidenceGaps } : {}),
+    spreadsheetId: options.spreadsheetId,
+    range: getOptionalString(responseRecord, 'range') ?? undefined,
   });
 
   if (recommendations.length > 0) {
@@ -276,9 +292,23 @@ export function applyResponseIntelligence(
   ) {
     const writtenValues = responseValues ?? ([] as ResponseCellValue[][]);
     const hints = generateWriteHints(writtenValues);
-    if (hints) {
-      responseRecord['_hints'] = hints;
-    }
+    const writeRange =
+      getOptionalString(responseRecord, 'updatedRange') ??
+      getOptionalString(responseRecord, 'range') ??
+      '';
+    const verifyHints: Record<string, unknown> = {
+      ...(hints ?? {}),
+      verifyWrite:
+        writeRange && options.spreadsheetId
+          ? {
+              tool: 'sheets_data',
+              action: 'read',
+              params: { spreadsheetId: options.spreadsheetId, range: writeRange },
+              reason: 'Read back written range to verify data quality',
+            }
+          : undefined,
+    };
+    responseRecord['_hints'] = verifyHints;
   } else if (options.toolName === 'sheets_data' && actionName === 'append') {
     const appendedValues = responseValues ?? ([] as ResponseCellValue[][]);
     const rowCount = appendedValues.length;

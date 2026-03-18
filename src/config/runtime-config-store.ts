@@ -10,7 +10,8 @@
  * env-var reads (llm-fallback.ts, webhook-manager.ts, etc.) continue to work
  * without modification.
  *
- * Store: .serval/runtime-keys.json
+ * Store: $SERVAL_RUNTIME_CONFIG_PATH or $DATA_DIR/.serval/runtime-keys.json
+ *        (falls back to .serval/runtime-keys.json under the current working directory)
  * Encryption: CONNECTOR_ENCRYPTION_KEY || ENCRYPTION_KEY (falls back gracefully)
  */
 
@@ -23,7 +24,27 @@ import { logger } from '../utils/logger.js';
 // Path resolution
 // ---------------------------------------------------------------------------
 
-const RUNTIME_CONFIG_PATH = path.join(process.cwd(), '.serval', 'runtime-keys.json');
+function resolveRuntimeConfigPath(): string {
+  const explicitPath = process.env['SERVAL_RUNTIME_CONFIG_PATH'];
+  if (explicitPath) {
+    return path.resolve(explicitPath);
+  }
+
+  const dataDir = process.env['DATA_DIR'];
+  if (dataDir && dataDir.trim().length > 0) {
+    return path.join(path.resolve(dataDir), '.serval', 'runtime-keys.json');
+  }
+
+  return path.join(process.cwd(), '.serval', 'runtime-keys.json');
+}
+
+function shouldAutoApplyRuntimeConfig(): boolean {
+  if (process.env['SERVAL_DISABLE_RUNTIME_ENV_AUTOLOAD'] === 'true') {
+    return false;
+  }
+
+  return process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true';
+}
 
 // ---------------------------------------------------------------------------
 // Encryption (AES-256-GCM + scrypt, per-record random salt)
@@ -115,8 +136,12 @@ function decryptRecord(content: string): string {
 export class RuntimeConfigStore {
   private configPath: string;
 
-  constructor(configPath: string = RUNTIME_CONFIG_PATH) {
+  constructor(configPath: string = resolveRuntimeConfigPath()) {
     this.configPath = configPath;
+  }
+
+  getPath(): string {
+    return this.configPath;
   }
 
   /** Persist a single key-value pair. Merges with existing entries. */
@@ -164,9 +189,10 @@ export class RuntimeConfigStore {
         }
       }
       if (applied.length > 0) {
-        logger.info('Runtime config applied from .serval/runtime-keys.json', {
+        logger.info('Runtime config applied from runtime config store', {
           keys: applied,
           count: applied.length,
+          path: this.configPath,
         });
       }
     } catch (err) {
@@ -203,9 +229,11 @@ export class RuntimeConfigStore {
 // Singleton + auto-apply on module load
 // ---------------------------------------------------------------------------
 
-export const runtimeConfigStore = new RuntimeConfigStore();
+export const runtimeConfigStore = new RuntimeConfigStore(resolveRuntimeConfigPath());
 
 // Apply persisted keys to process.env immediately when this module is imported.
 // This ensures that by the time any handler reads process.env['ANTHROPIC_API_KEY'],
 // REDIS_URL, or MCP_FEDERATION_SERVERS, the runtime-saved values are already present.
-void runtimeConfigStore.applyToEnv();
+if (shouldAutoApplyRuntimeConfig()) {
+  void runtimeConfigStore.applyToEnv();
+}

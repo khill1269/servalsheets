@@ -406,7 +406,7 @@ describe('CollaborateHandler', () => {
   });
 
   describe('version_create_snapshot', () => {
-    it('should create a snapshot', async () => {
+    it('should start an async snapshot task', async () => {
       const result = await handler.handle({
         action: 'version_create_snapshot',
         spreadsheetId: 'test-spreadsheet-id',
@@ -415,6 +415,38 @@ describe('CollaborateHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.taskId).toMatch(/^snapshot_/);
+        expect(result.response.taskStatus).toBe('working');
+      }
+    });
+
+    it('should report snapshot task completion via version_snapshot_status', async () => {
+      const started = await handler.handle({
+        action: 'version_create_snapshot',
+        spreadsheetId: 'test-spreadsheet-id',
+        name: 'Before major changes',
+      });
+
+      expect(started.response.success).toBe(true);
+      if (!started.response.success) {
+        return;
+      }
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      const result = await handler.handle({
+        action: 'version_snapshot_status',
+        spreadsheetId: 'test-spreadsheet-id',
+        taskId: started.response.taskId!,
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.taskStatus).toBe('completed');
+        expect(result.response.snapshot?.id).toBe('snapshot-id');
+      }
     });
   });
 

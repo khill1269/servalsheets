@@ -16,11 +16,18 @@
 import { createHash } from 'crypto';
 import { readFileSync, existsSync } from 'fs';
 import { logger } from '../utils/logger.js';
+import { TOOL_DESCRIPTIONS } from '../schemas/descriptions.js';
+import { TOOL_DESCRIPTIONS_MINIMAL } from '../schemas/descriptions-minimal.js';
 import { resolveToolHashBaselinePath } from '../utils/runtime-paths.js';
 
 export interface ToolHashEntry {
   /** SHA-256 hex digest of `name + '\x00' + description` */
   sha256: string;
+  /**
+   * Additional accepted SHA-256 digests for audited runtime variants of the same tool.
+   * This keeps integrity verification stable across full vs deferred/minimal descriptions.
+   */
+  allowedSha256?: string[];
   /** ISO timestamp when this hash was last updated in the baseline */
   updatedAt: string;
 }
@@ -54,6 +61,22 @@ export function hashTool(name: string, description: string): string {
   return createHash('sha256').update(`${name}\x00${description}`).digest('hex');
 }
 
+function getCanonicalDescriptionVariants(tool: { name: string; description: string }): string[] {
+  const variants = [
+    TOOL_DESCRIPTIONS[tool.name],
+    TOOL_DESCRIPTIONS_MINIMAL[tool.name],
+    tool.description,
+  ];
+
+  return [...new Set(variants.filter((value): value is string => typeof value === 'string'))];
+}
+
+function getAllowedHashesForTool(tool: { name: string; description: string }): string[] {
+  return getCanonicalDescriptionVariants(tool).map((description) =>
+    hashTool(tool.name, description)
+  );
+}
+
 /**
  * Generate a fresh hash manifest from the currently loaded tool definitions.
  */
@@ -63,8 +86,10 @@ export async function generateToolHashManifest(version = 'unknown'): Promise<Too
 
   const entries: Record<string, ToolHashEntry> = {};
   for (const tool of tools) {
+    const allowedSha256 = [...new Set(getAllowedHashesForTool(tool))];
     entries[tool.name] = {
-      sha256: hashTool(tool.name, tool.description),
+      sha256: allowedSha256[0] ?? hashTool(tool.name, tool.description),
+      ...(allowedSha256.length > 1 ? { allowedSha256 } : {}),
       updatedAt: now,
     };
   }
@@ -126,7 +151,8 @@ export async function verifyToolIntegrity(): Promise<void> {
       continue;
     }
 
-    if (entry.sha256 !== actual) {
+    const allowedHashes = new Set([entry.sha256, ...(entry.allowedSha256 ?? [])]);
+    if (!allowedHashes.has(actual)) {
       violations.push({ tool: tool.name, expected: entry.sha256, actual });
     }
   }

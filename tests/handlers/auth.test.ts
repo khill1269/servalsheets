@@ -179,6 +179,8 @@ describe('AuthHandler', () => {
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authenticated', true);
       expect(result.response).toHaveProperty('authType', 'service_account');
+      expect(result.response).toHaveProperty('readiness.googleAuth.authenticated', true);
+      expect(result.response).toHaveProperty('recommendedNextAction');
 
       const parseResult = SheetsAuthOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
@@ -205,6 +207,8 @@ describe('AuthHandler', () => {
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authenticated', false);
       expect(result.response.message).toContain('Not authenticated');
+      expect(result.response).toHaveProperty('blockingIssues.0.code', 'AUTH_REQUIRED');
+      expect(result.response).toHaveProperty('readiness.googleAuth.configured', true);
     });
 
     it('should return unconfigured when no OAuth credentials', async () => {

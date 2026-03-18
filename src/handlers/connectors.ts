@@ -14,6 +14,7 @@
 
 import { ErrorCodes } from './error-codes.js';
 import { logger } from '../utils/logger.js';
+import { recordConnectorId } from '../mcp/completions.js';
 import { connectorManager } from '../resources/connectors-runtime.js';
 import type { SheetsConnectorsInput, SheetsConnectorsOutput } from '../schemas/connectors.js';
 import type { SamplingServer } from '../mcp/sampling.js';
@@ -27,26 +28,53 @@ type ConnectorCatalogEntry = ReturnType<
   typeof connectorManager.listConnectors
 >['connectors'][number];
 
-const CONNECTOR_SETUP_HINTS: Record<string, { signupUrl?: string; hint?: string }> = {
+interface ConnectorUxMetadata {
+  signupUrl?: string;
+  hint?: string;
+  recommendedUseCases: string[];
+  exampleQuery?: {
+    endpoint: string;
+    params?: Record<string, string | number | boolean>;
+  };
+}
+
+const CONNECTOR_SETUP_HINTS: Record<string, ConnectorUxMetadata> = {
   finnhub: {
     signupUrl: 'https://finnhub.io/register',
     hint: 'Free tier: stocks, earnings, and market news',
+    recommendedUseCases: ['Stock quotes', 'Earnings calendars', 'Market news'],
+    exampleQuery: {
+      endpoint: 'stock/quote',
+      params: { symbol: 'AAPL' },
+    },
   },
   fred: {
     signupUrl: 'https://fred.stlouisfed.org/docs/api/api_key.html',
     hint: 'Free economic indicators, interest rates, and macro data',
+    recommendedUseCases: ['Macro time series', 'Rates and inflation', 'Economic releases'],
+    exampleQuery: {
+      endpoint: 'series/observations',
+      params: { series_id: 'FEDFUNDS' },
+    },
   },
   alpha_vantage: {
     signupUrl: 'https://www.alphavantage.co/support/#api-key',
     hint: 'Free tier: stocks, forex, and crypto data',
+    recommendedUseCases: ['Daily market data', 'FX and crypto', 'Technical indicators'],
   },
   polygon: {
     signupUrl: 'https://polygon.io/dashboard/signup',
     hint: 'Real-time and historical market data',
+    recommendedUseCases: ['Market snapshots', 'Aggregated bars', 'Reference data'],
   },
   fmp: {
     signupUrl: 'https://financialmodelingprep.com/developer/docs',
     hint: 'Fundamentals, statements, and company metrics',
+    recommendedUseCases: ['Company fundamentals', 'Financial statements', 'Quotes'],
+    exampleQuery: {
+      endpoint: 'quote',
+      params: { symbol: 'AAPL' },
+    },
   },
 };
 
@@ -69,6 +97,39 @@ export class ConnectorsHandler {
     this.samplingServer = options?.samplingServer;
     this.sessionContext = options?.sessionContext;
     this.elicitationServer = options?.elicitationServer;
+  }
+
+  private createMeta(options: {
+    nextBestAction: string;
+    verificationSummary: string;
+    nextSteps?: string[];
+  }) {
+    return {
+      journeyStage: 'connector_setup' as const,
+      nextBestAction: options.nextBestAction,
+      verificationSummary: options.verificationSummary,
+      ...(options.nextSteps ? { nextSteps: options.nextSteps } : {}),
+    };
+  }
+
+  private getConnectorUx(connectorId: string): ConnectorUxMetadata {
+    return (
+      CONNECTOR_SETUP_HINTS[connectorId] ?? {
+        recommendedUseCases: ['Live external data import'],
+      }
+    );
+  }
+
+  private enrichConnector(connector: ConnectorCatalogEntry) {
+    const ux = this.getConnectorUx(connector.id);
+    return {
+      ...connector,
+      ...(ux.signupUrl ? { signupUrl: ux.signupUrl } : {}),
+      recommendedUseCases: ux.recommendedUseCases,
+      nextStep: connector.configured
+        ? `Run sheets_connectors action "status" with connectorId "${connector.id}" or make a first query.`
+        : `Run sheets_connectors action "configure" with connectorId "${connector.id}".`,
+    };
   }
 
   async handle(input: SheetsConnectorsInput): Promise<SheetsConnectorsOutput> {
@@ -143,7 +204,8 @@ export class ConnectorsHandler {
     action: SheetsConnectorsInput['request']['action'],
     code: (typeof ErrorCodes)[keyof typeof ErrorCodes],
     message: string,
-    suggestedFix?: string
+    suggestedFix?: string,
+    nextBestAction?: string
   ): SheetsConnectorsOutput {
     return {
       response: {
@@ -155,6 +217,16 @@ export class ConnectorsHandler {
           retryable: false,
           ...(suggestedFix ? { suggestedFix } : {}),
         },
+        ...(nextBestAction
+          ? {
+              _meta: this.createMeta({
+                nextBestAction,
+                verificationSummary:
+                  'Connector setup could not proceed because required input was missing.',
+                nextSteps: suggestedFix ? [suggestedFix] : undefined,
+              }),
+            }
+          : {}),
       },
     };
   }
@@ -338,12 +410,17 @@ export class ConnectorsHandler {
     }
 
     if (!connectorId) {
+      const nextBestAction =
+        'Run list_connectors first or retry configure with connectorId on an elicitation-capable client.';
       return {
         error: this.makeErrorResponse(
           'configure',
-          ErrorCodes.INVALID_PARAMS,
+          this.elicitationServer
+            ? ErrorCodes.OPERATION_CANCELLED
+            : ErrorCodes.ELICITATION_UNAVAILABLE,
           'Connector configuration needs a connectorId. On elicitation-capable MCP clients, the server can prompt for it; otherwise provide connectorId explicitly.',
-          'Call list_connectors to see valid connector IDs, then retry configure with connectorId and credentials.'
+          'Call list_connectors to see valid connector IDs, then retry configure with connectorId and credentials.',
+          nextBestAction
         ),
       };
     }
@@ -385,13 +462,16 @@ export class ConnectorsHandler {
         return {
           error: this.makeErrorResponse(
             'configure',
-            this.elicitationServer ? ErrorCodes.OPERATION_CANCELLED : ErrorCodes.INVALID_PARAMS,
+            this.elicitationServer
+              ? ErrorCodes.OPERATION_CANCELLED
+              : ErrorCodes.ELICITATION_UNAVAILABLE,
             this.elicitationServer
               ? `Connector configuration for "${connector.name}" was cancelled before an API key was provided.`
               : `Connector "${connector.name}" requires credentials.apiKey.`,
             this.elicitationServer
               ? 'Retry configure with credentials.apiKey, or accept the MCP elicitation prompt so the server can open a local setup page for the key.'
-              : 'Retry configure with credentials.apiKey, or use an elicitation-capable MCP client so the server can prompt for it.'
+              : 'Retry configure with credentials.apiKey, or use an elicitation-capable MCP client so the server can prompt for it.',
+            `Provide an API key for "${connector.name}" and retry configure.`
           ),
         };
       }
@@ -416,13 +496,16 @@ export class ConnectorsHandler {
       return {
         error: this.makeErrorResponse(
           'configure',
-          this.elicitationServer ? ErrorCodes.OPERATION_CANCELLED : ErrorCodes.INVALID_PARAMS,
+          this.elicitationServer
+            ? ErrorCodes.OPERATION_CANCELLED
+            : ErrorCodes.ELICITATION_UNAVAILABLE,
           this.elicitationServer
             ? `Connector configuration for "${connector.name}" was cancelled before OAuth credentials were provided.`
             : `Connector "${connector.name}" requires credentials.oauth with clientId and clientSecret.`,
           this.elicitationServer
             ? 'Retry configure with credentials.oauth, or accept the MCP elicitation prompt so the server can collect the OAuth fields.'
-            : 'Retry configure with credentials.oauth, or use an elicitation-capable MCP client so the server can prompt for the fields.'
+            : 'Retry configure with credentials.oauth, or use an elicitation-capable MCP client so the server can prompt for the fields.',
+          `Provide OAuth credentials for "${connector.name}" and retry configure.`
         ),
       };
     }
@@ -438,11 +521,34 @@ export class ConnectorsHandler {
 
   private handleListConnectors(): SheetsConnectorsOutput {
     const result = connectorManager.listConnectors();
+    const enrichedConnectors = result.connectors.map((connector) =>
+      this.enrichConnector(connector)
+    );
+    // Record connector IDs for MCP completion suggestions
+    for (const c of enrichedConnectors) {
+      recordConnectorId(c.id);
+    }
+    const configuredCount = enrichedConnectors.filter((connector) => connector.configured).length;
     return {
       response: {
         success: true,
         action: 'list_connectors',
-        connectors: result.connectors,
+        message:
+          configuredCount > 0
+            ? `${configuredCount} connector(s) already configured. Pick one to verify or query.`
+            : 'No connectors are configured yet. Pick one provider and run configure.',
+        connectors: enrichedConnectors,
+        nextStep:
+          configuredCount > 0
+            ? 'Run sheets_connectors action "status" on a configured connector, or make a first query.'
+            : 'Run sheets_connectors action "configure" for the connector you want to use first.',
+        _meta: this.createMeta({
+          nextBestAction:
+            configuredCount > 0
+              ? 'Check a configured connector with sheets_connectors.status.'
+              : 'Configure one connector with sheets_connectors.configure.',
+          verificationSummary: `${configuredCount}/${enrichedConnectors.length} connector(s) are configured.`,
+        }),
       },
     };
   }
@@ -465,11 +571,48 @@ export class ConnectorsHandler {
         },
       };
     }
+    const status = await connectorManager.status(resolved.connector.id).catch(() => null);
+    const ux = this.getConnectorUx(resolved.connector.id);
+    const verified = status?.health?.healthy ?? true;
     return {
       response: {
         success: true as const,
         action: 'configure',
         message: result.message,
+        id: resolved.connector.id,
+        name: resolved.connector.name,
+        configured: true,
+        verified,
+        authType: resolved.connector.authType,
+        ...(ux.signupUrl ? { signupUrl: ux.signupUrl } : {}),
+        recommendedUseCases: ux.recommendedUseCases,
+        nextStep: verified
+          ? `Run a first query against "${resolved.connector.id}" to confirm the end-to-end flow.`
+          : `Run sheets_connectors action "status" for "${resolved.connector.id}" to inspect connector health.`,
+        ...(ux.exampleQuery
+          ? {
+              exampleQuery: {
+                connectorId: resolved.connector.id,
+                endpoint: ux.exampleQuery.endpoint,
+                ...(ux.exampleQuery.params ? { params: ux.exampleQuery.params } : {}),
+              },
+            }
+          : {}),
+        ...(status?.health ? { health: status.health } : {}),
+        ...(status?.quota ? { quota: status.quota } : {}),
+        _meta: this.createMeta({
+          nextBestAction: verified
+            ? `Run sheets_connectors.query for "${resolved.connector.id}".`
+            : `Run sheets_connectors.status for "${resolved.connector.id}".`,
+          verificationSummary: verified
+            ? `${resolved.connector.name} completed configuration and health verification.`
+            : `${resolved.connector.name} stored credentials but needs a follow-up status check.`,
+          nextSteps: ux.exampleQuery
+            ? [
+                `Example: sheets_connectors { "action": "query", "connectorId": "${resolved.connector.id}", "endpoint": "${ux.exampleQuery.endpoint}" }`,
+              ]
+            : undefined,
+        }),
       },
     };
   }
@@ -613,6 +756,12 @@ export class ConnectorsHandler {
     req: Extract<SheetsConnectorsInput['request'], { action: 'status' }>
   ): Promise<SheetsConnectorsOutput> {
     const result = await connectorManager.status(req.connectorId);
+    const ux = this.getConnectorUx(req.connectorId);
+    const nextStep = !result.configured
+      ? `Run sheets_connectors action "configure" with connectorId "${req.connectorId}".`
+      : result.health?.healthy
+        ? `Run sheets_connectors action "query" with connectorId "${req.connectorId}" to pull your first dataset.`
+        : `Re-run sheets_connectors action "configure" or inspect the connector credentials for "${req.connectorId}".`;
     return {
       response: {
         success: true,
@@ -620,8 +769,29 @@ export class ConnectorsHandler {
         id: result.id,
         name: result.name,
         configured: result.configured,
+        verified: result.health?.healthy ?? false,
+        ...(ux.signupUrl ? { signupUrl: ux.signupUrl } : {}),
+        recommendedUseCases: ux.recommendedUseCases,
+        nextStep,
+        ...(ux.exampleQuery
+          ? {
+              exampleQuery: {
+                connectorId: req.connectorId,
+                endpoint: ux.exampleQuery.endpoint,
+                ...(ux.exampleQuery.params ? { params: ux.exampleQuery.params } : {}),
+              },
+            }
+          : {}),
         health: result.health,
         quota: result.quota,
+        _meta: this.createMeta({
+          nextBestAction: nextStep,
+          verificationSummary: result.configured
+            ? result.health?.healthy
+              ? `${result.name} is configured and healthy.`
+              : `${result.name} is configured but not currently healthy.`
+            : `${result.name} is available but not configured yet.`,
+        }),
       },
     };
   }

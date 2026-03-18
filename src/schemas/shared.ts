@@ -331,7 +331,9 @@ export const ChartTypeSchema = z
       'BUBBLE',
     ])
   )
-  .describe('Chart type (e.g., BAR, LINE, PIE, COLUMN). Case-insensitive. Note: COMBO requires series-level type overrides; auto-falls back to COLUMN.');
+  .describe(
+    'Chart type (e.g., BAR, LINE, PIE, COLUMN). Case-insensitive. Note: COMBO requires series-level type overrides; auto-falls back to COLUMN.'
+  );
 
 export const LegendPositionSchema = z
   .preprocess(
@@ -1315,6 +1317,26 @@ export const ResponseMetaSchema = z.object({
     .regex(URL_REGEX, 'Invalid URL format')
     .optional()
     .describe('URL to relevant documentation'),
+  journeyStage: z
+    .enum([
+      'onboarding',
+      'readiness',
+      'authentication',
+      'connector_setup',
+      'first_success',
+      'mutation',
+      'recovery',
+    ])
+    .optional()
+    .describe('User journey stage this response belongs to'),
+  nextBestAction: z
+    .string()
+    .optional()
+    .describe('Single next action that will make the most progress for the user'),
+  verificationSummary: z
+    .string()
+    .optional()
+    .describe('Short verification summary describing what was checked or confirmed'),
   nextSteps: z.array(z.string()).optional().describe('Recommended next steps'),
   warnings: z.array(z.string()).optional().describe('Safety warnings or considerations'),
   snapshot: z

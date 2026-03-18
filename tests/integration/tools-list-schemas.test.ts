@@ -8,6 +8,11 @@ type ListToolsResponse = {
     name: string;
     inputSchema: { type: string; properties?: Record<string, unknown>; [key: string]: unknown };
     outputSchema?: { type: string; properties?: Record<string, unknown>; [key: string]: unknown };
+    icons?: Array<{
+      src: string;
+      mimeType?: string;
+      sizes?: string[];
+    }>;
   }>;
 };
 
@@ -131,6 +136,17 @@ describe('tools/list Schema Serialization', () => {
     }
   });
 
+  it('should include icons for all tools in runtime tools/list output', async () => {
+    const response = await requestToolsList(server);
+
+    for (const tool of response.tools) {
+      expect(tool.icons, `Tool ${tool.name} should expose icons in tools/list`).toBeDefined();
+      expect(tool.icons, `Tool ${tool.name} should expose at least one icon`).toHaveLength(1);
+      expect(tool.icons?.[0]?.src).toMatch(/^data:image\/svg\+xml;base64,/);
+      expect(tool.icons?.[0]?.mimeType).toBe('image/svg+xml');
+    }
+  });
+
   it('should expose inline action parameter hints in deferred schema mode', async () => {
     if (!DEFER_SCHEMAS) return;
 
@@ -211,11 +227,41 @@ describe('tools/list Schema Serialization', () => {
     expect(collaborateActionParams['share_add']?.required).toEqual(
       expect.arrayContaining(['spreadsheetId', 'type', 'role'])
     );
+    expect(
+      Object.values(collaborateActionParams).filter(
+        (hint) => typeof hint?.description === 'string' && hint.description.length > 0
+      )
+    ).toHaveLength(41);
     expect(collaborateActionParams['share_add']?.params?.type?.enum).toEqual(
       expect.arrayContaining(['user', 'group', 'domain', 'anyone'])
     );
+    expect(String(collaborateActionParams['version_restore_revision']?.description ?? '')).toContain(
+      'Drive revision'
+    );
+    expect(String(collaborateActionParams['approval_delegate']?.description ?? '')).toContain(
+      'Delegate'
+    );
     expect(collaborateActionParams['label_apply']?.requiredOneOf).toEqual([
       ['fileId', 'spreadsheetId'],
+    ]);
+
+    const federationActionParams = getActionParams('sheets_federation');
+    expect(
+      Object.values(federationActionParams).filter((hint) =>
+        Object.prototype.hasOwnProperty.call(hint, 'params')
+      )
+    ).toHaveLength(4);
+    expect(Object.keys(federationActionParams['list_servers']?.params ?? {})).toEqual([]);
+    expect(Object.keys(federationActionParams['call_remote']?.params ?? {})).toEqual([
+      'serverName',
+      'toolName',
+      'toolInput',
+    ]);
+    expect(Object.keys(federationActionParams['get_server_tools']?.params ?? {})).toEqual([
+      'serverName',
+    ]);
+    expect(Object.keys(federationActionParams['validate_connection']?.params ?? {})).toEqual([
+      'serverName',
     ]);
 
     const connectorsActionParams = getActionParams('sheets_connectors');
@@ -223,6 +269,24 @@ describe('tools/list Schema Serialization', () => {
     expect(String(connectorsActionParams['configure']?.description ?? '')).toContain(
       'MCP URL elicitation'
     );
+
+    const sessionActionParams = getActionParams('sheets_session');
+    expect(
+      Object.values(sessionActionParams).filter((hint) =>
+        Object.prototype.hasOwnProperty.call(hint, 'required')
+      )
+    ).toHaveLength(31);
+    expect(sessionActionParams['get_context']?.required).toEqual([]);
+    expect(sessionActionParams['set_active']?.required).toEqual(['spreadsheetId']);
+
+    const authActionParams = getActionParams('sheets_auth');
+    expect(
+      Object.values(authActionParams).filter((hint) =>
+        Object.prototype.hasOwnProperty.call(hint, 'required')
+      )
+    ).toHaveLength(5);
+    expect(authActionParams['status']?.required).toEqual([]);
+    expect(authActionParams['callback']?.required).toEqual(['code', 'state']);
   });
 
   it('should expose typed flat request properties in deferred input schemas', async () => {

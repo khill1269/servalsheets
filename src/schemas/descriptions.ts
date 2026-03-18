@@ -8,7 +8,7 @@
  * 4. **TOP 3 ACTIONS** - Most common usage patterns
  * 5. **SAFETY** - Destructive operation warnings
  *
- * Total: 25 tools, 402 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
+ * Total: 25 tools, 403 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
  *
  * SHARED CONTEXT (applies to all tools except sheets_auth):
  * - PREREQUISITE: sheets_auth must be authenticated before using any tool.
@@ -16,7 +16,7 @@
  * - spreadsheetId: Long alphanumeric string from Google Sheets URL.
  * - sheetId: Numeric ID from sheets_core.list_sheets (0, 123456789, etc.), not sheet name.
  * - BATCH RULE: 3+ similar operations → use batch_* or sheets_transaction (1 API call, 80-95% savings).
- * - FIRST TIME? Use sheets_analyze action:"comprehensive" or "scout" before other tools.
+ * - FIRST TIME? Start with sheets_auth action:"status", read the readiness block, then use /test_connection.
  */
 
 import { ACTION_COUNTS } from './action-counts.js';
@@ -26,16 +26,24 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   // AUTHENTICATION
   //=============================================================================
 
-  sheets_auth: `🔐 AUTH - Authenticate with Google Sheets via OAuth 2.1 (${ACTION_COUNTS['sheets_auth']} actions). Call status first.
+  sheets_auth: `🔐 AUTH - Authentication, readiness, and optional feature setup (${ACTION_COUNTS['sheets_auth']} actions). Call status first.
 
-**Use when:** Checking auth state, logging in/out, managing OAuth token lifecycle
+**Use when:** Checking auth/readiness state, logging in/out, or configuring connectors, AI fallback, webhooks, and federation
 **NOT this tool - use instead:**
 > All other tools REQUIRE authentication first - this is a PREREQUISITE
-**ACTIONS (4):** status, login, callback, logout
+**ACTIONS (5):** status, login, callback, logout, setup_feature
+**FIRST-RUN FUNNEL:**
+1. status
+2. read readiness + blockingIssues + recommendedNextAction
+3. /test_connection
+4. /first_operation or /full_setup
 **Parameter format examples:**
 - Status check: {"action":"status"}
 - Login: {"action":"login"}
-- Callback: {"action":"callback","code":"4/0AX4XfWh..."}`,
+- Callback: {"action":"callback","code":"4/0AX4XfWh..."}
+- Feature setup: {"action":"setup_feature","feature":"connectors"}
+
+**SETUP FEATURE:** Use setup_feature as the canonical path for optional capabilities. Responses include configured, verified, nextStep, and fallbackInstructions.`,
 
   //=============================================================================
   // CORE DATA OPERATIONS
@@ -321,7 +329,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 **DECISION GUIDE - Which action should I use?**
 → **Need to share with users or change permissions?** Use share_add/share_update/share_remove. REQUIRED for share_add: type (user|group|domain|anyone) AND role (writer|reader|commenter) AND emailAddress
 → **Adding comments or building discussion?** Use comment_add/comment_update/comment_resolve (with optional replies)
-→ **Before destructive operation (delete, clear)?** Use version_create_snapshot (backup point, can restore later)
+→ **Before destructive operation (delete, clear)?** Use version_create_snapshot, then poll version_snapshot_status until complete
 → **Find when data changed?** Use version_list_revisions + version_compare (across-session file history, NOT this session)
 → **Need multi-user approval workflow?** Use approval_create/approval_approve/approval_reject (audit trail)
 
@@ -336,7 +344,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 **ACTIONS BY CATEGORY:**
 [Sharing] share_add, share_update, share_remove, share_list, share_get, share_transfer_ownership, share_set_link, share_get_link
 [Comments] comment_add, comment_update, comment_delete, comment_list, comment_get, comment_resolve, comment_reopen, comment_add_reply, comment_update_reply, comment_delete_reply
-[File Versions] version_list_revisions, version_get_revision, version_restore_revision, version_keep_revision, version_create_snapshot, version_list_snapshots, version_restore_snapshot, version_delete_snapshot, version_compare, version_export
+[File Versions] version_list_revisions, version_get_revision, version_restore_revision, version_keep_revision, version_create_snapshot, version_snapshot_status, version_list_snapshots, version_restore_snapshot, version_delete_snapshot, version_compare, version_export
 [Approvals] approval_create, approval_approve, approval_reject, approval_get_status, approval_list_pending, approval_delegate, approval_cancel
 
 **⚠️ KEY DISTINCTIONS:**
@@ -346,7 +354,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 - Restore cells = sheets_history.restore_cells (surgical — restore just specific cells from past revision)
 
 **SAFETY:**
-[Read-only] share_list, share_get, share_get_link, comment_list, comment_get, version_list_revisions, version_get_revision, version_list_snapshots, version_compare, version_export, approval_get_status, approval_list_pending
+[Read-only] share_list, share_get, share_get_link, comment_list, comment_get, version_list_revisions, version_get_revision, version_snapshot_status, version_list_snapshots, version_compare, version_export, approval_get_status, approval_list_pending
 [Destructive] share_remove, comment_delete, comment_delete_reply, version_restore_revision, version_restore_snapshot, version_delete_snapshot, approval_cancel ← irreversible or data-altering
 [Non-idempotent] share_transfer_ownership ← IRREVERSIBLE, cannot undo
 [Safe mutation] share_add, share_update, share_set_link, comment_add, comment_update, comment_resolve, comment_reopen, comment_add_reply, comment_update_reply, version_create_snapshot, version_keep_revision, approval_create, approval_approve, approval_reject, approval_delegate
@@ -446,7 +454,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 [Banding] add_banding, update_banding, delete_banding, list_banding — Alternating row colors
 [Tables] create_table, delete_table, list_tables, update_table, rename_table_column, set_table_column_properties — Structured ranges with filters (banding is a separate add_banding step)
 [Smart Chips] add_person_chip, add_drive_chip, add_rich_link_chip, list_chips — Linked references. Note: For write operations, only Drive file links are supported via add_rich_link_chip. Reading back smart chips via list_chips can return YouTube, Calendar, and People chip types, but these cannot be created via the API.
-[Named Functions] create_named_function, update_named_function, delete_named_function, list_named_functions, get_named_function — Custom formula functions
+[Named Functions] create_named_function, update_named_function, delete_named_function, list_named_functions, get_named_function — Compatibility stubs; currently return FEATURE_UNAVAILABLE because the live Sheets API does not expose named functions reliably
 
 **⚠️ BANDING PRE-CHECK:** list_banding BEFORE add_banding (adding to range that already has banding fails silently). Protection always requires editor list.
 
@@ -1113,7 +1121,7 @@ Set MCP_FEDERATION_SERVERS environment variable with JSON array:
 **SAFETY:** [Destructive] execute and execute_step modify data. Automatic checkpoints before each step enable rollback.
 **PATTERN:** plan → execute → (if error) rollback. Always plan first, then execute.`,
 
-  sheets_connectors: `🔌 CONNECTORS - Pull live external data into Google Sheets (${ACTION_COUNTS['sheets_connectors']} actions). Finnhub, FRED, Alpha Vantage, Polygon, generic REST.
+  sheets_connectors: `🔌 CONNECTORS - Productized external data setup and live queries (${ACTION_COUNTS['sheets_connectors']} actions). Finnhub, FRED, Alpha Vantage, Polygon, FMP, generic REST.
 
 **ROUTING - Pick this tool when:**
 - User wants to import live stock prices, economic data, or weather into a sheet
@@ -1121,6 +1129,7 @@ Set MCP_FEDERATION_SERVERS environment variable with JSON array:
 - User wants auto-refreshing data from external sources
 
 **NOT this tool:**
+- First-time connector onboarding → sheets_auth.setup_feature
 - Data already in Sheets → sheets_data.read
 - Cross-spreadsheet operations → sheets_data.cross_read
 - Apps Script triggers → sheets_appsscript
@@ -1128,12 +1137,12 @@ Set MCP_FEDERATION_SERVERS environment variable with JSON array:
 **ACTIONS BY CATEGORY:**
 
 📋 Discovery:
-- list_connectors: List all available connectors and their configuration status
+- list_connectors: List all available connectors plus signupUrl, recommendedUseCases, configured status, and nextStep
 - discover: Get available endpoints and data schemas from a connector
-- status: Check connector health, quota usage, and configuration
+- status: Check connector health, quota usage, and whether it is unconfigured vs failing
 
 🔑 Configuration:
-- configure: Provide API credentials for a connector (API key / OAuth2)
+- configure: Provide API credentials for a connector (API key / OAuth2), verify health, and return an example query
 
 📊 Querying:
 - query: Fetch data from a connector endpoint
@@ -1146,12 +1155,12 @@ Set MCP_FEDERATION_SERVERS environment variable with JSON array:
 - list_subscriptions: List all active subscriptions
 
 **TOP 3 ACTIONS:**
-1. query: {"action":"query","connectorId":"finnhub","endpoint":"stock/quote","params":{"symbol":"AAPL"}} -> Live stock price
-2. batch_query: {"action":"batch_query","queries":[{"connectorId":"fred","endpoint":"series/observations","params":{"seriesId":"UNRATE"}},{"connectorId":"finnhub","endpoint":"stock/quote","params":{"symbol":"MSFT"}}]} -> Multi-source data
-3. subscribe: {"action":"subscribe","connectorId":"finnhub","endpoint":"stock/quote","params":{"symbol":"AAPL"},"schedule":{"interval":"hourly"},"destination":{"spreadsheetId":"abc","range":"Sheet1!A1"}} -> Auto-refresh
+1. list_connectors: {"action":"list_connectors"} -> pick a provider and see nextStep guidance
+2. configure: {"action":"configure","connectorId":"finnhub","credentials":{"type":"api_key","apiKey":"..."}} -> save credentials and verify health
+3. status: {"action":"status","connectorId":"finnhub"} -> confirm healthy before first query
 
 **SAFETY:** query/batch_query/transform are read operations against external APIs. subscribe/unsubscribe only manage connector subscriptions.
-**PATTERN:** list_connectors → configure (if needed) → discover or status → query/batch_query/transform.`,
+**PATTERN:** list_connectors → configure → status → query → subscribe (only after a successful first pull).`,
 };
 
 // Type export for other modules

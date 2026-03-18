@@ -14,6 +14,7 @@
 import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import type { AnalyzeResponse } from '../../schemas/analyze.js';
+import type { AnalysisFinding } from '../../analysis/action-generator.js';
 import { logger } from '../../utils/logger.js';
 
 // Google Sheets error values we scan for
@@ -61,6 +62,138 @@ function resolveRange(range: unknown): string | undefined {
     if (typeof obj['namedRange'] === 'string') return obj['namedRange'];
   }
   return undefined;
+}
+
+function hasUnbalancedParentheses(formulaBody: string): boolean {
+  let depth = 0;
+  for (const char of formulaBody) {
+    if (char === '(') {
+      depth += 1;
+    } else if (char === ')') {
+      depth -= 1;
+      if (depth < 0) {
+        return true;
+      }
+    }
+  }
+  return depth !== 0;
+}
+
+function hasUnbalancedQuotes(formulaBody: string): boolean {
+  const quoteCount = (formulaBody.match(/"/g) ?? []).length;
+  return quoteCount % 2 !== 0;
+}
+
+function looksLikePseudoFormula(formulaBody: string): boolean {
+  const normalized = formulaBody.trim();
+  if (normalized.length === 0) {
+    return false;
+  }
+
+  const hasCellRefs = /\b[A-Z]{1,4}\d+\b/.test(normalized);
+  const hasFunctionCall = /\b[A-Z_][A-Z0-9_.]*\s*\(/i.test(normalized);
+  return !hasCellRefs && !hasFunctionCall && /\s/.test(normalized);
+}
+
+function classifyGeneralFormulaError(formula?: string): {
+  rootCause: string;
+  suggestedFix: string;
+} {
+  if (!formula) {
+    return {
+      rootCause: 'A general parsing or evaluation error in the formula.',
+      suggestedFix:
+        'Review the formula syntax for missing parentheses, incorrect operators, or incompatible argument types.',
+    };
+  }
+
+  const body = formula.startsWith('=') ? formula.slice(1).trim() : formula.trim();
+
+  if (looksLikePseudoFormula(body)) {
+    return {
+      rootCause:
+        'This cell appears to contain descriptive text entered as a formula because it starts with "=" but does not match normal Sheets formula syntax.',
+      suggestedFix:
+        'Remove the leading "=" or prefix the text with an apostrophe if you intended to store a note instead of a formula.',
+    };
+  }
+
+  if (hasUnbalancedParentheses(body)) {
+    return {
+      rootCause: 'The formula has mismatched parentheses, so Sheets cannot parse it.',
+      suggestedFix: `Review "${formula}" for a missing or extra opening/closing parenthesis.`,
+    };
+  }
+
+  if (hasUnbalancedQuotes(body)) {
+    return {
+      rootCause: 'The formula has an unmatched quote, which breaks parsing.',
+      suggestedFix: `Review "${formula}" for a missing closing quote around text values.`,
+    };
+  }
+
+  if (/\sx\s/i.test(body)) {
+    return {
+      rootCause:
+        'The formula appears to use "x" as a multiplication symbol instead of the "*" operator that Sheets expects.',
+      suggestedFix: `Replace any "x" multiplication in "${formula}" with "*" and retry.`,
+    };
+  }
+
+  return {
+    rootCause: 'A general parsing or evaluation error in the formula.',
+    suggestedFix: `Review "${formula}" for missing operators, invalid separators, or incompatible argument types.`,
+  };
+}
+
+function getFindingSeverity(errorType: ErrorValue): AnalysisFinding['severity'] {
+  switch (errorType) {
+    case '#REF!':
+      return 'critical';
+    case '#DIV/0!':
+    case '#NULL!':
+    case '#N/A':
+      return 'warning';
+    default:
+      return 'error';
+  }
+}
+
+function toFinding(error: ErrorDiagnosis, index: number): AnalysisFinding {
+  const locationMatch = error.cell.match(/^(?:'([^']+)'!|([^!]+)!)([A-Z]+)(\d+)$/);
+  const sheetName = locationMatch?.[1] ?? locationMatch?.[2];
+  const columnLetter = locationMatch?.[3];
+  const rowNumber = locationMatch?.[4];
+
+  return {
+    id: `diagnose_error_${index + 1}`,
+    type: 'issue',
+    severity: getFindingSeverity(error.errorType),
+    title: `${error.errorType} at ${error.cell}`,
+    description: error.rootCause,
+    location: {
+      ...(sheetName ? { sheetName } : {}),
+      range: error.cell,
+      ...(columnLetter && rowNumber
+        ? {
+            cells: [
+              {
+                row: Number(rowNumber) - 1,
+                col: columnLetterToIndex(columnLetter),
+              },
+            ],
+          }
+        : {}),
+    },
+    data: {
+      findingType: 'formula_error',
+      errorType: error.errorType,
+      cell: error.cell,
+      formula: error.formula,
+      dependencyChain: error.dependencyChain,
+      suggestedFix: error.suggestedFix,
+    },
+  };
 }
 
 /**
@@ -118,11 +251,7 @@ function classifyError(
           : 'Verify the lookup value exists in the target range. Consider using IFERROR() to handle missing matches.',
       };
     case '#ERROR!':
-      return {
-        rootCause: 'A general parsing or evaluation error in the formula.',
-        suggestedFix:
-          'Review the formula syntax for missing parentheses, incorrect operators, or incompatible argument types.',
-      };
+      return classifyGeneralFormulaError(formula);
     default:
       return {
         rootCause: `Unknown error type: ${errorValue}`,
@@ -247,6 +376,8 @@ export async function handleDiagnoseErrorsAction(
         ? 'No errors found in the scanned range.'
         : `Found ${errors.length} error(s) across ${errorsByType.size} type(s): ${[...errorsByType.entries()].map(([type, count]) => `${type} (${count})`).join(', ')}`;
 
+    const findings = errors.map((errorDiagnosis, index) => toFinding(errorDiagnosis, index));
+
     return {
       success: true,
       action: 'diagnose_errors',
@@ -259,6 +390,7 @@ export async function handleDiagnoseErrorsAction(
         dependencyChain: e.dependencyChain,
         suggestedFix: e.suggestedFix,
       })),
+      findings,
       errorCount: errors.length,
       errorsByType: Object.fromEntries(errorsByType),
     } as AnalyzeResponse;

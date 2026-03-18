@@ -620,20 +620,43 @@ const CrossReadActionSchema = z.object({
   response_format: ResponseFormatSchema.optional()
     .default('full')
     .describe('Output size profile for merged rows (full, compact, preview)'),
-  verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (counts only), standard (data + summary), detailed (full metadata)'
+    ),
 });
 
 const CrossQueryActionSchema = z.object({
   action: z
     .literal('cross_query')
     .describe('Search for rows matching a keyword query across multiple spreadsheets'),
-  sources: z.array(SourceRefSchema).min(1).max(10),
+  sources: z
+    .array(SourceRefSchema)
+    .min(1)
+    .max(10)
+    .describe('Spreadsheets to search across (1–10 sources, each with spreadsheetId + range)'),
   query: z.string().min(1).max(500).describe('Search query — matched against all cell values'),
-  maxResults: z.number().int().min(1).max(500).optional().default(100),
+  maxResults: z
+    .number()
+    .int()
+    .min(1)
+    .max(500)
+    .optional()
+    .default(100)
+    .describe('Maximum number of matching rows to return (default 100, max 500)'),
   response_format: ResponseFormatSchema.optional()
     .default('full')
     .describe('Output size profile for query matches (full, compact, preview)'),
-  verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (counts only), standard (data + summary), detailed (full metadata)'
+    ),
 });
 
 const CrossWriteActionSchema = z.object({
@@ -645,14 +668,26 @@ const CrossWriteActionSchema = z.object({
       range: z.string().min(1),
     })
     .describe('Spreadsheet and range to write to'),
-  valueInputOption: ValueInputOptionSchema.optional().default('USER_ENTERED'),
-  verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
+  valueInputOption: ValueInputOptionSchema.optional()
+    .default('USER_ENTERED')
+    .describe(
+      'How to interpret input data: USER_ENTERED (formulas parsed, dates detected) or RAW (literal text)'
+    ),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (counts only), standard (data + summary), detailed (full metadata)'
+    ),
 });
 
 const CrossCompareActionSchema = z.object({
   action: z.literal('cross_compare').describe('Diff ranges across two spreadsheets cell by cell'),
-  source1: SourceRefSchema,
-  source2: SourceRefSchema,
+  source1: SourceRefSchema.describe('First spreadsheet source to compare (base/left side of diff)'),
+  source2: SourceRefSchema.describe(
+    'Second spreadsheet source to compare (changed/right side of diff)'
+  ),
   compareColumns: z
     .array(z.string())
     .optional()
@@ -664,7 +699,13 @@ const CrossCompareActionSchema = z.object({
   response_format: ResponseFormatSchema.optional()
     .default('full')
     .describe('Output size profile for diff payload (full, compact, preview)'),
-  verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (counts only), standard (data + summary), detailed (full metadata)'
+    ),
 });
 
 // ============================================================================

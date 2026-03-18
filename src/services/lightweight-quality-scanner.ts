@@ -23,6 +23,8 @@ export interface QualityWarning {
     action: string;
     params: Record<string, unknown>;
   };
+  /** Alternative strategies the LLM can choose from (first is default) */
+  alternativeStrategies?: string[];
   severity: 'info' | 'warning';
 }
 
@@ -121,9 +123,31 @@ function buildFixAction(
   }
 }
 
+function getAlternativeStrategies(type: QualityWarning['type']): string[] | undefined {
+  switch (type) {
+    case 'empty_required_cells':
+      return ['forward', 'backward', 'mean', 'median', 'mode', 'constant'];
+    case 'mixed_types':
+      return ['number', 'text', 'date'];
+    case 'inconsistent_formats':
+      return ['iso (YYYY-MM-DD)', 'mdy (MM/DD/YYYY)', 'dmy (DD-MM-YYYY)'];
+    case 'duplicate_rows':
+      return ['keep_first', 'keep_last', 'remove_all'];
+    case 'outliers':
+      return ['iqr', 'zscore'];
+    default:
+      return undefined;
+  }
+}
+
 function attachFixAction(warning: QualityWarning, context: QualityScanContext): QualityWarning {
   const fixAction = buildFixAction(warning, context);
-  return fixAction ? { ...warning, fixAction } : warning;
+  const alternativeStrategies = getAlternativeStrategies(warning.type);
+  return {
+    ...warning,
+    ...(fixAction ? { fixAction } : {}),
+    ...(alternativeStrategies ? { alternativeStrategies } : {}),
+  };
 }
 
 /**

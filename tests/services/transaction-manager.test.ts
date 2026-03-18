@@ -65,6 +65,18 @@ describe('TransactionManager', () => {
               replies: [{ updateCells: {} }],
             },
           }),
+          values: {
+            get: vi.fn().mockResolvedValue({
+              data: {
+                values: [['Name', 'Age']],
+              },
+            }),
+            batchGet: vi.fn().mockResolvedValue({
+              data: {
+                valueRanges: [],
+              },
+            }),
+          },
         },
       },
     };
@@ -453,6 +465,157 @@ describe('TransactionManager', () => {
       expect(batchCall.spreadsheetId).toBe('test-sheet-123');
       expect(batchCall.requestBody.requests).toBeDefined();
       expect(batchCall.requestBody.requests.length).toBe(5);
+    });
+
+    it('should normalize {a1} range objects into populated updateCells requests', async () => {
+      const txnId = await transactionManager.begin('test-sheet-123');
+
+      await transactionManager.queue(txnId, {
+        type: 'custom',
+        tool: 'sheets_data',
+        action: 'write',
+        params: {
+          range: { a1: 'Sheet1!B2:C2' },
+          values: [[1, 2]],
+        },
+      });
+
+      mockGoogleClient.sheets.spreadsheets.batchUpdate.mockResolvedValue({
+        data: { replies: [{}] },
+      });
+
+      const result = await transactionManager.commit(txnId);
+
+      expect(result.success).toBe(true);
+
+      const batchCall = mockGoogleClient.sheets.spreadsheets.batchUpdate.mock.calls.at(-1)?.[0];
+      const request = batchCall.requestBody.requests[0].updateCells;
+      expect(request.range).toMatchObject({
+        sheetId: 0,
+        startRowIndex: 1,
+        endRowIndex: 2,
+        startColumnIndex: 1,
+        endColumnIndex: 3,
+      });
+      expect(request.rows[0].values[0].userEnteredValue.numberValue).toBe(1);
+      expect(request.rows[0].values[1].userEnteredValue.numberValue).toBe(2);
+      expect(mockGoogleClient.sheets.spreadsheets.values.batchGet).toHaveBeenCalledWith({
+        spreadsheetId: 'test-sheet-123',
+        ranges: ['Sheet1!B2:C2'],
+      });
+    });
+
+    it('should convert append operations into appendCells requests with column offsets', async () => {
+      const txnId = await transactionManager.begin('test-sheet-123');
+
+      await transactionManager.queue(txnId, {
+        type: 'custom',
+        tool: 'sheets_data',
+        action: 'append',
+        params: {
+          range: { a1: 'Sheet1!B:B' },
+          values: [[42], [84]],
+        },
+      });
+
+      mockGoogleClient.sheets.spreadsheets.batchUpdate.mockResolvedValue({
+        data: { replies: [{}] },
+      });
+
+      const result = await transactionManager.commit(txnId);
+
+      expect(result.success).toBe(true);
+
+      const batchCall = mockGoogleClient.sheets.spreadsheets.batchUpdate.mock.calls.at(-1)?.[0];
+      const request = batchCall.requestBody.requests[0].appendCells;
+      expect(request.sheetId).toBe(0);
+      expect(request.rows[0].values).toHaveLength(2);
+      expect(request.rows[0].values[0].userEnteredValue.stringValue).toBe('');
+      expect(request.rows[0].values[1].userEnteredValue.numberValue).toBe(42);
+      expect(request.rows[1].values[1].userEnteredValue.numberValue).toBe(84);
+    });
+
+    it('should reserve sheet ids for add_sheet followed by write to the new sheet', async () => {
+      const txnId = await transactionManager.begin('test-sheet-123');
+      const transaction = transactionManager.getTransaction(txnId);
+
+      await transactionManager.queue(txnId, {
+        type: 'custom',
+        tool: 'sheets_core',
+        action: 'add_sheet',
+        params: { title: 'NewSheet' },
+      });
+
+      transaction.status = 'pending';
+      await transactionManager.queue(txnId, {
+        type: 'custom',
+        tool: 'sheets_data',
+        action: 'write',
+        params: {
+          range: 'NewSheet!A1',
+          values: [[123]],
+        },
+      });
+
+      mockGoogleClient.sheets.spreadsheets.batchUpdate.mockResolvedValue({
+        data: { replies: [{}, {}] },
+      });
+
+      const result = await transactionManager.commit(txnId);
+
+      expect(result.success).toBe(true);
+
+      const batchCall = mockGoogleClient.sheets.spreadsheets.batchUpdate.mock.calls.at(-1)?.[0];
+      const addSheetRequest = batchCall.requestBody.requests[0].addSheet;
+      const writeRequest = batchCall.requestBody.requests[1].updateCells;
+      expect(addSheetRequest.properties.sheetId).toBeDefined();
+      expect(writeRequest.range.sheetId).toBe(addSheetRequest.properties.sheetId);
+    });
+
+    it('should batch smart_append inside transactions for new sheets', async () => {
+      const txnId = await transactionManager.begin('test-sheet-123');
+      const transaction = transactionManager.getTransaction(txnId);
+
+      await transactionManager.queue(txnId, {
+        type: 'custom',
+        tool: 'sheets_core',
+        action: 'add_sheet',
+        params: { title: 'Pipeline' },
+      });
+
+      transaction.status = 'pending';
+      await transactionManager.queue(txnId, {
+        type: 'custom',
+        tool: 'sheets_composite',
+        action: 'smart_append',
+        params: {
+          sheet: 'Pipeline',
+          data: [{ Name: 'Alice', Age: 30 }],
+        },
+      });
+
+      mockGoogleClient.sheets.spreadsheets.batchUpdate.mockResolvedValue({
+        data: { replies: [{}, {}, {}] },
+      });
+
+      const result = await transactionManager.commit(txnId);
+
+      expect(result.success).toBe(true);
+
+      const batchCall = mockGoogleClient.sheets.spreadsheets.batchUpdate.mock.calls.at(-1)?.[0];
+      expect(batchCall.requestBody.requests).toHaveLength(3);
+
+      const addSheetRequest = batchCall.requestBody.requests[0].addSheet;
+      const headerRequest = batchCall.requestBody.requests[1].updateCells;
+      const appendRequest = batchCall.requestBody.requests[2].appendCells;
+
+      expect(headerRequest.range.sheetId).toBe(addSheetRequest.properties.sheetId);
+      expect(appendRequest.sheetId).toBe(addSheetRequest.properties.sheetId);
+      expect(headerRequest.rows[0].values[0].userEnteredValue.stringValue).toBe('Name');
+      expect(headerRequest.rows[0].values[1].userEnteredValue.stringValue).toBe('Age');
+      expect(appendRequest.rows[0].values[0].userEnteredValue.stringValue).toBe('Alice');
+      expect(appendRequest.rows[0].values[1].userEnteredValue.numberValue).toBe(30);
+      expect(mockGoogleClient.sheets.spreadsheets.values.get).not.toHaveBeenCalled();
     });
 
     it('should calculate API call savings accurately', async () => {

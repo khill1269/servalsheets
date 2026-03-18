@@ -538,6 +538,84 @@ describe('AdvancedHandler', () => {
     }
   });
 
+  it('rejects create_table when the range overlaps a basic filter', async () => {
+    mockSheetsApi.spreadsheets.get.mockResolvedValue({
+      data: {
+        sheets: [
+          {
+            properties: {
+              sheetId: 0,
+              title: 'Sheet1',
+              gridProperties: { rowCount: 100, columnCount: 26 },
+            },
+            basicFilter: {
+              range: {
+                sheetId: 0,
+                startRowIndex: 0,
+                endRowIndex: 10,
+                startColumnIndex: 0,
+                endColumnIndex: 2,
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const result = await handler.handle({
+      action: 'create_table',
+      spreadsheetId: 'sheet-id',
+      range: { a1: 'Sheet1!A1:B5' },
+    });
+
+    expect(result.response.success).toBe(false);
+    if (!result.response.success) {
+      expect(result.response.error.code).toBe('FAILED_PRECONDITION');
+      expect(result.response.error.message).toContain('basic filter');
+    }
+    expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+  });
+
+  it('rejects create_table when the range overlaps existing banding', async () => {
+    mockSheetsApi.spreadsheets.get.mockResolvedValue({
+      data: {
+        sheets: [
+          {
+            properties: {
+              sheetId: 0,
+              title: 'Sheet1',
+              gridProperties: { rowCount: 100, columnCount: 26 },
+            },
+            bandedRanges: [
+              {
+                range: {
+                  sheetId: 0,
+                  startRowIndex: 0,
+                  endRowIndex: 8,
+                  startColumnIndex: 0,
+                  endColumnIndex: 3,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const result = await handler.handle({
+      action: 'create_table',
+      spreadsheetId: 'sheet-id',
+      range: { a1: 'Sheet1!A1:B5' },
+    });
+
+    expect(result.response.success).toBe(false);
+    if (!result.response.success) {
+      expect(result.response.error.code).toBe('FAILED_PRECONDITION');
+      expect(result.response.error.message).toContain('banded range');
+    }
+    expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+  });
+
   it('deletes a table', async () => {
     const result = await handler.handle({
       action: 'delete_table',
@@ -730,170 +808,59 @@ describe('AdvancedHandler', () => {
   // Named Functions
   // ============================================================
 
-  it('creates a named function', async () => {
-    const result = await handler.handle({
+  it.each([
+    {
       action: 'create_named_function',
-      spreadsheetId: 'sheet-id',
-      functionName: 'PROFIT_MARGIN',
-      functionBody: 'LAMBDA(revenue,cost,(revenue-cost)/revenue)',
-      description: 'Calculates profit margin',
-      parameterDefinitions: [
-        { name: 'revenue', description: 'Total revenue' },
-        { name: 'cost', description: 'Total cost' },
-      ],
-    });
-
-    const parsed = SheetsAdvancedOutputSchema.safeParse(result);
-    expect(parsed.success).toBe(true);
-    expect(result.response.success).toBe(true);
-    if (result.response.success) {
-      expect(result.response.namedFunction?.functionName).toBe('PROFIT_MARGIN');
-      expect(result.response.namedFunction?.functionBody).toBe(
-        'LAMBDA(revenue,cost,(revenue-cost)/revenue)'
-      );
-    }
-    expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalled();
-  });
-
-  it('lists named functions', async () => {
-    mockSheetsApi.spreadsheets.get.mockResolvedValue({
-      data: {
-        properties: {
-          namedFunctions: [
-            {
-              name: 'PROFIT_MARGIN',
-              functionBody: 'LAMBDA(r,c,(r-c)/r)',
-              argumentNames: ['r', 'c'],
-            },
-            {
-              name: 'TAX_AMOUNT',
-              functionBody: 'LAMBDA(amount,rate,amount*rate)',
-              argumentNames: ['amount', 'rate'],
-            },
-          ],
-        },
+      input: {
+        action: 'create_named_function',
+        spreadsheetId: 'sheet-id',
+        functionName: 'PROFIT_MARGIN',
+        functionBody: 'LAMBDA(revenue,cost,(revenue-cost)/revenue)',
       },
-    });
-
-    const result = await handler.handle({
+    },
+    {
       action: 'list_named_functions',
-      spreadsheetId: 'sheet-id',
-    });
-
-    const parsed = SheetsAdvancedOutputSchema.safeParse(result);
-    expect(parsed.success).toBe(true);
-    expect(result.response.success).toBe(true);
-    if (result.response.success) {
-      expect(result.response.namedFunctions?.length).toBe(2);
-      expect(result.response.namedFunctions?.[0].functionName).toBe('PROFIT_MARGIN');
-    }
-  });
-
-  it('gets a named function by name', async () => {
-    mockSheetsApi.spreadsheets.get.mockResolvedValue({
-      data: {
-        properties: {
-          namedFunctions: [
-            {
-              name: 'PROFIT_MARGIN',
-              functionBody: 'LAMBDA(r,c,(r-c)/r)',
-              description: 'Margin calc',
-              argumentNames: ['r', 'c'],
-            },
-          ],
-        },
+      input: {
+        action: 'list_named_functions',
+        spreadsheetId: 'sheet-id',
       },
-    });
-
-    const result = await handler.handle({
+    },
+    {
       action: 'get_named_function',
-      spreadsheetId: 'sheet-id',
-      functionName: 'PROFIT_MARGIN',
-    });
-
-    const parsed = SheetsAdvancedOutputSchema.safeParse(result);
-    expect(parsed.success).toBe(true);
-    expect(result.response.success).toBe(true);
-    if (result.response.success) {
-      expect(result.response.namedFunction?.functionName).toBe('PROFIT_MARGIN');
-      expect(result.response.namedFunction?.description).toBe('Margin calc');
-    }
-  });
-
-  it('returns not-found error when named function does not exist', async () => {
-    mockSheetsApi.spreadsheets.get.mockResolvedValue({
-      data: { properties: { namedFunctions: [] } },
-    });
-
-    const result = await handler.handle({
-      action: 'get_named_function',
-      spreadsheetId: 'sheet-id',
-      functionName: 'NONEXISTENT',
-    });
-
-    expect(result.response.success).toBe(false);
-  });
-
-  it('updates a named function', async () => {
-    mockSheetsApi.spreadsheets.get.mockResolvedValue({
-      data: {
-        properties: {
-          namedFunctions: [
-            {
-              name: 'PROFIT_MARGIN',
-              functionBody: 'LAMBDA(r,c,(r-c)/r)',
-              argumentNames: ['r', 'c'],
-            },
-          ],
-        },
+      input: {
+        action: 'get_named_function',
+        spreadsheetId: 'sheet-id',
+        functionName: 'PROFIT_MARGIN',
       },
-    });
-
-    const result = await handler.handle({
+    },
+    {
       action: 'update_named_function',
-      spreadsheetId: 'sheet-id',
-      functionName: 'PROFIT_MARGIN',
-      functionBody: 'LAMBDA(revenue,cost,(revenue-cost)/revenue)',
-      description: 'Updated description',
-    });
-
-    const parsed = SheetsAdvancedOutputSchema.safeParse(result);
-    expect(parsed.success).toBe(true);
-    expect(result.response.success).toBe(true);
-    if (result.response.success) {
-      expect(result.response.namedFunction?.functionBody).toBe(
-        'LAMBDA(revenue,cost,(revenue-cost)/revenue)'
-      );
-    }
-    expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalled();
-  });
-
-  it('returns not-found when updating non-existent named function', async () => {
-    mockSheetsApi.spreadsheets.get.mockResolvedValue({
-      data: { properties: { namedFunctions: [] } },
-    });
-
-    const result = await handler.handle({
-      action: 'update_named_function',
-      spreadsheetId: 'sheet-id',
-      functionName: 'NONEXISTENT',
-      functionBody: 'LAMBDA(x,x*2)',
-    });
-
-    expect(result.response.success).toBe(false);
-  });
-
-  it('deletes a named function', async () => {
-    const result = await handler.handle({
+      input: {
+        action: 'update_named_function',
+        spreadsheetId: 'sheet-id',
+        functionName: 'PROFIT_MARGIN',
+        functionBody: 'LAMBDA(revenue,cost,(revenue-cost)/revenue)',
+      },
+    },
+    {
       action: 'delete_named_function',
-      spreadsheetId: 'sheet-id',
-      functionName: 'PROFIT_MARGIN',
-    });
+      input: {
+        action: 'delete_named_function',
+        spreadsheetId: 'sheet-id',
+        functionName: 'PROFIT_MARGIN',
+      },
+    },
+  ] as const)('$action returns FEATURE_UNAVAILABLE compatibility response', async ({ input }) => {
+    const result = await handler.handle(input as any);
 
     const parsed = SheetsAdvancedOutputSchema.safeParse(result);
     expect(parsed.success).toBe(true);
-    expect(result.response.success).toBe(true);
-    expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+    expect(result.response.success).toBe(false);
+    if (!result.response.success) {
+      expect(result.response.error.code).toBe('FEATURE_UNAVAILABLE');
+      expect(result.response.error.message).toContain('compatibility');
+    }
+    expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
   });
 
   // ============================================================

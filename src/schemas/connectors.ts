@@ -238,6 +238,19 @@ export type SheetsConnectorsInput = z.infer<typeof SheetsConnectorsInputSchema>;
 
 const ConnectorsResponsePayloadSchema = z.object({
   action: z.string(),
+  message: z.string().optional(),
+  verified: z.boolean().optional(),
+  authType: z.string().optional(),
+  signupUrl: z.string().optional(),
+  recommendedUseCases: z.array(z.string()).optional(),
+  nextStep: z.string().optional(),
+  exampleQuery: z
+    .object({
+      connectorId: z.string(),
+      endpoint: z.string(),
+      params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+    })
+    .optional(),
   // list_connectors
   connectors: z
     .array(
@@ -248,6 +261,9 @@ const ConnectorsResponsePayloadSchema = z.object({
         authType: z.string(),
         configured: z.boolean(),
         healthy: z.boolean().optional(),
+        signupUrl: z.string().optional(),
+        recommendedUseCases: z.array(z.string()).optional(),
+        nextStep: z.string().optional(),
       })
     )
     .optional(),
@@ -347,8 +363,6 @@ const ConnectorsResponsePayloadSchema = z.object({
       ),
     })
     .optional(),
-  // configure
-  message: z.string().optional(),
   _meta: ResponseMetaSchema.optional(),
 });
 

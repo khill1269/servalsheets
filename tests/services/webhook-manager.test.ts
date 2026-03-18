@@ -6,6 +6,7 @@
 
 import dns from 'node:dns';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { resetEnvForTest } from '../../src/config/env.js';
 import {
   initWebhookManager,
   getWebhookManager,
@@ -21,7 +22,8 @@ describe('WebhookManager', () => {
   beforeEach(() => {
     // Reset singleton
     resetWebhookManager();
-    vi.spyOn(dns.promises, 'resolve').mockResolvedValue(['93.184.216.34']);
+    resetEnvForTest();
+    vi.spyOn(dns.promises, 'lookup').mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
 
     // Mock Redis client
     mockRedis = {
@@ -54,6 +56,7 @@ describe('WebhookManager', () => {
   });
 
   afterEach(() => {
+    resetEnvForTest();
     vi.restoreAllMocks();
   });
 
@@ -547,6 +550,7 @@ describe('WebhookManager', () => {
       // DNS resolution may fail in CI/test envs. Set WEBHOOK_DNS_STRICT=false to skip DNS check.
       const orig = process.env['WEBHOOK_DNS_STRICT'];
       process.env['WEBHOOK_DNS_STRICT'] = 'false';
+      resetEnvForTest();
       try {
         const result = await registerWith('https://user.example.com/callback');
         expect(result.webhookUrl).toBe('https://user.example.com/callback');
@@ -556,6 +560,7 @@ describe('WebhookManager', () => {
         } else {
           process.env['WEBHOOK_DNS_STRICT'] = orig;
         }
+        resetEnvForTest();
       }
     });
   });

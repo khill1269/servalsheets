@@ -410,7 +410,9 @@ const NamedFunctionParamSchema = z.object({
 const CreateNamedFunctionActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('create_named_function')
-    .describe('Create a reusable LAMBDA-based custom function'),
+    .describe(
+      'Compatibility action for reusable LAMBDA-based custom functions. Currently returns FEATURE_UNAVAILABLE because the live Sheets API surface is inconsistent here.'
+    ),
   functionName: z
     .string()
     .min(1)
@@ -437,7 +439,11 @@ const CreateNamedFunctionActionSchema = CommonFieldsSchema.extend({
 });
 
 const ListNamedFunctionsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('list_named_functions').describe('List all custom named functions'),
+  action: z
+    .literal('list_named_functions')
+    .describe(
+      'Compatibility action for listing custom named functions. Currently returns FEATURE_UNAVAILABLE because the live Sheets API surface is inconsistent here.'
+    ),
   cursor: z.string().optional().describe('Opaque pagination cursor from previous response'),
   pageSize: z
     .number()
@@ -450,12 +456,20 @@ const ListNamedFunctionsActionSchema = CommonFieldsSchema.extend({
 });
 
 const GetNamedFunctionActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('get_named_function').describe('Get a specific named function by name'),
+  action: z
+    .literal('get_named_function')
+    .describe(
+      'Compatibility action for retrieving a named function by name. Currently returns FEATURE_UNAVAILABLE because the live Sheets API surface is inconsistent here.'
+    ),
   functionName: z.string().min(1).describe('Name of the function to retrieve'),
 });
 
 const UpdateNamedFunctionActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('update_named_function').describe('Update an existing named function'),
+  action: z
+    .literal('update_named_function')
+    .describe(
+      'Compatibility action for updating a named function. Currently returns FEATURE_UNAVAILABLE because the live Sheets API surface is inconsistent here.'
+    ),
   functionName: z.string().min(1).describe('Name of the function to update'),
   newFunctionName: z
     .string()
@@ -473,7 +487,11 @@ const UpdateNamedFunctionActionSchema = CommonFieldsSchema.extend({
 });
 
 const DeleteNamedFunctionActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('delete_named_function').describe('Delete a named function'),
+  action: z
+    .literal('delete_named_function')
+    .describe(
+      'Compatibility action for deleting a named function. Currently returns FEATURE_UNAVAILABLE because the live Sheets API surface is inconsistent here.'
+    ),
   functionName: z.string().min(1).describe('Name of the function to delete'),
 });
 

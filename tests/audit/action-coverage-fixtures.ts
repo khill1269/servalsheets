@@ -593,6 +593,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { description: 'snapshot' },
       requiredFields: ['spreadsheetId'],
     },
+    version_snapshot_status: {
+      validInput: { taskId: 'snapshot_task_1' },
+      requiredFields: ['spreadsheetId', 'taskId'],
+    },
     version_list_snapshots: { requiredFields: ['spreadsheetId'] },
     version_restore_snapshot: {
       validInput: { snapshotId: 'snap1' },

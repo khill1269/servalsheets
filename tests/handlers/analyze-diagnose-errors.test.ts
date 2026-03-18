@@ -12,6 +12,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleDiagnoseErrorsAction } from '../../src/handlers/analyze-actions/diagnose-errors.js';
+import { handleGenerateActionsAction } from '../../src/handlers/analyze-actions/plan-execute.js';
 import type { DiagnoseErrorsDeps } from '../../src/handlers/analyze-actions/diagnose-errors.js';
 
 type ValueRangeResponse = { data: { valueRanges?: Array<{ range?: string; values?: unknown[][] }> } };
@@ -253,6 +254,83 @@ describe('diagnose_errors action', () => {
       expect(errors).toHaveLength(1);
       expect(errors[0]?.['suggestedFix']).toContain('IF');
       expect(errors[0]?.['rootCause']).toContain('divides by zero');
+    }
+  });
+
+  it('emits canonical findings for downstream action generation', async () => {
+    deps.sheetsApi = createMockSheetsApi({
+      batchGetValues: () =>
+        batchGetResponse([{ range: 'Sheet1!A1:A2', values: [['Ratio'], ['#REF!']] }]),
+      batchGetFormulas: () =>
+        batchGetResponse([{ range: 'Sheet1!A1:A2', values: [['Ratio'], ['=SUM(B2:C2)']] }]),
+    });
+
+    const result = await handleDiagnoseErrorsAction(
+      { spreadsheetId: 'test-id', range: 'Sheet1!A1:A2' },
+      deps
+    );
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const findings = (result as Record<string, unknown>)['findings'] as Array<
+        Record<string, unknown>
+      >;
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.['type']).toBe('issue');
+      expect(findings[0]?.['severity']).toBe('critical');
+      expect(findings[0]?.['title']).toBe("#REF! at 'Sheet1'!A2");
+    }
+  });
+
+  it('lets generate_actions consume diagnose_errors output directly', async () => {
+    deps.sheetsApi = createMockSheetsApi({
+      batchGetValues: () =>
+        batchGetResponse([{ range: 'Sheet1!A1:A2', values: [['Header'], ['#REF!']] }]),
+      batchGetFormulas: () =>
+        batchGetResponse([{ range: 'Sheet1!A1:A2', values: [['Header'], ['=SUM(B2:C2)']] }]),
+    });
+
+    const diagnoseResult = await handleDiagnoseErrorsAction(
+      { spreadsheetId: 'test-id', range: 'Sheet1!A1:A2' },
+      deps
+    );
+
+    const actionResult = await handleGenerateActionsAction({
+      spreadsheetId: 'test-id',
+      intent: 'fix_critical',
+      findings: diagnoseResult as Record<string, unknown>,
+    });
+
+    expect(actionResult.success).toBe(true);
+    if (actionResult.success) {
+      expect(actionResult.actionPlan?.totalActions).toBeGreaterThan(0);
+      expect(actionResult.actionPlan?.actions[0]).toMatchObject({
+        tool: 'sheets_analyze',
+        action: 'drill_down',
+      });
+    }
+  });
+
+  it('classifies descriptive pseudo-formulas behind #ERROR! cells', async () => {
+    deps.sheetsApi = createMockSheetsApi({
+      batchGetValues: () =>
+        batchGetResponse([{ range: 'Sheet1!A1:A2', values: [['Header'], ['#ERROR!']] }]),
+      batchGetFormulas: () =>
+        batchGetResponse([
+          { range: 'Sheet1!A1:A2', values: [['Header'], ['=Units x Purchase Price/Unit']] },
+        ]),
+    });
+
+    const result = await handleDiagnoseErrorsAction(
+      { spreadsheetId: 'test-id', range: 'Sheet1!A1:A2' },
+      deps
+    );
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const errors = (result as Record<string, unknown>)['errors'] as Array<Record<string, unknown>>;
+      expect(errors[0]?.['rootCause']).toContain('descriptive text');
+      expect(errors[0]?.['suggestedFix']).toContain('leading "="');
     }
   });
 

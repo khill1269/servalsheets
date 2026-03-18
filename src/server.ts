@@ -27,6 +27,61 @@ const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 
   version: string;
 };
 const PACKAGE_VERSION = packageJson.version;
+
+function getProcessBreadcrumbs(extra: Record<string, unknown> = {}): Record<string, unknown> {
+  const memory = process.memoryUsage();
+  return {
+    pid: process.pid,
+    uptimeSeconds: Math.round(process.uptime()),
+    memory: {
+      rssMb: Math.round(memory.rss / 1024 / 1024),
+      heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
+      heapTotalMb: Math.round(memory.heapTotal / 1024 / 1024),
+      externalMb: Math.round(memory.external / 1024 / 1024),
+    },
+    ...extra,
+  };
+}
+
+function shouldAllowDegradedGoogleStartup(error: unknown): boolean {
+  const transport = process.env['MCP_TRANSPORT'];
+  const allowDegradedExplicitly = process.env['SERVAL_ALLOW_DEGRADED_STARTUP'] === 'true';
+  const allowDegradedByTransport =
+    transport === 'stdio' || process.env['NODE_ENV'] === 'test' || allowDegradedExplicitly;
+
+  if (!allowDegradedByTransport) {
+    return false;
+  }
+
+  if (isGoogleAuthError(error)) {
+    return true;
+  }
+
+  const message =
+    error instanceof Error
+      ? `${error.name} ${error.message} ${error.stack ?? ''}`
+      : typeof error === 'string'
+        ? error
+        : JSON.stringify(error);
+  const normalized = message.toLowerCase();
+
+  return [
+    'google',
+    'oauth',
+    'credential',
+    'token',
+    'network',
+    'enotfound',
+    'eai_again',
+    'econn',
+    'fetch failed',
+    'invalid_grant',
+    'unauthenticated',
+    'permission denied',
+    'could not load the default credentials',
+  ].some((pattern) => normalized.includes(pattern));
+}
+
 import PQueue from 'p-queue';
 import {
   createServerCapabilities,
@@ -261,9 +316,21 @@ export class ServalSheetsServer {
       if (request.method === 'initialize' && request.id !== undefined) {
         const requestId = request.id;
         this.protectedInitializeRequestIds.add(requestId);
-        setTimeout(() => {
+        const finalize = () => {
           this.protectedInitializeRequestIds.delete(requestId);
-        }, 0);
+        };
+
+        try {
+          const result = originalOnRequest(request, extra) as void | Promise<void>;
+          if (result && typeof result.finally === 'function') {
+            return result.finally(finalize);
+          }
+          setImmediate(finalize);
+          return result;
+        } catch (error) {
+          finalize();
+          throw error;
+        }
       }
 
       return originalOnRequest(request, extra);
@@ -306,8 +373,23 @@ export class ServalSheetsServer {
 
     // Initialize Google API client
     if (this.options.googleApiOptions) {
-      this.googleClient = await createGoogleApiClient(this.options.googleApiOptions);
+      try {
+        this.googleClient = await createGoogleApiClient(this.options.googleApiOptions);
+      } catch (error) {
+        if (!shouldAllowDegradedGoogleStartup(error)) {
+          throw error;
+        }
 
+        baseLogger.warn('Google client initialization failed; continuing in auth-only mode', {
+          error: error instanceof Error ? error.message : String(error),
+          transport: process.env['MCP_TRANSPORT'] ?? 'unknown',
+          breadcrumbs: getProcessBreadcrumbs(),
+        });
+        this.googleClient = null;
+      }
+    }
+
+    if (this.googleClient) {
       // Update AuthHandler with the initialized googleClient
       this.authHandler = new AuthHandler({
         googleClient: this.googleClient,
@@ -1341,6 +1423,10 @@ export class ServalSheetsServer {
           suggestion: isConnected
             ? 'Client (Claude Desktop) may have crashed or disconnected'
             : 'Initial connection failed - check client MCP configuration',
+          ...getProcessBreadcrumbs({
+            resourcesRegistered: this.resourcesRegistered,
+            resourceRegistrationFailed: this.resourceRegistrationFailed,
+          }),
         });
 
         // Graceful shutdown to clean up resources
@@ -1356,6 +1442,10 @@ export class ServalSheetsServer {
         stack: error.stack,
         isConnected,
         suggestion: 'Check Claude Desktop logs and MCP server configuration',
+        ...getProcessBreadcrumbs({
+          resourcesRegistered: this.resourcesRegistered,
+          resourceRegistrationFailed: this.resourceRegistrationFailed,
+        }),
       });
     };
 
@@ -1372,13 +1462,25 @@ export class ServalSheetsServer {
 
     // Handle uncaught errors
     process.on('uncaughtException', async (error) => {
-      baseLogger.error('ServalSheets: Uncaught exception', { error });
+      baseLogger.error('ServalSheets: Uncaught exception', {
+        error,
+        ...getProcessBreadcrumbs({
+          resourcesRegistered: this.resourcesRegistered,
+          resourceRegistrationFailed: this.resourceRegistrationFailed,
+        }),
+      });
       await this.shutdown();
       process.exit(1);
     });
 
     process.on('unhandledRejection', async (reason) => {
-      baseLogger.error('ServalSheets: Unhandled rejection', { reason });
+      baseLogger.error('ServalSheets: Unhandled rejection', {
+        reason,
+        ...getProcessBreadcrumbs({
+          resourcesRegistered: this.resourcesRegistered,
+          resourceRegistrationFailed: this.resourceRegistrationFailed,
+        }),
+      });
       await this.shutdown();
       process.exit(1);
     });

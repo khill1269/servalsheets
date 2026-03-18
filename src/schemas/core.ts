@@ -337,13 +337,13 @@ const UpdateSheetActionSchema = CommonFieldsSchema.extend({
   action: z.literal('update_sheet').describe('Update sheet/tab properties'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.describe('Numeric sheet ID to update'),
-  title: z
+  title: z.string().min(1).max(255).optional().describe('New sheet title'),
+  newTitle: z
     .string()
     .min(1)
     .max(255)
     .optional()
-    .describe('New sheet title'),
-  newTitle: z.string().min(1).max(255).optional().describe('Alias for title (deprecated — use title instead)'),
+    .describe('Alias for title (deprecated — use title instead)'),
   index: z.coerce.number().int().min(0).optional().describe('New position (0 = first)'),
   tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
   tabColorStyle: ColorStyleSchema.optional().describe(

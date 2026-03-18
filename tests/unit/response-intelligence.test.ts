@@ -16,12 +16,15 @@ describe('applyResponseIntelligence', () => {
       hasFailure: true,
     });
 
-    expect(responseRecord['error']).toEqual(
+    const error = responseRecord['error'] as Record<string, unknown>;
+    // suggestedFix is now the explanation string (not the full object)
+    expect(typeof error['suggestedFix']).toBe('string');
+    expect(error['suggestedFix']).toMatch(/re-authenticate/i);
+    // fixableVia is the structured recovery action
+    expect(error['fixableVia']).toEqual(
       expect.objectContaining({
-        suggestedFix: expect.objectContaining({
-          tool: 'sheets_auth',
-          action: 'login',
-        }),
+        tool: 'sheets_auth',
+        action: 'login',
       })
     );
   });
@@ -183,7 +186,7 @@ describe('applyResponseIntelligence', () => {
     }
   });
 
-  it('does NOT inject _hints for sheets_data.write (no response values)', () => {
+  it('injects verifyWrite _hints for sheets_data.write responses', () => {
     const responseRecord: Record<string, unknown> = {
       success: true,
       action: 'write',
@@ -194,10 +197,22 @@ describe('applyResponseIntelligence', () => {
     applyResponseIntelligence(responseRecord, {
       toolName: 'sheets_data',
       hasFailure: false,
+      spreadsheetId: 'abc123',
     });
 
-    // write does not return cell values — no _hints should be injected
-    expect(responseRecord['_hints']).toBeUndefined();
+    // Write responses now get verifyWrite hint for read-back verification
+    const hints = responseRecord['_hints'] as Record<string, unknown>;
+    expect(hints).toBeDefined();
+    expect(hints['verifyWrite']).toEqual(
+      expect.objectContaining({
+        tool: 'sheets_data',
+        action: 'read',
+        params: expect.objectContaining({
+          spreadsheetId: 'abc123',
+          range: 'Sheet1!A1:B2',
+        }),
+      })
+    );
   });
 
   it('does NOT inject _hints for other tools (format, analyze, etc.)', () => {
@@ -230,8 +245,11 @@ describe('applyResponseIntelligence', () => {
 
     // Failure path — _hints not injected
     expect(responseRecord['_hints']).toBeUndefined();
-    // But suggestedFix should be on the error
+    // suggestedFix (string) and fixableVia (structured) should be on the error
     const error = responseRecord['error'] as Record<string, unknown>;
-    expect(error['suggestedFix']).toBeDefined();
+    expect(typeof error['suggestedFix']).toBe('string');
+    expect(error['fixableVia']).toEqual(
+      expect.objectContaining({ tool: 'sheets_auth', action: 'login' })
+    );
   });
 });

@@ -31,9 +31,12 @@ const CommonFieldsSchema = z.object({
   sheetId: SheetIdSchema.optional().describe(
     'Numeric sheet ID (provide sheetId OR sheetName, not both). Found in the gid= URL parameter.'
   ),
-  sheetName: z.string().optional().describe(
-    'Sheet tab name (provide sheetName OR sheetId, not both). The visible tab label at the bottom of the spreadsheet.'
-  ),
+  sheetName: z
+    .string()
+    .optional()
+    .describe(
+      'Sheet tab name (provide sheetName OR sheetId, not both). The visible tab label at the bottom of the spreadsheet.'
+    ),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])
     .optional()

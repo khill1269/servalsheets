@@ -323,6 +323,8 @@ function buildCollaborateFields(action: string, mode: BuildMode): Record<string,
     case 'version_compare':
     case 'version_export':
       return base;
+    case 'version_snapshot_status':
+      return { ...base, taskId: asString('snapshot_task_1') };
     case 'share_transfer_ownership':
       return { ...base, newOwnerEmail: SAMPLE_EMAIL };
     case 'share_set_link':
@@ -403,6 +405,7 @@ function applyActionOverrides(
     return {
       ...request,
       spreadsheetId: SAMPLE_SPREADSHEET_ID,
+      ...(action === 'run' ? { devMode: true } : {}),
     };
   }
 

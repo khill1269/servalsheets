@@ -24,6 +24,28 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
+function makePlanExecutable<T extends { steps: Array<{ tool: string; action: string; params: Record<string, unknown> }> }>(
+  plan: T
+): T {
+  for (const step of plan.steps) {
+    if (step.tool === 'sheets_data' && step.action === 'read' && step.params['range'] === undefined) {
+      step.params['range'] = 'Sheet1!A1:B5';
+    }
+    if (
+      step.tool === 'sheets_data' &&
+      step.action === 'write' &&
+      step.params['range'] === undefined
+    ) {
+      step.params['range'] = 'Sheet1!A1:B2';
+      step.params['values'] = [
+        ['Name', 'Value'],
+        ['Alice', 42],
+      ];
+    }
+  }
+  return plan;
+}
+
 // ---------------------------------------------------------------------------
 // Helper: build a minimal plan with a single inject_cross_sheet_lookup step
 // ---------------------------------------------------------------------------
@@ -176,7 +198,7 @@ describe('D1: inject_cross_sheet_lookup step type', () => {
   });
 
   it('regular tool_call steps still go through executeHandler unchanged', async () => {
-    const plan = compilePlan('read data', 1, 'spreadsheet-abc');
+    const plan = makePlanExecutable(compilePlan('read data', 1, 'spreadsheet-abc'));
     // plan.steps[0] should be a normal sheets_data.read step
 
     const mockHandler = vi.fn(async () => ({ success: true, data: [] })) satisfies ExecuteHandlerFn;

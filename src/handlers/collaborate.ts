@@ -2,7 +2,7 @@
  * ServalSheets - Collaborate Handler
  *
  * Consolidated collaboration operations: sharing, comments, version control, and approvals
- * Merges: sharing.ts (8 actions) + comments.ts (10 actions) + versions.ts (10 actions) + approvals (7 actions) + access_proposals (2 actions) = 37 actions
+ * Merges: sharing.ts (8 actions) + comments.ts (10 actions) + versions.ts (11 actions) + approvals (7 actions) + access_proposals (2 actions) = 41 actions
  * MCP Protocol: 2025-11-25
  */
 
@@ -43,6 +43,7 @@ import type {
   CollaborateVersionDeleteSnapshotInput,
   CollaborateVersionCompareInput,
   CollaborateVersionExportInput,
+  CollaborateVersionSnapshotStatusInput,
   CollaborateApprovalCreateInput,
   CollaborateApprovalApproveInput,
   CollaborateApprovalRejectInput,
@@ -90,6 +91,7 @@ import {
   handleVersionRestoreRevisionAction,
   handleVersionKeepRevisionAction,
   handleVersionCreateSnapshotAction,
+  handleVersionSnapshotStatusAction,
   handleVersionListSnapshotsAction,
   handleVersionRestoreSnapshotAction,
   handleVersionDeleteSnapshotAction,
@@ -444,6 +446,12 @@ export class CollaborateHandler extends BaseHandler<
         case 'version_create_snapshot':
           response = await handleVersionCreateSnapshotAction(
             inferredReq as CollaborateVersionCreateSnapshotInput,
+            versionsDeps
+          );
+          break;
+        case 'version_snapshot_status':
+          response = await handleVersionSnapshotStatusAction(
+            inferredReq as CollaborateVersionSnapshotStatusInput,
             versionsDeps
           );
           break;

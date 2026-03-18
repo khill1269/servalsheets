@@ -14,7 +14,7 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_appsscript: 19,
   sheets_auth: 5,
   sheets_bigquery: 17,
-  sheets_collaborate: 40,
+  sheets_collaborate: 41,
   sheets_composite: 21,
   sheets_compute: 16,
   sheets_confirm: 5,

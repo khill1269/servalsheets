@@ -19,7 +19,29 @@ import {
 // compilePlan(description, maxSteps, spreadsheetId, context) — uses parseDescription
 // "read" matches sheets_data.read, "write" matches sheets_data.write
 function makePlan(description: string = 'read data from spreadsheet') {
-  return compilePlan(description, 10, 'abc123');
+  return makePlanExecutable(compilePlan(description, 10, 'abc123'));
+}
+
+function makePlanExecutable<T extends { steps: Array<{ tool: string; action: string; params: Record<string, unknown> }> }>(
+  plan: T
+): T {
+  for (const step of plan.steps) {
+    if (step.tool === 'sheets_data' && step.action === 'read' && step.params['range'] === undefined) {
+      step.params['range'] = 'Sheet1!A1:B5';
+    }
+    if (
+      step.tool === 'sheets_data' &&
+      step.action === 'write' &&
+      step.params['range'] === undefined
+    ) {
+      step.params['range'] = 'Sheet1!A1:B2';
+      step.params['values'] = [
+        ['Name', 'Value'],
+        ['Alice', 42],
+      ];
+    }
+  }
+  return plan;
 }
 
 describe('B1: agent error classification', () => {

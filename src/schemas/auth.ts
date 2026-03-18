@@ -16,7 +16,42 @@ const VerbositySchema = z
     'Response verbosity: minimal (essential info only), standard (balanced), detailed (full metadata)'
   );
 
-// INPUT SCHEMA: Discriminated union (4 actions)
+const BlockingIssueSchema = z.object({
+  code: z.string().min(1).describe('Stable blocking issue code'),
+  message: z.string().min(1).describe('Human-readable issue summary'),
+  resolution: z.string().optional().describe('Best next step to resolve the issue'),
+});
+
+const ReadinessSchema = z.object({
+  googleAuth: z.object({
+    configured: z.boolean(),
+    authenticated: z.boolean(),
+    authType: z.string().optional(),
+    tokenValid: z.boolean().optional(),
+  }),
+  elicitation: z.object({
+    supported: z.boolean(),
+    form: z.boolean(),
+    url: z.boolean(),
+  }),
+  sampling: z.object({
+    configured: z.boolean(),
+    available: z.boolean(),
+    mode: z.enum(['client_sampling', 'llm_fallback', 'unavailable']).optional(),
+  }),
+  connectors: z.object({
+    available: z.number().int().nonnegative(),
+    configured: z.number().int().nonnegative(),
+    healthy: z.number().int().nonnegative(),
+  }),
+  webhooks: z.object({
+    configured: z.boolean(),
+    active: z.boolean(),
+  }),
+  missingConfig: z.array(z.string()).optional(),
+});
+
+// INPUT SCHEMA: Discriminated union (5 actions)
 const StatusActionSchema = z.object({
   action: z.literal('status').describe('Check current authentication status'),
   verbosity: VerbositySchema,
@@ -103,6 +138,10 @@ const AuthResponseSchema = z.discriminatedUnion('success', [
     authUrl: z.string().regex(URL_REGEX, 'Invalid URL format').optional(),
     message: z.string().optional(),
     instructions: z.array(z.string()).optional(),
+    readiness: ReadinessSchema.optional(),
+    blockingIssues: z.array(BlockingIssueSchema).optional(),
+    recommendedNextAction: z.string().optional(),
+    recommendedPrompt: z.string().optional(),
     email: z.string().optional(),
     scopes: z.array(z.string()).optional(),
     hasAccessToken: z.boolean().optional(),
@@ -113,6 +152,19 @@ const AuthResponseSchema = z.discriminatedUnion('success', [
       .describe(
         'Whether existing tokens are valid (undefined if no tokens, false if invalid, true if valid)'
       ),
+    configured: z
+      .boolean()
+      .optional()
+      .describe('Whether the requested optional feature or auth dependency is configured'),
+    verified: z
+      .boolean()
+      .optional()
+      .describe('Whether the configured feature was verified with a health or readiness check'),
+    nextStep: z.string().optional().describe('Best next step after the current response'),
+    fallbackInstructions: z
+      .array(z.string())
+      .optional()
+      .describe('Copy-pastable guidance for clients without elicitation support'),
     _meta: ResponseMetaSchema.optional(),
   }),
   z.object({

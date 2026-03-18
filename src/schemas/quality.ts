@@ -40,19 +40,34 @@ const CommonFieldsSchema = z.object({
 // Individual Action Schemas
 // ============================================================================
 
-export const BuiltinValidationRuleSchema = z.enum([
-  'builtin_string',
-  'builtin_number',
-  'builtin_boolean',
-  'builtin_date',
-  'builtin_positive',
-  'builtin_non_negative',
-  'builtin_email',
-  'builtin_url',
-  'builtin_phone',
-  'builtin_required',
-  'builtin_non_empty_string',
-]);
+export const BuiltinValidationRuleSchema = z
+  .enum([
+    'builtin_string',
+    'builtin_number',
+    'builtin_boolean',
+    'builtin_date',
+    'builtin_positive',
+    'builtin_non_negative',
+    'builtin_email',
+    'builtin_url',
+    'builtin_phone',
+    'builtin_required',
+    'builtin_non_empty_string',
+  ])
+  .describe(
+    'Built-in validation rule ID: ' +
+      'builtin_string (value is a string), ' +
+      'builtin_number (valid number), ' +
+      'builtin_boolean (true/false/0/1/yes/no), ' +
+      'builtin_date (ISO 8601 date), ' +
+      'builtin_positive (number > 0), ' +
+      'builtin_non_negative (number >= 0), ' +
+      'builtin_email (valid email format), ' +
+      'builtin_url (valid HTTP/HTTPS URL), ' +
+      'builtin_phone (phone number format), ' +
+      'builtin_required (non-empty value), ' +
+      'builtin_non_empty_string (string with non-whitespace content)'
+  );
 
 const ValidationSeveritySchema = z.enum(['error', 'warning', 'info']);
 

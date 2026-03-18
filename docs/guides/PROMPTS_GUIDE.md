@@ -2,7 +2,7 @@
 title: ServalSheets Prompts Guide
 category: guide
 last_updated: 2026-01-31
-description: ServalSheets includes 7 guided prompts to help you get started and accomplish common tasks.
+description: ServalSheets includes guided prompts for onboarding, verification, setup, analysis, and recovery. Start with the readiness-first onboarding funnel.
 version: 1.6.0
 audience: user
 difficulty: intermediate
@@ -10,7 +10,18 @@ difficulty: intermediate
 
 # ServalSheets Prompts Guide
 
-ServalSheets includes **7 guided prompts** to help you get started and accomplish common tasks.
+ServalSheets includes guided prompts for onboarding, setup, analysis, cleaning, reporting, and recovery.
+
+## Start Here
+
+The canonical first-run funnel is:
+
+1. Run `sheets_auth` with `action: "status"`
+2. Read the `readiness`, `blockingIssues`, `recommendedNextAction`, and `recommendedPrompt` fields
+3. Use `/test_connection`
+4. Continue with `/first_operation` or `/full_setup`
+
+If the client supports elicitation, setup prompts and setup tools can collect missing inputs interactively. If it does not, the server returns fallback instructions with copy-pastable JSON.
 
 ## 🎉 Onboarding Prompts
 
@@ -26,13 +37,11 @@ Invoke with:
 
 What it shows:
 
-- Overview of 25 tools and 402 actions
-- Quick start with test spreadsheet
-- What ServalSheets can do
-- Safety features
-- Tips for best results
+- The readiness-first onboarding ladder
+- Why `sheets_auth status` is the required first step
+- The canonical next prompts to use after readiness
 
-Perfect for: First-time users, understanding capabilities
+Perfect for: First-time users who want the shortest path to a successful first task
 
 ---
 
@@ -48,12 +57,12 @@ Invoke with:
 
 What it does:
 
-- Tests connection with public spreadsheet
-- Verifies all authentication is working
-- Guides through 3 test operations
-- Confirms you're ready to use your own sheets
+- Starts with `sheets_auth status`
+- Verifies readiness and authentication
+- Confirms metadata, read access, session context, and analysis on a public sheet
+- Tells you the next recommended action after the verification pass
 
-Perfect for: After initial setup, troubleshooting connection issues
+Perfect for: Immediately after install, and whenever onboarding feels uncertain
 
 ---
 
@@ -75,13 +84,34 @@ Or with your own spreadsheet:
 
 What it covers:
 
-- Reading data
-- Analyzing quality
-- Getting statistics
-- Formatting headers (with dry-run!)
-- Safety best practices
+- Setting active context
+- Reading a representative range
+- Running a lightweight analysis
+- Completing one useful task
+- Ending with a clear next step
 
-Perfect for: Learning the workflow, understanding safety features
+Perfect for: Moving from “the server works” to “I completed something useful”
+
+---
+
+### `full_setup`
+
+**Create a new workbook using the canonical readiness → create → verify flow**
+
+Invoke with:
+
+```bash
+/full_setup type=budget name="Q1 2026 Budget"
+```
+
+What it covers:
+
+- Confirms readiness first
+- Creates the workbook
+- Applies a template and formulas
+- Verifies the first successful read before optional sharing
+
+Perfect for: New projects where you want a guided, end-to-end creation path
 
 ---
 
@@ -199,9 +229,10 @@ Perfect for: Dashboards, presentations, stakeholder reports
 Prompts appear in the prompt selector. Just type `/` and you'll see:
 
 ```
-🎉 welcome - Get started with this guided introduction
-🔍 test_connection - Test your connection
-👶 first_operation - Your first operation walkthrough
+🎉 welcome - Readiness-first onboarding
+🔍 test_connection - Verify auth, reads, and session wiring
+👶 first_operation - Complete your first useful task
+🚀 full_setup - Create a new workbook with guided verification
 🔬 analyze_spreadsheet - Comprehensive analysis
 🧹 clean_data - Clean and standardize data
 🔄 transform_data - Transform data safely
@@ -213,14 +244,14 @@ Prompts appear in the prompt selector. Just type `/` and you'll see:
 **First Time User:**
 
 ```
-You: /welcome
-Claude: [Shows complete introduction to ServalSheets]
+You: sheets_auth status
+Claude: [Shows readiness, blocking issues, and the next best action]
 
 You: /test_connection
-Claude: [Tests connection with public spreadsheet]
+Claude: [Verifies auth, metadata access, value reads, and session context]
 
 You: /first_operation
-Claude: [Walks through first operation step-by-step]
+Claude: [Guides the first useful task with a clear next step]
 ```
 
 **Data Analysis:**
@@ -245,8 +276,10 @@ Claude: [Creates professional report with charts]
 ### For New Users
 
 1. `/welcome` - Understand what ServalSheets does
-2. `/test_connection` - Verify setup works
-3. `/first_operation` - Learn the workflow
+2. `sheets_auth status` - Check readiness and follow the recommended next action
+3. `/test_connection` - Verify setup works
+4. `/first_operation` - Learn the workflow
+5. `/full_setup` - Use this instead if the user wants a brand-new workbook
 
 ### For Data Quality
 

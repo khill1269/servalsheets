@@ -46,6 +46,9 @@ vi.mock('../../src/utils/request-context.js', () => ({
   sendProgress: vi.fn(),
   getRequestContext: vi.fn().mockReturnValue({ timeoutMs: 30000 }),
   getRequestLogger: vi.fn().mockReturnValue({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+  recordRequestLlmProvenance: vi.fn(),
+  getRequestLlmProvenance: vi.fn(),
+  getRequestAbortSignal: vi.fn(),
 }));
 
 vi.mock('../../src/services/history-service.js', () => {
@@ -91,6 +94,18 @@ vi.mock('../../src/services/background-analyzer.js', () => ({
 vi.mock('../../src/utils/url.js', () => ({
   validateHyperlinkUrl: vi.fn().mockReturnValue({ valid: true }),
 }));
+
+vi.mock('../../src/mcp/sampling.js', async () => {
+  const actual = await vi.importActual<typeof import('../../src/mcp/sampling.js')>('../../src/mcp/sampling.js');
+  return {
+    ...actual,
+    assertSamplingConsent: vi.fn().mockResolvedValue(undefined),
+    withSamplingTimeout: vi.fn(<T>(operation: (() => Promise<T>) | Promise<T>) => {
+      return typeof operation === 'function' ? operation() : operation;
+    }),
+    generateAIInsight: vi.fn().mockResolvedValue('AI-generated insight for test.'),
+  };
+});
 
 vi.mock('../../src/utils/payload-validator.js', () => ({
   validateValuesPayload: vi.fn().mockReturnValue({ valid: true, sizeBytes: 100, warningMessage: undefined }),
@@ -274,6 +289,8 @@ describe('Sampling: format.suggest_format (aiRationale)', () => {
       const suggestions = (result.response as any).suggestions;
       expect(suggestions).toBeDefined();
       if (suggestions && suggestions.length > 0) {
+        // createMessage called at least twice: once for LLM suggestion, once for aiRationale enrichment
+        expect(mockServer.createMessage.mock.calls.length).toBeGreaterThanOrEqual(2);
         // aiRationale should be added to each suggestion
         expect(suggestions[0]).toHaveProperty('aiRationale');
         expect(typeof suggestions[0].aiRationale).toBe('string');

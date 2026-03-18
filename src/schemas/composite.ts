@@ -95,7 +95,13 @@ export const ImportCsvInputSchema = z.object({
   mode: ImportCsvModeSchema.default('replace').describe(
     'How to handle existing data (default: replace | alternatives: append, new_sheet)'
   ),
-  newSheetName: z.string().max(255).optional().describe('Name for new sheet. Used when mode is new_sheet OR when no existing sheet is specified. Defaults to Import_YYYY-MM-DD if omitted.'),
+  newSheetName: z
+    .string()
+    .max(255)
+    .optional()
+    .describe(
+      'Name for new sheet. Used when mode is new_sheet OR when no existing sheet is specified. Defaults to Import_YYYY-MM-DD if omitted.'
+    ),
   skipEmptyRows: z
     .boolean()
     .default(true)

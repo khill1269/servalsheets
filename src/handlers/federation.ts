@@ -24,6 +24,7 @@ import { mapStandaloneError } from './helpers/error-mapping.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
+import { recordServerName } from '../mcp/completions.js';
 
 function sanitizeFederationErrorMessage(message: string): string {
   // Drop multiline stack tail and redact common local filesystem path patterns.
@@ -272,6 +273,11 @@ export class FederationHandler {
       url: s.url,
       connected: client.isConnected(s.name),
     }));
+
+    // Record server names for MCP completion suggestions
+    for (const s of serverList) {
+      recordServerName(s.name);
+    }
 
     logger.debug('Listing federation servers', {
       component: 'federation-handler',

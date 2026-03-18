@@ -34,6 +34,7 @@ import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import { AuthenticationError, ServiceError } from '../core/errors.js';
 import type { Intent } from '../core/intent.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
+import { recordScriptId } from '../mcp/completions.js';
 import { executeWithRetry } from '../utils/retry.js';
 import { getRequestAbortSignal } from '../utils/request-context.js';
 import { getApiSpecificCircuitBreakerConfig, getEnv } from '../config/env.js';
@@ -704,6 +705,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     }
 
     const result = await this.apiRequest<ProjectResponse>('POST', '/projects', body);
+    recordScriptId(result.scriptId);
 
     if (req.parentId) {
       SheetsAppsScriptHandler.rememberBoundScript(req.parentId, result.scriptId);
@@ -728,6 +730,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     type ProjectResponse = (typeof this._interfaces)['ProjectResponse'];
 
     const result = await this.apiRequest<ProjectResponse>('GET', `/projects/${req.scriptId}`);
+    recordScriptId(result.scriptId);
 
     return this.success('get', {
       scriptId: result.scriptId,

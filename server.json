@@ -2,7 +2,7 @@
   "$schema": "https://cdn.jsdelivr.net/npm/@anthropic-ai/mcp-registry@latest/dist/registry-schema.json",
   "name": "io.github.khill1269/servalsheets",
   "version": "1.7.0",
-  "description": "Production-grade Google Sheets MCP server with 25 tools and 402 actions",
+  "description": "Production-grade Google Sheets MCP server with 25 tools and 403 actions",
   "icons": [
     {
       "src": "https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/serval-icon.png",
@@ -29,7 +29,7 @@
       "transport": {
         "type": "stdio"
       },
-      "description": "Production-grade Google Sheets MCP server - 25 tools, 402 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
+      "description": "Production-grade Google Sheets MCP server - 25 tools, 403 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
     }
   ],
   "tools": [
@@ -173,7 +173,7 @@
     },
     {
       "name": "sheets_collaborate",
-      "description": "collaborate operations (40 actions)",
+      "description": "collaborate operations (41 actions)",
       "actions": [
         "share_add",
         "share_update",
@@ -198,6 +198,7 @@
         "version_restore_revision",
         "version_keep_revision",
         "version_create_snapshot",
+        "version_snapshot_status",
         "version_list_snapshots",
         "version_restore_snapshot",
         "version_delete_snapshot",
@@ -596,7 +597,7 @@
   ],
   "metadata": {
     "toolCount": 25,
-    "actionCount": 402,
+    "actionCount": 403,
     "categories": [
       "Core Operations (5 tools): auth, core, data, format, dimensions",
       "Visual Analytics (1 tool): visualize",

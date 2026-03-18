@@ -13,6 +13,7 @@ export interface SuggestedAction {
   tool: string;
   action: string;
   reason: string;
+  params?: Record<string, unknown>;
 }
 
 const RECOMMENDATION_RULES: Record<string, SuggestedAction[]> = {
@@ -580,6 +581,8 @@ export function getDataAwareSuggestions(
   options?: {
     responseValues?: CellValue[][];
     confidenceGaps?: Array<{ question: string; options?: string[] }>;
+    spreadsheetId?: string;
+    range?: string;
   }
 ): SuggestedAction[] {
   const dataSuggestions: SuggestedAction[] = [];
@@ -732,5 +735,36 @@ export function getDataAwareSuggestions(
     addIfNew(rule);
   }
 
+  // ── Inject executable params from session context ──────────────────────────
+  if (options?.spreadsheetId) {
+    const sid = options.spreadsheetId;
+    const rng = options.range;
+    for (const suggestion of dataSuggestions) {
+      if (!suggestion.params) {
+        const p: Record<string, unknown> = { spreadsheetId: sid };
+        // Carry range for actions that operate on ranges
+        if (rng && RANGE_CARRYING_ACTIONS.has(`${suggestion.tool}.${suggestion.action}`)) {
+          p['range'] = rng;
+        }
+        suggestion.params = p;
+      }
+    }
+  }
+
   return dataSuggestions;
 }
+
+/** Actions that benefit from receiving the source range in params */
+const RANGE_CARRYING_ACTIONS = new Set([
+  'sheets_analyze.detect_patterns',
+  'sheets_analyze.analyze_data',
+  'sheets_analyze.quick_insights',
+  'sheets_visualize.suggest_chart',
+  'sheets_fix.suggest_cleaning',
+  'sheets_fix.clean',
+  'sheets_fix.detect_anomalies',
+  'sheets_dimensions.auto_resize',
+  'sheets_dimensions.sort_range',
+  'sheets_data.cross_read',
+  'sheets_compute.evaluate',
+]);

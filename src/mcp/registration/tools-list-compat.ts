@@ -9,10 +9,14 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { DEFER_SCHEMAS } from '../../config/constants.js';
+import { TOOL_ICONS } from '../features-2025-11-25.js';
 import { isWebhookRedisConfigured } from '../../services/webhook-manager.js';
 import { logger } from '../../utils/logger.js';
 import { zodSchemaToJsonSchema } from '../../utils/schema-compat.js';
-import { prepareSchemaForRegistrationCached, buildDeferredFallbackSchema } from './schema-helpers.js';
+import {
+  prepareSchemaForRegistrationCached,
+  buildDeferredFallbackSchema,
+} from './schema-helpers.js';
 import { getToolDiscoveryHint } from './tool-discovery-hints.js';
 
 const EMPTY_OBJECT_JSON_SCHEMA = { type: 'object', properties: {} };
@@ -59,9 +63,7 @@ function toJsonSchema(
   let result: Record<string, unknown>;
   if (isZodSchema(schemaForSerialization)) {
     try {
-      result = zodSchemaToJsonSchema(
-        schemaForSerialization as unknown as import('zod').ZodTypeAny
-      );
+      result = zodSchemaToJsonSchema(schemaForSerialization as unknown as import('zod').ZodTypeAny);
     } catch (err) {
       // P1-2: Full conversion failed — try deferred fallback before giving up.
       // The deferred builder extracts action enums + property names from the Zod
@@ -74,10 +76,7 @@ function toJsonSchema(
         });
 
         try {
-          const fallback = buildDeferredFallbackSchema(
-            schema as z.ZodType,
-            schemaType ?? 'input'
-          );
+          const fallback = buildDeferredFallbackSchema(schema as z.ZodType, schemaType ?? 'input');
           if (fallback && typeof fallback === 'object' && Object.keys(fallback).length > 0) {
             return fallback;
           }
@@ -280,6 +279,7 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
               description: enrichToolDescription(name, tool.description),
               inputSchema,
               annotations: tool.annotations,
+              icons: tool.icons ?? TOOL_ICONS[name],
               execution: tool.execution,
               _meta: tool._meta,
             };

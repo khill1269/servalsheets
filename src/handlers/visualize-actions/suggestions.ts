@@ -24,6 +24,366 @@ interface SuggestionsDeps {
   error: (error: ErrorDetail) => VisualizeResponse;
 }
 
+type ColumnKind = 'numeric' | 'date' | 'text' | 'mixed';
+
+function toRangeString(range: SuggestChartInput['range'] | SuggestPivotInput['range']): string {
+  return typeof range === 'string' ? range : 'a1' in range ? range.a1 : 'Sheet1';
+}
+
+function isNumericLike(value: unknown): boolean {
+  if (typeof value === 'number') {
+    return Number.isFinite(value);
+  }
+
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  const normalized = value.replace(/,/g, '').trim();
+  if (!normalized) {
+    return false;
+  }
+
+  return !Number.isNaN(Number(normalized));
+}
+
+function isDateLike(value: unknown): boolean {
+  if (value instanceof Date) {
+    return !Number.isNaN(value.getTime());
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value > 0;
+  }
+
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  if (/^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)/i.test(trimmed)) {
+    return true;
+  }
+
+  return !Number.isNaN(Date.parse(trimmed));
+}
+
+function detectHeaderRow(values: unknown[][]): boolean {
+  return values.length > 1 && (values[0] ?? []).every((value) => typeof value === 'string');
+}
+
+function inferColumnKinds(
+  values: unknown[][],
+  hasHeaders: boolean
+): Array<{ index: number; header: string; kind: ColumnKind }> {
+  const headers = hasHeaders
+    ? (values[0] ?? []).map((cell, index) => String(cell ?? `Column ${index + 1}`))
+    : (values[0] ?? []).map((_, index) => `Column ${index + 1}`);
+  const dataRows = hasHeaders ? values.slice(1) : values;
+
+  return headers.map((header, index) => {
+    const sample = dataRows
+      .map((row) => row?.[index])
+      .filter((value) => value !== null && value !== undefined && value !== '')
+      .slice(0, 20);
+
+    const numericCount = sample.filter(isNumericLike).length;
+    const dateCount = sample.filter(isDateLike).length;
+
+    let kind: ColumnKind = 'mixed';
+    if (sample.length > 0 && numericCount === sample.length) {
+      kind = 'numeric';
+    } else if (sample.length > 0 && dateCount === sample.length) {
+      kind = 'date';
+    } else if (sample.every((value) => typeof value === 'string')) {
+      kind = 'text';
+    } else if (numericCount >= Math.max(2, sample.length * 0.7)) {
+      kind = 'numeric';
+    } else if (dateCount >= Math.max(2, sample.length * 0.7)) {
+      kind = 'date';
+    }
+
+    return { index, header, kind };
+  });
+}
+
+function buildHeuristicChartSuggestions(
+  values: unknown[][],
+  maxSuggestions: number
+): Array<Record<string, unknown>> {
+  const hasHeaders = detectHeaderRow(values);
+  const columns = inferColumnKinds(values, hasHeaders);
+  const numericColumns = columns.filter((column) => column.kind === 'numeric');
+  const dateColumns = columns.filter((column) => column.kind === 'date');
+  const textColumns = columns.filter((column) => column.kind === 'text');
+  const categoryColumn = dateColumns[0] ?? textColumns[0] ?? columns[0];
+  const categoryValues = (hasHeaders ? values.slice(1) : values)
+    .map((row) => row?.[categoryColumn?.index ?? 0])
+    .filter((value) => value !== null && value !== undefined && value !== '');
+  const distinctCategoryCount = new Set(categoryValues.map((value) => String(value))).size;
+  const suggestions: Array<Record<string, unknown>> = [];
+
+  if (categoryColumn && numericColumns.length > 0 && dateColumns.length > 0) {
+    suggestions.push({
+      type: 'chart',
+      chartType: 'LINE',
+      title: `${numericColumns[0]?.header ?? 'Value'} over ${categoryColumn.header}`,
+      explanation: 'Highlights how numeric values change across a temporal sequence.',
+      confidence: 92,
+      reasoning: 'Detected a time-like category column with one or more numeric measures.',
+      dataMapping: {
+        categoryColumn: categoryColumn.index,
+        seriesColumns: numericColumns.slice(0, 3).map((column) => column.index),
+      },
+    });
+  }
+
+  if (categoryColumn && numericColumns.length > 0) {
+    suggestions.push({
+      type: 'chart',
+      chartType: distinctCategoryCount > 8 ? 'BAR' : 'COLUMN',
+      title: `${numericColumns[0]?.header ?? 'Value'} by ${categoryColumn.header}`,
+      explanation: 'Compares numeric values across categories in a straightforward layout.',
+      confidence: 86,
+      reasoning: 'Detected a category column paired with numeric measures suitable for comparison.',
+      dataMapping: {
+        categoryColumn: categoryColumn.index,
+        seriesColumns: numericColumns.slice(0, 3).map((column) => column.index),
+      },
+    });
+  }
+
+  if (
+    categoryColumn &&
+    numericColumns.length === 1 &&
+    distinctCategoryCount > 1 &&
+    distinctCategoryCount <= 8
+  ) {
+    suggestions.push({
+      type: 'chart',
+      chartType: 'PIE',
+      title: `${numericColumns[0]?.header ?? 'Value'} share by ${categoryColumn.header}`,
+      explanation: 'Shows relative contribution of each category to the total.',
+      confidence: 74,
+      reasoning:
+        'Single-measure categorical data with a small number of distinct categories fits a pie chart.',
+      dataMapping: {
+        categoryColumn: categoryColumn.index,
+        seriesColumns: [numericColumns[0]!.index],
+      },
+    });
+  }
+
+  if (numericColumns.length >= 2) {
+    suggestions.push({
+      type: 'chart',
+      chartType: 'SCATTER',
+      title: `${numericColumns[0]!.header} vs ${numericColumns[1]!.header}`,
+      explanation: 'Reveals correlation and outliers between two numeric measures.',
+      confidence: 80,
+      reasoning: 'Detected at least two numeric columns with no required categorical axis.',
+      dataMapping: {
+        categoryColumn: numericColumns[0]!.index,
+        seriesColumns: [numericColumns[1]!.index],
+      },
+    });
+  }
+
+  if (suggestions.length === 0) {
+    suggestions.push({
+      type: 'chart',
+      chartType: 'COLUMN',
+      title: 'Tabular comparison',
+      explanation: 'Provides a general-purpose comparison view when the data shape is mixed.',
+      confidence: 60,
+      reasoning:
+        'Falling back to a safe categorical comparison because the data shape is ambiguous.',
+      dataMapping: {
+        categoryColumn: categoryColumn?.index ?? 0,
+        seriesColumns: numericColumns.slice(0, 3).map((column) => column.index),
+      },
+    });
+  }
+
+  const deduped = new Map<string, Record<string, unknown>>();
+  for (const suggestion of suggestions) {
+    const key = String(suggestion['chartType']);
+    if (!deduped.has(key)) {
+      deduped.set(key, suggestion);
+    }
+  }
+
+  return Array.from(deduped.values()).slice(0, maxSuggestions);
+}
+
+function getDistinctValueCount(
+  values: unknown[][],
+  columnIndex: number,
+  hasHeaders: boolean
+): number {
+  const rows = hasHeaders ? values.slice(1) : values;
+  return new Set(
+    rows
+      .map((row) => row?.[columnIndex])
+      .filter((value) => value !== null && value !== undefined && value !== '')
+      .map((value) => String(value))
+  ).size;
+}
+
+function buildHeuristicPivotSuggestions(
+  values: unknown[][],
+  maxSuggestions: number
+): Array<Record<string, unknown>> {
+  const hasHeaders = detectHeaderRow(values);
+  const columns = inferColumnKinds(values, hasHeaders);
+  const numericColumns = columns.filter((column) => column.kind === 'numeric');
+  const dimensionColumns = columns.filter(
+    (column) => column.kind === 'text' || column.kind === 'date'
+  );
+  const mixedColumns = columns.filter((column) => column.kind === 'mixed');
+  const candidateDimensions = [...dimensionColumns, ...mixedColumns];
+  const primaryRowColumn =
+    candidateDimensions.find((column) => {
+      const distinctCount = getDistinctValueCount(values, column.index, hasHeaders);
+      return distinctCount >= 2 && distinctCount <= 100;
+    }) ??
+    candidateDimensions[0] ??
+    columns[0];
+  const secondaryRowColumn =
+    candidateDimensions.find((column) => {
+      if (!primaryRowColumn || column.index === primaryRowColumn.index) {
+        return false;
+      }
+
+      const distinctCount = getDistinctValueCount(values, column.index, hasHeaders);
+      return distinctCount >= 2 && distinctCount <= 24;
+    }) ?? undefined;
+  const suggestions: Array<Record<string, unknown>> = [];
+
+  if (primaryRowColumn && numericColumns.length > 0) {
+    const valueColumns = numericColumns.slice(0, 2).map((column) => ({
+      columnIndex: column.index,
+      function: 'SUM',
+    }));
+    suggestions.push({
+      type: 'pivot',
+      title: `${numericColumns[0]?.header ?? 'Value'} by ${primaryRowColumn.header}`,
+      explanation:
+        'Summarizes numeric measures by the strongest categorical dimension in the range.',
+      confidence: 90,
+      reasoning:
+        'Detected one or more numeric measures plus a dimension column suitable for row grouping.',
+      configuration: {
+        rowGroupColumns: [primaryRowColumn.index],
+        valueColumns,
+      },
+    });
+  }
+
+  if (primaryRowColumn && secondaryRowColumn && numericColumns.length > 0) {
+    suggestions.push({
+      type: 'pivot',
+      title: `${numericColumns[0]?.header ?? 'Value'} by ${primaryRowColumn.header} and ${secondaryRowColumn.header}`,
+      explanation: 'Breaks down the primary metric across two dimensions for deeper comparison.',
+      confidence: 82,
+      reasoning:
+        'Detected two dimension columns with manageable cardinality and at least one numeric measure.',
+      configuration: {
+        rowGroupColumns: [primaryRowColumn.index],
+        columnGroupColumns: [secondaryRowColumn.index],
+        valueColumns: [{ columnIndex: numericColumns[0]!.index, function: 'SUM' }],
+      },
+    });
+  }
+
+  if (primaryRowColumn && numericColumns.length > 0) {
+    suggestions.push({
+      type: 'pivot',
+      title: `Average ${numericColumns[0]?.header ?? 'Value'} by ${primaryRowColumn.header}`,
+      explanation: 'Shows average performance by group instead of total magnitude.',
+      confidence: 72,
+      reasoning:
+        'Average aggregation is useful when group sizes vary and a raw sum would be misleading.',
+      configuration: {
+        rowGroupColumns: [primaryRowColumn.index],
+        valueColumns: [{ columnIndex: numericColumns[0]!.index, function: 'AVERAGE' }],
+      },
+    });
+  }
+
+  if (primaryRowColumn) {
+    suggestions.push({
+      type: 'pivot',
+      title: `Record count by ${primaryRowColumn.header}`,
+      explanation: 'Counts records per category when a simple distribution view is useful.',
+      confidence: numericColumns.length === 0 ? 78 : 64,
+      reasoning: 'A count-based pivot remains useful even when measures are sparse or mixed.',
+      configuration: {
+        rowGroupColumns: [primaryRowColumn.index],
+        valueColumns: [
+          {
+            columnIndex: (numericColumns[0] ?? primaryRowColumn).index,
+            function: 'COUNT',
+          },
+        ],
+      },
+    });
+  }
+
+  const deduped = new Map<string, Record<string, unknown>>();
+  for (const suggestion of suggestions) {
+    const config = suggestion['configuration'] as Record<string, unknown> | undefined;
+    const key = JSON.stringify({
+      rows: config?.['rowGroupColumns'],
+      columns: config?.['columnGroupColumns'],
+      values: config?.['valueColumns'],
+    });
+    if (!deduped.has(key)) {
+      deduped.set(key, suggestion);
+    }
+  }
+
+  return Array.from(deduped.values()).slice(0, maxSuggestions);
+}
+
+function parseAiChartSuggestions(responseText: string): Array<Record<string, unknown>> | null {
+  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    return null;
+  }
+
+  const parsed = JSON.parse(jsonMatch[0]) as { suggestions?: Array<Record<string, unknown>> };
+  if (!Array.isArray(parsed.suggestions) || parsed.suggestions.length === 0) {
+    return null;
+  }
+
+  return parsed.suggestions.map((suggestion) => ({
+    type: 'chart',
+    ...suggestion,
+  }));
+}
+
+function parseAiPivotSuggestions(responseText: string): Array<Record<string, unknown>> | null {
+  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    return null;
+  }
+
+  const parsed = JSON.parse(jsonMatch[0]) as { suggestions?: Array<Record<string, unknown>> };
+  if (!Array.isArray(parsed.suggestions) || parsed.suggestions.length === 0) {
+    return null;
+  }
+
+  return parsed.suggestions.map((suggestion) => ({
+    type: 'pivot',
+    ...suggestion,
+  }));
+}
+
 export async function handleSuggestChartAction(
   input: SuggestChartInput,
   deps: SuggestionsDeps
@@ -33,17 +393,8 @@ export async function handleSuggestChartAction(
     ? checkSamplingSupport(deps.context.server.getClientCapabilities?.())
     : { supported: false };
   const hasLLMFallback = isLLMFallbackAvailable();
-
-  if (!hasLLMFallback && (!deps.context.server || !samplingSupport.supported)) {
-    return deps.error({
-      code: ErrorCodes.FEATURE_UNAVAILABLE,
-      message:
-        'Chart suggestions require MCP Sampling capability (SEP-1577) or LLM API key. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.',
-      retryable: false,
-      suggestedFix:
-        'Enable the feature by setting the appropriate environment variable, or contact your administrator',
-    });
-  }
+  const hasAiSuggestionSupport =
+    hasLLMFallback || (!!deps.context.server && samplingSupport.supported);
 
   if (!input.range) {
     return deps.error({
@@ -59,13 +410,7 @@ export async function handleSuggestChartAction(
   try {
     await sendProgress(0, 3, 'Analyzing data for chart suggestions...');
 
-    // Convert range to A1 notation string
-    const rangeStr =
-      typeof input.range === 'string'
-        ? input.range
-        : 'a1' in input.range
-          ? input.range.a1
-          : 'Sheet1';
+    const rangeStr = toRangeString(input.range);
 
     // Fetch data from the specified range
     const response = await deps.sheetsApi.spreadsheets.values.get({
@@ -84,16 +429,30 @@ export async function handleSuggestChartAction(
       });
     }
 
-    // Analyze data structure
-    const hasHeaders = values.length > 1 && values[0]?.every((v: unknown) => typeof v === 'string');
+    const maxSuggestions = input.maxSuggestions || 3;
+    const fallbackSuggestions = buildHeuristicChartSuggestions(
+      values as unknown[][],
+      maxSuggestions
+    );
+    const hasHeaders = detectHeaderRow(values as unknown[][]);
     const dataRows = hasHeaders ? values.slice(1) : values;
     const headers = hasHeaders ? (values[0] as string[]) : undefined;
+
+    if (!hasAiSuggestionSupport) {
+      return deps.success('suggest_chart', {
+        suggestions: fallbackSuggestions,
+        _meta: {
+          duration: Date.now() - startTime,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
 
     // Build AI sampling request
     const headerInfo = headers ? `\n**Column headers:** ${headers.join(', ')}` : '';
     const sampleData = dataRows.slice(0, 10);
 
-    const prompt = `Analyze this spreadsheet data and suggest the ${input.maxSuggestions || 3} best chart types to visualize it.
+    const prompt = `Analyze this spreadsheet data and suggest the ${maxSuggestions} best chart types to visualize it.
 
 **Data range:** ${rangeStr}
 **Row count:** ${values.length}
@@ -148,23 +507,10 @@ Always return valid JSON in the exact format requested.`;
     // Extract text from response
     const responseText = llmResult.content;
 
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return deps.error({
-        code: ErrorCodes.INTERNAL_ERROR,
-        message: 'Could not parse chart suggestions from AI response',
-        retryable: true,
-        suggestedFix: 'Please try again. If the issue persists, contact support',
-      });
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
+    const aiSuggestions = parseAiChartSuggestions(responseText);
 
     return deps.success('suggest_chart', {
-      suggestions: (parsed.suggestions || []).map((s: Record<string, unknown>) => ({
-        type: 'chart' as const,
-        ...s,
-      })),
+      suggestions: aiSuggestions ?? fallbackSuggestions,
       _meta: {
         duration,
         timestamp: new Date().toISOString(),
@@ -174,12 +520,30 @@ Always return valid JSON in the exact format requested.`;
     logger.error('Chart suggestion failed', {
       error: error instanceof Error ? error.message : String(error),
     });
-    return deps.error({
-      code: ErrorCodes.INTERNAL_ERROR,
-      message:
-        'Chart suggestion failed. The AI analysis service may be temporarily unavailable. Please try again.',
-      retryable: true,
-      suggestedFix: 'Please try again. If the issue persists, check LLM_API_KEY configuration',
+
+    const rangeStr = toRangeString(input.range);
+    const response = await deps.sheetsApi.spreadsheets.values.get({
+      spreadsheetId: input.spreadsheetId!,
+      range: rangeStr,
+      valueRenderOption: 'UNFORMATTED_VALUE',
+    });
+    const values = response.data.values || [];
+
+    if (values.length === 0) {
+      return deps.error({
+        code: ErrorCodes.INVALID_PARAMS,
+        message: 'Range contains no data',
+        retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
+      });
+    }
+
+    return deps.success('suggest_chart', {
+      suggestions: buildHeuristicChartSuggestions(values as unknown[][], input.maxSuggestions || 3),
+      _meta: {
+        duration: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+      },
     });
   }
 }
@@ -193,17 +557,8 @@ export async function handleSuggestPivotAction(
     ? checkSamplingSupport(deps.context.server.getClientCapabilities?.())
     : { supported: false };
   const hasLLMFallback = isLLMFallbackAvailable();
-
-  if (!hasLLMFallback && (!deps.context.server || !samplingSupport.supported)) {
-    return deps.error({
-      code: ErrorCodes.FEATURE_UNAVAILABLE,
-      message:
-        'Pivot table suggestions require MCP Sampling capability (SEP-1577) or LLM API key. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.',
-      retryable: false,
-      suggestedFix:
-        'Enable the feature by setting the appropriate environment variable, or contact your administrator',
-    });
-  }
+  const hasAiSuggestionSupport =
+    hasLLMFallback || (!!deps.context.server && samplingSupport.supported);
 
   if (!input.range) {
     return deps.error({
@@ -241,6 +596,22 @@ export async function handleSuggestPivotAction(
         message: 'Range contains no data',
         retryable: false,
         suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
+      });
+    }
+
+    const maxSuggestions = input.maxSuggestions || 3;
+    const fallbackSuggestions = buildHeuristicPivotSuggestions(
+      values as unknown[][],
+      maxSuggestions
+    );
+
+    if (!hasAiSuggestionSupport) {
+      return deps.success('suggest_pivot', {
+        suggestions: fallbackSuggestions,
+        _meta: {
+          duration: Date.now() - startTime,
+          timestamp: new Date().toISOString(),
+        },
       });
     }
 
@@ -310,35 +681,43 @@ Always return valid JSON in the exact format requested.`;
 
     // Extract text from response
     const responseText = llmResult.content;
-
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return deps.error({
-        code: ErrorCodes.INTERNAL_ERROR,
-        message: 'Could not parse pivot table suggestions from AI response',
-        retryable: true,
-        suggestedFix: 'Please try again. If the issue persists, contact support',
-      });
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
+    const aiSuggestions = parseAiPivotSuggestions(responseText);
 
     return deps.success('suggest_pivot', {
-      suggestions: (parsed.suggestions || []).map((s: Record<string, unknown>) => ({
-        type: 'pivot' as const,
-        ...s,
-      })),
+      suggestions: aiSuggestions ?? fallbackSuggestions,
       _meta: {
         duration,
         timestamp: new Date().toISOString(),
       },
     });
   } catch (error) {
-    return deps.error({
-      code: ErrorCodes.INTERNAL_ERROR,
-      message: `Pivot table suggestion failed: ${error instanceof Error ? error.message : String(error)}`,
-      retryable: true,
-      suggestedFix: 'Please try again. If the issue persists, contact support',
+    logger.error('Pivot suggestion failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    const rangeStr = toRangeString(input.range);
+    const response = await deps.sheetsApi.spreadsheets.values.get({
+      spreadsheetId: input.spreadsheetId!,
+      range: rangeStr,
+      valueRenderOption: 'UNFORMATTED_VALUE',
+    });
+    const values = response.data.values || [];
+
+    if (values.length === 0) {
+      return deps.error({
+        code: ErrorCodes.INVALID_PARAMS,
+        message: 'Range contains no data',
+        retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
+      });
+    }
+
+    return deps.success('suggest_pivot', {
+      suggestions: buildHeuristicPivotSuggestions(values as unknown[][], input.maxSuggestions || 3),
+      _meta: {
+        duration: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+      },
     });
   }
 }

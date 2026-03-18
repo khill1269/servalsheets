@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { DimensionsHandler } from '../../src/handlers/dimensions.js';
 import { SheetsDimensionsOutputSchema } from '../../src/schemas/dimensions.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
+import { getContextManager } from '../../src/services/context-manager.js';
 
 // Mock Google Sheets API
 const createMockSheetsApi = () => ({
@@ -42,6 +43,7 @@ describe('DimensionsHandler', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    getContextManager().reset();
     mockApi = createMockSheetsApi();
     mockContext = createMockContext();
     handler = new DimensionsHandler(mockContext, mockApi as any);
@@ -55,6 +57,7 @@ describe('DimensionsHandler', () => {
   });
 
   afterEach(() => {
+    getContextManager().reset();
     vi.clearAllMocks();
     vi.restoreAllMocks();
   });
@@ -1297,6 +1300,59 @@ describe('DimensionsHandler', () => {
         );
       });
 
+      it('should ignore stale inferred ranges when an explicit sheetId is provided', async () => {
+        getContextManager().updateContext({
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 99,
+          range: 'StaleSheet!A1:Z100',
+        });
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'set_basic_filter',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            requestBody: expect.objectContaining({
+              requests: [
+                {
+                  setBasicFilter: {
+                    filter: {
+                      range: expect.objectContaining({ sheetId: 0 }),
+                      criteria: undefined,
+                    },
+                  },
+                },
+              ],
+            }),
+          })
+        );
+      });
+
+      it('should return a structured error instead of using stale inferred targets', async () => {
+        getContextManager().updateContext({
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 99,
+          range: 'StaleSheet!A1:Z100',
+        });
+
+        const result = await handler.handle({
+          action: 'set_basic_filter',
+          spreadsheetId: 'test-sheet-id',
+        } as any);
+
+        expect(result.response.success).toBe(false);
+        if (!result.response.success) {
+          expect(result.response.error.code).toBe('INVALID_PARAMS');
+          expect(result.response.error.message).toContain('explicit range or sheetId');
+        }
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+
       it('should return error when incremental update has no existing filter', async () => {
         // get_basic_filter returns no filter (default mock has no basicFilter)
         const result = await handler.handle({
@@ -1501,6 +1557,26 @@ describe('DimensionsHandler', () => {
         const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
         expect(call.requestBody.requests[0].sortRange.sortSpecs).toHaveLength(2);
         expect(call.requestBody.requests[0].sortRange.sortSpecs[1].sortOrder).toBe('DESCENDING');
+      });
+
+      it('should require an explicit range instead of borrowing stale context for sort_range', async () => {
+        getContextManager().updateContext({
+          spreadsheetId: 'test-sheet-id',
+          range: 'StaleSheet!A1:D20',
+        });
+
+        const result = await handler.handle({
+          action: 'sort_range',
+          spreadsheetId: 'test-sheet-id',
+          sortSpecs: [{ columnIndex: 0, sortOrder: 'ASCENDING' }],
+        } as any);
+
+        expect(result.response.success).toBe(false);
+        if (!result.response.success) {
+          expect(result.response.error.code).toBe('INVALID_PARAMS');
+          expect(result.response.error.message).toContain('explicit range');
+        }
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
       });
     });
   });

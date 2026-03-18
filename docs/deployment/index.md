@@ -1,9 +1,9 @@
 ---
 title: Deployment Overview
 category: general
-last_updated: 2026-01-31
+last_updated: 2026-03-17
 description: ServalSheets supports multiple deployment options from development to enterprise production.
-version: 1.6.0
+version: 1.7.0
 tags: [deployment, sheets, prometheus, docker, kubernetes]
 ---
 
@@ -96,7 +96,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ServalSheets uses deployment-aware OAuth scopes:
 
-**Self-Hosted (Default)** - All 402 actions work:
+**Self-Hosted (Default)** - All 403 actions work:
 
 ```bash
 # No configuration needed - defaults to full scopes
@@ -106,7 +106,7 @@ docker run -d -p 3000:3000 servalsheets:latest
 **SaaS/Marketplace** - Fast Google verification (3-5 days vs 4-6 weeks):
 
 ```bash
-# Standard scopes: 260/402 actions, faster verification
+# Standard scopes: reduced action surface, faster verification
 docker run -d \
   -p 3000:3000 \
   -e DEPLOYMENT_MODE=saas \
@@ -122,11 +122,12 @@ docker run -d \
 
 ## Health Checks
 
-| Endpoint       | Purpose    | Expected        |
-| -------------- | ---------- | --------------- |
-| `GET /health`  | Liveness   | `200 OK`        |
-| `GET /ready`   | Readiness  | `200 OK`        |
-| `GET /metrics` | Prometheus | Metrics payload |
+| Endpoint            | Purpose             | Expected        |
+| ------------------- | ------------------- | --------------- |
+| `GET /health/live`  | Liveness probe      | `200 OK`        |
+| `GET /health/ready` | Readiness probe     | `200 OK`        |
+| `GET /health`       | Compatibility alias | `200 OK`        |
+| `GET /metrics`      | Prometheus          | Metrics payload |
 
 ## Security Checklist
 

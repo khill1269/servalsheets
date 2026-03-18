@@ -25,12 +25,25 @@ export interface PromptCatalogBucketSummary extends PromptBucket {
 const PROMPT_CATALOG: Record<string, PromptBucket> = {
   first_time: {
     description: 'Onboarding and initial setup prompts',
-    whenToUse: 'When a user is new to ServalSheets or needs an introduction',
+    whenToUse:
+      'When a user is new to ServalSheets and should be guided from readiness to first success',
     prompts: [
-      { name: 'welcome', description: 'Guided introduction to ServalSheets capabilities' },
-      { name: 'test_connection', description: 'Verify connectivity and authentication' },
-      { name: 'first_operation', description: 'Walk through your very first read or write' },
-      { name: 'full_setup', description: 'End-to-end workspace setup for a new project' },
+      {
+        name: 'welcome',
+        description: 'Guided introduction that starts with readiness and next-step routing',
+      },
+      {
+        name: 'test_connection',
+        description: 'Verify readiness, authentication, and a real public-sheet read',
+      },
+      {
+        name: 'first_operation',
+        description: 'Walk through the first useful task after readiness is verified',
+      },
+      {
+        name: 'full_setup',
+        description: 'End-to-end workspace setup using the canonical readiness-first ladder',
+      },
     ],
   },
   analyze: {
@@ -104,7 +117,10 @@ const PROMPT_CATALOG: Record<string, PromptBucket> = {
         name: 'generate_sheet_from_description',
         description: 'Generate a complete sheet from a natural language description',
       },
-      { name: 'full_setup', description: 'Complete project setup from scratch' },
+      {
+        name: 'full_setup',
+        description: 'Complete project setup from scratch, including readiness verification',
+      },
       { name: 'batch_optimizer', description: 'Optimize batch operations for quota efficiency' },
       {
         name: 'data_pipeline',

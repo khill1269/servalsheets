@@ -14,7 +14,7 @@
 import { ACTION_COUNTS } from './action-counts.js';
 
 export const TOOL_DESCRIPTIONS_MINIMAL: Record<string, string> = {
-  sheets_auth: `🔐 AUTH - OAuth 2.1 (${ACTION_COUNTS['sheets_auth']} actions). status, login, callback, logout. ALWAYS call status first.`,
+  sheets_auth: `🔐 AUTH - Readiness + OAuth + setup (${ACTION_COUNTS['sheets_auth']} actions). status, login, callback, logout, setup_feature. ALWAYS call status first, then follow readiness.recommendedNextAction.`,
 
   sheets_core: `📋 CORE - Spreadsheet/sheet management (${ACTION_COUNTS['sheets_core']} actions). create, get, list_sheets, add_sheet, update_sheet, delete_sheet, etc. For cell values use sheets_data.`,
 
@@ -26,7 +26,7 @@ export const TOOL_DESCRIPTIONS_MINIMAL: Record<string, string> = {
 
   sheets_visualize: `📊 VISUALIZE - Charts & pivots (${ACTION_COUNTS['sheets_visualize']} actions). chart_create, chart_update, pivot_create. Use sheets_visualize.suggest_chart when the user wants help choosing a chart.`,
 
-  sheets_collaborate: `👥 COLLABORATE - Sharing/comments/versions (${ACTION_COUNTS['sheets_collaborate']} actions). share_add, comment_add, version_create_snapshot, approval_*. Requires elevated Drive scopes.`,
+  sheets_collaborate: `👥 COLLABORATE - Sharing/comments/versions (${ACTION_COUNTS['sheets_collaborate']} actions). share_add, comment_add, version_create_snapshot, version_snapshot_status, approval_*. Requires elevated Drive scopes.`,
 
   sheets_advanced: `⚙️ ADVANCED - Named ranges/protection/banding (${ACTION_COUNTS['sheets_advanced']} actions). add_named_range, add_protected_range, banding, tables, smart_chips.`,
 
@@ -62,5 +62,5 @@ export const TOOL_DESCRIPTIONS_MINIMAL: Record<string, string> = {
 
   sheets_agent: `🤖 AGENT - Autonomous multi-step execution (${ACTION_COUNTS['sheets_agent']} actions). plan, execute, execute_step, observe, rollback, get_status, list_plans, resume. Checkpoint-based rollback.`,
 
-  sheets_connectors: `🔌 CONNECTORS - Pull live external data into Sheets (${ACTION_COUNTS['sheets_connectors']} actions). query, batch_query, transform, subscribe, configure. Supports Finnhub, FRED, Alpha Vantage, Polygon, REST APIs.`,
+  sheets_connectors: `🔌 CONNECTORS - External data onboarding + live queries (${ACTION_COUNTS['sheets_connectors']} actions). First-time ladder: list_connectors → configure → status → query. Supports Finnhub, FRED, Alpha Vantage, Polygon, FMP, REST APIs.`,
 };

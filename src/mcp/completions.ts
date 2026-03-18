@@ -12,7 +12,7 @@ import { getAvailableToolActions, getAvailableToolNames } from './tool-registry-
 
 /**
  * Action names for each tool (for autocompletion)
- * Total: 402 actions across 25 tools
+ * Total: 403 actions across 25 tools
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
@@ -158,6 +158,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'version_restore_revision',
     'version_keep_revision',
     'version_create_snapshot',
+    'version_snapshot_status',
     'version_list_snapshots',
     'version_restore_snapshot',
     'version_delete_snapshot',
@@ -735,6 +736,8 @@ const ACTION_ALIASES: Record<string, string> = {
   // Version operations
   snapshot: 'version_create_snapshot',
   'save version': 'version_create_snapshot',
+  'snapshot status': 'version_snapshot_status',
+  'snapshot task': 'version_snapshot_status',
   revert: 'version_restore_revision',
   rollback: 'version_restore_revision',
   restore: 'version_restore_revision',
@@ -1097,6 +1100,13 @@ const namedRangeCache = new EntityCache(100);
 const webhookIdCache = new EntityCache(50);
 const revisionIdCache = new EntityCache(50);
 const sheetIdCache = new EntityCache(100);
+const connectorIdCache = new EntityCache(20);
+const serverNameCache = new EntityCache(20);
+const filterViewIdCache = new EntityCache(50);
+const slicerIdCache = new EntityCache(50);
+const protectedRangeIdCache = new EntityCache(100);
+const bandingIdCache = new EntityCache(50);
+const scriptIdCache = new EntityCache(20);
 
 /** Record a sheet name observed in a response (call from core/data handlers) */
 export function recordSheetName(name: string): void {
@@ -1168,6 +1178,102 @@ export function recordSheetId(id: number | string): void {
 /** Complete sheet IDs from recently-seen numeric values */
 export function completeSheetId(partial: string): string[] {
   return sheetIdCache.getCompletions(partial);
+}
+
+// ============================================================================
+// STRUCTURAL ENTITY COMPLETERS (filter views, slicers, protected ranges, etc.)
+// ============================================================================
+
+/** Record a filter view ID observed in a response */
+export function recordFilterViewId(id: string | number): void {
+  const s = String(id);
+  if (s && /^\d+$/.test(s)) filterViewIdCache.add(s);
+}
+
+/** Complete filter view IDs from recently-seen values */
+export function completeFilterViewId(partial: string): string[] {
+  return filterViewIdCache.getCompletions(partial);
+}
+
+/** Record a slicer ID observed in a response */
+export function recordSlicerId(id: string | number): void {
+  const s = String(id);
+  if (s && /^\d+$/.test(s)) slicerIdCache.add(s);
+}
+
+/** Complete slicer IDs from recently-seen values */
+export function completeSlicerId(partial: string): string[] {
+  return slicerIdCache.getCompletions(partial);
+}
+
+/** Record a protected range ID observed in a response */
+export function recordProtectedRangeId(id: string | number): void {
+  const s = String(id);
+  if (s && /^\d+$/.test(s)) protectedRangeIdCache.add(s);
+}
+
+/** Complete protected range IDs from recently-seen values */
+export function completeProtectedRangeId(partial: string): string[] {
+  return protectedRangeIdCache.getCompletions(partial);
+}
+
+/** Record a banding ID observed in a response */
+export function recordBandingId(id: string | number): void {
+  const s = String(id);
+  if (s && /^\d+$/.test(s)) bandingIdCache.add(s);
+}
+
+/** Complete banding IDs from recently-seen values */
+export function completeBandingId(partial: string): string[] {
+  return bandingIdCache.getCompletions(partial);
+}
+
+/** Record an Apps Script project ID observed in a response */
+export function recordScriptId(id: string): void {
+  if (id && typeof id === 'string') scriptIdCache.add(id);
+}
+
+/** Complete script IDs from recently-seen values */
+export function completeScriptId(partial: string): string[] {
+  return scriptIdCache.getCompletions(partial);
+}
+
+// ============================================================================
+// CONNECTOR & FEDERATION COMPLETERS
+// ============================================================================
+
+/** Built-in connector IDs (static) */
+const BUILTIN_CONNECTOR_IDS: readonly string[] = [
+  'alpha_vantage', 'finnhub', 'fmp', 'fred', 'polygon',
+] as const;
+
+/** Record a connector ID observed at runtime (call from connectors handler) */
+export function recordConnectorId(id: string): void {
+  if (id) connectorIdCache.add(id);
+}
+
+/** Complete connector IDs from builtins + observed at runtime */
+export function completeConnectorId(partial: string): string[] {
+  if (!partial || typeof partial !== 'string') {
+    const cached = connectorIdCache.getCompletions('');
+    const merged = [...BUILTIN_CONNECTOR_IDS, ...cached.filter((c) => !BUILTIN_CONNECTOR_IDS.includes(c))];
+    return merged.slice(0, 20);
+  }
+  const lower = partial.toLowerCase();
+  const builtinMatches = (BUILTIN_CONNECTOR_IDS as readonly string[]).filter((id) => id.toLowerCase().startsWith(lower));
+  const cacheMatches = connectorIdCache.getCompletions(partial);
+  const merged = [...builtinMatches, ...cacheMatches.filter((c) => !builtinMatches.includes(c))];
+  return merged.slice(0, 20);
+}
+
+/** Record a federation server name observed at runtime (call from federation handler) */
+export function recordServerName(name: string): void {
+  if (name) serverNameCache.add(name);
+}
+
+/** Complete federation server names from recently observed values */
+export function completeServerName(partial: string): string[] {
+  return serverNameCache.getCompletions(partial);
 }
 
 // ============================================================================

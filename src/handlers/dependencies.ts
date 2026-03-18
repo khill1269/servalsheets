@@ -79,6 +79,30 @@ class AnalyzerLRUCache {
  */
 const analyzerCache = new AnalyzerLRUCache();
 
+function isLikelyPseudoFormulaText(value: unknown): value is string {
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith('=')) {
+    return false;
+  }
+
+  const body = trimmed.slice(1).trim();
+  if (!body) {
+    return false;
+  }
+
+  const hasCellRefs = /\b\$?[A-Za-z]{1,3}\$?\d+\b/.test(body);
+  const hasFunctionCall = /\b[A-Za-z_][A-Za-z0-9_.]*\s*\(/.test(body);
+  const hasQuotedText = /"/.test(body);
+  const hasWordPair = /\b[A-Za-z][A-Za-z0-9/_-]*\s+[A-Za-z][A-Za-z0-9/_-]*/.test(body);
+  const usesLetterXOperator = /\s[xX]\s/.test(body);
+
+  return !hasCellRefs && !hasFunctionCall && !hasQuotedText && hasWordPair && usesLetterXOperator;
+}
+
 export interface DependenciesHandlerOptions {
   samplingServer?: SamplingServer;
   sessionContext?: import('../services/session-context.js').SessionContextManager;
@@ -1056,23 +1080,41 @@ export class DependenciesHandler {
     const newSheetId = dupResponse.data.replies?.[0]?.duplicateSheet?.properties?.sheetId ?? 0;
 
     // Apply scenario changes to the new sheet
-    const writeData = req.scenario.changes.map((change) => {
+    const userEnteredWrites: Array<{ range: string; values: unknown[][] }> = [];
+    const rawWrites: Array<{ range: string; values: unknown[][] }> = [];
+
+    for (const change of req.scenario.changes) {
       // Rewrite cell refs to target the new sheet
       const cellRef = change.cell.includes('!')
         ? `'${sheetName}'!${change.cell.split('!')[1]}`
         : `'${sheetName}'!${change.cell}`;
-      return {
+      const write = {
         range: cellRef,
         values: [[change.newValue]],
       };
-    });
+      if (isLikelyPseudoFormulaText(change.newValue)) {
+        rawWrites.push(write);
+      } else {
+        userEnteredWrites.push(write);
+      }
+    }
 
-    if (writeData.length > 0) {
+    if (userEnteredWrites.length > 0) {
       await this.sheetsApi.spreadsheets.values.batchUpdate({
         spreadsheetId: req.spreadsheetId,
         requestBody: {
           valueInputOption: 'USER_ENTERED',
-          data: writeData.map((d) => ({ range: d.range, values: d.values })),
+          data: userEnteredWrites.map((d) => ({ range: d.range, values: d.values })),
+        },
+      });
+    }
+
+    if (rawWrites.length > 0) {
+      await this.sheetsApi.spreadsheets.values.batchUpdate({
+        spreadsheetId: req.spreadsheetId,
+        requestBody: {
+          valueInputOption: 'RAW',
+          data: rawWrites.map((d) => ({ range: d.range, values: d.values })),
         },
       });
     }

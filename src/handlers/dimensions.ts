@@ -18,6 +18,7 @@ import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
+import { recordFilterViewId, recordSlicerId } from '../mcp/completions.js';
 import type {
   SheetsDimensionsInput,
   SheetsDimensionsOutput,
@@ -95,6 +96,12 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     'clear_basic_filter',
     'get_basic_filter',
   ]);
+  private static readonly ACTIONS_REQUIRING_EXPLICIT_TARGET = new Set<string>([
+    'set_basic_filter',
+    'clear_basic_filter',
+    'get_basic_filter',
+    'sort_range',
+  ]);
 
   constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets) {
     super('sheets_dimensions', context);
@@ -107,11 +114,31 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
   protected inferRequestParameters<T extends Record<string, unknown>>(request: T): T {
     // First, do standard parameter inference from context
     const inferredReq = super.inferRequestParameters(request);
+    const action = inferredReq['action'] as string;
+
+    // Filter/sort operations must not borrow stale range or sheet targets from context.
+    if (DimensionsHandler.ACTIONS_REQUIRING_EXPLICIT_TARGET.has(action)) {
+      const requestHasExplicitRange = request['range'] !== undefined;
+      const requestHasExplicitSheetTarget =
+        request['sheetId'] !== undefined || request['sheetName'] !== undefined;
+
+      if (!requestHasExplicitRange && 'range' in inferredReq) {
+        const { range: _range, ...rest } = inferredReq;
+        if (!requestHasExplicitSheetTarget && 'sheetId' in rest && action !== 'sort_range') {
+          const { sheetId: _sheetId, ...withoutSheetId } = rest;
+          return withoutSheetId as T;
+        }
+        return rest as T;
+      }
+
+      if (!requestHasExplicitSheetTarget && 'sheetId' in inferredReq && action !== 'sort_range') {
+        const { sheetId: _sheetId, ...rest } = inferredReq;
+        return rest as T;
+      }
+    }
 
     // BUG FIX 0.6: Convert count parameter to endIndex for range-based actions
     const rangeActions = new Set(['delete', 'move', 'resize', 'hide', 'show', 'group', 'ungroup']);
-
-    const action = inferredReq['action'] as string;
     if (rangeActions.has(action)) {
       const count = inferredReq['count'];
       const startIndex = inferredReq['startIndex'];
@@ -305,6 +332,17 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
 
     const sheetName = request['sheetName'];
     if (typeof sheetName !== 'string' || sheetName.trim().length === 0) {
+      if (req.action === 'set_basic_filter' && request['range'] === undefined) {
+        return this.error({
+          code: ErrorCodes.INVALID_PARAMS,
+          message:
+            'set_basic_filter requires an explicit range or sheetId/sheetName. Context-inferred targets are not used for filter operations.',
+          retryable: false,
+          suggestedFix:
+            'Provide range like "Sheet1!A1:D100" or a valid sheetId/sheetName from sheets_core.list_sheets.',
+        });
+      }
+
       return this.error({
         code: ErrorCodes.INVALID_PARAMS,
         message: 'Either sheetId (number) or sheetName (string) is required',
@@ -1029,6 +1067,24 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
   private async handleSetBasicFilter(
     input: DimensionsSetBasicFilterInput
   ): Promise<DimensionsResponse> {
+    const rawInput = input as Record<string, unknown>;
+    const hasExplicitSheetTarget =
+      typeof rawInput['sheetId'] === 'number' ||
+      (typeof rawInput['sheetName'] === 'string' && rawInput['sheetName'].trim().length > 0);
+
+    if (input.range === undefined && !hasExplicitSheetTarget) {
+      return this.error({
+        code: ErrorCodes.INVALID_PARAMS,
+        message:
+          'set_basic_filter requires an explicit range or sheetId/sheetName. Context-inferred targets are not used for filter operations.',
+        category: 'client',
+        severity: 'medium',
+        retryable: false,
+        suggestedFix:
+          'Provide range like "Sheet1!A1:D100" or a valid sheetId/sheetName from sheets_core.list_sheets.',
+      });
+    }
+
     // v2.0: Enhanced to support incremental updates via optional columnIndex parameter
     // If columnIndex provided: update only that column's criteria (incremental)
     // If columnIndex omitted: replace entire filter (original behavior)
@@ -1256,6 +1312,18 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
   }
 
   private async handleSortRange(input: DimensionsSortRangeInput): Promise<DimensionsResponse> {
+    if (input.range === undefined) {
+      return this.error({
+        code: ErrorCodes.INVALID_PARAMS,
+        message:
+          'sort_range requires an explicit range. Context-inferred ranges are not used for sort operations.',
+        category: 'client',
+        severity: 'medium',
+        retryable: false,
+        suggestedFix: 'Provide range like "Sheet1!A1:D100" explicitly.',
+      });
+    }
+
     let resolvedInput = input;
 
     // Wizard: If range is provided but sortSpecs is missing, elicit sort direction
@@ -1837,6 +1905,10 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       (input as { cursor?: string }).cursor
     );
 
+    for (const fv of paginated.filterViews) {
+      recordFilterViewId(fv.filterViewId);
+    }
+
     return this.success('list_filter_views', {
       filterViews: paginated.filterViews,
       totalCount: paginated.totalCount,
@@ -2063,6 +2135,10 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
           backgroundColorStyle: slicer.spec?.backgroundColorStyle ?? undefined,
         });
       }
+    }
+
+    for (const slicer of slicers) {
+      recordSlicerId(slicer.slicerId);
     }
 
     return this.success('list_slicers', { slicers });

@@ -23,6 +23,7 @@ import {
   initiateOAuthFlow,
   completeOAuthFlow,
   safeElicit,
+  checkElicitationSupport,
   stringField,
   selectField,
 } from '../mcp/elicitation.js';
@@ -40,6 +41,8 @@ import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { randomBytes } from 'crypto';
 import { getSessionContext } from '../services/session-context.js';
 import { ErrorCodes } from './error-codes.js';
+import { connectorManager } from '../resources/connectors-runtime.js';
+import { isLLMFallbackAvailable } from '../services/llm-fallback.js';
 
 /** Module-level CSRF state store with 10-minute TTL */
 const pendingStates = new Map<string, number>();
@@ -115,6 +118,180 @@ export class AuthHandler {
     );
     this.tokenStoreKey = options.tokenStoreKey ?? process.env['ENCRYPTION_KEY'];
     this.elicitationServer = options.elicitationServer;
+  }
+
+  private getElicitationSupport() {
+    return checkElicitationSupport(this.elicitationServer?.getClientCapabilities());
+  }
+
+  private getReadiness(auth: {
+    configured: boolean;
+    authenticated: boolean;
+    authType?: string;
+    tokenValid?: boolean;
+  }) {
+    const elicitation = this.getElicitationSupport();
+    const connectors = connectorManager.listConnectors().connectors;
+    const healthyConnectors = connectors.filter((connector) => connector.healthy).length;
+    const configuredConnectors = connectors.filter((connector) => connector.configured).length;
+    const llmFallbackAvailable = isLLMFallbackAvailable();
+    const webhooksConfigured = Boolean(process.env['REDIS_URL']);
+
+    const missingConfig: string[] = [];
+    if (!auth.configured) {
+      missingConfig.push('Google authentication is not configured');
+    } else if (!auth.authenticated) {
+      missingConfig.push('Google authentication has not been completed for this session');
+    }
+    if (!llmFallbackAvailable) {
+      missingConfig.push('ANTHROPIC_API_KEY or LLM_API_KEY not configured for AI fallback');
+    }
+    if (!webhooksConfigured) {
+      missingConfig.push('REDIS_URL not configured for webhook delivery');
+    }
+
+    return {
+      googleAuth: {
+        configured: auth.configured,
+        authenticated: auth.authenticated,
+        ...(auth.authType ? { authType: auth.authType } : {}),
+        ...(auth.tokenValid !== undefined ? { tokenValid: auth.tokenValid } : {}),
+      },
+      elicitation,
+      sampling: {
+        configured: llmFallbackAvailable,
+        available: llmFallbackAvailable,
+        mode: llmFallbackAvailable ? 'llm_fallback' : 'unavailable',
+      },
+      connectors: {
+        available: connectors.length,
+        configured: configuredConnectors,
+        healthy: healthyConnectors,
+      },
+      webhooks: {
+        configured: webhooksConfigured,
+        active: webhooksConfigured,
+      },
+      ...(missingConfig.length > 0 ? { missingConfig } : {}),
+    } as const;
+  }
+
+  private getStatusGuidance(readiness: ReturnType<AuthHandler['getReadiness']>) {
+    if (!readiness.googleAuth.configured) {
+      return {
+        message:
+          'Google authentication is not configured yet. Complete auth first, then run a connection test.',
+        blockingIssues: [
+          {
+            code: 'AUTH_NOT_CONFIGURED',
+            message: 'Google authentication is not configured.',
+            resolution:
+              'Install the latest ServalSheets build with embedded credentials or set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET.',
+          },
+        ],
+        recommendedNextAction:
+          'Run sheets_auth action "login" after OAuth credentials are configured.',
+        recommendedPrompt: 'welcome',
+        nextSteps: [
+          'Complete Google auth setup',
+          'Run /test_connection once authentication is available',
+          'Use /first_operation for your first real task',
+        ],
+      };
+    }
+
+    if (!readiness.googleAuth.authenticated) {
+      return {
+        message:
+          'Google authentication is configured but not ready for use yet. Authenticate first, then verify with the public test sheet.',
+        blockingIssues: [
+          {
+            code: 'AUTH_REQUIRED',
+            message: 'Google authentication has not been completed for this session.',
+            resolution: 'Run sheets_auth action "login" and complete the OAuth flow.',
+          },
+        ],
+        recommendedNextAction:
+          'Run sheets_auth action "login" to start OAuth, then run /test_connection.',
+        recommendedPrompt: 'test_connection',
+        nextSteps: [
+          'Run sheets_auth login',
+          'Re-check sheets_auth status',
+          'Use /test_connection to verify read access',
+        ],
+      };
+    }
+
+    return {
+      message:
+        'Authentication is ready. Verify the connection with the public spreadsheet, then move straight into the first useful task.',
+      blockingIssues: [] as Array<{ code: string; message: string; resolution?: string }>,
+      recommendedNextAction:
+        'Run /test_connection to verify the stack end-to-end, then use /first_operation for the first guided task.',
+      recommendedPrompt: 'test_connection',
+      nextSteps: [
+        'Run /test_connection',
+        'Use /first_operation on your spreadsheet',
+        'Use sheets_auth action "setup_feature" for connectors, AI sampling, or webhooks when needed',
+      ],
+    };
+  }
+
+  private createMeta(options: {
+    journeyStage:
+      | 'onboarding'
+      | 'readiness'
+      | 'authentication'
+      | 'connector_setup'
+      | 'first_success'
+      | 'recovery';
+    nextBestAction: string;
+    verificationSummary: string;
+    nextSteps?: string[];
+    warnings?: string[];
+  }) {
+    return {
+      journeyStage: options.journeyStage,
+      nextBestAction: options.nextBestAction,
+      verificationSummary: options.verificationSummary,
+      ...(options.nextSteps ? { nextSteps: options.nextSteps } : {}),
+      ...(options.warnings ? { warnings: options.warnings } : {}),
+    };
+  }
+
+  private buildSetupFeatureResponse(options: {
+    message: string;
+    configured: boolean;
+    verified: boolean;
+    nextStep: string;
+    instructions?: string[];
+    fallbackInstructions?: string[];
+    journeyStage?:
+      | 'onboarding'
+      | 'readiness'
+      | 'authentication'
+      | 'connector_setup'
+      | 'first_success';
+    verificationSummary: string;
+  }): AuthResponse {
+    return {
+      success: true,
+      action: 'setup_feature',
+      message: options.message,
+      configured: options.configured,
+      verified: options.verified,
+      nextStep: options.nextStep,
+      ...(options.instructions ? { instructions: options.instructions } : {}),
+      ...(options.fallbackInstructions
+        ? { fallbackInstructions: options.fallbackInstructions }
+        : {}),
+      _meta: this.createMeta({
+        journeyStage: options.journeyStage ?? 'readiness',
+        nextBestAction: options.nextStep,
+        verificationSummary: options.verificationSummary,
+        ...(options.fallbackInstructions ? { nextSteps: options.fallbackInstructions } : {}),
+      }),
+    };
   }
 
   async handle(input: SheetsAuthInput): Promise<SheetsAuthOutput> {
@@ -202,12 +379,29 @@ export class AuthHandler {
       const hasTokens = tokenStatus.hasAccessToken || tokenStatus.hasRefreshToken;
 
       if (authType === 'service_account' || authType === 'application_default') {
+        const readiness = this.getReadiness({
+          configured: true,
+          authenticated: true,
+          authType,
+          tokenValid: true,
+        });
+        const guidance = this.getStatusGuidance(readiness);
         return {
           success: true,
           action: 'status',
           authenticated: true,
           authType,
-          message: `Authenticated via ${authType.replace('_', ' ')} credentials.`,
+          readiness,
+          blockingIssues: guidance.blockingIssues,
+          recommendedNextAction: guidance.recommendedNextAction,
+          recommendedPrompt: guidance.recommendedPrompt,
+          message: `Authenticated via ${authType.replace('_', ' ')} credentials. ${guidance.message}`,
+          _meta: this.createMeta({
+            journeyStage: 'readiness',
+            nextBestAction: guidance.recommendedNextAction,
+            verificationSummary: `Auth type ${authType} is ready; ${readiness.connectors.configured} connector(s) configured.`,
+            nextSteps: guidance.nextSteps,
+          }),
         };
       }
 
@@ -220,32 +414,73 @@ export class AuthHandler {
         validationError = validation.error;
       }
 
+      const authenticated = hasTokens && tokenValid;
+      const readiness = this.getReadiness({
+        configured: true,
+        authenticated,
+        authType,
+        tokenValid,
+      });
+      const guidance = this.getStatusGuidance(readiness);
+
       return {
         success: true,
         action: 'status',
-        authenticated: hasTokens && tokenValid, // Must exist AND be valid
+        authenticated, // Must exist AND be valid
         authType,
+        readiness,
+        blockingIssues: guidance.blockingIssues,
+        recommendedNextAction: guidance.recommendedNextAction,
+        recommendedPrompt: guidance.recommendedPrompt,
         hasAccessToken: tokenStatus.hasAccessToken,
         hasRefreshToken: tokenStatus.hasRefreshToken,
         tokenValid, // NEW: Indicates if token is actually valid
         scopes: this.googleClient.scopes,
         message: tokenValid
-          ? 'OAuth credentials present and valid. Ready to use sheets_* tools.'
+          ? `OAuth credentials present and valid. ${guidance.message}`
           : hasTokens
-            ? `OAuth credentials present but invalid: ${validationError}. Call sheets_auth action "login" to re-authenticate.`
-            : 'Not authenticated. Call sheets_auth action "login" to start OAuth.',
+            ? `OAuth credentials present but invalid: ${validationError}. ${guidance.message}`
+            : `Not authenticated. ${guidance.message}`,
+        _meta: this.createMeta({
+          journeyStage: 'readiness',
+          nextBestAction: guidance.recommendedNextAction,
+          verificationSummary: tokenValid
+            ? `OAuth tokens are valid; ${readiness.connectors.configured} connector(s) already configured.`
+            : 'OAuth credentials were checked but the current session is not ready.',
+          nextSteps: guidance.nextSteps,
+          ...(readiness.missingConfig ? { warnings: readiness.missingConfig } : {}),
+        }),
       };
     }
 
     const configured = Boolean(this.oauthClientId && this.oauthClientSecret);
+    const readiness = this.getReadiness({
+      configured,
+      authenticated: false,
+      authType: configured ? 'oauth' : 'unconfigured',
+    });
+    const guidance = this.getStatusGuidance(readiness);
     return {
       success: true,
       action: 'status',
       authenticated: false,
       authType: configured ? 'oauth' : 'unconfigured',
+      readiness,
+      blockingIssues: guidance.blockingIssues,
+      recommendedNextAction: guidance.recommendedNextAction,
+      recommendedPrompt: guidance.recommendedPrompt,
       message: configured
-        ? 'OAuth credentials configured but no session. Call sheets_auth action "login".'
-        : 'OAuth credentials not configured. Install the latest version of ServalSheets which includes embedded credentials, or set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET manually.',
+        ? `OAuth credentials configured but no session. ${guidance.message}`
+        : `OAuth credentials not configured. ${guidance.message}`,
+      _meta: this.createMeta({
+        journeyStage: 'onboarding',
+        nextBestAction: guidance.recommendedNextAction,
+        verificationSummary: configured
+          ? 'OAuth client credentials exist, but no active Google session was found.'
+          : 'OAuth client credentials are missing from the current server configuration.',
+        nextSteps: guidance.nextSteps,
+        ...(readiness.missingConfig ? { warnings: readiness.missingConfig } : {}),
+      }),
     };
   }
 
@@ -813,20 +1048,26 @@ export class AuthHandler {
     }
 
     if (!feature) {
-      return {
-        success: true,
-        action: 'setup_feature',
-        message: 'Call setup_feature with a feature value to configure that feature.',
+      return this.buildSetupFeatureResponse({
+        message:
+          'Choose which optional capability to configure next. ServalSheets can guide this interactively when the client supports elicitation.',
+        configured: false,
+        verified: false,
+        nextStep:
+          'Retry sheets_auth action "setup_feature" with feature="connectors" | "sampling" | "webhooks" | "federation".',
         instructions: [
           'Available features:',
           '  feature: "connectors" — API keys for live data connectors (Finnhub, FRED, Alpha Vantage, Polygon, FMP)',
           '  feature: "sampling"   — ANTHROPIC_API_KEY for AI-powered formula suggestions & analysis',
           '  feature: "webhooks"   — REDIS_URL for push notification webhooks on spreadsheet changes',
           '  feature: "federation" — MCP_FEDERATION_SERVERS to call tools on remote MCP servers',
-          '',
-          'All credentials are encrypted at rest and restored automatically on restart.',
         ],
-      };
+        fallbackInstructions: [
+          'All credentials are encrypted at rest and restored automatically on restart.',
+          'If your client cannot show forms, pass the feature and its config fields directly in the request JSON.',
+        ],
+        verificationSummary: 'No feature was selected yet; setup remains pending.',
+      });
     }
 
     switch (feature) {
@@ -921,15 +1162,19 @@ export class AuthHandler {
     }
 
     if (!connectorId) {
-      return {
-        success: true,
-        action: 'setup_feature',
-        message: 'Specify connectorId to configure a data connector.',
-        instructions: [
-          'Call: sheets_auth { "action": "setup_feature", "feature": "connectors", "connectorId": "<id>", "apiKey": "<key>" }',
-          'Connector IDs: finnhub | fred | alpha_vantage | polygon | fmp',
+      return this.buildSetupFeatureResponse({
+        message: 'Choose which connector to configure before entering credentials.',
+        configured: false,
+        verified: false,
+        nextStep:
+          'Retry setup_feature with feature="connectors", connectorId, and apiKey when ready.',
+        instructions: ['Connector IDs: finnhub | fred | alpha_vantage | polygon | fmp'],
+        fallbackInstructions: [
+          'Example: sheets_auth { "action": "setup_feature", "feature": "connectors", "connectorId": "finnhub", "apiKey": "<your-key>" }',
         ],
-      };
+        journeyStage: 'connector_setup',
+        verificationSummary: 'Connector setup is waiting for a connector selection.',
+      });
     }
 
     const info = CONNECTOR_INFO[connectorId];
@@ -960,17 +1205,23 @@ export class AuthHandler {
     }
 
     if (!apiKey) {
-      return {
-        success: true,
-        action: 'setup_feature',
-        message: `Get a ${info?.name ?? connectorId} API key, then provide it via apiKey parameter.`,
+      return this.buildSetupFeatureResponse({
+        message: `Get a ${info?.name ?? connectorId} API key, then provide it via apiKey or complete the URL-based setup flow.`,
+        configured: false,
+        verified: false,
+        nextStep: `Provide an API key for ${info?.name ?? connectorId} and retry setup_feature.`,
         instructions: [
           `1. Sign up at: ${info?.signupUrl ?? 'the provider website'}`,
-          `2. Copy your API key`,
-          `3. Call: sheets_auth { "action": "setup_feature", "feature": "connectors", "connectorId": "${connectorId}", "apiKey": "<your-key>" }`,
-          '4. The key will be encrypted and restored automatically on restart',
+          '2. Copy the provider API key',
+          '3. Retry setup_feature to store and verify it',
         ],
-      };
+        fallbackInstructions: [
+          `Example: sheets_auth { "action": "setup_feature", "feature": "connectors", "connectorId": "${connectorId}", "apiKey": "<your-key>" }`,
+          'The key will be encrypted and restored automatically on restart.',
+        ],
+        journeyStage: 'connector_setup',
+        verificationSummary: `${info?.name ?? connectorId} is not configured yet because no API key was provided.`,
+      });
     }
 
     // Configure via ConnectorManager (handles encrypted persistence to .serval/connectors/)
@@ -991,16 +1242,22 @@ export class AuthHandler {
           },
         };
       }
-      return {
-        success: true,
-        action: 'setup_feature',
+      return this.buildSetupFeatureResponse({
         message: `${info?.name ?? connectorId} configured, verified, and encrypted.`,
+        configured: true,
+        verified: true,
+        nextStep: `Run sheets_connectors action "status" with connectorId "${connectorId}" or make a first query.`,
         instructions: [
           `${info?.name ?? connectorId} is ready. Use sheets_connectors to query live data.`,
           `Example: sheets_connectors { "action": "query", "connectorId": "${connectorId}", "endpoint": "...", "params": {} }`,
           'Key persists across Claude Desktop restarts (stored at .serval/connectors/)',
         ],
-      };
+        fallbackInstructions: [
+          `Status check: sheets_connectors { "action": "status", "connectorId": "${connectorId}" }`,
+        ],
+        journeyStage: 'connector_setup',
+        verificationSummary: `${info?.name ?? connectorId} passed its configuration health check.`,
+      });
     } catch (err) {
       return {
         success: false,
@@ -1041,37 +1298,49 @@ export class AuthHandler {
     }
 
     if (!apiKey) {
-      return {
-        success: true,
-        action: 'setup_feature',
+      return this.buildSetupFeatureResponse({
         message:
-          'Get an Anthropic API key to enable AI-powered features, then provide it via apiKey.',
+          'Add an Anthropic-compatible API key to enable AI fallback for formula suggestions, chart help, and analysis.',
+        configured: false,
+        verified: false,
+        nextStep: 'Provide apiKey for feature="sampling" and retry setup_feature.',
         instructions: [
           '1. Visit https://console.anthropic.com/settings/keys',
-          '2. Create an API key (free credits available)',
-          '3. Call: sheets_auth { "action": "setup_feature", "feature": "sampling", "apiKey": "sk-ant-..." }',
-          '4. Key is encrypted and restored automatically on restart',
+          '2. Create an API key',
+          '3. Retry setup_feature with feature="sampling"',
         ],
-      };
+        fallbackInstructions: [
+          'Example: sheets_auth { "action": "setup_feature", "feature": "sampling", "apiKey": "sk-ant-..." }',
+          'Key is encrypted and restored automatically on restart.',
+        ],
+        verificationSummary: 'AI fallback is not configured because no API key was provided.',
+      });
     }
 
     // Apply immediately to current process + persist for future restarts
     process.env['ANTHROPIC_API_KEY'] = apiKey;
     await runtimeConfigStore.save('ANTHROPIC_API_KEY', apiKey);
 
-    return {
-      success: true,
-      action: 'setup_feature',
-      message: 'Anthropic API key saved. MCP sampling and AI analysis are now enabled.',
+    return this.buildSetupFeatureResponse({
+      message:
+        'Anthropic API key saved. AI fallback features are now enabled for this session and future restarts.',
+      configured: true,
+      verified: true,
+      nextStep:
+        'Run /first_operation or use sheets_analyze.generate_formula to verify AI assistance.',
       instructions: [
-        'AI features unlocked for this session and future restarts:',
+        'AI features unlocked:',
         '  • sheets_analyze action "generate_formula" — AI formula builder',
         '  • sheets_analyze action "suggest_visualization" — chart recommendations',
         '  • sheets_analyze action "auto_enhance" — intelligent spreadsheet improvements',
         '  • sheets_compute action "sklearn_model" — ML model training',
-        'Key encrypted at .serval/runtime-keys.json',
+        'Key stored in encrypted runtime config for future restarts',
       ],
-    };
+      fallbackInstructions: [
+        'Verification: use an AI-assisted analyze or visualize action and confirm suggestions are returned.',
+      ],
+      verificationSummary: 'AI fallback key was stored and applied to the running process.',
+    });
   }
 
   private async setupWebhooks(req: AuthSetupFeatureInput): Promise<AuthResponse> {
@@ -1104,19 +1373,22 @@ export class AuthHandler {
     }
 
     if (!redisUrl) {
-      return {
-        success: true,
-        action: 'setup_feature',
-        message: 'Provide a Redis URL to enable webhooks.',
+      return this.buildSetupFeatureResponse({
+        message: 'Provide a Redis URL to enable webhook delivery and change notifications.',
+        configured: false,
+        verified: false,
+        nextStep: 'Supply redisUrl for feature="webhooks" and retry setup_feature.',
         instructions: [
           'Free Redis options:',
           '  • Upstash (serverless, free tier): https://upstash.com',
           '  • Redis Cloud free tier: https://redis.com/try-free/',
-          '',
-          'Then call:',
-          '  sheets_auth { "action": "setup_feature", "feature": "webhooks", "redisUrl": "redis://..." }',
         ],
-      };
+        fallbackInstructions: [
+          'Example: sheets_auth { "action": "setup_feature", "feature": "webhooks", "redisUrl": "redis://..." }',
+        ],
+        verificationSummary:
+          'Webhook delivery is not configured because no Redis URL was provided.',
+      });
     }
 
     process.env['REDIS_URL'] = redisUrl;
@@ -1147,12 +1419,15 @@ export class AuthHandler {
       });
     }
 
-    return {
-      success: true,
-      action: 'setup_feature',
+    return this.buildSetupFeatureResponse({
       message: hotWired
         ? 'Redis connected. Webhooks are active immediately.'
-        : 'Redis URL saved. Restart to activate webhooks.',
+        : 'Redis URL saved. Restart the server to activate webhooks.',
+      configured: true,
+      verified: hotWired,
+      nextStep: hotWired
+        ? 'Run sheets_webhook action "list" or "register" to verify webhook delivery.'
+        : 'Restart the server, then run sheets_webhook action "list" to verify activation.',
       instructions: [
         hotWired
           ? 'Webhooks are active now (no restart needed):'
@@ -1160,9 +1435,15 @@ export class AuthHandler {
         '  • sheets_webhook action "register" — register a webhook endpoint',
         '  • sheets_webhook action "watch_changes" — subscribe to cell/range changes',
         '  • sheets_webhook action "list" — see active webhooks',
-        'URL encrypted at .serval/runtime-keys.json',
+        'Redis URL stored in encrypted runtime config for future restarts',
       ],
-    };
+      fallbackInstructions: [
+        'Verification: run sheets_webhook { "action": "list" } after setup or restart.',
+      ],
+      verificationSummary: hotWired
+        ? 'Redis connection succeeded and the webhook singletons were hot-wired.'
+        : 'Redis URL was stored, but the live webhook runtime still needs a restart.',
+    });
   }
 
   private async setupFederation(req: AuthSetupFeatureInput): Promise<AuthResponse> {
@@ -1200,21 +1481,18 @@ export class AuthHandler {
     }
 
     if (!serversJson) {
-      return {
-        success: true,
-        action: 'setup_feature',
-        message: 'Provide MCP federation server configuration via the apiKey parameter.',
-        instructions: [
-          'Format: JSON array — [{"name":"server-name","url":"http://host:port"}]',
-          '',
-          'Example: sheets_auth {',
-          '  "action": "setup_feature",',
-          '  "feature": "federation",',
-          '  "apiKey": "[{\\"name\\":\\"my-server\\",\\"url\\":\\"http://localhost:4000\\"}]"',
-          '}',
-          'Note: Pass the JSON as the apiKey parameter value.',
+      return this.buildSetupFeatureResponse({
+        message:
+          'Provide MCP federation server configuration as JSON so ServalSheets can call remote MCP tools.',
+        configured: false,
+        verified: false,
+        nextStep: 'Pass a JSON server list in apiKey and retry setup_feature for federation.',
+        instructions: ['Format: JSON array — [{"name":"server-name","url":"http://host:port"}]'],
+        fallbackInstructions: [
+          'Example: sheets_auth { "action": "setup_feature", "feature": "federation", "apiKey": "[{\\"name\\":\\"my-server\\",\\"url\\":\\"http://localhost:4000\\"}]" }',
         ],
-      };
+        verificationSummary: 'Federation is not configured because no server list was provided.',
+      });
     }
 
     // Validate JSON before saving
@@ -1245,18 +1523,23 @@ export class AuthHandler {
       // best-effort
     }
 
-    return {
-      success: true,
-      action: 'setup_feature',
+    return this.buildSetupFeatureResponse({
       message: `${serverCount} federation server${serverCount !== 1 ? 's' : ''} saved. MCP federation is now enabled.`,
+      configured: true,
+      verified: true,
+      nextStep: 'Run sheets_federation action "list_servers" to confirm the remote registry.',
       instructions: [
         'Federation is ready for this session and future restarts:',
         '  • sheets_federation action "list_servers" — see available remote servers',
         '  • sheets_federation action "get_server_tools" — discover tools on a server',
         '  • sheets_federation action "call_remote" — invoke a remote tool',
-        'Config encrypted at .serval/runtime-keys.json',
+        'Federation config stored in encrypted runtime config for future restarts',
       ],
-    };
+      fallbackInstructions: [
+        'Verification: run sheets_federation { "action": "list_servers" } to confirm the saved registry.',
+      ],
+      verificationSummary: `${serverCount} federation server definition(s) were parsed and stored successfully.`,
+    });
   }
 
   private createOAuthClient(): OAuth2Client | null {

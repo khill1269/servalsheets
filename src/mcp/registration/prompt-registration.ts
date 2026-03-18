@@ -76,7 +76,8 @@ export function registerServalSheetsPrompts(server: McpServer): void {
   server.registerPrompt(
     'welcome',
     {
-      description: '🎉 Welcome to ServalSheets! Get started with this guided introduction.',
+      description:
+        '🎉 Welcome to ServalSheets! Start with readiness, then connection, then your first real task.',
       argsSchema: {},
     },
     async () => {
@@ -88,23 +89,32 @@ export function registerServalSheetsPrompts(server: McpServer): void {
               type: 'text' as const,
               text: `🎉 Welcome to ServalSheets!
 
-I'm your Google Sheets assistant with ${TOOL_COUNT} powerful tools and ${ACTION_COUNT} actions.
+I'm your Google Sheets assistant with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions.
 
-## 🚀 Quick Start
+## Default First-Run Funnel
+1. Run \`sheets_auth action:"status"\`
+2. Read \`readiness\`, \`blockingIssues\`, \`recommendedNextAction\`, and \`recommendedPrompt\`
+3. If blocked, use \`sheets_auth action:"login"\` or \`sheets_auth action:"setup_feature"\`
+4. Run \`/test_connection\`
+5. Move to \`/first_operation\` or \`/full_setup\`
+
+## Test spreadsheet
 Test spreadsheet: \`1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\`
 
-## 📊 Capabilities
-• Data Operations: Read, write, batch operations
-• Analysis: Data quality, statistics, formula audit
-• AI Analysis: Pattern detection, anomalies, formula generation (via MCP Sampling)
-• Formatting: Colors, fonts, conditional formatting
-• Advanced: Charts, pivots, sharing, versions
+## What status should tell you
+- Whether Google auth is actually ready
+- Whether elicitation/forms are supported
+- Whether AI fallback is configured
+- Whether connectors and webhooks are already configured
+- The single next best action to take
 
-## 🛡️ Safety Features
-• Dry-run mode, effect limits, auto-snapshots
-• User confirmation for multi-step operations (via MCP Elicitation)
+## Canonical setup paths
+- \`/test_connection\` → verify the whole stack on a public sheet
+- \`/first_operation\` → complete one useful guided task
+- \`/full_setup\` → create and wire a new workbook from scratch
+- \`sheets_auth action:"setup_feature"\` → configure connectors, AI fallback, webhooks, or federation
 
-What would you like to do first?`,
+Start by running \`sheets_auth action:"status"\`. Do not skip the readiness check.`,
             },
           },
         ],
@@ -115,7 +125,8 @@ What would you like to do first?`,
   server.registerPrompt(
     'test_connection',
     {
-      description: '🔍 Test your ServalSheets connection with a public spreadsheet',
+      description:
+        '🔍 Verify readiness, authentication, and a real public-sheet read before doing custom work',
       argsSchema: {},
     },
     async () => {
@@ -129,14 +140,18 @@ What would you like to do first?`,
 
 Test spreadsheet: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
 
-Please run these tests in order:
-1. sheets_auth action: "status" → Verify authentication
-2. sheets_core action: "get", spreadsheetId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" → Get metadata
-3. sheets_data action: "read", spreadsheetId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms", range: "Sheet1!A1:D10" → Read sample data
-4. sheets_analyze action: "analyze_structure", spreadsheetId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" → Analyze structure
+Run this exact ladder:
+1. \`sheets_auth action:"status"\`
+   - Read \`readiness\`, \`blockingIssues\`, and \`recommendedNextAction\`
+   - If blocked on auth, use \`sheets_auth action:"login"\`
+   - If blocked on optional setup, use \`sheets_auth action:"setup_feature"\`
+2. \`sheets_core action:"get"\` on the public spreadsheet → verify metadata access
+3. \`sheets_data action:"read"\` range \`Sheet1!A1:D10\` → verify values access
+4. \`sheets_session action:"set_active"\` with the same spreadsheet → verify context wiring
+5. \`sheets_analyze action:"scout"\` → verify analysis entrypoint
 
-If all tests pass, you're ready to use ServalSheets!
-If auth fails, follow the authentication flow first.`,
+If all five steps succeed, move directly to \`/first_operation\`.
+If any step fails, report the failing step, the exact error code, and the next recommended recovery action.`,
             },
           },
         ],
@@ -147,7 +162,7 @@ If auth fails, follow the authentication flow first.`,
   server.registerPrompt(
     'first_operation',
     {
-      description: '👶 Your first ServalSheets operation - a guided walkthrough',
+      description: '👶 Complete your first useful task after readiness is verified',
       argsSchema: FirstOperationPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
@@ -162,13 +177,23 @@ If auth fails, follow the authentication flow first.`,
 
 Spreadsheet: ${spreadsheetId}
 
-Steps:
-1. Read data: sheets_core action "get"
-2. Analyze quality: sheets_analyze action "analyze_quality"
-3. Get statistics: sheets_analyze action "analyze_data"
-4. Format headers: sheets_format (use dryRun first!)
+Use this order:
+1. \`sheets_auth action:"status"\` if readiness has not already been checked in this conversation
+2. \`sheets_session action:"set_active"\` for spreadsheet \`${spreadsheetId}\`
+3. \`sheets_core action:"get"\` to understand sheet structure
+4. \`sheets_data action:"read"\` on a small representative range
+5. \`sheets_analyze action:"scout"\` to pick the right next operation
+6. Execute one useful task that matches the user goal:
+   - read/reporting request → summarize the current data
+   - analysis request → run targeted analysis
+   - formatting request → preview first, then apply one safe formatting change
 
-Safety tips: Always read before modify, use dryRun for destructive ops.`,
+Close with:
+- what was verified
+- what changed (if anything)
+- the single next best action
+
+If the user actually wants a brand-new workbook, switch to \`/full_setup\` instead of improvising.`,
             },
           },
         ],
@@ -4396,7 +4421,8 @@ Provide your findings in this format:
   server.registerPrompt(
     'full_setup',
     {
-      description: '🚀 Complete spreadsheet setup: create, format, populate, and share',
+      description:
+        '🚀 Complete workspace setup using the canonical readiness → create → verify flow',
       argsSchema: FullSetupPromptArgsSchema,
     },
     async ({ type, name, collaborators }) => {
@@ -4425,7 +4451,12 @@ Provide your findings in this format:
               type: 'text' as const,
               text: `🚀 Full Setup: Creating ${type.toUpperCase()} spreadsheet "${name}"
 
-## 5-Step Workflow
+## Canonical Setup Ladder
+
+### Step 0: Confirm readiness first
+- Run \`sheets_auth action:"status"\`
+- If Google auth is blocked, fix that first
+- If the workflow will need optional capabilities (connectors, AI fallback, webhooks, federation), use \`sheets_auth action:"setup_feature"\` before continuing
 
 ### Step 1: Create Spreadsheet
 - Use sheets_core action "create" with title "${name}"
@@ -4452,7 +4483,12 @@ Provide your findings in this format:
   - Yellow for warnings
 - Auto-fit columns using sheets_dimensions
 
-### Step 5: Share
+### Step 5: Verify the first success
+- Run \`sheets_session action:"set_active"\`
+- Run a small \`sheets_data action:"read"\` on a representative range
+- Confirm the workbook is usable before optional sharing or automation
+
+### Step 6: Share
 - Collaborators: ${collaboratorList}
 ${
   collaborators?.length
@@ -4464,14 +4500,14 @@ ${
 ## Safety Measures
 - Use sheets_confirm before any destructive operations
 - Create snapshot after setup complete using sheets_collaborate action "version_create_snapshot"
-- Verify all formulas work correctly
+- Verify all formulas work correctly before handoff
 
 ## Resources to Reference
 - Template: knowledge:///${knowledgePath}.json
 - Formulas: knowledge:///${formulasPath}.json
 - Guide: servalsheets://guides/batching-strategies
 
-Ready to execute this setup workflow? I'll guide you through each step.`,
+Keep the user oriented at every step: readiness, creation, verification, then optional sharing. Do not skip the verification step after creation.`,
             },
           },
         ],

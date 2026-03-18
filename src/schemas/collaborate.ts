@@ -1,7 +1,7 @@
 /**
  * Tool: sheets_collaborate
  * Consolidated collaboration operations: sharing, comments, version control, and approvals
- * Merges: sharing.ts (8 actions) + comments.ts (10 actions) + versions.ts (10 actions) + approvals (7 actions) = 35 actions
+ * Merges: sharing.ts (8 actions) + comments.ts (10 actions) + versions.ts (11 actions) + approvals (7 actions) = 41 actions
  */
 
 import { z } from 'zod';
@@ -105,13 +105,13 @@ const ApprovalSchema = z.object({
  * descriptions lose their parameter metadata entirely.
  *
  * Confirmed broken: z.discriminatedUnion('action', [ShareAddSchema, CommentAddSchema, ...])
- * with 35 variants produces { anyOf: [] } in the SDK's JSON Schema output.
+ * with 41 variants produces { anyOf: [] } in the SDK's JSON Schema output.
  *
- * Current workaround: A single z.object() with ALL fields from all 35 actions as optional
- * fields, plus z.enum([...35 actions]) for the discriminator, and a .refine() that checks
+ * Current workaround: A single z.object() with ALL fields from all 41 actions as optional
+ * fields, plus z.enum([...41 actions]) for the discriminator, and a .refine() that checks
  * required fields per-action at runtime. This works correctly but causes:
- * - ~40% schema bloat (all 35 actions' fields co-exist in one flat object)
- * - No TypeScript type narrowing (all 35 action branches share the same object type;
+ * - ~40% schema bloat (all 41 actions' fields co-exist in one flat object)
+ * - No TypeScript type narrowing (all 41 action branches share the same object type;
  *   action-specific fields are always typed as optional, never required)
  * - Manual required-field validation in refine() instead of Zod's built-in discriminated
  *   union narrowing — more code to maintain, risk of gaps
@@ -139,7 +139,7 @@ const ApprovalSchema = z.object({
 export const SheetsCollaborateInputSchema = z.object({
   request: z
     .object({
-      // Required action discriminator (35 actions)
+      // Required action discriminator (41 actions)
       action: z
         .enum([
           // Sharing actions (8) - prefixed with 'share_'
@@ -168,6 +168,7 @@ export const SheetsCollaborateInputSchema = z.object({
           'version_restore_revision',
           'version_keep_revision',
           'version_create_snapshot',
+          'version_snapshot_status',
           'version_list_snapshots',
           'version_restore_snapshot',
           'version_delete_snapshot',
@@ -349,6 +350,12 @@ export const SheetsCollaborateInputSchema = z.object({
         .string()
         .optional()
         .describe('Google Drive folder ID for snapshot (version_create_snapshot only)'),
+      taskId: z
+        .string()
+        .optional()
+        .describe(
+          'Snapshot task ID from version_create_snapshot (required for: version_snapshot_status)'
+        ),
 
       // Fields for version_restore_snapshot, version_delete_snapshot actions
       snapshotId: z
@@ -524,6 +531,8 @@ export const SheetsCollaborateInputSchema = z.object({
             return !!data.spreadsheetId && !!data.revisionId && data.keepForever !== undefined;
           case 'version_create_snapshot':
             return !!data.spreadsheetId;
+          case 'version_snapshot_status':
+            return !!data.spreadsheetId && !!data.taskId;
           case 'version_list_snapshots':
             return !!data.spreadsheetId;
           case 'version_restore_snapshot':
@@ -573,58 +582,185 @@ export const SheetsCollaborateInputSchema = z.object({
       }
     )
     .superRefine((data, ctx) => {
-      // Path-specific required-field errors for share_add so LLMs receive
-      // actionable messages (e.g. "type is required") instead of a generic failure.
-      if (data.action === 'share_add') {
-        if (!data.spreadsheetId) {
+      // Path-specific required-field errors so LLMs receive actionable messages
+      // (e.g. "commentId is required for comment_delete") instead of a generic failure.
+      // Covers high-frequency actions where generic "Missing required fields" is unhelpful.
+
+      const requireField = (field: string, value: unknown, actionName: string): void => {
+        if (!value) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            path: ['spreadsheetId'],
-            message: 'spreadsheetId is required for share_add',
+            path: [field],
+            message: `${field} is required for ${actionName}`,
           });
         }
-        if (!data.type) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['type'],
-            message:
-              'type is required for share_add (valid values: user, group, domain, anyone)',
-          });
-        }
-        if (!data.role) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['role'],
-            message:
-              'role is required for share_add (valid values: owner, writer, commenter, reader)',
-          });
-        }
-        // Validate emailAddress/domain based on type
-        if (data.type === 'user' || data.type === 'group') {
-          if (!data.emailAddress) {
+      };
+
+      // Common: spreadsheetId is required for almost all actions
+      const actionsWithoutSpreadsheetId = new Set(['label_list', 'label_apply', 'label_remove']);
+      if (!actionsWithoutSpreadsheetId.has(data.action) && !data.spreadsheetId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['spreadsheetId'],
+          message: `spreadsheetId is required for ${data.action}`,
+        });
+      }
+
+      switch (data.action) {
+        // ---- Sharing ----
+        case 'share_add':
+          requireField('type', data.type, 'share_add');
+          requireField('role', data.role, 'share_add');
+          if (data.type === 'user' || data.type === 'group') {
+            if (!data.emailAddress) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['emailAddress'],
+                message: `emailAddress is required when type is '${data.type}'`,
+              });
+            }
+          }
+          if (data.type === 'domain') {
+            if (!data.domain) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['domain'],
+                message: "domain is required when type is 'domain' (e.g. 'example.com')",
+              });
+            } else if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/.test(data.domain)) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['domain'],
+                message:
+                  'domain must be a valid domain name (e.g. "example.com", "corp.example.org")',
+              });
+            }
+          }
+          break;
+        case 'share_update':
+          requireField('permissionId', data.permissionId, 'share_update');
+          requireField('role', data.role, 'share_update');
+          break;
+        case 'share_remove':
+        case 'share_get':
+          requireField('permissionId', data.permissionId, data.action);
+          break;
+        case 'share_transfer_ownership':
+          requireField('newOwnerEmail', data.newOwnerEmail, 'share_transfer_ownership');
+          break;
+        case 'share_set_link':
+          if (data.enabled === undefined) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              path: ['emailAddress'],
-              message: `emailAddress is required when type is '${data.type}'`,
+              path: ['enabled'],
+              message: 'enabled (true/false) is required for share_set_link',
             });
           }
-        }
-        if (data.type === 'domain') {
-          if (!data.domain) {
+          break;
+
+        // ---- Comments ----
+        case 'comment_add':
+          requireField('content', data.content, 'comment_add');
+          break;
+        case 'comment_update':
+          requireField('commentId', data.commentId, 'comment_update');
+          requireField('content', data.content, 'comment_update');
+          break;
+        case 'comment_delete':
+        case 'comment_get':
+        case 'comment_resolve':
+        case 'comment_reopen':
+          requireField('commentId', data.commentId, data.action);
+          break;
+        case 'comment_add_reply':
+          requireField('commentId', data.commentId, 'comment_add_reply');
+          requireField('content', data.content, 'comment_add_reply');
+          break;
+        case 'comment_update_reply':
+          requireField('commentId', data.commentId, 'comment_update_reply');
+          requireField('replyId', data.replyId, 'comment_update_reply');
+          requireField('content', data.content, 'comment_update_reply');
+          break;
+        case 'comment_delete_reply':
+          requireField('commentId', data.commentId, 'comment_delete_reply');
+          requireField('replyId', data.replyId, 'comment_delete_reply');
+          break;
+
+        // ---- Versions ----
+        case 'version_get_revision':
+        case 'version_restore_revision':
+          requireField('revisionId', data.revisionId, data.action);
+          break;
+        case 'version_keep_revision':
+          requireField('revisionId', data.revisionId, 'version_keep_revision');
+          if (data.keepForever === undefined) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              path: ['domain'],
-              message: "domain is required when type is 'domain' (e.g. 'example.com')",
-            });
-          } else if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/.test(data.domain)) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ['domain'],
-              message:
-                'domain must be a valid domain name (e.g. "example.com", "corp.example.org")',
+              path: ['keepForever'],
+              message: 'keepForever (true/false) is required for version_keep_revision',
             });
           }
-        }
+          break;
+        case 'version_snapshot_status':
+          requireField('taskId', data.taskId, 'version_snapshot_status');
+          break;
+        case 'version_restore_snapshot':
+        case 'version_delete_snapshot':
+          requireField('snapshotId', data.snapshotId, data.action);
+          break;
+
+        // ---- Approvals ----
+        case 'approval_create':
+          requireField('range', data.range, 'approval_create');
+          if (!data.approvers || data.approvers.length === 0) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['approvers'],
+              message: 'approvers (non-empty email array) is required for approval_create',
+            });
+          }
+          break;
+        case 'approval_approve':
+        case 'approval_reject':
+        case 'approval_get_status':
+        case 'approval_cancel':
+          requireField('approvalId', data.approvalId, data.action);
+          break;
+        case 'approval_delegate':
+          requireField('approvalId', data.approvalId, 'approval_delegate');
+          requireField('delegateTo', data.delegateTo, 'approval_delegate');
+          break;
+
+        // ---- Access proposals ----
+        case 'resolve_access_proposal':
+          requireField('proposalId', data.proposalId, 'resolve_access_proposal');
+          requireField('decision', data.decision, 'resolve_access_proposal');
+          break;
+
+        // ---- Labels ----
+        case 'label_list':
+          if (!data.fileId && !data.spreadsheetId) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['fileId'],
+              message: 'Either fileId or spreadsheetId is required for label_list',
+            });
+          }
+          break;
+        case 'label_apply':
+        case 'label_remove':
+          if (!data.fileId && !data.spreadsheetId) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['fileId'],
+              message: `Either fileId or spreadsheetId is required for ${data.action}`,
+            });
+          }
+          requireField('labelId', data.labelId, data.action);
+          break;
+
+        default:
+          break;
       }
     }),
 });
@@ -649,6 +785,13 @@ const CollaborateResponseSchema = z.discriminatedUnion('success', [
     nextPageToken: z.string().optional(),
     snapshot: SnapshotSchema.optional(),
     snapshots: z.array(SnapshotSchema).optional(),
+    taskId: z.string().optional(),
+    taskStatus: z.enum(['working', 'completed', 'failed']).optional(),
+    taskStatusMessage: z.string().optional(),
+    taskCreatedAt: z.string().optional(),
+    taskUpdatedAt: z.string().optional(),
+    pollAfterMs: z.coerce.number().int().optional(),
+    taskError: ErrorDetailSchema.optional(),
     comparison: z
       .object({
         sheetsAdded: z.array(z.string()).optional(),
@@ -802,7 +945,7 @@ export type CollaborateCommentDeleteReplyInput = SheetsCollaborateInput['request
   replyId: string;
 };
 
-// Version action types (10)
+// Version action types (11)
 export type CollaborateVersionListRevisionsInput = SheetsCollaborateInput['request'] & {
   action: 'version_list_revisions';
   spreadsheetId: string;
@@ -828,6 +971,11 @@ export type CollaborateVersionKeepRevisionInput = SheetsCollaborateInput['reques
 export type CollaborateVersionCreateSnapshotInput = SheetsCollaborateInput['request'] & {
   action: 'version_create_snapshot';
   spreadsheetId: string;
+};
+export type CollaborateVersionSnapshotStatusInput = SheetsCollaborateInput['request'] & {
+  action: 'version_snapshot_status';
+  spreadsheetId: string;
+  taskId: string;
 };
 export type CollaborateVersionListSnapshotsInput = SheetsCollaborateInput['request'] & {
   action: 'version_list_snapshots';
