@@ -5,6 +5,7 @@ import { DataError } from '../../core/errors.js';
 import { logger } from '../../utils/logger.js';
 import { createNotFoundError } from '../../utils/error-factory.js';
 import { TieredRetrieval } from '../../analysis/tiered-retrieval.js';
+import { getSessionContext, type SessionContextManager } from '../../services/session-context.js';
 import { getCacheAdapter } from '../../utils/cache-adapter.js';
 import {
   assertSamplingConsent,
@@ -62,6 +63,7 @@ export interface QueryNaturalLanguageDeps {
   checkSamplingCapability: () => Promise<AnalyzeResponse | null>;
   server: SamplingServer;
   sheetsApi: sheets_v4.Sheets;
+  sessionContext?: Pick<SessionContextManager, 'understandingStore'>;
 }
 
 function resolveRange(range: unknown): string | undefined {
@@ -113,6 +115,30 @@ export async function handleQueryNaturalLanguageAction(
   }
 
   const startTime = Date.now();
+
+  // Read understanding store context built by prior scout/comprehensive calls
+  const understandingStore =
+    deps.sessionContext?.understandingStore ?? getSessionContext().understandingStore;
+  const understanding = understandingStore.getSummary(input.spreadsheetId);
+  const semanticIndex = understandingStore.get(input.spreadsheetId)?.semanticIndex;
+  const additionalContext = understanding
+    ? [
+        understanding.inferredPurpose ? `Workbook type: ${understanding.inferredPurpose}.` : '',
+        semanticIndex?.workbookType && semanticIndex.workbookType !== understanding.inferredPurpose
+          ? `Semantic classification: ${semanticIndex.workbookType} (${semanticIndex.workbookTypeConfidence}% confidence).`
+          : '',
+        understanding.domain ? `Business domain: ${understanding.domain}.` : '',
+        understanding.userIntent ? `User intent: ${understanding.userIntent}.` : '',
+        semanticIndex?.suggestedOperations.length
+          ? `Likely useful operations: ${semanticIndex.suggestedOperations.slice(0, 3).join(', ')}.`
+          : '',
+        understanding.topGaps.length > 0
+          ? `Known gaps: ${understanding.topGaps.slice(0, 2).join('; ')}.`
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' ')
+    : undefined;
 
   try {
     const tieredRetrieval = new TieredRetrieval({
@@ -178,9 +204,10 @@ export async function handleQueryNaturalLanguageAction(
       spreadsheetId: input.spreadsheetId,
       sheetName: targetSheet.title,
       schema,
+      ...(additionalContext ? { additionalContext } : {}),
       previousQueries: [],
       dataSnapshot: {
-        sampleRows: sampleRows,
+        sampleRows,
         rowCount: snapshotRowCount,
         columnCount: snapshotColumnCount,
       },

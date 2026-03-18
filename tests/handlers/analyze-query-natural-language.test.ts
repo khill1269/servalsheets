@@ -3,6 +3,15 @@ import { handleQueryNaturalLanguageAction } from '../../src/handlers/analyze-act
 
 describe('query_natural_language action', () => {
   it('honors an explicit range and uses header rows for schema inference', async () => {
+    const createMessage = vi.fn().mockResolvedValue({
+      content: {
+        type: 'text',
+        text: JSON.stringify({
+          answer: 'Total revenue is 300.',
+          followUpQuestions: [],
+        }),
+      },
+    });
     const sheetsApi = {
       spreadsheets: {
         get: vi.fn().mockResolvedValue({
@@ -52,17 +61,33 @@ describe('query_natural_language action', () => {
       {
         checkSamplingCapability: vi.fn().mockResolvedValue(null),
         server: {
-          createMessage: vi.fn().mockResolvedValue({
-            content: {
-              type: 'text',
-              text: JSON.stringify({
-                answer: 'Total revenue is 300.',
-                followUpQuestions: [],
-              }),
-            },
-          }),
+          createMessage,
         } as any,
         sheetsApi,
+        sessionContext: {
+          understandingStore: {
+            getSummary: vi.fn().mockReturnValue({
+              spreadsheetId: 'sheet-123',
+              title: 'Quarterly Metrics',
+              inferredPurpose: 'budget',
+              domain: 'finance',
+              userIntent: 'track revenue',
+              confidenceScore: 88,
+              confidenceLevel: 'high',
+              topGaps: ['Confirm expense categories'],
+              activeHypotheses: [],
+              interactionCount: 2,
+              maxTierReached: 4,
+            }),
+            get: vi.fn().mockReturnValue({
+              semanticIndex: {
+                workbookType: 'report',
+                workbookTypeConfidence: 91,
+                suggestedOperations: ['aggregate', 'pivot_compute'],
+              },
+            }),
+          },
+        } as any,
       }
     );
 
@@ -72,6 +97,21 @@ describe('query_natural_language action', () => {
       range: 'Revenue!A1:B3',
       valueRenderOption: 'UNFORMATTED_VALUE',
     });
+    expect(createMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        systemPrompt: expect.stringContaining('Workbook Understanding'),
+      })
+    );
+    expect(createMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        systemPrompt: expect.stringContaining('Business domain: finance.'),
+      })
+    );
+    expect(createMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        systemPrompt: expect.stringContaining('Likely useful operations: aggregate, pivot_compute.'),
+      })
+    );
     if (result.success) {
       expect(result.queryResult?.intent.type).toBe('AGGREGATE');
       expect(result.queryResult?.answer).toContain('300');

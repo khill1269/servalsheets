@@ -20,6 +20,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import type { SemanticIndex } from '../analysis/workbook-semantics.js';
 import { BoundedCache } from '../utils/bounded-cache.js';
 import { NotFoundError } from '../core/errors.js';
 
@@ -174,6 +175,9 @@ export interface SpreadsheetUnderstanding {
 
   /** Interaction count */
   interactionCount: number;
+
+  /** Semantic classification of the workbook (type, key entities, relationships) */
+  semanticIndex?: SemanticIndex;
 }
 
 // ============================================================================
@@ -427,6 +431,23 @@ export class UnderstandingStore {
       interactionCount: understanding.interactionCount,
       maxTierReached: understanding.maxTierReached,
     };
+  }
+
+  /**
+   * Update the semantic index built from comprehensive analysis
+   */
+  updateSemanticIndex(spreadsheetId: string, index: SemanticIndex): void {
+    const understanding = this.store.get(spreadsheetId);
+    if (!understanding) return;
+    understanding.semanticIndex = index;
+    understanding.inferredPurpose = understanding.inferredPurpose ?? index.workbookType;
+    understanding.lastUpdatedAt = Date.now();
+    this.store.set(spreadsheetId, understanding);
+    logger.info('UnderstandingStore: Semantic index updated', {
+      spreadsheetId,
+      workbookType: index.workbookType,
+      confidence: index.workbookTypeConfidence,
+    });
   }
 
   /**

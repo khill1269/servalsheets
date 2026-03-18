@@ -4,6 +4,7 @@ import { ConfidenceScorer } from '../../analysis/confidence-scorer.js';
 import { ElicitationEngine } from '../../analysis/elicitation-engine.js';
 import { Scout, type ScoutResult } from '../../analysis/scout.js';
 import { generateAIInsight, type SamplingServer } from '../../mcp/sampling.js';
+import type { ElicitationServer } from '../../mcp/elicitation.js';
 import type { AnalyzeResponse } from '../../schemas/analyze.js';
 import { getSessionContext, type SessionContextManager } from '../../services/session-context.js';
 import { getCacheAdapter } from '../../utils/cache-adapter.js';
@@ -21,6 +22,7 @@ export interface ScoutDeps {
   samplingServer?: SamplingServer;
   context?: {
     sessionContext?: Pick<SessionContextManager, 'recordOperation' | 'understandingStore'>;
+    elicitationServer?: ElicitationServer;
   };
 }
 
@@ -165,6 +167,43 @@ export async function handleScoutAction(
           })),
           projectedBoost: elicitation.projectedConfidenceAfterElicitation - assessment.overallScore,
         };
+
+        // Wire elicitation questions through MCP protocol if client supports it
+        const elicitSrv = deps.context?.elicitationServer;
+        if (elicitSrv) {
+          const caps = elicitSrv.getClientCapabilities();
+          if (caps?.elicitation) {
+            try {
+              const topQ = elicitation.questions[0];
+              if (topQ) {
+                const elicitResult = await elicitSrv.elicitInput({
+                  message: topQ.question,
+                  requestedSchema: {
+                    type: 'object',
+                    properties: {
+                      answer: {
+                        type: 'string',
+                        title: topQ.reason,
+                        ...(topQ.options && topQ.options.length > 0 ? { enum: topQ.options } : {}),
+                      },
+                    },
+                    required: ['answer'],
+                  },
+                });
+                if (elicitResult.action === 'accept' && elicitResult.content?.['answer']) {
+                  store.integrateUserAnswers(scoutResult.spreadsheetId, assessment, {
+                    freeformContext: String(elicitResult.content['answer']),
+                  });
+                }
+              }
+            } catch (elicitErr) {
+              logger.warn('Scout MCP elicitation failed (non-critical)', {
+                spreadsheetId: input.spreadsheetId,
+                error: elicitErr instanceof Error ? elicitErr.message : String(elicitErr),
+              });
+            }
+          }
+        }
       }
     } catch (intelligenceErr) {
       logger.warn('Intelligence cluster scoring failed (non-critical)', {

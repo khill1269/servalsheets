@@ -24,6 +24,7 @@ export interface ConversationContext {
   spreadsheetId: string;
   sheetName: string;
   schema: ColumnSchema[];
+  additionalContext?: string;
   previousQueries: Array<{
     query: string;
     response: string;
@@ -247,6 +248,8 @@ ${schemaDescription}
 
 **Sample Data (first 10 rows):**
 ${sampleData}
+
+${context.additionalContext ? `**Workbook Understanding:**\n${context.additionalContext}\n` : ''}
 
 ${conversationHistory ? `**Conversation History:**\n${conversationHistory}\n` : ''}
 

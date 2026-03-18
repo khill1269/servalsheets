@@ -435,6 +435,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             checkSamplingCapability: () => this.checkSamplingCapability(),
             server: this.context.server!,
             sheetsApi: this.sheetsApi,
+            sessionContext: this.context.sessionContext,
           });
           break;
         }
@@ -503,6 +504,20 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
                 detectedDomain: comprehensiveData.detectedDomain,
               });
 
+              // Build semantic index (workbook type classification) — zero API calls
+              try {
+                const { buildSemanticIndex: _bsi } =
+                  await import('../analysis/workbook-semantics.js');
+                const semanticIdx = _bsi(
+                  response as unknown as import('../analysis/comprehensive.js').ComprehensiveResult
+                );
+                store.updateSemanticIndex(spreadsheetId, semanticIdx);
+              } catch (semErr) {
+                logger.warn('Semantic index build failed (non-critical)', {
+                  error: semErr instanceof Error ? semErr.message : String(semErr),
+                });
+              }
+
               (response as Record<string, unknown>)['confidence'] = {
                 overallScore: assessment.overallScore,
                 level: assessment.overallLevel,
@@ -539,7 +554,10 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
           response = await handleScoutAction(scoutInput, {
             sheetsApi: this.sheetsApi,
             samplingServer: this.context.samplingServer,
-            context: this.context,
+            context: {
+              sessionContext: this.context.sessionContext,
+              elicitationServer: this.context.elicitationServer,
+            },
           });
           break;
         }
