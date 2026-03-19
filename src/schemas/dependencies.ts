@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { ErrorDetailSchema } from './shared.js';
+import { ErrorDetailSchema, RangeInputSchema } from './shared.js';
 
 /**
  * Dependency actions
@@ -111,7 +111,7 @@ const ModelScenarioInputSchema = z.object({
     .min(1)
     .max(50)
     .describe('Input changes to simulate'),
-  outputRange: z.string().optional().describe('Focus impact report on this range'),
+  outputRange: RangeInputSchema.optional().describe('Focus impact report on this range'),
 });
 
 const CompareScenariosInputSchema = z.object({

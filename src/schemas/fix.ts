@@ -7,6 +7,7 @@
  */
 
 import { z } from 'zod';
+import { RangeInputSchema } from './shared.js';
 
 // Issue types that can be auto-fixed
 export const FixableIssueTypeSchema = z.enum([
@@ -368,7 +369,7 @@ const FixActionSchema = z.object({
 const CleanActionSchema = z.object({
   action: z.literal('clean').describe('Auto-detect and fix common data quality issues'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().min(1).describe('A1 range to clean (e.g., "Sheet1!A1:Z100")'),
+  range: RangeInputSchema.describe('Range to clean (e.g., "Sheet1!A1:Z100" or named range)'),
   rules: z
     .array(CleanRuleSchema)
     .optional()
@@ -387,7 +388,7 @@ const StandardizeFormatsActionSchema = z.object({
     .literal('standardize_formats')
     .describe('Normalize date, currency, phone, and text formats in specified columns'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().min(1).describe('A1 range to standardize (e.g., "Sheet1!A1:Z100")'),
+  range: RangeInputSchema.describe('Range to standardize (e.g., "Sheet1!A1:Z100" or named range)'),
   columns: z
     .array(
       z.object({
@@ -457,7 +458,7 @@ const FillMissingActionSchema = z.object({
     .literal('fill_missing')
     .describe('Fill empty cells using a statistical or fixed strategy'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().min(1).describe('A1 range to fill (e.g., "Sheet1!A1:Z100")'),
+  range: RangeInputSchema.describe('Range to fill (e.g., "Sheet1!A1:Z100" or named range)'),
   strategy: z
     .preprocess((val) => {
       if (typeof val !== 'string') return val;
@@ -504,7 +505,7 @@ const FillMissingActionSchema = z.object({
 const DetectAnomaliesActionSchema = z.object({
   action: z.literal('detect_anomalies').describe('Flag statistical outliers in numeric columns'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().min(1).describe('A1 range to analyze (e.g., "Sheet1!A1:Z100")'),
+  range: RangeInputSchema.describe('Range to analyze (e.g., "Sheet1!A1:Z100" or named range)'),
   method: AnomalyMethodSchema.optional()
     .default('iqr')
     .describe(
@@ -526,7 +527,7 @@ const SuggestCleaningActionSchema = z.object({
     .literal('suggest_cleaning')
     .describe('Profile data and provide AI-powered cleaning recommendations (read-only)'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().min(1).describe('A1 range to profile (e.g., "Sheet1!A1:Z100")'),
+  range: RangeInputSchema.describe('Range to profile (e.g., "Sheet1!A1:Z100" or named range)'),
   maxRecommendations: z
     .number()
     .min(1)

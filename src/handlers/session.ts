@@ -7,6 +7,7 @@
  */
 
 import { ErrorCodes } from './error-codes.js';
+import { extractRangeA1Optional } from '../utils/range-helpers.js';
 import type { SheetsSessionInput, SheetsSessionOutput } from '../schemas/session.js';
 import { PipelineExecutor, type PipelineStep } from '../services/pipeline-executor.js';
 import { getPipelineDispatch } from '../services/pipeline-registry.js';
@@ -301,7 +302,7 @@ export async function handleSheetsSession(
           tool: tool!,
           action: toolAction!,
           spreadsheetId: spreadsheetId!,
-          range,
+          range: extractRangeA1Optional(range),
           description: description!,
           undoable: undoable!,
           snapshotId,

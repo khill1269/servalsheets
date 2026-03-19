@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { ErrorDetailSchema, ResponseMetaSchema, type ToolAnnotations } from './shared.js';
+import { ErrorDetailSchema, RangeInputSchema, ResponseMetaSchema, type ToolAnnotations } from './shared.js';
 
 // ============================================================================
 // Common Schemas
@@ -110,7 +110,7 @@ const ClearActionSchema = CommonFieldsSchema.extend({
 const TimelineActionSchema = CommonFieldsSchema.extend({
   action: z.literal('timeline').describe('View chronological change history for a spreadsheet'),
   spreadsheetId: z.string().min(1).describe('Spreadsheet ID'),
-  range: z.string().optional().describe('Focus on specific range (A1 notation)'),
+  range: RangeInputSchema.optional().describe('Focus on specific range'),
   since: z.string().optional().describe('ISO date — only show changes after this time'),
   until: z.string().optional().describe('ISO date — only show changes before this time'),
   limit: z.coerce.number().int().min(1).max(100).optional().default(50).describe('Max revisions'),
@@ -121,7 +121,7 @@ const DiffRevisionsActionSchema = CommonFieldsSchema.extend({
   spreadsheetId: z.string().min(1).describe('Spreadsheet ID'),
   revisionId1: z.string().min(1).describe('First revision ID (older)'),
   revisionId2: z.string().min(1).describe('Second revision ID (newer)'),
-  range: z.string().optional().describe('Focus diff on specific range (A1 notation)'),
+  range: RangeInputSchema.optional().describe('Focus diff on specific range'),
 });
 
 const RestoreCellsActionSchema = CommonFieldsSchema.extend({

@@ -16,6 +16,7 @@ import { CleaningEngine, parseRangeOffset } from '../services/cleaning-engine.js
 import { generateAIInsight, withSamplingTimeout, assertSamplingConsent } from '../mcp/sampling.js';
 import { sendProgress } from '../utils/request-context.js';
 import { recordCleaningOp } from '../observability/metrics.js';
+import { extractRangeA1 } from '../utils/range-helpers.js';
 
 // ISSUE-047: CleaningEngine is stateless — use module-level singleton to avoid
 // recreating the instance (and its pre-compiled rule arrays) on every action call.
@@ -250,11 +251,12 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
+    const rangeA1 = extractRangeA1(resolvedInput.range);
     await sendProgress(0, 3, 'Fetching data for cleaning...');
 
     // Fetch data from the range
-    const data = await this.fetchRangeData(resolvedInput.spreadsheetId, resolvedInput.range);
-    const rangeOffset = parseRangeOffset(resolvedInput.range);
+    const data = await this.fetchRangeData(resolvedInput.spreadsheetId, rangeA1);
+    const rangeOffset = parseRangeOffset(rangeA1);
 
     await sendProgress(1, 3, 'Analyzing data and applying cleaning rules...');
 
@@ -270,7 +272,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
       await this.writeChanges(
         resolvedInput.spreadsheetId,
-        resolvedInput.range,
+        rangeA1,
         data,
         result.changes,
         rangeOffset
@@ -285,7 +287,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
             tool: 'sheets_fix',
             action: 'clean',
             spreadsheetId: resolvedInput.spreadsheetId,
-            range: resolvedInput.range,
+            range: rangeA1,
             description: `Cleaned ${result.summary.cellsCleaned} cell(s) using rules: ${result.summary.rulesApplied.join(', ')}`,
             undoable: !!snapshot?.revisionId,
             snapshotId: snapshot?.revisionId,
@@ -385,8 +387,8 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     await sendProgress(0, 3, 'Fetching data for format standardization...');
 
-    const data = await this.fetchRangeData(req.spreadsheetId, req.range);
-    const rangeOffset = parseRangeOffset(req.range);
+    const data = await this.fetchRangeData(req.spreadsheetId, extractRangeA1(req.range));
+    const rangeOffset = parseRangeOffset(extractRangeA1(req.range));
 
     await sendProgress(1, 3, `Standardizing formats across ${req.columns.length} column(s)...`);
 
@@ -398,7 +400,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
           ? await this.createSnapshot(req.spreadsheetId)
           : undefined;
 
-      await this.writeChanges(req.spreadsheetId, req.range, data, result.changes, rangeOffset);
+      await this.writeChanges(req.spreadsheetId, extractRangeA1(req.range), data, result.changes, rangeOffset);
 
       this.trackContextFromRequest({ spreadsheetId: req.spreadsheetId });
 
@@ -408,7 +410,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
             tool: 'sheets_fix',
             action: 'standardize_formats',
             spreadsheetId: req.spreadsheetId,
-            range: req.range,
+            range: extractRangeA1(req.range),
             description: `Standardized ${result.summary.cellsChanged} cell(s) across ${result.summary.columnsProcessed} column(s)`,
             undoable: !!snapshot?.revisionId,
             snapshotId: snapshot?.revisionId,
@@ -511,8 +513,8 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     await sendProgress(0, 3, `Fetching data for fill_missing (strategy: ${req.strategy})...`);
 
-    const data = await this.fetchRangeData(req.spreadsheetId, req.range);
-    const rangeOffset = parseRangeOffset(req.range);
+    const data = await this.fetchRangeData(req.spreadsheetId, extractRangeA1(req.range));
+    const rangeOffset = parseRangeOffset(extractRangeA1(req.range));
 
     await sendProgress(1, 3, `Computing fill values using "${req.strategy}" strategy...`);
 
@@ -529,7 +531,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
           ? await this.createSnapshot(req.spreadsheetId)
           : undefined;
 
-      await this.writeChanges(req.spreadsheetId, req.range, data, result.changes, rangeOffset);
+      await this.writeChanges(req.spreadsheetId, extractRangeA1(req.range), data, result.changes, rangeOffset);
 
       this.trackContextFromRequest({ spreadsheetId: req.spreadsheetId });
 
@@ -539,7 +541,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
             tool: 'sheets_fix',
             action: 'fill_missing',
             spreadsheetId: req.spreadsheetId,
-            range: req.range,
+            range: extractRangeA1(req.range),
             description: `Filled ${result.summary.filled} missing cell(s) using ${req.strategy} strategy`,
             undoable: !!snapshot?.revisionId,
             snapshotId: snapshot?.revisionId,
@@ -636,8 +638,8 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
-    const data = await this.fetchRangeData(req.spreadsheetId, req.range);
-    const rangeOffset = parseRangeOffset(req.range);
+    const data = await this.fetchRangeData(req.spreadsheetId, extractRangeA1(req.range));
+    const rangeOffset = parseRangeOffset(extractRangeA1(req.range));
 
     const result = await engine.detectAnomalies(
       data,
@@ -693,8 +695,8 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
 
     const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
-    const data = await this.fetchRangeData(req.spreadsheetId, req.range);
-    const rangeOffset = parseRangeOffset(req.range);
+    const data = await this.fetchRangeData(req.spreadsheetId, extractRangeA1(req.range));
+    const rangeOffset = parseRangeOffset(extractRangeA1(req.range));
 
     const result = await engine.suggestCleaning(data, req.maxRecommendations ?? 10, rangeOffset);
 
@@ -736,7 +738,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
           totalSteps: 2,
           context: {
             spreadsheetId: req.spreadsheetId,
-            range: req.range,
+            range: extractRangeA1(req.range),
             suggestedRuleIds: ruleIds,
           },
         });

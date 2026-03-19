@@ -23,6 +23,7 @@ import type { ConnectorCredentials } from '../connectors/types.js';
 import type { ElicitationServer } from '../mcp/elicitation.js';
 import { generateElicitationId, safeElicit, selectField } from '../mcp/elicitation.js';
 import { startApiKeyServer, startOAuthCredentialsServer } from '../utils/api-key-server.js';
+import { extractRangeA1 } from '../utils/range-helpers.js';
 
 type ConnectorCatalogEntry = ReturnType<
   typeof connectorManager.listConnectors
@@ -683,7 +684,10 @@ export class ConnectorsHandler {
       req.endpoint,
       req.params ?? {},
       req.schedule,
-      req.destination
+      {
+        spreadsheetId: req.destination.spreadsheetId,
+        range: extractRangeA1(req.destination.range, 'destination.range'),
+      }
     );
     return {
       response: {

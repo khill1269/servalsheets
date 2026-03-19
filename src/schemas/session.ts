@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod';
+import { RangeInputSchema } from './shared.js';
 import type { ToolAnnotations } from './shared.js';
 
 // ============================================================================
@@ -74,8 +75,8 @@ const RecordOperationActionSchema = CommonFieldsSchema.extend({
     .min(1, 'Description cannot be empty')
     .max(1000, 'Description exceeds 1000 character limit')
     .describe('Human-readable description (max 1000 chars)'),
-  undoable: z.boolean().describe('Whether this operation can be undone'),
-  range: z.string().optional().describe('Range affected (A1 notation)'),
+  undoable: z.boolean().default(true).describe('Whether this operation can be undone (default: true)'),
+  range: RangeInputSchema.optional().describe('Range affected'),
   snapshotId: z.string().optional().describe('Snapshot ID if created for rollback'),
   cellsAffected: z.coerce.number().optional().describe('Number of cells affected'),
 });
@@ -108,7 +109,8 @@ const FindByReferenceActionSchema = CommonFieldsSchema.extend({
     ),
   referenceType: z
     .enum(['spreadsheet', 'operation'])
-    .describe('What to find: spreadsheet or operation'),
+    .default('spreadsheet')
+    .describe('What to find: spreadsheet or operation (default: spreadsheet)'),
 });
 
 const UpdatePreferencesActionSchema = CommonFieldsSchema.extend({

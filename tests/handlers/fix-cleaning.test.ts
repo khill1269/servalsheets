@@ -100,7 +100,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'clean' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!A1:E6',
+        range: { a1: 'Sheet1!A1:E6' },
         mode: 'preview' as const,
       };
 
@@ -120,7 +120,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'clean' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!A2:A6',
+        range: { a1: 'Sheet1!A2:A6' },
         mode: 'apply' as const,
       };
 
@@ -136,7 +136,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'clean' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!E2:E6',
+        range: { a1: 'Sheet1!E2:E6' },
         mode: 'preview' as const,
       };
 
@@ -158,7 +158,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'standardize_formats' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!C2:C6',
+        range: { a1: 'Sheet1!C2:C6' },
         columns: [{ column: 'C', targetFormat: 'YYYY-MM-DD' }],
       };
 
@@ -175,7 +175,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'standardize_formats' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!D2:D6',
+        range: { a1: 'Sheet1!D2:D6' },
         columns: [{ column: 'D', targetFormat: 'email' }],
       };
 
@@ -197,7 +197,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'fill_missing' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!A2:B6',
+        range: { a1: 'Sheet1!A2:B6' },
         strategy: 'forward' as const,
       };
 
@@ -217,7 +217,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'fill_missing' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!B2:B6',
+        range: { a1: 'Sheet1!B2:B6' },
         strategy: 'constant' as const,
         constantValue: 0,
       };
@@ -242,7 +242,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'detect_anomalies' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!B2:C6',
+        range: { a1: 'Sheet1!B2:C6' },
         method: 'iqr' as const,
       };
 
@@ -255,7 +255,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'detect_anomalies' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!B2:C6',
+        range: { a1: 'Sheet1!B2:C6' },
         method: 'zscore' as const,
         threshold: 2,
       };
@@ -278,7 +278,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'suggest_cleaning' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!A1:E6',
+        range: { a1: 'Sheet1!A1:E6' },
       };
 
       const response = await handler.handle(input);
@@ -294,7 +294,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'suggest_cleaning' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!A1:E6',
+        range: { a1: 'Sheet1!A1:E6' },
       };
 
       const response = await handler.handle(input);
@@ -315,7 +315,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'clean' as const,
         spreadsheetId: 'invalid-id',
-        range: 'Sheet1!A1:E6',
+        range: { a1: 'Sheet1!A1:E6' },
         mode: 'preview' as const,
       };
 
@@ -337,7 +337,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'clean' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'InvalidRange',
+        range: { a1: 'InvalidRange' },
         mode: 'preview' as const,
       };
 
@@ -361,7 +361,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const detectInput = {
         action: 'detect_anomalies' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!A1:E6',
+        range: { a1: 'Sheet1!A1:E6' },
         method: 'iqr' as const,
       };
 
@@ -372,7 +372,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const suggestInput = {
         action: 'suggest_cleaning' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!A1:E6',
+        range: { a1: 'Sheet1!A1:E6' },
       };
 
       const suggestResponse = await handler.handle(suggestInput);
@@ -394,7 +394,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'clean' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!A1:C1001',
+        range: { a1: 'Sheet1!A1:C1001' },
         mode: 'preview' as const,
       };
 
@@ -424,7 +424,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         handler.handle({
           action: 'clean',
           spreadsheetId: 'test-spreadsheet-id',
-          range: 'Sheet1!A1:E6',
+          range: { a1: 'Sheet1!A1:E6' },
           mode: 'preview' as const,
         } as any)
       );
@@ -453,7 +453,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         handler.handle({
           action: 'standardize_formats',
           spreadsheetId: 'test-spreadsheet-id',
-          range: 'Sheet1!A1:E6',
+          range: { a1: 'Sheet1!A1:E6' },
           mode: 'preview' as const,
           columns: [{ column: 'C', targetFormat: 'date' }],
         } as any)
@@ -490,7 +490,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         handler.handle({
           action: 'fill_missing',
           spreadsheetId: 'test-spreadsheet-id',
-          range: 'Sheet1!A1:B4',
+          range: { a1: 'Sheet1!A1:B4' },
           strategy: 'mean' as const,
           mode: 'preview' as const,
         } as any)

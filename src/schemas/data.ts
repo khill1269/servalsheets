@@ -595,7 +595,7 @@ const AutoFillActionSchema = z.object({
 
 const SourceRefSchema = z.object({
   spreadsheetId: z.string().min(1).describe('Spreadsheet ID'),
-  range: z.string().min(1).describe('Range in A1 notation (e.g. "Sheet1!A1:D100")'),
+  range: RangeInputSchema.describe('Range to read (e.g. "Sheet1!A1:D100" or named range)'),
   label: z.string().optional().describe('Human-readable label for this source in output'),
 });
 

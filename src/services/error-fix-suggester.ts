@@ -201,5 +201,66 @@ export function suggestFix(
     }
   }
 
+  // 11. ZOD_VALIDATION_ERROR — common schema rejections with actionable hints
+  if (
+    errorCode === 'VALIDATION_ERROR' ||
+    errorCode === 'INVALID_PARAMS' ||
+    errorCode === 'ZOD_VALIDATION_ERROR'
+  ) {
+    // Range format hint: callers often send plain string instead of { a1: string }
+    if (errorMessage.includes('range') && errorMessage.includes('Expected object')) {
+      return {
+        tool: toolName || 'sheets_data',
+        action: action || 'read',
+        params: { ...params },
+        explanation:
+          'Range must be an object like { a1: "Sheet1!A1:B10" } or a plain string (auto-converted). ' +
+          'Supported formats: { a1: "A1:B10" }, { namedRange: "MyRange" }, { grid: { sheetId, startRow, ... } }. ' +
+          'A plain string like "Sheet1!A1:B10" is also accepted and auto-converted.',
+      };
+    }
+
+    // Missing spreadsheetId
+    if (errorMessage.includes('spreadsheetId') && errorMessage.includes('Required')) {
+      return {
+        tool: 'sheets_core',
+        action: 'list',
+        params: {},
+        explanation:
+          'Missing required spreadsheetId. Use sheets_core.list to find available spreadsheets, ' +
+          'or use sheets_session.get_active to retrieve the current active spreadsheet.',
+      };
+    }
+
+    // Missing action field
+    if (errorMessage.includes('action') && errorMessage.includes('Invalid discriminator')) {
+      return {
+        tool: toolName || 'sheets_analyze',
+        action: 'scout',
+        params: { spreadsheetId: params?.['spreadsheetId'] as string },
+        explanation:
+          `Invalid or missing "action" field for ${toolName || 'unknown tool'}. ` +
+          'Check the tool schema for valid action names. Common pattern: { action: "read", spreadsheetId: "...", range: "..." }.',
+      };
+    }
+  }
+
+  // 12. TIMEOUT / deadline exceeded — suggest retry with smaller scope
+  if (
+    errorCode === 'TIMEOUT' ||
+    errorCode === 'DEADLINE_EXCEEDED' ||
+    errorMessage.toLowerCase().includes('timeout') ||
+    errorMessage.toLowerCase().includes('deadline')
+  ) {
+    return {
+      tool: toolName || 'sheets_data',
+      action: action || 'read',
+      params: { ...params, verbosity: 'minimal' },
+      explanation:
+        'Operation timed out. Reduce scope: use a smaller range, add verbosity:"minimal", ' +
+        'or split into multiple smaller requests. For long operations, use tasks/call for background execution.',
+    };
+  }
+
   return null;
 }

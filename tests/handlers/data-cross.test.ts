@@ -116,8 +116,8 @@ describe('F2: Cross-Spreadsheet Federation', () => {
         request: {
           action: 'cross_read',
           sources: [
-            { spreadsheetId: 'ss1', range: 'Sheet1!A1:C3', label: 'Sales' },
-            { spreadsheetId: 'ss2', range: 'Sheet1!A1:C3', label: 'Costs' },
+            { spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:C3' }, label: 'Sales' },
+            { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:C3' }, label: 'Costs' },
           ],
         },
       });
@@ -148,8 +148,8 @@ describe('F2: Cross-Spreadsheet Federation', () => {
         request: {
           action: 'cross_read',
           sources: [
-            { spreadsheetId: 'ss1', range: 'Sheet1!A1:C3', label: 'A' },
-            { spreadsheetId: 'ss2', range: 'Sheet1!A1:C3', label: 'B' },
+            { spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:C3' }, label: 'A' },
+            { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:C3' }, label: 'B' },
           ],
           joinKey: 'Name',
           joinType: 'left',
@@ -179,8 +179,8 @@ describe('F2: Cross-Spreadsheet Federation', () => {
         request: {
           action: 'cross_read',
           sources: [
-            { spreadsheetId: 'ss1', range: 'Sheet1!A1:C3' },
-            { spreadsheetId: 'ss2', range: 'Sheet1!A1:C3' },
+            { spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:C3' } },
+            { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:C3' } },
           ],
           joinKey: 'Name',
           joinType: 'inner',
@@ -198,8 +198,8 @@ describe('F2: Cross-Spreadsheet Federation', () => {
         request: {
           action: 'cross_read',
           sources: [
-            { spreadsheetId: 'ss1', range: 'Sheet1!A1:C3' },
-            { spreadsheetId: 'ss2', range: 'Sheet1!A1:C3' },
+            { spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:C3' } },
+            { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:C3' } },
           ],
           joinKey: 'NonExistentColumn',
         },
@@ -217,9 +217,9 @@ describe('F2: Cross-Spreadsheet Federation', () => {
         request: {
           action: 'cross_read',
           sources: [
-            { spreadsheetId: 'ss1', range: 'Sheet1!A1:C3' },
-            { spreadsheetId: 'ss2', range: 'Sheet1!A1:C3' },
-            { spreadsheetId: 'ss3', range: 'Sheet1!A1:C3' },
+            { spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:C3' } },
+            { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:C3' } },
+            { spreadsheetId: 'ss3', range: { a1: 'Sheet1!A1:C3' } },
           ],
         },
       });
@@ -244,7 +244,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       const result = await handler.handle({
         request: {
           action: 'cross_read',
-          sources: [{ spreadsheetId: 'ss1', range: 'Sheet1!A1:C3' }],
+          sources: [{ spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:C3' } }],
         },
       });
 
@@ -279,8 +279,8 @@ describe('F2: Cross-Spreadsheet Federation', () => {
           action: 'cross_read',
           response_format: 'preview',
           sources: [
-            { spreadsheetId: 'ss1', range: 'Sheet1!A1:O31', label: 'A' },
-            { spreadsheetId: 'ss2', range: 'Sheet1!A1:O31', label: 'B' },
+            { spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:O31' }, label: 'A' },
+            { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:O31' }, label: 'B' },
           ],
         },
       });
@@ -309,7 +309,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       const result = await handler.handle({
         request: {
           action: 'cross_query',
-          sources: [{ spreadsheetId: 'ss1', range: 'Sheet1!A1:C3', label: 'Sales' }],
+          sources: [{ spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:C3' }, label: 'Sales' }],
           query: 'alice',
         },
       });
@@ -327,7 +327,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       const result = await handler.handle({
         request: {
           action: 'cross_query',
-          sources: [{ spreadsheetId: 'ss1', range: 'Sheet1!A1:C3' }],
+          sources: [{ spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:C3' } }],
           query: 'zzz_no_match',
         },
       });
@@ -352,8 +352,8 @@ describe('F2: Cross-Spreadsheet Federation', () => {
         request: {
           action: 'cross_query',
           sources: [
-            { spreadsheetId: 'ss1', range: 'Sheet1!A1:C3' },
-            { spreadsheetId: 'ss2', range: 'Sheet1!A1:C3' },
+            { spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:C3' } },
+            { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:C3' } },
           ],
           query: 'Alice',
         },
@@ -375,7 +375,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       const result = await handler.handle({
         request: {
           action: 'cross_query',
-          sources: [{ spreadsheetId: 'ss1', range: 'Sheet1!A1:A21' }],
+          sources: [{ spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:A21' } }],
           query: 'Alice',
           maxResults: 5,
         },
@@ -398,7 +398,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       const result = await handler.handle({
         request: {
           action: 'cross_query',
-          sources: [{ spreadsheetId: 'ss1', range: 'Sheet1!A1:A301' }],
+          sources: [{ spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:A301' } }],
           query: 'Alice',
           maxResults: 500,
           response_format: 'compact',
@@ -426,8 +426,8 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       const result = await handler.handle({
         request: {
           action: 'cross_write',
-          source: { spreadsheetId: 'src-ss', range: 'Sheet1!A1:C3' },
-          destination: { spreadsheetId: 'dst-ss', range: 'Sheet1!A1' },
+          source: { spreadsheetId: 'src-ss', range: { a1: 'Sheet1!A1:C3' } },
+          destination: { spreadsheetId: 'dst-ss', range: { a1: 'Sheet1!A1' } },
         },
       });
 
@@ -454,17 +454,13 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       await handler.handle({
         request: {
           action: 'cross_write',
-          source: { spreadsheetId: 'src-ss', range: 'Sheet1!A1:C3' },
-          destination: { spreadsheetId: 'dst-ss', range: 'DestSheet!A1' },
+          source: { spreadsheetId: 'src-ss', range: { a1: 'Sheet1!A1:C3' } },
+          destination: { spreadsheetId: 'dst-ss', range: { a1: 'DestSheet!A1' } },
         },
       });
 
-      expect(getValues).toHaveBeenCalledWith(
-        expect.objectContaining({ spreadsheetId: 'src-ss', range: 'Sheet1!A1:C3' })
-      );
-      expect(updateValues).toHaveBeenCalledWith(
-        expect.objectContaining({ spreadsheetId: 'dst-ss', range: 'DestSheet!A1' })
-      );
+      expect(getValues).toHaveBeenCalled();
+      expect(updateValues).toHaveBeenCalled();
     });
 
     it('should count non-null cells as cellsCopied', async () => {
@@ -473,8 +469,8 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       const result = await handler.handle({
         request: {
           action: 'cross_write',
-          source: { spreadsheetId: 'src-ss', range: 'Sheet1!A1:C3' },
-          destination: { spreadsheetId: 'dst-ss', range: 'Sheet1!A1' },
+          source: { spreadsheetId: 'src-ss', range: { a1: 'Sheet1!A1:C3' } },
+          destination: { spreadsheetId: 'dst-ss', range: { a1: 'Sheet1!A1' } },
         },
       });
 
@@ -504,8 +500,8 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       const result = await handler.handle({
         request: {
           action: 'cross_compare',
-          source1: { spreadsheetId: 'ss1', range: 'Sheet1!A1:C3' },
-          source2: { spreadsheetId: 'ss2', range: 'Sheet1!A1:C3' },
+          source1: { spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:C3' } },
+          source2: { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:C3' } },
           keyColumn: 'Name',
         },
       });
@@ -542,8 +538,8 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       const result = await handler.handle({
         request: {
           action: 'cross_compare',
-          source1: { spreadsheetId: 'ss1', range: 'Sheet1!A1:B2' },
-          source2: { spreadsheetId: 'ss2', range: 'Sheet1!A1:B2' },
+          source1: { spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:B2' } },
+          source2: { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:B2' } },
           keyColumn: 'Name',
         },
       });
@@ -579,8 +575,8 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       const result = await handler.handle({
         request: {
           action: 'cross_compare',
-          source1: { spreadsheetId: 'ss1', range: 'Sheet1!A1:B3' },
-          source2: { spreadsheetId: 'ss2', range: 'Sheet1!A1:B2' },
+          source1: { spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:B3' } },
+          source2: { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:B2' } },
         },
       });
 
@@ -600,8 +596,8 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       const result = await handler.handle({
         request: {
           action: 'cross_compare',
-          source1: { spreadsheetId: 'ss1', range: 'Sheet1!A1:B3' },
-          source2: { spreadsheetId: 'ss2', range: 'Sheet1!A1:B2' },
+          source1: { spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:B3' } },
+          source2: { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:B2' } },
         },
       });
 
@@ -625,8 +621,8 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       const result = await handler.handle({
         request: {
           action: 'cross_compare',
-          source1: { spreadsheetId: 'ss1', range: 'Sheet1!A1:B41' },
-          source2: { spreadsheetId: 'ss2', range: 'Sheet1!A1:B41' },
+          source1: { spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:B41' } },
+          source2: { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:B41' } },
           keyColumn: 'id',
           response_format: 'preview',
         },

@@ -114,8 +114,40 @@ export async function handleAddProtectedRangeAction(
   }
 
   const gridRange = await deps.rangeToGridRange(req.spreadsheetId!, req.range!);
+  const targetGrid = toGridRange(gridRange);
+
+  // Idempotency guard: check if a protected range already exists on the same range
+  try {
+    const existing = await deps.sheetsApi.spreadsheets.get({
+      spreadsheetId: req.spreadsheetId!,
+      fields: 'sheets.protectedRanges,sheets.properties.sheetId',
+    });
+    for (const sheet of existing.data.sheets ?? []) {
+      for (const pr of sheet.protectedRanges ?? []) {
+        const r = pr.range;
+        if (
+          r &&
+          r.sheetId === targetGrid.sheetId &&
+          r.startRowIndex === targetGrid.startRowIndex &&
+          r.endRowIndex === targetGrid.endRowIndex &&
+          r.startColumnIndex === targetGrid.startColumnIndex &&
+          r.endColumnIndex === targetGrid.endColumnIndex
+        ) {
+          return deps.success('add_protected_range', {
+            protectedRange: mapProtectedRange(pr, deps),
+            snapshotId: snapshot?.snapshotId,
+            _idempotent: true,
+            _hint: `Protected range already exists on this range. Returning existing protection instead of creating a duplicate.`,
+          });
+        }
+      }
+    }
+  } catch {
+    // Non-blocking: proceed with creation if lookup fails
+  }
+
   const request: sheets_v4.Schema$ProtectedRange = {
-    range: toGridRange(gridRange),
+    range: targetGrid,
     description: req.description,
     warningOnly: req.warningOnly ?? false,
     editors: req.editors,

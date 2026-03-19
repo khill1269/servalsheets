@@ -47,6 +47,42 @@ function getOptionalBoolean(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined;
 }
 
+/**
+ * P4: Known long-running action pairs that benefit from tasks/call routing.
+ * Key: "toolName.actionName", Value: reason string for the taskHint.
+ */
+const LONG_RUNNING_ACTIONS: Record<string, string> = {
+  'sheets_bigquery.export_to_bigquery': 'BigQuery export can take 30-120s for large datasets. Use tasks/call for background execution.',
+  'sheets_bigquery.import_from_bigquery': 'BigQuery import can take 30-120s for large datasets. Use tasks/call for background execution.',
+  'sheets_appsscript.run': 'Apps Script execution has unbounded duration. Use tasks/call for background execution.',
+  'sheets_composite.export_large_dataset': 'Large dataset export streams data in chunks. Use tasks/call for background execution.',
+  'sheets_history.timeline': 'Revision timeline scans Drive API history and can take 15-60s. Use tasks/call for background execution.',
+  'sheets_federation.call_remote': 'Remote MCP server calls have network latency. Use tasks/call for background execution.',
+  'sheets_analyze.comprehensive': 'Comprehensive analysis scans 43 feature categories. Use tasks/call for background execution.',
+};
+
+/** Execution time threshold (ms) above which we suggest tasks/call even for non-listed actions */
+const TASK_ROUTING_THRESHOLD_MS = 10_000;
+
+function getTaskRoutingHint(
+  toolName: string | undefined,
+  actionName: string,
+  executionTimeMs: number
+): string | undefined {
+  if (!toolName || !actionName) return undefined;
+
+  const key = `${toolName}.${actionName}`;
+  const knownHint = LONG_RUNNING_ACTIONS[key];
+  if (knownHint) return knownHint;
+
+  // Dynamic hint: if any action took >10s, suggest tasks/call for next time
+  if (executionTimeMs > TASK_ROUTING_THRESHOLD_MS) {
+    return `This operation took ${Math.round(executionTimeMs / 1000)}s. Consider using tasks/call for background execution on similar requests.`;
+  }
+
+  return undefined; // OK: no task hint applicable for this action/timing
+}
+
 function validateOutputSchema(
   toolName: string,
   result: unknown,
@@ -162,6 +198,14 @@ export function buildToolResponse(
           windowRemainingMs: quotaStatus.windowRemainingMs,
         },
       };
+
+      // P4: Inject taskHint for long-running operations so LLMs know to use tasks/call
+      const rawAction = initialResponse['action'];
+      const actionName = typeof rawAction === 'string' ? rawAction : '';
+      const taskHint = getTaskRoutingHint(toolName, actionName, executionTimeMs);
+      if (taskHint) {
+        (structuredContent['_meta'] as Record<string, unknown>)['taskHint'] = taskHint;
+      }
     }
 
     injectStandardPaginationMeta(initialResponse);

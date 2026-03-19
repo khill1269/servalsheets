@@ -32,6 +32,8 @@
  */
 
 import { LRUCache } from 'lru-cache';
+import type { RangeInput } from '../schemas/shared.js';
+import { ValidationError } from '../core/errors.js';
 
 /**
  * Parsed range components (sheet name extraction)
@@ -259,4 +261,78 @@ export function normalizeSheetReference(range: string): string {
  */
 export function normalizeSheetReferences(ranges: string[]): string[] {
   return ranges.map(normalizeSheetReference);
+}
+
+/**
+ * Extract A1 notation string from a RangeInput discriminated union value.
+ *
+ * After Zod preprocess, plain string inputs become { a1: "..." }.
+ * This handles:
+ * - { a1: "Sheet1!A1:B10" } → "Sheet1!A1:B10"
+ * - { namedRange: "MyRange" } → "MyRange" (passed through for Google API)
+ * - { grid: { ... } } → throws (needs async RangeResolver)
+ * - { semantic: { ... } } → throws (needs async RangeResolver)
+ *
+ * @param range - Parsed RangeInput value from Zod validation
+ * @param fieldName - Field name for error messages (default: "range")
+ * @returns A1 notation string
+ * @throws ValidationError if range type requires async resolution
+ */
+export function extractRangeA1(range: RangeInput, fieldName = 'range'): string {
+  if (!range || typeof range !== 'object') {
+    throw new ValidationError(
+      `${fieldName} must be a valid range input`,
+      fieldName,
+      'A1 notation string, named range, grid, or semantic'
+    );
+  }
+
+  // Use bracket notation for index signature access (TS strict mode)
+  const r = range as Record<string, unknown>;
+
+  if ('a1' in r && typeof r['a1'] === 'string') {
+    return r['a1'];
+  }
+
+  if ('namedRange' in r && typeof r['namedRange'] === 'string') {
+    return r['namedRange'];
+  }
+
+  if ('grid' in r) {
+    throw new ValidationError(
+      `Grid range format for "${fieldName}" requires async resolution via RangeResolver. ` +
+        'Use A1 notation string or named range for this action.',
+      fieldName,
+      'A1 notation string or named range'
+    );
+  }
+
+  if ('semantic' in r) {
+    throw new ValidationError(
+      `Semantic range format for "${fieldName}" requires async resolution via RangeResolver. ` +
+        'Use A1 notation string or named range for this action.',
+      fieldName,
+      'A1 notation string or named range'
+    );
+  }
+
+  throw new ValidationError(
+    `Unrecognized range format for "${fieldName}"`,
+    fieldName,
+    'A1 notation string, named range, grid, or semantic'
+  );
+}
+
+/**
+ * Extract A1 notation from an optional RangeInput.
+ * Returns undefined if input is undefined/null.
+ */
+export function extractRangeA1Optional(
+  range: RangeInput | undefined | null,
+  fieldName = 'range'
+): string | undefined {
+  if (range === undefined || range === null) {
+    return undefined;
+  }
+  return extractRangeA1(range, fieldName);
 }

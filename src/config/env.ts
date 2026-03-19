@@ -190,7 +190,7 @@ const EnvSchema = z.object({
 
   // Per-action timeout overrides for operations that need longer than MCP 30s default
   // Use these to configure timeouts for specific actions that naturally take longer
-  COMPOSITE_TIMEOUT_MS: z.coerce.number().positive().default(120000), // 2 minutes for CSV/XLSX imports
+  COMPOSITE_TIMEOUT_MS: z.coerce.number().positive().default(55000), // 55s — must stay under MCP 60s transport limit
   LARGE_PAYLOAD_TIMEOUT_MS: z.coerce.number().positive().default(60000), // 1 minute for large data operations
   TASK_WATCHDOG_MS: z.coerce.number().int().positive().default(600000), // 10 minutes
 

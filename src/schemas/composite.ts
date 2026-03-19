@@ -18,6 +18,7 @@ import {
   SheetNameSchema,
   ErrorDetailSchema,
   MutationSummarySchema,
+  RangeInputSchema,
   ResponseMetaSchema,
   SafetyOptionsSchema,
 } from './shared.js';
@@ -630,7 +631,7 @@ export const ExportLargeDatasetInputSchema = z.object({
     .literal('export_large_dataset')
     .describe('Export large dataset with streaming (100K+ rows)'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID to export'),
-  range: z.string().min(1).describe('Range to export (e.g., "Sheet1!A:Z" or "Sheet1!A1:Z100000")'),
+  range: RangeInputSchema.describe('Range to export (e.g., "Sheet1!A:Z" or named range)'),
   chunkSize: z.coerce
     .number()
     .int()
@@ -776,12 +777,11 @@ export const DataPipelineInputSchema = z.object({
     .literal('data_pipeline')
     .describe('Execute a sequence of data transformation steps on a range'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID'),
-  sourceRange: z.string().min(1).describe('Source range to read (e.g., "Sheet1!A1:D100")'),
+  sourceRange: RangeInputSchema.describe('Source range to read (e.g., "Sheet1!A1:D100" or named range)'),
   steps: z.array(PipelineStepSchema).describe('Ordered list of transformation steps to apply'),
-  outputRange: z
-    .string()
-    .optional()
-    .describe('Write results to this range (writes back if provided and not dryRun)'),
+  outputRange: RangeInputSchema.optional().describe(
+    'Write results to this range (writes back if provided and not dryRun)'
+  ),
   dryRun: z.boolean().optional().default(false).describe('Preview results without writing'),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])
@@ -876,9 +876,9 @@ export const MigrateSpreadsheetInputSchema = z.object({
     .literal('migrate_spreadsheet')
     .describe('Migrate data from one spreadsheet to another with column mapping'),
   sourceSpreadsheetId: SpreadsheetIdSchema.describe('Source spreadsheet ID'),
-  sourceRange: z.string().min(1).describe('Source range to read (e.g., "Sheet1!A1:D100")'),
+  sourceRange: RangeInputSchema.describe('Source range to read (e.g., "Sheet1!A1:D100" or named range)'),
   destinationSpreadsheetId: SpreadsheetIdSchema.describe('Destination spreadsheet ID'),
-  destinationRange: z.string().min(1).describe('Destination range to write to (e.g., "Sheet1!A1")'),
+  destinationRange: RangeInputSchema.describe('Destination range to write to (e.g., "Sheet1!A1" or named range)'),
   columnMapping: z
     .array(ColumnMappingSchema)
     .min(1)

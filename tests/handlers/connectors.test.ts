@@ -220,7 +220,7 @@ describe('ConnectorsHandler', () => {
         endpoint: 'stock/quote',
         params: { symbol: 'AAPL' },
         schedule: { interval: 'hourly' },
-        destination: { spreadsheetId: 'spreadsheet-id', range: 'Sheet1!A1' },
+        destination: { spreadsheetId: 'spreadsheet-id', range: { a1: 'Sheet1!A1' } },
       },
     });
     const unsubscribeResult = await handler.handle({

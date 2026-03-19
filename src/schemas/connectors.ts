@@ -19,6 +19,7 @@
 import { z } from 'zod';
 import {
   ErrorDetailSchema,
+  RangeInputSchema,
   ResponseMetaSchema,
   SafetyOptionsSchema,
   type ToolAnnotations,
@@ -172,7 +173,7 @@ const SubscribeActionSchema = CommonFieldsSchema.extend({
   destination: z
     .object({
       spreadsheetId: z.string().min(1).describe('Target spreadsheet ID'),
-      range: z.string().min(1).describe('Target range (A1 notation) for data output'),
+      range: RangeInputSchema.describe('Target range for data output'),
     })
     .describe('Where to write refreshed data'),
 }).strict();

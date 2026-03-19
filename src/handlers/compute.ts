@@ -10,6 +10,7 @@
 
 import { ErrorCodes } from './error-codes.js';
 import { assertNever } from '../utils/type-utils.js';
+import { extractRangeA1 } from '../utils/range-helpers.js';
 import type { sheets_v4 } from 'googleapis';
 import type { SheetsComputeInput, SheetsComputeOutput } from '../schemas/compute.js';
 import {
@@ -325,7 +326,7 @@ export class ComputeHandler {
     // For now, resolve cell references if a range is provided
     let resolvedCells: Record<string, unknown> | undefined;
     if (req.range) {
-      const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.range);
+      const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
       resolvedCells = {};
       for (let r = 0; r < data.length; r++) {
         for (let c = 0; c < (data[r]?.length || 0); c++) {
@@ -392,7 +393,7 @@ export class ComputeHandler {
     req: SheetsComputeInput['request'] & { action: 'aggregate' }
   ): Promise<SheetsComputeOutput> {
     const startMs = Date.now();
-    const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.range);
+    const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
 
     // Check for moving window mode
     const mwMode = req.type;
@@ -485,7 +486,7 @@ export class ComputeHandler {
     req: SheetsComputeInput['request'] & { action: 'statistical' }
   ): Promise<SheetsComputeOutput> {
     const startMs = Date.now();
-    const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.range);
+    const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
 
     // Build moving window config if provided in request
     let movingWindowConfig:
@@ -531,8 +532,8 @@ export class ComputeHandler {
           tool: 'sheets_compute',
           action: 'statistical',
           spreadsheetId: req.spreadsheetId,
-          range: req.range,
-          description: `Computed statistics on range ${req.range}`,
+          range: extractRangeA1(req.range),
+          description: `Computed statistics on range ${extractRangeA1(req.range)}`,
           undoable: false,
         });
       }
@@ -557,7 +558,7 @@ export class ComputeHandler {
     req: SheetsComputeInput['request'] & { action: 'regression' }
   ): Promise<SheetsComputeOutput> {
     const startMs = Date.now();
-    const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.range);
+    const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
 
     const result = computeRegression(data, {
       xColumn: req.xColumn,
@@ -629,7 +630,7 @@ export class ComputeHandler {
     }
 
     const startMs = Date.now();
-    const data = await fetchRangeData(this.sheetsApi, resolvedReq.spreadsheetId, resolvedReq.range);
+    const data = await fetchRangeData(this.sheetsApi, resolvedReq.spreadsheetId, extractRangeA1(resolvedReq.range));
     const forecastPreflight = validateForecastDataShape(
       data,
       resolvedReq.dateColumn,
@@ -682,7 +683,7 @@ export class ComputeHandler {
     req: SheetsComputeInput['request'] & { action: 'matrix_op' }
   ): Promise<SheetsComputeOutput> {
     const startMs = Date.now();
-    const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.range);
+    const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
 
     // Convert to numeric matrix
     const matrix = data.map((row) =>
@@ -691,7 +692,7 @@ export class ComputeHandler {
 
     let secondMatrix: number[][] | undefined;
     if (req.secondRange) {
-      const secondData = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.secondRange);
+      const secondData = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.secondRange));
       secondMatrix = secondData.map((row) =>
         row.map((cell) => (typeof cell === 'number' ? cell : parseFloat(String(cell)) || 0))
       );
@@ -706,7 +707,7 @@ export class ComputeHandler {
       await executeWithRetry(async () =>
         this.sheetsApi.spreadsheets.values.update({
           spreadsheetId: req.spreadsheetId,
-          range: req.outputRange!,
+          range: extractRangeA1(req.outputRange!),
           valueInputOption: 'RAW',
           requestBody: { values: result.matrix },
         })
@@ -731,7 +732,7 @@ export class ComputeHandler {
     req: SheetsComputeInput['request'] & { action: 'pivot_compute' }
   ): Promise<SheetsComputeOutput> {
     const startMs = Date.now();
-    const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.range);
+    const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
 
     const result = computePivot(data, {
       rows: req.rows,
@@ -754,7 +755,7 @@ export class ComputeHandler {
     req: SheetsComputeInput['request'] & { action: 'custom_function' }
   ): Promise<SheetsComputeOutput> {
     const startMs = Date.now();
-    const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.range);
+    const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
     const headers = (data[0] || []).map(String);
     const rows = data.slice(1);
 
@@ -871,7 +872,7 @@ export class ComputeHandler {
 
     // Resolve cell references if range provided
     if (req.range) {
-      const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.range);
+      const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
       for (const ref of explanation.references) {
         // Try to resolve each reference from the data
         const cellMatch = ref.ref.match(/^([A-Z]+)(\d+)$/i);
@@ -936,8 +937,8 @@ export class ComputeHandler {
     }> = [];
 
     for (const table of req.tables) {
-      const rows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, table.range);
-      tableData.push({ name: table.name, range: table.range, hasHeaders: table.hasHeaders, rows });
+      const rows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(table.range));
+      tableData.push({ name: table.name, range: extractRangeA1(table.range), hasHeaders: table.hasHeaders, rows });
     }
 
     const result = await this.duckdbEngine.query({
@@ -974,8 +975,8 @@ export class ComputeHandler {
       };
     }
 
-    const leftRows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.left.range);
-    const rightRows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.right.range);
+    const leftRows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.left.range));
+    const rightRows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.right.range));
 
     const select = req.select ?? '*';
     const sql = `SELECT ${select} FROM "${req.left.alias}" ${req.joinType.toUpperCase()} JOIN "${req.right.alias}" ON ${req.on}`;
@@ -984,13 +985,13 @@ export class ComputeHandler {
       tables: [
         {
           name: req.left.alias,
-          range: req.left.range,
+          range: extractRangeA1(req.left.range),
           hasHeaders: true,
           rows: leftRows,
         },
         {
           name: req.right.alias,
-          range: req.right.range,
+          range: extractRangeA1(req.right.range),
           hasHeaders: true,
           rows: rightRows,
         },
@@ -1019,7 +1020,7 @@ export class ComputeHandler {
     req: SheetsComputeInput['request'] & { action: 'python_eval' }
   ): Promise<SheetsComputeOutput> {
     try {
-      const rows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.range);
+      const rows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
 
       // Make data available as both `data` (raw list-of-lists) and `df` (DataFrame)
       const dfCode =
@@ -1070,7 +1071,7 @@ ${req.code}`
     req: SheetsComputeInput['request'] & { action: 'pandas_profile' }
   ): Promise<SheetsComputeOutput> {
     try {
-      const rows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.range);
+      const rows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
       const hasHeaders = req.hasHeaders !== false;
       const includeCorrelations = req.includeCorrelations !== false;
 
@@ -1171,7 +1172,7 @@ result
     req: SheetsComputeInput['request'] & { action: 'sklearn_model' }
   ): Promise<SheetsComputeOutput> {
     try {
-      const rows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.range);
+      const rows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
 
       const targetColumn = req.targetColumn;
       const featureColumns = req.featureColumns ?? null;
@@ -1341,7 +1342,7 @@ result
     req: SheetsComputeInput['request'] & { action: 'matplotlib_chart' }
   ): Promise<SheetsComputeOutput> {
     try {
-      const rows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, req.range);
+      const rows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
 
       const chartType = req.chartType;
       const xColumn = req.xColumn ?? null;

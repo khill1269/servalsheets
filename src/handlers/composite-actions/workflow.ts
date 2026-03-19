@@ -18,6 +18,7 @@ import type { SnapshotService } from '../../services/snapshot.js';
 import type { SessionContextManager } from '../../services/session-context.js';
 import type { ResponseMeta } from '../../schemas/shared.js';
 import { recordCompositeWorkflow } from '../../observability/metrics.js';
+import { extractRangeA1 } from '../../utils/range-helpers.js';
 
 type GenerateMetaFn = (
   action: string,
@@ -453,9 +454,11 @@ export async function handleDataPipelineAction(
       undefined
     );
 
+    const outputRangeA1 = extractRangeA1(input.outputRange, 'outputRange');
+
     await deps.sheetsApi.spreadsheets.values.update({
       spreadsheetId: input.spreadsheetId,
-      range: input.outputRange,
+      range: outputRangeA1,
       valueInputOption: 'RAW',
       requestBody: { values: outputRows as unknown[][] },
     });

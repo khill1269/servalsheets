@@ -1,12 +1,12 @@
 ---
-title: ServalSheets — Action Registry (402 Actions, 25 Tools)
+title: ServalSheets — Action Registry (403 Actions, 25 Tools)
 category: development
-last_updated: 2026-03-17
+last_updated: 2026-03-19
 description: '> Complete action list by tool. Source of truth for counts: src/schemas/action-counts.ts.'
 version: 1.7.0
 ---
 
-# ServalSheets — Action Registry (402 Actions, 25 Tools)
+# ServalSheets — Action Registry (403 Actions, 25 Tools)
 
 > Complete action list by tool. Source of truth for counts: `src/schemas/action-counts.ts`.
 > Load this file only when working on actions, adding features, or verifying action names.
@@ -59,13 +59,13 @@ version: 1.7.0
 `chart_resize, chart_update_data_range, chart_add_trendline, chart_remove_trendline`,
 `pivot_create, suggest_pivot, pivot_update, pivot_delete, pivot_list, pivot_get, pivot_refresh`
 
-## sheets_collaborate (40) — BaseHandler
+## sheets_collaborate (41) — BaseHandler
 
 `share_add, share_update, share_remove, share_list, share_get, share_transfer_ownership`,
 `share_set_link, share_get_link, comment_add, comment_update, comment_delete, comment_list`,
 `comment_get, comment_resolve, comment_reopen, comment_add_reply, comment_update_reply`,
 `comment_delete_reply, version_list_revisions, version_get_revision, version_restore_revision`,
-`version_keep_revision, version_create_snapshot, version_list_snapshots`,
+`version_keep_revision, version_create_snapshot, version_snapshot_status, version_list_snapshots`,
 `version_restore_snapshot, version_delete_snapshot, version_compare, version_export`,
 `approval_create, approval_approve, approval_reject, approval_get_status, approval_list_pending`,
 `approval_delegate, approval_cancel, list_access_proposals, resolve_access_proposal, label_list`,

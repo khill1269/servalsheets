@@ -102,6 +102,36 @@ export async function handleAddBandingAction(
   if (colColorError) return colColorError;
 
   const gridRange = await deps.rangeToGridRange(req.spreadsheetId!, req.range!);
+  const targetGrid = toGridRange(gridRange);
+
+  // Idempotency guard: check if banding already exists on the same range
+  try {
+    const existing = await deps.sheetsApi.spreadsheets.get({
+      spreadsheetId: req.spreadsheetId!,
+      fields: 'sheets.bandedRanges,sheets.properties.sheetId',
+    });
+    for (const sheet of existing.data.sheets ?? []) {
+      for (const br of sheet.bandedRanges ?? []) {
+        const r = br.range;
+        if (
+          r &&
+          r.sheetId === targetGrid.sheetId &&
+          r.startRowIndex === targetGrid.startRowIndex &&
+          r.endRowIndex === targetGrid.endRowIndex &&
+          r.startColumnIndex === targetGrid.startColumnIndex &&
+          r.endColumnIndex === targetGrid.endColumnIndex
+        ) {
+          return deps.success('add_banding', {
+            bandedRangeId: br.bandedRangeId ?? undefined,
+            _idempotent: true,
+            _hint: `Banding already exists on this range. Returning existing banding ID instead of creating a duplicate.`,
+          });
+        }
+      }
+    }
+  } catch {
+    // Non-blocking: proceed with creation if lookup fails
+  }
 
   const response = await deps.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: req.spreadsheetId!,
@@ -110,7 +140,7 @@ export async function handleAddBandingAction(
         {
           addBanding: {
             bandedRange: {
-              range: toGridRange(gridRange),
+              range: targetGrid,
               rowProperties: req.rowProperties,
               columnProperties: req.columnProperties,
             },

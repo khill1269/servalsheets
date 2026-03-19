@@ -134,7 +134,7 @@ describe('ComputeHandler', () => {
           action: 'evaluate',
           spreadsheetId: SPREADSHEET_ID,
           formula: '=A2+B2',
-          range: 'Sheet1!A1:B2',
+          range: { a1: 'Sheet1!A1:B2' },
         },
       });
 
@@ -172,7 +172,7 @@ describe('ComputeHandler', () => {
           action: 'evaluate',
           spreadsheetId: SPREADSHEET_ID,
           formula: '=A1',
-          range: 'Sheet1!A1',
+          range: { a1: 'Sheet1!A1' },
         },
       });
 
@@ -200,7 +200,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'aggregate',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!B1:B3',
+          range: { a1: 'Sheet1!B1:B3' },
           functions: ['sum', 'average'],
         },
       });
@@ -222,7 +222,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'aggregate',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!X1:X10',
+          range: { a1: 'Sheet1!X1:X10' },
           functions: ['sum'],
         },
       });
@@ -261,7 +261,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'statistical',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:C3',
+          range: { a1: 'Sheet1!A1:C3' },
         },
       });
 
@@ -281,7 +281,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'statistical',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:A1',
+          range: { a1: 'Sheet1!A1:A1' },
         },
       });
 
@@ -307,7 +307,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'regression',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           xColumn: 'A',
           yColumn: 'B',
         },
@@ -330,7 +330,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'regression',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B2',
+          range: { a1: 'Sheet1!A1:B2' },
           xColumn: 'A',
           yColumn: 'B',
         },
@@ -366,7 +366,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'forecast',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B4',
+          range: { a1: 'Sheet1!A1:B4' },
           dateColumn: 'A',
           valueColumn: 'B',
           periods: 2,
@@ -396,7 +396,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'forecast',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           dateColumn: 'A',
           valueColumn: 'B',
           periods: 3,
@@ -428,7 +428,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'forecast',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B4',
+          range: { a1: 'Sheet1!A1:B4' },
           dateColumn: 'A',
           valueColumn: 'B',
         },
@@ -456,7 +456,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'forecast',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B5',
+          range: { a1: 'Sheet1!A1:B5' },
           dateColumn: 'Month',
           valueColumn: 'Revenue',
           periods: 2,
@@ -496,7 +496,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'matrix_op',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:C2',
+          range: { a1: 'Sheet1!A1:C2' },
           operation: 'transpose',
         },
       });
@@ -518,7 +518,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'matrix_op',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:C2',
+          range: { a1: 'Sheet1!A1:C2' },
           operation: 'inverse',
         },
       });
@@ -547,7 +547,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'pivot_compute',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:C3',
+          range: { a1: 'Sheet1!A1:C3' },
           rows: ['Name'],
           values: [{ column: 'Revenue', function: 'sum' }],
         },
@@ -569,7 +569,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'pivot_compute',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:C3',
+          range: { a1: 'Sheet1!A1:C3' },
           rows: ['NonExistent'],
           values: [{ column: 'Revenue', function: 'sum' }],
         },
@@ -596,7 +596,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'custom_function',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           expression: '$Revenue - $Cost',
         },
       });
@@ -616,7 +616,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'custom_function',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!Z1:Z10',
+          range: { a1: 'Sheet1!Z1:Z10' },
           expression: '$Z',
         },
       });
@@ -642,7 +642,7 @@ describe('ComputeHandler', () => {
             {
               id: 'comp-1',
               type: 'aggregate',
-              params: { range: 'Sheet1!B1:B3', functions: ['sum'] },
+              params: { range: { a1: 'Sheet1!B1:B3' }, functions: ['sum'] },
             },
           ],
         },
@@ -671,7 +671,7 @@ describe('ComputeHandler', () => {
             {
               id: 'comp-err',
               type: 'aggregate',
-              params: { range: 'Sheet1!A1:A2', functions: ['sum'] },
+              params: { range: { a1: 'Sheet1!A1:A2' }, functions: ['sum'] },
             },
           ],
         },
@@ -753,7 +753,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'sql_query',
           spreadsheetId: SPREADSHEET_ID,
-          tables: [{ name: 'sales', range: 'Sheet1!A1:C3', hasHeaders: true }],
+          tables: [{ name: 'sales', range: { a1: 'Sheet1!A1:C3' }, hasHeaders: true }],
           sql: 'SELECT Name, Revenue FROM sales WHERE Revenue > 50',
         },
       });
@@ -777,7 +777,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'sql_query',
           spreadsheetId: SPREADSHEET_ID,
-          tables: [{ name: 'users', range: 'Sheet1!A1:B3', hasHeaders: true }],
+          tables: [{ name: 'users', range: { a1: 'Sheet1!A1:B3' }, hasHeaders: true }],
           sql: 'DROP TABLE users',
         },
       });
@@ -794,7 +794,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'sql_query',
           spreadsheetId: SPREADSHEET_ID,
-          tables: [{ name: 'sales', range: 'Sheet1!A1:B2', hasHeaders: true }],
+          tables: [{ name: 'sales', range: { a1: 'Sheet1!A1:B2' }, hasHeaders: true }],
           sql: 'SELECT * FROM sales',
         },
       });
@@ -825,8 +825,8 @@ describe('ComputeHandler', () => {
         request: {
           action: 'sql_join',
           spreadsheetId: SPREADSHEET_ID,
-          left: { range: 'Sheet1!A1:B3', alias: 'left' },
-          right: { range: 'Sheet2!A1:B3', alias: 'right' },
+          left: { range: { a1: 'Sheet1!A1:B3' }, alias: 'left' },
+          right: { range: { a1: 'Sheet2!A1:B3' }, alias: 'right' },
           on: 'left.id = right.id',
           joinType: 'inner',
         },
@@ -841,8 +841,8 @@ describe('ComputeHandler', () => {
         request: {
           action: 'sql_join',
           spreadsheetId: SPREADSHEET_ID,
-          left: { range: 'Sheet1!A1:B3', alias: 'left' },
-          right: { range: 'Sheet2!A1:B3', alias: 'right' },
+          left: { range: { a1: 'Sheet1!A1:B3' }, alias: 'left' },
+          right: { range: { a1: 'Sheet2!A1:B3' }, alias: 'right' },
           on: 'left.id = right.id',
           joinType: 'left',
         },
@@ -872,7 +872,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'python_eval',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           code: 'result = 2 + 2',
         },
       });
@@ -893,7 +893,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'python_eval',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           code: 'import os\nresult = os.listdir("/")',
         },
       });
@@ -912,7 +912,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'python_eval',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           code: 'result = open("file.txt").read()',
         },
       });
@@ -931,7 +931,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'python_eval',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           code: 'while True: pass',
         },
       });
@@ -965,7 +965,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'pandas_profile',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:C3',
+          range: { a1: 'Sheet1!A1:C3' },
         },
       });
 
@@ -983,7 +983,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'pandas_profile',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
         },
       });
 
@@ -1009,7 +1009,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'pandas_profile',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:C3',
+          range: { a1: 'Sheet1!A1:C3' },
         },
       });
 
@@ -1042,7 +1042,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'sklearn_model',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:C3',
+          range: { a1: 'Sheet1!A1:C3' },
           targetColumn: 'Cost',
           modelType: 'linear_regression',
         },
@@ -1063,7 +1063,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'sklearn_model',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B2',
+          range: { a1: 'Sheet1!A1:B2' },
           targetColumn: 'B',
           modelType: 'random_forest',
         },
@@ -1090,7 +1090,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'matplotlib_chart',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           chartType: 'bar',
         },
       });
@@ -1109,7 +1109,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'matplotlib_chart',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           chartType: 'line',
         },
       });
@@ -1141,7 +1141,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'aggregate',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:A1',
+          range: { a1: 'Sheet1!A1:A1' },
           functions: ['sum'],
           type: 'moving_average',
           valueColumn: 'Revenue',
@@ -1165,7 +1165,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'aggregate',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:A1',
+          range: { a1: 'Sheet1!A1:A1' },
           functions: ['sum'],
           type: 'moving_sum',
           valueColumn: 'Amount',
