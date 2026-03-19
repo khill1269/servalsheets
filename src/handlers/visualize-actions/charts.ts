@@ -256,6 +256,36 @@ export async function handleChartCreateAction(
       retryable: false,
     });
   }
+
+  // Idempotency guard: check if a chart with the same title already exists on the target sheet
+  try {
+    const existing = await deps.sheetsApi.spreadsheets.get({
+      spreadsheetId: resolvedInput.spreadsheetId,
+      fields: 'sheets.charts,sheets.properties.sheetId',
+    });
+
+    const targetSheetId = resolvedInput.position.sheetId;
+    const chartTitle = resolvedInput.options?.title;
+
+    if (chartTitle) {
+      for (const sheet of existing.data.sheets ?? []) {
+        if (sheet.properties?.sheetId === targetSheetId) {
+          const duplicate = sheet.charts?.find((c) => c.spec?.title === chartTitle);
+          if (duplicate && duplicate.chartId !== undefined) {
+            return deps.success('chart_create', {
+              chartId: duplicate.chartId,
+              _idempotent: true,
+              _hint: `Chart "${chartTitle}" already exists on this sheet. Returning existing chart instead of creating a duplicate.`,
+            });
+          }
+          break;
+        }
+      }
+    }
+  } catch {
+    // Non-blocking: proceed with creation if lookup fails
+  }
+
   const dataRange = await deps.toGridRange(
     resolvedInput.spreadsheetId,
     resolvedInput.data.sourceRange

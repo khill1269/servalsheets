@@ -569,10 +569,12 @@ const AutoFillActionSchema = z.object({
         'Use strategy=detect to auto-detect the pattern, or specify linear/repeat/date explicitly.'
     ),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
-  sourceRange: A1NotationSchema.describe(
-    'A1 notation of source cells containing the pattern (e.g. Sheet1!A1:A3)'
+  sourceRange: RangeInputSchema.describe(
+    'Source cells containing the pattern to extend (e.g. "Sheet1!A1:A3" or {a1: "Sheet1!A1:A3"})'
   ),
-  fillRange: A1NotationSchema.describe('A1 notation of cells to fill (e.g. Sheet1!A4:A20)'),
+  fillRange: RangeInputSchema.describe(
+    'Target cells to fill with the detected pattern (e.g. "Sheet1!A4:A20" or {a1: "Sheet1!A4:A20"})'
+  ),
   strategy: z
     .enum(['detect', 'linear', 'repeat', 'date'])
     .optional()

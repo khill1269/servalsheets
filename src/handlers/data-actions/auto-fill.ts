@@ -9,6 +9,7 @@
 import { ErrorCodes } from '../error-codes.js';
 import type { DataResponse, DataAutoFillInput } from '../../schemas/data.js';
 import type { DataHandlerAccess } from './internal.js';
+import { extractRangeA1 } from '../../utils/range-helpers.js';
 
 type FillStrategy = 'detect' | 'linear' | 'repeat' | 'date';
 type DetectedPattern = 'linear' | 'repeat' | 'date' | 'unknown';
@@ -195,7 +196,9 @@ export async function handleAutoFill(
   ha: DataHandlerAccess,
   req: DataAutoFillInput
 ): Promise<DataResponse> {
-  const { spreadsheetId, sourceRange, fillRange, strategy = 'detect' } = req;
+  const { spreadsheetId, strategy = 'detect' } = req;
+  const sourceRange = extractRangeA1(req.sourceRange, 'sourceRange');
+  const fillRange = extractRangeA1(req.fillRange, 'fillRange');
 
   // 1. Read source range
   let sourceGrid: unknown[][];

@@ -150,6 +150,26 @@ export async function handleAddSheetAction(
   input: CoreAddSheetInput,
   deps: SheetOpsDeps
 ): Promise<CoreResponse> {
+  // Idempotency guard: check if a sheet with the same title already exists
+  try {
+    const existing = await deps.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      fields: 'sheets.properties',
+    });
+    const duplicate = (existing.data.sheets ?? []).find(
+      (s) => s.properties?.title === input.title
+    );
+    if (duplicate && duplicate.properties) {
+      return deps.success('add_sheet', {
+        sheet: toSheetInfo(duplicate.properties, deps),
+        _idempotent: true,
+        _hint: `Sheet "${input.title}" already exists. Returning existing sheet instead of creating a duplicate.`,
+      });
+    }
+  } catch {
+    // Non-blocking: proceed with creation if lookup fails
+  }
+
   const sheetProperties: sheets_v4.Schema$SheetProperties = {
     title: input.title,
     hidden: input.hidden ?? false,
