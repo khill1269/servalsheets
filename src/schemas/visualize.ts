@@ -36,7 +36,9 @@ const TrendlineTypeSchema = z
     (val) => (typeof val === 'string' ? val.toUpperCase() : val),
     z.enum(['LINEAR', 'EXPONENTIAL', 'POLYNOMIAL', 'POWER', 'LOGARITHMIC', 'MOVING_AVERAGE'])
   )
-  .describe('Trendline type (case-insensitive)');
+  .describe(
+    'Trendline type (case-insensitive). LINEAR: straight line fit (most common). EXPONENTIAL: for growth/decay data. POLYNOMIAL: curved fit (requires polynomialDegree 2-6). LOGARITHMIC: for diminishing returns. POWER: for power-law relationships. MOVING_AVERAGE: smoothing with period parameter.'
+  );
 
 // Trendline configuration for chart series
 const TrendlineSchema = z
@@ -48,7 +50,7 @@ const TrendlineSchema = z
       .min(2)
       .max(6)
       .optional()
-      .describe('Degree for POLYNOMIAL type (2-6, required when type=POLYNOMIAL)'),
+      .describe('Degree for POLYNOMIAL type. Required when type=POLYNOMIAL. Typical values: 2 (quadratic), 3 (cubic). Higher values (4-6) risk overfitting. Omitting this when type=POLYNOMIAL will cause an error.'),
     label: z.string().max(255).optional().describe('Custom label for trendline'),
     showEquation: z
       .boolean()

@@ -120,13 +120,15 @@ const SparklineTypeSchema = z
     (val) => (typeof val === 'string' ? val.toUpperCase() : val),
     z.enum(['LINE', 'BAR', 'COLUMN', 'WINLOSS'])
   )
-  .describe('Sparkline chart type (case-insensitive)');
+  .describe(
+    'Sparkline chart type (case-insensitive). LINE: continuous line chart (default). BAR: horizontal bars. COLUMN: vertical bars. WINLOSS: binary up/down for win/loss tracking.'
+  );
 
 // Sparkline configuration options
 const SparklineConfigSchema = z
   .object({
     type: SparklineTypeSchema.default('LINE').describe(
-      'Sparkline chart type (LINE, BAR, COLUMN, WINLOSS)'
+      'Sparkline chart type. LINE (default): continuous line chart. BAR: horizontal bars. COLUMN: vertical bars. WINLOSS: binary up/down visualization.'
     ),
     color: SparklineColorInputSchema.optional().describe('Line/bar color'),
     negativeColor: SparklineColorInputSchema.optional().describe('Color for negative values'),
@@ -168,7 +170,7 @@ const CommonFieldsSchema = z.object({
 // ===== FORMAT ACTION SCHEMAS (10 actions) =====
 
 const SetFormatActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('set_format').describe('Apply complete cell format'),
+  action: z.literal('set_format').describe('Apply complete cell format. For a single cell or range. Use batch_format for 3+ different format changes (significantly faster).'),
   range: RangeInputSchema.describe('Range to format (A1 notation or semantic)'),
   format: CellFormatSchema.describe(
     'Complete cell format specification (background, text, borders, etc.)'
@@ -775,7 +777,7 @@ const BatchFormatActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('batch_format')
     .describe(
-      'Apply multiple format operations in a single API call. 80-95% faster than individual calls. Use this when applying 2+ format changes.'
+      'Combine multiple format operations into one API call. 80-95% faster than calling set_format repeatedly. More efficient than set_format for 3+ different format changes.'
     ),
   operations: z
     .array(BatchFormatOperationSchema)

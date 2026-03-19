@@ -262,5 +262,94 @@ export function suggestFix(
     };
   }
 
+  // 13. CIRCULAR_REFERENCE — suggest dependency cycle detection
+  if (
+    errorCode === 'CIRCULAR_REFERENCE' ||
+    errorCode === 'CIRCULAR_DEPENDENCY' ||
+    errorMessage.toLowerCase().includes('circular') ||
+    errorMessage.toLowerCase().includes('cycle')
+  ) {
+    return {
+      tool: 'sheets_dependencies',
+      action: 'detect_cycles',
+      params: { spreadsheetId: params?.['spreadsheetId'] as string },
+      explanation:
+        'Circular reference detected. Use sheets_dependencies.detect_cycles to find the dependency loop, ' +
+        'then break the cycle by modifying one of the formulas in the chain.',
+    };
+  }
+
+  // 14. FORMULA_PARSE_ERROR — suggest formula analysis
+  if (
+    errorCode === 'FORMULA_ERROR' ||
+    errorCode === 'FORMULA_PARSE_ERROR' ||
+    errorCode === 'COMPUTE_ERROR' ||
+    errorMessage.toLowerCase().includes('invalid formula') ||
+    errorMessage.toLowerCase().includes('formula parse')
+  ) {
+    return {
+      tool: 'sheets_analyze',
+      action: 'analyze_formulas',
+      params: { spreadsheetId: params?.['spreadsheetId'] as string },
+      explanation:
+        'Formula error detected. Use sheets_analyze.analyze_formulas to diagnose issues. ' +
+        'Common causes: missing closing parenthesis, wrong function name, invalid cell reference, or locale-dependent separator (comma vs semicolon).',
+    };
+  }
+
+  // 15. EDIT_CONFLICT — suggest conflict resolution
+  if (
+    errorCode === 'EDIT_CONFLICT' ||
+    errorCode === 'CONFLICT' ||
+    errorCode === 'CONCURRENT_MODIFICATION' ||
+    errorMessage.toLowerCase().includes('conflict') ||
+    errorMessage.toLowerCase().includes('concurrent')
+  ) {
+    return {
+      tool: 'sheets_quality',
+      action: 'resolve_conflict',
+      params: { spreadsheetId: params?.['spreadsheetId'] as string },
+      explanation:
+        'Concurrent edit conflict detected. Use sheets_quality.resolve_conflict to inspect and resolve. ' +
+        'Alternatively, use sheets_history.timeline to see recent changes and identify the conflicting edit.',
+    };
+  }
+
+  // 16. UNSUPPORTED_OPERATION — suggest scout to check sheet type and capabilities
+  if (
+    errorCode === 'UNSUPPORTED_OPERATION' ||
+    errorCode === 'FEATURE_UNAVAILABLE' ||
+    errorMessage.toLowerCase().includes('not supported') ||
+    errorMessage.toLowerCase().includes('unsupported')
+  ) {
+    return {
+      tool: 'sheets_analyze',
+      action: 'scout',
+      params: { spreadsheetId: params?.['spreadsheetId'] as string },
+      explanation:
+        'This operation is not supported on the target sheet. Use sheets_analyze.scout to check the sheet type ' +
+        'and available capabilities. Some operations are unavailable on external/linked sheets or shared drive files.',
+    };
+  }
+
+  // 17. HTTP 5xx / service unavailable — suggest retry or status check
+  if (
+    errorCode === 'INTERNAL_ERROR' ||
+    errorCode === 'SERVICE_UNAVAILABLE' ||
+    errorMessage.includes('500') ||
+    errorMessage.includes('503') ||
+    errorMessage.toLowerCase().includes('service unavailable') ||
+    errorMessage.toLowerCase().includes('internal error')
+  ) {
+    return {
+      tool: toolName || 'sheets_data',
+      action: action || 'read',
+      params: { ...params },
+      explanation:
+        'Google API returned a server error (5xx). This is usually transient. ' +
+        'Retry the same request after a few seconds. If it persists, the Google Sheets API may be experiencing an outage.',
+    };
+  }
+
   return null;
 }

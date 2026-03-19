@@ -79,10 +79,10 @@ const ResponseFormatSchema = z
 const ReadActionSchema = CommonFieldsSchema.extend({
   action: z.literal('read').describe('Read cell values from a range'),
   range: RangeInputSchema.optional().describe(
-    'Range to read in A1 notation or semantic (e.g., "Sheet1!A1:B10"). Use dataFilter for dynamic queries that survive insertions/deletions.'
+    'Fast direct lookup by cell coordinates (e.g., "Sheet1!A1:B10"). Use when you know exact locations. Fragile if rows are inserted/deleted — use dataFilter for dynamic queries that survive structural changes.'
   ),
   dataFilter: DataFilterSchema.optional().describe(
-    'Dynamic range filter (survives insertions/deletions). Use developerMetadataLookup to query by metadata tags instead of hard-coded ranges.'
+    'Dynamic lookup by condition or metadata. Survives insertions/deletions. Use developerMetadataLookup to query by metadata tags instead of hard-coded ranges. Slower but robust to sheet structure changes.'
   ),
   valueRenderOption: ValueRenderOptionSchema.optional()
     .default('FORMATTED_VALUE')
@@ -91,8 +91,7 @@ const ReadActionSchema = CommonFieldsSchema.extend({
     .enum(['SERIAL_NUMBER', 'FORMATTED_STRING'])
     .optional()
     .describe(
-      'How dates/times should be rendered when valueRenderOption is UNFORMATTED_VALUE. ' +
-        'SERIAL_NUMBER (default): date as number. FORMATTED_STRING: date as formatted string.'
+      'How dates/times should be rendered when valueRenderOption is UNFORMATTED_VALUE. SERIAL_NUMBER: dates as numeric serial (e.g., 44927 = 2023-01-01). FORMATTED_STRING: dates as display text (e.g., "1/1/2023").'
     ),
   majorDimension: MajorDimensionSchema.optional()
     .default('ROWS')

@@ -577,6 +577,28 @@ export const PERMISSION_ROLES = [
 export const VISIBILITY_OPTIONS = ['private', 'anyone_with_link', 'anyone_in_domain'];
 
 /**
+ * Conflict resolution strategies for sheets_quality.resolve_conflict
+ */
+export const CONFLICT_RESOLUTION_STRATEGIES = [
+  'keep_local',
+  'keep_remote',
+  'merge',
+  'manual',
+] as const;
+
+/**
+ * Fill strategies for sheets_fix.fill_missing
+ */
+export const FILL_STRATEGIES = [
+  'forward',
+  'backward',
+  'mean',
+  'median',
+  'mode',
+  'constant',
+] as const;
+
+/**
  * Recent spreadsheet cache for completions
  * In production, this would be populated from user's recent activity
  */
@@ -1339,4 +1361,26 @@ export function completeTimeZone(partial: string): string[] {
   }
   const lower = partial.toLowerCase();
   return (TIMEZONES as readonly string[]).filter((tz) => tz.toLowerCase().startsWith(lower)).slice(0, 20);
+}
+
+/**
+ * Complete conflict resolution strategies for sheets_quality.resolve_conflict
+ */
+export function completeConflictResolutionStrategy(partial: string): string[] {
+  if (!partial || typeof partial !== 'string') {
+    return CONFLICT_RESOLUTION_STRATEGIES.slice(0, 20) as unknown as string[];
+  }
+  const lower = partial.toLowerCase();
+  return (CONFLICT_RESOLUTION_STRATEGIES as readonly string[]).filter((s) => s.toLowerCase().startsWith(lower)).slice(0, 20) as unknown as string[];
+}
+
+/**
+ * Complete fill strategies for sheets_fix.fill_missing
+ */
+export function completeFillStrategy(partial: string): string[] {
+  if (!partial || typeof partial !== 'string') {
+    return FILL_STRATEGIES.slice(0, 20) as unknown as string[];
+  }
+  const lower = partial.toLowerCase();
+  return (FILL_STRATEGIES as readonly string[]).filter((s) => s.toLowerCase().startsWith(lower)).slice(0, 20) as unknown as string[];
 }
