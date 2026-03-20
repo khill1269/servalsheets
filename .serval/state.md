@@ -8,7 +8,7 @@
 | Metric          | Value       | Source                       |
 | --------------- | ----------- | ---------------------------- |
 | Tools           | 25          | src/schemas/action-counts.ts |
-| Actions         | 402         | src/schemas/action-counts.ts |
+| Actions         | 403         | src/schemas/action-counts.ts |
 | Package Version | 1.7.0       | package.json                 |
 | Protocol        | unknown     | src/version.ts               |
 | TypeScript      | ✅ compiles | tsc --noEmit                 |

@@ -11,14 +11,14 @@ tags: [sheets, architecture, mcp]
 
 > Persistent reference for coding sessions. Covers all 25 tools (403 actions), MCP compliance,
 > Google API patterns, anti-patterns, and architecture decisions.
-> Updated: 2026-03-15.
+> Updated: 2026-03-19.
 
 ## Quick Reference
 
 | Metric               | Value                          | Source                       |
 | -------------------- | ------------------------------ | ---------------------------- |
 | Tools                | 25                             | src/schemas/action-counts.ts |
-| Actions              | 402                            | src/schemas/action-counts.ts |
+| Actions              | 403                            | src/schemas/action-counts.ts |
 | Version              | 1.7.0                          | package.json                 |
 | MCP Protocol         | 2025-11-25                     | src/version.ts:14            |
 | Contract Tests       | 2376/2376 pass                 | npm run test:fast            |

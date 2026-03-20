@@ -18,6 +18,7 @@ import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
 import type { SheetResolver, ResolvedSheet } from './sheet-resolver.js';
 import { ValidationError, ServiceError } from '../core/errors.js';
+import { executeWithRetry } from '../utils/retry.js';
 import type {
   BulkUpdateOptions,
   BulkUpdateResult,
@@ -128,30 +129,36 @@ export class CompositeOperationsService {
 
     // Clear existing data if mode is 'replace'
     if (mode === 'replace') {
-      await this.sheetsApi.spreadsheets.values.clear({
-        spreadsheetId,
-        range: `'${targetSheet.title}'`,
-      });
+      await executeWithRetry(() =>
+        this.sheetsApi.spreadsheets.values.clear({
+          spreadsheetId,
+          range: `'${targetSheet.title}'`,
+        })
+      );
     }
 
     // Write data
     const writeRange = mode === 'append' ? `'${targetSheet.title}'!A:${endCol}` : range;
 
     if (mode === 'append') {
-      await this.sheetsApi.spreadsheets.values.append({
-        spreadsheetId,
-        range: writeRange,
-        valueInputOption: 'RAW', // CSV data is never formulas — RAW prevents formula injection
-        insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: rows },
-      });
+      await executeWithRetry(() =>
+        this.sheetsApi.spreadsheets.values.append({
+          spreadsheetId,
+          range: writeRange,
+          valueInputOption: 'RAW', // CSV data is never formulas — RAW prevents formula injection
+          insertDataOption: 'INSERT_ROWS',
+          requestBody: { values: rows },
+        })
+      );
     } else {
-      await this.sheetsApi.spreadsheets.values.update({
-        spreadsheetId,
-        range,
-        valueInputOption: 'RAW', // CSV data is never formulas — RAW prevents formula injection
-        requestBody: { values: rows },
-      });
+      await executeWithRetry(() =>
+        this.sheetsApi.spreadsheets.values.update({
+          spreadsheetId,
+          range,
+          valueInputOption: 'RAW', // CSV data is never formulas — RAW prevents formula injection
+          requestBody: { values: rows },
+        })
+      );
     }
 
     // Count skipped rows (difference between CSV lines and imported rows)
@@ -201,10 +208,12 @@ export class CompositeOperationsService {
     const targetSheet = resolved.sheet;
 
     // Get existing headers
-    const headerResponse = await this.sheetsApi.spreadsheets.values.get({
-      spreadsheetId,
-      range: `'${targetSheet.title}'!1:1`,
-    });
+    const headerResponse = await executeWithRetry(() =>
+      this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId,
+        range: `'${targetSheet.title}'!1:1`,
+      })
+    );
 
     const existingHeaders: string[] = (headerResponse.data.values?.[0] ?? []).map((h) =>
       String(h ?? '').trim()
@@ -246,12 +255,14 @@ export class CompositeOperationsService {
       const newHeaderEnd = this.columnIndexToLetter(
         existingHeaders.length + columnsCreated.length - 1
       );
-      await this.sheetsApi.spreadsheets.values.update({
-        spreadsheetId,
-        range: `'${targetSheet.title}'!${newHeaderStart}1:${newHeaderEnd}1`,
-        valueInputOption: 'RAW',
-        requestBody: { values: [columnsCreated] },
-      });
+      await executeWithRetry(() =>
+        this.sheetsApi.spreadsheets.values.update({
+          spreadsheetId,
+          range: `'${targetSheet.title}'!${newHeaderStart}1:${newHeaderEnd}1`,
+          valueInputOption: 'RAW',
+          requestBody: { values: [columnsCreated] },
+        })
+      );
     }
 
     // Build rows based on column mapping
@@ -290,13 +301,15 @@ export class CompositeOperationsService {
 
     // Append data
     const endCol = this.columnIndexToLetter(totalCols - 1);
-    const response = await this.sheetsApi.spreadsheets.values.append({
-      spreadsheetId,
-      range: `'${targetSheet.title}'!A:${endCol}`,
-      valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: rows },
-    });
+    const response = await executeWithRetry(() =>
+      this.sheetsApi.spreadsheets.values.append({
+        spreadsheetId,
+        range: `'${targetSheet.title}'!A:${endCol}`,
+        valueInputOption: 'RAW',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: { values: rows },
+      })
+    );
 
     return {
       rowsAppended: rows.length,
@@ -331,10 +344,12 @@ export class CompositeOperationsService {
     const targetSheet = resolved.sheet;
 
     // Get all data including headers
-    const dataResponse = await this.sheetsApi.spreadsheets.values.get({
-      spreadsheetId,
-      range: `'${targetSheet.title}'`,
-    });
+    const dataResponse = await executeWithRetry(() =>
+      this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId,
+        range: `'${targetSheet.title}'`,
+      })
+    );
 
     const allRows = dataResponse.data.values ?? [];
     if (allRows.length === 0) {
@@ -428,25 +443,29 @@ export class CompositeOperationsService {
 
     // Execute batch update
     if (batchData.length > 0) {
-      await this.sheetsApi.spreadsheets.values.batchUpdate({
-        spreadsheetId,
-        requestBody: {
-          valueInputOption: 'RAW',
-          data: batchData,
-        },
-      });
+      await executeWithRetry(() =>
+        this.sheetsApi.spreadsheets.values.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            valueInputOption: 'RAW',
+            data: batchData,
+          },
+        })
+      );
     }
 
     // Append new rows
     if (rowsToCreate.length > 0) {
       const endCol = this.columnIndexToLetter(headers.length - 1);
-      await this.sheetsApi.spreadsheets.values.append({
-        spreadsheetId,
-        range: `'${targetSheet.title}'!A:${endCol}`,
-        valueInputOption: 'RAW',
-        insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: rowsToCreate },
-      });
+      await executeWithRetry(() =>
+        this.sheetsApi.spreadsheets.values.append({
+          spreadsheetId,
+          range: `'${targetSheet.title}'!A:${endCol}`,
+          valueInputOption: 'RAW',
+          insertDataOption: 'INSERT_ROWS',
+          requestBody: { values: rowsToCreate },
+        })
+      );
       cellsModified += rowsToCreate.length * headers.length;
     }
 

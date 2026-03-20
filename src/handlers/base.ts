@@ -260,7 +260,7 @@ export abstract class BaseHandler<TInput, TOutput> {
   protected requireAuth(): void {
     if (!this.context.googleClient) {
       const error = createEnhancedError(
-        'AUTH_REQUIRED',
+        'AUTHENTICATION_REQUIRED',
         `Authentication required for ${this.toolName}. Call sheets_auth with action "status" to check authentication, or action "login" to authenticate.`,
         {
           tool: this.toolName,

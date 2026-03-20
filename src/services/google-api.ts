@@ -276,7 +276,12 @@ export class GoogleApiClient {
 
   // Shared Drive rate limiter
   private sharedDriveRateLimiter: SharedDriveRateLimiter;
-  private sharedDriveMembershipCache = new Map<string, boolean>();
+  private sharedDriveMembershipCache = new Map<
+    string,
+    { value: boolean; timestamp: number }
+  >();
+  private static readonly DRIVE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  private static readonly DRIVE_CACHE_MAX = 1000; // LRU eviction threshold
 
   constructor(options: GoogleApiClientOptions = {}) {
     this.options = options;
@@ -1630,6 +1635,37 @@ export class GoogleApiClient {
   }
 
   /**
+   * Get cached shared drive membership with TTL expiration check
+   */
+  private getSharedDriveMembership(driveId: string): boolean | undefined {
+    const entry = this.sharedDriveMembershipCache.get(driveId);
+    if (!entry) return undefined;
+    // Check if TTL has expired
+    if (Date.now() - entry.timestamp > GoogleApiClient.DRIVE_CACHE_TTL_MS) {
+      this.sharedDriveMembershipCache.delete(driveId);
+      return undefined;
+    }
+    return entry.value;
+  }
+
+  /**
+   * Set cached shared drive membership with LRU eviction at max size
+   */
+  private setSharedDriveMembership(driveId: string, value: boolean): void {
+    // Evict oldest entry if at max capacity
+    if (this.sharedDriveMembershipCache.size >= GoogleApiClient.DRIVE_CACHE_MAX) {
+      const oldestKey = this.sharedDriveMembershipCache.keys().next().value;
+      if (oldestKey !== undefined) {
+        this.sharedDriveMembershipCache.delete(oldestKey);
+      }
+    }
+    this.sharedDriveMembershipCache.set(driveId, {
+      value,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
    * Resolve whether a Drive file belongs to a shared drive using documented
    * Drive API metadata rather than file ID heuristics.
    */
@@ -1638,7 +1674,7 @@ export class GoogleApiClient {
       return false;
     }
 
-    const cached = this.sharedDriveMembershipCache.get(fileId);
+    const cached = this.getSharedDriveMembership(fileId);
     if (typeof cached === 'boolean') {
       return cached;
     }
@@ -1650,12 +1686,7 @@ export class GoogleApiClient {
         supportsAllDrives: true,
       });
       const isSharedDrive = Boolean(response.data.driveId);
-      // Cap at 500 entries to prevent unbounded memory growth in long-running servers
-      if (this.sharedDriveMembershipCache.size >= 500) {
-        const firstKey = this.sharedDriveMembershipCache.keys().next().value;
-        if (firstKey !== undefined) this.sharedDriveMembershipCache.delete(firstKey);
-      }
-      this.sharedDriveMembershipCache.set(fileId, isSharedDrive);
+      this.setSharedDriveMembership(fileId, isSharedDrive);
       return isSharedDrive;
     } catch (error) {
       logger.debug('Failed to resolve shared-drive membership for Drive file', {
@@ -1675,6 +1706,12 @@ export class GoogleApiClient {
     if (this.poolMonitorInterval) {
       clearInterval(this.poolMonitorInterval);
       this.poolMonitorInterval = undefined;
+    }
+
+    // Stop keepalive interval
+    if (this.keepaliveInterval) {
+      clearInterval(this.keepaliveInterval);
+      this.keepaliveInterval = undefined;
     }
 
     this.sharedDriveMembershipCache.clear();

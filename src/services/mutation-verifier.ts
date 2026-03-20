@@ -12,6 +12,7 @@
 
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
+import { executeWithRetry } from '../utils/retry.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -72,11 +73,13 @@ export class MutationVerifier {
   async verifyWrite(params: WriteVerification): Promise<VerificationResult> {
     const start = Date.now();
     try {
-      const response = await this.sheetsApi.spreadsheets.values.get({
-        spreadsheetId: params.spreadsheetId,
-        range: params.range,
-        valueRenderOption: 'UNFORMATTED_VALUE',
-      });
+      const response = await executeWithRetry(() =>
+        this.sheetsApi.spreadsheets.values.get({
+          spreadsheetId: params.spreadsheetId,
+          range: params.range,
+          valueRenderOption: 'UNFORMATTED_VALUE',
+        })
+      );
 
       const actual = response.data.values || [];
       const expected = params.expectedValues;
@@ -132,11 +135,13 @@ export class MutationVerifier {
   async verifyAppend(params: AppendVerification): Promise<VerificationResult> {
     const start = Date.now();
     try {
-      const response = await this.sheetsApi.spreadsheets.values.get({
-        spreadsheetId: params.spreadsheetId,
-        range: params.range,
-        valueRenderOption: 'UNFORMATTED_VALUE',
-      });
+      const response = await executeWithRetry(() =>
+        this.sheetsApi.spreadsheets.values.get({
+          spreadsheetId: params.spreadsheetId,
+          range: params.range,
+          valueRenderOption: 'UNFORMATTED_VALUE',
+        })
+      );
 
       const actual = response.data.values || [];
       const expectedMin = params.previousRowCount + params.expectedRowCountIncrease;
@@ -167,11 +172,13 @@ export class MutationVerifier {
   async verifyClear(params: ClearVerification): Promise<VerificationResult> {
     const start = Date.now();
     try {
-      const response = await this.sheetsApi.spreadsheets.values.get({
-        spreadsheetId: params.spreadsheetId,
-        range: params.range,
-        valueRenderOption: 'UNFORMATTED_VALUE',
-      });
+      const response = await executeWithRetry(() =>
+        this.sheetsApi.spreadsheets.values.get({
+          spreadsheetId: params.spreadsheetId,
+          range: params.range,
+          valueRenderOption: 'UNFORMATTED_VALUE',
+        })
+      );
 
       const actual = response.data.values || [];
       const hasContent = actual.some((row) =>
@@ -205,10 +212,12 @@ export class MutationVerifier {
     const start = Date.now();
     const operation: MutationOperation = params.shouldExist ? 'create_sheet' : 'delete_sheet';
     try {
-      const response = await this.sheetsApi.spreadsheets.get({
-        spreadsheetId: params.spreadsheetId,
-        fields: 'sheets.properties.title',
-      });
+      const response = await executeWithRetry(() =>
+        this.sheetsApi.spreadsheets.get({
+          spreadsheetId: params.spreadsheetId,
+          fields: 'sheets.properties.title',
+        })
+      );
 
       const sheets = response.data.sheets || [];
       const exists = sheets.some((s) => s.properties?.title === params.sheetTitle);

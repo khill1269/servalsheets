@@ -183,7 +183,7 @@ export class AuthHandler {
           'Google authentication is not configured yet. Complete auth first, then run a connection test.',
         blockingIssues: [
           {
-            code: 'AUTH_NOT_CONFIGURED',
+            code: 'NOT_CONFIGURED',
             message: 'Google authentication is not configured.',
             resolution:
               'Install the latest ServalSheets build with embedded credentials or set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET.',
@@ -206,7 +206,7 @@ export class AuthHandler {
           'Google authentication is configured but not ready for use yet. Authenticate first, then verify with the public test sheet.',
         blockingIssues: [
           {
-            code: 'AUTH_REQUIRED',
+            code: 'AUTHENTICATION_REQUIRED',
             message: 'Google authentication has not been completed for this session.',
             resolution: 'Run sheets_auth action "login" and complete the OAuth flow.',
           },

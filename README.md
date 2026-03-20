@@ -232,9 +232,9 @@ ServalSheets uses deployment-aware OAuth scopes to balance functionality and Goo
 | Mode               | Actions Available | Use Case                | Google Verification Time |
 | ------------------ | ----------------- | ----------------------- | ------------------------ |
 | **full** (default) | 403/403           | Self-hosted, enterprise | 4-6 weeks                |
-| **standard**       | ~340/402          | SaaS, marketplace apps  | 3-5 days                 |
-| **minimal**        | ~200/402          | Basic operations only   | 3-5 days                 |
-| **readonly**       | ~130/402          | Analysis/reporting only | 3-5 days                 |
+| **standard**       | ~340/403          | SaaS, marketplace apps  | 3-5 days                 |
+| **minimal**        | ~200/403          | Basic operations only   | 3-5 days                 |
+| **readonly**       | ~130/403          | Analysis/reporting only | 3-5 days                 |
 
 **Self-Hosted (Default)**
 

@@ -45,14 +45,7 @@ function createMockDriveApi() {
       }),
       list: vi.fn().mockResolvedValue({
         data: {
-          permissions: [
-            {
-              id: 'perm-123',
-              type: 'user',
-              role: 'reader',
-              emailAddress: 'alice@example.com',
-            },
-          ],
+          permissions: [],
         },
       }),
     },
