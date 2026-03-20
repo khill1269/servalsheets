@@ -106,6 +106,7 @@ describe('Cat10: Compute & Formula Engine', () => {
   let computeForecast: ReturnType<typeof vi.fn>;
   let matrixOp: ReturnType<typeof vi.fn>;
   let explainFormula: ReturnType<typeof vi.fn>;
+  let fetchRangeData: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -117,6 +118,7 @@ describe('Cat10: Compute & Formula Engine', () => {
     computeForecast = vi.mocked(computeEngine.computeForecast);
     matrixOp = vi.mocked(computeEngine.matrixOp);
     explainFormula = vi.mocked(computeEngine.explainFormula);
+    fetchRangeData = vi.mocked(computeEngine.fetchRangeData);
   });
 
   // =========================================================================
@@ -145,9 +147,15 @@ describe('Cat10: Compute & Formula Engine', () => {
       }
     });
 
-    it.skip('should evaluate formula with cell references when range provided', async () => {
+    it('should evaluate formula with cell references when range provided', async () => {
       const { ComputeHandler } = await import('../../src/handlers/compute.js');
       const handler = new ComputeHandler({} as any, {});
+
+      // Mock fetchRangeData to return test data
+      fetchRangeData.mockResolvedValue([
+        [10, 20],
+        [30, 40],
+      ]);
 
       const result = await handler.handle({
         request: {
@@ -159,9 +167,12 @@ describe('Cat10: Compute & Formula Engine', () => {
       });
 
       expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.result).toBe(30); // 10 + 20
+      }
     });
 
-    it.skip('should evaluate complex formula with nested functions', async () => {
+    it('should evaluate complex formula with nested functions', async () => {
       const { ComputeHandler } = await import('../../src/handlers/compute.js');
       const handler = new ComputeHandler({} as any, {});
 
@@ -839,9 +850,12 @@ describe('Cat10: Compute & Formula Engine', () => {
       expect(result2.response.success).toBe(true);
     });
 
-    it.skip('should model business scenario with forecast + regression', async () => {
+    it('should model business scenario with forecast + regression', async () => {
       const { ComputeHandler } = await import('../../src/handlers/compute.js');
       const handler = new ComputeHandler({} as any, {});
+
+      // Mock data fetching
+      fetchRangeData.mockResolvedValue(TIME_SERIES_DATA);
 
       computeRegression.mockResolvedValue({
         type: 'linear',

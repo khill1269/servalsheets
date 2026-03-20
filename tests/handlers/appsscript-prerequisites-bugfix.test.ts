@@ -237,7 +237,7 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
         })
       ).rejects.toMatchObject({
         error: {
-          code: 'AUTH_REQUIRED',
+          code: 'AUTHENTICATION_REQUIRED',
         },
       });
     });

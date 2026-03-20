@@ -1076,7 +1076,7 @@ describe('SheetsBigQueryHandler', () => {
         })
       ).rejects.toMatchObject({
         error: {
-          code: 'AUTH_REQUIRED',
+          code: 'AUTHENTICATION_REQUIRED',
         },
       });
     });

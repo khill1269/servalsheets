@@ -17,9 +17,11 @@ describe('applyResponseIntelligence', () => {
     });
 
     const error = responseRecord['error'] as Record<string, unknown>;
-    // suggestedFix is now the explanation string (not the full object)
-    expect(typeof error['suggestedFix']).toBe('string');
-    expect(error['suggestedFix']).toMatch(/re-authenticate/i);
+    // suggestedFix is now the full fix object {tool, action, params, explanation}
+    expect(typeof error['suggestedFix']).toBe('object');
+    expect(error['suggestedFix']).toEqual(
+      expect.objectContaining({ tool: 'sheets_auth', action: 'login' })
+    );
     // fixableVia is the structured recovery action
     expect(error['fixableVia']).toEqual(
       expect.objectContaining({
@@ -245,9 +247,9 @@ describe('applyResponseIntelligence', () => {
 
     // Failure path — _hints not injected
     expect(responseRecord['_hints']).toBeUndefined();
-    // suggestedFix (string) and fixableVia (structured) should be on the error
+    // suggestedFix (object) and fixableVia (structured) should be on the error
     const error = responseRecord['error'] as Record<string, unknown>;
-    expect(typeof error['suggestedFix']).toBe('string');
+    expect(typeof error['suggestedFix']).toBe('object');
     expect(error['fixableVia']).toEqual(
       expect.objectContaining({ tool: 'sheets_auth', action: 'login' })
     );

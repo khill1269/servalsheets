@@ -1517,6 +1517,48 @@ function computeMovingWindowResult(
 // ============================================================================
 
 function evaluateExpression(expr: string): number | string {
+  // Handle IF function (ternary: IF(condition, true_value, false_value))
+  // Need to parse carefully to handle nested parentheses in arguments
+  const ifStart = /\bIF\s*\(/i.exec(expr);
+  if (ifStart) {
+    const startIndex = ifStart.index + ifStart[0].length - 1; // Position of opening paren
+    let depth = 0;
+    let commaPositions: number[] = [];
+    let i = startIndex;
+
+    // Find matching closing paren and comma positions at depth 1
+    for (i = startIndex; i < expr.length; i++) {
+      if (expr[i] === '(') depth++;
+      else if (expr[i] === ')') {
+        depth--;
+        if (depth === 0) break;
+      } else if (expr[i] === ',' && depth === 1) {
+        commaPositions.push(i);
+      }
+    }
+
+    const endIndex = i;
+    if (commaPositions.length === 2 && depth === 0) {
+      // Found IF with 3 arguments
+      const condition = expr.substring(startIndex + 1, commaPositions[0]!).trim();
+      const trueVal = expr.substring(commaPositions[0]! + 1, commaPositions[1]!).trim();
+      const falseVal = expr.substring(commaPositions[1]! + 1, endIndex).trim();
+
+      try {
+        // Evaluate condition
+        const condSanitized = condition.replace(/[^0-9+\-*/().<%>=!&|\s]/g, '');
+        const condFn = new Function(`"use strict"; return (${condSanitized})`);
+        const condResult = condFn();
+        // Return appropriate branch
+        const resultExpr = condResult ? trueVal : falseVal;
+        return evaluateExpression(resultExpr);
+      } catch {
+        // Fallback if condition evaluation fails
+        return `Cannot evaluate: ${expr}`;
+      }
+    }
+  }
+
   // Handle common spreadsheet functions
   const funcPattern =
     /\b(SUM|AVERAGE|COUNT|MIN|MAX|ABS|ROUND|SQRT|POW|LOG|LN|EXP|MOD|CEIL|FLOOR)\s*\(([^)]*)\)/gi;
