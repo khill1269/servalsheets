@@ -168,17 +168,6 @@ export const FORCE_WRITE_ACTIONS = new Set<string>([
   'approval_reject',
   'approval_delegate',
   'approval_cancel',
-  // sheets_composite
-  'import_csv',
-  'import_xlsx',
-  'smart_append',
-  'deduplicate',
-  'setup_sheet',
-  'import_and_format',
-  'clone_structure',
-  'generate_sheet',
-  'generate_template',
-  'batch_operations',
   // sheets_dependencies
   'create_scenario_sheet',
 ]);

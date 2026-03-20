@@ -272,6 +272,7 @@
     "check:debug-prints": "bash scripts/check-debug-prints.sh",
     "check:file-sizes": "bash scripts/check-file-sizes.sh",
     "check:integration-wiring": "node scripts/check-integration-wiring.mjs",
+    "check:mutation-actions": "node scripts/check-mutation-actions.mjs",
     "check:code-count-drift": "node --import tsx scripts/check-code-count-drift.ts",
     "check:doc-action-counts": "bash scripts/check-doc-action-counts.sh",
     "check:doc-counts": "node scripts/sync-doc-counts.mjs",
