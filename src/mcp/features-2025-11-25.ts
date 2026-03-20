@@ -774,9 +774,26 @@ These actions invoke LLM analysis automatically (Sampling SEP-1577):
 8. **Use sheets_transaction for 5+ operations** — Saves 80-95% API calls and ensures atomicity. Example: Updating 50 rows = 1 transaction call instead of 50 individual writes. Don't use for 1-4 operations (overhead exceeds benefit)
 9. **\`find_replace\` is for patterns, NOT targeted updates** (ISSUE-208) — If you know the cell address, use \`data.write\`. \`find_replace\` scans the entire range for a regex pattern — slow, non-deterministic for single-cell updates, and may match unintended cells. Rule: "Do I know WHERE to write?" → write. "Do I need to search?" → find_replace.
 
-## 🔁 ERROR RECOVERY & SELF-CORRECTION
+## 🔁 ERROR SELF-CORRECTION PROTOCOL
 
-**Same error twice? STOP.** Check tool description + inline hints, or ask user. Never retry unchanged params. Max 2 auth attempts; use \`sheets_auth status\` first.
+When a tool call returns an error, follow these steps:
+
+1. **Read the error response** — Check \`error.code\`, \`error.message\`, and \`error.details\`
+2. **Check fixableVia** — If the response includes \`fixableVia\`, it contains the exact tool, action, and params to fix the issue. Execute it immediately.
+3. **Check _learnedFix** — If present, this is a fix that worked before for the same error pattern. Apply it with confidence from the server learning layer.
+4. **Check suggestedActions** — Alternative approaches ranked by likelihood of success.
+5. **If none of the above** — Use \`sheets_analyze.scout\` to understand the spreadsheet state, then retry with corrected parameters.
+
+**Common self-corrections:**
+
+| Error | fixableVia Action | Explanation |
+|-------|------------------|-------------|
+| SHEET_NOT_FOUND | \`sheets_core.list_sheets\` | Copy exact sheet name from response; emoji/case/whitespace mismatch |
+| INVALID_RANGE | Re-call with bounded range (A1:Z1000 not A:Z) | Full-column unbounded ranges must have row bounds |
+| PERMISSION_DENIED | \`sheets_auth.login\` | Re-authenticate to refresh access |
+| QUOTA_EXCEEDED | Retry with \`verbosity: 'minimal'\` or use \`sheets_transaction\` | Reduce API call size or batch operations |
+| VALIDATION_ERROR | Check schema for required fields | Use tool description or \`tools/list\` to see field requirements |
+| SPREADSHEET_NOT_FOUND | \`sheets_core.list\` | Find correct spreadsheet ID in Drive |
 
 **TAER Pattern:** When error occurs:
 1. **Think** — Read \`error.fixableVia\` (executable fix), \`error.alternatives\` (backup approaches), \`error._learnedFix\` (server-learned fix with confidence)

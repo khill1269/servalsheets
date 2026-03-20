@@ -37,6 +37,7 @@ import {
   type EnhancementContext,
 } from '../utils/response-enhancer.js';
 import { getErrorPatternLearner } from '../services/error-pattern-learner.js';
+import { suggestFix } from '../services/error-fix-suggester.js';
 import { compactResponse } from '../utils/response-compactor.js';
 import type { SamplingServer } from '../mcp/sampling.js';
 import type { RequestDeduplicator } from '../utils/request-deduplication.js';
@@ -599,6 +600,26 @@ export abstract class BaseHandler<TInput, TOutput> {
           }
         } catch {
           // Non-blocking: pattern learner failure must not affect error reporting
+        }
+
+        // Inject fixableVia from error-fix-suggester (non-blocking)
+        try {
+          if (!enriched.fixableVia) {
+            const fix = suggestFix(detail.code, detail.message, this.toolName, action);
+            if (fix) {
+              enriched = {
+                ...enriched,
+                fixableVia: {
+                  tool: fix.tool,
+                  action: fix.action,
+                  params: fix.params as Record<string, string | number | boolean | any[] | Record<string, any> | null>,
+                  explanation: fix.explanation,
+                },
+              };
+            }
+          }
+        } catch {
+          // Non-blocking: suggester failure must not affect error reporting
         }
 
         return enriched;

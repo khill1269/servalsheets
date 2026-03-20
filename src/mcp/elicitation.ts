@@ -1125,7 +1125,12 @@ export async function completeOAuthFlow(
 ): Promise<void> {
   if (server.createElicitationCompletionNotifier) {
     const notify = server.createElicitationCompletionNotifier(elicitationId);
-    await notify();
+    try {
+      await notify();
+    } catch (notifyErr) {
+      // Non-fatal: notification channel failure shouldn't block OAuth completion
+      // (OAuth flow already succeeded; notification is best-effort)
+    }
   }
 }
 

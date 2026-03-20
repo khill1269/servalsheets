@@ -207,7 +207,7 @@ describe('AuthHandler', () => {
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authenticated', false);
       expect(result.response.message).toContain('Not authenticated');
-      expect(result.response).toHaveProperty('blockingIssues.0.code', 'AUTH_REQUIRED');
+      expect(result.response).toHaveProperty('blockingIssues.0.code', 'AUTHENTICATION_REQUIRED');
       expect(result.response).toHaveProperty('readiness.googleAuth.configured', true);
     });
 

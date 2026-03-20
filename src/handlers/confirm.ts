@@ -59,6 +59,9 @@ type ServerElicitFormParams = Extract<ServerElicitInputParams, { requestedSchema
 // In-memory wizard session store (could be upgraded to Redis for production)
 const wizardSessions = new Map<string, WizardSession>();
 
+// DoS protection: maximum concurrent wizard sessions
+const MAX_WIZARD_SESSIONS = 1000;
+
 // Cleanup old sessions every 5 minutes
 const wizardCleanupInterval = setInterval(
   () => {
@@ -256,6 +259,23 @@ export class ConfirmHandler {
         case 'wizard_start': {
           const wizardInput = req as ConfirmWizardStartInput;
           const wizardId = wizardInput.wizardId || `wiz_${randomUUID()}`;
+
+          // DoS protection: evict oldest session if at capacity
+          if (wizardSessions.size >= MAX_WIZARD_SESSIONS) {
+            let oldest: [string, WizardSession] | undefined;
+            for (const entry of wizardSessions) {
+              if (!oldest || entry[1].createdAt < oldest[1].createdAt) {
+                oldest = entry;
+              }
+            }
+            if (oldest) {
+              wizardSessions.delete(oldest[0]);
+              logger.warn('Evicted oldest wizard session due to capacity limit', {
+                evictedId: oldest[0],
+                capacity: MAX_WIZARD_SESSIONS,
+              });
+            }
+          }
 
           // Create wizard session
           const session: WizardSession = {

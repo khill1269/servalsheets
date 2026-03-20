@@ -327,7 +327,13 @@ export class ConnectorsHandler {
 
         if (this.elicitationServer.createElicitationCompletionNotifier) {
           const notify = this.elicitationServer.createElicitationCompletionNotifier(elicitationId);
-          await notify();
+          try {
+            await notify();
+          } catch (notifyErr) {
+            logger.warn('API key elicitation completion notification failed (non-fatal)', {
+              error: notifyErr,
+            });
+          }
         }
 
         return apiKey;
@@ -382,7 +388,13 @@ export class ConnectorsHandler {
 
       if (this.elicitationServer.createElicitationCompletionNotifier) {
         const notify = this.elicitationServer.createElicitationCompletionNotifier(elicitationId);
-        await notify();
+        try {
+          await notify();
+        } catch (notifyErr) {
+          logger.warn('OAuth credentials elicitation completion notification failed (non-fatal)', {
+            error: notifyErr,
+          });
+        }
       }
 
       return {

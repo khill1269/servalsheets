@@ -1191,6 +1191,10 @@ export const ErrorDetailSchema = z.object({
         )
         .optional()
         .describe('Parameters ready to execute the fix action'),
+      explanation: z
+        .string()
+        .optional()
+        .describe('Human-readable explanation of why this fix is suggested'),
     })
     .optional()
     .describe('Automated fix action with complete parameters'),
