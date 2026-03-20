@@ -223,6 +223,7 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
       'Using hard-coded A1 ranges in production (use dataFilter with developerMetadataLookup instead)',
       'Not setting developer metadata before attempting dataFilter queries',
       'Reading very large ranges without pagination (use cursor/pageSize)',
+      'Using default FORMATTED_VALUE for numeric comparisons — "$1,234.56" as string fails comparison to 1234.56. Use valueRenderOption:"UNFORMATTED_VALUE" when you need math',
     ],
     errorRecovery: {
       SHEET_NOT_FOUND: 'Call sheets_core.list_sheets first to verify sheet name',
@@ -285,6 +286,8 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
       'Using hard-coded A1 ranges in production (use dataFilter for resilient updates)',
       'Writing without dataFilter.developerMetadataLookup when target location is dynamic',
       'Forgetting to tag ranges with sheets_advanced.set_metadata before dataFilter writes',
+      'Using valueInputOption:"RAW" for formulas or numbers — RAW stores formulas as literal text and numbers as strings. Always use "USER_ENTERED"',
+      'Not running formula_health_check after writing formulas — silent zeros and broken ranges go undetected',
     ],
   },
   'sheets_data.clear': {
@@ -361,7 +364,10 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     apiCalls: 1,
     idempotent: true,
     whenToUse: 'Reading 3+ ranges in one call (same API cost as single read)',
-    commonMistakes: ['Each range must include sheet name: ["Sheet1!A1:D10", "Sheet2!A1:B5"]'],
+    commonMistakes: [
+      'Each range must include sheet name: ["Sheet1!A1:D10", "Sheet2!A1:B5"]',
+      'Using default FORMATTED_VALUE for numeric comparisons — use valueRenderOption:"UNFORMATTED_VALUE" when you need math',
+    ],
     errorRecovery: {
       QUOTA_EXCEEDED: 'Reduce number of ranges or add delay between calls',
       SHEET_NOT_FOUND: 'Call sheets_core.list_sheets to verify all sheet names in the ranges array',
@@ -386,7 +392,13 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
   'sheets_data.batch_write': {
     apiCalls: 1,
     idempotent: true,
-    whenToUse: 'Writing to 3+ ranges in one call',
+    whenToUse:
+      'Writing to 2+ ranges in one call — use for ALL multi-range writes, including formula batches',
+    commonMistakes: [
+      'Using valueInputOption:"RAW" for formulas or numbers — RAW stores formulas as literal text. Always use "USER_ENTERED"',
+      'Using auto_fill or copy_paste to extend formulas — they do NOT work. Generate explicit per-row formula strings and batch_write',
+      'Not running formula_health_check after writing formulas — silent zeros go undetected',
+    ],
     errorRecovery: {
       SHEET_NOT_FOUND: 'Call sheets_core.list_sheets first to verify sheet names',
       PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
@@ -3195,7 +3207,11 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     apiCalls: 1,
     idempotent: true,
     whenToUse:
-      'Diagnosing formula, reference, parsing, and type errors in a target range before applying fixes',
+      'IMMEDIATELY on any #ERROR!, #REF!, #NAME?, #VALUE!, #DIV/0! — returns root cause + suggested fix in one call. Do NOT manually guess or rewrite formulas without diagnosis first',
+    commonMistakes: [
+      'Trying to manually debug formula errors instead of calling diagnose_errors first — wastes 3+ attempts',
+      'Rewriting formulas without understanding root cause — often introduces new errors',
+    ],
     whenNotToUse:
       'For broad spreadsheet analysis use comprehensive; for direct remediation use sheets_fix',
     errorRecovery: {
@@ -9742,8 +9758,14 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
   'sheets_agent.plan': {
     apiCalls: 1,
     idempotent: true,
-    whenToUse: 'Creating a multi-step execution plan from a natural language description',
+    prerequisites: ['sheets_session.set_active', 'sheets_analyze.scout'],
+    whenToUse:
+      'Creating a multi-step execution plan from a natural language description — for 3+ operations that depend on live sheet state',
     whenNotToUse: 'For single operations — call the target tool directly',
+    commonMistakes: [
+      'Not passing context (spreadsheetId, sheetName, scoutResult) — causes 12+ step plans instead of 5-6. Agent wastes steps discovering structure you already know',
+      'Using agent for simple operations (single write, single format) — overhead exceeds benefit',
+    ],
 
     errorRecovery: {
       PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
@@ -9767,8 +9789,12 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
   'sheets_agent.execute': {
     apiCalls: 10,
     idempotent: false,
+    prerequisites: ['sheets_agent.plan', 'sheets_agent.observe'],
     whenToUse: 'Executing an entire plan autonomously with automatic checkpointing',
     whenNotToUse: 'For single-step execution — use execute_step instead',
+    commonMistakes: [
+      'Executing without calling observe first — no rollback checkpoint exists. If any step fails, you cannot restore the previous state',
+    ],
 
     errorRecovery: {
       PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
@@ -10189,9 +10215,12 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
     apiCalls: 1,
     idempotent: true,
     whenToUse:
-      'Auditing formula quality, error hotspots, volatility, and broken references across a sheet',
+      'After EVERY batch of formula writes — catches silent zeros, missing data, broken ranges before they affect scoring. Non-negotiable verification step.',
     whenNotToUse:
       'Use explain or diagnose_errors when you need a focused explanation for one formula',
+    commonMistakes: [
+      'Skipping formula_health_check after batch formula writes — silent zeros and broken ranges go undetected. A formula returning 0 instead of #ERROR is worse than visible failure.',
+    ],
     errorRecovery: {
       PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
       SHEET_NOT_FOUND: 'Call sheets_core.list_sheets to verify the sheet exists',

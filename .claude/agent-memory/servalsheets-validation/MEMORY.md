@@ -191,8 +191,8 @@ Cmd+G Cmd+A  # All gates
 
 **Source:** `src/schemas/action-counts.ts`
 
-- Line 38: `export const TOOL_COUNT = 22` (computed from Object.keys)
-- Line 43: `export const ACTION_COUNT = 340` (computed from Object.values sum)
+- Line 38: `export const TOOL_COUNT = 25` (computed from Object.keys)
+- Line 43: `export const ACTION_COUNT = 402` (computed from Object.values sum)
 
 **Verification:**
 
@@ -200,12 +200,12 @@ Cmd+G Cmd+A  # All gates
 node -e "const {TOOL_COUNT,ACTION_COUNT}=require('./dist/schemas/action-counts.js'); console.log('Tools:',TOOL_COUNT,'Actions:',ACTION_COUNT)"
 ```
 
-### Line Counts (Verified 2026-02-17)
+### Line Counts (Verified 2026-03-16)
 
 ```bash
-wc -l src/server.ts          # 1383 lines
-wc -l src/http-server.ts     # 2402 lines
-wc -l src/handlers/base.ts   # 1605 lines
+wc -l src/server.ts          # 1426 lines
+wc -l src/http-server.ts     # 983 lines
+wc -l src/handlers/base.ts   # 1613 lines
 ```
 
 ### Protocol Version
@@ -224,7 +224,7 @@ export const MCP_PROTOCOL_VERSION = 'MCP 2025-11-25';
 
 - ✅ G0: Baseline Integrity
 - ✅ G1: Metadata Consistency
-- ✅ G2: Core handler tests (22 tools)
+- ✅ G2: Core handler tests (25 tools)
 - ⚠️ G2: Streaming tests (15 failures) - ACCEPTABLE
 - ⚠️ G2: Phase 2 integration (6 failures) - ACCEPTABLE (Phase +1)
 
@@ -293,7 +293,7 @@ npm run verify               # Full verification (3min)
 
 ## Best Practices
 
-### ✅ DO:
+### ✅ DO
 
 - Run G0 before every commit
 - Run full gates before phase completion
@@ -301,7 +301,7 @@ npm run verify               # Full verification (3min)
 - Use keyboard shortcuts for efficiency
 - Check gate output carefully (don't blindly trust)
 
-### ❌ DON'T:
+### ❌ DON'T
 
 - Skip validation before commit
 - Ignore failing tests in core tools

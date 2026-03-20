@@ -396,36 +396,39 @@ export function getServerInstructions(): string {
   const baseInstructions = `
 ServalSheets is a Google Sheets MCP server with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions.
 
-## 🔐 STEP 1: Authentication (MANDATORY)
+## 🔒 MANDATORY SESSION SETUP (Every session, in this order)
 
-**BEFORE any other tool, verify authentication:**
-\`\`\`
-sheets_auth action:"status"
-\`\`\`
+**Step 1:** \`sheets_auth action:"status"\` → if \`authenticated: false\`, run login flow:
+  \`sheets_auth action:"login"\` → show authUrl → user provides code → \`sheets_auth action:"callback" code:"..."\`
 
-If \`authenticated: false\`:
-1. \`sheets_auth action:"login"\` → Get OAuth URL
-2. Show user the authUrl link
-3. User provides authorization code
-4. \`sheets_auth action:"callback" code:"..."\`
+**Step 2:** \`sheets_session action:"set_active" spreadsheetId:"1ABC..."\` → register the spreadsheet ONCE.
+  After this, omit spreadsheetId from all subsequent calls. Use column names instead of A1: \`range:"Sales column"\`
 
-**NEVER skip authentication.** All other tools will fail without it.
+**Step 3:** \`sheets_session action:"update_preferences" preferences:{verbosity:"minimal"}\` → saves 300+ tokens per response.
+  Without this, every tool returns full metadata on every call. Set ONCE at session start.
 
-## 📍 STEP 2: Set Context (RECOMMENDED)
+**Step 4:** \`sheets_analyze action:"scout"\` → for any sheet you haven't seen yet (200ms, zero data fetched).
+  Returns structure map: sheet names, row/column counts, detected types. Prevents wrong-range writes entirely.
 
-After auth, set the active spreadsheet to enable natural language ranges:
-\`\`\`
-sheets_session action:"set_active" spreadsheetId:"1ABC..."
-\`\`\`
+**NEVER skip steps 1-3.** Step 4 before ANY operation on an unfamiliar sheet.
 
-Benefits:
-- Omit spreadsheetId from subsequent calls
-- Use column names instead of A1 notation: \`range:"Sales column"\`
-- Server tracks your working context
+## ⚠️ DATA FORMAT RULES (Silent bugs if wrong)
 
-## 🔄 WORKFLOW CHAIN
+- **WRITES — valueInputOption:"USER_ENTERED" ALWAYS** for numeric, date, and formula data.
+  RAW stores \`=SUM(A1:A10)\` as literal text. Numbers become strings. Comparisons fail silently.
+  Only use RAW for literal text that looks like formulas (e.g., displaying "=SUM" as text).
 
-**Optimal sequence:** session.set_active → analyze.scout → plan → quality.validate (if >100 cells) → execute (batch/transaction for 3+ ops) → history.undo if needed
+- **READS — valueRenderOption:"UNFORMATTED_VALUE"** when you need math or comparisons.
+  FORMATTED_VALUE returns "$1,234.56" as a string — comparison to 1234.56 FAILS.
+  Use FORMATTED_VALUE only for display to the user.
+
+- **FORMULA EXTENSION — batch_write with explicit per-row formula strings.**
+  auto_fill and copy_paste do NOT extend formulas to new rows. Never use them for formula fill.
+  Generate \`=SUM(B{row}:D{row})\` for each row in code, then batch_write all at once.
+
+- **CASE-SENSITIVE MATCHING — EXACT() inside SUMPRODUCT.**
+  Google Sheets \`=\` is ALWAYS case-insensitive (\`"abc"="ABC"\` is TRUE).
+  For case-sensitive: \`=SUMPRODUCT((EXACT(A2:A100,"GroupA"))*(B2:B100))\`
 
 ## 📊 TOOL SELECTION DECISION TREE (What to Use?)
 
@@ -518,12 +521,6 @@ Benefits:
 ├─ Preview first → \`sheets_composite.preview_generation\`
 ├─ Save as template → \`sheets_composite.generate_template\`
 └─ Manual setup → \`sheets_composite.setup_sheet\`
-
-**Investigating changes over time?**
-├─ When did data change? → \`sheets_history.timeline\`
-├─ Compare two revisions → \`sheets_history.diff_revisions\`
-├─ Restore specific cells → \`sheets_history.restore_cells\` (surgical, not full revision)
-└─ Undo last operation → \`sheets_history.undo\`
 
 **What-if analysis?**
 ├─ Model a scenario → \`sheets_dependencies.model_scenario\` (traces formula cascade)
@@ -637,6 +634,24 @@ When the user's intent is ambiguous, classify it into one of 5 groups first, the
 
 **Tiebreaker rule**: If two groups seem to fit, pick GROUP 1 (Data I/O) for anything involving cell values, GROUP 2 for anything involving appearance only.
 
+## 🤖 AGENT WORKFLOW (Complex multi-step tasks)
+
+Use \`sheets_agent\` when: 3+ sequential operations that depend on live sheet state, OR task needs rollback safety.
+
+**Mandatory flow:**
+1. \`sheets_agent action:"plan" description:"..." context:{spreadsheetId, sheetName, scoutResult}\`
+   ALWAYS pass context (scout result, sheet structure) — cuts plan from 12 steps to 5-6. Agent starts informed.
+2. \`sheets_agent action:"observe"\` → creates rollback checkpoint + reads live sheet state.
+   REQUIRED before execute. Without this, no rollback is possible.
+3. \`sheets_agent action:"execute"\` → runs all steps autonomously, checkpoints per step.
+   On failure: \`sheets_agent action:"rollback"\` restores pre-execution state.
+
+**When NOT to use agent:** single operations, pure reads, simple format changes.
+
+**For 5+ sequential operations with dependency ordering:**
+→ \`sheets_session action:"execute_pipeline" steps:[{id, tool, action, params, dependsOn}]\`
+  Parallel execution of independent steps, automatic dependency ordering, 85% time reduction vs sequential.
+
 ## 🔀 DISAMBIGUATION: Same Name, Different Tool
 
 "list" → What are you listing?
@@ -671,38 +686,6 @@ When the user's intent is ambiguous, classify it into one of 5 groups first, the
   - New filter view → sheets_dimensions.create_filter_view
   - New Apps Script → sheets_appsscript.create
 
-"get" → What are you getting?
-  - Spreadsheet metadata → sheets_core.get
-  - Cell data → sheets_data.read
-  - Sheet properties → sheets_core.get_sheet
-  - Chart details → sheets_visualize.chart_get
-  - Comment → sheets_collaborate.comment_get
-  - Named range → sheets_advanced.get_named_range
-
-"update" → What are you updating?
-  - Cell values → sheets_data.write
-  - Sheet properties (name, color, visibility) → sheets_core.update_sheet
-  - Spreadsheet title/locale → sheets_core.update_properties
-  - Chart appearance → sheets_visualize.chart_update
-  - Permission role → sheets_collaborate.share_update
-  - Named range bounds → sheets_advanced.update_named_range
-  - Dimension sizes (row height, column width) → sheets_dimensions.resize
-
-"import" → What are you importing?
-  - CSV file → sheets_composite.import_csv
-  - Excel XLSX file → sheets_composite.import_xlsx
-  - Built-in template → sheets_templates.import_builtin
-  - Data from BigQuery → sheets_bigquery.import_from_bigquery
-  - Data from external API → sheets_connectors.query
-
-"analyze" → What do you want to analyze?
-  - Cell values and data quality → sheets_analyze.analyze_data
-  - Formulas and upgrade opportunities → sheets_analyze.analyze_formulas
-  - Sheet structure and layout → sheets_analyze.analyze_structure
-  - Performance bottlenecks → sheets_analyze.analyze_performance
-  - Formula dependency impact for a specific cell → sheets_dependencies.analyze_impact
-  - Data validation conflicts → sheets_quality.analyze_impact
-
 ## ⚡ CRITICAL RULES (Avoid Common Mistakes)
 
 1. **Use sheets_analyze.scout ONLY when:**
@@ -715,11 +698,20 @@ When the user's intent is ambiguous, classify it into one of 5 groups first, the
 4. **NEVER type emoji sheet names manually** — Always copy sheet names from \`sheets_core.list_sheets\` response. Emoji characters may look identical but have different Unicode (📊 U+1F4CA vs 📈 U+1F4C8). Quote sheet names with spaces or emoji: \`"'📊 Dashboard'!A1"\`
 5. **Use 0-based indices** for insert/delete: row 1 = index 0
 6. **batch_format max 100** operations per call
-7. **Use verbosity:"minimal"** to save tokens when you don't need full response
-8. **Use sheets_transaction for 5+ operations** — Saves 80-95% API calls and ensures atomicity. Example: Updating 50 rows = 1 transaction call instead of 50 individual writes. Don't use for 1-4 operations (overhead exceeds benefit)
-9. **\`find_replace\` is for patterns, NOT targeted updates** (ISSUE-208) — If you know the cell address, use \`data.write\`. \`find_replace\` scans the entire range for a regex pattern — slow, non-deterministic for single-cell updates, and may match unintended cells. Rule: "Do I know WHERE to write?" → write. "Do I need to search?" → find_replace.
+7. **Use verbosity:"minimal"** to save tokens when you don't need full response (already set in session setup — this is a reminder)
+8. **BATCH EVERYTHING** — 2+ ranges = batch_read/batch_write. No write loops. No read loops. 65 formula cells = 1 batch_write. All answer cells = 1 batch_read. Non-negotiable.
+9. **TRANSACTIONS for 3+ write operations** on same spreadsheet — begin → queue (repeat) → commit = 1 API call instead of N. 80-95% API savings. Atomic execution. Data integrity guaranteed. Don't use for 1-2 operations (overhead exceeds benefit).
+10. **\`find_replace\` is for patterns, NOT targeted updates** (ISSUE-208) — If you know the cell address, use \`data.write\`. \`find_replace\` scans the entire range for a regex pattern — slow, non-deterministic for single-cell updates, and may match unintended cells. Rule: "Do I know WHERE to write?" → write. "Do I need to search?" → find_replace.
 
 ## 🔁 ERROR RECOVERY
+
+**Formula errors (#ERROR!, #REF!, #NAME?, #VALUE!, #DIV/0!)?**
+→ IMMEDIATELY: \`sheets_analyze action:"diagnose_errors"\` — returns root cause + suggested fix in ONE call.
+  Do NOT manually guess. Do NOT rewrite the formula without diagnosis first. Eliminates 3-attempt debug loops.
+
+**After writing ANY batch of formulas:**
+→ ALWAYS: \`sheets_analyze action:"formula_health_check"\` — catches silent zeros, missing data, broken ranges.
+  Non-negotiable. A formula that returns 0 instead of #ERROR is worse than one that fails visibly.
 
 **Same error twice? STOP.** Read \`schema://tools/{toolName}\` or ask user for clarification. Never retry unchanged params.
 
@@ -762,70 +754,83 @@ waiting on the foreground \`tools/call\` response.
 **Pattern: Format a data table**
 \`sheets_format.batch_format with [header_row preset, alternating_rows preset, auto_fit columns]\`
 
-**Pattern: Add validated data safely**
+**Add validated data safely:**
 \`sheets_quality.validate → sheets_data.append → sheets_analyze.scout (verify)\`
 
-**Pattern: Build a dashboard**
+**Build a dashboard:**
 \`sheets_composite.setup_sheet → sheets_data.write formulas → sheets_format.batch_format → sheets_visualize.chart_create\`
 
 ## 🔗 TOOL CHAINING (Multi-Step Workflows)
 
-**Analysis → Fix workflow:**
+**Optimal Formula Loop (6 steps — use this for ALL formula work):**
+\`sheets_analyze scout\` → \`sheets_analyze generate_formula\` → \`sheets_data batch_write\` (all formulas at once) → \`sheets_analyze formula_health_check\` → \`sheets_analyze diagnose_errors\` (if any) → \`sheets_session record_successful_formula\` (saves to library for reuse)
+
+**Analysis → Fix:**
 \`sheets_analyze scout\` → \`sheets_analyze comprehensive\` → \`sheets_fix\` (auto-apply suggestions)
 
-**Safe deletion workflow:**
+**Safe deletion:**
 \`sheets_dependencies analyze_impact\` → \`sheets_confirm request\` → \`sheets_core delete_sheet\`
 
-**Data import workflow:**
+**Data import (prefer CSV over XLSX):**
 \`sheets_composite import_csv\` → \`sheets_quality validate\` → \`sheets_format apply_preset\`
 
-**Automation workflow:**
-\`sheets_appsscript create\` → \`sheets_appsscript deploy\` → \`sheets_webhook register\`
-
-**Data cleaning workflow:**
+**Data cleaning:**
 \`sheets_fix suggest_cleaning\` → \`sheets_fix clean mode:"preview"\` → \`sheets_fix clean mode:"apply"\`
 
-**Scenario analysis workflow:**
+**Scenario analysis:**
 \`sheets_dependencies build\` → \`sheets_dependencies model_scenario\` → \`sheets_dependencies create_scenario_sheet\`
 
 **Time-travel investigation:**
 \`sheets_history timeline\` → \`sheets_history diff_revisions\` → \`sheets_history restore_cells\`
 
-**AI sheet generation:**
-\`sheets_composite preview_generation\` → \`sheets_composite generate_sheet\` → \`sheets_analyze suggest_next_actions\`
+**AI sheet generation (new spreadsheet from description):**
+\`sheets_composite generate_sheet description:"Q1 budget tracker with formulas"\` → \`sheets_analyze suggest_next_actions\`
+
+**CRM bulk update / batch row updates:**
+\`sheets_composite bulk_update\` OR \`sheets_transaction begin\` → queue writes → \`sheets_transaction commit\`
+
+**Append rows matching column headers:**
+\`sheets_composite smart_append\` (matches by header names, not position)
+
+**Data pipeline with live data:**
+\`sheets_connectors configure connectorId:"finnhub"\` → \`sheets_connectors query\` → \`sheets_composite data_pipeline\` → \`sheets_format batch_format\`
+
+**Multi-sheet join/diff:**
+\`sheets_data cross_read sources:[...]\` → \`sheets_data cross_compare\`
+
+**Natural language query:**
+\`sheets_analyze query_natural_language query:"total revenue by region"\`
+
+**Auto-polish after building:**
+\`sheets_analyze auto_enhance\` (applies top non-destructive improvements: freeze headers, auto-resize, number formats)
 
 **Full sheet audit:**
-\`sheets_analyze scout\` → \`sheets_analyze comprehensive\` → \`sheets_analyze suggest_next_actions\` → review + apply top suggestions
-
-**Formula modernization:**
-\`sheets_analyze analyze_formulas\` → check upgradeOpportunities in response → \`sheets_analyze generate_formula\` per upgrade → \`sheets_data write\`
+\`sheets_composite audit_sheet\` → review findings → \`sheets_composite publish_report\`
 
 **Professional dashboard:**
 \`sheets_analyze scout\` → \`sheets_visualize suggest_chart\` → \`sheets_visualize chart_create\` → \`sheets_format sparkline_add\` → \`sheets_format apply_preset\`
-
-**Data relationship mapping:**
-\`sheets_dependencies build\` → \`sheets_dependencies get_dependencies\` → \`sheets_analyze analyze_formulas\` → \`sheets_analyze detect_patterns\`
-
-**Sheet architecture review:**
-\`sheets_analyze comprehensive\` → \`sheets_composite setup_sheet\` → \`sheets_advanced add_protected_range\` → \`sheets_composite clone_structure\`
-
-**Cross-sheet analysis:**
-\`sheets_data cross_read\` → \`sheets_analyze comprehensive\` → \`sheets_data cross_compare\` → \`sheets_analyze suggest_next_actions\`
-
-**Spreadsheet quality audit:**
-\`sheets_composite audit_sheet\` → review findings → \`sheets_composite publish_report\`
-
-**Data pipeline with live data:**
-\`sheets_connectors configure\` → \`sheets_composite data_pipeline\` → \`sheets_format batch_format\`
+OR: \`sheets_composite build_dashboard\` (one-step)
 
 **Spreadsheet migration:**
-\`sheets_analyze scout\` (source) → \`sheets_composite migrate_spreadsheet\` → \`sheets_analyze scout\` (verify destination)
+\`sheets_analyze scout\` (source) → \`sheets_composite migrate_spreadsheet\` → \`sheets_analyze scout\` (verify)
 
-**Federation / Remote MCP Workflows:**
-\`sheets_federation list_servers\` → \`sheets_federation get_server_tools\` → \`sheets_federation call_remote\` (execute action on remote MCP) → \`sheets_data cross_read\` (optionally fetch results back)
+**Scheduled automation:**
+\`sheets_compute schedule_create\` for recurring tasks → \`sheets_appsscript create_trigger\` for real-time events
 
-**LLM Continuity Pattern (Session Context):**
-\`sheets_session set_active\` (establish context) → \`sheets_data read\` (records last read range) → \`sheets_session record_operation\` (track changes) → \`sheets_session get_context\` (retrieve for follow-ups) → use returned context in next action descriptions
+**Federation / Remote MCP:**
+\`sheets_federation list_servers\` → \`sheets_federation get_server_tools\` → \`sheets_federation call_remote\`
+
+**Multi-session checkpointing:**
+\`sheets_session save_checkpoint label:"before-bulk-update"\` → work → \`sheets_session load_checkpoint\` if needed
+
+**LLM Continuity (Session Context):**
+\`sheets_session set_active\` → \`sheets_data read\` (records last range) → \`sheets_session get_context\` (retrieve for follow-ups)
+
+**BigQuery at scale (42K+ rows):**
+\`sheets_bigquery connect\` → \`sheets_bigquery query\` (SQL on sheet data) → \`sheets_bigquery import_from_bigquery\`
+
+**Streaming reads (large datasets):**
+\`sheets_data batch_read\` with pagination (\`cursor\` + \`pageSize\` params for 42K+ rows)
 
 ## 🪄 INTERACTIVE WIZARDS (Elicitation)
 
@@ -949,9 +954,13 @@ Quick formula tips for common spreadsheet tasks:
 - Lookup: Use INDEX/MATCH instead of VLOOKUP for flexible column references
 - Conditional sums: SUMIFS for multi-criteria, SUMPRODUCT for arrays
 - Dynamic ranges: Use OFFSET+COUNTA or structured table references
-- Error handling: IFERROR wraps, ISBLANK for empty checks
+- **IFERROR on ALL lookups**: \`=IFERROR(VLOOKUP(...), "Not found")\` — bare lookups return #N/A on miss. Always wrap.
+- **ISBLANK for empty checks**: \`=IF(ISBLANK(A1), "empty", A1)\`
+- **Spill-aware writes**: Call \`sheets_dimensions detect_spill_ranges\` before writing near array formulas
 - Use \`sheets_analyze generate_formula\` to build complex formulas from natural language
 - Use \`sheets_analyze analyze_formulas\` to detect formula upgrade opportunities (VLOOKUP→XLOOKUP, nested IF→IFS, etc.)
+- Use \`sheets_appsscript\` for procedural logic (loops, conditionals) that formulas can't express
+- Use \`sheets_composite install_serval_function\` for AI-powered custom functions in cells
 
 ## ⚠️ GOOGLE SHEETS API LIMITATIONS
 
@@ -995,14 +1004,6 @@ For multi-step operations that affect shared spreadsheets:
 2. Check prerequisites (auth? correct spreadsheetId? sheet exists?)
 3. Use dryRun:true to test before actual execution
 4. For persistent errors, use sheets_analyze action:"comprehensive" to inspect the spreadsheet
-
-## 🛡️ SAFETY CHECKLIST
-
-Before destructive operations (delete, clear, overwrite):
-- [ ] Use \`dryRun: true\` first to preview changes
-- [ ] For >100 cells: Use \`sheets_confirm\` to get user approval
-- [ ] For >1000 cells: Consider using \`sheets_transaction\` for atomicity
-- [ ] Set \`safety.maxCellsAffected\` to limit blast radius
 
 ## 💰 QUOTA & MONITORING
 

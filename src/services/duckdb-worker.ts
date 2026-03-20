@@ -105,7 +105,7 @@ async function runQuery(): Promise<void> {
     const result: WorkerSuccess = {
       success: true,
       columns,
-      rows: rows.map((r) => columns.map((c) => (r as Record<string, unknown>)[c])),
+      rows: rows.map((r: Record<string, unknown>) => columns.map((c) => r[c])),
       executionMs,
     };
 

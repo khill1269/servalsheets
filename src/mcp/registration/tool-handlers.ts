@@ -1266,6 +1266,28 @@ export function buildToolResponse(
     }
   }
 
+  // Phase 1B.1b: Inject diagnose_errors recommendation on formula-related errors
+  if (hasFailure && 'response' in structuredContent && response && typeof response === 'object') {
+    try {
+      const responseRecord = response as Record<string, unknown>;
+      const err = responseRecord['error'] as Record<string, unknown> | undefined;
+      if (err && typeof err === 'object') {
+        const errMsg = String(err['message'] || '');
+        if (/#(ERROR|REF|NAME|VALUE|DIV\/0)/.test(errMsg) || err['code'] === 'FORMULA_ERROR') {
+          responseRecord['suggestedNextActions'] = [
+            {
+              tool: 'sheets_analyze',
+              action: 'diagnose_errors',
+              reason: 'Diagnose root cause of this formula error before attempting fixes',
+            },
+          ];
+        }
+      }
+    } catch {
+      // Non-blocking: if formula error detection fails, continue
+    }
+  }
+
   // Phase 1B.2: Inject suggestedNextActions for successful responses
   if (
     !hasFailure &&

@@ -50,19 +50,31 @@ const RECOMMENDATION_RULES: Record<string, SuggestedAction[]> = {
   // After writing data
   'sheets_data.write': [
     {
+      tool: 'sheets_analyze',
+      action: 'formula_health_check',
+      reason: 'Verify formulas work correctly (catches silent zeros, broken refs)',
+    },
+    {
       tool: 'sheets_format',
       action: 'set_format',
       reason: 'Format the cells you just wrote',
     },
     {
       tool: 'sheets_dimensions',
-      action: 'freeze',
-      reason: 'Freeze header row if you wrote headers',
-    },
-    {
-      tool: 'sheets_dimensions',
       action: 'auto_resize',
       reason: 'Auto-fit columns to new content',
+    },
+  ],
+  'sheets_data.batch_write': [
+    {
+      tool: 'sheets_analyze',
+      action: 'formula_health_check',
+      reason: 'Verify formulas work correctly after batch write (catches silent zeros)',
+    },
+    {
+      tool: 'sheets_format',
+      action: 'set_format',
+      reason: 'Format the cells you just wrote',
     },
   ],
   'sheets_data.append': [
@@ -297,6 +309,48 @@ const RECOMMENDATION_RULES: Record<string, SuggestedAction[]> = {
       tool: 'sheets_analyze',
       action: 'detect_patterns',
       reason: 'Analyze patterns in sorted data',
+    },
+  ],
+
+  // Session setup chain (P0 mandatory flow)
+  'sheets_auth.callback': [
+    {
+      tool: 'sheets_session',
+      action: 'set_active',
+      reason: 'Register active spreadsheet (omit spreadsheetId from subsequent calls)',
+    },
+    {
+      tool: 'sheets_session',
+      action: 'update_preferences',
+      reason: 'Set verbosity:minimal (saves 300+ tokens per response)',
+    },
+  ],
+  'sheets_session.set_active': [
+    {
+      tool: 'sheets_analyze',
+      action: 'scout',
+      reason: 'Map sheet structure (200ms, no data fetched) before any operations',
+    },
+    {
+      tool: 'sheets_session',
+      action: 'update_preferences',
+      reason: 'Set verbosity:minimal if not already set',
+    },
+  ],
+
+  // Agent workflow chain (P1 mandatory flow)
+  'sheets_agent.plan': [
+    {
+      tool: 'sheets_agent',
+      action: 'observe',
+      reason: 'Create rollback checkpoint before executing plan',
+    },
+  ],
+  'sheets_agent.observe': [
+    {
+      tool: 'sheets_agent',
+      action: 'execute',
+      reason: 'Execute plan with rollback safety',
     },
   ],
 };
