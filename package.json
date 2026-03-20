@@ -502,7 +502,7 @@
     "validate:dead-code": "bash scripts/verify-dead-code-claims.sh",
     "validate:mcp-protocol": "bash scripts/validate-mcp-protocol.sh",
     "validate:server-json": "node scripts/validate-server-json.mjs",
-    "validate:server-json-extended": "tsx scripts/validate-server-json-extended.ts",
+    "validate:server-json-extended": "node --import tsx scripts/validate-server-json-extended.ts",
     "verify": "npm run check:drift && npm run check:placeholders && npm run check:doc-action-counts && npm run typecheck && npm run lint && npm run format:check && npm run validate:alignment && npm run validate:action-config && npm run test:fast",
     "verify:safe": "npm run check:drift && npm run check:placeholders && npm run check:doc-action-counts && npm run typecheck && npm run format:check && npm run validate:alignment && npm run validate:action-config && npm run test:fast",
     "verify:release": "bash scripts/verify-release-readiness.sh",

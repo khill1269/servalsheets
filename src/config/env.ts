@@ -273,6 +273,7 @@ const EnvSchema = z.object({
   MCP_FEDERATION_ENABLED: strictBoolean().default(false),
   MCP_FEDERATION_TIMEOUT_MS: z.coerce.number().positive().default(30000), // 30 seconds
   MCP_FEDERATION_MAX_CONNECTIONS: z.coerce.number().int().positive().default(10),
+  MCP_FEDERATION_DNS_STRICT: strictBoolean().default(true),
   // JSON array of server configs: [{"name":"weather-api","url":"http://localhost:3001"}]
   MCP_FEDERATION_SERVERS: z.string().optional(),
 
@@ -372,6 +373,10 @@ const EnvSchema = z.object({
   // Formula passthrough bypass (security override — use with caution)
   // When true, mutation-safety-middleware skips formula injection scanning (non-production only)
   SERVAL_ALLOW_FORMULA_PASSTHROUGH: strictBoolean().default(false),
+
+  // Post-write verification strict mode
+  // When true, mutation verification divergence throws instead of logging a warning.
+  MUTATION_VERIFY_STRICT: strictBoolean().default(false),
 
   // Connector credential encryption key (AES-256-GCM)
   // Must be set to enable encrypted credential storage for data connectors

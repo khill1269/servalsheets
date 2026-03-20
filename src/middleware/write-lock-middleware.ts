@@ -19,7 +19,7 @@ const LOCK_CLEANUP_MS = 5 * 60 * 1000;
 
 // Mutation actions that require write serialization.
 // These are the core data/structure/format mutations across all tools.
-const MUTATION_ACTIONS = new Set<string>([
+export const MUTATION_ACTIONS = new Set<string>([
   // sheets_data — direct data writes
   'write',
   'append',
@@ -105,7 +105,7 @@ const MUTATION_ACTIONS = new Set<string>([
 
 // Additional mutation actions not currently covered by MUTATION_ACTIONS.
 // These actions mutate spreadsheet data/structure and must be serialized.
-const FORCE_WRITE_ACTIONS = new Set<string>([
+export const FORCE_WRITE_ACTIONS = new Set<string>([
   // sheets_core
   'add_sheet',
   'update_sheet',

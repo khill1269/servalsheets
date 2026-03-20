@@ -400,7 +400,13 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
           ? await this.createSnapshot(req.spreadsheetId)
           : undefined;
 
-      await this.writeChanges(req.spreadsheetId, extractRangeA1(req.range), data, result.changes, rangeOffset);
+      await this.writeChanges(
+        req.spreadsheetId,
+        extractRangeA1(req.range),
+        data,
+        result.changes,
+        rangeOffset
+      );
 
       this.trackContextFromRequest({ spreadsheetId: req.spreadsheetId });
 
@@ -531,7 +537,13 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
           ? await this.createSnapshot(req.spreadsheetId)
           : undefined;
 
-      await this.writeChanges(req.spreadsheetId, extractRangeA1(req.range), data, result.changes, rangeOffset);
+      await this.writeChanges(
+        req.spreadsheetId,
+        extractRangeA1(req.range),
+        data,
+        result.changes,
+        rangeOffset
+      );
 
       this.trackContextFromRequest({ spreadsheetId: req.spreadsheetId });
 

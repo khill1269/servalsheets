@@ -40,6 +40,7 @@ import { getErrorPatternLearner } from '../services/error-pattern-learner.js';
 import { suggestFix } from '../services/error-fix-suggester.js';
 import { compactResponse } from '../utils/response-compactor.js';
 import type { SamplingServer } from '../mcp/sampling.js';
+import type { ElicitationServer } from '../mcp/elicitation.js';
 import type { RequestDeduplicator } from '../utils/request-deduplication.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
@@ -81,6 +82,8 @@ import {
 } from './helpers/column-helpers.js';
 import type { SpreadsheetBackend } from '@serval/core';
 
+export type HandlerMcpServer = SamplingServer & ElicitationServer;
+
 export interface HandlerContext {
   /** Platform-agnostic backend (optional — enables multi-backend support) */
   backend?: SpreadsheetBackend;
@@ -104,8 +107,8 @@ export interface HandlerContext {
   samplingServer?: SamplingServer;
   requestDeduplicator?: RequestDeduplicator;
   circuitBreaker?: CircuitBreaker;
-  elicitationServer?: import('../mcp/elicitation.js').ElicitationServer;
-  server?: import('@modelcontextprotocol/sdk/server/index.js').Server; // MCP Server instance for elicitation/sampling
+  elicitationServer?: ElicitationServer;
+  server?: HandlerMcpServer; // Narrow MCP bridge for elicitation + sampling only
   taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter; // For task-based execution (SEP-1686)
   metrics?: import('../services/metrics.js').MetricsService; // For tracking confirmation skips and performance
   metadataCache?: import('../services/metadata-cache.js').MetadataCache; // Session-level metadata cache (N+1 elimination)
@@ -612,7 +615,10 @@ export abstract class BaseHandler<TInput, TOutput> {
                 fixableVia: {
                   tool: fix.tool,
                   action: fix.action,
-                  params: fix.params as Record<string, string | number | boolean | any[] | Record<string, any> | null>,
+                  params: fix.params as Record<
+                    string,
+                    string | number | boolean | any[] | Record<string, any> | null
+                  >,
                   explanation: fix.explanation,
                 },
               };

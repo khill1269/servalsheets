@@ -4,7 +4,12 @@
  */
 
 import { z } from 'zod';
-import { ErrorDetailSchema, RangeInputSchema, ResponseMetaSchema, type ToolAnnotations } from './shared.js';
+import {
+  ErrorDetailSchema,
+  RangeInputSchema,
+  ResponseMetaSchema,
+  type ToolAnnotations,
+} from './shared.js';
 
 // ============================================================================
 // Common Schemas

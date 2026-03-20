@@ -46,7 +46,8 @@ function isPrivateIPv6(ip: string): boolean {
 }
 
 /**
- * SSRF protection: Block webhook URLs pointing to private/internal networks.
+ * SSRF protection: Block external callback/connection URLs pointing to
+ * private or internal networks.
  * Validates HTTPS-only URLs and blocks internal/private IP targets.
  *
  * Defense layers (per MCP Security Best Practices):
@@ -62,37 +63,50 @@ function isPrivateIPv6(ip: string): boolean {
  * (either post-WHATWG-URL-parse or post-dns.lookup). Encoding tricks (octal, hex,
  * IPv4-mapped IPv6, integer IPs) are handled by the WHATWG URL parser + dns.lookup.
  */
-export async function validateWebhookUrl(urlString: string): Promise<void> {
+async function validatePublicHttpsUrl(
+  urlString: string,
+  options: {
+    dnsStrict: boolean;
+    resourceLabel: string;
+    dnsStrictEnvVar: string;
+    component: string;
+  }
+): Promise<void> {
   let parsed: URL;
   try {
     // WHATWG URL normalizes octal/hex/integer IPv4 literals to dotted-decimal
     parsed = new URL(urlString);
   } catch {
-    throw new ValidationError(`Invalid webhook URL: ${urlString}`, 'url');
+    const invalidLabel =
+      options.resourceLabel.charAt(0).toLowerCase() + options.resourceLabel.slice(1);
+    throw new ValidationError(`Invalid ${invalidLabel}: ${urlString}`, 'url');
   }
 
   if (parsed.protocol !== 'https:') {
-    throw new ValidationError('Webhook URL must use HTTPS', 'url');
+    throw new ValidationError(`${options.resourceLabel} must use HTTPS`, 'url');
   }
 
   const hostname = parsed.hostname;
 
   // Pre-DNS defense-in-depth — fast rejection before DNS round-trip
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
-    throw new ValidationError('Webhook URL cannot target localhost', 'hostname');
+    throw new ValidationError(`${options.resourceLabel} cannot target localhost`, 'hostname');
   }
 
   if (/^\d+$/.test(hostname)) {
-    throw new ValidationError('Webhook URL cannot use decimal IP encoding', 'hostname');
+    throw new ValidationError(
+      `${options.resourceLabel} cannot use decimal IP encoding`,
+      'hostname'
+    );
   }
 
   if (/^0x[0-9a-fA-F]+$/.test(hostname)) {
-    throw new ValidationError('Webhook URL cannot use hex IP encoding', 'hostname');
+    throw new ValidationError(`${options.resourceLabel} cannot use hex IP encoding`, 'hostname');
   }
 
   if (isPrivateIPv4(hostname)) {
     throw new ValidationError(
-      'Webhook URL cannot target private/internal IP addresses',
+      `${options.resourceLabel} cannot target private/internal IP addresses`,
       'hostname'
     );
   }
@@ -100,7 +114,7 @@ export async function validateWebhookUrl(urlString: string): Promise<void> {
   if (hostname.startsWith('[') || hostname.includes(':')) {
     if (isPrivateIPv6(hostname)) {
       throw new ValidationError(
-        'Webhook URL cannot target private/internal IPv6 addresses',
+        `${options.resourceLabel} cannot target private/internal IPv6 addresses`,
         'hostname'
       );
     }
@@ -117,13 +131,13 @@ export async function validateWebhookUrl(urlString: string): Promise<void> {
     for (const { address, family } of addresses) {
       if (family === 4 && isPrivateIPv4(address)) {
         throw new ValidationError(
-          'Webhook URL hostname resolves to a private/internal IPv4 address (DNS rebinding protection)',
+          `${options.resourceLabel} hostname resolves to a private/internal IPv4 address (DNS rebinding protection)`,
           'hostname'
         );
       }
       if (family === 6 && isPrivateIPv6(address)) {
         throw new ValidationError(
-          'Webhook URL hostname resolves to a private/internal IPv6 address (DNS rebinding protection)',
+          `${options.resourceLabel} hostname resolves to a private/internal IPv6 address (DNS rebinding protection)`,
           'hostname'
         );
       }
@@ -134,21 +148,39 @@ export async function validateWebhookUrl(urlString: string): Promise<void> {
       throw error;
     }
 
-    const dnsStrict = getEnv().WEBHOOK_DNS_STRICT;
-    if (dnsStrict) {
+    if (options.dnsStrict) {
       throw new ServiceError(
-        `DNS resolution failed for ${hostname} — webhook URL cannot be verified (set WEBHOOK_DNS_STRICT=false to allow in flaky DNS environments)`,
+        `DNS resolution failed for ${hostname} — ${options.resourceLabel.toLowerCase()} cannot be verified ` +
+          `(set ${options.dnsStrictEnvVar}=false to allow in flaky DNS environments)`,
         'INTERNAL_ERROR',
-        'webhook-url-validation'
+        options.component
       );
     }
 
     logger.warn(
-      'DNS resolution failed during SSRF validation (WEBHOOK_DNS_STRICT=false, allowing)',
+      `DNS resolution failed during SSRF validation (${options.dnsStrictEnvVar}=false, allowing)`,
       {
         hostname,
         error: error instanceof Error ? error.message : String(error),
       }
     );
   }
+}
+
+export async function validateWebhookUrl(urlString: string): Promise<void> {
+  await validatePublicHttpsUrl(urlString, {
+    dnsStrict: getEnv().WEBHOOK_DNS_STRICT,
+    resourceLabel: 'Webhook URL',
+    dnsStrictEnvVar: 'WEBHOOK_DNS_STRICT',
+    component: 'webhook-url-validation',
+  });
+}
+
+export async function validateFederationServerUrl(urlString: string): Promise<void> {
+  await validatePublicHttpsUrl(urlString, {
+    dnsStrict: getEnv().MCP_FEDERATION_DNS_STRICT,
+    resourceLabel: 'Federation URL',
+    dnsStrictEnvVar: 'MCP_FEDERATION_DNS_STRICT',
+    component: 'federated-mcp-client',
+  });
 }

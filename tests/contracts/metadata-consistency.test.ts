@@ -54,6 +54,23 @@ describe('Metadata Consistency Contract', () => {
     expect(serverJson.metadata.actionCount).toBe(ACTION_COUNT);
   });
 
+  it('server.json embeds icons as inline SVG data URIs', () => {
+    const serverJson = JSON.parse(readFileSync('server.json', 'utf-8'));
+
+    expect(serverJson.icons).toBeDefined();
+    expect(serverJson.icons.length).toBeGreaterThan(0);
+
+    for (const icon of serverJson.icons as Array<{
+      src: string;
+      mimeType: string;
+      sizes?: string[];
+    }>) {
+      expect(icon.src).toMatch(/^data:image\/svg\+xml;base64,/);
+      expect(icon.mimeType).toBe('image/svg+xml');
+      expect(icon.sizes).toContain('24x24');
+    }
+  });
+
   it('manifest.json has correct counts', () => {
     const manifest = JSON.parse(readFileSync('manifest.json', 'utf-8'));
 

@@ -199,9 +199,7 @@ const ValidateActionSchema = CommonFieldsSchema.extend({
 const DetectConflictsActionSchema = CommonFieldsSchema.extend({
   action: z.literal('detect_conflicts').describe('Detect concurrent modification conflicts'),
   spreadsheetId: z.string().min(1).describe('Spreadsheet ID from URL'),
-  range: RangeInputSchema.optional().describe(
-    'Range to check - entire sheet if omitted'
-  ),
+  range: RangeInputSchema.optional().describe('Range to check - entire sheet if omitted'),
   since: z
     .number()
     .optional()

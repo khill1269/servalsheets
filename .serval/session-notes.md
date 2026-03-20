@@ -6,7 +6,59 @@
 
 ## Current Phase
 
-**Session 88 (2026-03-17) — Audit remediation plan complete + working tree commit.** Branch `remediation/phase-1`. 402 actions (25 tools). Final commit `fd00c00`.
+**Session 90 (2026-03-18) — production release prep + analyze understanding follow-up complete.** Branch `remediation/phase-1`. 403 actions (25 tools).
+
+## What Was Just Completed (Session 90)
+
+**Production-ready release commit** (`255b15e`): `Prepare production-ready 1.7.0 release`
+
+- `npm run verify:release` passed end-to-end, including HTTP smoke, HTTP task-contract, build, metadata generation, startup, and service verification
+- Last production blocker fixed in `src/security/tool-hash-registry.ts`: transport-dependent tool integrity checks no longer fail under HTTP mode
+- Regression coverage added in `tests/startup/tool-hash-registry.test.ts`
+- Release set staged, validated, and committed as a clean production handoff point
+
+**Analyze understanding follow-up** (`ad76899`): `Finish analyze understanding follow-up wiring`
+
+- `query_natural_language` now consumes understanding-store context and semantic workbook hints:
+  - `src/handlers/analyze-actions/query-natural-language.ts`
+  - `src/analysis/conversational-helpers.ts`
+- `scout` now routes elicitation answers back into the understanding store when the MCP client supports elicitation:
+  - `src/handlers/analyze-actions/scout.ts`
+- `comprehensive` now builds and persists a semantic index into the understanding store:
+  - `src/handlers/analyze.ts`
+  - `src/services/understanding-store.ts`
+- Regression coverage added:
+  - `tests/handlers/analyze-query-natural-language.test.ts`
+  - `tests/handlers/analyze-scout-followup.test.ts`
+  - `tests/handlers/analyze-followup-wiring.test.ts`
+- Verification passed:
+  - `npx tsc -p tsconfig.json --noEmit --pretty false`
+  - targeted analyze follow-up tests
+  - broader analyze suites (`analyze.test.ts`, `analysis.test.ts`, `analyze-quickinsights.test.ts`)
+
+**Branch state after Session 90**
+
+- Branch head sequence:
+  - `255b15e` — production-ready release commit
+  - `ad76899` — analyze understanding follow-up commit
+- Only remaining dirty file before this update was `.serval/session-notes.md`
+- After committing this note, the working tree should be clean again
+
+## What Was Just Completed (Session 89)
+
+**5-phase sequential enhancement plan — all phases complete:**
+
+1. **Phase 1: Tier 2 ACTION_HINT_OVERRIDES** (`src/mcp/registration/tool-discovery-hints.ts`): Added override entries for 8 additional tools (dimensions, compute, history, dependencies, advanced, visualize, composite, bigquery). Total tool coverage in overrides: 18+ tools.
+
+2. **Phase 2: Fix sampling-enhancements test failure** (`tests/handlers/sampling-enhancements.test.ts`): Root cause was incomplete `vi.mock()` for `request-context.js` — `recordRequestLlmProvenance` was `undefined`, causing `createMessageWithFallback` to throw silently, falling back to rule-based path and skipping aiRationale enrichment. Fix: added `recordRequestLlmProvenance`, `getRequestLlmProvenance`, `getRequestAbortSignal` to mock factory. Result: 11/11 tests pass.
+
+3. **Phase 3: Server instructions optimization** (`src/mcp/features-2025-11-25.ts`): Merged 4 redundant error recovery sections into 1, compressed examples to table format, removed duplicate anti-patterns and safety checklists. ~22% size reduction.
+
+4. **Phase 4: Completions expansion** (`src/mcp/completions.ts`): Added `connectorIdCache`, `serverNameCache` (EntityCache), `BUILTIN_CONNECTOR_IDS` (5 static IDs), `recordConnectorId()`, `completeConnectorId()`, `recordServerName()`, `completeServerName()`. Wired `recordConnectorId` into `src/handlers/connectors.ts:handleListConnectors()` and `recordServerName` into `src/handlers/federation.ts:handleListServers()`.
+
+5. **Phase 5: Compiled output verification**: All changes confirmed in `dist/` via `tsc -p tsconfig.build.json`. Key discovery: must use `tsconfig.build.json` (not `tsconfig.json`) for production builds — the base tsconfig has `noEmit: true` and uses a different `.tsbuildinfo` file, causing stale CJS output.
+
+**Build note**: `npx tsc` (base tsconfig) does NOT emit to `dist/`. Must use `tsc -p tsconfig.build.json` or `npm run build`. The `.tsbuildinfo.build` file caches incremental state separately.
 
 ## What Was Just Completed (Session 88)
 

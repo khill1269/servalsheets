@@ -89,6 +89,7 @@ import {
   TOOL_ICONS,
   TOOL_EXECUTION_CONFIG,
 } from './mcp/features-2025-11-25.js';
+import { validateToolCatalogConfiguration } from './mcp/tool-catalog.js';
 import { recordToolCall, updateQueueMetrics, quotaWarningsTotal } from './observability/metrics.js';
 
 import {
@@ -112,7 +113,12 @@ import { initWebhookManager } from './services/webhook-manager.js';
 import { initWebhookQueue } from './services/webhook-queue.js';
 import { DuckDBEngine } from './services/duckdb-engine.js';
 import { SchedulerService } from './services/scheduler.js';
-import { createHandlers, type HandlerContext, type Handlers } from './handlers/index.js';
+import {
+  createHandlers,
+  type HandlerContext,
+  type HandlerMcpServer,
+  type Handlers,
+} from './handlers/index.js';
 import { getCostTracker } from './services/cost-tracker.js';
 import { initializeBillingIntegration } from './services/billing-integration.js';
 import { createMetadataCache } from './services/metadata-cache.js';
@@ -363,6 +369,7 @@ export class ServalSheetsServer {
     await this.ensureToolIntegrityVerified();
 
     const envConfig = getEnv();
+    validateToolCatalogConfiguration();
     const costTrackingEnabled =
       envConfig.ENABLE_COST_TRACKING || envConfig.ENABLE_BILLING_INTEGRATION;
 
@@ -478,7 +485,7 @@ export class ServalSheetsServer {
         },
         samplingServer: createTaskAwareSamplingServer(this._server.server),
         elicitationServer: this._server.server,
-        server: this._server.server, // Pass Server instance for elicitation/sampling (SEP-1036, SEP-1577)
+        server: this._server.server as HandlerMcpServer, // Narrow bridge for elicitation/sampling only
         requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
         taskStore: this.taskStore, // For task-based execution (SEP-1686)
       };

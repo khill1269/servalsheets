@@ -326,7 +326,11 @@ export class ComputeHandler {
     // For now, resolve cell references if a range is provided
     let resolvedCells: Record<string, unknown> | undefined;
     if (req.range) {
-      const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
+      const data = await fetchRangeData(
+        this.sheetsApi,
+        req.spreadsheetId,
+        extractRangeA1(req.range)
+      );
       resolvedCells = {};
       for (let r = 0; r < data.length; r++) {
         for (let c = 0; c < (data[r]?.length || 0); c++) {
@@ -630,7 +634,11 @@ export class ComputeHandler {
     }
 
     const startMs = Date.now();
-    const data = await fetchRangeData(this.sheetsApi, resolvedReq.spreadsheetId, extractRangeA1(resolvedReq.range));
+    const data = await fetchRangeData(
+      this.sheetsApi,
+      resolvedReq.spreadsheetId,
+      extractRangeA1(resolvedReq.range)
+    );
     const forecastPreflight = validateForecastDataShape(
       data,
       resolvedReq.dateColumn,
@@ -692,7 +700,11 @@ export class ComputeHandler {
 
     let secondMatrix: number[][] | undefined;
     if (req.secondRange) {
-      const secondData = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.secondRange));
+      const secondData = await fetchRangeData(
+        this.sheetsApi,
+        req.spreadsheetId,
+        extractRangeA1(req.secondRange)
+      );
       secondMatrix = secondData.map((row) =>
         row.map((cell) => (typeof cell === 'number' ? cell : parseFloat(String(cell)) || 0))
       );
@@ -872,7 +884,11 @@ export class ComputeHandler {
 
     // Resolve cell references if range provided
     if (req.range) {
-      const data = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
+      const data = await fetchRangeData(
+        this.sheetsApi,
+        req.spreadsheetId,
+        extractRangeA1(req.range)
+      );
       for (const ref of explanation.references) {
         // Try to resolve each reference from the data
         const cellMatch = ref.ref.match(/^([A-Z]+)(\d+)$/i);
@@ -937,8 +953,17 @@ export class ComputeHandler {
     }> = [];
 
     for (const table of req.tables) {
-      const rows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(table.range));
-      tableData.push({ name: table.name, range: extractRangeA1(table.range), hasHeaders: table.hasHeaders, rows });
+      const rows = await fetchRangeData(
+        this.sheetsApi,
+        req.spreadsheetId,
+        extractRangeA1(table.range)
+      );
+      tableData.push({
+        name: table.name,
+        range: extractRangeA1(table.range),
+        hasHeaders: table.hasHeaders,
+        rows,
+      });
     }
 
     const result = await this.duckdbEngine.query({
@@ -975,8 +1000,16 @@ export class ComputeHandler {
       };
     }
 
-    const leftRows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.left.range));
-    const rightRows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.right.range));
+    const leftRows = await fetchRangeData(
+      this.sheetsApi,
+      req.spreadsheetId,
+      extractRangeA1(req.left.range)
+    );
+    const rightRows = await fetchRangeData(
+      this.sheetsApi,
+      req.spreadsheetId,
+      extractRangeA1(req.right.range)
+    );
 
     const select = req.select ?? '*';
     const sql = `SELECT ${select} FROM "${req.left.alias}" ${req.joinType.toUpperCase()} JOIN "${req.right.alias}" ON ${req.on}`;
@@ -1020,7 +1053,11 @@ export class ComputeHandler {
     req: SheetsComputeInput['request'] & { action: 'python_eval' }
   ): Promise<SheetsComputeOutput> {
     try {
-      const rows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
+      const rows = await fetchRangeData(
+        this.sheetsApi,
+        req.spreadsheetId,
+        extractRangeA1(req.range)
+      );
 
       // Make data available as both `data` (raw list-of-lists) and `df` (DataFrame)
       const dfCode =
@@ -1071,7 +1108,11 @@ ${req.code}`
     req: SheetsComputeInput['request'] & { action: 'pandas_profile' }
   ): Promise<SheetsComputeOutput> {
     try {
-      const rows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
+      const rows = await fetchRangeData(
+        this.sheetsApi,
+        req.spreadsheetId,
+        extractRangeA1(req.range)
+      );
       const hasHeaders = req.hasHeaders !== false;
       const includeCorrelations = req.includeCorrelations !== false;
 
@@ -1172,7 +1213,11 @@ result
     req: SheetsComputeInput['request'] & { action: 'sklearn_model' }
   ): Promise<SheetsComputeOutput> {
     try {
-      const rows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
+      const rows = await fetchRangeData(
+        this.sheetsApi,
+        req.spreadsheetId,
+        extractRangeA1(req.range)
+      );
 
       const targetColumn = req.targetColumn;
       const featureColumns = req.featureColumns ?? null;
@@ -1342,7 +1387,11 @@ result
     req: SheetsComputeInput['request'] & { action: 'matplotlib_chart' }
   ): Promise<SheetsComputeOutput> {
     try {
-      const rows = await fetchRangeData(this.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
+      const rows = await fetchRangeData(
+        this.sheetsApi,
+        req.spreadsheetId,
+        extractRangeA1(req.range)
+      );
 
       const chartType = req.chartType;
       const xColumn = req.xColumn ?? null;

@@ -67,7 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Live API action matrix** (`tests/live-api/action-matrix.live.test.ts`)
   - Three-tier hybrid: `mcp_execute` (full tool call) | `probe_only` (lightweight probe) | `skip_external` (external-resource actions)
-  - ≥95% pass-rate gate across all 402 gated actions
+  - ≥95% pass-rate gate across all 403 gated actions
 
 ### Changed
 
@@ -76,7 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `sheets_composite` expanded from 20 → 21 actions (added `build_dashboard`)
 - `sheets_format` expanded from 24 → 25 actions (added `build_dependent_dropdown`)
 - `sheets_auth` expanded from 4 → 5 actions
-- Total: **399 → 402 actions** (25 tools, v1.7.0)
+- Total: **399 → 403 actions** (25 tools, v1.7.0)
 - All `throw new Error(` in `src/handlers/`, `src/connectors/`, `src/services/`, `src/utils/` replaced with typed error classes
 
 ### Fixed

@@ -1941,3 +1941,7 @@ export function getToolDiscoveryHint(toolName: string): ToolDiscoveryHint | null
   discoveryHintCache.set(toolName, hint);
   return hint;
 }
+
+export function clearDiscoveryHintCache(): void {
+  discoveryHintCache.clear();
+}

@@ -18,6 +18,24 @@ function ensureExists(path, message, issues) {
   }
 }
 
+function extractStringSet(source, exportName) {
+  const pattern = new RegExp(
+    `export const ${exportName} = new Set(?:<[^>]+>)?\\(\\[([\\s\\S]*?)\\]\\);`,
+    'm'
+  );
+  const match = source.match(pattern);
+  if (!match?.[1]) {
+    return null;
+  }
+
+  const values = [];
+  const valuePattern = /'([^']+)'|"([^"]+)"/g;
+  for (const entry of match[1].matchAll(valuePattern)) {
+    values.push(entry[1] ?? entry[2]);
+  }
+  return values;
+}
+
 function hasDependency(packageJson, dependencyName) {
   return Boolean(
     packageJson.dependencies?.[dependencyName] ??
@@ -38,6 +56,8 @@ const formulaEvaluator = read('src/services/formula-evaluator.ts');
 const googleFormulaService = read('src/services/google-formula-service.ts');
 const dependenciesHandler = read('src/handlers/dependencies.ts');
 const toolHandlers = read('src/mcp/registration/tool-handlers.ts');
+const auditMiddleware = read('src/middleware/audit-middleware.ts');
+const writeLockMiddleware = read('src/middleware/write-lock-middleware.ts');
 const webhookSecurityDoc = read('docs/security/WEBHOOK_SECURITY.md');
 const packageJson = JSON.parse(read('package.json'));
 
@@ -198,13 +218,29 @@ ensureExists(
 // ISSUE-231 / Class-2 regression guard: MUTATION_ACTIONS must use current canonical action names.
 // These are the names that WERE stale and caused audit events to never fire.
 // If any of these checks fail after a rename, you need to update audit-middleware.ts too.
-const auditMiddleware = read('src/middleware/audit-middleware.ts');
 const EXPECTED_MUTATION_ACTIONS = ['write', 'append', 'clear', 'bulk_update', 'find_replace'];
 for (const actionName of EXPECTED_MUTATION_ACTIONS) {
   if (!auditMiddleware.includes(`'${actionName}'`) && !auditMiddleware.includes(`"${actionName}"`)) {
     issues.push(
       `MUTATION_ACTIONS in audit-middleware.ts is missing expected action '${actionName}'. ` +
         'Action may have been renamed without updating the middleware. See ISSUE-231.'
+    );
+  }
+}
+
+const auditMutationActions = extractStringSet(auditMiddleware, 'MUTATION_ACTIONS');
+const writeLockMutationActions = extractStringSet(writeLockMiddleware, 'MUTATION_ACTIONS');
+if (!auditMutationActions || !writeLockMutationActions) {
+  issues.push('Unable to parse MUTATION_ACTIONS from audit or write-lock middleware.');
+} else {
+  const auditOnly = auditMutationActions.filter((action) => !writeLockMutationActions.includes(action));
+  const writeLockOnly = writeLockMutationActions.filter((action) => !auditMutationActions.includes(action));
+
+  if (auditOnly.length > 0 || writeLockOnly.length > 0) {
+    issues.push(
+      'MUTATION_ACTIONS drift between audit-middleware.ts and write-lock-middleware.ts. ' +
+        `Audit-only: ${auditOnly.join(', ') || 'none'}; ` +
+        `write-lock-only: ${writeLockOnly.join(', ') || 'none'}.`
     );
   }
 }

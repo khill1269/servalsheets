@@ -13,8 +13,6 @@ import { getEnv } from '../config/env.js';
 const DANGEROUS_FORMULA_PATTERN =
   /^[=+\-@].*(?:IMPORTDATA|IMPORTRANGE|IMPORTFEED|IMPORTHTML|IMPORTXML|GOOGLEFINANCE|QUERY)\s*\(/i;
 
-const FORMULA_CANDIDATE_KEYS = new Set(['values', 'replacement', 'formula', 'formulaValue']);
-
 export interface MutationSafetyViolation {
   path: string;
   preview: string;
@@ -63,25 +61,18 @@ function scanFormulaCandidate(
 function scanMutationRequest(
   value: unknown,
   path: string,
-  parentKey: string | undefined,
   visited: WeakSet<object>,
   depth: number
 ): MutationSafetyViolation | null {
   if (depth > 12 || value == null) return null;
 
-  if (parentKey && FORMULA_CANDIDATE_KEYS.has(parentKey)) {
+  if (typeof value === 'string') {
     return scanFormulaCandidate(value, path, visited, depth + 1);
   }
 
   if (Array.isArray(value)) {
     for (let i = 0; i < value.length; i++) {
-      const violation = scanMutationRequest(
-        value[i],
-        `${path}[${i}]`,
-        parentKey,
-        visited,
-        depth + 1
-      );
+      const violation = scanMutationRequest(value[i], `${path}[${i}]`, visited, depth + 1);
       if (violation) return violation;
     }
     return null;
@@ -103,7 +94,7 @@ function scanMutationRequest(
     }
 
     for (const [key, entry] of Object.entries(obj)) {
-      const violation = scanMutationRequest(entry, `${path}.${key}`, key, visited, depth + 1);
+      const violation = scanMutationRequest(entry, `${path}.${key}`, visited, depth + 1);
       if (violation) return violation;
     }
   }
@@ -146,5 +137,5 @@ export function detectMutationSafetyViolation(
     return null;
   }
 
-  return scanMutationRequest(req, 'request', undefined, new WeakSet<object>(), 0);
+  return scanMutationRequest(req, 'request', new WeakSet<object>(), 0);
 }

@@ -50,7 +50,9 @@ const TrendlineSchema = z
       .min(2)
       .max(6)
       .optional()
-      .describe('Degree for POLYNOMIAL type. Required when type=POLYNOMIAL. Typical values: 2 (quadratic), 3 (cubic). Higher values (4-6) risk overfitting. Omitting this when type=POLYNOMIAL will cause an error.'),
+      .describe(
+        'Degree for POLYNOMIAL type. Required when type=POLYNOMIAL. Typical values: 2 (quadratic), 3 (cubic). Higher values (4-6) risk overfitting. Omitting this when type=POLYNOMIAL will cause an error.'
+      ),
     label: z.string().max(255).optional().describe('Custom label for trendline'),
     showEquation: z
       .boolean()

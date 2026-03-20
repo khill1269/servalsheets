@@ -13,6 +13,8 @@
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
 import { executeWithRetry } from '../utils/retry.js';
+import { getEnv } from '../config/env.js';
+import { ServiceError } from '../core/errors.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -67,6 +69,35 @@ export interface SheetExistenceVerification {
 export class MutationVerifier {
   constructor(private sheetsApi: sheets_v4.Sheets) {}
 
+  private finalize(result: VerificationResult): VerificationResult {
+    if (result.status === 'diverged' && getEnv().MUTATION_VERIFY_STRICT) {
+      throw new ServiceError(
+        `Mutation verification diverged for ${result.operation}: ${result.details ?? 'read-back mismatch'}`,
+        'INTERNAL_ERROR',
+        'mutation-verifier',
+        true
+      );
+    }
+
+    return result;
+  }
+
+  private handleVerificationError(
+    error: unknown,
+    operation: MutationOperation
+  ): VerificationResult {
+    if (error instanceof ServiceError && error.serviceName === 'mutation-verifier') {
+      throw error;
+    }
+
+    logger.warn('Mutation verification read-back failed', {
+      component: 'mutation-verifier',
+      operation,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { status: 'skipped', operation, details: 'Read-back failed' };
+  }
+
   /**
    * Verify a write operation by reading back the affected range
    */
@@ -86,12 +117,12 @@ export class MutationVerifier {
 
       // Compare row counts
       if (actual.length !== expected.length) {
-        return {
+        return this.finalize({
           status: 'diverged',
           operation: 'write',
           details: `Row count mismatch: expected ${expected.length}, got ${actual.length}`,
           durationMs: Date.now() - start,
-        };
+        });
       }
 
       // Spot-check first and last rows for value match
@@ -110,22 +141,21 @@ export class MutationVerifier {
       }
 
       if (mismatches.length > 0) {
-        return {
+        return this.finalize({
           status: 'diverged',
           operation: 'write',
           details: `Value mismatches: ${mismatches.slice(0, 5).join('; ')}`,
           durationMs: Date.now() - start,
-        };
+        });
       }
 
-      return { status: 'verified', operation: 'write', durationMs: Date.now() - start };
-    } catch (error) {
-      logger.warn('Mutation verification read-back failed', {
-        component: 'mutation-verifier',
+      return this.finalize({
+        status: 'verified',
         operation: 'write',
-        error: error instanceof Error ? error.message : String(error),
+        durationMs: Date.now() - start,
       });
-      return { status: 'skipped', operation: 'write', details: 'Read-back failed' };
+    } catch (error) {
+      return this.handleVerificationError(error, 'write');
     }
   }
 
@@ -147,22 +177,21 @@ export class MutationVerifier {
       const expectedMin = params.previousRowCount + params.expectedRowCountIncrease;
 
       if (actual.length < expectedMin) {
-        return {
+        return this.finalize({
           status: 'diverged',
           operation: 'append',
           details: `Expected at least ${expectedMin} rows, got ${actual.length}`,
           durationMs: Date.now() - start,
-        };
+        });
       }
 
-      return { status: 'verified', operation: 'append', durationMs: Date.now() - start };
-    } catch (error) {
-      logger.warn('Mutation verification read-back failed', {
-        component: 'mutation-verifier',
+      return this.finalize({
+        status: 'verified',
         operation: 'append',
-        error: error instanceof Error ? error.message : String(error),
+        durationMs: Date.now() - start,
       });
-      return { status: 'skipped', operation: 'append', details: 'Read-back failed' };
+    } catch (error) {
+      return this.handleVerificationError(error, 'append');
     }
   }
 
@@ -186,22 +215,21 @@ export class MutationVerifier {
       );
 
       if (hasContent) {
-        return {
+        return this.finalize({
           status: 'diverged',
           operation: 'clear',
           details: `Range still contains data after clear (${actual.length} rows with content)`,
           durationMs: Date.now() - start,
-        };
+        });
       }
 
-      return { status: 'verified', operation: 'clear', durationMs: Date.now() - start };
-    } catch (error) {
-      logger.warn('Mutation verification read-back failed', {
-        component: 'mutation-verifier',
+      return this.finalize({
+        status: 'verified',
         operation: 'clear',
-        error: error instanceof Error ? error.message : String(error),
+        durationMs: Date.now() - start,
       });
-      return { status: 'skipped', operation: 'clear', details: 'Read-back failed' };
+    } catch (error) {
+      return this.handleVerificationError(error, 'clear');
     }
   }
 
@@ -223,24 +251,19 @@ export class MutationVerifier {
       const exists = sheets.some((s) => s.properties?.title === params.sheetTitle);
 
       if (exists !== params.shouldExist) {
-        return {
+        return this.finalize({
           status: 'diverged',
           operation,
           details: params.shouldExist
             ? `Sheet "${params.sheetTitle}" not found after creation`
             : `Sheet "${params.sheetTitle}" still exists after deletion`,
           durationMs: Date.now() - start,
-        };
+        });
       }
 
-      return { status: 'verified', operation, durationMs: Date.now() - start };
+      return this.finalize({ status: 'verified', operation, durationMs: Date.now() - start });
     } catch (error) {
-      logger.warn('Mutation verification read-back failed', {
-        component: 'mutation-verifier',
-        operation,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return { status: 'skipped', operation, details: 'Read-back failed' };
+      return this.handleVerificationError(error, operation);
     }
   }
 }

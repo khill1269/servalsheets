@@ -361,7 +361,8 @@ export function suggestFix(
       tool: 'sheets_advanced',
       action: 'list_protected_ranges',
       params: { spreadsheetId: params?.['spreadsheetId'] as string },
-      explanation: 'Cell or range is protected. Use sheets_advanced.list_protected_ranges to see what is protected and by whom.',
+      explanation:
+        'Cell or range is protected. Use sheets_advanced.list_protected_ranges to see what is protected and by whom.',
     };
   }
 
@@ -374,7 +375,8 @@ export function suggestFix(
       tool: 'sheets_transaction',
       action: 'begin',
       params: { spreadsheetId: params?.['spreadsheetId'] as string },
-      explanation: 'Batch update failed. Use sheets_transaction.begin to wrap multiple operations atomically for better error handling.',
+      explanation:
+        'Batch update failed. Use sheets_transaction.begin to wrap multiple operations atomically for better error handling.',
     };
   }
 
@@ -382,39 +384,45 @@ export function suggestFix(
   if (
     errorCode === 'FORMULA_INJECTION_BLOCKED' ||
     errorMessage.toLowerCase().includes('formula injection') ||
-    (errorMessage.toLowerCase().includes('formula') && errorMessage.toLowerCase().includes('security'))
+    (errorMessage.toLowerCase().includes('formula') &&
+      errorMessage.toLowerCase().includes('security'))
   ) {
     return {
       tool: toolName || 'sheets_data',
       action: action || 'write',
       params: { ...params },
-      explanation: "Formula injection blocked for security. If the value should be literal text, prefix it with a single quote: '=text becomes the string =text.",
+      explanation:
+        "Formula injection blocked for security. If the value should be literal text, prefix it with a single quote: '=text becomes the string =text.",
     };
   }
 
   // 21. AMBIGUOUS_RANGE — suggest listing sheets to clarify sheet names
   if (
     errorCode === 'AMBIGUOUS_RANGE' ||
-    (errorMessage.toLowerCase().includes('ambiguous') && errorMessage.toLowerCase().includes('range'))
+    (errorMessage.toLowerCase().includes('ambiguous') &&
+      errorMessage.toLowerCase().includes('range'))
   ) {
     return {
       tool: 'sheets_core',
       action: 'list_sheets',
       params: { spreadsheetId: params?.['spreadsheetId'] as string },
-      explanation: 'Ambiguous range reference. Use sheets_core.list_sheets to get exact sheet names, then include the sheet name explicitly in A1 notation (e.g., "Sheet1!A1:B10").',
+      explanation:
+        'Ambiguous range reference. Use sheets_core.list_sheets to get exact sheet names, then include the sheet name explicitly in A1 notation (e.g., "Sheet1!A1:B10").',
     };
   }
 
   // 22. EXPLICIT_RANGE_REQUIRED — suggest full A1 notation with sheet name
   if (
     errorCode === 'EXPLICIT_RANGE_REQUIRED' ||
-    (errorMessage.toLowerCase().includes('explicit') && errorMessage.toLowerCase().includes('range'))
+    (errorMessage.toLowerCase().includes('explicit') &&
+      errorMessage.toLowerCase().includes('range'))
   ) {
     return {
       tool: toolName || 'sheets_data',
       action: action || 'read',
       params: { ...params },
-      explanation: 'Explicit range notation required. Use full A1 notation with sheet name: "SheetName!A1:Z100" instead of just "A1:Z100".',
+      explanation:
+        'Explicit range notation required. Use full A1 notation with sheet name: "SheetName!A1:Z100" instead of just "A1:Z100".',
     };
   }
 
@@ -429,7 +437,8 @@ export function suggestFix(
       tool: 'sheets_composite',
       action: 'batch_operations',
       params: { spreadsheetId: params?.['spreadsheetId'] as string },
-      explanation: 'Payload too large for a single request. Use sheets_composite.batch_operations to split the work into smaller chunks.',
+      explanation:
+        'Payload too large for a single request. Use sheets_composite.batch_operations to split the work into smaller chunks.',
     };
   }
 
@@ -437,40 +446,47 @@ export function suggestFix(
   if (
     errorCode === 'TRANSACTION_CONFLICT' ||
     errorCode === 'TRANSACTION_EXPIRED' ||
-    (errorMessage.toLowerCase().includes('transaction') && errorMessage.toLowerCase().includes('conflict')) ||
-    (errorMessage.toLowerCase().includes('transaction') && errorMessage.toLowerCase().includes('expired'))
+    (errorMessage.toLowerCase().includes('transaction') &&
+      errorMessage.toLowerCase().includes('conflict')) ||
+    (errorMessage.toLowerCase().includes('transaction') &&
+      errorMessage.toLowerCase().includes('expired'))
   ) {
     return {
       tool: 'sheets_transaction',
       action: 'begin',
       params: { spreadsheetId: params?.['spreadsheetId'] as string },
-      explanation: 'Transaction conflict or expired. Use sheets_transaction.begin to start a fresh atomic transaction.',
+      explanation:
+        'Transaction conflict or expired. Use sheets_transaction.begin to start a fresh atomic transaction.',
     };
   }
 
   // 25. ELICITATION_UNAVAILABLE — suggest using wizard as alternative
   if (
     errorCode === 'ELICITATION_UNAVAILABLE' ||
-    (errorMessage.toLowerCase().includes('elicitation') && errorMessage.toLowerCase().includes('unavailable'))
+    (errorMessage.toLowerCase().includes('elicitation') &&
+      errorMessage.toLowerCase().includes('unavailable'))
   ) {
     return {
       tool: 'sheets_confirm',
       action: 'wizard_start',
       params: { title: 'Interactive Setup', description: 'Step-by-step configuration' },
-      explanation: 'Interactive prompt unavailable. Use sheets_confirm.wizard_start for a step-by-step configuration workflow.',
+      explanation:
+        'Interactive prompt unavailable. Use sheets_confirm.wizard_start for a step-by-step configuration workflow.',
     };
   }
 
   // 26. CONNECTOR_ERROR — suggest listing connectors to check configuration
   if (
     errorCode === 'CONNECTOR_ERROR' ||
-    (errorMessage.toLowerCase().includes('connector') && errorMessage.toLowerCase().includes('error'))
+    (errorMessage.toLowerCase().includes('connector') &&
+      errorMessage.toLowerCase().includes('error'))
   ) {
     return {
       tool: 'sheets_connectors',
       action: 'list_connectors',
       params: {},
-      explanation: 'Connector error. Use sheets_connectors.list_connectors to check configured connectors and their status.',
+      explanation:
+        'Connector error. Use sheets_connectors.list_connectors to check configured connectors and their status.',
     };
   }
 
@@ -478,13 +494,15 @@ export function suggestFix(
   if (
     errorCode === 'SNAPSHOT_CREATION_FAILED' ||
     errorCode === 'SNAPSHOT_RESTORE_FAILED' ||
-    (errorMessage.toLowerCase().includes('snapshot') && errorMessage.toLowerCase().includes('failed'))
+    (errorMessage.toLowerCase().includes('snapshot') &&
+      errorMessage.toLowerCase().includes('failed'))
   ) {
     return {
       tool: 'sheets_history',
       action: 'list',
       params: { spreadsheetId: params?.['spreadsheetId'] as string },
-      explanation: 'Snapshot operation failed. Use sheets_history.list to check the operation history and available recovery points.',
+      explanation:
+        'Snapshot operation failed. Use sheets_history.list to check the operation history and available recovery points.',
     };
   }
 

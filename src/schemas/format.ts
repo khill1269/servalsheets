@@ -170,7 +170,11 @@ const CommonFieldsSchema = z.object({
 // ===== FORMAT ACTION SCHEMAS (10 actions) =====
 
 const SetFormatActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('set_format').describe('Apply complete cell format. For a single cell or range. Use batch_format for 3+ different format changes (significantly faster).'),
+  action: z
+    .literal('set_format')
+    .describe(
+      'Apply complete cell format. For a single cell or range. Use batch_format for 3+ different format changes (significantly faster).'
+    ),
   range: RangeInputSchema.describe('Range to format (A1 notation or semantic)'),
   format: CellFormatSchema.describe(
     'Complete cell format specification (background, text, borders, etc.)'

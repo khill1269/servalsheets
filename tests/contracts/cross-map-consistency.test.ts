@@ -13,12 +13,16 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import * as path from 'path';
 import { TOOL_COUNT, ACTION_COUNT } from '../../src/schemas/index.js';
 import { TOOL_ACTIONS } from '../../src/mcp/completions.js';
 import { ACTION_COUNTS, TOOL_ANNOTATIONS } from '../../src/schemas/annotations.js';
 import { ACTION_METADATA } from '../../src/schemas/action-metadata.js';
 import { TOOL_DEFINITIONS } from '../../src/mcp/registration/tool-definitions.js';
+import { extractSchemaActions } from '../../src/utils/ast-schema-parser.js';
 import { calculateTotalActions, getToolNames } from '../helpers/count-actions.js';
+
+const PROJECT_ROOT = path.resolve(__dirname, '../..');
 
 describe('Cross-Map Consistency', () => {
   // =========================================================================
@@ -145,6 +149,19 @@ describe('Cross-Map Consistency', () => {
         const metadataActions = Object.keys(ACTION_METADATA[toolName] ?? {}).sort();
         const expectedActions = [...actions].sort();
         expect(metadataActions).toEqual(expectedActions);
+      }
+    });
+
+    it('schema action literals exactly match TOOL_ACTIONS per tool', () => {
+      for (const [toolName, actions] of Object.entries(TOOL_ACTIONS)) {
+        const schemaName = toolName.replace(/^sheets_/, '');
+        const schemaPath = path.join(PROJECT_ROOT, `src/schemas/${schemaName}.ts`);
+        const schemaActions = extractSchemaActions(schemaPath).sort();
+        const expectedActions = [...actions].sort();
+
+        expect(schemaActions, `${toolName} schema actions must match TOOL_ACTIONS`).toEqual(
+          expectedActions
+        );
       }
     });
   });

@@ -276,10 +276,7 @@ export class GoogleApiClient {
 
   // Shared Drive rate limiter
   private sharedDriveRateLimiter: SharedDriveRateLimiter;
-  private sharedDriveMembershipCache = new Map<
-    string,
-    { value: boolean; timestamp: number }
-  >();
+  private sharedDriveMembershipCache = new Map<string, { value: boolean; timestamp: number }>();
   private static readonly DRIVE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
   private static readonly DRIVE_CACHE_MAX = 1000; // LRU eviction threshold
 

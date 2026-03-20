@@ -20,7 +20,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { logger } from '../utils/logger.js';
-import { validateWebhookUrl } from './webhook-url-validation.js';
+import { validateFederationServerUrl } from './webhook-url-validation.js';
 import { ServiceError, NotFoundError } from '../core/errors.js';
 import { getApiSpecificCircuitBreakerConfig } from '../config/env.js';
 
@@ -161,7 +161,7 @@ export class FederatedMcpClient {
     }
 
     // SSRF protection: validate federation URL against private/internal network ranges
-    await validateWebhookUrl(config.url);
+    await validateFederationServerUrl(config.url);
 
     // Create transport (currently only HTTP supported)
     // STDIO transport would require StdioClientTransport

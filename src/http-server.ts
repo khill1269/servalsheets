@@ -41,7 +41,7 @@ import {
   TaskStoreAdapter,
 } from './core/index.js';
 import { SnapshotService } from './services/snapshot.js';
-import { createHandlers, type HandlerContext } from './handlers/index.js';
+import { createHandlers, type HandlerContext, type HandlerMcpServer } from './handlers/index.js';
 import { handleLoggingSetLevel } from './handlers/logging.js';
 import {
   registerKnowledgeResources,
@@ -81,6 +81,7 @@ import { registerServalSheetsTools } from './mcp/registration/tool-handlers.js';
 import { TOOL_DEFINITIONS } from './mcp/registration/tool-definitions.js';
 import { createServerCapabilities, SERVER_INSTRUCTIONS } from './mcp/features-2025-11-25.js';
 import { createTaskAwareSamplingServer } from './mcp/sampling.js';
+import { validateToolCatalogConfiguration } from './mcp/tool-catalog.js';
 import {
   startBackgroundTasks,
   registerSignalHandlers,
@@ -206,6 +207,7 @@ async function createMcpServerInstance(
   sessionId?: string
 ): Promise<{ mcpServer: McpServer; taskStore: TaskStoreAdapter; disposeRuntime: () => void }> {
   const envConfig = getEnv();
+  validateToolCatalogConfiguration();
   const costTrackingEnabled =
     envConfig.ENABLE_COST_TRACKING || envConfig.ENABLE_BILLING_INTEGRATION;
 
@@ -293,7 +295,7 @@ async function createMcpServerInstance(
       },
       samplingServer: createTaskAwareSamplingServer(mcpServer.server),
       elicitationServer: mcpServer.server,
-      server: mcpServer.server, // Pass Server instance for elicitation/sampling (SEP-1036, SEP-1577)
+      server: mcpServer.server as HandlerMcpServer, // Narrow bridge for elicitation/sampling only
       requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
       ...(sessionId ? { sessionContext: await getOrCreateSessionContextAsync(sessionId) } : {}),
       taskStore, // ISSUE-225: Pass taskStore so Task IDs are emitted via HTTP transport (SEP-1686)

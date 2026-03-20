@@ -19,6 +19,11 @@ import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import * as ts from 'typescript';
+import {
+  SERVER_ICON_DATA_URI,
+  SERVER_ICON_MIME_TYPE,
+  SERVER_ICON_SIZES,
+} from '../src/constants/server-icon.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -556,14 +561,9 @@ const serverJson = {
   description: `Production-grade Google Sheets MCP server with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions`,
   icons: [
     {
-      src: 'https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/serval-icon.png',
-      mimeType: 'image/png',
-      sizes: ['1536x1024'],
-    },
-    {
-      src: 'https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/icon-512.png',
-      mimeType: 'image/png',
-      sizes: ['512x512'],
+      src: SERVER_ICON_DATA_URI,
+      mimeType: SERVER_ICON_MIME_TYPE,
+      sizes: [...SERVER_ICON_SIZES],
     },
   ],
   mcpProtocol: '2025-11-25',

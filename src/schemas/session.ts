@@ -75,7 +75,10 @@ const RecordOperationActionSchema = CommonFieldsSchema.extend({
     .min(1, 'Description cannot be empty')
     .max(1000, 'Description exceeds 1000 character limit')
     .describe('Human-readable description (max 1000 chars)'),
-  undoable: z.boolean().default(true).describe('Whether this operation can be undone (default: true)'),
+  undoable: z
+    .boolean()
+    .default(true)
+    .describe('Whether this operation can be undone (default: true)'),
   range: RangeInputSchema.optional().describe('Range affected'),
   snapshotId: z.string().optional().describe('Snapshot ID if created for rollback'),
   cellsAffected: z.coerce.number().optional().describe('Number of cells affected'),

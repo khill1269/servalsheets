@@ -2,17 +2,16 @@
  * OpenAPI Generator
  *
  * Generates OpenAPI 3.1 specification from Zod schemas.
- * Converts ServalSheets' 22 tools and 342 actions into REST API specification.
+ * Converts ServalSheets' MCP tool surface into a REST API specification.
  */
 
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { OpenAPIV3_1 } from 'openapi-types';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as yaml from 'yaml';
 import { TOOL_DEFINITIONS } from '../src/mcp/registration/tool-definitions.js';
-import type { ToolDefinition } from '../src/mcp/registration/tool-definitions.js';
 import { TOOL_ACTIONS } from '../src/mcp/completions.js';
+import { ACTION_COUNT, TOOL_COUNT } from '../src/schemas/action-counts.js';
 
 interface ToolSchema {
   name: string;
@@ -30,7 +29,7 @@ interface ActionSchema {
 }
 
 export class OpenAPIGenerator {
-  private version = '1.6.0';
+  private version = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8')).version as string;
   private baseUrl = 'https://api.servalsheets.com';
 
   /**
@@ -93,7 +92,7 @@ export class OpenAPIGenerator {
       info: {
         title: 'ServalSheets API',
         version: this.version,
-        description: `Production-grade Google Sheets API with 22 tools and 342 actions.
+        description: `Production-grade Google Sheets API with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions.
 
 Features:
 - AI-powered spreadsheet operations
@@ -419,10 +418,10 @@ Built with the Model Context Protocol (MCP).`,
   /**
    * Generate and write OpenAPI spec to file
    */
-  async generateAndWrite(format: 'yaml' | 'json' = 'yaml'): Promise<void> {
+  async generateAndWrite(format: 'yaml' | 'json' | 'all' = 'all'): Promise<void> {
     const spec = await this.generateFromSchemas();
 
-    if (format === 'yaml') {
+    if (format === 'yaml' || format === 'all') {
       const yamlStr = yaml.stringify(spec, {
         lineWidth: 120,
         indent: 2,
@@ -430,7 +429,9 @@ Built with the Model Context Protocol (MCP).`,
       const outputPath = join(process.cwd(), 'openapi.yaml');
       writeFileSync(outputPath, yamlStr, 'utf-8');
       console.log(`✓ Generated OpenAPI spec: ${outputPath}`);
-    } else {
+    }
+
+    if (format === 'json' || format === 'all') {
       const jsonStr = JSON.stringify(spec, null, 2);
       const outputPath = join(process.cwd(), 'openapi.json');
       writeFileSync(outputPath, jsonStr, 'utf-8');
@@ -451,7 +452,8 @@ Built with the Model Context Protocol (MCP).`,
 const isMainModule = process.argv[1]?.includes('generate-openapi');
 if (isMainModule) {
   try {
-    const format = process.argv[2] === 'json' ? 'json' : 'yaml';
+    const format =
+      process.argv[2] === 'json' ? 'json' : process.argv[2] === 'yaml' ? 'yaml' : 'all';
     const generator = new OpenAPIGenerator();
     await generator.generateAndWrite(format);
   } catch (error) {

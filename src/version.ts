@@ -6,6 +6,11 @@
  */
 
 import type { Icon } from '@modelcontextprotocol/sdk/types.js';
+import {
+  SERVER_ICON_DATA_URI,
+  SERVER_ICON_MIME_TYPE,
+  SERVER_ICON_SIZES,
+} from './constants/server-icon.js';
 import { MCP_PROTOCOL_VERSION } from './constants/protocol.js';
 
 /** Current version - sync with package.json */
@@ -24,8 +29,9 @@ export const SERVER_INFO = {
 /** Server icon metadata for client UIs (inline SVG to avoid dead GitHub asset URLs) */
 export const SERVER_ICONS: Icon[] = [
   {
-    src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIj48cGF0aCBkPSJNMTQgMkg2YTIgMiAwIDAgMC0yIDJ2MTZhMiAyIDAgMCAwIDIgMmgxMmEyIDIgMCAwIDAgMi0yVjhsLTYtNnoiLz48cGF0aCBkPSJNMTQgMnY2aDYiLz48cGF0aCBkPSJNOCAxM2g4Ii8+PHBhdGggZD0iTTggMTdoOCIvPjwvc3ZnPg==',
-    mimeType: 'image/svg+xml',
+    src: SERVER_ICON_DATA_URI,
+    mimeType: SERVER_ICON_MIME_TYPE,
+    sizes: [...SERVER_ICON_SIZES],
   },
 ];
 
