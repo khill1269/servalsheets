@@ -414,6 +414,74 @@ export async function handleAddConditionalFormatRule(
   );
   const googleRange = toGridRange(gridRange);
 
+  // Idempotency guard: check if an identical rule already exists
+  try {
+    const existing = await ha.api.spreadsheets.get({
+      spreadsheetId: resolvedInput.spreadsheetId,
+      fields: 'sheets.conditionalFormats,sheets.properties.sheetId',
+    });
+
+    const sheet = existing.data.sheets?.find(
+      (s) => s.properties?.sheetId === resolvedInput.sheetId
+    );
+    const existingRules = sheet?.conditionalFormats ?? [];
+
+    for (const rule of existingRules) {
+      // Check if rule has same range and same preset type
+      const ruleRange = rule.ranges?.[0];
+      if (
+        ruleRange &&
+        ruleRange.sheetId === gridRange.sheetId &&
+        ruleRange.startRowIndex === gridRange.startRowIndex &&
+        ruleRange.endRowIndex === gridRange.endRowIndex &&
+        ruleRange.startColumnIndex === gridRange.startColumnIndex &&
+        ruleRange.endColumnIndex === gridRange.endColumnIndex
+      ) {
+        // Check if rule type matches the preset
+        let presetMatches = false;
+        switch (resolvedInput.rulePreset) {
+          case 'highlight_duplicates':
+            presetMatches = !!(
+              rule.booleanRule?.condition?.type === 'CUSTOM_FORMULA' &&
+              rule.booleanRule?.condition?.values?.[0]?.userEnteredValue?.includes('COUNTIF'));
+            break;
+          case 'highlight_blanks':
+            presetMatches = (rule.booleanRule?.condition?.type === 'BLANK') || false;
+            break;
+          case 'highlight_errors':
+            presetMatches = !!(
+              rule.booleanRule?.condition?.type === 'CUSTOM_FORMULA' &&
+              rule.booleanRule?.condition?.values?.[0]?.userEnteredValue?.includes('ISERROR'));
+            break;
+          case 'color_scale_green_red':
+          case 'color_scale_blue_red':
+          case 'data_bars':
+          case 'traffic_light':
+            presetMatches = !!rule.gradientRule;
+            break;
+          case 'top_10_percent':
+          case 'bottom_10_percent':
+          case 'above_average':
+          case 'below_average':
+          case 'negative_red_positive_green':
+          case 'variance_highlight':
+            presetMatches = !!rule.booleanRule?.condition?.type;
+            break;
+        }
+
+        if (presetMatches) {
+          return ha.makeSuccess('add_conditional_format_rule', {
+            ruleIndex: existingRules.indexOf(rule),
+            _idempotent: true,
+            _hint: `A conditional format rule with preset "${resolvedInput.rulePreset}" already exists for this range. Returning existing rule index.`,
+          });
+        }
+      }
+    }
+  } catch {
+    // Non-blocking: proceed with creation if check fails
+  }
+
   let request: sheets_v4.Schema$Request;
 
   switch (resolvedInput.rulePreset!) {

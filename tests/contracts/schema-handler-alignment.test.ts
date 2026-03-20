@@ -169,7 +169,7 @@ describe('Schema-Handler Alignment', () => {
         appsscript: 19,
         auth: 5,
         bigquery: 17,
-        collaborate: 40,
+        collaborate: 41,
         composite: 21,
         compute: 16,
         confirm: 5,

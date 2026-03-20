@@ -166,8 +166,8 @@ describe('SheetsDataHandler — auto_fill action (S3-B)', () => {
       const result = await handler.handle({
         action: 'auto_fill',
         spreadsheetId: 'test-id',
-        sourceRange: 'Sheet1!A1:A3',
-        fillRange: 'Sheet1!A4:A6',
+        sourceRange: { a1: 'Sheet1!A1:A3' },
+        fillRange: { a1: 'Sheet1!A4:A6' },
         strategy: 'linear',
       } as any);
 
@@ -203,8 +203,8 @@ describe('SheetsDataHandler — auto_fill action (S3-B)', () => {
       const result = await handler.handle({
         action: 'auto_fill',
         spreadsheetId: 'test-id',
-        sourceRange: 'Sheet1!A1:A4',
-        fillRange: 'Sheet1!A5:A6',
+        sourceRange: { a1: 'Sheet1!A1:A4' },
+        fillRange: { a1: 'Sheet1!A5:A6' },
         strategy: 'detect',
       } as any);
 
@@ -233,8 +233,8 @@ describe('SheetsDataHandler — auto_fill action (S3-B)', () => {
       const result = await handler.handle({
         action: 'auto_fill',
         spreadsheetId: 'test-id',
-        sourceRange: 'Sheet1!A1:A2',
-        fillRange: 'Sheet1!A3:A6',
+        sourceRange: { a1: 'Sheet1!A1:A2' },
+        fillRange: { a1: 'Sheet1!A3:A6' },
         strategy: 'repeat',
       } as any);
 
@@ -264,8 +264,8 @@ describe('SheetsDataHandler — auto_fill action (S3-B)', () => {
       const result = await handler.handle({
         action: 'auto_fill',
         spreadsheetId: 'nonexistent-id',
-        sourceRange: 'Sheet1!A1:A3',
-        fillRange: 'Sheet1!A4:A6',
+        sourceRange: { a1: 'Sheet1!A1:A3' },
+        fillRange: { a1: 'Sheet1!A4:A6' },
       } as any);
 
       expect(result.response.success).toBe(false);
@@ -280,8 +280,8 @@ describe('SheetsDataHandler — auto_fill action (S3-B)', () => {
       const result = await handler.handle({
         action: 'auto_fill',
         spreadsheetId: 'test-id',
-        sourceRange: 'Sheet1!A1:A3',
-        fillRange: 'Sheet1!A4:A6',
+        sourceRange: { a1: 'Sheet1!A1:A3' },
+        fillRange: { a1: 'Sheet1!A4:A6' },
       } as any);
 
       expect(result.response.success).toBe(false);

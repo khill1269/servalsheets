@@ -15,7 +15,7 @@ This checklist is the verified output of the March 15, 2026 coordinator audit. I
 
 - Normative source set: [docs/review/MCP_PROTOCOL_SOURCE_MANIFEST.md](../review/MCP_PROTOCOL_SOURCE_MANIFEST.md)
 - Coordinator dossier: [docs/review/MCP_PROTOCOL_COORDINATOR_AUDIT.md](../review/MCP_PROTOCOL_COORDINATOR_AUDIT.md)
-- Runtime snapshot validated on 2026-03-15: **25 tools, 402 actions, 48 prompts, 49 resources**
+- Runtime snapshot validated on 2026-03-15: **25 tools, 403 actions, 48 prompts, 49 resources**
 - Requested protocol target: **MCP 2025-11-25**
 - Official MCP landing page on 2026-03-15 advertised **2025-06-18** as the latest published revision, so this checklist is intentionally pinned to **2025-11-25** rather than “current MCP”.
 

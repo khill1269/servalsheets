@@ -284,6 +284,94 @@ export async function handleShareAddAction(
     return deps.error(preflightError);
   }
 
+  // Idempotency guard: check if permission already exists
+  try {
+    const existingPermissions = await deps.driveApi.permissions.list({
+      fileId: resolvedInput.spreadsheetId!,
+      fields: 'permissions(id,type,role,emailAddress,domain)',
+      supportsAllDrives: true,
+    });
+
+    const permissions = existingPermissions.data.permissions ?? [];
+    let matchingPermission: drive_v3.Schema$Permission | undefined;
+
+    if (resolvedInput.type === 'user' || resolvedInput.type === 'group') {
+      matchingPermission = permissions.find(
+        (p) =>
+          p.type === resolvedInput.type &&
+          p.emailAddress?.toLowerCase() === resolvedInput.emailAddress?.toLowerCase()
+      );
+      if (matchingPermission) {
+        // Check if existing role is same or higher
+        const roleHierarchy: Record<string, number> = {
+          owner: 3,
+          organizer: 2,
+          fileOrganizer: 2,
+          writer: 1,
+          commenter: 1,
+          reader: 0,
+        };
+        const existingRoleLevel = roleHierarchy[matchingPermission.role ?? 'reader'] ?? 0;
+        const requestedRoleLevel = roleHierarchy[resolvedInput.role ?? 'reader'] ?? 0;
+        if (existingRoleLevel >= requestedRoleLevel) {
+          return deps.success('share_add', {
+            permission: deps.mapPermission(matchingPermission),
+            _idempotent: true,
+            _hint: `Permission already exists for ${resolvedInput.emailAddress} with role "${matchingPermission.role}". Returning existing permission.`,
+          });
+        }
+      }
+    } else if (resolvedInput.type === 'domain') {
+      matchingPermission = permissions.find(
+        (p) =>
+          p.type === 'domain' &&
+          p.domain?.toLowerCase() === resolvedInput.domain?.toLowerCase()
+      );
+      if (matchingPermission) {
+        const roleHierarchy: Record<string, number> = {
+          owner: 3,
+          organizer: 2,
+          fileOrganizer: 2,
+          writer: 1,
+          commenter: 1,
+          reader: 0,
+        };
+        const existingRoleLevel = roleHierarchy[matchingPermission.role ?? 'reader'] ?? 0;
+        const requestedRoleLevel = roleHierarchy[resolvedInput.role ?? 'reader'] ?? 0;
+        if (existingRoleLevel >= requestedRoleLevel) {
+          return deps.success('share_add', {
+            permission: deps.mapPermission(matchingPermission),
+            _idempotent: true,
+            _hint: `Permission already exists for domain "${resolvedInput.domain}" with role "${matchingPermission.role}". Returning existing permission.`,
+          });
+        }
+      }
+    } else if (resolvedInput.type === 'anyone') {
+      matchingPermission = permissions.find((p) => p.type === 'anyone');
+      if (matchingPermission) {
+        const roleHierarchy: Record<string, number> = {
+          owner: 3,
+          organizer: 2,
+          fileOrganizer: 2,
+          writer: 1,
+          commenter: 1,
+          reader: 0,
+        };
+        const existingRoleLevel = roleHierarchy[matchingPermission.role ?? 'reader'] ?? 0;
+        const requestedRoleLevel = roleHierarchy[resolvedInput.role ?? 'reader'] ?? 0;
+        if (existingRoleLevel >= requestedRoleLevel) {
+          return deps.success('share_add', {
+            permission: deps.mapPermission(matchingPermission),
+            _idempotent: true,
+            _hint: `Permission already exists for "anyone" with role "${matchingPermission.role}". Returning existing permission.`,
+          });
+        }
+      }
+    }
+  } catch {
+    // Non-blocking: proceed with creation if permission check fails
+  }
+
   await driveRateLimiter.acquire();
   const requestBody: drive_v3.Schema$Permission = {
     type: resolvedInput.type,

@@ -279,6 +279,24 @@ export class SheetsTemplatesHandler extends BaseHandler<
     if (scopeError) return scopeError;
 
     try {
+      // Idempotency guard: check if a template with the same name already exists
+      try {
+        const existingTemplates = await this.templateStore.list();
+        const duplicate = existingTemplates.find((t) => t.name === req.name);
+        if (duplicate) {
+          const existingTemplate = await this.templateStore.get(duplicate.id);
+          if (existingTemplate) {
+            return this.success('create', {
+              template: existingTemplate,
+              _idempotent: true,
+              _hint: `Template "${req.name}" already exists. Returning existing template instead of creating a duplicate.`,
+            });
+          }
+        }
+      } catch {
+        // Non-blocking: proceed with creation if lookup fails
+      }
+
       // Get spreadsheet metadata
       const spreadsheet = await this.sheetsApi.spreadsheets.get({
         spreadsheetId: req.spreadsheetId,
