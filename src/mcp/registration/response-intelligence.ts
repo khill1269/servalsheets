@@ -175,7 +175,13 @@ export function applyResponseIntelligence(
       options.params
     );
     if (fix) {
-      error['suggestedFix'] = fix.explanation;
+      // Inject the full SuggestedFix object
+      error['suggestedFix'] = {
+        tool: fix.tool,
+        action: fix.action,
+        params: fix.params,
+        explanation: fix.explanation,
+      };
       // Wire structured fixableVia so LLMs can execute the fix directly
       if (!error['fixableVia']) {
         error['fixableVia'] = {
@@ -296,19 +302,24 @@ export function applyResponseIntelligence(
       getOptionalString(responseRecord, 'updatedRange') ??
       getOptionalString(responseRecord, 'range') ??
       '';
-    const verifyHints: Record<string, unknown> = {
-      ...(hints ?? {}),
-      verifyWrite:
-        writeRange && options.spreadsheetId
-          ? {
-              tool: 'sheets_data',
-              action: 'read',
-              params: { spreadsheetId: options.spreadsheetId, range: writeRange },
-              reason: 'Read back written range to verify data quality',
-            }
-          : undefined,
-    };
-    responseRecord['_hints'] = verifyHints;
+    const verifyWrite =
+      writeRange && options.spreadsheetId
+        ? {
+            tool: 'sheets_data',
+            action: 'read',
+            params: { spreadsheetId: options.spreadsheetId, range: writeRange },
+            reason: 'Read back written range to verify data quality',
+          }
+        : undefined;
+
+    // Only inject _hints if there's actual content (hints or verifyWrite)
+    if (hints || verifyWrite) {
+      const verifyHints: Record<string, unknown> = {
+        ...(hints ?? {}),
+        ...(verifyWrite ? { verifyWrite } : {}),
+      };
+      responseRecord['_hints'] = verifyHints;
+    }
   } else if (options.toolName === 'sheets_data' && actionName === 'append') {
     const appendedValues = responseValues ?? ([] as ResponseCellValue[][]);
     const rowCount = appendedValues.length;
