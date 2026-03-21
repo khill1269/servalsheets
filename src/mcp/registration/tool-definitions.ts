@@ -481,3 +481,11 @@ export function isToolCallAuthExempt(toolName: string, action?: string): boolean
   }
   return Boolean(action && policy.exemptActions.includes(action));
 }
+
+// ---------------------------------------------------------------------------
+// Architecture bridge: provide TOOL_DEFINITIONS input schemas to the services
+// layer without requiring services to import from mcp/registration (G3 fix).
+// ---------------------------------------------------------------------------
+import { registerToolInputSchemas } from '../../services/agent-engine.js';
+
+registerToolInputSchemas(new Map(TOOL_DEFINITIONS.map((t) => [t.name, t.inputSchema] as const)));

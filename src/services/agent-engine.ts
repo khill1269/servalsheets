@@ -21,7 +21,7 @@ import { encryptPlan, decryptPlan } from '../utils/plan-crypto.js';
 import { createRequestAbortError, getRequestContext } from '../utils/request-context.js';
 import { NotFoundError, ValidationError } from '../core/errors.js';
 import type { ErrorDetail } from '../schemas/shared.js';
-import { TOOL_DEFINITIONS } from '../mcp/registration/tool-definitions.js';
+import type { ZodTypeAny } from 'zod';
 import { getSessionContext } from './session-context.js';
 
 interface SamplingTextContent {
@@ -276,9 +276,21 @@ type SheetVerificationTarget = {
 
 type VerificationTarget = RangeVerificationTarget | SheetVerificationTarget;
 
-const TOOL_INPUT_SCHEMAS = new Map(
-  TOOL_DEFINITIONS.map((tool) => [tool.name, tool.inputSchema] as const)
-);
+// Populated by the MCP layer at startup via registerToolInputSchemas().
+// Using a setter avoids a services→mcp/registration architecture boundary violation.
+let _toolInputSchemas: Map<string, ZodTypeAny> | null = null;
+
+/**
+ * Called once by the MCP registration layer to provide tool input schemas for
+ * step-result validation. Must be called before any agent plans are executed.
+ */
+export function registerToolInputSchemas(schemas: Map<string, ZodTypeAny>): void {
+  _toolInputSchemas = schemas;
+}
+
+function getToolInputSchemas(): Map<string, ZodTypeAny> {
+  return _toolInputSchemas ?? new Map();
+}
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -460,7 +472,7 @@ function validateStepParamsAgainstSchema(
     return { params };
   }
 
-  const inputSchema = TOOL_INPUT_SCHEMAS.get(step.tool);
+  const inputSchema = getToolInputSchemas().get(step.tool);
   if (!inputSchema) {
     return { params };
   }

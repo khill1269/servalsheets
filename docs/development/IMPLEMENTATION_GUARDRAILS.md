@@ -3,7 +3,7 @@ title: Implementation Guardrails for Tier 7 Enterprise Tools
 category: development
 last_updated: 2026-01-31
 description: 'Purpose: Strict checklist to prevent coding errors and debugging cycles.'
-version: 1.6.0
+version: 1.7.0
 tags: [sheets]
 ---
 

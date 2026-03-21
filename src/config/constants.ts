@@ -4,6 +4,8 @@
  * Centralized configuration values and magic numbers
  */
 
+import path from 'path';
+
 // ============================================================================
 // Cache TTLs (in milliseconds)
 // ============================================================================
@@ -236,7 +238,9 @@ function resolveDeferSchemas(): boolean {
   if (envVal === 'true') return true;
   if (envVal === 'false') return false;
   // Auto-detect: --http flag OR http-server.ts entry point
-  const isHttp = process.argv.includes('--http') || (process.argv[1] ?? '').includes('http-server');
+  const entry = path.basename(process.argv[1] ?? '');
+  const isHttp =
+    process.argv.includes('--http') || entry === 'http-server.js' || entry === 'http-server.ts';
   return !isHttp;
 }
 export const DEFER_SCHEMAS = resolveDeferSchemas();

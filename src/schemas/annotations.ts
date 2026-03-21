@@ -3783,6 +3783,31 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
         'This creates a named snapshot. Verify you have write access to the spreadsheet.',
     },
   },
+  'sheets_collaborate.version_snapshot_status': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse: 'Polling the status of an asynchronous snapshot creation task',
+
+    errorRecovery: {
+      PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
+      QUOTA_EXCEEDED: 'Wait 60s then retry',
+      alternativeActions: [
+        {
+          tool: 'sheets_collaborate',
+          action: 'share_list',
+          when: 'when checking current permissions',
+        },
+        { tool: 'sheets_auth', action: 'login', when: 'when credentials need refreshing' },
+      ],
+      diagnosticSteps: [
+        'Verify the taskId was returned from version_create_snapshot',
+        'Confirm write access with sheets_collaborate.share_get',
+        'Check if the snapshot completed with version_list_snapshots',
+      ],
+      userGuidance:
+        'This polls the status of a snapshot creation task. Use the taskId returned from version_create_snapshot.',
+    },
+  },
   'sheets_collaborate.version_list_snapshots': {
     apiCalls: 1,
     idempotent: true,

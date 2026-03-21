@@ -133,6 +133,12 @@ export class ExcelOnlineBackend implements SpreadsheetBackend {
   private drivePrefix: string;
 
   constructor(config: ExcelOnlineConfig) {
+    if (process.env['ENABLE_EXPERIMENTAL_BACKENDS'] !== 'true') {
+      throw new Error(
+        'ExcelOnlineBackend is a scaffold and not production-ready. ' +
+          'Set ENABLE_EXPERIMENTAL_BACKENDS=true to use it.'
+      );
+    }
     this.client = config.client;
     this.drivePrefix = config.drivePrefix ?? '/me/drive/items/';
   }

@@ -265,3 +265,7 @@ docs/review/
 .probe-data/
 .probe-profiles/
 servalsheets-mega-prompt.md
+
+# Companion server runtime artifacts (M-18)
+tools/test-intelligence-server/test-intelligence.db
+tools/test-intelligence-server/*.db

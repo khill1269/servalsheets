@@ -473,6 +473,13 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   const rateLimitMax = options.rateLimitMax ?? envConfig.RATE_LIMIT_MAX;
   const trustProxy = options.trustProxy ?? false;
   const legacySseEnabled = envConfig.ENABLE_LEGACY_SSE;
+  if (legacySseEnabled) {
+    logger.warn(
+      'Legacy SSE transport (/sse endpoint) is deprecated per MCP 2025-11-25. ' +
+        'Migrate clients to the Streamable HTTP transport at /mcp. ' +
+        'Set ENABLE_LEGACY_SSE=false to suppress this warning.'
+    );
+  }
   const eventStoreRedisUrl = envConfig.REDIS_URL;
   const eventStoreTtlMs = envConfig.STREAMABLE_HTTP_EVENT_TTL_MS;
   const eventStoreMaxEvents = envConfig.STREAMABLE_HTTP_EVENT_MAX_EVENTS;

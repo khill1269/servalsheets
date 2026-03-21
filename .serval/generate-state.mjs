@@ -39,9 +39,20 @@ const pkgJson = safe(() => JSON.parse(readFileSync(`${ROOT}/package.json`, 'utf-
 const version = pkgJson.version || 'unknown';
 
 const protocolVersion = safe(() => {
-  const src = readFileSync(`${ROOT}/src/version.ts`, 'utf-8');
-  const match = src.match(/MCP_PROTOCOL_VERSION\s*=\s*['"]([^'"]+)['"]/);
-  return match ? match[1] : 'unknown';
+  // MCP_PROTOCOL_VERSION is defined in constants/protocol.ts (version.ts only re-exports it)
+  const candidates = [
+    `${ROOT}/src/constants/protocol.ts`,
+    `${ROOT}/src/constants/protocol.js`,
+    `${ROOT}/src/version.ts`,
+  ];
+  for (const f of candidates) {
+    try {
+      const src = readFileSync(f, 'utf-8');
+      const match = src.match(/MCP_PROTOCOL_VERSION\s*=\s*['"]([^'"]+)['"]/);
+      if (match) return match[1];
+    } catch { /* skip missing files */ }
+  }
+  return 'unknown';
 });
 
 // 2. Build status (fast check)

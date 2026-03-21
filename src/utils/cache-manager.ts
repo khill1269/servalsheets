@@ -21,8 +21,13 @@
  */
 
 import { logger } from './logger.js';
-import type { RequestMerger } from '../services/request-merger.js';
 import { ValidationError } from '../core/errors.js';
+
+// Minimal structural interface — avoids importing from services/ which creates
+// a circular dependency chain through the observability layer (G3 fix).
+interface RequestMerger {
+  readonly enabled: boolean;
+}
 
 export interface CacheEntry<T = unknown> {
   value: T;

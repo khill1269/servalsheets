@@ -61,6 +61,8 @@ const PUBLIC_API_FILES = new Set([
   'src/http-server.ts',
   'src/utils/webhook-verification.ts',
   'src/security/webhook-signature.ts',
+  // createAuditMiddleware is a documented factory API for integrators (used in tests + docs)
+  'src/middleware/audit-middleware.ts',
 ]);
 
 function isPublicApiFile(file) {

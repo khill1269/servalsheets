@@ -199,6 +199,12 @@ export class AirtableBackend implements SpreadsheetBackend {
   private recordIdCache: Map<string, string[]> = new Map();
 
   constructor(config: AirtableBackendConfig) {
+    if (process.env['ENABLE_EXPERIMENTAL_BACKENDS'] !== 'true') {
+      throw new Error(
+        'AirtableBackend is a scaffold and not production-ready. ' +
+          'Set ENABLE_EXPERIMENTAL_BACKENDS=true to use it.'
+      );
+    }
     this.client = config.client;
   }
 

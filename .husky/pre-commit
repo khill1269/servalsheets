@@ -118,7 +118,8 @@ if [ -n "$STAGED_TS_FILES" ]; then
 fi
 
 # Check for staged markdown files
-STAGED_MD_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.md$' || true)
+# Exclude paths listed in .markdownlintignore (auto-generated, internal)
+STAGED_MD_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.md$' | grep -v '^\.serval/' | grep -v '^\.claude/' | grep -v '^docs/archive/' | grep -v '^docs/generated/' || true)
 
 if [ -n "$STAGED_MD_FILES" ]; then
   # Check for audit documents

@@ -16,19 +16,24 @@ set -e
 echo "🔍 Checking for metadata drift..."
 echo ""
 
+# Cross-platform timeout wrapper: gtimeout (brew coreutils), timeout (Linux), or perl alarm (macOS built-in)
+# perl -e 'alarm N; exec @ARGV' is available on both macOS and Linux and needs no extra installs.
+_run_with_timeout() {
+  local secs="$1"; shift
+  if command -v gtimeout >/dev/null 2>&1; then
+    gtimeout "$secs" "$@"
+  elif command -v timeout >/dev/null 2>&1; then
+    timeout "$secs" "$@"
+  else
+    perl -e "alarm $secs; exec @ARGV or die $!" -- "$@"
+  fi
+}
+
 # Use node --import tsx to avoid npx tsx IPC pipe issues
-node --import tsx scripts/generate-metadata.ts --validate
+_run_with_timeout 60 node --import tsx scripts/generate-metadata.ts --validate
 
 echo ""
 echo "🔍 Checking source/dist runtime artifact consistency..."
-# Use gtimeout (macOS/brew coreutils) or timeout (Linux), fall back gracefully if neither available
-_TIMEOUT_CMD=$(command -v gtimeout || command -v timeout || echo "")
-if [ -n "$_TIMEOUT_CMD" ]; then
-  "$_TIMEOUT_CMD" 30 node --import tsx scripts/check-source-dist-consistency.ts --allow-missing-dist || {
-    echo "⚠️  Source/dist consistency check skipped (timeout or missing dist)"
-  }
-else
-  node --import tsx scripts/check-source-dist-consistency.ts --allow-missing-dist || {
-    echo "⚠️  Source/dist consistency check skipped (missing dist)"
-  }
-fi
+_run_with_timeout 30 node --import tsx scripts/check-source-dist-consistency.ts --allow-missing-dist || {
+  echo "⚠️  Source/dist consistency check skipped (timeout or missing dist)"
+}

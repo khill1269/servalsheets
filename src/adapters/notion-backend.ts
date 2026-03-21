@@ -250,6 +250,12 @@ export class NotionBackend implements SpreadsheetBackend {
   private schemaCache: Map<string, string[]> = new Map();
 
   constructor(config: NotionBackendConfig) {
+    if (process.env['ENABLE_EXPERIMENTAL_BACKENDS'] !== 'true') {
+      throw new Error(
+        'NotionBackend is a scaffold and not production-ready. ' +
+          'Set ENABLE_EXPERIMENTAL_BACKENDS=true to use it.'
+      );
+    }
     this.client = config.client;
     this.defaultParentPageId = config.defaultParentPageId;
   }

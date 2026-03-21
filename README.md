@@ -760,6 +760,18 @@ The key must be a 64-character hex string (32 bytes). Example:
 openssl rand -hex 32
 ```
 
+### Transport Security Model (RBAC)
+
+ServalSheets enforces role-based access control (RBAC) **only on HTTP transport**. STDIO transport (used by Claude Desktop and local CLI) trusts the local process by design — it runs under the user's account with their OS-level permissions, so an additional RBAC layer would be redundant.
+
+| Transport  | RBAC enforced? | Notes                                                           |
+| ---------- | -------------- | --------------------------------------------------------------- |
+| STDIO      | No             | Trusted local process (Claude Desktop model)                    |
+| HTTP / SSE | Yes            | JWT-based RBAC, configurable roles via `SERVAL_RBAC_*` env vars |
+| Remote MCP | Yes            | Per-user JWT claims validated on each request                   |
+
+If you are running ServalSheets as an HTTP server exposed to multiple users, ensure `JWT_SECRET` and `OAUTH_CLIENT_SECRET` are set and all traffic goes through HTTPS.
+
 ## Configuration
 
 ServalSheets supports extensive configuration via environment variables for production deployments.

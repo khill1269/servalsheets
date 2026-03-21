@@ -191,17 +191,20 @@ if (!result.response) throw new ResponseValidationError(); // Shape check
 **Step 3:** Test in `tests/handlers/{tool}.test.ts` — success + error paths (no `Math.random()`, no tautological assertions)
 **Step 4:** `npm run schema:commit`
 **Step 5 (if mutating):** Add action name to `MUTATION_ACTIONS` in `src/middleware/audit-middleware.ts`
+**Step 5b (if mutating):** Add action name to write-lock set in `src/middleware/mutation-safety-middleware.ts` — must match audit-middleware set or `npm run check:mutation-actions` fails
 **Step 6 (always):** Add cache invalidation rule in `src/services/cache-invalidation-graph.ts` (use `invalidates: []` for read-only)
 **Step 7 (if session-context wired):** Write back with `sessionContext.recordOperation()` — not just read/filter
 **Step 8 (if new error code):** Add code to `ErrorCodeSchema` in `src/schemas/shared.ts` before using it in handlers
 
 ## Source of Truth
 
-| Metric           | Source File            |
-| ---------------- | ---------------------- |
-| ACTION_COUNT     | `src/schemas/index.ts` |
-| TOOL_COUNT       | `src/schemas/index.ts` |
-| Protocol Version | `src/version.ts:14`    |
+| Metric           | Source File                                                                                    |
+| ---------------- | ---------------------------------------------------------------------------------------------- |
+| ACTION_COUNT     | `src/schemas/index.ts`                                                                         |
+| TOOL_COUNT       | `src/schemas/index.ts`                                                                         |
+| Protocol Version | `src/constants/protocol.ts` (re-exported via `src/version.ts:14`)                              |
+| TOOL_ACTIONS map | `src/mcp/completions.ts` — verified by `tests/contracts/completions-cross-map.test.ts`         |
+| MUTATION_ACTIONS | `src/middleware/audit-middleware.ts` (write-lock parity: `scripts/check-mutation-actions.mjs`) |
 
 Never hardcode these values — always reference the source file with `file:line`.
 

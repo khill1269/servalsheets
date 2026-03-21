@@ -18,6 +18,8 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { logger } from '../utils/logger.js';
 import { createServer } from 'net';
+import { TOOL_DEFINITIONS, ACTIVE_TOOL_DEFINITIONS } from '../mcp/registration/tool-definitions.js';
+import { getServerInstructions } from '../mcp/features-2025-11-25.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -347,6 +349,60 @@ async function checkPortAvailability(): Promise<PreflightResult> {
 }
 
 /**
+ * AQUI-VR G18 (H-2): Verify ACTIVE_TOOL_DEFINITIONS matches TOOL_DEFINITIONS when
+ * staged registration is disabled. Catches cases where a tool is accidentally excluded.
+ */
+async function checkToolRegistrationParity(): Promise<PreflightResult> {
+  const lazy = process.env['LAZY_LOAD_ENTERPRISE'] === 'true' || !!process.env['LAZY_LOAD_TOOLS'];
+  if (lazy) {
+    return {
+      passed: true,
+      message: `Staged registration active — ${ACTIVE_TOOL_DEFINITIONS.length}/${TOOL_DEFINITIONS.length} tools active`,
+      details: { active: ACTIVE_TOOL_DEFINITIONS.length, total: TOOL_DEFINITIONS.length },
+    };
+  }
+  if (ACTIVE_TOOL_DEFINITIONS.length !== TOOL_DEFINITIONS.length) {
+    const activeNames = new Set(ACTIVE_TOOL_DEFINITIONS.map((t) => t.name));
+    const missing = TOOL_DEFINITIONS.filter((t) => !activeNames.has(t.name)).map((t) => t.name);
+    return {
+      passed: false,
+      message: `ACTIVE_TOOL_DEFINITIONS (${ACTIVE_TOOL_DEFINITIONS.length}) !== TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length})`,
+      fix: `Tools missing from ACTIVE set: ${missing.join(', ')}. Check LAZY_LOAD_TOOLS env var.`,
+      details: { active: ACTIVE_TOOL_DEFINITIONS.length, total: TOOL_DEFINITIONS.length, missing },
+    };
+  }
+  return {
+    passed: true,
+    message: `All ${TOOL_DEFINITIONS.length} tools active`,
+    details: { active: ACTIVE_TOOL_DEFINITIONS.length, total: TOOL_DEFINITIONS.length },
+  };
+}
+
+/**
+ * AQUI-VR G23 (M-3): Warn if SERVER_INSTRUCTIONS exceeds 4096 chars.
+ * Some MCP clients truncate instructions at 2048 chars; the routing matrix
+ * may be cut if instructions grow too large.
+ */
+async function checkServerInstructionsLength(): Promise<PreflightResult> {
+  const instructions = getServerInstructions();
+  const len = instructions.length;
+  const WARN_THRESHOLD = 4096;
+  if (len > WARN_THRESHOLD) {
+    return {
+      passed: false,
+      message: `SERVER_INSTRUCTIONS is ${len} chars — some clients truncate at 2048`,
+      fix: 'Consider moving the routing matrix to a guide://routing-matrix resource to reduce instructions size.',
+      details: { length: len, threshold: WARN_THRESHOLD },
+    };
+  }
+  return {
+    passed: true,
+    message: `SERVER_INSTRUCTIONS length ${len} chars (within ${WARN_THRESHOLD} limit)`,
+    details: { length: len, threshold: WARN_THRESHOLD },
+  };
+}
+
+/**
  * Run all pre-flight checks
  */
 export async function runPreflightChecks(): Promise<PreflightResults> {
@@ -369,6 +425,10 @@ export async function runPreflightChecks(): Promise<PreflightResults> {
     { name: 'Configuration Validation', critical: true, check: checkConfiguration },
     { name: 'File System Permissions', critical: false, check: checkFileSystemPermissions },
     { name: 'Port Availability', critical: false, check: checkPortAvailability },
+    // AQUI-VR G18: ACTIVE_TOOL_DEFINITIONS parity (H-2)
+    { name: 'Tool Registration Parity', critical: false, check: checkToolRegistrationParity },
+    // AQUI-VR G23: SERVER_INSTRUCTIONS length (M-3)
+    { name: 'Server Instructions Length', critical: false, check: checkServerInstructionsLength },
   ];
 
   const startTime = Date.now();
