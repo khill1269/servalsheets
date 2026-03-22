@@ -83,9 +83,6 @@ export const GOOGLE_API_RATE_LIMIT = 60;
 /** Maximum concurrent requests */
 export const MAX_CONCURRENT_REQUESTS = parseInt(process.env['MAX_CONCURRENT_REQUESTS'] ?? '10', 10);
 
-/** Request timeout in milliseconds (configurable via REQUEST_TIMEOUT_MS env var, default: 30s) */
-export const REQUEST_TIMEOUT = parseInt(process.env['REQUEST_TIMEOUT_MS'] ?? '30000', 10);
-
 /** Graceful shutdown timeout (10 seconds, in milliseconds) */
 export const SHUTDOWN_TIMEOUT = 10000;
 

@@ -131,12 +131,16 @@ const EnvSchema = z.object({
   // RequestMerger: Merges overlapping range reads within 50ms window (20-40% API savings)
   // Enabled by default — production-ready with safe 50ms window and metrics tracking
   ENABLE_REQUEST_MERGING: strictBoolean().default(true),
+  // Collection window for merging overlapping range reads (milliseconds)
+  REQUEST_MERGER_WINDOW_MS: z.coerce.number().int().positive().default(50),
   // ParallelExecutor: Parallel execution for large batch operations (40% faster)
   // Enabled by default — 19 unit/integration tests pass, guarded by threshold (100+ ranges)
   ENABLE_PARALLEL_EXECUTOR: strictBoolean().default(true),
   PARALLEL_EXECUTOR_THRESHOLD: z.coerce.number().int().positive().default(100),
   // Number of concurrent requests in parallel executor (quota-safe default: 5)
   PARALLEL_CONCURRENCY: z.coerce.number().int().min(1).max(100).default(5),
+  // Max retries per task in parallel executor
+  PARALLEL_MAX_RETRIES: z.coerce.number().int().min(0).max(10).default(3),
   // Granular progress notifications for long-running operations
   // Enabled by default — non-breaking MCP-compliant progress updates for CSV import, dedup, batch ops
   ENABLE_GRANULAR_PROGRESS: strictBoolean().default(true),
@@ -337,9 +341,13 @@ const EnvSchema = z.object({
   // Intelligently prefetches data based on access patterns (adjacent ranges, predicted next access)
   // Enabled by default - production-ready with circuit breaker and background refresh
   ENABLE_PREFETCH: strictBoolean().default(true),
-  PREFETCH_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.5),
+  PREFETCH_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.6),
+  PREFETCH_MAX_PREDICTIONS: z.coerce.number().int().positive().default(5),
   PREFETCH_CONCURRENCY: z.coerce.number().int().positive().default(2),
   PREFETCH_BACKGROUND_REFRESH: strictBoolean().default(true),
+  // Access pattern tracker — learning window for predictive prefetching
+  ACCESS_PATTERN_MAX_HISTORY: z.coerce.number().int().positive().default(1000),
+  ACCESS_PATTERN_WINDOW_MS: z.coerce.number().int().positive().default(300000),
 
   // Python Compute (Pyodide WASM — Phase 2)
   // Disabled by default: first load is ~10-20 seconds (WASM download + package install).

@@ -7,7 +7,7 @@
  * @category Utils
  */
 
-import { REQUEST_TIMEOUT } from '../config/constants.js';
+import { getEnv } from '../config/env.js';
 import { logger as baseLogger } from './logger.js';
 
 /**
@@ -28,7 +28,7 @@ export class TimeoutError extends Error {
  * Wrap an async operation with a timeout
  *
  * @param operation Async operation to wrap
- * @param timeoutMs Timeout in milliseconds (default: REQUEST_TIMEOUT from config)
+ * @param timeoutMs Timeout in milliseconds (default: REQUEST_TIMEOUT_MS from env, 60s)
  * @param operationName Operation name for logging
  * @returns Result of the operation
  * @throws TimeoutError if operation exceeds timeout
@@ -42,7 +42,7 @@ export class TimeoutError extends Error {
  */
 export async function withTimeout<T>(
   operation: () => Promise<T>,
-  timeoutMs: number = REQUEST_TIMEOUT,
+  timeoutMs: number = getEnv().REQUEST_TIMEOUT_MS,
   operationName: string = 'operation'
 ): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
