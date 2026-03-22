@@ -64,15 +64,15 @@ handling, verbosity filtering, and service access.
 | ------------------- | -------------------------------------- | ------------------------------------- | ------- | -------------------------------------------------- |
 | sheets_auth         | AuthHandler                            | handlers/auth.ts (1581 lines)         | 5       | EncryptedFileTokenStore                            |
 | sheets_confirm      | ConfirmHandler                         | handlers/confirm.ts (475 lines)       | 5       | ElicitationServer, WizardSessions                  |
-| sheets_dependencies | DependenciesHandler                    | handlers/dependencies.ts (1153 lines) | 10      | ImpactAnalyzer (cached), ScenarioEngine            |
-| sheets_quality      | QualityHandler                         | handlers/quality.ts (612 lines)       | 4       | ValidationEngine, ConflictDetector                 |
+| sheets_dependencies | DependenciesHandler                    | handlers/dependencies.ts (1162 lines) | 10      | ImpactAnalyzer (cached), ScenarioEngine            |
+| sheets_quality      | QualityHandler                         | handlers/quality.ts (651 lines)       | 4       | ValidationEngine, ConflictDetector                 |
 | sheets_history      | HistoryHandler                         | handlers/history.ts (796 lines)       | 10      | HistoryService, SnapshotService, TimeTravelService |
 | sheets_session      | SessionHandler + handleSheetsSession() | handlers/session.ts (935 lines)       | 31      | SessionContextManager                              |
 | sheets_transaction  | TransactionHandler                     | handlers/transaction.ts (401 lines)   | 6       | TransactionManager                                 |
 | sheets_federation   | FederationHandler                      | handlers/federation.ts (409 lines)    | 4       | FederatedMcpClient                                 |
 | sheets_webhook      | WebhookHandler                         | handlers/webhooks.ts (670 lines)      | 10      | WebhookManager, Redis                              |
 | sheets_agent        | AgentHandler                           | handlers/agent.ts (375 lines)         | 8       | AgentEngine (plan/execute/rollback)                |
-| sheets_compute      | ComputeHandler                         | handlers/compute.ts (1699 lines)      | 16      | ComputeEngine (stats, regression, forecast)        |
+| sheets_compute      | ComputeHandler                         | handlers/compute.ts (1734 lines)      | 16      | ComputeEngine (stats, regression, forecast)        |
 | sheets_connectors   | ConnectorsHandler                      | handlers/connectors.ts (871 lines)    | 10      | ConnectorManager (external API connector registry) |
 
 <!-- END_GENERATED:handler-table-standalone -->
