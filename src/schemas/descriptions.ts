@@ -8,7 +8,7 @@
  * 4. **TOP 3 ACTIONS** - Most common usage patterns
  * 5. **SAFETY** - Destructive operation warnings
  *
- * Total: 25 tools, 403 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
+ * Total: 25 tools, 404 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
  *
  * SHARED CONTEXT (applies to all tools except sheets_auth):
  * - PREREQUISITE: sheets_auth must be authenticated before using any tool.
