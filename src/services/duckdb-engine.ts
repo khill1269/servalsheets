@@ -10,7 +10,7 @@ import { Worker } from 'worker_threads';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { ServiceError } from '../core/errors.js';
-import { ErrorCodes } from '../handlers/error-codes.js';
+import { ErrorCodes } from '../schemas/shared.js';
 
 // ============================================================================
 // Types

@@ -34,7 +34,6 @@ import {
   MAX_CHARACTERS_PER_CELL,
   URL_REGEX,
 } from '../config/google-limits.js';
-import { ValidationError } from '../core/errors.js';
 
 // ============================================================================
 // CELL-SPECIFIC SCHEMAS (from cells.ts)
@@ -740,9 +739,9 @@ const normalizeDataRequest = (val: unknown): unknown => {
   // Check for deprecated actions and throw helpful error
   // Use Object.hasOwn to prevent prototype pollution (e.g., __proto__, constructor)
   if (action && Object.hasOwn(DEPRECATED_ACTIONS, action)) {
-    throw new ValidationError(DEPRECATED_ACTIONS[action] as string, 'action', undefined, {
-      deprecatedAction: action,
-    });
+    // Throw plain Error — schemas are a leaf layer and must not import from core/errors.
+    // The tool handler's Zod parse catch will convert this to a typed ValidationError.
+    throw new Error(DEPRECATED_ACTIONS[action] as string);
   }
 
   // Alias: 'range' → 'cell' for cell-based actions (LLM compatibility)

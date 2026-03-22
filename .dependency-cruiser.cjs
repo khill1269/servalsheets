@@ -96,6 +96,7 @@ module.exports = {
         pathNot: [
           '^src/(services|schemas|utils|types|config|observability|errors|constants|core|mcp|security|analysis|resources)',
           '^src/handlers/',
+          '^src/connectors/', // handlers/connectors.ts + handlers/auth.ts import connectors layer (type imports + dynamic import)
         ],
       },
     },
@@ -112,6 +113,8 @@ module.exports = {
         pathNot: [
           '^src/(services|schemas|utils|types|config|observability|errors|constants|core|security|resources)',
           '^src/analysis/scout\\.ts$',
+          '^src/analysis/workbook-semantics\\.ts$', // understanding-store.ts uses SemanticIndex type
+          '^src/analysis/formula-helpers\\.ts$',    // sheet-generator.ts + sampling-analysis.ts (dynamic import)
           '^src/mcp/sampling\\.ts$',
         ],
       },
