@@ -22,6 +22,7 @@ import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
 import { createNotFoundError } from '../../utils/error-factory.js';
 import { logger } from '../../utils/logger.js';
 import { registerCleanup } from '../../utils/resource-cleanup.js';
+import { sendProgress } from '../../utils/request-context.js';
 
 const DRIVE_MIME_TYPES = {
   XLSX: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -237,6 +238,7 @@ export async function handleVersionListRevisionsAction(
     const PAGE_CAP = 100;
 
     // Fetch all revisions across Drive pages to find the cursor position.
+    await sendProgress(0, PAGE_CAP, 'Scanning revision history...');
     do {
       const resp = await deps.driveApi.revisions.list({
         fileId: input.spreadsheetId!,
@@ -248,6 +250,13 @@ export async function handleVersionListRevisionsAction(
       allRevisions.push(...(resp.data.revisions ?? []));
       pageToken = resp.data.nextPageToken ?? undefined;
       pageCount++;
+      if (pageCount % 10 === 0 || !pageToken) {
+        await sendProgress(
+          pageCount,
+          PAGE_CAP,
+          `Scanning revision history... (${allRevisions.length} revisions loaded)`
+        );
+      }
       if (pageCount >= PAGE_CAP) {
         logger.warn(
           `version_list_revisions: revision list capped at ${PAGE_CAP} pages for afterRevisionId cursor for spreadsheet ${input.spreadsheetId}`
@@ -563,6 +572,7 @@ export async function handleVersionCompareAction(
       let pageToken: string | undefined;
       let pageCount = 0;
       const PAGE_CAP = 100;
+      await sendProgress(0, PAGE_CAP, 'Resolving revision references...');
       do {
         const revisionsResponse = await deps.driveApi.revisions.list({
           fileId: input.spreadsheetId!,
@@ -574,6 +584,13 @@ export async function handleVersionCompareAction(
         revisionIds.push(...ids);
         pageToken = revisionsResponse.data.nextPageToken ?? undefined;
         pageCount++;
+        if (pageCount % 10 === 0 || !pageToken) {
+          await sendProgress(
+            pageCount,
+            PAGE_CAP,
+            `Resolving revision references... (${revisionIds.length} revisions scanned)`
+          );
+        }
         if (pageCount >= PAGE_CAP) {
           logger.warn(
             `version_compare: revision list capped at ${PAGE_CAP} pages (${revisionIds.length} revisions) for spreadsheet ${input.spreadsheetId}`

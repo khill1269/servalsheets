@@ -10,6 +10,10 @@ import { CollaborateHandler } from '../../src/handlers/collaborate.js';
 import { SheetsCollaborateOutputSchema } from '../../src/schemas/collaborate.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4, drive_v3 } from 'googleapis';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 // Mock Google Sheets API
 const createMockSheetsApi = () => ({
@@ -460,6 +464,87 @@ describe('CollaborateHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
+    });
+  });
+
+  describe('progress notifications (tranche E)', () => {
+    it('should emit progress notifications for version_list_revisions with afterRevisionId cursor', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'version-list-progress',
+        progressToken: 'version-list-progress',
+        sendNotification: notification,
+      });
+
+      mockDriveApi.revisions.list.mockResolvedValue({
+        data: {
+          revisions: [
+            { id: 'rev-1', modifiedTime: '2026-01-15T10:00:00Z' },
+            { id: 'rev-2', modifiedTime: '2026-01-16T10:00:00Z' },
+            { id: 'rev-3', modifiedTime: '2026-01-17T10:00:00Z' },
+          ],
+          // No nextPageToken → single page
+        },
+      });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'version_list_revisions',
+          spreadsheetId: 'test-spreadsheet-id',
+          afterRevisionId: 'rev-1',
+        })
+      );
+
+      expect(result.response.success).toBe(true);
+      // Should have emitted at least the initial progress notification
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({ progress: 0 }),
+      });
+    });
+
+    it('should emit progress notifications for version_compare when resolving head references', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'version-compare-progress',
+        progressToken: 'version-compare-progress',
+        sendNotification: notification,
+      });
+
+      mockDriveApi.revisions.list.mockResolvedValue({
+        data: {
+          revisions: [
+            { id: 'rev-1' },
+            { id: 'rev-2' },
+            { id: 'rev-3' },
+          ],
+        },
+      });
+      mockDriveApi.revisions.get
+        .mockResolvedValueOnce({
+          data: { id: 'rev-3', modifiedTime: '2026-01-17T10:00:00Z', size: '1024' },
+        })
+        .mockResolvedValueOnce({
+          data: { id: 'rev-2', modifiedTime: '2026-01-16T10:00:00Z', size: '900' },
+        });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'version_compare',
+          spreadsheetId: 'test-spreadsheet-id',
+          revisionId1: 'head~1',
+          revisionId2: 'head',
+        })
+      );
+
+      expect(result.response.success).toBe(true);
+      // Should have emitted progress during revision resolution
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({ progress: 0 }),
+      });
     });
   });
 });
