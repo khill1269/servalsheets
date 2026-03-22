@@ -6,7 +6,20 @@
 
 ## Current Phase
 
-**Session 92 (2026-03-21) — AQUI-VR remaining findings closure.** Branch `remediation/phase-1`. 403 actions (25 tools). Audit score: 97.1% → 100% (A+). All findings resolved or waived. M-8 (manual inspector check) and L-6/L-12 (monitors) are the only non-closed items. All 12 audit gates pass.
+**Session 93 (2026-03-21) — Wiring gaps + benchmark fix closure.** Branch `remediation/phase-1`. 403 actions (25 tools). All confirmed wiring gaps and real bugs implemented and committed. 5 commits on top of 66e594b. All 2729 tests pass, all gates green.
+
+## What Was Just Completed (Session 93)
+
+**Wiring gap closure + benchmark fix verification (full plan from Session 92 executed):**
+
+- **GAP-2 ✅**: ACTION_HINT_OVERRIDES added for 7 previously uncovered tools (sheets_analyze, sheets_fix, sheets_confirm, sheets_quality, sheets_transaction, sheets_templates, sheets_agent) — all 25 tools now have LLM tool discovery hints
+- **GAP-3 ✅**: CoT hints (`_hints`) extended to 7 more action types: sheets_format.suggest_format, sheets_history.diff_revisions + timeline, sheets_visualize.chart_create, sheets_quality.validate, sheets_collaborate.share_add, sheets_fix.suggest_cleaning — now 13 action types total
+- **GAP-4 ✅**: Non-critical Google Sheets API reachability preflight check added (skipped when no credentials configured; warns on network failure)
+- **BUG-1 ✅**: `preserveDataValidation?: boolean` on `write` action — uses batchUpdate/updateCells with `fields=userEnteredValue` to preserve existing data validation rules (default path still uses values.update)
+- **BUG-2 ✅**: `set_number_format` surfaces spreadsheet locale + timezone in response when format type is DATE/TIME/DATE_TIME — informational, non-blocking
+- **Phase 3 ✅**: Verified all 35 P1-P3 benchmark fixes — every action referenced already exists (execute_pipeline in sheets_session, execute_plan in sheets_analyze, detect_spill_ranges in sheets_data, etc.). Plan was usage guidance, not missing features. Updated tool hints to embed P0 patterns (UNFORMATTED_VALUE for reads, context-in-plan, observe-before-execute)
+
+**Commits**: dbf76a5, 7d2bb54, e4504ec, 6c268bd, c438208
 
 ## What Was Just Completed (Session 92)
 
