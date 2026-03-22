@@ -71,14 +71,14 @@ ISSUE-069,FIXED_PRE,,,,,,
 ISSUE-070,DONE,,,,,,
 ISSUE-071,OPEN,codex-security,wave1-security,,,,
 ISSUE-072,DONE,codex-security,wave1-security,,,,
-ISSUE-073,OPEN,codex-security,wave1-security,,,,
+ISSUE-073,DONE,codex-security,wave1-security,,,fd00c00,Session 88: all stale git worktrees removed; 15 stale branches deleted
 ISSUE-074,DONE,codex-security,wave1-security,,,,
 ISSUE-075,OPEN,codex-security,wave1-security,,,,
 ISSUE-076,OPEN,,,,,,
 ISSUE-077,OPEN,,,,,,
 ISSUE-078,OPEN,,,,,,
 ISSUE-079,OPEN,,,,,,
-ISSUE-240,OPEN,codex-protocol,mcp-audit-2026-03,,,,"Official MCP landing page revision differs from the pinned 2025-11-25 audit target; decide whether to document a long-term compatibility boundary or plan an upgrade."
+ISSUE-240,DONE,codex-protocol,mcp-audit-2026-03,,,dcb5d43,"Decision: maintain 2025-11-25 as long-term compatibility boundary. Protocol version pinned in src/constants/protocol.ts and re-exported via src/version.ts:14. Upgrade will be a deliberate breaking-change release when Anthropic ships a newer stable spec."
 ISSUE-241,FIXED_PRE,codex-protocol,mcp-audit-2026-03,,,,"Implemented session-scoped resources/subscribe and resources/unsubscribe handlers, enabled notifications/resources/updated emission, and updated discovery metadata to advertise resources.subscriptions=true."
 ISSUE-242,FIXED_PRE,codex-protocol,mcp-audit-2026-03,,,,"Refreshed coordinator/compliance audit artifacts to match the verified runtime resource-subscription surface and current tool/action counts."
 ISSUE-080,FIXED_PRE,,,,,,
@@ -239,6 +239,6 @@ ISSUE-233,DONE,,,,,,
 ISSUE-234,DONE,,,,,,
 ISSUE-235,OPEN,,,,,,
 ISSUE-236,OPEN,,,,,,
-ISSUE-237,OPEN,,,,,,
+ISSUE-237,DONE,,,,,d189c18,Session 41: tautological assertions and non-deterministic test data fixed; anti-pattern rules added to CLAUDE.md
 ISSUE-238,OPEN,,,,,,
 ISSUE-239,FALSE_ALARM,,,,,,
