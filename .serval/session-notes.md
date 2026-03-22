@@ -6,7 +6,29 @@
 
 ## Current Phase
 
-**Session 99 (2026-03-22) — Remediation phase-1 bug fix batch + TypeScript cleanup.** Branch `remediation/phase-1`. 404 actions (25 tools). 2742/2742 tests pass. TypeScript clean.
+**Session 100 (2026-03-22) — Merge remediation/phase-1 into main via PR #37.** Branch `remediation/phase-1`. 404 actions (25 tools). 25 tools / 404 actions. TypeScript clean. Working tree clean.
+
+## What Was Just Completed (Session 100)
+
+**Merge `remediation/phase-1` → `main` (PR #37):**
+
+- Resolved all 11 merge conflicts from `git merge main --no-edit`
+- **Conflict strategy:**
+  - CI workflows, `.dependency-cruiser.cjs`, `docs/guides/ONBOARDING.md` → took main
+  - `mutation-safety-middleware.ts` → took main (`hasFormulaPassthroughSafety` regression fix)
+  - `security-agent.ts` → took main + fixed unused `context` param lint error
+  - `worker-runner.ts` → merged: kept typed error imports + main's `assertAllowedWorkerScriptPath()`
+  - `rest-generic.ts` → kept HEAD's typed error imports (`ConfigError`, `NotFoundError`, `ServiceError`)
+  - `README.md` → main's badge/count text; kept HEAD's SDK 1.27.1
+  - `package.json` → merged detailed e2e scripts + added main's `test:coverage:report`
+- Fixed pre-commit failures: ONBOARDING.md frontmatter (`guides` → `guide`), doc count sync, unused param
+- Synced `src/generated/manifest.json` stale count (397 → 404)
+- Pushed to `remediation/phase-1` — PR #37 is conflict-free and ready to merge
+
+**Remaining (maintainer-only, not blocking PR merge):**
+
+- `npm publish @serval/core v0.2.0` (ISSUE-075)
+- Add `ANTHROPIC_API_KEY` to `claude_desktop_config.json` env block (manual — user must add own key)
 
 ## What Was Just Completed (Session 99)
 
