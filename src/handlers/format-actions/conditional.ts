@@ -7,7 +7,11 @@
 
 import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
-import { buildGridRangeInput, toGridRange } from '../../utils/google-sheets-helpers.js';
+import {
+  buildGridRangeInput,
+  toGridRange,
+  parseA1Notation,
+} from '../../utils/google-sheets-helpers.js';
 import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
 import { confirmDestructiveAction, elicitConditionalFormatPreset } from '../../mcp/elicitation.js';
 import type { FormatResponse, FormatRequest } from '../../schemas/index.js';
@@ -443,15 +447,17 @@ export async function handleAddConditionalFormatRule(
           case 'highlight_duplicates':
             presetMatches = !!(
               rule.booleanRule?.condition?.type === 'CUSTOM_FORMULA' &&
-              rule.booleanRule?.condition?.values?.[0]?.userEnteredValue?.includes('COUNTIF'));
+              rule.booleanRule?.condition?.values?.[0]?.userEnteredValue?.includes('COUNTIF')
+            );
             break;
           case 'highlight_blanks':
-            presetMatches = (rule.booleanRule?.condition?.type === 'BLANK') || false;
+            presetMatches = rule.booleanRule?.condition?.type === 'BLANK' || false;
             break;
           case 'highlight_errors':
             presetMatches = !!(
               rule.booleanRule?.condition?.type === 'CUSTOM_FORMULA' &&
-              rule.booleanRule?.condition?.values?.[0]?.userEnteredValue?.includes('ISERROR'));
+              rule.booleanRule?.condition?.values?.[0]?.userEnteredValue?.includes('ISERROR')
+            );
             break;
           case 'color_scale_green_red':
           case 'color_scale_blue_red':
@@ -856,7 +862,6 @@ export async function handleGenerateConditionalFormat(
   const {
     spreadsheetId,
     description,
-    sheetId = 0,
     applyImmediately = true,
   } = input as {
     spreadsheetId: string;
@@ -866,6 +871,27 @@ export async function handleGenerateConditionalFormat(
     applyImmediately?: boolean;
   };
   const range = (input as Record<string, unknown>)['range'] as unknown;
+
+  // BUG-7 fix: Resolve sheetId from range when not explicitly provided.
+  // Previously defaulted to 0, which may not match the target sheet and
+  // could produce NaN when sheet names with spaces fail parseInt.
+  let sheetId = (input as Record<string, unknown>)['sheetId'] as number | undefined;
+  if (sheetId === undefined || sheetId === null || Number.isNaN(sheetId)) {
+    try {
+      const rangeStr = typeof range === 'string' ? range : (range as { a1?: string })?.a1;
+      if (rangeStr) {
+        const parsed = parseA1Notation(rangeStr);
+        if (parsed.sheetName) {
+          sheetId = await ha.getSheetId(spreadsheetId, parsed.sheetName);
+        }
+      }
+    } catch {
+      // Fall through to default
+    }
+    if (sheetId === undefined || sheetId === null || Number.isNaN(sheetId)) {
+      sheetId = 0;
+    }
+  }
 
   const parsed = parseNLConditionalFormat(description);
   if (!parsed.success) {
