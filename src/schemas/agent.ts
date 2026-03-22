@@ -83,7 +83,12 @@ const ExecuteActionSchema = CommonFieldsSchema.extend({
 const ExecuteStepActionSchema = CommonFieldsSchema.extend({
   action: z.literal('execute_step').describe('Execute single step from plan'),
   planId: z.string().min(1).describe('Plan ID'),
-  stepId: z.string().min(1).describe('Step ID from plan'),
+  // BUG-15 fix: Accept both string step IDs and numeric step indices.
+  // Plan responses use numeric indices (0, 1, 2) but schema originally required string.
+  stepId: z
+    .union([z.string().min(1), z.number().int().min(0)])
+    .transform((val) => String(val))
+    .describe('Step ID or index from plan (string or number)'),
 }).strict();
 
 const ObserveActionSchema = CommonFieldsSchema.extend({

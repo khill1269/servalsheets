@@ -1144,6 +1144,29 @@ export const ErrorDetailSchema = z.object({
   retryable: z.boolean().optional().default(false),
   retryAfterMs: z.number().int().positive().optional(),
   suggestedFix: z.string().optional(),
+  // BUG-8 fix: fixableVia is auto-injected by error-fix-suggester in BaseHandler.mapError()
+  // as a structured object. Previously missing from schema, causing output validation failures.
+  fixableVia: z
+    .object({
+      tool: z.string().describe('Tool name to fix the issue'),
+      action: z.string().describe('Action name to fix the issue'),
+      params: z
+        .record(
+          z.string(),
+          z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.array(z.any()),
+            z.record(z.string(), z.any()),
+            z.null(),
+          ])
+        )
+        .optional()
+        .describe('Suggested parameters for the fix action'),
+    })
+    .optional()
+    .describe('Structured fix suggestion with tool/action to resolve the error'),
   alternatives: z
     .array(
       z.object({
@@ -1176,32 +1199,6 @@ export const ErrorDetailSchema = z.object({
     .array(z.string())
     .optional()
     .describe('Tools that might help resolve this error'),
-  // Automated error recovery
-  fixableVia: z
-    .object({
-      tool: z.string().describe('Tool name to fix the error'),
-      action: z.string().describe('Action name to execute'),
-      params: z
-        .record(
-          z.string(),
-          z.union([
-            z.string(),
-            z.number(),
-            z.boolean(),
-            z.null(),
-            z.array(z.any()),
-            z.record(z.string(), z.any()),
-          ])
-        )
-        .optional()
-        .describe('Parameters ready to execute the fix action'),
-      explanation: z
-        .string()
-        .optional()
-        .describe('Human-readable explanation of why this fix is suggested'),
-    })
-    .optional()
-    .describe('Automated fix action with complete parameters'),
   // Quick Win #2: Resource links for error guidance
   resources: z
     .array(
@@ -1230,7 +1227,9 @@ export const MutationSummarySchema = z.object({
 export const SheetInfoSchema = z.object({
   sheetId: z.number().int(),
   title: z.string(),
-  index: z.number().int(),
+  // BUG-1 fix: Google API may not return index for all sheet types.
+  // Made optional with default 0 to prevent output validation failures.
+  index: z.number().int().optional().default(0),
   rowCount: z.number().int(),
   columnCount: z.number().int(),
   hidden: z.boolean().optional().default(false),
