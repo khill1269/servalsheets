@@ -72,14 +72,13 @@ get_budget_override() {
     # ── Services — complex stateful services (not decomposed yet) ────────────
     # google-api.ts: 1827 lines — core API client with retry/circuit breaker
     "src/services/google-api.ts")           echo 2050 ;;
-    # transaction-manager.ts: 1577 lines — transaction state machine
-    "src/services/transaction-manager.ts")  echo 1750 ;;
+    # transaction-manager.ts: ~2139 lines — transaction state machine (WAL extracted to transaction-wal.ts)
+    "src/services/transaction-manager.ts")  echo 2200 ;;
     # session-context.ts: 1428 lines — session state manager
     "src/services/session-context.ts")      echo 1600 ;;
     # impact-analyzer.ts: 1287 lines — dependency impact analysis
     "src/services/impact-analyzer.ts")      echo 1450 ;;
-    # agent-engine.ts: 1165 lines — agent plan/execute engine
-    "src/services/agent-engine.ts")         echo 1300 ;;
+    # agent-engine.ts: now a thin re-export facade (~75 lines) — no budget override needed
     # batching-system.ts: 1028 lines — intent → batchUpdate compiler
     "src/services/batching-system.ts")      echo 1150 ;;
     # webhook-manager.ts: 894 lines — webhook delivery

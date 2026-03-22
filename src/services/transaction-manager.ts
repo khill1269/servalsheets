@@ -16,8 +16,7 @@
  * await txManager.commit(tx.id); // Both ops in single API call
  */
 
-import { promises as fsPromises, existsSync, mkdirSync } from 'fs';
-import { dirname, join } from 'path';
+import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger.js';
 import type { sheets_v4 } from 'googleapis';
@@ -47,29 +46,9 @@ import {
 import { registerCleanup } from '../utils/resource-cleanup.js';
 import { getEnv } from '../config/env.js';
 import { ServiceError, ValidationError, NotFoundError } from '../core/errors.js';
-
-interface WalEntry {
-  seq?: number;
-  txId: string;
-  type: TransactionEvent['type'];
-  ts: number;
-  data?: unknown;
-}
-
-interface WalRecoveryTransaction {
-  transactionId: string;
-  spreadsheetId?: string;
-  snapshotId?: string;
-  queuedOperations: number;
-  lastEventType: TransactionEvent['type'];
-  lastEventTimestamp: number;
-}
-
-export interface WalRecoveryReport {
-  enabled: boolean;
-  walPath?: string;
-  orphanedTransactions: WalRecoveryTransaction[];
-}
+import { WalManager } from './transaction-wal.js';
+import type { WalRecoveryReport } from './transaction-wal.js';
+export type { WalRecoveryReport } from './transaction-wal.js';
 
 interface SheetLookupContext {
   nameToId: Map<string, number>;
@@ -97,13 +76,8 @@ export class TransactionManager {
   private operationIdCounter: number;
   // Phase 1: Timer cleanup
   private snapshotCleanupInterval?: NodeJS.Timeout;
-  // DR-01: Write-ahead log
-  private walEnabled: boolean;
-  private walPath: string;
-  private walSeq = 0;
-  private walReady: Promise<void>;
-  private walWriteChain: Promise<void>;
-  private walOrphanedTransactions: WalRecoveryTransaction[];
+  // DR-01: Write-ahead log (null when WAL is disabled)
+  private wal: WalManager | null;
 
   constructor(config: TransactionConfig = {}) {
     this.googleClient = config.googleClient;
@@ -143,11 +117,7 @@ export class TransactionManager {
 
     // DR-01: Initialize write-ahead log (enabled when TRANSACTION_WAL_DIR is set)
     const walDir = config.walDir ?? process.env['TRANSACTION_WAL_DIR'];
-    this.walEnabled = !!walDir;
-    this.walPath = walDir ? join(walDir, 'transactions.wal.jsonl') : '';
-    this.walWriteChain = Promise.resolve();
-    this.walOrphanedTransactions = [];
-    this.walReady = this.walEnabled ? this.initWal() : Promise.resolve();
+    this.wal = walDir ? new WalManager(join(walDir, 'transactions.wal.jsonl')) : null;
   }
 
   /**
@@ -370,8 +340,8 @@ export class TransactionManager {
       });
 
       // DR-01: Compact WAL — remove completed transaction's entries
-      if (this.walEnabled) {
-        await this.compactWal(transactionId);
+      if (this.wal) {
+        await this.wal.compact(transactionId);
       }
 
       // Cleanup
@@ -411,8 +381,8 @@ export class TransactionManager {
       });
 
       // DR-01: Compact WAL for terminal failed transactions.
-      if (this.walEnabled) {
-        await this.compactWal(transactionId);
+      if (this.wal) {
+        await this.wal.compact(transactionId);
       }
 
       // Cleanup
@@ -469,8 +439,8 @@ export class TransactionManager {
       });
 
       // DR-01: Compact WAL — remove rolled-back transaction's entries
-      if (this.walEnabled) {
-        await this.compactWal(transactionId);
+      if (this.wal) {
+        await this.wal.compact(transactionId);
       }
 
       return {
@@ -1992,188 +1962,13 @@ export class TransactionManager {
     }
   }
 
-  // ==========================================================================
-  // DR-01: Write-Ahead Log (WAL)
-  // ==========================================================================
-
-  /**
-   * Ensure WAL directory exists and replay any orphaned transactions from a previous crash.
-   */
-  private async initWal(): Promise<void> {
-    try {
-      const walDir = dirname(this.walPath);
-      if (!existsSync(walDir)) {
-        mkdirSync(walDir, { recursive: true, mode: 0o750 });
-      }
-      await this.replayWal();
-    } catch (error) {
-      logger.error('WAL initialization failed', {
-        error: error instanceof Error ? error.message : String(error),
-        walPath: this.walPath,
-      });
-    }
-  }
-
-  /**
-   * Append a transaction event to the WAL.
-   * Format: one JSON object per line — { seq, txId, type, ts, data }
-   */
-  private async appendWalEntry(event: TransactionEvent): Promise<void> {
-    await this.walReady;
-    await this.runWalOperation('append', async () => {
-      const entry =
-        JSON.stringify({
-          seq: ++this.walSeq,
-          txId: event.transactionId,
-          type: event.type,
-          ts: event.timestamp,
-          data: event.data ?? {},
-        }) + '\n';
-      await fsPromises.appendFile(this.walPath, entry, { flag: 'a', mode: 0o640 });
-    });
-  }
-
-  /**
-   * On startup, scan the WAL for transactions that started but never committed or rolled back.
-   * These represent in-flight transactions from a previous crash.
-   */
-  private async replayWal(): Promise<void> {
-    if (!existsSync(this.walPath)) return;
-    try {
-      const content = await fsPromises.readFile(this.walPath, 'utf8');
-      const lines = content.split('\n').filter(Boolean);
-      const txEvents = new Map<
-        string,
-        {
-          hasBegin: boolean;
-          completed: boolean;
-          queuedOperations: number;
-          spreadsheetId?: string;
-          snapshotId?: string;
-          lastEventType: TransactionEvent['type'];
-          lastEventTimestamp: number;
-        }
-      >();
-      for (const line of lines) {
-        try {
-          const entry = JSON.parse(line) as WalEntry;
-          this.walSeq = Math.max(this.walSeq, entry.seq ?? 0);
-
-          const state = txEvents.get(entry.txId) ?? {
-            hasBegin: false,
-            completed: false,
-            queuedOperations: 0,
-            lastEventType: entry.type,
-            lastEventTimestamp: entry.ts,
-          };
-
-          state.lastEventType = entry.type;
-          state.lastEventTimestamp = entry.ts;
-
-          if (entry.type === 'begin') {
-            state.hasBegin = true;
-            const beginData =
-              entry.data && typeof entry.data === 'object'
-                ? (entry.data as Record<string, unknown>)
-                : undefined;
-            const spreadsheetId = beginData?.['spreadsheetId'];
-            const snapshotId = beginData?.['snapshot'];
-            if (typeof spreadsheetId === 'string') {
-              state.spreadsheetId = spreadsheetId;
-            }
-            if (typeof snapshotId === 'string') {
-              state.snapshotId = snapshotId;
-            }
-          }
-
-          if (entry.type === 'queue') {
-            state.queuedOperations += 1;
-          }
-
-          if (entry.type === 'commit' || entry.type === 'rollback' || entry.type === 'fail') {
-            state.completed = true;
-          }
-
-          txEvents.set(entry.txId, state);
-        } catch {
-          // Ignore malformed WAL lines
-        }
-      }
-      const orphaned: WalRecoveryTransaction[] = [];
-      for (const [txId, state] of txEvents) {
-        if (state.hasBegin && !state.completed) {
-          orphaned.push({
-            transactionId: txId,
-            spreadsheetId: state.spreadsheetId,
-            snapshotId: state.snapshotId,
-            queuedOperations: state.queuedOperations,
-            lastEventType: state.lastEventType,
-            lastEventTimestamp: state.lastEventTimestamp,
-          });
-        }
-      }
-      this.walOrphanedTransactions = orphaned;
-
-      if (this.walOrphanedTransactions.length > 0) {
-        logger.warn('WAL replay: orphaned transactions detected from previous crash', {
-          count: this.walOrphanedTransactions.length,
-          transactions: this.walOrphanedTransactions.map((tx) => ({
-            transactionId: tx.transactionId,
-            spreadsheetId: tx.spreadsheetId,
-            snapshotId: tx.snapshotId,
-            queuedOperations: tx.queuedOperations,
-          })),
-        });
-      } else {
-        logger.info('WAL replay: no orphaned transactions', { walPath: this.walPath });
-      }
-    } catch (error) {
-      logger.warn('WAL replay failed', {
-        error: error instanceof Error ? error.message : String(error),
-        walPath: this.walPath,
-      });
-    }
-  }
-
-  /**
-   * Rewrite the WAL removing all entries for a completed transaction.
-   * Uses an atomic temp-file rename to prevent partial writes.
-   */
-  private async compactWal(completedTxId: string): Promise<void> {
-    await this.walReady;
-    await this.runWalOperation('compact', async () => {
-      if (!existsSync(this.walPath)) return;
-
-      const content = await fsPromises.readFile(this.walPath, 'utf8');
-      const remaining = content
-        .split('\n')
-        .filter((line) => {
-          if (!line) return false;
-          try {
-            const entry = JSON.parse(line) as { txId: string };
-            return entry.txId !== completedTxId;
-          } catch {
-            return true; // Keep malformed lines (don't lose data)
-          }
-        })
-        .join('\n');
-      const tmpPath = this.walPath + '.tmp';
-      await fsPromises.writeFile(tmpPath, remaining ? remaining + '\n' : '', { mode: 0o640 });
-      await fsPromises.rename(tmpPath, this.walPath);
-
-      this.walOrphanedTransactions = this.walOrphanedTransactions.filter(
-        (tx) => tx.transactionId !== completedTxId
-      );
-    });
-  }
-
   /**
    * Emit event to listeners
    */
   private async emitEvent(event: TransactionEvent): Promise<void> {
     // DR-01: Append to WAL before notifying listeners.
-    if (this.walEnabled) {
-      await this.appendWalEntry(event);
+    if (this.wal) {
+      await this.wal.append(event);
     }
     for (const listener of [...this.listeners]) {
       try {
@@ -2209,19 +2004,13 @@ export class TransactionManager {
    * Return WAL recovery status captured at startup replay.
    */
   async getWalRecoveryReport(): Promise<WalRecoveryReport> {
-    await this.walReady;
-    if (!this.walEnabled) {
+    if (!this.wal) {
       return {
         enabled: false,
         orphanedTransactions: [],
       };
     }
-
-    return {
-      enabled: true,
-      walPath: this.walPath,
-      orphanedTransactions: [...this.walOrphanedTransactions],
-    };
+    return this.wal.getRecoveryReport();
   }
 
   /**
@@ -2229,18 +2018,12 @@ export class TransactionManager {
    * Removes the transaction from the orphan list and compacts the WAL.
    */
   async discardOrphanedTransaction(transactionId: string): Promise<void> {
-    const exists = this.walOrphanedTransactions.some((tx) => tx.transactionId === transactionId);
-    if (!exists) {
+    if (this.wal) {
+      await this.wal.discardOrphaned(transactionId);
+    } else {
+      // WAL disabled — error as NotFoundError (orphaned list is empty without WAL)
       throw new NotFoundError('orphaned transaction', transactionId);
     }
-    if (this.walEnabled) {
-      await this.compactWal(transactionId);
-    } else {
-      this.walOrphanedTransactions = this.walOrphanedTransactions.filter(
-        (tx) => tx.transactionId !== transactionId
-      );
-    }
-    logger.info('Discarded orphaned WAL transaction', { transactionId });
   }
 
   /**
@@ -2284,28 +2067,13 @@ export class TransactionManager {
         timestamp: Date.now(),
         data: { error: 'Transaction cancelled without snapshot rollback', cancelled: true },
       });
-      if (this.walEnabled) {
-        await this.compactWal(transactionId);
+      if (this.wal) {
+        await this.wal.compact(transactionId);
       }
     }
 
     this.activeTransactions.delete(transactionId);
     this.stats.activeTransactions--;
-  }
-
-  private runWalOperation(operationName: string, operation: () => Promise<void>): Promise<void> {
-    this.walWriteChain = this.walWriteChain.then(async () => {
-      try {
-        await operation();
-      } catch (error) {
-        logger.warn('WAL operation failed', {
-          operation: operationName,
-          error: error instanceof Error ? error.message : String(error),
-          walPath: this.walPath,
-        });
-      }
-    });
-    return this.walWriteChain;
   }
 }
 
