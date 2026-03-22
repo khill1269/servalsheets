@@ -773,6 +773,14 @@ These actions invoke LLM analysis automatically (Sampling SEP-1577):
 7. **Use verbosity:"minimal"** to save tokens when you don't need full response
 8. **Use sheets_transaction for 5+ operations** — Saves 80-95% API calls and ensures atomicity. Example: Updating 50 rows = 1 transaction call instead of 50 individual writes. Don't use for 1-4 operations (overhead exceeds benefit)
 9. **\`find_replace\` is for patterns, NOT targeted updates** (ISSUE-208) — If you know the cell address, use \`data.write\`. \`find_replace\` scans the entire range for a regex pattern — slow, non-deterministic for single-cell updates, and may match unintended cells. Rule: "Do I know WHERE to write?" → write. "Do I need to search?" → find_replace.
+10. **Use \`valueRenderOption: "UNFORMATTED_VALUE"\` for numeric reads** — When results will be used in calculations or comparisons, always set \`valueRenderOption: "UNFORMATTED_VALUE"\`. The default \`FORMATTED_VALUE\` returns locale-formatted strings like \`"$1,234.56"\` or \`"1.234,56"\` that break numeric operations. Only use \`FORMATTED_VALUE\` when displaying data to humans.
+11. **Use \`valueInputOption: "USER_ENTERED"\` for formula writes** — When writing formulas (strings starting with \`=\`), set \`valueInputOption: "USER_ENTERED"\`. The default \`RAW\` writes the formula as a literal string — the cell shows \`=SUM(A1:A10)\` as text rather than evaluating it. Symptom: cell displays the formula text unchanged after write.
+12. **Use \`batch_write\` for formula extension, not sequential writes** — To fill a formula down N rows, use \`sheets_data.batch_write\` with N range-value pairs in ONE call. Sequential writes waste 90% of API quota and trigger rate limits. Example: fill \`=B{row}-C{row}\` for rows 2–51 as 50 entries in a single \`batch_write\`.
+13. **Validate formulas after batch writes** — After any batch formula write, call \`sheets_analyze.analyze_formulas\` with \`checkErrors: true\` on the written range to detect \`#ERROR!\`, \`#REF!\`, \`#NAME?\` cells. The Sheets API returns HTTP 200 even when formulas produce errors — never assume a successful write means correct formula evaluation.
+
+## ⚠️ FORMULA LOCALE AWARENESS
+
+Non-English spreadsheets (locale \`fr_FR\`, \`de_DE\`, etc.) use \`;\` as the function argument separator instead of \`,\`, and \`,\` as the decimal separator. Use \`sheets_format.set_number_format\` to read \`spreadsheetLocale\` before writing formulas in unfamiliar spreadsheets. Formula evaluator actions (\`model_scenario\`, \`compare_scenarios\`) handle locale automatically.
 
 ## 🔁 ERROR SELF-CORRECTION PROTOCOL
 
