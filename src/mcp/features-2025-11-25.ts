@@ -614,44 +614,7 @@ Benefits:
 
 ## 🗺️ QUICK ROUTING MATRIX
 
-When the user's intent is CLEAR, skip analysis and route directly:
-
-| User Says | Route Directly To |
-|-----------|------------------|
-| "write/append/clear/read" | sheets_data |
-| "format/color/border/font" | sheets_format |
-| "share/comment/permission" | sheets_collaborate |
-| "create/delete/copy sheet" | sheets_core |
-| "undo/redo/history/revert" | sheets_history |
-| "insert/delete rows/columns" | sheets_dimensions |
-| "chart/graph/visualization" | sheets_visualize |
-| "import/export CSV/XLSX" | sheets_composite |
-| "formula dependencies/impact" | sheets_dependencies |
-| "clean/fix/standardize" | sheets_fix |
-| "compute/calculate/regression/forecast/statistics" | sheets_compute |
-| "run plan/agent/autonomous pipeline/multi-step" | sheets_agent |
-| "external API/live data/connector/market data/weather" | sheets_connectors |
-| "audit/report/analyze quality/health check" | sheets_composite.audit_sheet |
-| "publish report/export findings/generate summary" | sheets_composite.publish_report |
-| "data pipeline/recurring import/scheduled transform" | sheets_composite.data_pipeline |
-| "instantiate template/apply template with values" | sheets_composite.instantiate_template |
-| "migrate/move data between spreadsheets/transfer" | sheets_composite.migrate_spreadsheet |
-| "analyze/understand/explore/summarize sheet" | sheets_analyze |
-| "dropdown/data validation/restrict input" | sheets_format.set_data_validation |
-| "named range/protected range/table/metadata/chips" | sheets_advanced |
-| "template/save pattern/reuse layout" | sheets_templates |
-| "what if/scenario/model impact" | sheets_dependencies.model_scenario |
-| "validate/check quality/detect conflicts" | sheets_quality |
-| "session/preferences/checkpoint/context" | sheets_session |
-| "webhook/watch changes/event notification" | sheets_webhook |
-| "transaction/atomic batch/multi-op commit" | sheets_transaction |
-| "remote MCP/cross-server/federation" | sheets_federation |
-| "apps script/trigger/deploy/run function" | sheets_appsscript |
-| "bigquery/connected sheets/external query" | sheets_bigquery |
-| "confirm/wizard/approve/elicit input" | sheets_confirm |
-| "authenticate/login/oauth/token" | sheets_auth |
-
-ONLY use sheets_analyze when the user's request is exploratory or analytical.
+See resource: guide://routing-matrix (read it with resources/read)
 
 ## 🧭 5-GROUP MENTAL MODEL (Start Here Before Picking a Tool)
 
