@@ -16,6 +16,7 @@
 import { existsSync, accessSync, constants as fsConstants, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { get as httpsGet } from 'https';
 import { logger } from '../utils/logger.js';
 import { createServer } from 'net';
 import { TOOL_DEFINITIONS, ACTIVE_TOOL_DEFINITIONS } from '../mcp/registration/tool-definitions.js';
@@ -403,6 +404,63 @@ async function checkServerInstructionsLength(): Promise<PreflightResult> {
 }
 
 /**
+ * Check 9 (non-critical): Google API reachability
+ *
+ * Sends a lightweight HEAD-equivalent request to sheets.googleapis.com.
+ * Accepts any HTTP response (including 401/403/404) as proof that the API
+ * endpoint is reachable — only a network/DNS failure counts as a warning.
+ * Skipped when no credentials are configured.
+ */
+async function checkGoogleApiReachability(): Promise<PreflightResult> {
+  const credentialsPath = process.env['GOOGLE_TOKEN_STORE_PATH'] ?? process.env['CREDENTIALS_PATH'];
+
+  // Skip the check when credentials are not configured — there's nothing to connect to.
+  if (!credentialsPath || !existsSync(credentialsPath)) {
+    return {
+      passed: true,
+      message: 'Google API reachability skipped — no credentials configured',
+      details: { skipped: true },
+    };
+  }
+
+  return new Promise((resolve) => {
+    const timeoutMs = 5000;
+    const req = httpsGet(
+      'https://sheets.googleapis.com/v4/spreadsheets/probe_connectivity_check',
+      { timeout: timeoutMs },
+      (res) => {
+        // Any HTTP response means the endpoint is reachable (401/403/404 are all fine)
+        resolve({
+          passed: true,
+          message: `Google Sheets API reachable (HTTP ${res.statusCode})`,
+          details: { statusCode: res.statusCode },
+        });
+        res.resume(); // Drain response body
+      }
+    );
+
+    req.on('timeout', () => {
+      req.destroy();
+      resolve({
+        passed: false,
+        message: `Google Sheets API unreachable — connection timed out after ${timeoutMs}ms`,
+        fix: 'Check network connectivity, firewall rules, or proxy settings.',
+        details: { timeoutMs },
+      });
+    });
+
+    req.on('error', (err) => {
+      resolve({
+        passed: false,
+        message: `Google Sheets API unreachable — ${err.message}`,
+        fix: 'Check network connectivity. If behind a proxy, set HTTPS_PROXY environment variable.',
+        details: { error: err.message, code: (err as NodeJS.ErrnoException).code },
+      });
+    });
+  });
+}
+
+/**
  * Run all pre-flight checks
  */
 export async function runPreflightChecks(): Promise<PreflightResults> {
@@ -429,6 +487,8 @@ export async function runPreflightChecks(): Promise<PreflightResults> {
     { name: 'Tool Registration Parity', critical: false, check: checkToolRegistrationParity },
     // AQUI-VR G23: SERVER_INSTRUCTIONS length (M-3)
     { name: 'Server Instructions Length', critical: false, check: checkServerInstructionsLength },
+    // Connectivity: Google Sheets API reachable (skipped when no credentials)
+    { name: 'Google API Reachability', critical: false, check: checkGoogleApiReachability },
   ];
 
   const startTime = Date.now();

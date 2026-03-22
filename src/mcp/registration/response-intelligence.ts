@@ -396,6 +396,104 @@ export function applyResponseIntelligence(
         riskLevel: (completedSteps < totalSteps ? 'medium' : 'none') as ResponseHints['riskLevel'],
       };
     }
+  } else if (options.toolName === 'sheets_format' && actionName === 'suggest_format') {
+    const suggestionCount = Array.isArray(responseRecord['suggestions'])
+      ? responseRecord['suggestions'].length
+      : 0;
+    if (suggestionCount > 0) {
+      responseRecord['_hints'] = {
+        dataShape: `${suggestionCount} format suggestion${suggestionCount !== 1 ? 's' : ''} generated`,
+        nextPhase:
+          'Review suggestions → apply selected (sheets_format.set_format or batch_format) → verify visually',
+        riskLevel: 'none' as const,
+      };
+    }
+  } else if (options.toolName === 'sheets_history' && actionName === 'diff_revisions') {
+    const changedCells = Array.isArray(responseRecord['changed'])
+      ? responseRecord['changed'].length
+      : 0;
+    const addedCells = Array.isArray(responseRecord['added']) ? responseRecord['added'].length : 0;
+    const removedCells = Array.isArray(responseRecord['removed'])
+      ? responseRecord['removed'].length
+      : 0;
+    const total = changedCells + addedCells + removedCells;
+    if (total > 0) {
+      responseRecord['_hints'] = {
+        dataShape: `Diff: ${changedCells} changed, ${addedCells} added, ${removedCells} removed`,
+        nextPhase:
+          total > 10
+            ? 'Large diff detected → consider restoring specific cells (sheets_history.restore_cells)'
+            : 'Review diff → restore cells if needed (sheets_history.restore_cells)',
+        riskLevel: (total > 50
+          ? 'high'
+          : total > 10
+            ? 'medium'
+            : 'low') as ResponseHints['riskLevel'],
+      };
+    }
+  } else if (options.toolName === 'sheets_history' && actionName === 'timeline') {
+    const entryCount = Array.isArray(responseRecord['entries'])
+      ? responseRecord['entries'].length
+      : 0;
+    if (entryCount > 0) {
+      responseRecord['_hints'] = {
+        dataShape: `${entryCount} revision event${entryCount !== 1 ? 's' : ''} in timeline`,
+        nextPhase:
+          'Timeline loaded → compare two revisions (sheets_history.diff_revisions) or restore a snapshot',
+        riskLevel: 'none' as const,
+      };
+    }
+  } else if (options.toolName === 'sheets_visualize' && actionName === 'chart_create') {
+    const chartType = getOptionalString(responseRecord, 'chartType') ?? 'chart';
+    const chartId = getOptionalString(responseRecord, 'chartId') ?? '';
+    responseRecord['_hints'] = {
+      dataShape: `${chartType} created${chartId ? ` (ID: ${chartId})` : ''}`,
+      nextPhase: 'Chart created → update data range or style (sheets_visualize.chart_update)',
+      riskLevel: 'none' as const,
+    };
+  } else if (options.toolName === 'sheets_quality' && actionName === 'validate') {
+    const violationCount = Array.isArray(responseRecord['violations'])
+      ? responseRecord['violations'].length
+      : 0;
+    const warningCount = Array.isArray(responseRecord['warnings'])
+      ? responseRecord['warnings'].length
+      : 0;
+    responseRecord['_hints'] = {
+      dataShape:
+        violationCount > 0
+          ? `${violationCount} violation${violationCount !== 1 ? 's' : ''}${warningCount > 0 ? `, ${warningCount} warning${warningCount !== 1 ? 's' : ''}` : ''}`
+          : 'No violations found',
+      nextPhase:
+        violationCount > 0
+          ? 'Violations found → auto-fix (sheets_fix.fix) or manual review → re-validate'
+          : 'Validation passed → proceed with data operations',
+      riskLevel: (violationCount > 10
+        ? 'high'
+        : violationCount > 0
+          ? 'medium'
+          : 'none') as ResponseHints['riskLevel'],
+    };
+  } else if (options.toolName === 'sheets_collaborate' && actionName === 'share_add') {
+    const email = getOptionalString(responseRecord, 'email') ?? '';
+    const role = getOptionalString(responseRecord, 'role') ?? 'viewer';
+    responseRecord['_hints'] = {
+      dataShape: `Shared with ${email || 'user'} as ${role}`,
+      nextPhase:
+        'Share complete → notify collaborator → set data validations or protected ranges if needed',
+      riskLevel: 'none' as const,
+    };
+  } else if (options.toolName === 'sheets_fix' && actionName === 'suggest_cleaning') {
+    const suggestionCount = Array.isArray(responseRecord['suggestions'])
+      ? responseRecord['suggestions'].length
+      : 0;
+    if (suggestionCount > 0) {
+      responseRecord['_hints'] = {
+        dataShape: `${suggestionCount} cleaning suggestion${suggestionCount !== 1 ? 's' : ''} identified`,
+        nextPhase:
+          'Review suggestions → apply cleaning (sheets_fix.clean with recommended rules) → validate',
+        riskLevel: 'low' as const,
+      };
+    }
   }
 
   // Inject aiMode into _meta if provided

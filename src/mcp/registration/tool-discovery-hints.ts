@@ -1519,6 +1519,251 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
       description: 'Delete a scheduled query by transfer config name.',
     },
   },
+  sheets_analyze: {
+    comprehensive: {
+      required: ['spreadsheetId'],
+      optional: ['range', 'sheetName', 'depth', 'focusAreas'],
+      description:
+        'Full AI-powered analysis of a spreadsheet (43 feature categories). Omit range to analyze the whole workbook. Use depth="quick" for fast scan, depth="full" for deep analysis including formula evaluation and data profiling.',
+    },
+    scout: {
+      required: ['spreadsheetId'],
+      optional: ['sheetName'],
+      description:
+        'Fast ~200ms structural scan — use before comprehensive to get column types, row counts, and formula presence without loading all data.',
+    },
+    suggest_next_actions: {
+      required: ['spreadsheetId'],
+      optional: ['range', 'maxSuggestions', 'categories'],
+      description:
+        'Get ranked, actionable suggestions for the current spreadsheet. Returns executable params for each suggestion. Use categories to filter to formulas, formatting, structure, data_quality, or visualization.',
+    },
+    query_natural_language: {
+      required: ['spreadsheetId', 'query'],
+      optional: ['sheetName', 'range'],
+      description:
+        'Answer a natural-language question about the spreadsheet data. Provide query as a plain English question. Use after comprehensive or scout for context-aware answers.',
+    },
+    analyze_data: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['analysisType', 'includeFormulas'],
+      description:
+        'Statistical analysis of a data range. analysisType can be "summary", "distribution", "correlation", or "outliers".',
+    },
+  },
+  sheets_fix: {
+    clean: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['rules', 'mode'],
+      description:
+        'Auto-detect and fix data quality issues in a range (whitespace, type mismatches, duplicates, format inconsistencies). Use mode="preview" to see proposed changes before applying, mode="apply" to write fixes.',
+    },
+    fix: {
+      required: ['spreadsheetId'],
+      optional: ['range', 'issues'],
+      description:
+        'Apply specific fixes identified by sheets_quality.validate. Pass issues from a prior validate call to target only known problems.',
+    },
+    standardize_formats: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['columns', 'targetFormats'],
+      description:
+        'Normalize inconsistent formats in a range (dates, currencies, phone numbers, emails). Specify columns with targetFormats to control output format per column.',
+    },
+    fill_missing: {
+      required: ['spreadsheetId', 'range', 'strategy'],
+      optional: ['constantValue', 'columns'],
+      description:
+        'Fill empty cells using a strategy: "forward" (propagate last value down), "backward" (propagate next value up), "mean", "median", "mode", or "constant" (requires constantValue).',
+    },
+    detect_anomalies: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['method', 'threshold', 'columns'],
+      description:
+        'Flag statistical outliers in numeric columns. method can be "iqr" (interquartile range, default), "zscore" (z-score with configurable threshold), or "isolation_forest".',
+    },
+    suggest_cleaning: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['maxSuggestions'],
+      description:
+        'AI-powered cleaning recommendations (uses MCP Sampling). Returns prioritized list of cleaning steps with rationale and estimated impact. No data is written.',
+    },
+  },
+  sheets_confirm: {
+    request: {
+      required: ['action', 'description'],
+      optional: ['impact', 'spreadsheetId', 'timeoutMs'],
+      description:
+        'Create a confirmation request for a potentially destructive operation. Returns a confirmationToken — pass it to the action that requires confirmation.',
+    },
+    wizard_start: {
+      required: ['wizardType'],
+      optional: ['spreadsheetId', 'context'],
+      description:
+        'Start a multi-step interactive wizard. wizardType specifies which wizard flow to run (e.g. "chart_creation", "data_import", "format_preset").',
+    },
+    wizard_step: {
+      required: ['wizardId', 'stepResponse'],
+      optional: [],
+      description:
+        'Advance a running wizard with the user response to the current step. wizardId comes from wizard_start. stepResponse is the value provided for the current prompt.',
+    },
+    wizard_complete: {
+      required: ['wizardId'],
+      optional: [],
+      description:
+        'Finalize a completed wizard and execute the configured action. Call after all wizard steps are answered.',
+    },
+    get_stats: {
+      required: [],
+      optional: ['since'],
+      description:
+        'Get confirmation request statistics (total, approved, rejected, expired). Use since (ISO timestamp) to filter to a time window.',
+    },
+  },
+  sheets_quality: {
+    validate: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['validationRules', 'sheetName', 'includeWarnings'],
+      description:
+        'Validate a data range against rules (required fields, type constraints, format patterns, value ranges). Returns violations with row/column references. Pass results to sheets_fix.fix to auto-remediate.',
+    },
+    detect_conflicts: {
+      required: ['spreadsheetId'],
+      optional: ['range', 'sheetName', 'windowSeconds'],
+      description:
+        'Detect concurrent modification conflicts in a spreadsheet. windowSeconds controls how far back to look (default 60s). Returns conflicting changes with user attribution.',
+    },
+    resolve_conflict: {
+      required: ['spreadsheetId', 'conflictId', 'resolution'],
+      optional: ['sheetName'],
+      description:
+        'Resolve a detected conflict. resolution can be "accept_mine", "accept_theirs", or "merge". conflictId comes from detect_conflicts.',
+    },
+    analyze_impact: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['changeType', 'sheetName'],
+      description:
+        'Analyze the downstream impact of modifying a range before committing changes. Returns affected formulas, dependent ranges, and risk level.',
+    },
+  },
+  sheets_transaction: {
+    begin: {
+      required: ['spreadsheetId'],
+      optional: ['description', 'autoRollback', 'autoSnapshot', 'isolationLevel'],
+      description:
+        'Start a transaction. Returns a transactionId — pass it to subsequent queue calls. Set autoSnapshot=true to create a backup before any mutations. autoRollback=true (default) rolls back automatically on failure.',
+    },
+    queue: {
+      required: ['transactionId', 'tool', 'action', 'params'],
+      optional: [],
+      description:
+        'Queue an operation inside a transaction. tool is the MCP tool name (e.g. "sheets_data"), action is the action name, params is the operation input. Operations execute in order at commit.',
+    },
+    commit: {
+      required: ['transactionId'],
+      optional: [],
+      description:
+        'Execute all queued operations atomically and close the transaction. Returns per-operation results.',
+    },
+    rollback: {
+      required: ['transactionId'],
+      optional: [],
+      description:
+        'Discard all queued operations and close the transaction without writing any changes.',
+    },
+    abort: {
+      required: ['transactionId'],
+      optional: ['reason'],
+      description:
+        'Abort a transaction with an optional reason. Equivalent to rollback but records the abort reason in the audit trail.',
+    },
+    status: {
+      required: ['transactionId'],
+      optional: [],
+      description:
+        'Get the current state of a transaction (OPEN, COMMITTED, ROLLED_BACK, ABORTED) and the list of queued operations.',
+    },
+  },
+  sheets_templates: {
+    list: {
+      required: [],
+      optional: ['category', 'maxResults'],
+      description:
+        'List available templates from the Drive appDataFolder. Use category to filter (e.g. "finance", "project", "hr").',
+    },
+    get: {
+      required: ['templateId'],
+      optional: [],
+      description: 'Get template definition including structure, variables, and metadata.',
+    },
+    create: {
+      required: ['spreadsheetId', 'name'],
+      optional: ['description', 'category', 'variables', 'sheetNames'],
+      description:
+        'Save the current spreadsheet as a reusable template. Specify variables for token substitution (e.g. {{COMPANY_NAME}}).',
+    },
+    instantiate: {
+      required: ['templateId'],
+      optional: ['variables', 'targetSpreadsheetId', 'title'],
+      description:
+        'Create a new spreadsheet from a template. Pass variables as key-value pairs for token substitution. Omit targetSpreadsheetId to create a new spreadsheet.',
+    },
+    apply: {
+      required: ['templateId', 'spreadsheetId'],
+      optional: ['variables', 'sheetName', 'overwrite'],
+      description:
+        'Apply a template to an existing spreadsheet (overlay structure and formatting). Use overwrite=false to skip sheets that already exist.',
+    },
+  },
+  sheets_agent: {
+    plan: {
+      required: ['goal', 'spreadsheetId'],
+      optional: ['maxSteps', 'context', 'constraints'],
+      description:
+        'Compile a natural-language goal into an executable multi-step plan. Returns a planId and the full step list for review before execution. Use maxSteps (default 10, max 50) to limit plan size.',
+    },
+    execute: {
+      required: ['planId'],
+      optional: ['startStep', 'dryRun', 'checkpointAfterEach'],
+      description:
+        'Execute a compiled plan autonomously. Each step is validated by AI reflexion before the next step runs. Use dryRun=true to preview without writing. Returns per-step results and overall status.',
+    },
+    execute_step: {
+      required: ['planId', 'stepIndex'],
+      optional: ['dryRun'],
+      description:
+        'Execute a single step of a plan manually. Use for step-by-step control when execute is too autonomous.',
+    },
+    get_plan: {
+      required: ['planId'],
+      optional: [],
+      description:
+        'Get the full plan definition and current execution state (step statuses, outputs).',
+    },
+    list_plans: {
+      required: [],
+      optional: ['status', 'spreadsheetId', 'maxResults'],
+      description:
+        'List plans filtered by status (DRAFT, EXECUTING, COMPLETED, PAUSED, FAILED) or spreadsheetId.',
+    },
+    abort_plan: {
+      required: ['planId'],
+      optional: ['reason'],
+      description:
+        'Abort a running or paused plan. Completed steps are not rolled back — use sheets_transaction for atomic execution.',
+    },
+    get_checkpoint: {
+      required: ['planId', 'checkpointId'],
+      optional: [],
+      description: 'Get saved state from a plan checkpoint for resumability or debugging.',
+    },
+    create_checkpoint: {
+      required: ['planId'],
+      optional: ['label'],
+      description: 'Manually save a checkpoint at the current plan execution state.',
+    },
+  },
 };
 
 function asRecord(value: unknown): JsonRecord | null {
