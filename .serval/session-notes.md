@@ -6,7 +6,31 @@
 
 ## Current Phase
 
-**Session 95 (2026-03-22) — GitHub issues #38–#44 analysis + implementation.** Branch `remediation/phase-1`. 403 actions (25 tools). Commits ccb3e5a, 7fbabeb.
+**Session 96 (2026-03-22) — Post-audit improvements plan execution.** Branch `remediation/phase-1`. 404 actions (25 tools). 2742 tests pass.
+
+## What Was Just Completed (Session 96)
+
+**Three-track post-audit improvement plan:**
+
+- **Track A (pending commits)**: Already done by Session 95 — semantic_search feature committed in `116cd22`. Only 2 trivial doc changes remained; incorporated.
+- **Track B (error typing sprint)**: Already complete — only 4 generic throws remain in `duckdb-worker.ts` (SQL injection guards in worker thread, appropriate as-is).
+- **Track C (memory protection)**: Verified existing protections (MAX_ROWS_PER_SHEET=5000, heap-watchdog.ts with isHeapCritical() at 3 checkpoints, scout fallback on memory pressure) already cover the concern. Added **intermediate progress reporting** to `ComprehensiveAnalyzer.analyze()` — 8 phases now emit progress at 10/20/20-70/72-75/80/85/90% instead of only 0% and 100%. Each `sendProgress()` call between sheets also serves as a GC yield point.
+- **semantic_search tests**: Already committed with the feature (`tests/handlers/analyze-semantic-search.test.ts`, 8 tests).
+
+**Counts**: 25 tools, 404 actions (semantic_search added in Session 95), 2742/2742 tests pass.
+
+**Commits this session**: `fec8cdc` (comprehensive.ts progress notifications)
+
+## What Was Just Completed (Session 95)
+
+**semantic_search feature (ISSUE-174/175) + live API test suite:**
+
+- `sheets_analyze.semantic_search`: Vector search across spreadsheet content using Voyage AI embeddings. In-memory LRU index (max 20 spreadsheets), cosine similarity ranking.
+- Files: `src/schemas/analyze.ts`, `src/handlers/analyze.ts`, `src/handlers/analyze-actions/semantic-search.ts` (101 lines), `src/services/semantic-search.ts` (354 lines), `src/config/env.ts` (VOYAGE_API_KEY), `scripts/generate-metadata.ts` (count 22→23 for analyze), `src/services/cache-invalidation-graph.ts`.
+- Tests: `tests/handlers/analyze-semantic-search.test.ts` (8 tests covering config error, cache, forceReindex, topK, empty spreadsheet, API error, index stats).
+- Live API tests added for agent/compute/connectors/federation handlers.
+
+**Commits**: `116cd22` (semantic search), `c41daef` (live API tests), `36042d2` (session notes)
 
 ## What Was Just Completed (Session 94)
 
