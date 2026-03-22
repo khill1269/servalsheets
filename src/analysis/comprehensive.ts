@@ -36,6 +36,7 @@ import {
 } from '../config/constants.js';
 import { storeAnalysisResult } from '../resources/analyze.js';
 import type { AnalyzeResponse } from '../schemas/analyze.js';
+import { sendProgress } from '../utils/request-context.js';
 
 // Import analysis helpers
 import { detectDataType } from './helpers.js';
@@ -350,6 +351,7 @@ export class ComprehensiveAnalyzer {
     // Step 1: Get metadata (Tier 1) - from sheets_core
     const metadata = await this.tieredRetrieval.getMetadata(spreadsheetId);
     this.apiCallCount++;
+    await sendProgress(10, 100, 'Metadata loaded');
 
     // Determine which sheets to analyze
     let sheetsToAnalyze =
@@ -391,6 +393,7 @@ export class ComprehensiveAnalyzer {
     // Step 2: Get full spreadsheet info for additional metadata
     const spreadsheetInfo = await this.getSpreadsheetInfo(spreadsheetId);
     this.apiCallCount++;
+    await sendProgress(20, 100, 'Spreadsheet info loaded');
 
     // Step 3: Analyze each sheet (use paginated sheets)
     const sheetAnalyses: SheetAnalysis[] = [];
@@ -490,12 +493,23 @@ export class ComprehensiveAnalyzer {
       );
       sheetAnalyses.push(analysis);
       _totalDataRows += analysis.dataRowCount;
+
+      // Progress: 20–70% spread across paginated sheets (GC yield point between sheets)
+      const sheetIdx = sheetAnalyses.length;
+      const sheetProgress = Math.round(20 + (sheetIdx / paginatedSheets.length) * 50);
+      await sendProgress(
+        sheetProgress,
+        100,
+        `Analyzed sheet ${sheetIdx}/${paginatedSheets.length}: ${sheet.title}`
+      );
     }
 
     // Step 4: Get formulas if requested
     if (this.config.includeFormulas) {
+      await sendProgress(72, 100, 'Extracting formula analysis');
       await this.enrichWithFormulas(spreadsheetId, sheetAnalyses);
     }
+    await sendProgress(75, 100, 'Calculating aggregates');
 
     // Step 5: Calculate aggregates
     const aggregate = this.calculateAggregates(sheetAnalyses);
@@ -503,15 +517,18 @@ export class ComprehensiveAnalyzer {
     // Step 6: Generate visualization recommendations if requested
     let visualizations: VisualizationRecommendation[] | undefined;
     if (this.config.includeVisualizations && sheetAnalyses.length > 0) {
+      await sendProgress(80, 100, 'Generating visualization recommendations');
       visualizations = this.generateVisualizationRecommendations(spreadsheetId, sheetAnalyses[0]!);
     }
 
     // Step 7: Generate performance recommendations if requested
     let performance: { score: number; recommendations: PerformanceRecommendation[] } | undefined;
     if (this.config.includePerformance) {
+      await sendProgress(85, 100, 'Analyzing performance');
       performance = this.analyzePerformance(metadata, sheetAnalyses, aggregate);
     }
 
+    await sendProgress(90, 100, 'Generating summary and insights');
     // Step 8: Generate summary and insights
     const { summary, topInsights } = this.generateSummary(
       metadata,
