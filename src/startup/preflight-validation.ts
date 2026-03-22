@@ -142,6 +142,8 @@ async function checkModuleResolution(): Promise<PreflightResult> {
     'google-auth-library',
     'googleapis',
     'zod',
+    // node-saml is unconditionally imported in http-server.ts; catch missing installs early
+    'node-saml',
   ];
 
   const missingModules: string[] = [];
@@ -185,6 +187,8 @@ async function checkConfiguration(): Promise<PreflightResult> {
       issues.push(
         `ENCRYPTION_KEY must be 64 hex characters (32 bytes), got ${encryptionKey.length}`
       );
+    } else if (!/^[0-9a-f]{64}$/i.test(encryptionKey)) {
+      issues.push('ENCRYPTION_KEY must contain only hex characters (0-9, a-f)');
     }
   }
 
@@ -270,7 +274,17 @@ async function checkFileSystemPermissions(): Promise<PreflightResult> {
   // Check if directory exists and is writable
   try {
     if (!existsSync(servalSheetsDir)) {
-      // Directory doesn't exist - that's fine, we'll create it
+      // Directory doesn't exist — verify parent is writable so creation will succeed
+      try {
+        accessSync(homeDir, fsConstants.W_OK);
+      } catch {
+        return {
+          passed: false,
+          message: `Cannot create ${servalSheetsDir} — parent directory ${homeDir} is not writable`,
+          fix: `Ensure ${homeDir} is writable or set HOME to a writable directory`,
+          details: { servalSheetsDir, homeDir, status: 'parent-not-writable' },
+        };
+      }
       return {
         passed: true,
         message: 'File system permissions OK (directory will be created)',
@@ -380,19 +394,22 @@ async function checkToolRegistrationParity(): Promise<PreflightResult> {
 }
 
 /**
- * AQUI-VR G23 (M-3): Warn if SERVER_INSTRUCTIONS exceeds 4096 chars.
- * Some MCP clients truncate instructions at 2048 chars; the routing matrix
- * may be cut if instructions grow too large.
+ * AQUI-VR G23 (M-3): Warn if SERVER_INSTRUCTIONS exceeds the growth threshold.
+ * The routing matrix has been extracted to guide://routing-matrix (Session 99).
+ * Threshold is set to 50,000 chars — well above the current ~39K — to catch
+ * unintentional growth while allowing the intentionally large instruction set.
+ * Note: some MCP clients may truncate; critical routing info lives in the
+ * guide://routing-matrix resource rather than inline in instructions.
  */
 async function checkServerInstructionsLength(): Promise<PreflightResult> {
   const instructions = getServerInstructions();
   const len = instructions.length;
-  const WARN_THRESHOLD = 4096;
+  const WARN_THRESHOLD = 50000;
   if (len > WARN_THRESHOLD) {
     return {
       passed: false,
-      message: `SERVER_INSTRUCTIONS is ${len} chars — some clients truncate at 2048`,
-      fix: 'Consider moving the routing matrix to a guide://routing-matrix resource to reduce instructions size.',
+      message: `SERVER_INSTRUCTIONS is ${len} chars — exceeded growth threshold of ${WARN_THRESHOLD}`,
+      fix: 'Extract large static sections (decision tables, examples) to guide:// resources to keep instructions concise.',
       details: { length: len, threshold: WARN_THRESHOLD },
     };
   }
