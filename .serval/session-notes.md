@@ -6,7 +6,25 @@
 
 ## Current Phase
 
-**Session 97 (2026-03-21) — Tier 4 services decomposition.** Branch `remediation/phase-1`. 404 actions (25 tools). 2742 tests pass. All tiers complete.
+**Session 98 (2026-03-21) — Enterprise SSO/SAML 2.0 SP implementation (ISSUE-173).** Branch `remediation/phase-1`. 404 actions (25 tools). 24 new SAML tests (all pass).
+
+## What Was Just Completed (Session 98)
+
+**Enterprise SSO/SAML 2.0 Service Provider implementation (ISSUE-173):**
+
+- **`src/auth/saml-provider.ts`** (NEW): `SamlProvider` class with `issueToken()`, `verifyToken()`, `generateMetadata()`, `createRouter()`; factory `createSamlProviderFromEnv()`. Routes: GET /sso/login, POST /sso/callback, GET /sso/metadata, GET /sso/logout. JWT `scope='sso'` distinguishes from OAuth tokens; compatible with existing Bearer-token middleware.
+- **`src/types/node-saml.d.ts`** (NEW): Minimal type declarations for `node-saml` (no @types package exists). Covers SAML, SamlConfig, SamlProfile, AuthorizeOptions, LogoutProfile.
+- **`src/http-server.ts`**: Auto-wires `samlProvider.createRouter()` when `SAML_ENTRY_POINT` is configured; logs enabled state.
+- **`src/config/env.ts`**: Added `SAML_ENTRY_POINT`, `SAML_ISSUER`, `SAML_CERT`, `SAML_CALLBACK_URL`, `SAML_PRIVATE_KEY`, `SAML_WANT_ASSERTIONS_SIGNED`, `SAML_SIGNATURE_ALGORITHM`, `SSO_JWT_TTL`, `SSO_ALLOWED_CLOCK_SKEW`.
+- **`tests/auth/saml-provider.test.ts`** (NEW): 24 tests using DI pattern (mock SAML injected via constructor; no `vi.mock('node-saml')` needed). Covers: factory null returns, JWT structure/scope/TTL/attributes/sessionIndex, verifyToken valid/tampered/wrong-scope/expired/garbage, metadata XML, route registration, callback error paths (no profile, no nameId, assertion throws, loggedOut), callback success with/without RelayState.
+
+**Key decisions:**
+
+- DI pattern (`constructor(config, samlInstance?: SAML)`) avoids ESM `vi.mock` hoisting issues with constructors
+- Token delivery: JSON for API/CLI clients; query-param redirect (`?sso_token=`) for app RelayState URLs
+- `node-saml` installed as production dep (v3.1.2); `jsonwebtoken` already present
+
+**Commit**: `c3c9f9d`
 
 ## What Was Just Completed (Session 97)
 
