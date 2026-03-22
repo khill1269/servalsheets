@@ -323,6 +323,21 @@ export class QualityHandler {
    * VALIDATE: Data validation with built-in validators
    */
   private async handleValidate(input: QualityValidateInput): Promise<QualityResponse> {
+    // value is now optional in schema for LLM discoverability — guard at runtime
+    if (input.value === undefined) {
+      return {
+        success: false,
+        error: {
+          code: ErrorCodes.INVALID_PARAMS,
+          message:
+            'The "value" field is required for single-value validation. ' +
+            'For range-based data validation, use sheets_fix.detect_anomalies, ' +
+            'sheets_fix.clean, or sheets_analyze.scout instead.',
+          retryable: false,
+        },
+      };
+    }
+
     const requestedRules = input.rules ?? [];
     const builtinRuleIds = requestedRules.filter(isBuiltinRuleInput);
     const customRules = requestedRules.filter(isCustomRuleInput);

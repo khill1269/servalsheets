@@ -652,12 +652,21 @@ const PlanActionSchema = CommonFieldsSchema.extend({
  * Analysis Plan Step - Individual step in a plan
  */
 const AnalysisPlanStepSchema = z.object({
-  order: z.number().int().min(1).describe('Execution order (1 = first)'),
+  // BUG-16 fix: Only `type` is truly required. LLMs often omit metadata fields
+  // like order, priority, estimatedDuration, reason, outputs when calling execute_plan.
+  order: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('Execution order (1 = first, auto-assigned if omitted)'),
   type: z
     .enum(['quality', 'formulas', 'patterns', 'performance', 'structure', 'visualizations'])
     .describe('Analysis type'),
   priority: z
     .enum(['critical', 'high', 'medium', 'low'])
+    .optional()
+    .default('medium')
     .describe('Priority based on detected issues'),
   target: z
     .object({
@@ -667,9 +676,13 @@ const AnalysisPlanStepSchema = z.object({
     })
     .optional()
     .describe('Target scope for this step'),
-  estimatedDuration: z.string().describe('Estimated time (e.g., "~2s", "~500ms")'),
-  reason: z.string().describe('Why this step is recommended'),
-  outputs: z.array(z.string()).describe('What this step will produce'),
+  estimatedDuration: z
+    .string()
+    .optional()
+    .default('~2s')
+    .describe('Estimated time (e.g., "~2s", "~500ms")'),
+  reason: z.string().optional().describe('Why this step is recommended'),
+  outputs: z.array(z.string()).optional().describe('What this step will produce'),
 });
 
 /**
@@ -797,7 +810,7 @@ const DrillDownActionSchema = CommonFieldsSchema.extend({
       }),
     ])
     .describe(
-      'Target to drill into. Valid types: issue, sheet, column, formula, pattern, anomaly, correlation. Each type has its own required fields.'
+      'Target to drill into. Valid types: issue, sheet, column, formula, anomaly, pattern, correlation. Each type has its own required fields. Example: { "type": "sheet", "sheetIndex": 0 }'
     ),
   limit: z
     .number()

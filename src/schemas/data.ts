@@ -750,6 +750,21 @@ const normalizeDataRequest = (val: unknown): unknown => {
     return { ...rest, cell: obj['range'] };
   }
 
+  // BUG-3 fix: Alias common LLM param names for smart_fill
+  // LLMs often pass 'range' instead of 'sourceRange', and 'targetRange' instead of 'fillRange'
+  if (action === 'smart_fill') {
+    const patched = { ...obj };
+    if (obj['range'] && !obj['sourceRange']) {
+      patched['sourceRange'] = obj['range'];
+      delete patched['range'];
+    }
+    if (obj['targetRange'] && !obj['fillRange']) {
+      patched['fillRange'] = obj['targetRange'];
+      delete patched['targetRange'];
+    }
+    return patched;
+  }
+
   return val;
 };
 

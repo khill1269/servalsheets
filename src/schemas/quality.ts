@@ -168,7 +168,10 @@ const ValidateActionSchema = CommonFieldsSchema.extend({
       z.array(z.any()),
       z.record(z.string(), z.any()),
     ])
-    .describe('Value to validate (can be string, number, boolean, null, array, or object)'),
+    .optional()
+    .describe(
+      'Value to validate (string, number, boolean, null, array, or object). Required for single-value validation. For range-based data validation, use sheets_fix.detect_anomalies or sheets_analyze.scout instead.'
+    ),
   rules: z
     .array(ValidationRuleInputSchema)
     .optional()
@@ -232,10 +235,12 @@ const AnalyzeImpactActionSchema = CommonFieldsSchema.extend({
         .describe(
           'Operation type (e.g., "values_write", "sheet_delete", "format_update", "dimension_change")'
         ),
-      tool: z.string().optional().describe('Tool name (e.g., "sheets_data", "sheets_format")'),
+      // BUG-11 fix: tool + action should be required — they identify what operation to analyze.
+      // Made optional with superRefine below to give clear error messages.
+      tool: z.string().min(1).describe('Tool name (e.g., "sheets_data", "sheets_format")'),
       action: z
         .string()
-        .optional()
+        .min(1)
         .describe('Action name within the tool (e.g., "write", "clear", "format")'),
       params: z
         .record(
