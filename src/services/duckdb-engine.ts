@@ -9,6 +9,8 @@
 import { Worker } from 'worker_threads';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { ServiceError } from '../core/errors.js';
+import { ErrorCodes } from '../handlers/error-codes.js';
 
 // ============================================================================
 // Types
@@ -113,7 +115,18 @@ export class DuckDBEngine {
             executionMs: msg.executionMs!,
           });
         } else {
-          reject(new Error(msg.error ?? 'DuckDB query failed'));
+          const errorMsg = msg.error ?? 'DuckDB query failed';
+          // Classify safety-rejection errors with a typed error so handlers can surface QUERY_REJECTED
+          const isSafetyRejection =
+            errorMsg.startsWith('Only SELECT statements are allowed') ||
+            errorMsg.startsWith('DDL/DML statements are not allowed') ||
+            errorMsg.startsWith('File system access functions are not allowed') ||
+            errorMsg.startsWith('Invalid table name');
+          if (isSafetyRejection) {
+            reject(new ServiceError(errorMsg, ErrorCodes.QUERY_REJECTED, 'DuckDBEngine', false));
+          } else {
+            reject(new Error(errorMsg));
+          }
         }
       });
 

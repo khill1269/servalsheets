@@ -9,6 +9,7 @@
  */
 
 import { ErrorCodes } from './error-codes.js';
+import { ServiceError } from '../core/errors.js';
 import { assertNever } from '../utils/type-utils.js';
 import { extractRangeA1 } from '../utils/range-helpers.js';
 import type { sheets_v4 } from 'googleapis';
@@ -966,22 +967,39 @@ export class ComputeHandler {
       });
     }
 
-    const result = await this.duckdbEngine.query({
-      tables: tableData,
-      sql: req.sql,
-      timeoutMs: req.timeoutMs,
-    });
+    try {
+      const result = await this.duckdbEngine.query({
+        tables: tableData,
+        sql: req.sql,
+        timeoutMs: req.timeoutMs,
+      });
 
-    return {
-      response: {
-        success: true as const,
-        action: 'sql_query',
-        sqlColumns: result.columns,
-        sqlRows: result.rows,
-        sqlExecutionMs: result.executionMs,
-        rowsReturned: result.rows.length,
-      },
-    };
+      return {
+        response: {
+          success: true as const,
+          action: 'sql_query',
+          sqlColumns: result.columns,
+          sqlRows: result.rows,
+          sqlExecutionMs: result.executionMs,
+          rowsReturned: result.rows.length,
+        },
+      };
+    } catch (err) {
+      const code =
+        err instanceof ServiceError && err.code === ErrorCodes.QUERY_REJECTED
+          ? ErrorCodes.QUERY_REJECTED
+          : ErrorCodes.INTERNAL_ERROR;
+      return {
+        response: {
+          success: false as const,
+          error: {
+            code,
+            message: err instanceof Error ? err.message : 'DuckDB sql_query failed',
+            retryable: false,
+          },
+        },
+      };
+    }
   }
 
   private async handleSqlJoin(
@@ -1014,35 +1032,52 @@ export class ComputeHandler {
     const select = req.select ?? '*';
     const sql = `SELECT ${select} FROM "${req.left.alias}" ${req.joinType.toUpperCase()} JOIN "${req.right.alias}" ON ${req.on}`;
 
-    const result = await this.duckdbEngine.query({
-      tables: [
-        {
-          name: req.left.alias,
-          range: extractRangeA1(req.left.range),
-          hasHeaders: true,
-          rows: leftRows,
-        },
-        {
-          name: req.right.alias,
-          range: extractRangeA1(req.right.range),
-          hasHeaders: true,
-          rows: rightRows,
-        },
-      ],
-      sql,
-      timeoutMs: req.timeoutMs,
-    });
+    try {
+      const result = await this.duckdbEngine.query({
+        tables: [
+          {
+            name: req.left.alias,
+            range: extractRangeA1(req.left.range),
+            hasHeaders: true,
+            rows: leftRows,
+          },
+          {
+            name: req.right.alias,
+            range: extractRangeA1(req.right.range),
+            hasHeaders: true,
+            rows: rightRows,
+          },
+        ],
+        sql,
+        timeoutMs: req.timeoutMs,
+      });
 
-    return {
-      response: {
-        success: true as const,
-        action: 'sql_join',
-        sqlColumns: result.columns,
-        sqlRows: result.rows,
-        sqlExecutionMs: result.executionMs,
-        rowsReturned: result.rows.length,
-      },
-    };
+      return {
+        response: {
+          success: true as const,
+          action: 'sql_join',
+          sqlColumns: result.columns,
+          sqlRows: result.rows,
+          sqlExecutionMs: result.executionMs,
+          rowsReturned: result.rows.length,
+        },
+      };
+    } catch (err) {
+      const code =
+        err instanceof ServiceError && err.code === ErrorCodes.QUERY_REJECTED
+          ? ErrorCodes.QUERY_REJECTED
+          : ErrorCodes.INTERNAL_ERROR;
+      return {
+        response: {
+          success: false as const,
+          error: {
+            code,
+            message: err instanceof Error ? err.message : 'DuckDB sql_join failed',
+            retryable: false,
+          },
+        },
+      };
+    }
   }
 
   // ========================================================================

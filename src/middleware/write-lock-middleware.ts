@@ -8,14 +8,19 @@
  * across multiple Claude sessions or parallel tool calls.
  */
 
-import PQueue from 'p-queue';
+import PQueue, { TimeoutError } from 'p-queue';
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
+import { ErrorCodes } from '../handlers/error-codes.js';
 
 // Per-spreadsheet write queues. Max 1 concurrent write per spreadsheet.
 const writeLocks = new Map<string, PQueue>();
 
 // Clean idle locks every 5 minutes to prevent memory leaks
 const LOCK_CLEANUP_MS = 5 * 60 * 1000;
+
+// Write lock acquisition timeout (default: 30s). Configurable via LOCK_TIMEOUT_MS env var.
+const LOCK_TIMEOUT_MS = parseInt(process.env['LOCK_TIMEOUT_MS'] ?? '30000', 10);
 
 // Mutation actions that require write serialization.
 // These are the core data/structure/format mutations across all tools.
@@ -233,9 +238,12 @@ function collectSpreadsheetIds(
 export function getWriteLock(spreadsheetId: string): PQueue {
   let queue = writeLocks.get(spreadsheetId);
   if (!queue) {
-    queue = new PQueue({ concurrency: 1 });
+    queue = new PQueue({ concurrency: 1, timeout: LOCK_TIMEOUT_MS });
     writeLocks.set(spreadsheetId, queue);
-    logger.debug('Write lock created for spreadsheet', { spreadsheetId });
+    logger.debug('Write lock created for spreadsheet', {
+      spreadsheetId,
+      timeoutMs: LOCK_TIMEOUT_MS,
+    });
   }
   return queue;
 }
@@ -305,7 +313,20 @@ export async function withWriteLock<T>(
       spreadsheets: spreadsheetIds,
       lockCount: spreadsheetIds.length,
     });
-    return withMultipleWriteLocks(spreadsheetIds, fn);
+    try {
+      return await withMultipleWriteLocks(spreadsheetIds, fn);
+    } catch (err) {
+      if (err instanceof TimeoutError) {
+        throw new ServiceError(
+          `Write lock acquisition timed out after ${LOCK_TIMEOUT_MS}ms for action '${action}'. ` +
+            'Another operation is holding the write lock. Retry after the concurrent write completes.',
+          ErrorCodes.LOCK_TIMEOUT,
+          'WriteLockMiddleware',
+          true // retryable
+        );
+      }
+      throw err;
+    }
   }
 
   // Not a mutation or no spreadsheet target — execute immediately without lock

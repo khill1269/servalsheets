@@ -541,6 +541,10 @@ export const ErrorCodeSchema = z
     'CONNECTOR_ERROR',
     // Session errors
     'SESSION_ERROR',
+    // DuckDB / SQL query safety
+    'QUERY_REJECTED', // SQL safety rejection (non-SELECT, DDL/DML, file-system access, invalid name)
+    // Write locking
+    'LOCK_TIMEOUT', // Write lock acquisition timed out (concurrent write contention)
   ])
   .describe(
     'Structured error code for tool call failures. ' +
