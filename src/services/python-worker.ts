@@ -93,7 +93,11 @@ def _safe_import(name, *args, **kwargs):
 _builtins.__import__ = _safe_import
 
 # --- Remove dangerous builtins ---
-for _attr in ('open', 'exec', 'compile'):
+# BUG-9 fix: Keep compile() available — Pyodide/CPython internals use it for
+# list comprehensions, f-strings, class bodies, and generator expressions.
+# Blocking compile() breaks basic Python constructs. Only block exec() and open()
+# which are the actual security risks (arbitrary code execution, file system access).
+for _attr in ('open', 'exec'):
     try:
         delattr(_builtins, _attr)
     except AttributeError:
@@ -102,14 +106,10 @@ for _attr in ('open', 'exec', 'compile'):
 def _blocked_exec(*args, **kwargs):
     raise RuntimeError("exec() is not permitted in this sandbox")
 
-def _blocked_compile(*args, **kwargs):
-    raise RuntimeError("compile() is not permitted in this sandbox")
-
 def _blocked_open(*args, **kwargs):
     raise RuntimeError("open() is not permitted in this sandbox")
 
 _builtins.exec = _blocked_exec
-_builtins.compile = _blocked_compile
 _builtins.open = _blocked_open
 
 # --- Capture stdout ---

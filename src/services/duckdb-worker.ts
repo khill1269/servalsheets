@@ -78,22 +78,46 @@ async function runQuery(): Promise<void> {
       );
       const dataRows = table.rows.slice(1);
 
-      // Build JSON array: [{header0: val0, header1: val1, ...}, ...]
-      const jsonData = dataRows.map((row) => {
-        const obj: Record<string, unknown> = {};
-        headers.forEach((h, i) => {
-          obj[h] = row[i];
-        });
-        return obj;
-      });
-
-      // Escape single quotes in the JSON string for DuckDB SQL
-      const jsonStr = JSON.stringify(jsonData).replace(/'/g, "''");
+      // BUG-10 fix: Use CREATE TABLE + INSERT instead of read_json_auto().
+      // read_json_auto() treats its argument as a file path, not inline data.
+      // Building a proper table with typed columns and inserting values directly
+      // avoids file-path interpretation and handles all data types correctly.
 
       const escapedTableName = table.name.replace(/"/g, '""');
-      await conn.run(
-        `CREATE VIEW "${escapedTableName}" AS SELECT * FROM read_json_auto('${jsonStr}'::JSON)`
-      );
+
+      // Build column definitions — infer types from first data row
+      const firstRow = dataRows[0] ?? [];
+      const colDefs = headers.map((h, i) => {
+        const escapedCol = h.replace(/"/g, '""');
+        const sampleVal = firstRow[i];
+        let colType = 'VARCHAR';
+        if (typeof sampleVal === 'number') {
+          colType = Number.isInteger(sampleVal) ? 'BIGINT' : 'DOUBLE';
+        } else if (typeof sampleVal === 'boolean') {
+          colType = 'BOOLEAN';
+        }
+        return `"${escapedCol}" ${colType}`;
+      });
+
+      await conn.run(`CREATE TABLE "${escapedTableName}" (${colDefs.join(', ')})`);
+
+      // Insert data in batches to avoid oversized SQL strings
+      const BATCH_SIZE = 500;
+      for (let batchStart = 0; batchStart < dataRows.length; batchStart += BATCH_SIZE) {
+        const batch = dataRows.slice(batchStart, batchStart + BATCH_SIZE);
+        const valueClauses = batch.map((row) => {
+          const vals = headers.map((_, i) => {
+            const v = row[i];
+            if (v === null || v === undefined) return 'NULL';
+            if (typeof v === 'number') return String(v);
+            if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
+            // Escape single quotes in string values
+            return `'${String(v).replace(/'/g, "''")}'`;
+          });
+          return `(${vals.join(', ')})`;
+        });
+        await conn.run(`INSERT INTO "${escapedTableName}" VALUES ${valueClauses.join(', ')}`);
+      }
     }
 
     const start = Date.now();
