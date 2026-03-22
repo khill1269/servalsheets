@@ -1216,8 +1216,9 @@ describe('SheetsAppsScriptHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
+      // BUG-5 fix: list_processes now uses project-scoped endpoint instead of query param
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('scriptProcessFilter.scriptId=script-123'),
+        expect.stringContaining('/projects/script-123/processes'),
         expect.objectContaining({
           method: 'GET',
         })

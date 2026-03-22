@@ -633,6 +633,8 @@ export async function handleChartResizeAction(
   input: ChartResizeInput,
   deps: ChartsDeps
 ): Promise<VisualizeResponse> {
+  // BUG-4 fix: Only update width/height fields to avoid resetting position.
+  // Use specific field mask to tell Google API which sub-fields to update.
   const currentPosition = await fetchChartPosition(deps, input.spreadsheetId, input.chartId);
 
   await deps.sheetsApi.spreadsheets.batchUpdate({
@@ -651,7 +653,8 @@ export async function handleChartResizeAction(
                 heightPixels: input.height,
               },
             },
-            fields: 'overlayPosition',
+            fields:
+              'overlayPosition(anchorCell,offsetXPixels,offsetYPixels,widthPixels,heightPixels)',
           },
         },
       ],

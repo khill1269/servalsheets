@@ -168,6 +168,19 @@ export async function handleUpdateBandingAction(
   if (req.rowProperties !== undefined) fields.push('rowProperties');
   if (req.columnProperties !== undefined) fields.push('columnProperties');
 
+  // BUG-13 fix: Google API requires non-empty fields mask for updateBanding.
+  // Return a clear error instead of sending an invalid request.
+  if (fields.length === 0) {
+    return deps.error({
+      code: ErrorCodes.INVALID_PARAMS,
+      message:
+        'At least one of rowProperties or columnProperties must be provided for update_banding.',
+      retryable: false,
+      suggestedFix:
+        'Provide rowProperties and/or columnProperties with color definitions (headerColor, firstBandColor, secondBandColor).',
+    });
+  }
+
   await deps.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: req.spreadsheetId!,
     requestBody: {

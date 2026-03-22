@@ -1324,11 +1324,12 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       nextPageToken?: string;
     }
 
-    // Build query parameters for GET request (per Google Apps Script API spec)
+    // BUG-5 fix: Use project-scoped endpoint when scriptId is provided.
+    // Google Apps Script API v1:
+    //   - projects/{scriptId}/processes (lists processes for a specific project)
+    //   - processes (lists all user processes — no scriptId filter)
+    // The `scriptProcessFilter.*` query params are only valid on the project endpoint.
     const params: string[] = [];
-    if (req.scriptId) {
-      params.push(`scriptProcessFilter.scriptId=${encodeURIComponent(req.scriptId)}`);
-    }
     if (req.functionName) {
       params.push(`scriptProcessFilter.functionName=${encodeURIComponent(req.functionName)}`);
     }
@@ -1345,7 +1346,10 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       params.push(`pageToken=${encodeURIComponent(req.pageToken)}`);
     }
 
-    let path = '/processes:listScriptProcesses';
+    // Use project-scoped endpoint when scriptId is available
+    let path = req.scriptId
+      ? `/projects/${encodeURIComponent(req.scriptId)}/processes`
+      : '/processes';
     if (params.length > 0) path += `?${params.join('&')}`;
 
     const result = await this.apiRequest<ListProcessesResponse>('GET', path);
