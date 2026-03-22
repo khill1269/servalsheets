@@ -1172,7 +1172,7 @@ ${req.code}`
       const includeCorrelations = req.includeCorrelations !== false;
 
       // BUG-20 fix: Support optional columns filter
-      const columnFilter = (req as Record<string, unknown>).columns as string[] | undefined;
+      const columnFilter = (req as Record<string, unknown>)['columns'] as string[] | undefined;
       const columnFilterPy = columnFilter ? JSON.stringify(columnFilter) : 'None';
 
       const code = `

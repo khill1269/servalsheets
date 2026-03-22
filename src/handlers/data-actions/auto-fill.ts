@@ -239,7 +239,7 @@ export async function handleAutoFill(
   const total = cellCount(fillRange);
 
   // BUG-18 fix: Respect safety.dryRun — return preview without writing.
-  if (req.safety?.dryRun) {
+  if ((req as Record<string, unknown> & { safety?: { dryRun?: boolean } })['safety']?.dryRun) {
     return ha.makeSuccess('auto_fill', {
       cellsFilled: 0,
       previewCells: total,

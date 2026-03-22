@@ -617,9 +617,8 @@ export abstract class BaseHandler<TInput, TOutput> {
                   action: fix.action,
                   params: fix.params as Record<
                     string,
-                    string | number | boolean | any[] | Record<string, any> | null
+                    string | number | boolean | unknown[] | Record<string, unknown> | null
                   >,
-                  explanation: fix.explanation,
                 },
               };
             }
