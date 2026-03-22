@@ -86,6 +86,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'diagnose_errors',
     'formula_health_check',
     'quick_insights',
+    'semantic_search',
   ],
   sheets_appsscript: [
     'create',
