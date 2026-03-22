@@ -45,7 +45,7 @@ verbosity filtering, scope validation, progress reporting, error mapping.
 | sheets_visualize   | VisualizeHandler        | handlers/visualize.ts (335 lines)   | 18      | Sampling (chart suggestions)       |
 | sheets_collaborate | CollaborateHandler      | handlers/collaborate.ts (652 lines) | 41      | Drive API (sharing)                |
 | sheets_composite   | CompositeHandler        | handlers/composite.ts (995 lines)   | 21      | CompositeOperationsService         |
-| sheets_analyze     | AnalyzeHandler          | handlers/analyze.ts (1183 lines)    | 22      | Sampling, BackgroundAnalyzer       |
+| sheets_analyze     | AnalyzeHandler          | handlers/analyze.ts (1197 lines)    | 23      | Sampling, BackgroundAnalyzer       |
 | sheets_fix         | FixHandler              | handlers/fix.ts (1253 lines)        | 6       | CleaningEngine, quality validators |
 | sheets_templates   | SheetsTemplatesHandler  | handlers/templates.ts (803 lines)   | 8       | Drive appDataFolder                |
 | sheets_bigquery    | SheetsBigQueryHandler   | handlers/bigquery.ts (1938 lines)   | 17      | BigQuery API, circuit breaker      |

@@ -464,6 +464,10 @@ const EnvSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   GOOGLE_API_KEY: z.string().optional(),
+  VOYAGE_API_KEY: z
+    .string()
+    .optional()
+    .describe('Voyage AI API key for semantic search embeddings (sheets_analyze.semantic_search)'),
   LLM_MODEL: z.string().optional(),
   LLM_BASE_URL: z.string().optional(),
 

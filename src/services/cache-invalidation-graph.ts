@@ -451,6 +451,7 @@ export class CacheInvalidationGraph {
 
     // S3-A: Quick Insights — read-only structural snapshot
     rules['sheets_analyze.quick_insights'] = { invalidates: [] };
+    rules['sheets_analyze.semantic_search'] = { invalidates: [] }; // Read-only; vector index managed separately
 
     // ========================================================================
     // sheets_fix (6 actions — 1 original + 5 P4 F3 Data Cleaning)

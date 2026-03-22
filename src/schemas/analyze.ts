@@ -1109,6 +1109,43 @@ const DiagnoseErrorsActionSchema = CommonFieldsSchema.extend({
 });
 
 /**
+ * Semantic search across spreadsheet contents using natural language.
+ * Indexes cell ranges as embeddings and retrieves the most relevant sections
+ * for a given query. Requires VOYAGE_API_KEY environment variable.
+ */
+const SemanticSearchActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('semantic_search')
+    .describe(
+      'Search spreadsheet content by meaning, not exact text. ' +
+        'Indexes cell ranges as embeddings and returns the most relevant sections for a natural language query. ' +
+        'Example: "find all rows about Q4 revenue projections". ' +
+        'Requires VOYAGE_API_KEY. First call on a spreadsheet triggers indexing (~2-5s). ' +
+        'Subsequent queries on the same spreadsheet are fast (<500ms).'
+    ),
+  query: z
+    .string()
+    .min(3)
+    .max(500)
+    .describe('Natural language search query, e.g. "quarterly revenue targets by region"'),
+  topK: z
+    .number()
+    .int()
+    .min(1)
+    .max(20)
+    .optional()
+    .default(5)
+    .describe('Number of results to return (default: 5, max: 20)'),
+  forceReindex: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'Force re-indexing even if a recent index exists. Use after significant spreadsheet edits.'
+    ),
+});
+
+/**
  * All analysis operation inputs
  *
  * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
@@ -1149,6 +1186,8 @@ export const SheetsAnalyzeInputSchema = z.object({
     FormulaHealthCheckActionSchema,
     // Fast insights (1) - no AI, instant structural snapshot
     QuickInsightsActionSchema,
+    // Semantic search (1) - ISSUE-174/175
+    SemanticSearchActionSchema,
   ]),
 });
 

@@ -56,6 +56,7 @@ import { handleScoutAction } from './analyze-actions/scout.js';
 import { handleAnalyzeDataAction } from './analyze-actions/analyze-data.js';
 import { handleComprehensiveAction } from './analyze-actions/comprehensive.js';
 import { handleDiagnoseErrorsAction } from './analyze-actions/diagnose-errors.js';
+import { handleSemanticSearchAction } from './analyze-actions/semantic-search.js';
 
 export interface AnalyzeHandlerOptions {
   context: HandlerContext;
@@ -697,6 +698,19 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             maxInsights?: number;
           };
           response = (await this.handleQuickInsights(qiInput)) as unknown as AnalyzeResponse;
+          break;
+        }
+
+        case 'semantic_search': {
+          const ssInput = req as typeof req & {
+            spreadsheetId: string;
+            query: string;
+            topK?: number;
+            forceReindex?: boolean;
+          };
+          response = (await handleSemanticSearchAction(ssInput, {
+            sheetsApi: this.sheetsApi,
+          })) as unknown as AnalyzeResponse;
           break;
         }
 

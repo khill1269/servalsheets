@@ -112,7 +112,7 @@ const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> =
   // NOTE: analyze and confirm kept as special cases because AST parser over-counts
   // (finds z.literal in output schemas too, not just input discriminated unions)
   analyze: {
-    count: 22,
+    count: 23,
     actions: [
       'comprehensive',
       'analyze_data',
@@ -140,6 +140,8 @@ const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> =
       'formula_health_check',
       // S3-A: Fast structural snapshot
       'quick_insights',
+      // ISSUE-174/175: Semantic search
+      'semantic_search',
     ],
   },
   confirm: {
