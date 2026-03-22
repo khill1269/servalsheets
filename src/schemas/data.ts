@@ -155,6 +155,13 @@ const WriteActionSchema = CommonFieldsSchema.extend({
     .default(false)
     .describe('Return the written values for verification'),
   diffOptions: DiffOptionsSchema.optional().describe('Diff generation options'),
+  preserveDataValidation: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'When true, uses batchUpdate/updateCells with fields=userEnteredValue so data validation rules on target cells are not cleared. Slightly slower than the default values.update path.'
+    ),
 })
   .superRefine((val, ctx) => {
     // Exactly ONE of range or dataFilter must be provided

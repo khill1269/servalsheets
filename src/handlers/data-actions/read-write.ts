@@ -534,6 +534,53 @@ export async function handleWrite(
     }
   }
 
+  // preserveDataValidation path: use batchUpdate/updateCells with fields=userEnteredValue
+  // so existing data validation rules on target cells are not cleared.
+  if (input.preserveDataValidation && writeRange !== '(dynamic)') {
+    const { buildRowData } = await import('./helpers.js');
+    const gridRange = await a1ToGridRange(ha, input.spreadsheetId, writeRange);
+    const rows = buildRowData(input.values, input.valueInputOption ?? 'USER_ENTERED');
+    await ha.withCircuitBreaker('batchUpdate.updateCells', () =>
+      ha.api.spreadsheets.batchUpdate({
+        spreadsheetId: input.spreadsheetId,
+        requestBody: {
+          requests: [
+            { updateCells: { range: toGridRange(gridRange), rows, fields: 'userEnteredValue' } },
+          ],
+          includeSpreadsheetInResponse: false,
+        },
+      })
+    );
+    getETagCache().invalidateSpreadsheet(input.spreadsheetId);
+    const responseData: Record<string, unknown> = {
+      updatedCells: cellCount,
+      updatedRows: input.values.length,
+      updatedColumns:
+        input.values.length > 0 ? Math.max(...input.values.map((row: unknown[]) => row.length)) : 0,
+      updatedRange: writeRange,
+    };
+    try {
+      if (ha.context.sessionContext) {
+        ha.context.sessionContext.recordOperation({
+          tool: 'sheets_data',
+          action: 'write',
+          spreadsheetId: input.spreadsheetId,
+          range: writeRange,
+          description: `Wrote ${cellCount} cell(s) to ${writeRange} (validation preserved)`,
+          undoable: false,
+          cellsAffected: cellCount,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
+    const warnings = buildPayloadWarnings(ha, 'write', payloadValidation);
+    const meta = warnings
+      ? { ...ha.generateMeta('write', input as Record<string, unknown>, responseData), warnings }
+      : undefined;
+    return ha.makeSuccess('write', responseData, undefined, undefined, meta);
+  }
+
   const response = await ha.withCircuitBreaker('values.update', () =>
     ha.api.spreadsheets.values.update({
       spreadsheetId: input.spreadsheetId,
