@@ -6,7 +6,24 @@
 
 ## Current Phase
 
-**Session 98 (2026-03-21) — Enterprise SSO/SAML 2.0 SP implementation (ISSUE-173).** Branch `remediation/phase-1`. 404 actions (25 tools). 24 new SAML tests (all pass).
+**Session 99 (2026-03-22) — Remediation phase-1 bug fix batch + TypeScript cleanup.** Branch `remediation/phase-1`. 404 actions (25 tools). 2742/2742 tests pass. TypeScript clean.
+
+## What Was Just Completed (Session 99)
+
+**8-commit bug fix batch (BUG-1 through BUG-20) + TypeScript follow-up:**
+
+Unblocked by clearing stale `.git/index.lock` + `.git/refs/stash.lock` from FUSE bindfs mount.
+
+- **Commit 1** (`0bd0d31`): A1 range normalization + conditional format rendering (BUG-2,6,7,14) — `range-resolver.ts`, `conditional.ts`
+- **Commit 2** (`43be59f`): Output schema mismatches — `shared.ts` (removed duplicate `fixableVia` key), `agent.ts` (BUG-1,8,12,15)
+- **Commit 3** (`acdcf00`): Google API params — `charts.ts`, `appsscript.ts`, `banding.ts`, `appsscript.test.ts` (BUG-4,5,13)
+- **Commit 4** (`126e230`): Schema discriminators — `data.ts`, `quality.ts` (schema+handler), `analyze.ts` (BUG-3,11,16,17)
+- **Commit 5** (`c3c200a`): Worker safety — `python-worker.ts`, `duckdb-worker.ts` (BUG-9,10)
+- **Commit 6** (`b4f7336`): Auto-fill + compute — `auto-fill.ts`, `compute.ts` handler+schema (BUG-18,19,20)
+- **Commit 7** (`206eb01`): Infra/metadata — `auth.ts`, `tool-response.ts`, `core.ts`, `spreadsheet-ops.ts`, `completions.ts`, `versions.ts`, `revision-timeline.ts`, `schema-handler-alignment.test.ts`, docs, CHANGELOG
+- **Commit 8** (`22b59e5`): TypeScript strict-mode follow-up — `base.ts` (remove `explanation` from fixableVia + `any[]`→`unknown[]`), `compute.ts` (bracket notation), `auto-fill.ts` (cast for safety.dryRun)
+
+**Key decision:** `explanation` field removed from `fixableVia` in `shared.ts` because it was only in the duplicate definition (the BUG-8 fix at line 1149 is the canonical one). `base.ts` error-fix-suggester still works — just without the explanation string in the schema output.
 
 ## What Was Just Completed (Session 98)
 
