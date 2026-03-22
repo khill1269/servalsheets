@@ -24,6 +24,10 @@ jobs:
     name: Performance Regression Tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
 
     steps:
       - name: Checkout code
@@ -66,7 +70,25 @@ jobs:
 
       - name: Generate performance dashboard
         if: always()
-        run: npm run perf:dashboard
+        run: |
+          if [ -d .performance-history/history ] && ls .performance-history/history/*.json >/dev/null 2>&1; then
+            npm run perf:dashboard
+          else
+            mkdir -p .performance-history
+            cat > .performance-history/dashboard.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <title>Performance Dashboard Pending</title>
+          </head>
+          <body>
+            <h1>Performance Dashboard Pending</h1>
+            <p>No performance history exists yet for this branch.</p>
+          </body>
+          </html>
+          EOF
+          fi
 
       - name: Upload performance results
         if: always()
@@ -83,6 +105,7 @@ jobs:
         with:
           name: performance-dashboard
           path: .performance-history/dashboard.html
+          if-no-files-found: ignore
           retention-days: 30
 
       - name: Comment on PR with performance results

@@ -2,35 +2,26 @@ name: Multi-Agent Analysis
 
 on:
   push:
-    branches: [main, develop, 'remediation/**', 'feat/**', 'fix/**']
-    paths:
-      - 'src/**'
+    branches: ['**']
   pull_request:
-    branches: [main, develop]
-    paths:
-      - 'src/**'
-
-concurrency:
-  group: multi-agent-analysis-${{ github.ref }}
-  cancel-in-progress: true
+    branches: [main, feat/*, phase-*]
 
 jobs:
   analyze:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
       issues: write
+      pull-requests: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Full history for better analysis
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -41,7 +32,7 @@ jobs:
       - name: Run Multi-Agent Analysis
         id: analysis
         run: |
-          # multi-agent-analysis: Run analysis on changed files (or all files if specified)
+          # Run analysis on changed files (or all files if specified)
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             mapfile -t FILES < <(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '\.ts$' || true)
           else
@@ -90,7 +81,7 @@ jobs:
 
       - name: Comment on PR
         if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v8
+        uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
@@ -148,29 +139,19 @@ jobs:
       - name: Apply Auto-fixes
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          # Only auto-fix on main branch pushes — open a PR, never push directly to main
+          # Only auto-fix on main branch pushes
           npx tsx scripts/analysis/auto-fixer.ts analysis-report.json
 
-          # Open a PR if any fixes were made
+          # Commit fixes if any were made
           if [ -n "$(git status --porcelain)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            BRANCH="chore/auto-fix-$(date +%Y%m%d-%H%M%S)"
-            git checkout -b "$BRANCH"
             git add -A
             git commit -m "chore: apply auto-fixes from multi-agent analysis
 
-            Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
-            git push origin "$BRANCH"
-            gh pr create \
-              --title "chore: auto-fixes from multi-agent analysis" \
-              --body "Auto-generated fixes from the multi-agent analysis workflow. Review before merging." \
-              --base main \
-              --head "$BRANCH" \
-              --label "chore" || true
+            Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+            git push
           fi
-        env:
-          GH_TOKEN: ${{ github.token }}
 
       - name: Block on Critical Issues
         if: github.event_name == 'pull_request'

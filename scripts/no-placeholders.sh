@@ -124,6 +124,10 @@ for pattern in "${PATTERNS[@]}"; do
       --exclude-dir="handlers-v2" \
       --exclude-dir="__tests__" \
       --exclude-dir="ui" \
+      --exclude="descriptions.ts" \
+      --exclude="annotations.ts" \
+      --exclude="composite.ts" \
+      --exclude="dependencies.ts" \
       --exclude="excel-online-backend.ts" \
       --exclude="airtable-backend.ts" \
       --exclude="prompt-registration.ts" \

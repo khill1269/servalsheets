@@ -53,16 +53,16 @@ export class SecurityAgent extends AnalysisAgent {
     const startTime = Date.now();
     const issues: AnalysisIssue[] = [];
 
-    // Check if handler receives external input
-    // Nested helper/action modules under /handlers/ are not input boundaries
-    const isTopLevelHandler =
-      filePath.includes('/handlers/') &&
-      !filePath.includes('/handlers/helpers/') &&
-      !filePath.includes('/handlers/actions/') &&
-      !filePath.includes('/handlers/utils/');
+    const isHandler = filePath.includes('/handlers/');
     const isHttpEndpoint = filePath.includes('http-server') || filePath.includes('remote-server');
+    const isNestedHandlerHelper =
+      /\/handlers\/(?:helpers\/|[a-z-]+-actions\/)/.test(filePath) ||
+      /\/handlers\/(?:base|error-codes)\.ts$/.test(filePath);
+    const isTopLevelHandler =
+      /^src\/handlers\/[^/]+\.ts$/.test(filePath) &&
+      !/\/handlers\/(?:index|base|error-codes)\.ts$/.test(filePath);
 
-    if (!isTopLevelHandler && !isHttpEndpoint) {
+    if ((!isHandler && !isHttpEndpoint) || isNestedHandlerHelper) {
       return {
         dimension: 'inputValidation',
         status: 'pass',
@@ -74,44 +74,117 @@ export class SecurityAgent extends AnalysisAgent {
 
     let hasZodValidation = false;
     let hasManualValidation = false;
-    let hasDirectReqAccess = false;
+    let usesBaseHandler = false;
+    let usesUnwrapRequest = false;
+    let accessesRequestInput = false;
+    const requestDerivedIdentifiers = new Set<string>();
+
+    const expressionAccessesRequest = (node: ts.Node | undefined): boolean => {
+      if (!node) {
+        return false;
+      }
+
+      if (ts.isIdentifier(node)) {
+        return (
+          ['req', 'request', 'input'].includes(node.text) ||
+          requestDerivedIdentifiers.has(node.text)
+        );
+      }
+
+      if (ts.isPropertyAccessExpression(node)) {
+        return expressionAccessesRequest(node.expression);
+      }
+
+      if (ts.isElementAccessExpression(node)) {
+        return expressionAccessesRequest(node.expression);
+      }
+
+      if (ts.isCallExpression(node)) {
+        if (expressionAccessesRequest(node.expression)) {
+          return true;
+        }
+        return node.arguments.some((arg) => expressionAccessesRequest(arg));
+      }
+
+      return ts.forEachChild(node, expressionAccessesRequest) ?? false;
+    };
+
+    const findGuardedIdentifier = (node: ts.Expression): string | undefined => {
+      if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.ExclamationToken) {
+        return ts.isIdentifier(node.operand) ? node.operand.text : undefined;
+      }
+
+      if (
+        ts.isBinaryExpression(node) &&
+        [
+          ts.SyntaxKind.EqualsEqualsToken,
+          ts.SyntaxKind.EqualsEqualsEqualsToken,
+          ts.SyntaxKind.ExclamationEqualsToken,
+          ts.SyntaxKind.ExclamationEqualsEqualsToken,
+        ].includes(node.operatorToken.kind)
+      ) {
+        if (ts.isIdentifier(node.left)) {
+          return node.left.text;
+        }
+        if (ts.isIdentifier(node.right)) {
+          return node.right.text;
+        }
+      }
+
+      return undefined;
+    };
+
+    const branchRejectsInvalidInput = (node: ts.Node): boolean => {
+      let rejects = false;
+
+      const inspect = (child: ts.Node) => {
+        if (
+          ts.isReturnStatement(child) ||
+          ts.isThrowStatement(child) ||
+          (ts.isCallExpression(child) &&
+            ts.isPropertyAccessExpression(child.expression) &&
+            child.expression.name.text === 'status')
+        ) {
+          rejects = true;
+          return;
+        }
+
+        ts.forEachChild(child, inspect);
+      };
+
+      inspect(node);
+      return rejects;
+    };
 
     const visit = (node: ts.Node) => {
+      if (
+        ts.isImportDeclaration(node) &&
+        node.importClause?.namedBindings &&
+        ts.isNamedImports(node.importClause.namedBindings)
+      ) {
+        for (const element of node.importClause.namedBindings.elements) {
+          if (element.name.text === 'BaseHandler') {
+            usesBaseHandler = true;
+          }
+          if (element.name.text === 'unwrapRequest') {
+            usesUnwrapRequest = true;
+          }
+        }
+      }
+
       // Check for Zod parsing
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
         const methodName = node.expression.name.text;
         if (methodName === 'parse' || methodName === 'safeParse') {
           hasZodValidation = true;
         }
-      }
 
-      // Check for calls to validate* helpers or framework validation functions
-      if (ts.isCallExpression(node)) {
-        const expr = node.expression;
-        const callName = ts.isIdentifier(expr) ? expr.text : undefined;
         if (
-          callName &&
-          (callName.startsWith('validate') ||
-            callName.startsWith('Validate') ||
-            callName === 'unwrapRequest' ||
-            callName === 'parse' ||
-            callName === 'safeParse')
+          /^validate[A-Z_]/.test(methodName) &&
+          node.arguments.some((arg) => expressionAccessesRequest(arg))
         ) {
           hasManualValidation = true;
         }
-      }
-
-      // Check for BaseHandler extends pattern (framework-validated entrypoints)
-      if (
-        ts.isClassDeclaration(node) &&
-        node.heritageClauses?.some((h) =>
-          h.types.some((t) => {
-            const typeName = t.expression.getText(sourceFile);
-            return typeName === 'BaseHandler' || typeName.includes('Handler');
-          })
-        )
-      ) {
-        hasManualValidation = true;
       }
 
       // Check for manual validation (typeof, instanceof, etc.)
@@ -129,34 +202,32 @@ export class SecurityAgent extends AnalysisAgent {
         }
       }
 
-      // Check for guard patterns: if (!x) { return/throw/res.status(...) }
-      if (ts.isIfStatement(node)) {
-        const condition = node.expression;
-        if (
-          ts.isPrefixUnaryExpression(condition) &&
-          condition.operator === ts.SyntaxKind.ExclamationToken
-        ) {
-          // Pattern: if (!x) { ... return/throw/res.status }
-          const thenText = node.thenStatement.getText(sourceFile);
-          if (
-            thenText.includes('return') ||
-            thenText.includes('throw') ||
-            thenText.includes('status(')
-          ) {
-            hasManualValidation = true;
-          }
-        }
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        expressionAccessesRequest(node.initializer)
+      ) {
+        requestDerivedIdentifiers.add(node.name.text);
+        accessesRequestInput = true;
       }
 
-      // Track direct req.body / req.params / req.query / req.path access
       if (
-        ts.isPropertyAccessExpression(node) &&
-        ts.isIdentifier(node.expression) &&
-        node.expression.text === 'req'
+        (ts.isPropertyAccessExpression(node) ||
+          ts.isElementAccessExpression(node) ||
+          ts.isCallExpression(node)) &&
+        expressionAccessesRequest(node)
       ) {
-        const prop = node.name.text;
-        if (['body', 'params', 'query', 'path', 'headers', 'files', 'get'].includes(prop)) {
-          hasDirectReqAccess = true;
+        accessesRequestInput = true;
+      }
+
+      if (ts.isIfStatement(node)) {
+        const guardedIdentifier = findGuardedIdentifier(node.expression);
+        if (
+          guardedIdentifier &&
+          requestDerivedIdentifiers.has(guardedIdentifier) &&
+          branchRejectsInvalidInput(node.thenStatement)
+        ) {
+          hasManualValidation = true;
         }
       }
 
@@ -165,9 +236,11 @@ export class SecurityAgent extends AnalysisAgent {
 
     visit(sourceFile);
 
-    // If this is an HTTP endpoint file but never accesses req.body/params/query/path directly,
-    // treat it as a wiring-only file (not a direct input handler)
-    if (isHttpEndpoint && !hasDirectReqAccess) {
+    if (usesBaseHandler && usesUnwrapRequest) {
+      hasManualValidation = true;
+    }
+
+    if (isHttpEndpoint && !accessesRequestInput) {
       return {
         dimension: 'inputValidation',
         status: 'pass',
@@ -177,7 +250,7 @@ export class SecurityAgent extends AnalysisAgent {
       };
     }
 
-    if (!hasZodValidation && !hasManualValidation) {
+    if ((isTopLevelHandler || isHttpEndpoint) && !hasZodValidation && !hasManualValidation) {
       issues.push(
         this.createIssue(
           'inputValidation',
@@ -208,74 +281,59 @@ export class SecurityAgent extends AnalysisAgent {
   ): Promise<DimensionReport> {
     const startTime = Date.now();
     const issues: AnalysisIssue[] = [];
+    const dynamicSqlVariables = new Set<string>();
+    const executionMethods = new Set(['prepare', 'query', 'execute', 'run']);
 
-    const SQL_EXECUTION_METHODS = new Set([
-      'prepare',
-      'execute',
-      'query',
-      'run',
-      'exec',
-      'all',
-      'get',
-    ]);
-    const SQL_KEYWORDS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'FROM', 'WHERE'];
+    const containsSqlKeyword = (text: string): boolean =>
+      /\b(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)\b/i.test(text);
 
-    /** Check whether an expression contains a dynamic (interpolated) SQL string */
-    const isDynamicSql = (expr: ts.Expression): boolean => {
-      // Direct template with interpolation
-      if (ts.isTemplateExpression(expr)) {
-        const text = expr.getText(sourceFile).toUpperCase();
-        return SQL_KEYWORDS.some((kw) => text.includes(kw));
+    const isDynamicSqlExpression = (node: ts.Expression | undefined): boolean => {
+      if (!node) {
+        return false;
       }
-      // Binary concat: "SELECT" + variable
-      if (ts.isBinaryExpression(expr)) {
-        const text = expr.getText(sourceFile).toUpperCase();
-        return SQL_KEYWORDS.some((kw) => text.includes(kw));
+
+      if (ts.isTemplateExpression(node)) {
+        return node.templateSpans.length > 0 && containsSqlKeyword(node.getText(sourceFile));
       }
-      // Variable reference — look up its initializer if it's a local const/let
+
+      if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+        return containsSqlKeyword(node.getText(sourceFile));
+      }
+
       return false;
     };
 
-    /** Collect all variable initializers in the source for taint tracking */
-    const dynamicVars = new Set<string>();
-    const collectVars = (node: ts.Node) => {
-      if (ts.isVariableDeclaration(node) && node.initializer) {
-        const init = node.initializer;
-        if (
-          (ts.isTemplateExpression(init) || ts.isBinaryExpression(init)) &&
-          SQL_KEYWORDS.some((kw) => init.getText(sourceFile).toUpperCase().includes(kw))
-        ) {
-          const name = ts.isIdentifier(node.name) ? node.name.text : null;
-          if (name) dynamicVars.add(name);
-        }
-      }
-      ts.forEachChild(node, collectVars);
-    };
-    collectVars(sourceFile);
-
     const visit = (node: ts.Node) => {
-      // Only flag SQL execution call sites
       if (
-        ts.isCallExpression(node) &&
-        ts.isPropertyAccessExpression(node.expression) &&
-        SQL_EXECUTION_METHODS.has(node.expression.name.text)
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        isDynamicSqlExpression(node.initializer)
       ) {
-        for (const arg of node.arguments) {
-          let flagged = false;
+        dynamicSqlVariables.add(node.name.text);
+      }
 
-          if (isDynamicSql(arg as ts.Expression)) {
-            flagged = true;
-          } else if (ts.isIdentifier(arg) && dynamicVars.has(arg.text)) {
-            flagged = true;
-          }
+      if (ts.isCallExpression(node)) {
+        const expression = node.expression;
+        const methodName = ts.isPropertyAccessExpression(expression)
+          ? expression.name.text
+          : ts.isIdentifier(expression)
+            ? expression.text
+            : undefined;
 
-          if (flagged) {
+        if (methodName && executionMethods.has(methodName)) {
+          const firstArg = node.arguments[0];
+          const usesDynamicSql =
+            (firstArg && isDynamicSqlExpression(firstArg as ts.Expression)) ||
+            (firstArg && ts.isIdentifier(firstArg) && dynamicSqlVariables.has(firstArg.text));
+
+          if (usesDynamicSql) {
             const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+
             issues.push(
               this.createIssue(
                 'sqlInjection',
                 filePath,
-                'Potential SQL injection: dynamic SQL passed to execution method',
+                'Potential SQL injection: dynamic SQL executed without parameterization',
                 {
                   severity: 'critical',
                   line,
@@ -285,7 +343,6 @@ export class SecurityAgent extends AnalysisAgent {
                 }
               )
             );
-            break;
           }
         }
       }

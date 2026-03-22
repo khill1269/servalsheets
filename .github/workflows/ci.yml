@@ -74,13 +74,13 @@ jobs:
         run: npm run validate:actions
 
       - name: Build (required for dynamic imports)
-        run: npx turbo run build
+        run: npm run build
 
       - name: Verify documentation matches code
         run: |
           # Import actual counts from source of truth
-          EXPECTED_TOOLS=$(node -p "require('./dist/schemas/index.js').TOOL_COUNT")
-          EXPECTED_ACTIONS=$(node -p "require('./dist/schemas/index.js').ACTION_COUNT")
+          EXPECTED_TOOLS=$(node --input-type=module -e "import { TOOL_COUNT } from './dist/schemas/index.js'; console.log(TOOL_COUNT)")
+          EXPECTED_ACTIONS=$(node --input-type=module -e "import { ACTION_COUNT } from './dist/schemas/index.js'; console.log(ACTION_COUNT)")
 
           echo "Source of truth: ${EXPECTED_TOOLS} tools, ${EXPECTED_ACTIONS} actions"
 
@@ -113,9 +113,9 @@ jobs:
 
       - name: Validate exact tool count
         run: |
-          node -e "
-          const { TOOL_DEFINITIONS } = require('./dist/mcp/registration/tool-definitions.js');
-          const { TOOL_COUNT } = require('./dist/schemas/index.js');
+          node --input-type=module -e "
+          import { TOOL_DEFINITIONS } from './dist/mcp/registration/tool-definitions.js';
+          import { TOOL_COUNT } from './dist/schemas/index.js';
 
           if (TOOL_DEFINITIONS.length !== TOOL_COUNT) {
             console.error(\`❌ TOOL_DEFINITIONS length (\${TOOL_DEFINITIONS.length}) !== TOOL_COUNT (\${TOOL_COUNT})\`);
@@ -126,13 +126,13 @@ jobs:
           "
 
       - name: Check placeholders
-        run: npx turbo run check:placeholders
+        run: npm run check:placeholders
 
       - name: Type check
-        run: npx turbo run typecheck
+        run: npm run typecheck
 
       - name: Lint
-        run: npx turbo run lint
+        run: npm run lint
 
       - name: Check architecture
         run: npm run check:architecture
@@ -141,7 +141,7 @@ jobs:
         run: npm run check:integration-wiring
 
       - name: Format check
-        run: npx turbo run format:check
+        run: npm run format:check
 
   # Fast unit tests (no sharding needed)
   test-fast:
@@ -331,7 +331,7 @@ jobs:
             ${{ runner.os }}-dist-
 
       - name: Build
-        run: npx turbo run build
+        run: npm run build
 
       - name: Smoke test built artifacts
         run: npm run smoke

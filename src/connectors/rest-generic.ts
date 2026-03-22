@@ -118,6 +118,7 @@ export class GenericRestConnector implements SpreadsheetConnector {
 
   async configure(credentials: ConnectorCredentials): Promise<void> {
     await validateWebhookUrl(this.config.baseUrl);
+
     if (this.config.auth.type !== 'none') {
       if (!credentials.apiKey && !credentials.custom?.['token']) {
         throw new ConfigError(

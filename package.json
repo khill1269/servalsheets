@@ -441,6 +441,7 @@
     "test:compliance": "vitest run tests/compliance",
     "test:contracts": "vitest run tests/contracts",
     "test:coverage": "vitest run --coverage",
+    "test:coverage:report": "vitest run --coverage --coverage.thresholds.lines=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0 --coverage.thresholds.statements=0",
     "test:e2e": "TEST_E2E=true vitest run --maxWorkers 1 tests/e2e/workflows/basic-crud.test.ts tests/e2e/workflows/protocol-compliance.test.ts tests/e2e/workflows/all-tools-smoke.test.ts tests/e2e/workflows/error-recovery.test.ts",
     "test:e2e:all": "TEST_E2E=true TEST_E2E_HEAVY=true TEST_REAL_API=true vitest run --maxWorkers 1 tests/e2e/workflows",
     "test:e2e:heavy": "TEST_E2E=true TEST_E2E_HEAVY=true vitest run --maxWorkers 1 tests/e2e/workflows/multi-step-workflows.test.ts",

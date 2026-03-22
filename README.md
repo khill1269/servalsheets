@@ -5,8 +5,8 @@ Production-grade Google Sheets MCP Server with 25 tools, 404 actions, safety rai
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-full%20suite%20green-brightgreen)](https://github.com/khill1269/servalsheets)
-[![Coverage](https://img.shields.io/badge/coverage-CI%20gated-brightgreen)](https://github.com/khill1269/servalsheets)
+[![Tests](https://img.shields.io/badge/tests-8500%2B%20passing-brightgreen)](https://github.com/khill1269/servalsheets)
+[![Coverage](https://img.shields.io/badge/coverage-CI%20reported-blue)](https://github.com/khill1269/servalsheets/actions/workflows/coverage.yml)
 
 <p align="center">
   <img src="docs/public/demos/hero-optimized.gif" alt="ServalSheets Demo" width="600">
@@ -358,7 +358,7 @@ npm run check:drift         # Metadata synchronization
 npm run check:placeholders  # No TODO/FIXME in src/
 npm run check:silent-fallbacks  # No silent {} returns
 npm run check:debug-prints  # No console.log in src/
-npm run test:all            # Run the full test suite
+npm test                    # Run 8,500+ tests
 ```
 
 ### Before Creating a PR
@@ -1151,8 +1151,8 @@ npm run build
 # Type check (strict mode)
 npm run typecheck
 
-# Run the full test suite
-npm run test:all
+# Run tests (8,500+ tests)
+npm test
 
 # Run in development mode
 npm run dev
@@ -1261,12 +1261,12 @@ graph TB
 - **Transports**: STDIO, SSE, Streamable HTTP
 - **TypeScript**: Strict mode enabled, 0 errors
 - **SDK Version**: @modelcontextprotocol/sdk@1.27.1
-- **Current test baseline**: `npm run test:all` passed on March 11, 2026 (8,613 passed, 671 skipped)
+- **Test Suite**: 8,500+ passing tests across unit, integration, contract, and protocol suites
 
 ## Quality Metrics
 
 - ✅ **Type Safety**: Full TypeScript strict mode compliance
-- ✅ **Test Coverage**: Full-suite baseline green; coverage thresholds remain enforced in CI
+- ✅ **Test Suite**: 8,500+ passing tests with CI coverage reporting
 - ✅ **Protocol Compliance**: MCP 2025-11-25 certified
 - ✅ **Production Ready**: Used in Claude Connectors Directory
 - ✅ **Error Handling**: Comprehensive error codes with retry hints
@@ -2370,7 +2370,7 @@ As of March 11, 2026, `npm run test:all` completed successfully with:
 ✅ High availability - Redis session store, multi-instance
 ✅ Performance - Batching, caching, rate limiting
 ✅ Security - OAuth 2.1, encryption, token rotation
-✅ Testing - full suite green on March 11, 2026 (8,613 passed, 671 skipped)
+✅ Testing - 8,500+ tests, coverage reported in CI
 ✅ Documentation - 115+ pages, examples for all tools
 ```
 

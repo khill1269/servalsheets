@@ -193,10 +193,18 @@ export const A1NotationSchema = z.preprocess(
       "Sheet names with single quotes must use '' escaping in A1 notation (e.g., 'Tom''s Sheet'!A1)"
     )
     .refine((val) => {
-      // Reject unbounded full-column refs like "A:Z" or "Sheet1!A:Z" — triggers full grid fetch
+      // Reject unbounded multi-column refs like "A:Z" or "Sheet1!A:Z" — triggers full grid fetch.
+      // Single-column refs like "A:A" are allowed and used throughout the API/docs/tests.
       const range = val.includes('!') ? val.split('!')[1] : val;
-      return !/^[A-Z]+:[A-Z]+$/.test(range ?? '');
-    }, 'Full column references like "A:Z" are not allowed — use explicit row bounds like "A1:Z1000" to prevent unbounded API fetches')
+      const columnRangeMatch = /^(\$?[A-Z]+):(\$?[A-Z]+)$/i.exec(range ?? '');
+      if (!columnRangeMatch) {
+        return true;
+      }
+
+      const startColumn = columnRangeMatch[1]?.replace(/\$/g, '');
+      const endColumn = columnRangeMatch[2]?.replace(/\$/g, '');
+      return startColumn === endColumn;
+    }, 'Full column references spanning multiple columns like "A:Z" are not allowed — use explicit row bounds like "A1:Z1000" to prevent unbounded API fetches. Single-column references like "A:A" are allowed.')
     .describe(
       'A1 notation range: "A1" (single cell), "A1:C10" (range), "Sheet1!A1:C10" (with sheet name). Full column refs (A:Z) are rejected — always include row numbers.'
     )

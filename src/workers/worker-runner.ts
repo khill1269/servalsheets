@@ -10,6 +10,7 @@
 import { parentPort, workerData } from 'worker_threads';
 import { pathToFileURL } from 'url';
 import { ConfigError, ValidationError } from '../core/errors.js';
+import { assertAllowedWorkerScriptPath } from './allowed-worker-scripts.js';
 
 interface WorkerMessage {
   taskId: string;
@@ -30,13 +31,7 @@ parentPort.on('message', async (message: WorkerMessage) => {
 
   try {
     // Defense-in-depth: reject path traversal and enforce basename allowlist
-    const basename = scriptPath.replace(/\\/g, '/').split('/').at(-1) ?? '';
-    const allowedWorkers = new Set(['analysis-worker.js', 'formula-parser-worker.js']);
-    if (scriptPath.includes('..') || !allowedWorkers.has(basename)) {
-      throw new ValidationError('Worker script not on allowlist', 'scriptPath', undefined, {
-        value: scriptPath,
-      });
-    }
+    assertAllowedWorkerScriptPath(scriptPath);
 
     // Dynamically import worker script
     const scriptUrl = pathToFileURL(scriptPath).href;

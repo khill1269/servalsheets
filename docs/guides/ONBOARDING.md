@@ -40,8 +40,8 @@ ServalSheets is a **production-grade MCP (Model Context Protocol) server** that 
 
 **Key Stats:**
 
-- 25 tools with 403 actions
-- 1,700+ tests (100% critical path coverage)
+- 25 tools with 404 actions
+- 8,500+ tests with CI coverage reporting
 - TypeScript strict mode
 - MCP 2025-11-25 protocol compliant
 - ~50,000 lines of code
@@ -140,7 +140,7 @@ servalsheets/
 │   │   ├── index.ts        # TOOL_COUNT, ACTION_COUNT (GENERATED)
 │   │   ├── annotations.ts  # Per-tool metadata (GENERATED)
 │   │   └── *.ts            # Individual tool schemas
-│   ├── handlers/           # Business logic (25 handlers)
+│   ├── handlers/           # Business logic (22 handlers)
 │   │   ├── base.ts         # BaseHandler class (1425 lines)
 │   │   └── *.ts            # Tool handlers
 │   ├── mcp/                # MCP protocol layer
@@ -312,7 +312,7 @@ validateOutput(result, outputSchema);
 
 ### 6. Handler Pattern
 
-All 25 tools follow this exact structure:
+All 22 handlers follow this exact structure:
 
 ```typescript
 export class DataHandler extends BaseHandler<DataInput, DataOutput> {
@@ -463,7 +463,7 @@ Follow complete tutorial: [ADDING_A_HANDLER.md](./ADDING_A_HANDLER.md)
 
 ## Testing Philosophy
 
-ServalSheets has **1,700+ tests** with strict coverage requirements:
+ServalSheets has **8,500+ tests** with CI coverage reporting:
 
 ### Test Categories
 
