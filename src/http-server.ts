@@ -600,6 +600,8 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       const limitCheck = await userRateLimiter.checkLimit(userId);
 
       if (!limitCheck.allowed) {
+        const retryAfterSecs = Math.ceil((limitCheck.resetAt.getTime() - Date.now()) / 1000);
+        res.setHeader('Retry-After', retryAfterSecs.toString());
         res.status(429).json({
           error: 'RATE_LIMIT_EXCEEDED',
           message: 'Per-user rate limit exceeded',

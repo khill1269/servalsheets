@@ -760,6 +760,36 @@ The key must be a 64-character hex string (32 bytes). Example:
 openssl rand -hex 32
 ```
 
+### Enterprise SSO (SAML 2.0)
+
+For organizations using an identity provider (Okta, Azure AD, Google Workspace SAML, etc.), ServalSheets ships a built-in SAML 2.0 Service Provider. When configured, users authenticate via your IdP and receive a short-lived JWT for subsequent API requests.
+
+```bash
+# Required
+SAML_ENTRY_POINT=https://your-idp.example.com/sso/saml
+SAML_ISSUER=https://your-servalsheets.example.com
+SAML_CERT=-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----
+SAML_CALLBACK_URL=https://your-servalsheets.example.com/sso/callback
+
+# Optional
+SAML_PRIVATE_KEY=<your-pem-private-key>              # for signed requests
+SAML_WANT_ASSERTIONS_SIGNED=true                    # default: true
+SAML_SIGNATURE_ALGORITHM=sha256                     # default: sha256
+SSO_JWT_TTL=3600                                    # token TTL in seconds (default: 1h)
+SSO_ALLOWED_CLOCK_SKEW=300                          # clock skew tolerance in seconds
+```
+
+SSO routes registered automatically when `SAML_ENTRY_POINT` is set:
+
+| Route                | Description                                 |
+| -------------------- | ------------------------------------------- |
+| `GET /sso/login`     | Redirects to IdP login page                 |
+| `POST /sso/callback` | Receives SAML assertion, issues JWT         |
+| `GET /sso/metadata`  | Serves SP metadata XML for IdP registration |
+| `GET /sso/logout`    | Initiates SLO (Single Log-Out)              |
+
+The issued JWT carries `scope='sso'` and is accepted by the same Bearer-token middleware as OAuth tokens. No client changes required — just swap the token.
+
 ### Transport Security Model (RBAC)
 
 ServalSheets enforces role-based access control (RBAC) **only on HTTP transport**. STDIO transport (used by Claude Desktop and local CLI) trusts the local process by design — it runs under the user's account with their OS-level permissions, so an additional RBAC layer would be redundant.
