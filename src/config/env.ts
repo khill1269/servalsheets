@@ -471,6 +471,36 @@ const EnvSchema = z.object({
   LLM_MODEL: z.string().optional(),
   LLM_BASE_URL: z.string().optional(),
 
+  // SAML SSO configuration (ISSUE-173)
+  SAML_ENTRY_POINT: z.string().optional().describe('IdP SSO endpoint URL (from IdP metadata)'),
+  SAML_ISSUER: z.string().optional().describe('SP Entity ID, typically your server base URL'),
+  SAML_CERT: z
+    .string()
+    .optional()
+    .describe('IdP x509 signing certificate (PEM body without headers)'),
+  SAML_CALLBACK_URL: z.string().optional().describe('ACS URL — must match IdP registration'),
+  SAML_PRIVATE_KEY: z
+    .string()
+    .optional()
+    .describe('SP private key PEM for signed AuthnRequests (optional)'),
+  SAML_WANT_ASSERTIONS_SIGNED: z
+    .string()
+    .optional()
+    .describe('Require signed assertions (default: true)'),
+  SAML_SIGNATURE_ALGORITHM: z.enum(['sha1', 'sha256', 'sha512']).optional().default('sha256'),
+  SSO_JWT_TTL: z.coerce
+    .number()
+    .positive()
+    .optional()
+    .default(3600)
+    .describe('SSO JWT TTL in seconds'),
+  SSO_ALLOWED_CLOCK_SKEW: z.coerce
+    .number()
+    .nonnegative()
+    .optional()
+    .default(300)
+    .describe('Allowed clock skew for SAML assertions in seconds'),
+
   // MCP response size limits
   MCP_MAX_RESPONSE_BYTES: z.coerce.number().int().positive().default(100000),
   // Response compaction (response-compactor.ts)

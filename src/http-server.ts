@@ -17,6 +17,7 @@ import { SetLevelRequestSchema, type LoggingLevel } from '@modelcontextprotocol/
 import { z } from 'zod';
 
 import { OAuthProvider } from './oauth-provider.js';
+import { createSamlProviderFromEnv } from './auth/saml-provider.js';
 import { validateEnv, env, getEnv } from './config/env.js';
 import { createGoogleApiClient, GoogleApiClient } from './services/google-api.js';
 import { initTransactionManager } from './services/transaction-manager.js';
@@ -507,6 +508,15 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       issuer: options.oauthConfig.issuer,
       clientId: options.oauthConfig.clientId,
     });
+  }
+
+  // SAML SSO provider (optional — enabled when SAML_ENTRY_POINT + SAML_CERT + JWT_SECRET set)
+  const samlProvider = createSamlProviderFromEnv();
+  if (samlProvider) {
+    app.use(samlProvider.createRouter());
+    logger.info(
+      'HTTP Server: SAML SSO enabled (routes: /sso/login, /sso/callback, /sso/metadata, /sso/logout)'
+    );
   }
 
   // Per-user rate limiting with Redis (optional)

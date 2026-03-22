@@ -39,6 +39,7 @@
     "jsonwebtoken": "^9.0.3",
     "lru-cache": "^11.2.5",
     "node-cron": "^4.2.1",
+    "node-saml": "^3.1.2",
     "open": "^11.0.0",
     "p-queue": "^9.1.0",
     "prom-client": "^15.1.3",
