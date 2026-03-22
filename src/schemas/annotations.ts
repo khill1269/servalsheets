@@ -3226,6 +3226,25 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
         'This answers natural language questions about data. Scope with a range for large datasets to avoid timeouts.',
     },
   },
+  'sheets_analyze.semantic_search': {
+    apiCalls: 2, // Metadata read + vector/semantic matching
+    idempotent: true,
+    whenToUse:
+      'Finding cells or ranges matching a semantic description (e.g., "revenue columns", "cells with errors")',
+    whenNotToUse:
+      'For exact text matching use sheets_data.find_replace; for structural analysis use sheets_analyze.scout',
+    errorRecovery: {
+      SHEET_NOT_FOUND: 'Call sheets_core.list_sheets first to verify sheet name',
+      PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
+      alternativeActions: [
+        {
+          tool: 'sheets_analyze',
+          action: 'scout',
+          when: 'when a quick structural overview is sufficient',
+        },
+      ],
+    },
+  },
   'sheets_analyze.diagnose_errors': {
     apiCalls: 1,
     idempotent: true,
