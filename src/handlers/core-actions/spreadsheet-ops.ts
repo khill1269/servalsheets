@@ -393,7 +393,8 @@ export async function handleCopyAction(
     });
   }
 
-  let title = input.newTitle;
+  // Accept both 'newTitle' (canonical) and 'title' (LLM-friendly alias)
+  let title = input.newTitle ?? ((input as Record<string, unknown>)['title'] as string | undefined);
   if (!title) {
     const current = await deps.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,

@@ -161,7 +161,9 @@ export async function getTimeline(
   } = {}
 ): Promise<TimelineResult> {
   const limit = options.limit ?? 50;
-  const maxPages = options.maxPages ?? 50;
+  const maxPages = options.maxPages ?? 25; // Reduced from 50 to prevent timeouts
+  const DEADLINE_MS = 45_000; // 45-second deadline to stay within MCP timeout
+  const startTime = Date.now();
 
   const allRevisionItems: drive_v3.Schema$Revision[] = [];
   let pageToken: string | undefined;
@@ -169,6 +171,18 @@ export async function getTimeline(
   let pagesRead = 0;
 
   do {
+    // Deadline check: bail out before MCP timeout
+    if (Date.now() - startTime > DEADLINE_MS) {
+      nextPageToken = pageToken;
+      logger.warn('revision-timeline: deadline exceeded; returning partial results', {
+        spreadsheetId,
+        pagesRead,
+        elapsedMs: Date.now() - startTime,
+        revisionsLoaded: allRevisionItems.length,
+      });
+      break;
+    }
+
     const response = await driveApi.revisions.list({
       fileId: spreadsheetId,
       pageSize: 1000, // Drive revisions.list allows up to 1000 items per page.

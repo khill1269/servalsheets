@@ -24,6 +24,17 @@ import {
   type PlainRecord,
 } from './tool-response-normalization.js';
 
+/**
+ * Module-level flag: emit onboarding hint exactly once per server lifetime.
+ * Reset when `sheets_auth status` is called (via markOnboardingComplete).
+ */
+let onboardingHintEmitted = false;
+
+/** Called by auth handler after sheets_auth.status completes, suppressing further hints. */
+export function markOnboardingComplete(): void {
+  onboardingHintEmitted = true;
+}
+
 const NON_FATAL_TOOL_ERROR_CODES = new Set<string>([
   'NOT_FOUND',
   'PRECONDITION_FAILED',
@@ -52,13 +63,20 @@ function getOptionalBoolean(value: unknown): boolean | undefined {
  * Key: "toolName.actionName", Value: reason string for the taskHint.
  */
 const LONG_RUNNING_ACTIONS: Record<string, string> = {
-  'sheets_bigquery.export_to_bigquery': 'BigQuery export can take 30-120s for large datasets. Use tasks/call for background execution.',
-  'sheets_bigquery.import_from_bigquery': 'BigQuery import can take 30-120s for large datasets. Use tasks/call for background execution.',
-  'sheets_appsscript.run': 'Apps Script execution has unbounded duration. Use tasks/call for background execution.',
-  'sheets_composite.export_large_dataset': 'Large dataset export streams data in chunks. Use tasks/call for background execution.',
-  'sheets_history.timeline': 'Revision timeline scans Drive API history and can take 15-60s. Use tasks/call for background execution.',
-  'sheets_federation.call_remote': 'Remote MCP server calls have network latency. Use tasks/call for background execution.',
-  'sheets_analyze.comprehensive': 'Comprehensive analysis scans 43 feature categories. Use tasks/call for background execution.',
+  'sheets_bigquery.export_to_bigquery':
+    'BigQuery export can take 30-120s for large datasets. Use tasks/call for background execution.',
+  'sheets_bigquery.import_from_bigquery':
+    'BigQuery import can take 30-120s for large datasets. Use tasks/call for background execution.',
+  'sheets_appsscript.run':
+    'Apps Script execution has unbounded duration. Use tasks/call for background execution.',
+  'sheets_composite.export_large_dataset':
+    'Large dataset export streams data in chunks. Use tasks/call for background execution.',
+  'sheets_history.timeline':
+    'Revision timeline scans Drive API history and can take 15-60s. Use tasks/call for background execution.',
+  'sheets_federation.call_remote':
+    'Remote MCP server calls have network latency. Use tasks/call for background execution.',
+  'sheets_analyze.comprehensive':
+    'Comprehensive analysis scans 43 feature categories. Use tasks/call for background execution.',
 };
 
 /** Execution time threshold (ms) above which we suggest tasks/call even for non-listed actions */
@@ -205,6 +223,18 @@ export function buildToolResponse(
       const taskHint = getTaskRoutingHint(toolName, actionName, executionTimeMs);
       if (taskHint) {
         (structuredContent['_meta'] as Record<string, unknown>)['taskHint'] = taskHint;
+      }
+
+      // Onboarding hint: on first non-auth tool call, nudge user toward sheets_auth status
+      // for full readiness report, optional feature setup, and guided prompts.
+      if (toolName && toolName !== 'sheets_auth' && !onboardingHintEmitted) {
+        onboardingHintEmitted = true;
+        (structuredContent['_meta'] as Record<string, unknown>)['onboardingHint'] = {
+          message:
+            'Tip: Run sheets_auth action:"status" for a full readiness report — see which optional features (AI sampling, data connectors, webhooks) are available and get guided setup.',
+          suggestedAction: { tool: 'sheets_auth', action: 'status' },
+          recommendedPrompt: 'welcome',
+        };
       }
     }
 

@@ -43,6 +43,8 @@ import { getSessionContext } from '../services/session-context.js';
 import { ErrorCodes } from './error-codes.js';
 import { connectorManager } from '../resources/connectors-runtime.js';
 import { isLLMFallbackAvailable } from '../services/llm-fallback.js';
+import { resourceNotifications } from '../resources/notifications.js';
+import { markOnboardingComplete } from '../mcp/registration/tool-response.js';
 
 /** Module-level CSRF state store with 10-minute TTL */
 const pendingStates = new Map<string, number>();
@@ -305,6 +307,8 @@ export class AuthHandler {
       switch (req.action) {
         case 'status':
           response = await this.handleStatus();
+          // Mark onboarding complete so the first-call hint in tool-response.ts is suppressed
+          markOnboardingComplete();
           break;
         case 'login':
           response = await this.handleLogin(req as AuthLoginInput);
@@ -1242,6 +1246,11 @@ export class AuthHandler {
           },
         };
       }
+      // Notify clients that connector resources changed
+      resourceNotifications.notifyResourceListChanged(
+        `Connector ${connectorId} configured via setup_feature`
+      );
+
       return this.buildSetupFeatureResponse({
         message: `${info?.name ?? connectorId} configured, verified, and encrypted.`,
         configured: true,
@@ -1320,6 +1329,11 @@ export class AuthHandler {
     // Apply immediately to current process + persist for future restarts
     process.env['ANTHROPIC_API_KEY'] = apiKey;
     await runtimeConfigStore.save('ANTHROPIC_API_KEY', apiKey);
+
+    // Notify clients — AI-powered actions are now available
+    resourceNotifications.notifyResourceListChanged(
+      'Sampling API key configured via setup_feature; AI features now available'
+    );
 
     return this.buildSetupFeatureResponse({
       message:
@@ -1413,6 +1427,11 @@ export class AuthHandler {
       initWebhookManager(redisClient, this.googleClient!, webhookEndpoint);
       hotWired = true;
       logger.info('WebhookManager hot-wired with Redis after setup_feature');
+
+      // Notify clients that the tool surface changed — webhook actions are now available
+      resourceNotifications.notifyResourceListChanged(
+        'Redis configured via setup_feature; webhook actions now available'
+      );
     } catch (err) {
       logger.warn('Redis hot-wire failed; restart required to activate webhooks', {
         error: err instanceof Error ? err.message : String(err),
@@ -1522,6 +1541,11 @@ export class AuthHandler {
     } catch {
       // best-effort
     }
+
+    // Notify clients — federation tools/resources are now available
+    resourceNotifications.notifyResourceListChanged(
+      `Federation configured via setup_feature; ${serverCount} server(s) registered`
+    );
 
     return this.buildSetupFeatureResponse({
       message: `${serverCount} federation server${serverCount !== 1 ? 's' : ''} saved. MCP federation is now enabled.`,

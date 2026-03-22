@@ -58,7 +58,9 @@ const SheetSpecSchema = z.object({
     .optional()
     .default(26)
     .describe('Initial column count (default: 26)'),
-  tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
+  tabColor: ColorSchema.optional().describe(
+    'DEPRECATED — prefer tabColorStyle for theme color support. Plain RGB shorthand, ignored if tabColorStyle is set.'
+  ),
   tabColorStyle: ColorStyleSchema.optional().describe(
     'Tab color as RGB or theme color (Google Sheets API v4 ColorStyle)'
   ),
@@ -119,6 +121,7 @@ const CopyActionSchema = CommonFieldsSchema.extend({
   action: z.literal('copy').describe('Copy an entire spreadsheet'),
   spreadsheetId: SpreadsheetIdSchema.describe('Source spreadsheet ID'),
   newTitle: z.string().optional().describe('Title for the copied spreadsheet'),
+  title: z.string().optional().describe('Alias for newTitle — title for the copied spreadsheet'),
   destinationFolderId: z.string().optional().describe('Google Drive folder ID to copy into'),
 }).strict();
 
@@ -301,7 +304,9 @@ const AddSheetActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(26)
     .describe('Initial column count (default: 26)'),
-  tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
+  tabColor: ColorSchema.optional().describe(
+    'DEPRECATED — prefer tabColorStyle for theme color support. Plain RGB shorthand, ignored if tabColorStyle is set.'
+  ),
   tabColorStyle: ColorStyleSchema.optional().describe(
     'Tab color as RGB or theme color (Google Sheets API v4 ColorStyle)'
   ),
@@ -345,7 +350,9 @@ const UpdateSheetActionSchema = CommonFieldsSchema.extend({
     .optional()
     .describe('Alias for title (deprecated — use title instead)'),
   index: z.coerce.number().int().min(0).optional().describe('New position (0 = first)'),
-  tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
+  tabColor: ColorSchema.optional().describe(
+    'DEPRECATED — prefer tabColorStyle for theme color support. Plain RGB shorthand, ignored if tabColorStyle is set.'
+  ),
   tabColorStyle: ColorStyleSchema.optional().describe(
     'Tab color as RGB or theme color (Google Sheets API v4 ColorStyle)'
   ),
@@ -427,7 +434,9 @@ const BatchUpdateSheetsActionSchema = CommonFieldsSchema.extend({
           sheetId: SheetIdSchema.describe('Numeric sheet ID to update (required)'),
           title: z.string().min(1).max(255).optional().describe('New sheet title'),
           index: z.coerce.number().int().min(0).optional().describe('New position (0 = first)'),
-          tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
+          tabColor: ColorSchema.optional().describe(
+            'DEPRECATED — prefer tabColorStyle for theme color support. Plain RGB shorthand, ignored if tabColorStyle is set.'
+          ),
           hidden: z.boolean().optional().describe('Hide/show the sheet'),
         })
         .strict()

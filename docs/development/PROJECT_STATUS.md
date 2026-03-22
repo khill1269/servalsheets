@@ -32,7 +32,7 @@ All verification checks are currently passing.
 | Metric   | Value          | Source                         |
 | -------- | -------------- | ------------------------------ |
 | Tools    | 25             | `src/schemas/action-counts.ts` |
-| Actions  | 403            | `src/schemas/action-counts.ts` |
+| Actions  | 404            | `src/schemas/action-counts.ts` |
 | Version  | 1.7.0          | `package.json`                 |
 | Protocol | MCP 2025-11-25 | `src/version.ts`               |
 
@@ -69,7 +69,7 @@ npm run check:silent-fallbacks  # No silent {} returns
 ### Audit Commands
 
 ```bash
-npm run audit:coverage      # 403-action coverage test
+npm run audit:coverage      # 404-action coverage test
 npm run audit:perf          # Performance benchmarks
 npm run audit:memory        # Memory leak detection
 npm run audit:gate          # CI gate (7 checks)

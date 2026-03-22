@@ -21,7 +21,7 @@ tags: [sheets, prometheus]
 | Metric           | Source File                    | Line              | Current Value | Verification Command                                            |
 | ---------------- | ------------------------------ | ----------------- | ------------- | --------------------------------------------------------------- |
 | **TOOL_COUNT**   | `src/schemas/action-counts.ts` | exported constant | `25`          | `grep "export const TOOL_COUNT" src/schemas/action-counts.ts`   |
-| **ACTION_COUNT** | `src/schemas/action-counts.ts` | exported constant | `403`         | `grep "export const ACTION_COUNT" src/schemas/action-counts.ts` |
+| **ACTION_COUNT** | `src/schemas/action-counts.ts` | exported constant | `404`         | `grep "export const ACTION_COUNT" src/schemas/action-counts.ts` |
 
 **Verification:**
 

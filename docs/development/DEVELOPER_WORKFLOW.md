@@ -1557,10 +1557,10 @@ grep "Circuit breaker" logs/servalsheets.log
 
 ```markdown
 ❌ Wrong:
-ServalSheets has 25 tools and 403 actions.
+ServalSheets has 25 tools and 404 actions.
 
 ✅ Correct:
-ServalSheets has 25 tools and 403 actions (see src/schemas/index.ts:63).
+ServalSheets has 25 tools and 404 actions (see src/schemas/index.ts:63).
 ```
 
 **Fix:**

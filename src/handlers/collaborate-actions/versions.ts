@@ -235,11 +235,22 @@ export async function handleVersionListRevisionsAction(
     const allRevisions: drive_v3.Schema$Revision[] = [];
     let pageToken: string | undefined;
     let pageCount = 0;
-    const PAGE_CAP = 100;
+    const PAGE_CAP = 20; // Reduced from 100 to prevent timeouts on large revision histories
+    const DEADLINE_MS = 45_000; // 45-second deadline to stay within MCP timeout
+    const startTime = Date.now();
 
-    // Fetch all revisions across Drive pages to find the cursor position.
+    // Fetch revisions across Drive pages to find the cursor position.
+    // Uses a deadline check to prevent unbounded fetching.
     await sendProgress(0, PAGE_CAP, 'Scanning revision history...');
     do {
+      // Deadline check: bail out before timeout
+      if (Date.now() - startTime > DEADLINE_MS) {
+        logger.warn(
+          `version_list_revisions: deadline exceeded (${DEADLINE_MS}ms) after ${pageCount} pages, ${allRevisions.length} revisions for spreadsheet ${input.spreadsheetId}`
+        );
+        break;
+      }
+
       const resp = await deps.driveApi.revisions.list({
         fileId: input.spreadsheetId!,
         pageSize: 200,
@@ -250,7 +261,7 @@ export async function handleVersionListRevisionsAction(
       allRevisions.push(...(resp.data.revisions ?? []));
       pageToken = resp.data.nextPageToken ?? undefined;
       pageCount++;
-      if (pageCount % 10 === 0 || !pageToken) {
+      if (pageCount % 5 === 0 || !pageToken) {
         await sendProgress(
           pageCount,
           PAGE_CAP,
