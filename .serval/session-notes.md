@@ -6,7 +6,31 @@
 
 ## Current Phase
 
-**Session 96 (2026-03-22) — Post-audit improvements plan execution.** Branch `remediation/phase-1`. 404 actions (25 tools). 2742 tests pass.
+**Session 97 (2026-03-21) — Tier 4 services decomposition.** Branch `remediation/phase-1`. 404 actions (25 tools). 2742 tests pass. All tiers complete.
+
+## What Was Just Completed (Session 97)
+
+**8-item multi-tier implementation plan — all tiers complete:**
+
+Tiers 1–3 were completed in Session 96. This session completed **Tier 4 (Item 8): Services decomposition**.
+
+- **`src/services/agent-engine.ts`** (2467 lines → 75 lines): Converted to thin re-export facade. Split into 7 focused sub-modules under `src/services/agent/`:
+  - `types.ts` (~155 lines) — all interfaces + `registerToolInputSchemas` setter (G3 constraint preserved)
+  - `sampling.ts` (~145 lines) — MCP Sampling utilities, consent, model hints
+  - `plan-store.ts` (~110 lines) — in-memory `Map<string, PlanState>` + disk persistence
+  - `templates.ts` (~370 lines) — `WORKFLOW_TEMPLATES` + type exports
+  - `plan-compiler.ts` (~320 lines) — `compilePlanAI`, `compilePlan`, `compileFromTemplate`, `listTemplates`
+  - `plan-executor.ts` (~530 lines) — `executePlan`, `executeStep`, `resumePlan`, `aiValidateStepResult`
+  - `checkpoints.ts` (~110 lines) — `createCheckpoint`, `rollbackToPlan`, `getPlanStatus`, `listPlans`, `deletePlan`, `clearAllPlans`
+- **`src/services/transaction-wal.ts`** (NEW, ~220 lines): `WalManager` class extracted from `transaction-manager.ts` — owns all WAL state (`seq`, `orphanedTransactions`, `writeChain`, `ready`), exposes `append()`, `compact()`, `getRecoveryReport()`, `discardOrphaned()`.
+- **`src/services/transaction-manager.ts`** (2371 → 2139 lines): Replaced 6 WAL private fields + 4 WAL private methods with `this.wal: WalManager | null`. All WAL delegation calls preserved.
+- **`scripts/check-file-sizes.sh`**: Removed agent-engine.ts budget override; set transaction-manager.ts budget to 2200.
+- **Annotation fix**: Added `sheets_analyze.semantic_search` to `ACTION_ANNOTATIONS` (missing entry from Session 95).
+- **Doc count fix**: Updated 403→404 in README.md, add-on/README.md, SOURCE_OF_TRUTH.md, descriptions.ts.
+
+**Verification**: TypeScript clean, 2742/2742 tests pass, validate:action-config passing.
+
+**Commits**: `6c755e1` (Tier 4 decomposition), `86336c8` (CODEBASE_CONTEXT 404 actions update)
 
 ## What Was Just Completed (Session 96)
 
