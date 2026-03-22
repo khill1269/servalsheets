@@ -258,7 +258,7 @@ const CustomFunctionActionSchema = CommonFieldsSchema.extend({
     .string()
     .min(1)
     .describe(
-      'Computation expression using column references. Supports: arithmetic (+, -, *, /, %), comparison (>, <, ==, !=), logical (AND, OR, NOT), and built-in functions (ABS, ROUND, CEIL, FLOOR, SQRT, POW, LOG, LN, EXP, MOD). Column refs: $A, $B or $ColumnName. Example: "ROUND($Revenue * $TaxRate, 2)"'
+      'Computation expression using column references. Supports: arithmetic (+, -, *, /, %), comparison (>, <, ==, !=), logical (AND, OR, NOT), and built-in functions (ABS, ROUND, CEIL, FLOOR, SQRT, POW, LOG, LN, EXP, MOD). Column refs: $A, $B or $ColumnName. Also supports bare "x" for single-column ranges (e.g. "x * 1.1"). Examples: "ROUND($Revenue * $TaxRate, 2)", "x * 1.1"'
     ),
   outputColumn: z
     .string()
@@ -373,6 +373,10 @@ const PandasProfileActionSchema = CommonFieldsSchema.extend({
     .literal('pandas_profile')
     .describe('Generate statistical profile of spreadsheet data using pandas'),
   range: RangeInputSchema,
+  columns: z
+    .array(z.string())
+    .optional()
+    .describe('Optional list of column names to profile. If omitted, profiles all columns.'),
   hasHeaders: z.boolean().default(true),
   includeCorrelations: z.boolean().default(true),
 }).strict();

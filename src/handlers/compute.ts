@@ -512,7 +512,8 @@ export class ComputeHandler {
 
     const result = computeStatistics(data, {
       columns: req.columns,
-      percentiles: req.percentiles,
+      // BUG-12 fix: Default percentiles when missing (e.g., via batch_compute forwarding)
+      percentiles: req.percentiles ?? [25, 50, 75],
       includeCorrelations: req.includeCorrelations,
       movingWindowConfig,
     });
@@ -774,8 +775,27 @@ export class ComputeHandler {
 
     // Evaluate expression for each row
     const values: unknown[] = [];
+
+    // BUG-19 fix: Detect if expression uses bare 'x' variable (no $ prefix).
+    // LLMs commonly send "x * 1.1" instead of "$ColumnName * 1.1".
+    // When 'x' is used and the range has a single data column (or we can infer
+    // the target column), substitute x with each row's value.
+    const usesBareX = /\bx\b/.test(req.expression) && !/\$/.test(req.expression);
+
     for (const row of rows) {
       let expr = req.expression;
+
+      if (usesBareX) {
+        // Single-variable mode: substitute 'x' with the first (or only) numeric value
+        // If range is a single column, use that value. Otherwise use first column.
+        const numericIndices = headers
+          .map((_, i) => i)
+          .filter((i) => typeof row[i] === 'number' || !isNaN(Number(row[i])));
+        const targetIdx = numericIndices.length === 1 ? numericIndices[0]! : 0;
+        const cellVal = row[targetIdx] ?? 0;
+        expr = expr.replace(/\bx\b/g, String(cellVal));
+      }
+
       // Replace $ColumnName and $A, $B etc. with actual values
       for (let i = 0; i < headers.length; i++) {
         const headerName = headers[i]!;
@@ -1151,6 +1171,10 @@ ${req.code}`
       const hasHeaders = req.hasHeaders !== false;
       const includeCorrelations = req.includeCorrelations !== false;
 
+      // BUG-20 fix: Support optional columns filter
+      const columnFilter = (req as Record<string, unknown>).columns as string[] | undefined;
+      const columnFilterPy = columnFilter ? JSON.stringify(columnFilter) : 'None';
+
       const code = `
 import pandas as pd
 import json
@@ -1163,6 +1187,13 @@ else:
     data_rows = rows[1:] if ${hasHeaders ? 'True' : 'False'} else rows
     df = pd.DataFrame(data_rows, columns=headers)
     df = df.apply(pd.to_numeric, errors='ignore')
+
+    # Filter to requested columns if specified
+    _col_filter = ${columnFilterPy}
+    if _col_filter is not None:
+        _valid_cols = [c for c in _col_filter if c in df.columns]
+        if _valid_cols:
+            df = df[_valid_cols]
 
     stats = {}
     for col in df.columns:

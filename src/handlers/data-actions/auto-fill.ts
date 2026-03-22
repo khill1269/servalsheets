@@ -236,6 +236,22 @@ export async function handleAutoFill(
     });
   }
 
+  const total = cellCount(fillRange);
+
+  // BUG-18 fix: Respect safety.dryRun — return preview without writing.
+  if (req.safety?.dryRun) {
+    return ha.makeSuccess('auto_fill', {
+      cellsFilled: 0,
+      previewCells: total,
+      detectedPattern: pattern,
+      fillRange,
+      sourceRange,
+      strategy,
+      dryRun: true,
+      previewValues: fillValues.slice(0, 5), // Show first 5 rows as preview
+    });
+  }
+
   // 3. Write to fillRange
   try {
     await ha.api.spreadsheets.values.update({
@@ -251,8 +267,6 @@ export async function handleAutoFill(
       retryable: true,
     });
   }
-
-  const total = cellCount(fillRange);
 
   return ha.makeSuccess('auto_fill', {
     cellsFilled: total,
