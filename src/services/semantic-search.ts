@@ -9,6 +9,7 @@
  */
 
 import type { sheets_v4 } from 'googleapis';
+import { ServiceError } from '../core/errors.js';
 import { logger } from '../utils/logger.js';
 
 // ============================================================================
@@ -86,7 +87,13 @@ async function embed(texts: string[], apiKey: string): Promise<number[][]> {
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`Embedding API error ${response.status}: ${body}`);
+    throw new ServiceError(
+      `Embedding API error ${response.status}: ${body}`,
+      'UNAVAILABLE',
+      'voyage-ai',
+      response.status === 429,
+      { statusCode: response.status }
+    );
   }
 
   const data = (await response.json()) as { data: Array<{ embedding: number[] }> };
@@ -109,12 +116,18 @@ async function embedQuery(query: string, apiKey: string): Promise<number[]> {
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`Embedding API error ${response.status}: ${body}`);
+    throw new ServiceError(
+      `Embedding API error ${response.status}: ${body}`,
+      'UNAVAILABLE',
+      'voyage-ai',
+      response.status === 429,
+      { statusCode: response.status }
+    );
   }
 
   const data = (await response.json()) as { data: Array<{ embedding: number[] }> };
   const first = data.data[0];
-  if (!first) throw new Error('Empty embedding response');
+  if (!first) throw new ServiceError('Empty embedding response', 'UNAVAILABLE', 'voyage-ai', false);
   return first.embedding;
 }
 

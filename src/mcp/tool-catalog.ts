@@ -1,4 +1,5 @@
 import { STAGED_REGISTRATION } from '../config/constants.js';
+import { ConfigError } from '../core/errors.js';
 import { logger } from '../utils/logger.js';
 import {
   ACTIVE_TOOL_DEFINITIONS,
@@ -54,10 +55,11 @@ export function validateToolCatalogConfiguration(): ToolCatalogDiagnostics {
     diagnostics.totalActionCount === diagnostics.configuredActionCount;
 
   if (!countsMatch && !diagnostics.stagedRegistration && !hasLazyLoadedTools) {
-    throw new Error(
+    throw new ConfigError(
       `Tool catalog mismatch: ${diagnostics.activeToolCount}/${diagnostics.totalToolCount} tools and ` +
         `${diagnostics.configuredActionCount}/${diagnostics.totalActionCount} actions are configured ` +
-        'without staged registration or lazy loading enabled.'
+        'without staged registration or lazy loading enabled.',
+      'TOOL_CATALOG'
     );
   }
 
