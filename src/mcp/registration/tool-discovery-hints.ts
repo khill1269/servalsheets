@@ -560,11 +560,15 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
   sheets_data: {
     read: {
       required: ['spreadsheetId', 'range'],
-      description: 'Read cell values from a range. Returns 2D array of values.',
+      optional: ['valueRenderOption', 'dateTimeRenderOption', 'majorDimension'],
+      description:
+        'Read cell values from a range. Returns 2D array of values. Use valueRenderOption=UNFORMATTED_VALUE for numeric reads — the default FORMATTED_VALUE returns strings like "1,234.56" which break numeric comparisons.',
     },
     write: {
       required: ['spreadsheetId', 'range', 'values'],
-      description: 'Write values to a range. Values is a 2D array matching the range dimensions.',
+      optional: ['valueInputOption', 'preserveDataValidation'],
+      description:
+        'Write values to a range. Values is a 2D array. Default valueInputOption=USER_ENTERED parses formulas (=SUM()) and numbers correctly. Use preserveDataValidation=true to keep existing data validation rules on target cells.',
     },
     append: {
       required: ['spreadsheetId', 'range', 'values'],
@@ -576,13 +580,14 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
     },
     batch_read: {
       required: ['spreadsheetId', 'ranges'],
+      optional: ['valueRenderOption'],
       description:
-        'Read multiple ranges in one API call. Ranges is an array of A1 notation strings.',
+        'Read multiple ranges in one API call. Ranges is an array of A1 notation strings. Prefer over repeated read calls. Use valueRenderOption=UNFORMATTED_VALUE for numeric data.',
     },
     batch_write: {
       required: ['spreadsheetId', 'data'],
       description:
-        'Write to multiple ranges in one API call. Data is array of { range, values } objects.',
+        'Write to multiple ranges in one API call. Data is array of { range, values } objects. Prefer over repeated write calls. For formula fills, generate the formula string per row in code (e.g. "=B2-C2") and write all rows in one batch_write call.',
     },
     batch_clear: {
       required: ['spreadsheetId', 'ranges'],
@@ -1721,13 +1726,13 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
       required: ['goal', 'spreadsheetId'],
       optional: ['maxSteps', 'context', 'constraints'],
       description:
-        'Compile a natural-language goal into an executable multi-step plan. Returns a planId and the full step list for review before execution. Use maxSteps (default 10, max 50) to limit plan size.',
+        'Compile a natural-language goal into an executable multi-step plan. Returns a planId and the full step list for review before execution. Always pass context (scout output or sheet description) — informed plans cut step count materially versus having the agent rediscover structure. Use maxSteps (default 10, max 50) to limit plan size.',
     },
     execute: {
       required: ['planId'],
       optional: ['startStep', 'dryRun', 'checkpointAfterEach'],
       description:
-        'Execute a compiled plan autonomously. Each step is validated by AI reflexion before the next step runs. Use dryRun=true to preview without writing. Returns per-step results and overall status.',
+        'Execute a compiled plan autonomously. Each step is validated by AI reflexion before the next step runs. Use observe() to create a rollback checkpoint before executing destructive operations. Use dryRun=true to preview without writing. Returns per-step results and overall status.',
     },
     execute_step: {
       required: ['planId', 'stepIndex'],
