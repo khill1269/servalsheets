@@ -60,6 +60,13 @@ export interface SheetData {
   formulas: (string | null)[][];
   /** Sheet name */
   sheetName: string;
+  /**
+   * Google Sheets spreadsheet locale (e.g. 'en_US', 'fr_FR', 'de_DE').
+   * Used to configure HyperFormula's decimal/thousands separators so that
+   * European-style formulas like =SUMME(A1:A10) or =1,5+2,5 evaluate correctly.
+   * Defaults to 'en_US' when absent.
+   */
+  locale?: string;
 }
 
 interface HFInstance {
@@ -175,6 +182,96 @@ function isVolatileFormula(formula: string): boolean {
 }
 
 // ============================================================================
+// Locale → HyperFormula config
+// ============================================================================
+
+interface HFLocaleOptions {
+  decimalSeparator: '.' | ',';
+  thousandSeparator: '.' | ' ' | '';
+  functionArgSeparator: ',' | ';';
+}
+
+/**
+ * Map a Google Sheets locale string (e.g. 'fr_FR', 'de_DE') to HyperFormula
+ * separator options so that European formulas parse correctly.
+ *
+ * European locales use comma as decimal separator and semicolon as function
+ * argument separator (e.g. =SOMME(A1;A10) in French).
+ *
+ * HyperFormula constraint: functionArgSeparator and thousandSeparator MUST NOT
+ * be the same character. For US-style locales (functionArgSeparator=',') we
+ * therefore use thousandSeparator='' to avoid the conflict. HyperFormula does not
+ * use thousandSeparator for output formatting — it only affects number literal
+ * parsing inside formula strings, which is uncommon in practice.
+ */
+/** @internal exported for testing */
+export function localeToHfOptions(locale?: string): HFLocaleOptions {
+  // Default: US/en locale
+  if (!locale) return { decimalSeparator: '.', thousandSeparator: '', functionArgSeparator: ',' };
+
+  // Locales that use comma as decimal separator (most of non-English world)
+  const europeanDecimalLocales = new Set([
+    'af',
+    'ar',
+    'az',
+    'be',
+    'bg',
+    'bs',
+    'ca',
+    'cs',
+    'da',
+    'de',
+    'el',
+    'es',
+    'et',
+    'eu',
+    'fa',
+    'fi',
+    'fr',
+    'gl',
+    'hr',
+    'hu',
+    'hy',
+    'is',
+    'it',
+    'ka',
+    'kk',
+    'lt',
+    'lv',
+    'mk',
+    'mn',
+    'nb',
+    'nl',
+    'pl',
+    'pt',
+    'ro',
+    'ru',
+    'sk',
+    'sl',
+    'sq',
+    'sr',
+    'sv',
+    'tr',
+    'uk',
+    'uz',
+  ]);
+
+  // Extract base language code (e.g. 'fr' from 'fr_FR', 'fr_BE')
+  const lang = locale.split('_')[0]?.toLowerCase() ?? '';
+
+  if (!europeanDecimalLocales.has(lang)) {
+    // English, Chinese, Japanese, Indonesian, etc. — dot decimal, comma arg sep
+    return { decimalSeparator: '.', thousandSeparator: '', functionArgSeparator: ',' };
+  }
+
+  // Swiss German/French/Italian use space as thousands separator
+  const swissLocales = new Set(['de_CH', 'fr_CH', 'it_CH', 'rm_CH']);
+  const thousandSeparator: '.' | ' ' = swissLocales.has(locale) ? ' ' : '.';
+
+  return { decimalSeparator: ',', thousandSeparator, functionArgSeparator: ';' };
+}
+
+// ============================================================================
 // FormulaEvaluator
 // ============================================================================
 
@@ -219,11 +316,18 @@ export class FormulaEvaluator {
       })
     );
 
+    // Map spreadsheet locale to HyperFormula separator config (ISSUE-086)
+    const hfLocale = localeToHfOptions(sheet.locale);
+
     const hf = HyperFormula.buildFromArray(data, {
       licenseKey: 'gpl-v3',
       useArrayArithmetic: true,
       // AlwaysSparse avoids allocating dense arrays for large sparse sheets
       chooseAddressMappingPolicy: new AlwaysSparse(),
+      // Locale-aware separators: European locales use comma as decimal, semicolon as arg separator
+      decimalSeparator: hfLocale.decimalSeparator,
+      thousandSeparator: hfLocale.thousandSeparator,
+      functionArgSeparator: hfLocale.functionArgSeparator,
     });
 
     // Pre-scan formulas to classify Google-specific and volatile cells

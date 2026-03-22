@@ -322,4 +322,46 @@ describe('FormulaEvaluator', () => {
       expect(evaluator.isLoaded('ss-10')).toBe(true);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Locale config (ISSUE-086)
+  // ---------------------------------------------------------------------------
+
+  describe('locale-aware SheetData', () => {
+    it('accepts SheetData with locale field without error', async () => {
+      const sheet: SheetData = {
+        sheetName: 'Données',
+        values: [[100], [200]],
+        formulas: [[null], [null]],
+        locale: 'fr_FR',
+      };
+      // Should not throw — locale is wired into HyperFormula options
+      await expect(evaluator.loadSheet('locale-test', sheet)).resolves.toBeUndefined();
+    });
+
+    it('defaults to en_US behaviour when locale is absent', async () => {
+      const sheet: SheetData = {
+        sheetName: 'Sheet1',
+        values: [[10], [20]],
+        formulas: [[null], ['=A1+10']],
+      };
+      await evaluator.loadSheet('no-locale', sheet);
+      expect(evaluator.isLoaded('no-locale')).toBe(true);
+    });
+
+    it('accepts european locale codes without throwing (de_DE, es_ES, pt_BR)', async () => {
+      for (const locale of ['de_DE', 'es_ES', 'pt_BR', 'ja_JP', 'zh_CN']) {
+        const sheet: SheetData = {
+          sheetName: 'Sheet1',
+          values: [[1], [2]],
+          formulas: [[null], [null]],
+          locale,
+        };
+        await expect(
+          evaluator.loadSheet(`locale-${locale}`, sheet),
+          `Expected loadSheet to succeed for locale ${locale}`
+        ).resolves.toBeUndefined();
+      }
+    });
+  });
 });

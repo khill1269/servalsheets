@@ -462,7 +462,7 @@ export class DependenciesHandler {
     if (formulaEvaluator.isLoaded(spreadsheetId)) return; // already loaded
 
     try {
-      const [valueResp, formulaResp] = await Promise.all([
+      const [valueResp, formulaResp, metaResp] = await Promise.all([
         executeWithRetry(() =>
           this.sheetsApi.spreadsheets.values.get({
             spreadsheetId,
@@ -477,10 +477,18 @@ export class DependenciesHandler {
             valueRenderOption: 'FORMULA',
           })
         ),
+        executeWithRetry(() =>
+          this.sheetsApi.spreadsheets.get({
+            spreadsheetId,
+            fields: 'properties(locale)',
+          })
+        ),
       ]);
 
       const rawValues = (valueResp.data.values ?? []) as (string | number | boolean | null)[][];
       const rawFormulas = (formulaResp.data.values ?? []) as (string | null)[][];
+      const spreadsheetLocale = (metaResp.data.properties as { locale?: string } | undefined)
+        ?.locale;
 
       const maxRows = Math.max(rawValues.length, rawFormulas.length);
       const maxCols = Math.max(
@@ -506,6 +514,7 @@ export class DependenciesHandler {
         values,
         formulas,
         sheetName: firstSheet,
+        locale: spreadsheetLocale,
       };
 
       await formulaEvaluator.loadSheet(spreadsheetId, sheetData);
