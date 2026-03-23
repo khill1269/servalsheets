@@ -197,9 +197,6 @@ sdks/
 
 # Stryker mutation testing sandboxes
 .stryker-tmp/
-stryker.conf.mjs
-stryker.critical.conf.mjs
-stryker.minimal.conf.mjs
 mutation-output.txt
 
 # Test results and artifacts
