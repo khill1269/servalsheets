@@ -1077,6 +1077,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     auto_enhance: {
       requiredFields: ['spreadsheetId'],
     },
+    semantic_search: {
+      validInput: { spreadsheetId: 'test-id', query: 'revenue by month', topK: 5 },
+      requiredFields: ['spreadsheetId', 'query'],
+    },
     discover_action: {
       validInput: { query: 'find action for merging data' },
       requiredFields: ['query'],

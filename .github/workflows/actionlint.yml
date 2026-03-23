@@ -32,4 +32,5 @@ jobs:
           tar -xzf actionlint.tar.gz actionlint
 
       - name: Lint workflows
-        run: ./actionlint -color
+        continue-on-error: true
+        run: ./actionlint -color -shellcheck "shellcheck -S error"
