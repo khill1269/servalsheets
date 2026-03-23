@@ -49,6 +49,7 @@ jobs:
 
       - name: Generate Report
         if: always()
+        continue-on-error: true
         run: |
           # Normalize raw analysis output for downstream consumers
           npx tsx scripts/analysis/report-generator.ts \

@@ -2,7 +2,7 @@
 title: ServalSheets — Competitive Differentiation Feature Plan
 category: development
 last_updated: 2026-03-10
-description: > 6 features designed to create maximum distance from commodity Sheets MCP servers.
+description: '6 features designed to create maximum distance from commodity Sheets MCP servers.'
 version: 1.6.0
 tags: [sheets]
 ---
