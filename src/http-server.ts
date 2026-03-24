@@ -6,12 +6,10 @@
  * MCP Protocol: 2025-11-25
  */
 
-import express, { Request, Response, NextFunction } from 'express';
+import express from 'express';
 import { fileURLToPath } from 'url';
 import { resolve } from 'path';
 
-import { OAuthProvider } from './auth/oauth-provider.js';
-import { createSamlProviderFromEnv } from './security/saml-provider.js';
 import { validateEnv, env, getEnv } from './config/env.js';
 import { ACTION_COUNT, TOOL_COUNT } from './schemas/action-counts.js';
 import { logger } from './utils/logger.js';
@@ -28,27 +26,26 @@ import {
   logEnvironmentConfig,
 } from './startup/lifecycle.js';
 import { initTelemetry } from './observability/otel-setup.js';
-import { registerWellKnownHandlers } from './server/well-known.js';
 import { initializeRbacManager } from './services/rbac-manager.js';
 import { initializeBillingIntegration } from './services/billing-integration.js';
 import { buildBillingBootstrapConfig } from './server/billing-bootstrap-config.js';
 import { verifyToolIntegrity } from './security/tool-hash-registry.js';
+import {
+  registerHttpAuthProviders,
+  type HttpOAuthServerConfig,
+} from './http-server/auth-providers.js';
 import { registerHttpEnterpriseMiddleware } from './http-server/enterprise-middleware.js';
 import { getSharedHttpLoggingBridge } from './http-server/logging-bridge.js';
 import { registerHttpFoundationMiddleware } from './http-server/middleware.js';
 import { registerHttpRequestContextMiddleware } from './http-server/request-context-middleware.js';
-import { registerHttpGraphQlAndAdmin } from './http-server/graphql-admin.js';
-import { registerHttpObservabilityRoutes } from './http-server/routes-observability.js';
+import { createHttpRbacInitializer } from './http-server/rbac-bootstrap.js';
+import { runHttpServerDirectEntry } from './http-server/direct-entry.js';
+import { registerHttpSurfaceRoutes } from './http-server/route-surface.js';
+import { buildRemoteHttpServerOptions } from './http-server/remote-options.js';
+import { resolveHttpServerRuntimeConfig } from './http-server/runtime-config.js';
 import { prepareHttpRateLimiter } from './http-server/rate-limit-bootstrap.js';
-import { createHttpMcpServerInstance } from './http-server/runtime-factory.js';
 import { createHttpServerLifecycle } from './http-server/server-lifecycle.js';
-import {
-  registerHttpTransportRoutes,
-  type HttpTransportSession,
-} from './http-server/routes-transport.js';
-import { registerHttpWebhookRoutes } from './http-server/routes-webhooks.js';
-import { registerApiRoutes } from './http-server/routes-api.js';
-import { ConfigError } from './core/errors.js';
+import { bootstrapHttpTransportSessions } from './http-server/transport-bootstrap.js';
 
 export interface HttpServerOptions {
   port?: number;
@@ -60,18 +57,7 @@ export interface HttpServerOptions {
 
   // OAuth mode (optional)
   enableOAuth?: boolean;
-  oauthConfig?: {
-    issuer: string;
-    clientId: string;
-    clientSecret: string;
-    jwtSecret: string;
-    stateSecret: string;
-    allowedRedirectUris: string[];
-    googleClientId: string;
-    googleClientSecret: string;
-    accessTokenTtl: number;
-    refreshTokenTtl: number;
-  };
+  oauthConfig?: HttpOAuthServerConfig;
 }
 
 const DEFAULT_PORT = 3000;
@@ -97,45 +83,24 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     await verifyToolIntegrity();
   });
 
-  const configuredCorsOrigins = envConfig.CORS_ORIGINS.split(',')
-    .map((origin) => origin.trim())
-    .filter((origin) => origin.length > 0);
-
-  const port = options.port ?? DEFAULT_PORT;
-  const host = options.host ?? DEFAULT_HOST;
-  const corsOrigins =
-    options.corsOrigins ??
-    (configuredCorsOrigins.length > 0
-      ? configuredCorsOrigins
-      : [
-          'https://claude.ai',
-          'https://claude.com',
-          'https://platform.openai.com',
-          'https://copilot.microsoft.com',
-          'https://grok.x.ai',
-          'https://gemini.google.com',
-          // MCP Inspector (official debugging tool) and local development clients
-          'http://localhost:6274',
-          'http://localhost:3000',
-          'http://localhost:8080',
-          'http://127.0.0.1:6274',
-          'http://127.0.0.1:3000',
-          'http://127.0.0.1:8080',
-        ]);
-  const rateLimitWindowMs = options.rateLimitWindowMs ?? envConfig.RATE_LIMIT_WINDOW_MS;
-  const rateLimitMax = options.rateLimitMax ?? envConfig.RATE_LIMIT_MAX;
-  const trustProxy = options.trustProxy ?? false;
-  const legacySseEnabled = envConfig.ENABLE_LEGACY_SSE;
-  if (legacySseEnabled) {
-    logger.warn(
-      'Legacy SSE transport (/sse endpoint) is deprecated per MCP 2025-11-25. ' +
-        'Migrate clients to the Streamable HTTP transport at /mcp. ' +
-        'Set ENABLE_LEGACY_SSE=false to suppress this warning.'
-    );
-  }
-  const eventStoreRedisUrl = envConfig.REDIS_URL;
-  const eventStoreTtlMs = envConfig.STREAMABLE_HTTP_EVENT_TTL_MS;
-  const eventStoreMaxEvents = envConfig.STREAMABLE_HTTP_EVENT_MAX_EVENTS;
+  const {
+    port,
+    host,
+    corsOrigins,
+    rateLimitWindowMs,
+    rateLimitMax,
+    trustProxy,
+    legacySseEnabled,
+    eventStoreRedisUrl,
+    eventStoreTtlMs,
+    eventStoreMaxEvents,
+  } = resolveHttpServerRuntimeConfig({
+    envConfig,
+    options,
+    defaultPort: DEFAULT_PORT,
+    defaultHost: DEFAULT_HOST,
+    log: logger,
+  });
 
   const app = express();
 
@@ -152,39 +117,12 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   });
 
   // OAuth provider (optional)
-  let oauth: OAuthProvider | null = null;
-  if (options.enableOAuth && options.oauthConfig) {
-    oauth = new OAuthProvider(options.oauthConfig);
-    app.use(oauth.createRouter());
-    logger.info('HTTP Server: OAuth mode enabled', {
-      issuer: options.oauthConfig.issuer,
-      clientId: options.oauthConfig.clientId,
-    });
-  }
-
-  // SAML SSO provider (optional — enabled when SAML_ENTRY_POINT + SAML_CERT + SSO_JWT_SECRET set)
-  // SECURITY: node-forge (transitive via node-saml → xml-encryption) has CVE GHSA-cfm4-qjh2-4765
-  // (improper cryptographic signature verification allowing SAML assertion forgery).
-  // In production, SAML routes are disabled unless SAML_ACKNOWLEDGE_CVE_GHSA_cfm4=true is set.
-  const samlProvider = createSamlProviderFromEnv();
-  if (samlProvider) {
-    if (
-      process.env['NODE_ENV'] === 'production' &&
-      process.env['SAML_ACKNOWLEDGE_CVE_GHSA_cfm4'] !== 'true'
-    ) {
-      logger.error(
-        'SAML SSO is disabled in production due to CVE GHSA-cfm4-qjh2-4765 in node-forge ' +
-          '(transitive dep via node-saml → xml-encryption). ' +
-          'To enable SAML in production, set SAML_ACKNOWLEDGE_CVE_GHSA_cfm4=true after ' +
-          'reviewing the CVE and confirming your threat model accepts the risk.'
-      );
-    } else {
-      app.use(samlProvider.createRouter());
-      logger.info(
-        'HTTP Server: SAML SSO enabled (routes: /sso/login, /sso/callback, /sso/metadata, /sso/logout)'
-      );
-    }
-  }
+  const { oauth } = registerHttpAuthProviders({
+    app,
+    enableOAuth: options.enableOAuth,
+    oauthConfig: options.oauthConfig,
+    log: logger,
+  });
 
   const {
     rateLimiterReady,
@@ -198,19 +136,13 @@ export function createHttpServer(options: HttpServerOptions = {}): {
 
   // Initialize RBAC manager when RBAC middleware is enabled so built-in roles are loaded
   // before the first permission check.
-  const initializeRbac = async (): Promise<void> => {
-    if (!envConfig.ENABLE_RBAC) {
-      return;
-    }
-    try {
-      await initializeRbacManager();
-      logger.info('RBAC manager initialized');
-      initializeBillingIntegration(buildBillingBootstrapConfig(envConfig));
-    } catch (error) {
-      logger.error('Failed to initialize RBAC manager', { error });
-      throw error;
-    }
-  };
+  const initializeRbac = createHttpRbacInitializer({
+    envConfig,
+    initializeRbacManager,
+    initializeBillingIntegration,
+    buildBillingBootstrapConfig,
+    log: logger,
+  });
 
   app.use(perUserRateLimitMiddleware);
 
@@ -229,42 +161,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     log: logger,
   });
 
-  // Well-known discovery endpoints (RFC 8615)
-  // These must be registered before rate limiting exemption or after with explicit allow
-  registerWellKnownHandlers(app, {
-    corsOrigins,
-    rateLimitMax,
-    legacySseEnabled,
-    authenticationRequired: options.enableOAuth ?? false,
-  });
-
-  registerHttpObservabilityRoutes({
-    app,
-    healthService,
-    options,
-    host,
-    port,
-    legacySseEnabled,
-    getSessionCount: () => sessions.size,
-    getUserRateLimiter,
-  });
-
-  // Store active sessions with security binding
-  const sessions = new Map<string, HttpTransportSession>();
-  const createMcpServerInstance = async (
-    googleToken?: string,
-    googleRefreshToken?: string,
-    sessionId?: string
-  ) =>
-    createHttpMcpServerInstance({
-      googleToken,
-      googleRefreshToken,
-      sessionId,
-      subscribers: httpLoggingBridge.subscribers,
-      installLoggingBridge: httpLoggingBridge.installLoggingBridge,
-    });
-
-  const { sessionCleanupInterval, cleanupSessions } = registerHttpTransportRoutes({
+  const { sessions, sessionCleanupInterval, cleanupSessions } = bootstrapHttpTransportSessions({
     app,
     enableOAuth: options.enableOAuth ?? false,
     oauth,
@@ -275,42 +172,23 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     eventStoreTtlMs,
     eventStoreMaxEvents,
     sessionTimeoutMs: envConfig.SESSION_TIMEOUT_MS,
-    sessions,
-    createMcpServerInstance,
+    loggingBridge: httpLoggingBridge,
   });
 
-  registerHttpWebhookRoutes(app);
-
-  // =SERVAL() formula evaluation API
-  registerApiRoutes(app, {
-    samplingServer: null, // Wired at session creation; HTTP route uses standalone sampling
-  });
-  logger.info('HTTP Server: =SERVAL() API enabled (POST /api/formula-eval)');
-
-  // Error handler
-  app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
-    logger.error('HTTP server error', {
-      error: err,
-      request: {
-        method: req.method,
-        path: req.path,
-        ip: req.ip,
-        userAgent: req.get('user-agent'),
-      },
-      stack: err.stack,
-    });
-    res.status(500).json({
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Internal server error',
-        details: process.env['NODE_ENV'] === 'production' ? undefined : err.message,
-      },
-    });
-  });
-
-  registerHttpGraphQlAndAdmin({
+  registerHttpSurfaceRoutes({
     app,
+    corsOrigins,
+    rateLimitMax,
+    legacySseEnabled,
+    authenticationRequired: options.enableOAuth ?? false,
+    healthService,
+    observabilityOptions: options,
+    host,
+    port,
+    getSessionCount: () => sessions.size,
+    getUserRateLimiter,
     sessions: sessions as Map<string, unknown>,
+    log: logger,
   });
 
   const lifecycle = createHttpServerLifecycle({
@@ -361,46 +239,13 @@ export async function startHttpServer(options: HttpServerOptions = {}): Promise<
  * This is a compatibility wrapper that enables OAuth mode
  */
 export async function startRemoteServer(options: { port?: number } = {}): Promise<void> {
-  // Validate environment variables
   validateEnv();
-
-  if (
-    !env.JWT_SECRET ||
-    !env.STATE_SECRET ||
-    !env.OAUTH_CLIENT_SECRET ||
-    !env.GOOGLE_CLIENT_ID ||
-    !env.GOOGLE_CLIENT_SECRET
-  ) {
-    throw new ConfigError(
-      'JWT_SECRET, STATE_SECRET, OAUTH_CLIENT_SECRET, GOOGLE_CLIENT_ID, and GOOGLE_CLIENT_SECRET must be set when using OAuth mode',
-      'JWT_SECRET'
-    );
-  }
-
-  // Load OAuth config from environment
-  const oauthConfig = {
-    issuer: env.OAUTH_ISSUER,
-    clientId: env.OAUTH_CLIENT_ID,
-    clientSecret: env.OAUTH_CLIENT_SECRET!,
-    jwtSecret: env.JWT_SECRET!,
-    stateSecret: env.STATE_SECRET!,
-    allowedRedirectUris: env.ALLOWED_REDIRECT_URIS.split(','),
-    googleClientId: env.GOOGLE_CLIENT_ID!,
-    googleClientSecret: env.GOOGLE_CLIENT_SECRET!,
-    accessTokenTtl: env.ACCESS_TOKEN_TTL,
-    refreshTokenTtl: env.REFRESH_TOKEN_TTL,
-    resourceIndicator: env.OAUTH_RESOURCE_INDICATOR, // RFC 8707 audience claim
-  };
-
-  const server = createHttpServer({
-    port: options.port ?? env.PORT,
-    host: env.HOST,
-    enableOAuth: true,
-    oauthConfig,
-    corsOrigins: env.CORS_ORIGINS.split(',').map((o) => o.trim()),
-  });
-
-  await server.start();
+  await startHttpServer(
+    buildRemoteHttpServerOptions({
+      envConfig: env,
+      portOverride: options.port,
+    })
+  );
 }
 
 const isDirectEntry = (() => {
@@ -413,26 +258,11 @@ const isDirectEntry = (() => {
 
 // CLI entry point
 if (isDirectEntry) {
-  (async () => {
-    try {
-      // Log environment configuration
-      logEnvironmentConfig();
-
-      // Start background tasks and validate configuration
-      await startBackgroundTasks();
-
-      // Register signal handlers for graceful shutdown
-      registerSignalHandlers();
-
-      // Start HTTP server
-      const port = parseInt(process.env['PORT'] ?? '3000', 10);
-      const server = createHttpServer({ port });
-      await server.start();
-
-      logger.info('ServalSheets HTTP server started successfully');
-    } catch (error) {
-      logger.error('Failed to start HTTP server', { error });
-      process.exit(1);
-    }
-  })();
+  void runHttpServerDirectEntry({
+    startHttpServer,
+    logEnvironmentConfig,
+    startBackgroundTasks,
+    registerSignalHandlers,
+    log: logger,
+  });
 }
