@@ -8,8 +8,8 @@
  * - package.json description
  * - manifest.json registry metadata
  * - src/schemas/index.ts exports
- * - src/schemas/action-counts.ts ACTION_COUNTS
- * - src/mcp/completions.ts TOOL_ACTIONS
+ * - src/generated/action-counts.ts ACTION_COUNTS
+ * - src/generated/completions.ts TOOL_ACTIONS
  * - server.json metadata
  *
  * Uses TypeScript Compiler API for robust AST parsing instead of regex.
@@ -28,6 +28,10 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT = join(__dirname, '..');
+const DOCS_BASE_URL = 'https://servalsheets.dev';
+const PRIVACY_POLICY_URL = `${DOCS_BASE_URL}/privacy`;
+const SUPPORT_URL = 'https://github.com/khill1269/servalsheets/issues';
+const REPOSITORY_URL = 'https://github.com/khill1269/servalsheets.git';
 
 // ============================================================================
 // CLI FLAGS
@@ -112,7 +116,7 @@ const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> =
   // NOTE: analyze and confirm kept as special cases because AST parser over-counts
   // (finds z.literal in output schemas too, not just input discriminated unions)
   analyze: {
-    count: 23,
+    count: 26,
     actions: [
       'comprehensive',
       'analyze_data',
@@ -142,6 +146,10 @@ const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> =
       'quick_insights',
       // ISSUE-174/175: Semantic search
       'semantic_search',
+      // Scheduled Intelligence Engine
+      'schedule_intelligence',
+      'get_intelligence_report',
+      'cancel_intelligence',
     ],
   },
   confirm: {
@@ -473,10 +481,10 @@ writeOrTrack(schemasIndexPath, schemasIndex);
 console.log('✅ Updated src/schemas/index.ts constants');
 
 // ============================================================================
-// UPDATE SRC/SCHEMAS/ACTION-COUNTS.TS - ACTION_COUNTS
+// UPDATE SRC/GENERATED/ACTION-COUNTS.TS - ACTION_COUNTS
 // ============================================================================
 
-const actionCountsPath = join(ROOT, 'src/schemas/action-counts.ts');
+const actionCountsPath = join(ROOT, 'src/generated/action-counts.ts');
 
 // Build ACTION_COUNTS map
 const actionCountsMap = analyses
@@ -485,7 +493,8 @@ const actionCountsMap = analyses
   .join('\n');
 
 // Generate complete action-counts.ts file
-const actionCountsContent = `/**
+const actionCountsContent = `// @generated — Do not edit manually. Run npm run schema:commit to regenerate.
+/**
  * ServalSheets - Action Counts
  *
  * Source of truth for the number of actions per tool.
@@ -513,10 +522,10 @@ writeOrTrack(actionCountsPath, actionCountsContent);
 console.log('✅ Updated src/schemas/action-counts.ts ACTION_COUNTS');
 
 // ============================================================================
-// UPDATE SRC/MCP/COMPLETIONS.TS - TOOL_ACTIONS
+// UPDATE SRC/GENERATED/COMPLETIONS.TS - TOOL_ACTIONS
 // ============================================================================
 
-const completionsPath = join(ROOT, 'src/mcp/completions.ts');
+const completionsPath = join(ROOT, 'src/generated/completions.ts');
 let completionsContent = readFileSync(completionsPath, 'utf-8');
 
 // Build TOOL_ACTIONS map - always use multi-line for consistency
@@ -632,13 +641,13 @@ const serverJson = {
   },
   repository: {
     type: 'git',
-    url: 'https://github.com/khill1269/servalsheets',
+    url: REPOSITORY_URL,
     source: 'https://github.com/khill1269/servalsheets',
   },
-  homepage: 'https://github.com/khill1269/servalsheets#readme',
+  homepage: DOCS_BASE_URL,
   privacy_policies: [
     {
-      url: 'https://github.com/khill1269/servalsheets/blob/main/PRIVACY.md',
+      url: PRIVACY_POLICY_URL,
       description: 'ServalSheets Privacy Policy',
     },
   ],
@@ -669,30 +678,101 @@ const existingManifestTools = new Map(
 );
 
 const registryManifest = {
-  ...existingRegistryManifest,
+  manifest_version: '0.3',
+  name: pkg.name,
+  display_name: 'ServalSheets',
   version: pkg.version,
-  description: syncCountedDescription(
-    existingRegistryManifest.description ||
-      `Production-grade Google Sheets MCP server with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions`
-  ),
-  long_description: syncCountedDescription(
-    existingRegistryManifest.long_description ||
-      `ServalSheets is a production-grade MCP server for Google Sheets with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions.`
-  ),
+  description: `Production-grade Google Sheets MCP server with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions`,
+  long_description: `ServalSheets is a production-grade MCP server for Google Sheets with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions. Features OAuth 2.1, MCP sampling, elicitation, tasks, and advanced data operations.`,
+  keywords: ['google-sheets', 'spreadsheet', 'mcp', 'ai', 'automation', 'data'],
+  support: SUPPORT_URL,
+  documentation: DOCS_BASE_URL,
+  homepage: DOCS_BASE_URL,
+  author: {
+    name: 'Thomas Lee Cahill',
+    url: 'https://github.com/khill1269',
+  },
+  repository: {
+    type: 'git',
+    url: REPOSITORY_URL,
+  },
+  license: 'MIT',
+  icon: existingRegistryManifest.icon || 'assets/servalsheets-logo-512.png',
   server: {
-    ...existingRegistryManifest.server,
+    type: 'node',
     entry_point: 'dist/cli.js',
     mcp_config: {
-      ...(existingRegistryManifest.server?.mcp_config || {}),
       command: 'node',
       args: ['${__dirname}/dist/cli.js'],
+      env: {
+        LOG_LEVEL: '${user_config.LOG_LEVEL}',
+        OAUTH_CLIENT_ID: '${user_config.OAUTH_CLIENT_ID}',
+        OAUTH_CLIENT_SECRET: '${user_config.OAUTH_CLIENT_SECRET}',
+        OAUTH_REDIRECT_URI: '${user_config.OAUTH_REDIRECT_URI}',
+        GOOGLE_TOKEN_STORE_PATH: '${user_config.GOOGLE_TOKEN_STORE_PATH}',
+        ENCRYPTION_KEY: '${user_config.ENCRYPTION_KEY}',
+        OAUTH_SCOPE_MODE: '${user_config.OAUTH_SCOPE_MODE}',
+      },
     },
   },
   compatibility: {
-    ...existingRegistryManifest.compatibility,
+    claude_desktop: '>=0.10.0',
+    platforms: ['darwin', 'win32', 'linux'],
     runtimes: {
-      ...(existingRegistryManifest.compatibility?.runtimes || {}),
       node: pkg.engines?.node,
+    },
+  },
+  privacy_policies: [PRIVACY_POLICY_URL],
+  user_config: {
+    LOG_LEVEL: {
+      type: 'string',
+      title: 'Log Level',
+      description: 'Log verbosity (error, warn, info, debug).',
+      default: 'info',
+      required: false,
+    },
+    OAUTH_CLIENT_ID: {
+      type: 'string',
+      title: 'OAuth Client ID',
+      description:
+        'Google desktop-app OAuth client ID. Required for this self-hosted release unless your packaging step injects bundled credentials.',
+      required: true,
+    },
+    OAUTH_CLIENT_SECRET: {
+      type: 'string',
+      title: 'OAuth Client Secret',
+      description:
+        'Google desktop-app OAuth client secret. Required for this self-hosted release unless your packaging step injects bundled credentials.',
+      sensitive: true,
+      required: true,
+    },
+    OAUTH_REDIRECT_URI: {
+      type: 'string',
+      title: 'OAuth Redirect URI',
+      description: 'Redirect URI for the local OAuth flow.',
+      default: 'http://localhost:3000/callback',
+      required: false,
+    },
+    GOOGLE_TOKEN_STORE_PATH: {
+      type: 'string',
+      title: 'Token Store Path',
+      description: 'Path to the encrypted OAuth token store file.',
+      default: '${HOME}${/}.config${/}servalsheets${/}tokens.enc',
+      required: false,
+    },
+    ENCRYPTION_KEY: {
+      type: 'string',
+      title: 'Token Store Encryption Key',
+      description: '64-character hex key used to encrypt stored OAuth tokens.',
+      sensitive: true,
+      required: false,
+    },
+    OAUTH_SCOPE_MODE: {
+      type: 'string',
+      title: 'OAuth Scope Mode',
+      description: 'Requested Google OAuth scope set (`full` or `minimal`).',
+      default: 'full',
+      required: false,
     },
   },
   tools: sortedToolAnalyses.map((analysis) => ({
@@ -888,8 +968,8 @@ console.log(`
 ║  Updated:                              ║
 ║  ✓ package.json                        ║
 ║  ✓ src/schemas/index.ts                ║
-║  ✓ src/schemas/action-counts.ts         ║
-║  ✓ src/mcp/completions.ts              ║
+║  ✓ src/generated/action-counts.ts       ║
+║  ✓ src/generated/completions.ts        ║
 ║  ✓ manifest.json                       ║
 ║  ✓ server.json                         ║
 ║  ✓ src/generated/manifest.json         ║

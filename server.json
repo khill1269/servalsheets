@@ -1,8 +1,8 @@
 {
   "$schema": "https://cdn.jsdelivr.net/npm/@anthropic-ai/mcp-registry@latest/dist/registry-schema.json",
   "name": "io.github.khill1269/servalsheets",
-  "version": "1.7.0",
-  "description": "Production-grade Google Sheets MCP server with 25 tools and 404 actions",
+  "version": "2.0.0",
+  "description": "Production-grade Google Sheets MCP server with 25 tools and 407 actions",
   "icons": [
     {
       "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJTZXJ2YWxTaGVldHMiPjxyZWN0IHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiByeD0iMzIiIGZpbGw9IiMwZjE3MmEiLz48cmVjdCB4PSI0MCIgeT0iNDAiIHdpZHRoPSIxNzYiIGhlaWdodD0iMTc2IiByeD0iMTYiIGZpbGw9IiNmOGZhZmMiLz48cmVjdCB4PSI0MCIgeT0iNDAiIHdpZHRoPSIxNzYiIGhlaWdodD0iMzIiIHJ4PSIxNiIgZmlsbD0iIzIyYzU1ZSIvPjxsaW5lIHgxPSI4NCIgeTE9Ijg0IiB4Mj0iODQiIHkyPSIyMDAiIHN0cm9rZT0iI2NiZDVmNSIgc3Ryb2tlLXdpZHRoPSIyIi8+PGxpbmUgeDE9IjEyOCIgeTE9Ijg0IiB4Mj0iMTI4IiB5Mj0iMjAwIiBzdHJva2U9IiNjYmQ1ZjUiIHN0cm9rZS13aWR0aD0iMiIvPjxsaW5lIHgxPSIxNzIiIHkxPSI4NCIgeDI9IjE3MiIgeTI9IjIwMCIgc3Ryb2tlPSIjY2JkNWY1IiBzdHJva2Utd2lkdGg9IjIiLz48bGluZSB4MT0iNTIiIHkxPSIxMTIiIHgyPSIyMDQiIHkyPSIxMTIiIHN0cm9rZT0iI2NiZDVmNSIgc3Ryb2tlLXdpZHRoPSIyIi8+PGxpbmUgeDE9IjUyIiB5MT0iMTQwIiB4Mj0iMjA0IiB5Mj0iMTQwIiBzdHJva2U9IiNjYmQ1ZjUiIHN0cm9rZS13aWR0aD0iMiIvPjxsaW5lIHgxPSI1MiIgeTE9IjE2OCIgeDI9IjIwNCIgeTI9IjE2OCIgc3Ryb2tlPSIjY2JkNWY1IiBzdHJva2Utd2lkdGg9IjIiLz48L3N2Zz4=",
@@ -18,11 +18,11 @@
     {
       "registryType": "npm",
       "identifier": "servalsheets",
-      "version": "1.7.0",
+      "version": "2.0.0",
       "transport": {
         "type": "stdio"
       },
-      "description": "Production-grade Google Sheets MCP server - 25 tools, 404 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
+      "description": "Production-grade Google Sheets MCP server - 25 tools, 407 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
     }
   ],
   "tools": [
@@ -79,7 +79,7 @@
     },
     {
       "name": "sheets_analyze",
-      "description": "analyze operations (23 actions)",
+      "description": "analyze operations (26 actions)",
       "actions": [
         "comprehensive",
         "analyze_data",
@@ -103,7 +103,10 @@
         "diagnose_errors",
         "formula_health_check",
         "quick_insights",
-        "semantic_search"
+        "semantic_search",
+        "schedule_intelligence",
+        "get_intelligence_report",
+        "cancel_intelligence"
       ]
     },
     {
@@ -591,7 +594,7 @@
   ],
   "metadata": {
     "toolCount": 25,
-    "actionCount": 404,
+    "actionCount": 407,
     "categories": [
       "Core Operations (5 tools): auth, core, data, format, dimensions",
       "Visual Analytics (1 tool): visualize",
@@ -613,13 +616,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/khill1269/servalsheets",
+    "url": "https://github.com/khill1269/servalsheets.git",
     "source": "https://github.com/khill1269/servalsheets"
   },
-  "homepage": "https://github.com/khill1269/servalsheets#readme",
+  "homepage": "https://servalsheets.dev",
   "privacy_policies": [
     {
-      "url": "https://github.com/khill1269/servalsheets/blob/main/PRIVACY.md",
+      "url": "https://servalsheets.dev/privacy",
       "description": "ServalSheets Privacy Policy"
     }
   ]

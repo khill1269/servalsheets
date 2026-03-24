@@ -11,7 +11,7 @@ tags: [sheets]
 
 > **Version:** 1.0.0
 > **Architecture:** Action-based discriminated unions
-> **Tools:** 25 tools with 404 actions
+> **Tools:** 25 tools with 407 actions
 
 ---
 

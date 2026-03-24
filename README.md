@@ -1,6 +1,6 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 25 tools, 404 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 25 tools, 407 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
@@ -122,7 +122,7 @@ Historical release snapshots are kept here for upgrade context.
 MCP 2025-11-25 server support includes:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.27.1
-- ✅ **Tools**: 25 tools with 404 actions using discriminated unions
+- ✅ **Tools**: 25 tools with 407 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -373,7 +373,7 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ## Tools Reference
 
-### Tool Summary (25 tools, 404 actions)
+### Tool Summary (25 tools, 407 actions)
 
 | Tool                  | Actions | Description                                                        |
 | --------------------- | ------- | ------------------------------------------------------------------ |
@@ -1273,7 +1273,7 @@ graph TB
 
 ## Schema Architecture: Discriminated Unions
 
-ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 25 tools and 404 actions. This architecture provides:
+ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 25 tools and 407 actions. This architecture provides:
 
 ### Pattern Overview
 
@@ -2114,7 +2114,7 @@ ServalSheets implements the MCP 2025-11-25 server features it advertises in disc
 | Feature          | Status  | Version    | Implementation                              |
 | ---------------- | ------- | ---------- | ------------------------------------------- |
 | **JSON-RPC 2.0** | ✅ Full | 2.0        | @modelcontextprotocol/sdk v1.27.1           |
-| **Tools**        | ✅ Full | 2025-11-25 | 25 tools, 404 actions, discriminated unions |
+| **Tools**        | ✅ Full | 2025-11-25 | 25 tools, 407 actions, discriminated unions |
 | **Resources**    | ✅ Full | 2025-11-25 | 6 URI templates + 7 knowledge resources     |
 | **Prompts**      | ✅ Full | 2025-11-25 | 48 guided workflows with arguments          |
 | **Completions**  | ✅ Full | 2025-11-25 | Argument autocompletion                     |

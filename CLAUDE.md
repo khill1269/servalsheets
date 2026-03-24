@@ -12,7 +12,7 @@ Feature roadmap (P4 differentiators): @docs/development/FEATURE_PLAN.md
 
 ## Project Overview
 
-ServalSheets is a production-grade MCP server for Google Sheets with 25 tools and 404 actions.
+ServalSheets is a production-grade MCP server for Google Sheets with 25 tools and 407 actions.
 Runtime: Node.js + TypeScript (strict). See `src/schemas/index.ts` for authoritative counts.
 
 ### Core Pipeline
@@ -89,7 +89,7 @@ return buildToolResponse({ response: { success: true, data } });
 
 ### 3. Hardcoded Counts
 
-Always reference `src/schemas/index.ts:63` for TOOL_COUNT/ACTION_COUNT. Never hardcode.
+Always reference `src/schemas/action-counts.ts:41,46` for TOOL_COUNT/ACTION_COUNT (re-exported via `src/schemas/index.ts:16`). Never hardcode.
 
 ### 4. Line Count Claims
 
@@ -161,7 +161,7 @@ if (!result.response) throw new ResponseValidationError(); // Shape check
 
 ```typescript
 // BaseHandler (13 handlers): return this.success('action', data, mutation);
-// Standalone (9 handlers):   return { response: { success: true, action, ...data } };
+// Standalone (12 handlers):  return { response: { success: true, action, ...data } };
 // Error (both):              return { response: this.mapError(error) };
 ```
 

@@ -1,27 +1,38 @@
+// @ts-check
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
-export default {
+const config = {
   packageManager: 'npm',
-  reporters: ['html', 'clear-text', 'progress'],
   testRunner: 'vitest',
-  vitest: {
-    configFile: 'vitest.config.ts',
-  },
-  coverageAnalysis: 'perTest',
-  // Critical paths: core pipeline files and error handling
-  mutate: [
-    'src/core/errors.ts',
-    'src/mcp/registration/tool-handlers.ts',
-    'src/handlers/base.ts',
-    '!src/**/*.test.ts',
-    '!src/**/*.spec.ts',
-  ],
-  thresholds: {
-    high: 60,
-    low: 40,
-    break: 0,
-  },
-  timeoutMS: 60000,
+  checkers: ['typescript'],
+  tsconfigFile: 'tsconfig.json',
+  reporters: ['clear-text', 'progress'],
+  timeoutMS: 30000,
   concurrency: 2,
-  disableTypeChecks: true,
-  ignorePatterns: ['node_modules', 'dist', 'coverage', 'benchmark'],
+  thresholds: {
+    high: 80,
+    low: 60,
+    break: 50,
+  },
+  // Critical security + safety paths only
+  mutate: [
+    'src/security/saml-provider.ts',
+    'src/oauth-provider.ts',
+    'src/middleware/mutation-safety-middleware.ts',
+    'src/middleware/write-lock-middleware.ts',
+    'src/middleware/rate-limit-middleware.ts',
+    'src/utils/retry.ts',
+    'src/utils/circuit-breaker.ts',
+    'src/workers/python-worker.ts',
+    'src/workers/duckdb-worker.ts',
+  ],
+  ignorePatterns: [
+    'dist',
+    'node_modules',
+    'src/generated/**',
+    'tests/**',
+    'scripts/**',
+    'docs/**',
+  ],
 };
+
+export default config;

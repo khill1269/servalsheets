@@ -20,9 +20,9 @@ This checklist assumes the repository is already in the current validated state:
 - `npm run release:audit` passing
 - if the release depends on live Google-backed features, live MCP smoke coverage validated with the manual `Release Audit` workflow and real credentials
 
-One explicit exception may remain during local testing:
+Local-only desktop config files containing secrets are not an allowed release exception:
 
-- `claude-desktop-config.json` secret cleanup, if intentionally deferred outside the release artifact path
+- `claude-desktop-config.json` must be ignored/untracked or reduced to safe example-only content before release
 
 ## 1. Release Candidate Lock
 

@@ -307,7 +307,7 @@ function runChecks(inventories, callSites, allSchemas, scopeConfig) {
               if (!knownAliases.includes(fieldName)) {
                 addFinding(
                   'warning', 'C4',
-                  'src/constants/field-masks.ts', 0, '',
+                  'src/config/field-masks.ts', 0, '',
                   `Field mask segment '${fieldName}' not found in Spreadsheet schema`,
                   `Full mask: ${mask}`,
                   undefined

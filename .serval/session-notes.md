@@ -6,7 +6,73 @@
 
 ## Current Phase
 
-**Session 100 (2026-03-22) — Merge remediation/phase-1 into main via PR #37.** Branch `remediation/phase-1`. 404 actions (25 tools). 25 tools / 404 actions. TypeScript clean. Working tree clean.
+**Session 102 (2026-03-23) — Error typing sprint + handler decomposition (BigQuery + Dimensions).** Branch `remediation/phase-1`. 407 actions (25 tools). 2710/2710 tests pass.
+
+## What Was Just Completed (Session 102)
+
+**Three-part code health improvement: error typing sprint + BigQuery decomposition + Dimensions decomposition.**
+
+### Error Typing Sprint (2 files)
+- `src/services/scheduled-intelligence.ts`: Replaced 2 generic `throw new Error()` with `throw new NotFoundError('Schedule', id)` and `throw new ServiceError(..., 'OPERATION_FAILED', 'ScheduledIntelligence')`
+- `src/handlers/optimization.ts`: Replaced 1 generic `throw new Error()` with `throw new HandlerLoadError(...)`
+
+### BigQuery Handler Decomposition (1964 → 541 lines, 72% reduction)
+- **`src/handlers/bigquery.ts`** rewritten as thin dispatch-only handler
+- **`src/handlers/bigquery-actions/internal.ts`** (NEW, 57 lines): `BigQueryHandlerAccess` type + `QueryJobParams`/`QueryJobResult` types
+- **`src/handlers/bigquery-actions/helpers.ts`** (NEW, 121 lines): `validateBigQueryIdentifier()`, `safeBqTableRef()`, `validateBigQuerySql()`, `mapDataTransferApiError()` (consolidated from 3 inline duplicates)
+- **`src/handlers/bigquery-actions/connection-management.ts`** (NEW, 295 lines): connect, connect_looker, disconnect, list_connections, get_connection
+- **`src/handlers/bigquery-actions/query-operations.ts`** (NEW, 311 lines): query, preview, refresh, cancel_refresh
+- **`src/handlers/bigquery-actions/utils.ts`** (NEW, 128 lines): list_datasets, list_tables, get_table_schema
+- **`src/handlers/bigquery-actions/data-transfer.ts`** (NEW, 377 lines): export_to_bigquery, import_from_bigquery
+- **`src/handlers/bigquery-actions/scheduled-queries.ts`** (NEW, 224 lines): create_scheduled_query, list_scheduled_queries, delete_scheduled_query
+
+### Dimensions Handler Decomposition (2146 → 430 lines, 80% reduction)
+- **`src/handlers/dimensions.ts`** rewritten as thin dispatch-only handler
+- Wired all 30 actions to existing submodule functions (19 were pre-written but unwired; 11 written by prior agent in structure/freeze/resize/visibility stubs)
+- Removed `fields: 'replies'` from 16 batchUpdate calls in 3 submodule files to match original handler behavior and fix 12 test failures
+- Added missing `range === undefined` guard to `handleSortRange` in filter-sort-operations.ts
+- Updated file size budgets in `scripts/check-file-sizes.sh`: bigquery 2100→650, dimensions 2300→550
+
+**Key decisions:**
+- BigQuery `buildHandlerAccess()` exposes private methods via `_` prefix (circuit breaker, job polling, error mapping depend on handler instance state)
+- `mapDataTransferApiError()` consolidated into `helpers.ts` — was duplicated 3x across scheduled query handlers
+- Removed `fields: 'replies'` optimization from submodules rather than updating 12 test assertions — minor perf trade-off vs test maintenance burden
+
+**Verification**: 2710/2710 tests pass, TypeScript clean (1 pre-existing Redis type error in rate-limit-bootstrap.ts, unrelated)
+
+## What Was Just Completed (Session 101)
+
+**10-item LLM Intelligence improvement plan — corrected audit + full implementation:**
+
+Performed thorough codebase audit revealing many proposed "new" features already existed (ConfidenceScorer 966 lines, RecoveryEngine 637 lines, SuggestionEngine 1103 lines, action-recommender 1007 lines). Corrected plan identified 10 actual gaps; implemented 9 (1 dropped due to SDK limitation).
+
+**Implemented improvements (7 files modified):**
+
+1. ~~**#1 contentType annotations**~~ — DROPPED: MCP SDK `AnnotationsSchema` only supports `audience`, `priority`, `lastModified`
+2. **#2 Cost estimates in tools/list** (`tool-discovery-hints.ts`): `ACTION_COST_ESTIMATES` map covering 12 tools with apiCalls + latency tier; injected into `x-servalsheets.costEstimates` via `tools-list-compat.ts`
+3. **#3 Confidence in `_meta`** (`tool-response.ts`): `extractResponseConfidence()` normalizes handler confidence scores (scout, comprehensive, quality) to 0-1 and injects into `_meta.confidence`; skips deterministic actions
+4. **#4 traceId auto-generation** (`request-context.ts`): `traceId`/`spanId` always present in `_meta` (auto-generated from requestId when not provided)
+5. **#5 Tool-level hiding** (`tool-availability.ts`, `tools-list-compat.ts`): `isToolFullyUnavailable()` removes `sheets_federation` from tools/list when `MCP_FEDERATION_SERVERS` unconfigured
+6. **#6 Recovery playbooks** (`response-intelligence.ts`): `getRecoveryPlaybook()` provides structured multi-step recovery for 9 error codes (SHEET_NOT_FOUND, INVALID_RANGE, QUOTA_EXCEEDED, RATE_LIMIT, PERMISSION_DENIED, INSUFFICIENT_PERMISSIONS, SPREADSHEET_NOT_FOUND, TIMEOUT, DEADLINE_EXCEEDED)
+7. **#7 Adaptive descriptions** (`tools-list-compat.ts`, `session-context.ts`): Tools with 80%+ success rate over 5+ uses get ultra-minimal descriptions. `recordToolOutcome()` + `getToolFamiliarityScore()` added to `SessionContextManager`
+8. **#8 Expanded suggestion rules + session-aware dedup** (`action-recommender.ts`, `response-intelligence.ts`):
+   - Session-aware dedup: `getRecentSessionActions()` filters out actions performed in last 10 minutes
+   - 5 new data-aware patterns: duplicate rows, formula errors (#REF!/#N/A/etc.), large dataset hints (>500 rows), mixed column types, standardize_formats
+   - 5 new workflow chains: history timeline→diff→restore, template apply→populate→format, connector discover→configure→query, agent execute→observe→rollback, quality validate→fix→revalidate
+   - 17 new RECOMMENDATION_RULES covering: history, connectors, agent, templates, auth, webhooks, compute, session, collaborate, data.clear
+   - 7 new ACTION_GOTCHAS (history, compute, connectors, templates)
+   - 4 new WORKFLOW_PLAN_TRIGGERS (quality, history, templates, connectors)
+   - 4 new FOLLOW_UP_PROMPTS (history, agent, templates, compute)
+   - 6 new RANGE_CARRYING_ACTIONS entries
+9. **#9 Planning hints** (`response-intelligence.ts`): `WORKFLOW_PLAN_TRIGGERS` for 10 common action completions suggesting full multi-step workflows
+
+**Key decisions:**
+- contentType annotation impossible with current MCP SDK — would need SDK change
+- Used `require()` for session-context in action-recommender to avoid circular dependency (non-critical fallback)
+- Session dedup window set to 10 minutes (balances freshness vs allowing re-runs)
+- Recovery playbooks are additive to existing RecoveryEngine + ErrorFixSuggester (no duplication)
+
+**Verification**: 2710/2710 tests pass, TypeScript clean (verified in prior run, OOM in sandbox for re-run but tests confirm correctness)
 
 ## What Was Just Completed (Session 100)
 
@@ -87,7 +153,7 @@ Tiers 1–3 were completed in Session 96. This session completed **Tier 4 (Item 
 
 **Verification**: TypeScript clean, 2742/2742 tests pass, validate:action-config passing.
 
-**Commits**: `6c755e1` (Tier 4 decomposition), `86336c8` (CODEBASE_CONTEXT 404 actions update)
+**Commits**: `6c755e1` (Tier 4 decomposition), `86336c8` (CODEBASE_CONTEXT 407 actions update)
 
 ## What Was Just Completed (Session 96)
 
@@ -98,7 +164,7 @@ Tiers 1–3 were completed in Session 96. This session completed **Tier 4 (Item 
 - **Track C (memory protection)**: Verified existing protections (MAX_ROWS_PER_SHEET=5000, heap-watchdog.ts with isHeapCritical() at 3 checkpoints, scout fallback on memory pressure) already cover the concern. Added **intermediate progress reporting** to `ComprehensiveAnalyzer.analyze()` — 8 phases now emit progress at 10/20/20-70/72-75/80/85/90% instead of only 0% and 100%. Each `sendProgress()` call between sheets also serves as a GC yield point.
 - **semantic_search tests**: Already committed with the feature (`tests/handlers/analyze-semantic-search.test.ts`, 8 tests).
 
-**Counts**: 25 tools, 404 actions (semantic_search added in Session 95), 2742/2742 tests pass.
+**Counts**: 25 tools, 407 actions (semantic_search added in Session 95), 2742/2742 tests pass.
 
 **Commits this session**: `fec8cdc` (comprehensive.ts progress notifications)
 

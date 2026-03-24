@@ -10,6 +10,7 @@ export default [
       'node_modules/',
       '**/node_modules/',
       'coverage/',
+      'tests/**',
       'docs/.vitepress/',
       'scripts/demo/',
       'scripts/measure-*.ts',

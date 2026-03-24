@@ -77,7 +77,7 @@ async function main(): Promise<void> {
   const allowMissingDist = hasArg('--allow-missing-dist');
   const distActionCountsPath = resolve('dist/schemas/action-counts.js');
   const distCompletionsPath = resolve('dist/mcp/completions.js');
-  const srcCompletionsPath = resolve('src/mcp/completions.ts');
+  const srcCompletionsPath = resolve('src/generated/completions.ts');
 
   const errors: string[] = [];
 

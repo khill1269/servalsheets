@@ -39,10 +39,10 @@ const pkgJson = safe(() => JSON.parse(readFileSync(`${ROOT}/package.json`, 'utf-
 const version = pkgJson.version || 'unknown';
 
 const protocolVersion = safe(() => {
-  // MCP_PROTOCOL_VERSION is defined in constants/protocol.ts (version.ts only re-exports it)
+  // MCP_PROTOCOL_VERSION is defined in config/protocol.ts (version.ts only re-exports it)
   const candidates = [
-    `${ROOT}/src/constants/protocol.ts`,
-    `${ROOT}/src/constants/protocol.js`,
+    `${ROOT}/src/config/protocol.ts`,
+    `${ROOT}/src/config/protocol.js`,
     `${ROOT}/src/version.ts`,
   ];
   for (const f of candidates) {
