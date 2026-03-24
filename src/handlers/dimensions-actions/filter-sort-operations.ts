@@ -69,7 +69,6 @@ export async function handleSetBasicFilter(
 
     await ha.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
-      fields: 'replies',
       requestBody: {
         requests: [
           {
@@ -112,7 +111,6 @@ export async function handleSetBasicFilter(
 
   await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
-    fields: 'replies',
     requestBody: {
       requests: [
         {
@@ -184,7 +182,6 @@ export async function handleClearBasicFilter(
 
   await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
-    fields: 'replies',
     requestBody: {
       requests: [
         {
@@ -243,6 +240,18 @@ export async function handleSortRange(
   ha: DimensionsHandlerAccess,
   input: DimensionsSortRangeInput
 ): Promise<DimensionsResponse> {
+  if (input.range === undefined) {
+    return ha.error({
+      code: ErrorCodes.INVALID_PARAMS,
+      message:
+        'sort_range requires an explicit range. Context-inferred ranges are not used for sort operations.',
+      category: 'client',
+      severity: 'medium',
+      retryable: false,
+      suggestedFix: 'Provide range like "Sheet1!A1:D100" explicitly.',
+    });
+  }
+
   let resolvedInput = input;
 
   // Wizard: If range is provided but sortSpecs is missing, elicit sort direction
@@ -309,7 +318,6 @@ export async function handleSortRange(
 
   await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: resolvedInput.spreadsheetId,
-    fields: 'replies',
     requestBody: {
       requests: [
         {
@@ -406,7 +414,6 @@ export async function handleDeleteDuplicates(
 
   const response = await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
-    fields: 'replies',
     requestBody: {
       requests: [
         {
@@ -452,7 +459,6 @@ export async function handleTrimWhitespace(
 
   const response = await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
-    fields: 'replies',
     requestBody: {
       requests: [
         {
@@ -498,7 +504,6 @@ export async function handleRandomizeRange(
 
   await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
-    fields: 'replies',
     requestBody: {
       requests: [
         {
@@ -542,7 +547,6 @@ export async function handleTextToColumns(
 
   await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
-    fields: 'replies',
     requestBody: {
       requests: [
         {
@@ -619,7 +623,6 @@ export async function handleAutoFill(
 
   await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
-    fields: 'replies',
     requestBody: {
       requests: [{ autoFill: autoFillRequest }],
     },

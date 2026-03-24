@@ -34,7 +34,6 @@ export async function handleCreateSlicer(
 
   const batchResponse = await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
-    fields: 'replies',
     requestBody: {
       requests: [
         {
@@ -109,7 +108,6 @@ export async function handleUpdateSlicer(
 
   await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
-    fields: 'replies',
     requestBody: {
       requests: [
         {
@@ -168,7 +166,6 @@ export async function handleDeleteSlicer(
 
   await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
-    fields: 'replies',
     requestBody: {
       requests: [
         {

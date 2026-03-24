@@ -52,26 +52,26 @@ get_budget_override() {
 
     # ── Handlers — large due to action count (TASKS.md P18-D) ────────────────
     # Action counts are the primary driver of handler size.
-    # bigquery.ts: 1878 lines, 17 actions
-    "src/handlers/bigquery.ts")      echo 2100 ;;
-    # dimensions.ts: 2070 lines, 30 actions
-    "src/handlers/dimensions.ts")    echo 2300 ;;
-    # appsscript.ts: 1664 lines, 19 actions
-    "src/handlers/appsscript.ts")    echo 1850 ;;
+    # bigquery.ts: ~540 lines after decomposition (17 actions delegated to bigquery-actions/)
+    "src/handlers/bigquery.ts")      echo 650 ;;
+    # dimensions.ts: ~430 lines after decomposition (30 actions delegated to dimensions-actions/)
+    "src/handlers/dimensions.ts")    echo 550 ;;
+    # appsscript.ts: ~679 lines after decomposition (19 actions delegated to appsscript-actions/)
+    "src/handlers/appsscript.ts")    echo 800 ;;
     # analyze.ts: 1196 lines, 23 actions
     "src/handlers/analyze.ts")       echo 1350 ;;
-    # auth.ts: 1604 lines, 5 actions — OAuth2 + SAML SP implementation
-    "src/handlers/auth.ts")          echo 1800 ;;
+    # auth.ts: ~235 lines after decomposition (5 actions delegated to auth-actions/)
+    "src/handlers/auth.ts")          echo 350 ;;
     # composite.ts: 994 lines, 21 actions
     "src/handlers/composite.ts")     echo 1100 ;;
-    # compute.ts: 1764 lines, 16 actions
-    "src/handlers/compute.ts")       echo 1950 ;;
+    # compute.ts: ~127 lines after decomposition (16 actions delegated to compute-actions/)
+    "src/handlers/compute.ts")       echo 250 ;;
     # connectors.ts: 870 lines, 10 actions
     "src/handlers/connectors.ts")    echo 1000 ;;
     # dependencies.ts: 1161 lines, 10 actions
     "src/handlers/dependencies.ts")  echo 1300 ;;
-    # fix.ts: 1178 lines, 6 actions
-    "src/handlers/fix.ts")           echo 1300 ;;
+    # fix.ts: ~226 lines after decomposition (6 actions delegated to fix-actions/)
+    "src/handlers/fix.ts")           echo 350 ;;
     # format.ts: 893 lines, 25 actions
     "src/handlers/format.ts")        echo 1000 ;;
     # session.ts: 909 lines, 27 actions

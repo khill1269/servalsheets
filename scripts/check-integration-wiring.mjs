@@ -62,9 +62,10 @@ const webhookSecurityDoc = read('docs/security/WEBHOOK_SECURITY.md');
 const packageJson = JSON.parse(read('package.json'));
 
 // RBAC correctness: middleware must not run without manager initialization.
+// Accepts direct call initializeRbacManager() OR delegation via createHttpRbacInitializer({ initializeRbacManager, ... })
 ensureIncludes(
   httpServer,
-  'initializeRbacManager(',
+  'initializeRbacManager',
   'RBAC manager is not explicitly initialized in src/http-server.ts.',
   issues
 );
@@ -100,15 +101,16 @@ ensureIncludes(
   'STRIPE_SECRET_KEY missing in src/config/env.ts.',
   issues
 );
+// Accepts direct call startMetricsServer() OR delegation via createHttpServerLifecycle({ startMetricsServer, ... })
 ensureIncludes(
   httpServer,
-  'startMetricsServer(',
+  'startMetricsServer',
   'Dedicated metrics server is not started from src/http-server.ts.',
   issues
 );
 ensureIncludes(
   httpServer,
-  'stopMetricsServer(',
+  'stopMetricsServer',
   'Dedicated metrics server shutdown is not wired in src/http-server.ts.',
   issues
 );
@@ -151,9 +153,10 @@ ensureIncludes(
   'Billing integration is not wired from src/server.ts.',
   issues
 );
+// Accepts direct call or delegation via createHttpRbacInitializer({ initializeBillingIntegration, ... })
 ensureIncludes(
   httpServer,
-  'initializeBillingIntegration(',
+  'initializeBillingIntegration',
   'Billing integration is not wired from src/http-server.ts.',
   issues
 );
