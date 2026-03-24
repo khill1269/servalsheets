@@ -6,9 +6,9 @@
 import type { Express, Request, Response } from 'express';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { getTraceAggregator } from './services/trace-aggregator.js';
-import { resolveTracingDashboardPath } from './utils/runtime-paths.js';
-import { logger } from './utils/logger.js';
+import { getTraceAggregator } from '../services/trace-aggregator.js';
+import { resolveTracingDashboardPath } from '../utils/runtime-paths.js';
+import { logger } from '../utils/logger.js';
 
 function sendTracingUiUnavailable(res: Response): void {
   res.status(500).json({

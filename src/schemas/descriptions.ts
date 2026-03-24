@@ -8,7 +8,7 @@
  * 4. **TOP 3 ACTIONS** - Most common usage patterns
  * 5. **SAFETY** - Destructive operation warnings
  *
- * Total: 25 tools, 404 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
+ * Total: 25 tools, 407 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
  *
  * SHARED CONTEXT (applies to all tools except sheets_auth):
  * - PREREQUISITE: sheets_auth must be authenticated before using any tool.
@@ -886,7 +886,7 @@ Example workflow:
 [Version] create_version, list_versions, get_version
 [Deploy] deploy, list_deployments, get_deployment, undeploy
 [Execute] run (execute function), list_processes (logs), get_metrics
-[Trigger compatibility only] create_trigger, list_triggers, delete_trigger, update_trigger → currently return NOT_IMPLEMENTED; create/manage triggers inside the script with ScriptApp
+[ScriptApp scheduling] Implement time-driven/event triggers inside the project with update_content + deploy. Trigger compatibility actions are hidden by default and remain NOT_IMPLEMENTED if re-enabled for legacy compatibility.
 
 **TOP 3 ACTIONS:**
 1. update_content: {"action":"update_content","scriptId":"1ABC...","files":[{"name":"Code","type":"SERVER_JS","source":"function myFunction() {}"}]}
@@ -896,10 +896,10 @@ Example workflow:
 **⚠️ SAFETY:** run executes code with SIDE EFFECTS. deploy creates PUBLIC endpoints.
 **IDENTIFIER GUIDE:**
 - create, get, get_content, update_content, run → accept spreadsheetId (auto-resolves to bound script) OR scriptId
-- list_triggers, create_trigger, delete_trigger → REQUIRE scriptId (get it from create response or get action)
+- Trigger compatibility actions are hidden by default. If legacy compatibility is enabled, prefer scriptId over spreadsheetId and expect NOT_IMPLEMENTED.
 **scriptId:** From Apps Script editor. **deploymentId:** From Deploy > Manage deployments. **deploymentType:** WEB_APP, EXECUTION_API
 **SUPPORTED WORKFLOW:** create → update_content → create_version → deploy → run with deploymentId
-**TIP:** Use devMode:true to test latest saved code (owner only). Trigger actions are compatibility stubs; use ScriptApp in the script itself.`,
+**TIP:** Use devMode:true to test latest saved code (owner only). Implement scheduling with ScriptApp in the script itself, then push via update_content and deploy.`,
 
   sheets_webhook: `🔔 WEBHOOK - Event-driven automation and real-time notifications (${ACTION_COUNTS['sheets_webhook']} actions).
 
@@ -1132,7 +1132,7 @@ Set MCP_FEDERATION_SERVERS environment variable with JSON array:
 - First-time connector onboarding → sheets_auth.setup_feature
 - Data already in Sheets → sheets_data.read
 - Cross-spreadsheet operations → sheets_data.cross_read
-- Apps Script triggers → sheets_appsscript
+- ScriptApp-based scheduling/triggers → sheets_appsscript
 
 **ACTIONS BY CATEGORY:**
 

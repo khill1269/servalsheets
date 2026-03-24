@@ -15,10 +15,47 @@
  */
 
 import { promises as fsPromises, existsSync, mkdirSync } from 'fs';
+import { open as fsOpen } from 'fs/promises';
 import { dirname } from 'path';
 import { logger } from '../utils/logger.js';
 import { NotFoundError } from '../core/errors.js';
 import type { TransactionEvent } from '../types/transaction.js';
+
+/**
+ * SECURITY: Write data and fsync to ensure durability.
+ * Without fsync, a crash could lose the last appended WAL entries,
+ * causing silent transaction loss.
+ */
+async function appendAndSync(filePath: string, data: string): Promise<void> {
+  const fh = await fsOpen(filePath, 'a', 0o640);
+  try {
+    await fh.appendFile(data);
+    await fh.sync(); // fsync — flush OS buffers to disk
+  } finally {
+    await fh.close();
+  }
+}
+
+/**
+ * SECURITY: Clean up stale .tmp files left by interrupted compact() operations.
+ * Called during WAL initialization to prevent accumulation of orphaned temp files.
+ */
+async function cleanupStaleTmpFiles(walPath: string): Promise<void> {
+  const tmpPath = walPath + '.tmp';
+  try {
+    if (existsSync(tmpPath)) {
+      logger.warn('WAL: Cleaning up stale .tmp file from interrupted compact()', { tmpPath });
+      await fsPromises.unlink(tmpPath);
+    }
+  } catch (error) {
+    // Non-fatal — log and continue. The .tmp file is an incomplete compact result
+    // and should not be used for recovery (the original WAL is the source of truth).
+    logger.error('WAL: Failed to clean up stale .tmp file', {
+      tmpPath,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
 
 // ============================================================================
 // Internal types
@@ -73,6 +110,8 @@ export class WalManager {
       if (!existsSync(walDir)) {
         mkdirSync(walDir, { recursive: true, mode: 0o750 });
       }
+      // Clean up any stale .tmp files from interrupted compact() operations
+      await cleanupStaleTmpFiles(this.walPath);
       await this.replay();
     } catch (error) {
       logger.error('WAL initialization failed', {
@@ -195,7 +234,7 @@ export class WalManager {
           ts: event.timestamp,
           data: event.data ?? {},
         }) + '\n';
-      await fsPromises.appendFile(this.walPath, entry, { flag: 'a', mode: 0o640 });
+      await appendAndSync(this.walPath, entry);
     });
   }
 
@@ -218,7 +257,14 @@ export class WalManager {
         })
         .join('\n');
       const tmpPath = this.walPath + '.tmp';
-      await fsPromises.writeFile(tmpPath, remaining ? remaining + '\n' : '', { mode: 0o640 });
+      // Write compacted WAL to temp file with fsync before atomic rename
+      const fh = await fsOpen(tmpPath, 'w', 0o640);
+      try {
+        await fh.writeFile(remaining ? remaining + '\n' : '');
+        await fh.sync(); // fsync — ensure compacted data is on disk before rename
+      } finally {
+        await fh.close();
+      }
       await fsPromises.rename(tmpPath, this.walPath);
 
       this.orphanedTransactions = this.orphanedTransactions.filter(

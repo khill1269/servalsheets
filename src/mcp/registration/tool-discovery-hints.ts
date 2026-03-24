@@ -7,6 +7,7 @@
  */
 
 import { zodSchemaToJsonSchema } from '../../utils/schema-compat.js';
+import { filterAvailableActions } from '../tool-availability.js';
 import type { ToolDefinition } from './tool-definitions.js';
 import { TOOL_DEFINITIONS } from './tool-definitions.js';
 
@@ -91,28 +92,61 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
     create_trigger: {
       requiredOneOf: [['scriptId', 'spreadsheetId']],
       description:
-        'Create a trigger. Requires functionName and triggerType plus either scriptId directly or spreadsheetId to auto-resolve the bound project.',
+        'Compatibility-only. Currently returns NOT_IMPLEMENTED because external Apps Script clients cannot manage triggers via REST. Prefer update_content plus deploy.',
     },
     list_triggers: {
       requiredOneOf: [['scriptId', 'spreadsheetId']],
       description:
-        'List triggers. Provide either scriptId directly or spreadsheetId to auto-resolve the bound project.',
+        'Compatibility-only. Currently returns NOT_IMPLEMENTED because external Apps Script clients cannot list triggers via REST. Prefer get_content to inspect ScriptApp trigger code.',
     },
     delete_trigger: {
       requiredOneOf: [['scriptId', 'spreadsheetId']],
       description:
-        'Delete a trigger. Requires triggerId plus either scriptId directly or spreadsheetId to auto-resolve the bound project.',
+        'Compatibility-only. Currently returns NOT_IMPLEMENTED because external Apps Script clients cannot delete triggers via REST. Prefer update_content to remove ScriptApp trigger code.',
     },
     update_trigger: {
       requiredOneOf: [['scriptId', 'spreadsheetId']],
       description:
-        'Update a trigger. Requires triggerId plus either scriptId directly or spreadsheetId to auto-resolve the bound project.',
+        'Compatibility-only. Currently returns NOT_IMPLEMENTED because external Apps Script clients cannot update triggers via REST. Prefer update_content plus deploy.',
     },
   },
   sheets_format: {
     auto_fit: {
       requiredOneOf: [['range', 'sheetId']],
       description: 'Auto-fit rows or columns. Provide either a range or a numeric sheetId.',
+    },
+    batch_format: {
+      required: ['spreadsheetId', 'operations'],
+      description:
+        'Apply multiple format operations in 1 API call. operations is an array of {range, format} objects. Max 100 per call. ALWAYS prefer this over sequential set_* calls for 3+ changes.',
+    },
+    set_data_validation: {
+      required: ['spreadsheetId', 'range', 'validationType'],
+      optional: ['values', 'strict', 'inputMessage', 'showCustomUi'],
+      description:
+        'Add data validation (dropdown, number range, date range, custom formula). validationType: "ONE_OF_LIST" for dropdowns (pass values array), "NUMBER_BETWEEN"/"DATE_AFTER"/"CUSTOM_FORMULA" for constraints.',
+    },
+    add_conditional_format_rule: {
+      required: ['spreadsheetId', 'range'],
+      optional: ['ruleType', 'condition', 'format', 'preset'],
+      description:
+        'Add conditional formatting. Use preset for quick setup: "highlight_duplicates", "color_scale", "data_bars", "top_10_percent", "negative_red". Or specify custom ruleType + condition.',
+    },
+    suggest_format: {
+      required: ['spreadsheetId'],
+      optional: ['range', 'sheetName'],
+      description:
+        'AI-powered formatting recommendations. Returns ranked suggestions with executable params. Uses MCP Sampling when available, falls back to rule-based analysis.',
+    },
+    apply_preset: {
+      required: ['spreadsheetId', 'range', 'preset'],
+      description:
+        'Apply a named format preset: "header_row", "alternating_rows", "currency", "percentages", "dates", "totals_row". Combines multiple format operations into 1 call.',
+    },
+    set_number_format: {
+      required: ['spreadsheetId', 'range', 'pattern'],
+      description:
+        'Set number format using Google Sheets pattern syntax. Common patterns: "$#,##0.00" (currency), "0.00%" (percent), "yyyy-mm-dd" (date), "#,##0" (integer). Check spreadsheet locale for decimal separator.',
     },
   },
   sheets_connectors: {
@@ -1555,6 +1589,24 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
       description:
         'Statistical analysis of a data range. analysisType can be "summary", "distribution", "correlation", or "outliers".',
     },
+    generate_formula: {
+      required: ['spreadsheetId', 'description'],
+      optional: ['range', 'sheetName', 'context'],
+      description:
+        'AI-powered formula generation from natural language. Describe what the formula should do (e.g., "sum revenue where region is West"). Uses MCP Sampling. Returns formula + explanation.',
+    },
+    analyze_formulas: {
+      required: ['spreadsheetId'],
+      optional: ['range', 'sheetName', 'checkErrors'],
+      description:
+        'Audit formulas: find errors (#REF!, #VALUE!), detect VLOOKUP upgrade opportunities (to XLOOKUP), identify volatile functions, and check for circular refs. Set checkErrors:true for error-only scan.',
+    },
+    semantic_search: {
+      required: ['spreadsheetId', 'query'],
+      optional: ['topK', 'sheetName', 'forceReindex'],
+      description:
+        'Vector search across spreadsheet content using embeddings. Requires VOYAGE_API_KEY env. Results ranked by cosine similarity. Use forceReindex:true after data changes.',
+    },
   },
   sheets_fix: {
     clean: {
@@ -2182,16 +2234,165 @@ function buildToolDiscoveryHint(tool: ToolDefinition): ToolDiscoveryHint | null 
 }
 
 export function getToolDiscoveryHint(toolName: string): ToolDiscoveryHint | null {
+  let baseHint: ToolDiscoveryHint | null;
   if (discoveryHintCache.has(toolName)) {
-    return discoveryHintCache.get(toolName) ?? null;
+    baseHint = discoveryHintCache.get(toolName) ?? null;
+  } else {
+    const tool = TOOL_DEFINITIONS.find((definition) => definition.name === toolName);
+    baseHint = tool ? buildToolDiscoveryHint(tool) : null;
+    discoveryHintCache.set(toolName, baseHint);
   }
 
-  const tool = TOOL_DEFINITIONS.find((definition) => definition.name === toolName);
-  const hint = tool ? buildToolDiscoveryHint(tool) : null;
-  discoveryHintCache.set(toolName, hint);
-  return hint;
+  if (!baseHint) {
+    return null;
+  }
+
+  const allowedActions = new Set(
+    filterAvailableActions(toolName, Object.keys(baseHint.actionParams))
+  );
+  const filteredActionParams = Object.fromEntries(
+    Object.entries(baseHint.actionParams).filter(([action]) => allowedActions.has(action))
+  );
+
+  if (Object.keys(filteredActionParams).length === Object.keys(baseHint.actionParams).length) {
+    return baseHint;
+  }
+
+  return {
+    actionParams: filteredActionParams,
+    requestDescription: buildRequestDescription(filteredActionParams),
+    descriptionSuffix: baseHint.descriptionSuffix,
+  };
 }
 
 export function clearDiscoveryHintCache(): void {
   discoveryHintCache.clear();
+}
+
+// ============================================================================
+// PRE-CALL COST ESTIMATES
+// ============================================================================
+
+/**
+ * Estimated cost of each action expressed as API calls and latency tier.
+ * Injected into x-servalsheets on tools/list so the LLM can plan operations
+ * efficiently (e.g., prefer batch_write over sequential writes, scout over
+ * comprehensive for quick checks).
+ *
+ * Latency tiers: instant (<50ms, cached), fast (50-300ms), medium (300-2000ms),
+ * slow (2-10s), background (>10s)
+ */
+export interface ActionCostEstimate {
+  apiCalls: number;
+  latency: 'instant' | 'fast' | 'medium' | 'slow' | 'background';
+}
+
+const ACTION_COST_ESTIMATES: Record<string, Record<string, ActionCostEstimate>> = {
+  sheets_data: {
+    read: { apiCalls: 1, latency: 'fast' },
+    batch_read: { apiCalls: 1, latency: 'fast' },
+    write: { apiCalls: 1, latency: 'fast' },
+    batch_write: { apiCalls: 1, latency: 'medium' },
+    append: { apiCalls: 1, latency: 'fast' },
+    clear: { apiCalls: 1, latency: 'fast' },
+    find_replace: { apiCalls: 2, latency: 'medium' },
+    cross_read: { apiCalls: 3, latency: 'medium' },
+    cross_query: { apiCalls: 4, latency: 'slow' },
+    cross_write: { apiCalls: 2, latency: 'medium' },
+    cross_compare: { apiCalls: 3, latency: 'medium' },
+  },
+  sheets_core: {
+    list: { apiCalls: 1, latency: 'fast' },
+    list_sheets: { apiCalls: 1, latency: 'fast' },
+    get_sheet: { apiCalls: 1, latency: 'fast' },
+    create: { apiCalls: 1, latency: 'medium' },
+    delete_sheet: { apiCalls: 1, latency: 'fast' },
+    duplicate_sheet: { apiCalls: 1, latency: 'fast' },
+    update_sheet: { apiCalls: 1, latency: 'fast' },
+    clear_sheet: { apiCalls: 1, latency: 'fast' },
+  },
+  sheets_format: {
+    set_format: { apiCalls: 1, latency: 'fast' },
+    batch_format: { apiCalls: 1, latency: 'medium' },
+    set_background: { apiCalls: 1, latency: 'fast' },
+    set_borders: { apiCalls: 1, latency: 'fast' },
+    set_number_format: { apiCalls: 1, latency: 'fast' },
+    suggest_format: { apiCalls: 2, latency: 'slow' },
+    apply_preset: { apiCalls: 1, latency: 'medium' },
+  },
+  sheets_analyze: {
+    scout: { apiCalls: 2, latency: 'medium' },
+    comprehensive: { apiCalls: 8, latency: 'background' },
+    analyze_data: { apiCalls: 3, latency: 'slow' },
+    analyze_quality: { apiCalls: 3, latency: 'slow' },
+    analyze_formulas: { apiCalls: 3, latency: 'slow' },
+    analyze_performance: { apiCalls: 4, latency: 'slow' },
+    suggest_next_actions: { apiCalls: 2, latency: 'medium' },
+    generate_formula: { apiCalls: 1, latency: 'medium' },
+    query_natural_language: { apiCalls: 3, latency: 'slow' },
+    semantic_search: { apiCalls: 2, latency: 'slow' },
+  },
+  sheets_dimensions: {
+    insert: { apiCalls: 1, latency: 'fast' },
+    delete: { apiCalls: 1, latency: 'fast' },
+    freeze: { apiCalls: 1, latency: 'fast' },
+    auto_resize: { apiCalls: 1, latency: 'fast' },
+    sort_range: { apiCalls: 1, latency: 'fast' },
+    hide: { apiCalls: 1, latency: 'fast' },
+    unhide: { apiCalls: 1, latency: 'fast' },
+  },
+  sheets_visualize: {
+    chart_create: { apiCalls: 1, latency: 'medium' },
+    chart_update: { apiCalls: 1, latency: 'medium' },
+    chart_delete: { apiCalls: 1, latency: 'fast' },
+    suggest_chart: { apiCalls: 2, latency: 'slow' },
+    suggest_pivot: { apiCalls: 2, latency: 'slow' },
+  },
+  sheets_composite: {
+    import_csv: { apiCalls: 3, latency: 'slow' },
+    export_large_dataset: { apiCalls: 4, latency: 'background' },
+    generate_sheet: { apiCalls: 5, latency: 'background' },
+    deduplicate: { apiCalls: 2, latency: 'medium' },
+    smart_append: { apiCalls: 2, latency: 'medium' },
+  },
+  sheets_fix: {
+    clean: { apiCalls: 2, latency: 'medium' },
+    suggest_cleaning: { apiCalls: 2, latency: 'slow' },
+    standardize_formats: { apiCalls: 2, latency: 'medium' },
+    fill_missing: { apiCalls: 1, latency: 'medium' },
+    detect_anomalies: { apiCalls: 1, latency: 'medium' },
+  },
+  sheets_history: {
+    timeline: { apiCalls: 5, latency: 'slow' },
+    diff_revisions: { apiCalls: 3, latency: 'slow' },
+    restore_cells: { apiCalls: 3, latency: 'medium' },
+    undo: { apiCalls: 2, latency: 'medium' },
+    create_snapshot: { apiCalls: 2, latency: 'medium' },
+  },
+  sheets_transaction: {
+    begin: { apiCalls: 0, latency: 'instant' },
+    queue: { apiCalls: 0, latency: 'instant' },
+    commit: { apiCalls: 1, latency: 'medium' },
+    rollback: { apiCalls: 1, latency: 'fast' },
+  },
+  sheets_bigquery: {
+    query: { apiCalls: 2, latency: 'slow' },
+    export_to_bigquery: { apiCalls: 4, latency: 'background' },
+    import_from_bigquery: { apiCalls: 4, latency: 'background' },
+  },
+  sheets_appsscript: {
+    run: { apiCalls: 2, latency: 'background' },
+    deploy: { apiCalls: 2, latency: 'slow' },
+    get_content: { apiCalls: 1, latency: 'medium' },
+  },
+};
+
+/**
+ * Get cost estimates for a tool's actions.
+ * Returns only estimates for available actions (respects tool-availability filtering).
+ */
+export function getActionCostEstimates(
+  toolName: string
+): Record<string, ActionCostEstimate> | undefined {
+  return ACTION_COST_ESTIMATES[toolName];
 }

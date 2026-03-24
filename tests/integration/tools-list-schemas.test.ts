@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { resetEnvForTest } from '../../src/config/env.js';
 import { ServalSheetsServer } from '../../src/server.js';
 import { DEFER_SCHEMAS } from '../../src/config/constants.js';
 import { TOOL_COUNT } from '../../src/schemas/action-counts.js';
@@ -28,6 +29,34 @@ async function requestToolsList(server: ServalSheetsServer): Promise<ListToolsRe
   return handler({ method: 'tools/list', params: {} }, { sessionId: 'test' });
 }
 
+function getRequestActions(tool: ListToolsResponse['tools'][number]): string[] {
+  const request = (tool.inputSchema.properties?.['request'] ?? {}) as Record<string, unknown>;
+  const requestProperties = (request['properties'] ?? {}) as Record<string, any>;
+  const enumValues = requestProperties['action']?.['enum'];
+  if (Array.isArray(enumValues)) {
+    return enumValues.filter((value): value is string => typeof value === 'string');
+  }
+
+  const variants = Array.isArray(request['oneOf'])
+    ? request['oneOf']
+    : Array.isArray(request['anyOf'])
+      ? request['anyOf']
+      : [];
+
+  return variants
+    .map((variant) => {
+      const actionSchema = (variant as Record<string, any>)?.['properties']?.['action'];
+      if (typeof actionSchema?.['const'] === 'string') {
+        return actionSchema['const'];
+      }
+      const variantEnum = actionSchema?.['enum'];
+      return Array.isArray(variantEnum) && typeof variantEnum[0] === 'string'
+        ? variantEnum[0]
+        : null;
+    })
+    .filter((value): value is string => Boolean(value));
+}
+
 describe('tools/list Schema Serialization', () => {
   let server: ServalSheetsServer;
 
@@ -45,6 +74,11 @@ describe('tools/list Schema Serialization', () => {
   afterAll(async () => {
     // Clean shutdown
     await server.shutdown();
+  });
+
+  afterEach(() => {
+    resetEnvForTest();
+    delete process.env['ENABLE_APPSSCRIPT_TRIGGER_COMPAT'];
   });
 
   it('should return non-empty schemas for all tools', async () => {
@@ -205,9 +239,9 @@ describe('tools/list Schema Serialization', () => {
     ).toContain('title_case');
 
     const formatActionParams = getActionParams('sheets_format');
-    expect(formatActionParams['batch_format']?.params?.operations?.items?.properties?.type?.enum).toEqual(
-      expect.arrayContaining(['background', 'text_format', 'borders'])
-    );
+    expect(
+      formatActionParams['batch_format']?.params?.operations?.items?.properties?.type?.enum
+    ).toEqual(expect.arrayContaining(['background', 'text_format', 'borders']));
     expect(formatActionParams['auto_fit']?.requiredOneOf).toEqual([['range', 'sheetId']]);
 
     const visualizeActionParams = getActionParams('sheets_visualize');
@@ -216,9 +250,7 @@ describe('tools/list Schema Serialization', () => {
     ).toContain('BOTTOM_LEGEND');
 
     const appsscriptActionParams = getActionParams('sheets_appsscript');
-    expect(appsscriptActionParams['list_triggers']?.requiredOneOf).toEqual([
-      ['scriptId', 'spreadsheetId'],
-    ]);
+    expect(appsscriptActionParams['list_triggers']).toBeUndefined();
     expect(appsscriptActionParams['update_content']?.requiredOneOf).toEqual([
       ['scriptId', 'spreadsheetId'],
     ]);
@@ -235,9 +267,9 @@ describe('tools/list Schema Serialization', () => {
     expect(collaborateActionParams['share_add']?.params?.type?.enum).toEqual(
       expect.arrayContaining(['user', 'group', 'domain', 'anyone'])
     );
-    expect(String(collaborateActionParams['version_restore_revision']?.description ?? '')).toContain(
-      'Drive revision'
-    );
+    expect(
+      String(collaborateActionParams['version_restore_revision']?.description ?? '')
+    ).toContain('Drive revision');
     expect(String(collaborateActionParams['approval_delegate']?.description ?? '')).toContain(
       'Delegate'
     );
@@ -300,9 +332,10 @@ describe('tools/list Schema Serialization', () => {
 
       const request = (tool!.inputSchema.properties?.['request'] ?? {}) as Record<string, any>;
       expect(request['type'], `Tool ${toolName} request should be an object`).toBe('object');
-      expect(request['additionalProperties'], `Tool ${toolName} request should stay permissive`).toBe(
-        true
-      );
+      expect(
+        request['additionalProperties'],
+        `Tool ${toolName} request should stay permissive`
+      ).toBe(true);
 
       return (request['properties'] ?? {}) as Record<string, any>;
     };
@@ -369,6 +402,75 @@ describe('tools/list Schema Serialization', () => {
       } else {
         process.env['REDIS_URL'] = previousRedisUrl;
       }
+    }
+  });
+
+  it('should hide Apps Script trigger compatibility actions by default', async () => {
+    delete process.env['ENABLE_APPSSCRIPT_TRIGGER_COMPAT'];
+    resetEnvForTest();
+
+    const response = await requestToolsList(server);
+    const appsscriptTool = response.tools.find((tool) => tool.name === 'sheets_appsscript');
+
+    expect(appsscriptTool).toBeDefined();
+    expect(String(appsscriptTool!.description ?? '')).toContain(
+      'Apps Script trigger compatibility actions are hidden by default'
+    );
+
+    const actionEnum = getRequestActions(appsscriptTool!);
+
+    expect(actionEnum).not.toContain('create_trigger');
+    expect(actionEnum).not.toContain('list_triggers');
+
+    if (DEFER_SCHEMAS) {
+      const metadata = (appsscriptTool!.inputSchema as Record<string, unknown>)[
+        'x-servalsheets'
+      ] as Record<string, unknown> | undefined;
+      const actionParams = (metadata?.['actionParams'] ?? {}) as Record<string, unknown>;
+      const availability = metadata?.['availability'] as Record<string, unknown> | undefined;
+
+      expect(actionParams['create_trigger']).toBeUndefined();
+      expect(actionParams['list_triggers']).toBeUndefined();
+      expect(availability).toMatchObject({
+        status: 'partial',
+        reason:
+          'Apps Script trigger compatibility actions are disabled by default because external Apps Script REST clients cannot manage triggers.',
+      });
+      expect(availability?.['unavailableActions']).toEqual(
+        expect.arrayContaining([
+          'create_trigger',
+          'list_triggers',
+          'delete_trigger',
+          'update_trigger',
+        ])
+      );
+    }
+  });
+
+  it('should expose Apps Script trigger compatibility actions when explicitly enabled', async () => {
+    process.env['ENABLE_APPSSCRIPT_TRIGGER_COMPAT'] = 'true';
+    resetEnvForTest();
+
+    const response = await requestToolsList(server);
+    const appsscriptTool = response.tools.find((tool) => tool.name === 'sheets_appsscript');
+
+    expect(appsscriptTool).toBeDefined();
+
+    const actionEnum = getRequestActions(appsscriptTool!);
+
+    expect(actionEnum).toContain('create_trigger');
+    expect(actionEnum).toContain('list_triggers');
+
+    if (DEFER_SCHEMAS) {
+      const metadata = (appsscriptTool!.inputSchema as Record<string, unknown>)[
+        'x-servalsheets'
+      ] as Record<string, unknown> | undefined;
+      const actionParams = (metadata?.['actionParams'] ?? {}) as Record<string, unknown>;
+      const availability = metadata?.['availability'];
+
+      expect(actionParams['create_trigger']).toBeDefined();
+      expect(actionParams['list_triggers']).toBeDefined();
+      expect(availability).toBeUndefined();
     }
   });
 });

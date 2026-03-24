@@ -24,6 +24,7 @@ import { cacheHitsTotal, cacheMissesTotal } from '../observability/metrics.js';
 import { getTracer } from '../utils/tracing.js';
 import { getAccessPatternTracker } from './access-pattern-tracker.js';
 import { getEnv } from '../config/env.js';
+import { FIELD_MASKS } from '../constants/field-masks.js';
 
 /**
  * Statistics for cached API operations
@@ -77,6 +78,11 @@ export class CachedSheetsApi {
       fields?: string;
     } = {}
   ): Promise<sheets_v4.Schema$Spreadsheet> {
+    // Apply default field mask when caller does not specify one.
+    // Without this, Google returns the full spreadsheet payload (5-50MB).
+    // Explicit callers keep their masks unchanged.
+    const resolvedFields = options.fields ?? FIELD_MASKS.SPREADSHEET_WITH_SHEETS;
+
     const span = getTracer().startSpan('cached-sheets-api.getSpreadsheet', {
       kind: 'internal',
       attributes: { 'spreadsheet.id': spreadsheetId },
@@ -104,7 +110,7 @@ export class CachedSheetsApi {
               spreadsheetId,
               includeGridData: options.includeGridData,
               ranges: options.ranges,
-              fields: options.fields,
+              fields: resolvedFields,
             },
             { headers: { 'If-None-Match': cachedETag } }
           );
@@ -171,7 +177,7 @@ export class CachedSheetsApi {
       spreadsheetId,
       includeGridData: options.includeGridData,
       ranges: options.ranges,
-      fields: options.fields,
+      fields: resolvedFields,
     });
 
     // Cache with real ETag if available, otherwise use timestamp

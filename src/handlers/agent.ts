@@ -214,7 +214,12 @@ export class AgentHandler {
           };
         }
         case 'execute': {
-          const result = await executePlan(req.planId, req.dryRun ?? false, this.executeHandler);
+          const result = await executePlan(
+            req.planId,
+            req.dryRun ?? false,
+            this.executeHandler,
+            req.interactiveMode ?? false
+          );
           const completedSteps = result.results.filter((r) => r.success).length;
 
           // Record operation in session context for LLM follow-up references

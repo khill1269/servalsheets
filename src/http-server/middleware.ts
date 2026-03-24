@@ -9,6 +9,7 @@ import { getRequestRecorder } from '../services/request-recorder.js';
 import { getEnv } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { addDeprecationHeaders, extractVersionFromRequest } from '../versioning/schema-manager.js';
+import { extractTrustedClientIp } from './client-ip.js';
 
 export function registerHttpFoundationMiddleware(params: {
   app: Application;
@@ -261,9 +262,7 @@ export function registerHttpFoundationMiddleware(params: {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req: Request) => {
-      const forwardedFor = req.headers['x-forwarded-for'];
-      const forwardedIp = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
-      const ip = req.ip || forwardedIp || req.socket.remoteAddress || '127.0.0.1';
+      const ip = extractTrustedClientIp(req);
       return `${ipKeyGenerator(ip)}:${req.method}:${req.path}`;
     },
     message: { error: 'Too many requests, please try again later' },

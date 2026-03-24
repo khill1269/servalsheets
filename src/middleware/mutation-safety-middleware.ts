@@ -11,7 +11,7 @@ import { logger } from '../utils/logger.js';
 const DANGEROUS_FORMULA_PATTERN =
   /^[=+\-@].*(?:IMPORTDATA|IMPORTRANGE|IMPORTFEED|IMPORTHTML|IMPORTXML|GOOGLEFINANCE|QUERY)\s*\(/i;
 
-const FORMULA_CANDIDATE_KEYS = new Set(['values', 'replacement', 'formula', 'formulaValue']);
+const FORMULA_CANDIDATE_KEYS = new Set(['values', 'replacement', 'formula', 'formulaValue', 'content']);
 
 export interface MutationSafetyViolation {
   path: string;

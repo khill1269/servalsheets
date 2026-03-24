@@ -78,6 +78,13 @@ const ExecuteActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(false)
     .describe('Preview execution without applying changes (default: false)'),
+  interactiveMode: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'When true, each plan step requires user approval via elicitation before executing (default: false)'
+    ),
 }).strict();
 
 const ExecuteStepActionSchema = CommonFieldsSchema.extend({
@@ -337,6 +344,8 @@ export type AgentPlanInput = SheetsAgentInput['request'] & {
 export type AgentExecuteInput = SheetsAgentInput['request'] & {
   action: 'execute';
   planId: string;
+  dryRun?: boolean;
+  interactiveMode?: boolean;
 };
 
 export type AgentExecuteStepInput = SheetsAgentInput['request'] & {

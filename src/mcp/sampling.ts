@@ -33,6 +33,43 @@ import type { SessionContextManager } from '../services/session-context.js';
 import { ServiceError } from '../core/errors.js';
 
 // ============================================================================
+// Cell-level citation type (used in sampling responses)
+// ============================================================================
+
+/** A citation linking an AI finding to a specific spreadsheet cell or range. */
+export interface CellCitation {
+  /** A1 notation cell/range reference (e.g., "B14", "Sheet1!C3:C10") */
+  cell: string;
+  /** Why this cell is cited */
+  role: 'source' | 'evidence' | 'anomaly' | 'formula';
+}
+
+/**
+ * Extract citations array from a JSON sampling response.
+ * Returns empty array if no citations found or parse fails.
+ */
+export function extractCitationsFromResponse(text: string): CellCitation[] {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed && typeof parsed === 'object' && 'citations' in parsed) {
+      const citations = (parsed as Record<string, unknown>)['citations'];
+      if (Array.isArray(citations)) {
+        return citations.filter(
+          (c): c is CellCitation =>
+            typeof c === 'object' &&
+            c !== null &&
+            typeof (c as Record<string, unknown>)['cell'] === 'string' &&
+            typeof (c as Record<string, unknown>)['role'] === 'string'
+        );
+      }
+    }
+  } catch {
+    // Non-JSON or malformed — citations are best-effort
+  }
+  return [];
+}
+
+// ============================================================================
 // ISSUE-117: GDPR consent gate for Sampling calls
 // ============================================================================
 
@@ -686,7 +723,9 @@ export async function analyzeData(
     systemPrompt = `${SAMPLING_PROMPTS.dataAnalysis}
 
 Always respond in this JSON schema:
-{ "summary": string, "findings": [{"type": string, "severity": "critical"|"high"|"medium"|"low", "location": string, "description": string, "recommendation": string}], "confidence": number }
+{ "summary": string, "findings": [{"type": string, "severity": "critical"|"high"|"medium"|"low", "location": string, "description": string, "recommendation": string}], "confidence": number, "citations": [{"cell": "A1-notation", "role": "source|evidence|anomaly|formula"}] }
+
+Include "citations" listing the specific cells that support each finding. Use A1 notation (e.g., "B14", "Sheet1!C3:C10"). The "role" indicates why the cell is cited: "source" for input data, "evidence" for cells that prove the finding, "anomaly" for problematic cells, "formula" for formula cells referenced.
 
 Example finding: "Column B (Revenue) has 3 null values in rows 14, 27, 31 (4.2% of 71 rows). These are likely missing transactions. Use sheets_fix.fill_missing with strategy:'mean' to impute."`,
     maxTokens = 1000,

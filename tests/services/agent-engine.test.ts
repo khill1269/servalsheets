@@ -24,11 +24,13 @@ import {
   getPlanStatus,
   listPlans,
   listTemplates,
+  registerToolInputSchemas,
   resumePlan,
   rollbackToPlan,
   type ExecuteHandlerFn,
   type PlanState,
 } from '../../src/services/agent-engine.js';
+import { TOOL_DEFINITIONS } from '../../src/mcp/registration/tool-definitions.js';
 import { encryptPlan, decryptPlan } from '../../src/utils/plan-crypto.js';
 import { resetEnvForTest } from '../../src/config/env.js';
 
@@ -78,6 +80,8 @@ function makePlan(description = 'read data from spreadsheet'): PlanState {
 // ---------------------------------------------------------------------------
 
 beforeEach(async () => {
+  // Register tool input schemas for step-parameter validation during plan execution
+  registerToolInputSchemas(new Map(TOOL_DEFINITIONS.map((t) => [t.name, t.inputSchema] as const)));
   await clearAllPlans();
 });
 

@@ -110,6 +110,7 @@ const EnvSchema = z.object({
   // Feature flags (staged rollout)
   ENABLE_DATAFILTER_BATCH: strictBoolean().default(true),
   ENABLE_TABLE_APPENDS: strictBoolean().default(true),
+  ENABLE_APPSSCRIPT_TRIGGER_COMPAT: strictBoolean().default(false),
   ENABLE_PAYLOAD_VALIDATION: strictBoolean().default(true),
   ENABLE_LEGACY_SSE: strictBoolean().default(false),
   ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS: strictBoolean().default(true),
@@ -154,6 +155,7 @@ const EnvSchema = z.object({
   TRACING_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
   OTEL_ENABLED: strictBoolean().default(true), // Internal tracing infrastructure
   OTEL_LOG_SPANS: strictBoolean().default(false), // Debug logging of spans
+  ENABLE_OTEL: strictBoolean().default(false), // Enable OpenTelemetry SDK initialization
 
   // OTLP Export Configuration (production observability)
   OTEL_EXPORT_ENABLED: strictBoolean().default(false), // Opt-in OTLP export
@@ -163,6 +165,8 @@ const EnvSchema = z.object({
   OTEL_EXPORT_BATCH_SIZE: z.coerce.number().int().positive().default(100),
   OTEL_EXPORT_INTERVAL_MS: z.coerce.number().int().positive().default(5000), // 5 seconds
   OTEL_EXPORT_MAX_QUEUE_SIZE: z.coerce.number().int().positive().default(1000),
+  OTEL_METRICS_PORT: z.coerce.number().int().positive().default(9464), // Prometheus metrics port
+  OTEL_TRACES_EXPORTER: z.string().default('none').describe('Traces exporter: none, console, otlp'),
 
   // Dedicated Prometheus metrics server (optional)
   // When enabled, serves metrics on a separate port via src/server/metrics-server.ts
@@ -201,6 +205,10 @@ const EnvSchema = z.object({
   // Graceful shutdown
   GRACEFUL_SHUTDOWN_TIMEOUT_MS: z.coerce.number().positive().default(10000), // 10 seconds
 
+  // Stateless mode (Kubernetes readiness)
+  // When true, services prefer Redis over in-memory stores for horizontal scaling
+  STATELESS_MODE: strictBoolean().default(false),
+
   // Session Store Configuration (for OAuth)
   SESSION_STORE_TYPE: z.enum(['memory', 'redis']).default('memory'),
   REDIS_URL: z.string().regex(URL_REGEX, 'Invalid URL format').optional().catch(undefined),
@@ -226,6 +234,12 @@ const EnvSchema = z.object({
   OAUTH_CLIENT_SECRET: z.string().min(16, 'OAUTH_CLIENT_SECRET must be ≥16 chars').optional(),
   OAUTH_ISSUER: z.string().default('https://servalsheets.example.com'),
   OAUTH_CLIENT_ID: z.string().default('servalsheets'),
+  OAUTH_RESOURCE_INDICATOR: z
+    .string()
+    .optional()
+    .describe(
+      'RFC 8707 resource indicator (aud claim). If set, JWT tokens will use this as the audience instead of client_id. Typically the server base URL or API resource identifier.'
+    ),
   // Claude/Anthropic Directory required callback URLs + localhost for development
   ALLOWED_REDIRECT_URIS: z
     .string()
@@ -251,6 +265,7 @@ const EnvSchema = z.object({
     ),
   ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(3600), // 1 hour
   REFRESH_TOKEN_TTL: z.coerce.number().int().positive().default(2592000), // 30 days
+  OAUTH_MAX_TOKEN_TTL: z.coerce.number().int().positive().default(1800), // 30 minutes (security boundary)
 
   // Google Cloud Managed Auth Mode
   // When true: Uses Application Default Credentials, disables sheets_auth tool
@@ -495,7 +510,18 @@ const EnvSchema = z.object({
     .string()
     .optional()
     .describe('Require signed assertions (default: true)'),
-  SAML_SIGNATURE_ALGORITHM: z.enum(['sha1', 'sha256', 'sha512']).optional().default('sha256'),
+  SAML_SIGNATURE_ALGORITHM: z
+    .enum(['sha256', 'sha512'])
+    .optional()
+    .default('sha256')
+    .describe('SAML signature algorithm (sha1 removed — broken since SHATTERED 2017)'),
+  SSO_JWT_SECRET: z
+    .string()
+    .min(32, 'SSO_JWT_SECRET must be ≥32 chars')
+    .optional()
+    .describe(
+      'Dedicated JWT secret for SSO tokens (must differ from JWT_SECRET to prevent token forgery)'
+    ),
   SSO_JWT_TTL: z.coerce
     .number()
     .positive()
@@ -506,8 +532,10 @@ const EnvSchema = z.object({
     .number()
     .nonnegative()
     .optional()
-    .default(300)
-    .describe('Allowed clock skew for SAML assertions in seconds'),
+    .default(60)
+    .describe(
+      'Allowed clock skew for SAML assertions in seconds (default 60; increase only if IdP clock sync issues occur)'
+    ),
 
   // MCP response size limits
   MCP_MAX_RESPONSE_BYTES: z.coerce.number().int().positive().default(100000),

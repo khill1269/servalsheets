@@ -10,6 +10,7 @@ import { getCacheAdapter } from '../../utils/cache-adapter.js';
 import {
   assertSamplingConsent,
   withSamplingTimeout,
+  extractCitationsFromResponse,
   type SamplingServer,
 } from '../../mcp/sampling.js';
 
@@ -319,6 +320,9 @@ export async function handleQueryNaturalLanguageAction(
       ? parsed['followUpQuestions'].filter((q): q is string => typeof q === 'string')
       : [];
 
+    // Extract cell-level citations from the AI response (best-effort)
+    const citations = extractCitationsFromResponse(jsonMatch[0]);
+
     return {
       success: true,
       action: 'query_natural_language',
@@ -333,6 +337,8 @@ export async function handleQueryNaturalLanguageAction(
         visualizationSuggestion: parsedVisualization,
         followUpQuestions,
       },
+      // Bubble citations up to _meta via tool-response.ts convention
+      ...(citations.length > 0 ? { _citations: citations } : {}),
       duration,
       message: `Query processed: ${intent.type} (${intent.confidence}% confidence)`,
     };

@@ -367,10 +367,10 @@ async function main(): Promise<void> {
     }
 
     if (!clientId || !clientSecret) {
-      // Try embedded credentials (published app — zero-config for end users)
+      // Try bundle-provided credentials when this installation includes them.
       if (isEmbeddedOAuthConfigured()) {
         console.log(
-          `${colors.green}✓ Using ServalSheets published OAuth credentials${colors.reset}`
+          `${colors.green}✓ Using OAuth credentials from the current ServalSheets installation${colors.reset}`
         );
         clientId = EMBEDDED_OAUTH.clientId;
         clientSecret = EMBEDDED_OAUTH.clientSecret;
@@ -378,7 +378,7 @@ async function main(): Promise<void> {
       } else {
         console.log(`${colors.yellow}No credentials found automatically.${colors.reset}`);
         console.log('');
-        console.log('The embedded OAuth credentials have not been configured yet.');
+        console.log('This installation does not include bundled OAuth credentials.');
         console.log('You can either:');
         console.log('');
         console.log(`  ${colors.cyan}Option A:${colors.reset} Create your own OAuth credentials:`);
@@ -389,9 +389,14 @@ async function main(): Promise<void> {
         console.log(`    3. Download the JSON file as credentials.json`);
         console.log(`    4. Place it in the current directory and run this script again`);
         console.log('');
-        console.log(`  ${colors.cyan}Option B:${colors.reset} Wait for the published app release`);
-        console.log(`    The maintainer is setting up Google-verified OAuth credentials.`);
-        console.log(`    Once available, this script will use them automatically.`);
+        console.log(
+          `  ${colors.cyan}Option B:${colors.reset} Provide existing credentials directly:`
+        );
+        console.log(`    1. Set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET in .env or your shell`);
+        console.log(
+          `    2. Optionally set OAUTH_REDIRECT_URI if you do not use the default callback`
+        );
+        console.log(`    3. Run this script again`);
         console.log('');
         process.exit(1);
       }

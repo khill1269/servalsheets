@@ -6,6 +6,12 @@ import {
   TOOL_DEFINITIONS,
   getLazyToolDefinitions,
 } from './registration/tool-definitions.js';
+import {
+  getToolRoutingSummary,
+  validateToolRouteManifest,
+  type ToolRouteManifestValidation,
+  type ToolRoutingSummary,
+} from './tool-routing.js';
 import { TOOL_ACTIONS } from './completions.js';
 
 export interface ToolCatalogDiagnostics {
@@ -15,6 +21,8 @@ export interface ToolCatalogDiagnostics {
   totalActionCount: number;
   configuredActionCount: number;
   stagedRegistration: boolean;
+  routeManifest: ToolRouteManifestValidation;
+  routingSummary: ToolRoutingSummary;
 }
 
 function countActions(toolNames: readonly string[]): number {
@@ -36,14 +44,17 @@ export function getConfiguredActionCount(): number {
 export function getToolCatalogDiagnostics(): ToolCatalogDiagnostics {
   const configuredToolNames = getConfiguredToolNames();
   const lazyToolNames = getLazyToolDefinitions().map((tool) => tool.name);
+  const allToolNames = TOOL_DEFINITIONS.map((tool) => tool.name);
 
   return {
     totalToolCount: TOOL_DEFINITIONS.length,
     activeToolCount: configuredToolNames.length,
     lazyToolCount: lazyToolNames.length,
-    totalActionCount: countActions(TOOL_DEFINITIONS.map((tool) => tool.name)),
+    totalActionCount: countActions(allToolNames),
     configuredActionCount: countActions(configuredToolNames),
     stagedRegistration: STAGED_REGISTRATION,
+    routeManifest: validateToolRouteManifest(allToolNames),
+    routingSummary: getToolRoutingSummary(allToolNames),
   };
 }
 
@@ -53,6 +64,14 @@ export function validateToolCatalogConfiguration(): ToolCatalogDiagnostics {
   const countsMatch =
     diagnostics.totalToolCount === diagnostics.activeToolCount &&
     diagnostics.totalActionCount === diagnostics.configuredActionCount;
+
+  if (!diagnostics.routeManifest.valid) {
+    throw new ConfigError(
+      `Tool route manifest mismatch: missing [${diagnostics.routeManifest.missingToolNames.join(', ')}], ` +
+        `extra [${diagnostics.routeManifest.extraToolNames.join(', ')}].`,
+      'TOOL_CATALOG'
+    );
+  }
 
   if (!countsMatch && !diagnostics.stagedRegistration && !hasLazyLoadedTools) {
     throw new ConfigError(

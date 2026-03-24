@@ -298,7 +298,7 @@ const DependenciesResponseSchema = z.discriminatedUnion('success', [
               message: z.string(),
             }),
           })
-          .passthrough(),
+          ,
         // F6: compare_scenarios result
         z
           .object({
@@ -309,11 +309,10 @@ const DependenciesResponseSchema = z.discriminatedUnion('success', [
                   name: z.string(),
                   cellsAffected: z.number().int(),
                 })
-                .passthrough()
             ),
             message: z.string(),
           })
-          .passthrough(),
+          ,
         // F6: create_scenario_sheet result
         z
           .object({
@@ -323,16 +322,16 @@ const DependenciesResponseSchema = z.discriminatedUnion('success', [
             cellsModified: z.number().int(),
             message: z.string(),
           })
-          .passthrough(),
+          ,
       ]),
     })
-    .passthrough(),
+    ,
   z
     .object({
       success: z.literal(false),
       error: ErrorDetailSchema,
     })
-    .passthrough(),
+    ,
 ]);
 
 export const SheetsDependenciesOutputSchema = z.object({

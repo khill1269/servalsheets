@@ -7,9 +7,10 @@ import { getSessionContext } from '../../services/session-context.js';
 import { redactSensitiveData } from '../../middleware/redaction.js';
 import { getErrorCodeCompatibility } from '../../utils/error-code-compat.js';
 import { logger } from '../../utils/logger.js';
-import { getRequestContext, getRequestLlmProvenance } from '../../utils/request-context.js';
+import { getRequestContext, getRequestLlmProvenance, getRequestVerbosity } from '../../utils/request-context.js';
 import { compactResponse, isCompactModeEnabled } from '../../utils/response-compactor.js';
 import { applyResponseIntelligence } from './response-intelligence.js';
+import { applyVerbosityFilter } from '../../handlers/helpers/verbosity-filter.js';
 import { sanitizeToolOutput } from './tool-output-sanitization.js';
 import { getEnv } from '../../config/env.js';
 import {
@@ -99,6 +100,77 @@ function getTaskRoutingHint(
   }
 
   return undefined; // OK: no task hint applicable for this action/timing
+}
+
+/**
+ * Actions whose results are deterministic — confidence is always 1.0.
+ * No need to waste tokens reporting this.
+ */
+const DETERMINISTIC_ACTIONS = new Set([
+  'read', 'batch_read', 'write', 'batch_write', 'append', 'clear',
+  'list_sheets', 'get_sheet', 'create', 'delete_sheet', 'duplicate_sheet',
+  'set_format', 'batch_format', 'set_background', 'set_borders', 'set_number_format',
+  'insert', 'delete', 'freeze', 'auto_resize', 'sort_range', 'hide', 'unhide',
+  'share_add', 'share_remove', 'share_list', 'comment_add', 'comment_list',
+  'login', 'logout', 'status', 'callback',
+  'begin', 'commit', 'rollback', 'queue',
+  'register', 'unregister', 'list',
+]);
+
+/**
+ * Extract confidence from response bodies that already contain it.
+ * Analysis handlers (scout, comprehensive, quality, performance) compute
+ * `overallScore` or `confidence.overallScore`. For AI-powered actions
+ * (sampling), use aiMode as a proxy. Returns undefined for deterministic
+ * actions (no value in reporting confidence 1.0).
+ */
+function extractResponseConfidence(
+  response: Record<string, unknown>,
+  aiMode: 'sampling' | 'heuristic' | 'cached'
+): number | undefined {
+  const actionName = typeof response['action'] === 'string' ? response['action'] : '';
+
+  // Don't report confidence for deterministic operations
+  if (DETERMINISTIC_ACTIONS.has(actionName)) {
+    return undefined;
+  }
+
+  // 1. Direct overallScore in response (scout, quality, performance)
+  if (typeof response['overallScore'] === 'number') {
+    return Math.round(response['overallScore']) / 100; // Normalize 0-100 → 0-1
+  }
+
+  // 2. Nested confidence object (comprehensive analysis)
+  const confidence = response['confidence'];
+  if (confidence && typeof confidence === 'object') {
+    const confRecord = confidence as Record<string, unknown>;
+    if (typeof confRecord['overallScore'] === 'number') {
+      return Math.round(confRecord['overallScore']) / 100;
+    }
+  }
+
+  // 3. Nested quality.score (quality handler)
+  const quality = response['quality'];
+  if (quality && typeof quality === 'object') {
+    const qualRecord = quality as Record<string, unknown>;
+    if (typeof qualRecord['score'] === 'number') {
+      return Math.round(qualRecord['score']) / 100;
+    }
+  }
+
+  // 4. For AI-powered actions without explicit confidence, use aiMode as a proxy
+  if (aiMode === 'sampling') return 0.8; // Sampling results are generally reliable
+  if (aiMode === 'cached') return 0.85; // Cached sampling results were reliable when generated
+
+  // 5. Heuristic analysis actions without explicit scores
+  const heuristicActions = new Set([
+    'suggest_next_actions', 'auto_enhance', 'suggest_cleaning',
+    'suggest_format', 'suggest_chart', 'suggest_pivot',
+    'detect_anomalies', 'generate_formula', 'preview_generation',
+  ]);
+  if (heuristicActions.has(actionName)) return 0.7;
+
+  return undefined; // OK: no confidence applicable for this action
 }
 
 function validateOutputSchema(
@@ -200,21 +272,39 @@ export function buildToolResponse(
       // Quota impact: each API call costs ~1 unit against the 60 req/min per-user quota
       const quotaImpact =
         apiCallsMade > 0 ? { apiCalls: apiCallsMade, quotaUnits: apiCallsMade } : undefined;
+      // Classify operation into performance tier for LLM cost awareness
+      const performanceTier =
+        executionTimeMs < 50
+          ? 'instant'
+          : executionTimeMs < 300
+            ? 'fast'
+            : executionTimeMs < 2000
+              ? 'medium'
+              : executionTimeMs < 10000
+                ? 'slow'
+                : 'background';
       structuredContent['_meta'] = {
         ...scMeta,
         requestId: requestContext.requestId,
-        ...(requestContext.traceId ? { traceId: requestContext.traceId } : {}),
-        ...(requestContext.spanId ? { spanId: requestContext.spanId } : {}),
+        traceId: requestContext.traceId,
+        spanId: requestContext.spanId,
         executionTimeMs,
+        performanceTier,
         apiCallsMade,
         ...(quotaImpact ? { quotaImpact } : {}),
         ...(llmProvenance ?? {}),
-        quotaStatus: {
-          used: quotaStatus.used,
-          limit: quotaStatus.limit,
-          utilization: Math.round(quotaStatus.utilization * 100) / 100,
-          windowRemainingMs: quotaStatus.windowRemainingMs,
-        },
+        // Only include quotaStatus when utilization is meaningful (>20%) —
+        // saves ~150 bytes/response for the ~80% of calls at low utilization
+        ...(quotaStatus.utilization > 0.2
+          ? {
+              quotaStatus: {
+                used: quotaStatus.used,
+                limit: quotaStatus.limit,
+                utilization: Math.round(quotaStatus.utilization * 100) / 100,
+                windowRemainingMs: quotaStatus.windowRemainingMs,
+              },
+            }
+          : {}),
       };
 
       // P4: Inject taskHint for long-running operations so LLMs know to use tasks/call
@@ -236,6 +326,29 @@ export function buildToolResponse(
           recommendedPrompt: 'welcome',
         };
       }
+
+      // Session context summary: helps LLM skip redundant operations
+      // Only inject when there's meaningful context (active sheet or 2+ operations)
+      const sessionSummary = getSessionContext().getSummary();
+      if (sessionSummary.activeSpreadsheet || sessionSummary.recentOperations.length >= 2) {
+        const lastOps = sessionSummary.recentOperations.slice(0, 3);
+        (structuredContent['_meta'] as Record<string, unknown>)['sessionContext'] = {
+          ...(sessionSummary.activeSpreadsheet
+            ? {
+                activeSheet: sessionSummary.activeSpreadsheet.title,
+                knownSheets: sessionSummary.activeSpreadsheet.sheetNames.slice(0, 10),
+              }
+            : {}),
+          ...(lastOps.length > 0
+            ? {
+                recentOps: lastOps.map(
+                  (op: { tool?: string; action?: string; range?: string }) =>
+                    `${op.tool ?? ''}${op.action ? `.${op.action}` : ''}${op.range ? ` ${op.range}` : ''}`
+                ),
+              }
+            : {}),
+        };
+      }
     }
 
     injectStandardPaginationMeta(initialResponse);
@@ -249,8 +362,22 @@ export function buildToolResponse(
   const preCompactHasFailure =
     preCompactResponseSuccess === false || structuredContent['success'] === false;
 
+  // Track per-tool success/failure for adaptive description verbosity
+  if (toolName) {
+    try {
+      getSessionContext().recordToolOutcome(toolName, !preCompactHasFailure);
+    } catch {
+      // Session context may not be initialized — non-critical
+    }
+  }
+
   if (preCompactResponse) {
     let intelligenceResult: { batchingHint?: string; aiMode?: string } = {};
+    // Determine aiMode before try block so it's available for confidence extraction
+    const existingMetaForAiMode = getMetaRecord(structuredContent);
+    const rawAiMode = existingMetaForAiMode['aiMode'];
+    const aiMode: 'sampling' | 'heuristic' | 'cached' =
+      rawAiMode === 'sampling' || rawAiMode === 'cached' ? rawAiMode : 'heuristic';
     try {
       // Extract action/spreadsheetId from response for recovery engine context
       const responseAction =
@@ -259,10 +386,6 @@ export function buildToolResponse(
         typeof preCompactResponse['spreadsheetId'] === 'string'
           ? preCompactResponse['spreadsheetId']
           : undefined;
-      const existingMeta = getMetaRecord(structuredContent);
-      const rawAiMode = existingMeta['aiMode'];
-      const aiMode: 'sampling' | 'heuristic' | 'cached' =
-        rawAiMode === 'sampling' || rawAiMode === 'cached' ? rawAiMode : 'heuristic';
       intelligenceResult = applyResponseIntelligence(preCompactResponse, {
         toolName,
         actionName: responseAction,
@@ -276,10 +399,31 @@ export function buildToolResponse(
       });
     }
 
+    // Inject cell-level citations into _meta when present in response
+    const responseCitations = preCompactResponse['_citations'] ?? preCompactResponse['citations'];
+    if (Array.isArray(responseCitations) && responseCitations.length > 0 && requestContext) {
+      const scMeta = getMetaRecord(structuredContent);
+      structuredContent['_meta'] = { ...scMeta, citations: responseCitations };
+      // Remove internal _citations field from response body
+      delete preCompactResponse['_citations'];
+    }
+
     // Inject batching hint into _meta when present
     if (intelligenceResult.batchingHint && requestContext) {
       const scMeta = getMetaRecord(structuredContent);
       structuredContent['_meta'] = { ...scMeta, batchingHint: intelligenceResult.batchingHint };
+    }
+
+    // Surface confidence score in _meta when present in the response body.
+    // Analysis handlers (scout, comprehensive, quality, performance) already compute
+    // confidence; this extracts it to _meta so the LLM pipeline can use it for
+    // decision-making without parsing the full response JSON.
+    if (requestContext && !preCompactHasFailure) {
+      const responseConfidence = extractResponseConfidence(preCompactResponse, aiMode);
+      if (responseConfidence !== undefined) {
+        const scMeta = getMetaRecord(structuredContent);
+        structuredContent['_meta'] = { ...scMeta, confidence: responseConfidence };
+      }
     }
 
     // Inject transaction hint when many API calls were made in a single request
@@ -300,6 +444,26 @@ export function buildToolResponse(
         outputSanitizationFindings: sanitizationFindings,
       };
     }
+  }
+
+  // Global verbosity filter: apply to ALL tool responses via request context.
+  // Handlers that already called applyVerbosityFilter() will have removed _meta etc.
+  // This ensures the 8+ handlers that don't call it themselves still benefit.
+  const requestedVerbosity = getRequestVerbosity();
+  if (requestedVerbosity && requestedVerbosity !== 'standard') {
+    const responseForFilter = getResponseRecord(structuredContent);
+    if (responseForFilter && typeof responseForFilter['success'] === 'boolean') {
+      applyVerbosityFilter(
+        responseForFilter as { success: boolean; _meta?: unknown },
+        requestedVerbosity
+      );
+    }
+  }
+
+  // Inject _meta.verbosity so LLMs know what level was applied
+  if (requestedVerbosity && requestContext) {
+    const scMeta = getMetaRecord(structuredContent);
+    structuredContent['_meta'] = { ...scMeta, verbosity: requestedVerbosity };
   }
 
   if (isCompactModeEnabled()) {
@@ -387,7 +551,12 @@ export function buildToolResponse(
     budgetMeta['deliveredSizeBytes'] = Buffer.byteLength(JSON.stringify(budgetContent), 'utf8');
 
     return {
-      content: [{ type: 'text', text: JSON.stringify(budgetContent, null, 2) }],
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(budgetContent, null, 2),
+        },
+      ],
       structuredContent: budgetContent,
       isError: undefined,
     };
@@ -420,7 +589,12 @@ export function buildToolResponse(
     fallbackMeta['deliveredSizeBytes'] = Buffer.byteLength(JSON.stringify(fallbackContent), 'utf8');
 
     return {
-      content: [{ type: 'text', text: JSON.stringify(fallbackContent, null, 2) }],
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(fallbackContent, null, 2),
+        },
+      ],
       structuredContent: fallbackContent,
       isError: undefined,
     };

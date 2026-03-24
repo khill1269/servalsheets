@@ -499,10 +499,10 @@ export class GoogleApiClient {
         // google-auth-library v10.5.0 sets 'User-Agent: google-api-nodejs-client/10.5.0' (no gzip suffix).
         // Google docs require '(gzip)' in User-Agent for compressed responses.
         // Setting a custom UA here causes the auth interceptor to append the library token:
-        //   result → 'ServalSheets/1.7.0 (gzip) google-api-nodejs-client/10.5.0'
+        //   result → 'ServalSheets/2.0.0 (gzip) google-api-nodejs-client/10.5.0'
         // https://developers.google.com/sheets/api/guides/performance#gzip
         const existingHeaders = (defaults['headers'] as Record<string, string> | undefined) ?? {};
-        defaults['headers'] = { ...existingHeaders, 'User-Agent': 'ServalSheets/1.7.0 (gzip)' };
+        defaults['headers'] = { ...existingHeaders, 'User-Agent': 'ServalSheets/2.0.0 (gzip)' };
       }
     }
 
@@ -636,7 +636,7 @@ export class GoogleApiClient {
         defaults['agent'] = this.httpAgents.https;
         defaults['httpAgent'] = this.httpAgents.http;
         const existingHeaders = (defaults['headers'] as Record<string, string> | undefined) ?? {};
-        defaults['headers'] = { ...existingHeaders, 'User-Agent': 'ServalSheets/1.7.0 (gzip)' };
+        defaults['headers'] = { ...existingHeaders, 'User-Agent': 'ServalSheets/2.0.0 (gzip)' };
       }
     }
 

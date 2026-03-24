@@ -843,7 +843,7 @@ const GenerateActionsActionSchema = CommonFieldsSchema.extend({
           issues: z.array(z.record(z.string(), z.unknown())).optional(),
           errors: z.array(z.record(z.string(), z.unknown())).optional(),
         })
-        .passthrough(),
+        ,
       z.record(z.string(), z.unknown()),
     ])
     .optional()
@@ -1158,6 +1158,68 @@ const SemanticSearchActionSchema = CommonFieldsSchema.extend({
     ),
 });
 
+// Scheduled Intelligence actions (3) — Steps 066-068
+const ScheduleIntelligenceActionSchema = z.object({
+  spreadsheetId: SpreadsheetIdSchema,
+  action: z
+    .literal('schedule_intelligence')
+    .describe(
+      'Create a recurring intelligence schedule that periodically analyzes a spreadsheet ' +
+        'and optionally fires a webhook when conditions are met. ' +
+        'Example: Monitor for anomalies in revenue data every hour.'
+    ),
+  analysisType: z
+    .enum(['quality_check', 'anomaly_detection', 'trend_analysis', 'custom_query'])
+    .describe('Type of analysis to perform on each run'),
+  query: z
+    .string()
+    .max(500)
+    .optional()
+    .describe('Natural language query for custom_query analysis type'),
+  intervalMinutes: z
+    .number()
+    .int()
+    .min(1)
+    .max(10080)
+    .default(60)
+    .describe('How often to run analysis (minutes). Default: 60 (hourly). Max: 10080 (weekly).'),
+  conditions: z
+    .array(
+      z.object({
+        metric: z.string().describe('Metric to evaluate (e.g., "anomaly_count", "quality_score")'),
+        operator: z.enum(['gt', 'gte', 'lt', 'lte', 'eq', 'ne']),
+        threshold: z.number(),
+      })
+    )
+    .optional()
+    .describe('Conditions that must be met to trigger webhook delivery'),
+  webhookUrl: z
+    .string()
+    .url()
+    .optional()
+    .describe('Webhook URL to POST results when conditions are met'),
+  range: z.string().optional().describe('Specific range to analyze (default: entire spreadsheet)'),
+});
+
+const GetIntelligenceReportActionSchema = z.object({
+  spreadsheetId: SpreadsheetIdSchema,
+  action: z
+    .literal('get_intelligence_report')
+    .describe(
+      'Retrieve the latest intelligence report for a schedule. ' +
+        'Returns findings, condition evaluation results, and delivery status.'
+    ),
+  scheduleId: z.string().uuid().describe('ID of the schedule to get the report for'),
+});
+
+const CancelIntelligenceActionSchema = z.object({
+  spreadsheetId: SpreadsheetIdSchema,
+  action: z
+    .literal('cancel_intelligence')
+    .describe('Cancel and delete a recurring intelligence schedule.'),
+  scheduleId: z.string().uuid().describe('ID of the schedule to cancel'),
+});
+
 /**
  * All analysis operation inputs
  *
@@ -1201,6 +1263,10 @@ export const SheetsAnalyzeInputSchema = z.object({
     QuickInsightsActionSchema,
     // Semantic search (1) - ISSUE-174/175
     SemanticSearchActionSchema,
+    // Scheduled intelligence (3) - Steps 066-068
+    ScheduleIntelligenceActionSchema,
+    GetIntelligenceReportActionSchema,
+    CancelIntelligenceActionSchema,
   ]),
 });
 
@@ -1583,7 +1649,6 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
           issues: z.array(DataQualityIssueSchema),
           summary: z.string(),
         })
-        .passthrough()
         .optional(),
 
       // analyze_performance results (and comprehensive)
@@ -1609,7 +1674,6 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
                 estimatedImpact: z.string().optional(),
                 recommendation: z.string().optional(),
               })
-              .passthrough()
           ),
           estimatedImprovementPotential: z.string().optional(),
         })
@@ -1679,7 +1743,6 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
             )
             .optional(),
         })
-        .passthrough()
         .optional(),
 
       // query_natural_language results
@@ -1754,7 +1817,6 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
                   nonBlankCount: z.coerce.number().optional(),
                   uniqueCount: z.coerce.number().optional(),
                 })
-                .passthrough()
             ), // Column stats - detailed type
             qualityScore: z.coerce.number(),
             completeness: z.coerce.number(),
@@ -1783,7 +1845,6 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
                   column2: z.string(),
                   coefficient: z.coerce.number(),
                 })
-                .passthrough()
             ), // Correlation results
             formulas: z
               .object({
@@ -1799,7 +1860,6 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
                       errorType: z.string(),
                       severity: z.enum(['low', 'medium', 'high', 'critical']),
                     })
-                    .passthrough()
                 ),
               })
               .optional(),
@@ -2265,13 +2325,13 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
       message: z.string().optional(),
       _meta: ResponseMetaSchema.optional(),
     })
-    .passthrough(),
+    ,
   z
     .object({
       success: z.literal(false),
       error: ErrorDetailSchema,
     })
-    .passthrough(),
+    ,
 ]);
 
 export const SheetsAnalyzeOutputSchema = z.object({

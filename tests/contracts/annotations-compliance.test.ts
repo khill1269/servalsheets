@@ -166,6 +166,13 @@ describe('Annotation Compliance Contract', () => {
       sheets_templates: 'Template operations use Drive appDataFolder, not user spreadsheet data',
       // BigQuery has its own IAM/access controls; operations are enterprise-grade
       sheets_bigquery: 'BigQuery operations are governed by BigQuery IAM and quotas',
+      // Quality resolve_conflict has dryRun support for preview; user controls merge strategy
+      sheets_quality: 'resolve_conflict supports dryRun preview mode; user selects merge strategy (keep_local/keep_remote/merge)',
+      // Federation call_remote delegates to remote tools which have their own safety mechanisms
+      sheets_federation: 'call_remote delegates to external MCP servers; those tools manage their own safety mechanisms',
+      // Connectors configure/unsubscribe modify stored connector state (not user spreadsheet data)
+      sheets_connectors: 'Connector configuration and subscriptions are stored separately from user data; reversible via reconfigure/unsubscribe',
+      sheets_appsscript: 'AppsScript operations modify AppsScript projects (not spreadsheet data); governed by AppsScript API and project IAM',
     };
 
     it('should have at least one destructive tool', () => {

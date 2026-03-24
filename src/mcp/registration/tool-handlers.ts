@@ -33,6 +33,7 @@ import {
   handleGenerateTemplateAction,
   handlePreviewGenerationAction,
 } from '../../handlers/composite-actions/generation.js';
+import { createServerAuthHandler } from '../../server/auth-handler-factory.js';
 import { ConfirmHandler } from '../../handlers/confirm.js';
 import { SessionHandler } from '../../handlers/session.js';
 import type { GoogleApiClient } from '../../services/google-api.js';
@@ -41,11 +42,12 @@ import {
   runWithRequestContext,
   getRequestContext,
   createRequestAbortError,
+  recordRequestVerbosity,
   type RelatedRequestSender,
   type TaskStatusUpdater,
 } from '../../utils/request-context.js';
 import { extractIdempotencyKeyFromHeaders } from '../../utils/idempotency-key-generator.js';
-import { recordSpreadsheetId, TOOL_ACTIONS } from '../completions.js';
+import { recordSpreadsheetId, recordRange, TOOL_ACTIONS } from '../completions.js';
 import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from '../features-2025-11-25.js';
 import { getHistoryService } from '../../services/history-service.js';
 import { getTraceAggregator } from '../../services/trace-aggregator.js';
@@ -56,8 +58,8 @@ import { getCacheInvalidationGraph } from '../../services/cache-invalidation-gra
 import { createMetadataCache } from '../../services/metadata-cache.js';
 import { invalidateContext as invalidateSamplingContext } from '../../services/sampling-context-cache.js';
 import { getEnv } from '../../config/env.js';
-import { registerServerTaskCancelHandler } from '../../server-runtime/control-plane-registration.js';
-import { handlePreInitExemptToolCall } from '../../server-runtime/preinit-tool-routing.js';
+import { registerServerTaskCancelHandler } from '../../server/control-plane-registration.js';
+import { handlePreInitExemptToolCall } from '../../server/preinit-tool-routing.js';
 import { resolveCostTrackingTenantId } from '../../utils/tenant-identification.js';
 import type { OperationHistory } from '../../types/history.js';
 import { wrapInputSchemaForLegacyRequest } from './schema-helpers.js';
@@ -912,14 +914,17 @@ function createToolCallHandler(
     );
 
     // Extract trace context from extra params or headers (W3C Trace Context support)
+    // Auto-generate if not provided to ensure all requests have traceId for correlation
     const traceId =
       extra?.traceId ||
       getHeaderValue(requestHeaders?.['x-trace-id']) ||
-      parentRequestContext?.traceId;
+      parentRequestContext?.traceId ||
+      randomUUID();
     const spanId =
       extra?.spanId ||
       getHeaderValue(requestHeaders?.['x-span-id']) ||
-      parentRequestContext?.spanId;
+      parentRequestContext?.spanId ||
+      randomUUID();
     const parentSpanId =
       extra?.parentSpanId ||
       getHeaderValue(requestHeaders?.['x-parent-span-id']) ||
@@ -1159,6 +1164,21 @@ function createToolCallHandler(
                 // Execute handler - pass extra context for MCP-native tools
                 // Write lock: serialize mutations per spreadsheetId (reads bypass)
                 const normalizedArgs = normalizeToolArgs(args);
+
+                // Extract verbosity from input args and record on request context
+                // for pipeline-level verbosity filtering in tool-response.ts
+                const reqBody = (normalizedArgs as Record<string, unknown>)['request'] as
+                  | Record<string, unknown>
+                  | undefined;
+                const rawVerbosity = reqBody?.['verbosity'] ?? (normalizedArgs as Record<string, unknown>)['verbosity'];
+                if (
+                  rawVerbosity === 'minimal' ||
+                  rawVerbosity === 'standard' ||
+                  rawVerbosity === 'detailed'
+                ) {
+                  recordRequestVerbosity(rawVerbosity);
+                }
+
                 const mutationSafetyViolation = detectMutationSafetyViolation(normalizedArgs);
                 if (mutationSafetyViolation) {
                   return {
@@ -1363,6 +1383,19 @@ function createToolCallHandler(
             duration,
             success: status === 'success',
           });
+
+          // Record range for context-aware completions
+          if (status === 'success') {
+            const reqObj = (args as Record<string, unknown>)['request'] as
+              | Record<string, unknown>
+              | undefined;
+            const rangeVal = (reqObj?.['range'] ?? (args as Record<string, unknown>)['range']) as
+              | string
+              | undefined;
+            if (rangeVal && typeof rangeVal === 'string') {
+              recordRange(rangeVal);
+            }
+          }
 
           // Invalidate sampling context cache after successful mutating operations.
           if (
@@ -1708,7 +1741,7 @@ export async function registerServalSheetsTools(
     abortController: new AbortController(),
   };
 
-  const authHandler = new AuthHandler({
+  const authHandler = createServerAuthHandler({
     googleClient: options?.googleClient ?? null,
     elicitationServer: server.server,
   });

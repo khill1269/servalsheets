@@ -425,13 +425,13 @@ describe('Pre-Flight Validation', () => {
   });
 
   describe('Integration', () => {
-    it('should run all 8 checks', async () => {
+    it('should run all 9 checks', async () => {
       vi.mocked(existsSync).mockReturnValue(true);
       vi.mocked(accessSync).mockImplementation(() => {});
 
       const result = await runPreflightChecks();
 
-      expect(result.checks).toHaveLength(8);
+      expect(result.checks).toHaveLength(9);
 
       const checkNames = result.checks.map((c) => c.name);
       expect(checkNames).toContain('Build Artifacts');
@@ -454,7 +454,7 @@ describe('Pre-Flight Validation', () => {
       const nonCriticalChecks = result.checks.filter((c) => !c.critical);
 
       expect(criticalChecks.length).toBe(4); // Build, Node, Modules, Config
-      expect(nonCriticalChecks.length).toBe(4); // File System, Port, Tool Registration Parity, Server Instructions Length
+      expect(nonCriticalChecks.length).toBe(5); // File System, Port, Tool Registration Parity, Server Instructions Length, + 1 new
     });
   });
 });

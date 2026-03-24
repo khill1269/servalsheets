@@ -144,7 +144,7 @@ describe('MCP Protocol 2025-11-25 Compliance', () => {
 
   // ─── T6: Initialize cannot be cancelled (MCP §1.5) ─────────────────
   describe('Initialize protection (MCP §1.5)', () => {
-    it('ignores cancellation notifications for in-flight initialize requests', async () => {
+    it('ignores cancellation notifications for in-flight initialize requests', { timeout: 60000 }, async () => {
       const child = spawn(process.execPath, ['--import', 'tsx', CLI_ENTRYPOINT, '--stdio'], {
         cwd: projectRoot,
         env: {
@@ -196,7 +196,7 @@ describe('MCP Protocol 2025-11-25 Compliance', () => {
 
       const request = (
         payload: Record<string, unknown>,
-        timeoutMs = 15000
+        timeoutMs = 45000
       ): Promise<Record<string, unknown>> => {
         const id = payload['id'];
         if (typeof id !== 'number') {

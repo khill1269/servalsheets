@@ -9,6 +9,8 @@
  * discovering powerful chaining patterns.
  */
 
+import { logger } from '../utils/logger.js';
+
 export interface SuggestedAction {
   tool: string;
   action: string;
@@ -479,8 +481,9 @@ const RECOMMENDATION_RULES: Record<string, SuggestedAction[]> = {
     },
     {
       tool: 'sheets_appsscript',
-      action: 'list_triggers',
-      reason: 'Set up a trigger to run this script automatically',
+      action: 'update_content',
+      reason:
+        'If you need recurring automation, edit the script to manage ScriptApp triggers in code',
     },
   ],
 
@@ -539,6 +542,127 @@ const RECOMMENDATION_RULES: Record<string, SuggestedAction[]> = {
       reason: 'Auto-resize columns to fit the formatted content',
     },
   ],
+
+  // ── Newly covered actions ──────────────────────────────────────────────────
+
+  // After history operations
+  'sheets_history.timeline': [
+    {
+      tool: 'sheets_history',
+      action: 'diff_revisions',
+      reason: 'Diff two revisions from the timeline to see cell-level changes',
+    },
+  ],
+  'sheets_history.restore_cells': [
+    {
+      tool: 'sheets_quality',
+      action: 'validate',
+      reason: 'Validate data after restoring cells from a past revision',
+    },
+  ],
+
+  // After connector operations
+  'sheets_connectors.query': [
+    {
+      tool: 'sheets_data',
+      action: 'write',
+      reason: 'Write connector query results into a sheet for further analysis',
+    },
+    {
+      tool: 'sheets_visualize',
+      action: 'suggest_chart',
+      reason: 'Visualize the external data with a chart',
+    },
+  ],
+
+  // After agent operations
+  'sheets_agent.execute': [
+    {
+      tool: 'sheets_agent',
+      action: 'observe',
+      reason: 'Observe execution results — verify the plan completed correctly',
+    },
+  ],
+  'sheets_agent.plan': [
+    {
+      tool: 'sheets_agent',
+      action: 'execute',
+      reason: 'Execute the plan that was just compiled',
+    },
+  ],
+
+  // After template operations
+  'sheets_templates.create': [
+    {
+      tool: 'sheets_templates',
+      action: 'list',
+      reason: 'Verify the template was saved — list all templates',
+    },
+  ],
+
+  // After auth
+  'sheets_auth.login': [
+    {
+      tool: 'sheets_session',
+      action: 'set_active',
+      reason: 'Set the target spreadsheet to work with',
+    },
+    {
+      tool: 'sheets_core',
+      action: 'list',
+      reason: 'List accessible spreadsheets after authentication',
+    },
+  ],
+
+  // After webhook operations
+  'sheets_webhook.watch_changes': [
+    {
+      tool: 'sheets_webhook',
+      action: 'get_stats',
+      reason: 'Check webhook delivery stats to confirm it is active',
+    },
+  ],
+
+  // After compute operations
+  'sheets_compute.aggregate': [
+    {
+      tool: 'sheets_data',
+      action: 'write',
+      reason: 'Write aggregated results into a summary range',
+    },
+    {
+      tool: 'sheets_visualize',
+      action: 'chart_create',
+      reason: 'Create a chart from the computed aggregations',
+    },
+  ],
+
+  // After session context operations
+  'sheets_session.set_active': [
+    {
+      tool: 'sheets_analyze',
+      action: 'scout',
+      reason: 'Scout the active spreadsheet to understand its structure',
+    },
+  ],
+
+  // After share operations
+  'sheets_collaborate.comment_add': [
+    {
+      tool: 'sheets_collaborate',
+      action: 'comment_list',
+      reason: 'Review all comments on the spreadsheet',
+    },
+  ],
+
+  // After data clear/delete
+  'sheets_data.clear': [
+    {
+      tool: 'sheets_data',
+      action: 'read',
+      reason: 'Verify the range was cleared successfully',
+    },
+  ],
 };
 
 /**
@@ -571,8 +695,35 @@ function isNumericValue(v: unknown): boolean {
 type CellValue = string | number | boolean | null;
 
 /**
+ * Get recent session operations for dedup (non-critical — returns empty on failure).
+ * Avoids suggesting actions the user already performed in the last N minutes.
+ */
+function getRecentSessionActions(windowMinutes: number = 10): Set<string> {
+  const recent = new Set<string>();
+  try {
+    // Dynamic import to avoid circular dependency — session-context is optional
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getSessionContext } = require('./session-context.js') as {
+      getSessionContext: () => { getOperationHistory: (limit: number) => Array<{ tool: string; action: string; timestamp: number }> };
+    };
+    const ctx = getSessionContext();
+    const cutoff = Date.now() - windowMinutes * 60 * 1000;
+    const ops = ctx.getOperationHistory(20);
+    for (const op of ops) {
+      if (op.timestamp >= cutoff) {
+        recent.add(`${op.tool}.${op.action}`);
+      }
+    }
+  } catch {
+    // Session context not initialized — no dedup (non-critical)
+  }
+  return recent;
+}
+
+/**
  * Build data-signal suggestions from actual response values.
  * Returns deduplicated suggestions ordered by relevance (data signals first).
+ * Session-aware: filters out actions the user already performed in the last 10 minutes.
  */
 export function getDataAwareSuggestions(
   toolName: string,
@@ -588,12 +739,19 @@ export function getDataAwareSuggestions(
   const dataSuggestions: SuggestedAction[] = [];
   const seenKeys = new Set<string>();
 
+  // Session-aware dedup: skip suggesting actions the user already ran recently
+  const recentActions = getRecentSessionActions();
+
   function addIfNew(suggestion: SuggestedAction): void {
     const key = `${suggestion.tool}.${suggestion.action}`;
-    if (!seenKeys.has(key)) {
-      seenKeys.add(key);
-      dataSuggestions.push(suggestion);
+    if (seenKeys.has(key)) return;
+    // Don't suggest actions the user already performed in this session window
+    if (recentActions.has(key)) {
+      logger.debug('Skipping suggestion — already performed in session', { key });
+      return;
     }
+    seenKeys.add(key);
+    dataSuggestions.push(suggestion);
   }
 
   // ── Signal 1: Response data signals ────────────────────────────────────────
@@ -652,12 +810,18 @@ export function getDataAwareSuggestions(
 
     const nullRatio = totalCells > 0 ? nullCells / totalCells : 0;
 
+    // Build context params from available options for pre-filled suggestions
+    const ctxParams: Record<string, unknown> = {};
+    if (options?.spreadsheetId) ctxParams['spreadsheetId'] = options.spreadsheetId;
+    if (options?.range) ctxParams['range'] = options.range;
+
     // Has date + numeric → chart suggestion
     if (hasDateCol && hasNumericCol) {
       addIfNew({
         tool: 'sheets_visualize',
         action: 'suggest_chart',
         reason: 'Data has date and numeric columns — a line chart would visualize trends',
+        ...(options?.spreadsheetId ? { params: { ...ctxParams } } : {}),
       });
     }
 
@@ -667,6 +831,7 @@ export function getDataAwareSuggestions(
         tool: 'sheets_analyze',
         action: 'analyze_formulas',
         reason: 'VLOOKUP detected — consider upgrading to XLOOKUP for better performance',
+        ...(options?.spreadsheetId ? { params: { ...ctxParams, checkErrors: true } } : {}),
       });
     }
 
@@ -676,6 +841,7 @@ export function getDataAwareSuggestions(
         tool: 'sheets_dimensions',
         action: 'sort_range',
         reason: 'Date column values are not in chronological order',
+        ...(options?.range ? { params: { ...ctxParams } } : {}),
       });
     }
 
@@ -685,7 +851,77 @@ export function getDataAwareSuggestions(
         tool: 'sheets_fix',
         action: 'fill_missing',
         reason: `${Math.round(nullRatio * 100)}% of cells are empty — fill missing values`,
+        ...(options?.spreadsheetId ? { params: { ...ctxParams, mode: 'preview' } } : {}),
       });
+    }
+
+    // ── Additional data-aware patterns ──────────────────────────────────────
+
+    // Duplicate row detection: check if any rows repeat (spot-check first 50 data rows)
+    const dataRows = values.slice(1, 51);
+    const rowStrings = dataRows.map((r) => r.join('\t'));
+    const uniqueRows = new Set(rowStrings);
+    if (uniqueRows.size < rowStrings.length * 0.9 && rowStrings.length >= 5) {
+      const dupCount = rowStrings.length - uniqueRows.size;
+      addIfNew({
+        tool: 'sheets_fix',
+        action: 'clean',
+        reason: `~${dupCount} duplicate row${dupCount !== 1 ? 's' : ''} detected — deduplicate to clean the dataset`,
+        ...(options?.spreadsheetId ? { params: { ...ctxParams, rules: ['remove_duplicates'] } } : {}),
+      });
+    }
+
+    // Formula error detection (#REF!, #N/A, #VALUE!, #DIV/0!, #NAME?, #NULL!)
+    let errorCells = 0;
+    const errorRe = /^#(REF!|N\/A|VALUE!|DIV\/0!|NAME\?|NULL!|ERROR!)/;
+    for (const row of dataRows) {
+      for (const cell of row) {
+        if (typeof cell === 'string' && errorRe.test(cell)) {
+          errorCells++;
+        }
+      }
+    }
+    if (errorCells > 0) {
+      addIfNew({
+        tool: 'sheets_analyze',
+        action: 'analyze_formulas',
+        reason: `${errorCells} formula error${errorCells !== 1 ? 's' : ''} found (${errorCells > 5 ? 'many' : 'a few'} #REF!, #N/A, etc.) — audit formulas`,
+        ...(options?.spreadsheetId ? { params: { ...ctxParams, checkErrors: true } } : {}),
+      });
+    }
+
+    // Large dataset hint: suggest batch operations or compute for datasets > 500 rows
+    if (values.length > 500 && hasNumericCol) {
+      addIfNew({
+        tool: 'sheets_compute',
+        action: 'aggregate',
+        reason: `Large dataset (${values.length} rows) — use server-side aggregation for faster SUM/AVG/COUNT`,
+        ...(options?.spreadsheetId ? { params: { ...ctxParams } } : {}),
+      });
+    }
+
+    // Mixed types in a single column → suggest standardize_formats
+    for (let c = 0; c < numCols && c < 20; c++) {
+      let colTypeCount = { num: 0, str: 0, bool: 0 };
+      for (const row of dataRows.slice(0, 10)) {
+        const cell = row[c];
+        if (cell === null || cell === undefined || cell === '') continue;
+        if (typeof cell === 'number') colTypeCount.num++;
+        else if (typeof cell === 'boolean') colTypeCount.bool++;
+        else if (typeof cell === 'string' && !isDateLikeValue(cell)) colTypeCount.str++;
+      }
+      const nonZeroCounts = [colTypeCount.num, colTypeCount.str, colTypeCount.bool].filter(
+        (v) => v > 0
+      );
+      if (nonZeroCounts.length >= 2 && colTypeCount.num > 0 && colTypeCount.str > 0) {
+        addIfNew({
+          tool: 'sheets_fix',
+          action: 'standardize_formats',
+          reason: 'Column has mixed types (numbers stored as text) — standardize for consistent data',
+          ...(options?.spreadsheetId ? { params: { ...ctxParams } } : {}),
+        });
+        break; // One suggestion is enough
+      }
     }
   }
 
@@ -729,6 +965,15 @@ export function getDataAwareSuggestions(
     }
   }
 
+  // ── Signal 3: Workflow chain (multi-step pattern) ───────────────────────────
+  const chainStep = getWorkflowChainSuggestion(toolName, action, {
+    spreadsheetId: options?.spreadsheetId,
+    range: options?.range,
+  });
+  if (chainStep) {
+    addIfNew(chainStep);
+  }
+
   // ── Base: static rules (appended after data signals, deduplicated) ──────────
   const staticRules = getRecommendedActions(toolName, action);
   for (const rule of staticRules) {
@@ -754,17 +999,283 @@ export function getDataAwareSuggestions(
   return dataSuggestions;
 }
 
+// ── Error → Recovery Rules ──────────────────────────────────────────────────
+// These map error codes to recovery actions, enabling self-healing behavior.
+// Called by tool-response.ts when an error occurs, so the LLM gets an
+// actionable suggestion instead of just retrying blindly.
+
+const ERROR_RECOVERY_RULES: Record<string, SuggestedAction[]> = {
+  SHEET_NOT_FOUND: [
+    {
+      tool: 'sheets_core',
+      action: 'list_sheets',
+      reason: 'Sheet name not found — list available sheets (names may contain emoji or trailing spaces)',
+    },
+  ],
+  SPREADSHEET_NOT_FOUND: [
+    {
+      tool: 'sheets_core',
+      action: 'list',
+      reason: 'Spreadsheet ID not found — list accessible spreadsheets to find the correct ID',
+    },
+  ],
+  INVALID_RANGE: [
+    {
+      tool: 'sheets_analyze',
+      action: 'scout',
+      reason: 'Range is invalid — scout the sheet to discover actual dimensions and sheet names',
+    },
+  ],
+  QUOTA_EXCEEDED: [
+    {
+      tool: 'sheets_transaction',
+      action: 'begin',
+      reason: 'Quota exceeded — batch remaining operations into a transaction (80-95% fewer API calls)',
+    },
+  ],
+  UNAUTHENTICATED: [
+    {
+      tool: 'sheets_auth',
+      action: 'status',
+      reason: 'Authentication expired — check auth status and re-login if needed',
+    },
+  ],
+  AUTH_EXPIRED: [
+    {
+      tool: 'sheets_auth',
+      action: 'login',
+      reason: 'Credentials expired — initiate re-authentication flow',
+    },
+  ],
+  PERMISSION_DENIED: [
+    {
+      tool: 'sheets_collaborate',
+      action: 'share_list',
+      reason: 'Permission denied — check current sharing permissions on the spreadsheet',
+    },
+  ],
+  CONFLICT: [
+    {
+      tool: 'sheets_quality',
+      action: 'detect_conflicts',
+      reason: 'Concurrent modification detected — check for conflicting edits before retrying',
+    },
+  ],
+  TIMEOUT: [
+    {
+      tool: 'sheets_data',
+      action: 'batch_read',
+      reason: 'Request timed out — break the range into smaller chunks using batch_read with pagination',
+    },
+  ],
+};
+
+/**
+ * Get recovery actions for a specific error code.
+ *
+ * @param errorCode - The error code from a failed tool call
+ * @param context - Optional spreadsheetId/range to pre-fill params
+ * @returns Array of SuggestedAction objects with recovery guidance
+ */
+export function getErrorRecoveryActions(
+  errorCode: string,
+  context?: { spreadsheetId?: string; range?: string }
+): SuggestedAction[] {
+  const rules = ERROR_RECOVERY_RULES[errorCode];
+  if (!rules) return [];
+
+  // Pre-fill context params when available
+  if (context?.spreadsheetId) {
+    return rules.map((rule) => ({
+      ...rule,
+      params: {
+        spreadsheetId: context.spreadsheetId,
+        ...(context.range &&
+          RANGE_CARRYING_ACTIONS.has(`${rule.tool}.${rule.action}`) && {
+            range: context.range,
+          }),
+      },
+    }));
+  }
+
+  return rules;
+}
+
+// ── Cross-Tool Chaining Rules ──────────────────────────────────────────────
+// Multi-step workflow patterns that chain 3+ tools together.
+// These are appended to data-aware suggestions when the completed action
+// is the START of a known workflow pattern.
+
+interface WorkflowChain {
+  /** When this tool.action completes */
+  trigger: string;
+  /** Description of the workflow */
+  workflow: string;
+  /** Ordered next steps (first = immediate next action) */
+  steps: SuggestedAction[];
+}
+
+const WORKFLOW_CHAINS: WorkflowChain[] = [
+  {
+    trigger: 'sheets_composite.import_csv',
+    workflow: 'Import → Clean → Format → Share',
+    steps: [
+      { tool: 'sheets_fix', action: 'clean', reason: 'Step 1/3: Clean imported data (trim, normalize types)' },
+      { tool: 'sheets_format', action: 'apply_preset', reason: 'Step 2/3: Apply professional formatting' },
+      { tool: 'sheets_collaborate', action: 'share_add', reason: 'Step 3/3: Share the polished spreadsheet' },
+    ],
+  },
+  {
+    trigger: 'sheets_composite.import_xlsx',
+    workflow: 'Import → Clean → Format → Share',
+    steps: [
+      { tool: 'sheets_fix', action: 'clean', reason: 'Step 1/3: Clean imported data' },
+      { tool: 'sheets_format', action: 'apply_preset', reason: 'Step 2/3: Apply professional formatting' },
+      { tool: 'sheets_collaborate', action: 'share_add', reason: 'Step 3/3: Share the polished spreadsheet' },
+    ],
+  },
+  {
+    trigger: 'sheets_core.create',
+    workflow: 'Create → Structure → Populate → Format',
+    steps: [
+      { tool: 'sheets_data', action: 'write', reason: 'Step 1/3: Write headers and initial data' },
+      { tool: 'sheets_dimensions', action: 'freeze', reason: 'Step 2/3: Freeze header row' },
+      { tool: 'sheets_format', action: 'batch_format', reason: 'Step 3/3: Apply formatting in one batch call' },
+    ],
+  },
+  {
+    trigger: 'sheets_analyze.scout',
+    workflow: 'Scout → Analyze → Fix → Visualize',
+    steps: [
+      { tool: 'sheets_analyze', action: 'comprehensive', reason: 'Step 1/3: Deep analysis of patterns and issues' },
+      { tool: 'sheets_fix', action: 'clean', reason: 'Step 2/3: Fix any data quality issues found' },
+      { tool: 'sheets_visualize', action: 'suggest_chart', reason: 'Step 3/3: Visualize key insights' },
+    ],
+  },
+  {
+    trigger: 'sheets_data.read',
+    workflow: 'Read → Compute → Write Results',
+    steps: [
+      { tool: 'sheets_compute', action: 'aggregate', reason: 'Step 1/2: Compute aggregations (SUM, AVG, etc.) server-side' },
+      { tool: 'sheets_data', action: 'write', reason: 'Step 2/2: Write computed results back to the sheet' },
+    ],
+  },
+  {
+    trigger: 'sheets_fix.clean',
+    workflow: 'Clean → Validate → Format → Protect',
+    steps: [
+      { tool: 'sheets_quality', action: 'validate', reason: 'Step 1/3: Validate cleaned data passes all rules' },
+      { tool: 'sheets_format', action: 'batch_format', reason: 'Step 2/3: Apply consistent formatting' },
+      { tool: 'sheets_advanced', action: 'add_protected_range', reason: 'Step 3/3: Protect clean data from accidental edits' },
+    ],
+  },
+  {
+    trigger: 'sheets_bigquery.query',
+    workflow: 'Query → Import → Visualize',
+    steps: [
+      { tool: 'sheets_bigquery', action: 'import_from_bigquery', reason: 'Step 1/2: Import query results into a sheet' },
+      { tool: 'sheets_visualize', action: 'chart_create', reason: 'Step 2/2: Create a chart from the imported data' },
+    ],
+  },
+  {
+    trigger: 'sheets_dependencies.model_scenario',
+    workflow: 'Model → Compare → Materialize',
+    steps: [
+      { tool: 'sheets_dependencies', action: 'compare_scenarios', reason: 'Step 1/2: Compare multiple what-if scenarios side by side' },
+      { tool: 'sheets_dependencies', action: 'create_scenario_sheet', reason: 'Step 2/2: Materialize the best scenario as a new sheet' },
+    ],
+  },
+  // ── Newly covered tool chains ──────────────────────────────────────────────
+  {
+    trigger: 'sheets_history.timeline',
+    workflow: 'Timeline → Diff → Restore',
+    steps: [
+      { tool: 'sheets_history', action: 'diff_revisions', reason: 'Step 1/2: Compare two revisions to find what changed' },
+      { tool: 'sheets_history', action: 'restore_cells', reason: 'Step 2/2: Surgically restore specific cells from a past revision' },
+    ],
+  },
+  {
+    trigger: 'sheets_templates.apply',
+    workflow: 'Apply Template → Populate → Format',
+    steps: [
+      { tool: 'sheets_data', action: 'write', reason: 'Step 1/2: Populate the template with actual data' },
+      { tool: 'sheets_format', action: 'batch_format', reason: 'Step 2/2: Customize formatting for the populated template' },
+    ],
+  },
+  {
+    trigger: 'sheets_connectors.discover',
+    workflow: 'Discover → Configure → Query',
+    steps: [
+      { tool: 'sheets_connectors', action: 'configure', reason: 'Step 1/2: Configure the discovered connector with credentials' },
+      { tool: 'sheets_connectors', action: 'query', reason: 'Step 2/2: Query external data via the configured connector' },
+    ],
+  },
+  {
+    trigger: 'sheets_agent.execute',
+    workflow: 'Execute → Observe → Adjust',
+    steps: [
+      { tool: 'sheets_agent', action: 'observe', reason: 'Step 1/2: Observe execution results and verify correctness' },
+      { tool: 'sheets_agent', action: 'rollback', reason: 'Step 2/2: Roll back if results are incorrect (checkpoint-based)' },
+    ],
+  },
+  {
+    trigger: 'sheets_quality.validate',
+    workflow: 'Validate → Fix → Re-validate',
+    steps: [
+      { tool: 'sheets_fix', action: 'clean', reason: 'Step 1/2: Auto-fix validation issues found' },
+      { tool: 'sheets_quality', action: 'validate', reason: 'Step 2/2: Re-validate to confirm all issues are resolved' },
+    ],
+  },
+];
+
+/**
+ * Get workflow chain suggestions when the completed action is the start of a known pattern.
+ * Returns only the FIRST step of the chain (the immediate next action) plus a workflow label.
+ */
+export function getWorkflowChainSuggestion(
+  toolName: string,
+  action: string,
+  context?: { spreadsheetId?: string; range?: string }
+): SuggestedAction | null {
+  const key = `${toolName}.${action}`;
+  const chain = WORKFLOW_CHAINS.find((c) => c.trigger === key);
+  if (!chain || chain.steps.length === 0) return null;
+
+  const firstStep = { ...chain.steps[0]! };
+  firstStep.reason = `[${chain.workflow}] ${firstStep.reason}`;
+
+  // Pre-fill params
+  if (context?.spreadsheetId) {
+    firstStep.params = {
+      spreadsheetId: context.spreadsheetId,
+      ...(context.range &&
+        RANGE_CARRYING_ACTIONS.has(`${firstStep.tool}.${firstStep.action}`) && {
+          range: context.range,
+        }),
+    };
+  }
+
+  return firstStep;
+}
+
 /** Actions that benefit from receiving the source range in params */
 const RANGE_CARRYING_ACTIONS = new Set([
   'sheets_analyze.detect_patterns',
   'sheets_analyze.analyze_data',
   'sheets_analyze.quick_insights',
+  'sheets_analyze.analyze_formulas',
   'sheets_visualize.suggest_chart',
   'sheets_fix.suggest_cleaning',
   'sheets_fix.clean',
+  'sheets_fix.fill_missing',
+  'sheets_fix.standardize_formats',
   'sheets_fix.detect_anomalies',
   'sheets_dimensions.auto_resize',
   'sheets_dimensions.sort_range',
   'sheets_data.cross_read',
+  'sheets_data.read',
+  'sheets_data.write',
   'sheets_compute.evaluate',
+  'sheets_compute.aggregate',
+  'sheets_quality.validate',
 ]);

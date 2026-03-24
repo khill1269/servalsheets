@@ -814,11 +814,32 @@ export async function handleSheetsSession(
             },
           };
         }
+        const nestedOperation =
+          ('operation' in req && req.operation ? req.operation : undefined) ??
+          ('target' in req && req.target ? req.target : undefined);
+        const tool = req.tool ?? nestedOperation?.tool;
+        const actionName = req.actionName ?? nestedOperation?.actionName ?? nestedOperation?.action;
+        const params = req.params ?? nestedOperation?.params ?? {};
+
+        if (!tool || !actionName) {
+          return {
+            response: {
+              success: false as const,
+              error: {
+                code: ErrorCodes.INVALID_PARAMS,
+                message:
+                  'schedule_create requires either flat tool/actionName fields or a nested operation with tool and action',
+                retryable: false,
+              },
+            },
+          };
+        }
+
         const job = await _scheduler.create({
           spreadsheetId: req.spreadsheetId,
           cronExpression: req.cronExpression,
           description: req.description,
-          action: { tool: req.tool, actionName: req.actionName, params: req.params },
+          action: { tool, actionName, params },
           enabled: true,
         });
         return {

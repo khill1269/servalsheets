@@ -24,6 +24,15 @@ describe('SessionContextManager', () => {
     manager = new SessionContextManager();
   });
 
+  it('should backfill tool familiarity when restoring older session state', () => {
+    const state = manager.getState();
+    const { toolFamiliarity: _toolFamiliarity, ...legacyState } = state;
+
+    const restored = new SessionContextManager(legacyState);
+
+    expect(restored.getState().toolFamiliarity).toEqual({});
+  });
+
   // =========================================================================
   // SPREADSHEET CONTEXT MANAGEMENT
   // =========================================================================

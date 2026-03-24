@@ -278,7 +278,7 @@ describe('AgentHandler', () => {
         expect(result.response.completedSteps).toBe(1);
         expect(result.response.totalSteps).toBe(1);
       }
-      expect(executePlan).toHaveBeenCalledWith(PLAN_ID, false, expect.any(Function));
+      expect(executePlan).toHaveBeenCalledWith(PLAN_ID, false, expect.any(Function), false);
     });
 
     it('should execute a plan in dry-run mode', async () => {
@@ -305,7 +305,7 @@ describe('AgentHandler', () => {
         expect(result.response.completedSteps).toBe(2);
         expect(result.response.totalSteps).toBe(2);
       }
-      expect(executePlan).toHaveBeenCalledWith(PLAN_ID, true, expect.any(Function));
+      expect(executePlan).toHaveBeenCalledWith(PLAN_ID, true, expect.any(Function), false);
     });
 
     it('should return error when plan execution fails', async () => {

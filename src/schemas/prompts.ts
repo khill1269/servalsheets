@@ -11,7 +11,10 @@
 
 import { z } from 'zod';
 import { completable } from '@modelcontextprotocol/sdk/server/completable.js';
-import { completeRange, completeSpreadsheetId } from '../mcp/completions.js';
+import { completeRangeContextAware, completeSpreadsheetId } from '../mcp/completions.js';
+
+// Use context-aware range completions (recently-used ranges + sheet-name patterns)
+const completeRange = completeRangeContextAware;
 
 // Helper type to constrain inference and prevent excessive depth
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

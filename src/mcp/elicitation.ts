@@ -68,23 +68,8 @@ export interface EnumSchema {
   oneOf?: Array<{ const: string; title: string }>;
 }
 
-/**
- * Multi-select enum schema — `type: 'array'` with string enum items.
- * Matches the SDK's `MultiSelectEnumSchemaSchema` (MCP 2025-11-25 spec).
- * Allows clients to render a checkbox group or multi-select list.
- */
-export interface MultiSelectEnumSchema {
-  type: 'array';
-  title?: string;
-  description?: string;
-  minItems?: number;
-  maxItems?: number;
-  default?: string[];
-  items: { type: 'string'; enum: string[] } | { anyOf: Array<{ const: string; title: string }> };
-}
-
 export type PrimitiveSchema = StringSchema | NumberSchema | BooleanSchema | EnumSchema;
-// MultiSelectEnumSchema (type:'array') removed — violates MCP 2025-11-25 spec which requires string/number/boolean/enum only
+// MCP 2025-11-25 requires primitive types only: string, number, boolean, and enum (not array/object)
 
 /**
  * Form elicitation request parameters

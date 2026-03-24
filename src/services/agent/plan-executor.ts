@@ -669,7 +669,8 @@ async function runStepWithGuards(
   plan: PlanState,
   step: ExecutionStep,
   executeHandler: ExecuteHandlerFn,
-  checkpointContext: string
+  checkpointContext: string,
+  interactiveMode: boolean = false
 ): Promise<StepRunOutcome> {
   const startedAt = new Date().toISOString();
   createCheckpoint(plan.planId, checkpointContext);
@@ -812,7 +813,8 @@ async function runStepWithGuards(
 export async function executePlan(
   planId: string,
   dryRun: boolean,
-  executeHandler: ExecuteHandlerFn
+  executeHandler: ExecuteHandlerFn,
+  interactiveMode: boolean = false
 ): Promise<PlanState> {
   const plan = planStore.get(planId);
   if (!plan) {
@@ -849,7 +851,8 @@ export async function executePlan(
       plan,
       step,
       executeHandler,
-      `Before step: ${step.description}`
+      `Before step: ${step.description}`,
+      interactiveMode
     );
 
     if (outcome.status === 'retry') {
@@ -883,6 +886,20 @@ export async function executePlan(
     plan.currentStepIndex = i + 1;
     plan.error = undefined;
     plan.errorDetail = undefined;
+
+    // In interactive mode, pause after each successful step for user review
+    if (interactiveMode) {
+      plan.status = 'paused';
+      plan.error = `Step ${plan.currentStepIndex - 1} completed — awaiting approval to continue`;
+      logger.debug('Interactive mode: pausing after step completion', {
+        planId,
+        completedStep: plan.currentStepIndex - 1,
+        totalSteps: plan.steps.length,
+      });
+      persistPlanState(plan);
+      return plan;
+    }
+
     persistPlanState(plan);
   }
 

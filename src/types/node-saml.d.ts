@@ -1,6 +1,6 @@
 /**
  * Minimal type declarations for node-saml v3.x
- * Covers only the surface used by src/auth/saml-provider.ts
+ * Covers only the surface used by src/security/saml-provider.ts
  */
 
 declare module 'node-saml' {

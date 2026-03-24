@@ -13,9 +13,6 @@
 // Re-export base types
 export * from './base.js';
 
-// Re-export optimization utilities (Phase 2)
-export * from './optimization.js';
-
 // Re-export handler types for backwards compatibility
 export type { SheetsDataHandler } from './data.js';
 export type { FormatHandler } from './format.js';

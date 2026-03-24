@@ -29,6 +29,12 @@ export interface ResponseHints {
   riskLevel?: 'none' | 'low' | 'medium' | 'high';
   /** Suggested workflow phase */
   nextPhase?: string;
+  /** Trend direction for numeric/date-sorted data (e.g. "Revenue: increasing +12%/row avg") */
+  trendDirection?: string[];
+  /** Low-cardinality columns suitable for grouping, pivots, or dropdowns */
+  lowCardinalityColumns?: string[];
+  /** Columns with statistical outliers (>3σ from mean) */
+  outlierColumns?: string[];
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -71,6 +77,12 @@ interface ColumnProfile {
   isId: boolean;
   uniqueRatio: number; // 0-1
   nullRatio: number; // 0-1
+  /** Monotonic sort direction detected in sampled rows */
+  sortDirection?: 'ascending' | 'descending' | 'unsorted';
+  /** Distinct value count (capped at sample size) */
+  distinctCount: number;
+  /** Numeric stats for outlier detection */
+  numericStats?: { mean: number; stdDev: number; outlierCount: number };
 }
 
 function profileColumns(values: CellValue[][]): ColumnProfile[] {
@@ -89,6 +101,7 @@ function profileColumns(values: CellValue[][]): ColumnProfile[] {
     let numCount = 0;
     let nullCount = 0;
     const seen = new Set<string>();
+    const numericValues: number[] = [];
 
     for (const cell of cells) {
       if (cell === null || cell === undefined || cell === '') {
@@ -96,20 +109,54 @@ function profileColumns(values: CellValue[][]): ColumnProfile[] {
         continue;
       }
       seen.add(String(cell));
-      if (isDateLike(cell)) dateCount++;
-      else if (isNumeric(cell)) numCount++;
+      if (isDateLike(cell)) {
+        dateCount++;
+      } else if (isNumeric(cell)) {
+        numCount++;
+        numericValues.push(typeof cell === 'number' ? cell : Number(cell));
+      }
     }
 
     const total = cells.length;
     const nonNull = total - nullCount;
+    const colIsNumeric = nonNull > 0 && numCount / nonNull >= 0.7;
+
+    // Detect sort direction on numeric values
+    let sortDirection: ColumnProfile['sortDirection'];
+    if (numericValues.length >= 3) {
+      let asc = true;
+      let desc = true;
+      for (let i = 1; i < numericValues.length; i++) {
+        if (numericValues[i]! < numericValues[i - 1]!) asc = false;
+        if (numericValues[i]! > numericValues[i - 1]!) desc = false;
+      }
+      sortDirection = asc ? 'ascending' : desc ? 'descending' : 'unsorted';
+    }
+
+    // Compute numeric stats for outlier detection
+    let numericStats: ColumnProfile['numericStats'];
+    if (colIsNumeric && numericValues.length >= 5) {
+      const mean = numericValues.reduce((a, b) => a + b, 0) / numericValues.length;
+      const variance =
+        numericValues.reduce((sum, v) => sum + (v - mean) ** 2, 0) / numericValues.length;
+      const stdDev = Math.sqrt(variance);
+      const outlierCount =
+        stdDev > 0
+          ? numericValues.filter((v) => Math.abs(v - mean) > 3 * stdDev).length
+          : 0;
+      numericStats = { mean, stdDev, outlierCount };
+    }
 
     profiles.push({
       header,
       isDate: nonNull > 0 && dateCount / nonNull >= 0.7,
-      isNumeric: nonNull > 0 && numCount / nonNull >= 0.7,
+      isNumeric: colIsNumeric,
       isId: matchesKeywords(header, ID_KEYWORDS),
       uniqueRatio: nonNull > 0 ? seen.size / nonNull : 0,
       nullRatio: total > 0 ? nullCount / total : 0,
+      sortDirection,
+      distinctCount: seen.size,
+      numericStats,
     });
   }
 
@@ -277,6 +324,59 @@ function suggestNextPhase(
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Trend detection
+// ────────────────────────────────────────────────────────────────────────────
+
+function detectTrends(profiles: ColumnProfile[]): string[] {
+  const trends: string[] = [];
+  for (const p of profiles) {
+    if (!p.isNumeric || !p.numericStats || !p.sortDirection) continue;
+    if (p.sortDirection === 'unsorted') continue;
+    // Only report trends on non-ID columns with meaningful variation
+    if (p.isId || p.numericStats.stdDev === 0) continue;
+    const dir = p.sortDirection === 'ascending' ? 'increasing' : 'decreasing';
+    const cvPct = ((p.numericStats.stdDev / Math.abs(p.numericStats.mean || 1)) * 100).toFixed(0);
+    trends.push(`${p.header}: ${dir} (CV ${cvPct}%)`);
+  }
+  return trends.slice(0, 3);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Low-cardinality detection (grouping / pivot / dropdown candidates)
+// ────────────────────────────────────────────────────────────────────────────
+
+function detectLowCardinality(profiles: ColumnProfile[], rowCount: number): string[] {
+  const result: string[] = [];
+  for (const p of profiles) {
+    if (p.isDate || p.isId) continue;
+    // Low cardinality: few distinct values relative to row count
+    // Must have at least 2 distinct values and ratio < 10% (or ≤20 distinct values for small datasets)
+    if (p.distinctCount >= 2 && rowCount >= 5) {
+      const ratio = p.distinctCount / rowCount;
+      if (ratio <= 0.1 || (p.distinctCount <= 20 && ratio <= 0.3)) {
+        result.push(`${p.header} (${p.distinctCount} distinct → pivot/group/dropdown candidate)`);
+      }
+    }
+  }
+  return result.slice(0, 3);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Outlier detection (3σ from mean)
+// ────────────────────────────────────────────────────────────────────────────
+
+function detectOutlierColumns(profiles: ColumnProfile[]): string[] {
+  const result: string[] = [];
+  for (const p of profiles) {
+    if (!p.numericStats || p.numericStats.outlierCount === 0) continue;
+    result.push(
+      `${p.header}: ${p.numericStats.outlierCount} outlier${p.numericStats.outlierCount !== 1 ? 's' : ''} (>3σ from mean ${p.numericStats.mean.toFixed(1)})`
+    );
+  }
+  return result.slice(0, 3);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Public API
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -338,6 +438,9 @@ export function generateResponseHints(values: CellValue[][]): ResponseHints | nu
   const formulaOpportunities = detectFormulaOpportunities(profiles, rowCount);
   const riskLevel = assessRisk(profiles);
   const nextPhase = suggestNextPhase(profiles, riskLevel);
+  const trendDirection = detectTrends(profiles);
+  const lowCardinalityColumns = detectLowCardinality(profiles, rowCount);
+  const outlierColumns = detectOutlierColumns(profiles);
 
   const hints: ResponseHints = { dataShape };
   if (primaryKeyColumn) hints.primaryKeyColumn = primaryKeyColumn;
@@ -345,6 +448,9 @@ export function generateResponseHints(values: CellValue[][]): ResponseHints | nu
   if (formulaOpportunities.length > 0) hints.formulaOpportunities = formulaOpportunities;
   hints.riskLevel = riskLevel;
   hints.nextPhase = nextPhase;
+  if (trendDirection.length > 0) hints.trendDirection = trendDirection;
+  if (lowCardinalityColumns.length > 0) hints.lowCardinalityColumns = lowCardinalityColumns;
+  if (outlierColumns.length > 0) hints.outlierColumns = outlierColumns;
 
   return hints;
 }

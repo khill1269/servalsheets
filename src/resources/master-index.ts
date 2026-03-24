@@ -12,6 +12,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
 import { TOOL_ACTIONS } from '../mcp/completions.js';
+import { filterAvailableActions } from '../mcp/tool-availability.js';
 import { VERSION } from '../version.js';
 import { getFlowCatalogCount, listFlowCatalogEntries } from './flows.js';
 import { getPromptsCatalogCount, listPromptCatalogBuckets } from './prompts-catalog.js';
@@ -218,7 +219,7 @@ function getToolSummary(): Array<{ name: string; actions: number; description: s
   return Object.entries(TOOL_ACTIONS)
     .map(([name, actions]) => ({
       name,
-      actions: actions.length,
+      actions: filterAvailableActions(name, actions).length,
       description: toolDescriptions[name] || name,
     }))
     .sort((a, b) => b.actions - a.actions);
@@ -240,6 +241,7 @@ export function registerMasterIndexResource(server: McpServer): void {
       const categories = getResourceCategories();
       const quickStart = getQuickStartResources();
       const tools = getToolSummary();
+      const availableActionCount = tools.reduce((sum, tool) => sum + tool.actions, 0);
       const promptBuckets = listPromptCatalogBuckets();
       const flowCatalog = listFlowCatalogEntries();
 
@@ -254,7 +256,8 @@ export function registerMasterIndexResource(server: McpServer): void {
         // Summary statistics
         stats: {
           tools: TOOL_COUNT,
-          actions: ACTION_COUNT,
+          actions: availableActionCount,
+          catalogActions: ACTION_COUNT,
           resources: totalResources,
           prompts: getPromptsCatalogCount(),
           promptBuckets: promptBuckets.length,
@@ -268,7 +271,8 @@ export function registerMasterIndexResource(server: McpServer): void {
         // Tools overview
         tools: {
           total: TOOL_COUNT,
-          totalActions: ACTION_COUNT,
+          totalActions: availableActionCount,
+          catalogTotalActions: ACTION_COUNT,
           byActionCount: tools,
         },
 

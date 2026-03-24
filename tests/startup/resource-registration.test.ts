@@ -6,8 +6,8 @@ const startupMocks = vi.hoisted(() => ({
   verifyToolIntegrity: vi.fn(),
 }));
 
-vi.mock('../../src/server-runtime/resource-registration.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../src/server-runtime/resource-registration.js')>();
+vi.mock('../../src/server/resource-registration.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/server/resource-registration.js')>();
   return {
     ...actual,
     registerServerResources: startupMocks.registerServerResources,
@@ -57,9 +57,12 @@ describe('server resource registration safeguards', () => {
   });
 
   it('rethrows non-duplicate registration errors', async () => {
+    startupMocks.registerServerResources.mockClear();
     startupMocks.registerServerResources.mockRejectedValueOnce(new Error('network failed'));
 
     const server = new ServalSheetsServer();
+    // Reset the flag so registerResources() actually calls the mocked function
+    (server as unknown as { resourcesRegistered: boolean }).resourcesRegistered = false;
 
     await expect(
       (
@@ -68,6 +71,9 @@ describe('server resource registration safeguards', () => {
         }
       ).registerResources()
     ).rejects.toThrow('network failed');
+
+    // Verify the mock was called
+    expect(startupMocks.registerServerResources).toHaveBeenCalled();
   });
 
   it('registers resources before connect when startup left discovery deferred', async () => {

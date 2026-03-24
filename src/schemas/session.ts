@@ -308,6 +308,31 @@ const GetTopFormulasActionSchema = CommonFieldsSchema.extend({
 });
 
 // Schedule actions (Phase 6: Scheduled Workflows)
+const ScheduledOperationSchema = z
+  .object({
+    tool: z.string().min(1).describe('MCP tool name to invoke (e.g., "sheets_data")'),
+    action: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Compatibility alias for actionName in nested schedule requests'),
+    actionName: z.string().min(1).optional().describe('Action within the tool (e.g., "read")'),
+    params: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe('Parameters to pass to the action'),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    if (!data.action && !data.actionName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Nested schedule operation requires action or actionName',
+        path: ['actionName'],
+      });
+    }
+  });
+
 const ScheduleCreateActionSchema = CommonFieldsSchema.extend({
   action: z.literal('schedule_create'),
   spreadsheetId: z.string().min(1),
@@ -316,10 +341,31 @@ const ScheduleCreateActionSchema = CommonFieldsSchema.extend({
     .min(1)
     .describe('Cron expression (e.g., "0 9 * * 1-5" for weekdays at 9 AM)'),
   description: z.string().min(1).describe('Human-readable description of the scheduled task'),
-  tool: z.string().min(1).describe('MCP tool name to invoke (e.g., "sheets_data")'),
-  actionName: z.string().min(1).describe('Action within the tool (e.g., "read")'),
-  params: z.record(z.string(), z.unknown()).describe('Parameters to pass to the action'),
-}).strict();
+  tool: z.string().min(1).optional().describe('MCP tool name to invoke (e.g., "sheets_data")'),
+  actionName: z.string().min(1).optional().describe('Action within the tool (e.g., "read")'),
+  params: z.record(z.string(), z.unknown()).optional().describe('Parameters to pass to the action'),
+  operation: ScheduledOperationSchema.optional().describe(
+    'Compatibility nested schedule shape: { tool, action or actionName, params }'
+  ),
+  target: ScheduledOperationSchema.optional().describe(
+    'Alternative nested schedule shape for LLM compatibility: { tool, action or actionName, params }'
+  ),
+})
+  .strict()
+  .superRefine((data, ctx) => {
+    const nested = data.operation ?? data.target;
+    const hasFlat = Boolean(data.tool && data.actionName);
+    const hasNested = Boolean(nested?.tool && (nested.actionName ?? nested.action));
+
+    if (!hasFlat && !hasNested) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'schedule_create requires either flat tool/actionName fields or a nested operation',
+        path: ['actionName'],
+      });
+    }
+  });
 
 const ScheduleListActionSchema = CommonFieldsSchema.extend({
   action: z.literal('schedule_list'),

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { resetEnvForTest } from '../../src/config/env.js';
 import { registerMasterIndexResource } from '../../src/resources/master-index.js';
 import { getPromptsCatalogCount } from '../../src/resources/prompts-catalog.js';
 
@@ -33,6 +34,11 @@ function createResourceHarness() {
 }
 
 describe('servalsheets://index resource', () => {
+  afterEach(() => {
+    resetEnvForTest();
+    vi.unstubAllEnvs();
+  });
+
   it('exposes live prompt counts and human descriptions for advanced tools', async () => {
     const harness = createResourceHarness();
     const result = await harness.read('servalsheets://index');
@@ -61,6 +67,11 @@ describe('servalsheets://index resource', () => {
           bucket.prompts.some((prompt) => prompt.name === 'analyze_spreadsheet')
       )
     ).toBe(true);
+
+    const appsscriptTool = payload.tools.byActionCount.find(
+      (tool: { name: string; actions: number }) => tool.name === 'sheets_appsscript'
+    );
+    expect(appsscriptTool?.actions).toBe(15);
   });
 
   it('routes full analysis through scout before comprehensive', async () => {
@@ -90,5 +101,19 @@ describe('servalsheets://index resource', () => {
     expect(smartCleanup).toBeDefined();
     expect(smartCleanup.stepCount).toBeGreaterThan(0);
     expect(typeof smartCleanup.hasMutatingSteps).toBe('boolean');
+  });
+
+  it('restores full Apps Script action counts when trigger compatibility is enabled', async () => {
+    vi.stubEnv('ENABLE_APPSSCRIPT_TRIGGER_COMPAT', 'true');
+    resetEnvForTest();
+
+    const harness = createResourceHarness();
+    const result = await harness.read('servalsheets://index');
+    const payload = JSON.parse(result.contents[0]!.text);
+
+    const appsscriptTool = payload.tools.byActionCount.find(
+      (tool: { name: string; actions: number }) => tool.name === 'sheets_appsscript'
+    );
+    expect(appsscriptTool?.actions).toBe(19);
   });
 });

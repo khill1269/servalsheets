@@ -23,6 +23,7 @@ import { logger } from '../utils/logger.js';
 import { validateFederationServerUrl } from './webhook-url-validation.js';
 import { ServiceError, NotFoundError } from '../core/errors.js';
 import { getApiSpecificCircuitBreakerConfig } from '../config/env.js';
+import { getRequestContext } from '../utils/request-context.js';
 
 /**
  * Configuration for a federated MCP server
@@ -158,6 +159,17 @@ export class FederatedMcpClient {
       headers['Authorization'] = `Bearer ${config.auth.token}`;
     } else if (config.auth?.type === 'api-key' && config.auth.token) {
       headers['X-API-Key'] = config.auth.token;
+    }
+
+    // Add W3C Trace Context propagation for correlation across federated calls
+    const requestContext = getRequestContext();
+    if (requestContext?.traceId) {
+      headers['x-trace-id'] = requestContext.traceId;
+      if (requestContext.spanId) {
+        headers['x-span-id'] = requestContext.spanId;
+        // W3C traceparent format: version-traceId-parentId-flags
+        headers['traceparent'] = `00-${requestContext.traceId}-${requestContext.spanId}-01`;
+      }
     }
 
     // SSRF protection: validate federation URL against private/internal network ranges

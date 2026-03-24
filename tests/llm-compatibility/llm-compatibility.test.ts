@@ -409,6 +409,23 @@ function applyActionOverrides(
     };
   }
 
+  if (toolName === 'sheets_analyze' && (action === 'get_intelligence_report' || action === 'cancel_intelligence')) {
+    // These actions require a valid UUID for scheduleId
+    return {
+      ...request,
+      scheduleId: '550e8400-e29b-41d4-a716-446655440000',
+    };
+  }
+
+  if (toolName === 'sheets_session' && action === 'schedule_create') {
+    // schedule_create requires either flat tool/actionName or nested operation/target
+    return {
+      ...request,
+      tool: 'sheets_data',
+      actionName: 'read',
+    };
+  }
+
   return request;
 }
 

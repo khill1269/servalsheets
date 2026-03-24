@@ -714,6 +714,92 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
           break;
         }
 
+        case 'schedule_intelligence': {
+          const siInput = req as typeof req & {
+            spreadsheetId: string;
+            analysisType: string;
+            query?: string;
+            intervalMinutes?: number;
+            conditions?: Array<{ metric: string; operator: string; threshold: number }>;
+            webhookUrl?: string;
+            range?: string;
+          };
+          const { ScheduledIntelligenceManager } = await import(
+            '../services/scheduled-intelligence.js'
+          );
+          const manager = ScheduledIntelligenceManager.getInstance();
+          const schedule = manager.createSchedule({
+            spreadsheetId: siInput.spreadsheetId,
+            analysisType: siInput.analysisType as 'quality_check' | 'anomaly_detection' | 'trend_analysis' | 'custom_query',
+            query: siInput.query,
+            intervalMs: (siInput.intervalMinutes ?? 60) * 60_000,
+            conditions: siInput.conditions?.map((c) => ({
+              metric: c.metric,
+              operator: c.operator as 'gt' | 'gte' | 'lt' | 'lte' | 'eq' | 'ne',
+              value: c.threshold,
+            })),
+            webhookUrl: siInput.webhookUrl,
+          });
+          response = {
+            success: true,
+            action: 'schedule_intelligence',
+            schedule: {
+              id: schedule.id,
+              analysisType: schedule.analysisType,
+              intervalMinutes: schedule.intervalMs / 60_000,
+              enabled: schedule.enabled,
+              nextRunAt: schedule.nextRunAt ? new Date(schedule.nextRunAt).toISOString() : undefined,
+            },
+            message: `Intelligence schedule created (${schedule.analysisType}, every ${schedule.intervalMs / 60_000}min)`,
+          } as unknown as AnalyzeResponse;
+          break;
+        }
+
+        case 'get_intelligence_report': {
+          const grInput = req as typeof req & { scheduleId: string };
+          const { ScheduledIntelligenceManager } = await import(
+            '../services/scheduled-intelligence.js'
+          );
+          const grManager = ScheduledIntelligenceManager.getInstance();
+          const report = grManager.getReport(grInput.scheduleId);
+          if (!report) {
+            response = {
+              success: false,
+              error: {
+                code: ErrorCodes.NOT_FOUND,
+                message: `No report found for schedule ${grInput.scheduleId}`,
+                retryable: false,
+              },
+            } as unknown as AnalyzeResponse;
+          } else {
+            response = {
+              success: true,
+              action: 'get_intelligence_report',
+              report,
+              message: `Intelligence report retrieved (${report.findings.length} findings)`,
+            } as unknown as AnalyzeResponse;
+          }
+          break;
+        }
+
+        case 'cancel_intelligence': {
+          const ciInput = req as typeof req & { scheduleId: string };
+          const { ScheduledIntelligenceManager } = await import(
+            '../services/scheduled-intelligence.js'
+          );
+          const ciManager = ScheduledIntelligenceManager.getInstance();
+          const deleted = ciManager.deleteSchedule(ciInput.scheduleId);
+          response = {
+            success: deleted,
+            action: 'cancel_intelligence',
+            message: deleted
+              ? `Schedule ${ciInput.scheduleId} cancelled`
+              : `Schedule ${ciInput.scheduleId} not found`,
+            ...(deleted ? {} : { error: { code: ErrorCodes.NOT_FOUND, message: 'Schedule not found', retryable: false } }),
+          } as unknown as AnalyzeResponse;
+          break;
+        }
+
         default: {
           // Exhaustive check - should never reach here with discriminated union
           const _exhaustiveCheck: never = req;

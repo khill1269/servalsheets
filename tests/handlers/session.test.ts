@@ -260,6 +260,40 @@ describe('SessionHandler', () => {
     });
   });
 
+  describe('schedule_create', () => {
+    it('normalizes nested operation payloads into scheduler actions', async () => {
+      const scheduler = {
+        create: vi.fn().mockResolvedValue({ id: 'job-123' }),
+      };
+      handler.setScheduler(scheduler as any);
+
+      const result = await handler.handle({
+        action: 'schedule_create',
+        spreadsheetId: 'sheet-123',
+        cronExpression: '0 9 * * 1-5',
+        description: 'Weekday refresh',
+        operation: {
+          tool: 'sheets_data',
+          action: 'read',
+          params: { range: 'Summary!A1:B3' },
+        },
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      expect(scheduler.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          spreadsheetId: 'sheet-123',
+          cronExpression: '0 9 * * 1-5',
+          action: {
+            tool: 'sheets_data',
+            actionName: 'read',
+            params: { range: 'Summary!A1:B3' },
+          },
+        })
+      );
+    });
+  });
+
   describe('reset', () => {
     it('should clear all session state', async () => {
       await handler.handle({

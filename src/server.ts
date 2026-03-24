@@ -7,7 +7,6 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { InMemoryTaskMessageQueue } from '@modelcontextprotocol/sdk/experimental/tasks/stores/in-memory.js';
 import { type CallToolResult, type LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
 import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import type {
@@ -28,60 +27,6 @@ const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 
 };
 const PACKAGE_VERSION = packageJson.version;
 
-function getProcessBreadcrumbs(extra: Record<string, unknown> = {}): Record<string, unknown> {
-  const memory = process.memoryUsage();
-  return {
-    pid: process.pid,
-    uptimeSeconds: Math.round(process.uptime()),
-    memory: {
-      rssMb: Math.round(memory.rss / 1024 / 1024),
-      heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
-      heapTotalMb: Math.round(memory.heapTotal / 1024 / 1024),
-      externalMb: Math.round(memory.external / 1024 / 1024),
-    },
-    ...extra,
-  };
-}
-
-function shouldAllowDegradedGoogleStartup(error: unknown): boolean {
-  const transport = process.env['MCP_TRANSPORT'];
-  const allowDegradedExplicitly = process.env['SERVAL_ALLOW_DEGRADED_STARTUP'] === 'true';
-  const allowDegradedByTransport =
-    transport === 'stdio' || process.env['NODE_ENV'] === 'test' || allowDegradedExplicitly;
-
-  if (!allowDegradedByTransport) {
-    return false;
-  }
-
-  if (isGoogleAuthError(error)) {
-    return true;
-  }
-
-  const message =
-    error instanceof Error
-      ? `${error.name} ${error.message} ${error.stack ?? ''}`
-      : typeof error === 'string'
-        ? error
-        : JSON.stringify(error);
-  const normalized = message.toLowerCase();
-
-  return [
-    'google',
-    'oauth',
-    'credential',
-    'token',
-    'network',
-    'enotfound',
-    'eai_again',
-    'econn',
-    'fetch failed',
-    'invalid_grant',
-    'unauthenticated',
-    'permission denied',
-    'could not load the default credentials',
-  ].some((pattern) => normalized.includes(pattern));
-}
-
 import PQueue from 'p-queue';
 import {
   createServerCapabilities,
@@ -91,38 +36,21 @@ import {
 } from './mcp/features-2025-11-25.js';
 import { validateToolCatalogConfiguration } from './mcp/tool-catalog.js';
 import { recordToolCall, updateQueueMetrics, quotaWarningsTotal } from './observability/metrics.js';
+import { initTelemetry } from './observability/otel-setup.js';
 
-import {
-  BatchCompiler,
-  RateLimiter,
-  DiffEngine,
-  PolicyEnforcer,
-  RangeResolver,
-  TaskStoreAdapter,
-} from './core/index.js';
+import { TaskStoreAdapter } from './core/index.js';
 
-import { SnapshotService, GoogleApiClient, createGoogleApiClient } from './services/index.js';
+import { GoogleApiClient } from './services/index.js';
 import type { GoogleApiClientOptions } from './services/google-api.js';
 // Removed: initWorkflowEngine (Claude orchestrates natively via MCP)
 // Removed: initPlanningAgent, initInsightsService (replaced by MCP-native Elicitation/Sampling)
-import { initTransactionManager } from './services/transaction-manager.js';
-import { initConflictDetector } from './services/conflict-detector.js';
-import { initImpactAnalyzer } from './services/impact-analyzer.js';
-import { initValidationEngine } from './services/validation-engine.js';
-import { initWebhookManager } from './services/webhook-manager.js';
-import { initWebhookQueue } from './services/webhook-queue.js';
-import { DuckDBEngine } from './services/duckdb-engine.js';
-import { SchedulerService } from './services/scheduler.js';
 import {
-  createHandlers,
   type HandlerContext,
   type HandlerMcpServer,
   type Handlers,
 } from './handlers/index.js';
-import { getCostTracker } from './services/cost-tracker.js';
 import { initializeBillingIntegration } from './services/billing-integration.js';
 import { createMetadataCache } from './services/metadata-cache.js';
-import { GoogleSheetsBackend } from './adapters/index.js';
 import { AuthHandler } from './handlers/auth.js';
 import {
   checkAuthAsync,
@@ -141,7 +69,6 @@ import {
 } from './utils/request-context.js';
 import { extractIdempotencyKeyFromHeaders } from './utils/idempotency-key-generator.js';
 import { TOOL_DEFINITIONS, isToolCallAuthExempt } from './mcp/registration/tool-definitions.js';
-import { createTaskAwareSamplingServer } from './mcp/sampling.js';
 import { buildToolResponse } from './mcp/registration/tool-handlers.js';
 import { registerToolsListCompatibilityHandler } from './mcp/registration/tools-list-compat.js';
 import { recordSpreadsheetId } from './mcp/completions.js';
@@ -170,30 +97,41 @@ import {
 import {
   extractActionFromArgs,
   extractPrincipalIdFromHeaders,
-} from './server-utils/request-extraction.js';
+} from './server/request-extraction.js';
 import {
   recordToolExecutionException,
   recordToolExecutionResult,
-} from './server-runtime/tool-call-metrics.js';
+} from './server/tool-call-metrics.js';
 import {
   handlePreInitExemptToolCall,
   handleSheetsAuthToolCall,
-} from './server-runtime/preinit-tool-routing.js';
-import { dispatchServerToolCall } from './server-runtime/handler-dispatch.js';
-import { installServerLoggingBridge } from './server-runtime/logging-bridge.js';
-import { createMcpLogRateLimitState } from './server-utils/logging-bridge-utils.js';
+} from './server/preinit-tool-routing.js';
+import { dispatchServerToolCall } from './server/handler-dispatch.js';
+import { installServerLoggingBridge } from './server/logging-bridge.js';
+import { createMcpLogRateLimitState } from './server/logging-bridge-utils.js';
 import {
   ensureServerCompletionsRegistered,
   ensureServerResourcesRegistered,
   registerServerPrompts,
   registerServerResources,
-} from './server-runtime/resource-registration.js';
-import { prepareServerBootstrap } from './server-runtime/bootstrap.js';
+} from './server/resource-registration.js';
+import { prepareServerBootstrap } from './server/bootstrap.js';
 import { ServiceError } from './core/errors.js';
 import {
   registerServerLoggingSetLevelHandler,
   registerServerTaskCancelHandler,
-} from './server-runtime/control-plane-registration.js';
+} from './server/control-plane-registration.js';
+import {
+  getProcessBreadcrumbs,
+} from './server/runtime-diagnostics.js';
+import { prepareRuntimePreflight } from './server/runtime-preflight.js';
+import { createBaseMcpServer } from './server/create-base-mcp-server.js';
+import { createAsyncOnce } from './server/async-once.js';
+import { buildBillingBootstrapConfig } from './server/billing-bootstrap-config.js';
+import { createServerAuthHandler } from './server/auth-handler-factory.js';
+import { initializeServerGoogleRuntime } from './server/google-runtime-bootstrap.js';
+import { installInitializeCancellationGuard } from './server/initialize-cancellation-guard.js';
+import { createOptionalGoogleClient } from './startup/google-client-bootstrap.js';
 
 export interface ServalSheetsServerOptions {
   name?: string;
@@ -223,8 +161,9 @@ export class ServalSheetsServer {
   private loggingBridgeInstalled = false;
   private forwardingMcpLog = false;
   private mcpLogRateLimitState = createMcpLogRateLimitState();
-  private protectedInitializeRequestIds = new Set<string | number>();
-  private toolIntegrityVerified = false;
+  private ensureToolIntegrityVerified = createAsyncOnce(async () => {
+    await verifyToolIntegrity();
+  });
 
   // Cached handler map (rebuilt only when handlers change)
   private cachedHandlerMap: Record<
@@ -245,25 +184,23 @@ export class ServalSheetsServer {
     this.taskStore = options.taskStore ?? new TaskStoreAdapter();
 
     // Create McpServer with MCP 2025-11-25 capabilities
-    this._server = new McpServer(
-      {
+    this._server = createBaseMcpServer({
+      serverInfo: {
         name: options.name ?? 'servalsheets',
         version: options.version ?? PACKAGE_VERSION,
         icons: SERVER_ICONS,
         description:
           'Production-grade Google Sheets MCP server with AI-powered analysis, transactions, workflows, and enterprise features',
       },
-      {
-        // Server capabilities (logging, tasks, etc. - tools/prompts/resources auto-registered)
-        capabilities: createServerCapabilities(),
-        // Instructions for LLM context
-        instructions: SERVER_INSTRUCTIONS,
-        // Task support (MCP 2025-11-25) for tasks/get/list/result/cancel and task-capable tools
-        taskStore: this.taskStore,
-        taskMessageQueue: new InMemoryTaskMessageQueue(),
-      }
-    );
-    this.installInitializeCancellationGuard();
+      capabilities: createServerCapabilities(),
+      instructions: SERVER_INSTRUCTIONS,
+      taskStore: this.taskStore,
+    });
+    installInitializeCancellationGuard(this._server, {
+      onIgnoredCancellation: (requestId) => {
+        baseLogger.warn('Ignoring cancellation for initialize request', { requestId });
+      },
+    });
 
     // Initialize request queue with concurrency limit
     const maxConcurrent = parseInt(process.env['MAX_CONCURRENT_REQUESTS'] ?? '10', 10);
@@ -297,198 +234,53 @@ export class ServalSheetsServer {
   }
 
   /**
-   * MCP §1.5 forbids clients from cancelling `initialize`.
-   * The SDK's generic cancellation path would otherwise abort the in-flight init
-   * request before its response is emitted if a notifications/cancelled arrives
-   * in the same read cycle.
-   */
-  private installInitializeCancellationGuard(): void {
-    const rawServer = this._server.server as unknown as {
-      _onrequest?: (
-        request: { id?: string | number; method?: string },
-        extra?: unknown
-      ) => Promise<void> | void;
-      _oncancel?: (notification: { params?: { requestId?: string | number } }) => unknown;
-    };
-
-    if (typeof rawServer._onrequest !== 'function' || typeof rawServer._oncancel !== 'function') {
-      return;
-    }
-
-    const originalOnRequest = rawServer._onrequest.bind(rawServer);
-    const originalOnCancel = rawServer._oncancel.bind(rawServer);
-
-    rawServer._onrequest = (request, extra) => {
-      if (request.method === 'initialize' && request.id !== undefined) {
-        const requestId = request.id;
-        this.protectedInitializeRequestIds.add(requestId);
-        const finalize = () => {
-          this.protectedInitializeRequestIds.delete(requestId);
-        };
-
-        try {
-          const result = originalOnRequest(request, extra) as void | Promise<void>;
-          if (result && typeof result.finally === 'function') {
-            return result.finally(finalize);
-          }
-          setImmediate(finalize);
-          return result;
-        } catch (error) {
-          finalize();
-          throw error;
-        }
-      }
-
-      return originalOnRequest(request, extra);
-    };
-
-    rawServer._oncancel = (notification) => {
-      const requestId = notification.params?.requestId;
-      if (requestId !== undefined && this.protectedInitializeRequestIds.has(requestId)) {
-        baseLogger.warn('Ignoring cancellation for initialize request', { requestId });
-        return;
-      }
-
-      return originalOnCancel(notification);
-    };
-  }
-
-  private async ensureToolIntegrityVerified(): Promise<void> {
-    if (this.toolIntegrityVerified) {
-      return;
-    }
-
-    await verifyToolIntegrity();
-    this.toolIntegrityVerified = true;
-  }
-
-  /**
    * Initialize the server
    */
   async initialize(): Promise<void> {
-    await this.ensureToolIntegrityVerified();
+    await this.ensureToolIntegrityVerified.run();
 
-    const envConfig = getEnv();
-    validateToolCatalogConfiguration();
-    const costTrackingEnabled =
-      envConfig.ENABLE_COST_TRACKING || envConfig.ENABLE_BILLING_INTEGRATION;
-
-    // Always create AuthHandler (it works even without googleClient)
-    this.authHandler = new AuthHandler({
-      googleClient: null, // Will be set after googleClient is created
+    const { envConfig, costTrackingEnabled } = prepareRuntimePreflight({
+      loadEnv: getEnv,
+      validateToolCatalogConfiguration,
     });
 
-    // Initialize Google API client
-    if (this.options.googleApiOptions) {
-      try {
-        this.googleClient = await createGoogleApiClient(this.options.googleApiOptions);
-      } catch (error) {
-        if (!shouldAllowDegradedGoogleStartup(error)) {
-          throw error;
-        }
+    // Always create AuthHandler (it works even without googleClient)
+    this.authHandler = createServerAuthHandler();
 
-        baseLogger.warn('Google client initialization failed; continuing in auth-only mode', {
-          error: error instanceof Error ? error.message : String(error),
-          transport: process.env['MCP_TRANSPORT'] ?? 'unknown',
-          breadcrumbs: getProcessBreadcrumbs(),
-        });
-        this.googleClient = null;
-      }
-    }
+    this.googleClient = await createOptionalGoogleClient({
+      googleApiOptions: this.options.googleApiOptions,
+      transport: process.env['MCP_TRANSPORT'],
+      nodeEnv: process.env['NODE_ENV'],
+      allowDegradedExplicitly: process.env['SERVAL_ALLOW_DEGRADED_STARTUP'] === 'true',
+    });
 
     if (this.googleClient) {
       // Update AuthHandler with the initialized googleClient
-      this.authHandler = new AuthHandler({
+      this.authHandler = createServerAuthHandler({
         googleClient: this.googleClient,
       });
 
-      // Create SnapshotService for undo/revert operations
-      const snapshotService = new SnapshotService({ driveApi: this.googleClient.drive });
-
-      // Initialize all performance optimizations (batching, caching, merging, prefetching)
-      const { initializePerformanceOptimizations } = await import('./startup/performance-init.js');
-      const {
-        batchingSystem,
-        cachedSheetsApi,
-        requestMerger,
-        parallelExecutor,
-        prefetchPredictor,
-        accessPatternTracker,
-        queryOptimizer,
-        prefetchingSystem,
-      } = await initializePerformanceOptimizations(this.googleClient.sheets);
-
-      // Create reusable context and handlers
-      // Local ref for closure capture in getter below
-      const _googleClient = this.googleClient;
-      const duckdbEngine = new DuckDBEngine();
-      const scheduler = new SchedulerService(envConfig.DATA_DIR, async (job) => {
-        const result = await this.handleToolCall(job.action.tool, {
-          request: {
-            action: job.action.actionName,
-            ...job.action.params,
-          },
-        });
-
-        const isError = (result as { isError?: boolean }).isError === true;
-        if (isError) {
-          throw new ServiceError(
-            `Scheduled job ${job.id} failed for ${job.action.tool}`,
-            'INTERNAL_ERROR',
-            'scheduler'
-          );
-        }
-      });
-
-      // Create platform-agnostic backend adapter (wraps GoogleApiClient)
-      const backend = new GoogleSheetsBackend(_googleClient);
-      await backend.initialize();
-
-      this.context = {
-        backend, // Platform-agnostic SpreadsheetBackend from @serval/core
-        batchCompiler: new BatchCompiler({
-          rateLimiter: new RateLimiter(),
-          diffEngine: new DiffEngine({ sheetsApi: this.googleClient.sheets }),
-          policyEnforcer: new PolicyEnforcer(),
-          snapshotService,
-          sheetsApi: this.googleClient.sheets,
-          onProgress: (event) => {
-            // Send MCP progress notification
-            void sendProgress(event.current, event.total, event.message);
-          },
-        }),
-        rangeResolver: new RangeResolver({ sheetsApi: this.googleClient.sheets }),
-        googleClient: this.googleClient, // For authentication checks in handlers
-        batchingSystem, // Time-window batching system for reducing API calls
-        cachedSheetsApi, // ETag-based caching for reads (30-50% API savings)
-        requestMerger, // Phase 2: Merge overlapping read requests (20-40% API savings)
-        parallelExecutor, // Phase 2: Parallel batch execution (40% faster batch ops)
-        prefetchPredictor, // Phase 3: Predictive prefetching (200-500ms latency reduction)
-        accessPatternTracker, // Phase 3: Access pattern learning for smarter predictions
-        queryOptimizer, // Phase 3B: Adaptive query optimization (-25% avg latency)
-        prefetchingSystem, // Pattern-based prefetching (80% latency reduction on sequential ops)
-        snapshotService, // Pass to context for HistoryHandler undo/revert (Task 1.3)
-        duckdbEngine, // Advanced SQL compute engine (Phase 1)
-        scheduler, // Scheduled workflows (Phase 6)
-        ...(costTrackingEnabled ? { costTracker: getCostTracker() } : {}),
-        auth: {
-          // Use getter to always read live value from GoogleApiClient
-          // This ensures re-auth with broader scopes takes effect immediately
-          get hasElevatedAccess() {
-            return _googleClient.hasElevatedAccess;
-          },
-          // Use getter to always read live scopes from GoogleApiClient
-          // This ensures re-auth with broader scopes takes effect immediately
-          get scopes() {
-            return _googleClient.scopes;
-          },
+      const googleRuntime = await initializeServerGoogleRuntime({
+        googleClient: this.googleClient,
+        envDataDir: envConfig.DATA_DIR,
+        taskStore: this.taskStore,
+        mcpServer: this._server.server as HandlerMcpServer,
+        costTrackingEnabled,
+        dispatchScheduledJob: async (job) =>
+          this.handleToolCall(job.action.tool, {
+            request: {
+              action: job.action.actionName,
+              ...job.action.params,
+            },
+          }),
+        onProgress: (event) => {
+          // Send MCP progress notification
+          void sendProgress(event.current, event.total, event.message);
         },
-        samplingServer: createTaskAwareSamplingServer(this._server.server),
-        elicitationServer: this._server.server,
-        server: this._server.server as HandlerMcpServer, // Narrow bridge for elicitation/sampling only
-        requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
-        taskStore: this.taskStore, // For task-based execution (SEP-1686)
-      };
+        requestDeduplicator,
+      });
+      this.context = googleRuntime.context;
+      this.handlers = googleRuntime.handlers;
 
       // QUOTA-01: Subscribe to CostTracker alerts and emit Prometheus metric at 80% quota
       this.context.costTracker?.on('alert', (alert: { type: string; tenantId: string }) => {
@@ -497,14 +289,6 @@ export class ServalSheetsServer {
           baseLogger.warn('API quota approaching monthly limit', { tenantId: alert.tenantId });
         }
       });
-
-      const handlers = createHandlers({
-        context: this.context,
-        sheetsApi: this.googleClient.sheets,
-        driveApi: this.googleClient.drive,
-        bigqueryApi: this.googleClient.bigquery ?? undefined,
-      });
-      this.handlers = handlers;
       this.cachedHandlerMap = null; // Invalidate cached handler map
 
       if (envConfig.ENABLE_PYTHON_COMPUTE) {
@@ -521,18 +305,6 @@ export class ServalSheetsServer {
 
       // Removed: initWorkflowEngine (Claude orchestrates natively via MCP)
       // Removed: initPlanningAgent, initInsightsService (replaced by MCP-native Elicitation/Sampling)
-
-      // Initialize Phase 4 advanced features
-      initTransactionManager(this.googleClient); // Phase 4, Task 4.1
-      initConflictDetector(this.googleClient); // Phase 4, Task 4.2
-      initImpactAnalyzer(this.googleClient); // Phase 4, Task 4.3
-      initValidationEngine(this.googleClient); // Phase 4, Task 4.4
-
-      // Initialize webhook infrastructure (BUG FIX 0.8)
-      // Note: Redis is optional - webhooks will fail gracefully without it
-      const webhookEndpoint = process.env['WEBHOOK_ENDPOINT'] || 'https://localhost:3000/webhook';
-      initWebhookQueue(null); // No Redis by default - would need to add Redis client
-      initWebhookManager(null, this.googleClient, webhookEndpoint);
     }
 
     // Register built-in data connectors once at startup so sheets_connectors has
@@ -556,14 +328,7 @@ export class ServalSheetsServer {
       baseLogger.debug('Connector sheet writer not configured (Sheets client unavailable)');
     }
 
-    initializeBillingIntegration({
-      enabled: envConfig.ENABLE_BILLING_INTEGRATION,
-      stripeSecretKey: envConfig.STRIPE_SECRET_KEY,
-      webhookSecret: envConfig.STRIPE_WEBHOOK_SECRET,
-      currency: envConfig.BILLING_CURRENCY,
-      billingCycle: envConfig.BILLING_CYCLE,
-      autoInvoicing: envConfig.BILLING_AUTO_INVOICING,
-    });
+    initializeBillingIntegration(buildBillingBootstrapConfig(envConfig));
 
     // Register all tools
     this.registerTools();
@@ -1394,9 +1159,12 @@ export class ServalSheetsServer {
   async start(): Promise<void> {
     const startTime = performance.now();
 
+    // Initialize OpenTelemetry (no-op if ENABLE_OTEL is not set)
+    await initTelemetry();
+
     // Validate required environment variables before any initialization
     validateEnv();
-    await this.ensureToolIntegrityVerified();
+    await this.ensureToolIntegrityVerified.run();
 
     // Initialize first (register handlers), then connect
     baseLogger.info('[Phase 1/3] Initializing handlers...');
@@ -1421,6 +1189,9 @@ export class ServalSheetsServer {
     const transport = new StdioServerTransport();
     const transportDuration = performance.now() - transportStart;
     let isConnected = false;
+
+    // Privacy mode banner for STDIO transport
+    baseLogger.info('🔒 Running in privacy mode — no data leaves your machine (STDIO transport)');
 
     // Add transport error handlers BEFORE connecting
     transport.onclose = () => {

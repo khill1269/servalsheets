@@ -505,7 +505,7 @@ const CreateTriggerActionSchema = z
     action: z
       .literal('create_trigger')
       .describe(
-        'Create a time-based or event-based trigger. NOTE: Triggers require ScriptApp inside the script code — the Apps Script REST API does not expose trigger management for external clients.'
+        'Compatibility-only trigger creation surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot manage triggers; use update_content to add ScriptApp trigger code, then deploy.'
       ),
     scriptId: ScriptIdSchema.optional().describe(
       'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
@@ -560,7 +560,7 @@ const ListTriggersActionSchema = z
     action: z
       .literal('list_triggers')
       .describe(
-        'List triggers for a script project. NOTE: Trigger enumeration requires ScriptApp inside the script code — the Apps Script REST API does not expose trigger management for external clients.'
+        'Compatibility-only trigger listing surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot enumerate triggers; use get_content to inspect ScriptApp trigger code.'
       ),
     scriptId: ScriptIdSchema.optional().describe(
       'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
@@ -597,7 +597,7 @@ const DeleteTriggerActionSchema = z
     action: z
       .literal('delete_trigger')
       .describe(
-        'Delete a trigger by ID. NOTE: Trigger deletion requires ScriptApp inside the script code — the Apps Script REST API does not expose trigger management for external clients.'
+        'Compatibility-only trigger deletion surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot delete triggers; use update_content to remove ScriptApp trigger code.'
       ),
     scriptId: ScriptIdSchema.optional().describe(
       'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
@@ -626,7 +626,7 @@ const UpdateTriggerActionSchema = z
     action: z
       .literal('update_trigger')
       .describe(
-        'Update an existing trigger (replace by ID). NOTE: Trigger updates require ScriptApp inside the script code — the Apps Script REST API does not expose trigger management for external clients.'
+        'Compatibility-only trigger update surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot update triggers; use update_content plus deploy instead.'
       ),
     scriptId: ScriptIdSchema.optional().describe(
       'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
@@ -808,7 +808,7 @@ const AppsScriptResponseSchema = z.discriminatedUnion('success', [
       // Standard fields
       _meta: ResponseMetaSchema.optional().describe('Response metadata'),
     })
-    .passthrough(),
+    ,
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,

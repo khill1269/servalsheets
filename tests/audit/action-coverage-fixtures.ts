@@ -1085,6 +1085,30 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { query: 'find action for merging data' },
       requiredFields: ['query'],
     },
+    schedule_intelligence: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        analysisType: 'quality_check',
+        intervalMinutes: 60,
+        conditions: [{ metric: 'quality_score', operator: 'lt', threshold: 0.8 }],
+        webhookUrl: 'https://example.com/webhook',
+      },
+      requiredFields: ['spreadsheetId', 'analysisType'],
+    },
+    get_intelligence_report: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        scheduleId: '550e8400-e29b-41d4-a716-446655440000',
+      },
+      requiredFields: ['spreadsheetId', 'scheduleId'],
+    },
+    cancel_intelligence: {
+      validInput: {
+        spreadsheetId: 'test-id',
+        scheduleId: '550e8400-e29b-41d4-a716-446655440000',
+      },
+      requiredFields: ['spreadsheetId', 'scheduleId'],
+    },
   },
 
   sheets_composite: {

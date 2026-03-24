@@ -7,6 +7,7 @@ import {
   applyRecoveryToError,
   type RecoveryContext,
 } from '../../services/recovery-engine.js';
+import { getErrorRecoveryActions } from '../../services/action-recommender.js';
 import {
   generateResponseHints,
   generateWriteHints,
@@ -46,6 +47,304 @@ const BATCHING_HINTS: Partial<Record<string, string>> = {
   'sheets_format.set_background': 'For 3+ cells, use batch_format — single API call.',
   'sheets_format.set_text_format': 'For 3+ cells, use batch_format — single API call.',
   'sheets_core.get': 'For 2+ spreadsheets, use sheets_core.batch_get — single API call.',
+};
+
+/**
+ * Action-specific gotcha warnings injected into successful responses.
+ * These fire AFTER the action completes, catching common follow-up mistakes.
+ * Research shows negative examples improve LLM accuracy by 8-15%.
+ */
+const ACTION_GOTCHAS: Partial<Record<string, string>> = {
+  // Data operations
+  'sheets_data.append': 'CAUTION: append is NOT idempotent. If you need to retry, read the target range first to check for duplicates.',
+  'sheets_data.find_replace': 'find_replace scans the ENTIRE range. For targeted updates at known cells, use sheets_data.write instead.',
+  'sheets_data.write': 'Sheets API returns 200 even for #ERROR! formula cells. Verify with a read if writing formulas.',
+  'sheets_data.read': 'For numeric calculations, use valueRenderOption:"UNFORMATTED_VALUE" to avoid locale-formatted strings.',
+  // Formatting
+  'sheets_format.set_format': 'For 3+ format changes in a session, switch to batch_format — saves 70%+ API calls.',
+  'sheets_format.set_background': 'Colors use 0-1 float scale, NOT 0-255. E.g., red = {"red":1,"green":0,"blue":0}.',
+  // Dimensions
+  'sheets_dimensions.insert': 'Row/column indices are 0-based. Row 1 in the UI = index 0 in the API.',
+  'sheets_dimensions.delete': 'Row/column indices are 0-based. Deleting "row 5" means startIndex:4, endIndex:5.',
+  // Structure
+  'sheets_core.delete_sheet': 'This is PERMANENT. Use sheets_history.create_snapshot first if the data may be needed later.',
+  'sheets_core.clear_sheet': 'Clears ALL data and formatting. Use sheets_data.clear for value-only clearing.',
+  // Transactions
+  'sheets_transaction.begin': 'Transactions have a 5-minute timeout. Queue all operations before committing.',
+  // History / Time-Travel
+  'sheets_history.restore_cells': 'restore_cells writes OLD values to CURRENT sheet. Always create a snapshot first (sheets_history.create_snapshot).',
+  'sheets_history.timeline': 'Timeline uses Drive Revision API — large spreadsheets may have merged revisions (multiple edits in one entry).',
+  // Compute
+  'sheets_compute.aggregate': 'aggregate runs server-side. For client-visible formulas, use sheets_data.write with formula strings instead.',
+  'sheets_compute.forecast': 'Forecast uses linear/exponential regression on historical data. Accuracy degrades with <10 data points.',
+  // Connectors
+  'sheets_connectors.query': 'Connector queries run against external APIs. Rate limits are PER-CONNECTOR, not shared with Sheets API quota.',
+  // Templates
+  'sheets_templates.apply': 'Template application creates a NEW spreadsheet. It does NOT modify the template source.',
+};
+
+// Map tool.action → relevant MCP prompt for guided follow-up workflows
+// These surface prompted workflows the LLM can invoke for deeper operations
+const FOLLOW_UP_PROMPTS: Partial<
+  Record<string, { prompt: string; description: string }>
+> = {
+  // After reading data, suggest analysis prompts
+  'sheets_data.read': {
+    prompt: 'analyze-sheet',
+    description: 'Run a guided analysis of the data you just read',
+  },
+  'sheets_data.batch_read': {
+    prompt: 'compare-ranges',
+    description: 'Compare the ranges you just read with guided analysis',
+  },
+  // After analysis, suggest action-oriented prompts
+  'sheets_analyze.scout': {
+    prompt: 'clean-data',
+    description: 'Start a guided data cleaning workflow based on scout findings',
+  },
+  'sheets_analyze.comprehensive': {
+    prompt: 'improve-sheet',
+    description: 'Apply improvements based on analysis findings',
+  },
+  // After creating a spreadsheet
+  'sheets_core.create': {
+    prompt: 'setup-sheet',
+    description: 'Set up the new spreadsheet with headers, formatting, and validation',
+  },
+  // After importing data
+  'sheets_composite.import_csv': {
+    prompt: 'clean-data',
+    description: 'Clean and standardize the imported CSV data',
+  },
+  'sheets_composite.import_xlsx': {
+    prompt: 'clean-data',
+    description: 'Clean and standardize the imported Excel data',
+  },
+  // After cleaning
+  'sheets_fix.clean': {
+    prompt: 'format-sheet',
+    description: 'Apply professional formatting to the cleaned data',
+  },
+  // After formatting
+  'sheets_format.batch_format': {
+    prompt: 'share-sheet',
+    description: 'Share the formatted spreadsheet with collaborators',
+  },
+  // After creating a chart
+  'sheets_visualize.chart_create': {
+    prompt: 'export-sheet',
+    description: 'Export the spreadsheet with charts as PDF or Excel',
+  },
+  // After scenario modeling
+  'sheets_dependencies.model_scenario': {
+    prompt: 'compare-scenarios',
+    description: 'Compare multiple scenarios side-by-side',
+  },
+  // After validation
+  'sheets_quality.validate': {
+    prompt: 'fix-issues',
+    description: 'Fix the data quality issues found during validation',
+  },
+  // After history operations
+  'sheets_history.timeline': {
+    prompt: 'time-travel',
+    description: 'Investigate and restore specific cells from past revisions',
+  },
+  // After agent plan compilation
+  'sheets_agent.plan': {
+    prompt: 'execute-plan',
+    description: 'Execute the compiled agent plan step by step',
+  },
+  // After template application
+  'sheets_templates.apply': {
+    prompt: 'setup-sheet',
+    description: 'Populate and customize the template with your data',
+  },
+  // After compute forecast
+  'sheets_compute.forecast': {
+    prompt: 'visualize-data',
+    description: 'Create a chart showing actuals vs forecast projection',
+  },
+};
+
+// Disambiguation labels for actions whose names appear in multiple tools.
+// Injected as `_actionLabel` so the LLM knows exactly what the response represents
+// (e.g. "list" returned spreadsheets vs sheets vs charts vs templates).
+const ACTION_DISAMBIGUATION: Partial<Record<string, string>> = {
+  // "list" appears in 9+ tools
+  'sheets_core.list': 'Listed spreadsheets in Drive',
+  'sheets_core.list_sheets': 'Listed sheet tabs in spreadsheet',
+  'sheets_advanced.list_named_ranges': 'Listed named ranges',
+  'sheets_advanced.list_protected_ranges': 'Listed protected ranges',
+  'sheets_advanced.list_banding': 'Listed banding styles',
+  'sheets_advanced.list_tables': 'Listed tables',
+  'sheets_advanced.list_named_functions': 'Listed named functions',
+  'sheets_advanced.list_chips': 'Listed smart chips',
+  'sheets_visualize.chart_list': 'Listed charts',
+  'sheets_visualize.pivot_list': 'Listed pivot tables',
+  'sheets_collaborate.comment_list': 'Listed comments',
+  'sheets_collaborate.share_list': 'Listed sharing permissions',
+  'sheets_collaborate.version_list_revisions': 'Listed version history',
+  'sheets_templates.list': 'Listed saved templates',
+  'sheets_webhook.list': 'Listed registered webhooks',
+  'sheets_format.list_data_validations': 'Listed data validation rules',
+  'sheets_format.rule_list_conditional_formats': 'Listed conditional format rules',
+  'sheets_dimensions.list_filter_views': 'Listed filter views',
+  'sheets_dimensions.list_slicers': 'Listed slicers',
+  'sheets_history.list': 'Listed operation history',
+  'sheets_transaction.list': 'Listed active transactions',
+  'sheets_appsscript.list_versions': 'Listed Apps Script versions',
+  'sheets_appsscript.list_deployments': 'Listed Apps Script deployments',
+  'sheets_appsscript.list_triggers': 'Listed Apps Script triggers',
+  'sheets_appsscript.list_processes': 'Listed Apps Script processes',
+  'sheets_bigquery.list_connections': 'Listed BigQuery connections',
+  'sheets_agent.list_plans': 'Listed agent plans',
+  'sheets_session.list_checkpoints': 'Listed session checkpoints',
+  // "delete" appears in 8+ tools
+  'sheets_core.delete_sheet': 'Deleted a sheet tab',
+  'sheets_dimensions.delete': 'Deleted rows or columns',
+  'sheets_advanced.delete_named_range': 'Deleted a named range',
+  'sheets_advanced.delete_protected_range': 'Deleted a protected range',
+  'sheets_advanced.delete_banding': 'Deleted a banding style',
+  'sheets_advanced.delete_table': 'Deleted a table',
+  'sheets_advanced.delete_named_function': 'Deleted a named function',
+  'sheets_visualize.chart_delete': 'Deleted a chart',
+  'sheets_visualize.pivot_delete': 'Deleted a pivot table',
+  'sheets_collaborate.comment_delete': 'Deleted a comment',
+  'sheets_templates.delete': 'Deleted a template',
+  'sheets_webhook.unregister': 'Unregistered a webhook',
+  'sheets_dimensions.delete_filter_view': 'Deleted a filter view',
+  'sheets_dimensions.delete_slicer': 'Deleted a slicer',
+  'sheets_appsscript.delete_trigger': 'Deleted an Apps Script trigger',
+  'sheets_session.delete_checkpoint': 'Deleted a session checkpoint',
+  // "create" appears in 6+ tools
+  'sheets_core.create': 'Created a new spreadsheet',
+  'sheets_core.add_sheet': 'Created a new sheet tab',
+  'sheets_visualize.chart_create': 'Created a chart',
+  'sheets_visualize.pivot_create': 'Created a pivot table',
+  'sheets_templates.create': 'Created a template',
+  'sheets_advanced.add_named_range': 'Created a named range',
+  'sheets_advanced.add_protected_range': 'Created a protected range',
+  'sheets_advanced.create_table': 'Created a table',
+  'sheets_advanced.create_named_function': 'Created a named function',
+  'sheets_dimensions.create_filter_view': 'Created a filter view',
+  'sheets_dimensions.create_slicer': 'Created a slicer',
+  'sheets_appsscript.create': 'Created an Apps Script project',
+  'sheets_appsscript.create_version': 'Created an Apps Script version',
+  'sheets_appsscript.create_trigger': 'Created an Apps Script trigger',
+  'sheets_bigquery.create_scheduled_query': 'Created a scheduled BigQuery query',
+  // "get" appears in 7+ tools
+  'sheets_core.get': 'Got spreadsheet metadata',
+  'sheets_advanced.get_named_range': 'Got a named range',
+  'sheets_advanced.get_named_function': 'Got a named function',
+  'sheets_advanced.get_metadata': 'Got developer metadata',
+  'sheets_visualize.chart_get': 'Got chart details',
+  'sheets_visualize.pivot_get': 'Got pivot table details',
+  'sheets_dimensions.get_basic_filter': 'Got basic filter state',
+  'sheets_dimensions.get_filter_view': 'Got filter view details',
+  'sheets_appsscript.get': 'Got Apps Script project',
+  'sheets_appsscript.get_content': 'Got Apps Script source code',
+  'sheets_appsscript.get_version': 'Got Apps Script version',
+  'sheets_appsscript.get_deployment': 'Got Apps Script deployment',
+  'sheets_appsscript.get_metrics': 'Got Apps Script usage metrics',
+  'sheets_bigquery.get_connection': 'Got BigQuery connection details',
+  'sheets_webhook.get': 'Got webhook details',
+  'sheets_webhook.get_stats': 'Got webhook delivery stats',
+  'sheets_history.get': 'Got operation history entry',
+  'sheets_session.get_context': 'Got active session context',
+  'sheets_session.get_active': 'Got active spreadsheet',
+  'sheets_session.get_preferences': 'Got session preferences',
+  'sheets_session.get_pending': 'Got pending operations',
+  'sheets_transaction.status': 'Got transaction status',
+  // "status" appears in 3+ tools
+  'sheets_auth.status': 'Checked authentication status',
+  'sheets_agent.get_status': 'Got agent plan execution status',
+};
+
+/**
+ * Multi-turn workflow plans triggered by specific action completions.
+ * When an action is a natural entry point for a multi-step workflow,
+ * we suggest the full plan so the LLM can execute it without discovery.
+ */
+const WORKFLOW_PLAN_TRIGGERS: Partial<Record<string, { plan: string[]; description: string }>> = {
+  'sheets_composite.import_csv': {
+    plan: [
+      'sheets_fix.suggest_cleaning → review data quality issues',
+      'sheets_fix.clean → auto-fix detected issues',
+      'sheets_format.suggest_format → get formatting recommendations',
+      'sheets_visualize.suggest_chart → visualize key data patterns',
+    ],
+    description: 'Post-import cleanup and visualization workflow',
+  },
+  'sheets_core.create': {
+    plan: [
+      'sheets_session.set_active → set as active spreadsheet',
+      'sheets_composite.generate_sheet or sheets_data.write → populate with structure',
+      'sheets_format.apply_preset → apply professional formatting',
+    ],
+    description: 'New spreadsheet setup workflow',
+  },
+  'sheets_analyze.scout': {
+    plan: [
+      'sheets_analyze.suggest_next_actions → get contextual recommendations',
+      'sheets_fix.suggest_cleaning → check for data quality issues',
+      'sheets_format.suggest_format → check formatting opportunities',
+    ],
+    description: 'Post-scout analysis workflow',
+  },
+  'sheets_data.cross_read': {
+    plan: [
+      'sheets_fix.detect_anomalies → check for cross-source inconsistencies',
+      'sheets_data.write → write merged results to target sheet',
+      'sheets_visualize.chart_create → visualize combined data',
+    ],
+    description: 'Cross-spreadsheet merge and analysis workflow',
+  },
+  'sheets_analyze.comprehensive': {
+    plan: [
+      'sheets_fix.clean → fix identified quality issues',
+      'sheets_format.batch_format → apply recommended formatting',
+      'sheets_visualize.chart_create → create recommended visualizations',
+    ],
+    description: 'Post-analysis remediation workflow',
+  },
+  'sheets_auth.login': {
+    plan: [
+      'sheets_auth.status → verify authentication and available features',
+      'sheets_session.set_active → set target spreadsheet',
+      'sheets_analyze.scout → understand spreadsheet structure',
+    ],
+    description: 'Post-authentication startup workflow',
+  },
+  'sheets_quality.validate': {
+    plan: [
+      'sheets_fix.clean → auto-fix detected validation issues',
+      'sheets_quality.validate → re-validate to confirm all issues resolved',
+    ],
+    description: 'Validate-fix-revalidate cycle',
+  },
+  'sheets_history.timeline': {
+    plan: [
+      'sheets_history.diff_revisions → compare two revisions for cell-level changes',
+      'sheets_history.restore_cells → surgically restore specific cells if needed',
+    ],
+    description: 'Time-travel investigation workflow',
+  },
+  'sheets_templates.apply': {
+    plan: [
+      'sheets_data.write → populate the new spreadsheet with real data',
+      'sheets_format.batch_format → customize formatting for the populated template',
+      'sheets_collaborate.share_add → share the finished document',
+    ],
+    description: 'Template instantiation workflow',
+  },
+  'sheets_connectors.discover': {
+    plan: [
+      'sheets_connectors.configure → set up the connector with credentials',
+      'sheets_connectors.query → pull external data into the spreadsheet',
+    ],
+    description: 'External data connector setup workflow',
+  },
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -155,6 +454,159 @@ function extractConfidenceGapHints(responseRecord: Record<string, unknown>): Con
   return hints;
 }
 
+// ============================================================================
+// ERROR RECOVERY PLAYBOOKS
+// ============================================================================
+
+interface RecoveryStep {
+  tool: string;
+  action: string;
+  params?: Record<string, string>;
+  description: string;
+}
+
+interface RecoveryPlaybook {
+  steps: RecoveryStep[];
+  maxRetries: number;
+  description: string;
+}
+
+/**
+ * Error-code → recovery playbook lookup.
+ * Provides structured multi-step recovery sequences with pre-filled params.
+ */
+function getRecoveryPlaybook(
+  errorCode: string,
+  toolName: string | undefined,
+  actionName: string | undefined,
+  context: { spreadsheetId?: string; range?: string }
+): RecoveryPlaybook | undefined {
+  const sid = context.spreadsheetId ?? '';
+
+  switch (errorCode) {
+    case 'SHEET_NOT_FOUND':
+      return {
+        description: 'Sheet name mismatch — list sheets to find the correct name (often emoji/unicode issue)',
+        maxRetries: 1,
+        steps: [
+          {
+            tool: 'sheets_core',
+            action: 'list_sheets',
+            ...(sid ? { params: { spreadsheetId: sid } } : {}),
+            description: 'List all sheet names to find the correct one (copy name exactly — may contain emoji)',
+          },
+          {
+            tool: toolName ?? 'sheets_data',
+            action: actionName ?? 'read',
+            description: 'Retry the original operation with the corrected sheet name',
+          },
+        ],
+      };
+
+    case 'INVALID_RANGE':
+      return {
+        description: 'Range specification is invalid — scout to discover actual dimensions',
+        maxRetries: 1,
+        steps: [
+          {
+            tool: 'sheets_analyze',
+            action: 'scout',
+            ...(sid ? { params: { spreadsheetId: sid } } : {}),
+            description: 'Scout the spreadsheet to discover actual row/column dimensions',
+          },
+          {
+            tool: toolName ?? 'sheets_data',
+            action: actionName ?? 'read',
+            description: 'Retry with corrected range based on actual dimensions',
+          },
+        ],
+      };
+
+    case 'QUOTA_EXCEEDED':
+    case 'RATE_LIMIT':
+      return {
+        description: 'API quota exceeded — wait and switch to batched operations',
+        maxRetries: 2,
+        steps: [
+          {
+            tool: 'sheets_transaction',
+            action: 'begin',
+            description: 'Start a transaction to batch remaining operations (80-95% fewer API calls)',
+          },
+          {
+            tool: toolName ?? 'sheets_data',
+            action: actionName ?? 'write',
+            description: 'Queue the original operation within the transaction',
+          },
+          {
+            tool: 'sheets_transaction',
+            action: 'commit',
+            description: 'Commit the transaction to execute all queued operations in one batch',
+          },
+        ],
+      };
+
+    case 'PERMISSION_DENIED':
+    case 'INSUFFICIENT_PERMISSIONS':
+      return {
+        description: 'Authentication may have expired or insufficient scopes',
+        maxRetries: 1,
+        steps: [
+          {
+            tool: 'sheets_auth',
+            action: 'status',
+            description: 'Check current authentication status and available scopes',
+          },
+          {
+            tool: 'sheets_auth',
+            action: 'login',
+            description: 'Re-authenticate if status shows expired or missing scopes',
+          },
+          {
+            tool: toolName ?? 'sheets_data',
+            action: actionName ?? 'read',
+            description: 'Retry the original operation after re-authentication',
+          },
+        ],
+      };
+
+    case 'SPREADSHEET_NOT_FOUND':
+      return {
+        description: 'Spreadsheet ID is invalid or not accessible — list available spreadsheets',
+        maxRetries: 1,
+        steps: [
+          {
+            tool: 'sheets_core',
+            action: 'list',
+            description: 'List accessible spreadsheets to find the correct ID',
+          },
+          {
+            tool: toolName ?? 'sheets_data',
+            action: actionName ?? 'read',
+            description: 'Retry with the correct spreadsheet ID',
+          },
+        ],
+      };
+
+    case 'TIMEOUT':
+    case 'DEADLINE_EXCEEDED':
+      return {
+        description: 'Operation timed out — use background task execution',
+        maxRetries: 1,
+        steps: [
+          {
+            tool: toolName ?? 'sheets_data',
+            action: actionName ?? 'read',
+            description: 'Retry the same operation using tasks/call for background execution (no timeout)',
+          },
+        ],
+      };
+
+    default:
+      return undefined; // OK: no playbook for this error code
+  }
+}
+
 export function applyResponseIntelligence(
   responseRecord: Record<string, unknown>,
   options: ResponseIntelligenceOptions
@@ -223,6 +675,25 @@ export function applyResponseIntelligence(
     };
     const recovery = suggestRecovery(errorCode, errorMessage, recoveryCtx);
     applyRecoveryToError(error, recovery);
+
+    // Inject actionable recovery suggestions so the LLM can self-heal
+    const recoveryActions = getErrorRecoveryActions(errorCode, {
+      spreadsheetId: options.spreadsheetId,
+      range: options.params?.['range'] as string | undefined,
+    });
+    if (recoveryActions.length > 0) {
+      error['suggestedRecoveryActions'] = recoveryActions;
+    }
+
+    // Action-specific recovery playbook: structured multi-step sequences
+    // for the most common error patterns, with pre-filled params
+    const playbook = getRecoveryPlaybook(errorCode, options.toolName, options.actionName, {
+      spreadsheetId: options.spreadsheetId,
+      range: options.params?.['range'] as string | undefined,
+    });
+    if (playbook) {
+      error['_recoveryPlaybook'] = playbook;
+    }
 
     return {}; // OK: no batching hint for failure responses
   }
@@ -493,6 +964,36 @@ export function applyResponseIntelligence(
           'Review suggestions → apply cleaning (sheets_fix.clean with recommended rules) → validate',
         riskLevel: 'low' as const,
       };
+    }
+  }
+
+  // Inject action-specific gotcha warnings to prevent common LLM mistakes
+  const gotchaKey = `${options.toolName}.${actionName}`;
+  const gotcha = ACTION_GOTCHAS[gotchaKey];
+  if (gotcha) {
+    responseRecord['_gotcha'] = gotcha;
+  }
+
+  // Suggest relevant MCP prompts as follow-up guided workflows
+  const promptKey = `${options.toolName}.${actionName}`;
+  const promptSuggestion = FOLLOW_UP_PROMPTS[promptKey];
+  if (promptSuggestion) {
+    responseRecord['suggestedPrompt'] = promptSuggestion;
+  }
+
+  // Add disambiguation label for actions with shared names across tools
+  const disambigLabel = ACTION_DISAMBIGUATION[promptKey];
+  if (disambigLabel) {
+    responseRecord['_actionLabel'] = disambigLabel;
+  }
+
+  // Multi-turn planning hints: suggest a full workflow when the current action
+  // is a natural entry point for a multi-step pattern
+  if (!options.hasFailure) {
+    const planKey = `${options.toolName}.${actionName}`;
+    const suggestedPlan = WORKFLOW_PLAN_TRIGGERS[planKey];
+    if (suggestedPlan) {
+      responseRecord['_suggestedPlan'] = suggestedPlan;
     }
   }
 

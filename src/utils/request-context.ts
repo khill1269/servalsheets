@@ -169,6 +169,12 @@ export interface RequestContext {
    * Used to surface whether a response came from MCP sampling or fallback.
    */
   llmProvenance?: RequestLlmProvenance;
+  /**
+   * Verbosity level extracted from tool input args.
+   * Used by the response pipeline to apply global verbosity filtering
+   * for handlers that don't apply it themselves.
+   */
+  verbosity?: 'minimal' | 'standard' | 'detailed';
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -223,6 +229,11 @@ export function createRequestContext(options?: {
 
   const logger = (options?.logger ?? baseLogger).child(loggerMeta);
 
+  // Auto-generate W3C trace context when not provided by caller.
+  // Ensures every request (including STDIO) has tracing IDs for debugging.
+  const traceId = options?.traceId ?? requestId.replace(/-/g, '');
+  const spanId = options?.spanId ?? requestId.replace(/-/g, '').slice(0, 16);
+
   const now = Date.now();
   return {
     requestId,
@@ -236,8 +247,8 @@ export function createRequestContext(options?: {
     taskId: options?.taskId,
     taskStore: options?.taskStore,
     progressToken: options?.progressToken,
-    traceId: options?.traceId,
-    spanId: options?.spanId,
+    traceId,
+    spanId,
     parentSpanId: options?.parentSpanId,
     idempotencyKey: options?.idempotencyKey,
     metadataCache: options?.metadataCache,
@@ -256,6 +267,18 @@ export function runWithRequestContext<T>(
 
 export function getRequestContext(): RequestContext | undefined {
   return storage.getStore();
+}
+
+export function recordRequestVerbosity(verbosity: 'minimal' | 'standard' | 'detailed'): void {
+  const context = storage.getStore();
+  if (!context) {
+    return;
+  }
+  context.verbosity = verbosity;
+}
+
+export function getRequestVerbosity(): 'minimal' | 'standard' | 'detailed' | undefined {
+  return storage.getStore()?.verbosity;
 }
 
 export function recordRequestLlmProvenance(provenance: RequestLlmProvenance): void {

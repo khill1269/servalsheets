@@ -308,11 +308,10 @@ export const SheetsFixResponseSchema = z.discriminatedUnion('success', [
             )
             .optional(),
         })
-        .passthrough()
         .optional()
         .describe('Data profile used for cleaning suggestions'),
     })
-    .passthrough(),
+    ,
   z.object({
     success: z.literal(false),
     error: z.object({

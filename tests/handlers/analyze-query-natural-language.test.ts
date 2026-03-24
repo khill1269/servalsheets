@@ -117,4 +117,67 @@ describe('query_natural_language action', () => {
       expect(result.queryResult?.answer).toContain('300');
     }
   });
+
+  it('allows broad natural-language questions without exact column-name matches', async () => {
+    const createMessage = vi.fn().mockResolvedValue({
+      content: {
+        type: 'text',
+        text: JSON.stringify({
+          answer: 'Revenue is increasing while costs remain stable.',
+          followUpQuestions: [],
+        }),
+      },
+    });
+    const sheetsApi = {
+      spreadsheets: {
+        get: vi.fn().mockResolvedValue({
+          data: {
+            spreadsheetId: 'sheet-123',
+            properties: { title: 'Quarterly Metrics' },
+            sheets: [
+              {
+                properties: {
+                  sheetId: 1,
+                  title: 'Summary',
+                  index: 0,
+                  gridProperties: { rowCount: 100, columnCount: 10 },
+                },
+              },
+            ],
+          },
+        }),
+        values: {
+          get: vi.fn().mockResolvedValue({
+            data: {
+              values: [
+                ['Revenue', 'Cost'],
+                [100, 40],
+                [200, 80],
+              ],
+            },
+          }),
+        },
+      },
+    } as any;
+
+    const result = await handleQueryNaturalLanguageAction(
+      {
+        spreadsheetId: 'sheet-123',
+        query: 'What trends do you see here?',
+        range: 'Summary!A1:B3',
+      },
+      {
+        checkSamplingCapability: vi.fn().mockResolvedValue(null),
+        server: {
+          createMessage,
+        } as any,
+        sheetsApi,
+      }
+    );
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.queryResult?.answer).toContain('Revenue is increasing');
+    }
+  });
 });

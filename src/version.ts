@@ -10,11 +10,11 @@ import {
   SERVER_ICON_DATA_URI,
   SERVER_ICON_MIME_TYPE,
   SERVER_ICON_SIZES,
-} from './constants/server-icon.js';
-import { MCP_PROTOCOL_VERSION } from './constants/protocol.js';
+} from './config/server-icon.js';
+import { MCP_PROTOCOL_VERSION } from './config/protocol.js';
 
 /** Current version - sync with package.json */
-export const VERSION = '1.7.0';
+export const VERSION = '2.0.0';
 
 /** Protocol version */
 export { MCP_PROTOCOL_VERSION };

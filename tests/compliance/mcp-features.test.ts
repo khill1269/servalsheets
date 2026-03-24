@@ -225,6 +225,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
       const destructiveTools = [
         'sheets_core', // delete_sheet
         'sheets_data', // clear, overwrite
+        'sheets_format', // clear_format, delete_conditional_format_rule
         'sheets_dimensions', // delete rows/cols
         'sheets_visualize', // delete charts
         'sheets_collaborate', // remove permissions
@@ -236,6 +237,8 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
         'sheets_bigquery', // delete connections
         'sheets_appsscript', // undeploy, run side effects
         'sheets_webhook', // unregister
+        'sheets_quality', // resolve_conflict can overwrite changes
+        'sheets_history', // undo/redo/revert_to mutate state
       ];
       for (const tool of destructiveTools) {
         expect(TOOL_ANNOTATIONS[tool]!.destructiveHint).toBe(true);
@@ -246,8 +249,8 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
       const nonDestructiveTools = [
         'sheets_auth',
         // sheets_format removed: clear_format and delete_conditional_format_rule are destructive
-        'sheets_quality',
-        'sheets_history',
+        // sheets_quality removed: resolve_conflict can overwrite changes
+        // sheets_history removed: undo/redo/revert_to/restore_cells mutate state
         'sheets_confirm',
         'sheets_analyze',
         'sheets_session',

@@ -1,5 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { handlePreInitExemptToolCall } from '../../server-runtime/preinit-tool-routing.js';
+import { handlePreInitExemptToolCall } from '../../server/preinit-tool-routing.js';
 import type { GoogleApiClient } from '../../services/google-api.js';
 import {
   buildAuthErrorResponse,

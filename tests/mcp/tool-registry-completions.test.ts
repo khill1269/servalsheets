@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { resetEnvForTest } from '../../src/config/env.js';
 import { completeAction, completeToolName } from '../../src/mcp/completions.js';
 import {
   replaceAvailableToolNames,
@@ -8,6 +9,8 @@ import {
 describe('runtime tool registry completions', () => {
   afterEach(() => {
     resetAvailableToolNames();
+    resetEnvForTest();
+    vi.unstubAllEnvs();
   });
 
   it('filters tool-name completion to currently available tools', () => {
@@ -22,5 +25,22 @@ describe('runtime tool registry completions', () => {
 
     expect(completeAction('sheets_visualize', 'chart')).toEqual([]);
     expect(completeAction('sheets_core', 'add')).toContain('add_sheet');
+  });
+
+  it('hides Apps Script trigger compatibility actions by default', () => {
+    replaceAvailableToolNames(['sheets_appsscript']);
+
+    expect(completeAction('sheets_appsscript', 'create_t')).toEqual([]);
+    expect(completeAction('sheets_appsscript', 'list_t')).toEqual([]);
+    expect(completeAction('sheets_appsscript', 'run')).toEqual(['run']);
+  });
+
+  it('restores Apps Script trigger compatibility completions when explicitly enabled', () => {
+    vi.stubEnv('ENABLE_APPSSCRIPT_TRIGGER_COMPAT', 'true');
+    resetEnvForTest();
+    replaceAvailableToolNames(['sheets_appsscript']);
+
+    expect(completeAction('sheets_appsscript', 'create_t')).toEqual(['create_trigger']);
+    expect(completeAction('sheets_appsscript', 'list_t')).toEqual(['list_triggers']);
   });
 });

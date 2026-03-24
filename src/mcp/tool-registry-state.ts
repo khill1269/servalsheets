@@ -5,6 +5,8 @@
  * track live registration state without depending on the full tool definition graph.
  */
 
+import { filterAvailableActions } from './tool-availability.js';
+
 let availableToolNames: string[] | null = null;
 
 function normalizeToolNames(toolNames: readonly string[]): string[] {
@@ -32,5 +34,5 @@ export function getAvailableToolActions(
   if (!availableTools.has(toolName)) {
     return [];
   }
-  return allToolActions[toolName] ?? [];
+  return filterAvailableActions(toolName, allToolActions[toolName] ?? []);
 }

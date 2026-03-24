@@ -225,6 +225,8 @@ export interface SessionState {
     timestamp: number;
     operationIndex: number;
   }>;
+  /** Per-tool success/failure tracking for adaptive description verbosity */
+  toolFamiliarity: Record<string, { successes: number; failures: number; lastUsed: number }>;
 }
 
 interface SessionStateMutationOptions {
@@ -262,6 +264,7 @@ function createDefaultState(): SessionState {
     startedAt: Date.now(),
     lastActivityAt: Date.now(),
     recentReads: [],
+    toolFamiliarity: {},
   };
 }
 
@@ -321,9 +324,12 @@ export class SessionContextManager {
   }> = [];
 
   constructor(initialState?: Partial<SessionState>, options: SessionContextManagerOptions = {}) {
+    const defaultState = createDefaultState();
     this.state = {
-      ...createDefaultState(),
+      ...defaultState,
       ...initialState,
+      recentReads: initialState?.recentReads ?? defaultState.recentReads,
+      toolFamiliarity: initialState?.toolFamiliarity ?? defaultState.toolFamiliarity,
     };
     this.onStateChanged = options.onStateChanged;
   }
@@ -609,6 +615,42 @@ export class SessionContextManager {
         .slice(0, 20)
         .map((op) => ({ tool: op.tool, action: op.action, range: op.range })),
     };
+  }
+
+  /**
+   * Record whether a tool call succeeded or failed.
+   * Used for adaptive tool descriptions — familiar tools get shorter descriptions.
+   */
+  recordToolOutcome(toolName: string, success: boolean): void {
+    const existing = this.state.toolFamiliarity[toolName] ?? {
+      successes: 0,
+      failures: 0,
+      lastUsed: 0,
+    };
+    if (success) {
+      existing.successes++;
+    } else {
+      existing.failures++;
+    }
+    existing.lastUsed = Date.now();
+    this.state.toolFamiliarity[toolName] = existing;
+    // No persist — this is ephemeral session data
+  }
+
+  /**
+   * Get familiarity score for a tool (0-1).
+   * High score = LLM has used this tool successfully multiple times.
+   * Used by tools/list to decide description verbosity.
+   */
+  getToolFamiliarityScore(toolName: string): number {
+    const record = this.state.toolFamiliarity[toolName];
+    if (!record) return 0;
+    const total = record.successes + record.failures;
+    if (total === 0) return 0;
+    // Success rate weighted by usage count (more usage = more confident)
+    const successRate = record.successes / total;
+    const usageConfidence = Math.min(total / 5, 1); // Full confidence after 5 uses
+    return successRate * usageConfidence;
   }
 
   /**

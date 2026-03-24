@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { RELATED_TASK_META_KEY } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolTaskHandler } from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
 import { getEnv } from '../../config/env.js';
-import { registerServerTaskCancelHandler } from '../../server-runtime/control-plane-registration.js';
+import { registerServerTaskCancelHandler } from '../../server/control-plane-registration.js';
 import { logger } from '../../utils/logger.js';
 import { buildToolExecutionErrorPayload } from './tool-execution-error.js';
 import { buildToolResponse } from './tool-response.js';

@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import type { Request } from 'express';
 import { InMemoryEventStore, RedisEventStore } from '../mcp/event-store.js';
 import { logger } from '../utils/logger.js';
+import { extractTrustedClientIp } from './client-ip.js';
 
 export interface SessionSecurityContext {
   ipAddress: string;
@@ -13,11 +14,7 @@ export interface SessionSecurityContext {
  * Create security context for session binding.
  */
 export function createSessionSecurityContext(req: Request, token: string): SessionSecurityContext {
-  const ipAddress = (
-    (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||
-    req.ip ||
-    'unknown'
-  ).trim();
+  const ipAddress = extractTrustedClientIp(req, 'unknown');
   const userAgent = (req.headers['user-agent'] as string) || 'unknown';
   const tokenHash = createHash('sha256').update(token).digest('hex').substring(0, 16);
 

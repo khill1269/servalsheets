@@ -3320,8 +3320,8 @@ A3: =A1
 **Pattern 3: Apps Script Alternative**
 For time-based updates:
 \`\`\`
-sheets_appsscript action:"create_trigger"
-  script: "Update timestamp cell every 5 minutes"
+sheets_appsscript action:"update_content"
+  files:[{ name:"Code.gs", source:"function refreshTimestamp() { /* add ScriptApp trigger setup here */ }" }]
 \`\`\`
 
 ## Your Task
@@ -3617,7 +3617,7 @@ Check iterative calculation settings
 **Check 4: External Data**
 IMPORTRANGE or GOOGLEFINANCE?
 - Cache results, refresh periodically
-- Use sheets_appsscript for scheduled updates
+- Use sheets_appsscript update_content + deploy with ScriptApp time-driven triggers for scheduled updates
 
 **Check 5: Complex Nesting**
 Formulas with >5 levels of nesting?
@@ -3665,7 +3665,7 @@ Protected range count >50? → Reduce protection granularity
 
 **Check 3: Real-time Formulas**
 IMPORTRANGE or GOOGLEFINANCE in many cells?
-- Replace with periodic refreshes (sheets_appsscript triggers)
+- Replace with periodic refreshes (ScriptApp time-driven triggers via sheets_appsscript update_content + deploy)
 
 **Check 4: Conditional Formatting**
 Rules covering >100K cells? → Simplify rule scope
@@ -3680,9 +3680,8 @@ Rules covering >100K cells? → Simplify rule scope
 
 **Use: Periodic refresh**
 \`\`\`
-sheets_appsscript action:"create_trigger"
-  interval:"5 minutes"
-  operation:"refresh_external_data"
+sheets_appsscript action:"update_content"
+  files:[{ name:"Code.gs", source:"function refreshExternalData() { /* fetch + write data, then manage ScriptApp trigger in code */ }" }]
 \`\`\`
 (Updates every 5 minutes)
 
@@ -4263,9 +4262,8 @@ Implement version control system:
 
 **Pattern 1: Scheduled Snapshots**
 \`\`\`
-sheets_appsscript action:"create_trigger"
-  interval:"4 hours"
-  operation:"create_snapshot"
+sheets_appsscript action:"update_content"
+  files:[{ name:"Code.gs", source:"function createSnapshot() { /* snapshot logic + ScriptApp schedule managed in code */ }" }]
   spreadsheetId:"${spreadsheetId}"
 \`\`\`
 

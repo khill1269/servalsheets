@@ -109,8 +109,8 @@ describe('ConnectorManager', () => {
 
     const connectorIds = manager.listConnectors().connectors.map((c) => c.id);
 
-    expect(first.total).toBe(6);
-    expect(first.registered).toBe(6);
+    expect(first.total).toBe(12);
+    expect(first.registered).toBe(12);
     expect(second.registered).toBe(0);
     expect(connectorIds).toEqual(
       expect.arrayContaining([
@@ -119,6 +119,12 @@ describe('ConnectorManager', () => {
         'alpha_vantage',
         'fmp',
         'polygon',
+        'gmail',
+        'drive',
+        'docs',
+        'sec_edgar',
+        'world_bank',
+        'openfigi',
         'rest_public_json',
       ])
     );

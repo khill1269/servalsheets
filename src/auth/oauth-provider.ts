@@ -11,18 +11,18 @@
  */
 
 import express, { Request, Response, NextFunction } from 'express';
-import { ConfigError, ServiceError } from './core/errors.js';
+import { ConfigError, ServiceError } from '../core/errors.js';
 import jwt from 'jsonwebtoken';
 import { randomUUID, randomBytes, createHash, createHmac, timingSafeEqual } from 'crypto';
 import { rateLimit } from 'express-rate-limit';
-import { SessionStore, createSessionStore } from './storage/session-store.js';
-import { getSessionStoreConfig, getApiSpecificCircuitBreakerConfig, env } from './config/env.js';
-import { logger } from './utils/logger.js';
-import { CircuitBreaker } from './utils/circuit-breaker.js';
-import { circuitBreakerRegistry } from './services/circuit-breaker-registry.js';
-import { VERSION, SERVER_ICONS } from './version.js';
-import { getRecommendedScopes, formatScopesForAuth } from './config/oauth-scopes.js';
-import { registerCleanup } from './utils/resource-cleanup.js';
+import { SessionStore, createSessionStore } from '../storage/session-store.js';
+import { getSessionStoreConfig, getApiSpecificCircuitBreakerConfig, env } from '../config/env.js';
+import { logger } from '../utils/logger.js';
+import { CircuitBreaker } from '../utils/circuit-breaker.js';
+import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
+import { VERSION, SERVER_ICONS } from '../version.js';
+import { getRecommendedScopes, formatScopesForAuth } from '../config/oauth-scopes.js';
+import { registerCleanup } from '../utils/resource-cleanup.js';
 
 // ============================================================================
 // SECURITY CONSTANTS

@@ -34,7 +34,11 @@ async function requestHandler(
 
 describe('tool-mode MCP registration', () => {
   afterEach(() => {
-    register.clear();
+    try {
+      register.clear();
+    } catch {
+      // prom-client may already be cleared in some test contexts
+    }
     vi.unstubAllEnvs();
     vi.resetModules();
   });

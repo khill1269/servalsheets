@@ -103,7 +103,7 @@ Available tools and their key actions:
 - sheets_transaction: begin, queue, commit, rollback, status
 - sheets_federation: call_remote, list_servers, get_server_tools, validate_connection
 - sheets_bigquery: export_to_bigquery, import_from_bigquery, query, connect, list_connections
-- sheets_appsscript: run, create, deploy, list, create_trigger
+- sheets_appsscript: run, create, deploy, list, update_content
 - sheets_session: set_active, get_context, save_checkpoint, restore_checkpoint, record_operation
 - sheets_quality: validate, detect_conflicts, resolve_conflict, analyze_impact
 - sheets_confirm: request, approve, deny, status, cancel

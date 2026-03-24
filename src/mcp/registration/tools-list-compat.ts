@@ -10,30 +10,75 @@ import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { DEFER_SCHEMAS } from '../../config/constants.js';
 import { TOOL_ICONS } from '../features-2025-11-25.js';
-import { isWebhookRedisConfigured } from '../../services/webhook-manager.js';
 import { logger } from '../../utils/logger.js';
 import { zodSchemaToJsonSchema } from '../../utils/schema-compat.js';
+import { getSessionContext } from '../../services/session-context.js';
+import { ACTION_COUNTS } from '../../schemas/action-counts.js';
+import {
+  filterAvailableActions,
+  getToolAvailabilityMetadata,
+  isToolFullyUnavailable,
+} from '../tool-availability.js';
 import {
   prepareSchemaForRegistrationCached,
   buildDeferredFallbackSchema,
 } from './schema-helpers.js';
-import { getToolDiscoveryHint } from './tool-discovery-hints.js';
+import { getToolDiscoveryHint, getActionCostEstimates } from './tool-discovery-hints.js';
 
 const EMPTY_OBJECT_JSON_SCHEMA = { type: 'object', properties: {} };
-const WEBHOOK_REDIS_REQUIRED_ACTIONS = [
-  'register',
-  'unregister',
-  'list',
-  'get',
-  'test',
-  'get_stats',
-];
-const WEBHOOK_NON_REDIS_ACTIONS = [
-  'watch_changes',
-  'subscribe_workspace',
-  'unsubscribe_workspace',
-  'list_workspace_subscriptions',
-];
+
+function getToolActionCount(toolName: string): number {
+  return ACTION_COUNTS[toolName] ?? 0;
+}
+
+/**
+ * Tool tier metadata for hierarchical discovery.
+ * Helps LLMs prioritize tool selection without scanning all 25 tools.
+ *
+ * - tier 1 (essential): Used in 80%+ of sessions — always consider first
+ * - tier 2 (common): Used in 40-80% of sessions — consider for specific intents
+ * - tier 3 (specialized): Used in <40% of sessions — only when explicitly needed
+ *
+ * group: Maps to the 5-group mental model from server instructions
+ */
+interface ToolTierMeta {
+  tier: 1 | 2 | 3;
+  group: 'data-io' | 'appearance' | 'structure' | 'analysis' | 'automation';
+  primaryVerbs: string[];
+}
+
+const TOOL_TIERS: Record<string, ToolTierMeta> = {
+  // Tier 1 — Essential (used in 80%+ of sessions)
+  sheets_data:    { tier: 1, group: 'data-io',    primaryVerbs: ['read', 'write', 'append', 'find'] },
+  sheets_core:    { tier: 1, group: 'structure',   primaryVerbs: ['create', 'list', 'delete', 'duplicate'] },
+  sheets_format:  { tier: 1, group: 'appearance',  primaryVerbs: ['format', 'bold', 'color', 'number format'] },
+  sheets_analyze: { tier: 1, group: 'analysis',    primaryVerbs: ['scout', 'analyze', 'generate formula'] },
+  sheets_auth:    { tier: 1, group: 'automation',   primaryVerbs: ['login', 'status', 'logout'] },
+
+  // Tier 2 — Common (used in 40-80% of sessions)
+  sheets_dimensions: { tier: 2, group: 'appearance',  primaryVerbs: ['freeze', 'sort', 'filter', 'resize', 'hide'] },
+  sheets_visualize:  { tier: 2, group: 'appearance',  primaryVerbs: ['chart', 'sparkline', 'slicer'] },
+  sheets_composite:  { tier: 2, group: 'data-io',     primaryVerbs: ['import', 'export', 'generate'] },
+  sheets_session:    { tier: 2, group: 'automation',   primaryVerbs: ['set active', 'preferences', 'pipeline'] },
+  sheets_fix:        { tier: 2, group: 'analysis',     primaryVerbs: ['clean', 'standardize', 'fill missing'] },
+  sheets_compute:    { tier: 2, group: 'data-io',     primaryVerbs: ['stats', 'regression', 'forecast'] },
+  sheets_history:    { tier: 2, group: 'automation',   primaryVerbs: ['undo', 'timeline', 'diff', 'snapshot'] },
+  sheets_collaborate:{ tier: 2, group: 'structure',    primaryVerbs: ['share', 'protect', 'comment', 'versions'] },
+
+  // Tier 3 — Specialized (used in <40% of sessions)
+  sheets_advanced:     { tier: 3, group: 'structure',   primaryVerbs: ['named range', 'pivot', 'slicer', 'banding'] },
+  sheets_quality:      { tier: 3, group: 'analysis',    primaryVerbs: ['validate', 'conflicts'] },
+  sheets_dependencies: { tier: 3, group: 'analysis',    primaryVerbs: ['dependency graph', 'what-if', 'scenario'] },
+  sheets_templates:    { tier: 3, group: 'structure',   primaryVerbs: ['save template', 'instantiate'] },
+  sheets_transaction:  { tier: 3, group: 'automation',  primaryVerbs: ['begin', 'queue', 'commit', 'rollback'] },
+  sheets_agent:        { tier: 3, group: 'automation',  primaryVerbs: ['plan', 'execute', 'rollback'] },
+  sheets_confirm:      { tier: 3, group: 'automation',  primaryVerbs: ['confirm', 'wizard'] },
+  sheets_webhook:      { tier: 3, group: 'automation',  primaryVerbs: ['watch', 'subscribe', 'trigger'] },
+  sheets_appsscript:   { tier: 3, group: 'automation',  primaryVerbs: ['run script', 'deploy', 'manage'] },
+  sheets_bigquery:     { tier: 3, group: 'data-io',    primaryVerbs: ['query', 'import', 'export', 'dataset'] },
+  sheets_federation:   { tier: 3, group: 'automation',  primaryVerbs: ['remote call', 'list servers'] },
+  sheets_connectors:   { tier: 3, group: 'data-io',    primaryVerbs: ['discover', 'connect', 'fetch'] },
+};
 
 function isZodSchema(schema: unknown): boolean {
   return Boolean(
@@ -127,29 +172,36 @@ function mergeDescription(existing: unknown, addition: string | undefined): stri
   return `${existing} ${addition}`;
 }
 
-function getToolAvailabilityMetadata(toolName: string): Record<string, unknown> | undefined {
-  if (toolName === 'sheets_webhook' && !isWebhookRedisConfigured()) {
-    return {
-      status: 'partial',
-      reason: 'Redis backend not configured in this server process',
-      unavailableActions: WEBHOOK_REDIS_REQUIRED_ACTIONS,
-      availableActions: WEBHOOK_NON_REDIS_ACTIONS,
-    };
-  }
-
-  return undefined; // OK: Explicit empty — tool has no availability restriction
-}
-
 function enrichToolDescription(toolName: string, description: unknown): string | undefined {
   const existing = typeof description === 'string' ? description : undefined;
   const availability = getToolAvailabilityMetadata(toolName);
+  const availabilityReason =
+    typeof availability?.['reason'] === 'string' ? availability['reason'] : undefined;
   const availabilitySuffix =
-    availability && toolName === 'sheets_webhook'
+    toolName === 'sheets_webhook' && availabilityReason
       ? 'Redis is not configured in this server process. Redis-backed webhook actions are currently unavailable; watch_changes and workspace subscription actions remain available.'
-      : undefined;
+      : toolName === 'sheets_appsscript' && availabilityReason
+        ? 'Apps Script trigger compatibility actions are hidden by default because external Apps Script REST clients cannot manage triggers. Use update_content plus deploy with ScriptApp trigger code instead.'
+        : undefined;
 
   if (!DEFER_SCHEMAS) {
     return mergeDescription(existing, availabilitySuffix);
+  }
+
+  // Adaptive descriptions: shorten for tools the LLM has used successfully 5+ times.
+  // This saves ~100-200 tokens per familiar tool on subsequent tools/list calls.
+  let sessionFamiliarity = 0;
+  try {
+    sessionFamiliarity = getSessionContext().getToolFamiliarityScore(toolName);
+  } catch {
+    // Session context may not be initialized during early registration
+  }
+
+  if (sessionFamiliarity >= 0.8) {
+    // Ultra-minimal: tool name + action count only (LLM already knows how to use it)
+    const actionCount = getToolActionCount(toolName);
+    const ultraMinimal = `${toolName.replace('sheets_', '').toUpperCase()} (${actionCount} actions)`;
+    return mergeDescription(ultraMinimal, availabilitySuffix);
   }
 
   const hint = getToolDiscoveryHint(toolName);
@@ -169,22 +221,22 @@ function enrichInputSchema(
     return inputSchema;
   }
 
-  // When Redis is absent, only expose non-Redis action hints so LLMs don't
-  // attempt actions that will immediately fail.
-  const actionParams =
-    toolName === 'sheets_webhook' && !isWebhookRedisConfigured()
-      ? Object.fromEntries(
-          Object.entries(hint.actionParams).filter(([action]) =>
-            WEBHOOK_NON_REDIS_ACTIONS.includes(action)
-          )
-        )
-      : hint.actionParams;
+  const allowedActions = new Set(filterAvailableActions(toolName, Object.keys(hint.actionParams)));
+  const actionParams = Object.fromEntries(
+    Object.entries(hint.actionParams).filter(([action]) => allowedActions.has(action))
+  );
 
+  const tierMeta = TOOL_TIERS[toolName];
+  const costEstimates = getActionCostEstimates(toolName);
   const enriched: Record<string, unknown> = {
     ...inputSchema,
     'x-servalsheets': {
       ...(asRecord(inputSchema['x-servalsheets']) ?? {}),
       actionParams,
+      ...(tierMeta
+        ? { tier: tierMeta.tier, group: tierMeta.group, primaryVerbs: tierMeta.primaryVerbs }
+        : {}),
+      ...(costEstimates ? { costEstimates } : {}),
       ...(getToolAvailabilityMetadata(toolName)
         ? { availability: getToolAvailabilityMetadata(toolName) }
         : {}),
@@ -208,25 +260,7 @@ function enrichInputSchema(
     description: mergeDescription(requestSchema['description'], hint.requestDescription),
   };
 
-  // When Redis is not configured, filter the webhook schema to only expose
-  // the non-Redis actions. This prevents LLMs from attempting Redis-required
-  // actions (register, unregister, list, get, test, get_stats) that will always fail.
-  if (toolName === 'sheets_webhook' && !isWebhookRedisConfigured()) {
-    const oneOf = Array.isArray(requestSchema['oneOf']) ? requestSchema['oneOf'] : null;
-    if (oneOf) {
-      const filtered = oneOf.filter((variant) => {
-        const variantRecord = asRecord(variant);
-        const action = (variantRecord?.['properties'] as Record<string, unknown> | undefined)?.[
-          'action'
-        ] as Record<string, unknown> | undefined;
-        const actionName = action?.['const'] ?? (action?.['enum'] as unknown[])?.[0];
-        return typeof actionName === 'string'
-          ? WEBHOOK_NON_REDIS_ACTIONS.includes(actionName)
-          : true;
-      });
-      finalRequestSchema = { ...finalRequestSchema, oneOf: filtered };
-    }
-  }
+  finalRequestSchema = filterRequestSchemaActions(finalRequestSchema, allowedActions);
 
   enriched['properties'] = {
     ...properties,
@@ -234,6 +268,52 @@ function enrichInputSchema(
   };
 
   return enriched;
+}
+
+function filterRequestSchemaActions(
+  requestSchema: Record<string, unknown>,
+  allowedActions: ReadonlySet<string>
+): Record<string, unknown> {
+  let filtered: Record<string, unknown> = { ...requestSchema };
+
+  for (const key of ['oneOf', 'anyOf'] as const) {
+    const variants = Array.isArray(filtered[key]) ? filtered[key] : null;
+    if (!variants) {
+      continue;
+    }
+
+    filtered = {
+      ...filtered,
+      [key]: variants.filter((variant) => {
+        const variantRecord = asRecord(variant);
+        const action = (variantRecord?.['properties'] as Record<string, unknown> | undefined)?.[
+          'action'
+        ] as Record<string, unknown> | undefined;
+        const actionName = action?.['const'] ?? (action?.['enum'] as unknown[])?.[0];
+        return typeof actionName === 'string' ? allowedActions.has(actionName) : true;
+      }),
+    };
+  }
+
+  const properties = asRecord(filtered['properties']);
+  const actionSchema = asRecord(properties?.['action']);
+  if (!properties || !actionSchema) {
+    return filtered;
+  }
+
+  const nextActionSchema: Record<string, unknown> = { ...actionSchema };
+  if (Array.isArray(actionSchema['enum'])) {
+    nextActionSchema['enum'] = (actionSchema['enum'] as unknown[]).filter(
+      (value) => typeof value !== 'string' || allowedActions.has(value)
+    );
+  }
+
+  filtered['properties'] = {
+    ...properties,
+    action: nextActionSchema,
+  };
+
+  return filtered;
 }
 
 export function registerToolsListCompatibilityHandler(server: McpServer): void {
@@ -263,6 +343,13 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
               logger.error('Excluding tool from tools/list due to schema error', {
                 tool: name,
                 error: schemaConversionErrors.get(name),
+              });
+              return false;
+            }
+            // Hide tools whose backing service is completely unavailable
+            if (isToolFullyUnavailable(name)) {
+              logger.debug('Excluding tool from tools/list: backing service unavailable', {
+                tool: name,
               });
               return false;
             }

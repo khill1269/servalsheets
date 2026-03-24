@@ -73,7 +73,42 @@ const ALLOWED_MODULES = new Set([
   'matplotlib',
 ]);
 
+/**
+ * SECURITY: Pre-validate Python code for sandbox escape patterns.
+ * This runs BEFORE the code enters the Pyodide sandbox, blocking
+ * attempts to tamper with the sandbox infrastructure itself.
+ */
+const SANDBOX_ESCAPE_PATTERNS = [
+  // Attempts to restore original import
+  { pattern: /_orig_import\b/, reason: 'Attempt to access sandbox internals (_orig_import)' },
+  { pattern: /__import__\s*=/, reason: 'Attempt to reassign __import__' },
+  // Direct builtins manipulation
+  { pattern: /_builtins\b/, reason: 'Attempt to access sandbox internals (_builtins)' },
+  { pattern: /builtins\.__import__/, reason: 'Attempt to access builtins.__import__' },
+  // importlib bypass
+  { pattern: /importlib/, reason: 'importlib is not permitted (sandbox bypass risk)' },
+  // ctypes (native code execution)
+  { pattern: /\bctypes\b/, reason: 'ctypes is not permitted (native code execution risk)' },
+  // Subprocess / os access via string manipulation
+  { pattern: /getattr\s*\(\s*__builtins__/, reason: 'getattr on __builtins__ is not permitted' },
+  { pattern: /__subclasses__/, reason: '__subclasses__ traversal is not permitted' },
+  { pattern: /__class__\s*\.\s*__bases__/, reason: 'MRO traversal is not permitted' },
+  // eval() can execute arbitrary code
+  { pattern: /\beval\s*\(/, reason: 'eval() is not permitted in this sandbox' },
+];
+
+function validatePythonCode(code: string): void {
+  for (const { pattern, reason } of SANDBOX_ESCAPE_PATTERNS) {
+    if (pattern.test(code)) {
+      throw new Error(`Security violation: ${reason}`);
+    }
+  }
+}
+
 function buildSandboxCode(userCode: string): string {
+  // Pre-validate before embedding in sandbox wrapper
+  validatePythonCode(userCode);
+
   const allowedList = JSON.stringify([...ALLOWED_MODULES]);
   return `
 import builtins as _builtins
