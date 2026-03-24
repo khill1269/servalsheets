@@ -54,7 +54,7 @@ const envConfig = read('src/config/env.ts');
 const graphqlResolvers = read('src/graphql/resolvers.ts');
 const formulaEvaluator = read('src/services/formula-evaluator.ts');
 const googleFormulaService = read('src/services/google-formula-service.ts');
-const dependenciesHandler = read('src/handlers/dependencies.ts');
+const dependenciesHandler = read('src/handlers/dependencies.ts') + read('src/handlers/dependencies-actions/scenario.ts');
 const toolHandlers = read('src/mcp/registration/tool-handlers.ts');
 const auditMiddleware = read('src/middleware/audit-middleware.ts');
 const writeLockMiddleware = read('src/middleware/write-lock-middleware.ts');
@@ -143,8 +143,8 @@ ensureIncludes(
 );
 ensureIncludes(
   dependenciesHandler,
-  "from '../services/formula-evaluator.js'",
-  'Formula evaluator is not wired into src/handlers/dependencies.ts.',
+  "services/formula-evaluator.js'",
+  'Formula evaluator is not wired into src/handlers/dependencies.ts (or dependencies-actions/).',
   issues
 );
 ensureIncludes(

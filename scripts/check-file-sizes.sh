@@ -58,18 +58,20 @@ get_budget_override() {
     "src/handlers/dimensions.ts")    echo 550 ;;
     # appsscript.ts: ~679 lines after decomposition (19 actions delegated to appsscript-actions/)
     "src/handlers/appsscript.ts")    echo 800 ;;
+    # collaborate.ts: ~786 lines after decomposition (41 actions — high dispatch overhead)
+    "src/handlers/collaborate.ts")   echo 850 ;;
     # analyze.ts: 1196 lines, 23 actions
     "src/handlers/analyze.ts")       echo 1350 ;;
     # auth.ts: ~235 lines after decomposition (5 actions delegated to auth-actions/)
     "src/handlers/auth.ts")          echo 350 ;;
-    # composite.ts: 994 lines, 21 actions
-    "src/handlers/composite.ts")     echo 1100 ;;
+    # composite.ts: ~407 lines after decomposition (21 actions delegated to composite-actions/)
+    "src/handlers/composite.ts")     echo 500 ;;
     # compute.ts: ~127 lines after decomposition (16 actions delegated to compute-actions/)
     "src/handlers/compute.ts")       echo 250 ;;
     # connectors.ts: 870 lines, 10 actions
     "src/handlers/connectors.ts")    echo 1000 ;;
-    # dependencies.ts: 1161 lines, 10 actions
-    "src/handlers/dependencies.ts")  echo 1300 ;;
+    # dependencies.ts: ~210 lines after decomposition (10 actions delegated to dependencies-actions/)
+    "src/handlers/dependencies.ts")  echo 350 ;;
     # fix.ts: ~226 lines after decomposition (6 actions delegated to fix-actions/)
     "src/handlers/fix.ts")           echo 350 ;;
     # format.ts: 893 lines, 25 actions
