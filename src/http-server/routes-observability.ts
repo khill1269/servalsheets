@@ -720,7 +720,7 @@ export function registerHttpObservabilityRoutes(params: {
   app.use('/ui/tracing', requireAdminAuth);
   app.use('/traces/stream', requireAdminAuth);
   try {
-    import('../http-server-tracing-ui.js')
+    import('../ui/tracing.js')
       .then(({ addTracingUIRoutes }) => {
         addTracingUIRoutes(app);
         logger.info('Tracing UI routes loaded successfully');

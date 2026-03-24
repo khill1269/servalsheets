@@ -7,14 +7,14 @@ import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import type { TaskStoreAdapter } from '../core/index.js';
 import type { InMemoryEventStore, RedisEventStore } from '../mcp/event-store.js';
 import { sessionsTotal } from '../observability/metrics.js';
-import type { OAuthProvider } from '../oauth-provider.js';
+import type { OAuthProvider } from '../auth/oauth-provider.js';
 import { extractIdempotencyKeyFromHeaders } from '../utils/idempotency-key-generator.js';
 import {
   createResourceIndicatorValidator,
   optionalResourceIndicatorMiddleware,
 } from '../security/index.js';
 import { removeSessionContext } from '../services/session-context.js';
-import { extractPrincipalIdFromHeaders } from '../server-utils/request-extraction.js';
+import { extractPrincipalIdFromHeaders } from '../server/request-extraction.js';
 import { createRequestContext, runWithRequestContext } from '../utils/request-context.js';
 import { sessionLimiter } from '../utils/session-limiter.js';
 import { logger } from '../utils/logger.js';

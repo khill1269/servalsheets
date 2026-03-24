@@ -7,11 +7,10 @@
  */
 
 import express, { Request, Response, NextFunction } from 'express';
-import type { Server as NodeHttpServer } from 'node:http';
 import { fileURLToPath } from 'url';
 import { resolve } from 'path';
 
-import { OAuthProvider } from './oauth-provider.js';
+import { OAuthProvider } from './auth/oauth-provider.js';
 import { createSamlProviderFromEnv } from './security/saml-provider.js';
 import { validateEnv, env, getEnv } from './config/env.js';
 import { ACTION_COUNT, TOOL_COUNT } from './schemas/action-counts.js';
@@ -42,6 +41,7 @@ import { registerHttpGraphQlAndAdmin } from './http-server/graphql-admin.js';
 import { registerHttpObservabilityRoutes } from './http-server/routes-observability.js';
 import { prepareHttpRateLimiter } from './http-server/rate-limit-bootstrap.js';
 import { createHttpMcpServerInstance } from './http-server/runtime-factory.js';
+import { createHttpServerLifecycle } from './http-server/server-lifecycle.js';
 import {
   registerHttpTransportRoutes,
   type HttpTransportSession,
@@ -308,130 +308,41 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     });
   });
 
-  let httpServer: ReturnType<typeof app.listen> | null = null;
-  let dedicatedMetricsServer: NodeHttpServer | null = null;
-
-  // Register shutdown callback to close HTTP server
-  onShutdown(async () => {
-    if (httpServer) {
-      logger.info('Closing HTTP server...');
-      return new Promise<void>((resolve, reject) => {
-        httpServer!.close((err) => {
-          if (err) {
-            logger.error('Error closing HTTP server', { error: err });
-            reject(err);
-          } else {
-            logger.info('HTTP server closed');
-            resolve();
-          }
-        });
-      });
-    }
-  });
-
-  // Register shutdown callback to close dedicated metrics server
-  onShutdown(async () => {
-    if (!dedicatedMetricsServer) {
-      return;
-    }
-    logger.info('Closing dedicated metrics server...');
-    try {
-      await stopMetricsServer(dedicatedMetricsServer);
-      dedicatedMetricsServer = null;
-    } catch (error) {
-      logger.error('Error closing dedicated metrics server', { error });
-      throw error;
-    }
-  });
-
-  // Clear session cleanup interval on shutdown
-  onShutdown(async () => {
-    clearInterval(sessionCleanupInterval);
-  });
-
-  // Register shutdown callback to close all sessions
-  onShutdown(async () => {
-    logger.info(`Closing ${sessions.size} active sessions...`);
-    cleanupSessions();
-    logger.info('All sessions closed');
-  });
-
   registerHttpGraphQlAndAdmin({
     app,
     sessions: sessions as Map<string, unknown>,
   });
 
+  const lifecycle = createHttpServerLifecycle({
+    app,
+    host,
+    port,
+    legacySseEnabled,
+    clearSessionCleanupInterval: () => {
+      clearInterval(sessionCleanupInterval);
+    },
+    cleanupSessions,
+    getSessionCount: () => sessions.size,
+    ensureToolIntegrityVerified,
+    rateLimiterReady,
+    initializeRbac,
+    enableMetricsServer: envConfig.ENABLE_METRICS_SERVER,
+    metricsPort: envConfig.METRICS_PORT,
+    metricsHost: envConfig.METRICS_HOST,
+    createMetricsExporter: () => new MetricsExporter(getMetricsService(), cacheManager),
+    startMetricsServer,
+    stopMetricsServer,
+    initTelemetry,
+    onShutdown,
+    toolCount: TOOL_COUNT,
+    actionCount: ACTION_COUNT,
+    log: logger,
+  });
+
   return {
     app,
-    start: async () => {
-      await initTelemetry();
-      await ensureToolIntegrityVerified.run();
-      await Promise.all([rateLimiterReady, initializeRbac()]);
-      await new Promise<void>((resolve, reject) => {
-        httpServer = app.listen(port, host);
-
-        httpServer.once('error', (error) => {
-          logger.error('HTTP server failed to bind', { error, host, port });
-          reject(error);
-        });
-
-        httpServer.once('listening', () => {
-          logger.info(`ServalSheets HTTP server listening on ${host}:${port}`);
-          if (legacySseEnabled) {
-            logger.info(`SSE endpoint: http://${host}:${port}/sse`);
-          } else {
-            logger.info('Legacy SSE endpoints disabled (use /mcp)');
-          }
-          logger.info(`HTTP endpoint: http://${host}:${port}/mcp`);
-          logger.info(`Health check: http://${host}:${port}/health`);
-          logger.info(`Metrics: ${TOOL_COUNT} tools, ${ACTION_COUNT} actions`);
-          resolve();
-        });
-      });
-
-      if (envConfig.ENABLE_METRICS_SERVER) {
-        if (envConfig.METRICS_PORT === port && envConfig.METRICS_HOST === host) {
-          throw new ConfigError(
-            'METRICS_PORT/METRICS_HOST cannot match main HTTP server bind address. ' +
-              'Use a dedicated metrics port.',
-            'METRICS_PORT'
-          );
-        }
-
-        const exporter = new MetricsExporter(getMetricsService(), cacheManager);
-        dedicatedMetricsServer = await startMetricsServer({
-          port: envConfig.METRICS_PORT,
-          host: envConfig.METRICS_HOST,
-          exporter,
-        });
-
-        logger.info('Dedicated metrics server enabled', {
-          host: envConfig.METRICS_HOST,
-          port: envConfig.METRICS_PORT,
-        });
-      }
-    },
-    stop: async () => {
-      clearInterval(sessionCleanupInterval);
-      cleanupSessions();
-
-      if (dedicatedMetricsServer) {
-        await stopMetricsServer(dedicatedMetricsServer);
-        dedicatedMetricsServer = null;
-      }
-      if (httpServer) {
-        return new Promise<void>((resolve, reject) => {
-          httpServer!.close((err) => {
-            if (err) {
-              reject(err);
-            } else {
-              httpServer = null;
-              resolve();
-            }
-          });
-        });
-      }
-    },
+    start: lifecycle.start,
+    stop: lifecycle.stop,
     sessions,
   };
 }
