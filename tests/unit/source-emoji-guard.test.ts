@@ -28,6 +28,7 @@ const EMOJI_ALLOWLIST = new Set([
   'mcp/elicitation.ts',
   'mcp/features-2025-11-25.ts',
   'mcp/registration/prompt-registration.ts',
+  'auth/oauth-provider.ts',
   'oauth-provider.ts',
   'resources/confirm.ts',
   'schemas/descriptions-minimal.ts',

@@ -7,109 +7,47 @@
  */
 
 import express, { Request, Response, NextFunction } from 'express';
-import { randomUUID, randomBytes, createHash } from 'crypto';
 import type { Server as NodeHttpServer } from 'node:http';
 import { fileURLToPath } from 'url';
 import { resolve } from 'path';
-import { InMemoryTaskMessageQueue } from '@modelcontextprotocol/sdk/experimental/tasks/stores/in-memory.js';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SetLevelRequestSchema, type LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
 
 import { OAuthProvider } from './oauth-provider.js';
-import { createSamlProviderFromEnv } from './auth/saml-provider.js';
+import { createSamlProviderFromEnv } from './security/saml-provider.js';
 import { validateEnv, env, getEnv } from './config/env.js';
-import { createGoogleApiClient, GoogleApiClient } from './services/google-api.js';
-import { initTransactionManager } from './services/transaction-manager.js';
-import { initConflictDetector } from './services/conflict-detector.js';
-import { initImpactAnalyzer } from './services/impact-analyzer.js';
-import { initValidationEngine } from './services/validation-engine.js';
 import { ACTION_COUNT, TOOL_COUNT } from './schemas/action-counts.js';
-import { SERVER_INFO, SERVER_ICONS } from './version.js';
 import { logger } from './utils/logger.js';
-import { sendProgress } from './utils/request-context.js';
 import { HealthService } from './server/health.js';
 import { startMetricsServer, stopMetricsServer } from './server/metrics-server.js';
-import { UserRateLimiter, createUserRateLimiterFromEnv } from './services/user-rate-limiter.js';
 import { MetricsExporter } from './services/metrics-exporter.js';
 import { getMetricsService } from './services/metrics.js';
-import {
-  BatchCompiler,
-  RateLimiter,
-  DiffEngine,
-  PolicyEnforcer,
-  RangeResolver,
-  TaskStoreAdapter,
-} from './core/index.js';
-import { SnapshotService } from './services/snapshot.js';
-import { createHandlers, type HandlerContext, type HandlerMcpServer } from './handlers/index.js';
-import { handleLoggingSetLevel } from './handlers/logging.js';
-import {
-  registerKnowledgeResources,
-  registerHistoryResources,
-  registerCacheResources,
-  registerTransactionResources,
-  registerConflictResources,
-  registerImpactResources,
-  registerValidationResources,
-  registerMetricsResources,
-  registerConfirmResources,
-  registerAnalyzeResources,
-  registerReferenceResources,
-  registerSchemaResources,
-  registerCostDashboardResources,
-  registerGuideResources,
-  registerDecisionResources,
-  registerExamplesResources,
-  registerPatternResources,
-  registerSheetResources,
-  registerDiscoveryResources,
-  registerConnectionHealthResource,
-  registerRestartHealthResource,
-  registerMasterIndexResource,
-  registerKnowledgeIndexResource,
-  registerKnowledgeSearchResource,
-  initializeResourceNotifications,
-  resourceNotifications,
-  teardownResourceNotifications,
-} from './resources/index.js';
-import { getCostTracker } from './services/cost-tracker.js';
-import { initializeBillingIntegration } from './services/billing-integration.js';
 import { cacheManager } from './utils/cache-manager.js';
-import { registerServalSheetsPrompts } from './mcp/registration/prompt-registration.js';
-import { registerServalSheetsResources } from './mcp/registration/resource-registration.js';
-import { registerServalSheetsTools } from './mcp/registration/tool-handlers.js';
-import { TOOL_DEFINITIONS } from './mcp/registration/tool-definitions.js';
-import { createServerCapabilities, SERVER_INSTRUCTIONS } from './mcp/features-2025-11-25.js';
-import { createTaskAwareSamplingServer } from './mcp/sampling.js';
-import { validateToolCatalogConfiguration } from './mcp/tool-catalog.js';
+import { createAsyncOnce } from './server/async-once.js';
 import {
   startBackgroundTasks,
   registerSignalHandlers,
   onShutdown,
   logEnvironmentConfig,
 } from './startup/lifecycle.js';
-import { requestDeduplicator } from './utils/request-deduplication.js';
+import { initTelemetry } from './observability/otel-setup.js';
 import { registerWellKnownHandlers } from './server/well-known.js';
 import { initializeRbacManager } from './services/rbac-manager.js';
-import { getOrCreateSessionContextAsync } from './services/session-context.js';
+import { initializeBillingIntegration } from './services/billing-integration.js';
+import { buildBillingBootstrapConfig } from './server/billing-bootstrap-config.js';
 import { verifyToolIntegrity } from './security/tool-hash-registry.js';
-import {
-  buildMcpLoggingMessage,
-  consumeMcpLogRateLimit,
-  createMcpLogRateLimitState,
-  extractMcpLogEntry,
-  type McpLogRateLimitState,
-  shouldForwardMcpLog,
-} from './server-utils/logging-bridge-utils.js';
+import { registerHttpEnterpriseMiddleware } from './http-server/enterprise-middleware.js';
+import { getSharedHttpLoggingBridge } from './http-server/logging-bridge.js';
 import { registerHttpFoundationMiddleware } from './http-server/middleware.js';
+import { registerHttpRequestContextMiddleware } from './http-server/request-context-middleware.js';
 import { registerHttpGraphQlAndAdmin } from './http-server/graphql-admin.js';
 import { registerHttpObservabilityRoutes } from './http-server/routes-observability.js';
+import { prepareHttpRateLimiter } from './http-server/rate-limit-bootstrap.js';
+import { createHttpMcpServerInstance } from './http-server/runtime-factory.js';
 import {
   registerHttpTransportRoutes,
   type HttpTransportSession,
 } from './http-server/routes-transport.js';
 import { registerHttpWebhookRoutes } from './http-server/routes-webhooks.js';
+import { registerApiRoutes } from './http-server/routes-api.js';
 import { ConfigError } from './core/errors.js';
 
 export interface HttpServerOptions {
@@ -141,288 +79,8 @@ const DEFAULT_PORT = 3000;
 // Override with HOST=0.0.0.0 in production if external access needed
 const DEFAULT_HOST = '127.0.0.1';
 
-let httpLoggingBridgeInstalled = false;
-interface HttpLoggingSubscriber {
-  requestedMcpLogLevel: LoggingLevel;
-  forwardingMcpLog: boolean;
-  rateLimitState: McpLogRateLimitState;
-  server: McpServer;
-}
-
-const httpLoggingSubscribers = new Map<string, HttpLoggingSubscriber>();
-
-function installHttpLoggingBridge(): void {
-  if (httpLoggingBridgeInstalled) {
-    return;
-  }
-
-  httpLoggingBridgeInstalled = true;
-  const originalLog = logger.log.bind(logger);
-
-  logger.log = ((levelOrEntry: unknown, message?: unknown, ...meta: unknown[]) => {
-    const result = (originalLog as (...args: unknown[]) => unknown)(levelOrEntry, message, ...meta);
-
-    if (httpLoggingSubscribers.size === 0) {
-      return result;
-    }
-
-    const extracted = extractMcpLogEntry(levelOrEntry, message, meta);
-    if (!extracted) {
-      return result;
-    }
-
-    for (const subscriber of httpLoggingSubscribers.values()) {
-      if (subscriber.forwardingMcpLog) {
-        continue;
-      }
-
-      if (!shouldForwardMcpLog(extracted.level, subscriber.requestedMcpLogLevel)) {
-        continue;
-      }
-
-      if (!consumeMcpLogRateLimit(subscriber.rateLimitState)) {
-        continue;
-      }
-
-      subscriber.forwardingMcpLog = true;
-      void subscriber.server.server
-        .sendLoggingMessage(buildMcpLoggingMessage(extracted.level, extracted.text, extracted.data))
-        .catch(() => {
-          // Best-effort bridge: avoid recursive logging on notification failure.
-        })
-        .finally(() => {
-          subscriber.forwardingMcpLog = false;
-        });
-    }
-
-    return result;
-  }) as typeof logger.log;
-}
-
 // Monkey-patches removed: All schemas now use flattened z.object() pattern
 // which works natively with MCP SDK v1.25.x - no patches required!
-
-async function createMcpServerInstance(
-  googleToken?: string,
-  googleRefreshToken?: string,
-  sessionId?: string
-): Promise<{ mcpServer: McpServer; taskStore: TaskStoreAdapter; disposeRuntime: () => void }> {
-  const envConfig = getEnv();
-  validateToolCatalogConfiguration();
-  const costTrackingEnabled =
-    envConfig.ENABLE_COST_TRACKING || envConfig.ENABLE_BILLING_INTEGRATION;
-
-  // Create task store for SEP-1686 support - uses createTaskStore() for Redis support
-  const { createTaskStore } = await import('./core/task-store-factory.js');
-  const taskStore = await createTaskStore();
-
-  const mcpServer = new McpServer(
-    {
-      name: SERVER_INFO.name,
-      version: SERVER_INFO.version,
-      icons: SERVER_ICONS,
-    },
-    {
-      capabilities: createServerCapabilities(),
-      instructions: SERVER_INSTRUCTIONS,
-      taskStore,
-      taskMessageQueue: new InMemoryTaskMessageQueue(),
-    }
-  );
-
-  let handlers = null;
-  let googleClient: GoogleApiClient | null = null;
-  let context: HandlerContext | null = null;
-
-  if (googleToken) {
-    googleClient = await createGoogleApiClient({
-      accessToken: googleToken,
-      refreshToken: googleRefreshToken,
-    });
-
-    // Initialize Phase 4 advanced features (required for sheets_transaction, etc.)
-    initTransactionManager(googleClient);
-    initConflictDetector(googleClient);
-    initImpactAnalyzer(googleClient);
-    initValidationEngine(googleClient);
-
-    // Create SnapshotService for undo/revert operations
-    const snapshotService = new SnapshotService({ driveApi: googleClient.drive });
-
-    // Initialize all performance optimizations (batching, caching, merging, prefetching)
-    const { initializePerformanceOptimizations } = await import('./startup/performance-init.js');
-    const {
-      batchingSystem,
-      cachedSheetsApi,
-      requestMerger,
-      parallelExecutor,
-      prefetchPredictor,
-      accessPatternTracker,
-      queryOptimizer,
-    } = await initializePerformanceOptimizations(googleClient.sheets);
-
-    context = {
-      batchCompiler: new BatchCompiler({
-        rateLimiter: new RateLimiter(),
-        diffEngine: new DiffEngine({ sheetsApi: googleClient.sheets }),
-        policyEnforcer: new PolicyEnforcer(),
-        snapshotService,
-        sheetsApi: googleClient.sheets,
-        onProgress: (event) => {
-          // Send MCP progress notification over HTTP transport
-          void sendProgress(event.current, event.total, event.message);
-        },
-      }),
-      rangeResolver: new RangeResolver({ sheetsApi: googleClient.sheets }),
-      googleClient, // For authentication checks in handlers
-      batchingSystem, // Time-window batching system for reducing API calls
-      cachedSheetsApi, // ETag-based caching for reads (30-50% API savings)
-      requestMerger, // Phase 2: Merge overlapping read requests (20-40% API savings)
-      parallelExecutor, // Phase 2: Parallel batch execution (40% faster batch ops)
-      prefetchPredictor, // Phase 3: Predictive prefetching (200-500ms latency reduction)
-      accessPatternTracker, // Phase 3: Access pattern learning for smarter predictions
-      queryOptimizer, // Phase 3B: Adaptive query optimization (-25% avg latency)
-      snapshotService, // Pass to context for HistoryHandler undo/revert (Task 1.3)
-      ...(costTrackingEnabled ? { costTracker: getCostTracker() } : {}),
-      auth: {
-        // Use getters to always read live values from GoogleApiClient
-        // This ensures re-auth with broader scopes takes effect immediately
-        get hasElevatedAccess() {
-          return googleClient?.hasElevatedAccess ?? false;
-        },
-        get scopes() {
-          return googleClient?.scopes ?? [];
-        },
-      },
-      samplingServer: createTaskAwareSamplingServer(mcpServer.server),
-      elicitationServer: mcpServer.server,
-      server: mcpServer.server as HandlerMcpServer, // Narrow bridge for elicitation/sampling only
-      requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
-      ...(sessionId ? { sessionContext: await getOrCreateSessionContextAsync(sessionId) } : {}),
-      taskStore, // ISSUE-225: Pass taskStore so Task IDs are emitted via HTTP transport (SEP-1686)
-    };
-
-    handlers = createHandlers({
-      context,
-      sheetsApi: googleClient.sheets,
-      driveApi: googleClient.drive,
-    });
-  }
-
-  initializeBillingIntegration({
-    enabled: envConfig.ENABLE_BILLING_INTEGRATION,
-    stripeSecretKey: envConfig.STRIPE_SECRET_KEY,
-    webhookSecret: envConfig.STRIPE_WEBHOOK_SECRET,
-    currency: envConfig.BILLING_CURRENCY,
-    billingCycle: envConfig.BILLING_CYCLE,
-    autoInvoicing: envConfig.BILLING_AUTO_INVOICING,
-  });
-
-  const toolRegistration = await registerServalSheetsTools(mcpServer, handlers, { googleClient });
-  registerServalSheetsResources(mcpServer, googleClient);
-  registerServalSheetsPrompts(mcpServer);
-  await registerKnowledgeResources(mcpServer);
-
-  // Register operation history resources
-  registerHistoryResources(mcpServer);
-
-  // Register cache statistics resources
-  registerCacheResources(mcpServer);
-
-  // Register Phase 4 resources (only if Google client was initialized)
-  if (googleClient) {
-    registerTransactionResources(mcpServer);
-    registerConflictResources(mcpServer);
-    registerImpactResources(mcpServer);
-    registerValidationResources(mcpServer);
-    registerMetricsResources(mcpServer);
-  }
-
-  // Register MCP-native resources (Elicitation & Sampling)
-  registerConfirmResources(mcpServer);
-  registerAnalyzeResources(mcpServer);
-
-  // Register static reference resources
-  registerReferenceResources(mcpServer);
-
-  // Register schema resources for deferred loading (SERVAL_DEFER_SCHEMAS=true)
-  registerSchemaResources(mcpServer);
-
-  // Register cost dashboard resources (billing integration)
-  registerCostDashboardResources(mcpServer);
-
-  // Register discovery resources (requires Google client)
-  if (googleClient) {
-    registerDiscoveryResources(mcpServer);
-  }
-
-  // Register dynamic sheet discovery (requires Google client + context)
-  if (googleClient && context) {
-    registerSheetResources(mcpServer, context);
-  }
-
-  // Register guide, decision, examples, and pattern resources
-  registerGuideResources(mcpServer);
-  registerDecisionResources(mcpServer);
-  registerExamplesResources(mcpServer);
-  registerPatternResources(mcpServer);
-
-  // Register health resources
-  registerConnectionHealthResource(mcpServer);
-  registerRestartHealthResource(mcpServer);
-
-  // Register index and knowledge search resources
-  registerMasterIndexResource(mcpServer);
-  registerKnowledgeIndexResource(mcpServer);
-  registerKnowledgeSearchResource(mcpServer);
-
-  // Initialize resource change notifications
-  initializeResourceNotifications(mcpServer);
-  if (envConfig.ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS) {
-    resourceNotifications.syncToolList(
-      TOOL_DEFINITIONS.map((tool) => tool.name),
-      {
-        emitOnFirstSet: false,
-        reason: 'http transport resources initialized',
-      }
-    );
-  }
-
-  // Register logging handler
-  const loggingSubscriberId = sessionId ?? `http:${randomUUID()}`;
-  mcpServer.server.setRequestHandler(
-    SetLevelRequestSchema,
-    async (request: z.infer<typeof SetLevelRequestSchema>) => {
-      const level = request.params.level;
-      const existingSubscriber = httpLoggingSubscribers.get(loggingSubscriberId);
-      httpLoggingSubscribers.set(loggingSubscriberId, {
-        requestedMcpLogLevel: level,
-        forwardingMcpLog: existingSubscriber?.forwardingMcpLog ?? false,
-        rateLimitState: existingSubscriber?.rateLimitState ?? createMcpLogRateLimitState(),
-        server: mcpServer,
-      });
-      installHttpLoggingBridge();
-      const response = await handleLoggingSetLevel({ level });
-      logger.info('Log level changed via logging/setLevel', {
-        previousLevel: response.previousLevel,
-        newLevel: response.newLevel,
-      });
-      // OK: Explicit empty - MCP logging/setLevel returns empty object per protocol
-      return {};
-    }
-  );
-  logger.info('HTTP Server: Logging handler registered (logging/setLevel)');
-
-  return {
-    mcpServer,
-    taskStore,
-    disposeRuntime: () => {
-      teardownResourceNotifications(mcpServer);
-      httpLoggingSubscribers.delete(loggingSubscriberId);
-      toolRegistration.dispose();
-    },
-  };
-}
 
 /**
  * Create HTTP server with MCP transport
@@ -433,17 +91,11 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   stop: () => Promise<void> | undefined;
   sessions: unknown;
 } {
+  const httpLoggingBridge = getSharedHttpLoggingBridge();
   const envConfig = getEnv();
-  let toolIntegrityVerified = false;
-
-  const ensureToolIntegrityVerified = async (): Promise<void> => {
-    if (toolIntegrityVerified) {
-      return;
-    }
-
+  const ensureToolIntegrityVerified = createAsyncOnce(async () => {
     await verifyToolIntegrity();
-    toolIntegrityVerified = true;
-  };
+  });
 
   const configuredCorsOrigins = envConfig.CORS_ORIGINS.split(',')
     .map((origin) => origin.trim())
@@ -510,52 +162,39 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     });
   }
 
-  // SAML SSO provider (optional — enabled when SAML_ENTRY_POINT + SAML_CERT + JWT_SECRET set)
+  // SAML SSO provider (optional — enabled when SAML_ENTRY_POINT + SAML_CERT + SSO_JWT_SECRET set)
+  // SECURITY: node-forge (transitive via node-saml → xml-encryption) has CVE GHSA-cfm4-qjh2-4765
+  // (improper cryptographic signature verification allowing SAML assertion forgery).
+  // In production, SAML routes are disabled unless SAML_ACKNOWLEDGE_CVE_GHSA_cfm4=true is set.
   const samlProvider = createSamlProviderFromEnv();
   if (samlProvider) {
-    app.use(samlProvider.createRouter());
-    logger.info(
-      'HTTP Server: SAML SSO enabled (routes: /sso/login, /sso/callback, /sso/metadata, /sso/logout)'
-    );
+    if (
+      process.env['NODE_ENV'] === 'production' &&
+      process.env['SAML_ACKNOWLEDGE_CVE_GHSA_cfm4'] !== 'true'
+    ) {
+      logger.error(
+        'SAML SSO is disabled in production due to CVE GHSA-cfm4-qjh2-4765 in node-forge ' +
+          '(transitive dep via node-saml → xml-encryption). ' +
+          'To enable SAML in production, set SAML_ACKNOWLEDGE_CVE_GHSA_cfm4=true after ' +
+          'reviewing the CVE and confirming your threat model accepts the risk.'
+      );
+    } else {
+      app.use(samlProvider.createRouter());
+      logger.info(
+        'HTTP Server: SAML SSO enabled (routes: /sso/login, /sso/callback, /sso/metadata, /sso/logout)'
+      );
+    }
   }
 
-  // Per-user rate limiting with Redis (optional)
-  let userRateLimiter: UserRateLimiter | null = null;
-  const redisUrl = process.env['REDIS_URL'];
-
-  const rateLimiterReady = redisUrl
-    ? (async () => {
-        try {
-          const { createClient } = await import('redis');
-          const redis = createClient({ url: redisUrl });
-
-          redis.on('error', (err) => {
-            logger.error('Redis connection error', { error: err });
-          });
-
-          await redis.connect();
-
-          userRateLimiter = createUserRateLimiterFromEnv(redis);
-          logger.info('Per-user rate limiter initialized with Redis', {
-            redisUrl: redisUrl.replace(/:[^:]*@/, ':***@'), // Mask credentials
-          });
-
-          // SCALE-01: Wire Redis-backed session store when SESSION_STORE_TYPE=redis
-          if (process.env['SESSION_STORE_TYPE'] === 'redis') {
-            const { initSessionRedis } = await import('./services/session-context.js');
-            initSessionRedis(redis);
-            logger.info('Session store initialized with Redis backend (HTTP mode)');
-          }
-        } catch (error) {
-          logger.error('Failed to initialize Redis for rate limiting', { error });
-          logger.warn('Continuing without per-user rate limiting');
-        }
-      })()
-    : Promise.resolve();
-
-  if (!redisUrl) {
-    logger.debug('REDIS_URL not set, per-user rate limiting disabled');
-  }
+  const {
+    rateLimiterReady,
+    getUserRateLimiter,
+    middleware: perUserRateLimitMiddleware,
+  } = prepareHttpRateLimiter({
+    redisUrl: process.env['REDIS_URL'],
+    sessionStoreType: process.env['SESSION_STORE_TYPE'],
+    log: logger,
+  });
 
   // Initialize RBAC manager when RBAC middleware is enabled so built-in roles are loaded
   // before the first permission check.
@@ -566,177 +205,28 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     try {
       await initializeRbacManager();
       logger.info('RBAC manager initialized');
+      initializeBillingIntegration(buildBillingBootstrapConfig(envConfig));
     } catch (error) {
       logger.error('Failed to initialize RBAC manager', { error });
       throw error;
     }
   };
 
-  // Per-user rate limiting middleware (if Redis available)
-  app.use(async (req: Request, res: Response, next: NextFunction) => {
-    // Skip rate limiting for health checks
-    if (req.path.startsWith('/health')) {
-      return next();
-    }
-
-    if (!userRateLimiter) {
-      return next(); // No Redis, skip per-user limiting
-    }
-
-    try {
-      // Extract user ID from Authorization header
-      const authHeader = req.headers.authorization;
-      const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-
-      // Use token hash as user ID; for unauthenticated requests use per-IP key
-      // to prevent one client exhausting the shared anonymous quota
-      const anonymousKey = req.ip
-        ? `anon:${Buffer.from(req.ip).toString('base64').slice(0, 16)}`
-        : 'anon:unknown';
-      const userId = token
-        ? `user:${createHash('sha256').update(token).digest('hex').substring(0, 16)}`
-        : anonymousKey;
-
-      const limitCheck = await userRateLimiter.checkLimit(userId);
-
-      if (!limitCheck.allowed) {
-        const retryAfterSecs = Math.ceil((limitCheck.resetAt.getTime() - Date.now()) / 1000);
-        res.setHeader('Retry-After', retryAfterSecs.toString());
-        res.status(429).json({
-          error: 'RATE_LIMIT_EXCEEDED',
-          message: 'Per-user rate limit exceeded',
-          retryAfter: limitCheck.resetAt.toISOString(),
-          remaining: 0,
-          minuteUsage: limitCheck.minuteUsage,
-          hourUsage: limitCheck.hourUsage,
-        });
-        return;
-      }
-
-      // Add rate limit headers
-      res.setHeader('X-RateLimit-User-Remaining', limitCheck.remaining.toString());
-      res.setHeader('X-RateLimit-User-Reset', limitCheck.resetAt.toISOString());
-
-      next();
-    } catch (error) {
-      logger.error('Per-user rate limit check failed', { error });
-      res.status(503).json({
-        error: { code: 'SERVICE_UNAVAILABLE', message: 'Rate limiter temporarily unavailable' },
-      });
-      return;
-    }
-  });
+  app.use(perUserRateLimitMiddleware);
 
   // QuotaManager (src/services/quota-manager.ts) handles per-tenant business quota gates
   // (reads/writes/admin per month, configurable per tier). Differs from UserRateLimiter
   // (HTTP throughput). Wire after userRateLimiter when multi-tenant is enabled.
 
-  // Request ID middleware
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    const requestId = (req.headers['x-request-id'] as string | undefined) ?? randomUUID();
-    req.headers['x-request-id'] = requestId;
-    res.setHeader('X-Request-ID', requestId);
-    next();
-  });
+  registerHttpRequestContextMiddleware(app);
 
   // Enterprise middleware (all feature-flagged, default OFF)
   // Uses lazy loading: middleware modules are imported on first request to avoid
   // blocking startup, while maintaining correct middleware ordering.
-
-  // Tenant Isolation (must be before RBAC - tenant context needed for RBAC decisions)
-  if (envConfig.ENABLE_TENANT_ISOLATION) {
-    let tenantMw: Promise<typeof import('./middleware/tenant-isolation.js')> | null = null;
-    let tenantIsolationHandler:
-      | ((req: Request, res: Response, next: NextFunction) => Promise<void> | void)
-      | null = null;
-    let spreadsheetAccessHandler:
-      | ((req: Request, res: Response, next: NextFunction) => Promise<void> | void)
-      | null = null;
-
-    app.use((req: Request, res: Response, next: NextFunction) => {
-      if (!tenantMw) {
-        tenantMw = import('./middleware/tenant-isolation.js');
-        logger.info('HTTP Server: Tenant isolation middleware enabled');
-      }
-      void tenantMw
-        .then((mod) => {
-          tenantIsolationHandler ??= mod.tenantIsolationMiddleware();
-          spreadsheetAccessHandler ??= mod.validateSpreadsheetAccess();
-
-          tenantIsolationHandler(req, res, (error?: unknown) => {
-            if (error) {
-              next(error);
-              return;
-            }
-            spreadsheetAccessHandler!(req, res, next);
-          });
-        })
-        .catch(next);
-    });
-  }
-
-  // RBAC (Role-Based Access Control)
-  if (envConfig.ENABLE_RBAC) {
-    let rbacMw: Promise<typeof import('./middleware/rbac-middleware.js')> | null = null;
-    app.use((req: Request, res: Response, next: NextFunction) => {
-      if (!rbacMw) {
-        rbacMw = import('./middleware/rbac-middleware.js');
-        logger.info('HTTP Server: RBAC middleware enabled');
-      }
-      void rbacMw
-        .then((mod) => {
-          mod.rbacMiddleware()(req, res, next);
-        })
-        .catch(next);
-    });
-  }
-
-  // W3C Trace Context middleware (distributed tracing)
-  // Spec: https://www.w3.org/TR/trace-context/
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    const incomingTraceparent = req.header('traceparent');
-
-    let traceId: string;
-    let parentId: string;
-
-    if (incomingTraceparent) {
-      // Parse: version-traceId-parentId-flags (e.g., "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
-      // Validate hex format strictly to prevent log injection (ISSUE-057)
-      const parts = incomingTraceparent.split('-');
-      const isValidTraceId = /^[0-9a-f]{32}$/.test(parts[1] ?? '');
-      const isValidParentId = /^[0-9a-f]{16}$/.test(parts[2] ?? '');
-      if (parts.length === 4 && parts[0] === '00' && isValidTraceId && isValidParentId) {
-        traceId = parts[1]!; // 32 hex chars (validated)
-        parentId = parts[2]!; // 16 hex chars (validated)
-      } else {
-        // Invalid format, generate new trace
-        traceId = randomBytes(16).toString('hex');
-        parentId = randomBytes(8).toString('hex');
-        logger.warn('Invalid traceparent header, generating new trace', {
-          traceparent: incomingTraceparent.slice(0, 100), // truncate to prevent log flooding
-        });
-      }
-    } else {
-      // No incoming trace, generate new one
-      traceId = randomBytes(16).toString('hex');
-      parentId = randomBytes(8).toString('hex');
-    }
-
-    // Generate span ID for this service
-    const spanId = randomBytes(8).toString('hex');
-
-    // Set traceparent for downstream services
-    // Format: version-traceId-spanId-flags
-    // flags: 01 = sampled (always trace for now)
-    const traceparent = `00-${traceId}-${spanId}-01`;
-    res.setHeader('traceparent', traceparent);
-
-    // Store in request for logging (store on headers for easy access)
-    req.headers['x-trace-id'] = traceId;
-    req.headers['x-span-id'] = spanId;
-    req.headers['x-parent-span-id'] = parentId;
-
-    next();
+  registerHttpEnterpriseMiddleware(app, {
+    enableTenantIsolation: envConfig.ENABLE_TENANT_ISOLATION,
+    enableRbac: envConfig.ENABLE_RBAC,
+    log: logger,
   });
 
   // Well-known discovery endpoints (RFC 8615)
@@ -756,11 +246,23 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     port,
     legacySseEnabled,
     getSessionCount: () => sessions.size,
-    getUserRateLimiter: () => userRateLimiter,
+    getUserRateLimiter,
   });
 
   // Store active sessions with security binding
   const sessions = new Map<string, HttpTransportSession>();
+  const createMcpServerInstance = async (
+    googleToken?: string,
+    googleRefreshToken?: string,
+    sessionId?: string
+  ) =>
+    createHttpMcpServerInstance({
+      googleToken,
+      googleRefreshToken,
+      sessionId,
+      subscribers: httpLoggingBridge.subscribers,
+      installLoggingBridge: httpLoggingBridge.installLoggingBridge,
+    });
 
   const { sessionCleanupInterval, cleanupSessions } = registerHttpTransportRoutes({
     app,
@@ -778,6 +280,12 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   });
 
   registerHttpWebhookRoutes(app);
+
+  // =SERVAL() formula evaluation API
+  registerApiRoutes(app, {
+    samplingServer: null, // Wired at session creation; HTTP route uses standalone sampling
+  });
+  logger.info('HTTP Server: =SERVAL() API enabled (POST /api/formula-eval)');
 
   // Error handler
   app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
@@ -856,7 +364,8 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   return {
     app,
     start: async () => {
-      await ensureToolIntegrityVerified();
+      await initTelemetry();
+      await ensureToolIntegrityVerified.run();
       await Promise.all([rateLimiterReady, initializeRbac()]);
       await new Promise<void>((resolve, reject) => {
         httpServer = app.listen(port, host);
@@ -969,6 +478,7 @@ export async function startRemoteServer(options: { port?: number } = {}): Promis
     googleClientSecret: env.GOOGLE_CLIENT_SECRET!,
     accessTokenTtl: env.ACCESS_TOKEN_TTL,
     refreshTokenTtl: env.REFRESH_TOKEN_TTL,
+    resourceIndicator: env.OAUTH_RESOURCE_INDICATOR, // RFC 8707 audience claim
   };
 
   const server = createHttpServer({
