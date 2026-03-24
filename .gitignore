@@ -285,3 +285,11 @@ src/TOOL_MANIFEST.ts
 # Cleanup plan artifacts
 PROJECT_MANIFEST.html
 CLEANUP_PLAN.html
+
+# Deprecated experimental scripts (auto-agent pipeline, superseded by audit-gate.sh)
+scripts/auto-improve.ts
+scripts/auto-probe.ts
+scripts/improvement-synthesizer.ts
+scripts/knowledge-enrichment.ts
+scripts/validate-mcp-protocol.ts
+scripts/gates-trend-report.mjs
