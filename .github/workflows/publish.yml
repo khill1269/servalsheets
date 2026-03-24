@@ -22,10 +22,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
@@ -56,7 +56,7 @@ jobs:
 
       - name: Attest package provenance
         if: ${{ github.event_name == 'release' }}
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
           subject-path: ${{ steps.pack.outputs.tarball }}
 
@@ -79,14 +79,14 @@ jobs:
 
       - name: Attest SBOM
         if: ${{ github.event_name == 'release' }}
-        uses: actions/attest-sbom@v3
+        uses: actions/attest-sbom@51e74621a501c89df81fc1391c5a8f4cfc9fab2f # v3
         with:
           subject-path: ${{ steps.pack.outputs.tarball }}
           sbom-path: sbom.json
 
       - name: Install cosign
         if: ${{ github.event_name == 'release' }}
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@f713795cb21599bc4e5c4b58cbad1da852d7eeb9 # v3
         with:
           cosign-release: 'v2.4.1'
 

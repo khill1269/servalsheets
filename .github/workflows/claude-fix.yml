@@ -21,13 +21,13 @@ jobs:
       pull-requests: write
       issues: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 1
 
       # Node.js required so Claude can run npm commands (verify:safe, schema:commit, test:fast)
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -37,7 +37,7 @@ jobs:
 
       - name: Check failure type (skip lint-only failures)
         id: failure-type
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
             const jobs = await github.rest.actions.listJobsForWorkflowRun({
@@ -60,7 +60,7 @@ jobs:
           echo "Skipping auto-fix: only lint/format jobs failed (not worth LLM cost)"
           echo "Failed jobs were lint/format-only. Fix manually." >> $GITHUB_STEP_SUMMARY
 
-      - uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@d59651bd82c48d81756854675ce4fa4d69722200 # v1
         if: steps.failure-type.outputs.lint_only != 'true'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

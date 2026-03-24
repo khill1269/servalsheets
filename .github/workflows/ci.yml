@@ -28,16 +28,16 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
       - name: Install dependencies with retry
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -45,7 +45,7 @@ jobs:
           command: npm ci
 
       - name: Setup Turbo cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-${{ github.sha }}
@@ -53,7 +53,7 @@ jobs:
             ${{ runner.os }}-turbo-
 
       - name: Cache TypeScript build info
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             .tsbuildinfo
@@ -63,7 +63,7 @@ jobs:
             ${{ runner.os }}-tsbuildinfo-
 
       - name: Cache dist folder
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: dist
           key: ${{ runner.os }}-dist-${{ hashFiles('src/**/*.ts', 'tsconfig*.json', 'package-lock.json') }}
@@ -143,9 +143,15 @@ jobs:
       - name: Format check
         run: npm run format:check
 
-  # Fast unit tests (no sharding needed)
+      - name: Check JWT scope (security - no jwt.sign outside auth/)
+        run: npm run check:jwt-scope
+
+      - name: Check hardcoded secrets (security - no committed credentials)
+        run: npm run check:secrets
+
+  # Fast unit tests with Vitest sharding
   test-fast:
-    name: Fast Tests (Node ${{ matrix.node-version }})
+    name: Fast Tests (Node ${{ matrix.node-version }}, Shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     needs: quick-checks
     timeout-minutes: 10
@@ -154,19 +160,20 @@ jobs:
       fail-fast: false
       matrix:
         node-version: ['20', '22']
+        shard: [1, 2, 3, 4]
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
       - name: Restore dependencies cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             node_modules
@@ -176,20 +183,20 @@ jobs:
             ${{ runner.os }}-deps-
 
       - name: Install dependencies with retry
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
           command: npm ci
 
-      - name: Run fast tests with retry
-        uses: nick-fields/retry@v3
+      - name: Run fast tests with retry (shard ${{ matrix.shard }}/4)
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
           timeout_minutes: 8
           max_attempts: 2
           retry_wait_seconds: 10
-          command: npm run test:fast
+          command: npx vitest run --shard=${{ matrix.shard }}/4
 
   # Parallel test execution with sharding (slower integration tests)
   test-integration:
@@ -206,16 +213,16 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: '20'
           cache: 'npm'
 
       - name: Restore dependencies cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             node_modules
@@ -225,7 +232,7 @@ jobs:
             ${{ runner.os }}-deps-
 
       - name: Install dependencies with retry
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -233,7 +240,7 @@ jobs:
           command: npm ci
 
       - name: Setup Turbo cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-test-${{ matrix.shard }}-${{ github.sha }}
@@ -243,7 +250,7 @@ jobs:
             ${{ runner.os }}-turbo-
 
       - name: Run integration tests with retry (shard ${{ matrix.shard }}/${{ matrix.total_shards }})
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
           timeout_minutes: 20
           max_attempts: 2
@@ -258,16 +265,16 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: '20'
           cache: 'npm'
 
       - name: Install dependencies with retry
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -275,7 +282,7 @@ jobs:
           command: npm ci
 
       - name: Run MCP HTTP task contract checks
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
           timeout_minutes: 10
           max_attempts: 2
@@ -290,10 +297,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -302,7 +309,7 @@ jobs:
         run: npm ci
 
       - name: Setup Turbo cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-build-${{ github.sha }}
@@ -311,7 +318,7 @@ jobs:
             ${{ runner.os }}-turbo-
 
       - name: Cache TypeScript build info
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             .tsbuildinfo
@@ -322,7 +329,7 @@ jobs:
             ${{ runner.os }}-tsbuildinfo-
 
       - name: Cache dist folder
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: dist
           key: ${{ runner.os }}-dist-build-${{ hashFiles('src/**/*.ts', 'tsconfig*.json', 'package-lock.json') }}
@@ -345,16 +352,38 @@ jobs:
       - name: Check package can be packed
         run: npm pack --dry-run
 
+  mutation-testing:
+    name: Mutation Testing (Critical Paths)
+    runs-on: ubuntu-latest
+    needs: [test-fast]
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run mutation tests on critical paths
+        run: npx stryker run stryker.critical.conf.mjs
+
   security:
     name: Security Audit
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: '20'
           cache: 'npm'
