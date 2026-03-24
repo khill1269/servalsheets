@@ -29,7 +29,13 @@ import { FredConnector } from './fred.js';
 import { AlphaVantageConnector } from './alpha-vantage.js';
 import { FmpConnector } from './fmp.js';
 import { PolygonConnector } from './polygon.js';
+import { GmailConnector } from './gmail-connector.js';
+import { DriveConnector } from './drive-connector.js';
+import { DocsConnector } from './docs-connector.js';
 import { GenericRestConnector } from './rest-generic.js';
+import { SecEdgarConnector } from './sec-edgar-connector.js';
+import { WorldBankConnector } from './world-bank-connector.js';
+import { OpenFigiConnector } from './openfigi-connector.js';
 
 // ============================================================================
 // Persistent Configuration Store
@@ -1257,6 +1263,12 @@ export function registerBuiltinConnectors(manager: ConnectorManager = connectorM
     new AlphaVantageConnector(),
     new FmpConnector(),
     new PolygonConnector(),
+    new GmailConnector(),
+    new DriveConnector(),
+    new DocsConnector(),
+    new SecEdgarConnector(),
+    new WorldBankConnector(),
+    new OpenFigiConnector(),
     createDefaultRestConnector(),
   ];
 
