@@ -45,6 +45,7 @@ Thumbs.db
 *.json
 !package.json
 !package-lock.json
+!manifest.json
 !tsconfig.json
 !tsconfig.build.json
 !tsconfig.eslint.json
@@ -59,12 +60,12 @@ Thumbs.db
 !vitest.config.ts
 !tests/config/test-credentials.example.json
 !claude_desktop_config.example.json
-!claude-desktop-config.json
 service-account*.json
 credentials*.json
 gha-creds-*.json
 tests/config/test-credentials.json
 claude_desktop_config.json
+claude-desktop-config.json
 .secrets/
 *.tokens.enc
 *.enc
@@ -268,3 +269,19 @@ servalsheets-mega-prompt.md
 # Companion server runtime artifacts (M-18)
 tools/test-intelligence-server/test-intelligence.db
 tools/test-intelligence-server/*.db
+
+# Runtime/ephemeral directories (structural cleanup — Phase 0)
+.data/
+.serval-data/
+.tmp/
+.vitest-reports/
+artifacts/
+benchmark/
+
+# Untracked generated reference files (not runtime code)
+src/ARCHITECTURE_MAP.ts
+src/TOOL_MANIFEST.ts
+
+# Cleanup plan artifacts
+PROJECT_MANIFEST.html
+CLEANUP_PLAN.html
