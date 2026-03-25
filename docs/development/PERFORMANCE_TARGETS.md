@@ -3,7 +3,7 @@ title: ServalSheets Performance Targets (SLOs)
 category: development
 last_updated: 2026-01-31
 description: 'Last Updated: 2026-01-25'
-version: 1.6.0
+version: 2.0.0
 tags: [performance, optimization]
 ---
 

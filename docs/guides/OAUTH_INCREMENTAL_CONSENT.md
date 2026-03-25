@@ -3,7 +3,7 @@ title: OAuth Incremental Consent Guide
 category: guide
 last_updated: 2026-01-31
 description: ServalSheets implements OAuth 2.0 Incremental Authorization, allowing users to grant minimal permissions initially and additional scopes only when spe
-version: 1.6.0
+version: 2.0.0
 tags: [oauth, authentication]
 audience: user
 difficulty: intermediate
@@ -159,7 +159,7 @@ ServalSheets organizes scopes into four categories:
 🔒 Requires `drive.appdata`:
 
 - `sheets_templates.create` - Save new template
-- `sheets_templates.save` - Update existing template
+- `sheets_templates.update` - Update existing template
 - `sheets_templates.delete` - Remove template
 
 **Why?** Templates are stored in your Drive app data folder, isolated from other files.
@@ -170,9 +170,9 @@ ServalSheets organizes scopes into four categories:
 
 - `sheets_collaborate.comment_add` - Add comments
 - `sheets_collaborate.comment_list` - List comment threads
-- `sheets_collaborate.share` - Manage permissions
-- `sheets_collaborate.version_list` - List version history
-- `sheets_collaborate.version_restore` - Restore previous versions
+- `sheets_collaborate.share_add` / `share_update` / `share_remove` - Manage permissions
+- `sheets_collaborate.version_list_revisions` - List version history
+- `sheets_collaborate.version_restore_revision` - Restore previous versions
 
 **Why?** Comments and sharing use the Drive API, not the Sheets API.
 
@@ -180,7 +180,7 @@ ServalSheets organizes scopes into four categories:
 
 🔒 Requires `bigquery`:
 
-- `sheets_bigquery.export` - Export to BigQuery table
+- `sheets_bigquery.export_to_bigquery` - Export to BigQuery table
 
 **Why?** Writing to BigQuery requires explicit BigQuery authorization.
 
@@ -188,7 +188,7 @@ ServalSheets organizes scopes into four categories:
 
 🔒 Requires `script.projects`:
 
-- `sheets_appsscript.create_project` - Create Apps Script project
+- `sheets_appsscript.create` - Create Apps Script project
 - `sheets_appsscript.deploy` - Deploy script as add-on
 
 **Why?** Creating and deploying scripts requires Apps Script project permissions.

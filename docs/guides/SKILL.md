@@ -3,7 +3,7 @@ title: ServalSheets Skill Guide for Claude
 category: guide
 last_updated: 2026-03-11
 description: This guide helps Claude (and other AI assistants) use ServalSheets MCP server effectively.
-version: 1.7.0
+version: 2.0.0
 tags: [sheets]
 audience: user
 difficulty: intermediate

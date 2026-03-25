@@ -3,7 +3,7 @@ title: Google Sheets API v4 → ServalSheets MCP Compliance Audit
 category: general
 last_updated: 2026-02-04
 description: 'Updated: February 4, 2026'
-version: 1.6.0
+version: 2.0.0
 tags: [api, mcp, sheets]
 ---
 
@@ -274,7 +274,7 @@ tags: [api, mcp, sheets]
 
 ```typescript
 capabilities: {
-  tools: { enabled: true },          // ✅ 25 tools, 402 actions
+  tools: { enabled: true },          // ✅ 25 tools, 407 actions
   resources: { enabled: true },      // ✅ URI templates + knowledge
   prompts: { enabled: true },        // ✅ 6 guided workflows
   completions: { enabled: true },    // ✅ Argument autocompletion
@@ -298,7 +298,7 @@ capabilities: {
 
 ## Part 5: ServalSheets Tool Summary
 
-### 5.1 Tools by Category (25 tools, 402 actions)
+### 5.1 Tools by Category (25 tools, 407 actions)
 
 | Tool                 | Actions | Google API         | Category                         |
 | -------------------- | ------- | ------------------ | -------------------------------- |
@@ -326,7 +326,7 @@ capabilities: {
 | Sheets API v4 | 50+ batchUpdate types | 140+ mapped actions  | **~95%**  |
 | Values API    | 10 methods            | 7 actions (+ batch)  | **100%**  |
 | Drive API v3  | 14 endpoints used     | 28 actions           | **100%**  |
-| **Total**     | 74+ API operations    | 402 actions          | **>100%** |
+| **Total**     | 74+ API operations    | 407 actions          | **>100%** |
 
 ---
 
@@ -419,8 +419,8 @@ src/core/request-builder.ts (1544 lines)
    - Pattern: Add `?? undefined` for null coalescing
 
 2. **Update Documentation**
-   - CLAUDE.md shows 25 tools/402 actions
-   - Actual: 25 tools/402 actions
+   - CLAUDE.md shows 25 tools/407 actions
+   - Actual: 25 tools/407 actions
 
 ### 8.2 Future Enhancements (Optional)
 
@@ -451,7 +451,7 @@ src/core/request-builder.ts (1544 lines)
 
 ```bash
 # npm run test:fast — 2654/2654 passing (2026-03-15)
-# npm run validate:alignment — Schema: 25 tools, 402 actions match handler cases
+# npm run validate:alignment — Schema: 25 tools, 407 actions match handler cases
 ```
 
-Schema-Handler Alignment: 25/25 tools aligned (25 tools, 402 actions each with matching handler switch cases).
+Schema-Handler Alignment: 25/25 tools aligned (25 tools, 407 actions each with matching handler switch cases).

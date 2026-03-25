@@ -3,7 +3,7 @@ title: ServalSheets Metrics Reference
 category: runbook
 last_updated: 2026-01-31
 description: Complete reference for all Prometheus metrics exposed by ServalSheets MCP Server.
-version: 1.6.0
+version: 2.0.0
 tags: [prometheus, grafana]
 estimated_time: 15-30 minutes
 ---

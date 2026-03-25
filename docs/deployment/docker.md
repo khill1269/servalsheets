@@ -1,9 +1,9 @@
 ---
 title: Docker Deployment
 category: general
-last_updated: 2026-01-31
+last_updated: 2026-03-24
 description: Deploy ServalSheets using Docker for quick setup and easy management.
-version: 1.6.0
+version: 2.0.0
 tags: [deployment, docker, kubernetes]
 ---
 
@@ -11,10 +11,14 @@ tags: [deployment, docker, kubernetes]
 
 Deploy ServalSheets using Docker for quick setup and easy management.
 
+This guide is for the hosted HTTP deployment surface. For local Claude Desktop
+stdio setup, use [`CLAUDE_DESKTOP_SETUP.md`](../guides/CLAUDE_DESKTOP_SETUP.md).
+
 ## Prerequisites
 
 - Docker 20.10+
-- Google service account JSON file
+- Node 20+ compatible container image
+- Google service account JSON file or hosted OAuth credentials
 
 ## Quick Start
 
@@ -85,6 +89,10 @@ docker-compose up -d
 | `GOOGLE_APPLICATION_CREDENTIALS` | Yes      | -       | Path to service account       |
 | `LOG_LEVEL`                      | No       | `info`  | Log verbosity                 |
 | `RATE_LIMIT_MAX_REQUESTS`        | No       | `100`   | Max requests per window       |
+
+For hosted OAuth-based connector deployments, also configure the callback and
+allowlist settings described in
+[`OAUTH_USER_SETUP.md`](../guides/OAUTH_USER_SETUP.md).
 
 ## Health Check
 

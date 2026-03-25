@@ -3,7 +3,7 @@ title: Backup and Restore Procedures
 category: runbook
 last_updated: 2026-01-31
 description: ServalSheets backup and restore procedures for production deployments. This guide covers data persistence, session state, and configuration backups.
-version: 1.6.0
+version: 2.0.0
 tags: [prometheus, docker, kubernetes]
 estimated_time: 15-30 minutes
 ---

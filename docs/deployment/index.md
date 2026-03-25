@@ -1,15 +1,17 @@
 ---
 title: Deployment Overview
 category: general
-last_updated: 2026-03-17
+last_updated: 2026-03-24
 description: ServalSheets supports multiple deployment options from development to enterprise production.
-version: 1.7.0
+version: 2.0.0
 tags: [deployment, sheets, prometheus, docker, kubernetes]
 ---
 
 # Deployment Overview
 
 ServalSheets supports multiple deployment options from development to enterprise production.
+
+Claude Desktop uses the local STDIO transport. The deployment options below are for hosted HTTP deployments and hybrid remote-executor scenarios.
 
 ## Deployment Options
 
@@ -52,6 +54,10 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
+This local config is only for stdio servers running on your machine. Hosted
+ServalSheets remote connectors should be added through Claude's connector UI,
+not through `claude_desktop_config.json`.
+
 ## Architecture
 
 ```
@@ -91,12 +97,14 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | `OAUTH_SCOPE_MODE`               |          | Explicit scope override: `full`, `standard`, `minimal`, `readonly` |
 | `LOG_LEVEL`                      |          | `debug`, `info`, `warn`, `error`                                   |
 | `REDIS_URL`                      |          | Redis URL for HA sessions + Streamable HTTP resumability           |
+| `MCP_REMOTE_EXECUTOR_URL`        |          | Optional hosted failover target for allowlisted tools              |
+| `MCP_REMOTE_EXECUTOR_TOOLS`      |          | Comma-separated allowlist for hosted failover                      |
 
 ### OAuth Scope Modes
 
 ServalSheets uses deployment-aware OAuth scopes:
 
-**Self-Hosted (Default)** - All 403 actions work:
+**Self-Hosted (Default)** - Full scope mode exposes all 407 actions:
 
 ```bash
 # No configuration needed - defaults to full scopes
@@ -119,6 +127,17 @@ docker run -d \
 - BigQuery integration (sheets_bigquery)
 - Apps Script automation (sheets_appsscript)
 - Webhook notifications (sheets_webhook)
+
+### Optional Hosted Failover
+
+Hosted failover stays off unless both of these are set:
+
+```bash
+export MCP_REMOTE_EXECUTOR_URL=https://example.com/mcp
+export MCP_REMOTE_EXECUTOR_TOOLS=sheets_compute,sheets_analyze
+```
+
+Setting only the URL does not enable the remote executor path.
 
 ## Health Checks
 

@@ -1,3 +1,9 @@
+---
+title: Codebase Full Audit
+date: 2026-03-24
+status: active
+---
+
 # ServalSheets — Full Codebase Audit Report
 
 > **Generated:** 2026-03-22 | **Scope:** Complete file mapping, architecture trace, AI-readability analysis, restructuring proposals

@@ -3,7 +3,7 @@ title: Adaptive Batch Window User Guide
 category: guide
 last_updated: 2026-01-31
 description: The adaptive batch window is enabled by default in ServalSheets. No configuration is required to benefit from it.
-version: 1.6.0
+version: 2.0.0
 tags: [sheets]
 audience: user
 difficulty: intermediate

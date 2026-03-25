@@ -1,3 +1,9 @@
+---
+title: MCP Startup Analysis
+date: 2026-03-24
+status: active
+---
+
 # ServalSheets MCP Startup Analysis & Compliance Audit
 
 > **Generated:** 2026-03-17 via live STDIO probe against ServalSheets v1.7.0
@@ -122,7 +128,7 @@ All 25 tools registered. Total payload: **2,541 KB** (dominates startup).
 
 | Tool | Structure | Actions Found | Expected | Status |
 |------|-----------|---------------|----------|--------|
-| 23 tools | oneOf discriminated union | matches | matches | PASS |
+| 25 tools | oneOf discriminated union | matches | matches | PASS |
 | sheets_collaborate | **flat z.object** + action enum | 40 | 40 | PASS (degraded) |
 | sheets_federation | **flat z.object** + action enum | 4 | 4 | PASS (degraded) |
 | sheets_webhook | oneOf (filtered) | 4 | 10 | PASS (6 hidden: Redis absent) |
@@ -329,7 +335,7 @@ The 43,900-character (737-line) instructions payload is well-structured and comp
 | I-1 | All 25 schemas use `$schema: draft/2020-12` — consistent and modern. No Zod artifacts leak through. |
 | I-2 | The `x-servalsheets` extension is a non-standard JSON Schema extension but is **fully MCP-compliant** — the spec allows `x-` vendor extensions in JSON Schema. LLM clients may not read these hints automatically, but they serve as supplementary guidance. |
 | I-3 | **Webhook filtering is correct.** 6 Redis-dependent actions are hidden when Redis is absent, and 4 non-Redis actions remain visible. The original audit finding L-1 about "9 hidden" was incorrect — actions `get_change_history`, `configure_notifications`, `get_notification_config` simply don't exist in the webhook schema. No fix needed. |
-| I-4 | **MCP spec recommends flat schemas over oneOf.** The spec states: *"Keep tool schemas as flat as possible. Deeply nested structures increase the token count and cognitive load for the LLM."* The collaborate and federation flat designs are actually the recommended approach. The MCP TypeScript SDK also has a known bug ([#1643](https://github.com/modelcontextprotocol/typescript-sdk/issues/1643)) where `z.discriminatedUnion()` schemas are silently dropped — ServalSheets already works around this for the 23 tools that use oneOf by converting via custom `toJsonSchema()`. |
+| I-4 | **MCP spec recommends flat schemas over oneOf.** The spec states: *"Keep tool schemas as flat as possible. Deeply nested structures increase the token count and cognitive load for the LLM."* The collaborate and federation flat designs are actually the recommended approach. The MCP TypeScript SDK also has a known bug ([#1643](https://github.com/modelcontextprotocol/typescript-sdk/issues/1643)) where `z.discriminatedUnion()` schemas are silently dropped — ServalSheets already works around this for the 25 tools that use oneOf by converting via custom `toJsonSchema()`. |
 
 ---
 

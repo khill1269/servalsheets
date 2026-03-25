@@ -3,7 +3,7 @@ title: ServalSheets Test Patterns
 category: development
 last_updated: 2026-01-31
 description: 'Created: 2026-01-09'
-version: 1.6.0
+version: 2.0.0
 tags: [testing, sheets]
 ---
 

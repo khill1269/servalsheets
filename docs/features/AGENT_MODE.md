@@ -1,3 +1,9 @@
+---
+title: Agent Mode
+date: 2026-03-24
+status: active
+---
+
 # Agent Mode: Single-Call Multi-Step Workflows
 
 ## Overview
@@ -23,6 +29,7 @@ LLM Call 2: "Now creating chart"
 ```
 
 Each action requires:
+
 - LLM inference latency (~2-5s per call)
 - Token encoding/decoding overhead
 - Context re-establishment (LLM re-reads spreadsheet state)
@@ -38,7 +45,7 @@ ServalSheets compiles all steps into a single atomic operation:
 User asks: "Add a profit margin column and create a chart"
 ↓
 LLM Call 1 (ONLY): "Plan the workflow"
-  → sheets_agent.compile_plan()
+  → sheets_agent.plan()
   → Compiler builds batchUpdate with:
       - Insert column E with header "Profit Margin"
       - Write formula to E2:E1000
@@ -48,7 +55,7 @@ LLM Call 1 (ONLY): "Plan the workflow"
   ↓
 Plan compiled: 47 Google API operations → 1 batchUpdate call
   ↓
-sheets_agent.execute_plan()
+sheets_agent.execute()
   → Single Google Sheets API call (batchUpdate)
   ↓
 Return complete result in one response
@@ -91,7 +98,7 @@ The LLM generates a structured plan without executing:
 }
 ```
 
-Plans are compiled via `sheets_agent.compile_plan()` with optional AI validation.
+Plans are compiled via `sheets_agent.plan()` with optional AI validation.
 
 ### Phase 2: Intent Batching
 
@@ -115,7 +122,7 @@ Output: 1 batchUpdate call (47 operations) instead of 16 separate API calls
 All operations execute atomically:
 
 ```typescript
-// sheets_agent.execute_plan()
+// sheets_agent.execute()
 → Create snapshot (backup before any changes)
 → Execute batchUpdate (all-or-nothing)
 → Log transaction in WAL
@@ -128,9 +135,9 @@ If any operation fails, the transaction rolls back and the snapshot is available
 
 | Action         | Purpose                                                                | Input                                       | Output                                       |
 | -------------- | ---------------------------------------------------------------------- | ------------------------------------------- | -------------------------------------------- |
-| `compile_plan` | Analyze workflow plan and detect optimization opportunities            | goal: string, context?: object              | compiled: Plan, estimatedApiCalls: number    |
-| `execute_plan` | Run pre-compiled plan atomically with snapshot protection              | planId: string, mode: 'dry_run' \| 'execute' | results: StepResult[], summary: ExecutionLog |
-| `resume_plan`  | Resume interrupted plan from last successful step (checkpoint support) | planId: string, fromStepId?: string         | results: StepResult[]                        |
+| `plan`         | Analyze a workflow goal and return a multi-step execution plan         | description: string (`goal` alias accepted), context?: string | planId: string, steps: PlanStep[]            |
+| `execute`      | Run a pre-compiled plan autonomously with optional dry-run semantics   | planId: string, dryRun?: boolean            | results: StepResult[], status: string        |
+| `resume`       | Resume an interrupted or paused plan                                   | planId: string, fromStepId?: string         | results: StepResult[]                        |
 
 ## Example Workflow: Monthly Budget Reconciliation
 
@@ -148,10 +155,12 @@ Step 8: Generate chart showing variance by category
 ```
 
 **Execution time:**
+
 - Round-trip architecture: 8 × 4s = **32 seconds** (8 LLM calls)
 - ServalSheets single-call: **2 seconds total** (compile 1.2s, execute 0.8s)
 
 **API calls:**
+
 - Round-trip: 8 API calls (1 per step)
 - ServalSheets: 1 API call (all batched)
 
@@ -163,7 +172,7 @@ Plans are stored in a Write-Ahead Log (WAL) for durability:
 // Even if execution interrupted (e.g., network failure mid-batchUpdate):
 → Checkpoint created before batchUpdate
 → batchUpdate fails at operation 23/47
-→ sheets_agent.resume_plan() recovers from checkpoint
+→ sheets_agent.resume() recovers from checkpoint
 → Resume execution from operation 24 (skip already-applied ops)
 ```
 
@@ -174,7 +183,7 @@ This guarantees no partial execution or data inconsistency.
 Before executing destructive operations, a snapshot is automatically created:
 
 ```typescript
-// sheets_agent.execute_plan({ plan, mode: 'execute' })
+// sheets_agent.execute({ planId, dryRun: false })
 → Check if plan modifies >50 rows
 → If yes: createSnapshot() (creates hidden backup sheet)
 → Execute plan
@@ -205,6 +214,7 @@ ENABLE_WAL_PERSISTENCE=true         # Enable transaction WAL
 ```
 
 **Performance targets:**
+
 - Plan compilation: <1.5s for typical workflows
 - Single batchUpdate execution: <800ms (50 operations)
 - Total workflow latency: ~2s (vs. 30-50s round-trip)
@@ -214,7 +224,7 @@ ENABLE_WAL_PERSISTENCE=true         # Enable transaction WAL
 For complex workflows, ServalSheets can use MCP Sampling to validate the plan before execution:
 
 ```typescript
-// sheets_agent.execute_plan({ plan, validateWith: 'sampling' })
+// sheets_agent.execute({ planId, dryRun: false })
 → Send plan + spreadsheet context to MCP Sampling server
 → AI validates: "This plan looks good; variance threshold makes sense"
 → Execute with high confidence
@@ -225,12 +235,14 @@ This eliminates plan errors without additional round-trips.
 ## When to Use Agent Mode
 
 **Ideal for:**
+
 - Multi-step workflows (5+ actions)
 - Complex data transformations
 - Batch operations across multiple columns/sheets
 - Scenarios requiring coordination (e.g., formula dependencies)
 
 **Not ideal for:**
+
 - Single-action reads
 - Interactive exploration (use `sheets_analyze.scout` instead)
 - Real-time user feedback loops (stick with round-trip LLM pattern)
@@ -240,6 +252,7 @@ This eliminates plan errors without additional round-trips.
 Agent Mode transforms spreadsheet automation from a chatty, latency-prone pattern into a production-grade, single-call execution model. This is the technical foundation for enterprise automation workflows where every second and API call counts.
 
 **Key metrics:**
+
 - 80-95% API call reduction
 - 10-25x latency improvement
 - 100% atomic execution guarantee

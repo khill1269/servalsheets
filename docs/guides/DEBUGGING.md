@@ -3,7 +3,7 @@ title: ServalSheets Debugging Guide
 category: guide
 last_updated: 2026-03-10
 description: Comprehensive debugging techniques and troubleshooting for ServalSheets developers.
-version: 1.6.0
+version: 2.0.0
 audience: user
 difficulty: intermediate
 ---

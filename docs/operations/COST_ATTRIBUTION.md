@@ -3,7 +3,7 @@ title: Cost Attribution & Billing Integration
 category: runbook
 last_updated: 2026-03-10
 description: Per-tenant cost tracking and billing integration for ServalSheets SaaS deployment.
-version: 1.6.0
+version: 2.0.0
 tags: [prometheus]
 estimated_time: 15-30 minutes
 ---

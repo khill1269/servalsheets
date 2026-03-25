@@ -3,7 +3,7 @@ title: MCP 2025-11-25 Compliance Checklist
 category: general
 last_updated: 2026-03-15
 description: Verified MCP 2025-11-25 compliance checklist for ServalSheets, refreshed from the March 15, 2026 coordinator audit.
-version: 1.7.0
+version: 2.0.0
 tags: [mcp, compliance]
 ---
 
@@ -15,7 +15,7 @@ This checklist is the verified output of the March 15, 2026 coordinator audit. I
 
 - Normative source set: [docs/review/MCP_PROTOCOL_SOURCE_MANIFEST.md](../review/MCP_PROTOCOL_SOURCE_MANIFEST.md)
 - Coordinator dossier: [docs/review/MCP_PROTOCOL_COORDINATOR_AUDIT.md](../review/MCP_PROTOCOL_COORDINATOR_AUDIT.md)
-- Runtime snapshot validated on 2026-03-15: **25 tools, 407 actions, 48 prompts, 54 resources**
+- Runtime snapshot validated on 2026-03-15: **25 tools, 407 actions, 40 prompts, 56 resources**
 - Requested protocol target: **MCP 2025-11-25**
 - Official MCP landing page on 2026-03-15 advertised **2025-06-18** as the latest published revision, so this checklist is intentionally pinned to **2025-11-25** rather than “current MCP”.
 
@@ -39,7 +39,7 @@ This checklist is the verified output of the March 15, 2026 coordinator audit. I
 | Surface                     | Verified Value   | How Verified                                                              |
 | --------------------------- | ---------------- | ------------------------------------------------------------------------- |
 | Tools                       | 25               | `TOOL_COUNT`, `TOOL_DEFINITIONS.length`, runtime `listTools()`            |
-| Actions                     | 404              | `ACTION_COUNT`, `TOOL_ACTIONS`, metadata consistency tests                |
+| Actions                     | 407              | `ACTION_COUNT`, `TOOL_ACTIONS`, metadata consistency tests                |
 | Prompts                     | 48               | `getPromptsCatalogCount()`, runtime `listPrompts()`                       |
 | Resources                   | 48               | runtime `listResources()` via `createServalSheetsTestHarness()`           |
 | Tool icons                  | 25 tools covered | `Object.keys(TOOL_ICONS).length`, `tests/compliance/mcp-features.test.ts` |
@@ -55,7 +55,7 @@ This checklist is the verified output of the March 15, 2026 coordinator audit. I
 | Server instructions are emitted during initialization   | ✅     | `src/mcp/features-2025-11-25.ts`                                          | `tests/compliance/mcp-features.test.ts`                                                                   | Counts are runtime-derived.                      |
 | Tool list returns current tool catalog with JSON Schema | ✅     | `src/mcp/registration/tools-list-compat.ts`                               | `tests/integration/mcp-tools-list.test.ts`, `tests/contracts/schema-registration.test.ts`                 | Compatibility handler strips Zod artifacts.      |
 | Tool results include `content` and `structuredContent`  | ✅     | `src/mcp/registration/tool-handlers.ts`                                   | `tests/compliance/response-format-jsonrpc.test.ts`                                                        | `isError` is set only for retryable/error flows. |
-| Prompts are listed and retrievable                      | ✅     | `src/mcp/registration/prompt-registration.ts`                             | `tests/mcp/prompt-args-compat.test.ts`, `tests/integration/mcp-capability-workflow.test.ts`               | 48 prompts at runtime.                           |
+| Prompts are listed and retrievable                      | ✅     | `src/mcp/registration/prompt-registration.ts`                             | `tests/mcp/prompt-args-compat.test.ts`, `tests/integration/mcp-capability-workflow.test.ts`               | 40 prompts at runtime.                           |
 | Resources are listed and readable                       | ✅     | `src/mcp/registration/resource-registration.ts`, `src/resources/*.ts`     | `tests/server-runtime/resource-registration.test.ts`, `tests/integration/mcp-capability-workflow.test.ts` | 49 resources at runtime.                         |
 | Completion works for resource refs                      | ✅     | `src/mcp/completions.ts`, `src/mcp/registration/resource-registration.ts` | `tests/integration/tool-mode-registration.test.ts`, `tests/mcp/tool-registry-completions.test.ts`         | Tool/action/range completions verified.          |
 | Completion works for prompt refs                        | ✅     | `src/mcp/registration/prompt-registration.ts`, `src/schemas/prompts.ts`   | `tests/integration/prompt-completion.test.ts`                                                             | Direct coverage added during this audit.         |

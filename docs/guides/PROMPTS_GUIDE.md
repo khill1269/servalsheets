@@ -3,7 +3,7 @@ title: ServalSheets Prompts Guide
 category: guide
 last_updated: 2026-01-31
 description: ServalSheets includes guided prompts for onboarding, verification, setup, analysis, and recovery. Start with the readiness-first onboarding funnel.
-version: 1.6.0
+version: 2.0.0
 audience: user
 difficulty: intermediate
 ---

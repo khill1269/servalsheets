@@ -29,7 +29,11 @@ function exec(cmd, timeout = 10000) {
 // ─── Gather Facts ───────────────────────────────────────────
 
 // 1. Version info from source files
-const actionCountsSrc = safe(() => readFileSync(`${ROOT}/src/schemas/action-counts.ts`, 'utf-8'));
+// src/schemas/action-counts.ts is now a re-export stub; read the generated source instead
+const actionCountsSrc = safe(() =>
+  readFileSync(`${ROOT}/src/generated/action-counts.ts`, 'utf-8') ||
+  readFileSync(`${ROOT}/src/schemas/action-counts.ts`, 'utf-8')
+);
 const toolCount = (actionCountsSrc.match(/\w+:\s*\d+/g) || []).length;
 const actionCount = (actionCountsSrc.match(/:\s*(\d+)/g) || [])
   .map(m => parseInt(m.replace(/:\s*/, '')))

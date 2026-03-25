@@ -1,9 +1,9 @@
 ---
 title: AWS Deployment (Terraform)
 category: general
-last_updated: 2026-01-31
+last_updated: 2026-03-24
 description: Deploy ServalSheets on AWS using ECS Fargate with Terraform.
-version: 1.6.0
+version: 2.0.0
 tags: [deployment, sheets]
 ---
 
@@ -44,7 +44,7 @@ cd deployment/terraform/aws
 cat > terraform.tfvars << EOF
 environment                    = "prod"
 region                         = "us-east-1"
-container_image                = "ghcr.io/khill1269/servalsheets:1.6.0"
+container_image                = "ghcr.io/khill1269/servalsheets:2.0.0"
 domain_name                    = "sheets.example.com"
 certificate_arn                = "arn:aws:acm:us-east-1:123456789:certificate/xxx"
 google_credentials_secret_arn  = "arn:aws:secretsmanager:us-east-1:123456789:secret:google"
@@ -105,7 +105,7 @@ aws logs tail /ecs/servalsheets-prod --follow
 
 ```bash
 # Update terraform.tfvars
-container_image = "ghcr.io/khill1269/servalsheets:1.7.0"
+container_image = "ghcr.io/khill1269/servalsheets:2.0.0"
 
 # Apply
 terraform apply

@@ -1,3 +1,9 @@
+---
+title: Federation
+date: 2026-03-24
+status: active
+---
+
 # Federation: MCP-to-MCP Orchestration
 
 ## Overview
@@ -518,6 +524,7 @@ Federation transforms ServalSheets from a **Sheets-only tool** into a **data orc
 Combined with Agent Mode and Transactions, federation enables **enterprise-grade data workflows** with full orchestration control.
 
 **Next steps:**
+
 - Deploy remote MCP servers
 - Configure in `FEDERATION_SERVERS`
 - Use `sheets_federation.list_servers` to discover capabilities

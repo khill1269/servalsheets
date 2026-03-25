@@ -1,9 +1,9 @@
 ---
 title: PM2 Deployment
 category: general
-last_updated: 2026-01-31
+last_updated: 2026-03-24
 description: Deploy ServalSheets using PM2 process manager for Node.js applications.
-version: 1.6.0
+version: 2.0.0
 tags: [deployment, docker, kubernetes]
 ---
 
@@ -23,7 +23,7 @@ PM2 is a production process manager for Node.js applications with:
 
 ## Prerequisites
 
-- Node.js 18+ installed
+- Node.js 20+ installed
 - PM2 installed globally
 - ServalSheets npm package
 - Google Cloud credentials configured
@@ -60,9 +60,10 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3000,
-        GOOGLE_CLIENT_ID: 'your-client-id',
-        GOOGLE_CLIENT_SECRET: 'your-client-secret',
-        GOOGLE_REDIRECT_URI: 'http://localhost:3000/oauth/callback',
+        OAUTH_CLIENT_ID: 'your-client-id',
+        OAUTH_CLIENT_SECRET: 'your-client-secret',
+        ALLOWED_REDIRECT_URIS:
+          'https://claude.ai/api/mcp/auth_callback,https://claude.com/api/mcp/auth_callback',
       },
       error_file: './logs/err.log',
       out_file: './logs/out.log',
@@ -84,10 +85,13 @@ Alternative: Use `.env` file:
 ```env
 NODE_ENV=production
 PORT=3000
-GOOGLE_CLIENT_ID=your-client-id
-GOOGLE_CLIENT_SECRET=your-client-secret
-GOOGLE_REDIRECT_URI=http://localhost:3000/oauth/callback
+OAUTH_CLIENT_ID=your-client-id
+OAUTH_CLIENT_SECRET=your-client-secret
+ALLOWED_REDIRECT_URIS=https://claude.ai/api/mcp/auth_callback,https://claude.com/api/mcp/auth_callback
 ```
+
+For hosted OAuth callback strategy details, use
+[`OAUTH_USER_SETUP.md`](../guides/OAUTH_USER_SETUP.md).
 
 ## Deployment
 

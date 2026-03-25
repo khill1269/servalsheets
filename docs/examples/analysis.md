@@ -3,7 +3,7 @@ title: Data Analysis Workflows
 category: example
 last_updated: 2026-01-31
 description: Master data analysis techniques in Google Sheets using ServalSheets.
-version: 1.6.0
+version: 2.0.0
 tags: [sheets]
 ---
 
@@ -24,7 +24,7 @@ This guide covers:
 
 ## Prerequisites
 
-- ServalSheets v1.6.0 or later
+- ServalSheets 2.x or later
 - Spreadsheet with formulas and data
 - Understanding of [basic operations](./basic.md)
 

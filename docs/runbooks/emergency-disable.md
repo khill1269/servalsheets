@@ -3,7 +3,7 @@ title: 'Runbook: Emergency Kill Switch'
 category: general
 last_updated: 2026-03-15
 description: 'Severity: P0 (use when all other options are exhausted)'
-version: 1.6.0
+version: 2.0.0
 tags: [docker, kubernetes]
 ---
 

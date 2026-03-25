@@ -3,7 +3,7 @@ title: GCP Deployment (Terraform)
 category: general
 last_updated: 2026-01-31
 description: Deploy ServalSheets on Google Cloud using Cloud Run with Terraform.
-version: 1.6.0
+version: 2.0.0
 tags: [deployment, sheets]
 ---
 
@@ -49,7 +49,7 @@ cat > terraform.tfvars << EOF
 project_id           = "your-project-id"
 region               = "us-central1"
 environment          = "prod"
-container_image      = "gcr.io/your-project/servalsheets:1.6.0"
+container_image      = "gcr.io/your-project/servalsheets:2.0.0"
 domain_name          = "sheets.example.com"
 oauth_client_id      = "your-client-id"
 oauth_client_secret  = "your-client-secret"
@@ -120,7 +120,7 @@ gcloud run services logs read servalsheets-prod \
 
 ```bash
 gcloud run deploy servalsheets-prod \
-  --image gcr.io/your-project/servalsheets:1.7.0 \
+  --image gcr.io/your-project/servalsheets:2.0.0 \
   --region us-central1
 ```
 

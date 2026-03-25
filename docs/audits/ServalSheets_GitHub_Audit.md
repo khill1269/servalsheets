@@ -1,3 +1,9 @@
+---
+title: ServalSheets GitHub Audit
+date: 2026-03-24
+status: active
+---
+
 # ServalSheets GitHub Audit Report
 
 **Repository:** [khill1269/servalsheets](https://github.com/khill1269/servalsheets)

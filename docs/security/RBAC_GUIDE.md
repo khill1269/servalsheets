@@ -3,7 +3,7 @@ title: ServalSheets RBAC Guide
 category: general
 last_updated: 2026-03-10
 description: Role-Based Access Control (RBAC) for ServalSheets
-version: 1.6.0
+version: 2.0.0
 tags: [security]
 ---
 

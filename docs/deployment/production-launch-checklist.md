@@ -1,9 +1,9 @@
 ---
 title: Production Launch Checklist
 category: guide
-last_updated: 2026-03-17
+last_updated: 2026-03-24
 description: Final pre-launch and post-launch checklist for ServalSheets production deployments.
-version: 1.7.0
+version: 2.0.0
 tags: [deployment, production, checklist, release]
 ---
 
@@ -13,8 +13,12 @@ Use this checklist for the final go/no-go review before deploying ServalSheets t
 
 This checklist assumes the repository is already in the current validated state:
 
-- `25` tools and `403` actions synchronized
+- `25` tools and `407` actions synchronized
+- `npm run typecheck` passing
+- `npm run build` passing
 - `npm run test:all` passing
+- `npm run test:mcp-http-task-contract` passing
+- `npm run test:http-transport-failover` passing in CI
 - `npm run security:audit` passing
 - `npm run docs:audit` passing
 - `npm run release:audit` passing
@@ -36,13 +40,17 @@ Local-only desktop config files containing secrets are not an allowed release ex
 Run these commands from the repo root and keep the outputs with the release record:
 
 ```bash
+npm run typecheck
+npm run build
 npm run test:all
+npm run test:mcp-http-task-contract
+npm run test:http-transport-failover
 npm run security:audit
 npm run docs:audit
 npm run release:audit
 ```
 
-Release only if all four are green.
+Release only if all required checks are green.
 
 If the release depends on real Google Sheets behavior, also run the manual `Release Audit` workflow with `include_live_tests=true` and keep its artifact output with the release record.
 
@@ -65,6 +73,9 @@ If the release depends on real Google Sheets behavior, also run the manual `Rele
 - [ ] `LOG_LEVEL` and log format are production-appropriate.
 - [ ] Rate limits are set to values that fit your Google quota.
 - [ ] Session storage is configured intentionally.
+- [ ] If hosted failover is enabled, `MCP_REMOTE_EXECUTOR_URL` is set intentionally.
+- [ ] If hosted failover is enabled, `MCP_REMOTE_EXECUTOR_TOOLS` contains an explicit allowlist and is not left broad or empty.
+- [ ] If hosted failover is enabled, remote executor auth configuration is set intentionally.
 
 For multi-instance or resumable HTTP deployments:
 
@@ -78,12 +89,15 @@ For multi-instance or resumable HTTP deployments:
 - [ ] Apps Script OAuth/service credentials are configured if `sheets_appsscript` is enabled.
 - [ ] Webhook endpoints, signing, and callback reachability are validated if `sheets_webhook` is enabled.
 - [ ] Federation targets are configured and reachable if `sheets_federation` is enabled.
+- [ ] Hosted failover allowlist contains only the tools you intend to roll out first.
+- [ ] Hosted failover remains disabled entirely if the release does not require it.
 
 ## 6. Packaging And Deployment
 
 - [ ] The release artifact is built from the validated commit.
 - [ ] Docker/Helm/Kubernetes manifests point to the intended image tag.
-- [ ] The runtime image contains the required workspace package artifacts.
+- [ ] The runtime image contains the required workspace package artifacts:
+  `packages/mcp-runtime/dist`, `packages/mcp-http/dist`, `packages/mcp-stdio/dist`, and `packages/mcp-client/dist`.
 - [ ] Health and readiness probes target `/health/live` and `/health/ready`.
 - [ ] TLS termination and ingress rules are configured.
 - [ ] Resource limits and autoscaling settings are set for expected load.
@@ -94,10 +108,10 @@ For multi-instance or resumable HTTP deployments:
 - [ ] Logs are collected centrally.
 - [ ] Alerts are configured for high error rate, latency, auth failures, quota pressure, and webhook backlog.
 - [ ] Runbooks are available to the on-call owner:
-  - [runbooks/auth-failures.md](/Users/thomascahill/Documents/servalsheets%202/docs/runbooks/auth-failures.md)
-  - [runbooks/google-api-errors.md](/Users/thomascahill/Documents/servalsheets%202/docs/runbooks/google-api-errors.md)
-  - [runbooks/high-error-rate.md](/Users/thomascahill/Documents/servalsheets%202/docs/runbooks/high-error-rate.md)
-  - [runbooks/service-down.md](/Users/thomascahill/Documents/servalsheets%202/docs/runbooks/service-down.md)
+  - [runbooks/auth-failures.md](../runbooks/auth-failures.md)
+  - [runbooks/google-api-errors.md](../runbooks/google-api-errors.md)
+  - [runbooks/high-error-rate.md](../runbooks/high-error-rate.md)
+  - [runbooks/service-down.md](../runbooks/service-down.md)
 
 ## 8. Pre-Launch Smoke
 
@@ -109,6 +123,8 @@ For multi-instance or resumable HTTP deployments:
 - [ ] A representative write action succeeds against a disposable spreadsheet.
 - [ ] If enabled, webhook registration and delivery succeed.
 - [ ] If enabled, federation connectivity succeeds.
+- [ ] If hosted failover is enabled, at least one allowlisted tool is exercised through the deployed `/mcp` endpoint.
+- [ ] If Claude Desktop is part of the release surface, local STDIO startup still works against the shipped bundle.
 
 ## 9. Go-Live Decision
 
@@ -141,13 +157,17 @@ Before launch, document these values in the release ticket or runbook:
 
 Keep the incident response procedure with the release record:
 
-- [docs/security/INCIDENT_RESPONSE_PLAN.md](/Users/thomascahill/Documents/servalsheets%202/docs/security/INCIDENT_RESPONSE_PLAN.md)
+- [docs/security/INCIDENT_RESPONSE_PLAN.md](../security/INCIDENT_RESPONSE_PLAN.md)
 - [ ] Owner responsible for rollback approval
 - [ ] Expected rollback verification steps
 
 ## Recommended Evidence To Attach
 
+- `npm run typecheck` summary
+- `npm run build` summary
 - `npm run test:all` summary
+- `npm run test:mcp-http-task-contract` output
+- `npm run test:http-transport-failover` output or CI link
 - `npm run security:audit` output
 - `npm run docs:audit` output
 - `npm run release:audit` output

@@ -3,7 +3,7 @@ title: Scaling Guide
 category: runbook
 last_updated: 2026-01-31
 description: ServalSheets scaling strategies for handling increased load. Covers vertical scaling (bigger instances) and horizontal scaling (more instances).
-version: 1.6.0
+version: 2.0.0
 tags: [sheets, docker, kubernetes]
 estimated_time: 15-30 minutes
 ---

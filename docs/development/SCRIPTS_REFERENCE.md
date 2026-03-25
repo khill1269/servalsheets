@@ -1,9 +1,9 @@
 ---
 title: ServalSheets - Scripts Reference
 category: development
-last_updated: 2026-02-17
+last_updated: 2026-03-24
 description: 'Comprehensive documentation of all scripts and npm commands'
-version: 1.6.0
+version: 2.0.0
 tags: [scripts, validation, gates, development]
 ---
 
@@ -31,13 +31,15 @@ tags: [scripts, validation, gates, development]
 | Script                                 | Purpose                     | Usage                                    | Part of Verify    |
 | -------------------------------------- | --------------------------- | ---------------------------------------- | ----------------- |
 | `generate-metadata.ts`                 | Generate tool/action counts | `npm run gen:metadata`                   | Via `check:drift` |
+| `gen-doc-facts.mjs`                    | Generate docs facts file    | `node scripts/gen-doc-facts.mjs`         | Via `gen:docs`    |
 | `check-metadata-drift.sh`              | Verify metadata sync        | `npm run check:drift`                    | ✅ Yes            |
 | `no-placeholders.sh`                   | Check for TODO/FIXME        | `npm run check:placeholders`             | ✅ Yes            |
 | `check-silent-fallbacks.sh`            | Find silent returns         | `npm run check:silent-fallbacks`         | ❌ No (optional)  |
 | `check-debug-prints.sh`                | Find console.log            | `npm run check:debug-prints`             | ❌ No (optional)  |
 | `validate-action-counts.ts`            | ESM-based action validation | `npm run validate:actions`               | ✅ Yes            |
 | `validate-schema-handler-alignment.ts` | Schema/handler sync         | `npm run validate:alignment`             | ✅ Yes            |
-| `check-hardcoded-counts.sh`            | Scan docs for count drift   | `bash scripts/check-hardcoded-counts.sh` | Via gates:g1      |
+| `check-doc-action-counts.mjs`          | Validate active doc counts  | `npm run check:doc-action-counts`        | ✅ Yes            |
+| `check-hardcoded-counts.sh`            | Legacy broad count scan     | `bash scripts/check-hardcoded-counts.sh` | Via gates:g1      |
 
 ### Diagnostic Scripts
 
@@ -1016,13 +1018,16 @@ npm run docs:site:preview      # Preview built site
 
 ### `setup-oauth.sh`
 
-**Purpose:** Run OAuth auth flow and generate Claude Desktop config for local testing
+**Purpose:** Run the local stdio OAuth helper flow and generate Claude Desktop config for local testing
 
 **What it does:**
 
 1. Runs `dist/cli/auth-setup.js` (browser OAuth)
-2. Writes `claude_desktop_config.json` pointing to `dist/cli.js`
+2. Writes local `claude_desktop_config.json` pointing to `dist/cli.js`
 3. Verifies tokens and config files
+
+This script is for the local Claude Desktop stdio flow only. It is not the
+hosted remote connector setup path.
 
 **Usage:**
 

@@ -1,346 +1,136 @@
 ---
 title: Standardized OAuth Setup Guide
 category: guide
-last_updated: 2026-02-03
-description: Complete guide to setting up OAuth with full scopes for all ServalSheets features
-version: 1.6.0
+last_updated: 2026-03-24
+description: Reference OAuth configuration for full-scope ServalSheets deployments.
+version: 2.0.0
 tags: [oauth, authentication, setup, scopes, google-api]
 audience: user
 difficulty: beginner
+doc_class: active
 ---
 
 # Standardized OAuth Setup Guide
 
-This guide provides the **ONE CORRECT WAY** to set up OAuth for ServalSheets with full access to all features: Sheets, Drive, BigQuery, and Apps Script.
+This guide is the reference configuration for **full-scope OAuth** in
+ServalSheets.
 
----
+It is not the only user-facing connection flow:
 
-## Why This Matters
+- for **local Claude Desktop stdio**, see [`CLAUDE_DESKTOP_OAUTH_SETUP.md`](./CLAUDE_DESKTOP_OAUTH_SETUP.md)
+- for **hosted remote connectors**, see [`OAUTH_USER_SETUP.md`](./OAUTH_USER_SETUP.md)
 
-ServalSheets previously had multiple OAuth configurations scattered across the codebase, leading to:
+## What This Guide Covers
 
-- ❌ Multiple authentication prompts (incremental consent)
-- ❌ Missing scopes for advanced features (BigQuery, Apps Script)
-- ❌ Confusing error messages about insufficient permissions
-- ❌ Inconsistent behavior between STDIO and HTTP modes
+- the Google APIs that a full-scope ServalSheets deployment may need
+- the OAuth client configuration shape
+- the main environment variables
+- the difference between local localhost callbacks and hosted Claude callbacks
 
-**This guide fixes all of that** with a single, standardized OAuth flow.
+## 1. Create The OAuth Project
 
----
+In Google Cloud Console:
 
-## Quick Setup (10 minutes)
+1. create or select a project
+2. enable the APIs your deployment actually needs
+3. configure the OAuth consent screen
+4. create a **Web application** OAuth client
 
-### Step 1: Create Google Cloud Project & OAuth Credentials
+For the broadest ServalSheets feature surface, that may include:
 
-1. **Go to Google Cloud Console**: https://console.cloud.google.com
+- Google Sheets API
+- Google Drive API
+- BigQuery API
+- Apps Script API
 
-2. **Create a new project** (or select existing):
-   - Click "Select a project" → "New Project"
-   - Project name: `ServalSheets`
-   - Click "Create"
+Do not enable scopes or APIs you do not intend to submit or operate.
 
-3. **Enable Required APIs**:
-   - Navigation Menu → APIs & Services → Library
-   - Enable each of these:
-     - ✅ Google Sheets API
-     - ✅ Google Drive API
-     - ✅ BigQuery API
-     - ✅ Apps Script API
+## 2. Configure Redirect URIs By Deployment Type
 
-4. **Configure OAuth Consent Screen**:
-   - APIs & Services → OAuth consent screen
-   - User Type: **External** (for personal use)
-   - Click "Create"
+### Local stdio / local auth helper
 
-   **App Information:**
-   - App name: `ServalSheets`
-   - User support email: Your email
-   - Developer contact email: Your email
+Typical localhost callbacks:
 
-   **Scopes:** Click "Add or Remove Scopes", then add:
-   - `https://www.googleapis.com/auth/spreadsheets`
-   - `https://www.googleapis.com/auth/drive`
-   - `https://www.googleapis.com/auth/drive.appdata`
-   - `https://www.googleapis.com/auth/bigquery`
-   - `https://www.googleapis.com/auth/cloud-platform`
-   - `https://www.googleapis.com/auth/script.projects`
-   - `https://www.googleapis.com/auth/script.deployments`
-   - `https://www.googleapis.com/auth/script.processes`
-
-   **Test Users:** Add your Google account email
-
-   Click "Save and Continue"
-
-5. **Create OAuth Client ID**:
-   - APIs & Services → Credentials
-   - Click "Create Credentials" → "OAuth client ID"
-   - Application type: **Web application**
-   - Name: `ServalSheets Local`
-
-   **Authorized redirect URIs:**
-   - Click "Add URI"
-   - Add: `http://localhost:3000/callback`
-   - Add: `http://127.0.0.1:3000/callback`
-
-   Click "Create"
-
-   **Download Credentials:**
-   - Click the download icon (⬇️) next to your new OAuth client
-   - Save as `credentials.json` in your ServalSheets directory
-
----
-
-### Step 2: Configure ServalSheets
-
-**Option A: Use credentials.json (Recommended)**
-
-```bash
-cd /path/to/servalsheets
-# credentials.json should already be in this directory
-
-# Run the automated setup
-npm run auth
+```text
+http://localhost:3000/callback
+http://127.0.0.1:3000/callback
 ```
 
-The `npm run auth` command will:
+### Hosted remote connector
 
-1. Find your `credentials.json`
-2. Extract the OAuth credentials
-3. Update your `.env` file
-4. Open your browser for authentication
-5. Save your tokens securely
+Current Claude connector callbacks:
 
-**Option B: Manual .env configuration**
+```text
+https://claude.ai/api/mcp/auth_callback
+https://claude.com/api/mcp/auth_callback
+```
 
-If you prefer to configure manually, create/update `.env`:
+If you support both local and hosted flows, allow both categories explicitly.
+
+## 3. Configure ServalSheets
+
+Typical environment variables:
 
 ```bash
-# Google OAuth Credentials (from Google Cloud Console)
 OAUTH_CLIENT_ID=YOUR_CLIENT_ID.apps.googleusercontent.com
 OAUTH_CLIENT_SECRET=YOUR_CLIENT_SECRET
-OAUTH_REDIRECT_URI=http://localhost:3000/callback
-
-# Server Configuration
-HTTP_PORT=3000
-NODE_ENV=development
-LOG_LEVEL=info
-
-# Session & Security (auto-generated by npm run auth)
-SESSION_SECRET=$(openssl rand -hex 32)
-ENCRYPTION_KEY=$(openssl rand -hex 32)
-JWT_SECRET=$(openssl rand -hex 32)
-STATE_SECRET=$(openssl rand -hex 32)
-
-# Allowed Redirect URIs
-ALLOWED_REDIRECT_URIS=http://localhost:3000/callback,http://127.0.0.1:3000/callback
-
-# OAuth Scope Mode (use 'full' for all features)
+OAUTH_REDIRECT_URI=https://claude.ai/api/mcp/auth_callback
+ALLOWED_REDIRECT_URIS=https://claude.ai/api/mcp/auth_callback,https://claude.com/api/mcp/auth_callback,http://localhost:3000/callback
 OAUTH_SCOPE_MODE=full
 ```
 
-Then run:
+For local-only development, `OAUTH_REDIRECT_URI` may instead be a localhost
+callback.
+
+## 4. Scope Modes
+
+ServalSheets supports multiple scope modes. `full` is the widest feature
+surface.
+
+Use `full` only when your deployment truly needs the broader capabilities such
+as:
+
+- collaboration features
+- BigQuery integration
+- Apps Script automation
+
+If your deployment needs less, prefer a narrower scope mode and a narrower
+OAuth consent surface.
+
+## 5. Verification
+
+After configuration:
 
 ```bash
-npm run auth
-```
-
----
-
-### Step 3: Verify Authentication
-
-```bash
-# Start the server
 npm run start:http
-
-# In another terminal, test authentication
 curl http://localhost:3000/health
+curl http://localhost:3000/.well-known/oauth-authorization-server
 ```
 
-You should see:
+For hosted connectors, also verify the live connector flow inside Claude after
+the hosted server is deployed.
 
-```json
-{
-  "status": "healthy",
-  "authenticated": true,
-  "scopes": [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive",
-    "https://www.googleapis.com/auth/drive.appdata",
-    "https://www.googleapis.com/auth/bigquery",
-    "https://www.googleapis.com/auth/cloud-platform",
-    "https://www.googleapis.com/auth/script.projects",
-    "https://www.googleapis.com/auth/script.deployments",
-    "https://www.googleapis.com/auth/script.processes"
-  ]
-}
-```
+## 6. Troubleshooting
 
----
+### Redirect URI mismatch
 
-## Scope Modes
+- verify the exact callback URL in Google Cloud Console
+- verify `OAUTH_REDIRECT_URI`
+- verify `ALLOWED_REDIRECT_URIS`
+- verify you are not mixing local and hosted flows accidentally
 
-ServalSheets supports three scope modes (controlled by `OAUTH_SCOPE_MODE` in `.env`):
+### Missing permissions
 
-### Full Access (Recommended) - `OAUTH_SCOPE_MODE=full`
+- confirm the enabled scopes actually match the tools you want to use
+- if you changed scope mode, repeat the auth flow to obtain fresh tokens
 
-Includes ALL features:
+### Hosted connector still not working
 
-- ✅ Basic spreadsheet operations (read/write)
-- ✅ Sharing and collaboration
-- ✅ Templates (stored in Drive AppData)
-- ✅ BigQuery integration (Connected Sheets)
-- ✅ Apps Script automation
-- ✅ Comments and version history
+- verify the hosted well-known endpoints are reachable
+- verify you used Claude's connector UI rather than local stdio config
 
-**Scopes:**
+## Related Docs
 
-- `spreadsheets` - Full Sheets access
-- `drive` - Full Drive access (required for sharing)
-- `drive.appdata` - Template storage
-- `bigquery` - BigQuery operations
-- `cloud-platform` - BigQuery export
-- `script.projects` - Apps Script projects
-- `script.deployments` - Apps Script deployments
-- `script.processes` - Apps Script execution
-
-### Minimal Access - `OAUTH_SCOPE_MODE=minimal`
-
-Basic spreadsheet operations only:
-
-- ✅ Read/write spreadsheet data
-- ✅ Create new spreadsheets
-- ❌ No sharing capabilities
-- ❌ No BigQuery integration
-- ❌ No Apps Script automation
-- ❌ No templates
-
-**Scopes:**
-
-- `spreadsheets` - Full Sheets access
-- `drive.file` - Only files created by ServalSheets
-
-### Read-Only Access - `OAUTH_SCOPE_MODE=readonly`
-
-Analysis and reporting only:
-
-- ✅ Read spreadsheet data
-- ✅ Analyze data quality
-- ✅ Generate reports
-- ❌ Cannot modify any data
-
-**Scopes:**
-
-- `spreadsheets.readonly` - Read-only Sheets access
-- `drive.readonly` - Read-only Drive access
-
----
-
-## Troubleshooting
-
-### "Invalid client" error
-
-Your OAuth client ID or secret is incorrect. Check:
-
-1. `.env` file has correct credentials
-2. `credentials.json` matches the OAuth client in Google Cloud Console
-
-### "Redirect URI mismatch" error
-
-The redirect URI doesn't match Google Cloud Console. Ensure:
-
-1. Google Cloud Console has `http://localhost:3000/callback`
-2. `.env` has `OAUTH_REDIRECT_URI=http://localhost:3000/callback`
-3. Both use the same port (3000)
-
-### "Insufficient permissions" error
-
-You're missing required scopes. Solutions:
-
-1. Delete `~/.servalsheets/tokens.encrypted`
-2. Run `npm run auth` again
-3. When prompted, grant ALL permissions
-
-### "Token expired" error
-
-Your tokens have expired and can't be refreshed:
-
-1. Delete `~/.servalsheets/tokens.encrypted`
-2. Run `npm run auth` again
-3. Ensure you granted "offline access" permission
-
-### Missing BigQuery/Apps Script features
-
-You authenticated before adding those scopes:
-
-1. Check `OAUTH_SCOPE_MODE=full` in `.env`
-2. Delete `~/.servalsheets/tokens.encrypted`
-3. Run `npm run auth` again
-4. Grant ALL requested permissions
-
----
-
-## Security Best Practices
-
-### For Development
-
-- ✅ Use `http://localhost:3000/callback` (localhost is secure)
-- ✅ Keep `credentials.json` in `.gitignore`
-- ✅ Store tokens in `~/.servalsheets/tokens.encrypted`
-- ✅ Use strong `SESSION_SECRET` and `JWT_SECRET`
-
-### For Production
-
-- ✅ Use HTTPS redirect URIs only
-- ✅ Store secrets in environment variables (not .env file)
-- ✅ Use Redis for session storage (set `REDIS_URL`)
-- ✅ Enable rate limiting
-- ✅ Restrict OAuth client to specific domains
-
----
-
-## MCP Protocol Compliance
-
-ServalSheets follows the MCP 2025-11-25 protocol specification for OAuth:
-
-1. **PKCE Required**: All authorization flows use Proof Key for Code Exchange (S256)
-2. **State Validation**: HMAC-signed state tokens prevent CSRF attacks
-3. **Token Rotation**: Refresh tokens are rotated on each use
-4. **Secure Storage**: Tokens encrypted at rest with AES-256-GCM
-5. **Scope Validation**: Each operation validates required scopes before execution
-
----
-
-## Next Steps
-
-Once authenticated, you can:
-
-1. **Test basic operations:**
-
-   ```bash
-   # List your spreadsheets
-   curl -X POST http://localhost:3000/mcp \
-     -H "Content-Type: application/json" \
-     -d '{"method":"tools/call","params":{"name":"sheets_core","arguments":{"action":"list"}}}'
-   ```
-
-2. **Connect to Claude Desktop:**
-   - Follow the [Claude Desktop Setup Guide](./CLAUDE_DESKTOP_SETUP.md)
-
-3. **Explore advanced features:**
-   - [BigQuery Integration](./sheets_bigquery.md)
-   - [Apps Script Automation](./sheets_appsscript.md)
-   - [Template Management](./TABLE_MANAGEMENT.md)
-
----
-
-## Support
-
-- 🐛 **Report issues**: https://github.com/anthropics/claude-code/issues
-- 📖 **Full documentation**: `docs/guides/`
-- 💬 **Ask questions**: Include your `.env` (with secrets redacted) and error logs
-
----
-
-**Last Updated**: 2026-02-03
-**Version**: 1.6.0
-**Protocol**: MCP 2025-11-25
+- [`CLAUDE_DESKTOP_OAUTH_SETUP.md`](./CLAUDE_DESKTOP_OAUTH_SETUP.md)
+- [`OAUTH_USER_SETUP.md`](./OAUTH_USER_SETUP.md)
+- [`SUBMISSION_CHECKLIST.md`](./SUBMISSION_CHECKLIST.md)

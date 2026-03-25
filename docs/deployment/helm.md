@@ -3,7 +3,7 @@ title: Helm Chart Deployment
 category: general
 last_updated: 2026-01-31
 description: Deploy ServalSheets using Helm for templated, repeatable Kubernetes deployments.
-version: 1.6.0
+version: 2.0.0
 tags: [deployment, prometheus, kubernetes]
 ---
 
@@ -37,7 +37,7 @@ replicaCount: 2
 
 image:
   repository: servalsheets
-  tag: '1.6.0'
+  tag: '2.0.0'
 
 config:
   logLevel: info

@@ -3,7 +3,7 @@ title: ServalSheets - Source of Truth Reference
 category: development
 last_updated: 2026-03-17
 description: 'Last Updated: 2026-03-17'
-version: 1.7.0
+version: 2.0.0
 tags: [sheets, prometheus]
 ---
 
@@ -20,8 +20,8 @@ tags: [sheets, prometheus]
 
 | Metric           | Source File                    | Line              | Current Value | Verification Command                                            |
 | ---------------- | ------------------------------ | ----------------- | ------------- | --------------------------------------------------------------- |
-| **TOOL_COUNT**   | `src/schemas/action-counts.ts` | exported constant | `25`          | `grep "export const TOOL_COUNT" src/schemas/action-counts.ts`   |
-| **ACTION_COUNT** | `src/schemas/action-counts.ts` | exported constant | `404`         | `grep "export const ACTION_COUNT" src/schemas/action-counts.ts` |
+| **TOOL_COUNT**   | `docs/generated/facts.json`    | `counts.tools`    | `25`          | `jq '.counts.tools' docs/generated/facts.json`                 |
+| **ACTION_COUNT** | `docs/generated/facts.json`    | `counts.actions`  | `407`         | `jq '.counts.actions' docs/generated/facts.json`               |
 
 **Verification:**
 
@@ -102,7 +102,7 @@ Run `wc -l <file>` to get exact counts. **Do not estimate.**
 | --------------------- | ------- | ----------------------------- |
 | `sheets_advanced`     | 31      | `src/schemas/advanced.ts`     |
 | `sheets_agent`        | 8       | `src/schemas/agent.ts`        |
-| `sheets_analyze`      | 22      | `src/schemas/analyze.ts`      |
+| `sheets_analyze`      | 26      | `src/schemas/analyze.ts`      |
 | `sheets_appsscript`   | 19      | `src/schemas/appsscript.ts`   |
 | `sheets_auth`         | 5       | `src/schemas/auth.ts`         |
 | `sheets_bigquery`     | 17      | `src/schemas/bigquery.ts`     |
@@ -125,7 +125,7 @@ Run `wc -l <file>` to get exact counts. **Do not estimate.**
 | `sheets_transaction`  | 6       | `src/schemas/transaction.ts`  |
 | `sheets_visualize`    | 18      | `src/schemas/visualize.ts`    |
 | `sheets_webhook`      | 10      | `src/schemas/webhook.ts`      |
-| **TOTAL**             | **404** | —                             |
+| **TOTAL**             | **407** | —                             |
 
 **Verification:**
 
@@ -143,7 +143,8 @@ These files are **automatically generated** by `scripts/generate-metadata.ts`:
 | File                         | What It Contains                          | Updated By             |
 | ---------------------------- | ----------------------------------------- | ---------------------- |
 | `package.json`               | Description with tool/action counts       | `npm run gen:metadata` |
-| `src/schemas/index.ts`       | `TOOL_COUNT` and `ACTION_COUNT` constants | `npm run gen:metadata` |
+| `docs/generated/facts.json`  | Docs-facing facts manifest                | `node scripts/gen-doc-facts.mjs` |
+| `src/schemas/index.ts`       | Backward-compatible count re-exports      | `npm run gen:metadata` |
 | `src/schemas/annotations.ts` | `ACTION_COUNTS` per-tool breakdown        | `npm run gen:metadata` |
 | `src/mcp/completions.ts`     | `TOOL_ACTIONS` for autocompletion         | `npm run gen:metadata` |
 | `server.json`                | Full MCP server metadata                  | `npm run gen:metadata` |

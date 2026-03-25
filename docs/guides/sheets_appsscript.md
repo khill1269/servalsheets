@@ -3,7 +3,7 @@ title: Google Apps Script Integration Guide
 category: guide
 last_updated: 2026-01-31
 description: 'Tool: sheetsappsscript'
-version: 1.6.0
+version: 2.0.0
 audience: user
 difficulty: intermediate
 ---
@@ -12,7 +12,7 @@ difficulty: intermediate
 
 **Tool**: `sheets_appsscript`
 **Purpose**: Create, manage, and execute Apps Script projects programmatically
-**Version**: 1.6.0
+**Version**: 2.0.0
 **Last Updated**: 2026-01-30
 
 ---

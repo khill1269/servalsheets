@@ -3,7 +3,7 @@ title: Formatting Guide
 category: example
 last_updated: 2026-01-31
 description: Master cell formatting, number formats, colors, and text styling in ServalSheets.
-version: 1.6.0
+version: 2.0.0
 ---
 
 # Formatting Guide
@@ -22,7 +22,7 @@ This guide covers:
 
 ## Prerequisites
 
-- ServalSheets v1.6.0 or later
+- ServalSheets 2.x or later
 - Understanding of [basic operations](./basic.md)
 - Active spreadsheet with data to format
 

@@ -3,7 +3,7 @@ title: ServalSheets Operational Runbooks
 category: general
 last_updated: 2026-02-04
 description: Comprehensive troubleshooting and incident response guides for ServalSheets operations.
-version: 1.6.0
+version: 2.0.0
 tags: [sheets, prometheus, grafana, docker, kubernetes]
 ---
 

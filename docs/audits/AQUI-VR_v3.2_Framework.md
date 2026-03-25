@@ -1,3 +1,9 @@
+---
+title: AQUI-VR v3.2 Framework
+date: 2026-03-24
+status: active
+---
+
 # AQUI-VR v3.2 — Audit Quality Infrastructure: Verification & Remediation
 
 **ServalSheets v1.7.0 · Branch: remediation/phase-1 · MCP 2025-11-25**
@@ -124,7 +130,7 @@ node -e "
 
 ---
 
-#### C-3 · openapi.json stale (v1.6.0 / 22 tools / 342 actions) · Gate G16
+#### C-3 · openapi.json stale (v1.6.0 / 25 tools / 407 actions) · Gate G16
 
 **File:** `openapi.json` | **Status:** ✅ Done — openapi.json is v1.7.0
 

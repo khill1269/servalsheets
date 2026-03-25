@@ -3,7 +3,7 @@ title: VS Code Setup Guide for ServalSheets
 category: development
 last_updated: 2026-01-31
 description: 'Last Updated: 2026-01-13'
-version: 1.6.0
+version: 2.0.0
 tags: [setup, configuration, sheets]
 ---
 

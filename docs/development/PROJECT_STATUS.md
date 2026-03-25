@@ -3,7 +3,7 @@ title: Project Status
 category: development
 last_updated: 2026-03-17
 description: Current build status and verification results
-version: 1.7.0
+version: 2.0.0
 tags: [development, status]
 ---
 
@@ -31,9 +31,9 @@ All verification checks are currently passing.
 
 | Metric   | Value          | Source                         |
 | -------- | -------------- | ------------------------------ |
-| Tools    | 25             | `src/schemas/action-counts.ts` |
-| Actions  | 404            | `src/schemas/action-counts.ts` |
-| Version  | 1.7.0          | `package.json`                 |
+| Tools    | 25             | `docs/generated/facts.json`    |
+| Actions  | 407            | `docs/generated/facts.json`    |
+| Version  | 2.0.0          | `package.json`                 |
 | Protocol | MCP 2025-11-25 | `src/version.ts`               |
 
 ### Audit Infrastructure
@@ -69,7 +69,7 @@ npm run check:silent-fallbacks  # No silent {} returns
 ### Audit Commands
 
 ```bash
-npm run audit:coverage      # 404-action coverage test
+npm run audit:coverage      # 407-action coverage test
 npm run audit:perf          # Performance benchmarks
 npm run audit:memory        # Memory leak detection
 npm run audit:gate          # CI gate (7 checks)

@@ -3,7 +3,7 @@ title: ServalSheets Incident Response Plan
 category: general
 last_updated: 2026-03-15
 description: 'Version: 1.0'
-version: 1.6.0
+version: 2.0.0
 tags: [security, sheets, grafana]
 ---
 

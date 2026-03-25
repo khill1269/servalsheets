@@ -1,3 +1,9 @@
+---
+title: Real World Workflows
+date: 2026-03-24
+status: active
+---
+
 # Real-World Google Sheets Workflows for Production MCP Server
 
 > Comprehensive research document mapping 8 user personas to 50+ end-to-end workflows.

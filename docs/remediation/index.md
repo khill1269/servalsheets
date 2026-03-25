@@ -3,7 +3,7 @@ title: Remediation Tracking
 category: general
 last_updated: 2026-03-20
 description: Audit follow-ups and remediation tracking artifacts.
-version: 1.7.0
+version: 2.0.0
 ---
 
 # Remediation Tracking

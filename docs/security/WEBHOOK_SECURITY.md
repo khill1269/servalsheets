@@ -3,7 +3,7 @@ title: ServalSheets Webhook Security
 category: general
 last_updated: 2026-03-10
 description: Comprehensive guide for webhook signature verification and security best practices.
-version: 1.6.0
+version: 2.0.0
 tags: [security]
 ---
 

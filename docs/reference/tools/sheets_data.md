@@ -3,7 +3,7 @@ title: sheets_data
 category: reference
 last_updated: 2026-01-31
 description: Core data operations for reading and writing spreadsheet data.
-version: 1.6.0
+version: 2.0.0
 tags: [sheets]
 stability: stable
 ---

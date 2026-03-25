@@ -3,7 +3,7 @@ title: Troubleshooting Guide
 category: guide
 last_updated: 2026-02-03
 description: This guide helps diagnose and resolve common issues with ServalSheets.
-version: 1.6.0
+version: 2.0.0
 tags: [troubleshooting, sheets, docker]
 audience: user
 difficulty: intermediate
@@ -46,13 +46,17 @@ tail -n 100 ~/Library/Logs/Claude/mcp-server-servalsheets.log
 ### Check Configuration
 
 ```bash
-# Verify Claude Desktop config
+# Verify local Claude Desktop stdio config
 cat ~/Library/Application\ Support/Claude/claude_desktop_config.json | jq .
 
 # Check environment variables
 env | grep GOOGLE
 env | grep SERVALSHEETS
 ```
+
+Use `claude_desktop_config.json` only for local stdio troubleshooting. If you
+are debugging a hosted remote connector, verify the hosted URL, OAuth metadata,
+and connector setup in Claude instead.
 
 ### Enable Debug Logging
 
@@ -135,7 +139,7 @@ echo $GOOGLE_APPLICATION_CREDENTIALS
 # Fix if wrong
 export GOOGLE_APPLICATION_CREDENTIALS=~/.config/google/servalsheets-sa.json
 
-# Update Claude Desktop config
+# Update local Claude Desktop stdio config
 cat > ~/Library/Application\ Support/Claude/claude_desktop_config.json <<EOF
 {
   "mcpServers": {
@@ -163,7 +167,7 @@ EOF
 # Update environment
 export GOOGLE_ACCESS_TOKEN=ya29.new_token
 
-# Or update Claude Desktop config
+# Or update the local stdio config
 # (see above, replace GOOGLE_APPLICATION_CREDENTIALS with GOOGLE_ACCESS_TOKEN)
 ```
 
@@ -429,6 +433,11 @@ curl "https://sheets.googleapis.com/v4/spreadsheets/1BxiMVs0XRA5nFMdKvBdBZjgmUUq
 # Spreadsheet → Data → Protected sheets and ranges
 # Remove protection or add service account to editors list
 ```
+
+`sheets_advanced.list_protected_ranges` now reports the actual protection scope.
+Use `scope: "range"` for classic protected ranges, `scope: "sheet"` for whole-sheet locks,
+and `scope: "named_range"` when the protection is bound to a named range. For protected
+sheets, also inspect `unprotectedRanges` before assuming the entire tab is locked.
 
 ---
 

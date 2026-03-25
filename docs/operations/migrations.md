@@ -3,7 +3,7 @@ title: Version Migration Guide
 category: runbook
 last_updated: 2026-01-31
 description: Procedures for migrating between ServalSheets versions, including breaking changes, data migrations, and rollback strategies.
-version: 1.6.0
+version: 2.0.0
 tags: [docker, kubernetes]
 estimated_time: 15-30 minutes
 ---

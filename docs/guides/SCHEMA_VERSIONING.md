@@ -3,7 +3,7 @@ title: Schema Versioning Guide
 category: guide
 last_updated: 2026-03-10
 description: ServalSheets supports multiple schema versions simultaneously to allow gradual client migration without breaking changes.
-version: 1.6.0
+version: 2.0.0
 audience: user
 difficulty: intermediate
 ---

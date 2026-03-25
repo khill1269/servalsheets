@@ -3,7 +3,7 @@ title: Benchmark Fix Action Plan
 category: general
 last_updated: 2026-03-20
 description: Prioritized 44-fix benchmark remediation plan derived from the Fix Action Plan sheet.
-version: 1.7.0
+version: 2.0.0
 ---
 
 # Benchmark Fix Action Plan - 2026-03-20

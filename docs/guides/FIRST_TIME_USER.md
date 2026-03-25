@@ -3,7 +3,7 @@ title: Welcome to ServalSheets! 🎉
 category: guide
 last_updated: 2026-01-31
 description: You've successfully installed ServalSheets. Start with readiness, then verify the connection, then complete one useful task.
-version: 1.6.0
+version: 2.0.0
 audience: user
 difficulty: intermediate
 ---

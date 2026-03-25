@@ -3,7 +3,7 @@ title: 'Phase 3 Features: User Guide'
 category: guide
 last_updated: 2026-03-10
 description: Complete guide to ServalSheets' cutting-edge MCP features
-version: 1.6.0
+version: 2.0.0
 audience: user
 difficulty: intermediate
 ---
@@ -648,10 +648,10 @@ workflowPlan.steps.forEach((step, i) => {
 });
 
 // Example output:
-// 1. Import CSV data (sheets_data.import_csv)
-// 2. Remove duplicate rows (sheets_quality.deduplicate)
+// 1. Import CSV data (sheets_composite.import_csv)
+// 2. Remove duplicate rows (sheets_composite.deduplicate)
 // 3. Analyze sales trends (sheets_analyze.detect_patterns)
-// 4. Create trend visualization (sheets_visualize.create_chart)
+// 4. Create trend visualization (sheets_visualize.chart_create)
 // 5. Share with stakeholders (sheets_collaborate.share_add)
 //    ⚠️ Requires confirmation (medium risk)
 ```
@@ -720,7 +720,7 @@ Steps can depend on previous steps:
 ```typescript
 {
   id: 'step-3',
-  action: 'sheets_visualize.create_chart',
+  action: 'sheets_visualize.chart_create',
   dependencies: ['step-1', 'step-2'], // Wait for data import and cleaning
   params: { ... },
 }

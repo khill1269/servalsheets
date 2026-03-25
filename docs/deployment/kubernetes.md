@@ -1,9 +1,9 @@
 ---
 title: Kubernetes Deployment
 category: general
-last_updated: 2026-02-17
+last_updated: 2026-03-24
 description: Deploy ServalSheets on Kubernetes using the operator or manual manifests for production-grade scalability.
-version: 1.6.0
+version: 2.0.0
 tags: [deployment, kubernetes, operator, crd, autoscaling, prometheus]
 ---
 
@@ -122,7 +122,7 @@ spec:
   replicas: 2
   image:
     repository: servalsheets/server
-    tag: "1.6.0"
+    tag: "2.0.0"
   resources:
     requests:
       cpu: "200m"

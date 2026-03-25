@@ -3,7 +3,7 @@ title: Claude Code Rules
 category: development
 last_updated: 2026-03-11
 description: Historical name retained for contributor-rule compatibility links.
-version: 1.7.0
+version: 2.0.0
 ---
 
 # Claude Code Rules
