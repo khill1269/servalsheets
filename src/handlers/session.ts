@@ -7,7 +7,6 @@
  */
 
 import { ErrorCodes } from './error-codes.js';
-import { extractRangeA1Optional } from '../utils/range-helpers.js';
 import type { SheetsSessionInput, SheetsSessionOutput } from '../schemas/session.js';
 import { PipelineExecutor, type PipelineStep } from '../services/pipeline-executor.js';
 import { getPipelineDispatch } from '../services/pipeline-registry.js';
@@ -15,28 +14,57 @@ import type { SchedulerService } from '../services/scheduler.js';
 import {
   getSessionContext,
   SessionContextManager,
-  type SpreadsheetContext,
-  type UserPreferences,
 } from '../services/session-context.js';
-import { getHistoryService } from '../services/history-service.js';
-import { getPrefetchingSystem } from '../services/prefetching-system.js';
 import { unwrapRequest } from './base.js';
 import { ValidationError } from '../core/errors.js';
-import {
-  saveCheckpoint,
-  loadCheckpoint,
-  loadCheckpointByTimestamp,
-  listCheckpointsForSession,
-  listAllCheckpoints,
-  deleteCheckpoint,
-  isCheckpointsEnabled,
-  getOperationCount,
-  type Checkpoint,
-} from '../utils/checkpoint.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { sendProgress } from '../utils/request-context.js';
 import { logger } from '../utils/logger.js';
+
+// Submodule action handlers
+import {
+  handleSetActive,
+  handleGetActive,
+  handleGetContext,
+  handleRecordOperation,
+  handleGetLastOperation,
+} from './session-actions/context.js';
+import { handleGetHistory, handleFindByReference } from './session-actions/history.js';
+import {
+  handleUpdatePreferences,
+  handleGetPreferences,
+  handleUpdateProfilePreferences,
+} from './session-actions/preferences.js';
+import {
+  handleSetPending,
+  handleGetPending,
+  handleClearPending,
+} from './session-actions/pending.js';
+import {
+  handleSaveCheckpoint,
+  handleLoadCheckpoint,
+  handleListCheckpoints,
+  handleDeleteCheckpoint,
+} from './session-actions/checkpoints.js';
+import {
+  handleGetAlerts,
+  handleAcknowledgeAlert,
+  handleClearAlerts,
+} from './session-actions/alerts.js';
+import {
+  handleSetUserId,
+  handleGetProfile,
+  handleRecordSuccessfulFormula,
+  handleRejectSuggestion,
+  handleGetTopFormulas,
+} from './session-actions/user-profile.js';
+import {
+  handleScheduleCreate,
+  handleScheduleList,
+  handleScheduleCancel,
+  handleScheduleRunNow,
+} from './session-actions/scheduling.js';
 
 // ============================================================================
 // MODULE-LEVEL SCHEDULER REGISTRY
@@ -45,51 +73,8 @@ import { logger } from '../utils/logger.js';
 /** Module-level scheduler instance — set via SessionHandler.setScheduler() */
 let _scheduler: SchedulerService | null = null;
 
-// ============================================================================
-// FUZZY MATCHING HELPERS
-// ============================================================================
-
-/**
- * Normalize reference type aliases
- * Maps informal names to canonical types
- */
-function normalizeReferenceType(typeAlias: string): string {
-  const normalized = typeAlias.toLowerCase().trim();
-
-  // Type alias mapping
-  const aliases: Record<string, string> = {
-    sheet: 'spreadsheet',
-    sheets: 'spreadsheet',
-    tab: 'sheet',
-    tabs: 'sheet',
-    doc: 'spreadsheet',
-    document: 'spreadsheet',
-    docs: 'spreadsheet',
-    workbook: 'spreadsheet',
-    workbooks: 'spreadsheet',
-    file: 'spreadsheet',
-  };
-
-  return aliases[normalized] ?? typeAlias;
-}
-
-/**
- * Convert match score (0.0-1.0) to human-readable confidence level
- */
-function getConfidenceLevel(score: number): 'exact' | 'high' | 'medium' | 'low' {
-  if (score >= 0.9) return 'exact';
-  if (score >= 0.7) return 'high';
-  if (score >= 0.5) return 'medium';
-  return 'low';
-}
-
-/**
- * Strip matchScore from result object for response
- * (matchScore is internal; response should not expose implementation details)
- */
-function stripMatchScore<T extends { matchScore: number }>(obj: T): Omit<T, 'matchScore'> {
-  const { matchScore: _, ...rest } = obj;
-  return rest as Omit<T, 'matchScore'>;
+function getScheduler(): SchedulerService | null {
+  return _scheduler;
 }
 
 // ============================================================================
@@ -214,460 +199,56 @@ export async function handleSheetsSession(
 
   try {
     switch (action) {
-      case 'set_active': {
-        const { spreadsheetId, title, sheetNames } = req;
-        if (typeof spreadsheetId !== 'string' || spreadsheetId.trim().length === 0) {
-          throw new ValidationError('Missing required parameter: spreadsheetId', 'spreadsheetId');
-        }
-        // Title is optional - use spreadsheetId as fallback if not provided
-        // This allows LLMs to quickly set active without knowing the title
-        const resolvedTitle = title ?? `Spreadsheet ${spreadsheetId.slice(0, 8)}...`;
-        const context: SpreadsheetContext = {
-          spreadsheetId,
-          title: resolvedTitle,
-          sheetNames: sheetNames ?? [],
-          activatedAt: Date.now(),
-        };
-        session.setActiveSpreadsheet(context);
-        const prefetchingSystem = getPrefetchingSystem();
-        if (prefetchingSystem) {
-          void prefetchingSystem.prefetchOnOpen(spreadsheetId).catch((error: unknown) => {
-            logger.debug('set_active prefetch warmup failed', {
-              spreadsheetId,
-              error: error instanceof Error ? error.message : String(error),
-            });
-          });
-        } else {
-          logger.debug('set_active: session context updated, no prefetch system available', {
-            spreadsheetId,
-          });
-        }
-        return {
-          response: {
-            success: true,
-            action: 'set_active',
-            spreadsheet: context,
-            summary: session.getContextSummary(),
-            ...(title === undefined && {
-              message:
-                'Title was auto-generated from spreadsheetId. Provide title for better natural language references.',
-            }),
-          },
-        };
-      }
+      case 'set_active':
+        return await handleSetActive(session, req as Parameters<typeof handleSetActive>[1]);
 
-      case 'get_active': {
-        return {
-          response: {
-            success: true,
-            action: 'get_active',
-            spreadsheet: session.getActiveSpreadsheet(),
-            recentSpreadsheets: session.getRecentSpreadsheets(),
-            summary: session.getContextSummary(),
-          },
-        };
-      }
+      case 'get_active':
+        return handleGetActive(session);
 
-      case 'get_context': {
-        // session.getPendingOperation() context field is `Record<string, unknown>`,
-        // while PendingOperationSchema expects a more specific value union. The runtime
-        // value is always compatible — cast the whole return as the output type.
-        return {
-          response: {
-            success: true,
-            action: 'get_context',
-            summary: session.getContextSummary(),
-            activeSpreadsheet: session.getActiveSpreadsheet(),
-            lastOperation: session.getLastOperation(),
-            pendingOperation: session.getPendingOperation(),
-            suggestedActions: session.suggestNextActions(),
-          },
-        } as SheetsSessionOutput;
-      }
+      case 'get_context':
+        return handleGetContext(session);
 
-      case 'record_operation': {
-        const {
-          tool,
-          toolAction,
-          spreadsheetId,
-          range,
-          description,
-          undoable,
-          snapshotId,
-          cellsAffected,
-        } = req;
+      case 'record_operation':
+        return handleRecordOperation(session, req as Parameters<typeof handleRecordOperation>[1]);
 
-        // Type assertion: refine() validates required fields are defined for record_operation action
-        const operationId = session.recordOperation({
-          tool: tool!,
-          action: toolAction!,
-          spreadsheetId: spreadsheetId!,
-          range: extractRangeA1Optional(range),
-          description: description!,
-          undoable: undoable!,
-          snapshotId,
-          cellsAffected,
-        });
+      case 'get_last_operation':
+        return handleGetLastOperation(session);
 
-        // Sync operation to HistoryService so sheets_history:get can find it
-        const historyService = getHistoryService();
-        historyService.record({
-          id: operationId,
-          timestamp: new Date().toISOString(),
-          tool: tool!,
-          action: toolAction!,
-          params: {
-            range,
-            description,
-            undoable,
-          },
-          result: 'success',
-          duration: 0,
-          spreadsheetId: spreadsheetId!,
-          cellsAffected,
-          snapshotId,
-        });
+      case 'get_history':
+        return handleGetHistory(session, req as Parameters<typeof handleGetHistory>[1]);
 
-        return {
-          response: {
-            success: true,
-            action: 'record_operation',
-            operationId,
-          },
-        };
-      }
+      case 'find_by_reference':
+        return handleFindByReference(session, req as Parameters<typeof handleFindByReference>[1]);
 
-      case 'get_last_operation': {
-        return {
-          response: {
-            success: true,
-            action: 'get_last_operation',
-            operation: session.getLastOperation(),
-          },
-        };
-      }
+      case 'update_preferences':
+        return handleUpdatePreferences(session, req as Parameters<typeof handleUpdatePreferences>[1]);
 
-      case 'get_history': {
-        const limit = req.limit ?? 10;
-        return {
-          response: {
-            success: true,
-            action: 'get_history',
-            operations: session.getOperationHistory(limit),
-          },
-        };
-      }
+      case 'get_preferences':
+        return handleGetPreferences(session);
 
-      case 'find_by_reference': {
-        const { reference, referenceType } = req;
-        if (typeof reference !== 'string' || reference.trim().length === 0) {
-          throw new ValidationError('Missing required parameter: reference', 'reference');
-        }
+      case 'update_profile_preferences':
+        return await handleUpdateProfilePreferences(session, req as Parameters<typeof handleUpdateProfilePreferences>[1]);
 
-        // Type assertion: refine() validates these are defined for find_by_reference action
-        // Normalize reference type aliases (sheet → spreadsheet, tab → sheet, etc.)
-        const normalizedType = normalizeReferenceType(referenceType || 'spreadsheet');
+      case 'set_pending':
+        return handleSetPending(session, req as Parameters<typeof handleSetPending>[1]);
 
-        if (normalizedType === 'spreadsheet') {
-          const match = session.findSpreadsheetByReference(reference);
-          const confidence = match ? getConfidenceLevel(match.matchScore) : null;
-          return {
-            response: {
-              success: true,
-              action: 'find_by_reference',
-              found: match !== null,
-              ...(match && {
-                spreadsheet: stripMatchScore(match),
-                confidence,
-                matchScore: match.matchScore,
-              }),
-              ...(match &&
-                match.matchScore < 0.7 && {
-                  warning: `Fuzzy matched (${Math.round(match.matchScore * 100)}% confidence). Did you mean "${match.title}"?`,
-                }),
-            },
-          };
-        } else {
-          // referenceType === 'sheet' or other operation types
-          const match = session.findOperationByReference(reference);
-          const confidence = match ? getConfidenceLevel(match.matchScore) : null;
-          return {
-            response: {
-              success: true,
-              action: 'find_by_reference',
-              found: match !== null,
-              ...(match && {
-                operation: stripMatchScore(match),
-                confidence,
-                matchScore: match.matchScore,
-              }),
-              ...(match &&
-                match.matchScore < 0.7 && {
-                  warning: `Fuzzy matched (${Math.round(match.matchScore * 100)}% confidence). Did you mean "${match.action}"?`,
-                }),
-            },
-          };
-        }
-      }
+      case 'get_pending':
+        return handleGetPending(session);
 
-      case 'update_preferences': {
-        const { confirmationLevel, dryRunDefault, snapshotDefault } = req;
-        const updates: Partial<UserPreferences> = {};
+      case 'clear_pending':
+        return handleClearPending(session);
 
-        if (confirmationLevel) {
-          const validLevels: UserPreferences['confirmationLevel'][] = [
-            'always',
-            'destructive',
-            'never',
-          ];
-          if (validLevels.includes(confirmationLevel as UserPreferences['confirmationLevel'])) {
-            updates.confirmationLevel = confirmationLevel as UserPreferences['confirmationLevel'];
-          }
-        }
-        if (dryRunDefault !== undefined || snapshotDefault !== undefined) {
-          updates.defaultSafety = {
-            dryRun: dryRunDefault ?? session.getPreferences().defaultSafety.dryRun,
-            createSnapshot:
-              snapshotDefault ?? session.getPreferences().defaultSafety.createSnapshot,
-          };
-        }
+      case 'save_checkpoint':
+        return await handleSaveCheckpoint(session, req as Parameters<typeof handleSaveCheckpoint>[1]);
 
-        session.updatePreferences(updates);
+      case 'load_checkpoint':
+        return await handleLoadCheckpoint(session, req as Parameters<typeof handleLoadCheckpoint>[1]);
 
-        return {
-          response: {
-            success: true,
-            action: 'update_preferences',
-            preferences: session.getPreferences(),
-          },
-        };
-      }
+      case 'list_checkpoints':
+        return await handleListCheckpoints(req as Parameters<typeof handleListCheckpoints>[0]);
 
-      case 'get_preferences': {
-        return {
-          response: {
-            success: true,
-            action: 'get_preferences',
-            preferences: session.getPreferences(),
-          },
-        };
-      }
-
-      case 'set_pending': {
-        const { type, step, totalSteps, context } = req;
-        // Type assertion: refine() validates these are defined for set_pending action
-        session.setPendingOperation({
-          type: type!,
-          step: step!,
-          totalSteps: totalSteps!,
-          context: context! as Record<
-            string,
-            string | number | boolean | unknown[] | Record<string, unknown> | null
-          >,
-        });
-        // getPendingOperation() context field is `Record<string, unknown>`, which
-        // the output schema narrows further. Cast the return as the output type.
-        return {
-          response: {
-            success: true,
-            action: 'set_pending',
-            pending: session.getPendingOperation(),
-          },
-        } as SheetsSessionOutput;
-      }
-
-      case 'get_pending': {
-        return {
-          response: {
-            success: true,
-            action: 'get_pending',
-            pending: session.getPendingOperation(),
-          },
-        } as SheetsSessionOutput;
-      }
-
-      case 'clear_pending': {
-        session.clearPendingOperation();
-        return {
-          response: {
-            success: true,
-            action: 'clear_pending',
-            pending: null,
-          },
-        };
-      }
-
-      case 'save_checkpoint': {
-        if (!isCheckpointsEnabled()) {
-          return {
-            response: {
-              success: false,
-              error: {
-                code: ErrorCodes.CHECKPOINTS_DISABLED,
-                message: 'Checkpoints disabled. Set ENABLE_CHECKPOINTS=true in .env.local',
-                retryable: false,
-              },
-            },
-          };
-        }
-
-        await sendProgress(0, 100, 'Saving checkpoint...');
-        const { sessionId, description } = req;
-        const activeSpreadsheet = session.getActiveSpreadsheet();
-        const history = session.getOperationHistory(100);
-
-        const checkpoint: Checkpoint = {
-          sessionId: sessionId!,
-          timestamp: Date.now(),
-          createdAt: new Date().toISOString(),
-          description,
-          completedSteps: getOperationCount(),
-          completedOperations: history.map((op) => `${op.tool}.${op.action}`),
-          spreadsheetId: activeSpreadsheet?.spreadsheetId,
-          spreadsheetTitle: activeSpreadsheet?.title,
-          sheetNames: activeSpreadsheet?.sheetNames,
-          lastRange: activeSpreadsheet?.lastRange,
-          context: {},
-          // UserPreferences is a typed interface; Checkpoint.preferences is
-          // Record<string, unknown>. The runtime values are always compatible.
-          preferences: session.getPreferences() as unknown as Record<string, unknown>,
-        };
-
-        const filepath = await saveCheckpoint(checkpoint);
-        await sendProgress(100, 100, 'Checkpoint saved');
-
-        return {
-          response: {
-            success: true,
-            action: 'save_checkpoint',
-            checkpointPath: filepath,
-            checkpoint: {
-              sessionId: checkpoint.sessionId,
-              timestamp: checkpoint.timestamp,
-              createdAt: checkpoint.createdAt,
-              description: checkpoint.description,
-              completedSteps: checkpoint.completedSteps,
-              spreadsheetTitle: checkpoint.spreadsheetTitle,
-            },
-            message: `Checkpoint saved. Resume with: sheets_session.load_checkpoint({sessionId: "${sessionId}"})`,
-          },
-        };
-      }
-
-      case 'load_checkpoint': {
-        if (!isCheckpointsEnabled()) {
-          return {
-            response: {
-              success: false,
-              error: {
-                code: ErrorCodes.CHECKPOINTS_DISABLED,
-                message: 'Checkpoints disabled. Set ENABLE_CHECKPOINTS=true in .env.local',
-                retryable: false,
-              },
-            },
-          };
-        }
-
-        const { sessionId, timestamp } = req;
-        const checkpoint = timestamp
-          ? await loadCheckpointByTimestamp(sessionId!, timestamp)
-          : await loadCheckpoint(sessionId!);
-
-        if (!checkpoint) {
-          return {
-            response: {
-              success: false,
-              error: {
-                code: ErrorCodes.CHECKPOINT_NOT_FOUND,
-                message: `No checkpoint found for session "${sessionId}"`,
-                retryable: false,
-              },
-            },
-          };
-        }
-
-        // Restore session state
-        if (checkpoint.spreadsheetId && checkpoint.spreadsheetTitle) {
-          session.setActiveSpreadsheet({
-            spreadsheetId: checkpoint.spreadsheetId,
-            title: checkpoint.spreadsheetTitle,
-            sheetNames: checkpoint.sheetNames || [],
-            activatedAt: Date.now(),
-            lastRange: checkpoint.lastRange,
-          });
-        }
-
-        return {
-          response: {
-            success: true,
-            action: 'load_checkpoint',
-            checkpoint: {
-              sessionId: checkpoint.sessionId,
-              timestamp: checkpoint.timestamp,
-              createdAt: checkpoint.createdAt,
-              description: checkpoint.description,
-              completedSteps: checkpoint.completedSteps,
-              spreadsheetTitle: checkpoint.spreadsheetTitle,
-            },
-            message: `Resumed from checkpoint. ${checkpoint.completedSteps} steps already completed.`,
-          },
-        };
-      }
-
-      case 'list_checkpoints': {
-        if (!isCheckpointsEnabled()) {
-          return {
-            response: {
-              success: true,
-              action: 'list_checkpoints',
-              checkpoints: [],
-              message: 'Checkpoints disabled. Set ENABLE_CHECKPOINTS=true in .env.local',
-            },
-          };
-        }
-
-        const { sessionId } = req;
-        const checkpoints = sessionId
-          ? await listCheckpointsForSession(sessionId)
-          : await listAllCheckpoints();
-
-        return {
-          response: {
-            success: true,
-            action: 'list_checkpoints',
-            checkpoints,
-          },
-        };
-      }
-
-      case 'delete_checkpoint': {
-        if (!isCheckpointsEnabled()) {
-          return {
-            response: {
-              success: false,
-              error: {
-                code: ErrorCodes.CHECKPOINTS_DISABLED,
-                message: 'Checkpoints disabled. Set ENABLE_CHECKPOINTS=true in .env.local',
-                retryable: false,
-              },
-            },
-          };
-        }
-
-        const { sessionId, timestamp } = req;
-        const deleted = await deleteCheckpoint(sessionId!, timestamp);
-
-        return {
-          response: {
-            success: true,
-            action: 'delete_checkpoint',
-            deleted,
-            message: deleted
-              ? `Checkpoint(s) deleted for session "${sessionId}"`
-              : `No checkpoints found for session "${sessionId}"`,
-          },
-        };
-      }
+      case 'delete_checkpoint':
+        return await handleDeleteCheckpoint(req as Parameters<typeof handleDeleteCheckpoint>[0]);
 
       case 'reset': {
         session.reset();
@@ -680,251 +261,41 @@ export async function handleSheetsSession(
         };
       }
 
-      case 'get_alerts': {
-        const { onlyUnacknowledged, severity } = req;
+      case 'get_alerts':
+        return handleGetAlerts(session, req as Parameters<typeof handleGetAlerts>[1]);
 
-        const alerts = session.getAlerts({
-          onlyUnacknowledged: onlyUnacknowledged ?? true,
-          severity,
-        });
+      case 'acknowledge_alert':
+        return handleAcknowledgeAlert(session, req as Parameters<typeof handleAcknowledgeAlert>[1]);
 
-        // Alert type from session-context has `actionable` params typed as
-        // Record<string, unknown>, while the output schema uses a specific value union.
-        // The runtime values are always compatible.
-        return {
-          response: {
-            success: true,
-            action: 'get_alerts' as const,
-            alerts,
-            count: alerts.length,
-            hasCritical: alerts.some((a) => a.severity === 'critical'),
-          },
-        } as SheetsSessionOutput;
-      }
+      case 'clear_alerts':
+        return handleClearAlerts(session);
 
-      case 'acknowledge_alert': {
-        const { alertId } = req;
-        const acknowledged = session.acknowledgeAlert(alertId!);
-        if (!acknowledged) {
-          throw new ValidationError(`Alert not found: ${alertId}`, 'alertId');
-        }
-        return {
-          response: {
-            success: true,
-            action: 'acknowledge_alert' as const,
-            alertId: alertId!,
-            message: 'Alert acknowledged',
-          },
-        };
-      }
+      case 'set_user_id':
+        return await handleSetUserId(session, req as Parameters<typeof handleSetUserId>[1]);
 
-      case 'clear_alerts': {
-        session.clearAlerts();
-        return {
-          response: {
-            success: true,
-            action: 'clear_alerts' as const,
-            message: 'All alerts cleared',
-          },
-        };
-      }
+      case 'get_profile':
+        return await handleGetProfile(session);
 
-      case 'set_user_id': {
-        const { userId } = req as { userId: string };
-        await session.setUserId(userId);
-        return {
-          response: {
-            success: true,
-            action: 'set_user_id' as const,
-            userId,
-            message: 'User profile loaded',
-          },
-        };
-      }
+      case 'record_successful_formula':
+        return await handleRecordSuccessfulFormula(session, req as Parameters<typeof handleRecordSuccessfulFormula>[1]);
 
-      case 'get_profile': {
-        const profile = await session.getUserProfile();
-        return {
-          response: {
-            success: true,
-            action: 'get_profile' as const,
-            profile,
-          },
-        };
-      }
+      case 'reject_suggestion':
+        return await handleRejectSuggestion(session, req as Parameters<typeof handleRejectSuggestion>[1]);
 
-      case 'update_profile_preferences': {
-        const { preferences } = req as { preferences: Record<string, unknown> };
-        await session.updateUserPreferences(preferences);
-        return {
-          response: {
-            success: true,
-            action: 'update_profile_preferences' as const,
-            message: 'Preferences updated',
-          },
-        };
-      }
+      case 'get_top_formulas':
+        return await handleGetTopFormulas(session, req as Parameters<typeof handleGetTopFormulas>[1]);
 
-      case 'record_successful_formula': {
-        const { formula, useCase } = req as { formula: string; useCase: string };
-        await session.recordSuccessfulFormula(formula, useCase);
-        return {
-          response: {
-            success: true,
-            action: 'record_successful_formula' as const,
-            message: 'Formula recorded',
-          },
-        };
-      }
+      case 'schedule_create':
+        return await handleScheduleCreate(getScheduler, req as Parameters<typeof handleScheduleCreate>[1]);
 
-      case 'reject_suggestion': {
-        const { suggestion } = req as { suggestion: string };
-        await session.rejectSuggestion(suggestion);
-        return {
-          response: {
-            success: true,
-            action: 'reject_suggestion' as const,
-            message: 'Suggestion rejected and recorded',
-          },
-        };
-      }
+      case 'schedule_list':
+        return handleScheduleList(getScheduler, req as Parameters<typeof handleScheduleList>[1]);
 
-      case 'get_top_formulas': {
-        const { limit } = req as { limit?: number };
-        const formulas = await session.getTopFormulas(limit);
-        return {
-          response: {
-            success: true,
-            action: 'get_top_formulas' as const,
-            formulas,
-          },
-        };
-      }
+      case 'schedule_cancel':
+        return await handleScheduleCancel(getScheduler, req as Parameters<typeof handleScheduleCancel>[1]);
 
-      case 'schedule_create': {
-        if (!_scheduler) {
-          return {
-            response: {
-              success: false as const,
-              error: {
-                code: ErrorCodes.NOT_FOUND,
-                message: 'Scheduler service not available',
-                retryable: false,
-              },
-            },
-          };
-        }
-        const nestedOperation =
-          ('operation' in req && req.operation ? req.operation : undefined) ??
-          ('target' in req && req.target ? req.target : undefined);
-        const tool = req.tool ?? nestedOperation?.tool;
-        const actionName = req.actionName ?? nestedOperation?.actionName ?? nestedOperation?.action;
-        const params = req.params ?? nestedOperation?.params ?? {};
-
-        if (!tool || !actionName) {
-          return {
-            response: {
-              success: false as const,
-              error: {
-                code: ErrorCodes.INVALID_PARAMS,
-                message:
-                  'schedule_create requires either flat tool/actionName fields or a nested operation with tool and action',
-                retryable: false,
-              },
-            },
-          };
-        }
-
-        const job = await _scheduler.create({
-          spreadsheetId: req.spreadsheetId,
-          cronExpression: req.cronExpression,
-          description: req.description,
-          action: { tool, actionName, params },
-          enabled: true,
-        });
-        return {
-          response: {
-            success: true as const,
-            action: 'schedule_create' as const,
-            jobId: job.id,
-            message: `Scheduled job created: ${job.id}`,
-          },
-        };
-      }
-
-      case 'schedule_list': {
-        if (!_scheduler) {
-          return {
-            response: {
-              success: false as const,
-              error: {
-                code: ErrorCodes.NOT_FOUND,
-                message: 'Scheduler service not available',
-                retryable: false,
-              },
-            },
-          };
-        }
-        const jobs = _scheduler.list(req.spreadsheetId);
-        return {
-          response: {
-            success: true as const,
-            action: 'schedule_list' as const,
-            jobs: jobs.map((j) => ({
-              ...j,
-              tool: j.action.tool,
-              actionName: j.action.actionName,
-            })),
-          },
-        };
-      }
-
-      case 'schedule_cancel': {
-        if (!_scheduler) {
-          return {
-            response: {
-              success: false as const,
-              error: {
-                code: ErrorCodes.NOT_FOUND,
-                message: 'Scheduler service not available',
-                retryable: false,
-              },
-            },
-          };
-        }
-        await _scheduler.cancel(req.jobId);
-        return {
-          response: {
-            success: true as const,
-            action: 'schedule_cancel' as const,
-            jobId: req.jobId,
-          },
-        };
-      }
-
-      case 'schedule_run_now': {
-        if (!_scheduler) {
-          return {
-            response: {
-              success: false as const,
-              error: {
-                code: ErrorCodes.NOT_FOUND,
-                message: 'Scheduler service not available',
-                retryable: false,
-              },
-            },
-          };
-        }
-        await _scheduler.runNow(req.jobId);
-        return {
-          response: {
-            success: true as const,
-            action: 'schedule_run_now' as const,
-            jobId: req.jobId,
-            message: 'Job triggered successfully',
-          },
-        };
-      }
+      case 'schedule_run_now':
+        return await handleScheduleRunNow(getScheduler, req as Parameters<typeof handleScheduleRunNow>[1]);
 
       case 'execute_pipeline': {
         // Intercepted by SessionHandler.handle() before this function is called.
