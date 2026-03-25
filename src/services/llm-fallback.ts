@@ -19,7 +19,7 @@
  */
 
 import { logger } from '../utils/logger.js';
-import { assertSamplingConsent, withSamplingTimeout } from '../mcp/sampling.js';
+import { assertSamplingConsent, withSamplingTimeout } from '../utils/sampling-consent.js';
 import { ServiceError, ConfigError } from '../core/errors.js';
 import { recordRequestLlmProvenance } from '../utils/request-context.js';
 

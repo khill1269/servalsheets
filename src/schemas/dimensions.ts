@@ -273,6 +273,10 @@ const SortRangeActionSchema = z.object({
     ),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.optional().describe('Optional sheet ID for context'),
+  sheetName: z
+    .string()
+    .optional()
+    .describe('Optional sheet name for context when range is not sheet-qualified'),
   range: RangeInputSchema.describe('Range to sort (e.g., "Sheet1!A1:D100" or "A1:D100")'),
   sortSpecs: z
     .array(SortSpecSchema)

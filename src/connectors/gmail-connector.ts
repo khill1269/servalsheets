@@ -263,13 +263,14 @@ export class GmailConnector implements SpreadsheetConnector {
     }
 
     if (endpoint === 'labels/list') {
-      const labels = (data['labels'] as Array<{
-        id: string;
-        name: string;
-        type: string;
-        messagesTotal?: number;
-        threadsTotal?: number;
-      }>) ?? [];
+      const labels =
+        (data['labels'] as Array<{
+          id: string;
+          name: string;
+          type: string;
+          messagesTotal?: number;
+          threadsTotal?: number;
+        }>) ?? [];
       const rows = labels.map((l) => [
         l['id'],
         l['name'],

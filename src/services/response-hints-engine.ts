@@ -141,9 +141,7 @@ function profileColumns(values: CellValue[][]): ColumnProfile[] {
         numericValues.reduce((sum, v) => sum + (v - mean) ** 2, 0) / numericValues.length;
       const stdDev = Math.sqrt(variance);
       const outlierCount =
-        stdDev > 0
-          ? numericValues.filter((v) => Math.abs(v - mean) > 3 * stdDev).length
-          : 0;
+        stdDev > 0 ? numericValues.filter((v) => Math.abs(v - mean) > 3 * stdDev).length : 0;
       numericStats = { mean, stdDev, outlierCount };
     }
 

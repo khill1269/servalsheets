@@ -237,6 +237,16 @@ const DescribeWorkbookActionSchema = CommonFieldsSchema.extend({
       'Return a structured metadata summary of a workbook: title, sheet dimensions, formula counts, last modified'
     ),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  maxSheets: z
+    .number()
+    .int()
+    .positive()
+    .max(100)
+    .optional()
+    .default(10)
+    .describe(
+      'Max sheets to scan for formula/non-empty-cell counts (default: 10). Sheet metadata still includes the full workbook.'
+    ),
 });
 
 const WorkbookFingerprintActionSchema = CommonFieldsSchema.extend({
@@ -246,6 +256,16 @@ const WorkbookFingerprintActionSchema = CommonFieldsSchema.extend({
       'Return a stable SHA-256 fingerprint of a workbook structure (sheet names, dimensions, formula counts). Use to detect structural changes without reading cell data.'
     ),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  maxSheets: z
+    .number()
+    .int()
+    .positive()
+    .max(100)
+    .optional()
+    .default(10)
+    .describe(
+      'Reserved for compatibility. Workbook fingerprint is metadata-only and does not scan cell values.'
+    ),
 });
 
 const ListActionSchema = CommonFieldsSchema.extend({
@@ -457,6 +477,13 @@ const ClearSheetActionSchema = CommonFieldsSchema.extend({
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.optional().describe('Numeric sheet ID to clear (use this OR sheetName)'),
   sheetName: z.string().optional().describe('Sheet name/title to clear (use this OR sheetId)'),
+  resetSheet: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'True sheet reset: clears values, formats, notes, banding, filters, filter views, and tables while preserving the sheet tab'
+    ),
   clearValues: z.boolean().optional().default(true).describe('Clear cell values (default: true)'),
   clearFormats: z
     .boolean()
@@ -571,6 +598,23 @@ const CoreResponseSchema = z.discriminatedUnion('success', [
     skippedSheetIds: z.array(z.coerce.number().int()).optional(),
     /** Number of sheets updated in batch operation */
     updatedCount: z.coerce.number().int().optional(),
+    /** Sheet ID returned by sheet-level actions such as clear_sheet and move_sheet */
+    sheetId: z.coerce.number().int().optional(),
+    /** Sheet title returned by sheet-level actions such as clear_sheet and move_sheet */
+    sheetTitle: z.string().optional(),
+    /** Summary of what clear_sheet removed */
+    cleared: z
+      .object({
+        values: z.boolean().optional(),
+        formats: z.boolean().optional(),
+        notes: z.boolean().optional(),
+        resetSheet: z.boolean().optional(),
+        banding: z.coerce.number().int().optional(),
+        filterViews: z.coerce.number().int().optional(),
+        tables: z.coerce.number().int().optional(),
+        basicFilter: z.boolean().optional(),
+      })
+      .optional(),
     // Common fields
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
@@ -890,8 +934,10 @@ export type CoreMoveSheetInput = SheetsCoreInput['request'] & {
 export type CoreDescribeWorkbookInput = SheetsCoreInput['request'] & {
   action: 'describe_workbook';
   spreadsheetId: string;
+  maxSheets?: number;
 };
 export type CoreWorkbookFingerprintInput = SheetsCoreInput['request'] & {
   action: 'workbook_fingerprint';
   spreadsheetId: string;
+  maxSheets?: number;
 };

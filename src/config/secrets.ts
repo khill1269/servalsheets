@@ -19,6 +19,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ConfigError } from '../core/errors.js';
 
 /**
  * Pluggable interface for secrets providers
@@ -57,69 +58,177 @@ export class EnvSecretsProvider implements SecretsProvider {
 }
 
 /**
- * VaultSecretsProvider: scaffold for HashiCorp Vault integration.
+ * VaultSecretsProvider: HashiCorp Vault KV v2 integration.
  *
- * Future implementation will cover:
- *   - Authentication (token, JWT, AppRole, Kubernetes)
- *   - Path resolution (KV v1/v2, database roles, PKI)
- *   - Token renewal and caching
- *   - TTL-aware caching with refresh
+ * Retrieves secrets from Vault's KV v2 engine at path `secret/data/{key}`.
+ * Uses Node.js built-in fetch (no external deps). TTL-aware in-memory cache
+ * avoids redundant network calls for frequently accessed secrets.
  *
- * Currently returns safe defaults (undefined / false) and logs a warning.
+ * Authentication: Token-based (VAULT_TOKEN). For production, use a renewable
+ * token issued by AppRole, Kubernetes auth, or JWT auth method.
+ *
+ * Required env vars: VAULT_URL, VAULT_TOKEN
+ * Optional env vars: VAULT_NAMESPACE, VAULT_MOUNT (default: 'secret'), VAULT_CACHE_TTL_MS (default: 300000)
  */
 export class VaultSecretsProvider implements SecretsProvider {
   private readonly vaultUrl: string;
   private readonly vaultToken: string;
   private readonly vaultNamespace: string | undefined;
+  private readonly mountPath: string;
+  private readonly cacheTtlMs: number;
+  private readonly cache: Map<string, { value: string; expiresAt: number }> = new Map();
 
   constructor(vaultUrl: string, vaultToken: string, vaultNamespace?: string) {
-    this.vaultUrl = vaultUrl;
+    this.vaultUrl = vaultUrl.replace(/\/+$/, ''); // strip trailing slashes
     this.vaultToken = vaultToken;
     this.vaultNamespace = vaultNamespace;
+    this.mountPath = process.env['VAULT_MOUNT'] || 'secret';
+    this.cacheTtlMs = parseInt(process.env['VAULT_CACHE_TTL_MS'] || '300000', 10);
   }
 
   async getSecret(key: string): Promise<string | undefined> {
-    // [SCAFFOLD] Vault KV v2 GET /v1/secret/data/{key} — returns undefined until wired
-    logger.warn('VaultSecretsProvider.getSecret() not yet implemented', { key, vaultUrl: this.vaultUrl, namespace: this.vaultNamespace, hasToken: !!this.vaultToken });
-    return undefined;
+    // Check TTL cache first
+    const cached = this.cache.get(key);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+    this.cache.delete(key); // expired or missing
+
+    try {
+      const url = `${this.vaultUrl}/v1/${this.mountPath}/data/${encodeURIComponent(key)}`;
+      const headers: Record<string, string> = {
+        'X-Vault-Token': this.vaultToken,
+        Accept: 'application/json',
+      };
+      if (this.vaultNamespace) {
+        headers['X-Vault-Namespace'] = this.vaultNamespace;
+      }
+
+      const response = await fetch(url, { headers, signal: AbortSignal.timeout(5000) });
+
+      if (response.status === 404) {
+        return undefined; // Secret not found — normal flow
+      }
+      if (!response.ok) {
+        logger.error('Vault secret retrieval failed', {
+          key,
+          status: response.status,
+          statusText: response.statusText,
+        });
+        return undefined;
+      }
+
+      const body = (await response.json()) as {
+        data?: { data?: Record<string, string> };
+      };
+      const value = body?.data?.data?.['value'];
+      if (value !== undefined) {
+        this.cache.set(key, { value, expiresAt: Date.now() + this.cacheTtlMs });
+      }
+      return value;
+    } catch (error) {
+      logger.error('Vault request error', {
+        key,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return undefined;
+    }
   }
 
   async hasSecret(key: string): Promise<boolean> {
-    // [SCAFFOLD] Vault HEAD check or GET with error handling — returns false until wired
-    logger.warn('VaultSecretsProvider.hasSecret() not yet implemented', { key });
-    return false;
+    const value = await this.getSecret(key);
+    return value !== undefined;
   }
 }
 
 /**
- * AwsSecretsManagerProvider: scaffold for AWS Secrets Manager integration.
+ * AwsSecretsManagerProvider: AWS Secrets Manager integration.
  *
- * Future implementation will cover:
- *   - Authentication (IAM roles, credentials from env/files)
- *   - Secret retrieval by name
- *   - Rotation support
- *   - Caching with TTL
- *   - Binary secret support
+ * Uses dynamic import of @aws-sdk/client-secrets-manager to avoid hard dependency.
+ * Falls back gracefully if the SDK is not installed. TTL-aware in-memory cache
+ * prevents redundant API calls.
  *
- * Currently returns safe defaults (undefined / false) and logs a warning.
+ * Authentication: Uses default AWS credential chain (IAM roles, env vars,
+ * ~/.aws/credentials, IRSA, ECS task role). No explicit credential config needed.
+ *
+ * Required env vars: AWS_SECRETS_REGION
+ * Optional env vars: AWS_SECRETS_CACHE_TTL_MS (default: 300000)
  */
 export class AwsSecretsManagerProvider implements SecretsProvider {
   private readonly region: string;
+  private readonly cacheTtlMs: number;
+  private readonly cache: Map<string, { value: string; expiresAt: number }> = new Map();
+  private client: unknown = null;
+  private sdkUnavailable = false;
 
   constructor(region: string) {
     this.region = region;
+    this.cacheTtlMs = parseInt(process.env['AWS_SECRETS_CACHE_TTL_MS'] || '300000', 10);
+  }
+
+  /**
+   * Lazily initialize the AWS SDK client via dynamic import.
+   * Returns null if the SDK is not installed (optional dependency).
+   */
+  private async getClient(): Promise<unknown> {
+    if (this.client) return this.client;
+    if (this.sdkUnavailable) return null;
+
+    try {
+      // Dynamic import — @aws-sdk/client-secrets-manager is an optional peer dependency
+      const sdk = await import('@aws-sdk/client-secrets-manager');
+      this.client = new sdk.SecretsManagerClient({ region: this.region });
+      return this.client;
+    } catch {
+      this.sdkUnavailable = true;
+      logger.warn(
+        'AWS Secrets Manager SDK not available. Install @aws-sdk/client-secrets-manager to enable.',
+        { region: this.region }
+      );
+      return null;
+    }
   }
 
   async getSecret(key: string): Promise<string | undefined> {
-    // [SCAFFOLD] AWS Secrets Manager GetSecretValue — returns undefined until wired
-    logger.warn('AwsSecretsManagerProvider.getSecret() not yet implemented', { key, region: this.region });
-    return undefined;
+    // Check TTL cache first
+    const cached = this.cache.get(key);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+    this.cache.delete(key); // expired or missing
+
+    const client = await this.getClient();
+    if (!client) return undefined;
+
+    try {
+      // Use dynamic import to get the command class
+      const sdk = await import('@aws-sdk/client-secrets-manager');
+      const command = new sdk.GetSecretValueCommand({ SecretId: key });
+      const response = await (client as InstanceType<typeof sdk.SecretsManagerClient>).send(
+        command
+      );
+      const value = response.SecretString;
+      if (value !== undefined) {
+        this.cache.set(key, { value, expiresAt: Date.now() + this.cacheTtlMs });
+      }
+      return value;
+    } catch (error) {
+      // ResourceNotFoundException means the secret doesn't exist — not an error
+      if (error instanceof Error && error.name === 'ResourceNotFoundException') {
+        return undefined;
+      }
+      logger.error('AWS Secrets Manager retrieval failed', {
+        key,
+        region: this.region,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return undefined;
+    }
   }
 
   async hasSecret(key: string): Promise<boolean> {
-    // [SCAFFOLD] AWS Secrets Manager DescribeSecret — returns false until wired
-    logger.warn('AwsSecretsManagerProvider.hasSecret() not yet implemented', { key });
-    return false;
+    const value = await this.getSecret(key);
+    return value !== undefined;
   }
 }
 
@@ -141,7 +250,10 @@ export class AwsSecretsManagerProvider implements SecretsProvider {
 export class CompositeSecretsProvider implements SecretsProvider {
   constructor(private providers: SecretsProvider[]) {
     if (providers.length === 0) {
-      throw new Error('CompositeSecretsProvider requires at least one provider');
+      throw new ConfigError(
+        'CompositeSecretsProvider requires at least one provider',
+        'SECRETS_PROVIDER'
+      );
     }
   }
 
@@ -192,8 +304,9 @@ export function createSecretsProvider(): SecretsProvider {
       const vaultNamespace = process.env['VAULT_NAMESPACE'];
 
       if (!vaultUrl || !vaultToken) {
-        throw new Error(
-          'VaultSecretsProvider requires VAULT_URL and VAULT_TOKEN environment variables'
+        throw new ConfigError(
+          'VaultSecretsProvider requires VAULT_URL and VAULT_TOKEN environment variables',
+          'VAULT_URL'
         );
       }
 
@@ -208,7 +321,10 @@ export function createSecretsProvider(): SecretsProvider {
       const region = process.env['AWS_SECRETS_REGION'];
 
       if (!region) {
-        throw new Error('AwsSecretsManagerProvider requires AWS_SECRETS_REGION environment variable');
+        throw new ConfigError(
+          'AwsSecretsManagerProvider requires AWS_SECRETS_REGION environment variable',
+          'AWS_SECRETS_REGION'
+        );
       }
 
       logger.info('Using AwsSecretsManagerProvider for secrets management', { region });
@@ -224,11 +340,7 @@ export function createSecretsProvider(): SecretsProvider {
       if (vaultUrl && vaultToken) {
         logger.info('Adding VaultSecretsProvider to composite chain');
         providers.push(
-          new VaultSecretsProvider(
-            vaultUrl,
-            vaultToken,
-            process.env['VAULT_NAMESPACE']
-          )
+          new VaultSecretsProvider(vaultUrl, vaultToken, process.env['VAULT_NAMESPACE'])
         );
       }
 
@@ -245,8 +357,9 @@ export function createSecretsProvider(): SecretsProvider {
     }
 
     default:
-      throw new Error(
-        `Unknown SECRETS_PROVIDER: ${providerType}. Valid options: env, vault, aws, composite`
+      throw new ConfigError(
+        `Unknown SECRETS_PROVIDER: ${providerType}. Valid options: env, vault, aws, composite`,
+        'SECRETS_PROVIDER'
       );
   }
 }

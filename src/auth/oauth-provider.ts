@@ -132,7 +132,9 @@ type SupportedScope = (typeof SUPPORTED_SCOPES)[number];
  * OAuth 2.1 Provider for MCP authentication
  */
 export class OAuthProvider {
-  private config: Required<Omit<OAuthConfig, 'sessionStore' | 'jwtSecretPrevious' | 'resourceIndicator'>> & {
+  private config: Required<
+    Omit<OAuthConfig, 'sessionStore' | 'jwtSecretPrevious' | 'resourceIndicator'>
+  > & {
     resourceIndicator?: string;
     sessionStore?: SessionStore;
     jwtSecretPrevious?: string;
@@ -969,19 +971,30 @@ export class OAuthProvider {
     // unauthenticated access would allow consent manipulation attacks.
     // ================================================================
     const requireAdminAuth = (req: Request, res: Response, next: () => void): void => {
-      // Admin auth via Bearer token matching the JWT secret (admin API key)
-      // or via a dedicated ADMIN_API_KEY environment variable
-      const adminKey = process.env['ADMIN_API_KEY'] || process.env['JWT_SECRET'];
+      // Admin auth via dedicated ADMIN_API_KEY only.
+      // SECURITY: JWT_SECRET fallback removed — reusing signing keys as API keys
+      // allows token-forgery escalation if JWT_SECRET is compromised.
+      const adminKey = process.env['ADMIN_API_KEY'];
       const authHeader = req.headers['authorization'];
-      if (!authHeader || !adminKey) {
+      if (!adminKey) {
+        res.status(403).json({
+          error: 'forbidden',
+          error_description: 'Admin endpoints disabled. Set ADMIN_API_KEY to enable.',
+        });
+        return;
+      }
+      if (!authHeader) {
         res.status(401).json({
           error: 'unauthorized',
-          error_description: 'Admin authentication required. Set ADMIN_API_KEY and pass as Bearer token.',
+          error_description: 'Admin authentication required. Pass ADMIN_API_KEY as Bearer token.',
         });
         return;
       }
       const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
-      if (token !== adminKey) {
+      // Constant-time comparison to prevent timing attacks (OWASP recommendation)
+      const tokenBuf = Buffer.from(token);
+      const keyBuf = Buffer.from(adminKey);
+      if (tokenBuf.length !== keyBuf.length || !timingSafeEqual(tokenBuf, keyBuf)) {
         res.status(403).json({
           error: 'forbidden',
           error_description: 'Invalid admin credentials',

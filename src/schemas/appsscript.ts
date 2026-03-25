@@ -741,74 +741,69 @@ export const SheetsAppsScriptInputSchema = z.object({
 // ============================================================================
 
 const AppsScriptResponseSchema = z.discriminatedUnion('success', [
-  z
-    .object({
-      success: z.literal(true),
-      action: z.string().describe('Action that was performed'),
-      // Project results
-      project: ScriptProjectSchema.optional().describe('Project metadata'),
-      // Content results
-      files: z.array(ScriptFileSchema).optional().describe('Script files'),
-      // Version results
-      version: ScriptVersionSchema.optional().describe('Version details'),
-      versions: z.array(ScriptVersionSchema).optional().describe('List of versions'),
-      // Deployment results
-      deployment: DeploymentSchema.optional().describe('Deployment details'),
-      deployments: z.array(DeploymentSchema).optional().describe('List of deployments'),
-      webAppUrl: z.string().optional().describe('Web app URL (for web app deployments)'),
-      // Execution results
-      result: z
-        .union([
-          z.string(),
-          z.number(),
-          z.boolean(),
-          z.null(),
-          z.array(z.any()),
-          z.record(z.string(), z.any()),
-        ])
-        .optional()
-        .describe('Function return value (can be string, number, boolean, null, array, or object)'),
-      executionError: z
-        .object({
-          errorMessage: z.string().optional(),
-          errorType: z.string().optional(),
-          scriptStackTraceElements: z
-            .array(
-              z.object({
-                function: z.string().optional(),
-                lineNumber: z.number().int().optional(),
-              })
-            )
-            .optional(),
-        })
-        .optional()
-        .describe('Script execution error details'),
-      // Process results
-      processes: z.array(ProcessSchema).optional().describe('List of execution processes'),
-      // Metrics results
-      metrics: z
-        .object({
-          activeUsers: z.array(z.object({ value: z.string().optional() })).optional(),
-          totalExecutions: z.array(z.object({ value: z.string().optional() })).optional(),
-          failedExecutions: z.array(z.object({ value: z.string().optional() })).optional(),
-        })
-        .optional()
-        .describe('Usage metrics'),
-      // Pagination
-      nextPageToken: z.string().optional().describe('Token for next page of results'),
-      // SERVAL formula installer results
-      scriptId: z.string().optional().describe('Bound Apps Script project ID'),
-      functionName: z.string().optional().describe('Installed function name (SERVAL)'),
-      callbackUrl: z
-        .string()
-        .optional()
-        .describe('ServalSheets callback URL for formula execution'),
-      hmacSecret: z.string().optional().describe('HMAC secret for request signing'),
-      installedAt: z.string().optional().describe('ISO timestamp when function was installed'),
-      // Standard fields
-      _meta: ResponseMetaSchema.optional().describe('Response metadata'),
-    })
-    ,
+  z.object({
+    success: z.literal(true),
+    action: z.string().describe('Action that was performed'),
+    // Project results
+    project: ScriptProjectSchema.optional().describe('Project metadata'),
+    // Content results
+    files: z.array(ScriptFileSchema).optional().describe('Script files'),
+    // Version results
+    version: ScriptVersionSchema.optional().describe('Version details'),
+    versions: z.array(ScriptVersionSchema).optional().describe('List of versions'),
+    // Deployment results
+    deployment: DeploymentSchema.optional().describe('Deployment details'),
+    deployments: z.array(DeploymentSchema).optional().describe('List of deployments'),
+    webAppUrl: z.string().optional().describe('Web app URL (for web app deployments)'),
+    // Execution results
+    result: z
+      .union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+      .optional()
+      .describe('Function return value (can be string, number, boolean, null, array, or object)'),
+    executionError: z
+      .object({
+        errorMessage: z.string().optional(),
+        errorType: z.string().optional(),
+        scriptStackTraceElements: z
+          .array(
+            z.object({
+              function: z.string().optional(),
+              lineNumber: z.number().int().optional(),
+            })
+          )
+          .optional(),
+      })
+      .optional()
+      .describe('Script execution error details'),
+    // Process results
+    processes: z.array(ProcessSchema).optional().describe('List of execution processes'),
+    // Metrics results
+    metrics: z
+      .object({
+        activeUsers: z.array(z.object({ value: z.string().optional() })).optional(),
+        totalExecutions: z.array(z.object({ value: z.string().optional() })).optional(),
+        failedExecutions: z.array(z.object({ value: z.string().optional() })).optional(),
+      })
+      .optional()
+      .describe('Usage metrics'),
+    // Pagination
+    nextPageToken: z.string().optional().describe('Token for next page of results'),
+    // SERVAL formula installer results
+    scriptId: z.string().optional().describe('Bound Apps Script project ID'),
+    functionName: z.string().optional().describe('Installed function name (SERVAL)'),
+    callbackUrl: z.string().optional().describe('ServalSheets callback URL for formula execution'),
+    hmacSecret: z.string().optional().describe('HMAC secret for request signing'),
+    installedAt: z.string().optional().describe('ISO timestamp when function was installed'),
+    // Standard fields
+    _meta: ResponseMetaSchema.optional().describe('Response metadata'),
+  }),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,

@@ -670,7 +670,7 @@ async function runStepWithGuards(
   step: ExecutionStep,
   executeHandler: ExecuteHandlerFn,
   checkpointContext: string,
-  interactiveMode: boolean = false
+  _interactiveMode: boolean = false
 ): Promise<StepRunOutcome> {
   const startedAt = new Date().toISOString();
   createCheckpoint(plan.planId, checkpointContext);
@@ -921,12 +921,16 @@ export async function executeStep(
     throw new NotFoundError('plan', planId);
   }
 
-  const step = plan.steps.find((s) => s.stepId === stepId);
+  const numericIndex = /^\d+$/.test(stepId) ? Number(stepId) : undefined;
+  const step =
+    plan.steps.find((s) => s.stepId === stepId) ??
+    (numericIndex !== undefined ? plan.steps[numericIndex] : undefined);
   if (!step) {
     throw new NotFoundError('step', `${stepId} in plan ${planId}`);
   }
 
-  const stepIndex = plan.steps.findIndex((candidate) => candidate.stepId === stepId);
+  const resolvedStepId = step.stepId;
+  const stepIndex = plan.steps.findIndex((candidate) => candidate.stepId === resolvedStepId);
   while (true) {
     const outcome = await runStepWithGuards(
       plan,
@@ -942,7 +946,7 @@ export async function executeStep(
     const stepResult =
       outcome.stepResult ??
       ({
-        stepId,
+        stepId: resolvedStepId,
         success: false,
         error: outcome.errorDetail?.message ?? 'Step execution failed',
         startedAt: new Date().toISOString(),

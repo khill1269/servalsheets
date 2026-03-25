@@ -45,7 +45,7 @@ import {
 } from '../types/transaction.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
 import { getEnv } from '../config/env.js';
-import { ServiceError, ValidationError, NotFoundError } from '../core/errors.js';
+import { ApiTimeoutError, ServiceError, ValidationError, NotFoundError } from '../core/errors.js';
 import { WalManager } from './transaction-wal.js';
 import type { WalRecoveryReport } from './transaction-wal.js';
 export type { WalRecoveryReport } from './transaction-wal.js';
@@ -74,6 +74,8 @@ export class TransactionManager {
   private snapshots: Map<string, TransactionSnapshot>;
   private listeners: TransactionListener[];
   private operationIdCounter: number;
+  private preparedOperationEntries: Map<string, Map<string, BatchRequestEntry[]>>;
+  private transactionSheetLookups: Map<string, SheetLookupContext>;
   // Phase 1: Timer cleanup
   private snapshotCleanupInterval?: NodeJS.Timeout;
   // DR-01: Write-ahead log (null when WAL is disabled)
@@ -111,6 +113,8 @@ export class TransactionManager {
     this.snapshots = new Map();
     this.listeners = [];
     this.operationIdCounter = 0;
+    this.preparedOperationEntries = new Map();
+    this.transactionSheetLookups = new Map();
 
     // Start background cleanup
     this.startSnapshotCleanup();
@@ -239,6 +243,8 @@ export class TransactionManager {
     transaction.operations.push(queuedOp);
     transaction.status = 'queued';
 
+    await this.prepareQueuedOperation(transaction, queuedOp);
+
     await this.emitEvent({
       type: 'queue',
       transactionId,
@@ -271,14 +277,18 @@ export class TransactionManager {
 
       // Resolve sheet names to IDs for range-based operations and reserve
       // deterministic IDs for sheets created inside the same transaction.
-      const sheetLookup = await this.buildSheetLookupContext(transaction.spreadsheetId);
+      const sheetLookup = await this.getOrCreateSheetLookupContext(
+        transaction.id,
+        transaction.spreadsheetId
+      );
       this.reservePendingSheetIds(transaction.operations, sheetLookup);
 
       // Merge operations into batch request
       const preparedBatch = await this.mergeToBatchRequest(
         transaction.operations,
         transaction.spreadsheetId,
-        sheetLookup
+        sheetLookup,
+        this.preparedOperationEntries.get(transaction.id)
       );
 
       // Capture pre-commit cell values for rollback (write operations only)
@@ -347,6 +357,7 @@ export class TransactionManager {
       // Cleanup
       this.activeTransactions.delete(transactionId);
       this.stats.activeTransactions--;
+      this.clearPreparedTransactionState(transactionId);
 
       return result;
     } catch (error) {
@@ -388,6 +399,7 @@ export class TransactionManager {
       // Cleanup
       this.activeTransactions.delete(transactionId);
       this.stats.activeTransactions--;
+      this.clearPreparedTransactionState(transactionId);
 
       const result: CommitResult = {
         transactionId,
@@ -836,7 +848,8 @@ export class TransactionManager {
   private async mergeToBatchRequest(
     operations: QueuedOperation[],
     spreadsheetId: string,
-    sheetLookup?: SheetLookupContext
+    sheetLookup?: SheetLookupContext,
+    preparedEntriesByOperationId?: Map<string, BatchRequestEntry[]>
   ): Promise<PreparedBatchRequest> {
     this.log(`Merging ${operations.length} operations into batch request`);
 
@@ -845,7 +858,9 @@ export class TransactionManager {
     const unconvertedOps: string[] = [];
 
     for (const op of operations) {
-      const entries = await this.operationToBatchEntries(op, spreadsheetId, sheetLookup);
+      const entries =
+        preparedEntriesByOperationId?.get(op.id) ??
+        (await this.operationToBatchEntries(op, spreadsheetId, sheetLookup));
       if (entries && entries.length > 0) {
         requests.push(...entries);
         requestCounts.push(entries.length);
@@ -858,16 +873,23 @@ export class TransactionManager {
     if (unconvertedOps.length > 0) {
       this.log(
         `WARNING: ${unconvertedOps.length} operation(s) could not be converted to batch requests: ${unconvertedOps.join(', ')}. ` +
-          `These operations will be skipped. Supported operations: sheets_data (write, append, clear, merge/unmerge), ` +
+          `These operations will be skipped. ` +
+          `BATCHABLE operations: sheets_data (write, append, clear, merge/unmerge), ` +
           `sheets_composite (smart_append with transaction-resolvable headers), ` +
           `sheets_format (set_format, set_background, etc.), sheets_core (add/delete/update_sheet), ` +
-          `sheets_dimensions (insert/delete rows/columns, freeze), sheets_advanced (named/protected ranges).`
+          `sheets_dimensions (insert/delete rows/columns, freeze), sheets_advanced (named/protected ranges). ` +
+          `NON-BATCHABLE operations (call directly after commit): add_note, add_hyperlink, set_metadata, ` +
+          `comment_add, share_add, chart_create. Use batch_operations for mixed tool calls.`
       );
     }
 
     if (requests.length === 0 && operations.length > 0) {
       throw new ValidationError(
-        `None of the ${operations.length} queued operation(s) could be converted to batch requests. Unconverted operations: ${unconvertedOps.join(', ')}. Please use supported operations or execute them individually outside of transactions.`,
+        `None of the ${operations.length} queued operation(s) could be converted to batch requests. ` +
+          `Unconverted: ${unconvertedOps.join(', ')}. ` +
+          `FIX: Only queue batchable ops in transactions (write, format, dimension, structure). ` +
+          `Non-batchable ops (add_note, add_hyperlink, comment_add, chart_create, share_add) ` +
+          `must be called directly via batch_operations or individual tool calls after the transaction commits.`,
         'operations',
         'operations convertible to batch requests'
       );
@@ -1822,6 +1844,34 @@ export class TransactionManager {
     return fields.join(',') || 'title';
   }
 
+  private createTimeoutSignal(timeoutMs: number): AbortSignal | undefined {
+    if (
+      typeof AbortSignal === 'undefined' ||
+      typeof AbortSignal.timeout !== 'function' ||
+      !Number.isFinite(timeoutMs) ||
+      timeoutMs <= 0
+    ) {
+      return undefined;
+    }
+
+    return AbortSignal.timeout(timeoutMs);
+  }
+
+  private isTimeoutLikeError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    const message = error.message.toLowerCase();
+    return (
+      error.name === 'AbortError' ||
+      error.name === 'TimeoutError' ||
+      message.includes('timed out') ||
+      message.includes('deadline exceeded') ||
+      message.includes('aborted')
+    );
+  }
+
   /**
    * Execute batch request against Google Sheets API
    *
@@ -1844,14 +1894,30 @@ export class TransactionManager {
     }
 
     try {
+      const signal = this.createTimeoutSignal(this.config.transactionTimeoutMs);
       const response = await this.googleClient.sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: batchRequest as sheets_v4.Schema$BatchUpdateSpreadsheetRequest,
+        ...(signal ? { signal } : {}),
       });
 
       this.log(`Batch request succeeded with ${response.data.replies?.length ?? 0} replies`);
       return response.data;
     } catch (error) {
+      if (this.isTimeoutLikeError(error)) {
+        const timeoutError = new ApiTimeoutError(
+          `Transaction commit timed out after ${this.config.transactionTimeoutMs}ms`,
+          this.config.transactionTimeoutMs,
+          'sheets_transaction.commit.batchUpdate',
+          {
+            spreadsheetId,
+            requestCount: batchRequest.requests.length,
+          }
+        );
+        this.log(`Batch request timed out: ${timeoutError.message}`);
+        throw timeoutError;
+      }
+
       this.log(`Batch request failed: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
@@ -2074,6 +2140,62 @@ export class TransactionManager {
 
     this.activeTransactions.delete(transactionId);
     this.stats.activeTransactions--;
+    this.clearPreparedTransactionState(transactionId);
+  }
+
+  private async prepareQueuedOperation(
+    transaction: Transaction,
+    operation: QueuedOperation
+  ): Promise<void> {
+    try {
+      const sheetLookup = await this.getOrCreateSheetLookupContext(
+        transaction.id,
+        transaction.spreadsheetId
+      );
+      this.reservePendingSheetIds(transaction.operations, sheetLookup);
+
+      const entries = await this.operationToBatchEntries(
+        operation,
+        transaction.spreadsheetId,
+        sheetLookup
+      );
+
+      if (entries && entries.length > 0) {
+        this.getPreparedEntriesMap(transaction.id).set(operation.id, entries);
+      }
+    } catch (error) {
+      this.log(
+        `Deferred queue-time batch preparation for ${operation.id}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  private getPreparedEntriesMap(transactionId: string): Map<string, BatchRequestEntry[]> {
+    let prepared = this.preparedOperationEntries.get(transactionId);
+    if (!prepared) {
+      prepared = new Map<string, BatchRequestEntry[]>();
+      this.preparedOperationEntries.set(transactionId, prepared);
+    }
+    return prepared;
+  }
+
+  private async getOrCreateSheetLookupContext(
+    transactionId: string,
+    spreadsheetId: string
+  ): Promise<SheetLookupContext> {
+    const existing = this.transactionSheetLookups.get(transactionId);
+    if (existing) {
+      return existing;
+    }
+
+    const created = await this.buildSheetLookupContext(spreadsheetId);
+    this.transactionSheetLookups.set(transactionId, created);
+    return created;
+  }
+
+  private clearPreparedTransactionState(transactionId: string): void {
+    this.preparedOperationEntries.delete(transactionId);
+    this.transactionSheetLookups.delete(transactionId);
   }
 }
 

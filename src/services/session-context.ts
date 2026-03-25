@@ -196,6 +196,12 @@ export interface UserPreferences {
     dateFormat: string;
     currencyFormat: string;
   };
+  /**
+   * When true, the tool-call response layer will auto-record operations
+   * after successful mutation tool calls. Eliminates the need for explicit
+   * record_operation calls after each write/format/structural change.
+   */
+  autoRecord: boolean;
 }
 
 export interface SessionState {
@@ -252,6 +258,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
     dateFormat: 'YYYY-MM-DD',
     currencyFormat: '$#,##0.00',
   },
+  autoRecord: false,
 };
 
 function createDefaultState(): SessionState {
@@ -1484,6 +1491,64 @@ const sessionContexts = new Map<string, SessionContextManager>();
 const hydratedSessionContexts = new Set<string>();
 const sessionContextHydrations = new Map<string, Promise<SessionContextManager>>();
 
+// Session GC: background sweep of expired sessions + size cap
+const MAX_CONCURRENT_SESSIONS = 10_000;
+const SESSION_GC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+let sessionGcInterval: NodeJS.Timeout | null = null;
+
+function startSessionGc(): void {
+  if (sessionGcInterval) return;
+  sessionGcInterval = setInterval(() => {
+    const now = Date.now();
+    const ttlMs = getSessionTtlMs();
+    let evicted = 0;
+    for (const [id, mgr] of sessionContexts.entries()) {
+      if (now - mgr.getState().lastActivityAt > ttlMs) {
+        sessionContexts.delete(id);
+        hydratedSessionContexts.delete(id);
+        sessionContextHydrations.delete(id);
+        evicted++;
+      }
+    }
+    if (evicted > 0) {
+      logger.info('Session GC sweep completed', {
+        component: 'session-context',
+        evicted,
+        remaining: sessionContexts.size,
+      });
+    }
+  }, SESSION_GC_INTERVAL_MS);
+  sessionGcInterval.unref(); // Don't prevent process exit
+}
+
+function evictOldestSessionIfAtCapacity(): void {
+  if (sessionContexts.size < MAX_CONCURRENT_SESSIONS) return;
+
+  let oldestId: string | undefined;
+  let oldestActivity = Date.now();
+  for (const [id, mgr] of sessionContexts.entries()) {
+    const activity = mgr.getState().lastActivityAt;
+    if (activity < oldestActivity) {
+      oldestActivity = activity;
+      oldestId = id;
+    }
+  }
+  if (oldestId) {
+    sessionContexts.delete(oldestId);
+    hydratedSessionContexts.delete(oldestId);
+    sessionContextHydrations.delete(oldestId);
+    logger.warn('Evicted oldest session to stay under cap', {
+      component: 'session-context',
+      evictedId: oldestId,
+      mapSize: sessionContexts.size,
+      cap: MAX_CONCURRENT_SESSIONS,
+    });
+  }
+}
+
+// Start GC on module load
+startSessionGc();
+
 // SCALE-01: Duck-typed Redis client interface (compatible with 'redis' npm package)
 interface RedisSessionClient {
   get(key: string): Promise<string | null>;
@@ -1619,6 +1684,7 @@ export function getOrCreateSessionContext(sessionId: string): SessionContextMana
     });
   }
 
+  evictOldestSessionIfAtCapacity();
   const created = createSessionContextManager(getHttpSessionRedisKey(sessionId));
   sessionContexts.set(sessionId, created);
   hydratedSessionContexts.delete(sessionId);
@@ -1694,6 +1760,10 @@ export function resetSessionContext(): void {
   sessionContexts.clear();
   hydratedSessionContexts.clear();
   sessionContextHydrations.clear();
+  if (sessionGcInterval) {
+    clearInterval(sessionGcInterval);
+    sessionGcInterval = null;
+  }
 }
 
 /**

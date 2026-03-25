@@ -67,6 +67,18 @@ export interface ExecutionStep {
    * targetSheet, targetCol, targetKeyCol, startRow.
    */
   config?: Record<string, unknown>;
+  /**
+   * Optional compile-time validation result for AI-generated draft steps.
+   * Execution still performs authoritative validation before running the step.
+   */
+  validation?: {
+    valid: boolean;
+    issues?: Array<{
+      field: string;
+      message: string;
+    }>;
+    suggestedFix?: string;
+  };
 }
 
 export interface StepResult {

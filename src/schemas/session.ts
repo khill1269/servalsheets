@@ -124,6 +124,12 @@ const UpdatePreferencesActionSchema = CommonFieldsSchema.extend({
     .describe('When to ask for confirmation (always, destructive, or never)'),
   dryRunDefault: z.boolean().optional().describe('Default dry run setting'),
   snapshotDefault: z.boolean().optional().describe('Default snapshot setting'),
+  autoRecord: z
+    .boolean()
+    .optional()
+    .describe(
+      'When true, automatically record operations after successful mutation tool calls. Eliminates need for explicit record_operation calls.'
+    ),
 });
 
 const GetPreferencesActionSchema = CommonFieldsSchema.extend({
@@ -587,6 +593,7 @@ const SessionSuccessSchema = z.object({
   operations: z.array(OperationRecordSchema).optional(),
   found: z.boolean().optional(),
   preferences: PreferencesSchema.optional(),
+  scope: z.enum(['session', 'profile']).optional(),
   pending: PendingOperationSchema.optional(),
   message: z.string().optional(),
   // Checkpoint fields

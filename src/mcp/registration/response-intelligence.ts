@@ -79,8 +79,15 @@ const ACTION_GOTCHAS: Partial<Record<string, string>> = {
   'sheets_compute.forecast': 'Forecast uses linear/exponential regression on historical data. Accuracy degrades with <10 data points.',
   // Connectors
   'sheets_connectors.query': 'Connector queries run against external APIs. Rate limits are PER-CONNECTOR, not shared with Sheets API quota.',
+  'sheets_connectors.configure': 'API keys are stored encrypted in session. They do NOT persist across server restarts.',
   // Templates
   'sheets_templates.apply': 'Template application creates a NEW spreadsheet. It does NOT modify the template source.',
+  // BigQuery
+  'sheets_bigquery.query': 'BigQuery queries consume project quota. Use LIMIT clauses and preview before running large queries.',
+  // Federation
+  'sheets_federation.call_remote': 'Remote MCP calls have network latency. Batch operations on the remote server where possible.',
+  // Agent
+  'sheets_agent.execute_plan': 'Plan execution is sequential. If a step fails, subsequent steps are skipped. Use checkpoints for recovery.',
 };
 
 // Map tool.action → relevant MCP prompt for guided follow-up workflows
@@ -164,6 +171,85 @@ const FOLLOW_UP_PROMPTS: Partial<
   'sheets_compute.forecast': {
     prompt: 'visualize-data',
     description: 'Create a chart showing actuals vs forecast projection',
+  },
+  // After connector operations
+  'sheets_connectors.configure': {
+    prompt: 'connector_data_pipeline',
+    description: 'Fetch and write connector data to a spreadsheet',
+  },
+  'sheets_connectors.query': {
+    prompt: 'clean-data',
+    description: 'Clean and standardize the connector query results',
+  },
+  // After BigQuery operations
+  'sheets_bigquery.import_from_bigquery': {
+    prompt: 'auto_analyze',
+    description: 'Analyze the imported BigQuery data',
+  },
+  'sheets_bigquery.export_to_bigquery': {
+    prompt: 'performance_audit',
+    description: 'Audit the export performance and optimize',
+  },
+  // After agent plan execution
+  'sheets_agent.execute_plan': {
+    prompt: 'audit_sheet',
+    description: 'Audit the spreadsheet after plan execution',
+  },
+  // After regression analysis
+  'sheets_compute.regression': {
+    prompt: 'create_visualization',
+    description: 'Visualize the regression results with a chart',
+  },
+  // ─── M-PR3: Follow-up prompts for remaining 10 tools ───
+  // After advanced operations (named ranges, protected ranges, banding)
+  'sheets_advanced.add_named_range': {
+    prompt: 'setup-sheet',
+    description: 'Use the named range in formulas or data validation',
+  },
+  // After Apps Script execution
+  'sheets_appsscript.run': {
+    prompt: 'audit_sheet',
+    description: 'Verify the spreadsheet state after script execution',
+  },
+  // After authentication
+  'sheets_auth.authorize': {
+    prompt: 'analyze-sheet',
+    description: 'Open and analyze a spreadsheet now that you are authorized',
+  },
+  // After sharing operations
+  'sheets_collaborate.share_add': {
+    prompt: 'share-sheet',
+    description: 'Set up notifications or add more collaborators',
+  },
+  // After confirmation/wizard
+  'sheets_confirm.approve': {
+    prompt: 'audit_sheet',
+    description: 'Review the results of the approved operation',
+  },
+  // After dimension changes (resize, freeze, hide)
+  'sheets_dimensions.auto_resize': {
+    prompt: 'format-sheet',
+    description: 'Apply formatting now that columns are properly sized',
+  },
+  // After federation calls
+  'sheets_federation.call_remote': {
+    prompt: 'clean-data',
+    description: 'Clean and standardize the remote server results',
+  },
+  // After session operations
+  'sheets_session.set_active_spreadsheet': {
+    prompt: 'analyze-sheet',
+    description: 'Run a quick scout analysis of the active spreadsheet',
+  },
+  // After transaction completion
+  'sheets_transaction.commit': {
+    prompt: 'audit_sheet',
+    description: 'Audit the spreadsheet state after committing changes',
+  },
+  // After webhook setup
+  'sheets_webhook.register': {
+    prompt: 'setup-sheet',
+    description: 'Configure the spreadsheet to trigger webhook events',
   },
 };
 

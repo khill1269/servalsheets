@@ -54,12 +54,9 @@ export class DocsConnector implements SpreadsheetConnector {
     const start = Date.now();
     try {
       // Use Drive API to verify auth (Docs API doesn't have a dedicated health endpoint)
-      const resp = await fetch(
-        'https://www.googleapis.com/drive/v3/about?fields=user',
-        {
-          headers: { Authorization: `Bearer ${this.oauthToken}` },
-        }
-      );
+      const resp = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
+        headers: { Authorization: `Bearer ${this.oauthToken}` },
+      });
       return {
         healthy: resp.ok,
         latencyMs: Date.now() - start,
@@ -157,12 +154,9 @@ export class DocsConnector implements SpreadsheetConnector {
 
     if (endpoint === 'documents/get') {
       const documentId = String(params['documentId'] || '');
-      const resp = await fetch(
-        `https://docs.googleapis.com/v1/documents/${documentId}`,
-        {
-          headers: { Authorization: `Bearer ${this.oauthToken}` },
-        }
-      );
+      const resp = await fetch(`https://docs.googleapis.com/v1/documents/${documentId}`, {
+        headers: { Authorization: `Bearer ${this.oauthToken}` },
+      });
       if (!resp.ok) {
         throw new ServiceError(
           `Google Docs API error: HTTP ${resp.status} ${resp.statusText}`,
@@ -271,15 +265,17 @@ export class DocsConnector implements SpreadsheetConnector {
     const title = (data['title'] as string) ?? '';
     const revisionId = (data['revisionId'] as string) ?? '';
 
-    const rows = [[
-      documentId,
-      title,
-      text,
-      0, // headingCount (simplified)
-      (text.match(/\n/g) ?? []).length, // paragraph count approximation
-      revisionId,
-      0, // suggestedChanges
-    ]];
+    const rows = [
+      [
+        documentId,
+        title,
+        text,
+        0, // headingCount (simplified)
+        (text.match(/\n/g) ?? []).length, // paragraph count approximation
+        revisionId,
+        0, // suggestedChanges
+      ],
+    ];
 
     return {
       headers: [
@@ -304,14 +300,15 @@ export class DocsConnector implements SpreadsheetConnector {
   }
 
   private formatSearchResult(data: Record<string, unknown>): DataResult {
-    const files = (data['files'] as Array<{
-      id: string;
-      name: string;
-      mimeType: string;
-      createdTime?: string;
-      modifiedTime?: string;
-      webViewLink?: string;
-    }>) ?? [];
+    const files =
+      (data['files'] as Array<{
+        id: string;
+        name: string;
+        mimeType: string;
+        createdTime?: string;
+        modifiedTime?: string;
+        webViewLink?: string;
+      }>) ?? [];
 
     const rows = files.map((f) => [
       f['id'],

@@ -15,56 +15,56 @@ import { ACTION_COUNTS } from './action-counts.js';
  */
 export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   sheets_auth: {
-    title: 'Authentication',
+    title: 'Authentication & Setup',
     readOnlyHint: false,
     destructiveHint: false,
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_core: {
-    title: 'Core Operations',
+    title: 'Spreadsheet & Sheet Management',
     readOnlyHint: false,
     destructiveHint: true, // delete_sheet action is destructive
     idempotentHint: false, // create/add create new entities
     openWorldHint: true,
   },
   sheets_data: {
-    title: 'Cell Data',
+    title: 'Cell Data Operations',
     readOnlyHint: false,
     destructiveHint: true, // Can overwrite data, clear notes/validation
     idempotentHint: false, // Append is not idempotent
     openWorldHint: true,
   },
   sheets_format: {
-    title: 'Cell Formatting',
+    title: 'Formatting & Styling',
     readOnlyHint: false,
     destructiveHint: true, // clear_format removes formatting; conditional format rules can be deleted
     idempotentHint: true, // Same format = same result
     openWorldHint: true,
   },
   sheets_dimensions: {
-    title: 'Rows & Columns',
+    title: 'Rows, Columns & Sorting',
     readOnlyHint: false,
     destructiveHint: true, // Can delete rows/columns
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_visualize: {
-    title: 'Visualizations (Charts & Pivot Tables)',
+    title: 'Charts & Pivot Tables',
     readOnlyHint: false,
     destructiveHint: true, // Can delete charts and pivots
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_collaborate: {
-    title: 'Collaboration',
+    title: 'Sharing & Collaboration',
     readOnlyHint: false,
     destructiveHint: true, // Can remove permissions, delete comments, restore versions
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_advanced: {
-    title: 'Advanced Features',
+    title: 'Named Ranges, Protection & Tables',
     readOnlyHint: false,
     destructiveHint: true, // Can delete named/protected ranges
     idempotentHint: false,
@@ -72,21 +72,21 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   },
   // Enterprise Tools
   sheets_transaction: {
-    title: 'Transaction Support',
+    title: 'Atomic Batch Operations',
     readOnlyHint: false,
     destructiveHint: true, // Commit can modify data
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_quality: {
-    title: 'Quality Assurance',
+    title: 'Data Validation & Quality',
     readOnlyHint: false, // resolve_conflict is a write operation
     destructiveHint: true, // resolve_conflict can overwrite local or remote changes
     idempotentHint: false, // resolve_conflict modifies data; validate results can vary with data changes
     openWorldHint: true, // resolve_conflict makes Google API calls
   },
   sheets_history: {
-    title: 'Operation History',
+    title: 'Operation History & Undo',
     readOnlyHint: false, // undo/redo/revert_to are write operations
     destructiveHint: true, // undo/redo/revert_to/restore_cells mutate spreadsheet state
     idempotentHint: false, // undo/redo change state on each call
@@ -94,43 +94,43 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   },
   // MCP-Native Tools
   sheets_confirm: {
-    title: 'Plan Confirmation',
+    title: 'User Confirmation & Approval',
     readOnlyHint: true, // Just asks user
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: false, // MCP Elicitation
   },
   sheets_analyze: {
-    title: 'Ultimate Data Analysis',
+    title: 'AI-Powered Analysis',
     readOnlyHint: true, // Reads data + sampling only
     destructiveHint: false, // Analysis only; no destructive actions
     idempotentHint: false, // Results may vary (sampling, AI analysis)
     openWorldHint: true, // MCP Sampling + Google API
   },
   sheets_fix: {
-    title: 'Automated Issue Fixing',
+    title: 'Auto-Fix Issues',
     readOnlyHint: false,
     destructiveHint: true, // Applies fixes to spreadsheet
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_composite: {
-    title: 'Composite Operations',
+    title: 'Multi-Step Operations',
     readOnlyHint: false,
     destructiveHint: true, // Can overwrite/modify data
     idempotentHint: false, // Import/append operations are not idempotent
     openWorldHint: true,
   },
   sheets_session: {
-    title: 'Session Context',
+    title: 'Session & Context Management',
     readOnlyHint: false, // Can update preferences
     destructiveHint: false, // No data destruction
-    idempotentHint: true, // Most operations are idempotent
+    idempotentHint: false, // record_operation creates state; update_preferences mutates session
     openWorldHint: false, // Session-only, no external effects
   },
   // Tier 7 Enterprise Tools
   sheets_templates: {
-    title: 'Templates',
+    title: 'Spreadsheet Templates',
     readOnlyHint: false, // Can create/update/delete templates
     destructiveHint: true, // Can delete templates
     idempotentHint: false, // Create generates new resources
@@ -151,7 +151,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     openWorldHint: true, // Apps Script API
   },
   sheets_webhook: {
-    title: 'Webhooks',
+    title: 'Webhook Notifications',
     readOnlyHint: false, // Can register/unregister webhooks
     destructiveHint: true, // unregister is destructive
     idempotentHint: false, // register creates new resources
@@ -5437,6 +5437,93 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
       ],
       userGuidance:
         'This automatically applies safe improvements like formatting and structure changes. Always preview first to see the changes before applying them.',
+    },
+  },
+  'sheets_analyze.schedule_intelligence': {
+    apiCalls: 0,
+    idempotent: false,
+    prerequisites: ['sheets_auth.login'],
+    whenToUse:
+      'Create a recurring spreadsheet intelligence job that periodically evaluates quality, anomalies, trends, or a custom query',
+    whenNotToUse:
+      'When you only need a one-time analysis run — use sheets_analyze.comprehensive or quick_insights instead',
+    commonMistakes: [
+      'Use a realistic intervalMinutes value; very short intervals can create noisy reports',
+      'Provide query when analysisType is custom_query',
+      'Verify webhookUrl separately before relying on automated delivery',
+    ],
+    errorRecovery: {
+      INVALID_PARAMS: 'Verify analysisType, intervalMinutes, and optional webhookUrl fields',
+      PERMISSION_DENIED: 'Refresh auth with sheets_auth.login before creating the schedule',
+      alternativeActions: [
+        {
+          tool: 'sheets_analyze',
+          action: 'get_intelligence_report',
+          when: 'when a schedule already exists and you need the latest report',
+        },
+        {
+          tool: 'sheets_analyze',
+          action: 'comprehensive',
+          when: 'when you want a one-time report instead of a recurring schedule',
+        },
+      ],
+      diagnosticSteps: [
+        'Verify the spreadsheet exists with sheets_core.get',
+        'Confirm the selected range is valid if range is provided',
+        'Check that any webhookUrl is reachable and intentionally configured',
+      ],
+      userGuidance:
+        'This creates a recurring intelligence schedule. Confirm the spreadsheet, interval, and optional webhook destination before retrying.',
+    },
+  },
+  'sheets_analyze.get_intelligence_report': {
+    apiCalls: 0,
+    idempotent: true,
+    prerequisites: ['sheets_auth.login', 'sheets_analyze.schedule_intelligence'],
+    whenToUse:
+      'Retrieve the latest generated report for a scheduled intelligence job, including findings and delivery status',
+    whenNotToUse: 'When no schedule has been created yet',
+    commonMistakes: ['Pass the scheduleId returned by schedule_intelligence, not a spreadsheetId'],
+    errorRecovery: {
+      NOT_FOUND: 'Verify the scheduleId and ensure the schedule has produced at least one report',
+      alternativeActions: [
+        {
+          tool: 'sheets_analyze',
+          action: 'schedule_intelligence',
+          when: 'when you need to create a schedule before retrieving reports',
+        },
+      ],
+      diagnosticSteps: [
+        'Confirm the scheduleId came from sheets_analyze.schedule_intelligence',
+        'Wait for the first run if the schedule was created recently',
+        'Check whether the schedule was cancelled before requesting the report',
+      ],
+      userGuidance:
+        'Use the schedule ID returned at creation time. If the schedule is new, wait for the first run before requesting a report.',
+    },
+  },
+  'sheets_analyze.cancel_intelligence': {
+    apiCalls: 0,
+    idempotent: false,
+    prerequisites: ['sheets_auth.login', 'sheets_analyze.schedule_intelligence'],
+    whenToUse: 'Cancel and remove an existing recurring intelligence schedule',
+    whenNotToUse: 'When you only want to inspect the latest report without deleting the schedule',
+    commonMistakes: ['Cancelling deletes the schedule entry, so capture any needed report data first'],
+    errorRecovery: {
+      NOT_FOUND: 'Verify the scheduleId and confirm the schedule has not already been deleted',
+      alternativeActions: [
+        {
+          tool: 'sheets_analyze',
+          action: 'get_intelligence_report',
+          when: 'when you want the latest report before deciding whether to cancel',
+        },
+      ],
+      diagnosticSteps: [
+        'Confirm the scheduleId came from sheets_analyze.schedule_intelligence',
+        'Check whether the schedule was already cancelled in a previous step',
+      ],
+      userGuidance:
+        'This permanently removes the recurring schedule. Retrieve any final report you need before cancelling.',
     },
   },
 

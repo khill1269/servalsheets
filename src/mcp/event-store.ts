@@ -33,24 +33,38 @@ export class InMemoryEventStore implements EventStore {
   private events = new Map<EventId, StoredEvent>();
   private order: EventId[] = [];
   private maxEvents: number;
+  private maxBytes: number;
+  private currentBytes: number = 0;
   private ttlMs: number;
 
-  constructor(options?: { maxEvents?: number; ttlMs?: number }) {
+  constructor(options?: { maxEvents?: number; maxBytes?: number; ttlMs?: number }) {
     this.maxEvents = Math.max(1, options?.maxEvents ?? 5000);
+    this.maxBytes = Math.max(1024, options?.maxBytes ?? 50 * 1024 * 1024); // 50MB default (M-PR2)
     this.ttlMs = Math.max(1000, options?.ttlMs ?? 5 * 60 * 1000);
   }
 
   async storeEvent(streamId: StreamId, message: JSONRPCMessage): Promise<EventId> {
     this.prune();
     const eventId = `${streamId}_${Date.now()}_${randomUUID()}`;
-    this.events.set(eventId, {
+    const storedEvent: StoredEvent = {
       streamId,
       message,
       createdAt: Date.now(),
-    });
+    };
+    const eventSize = this.estimateSize(message);
+    this.events.set(eventId, storedEvent);
     this.order.push(eventId);
+    this.currentBytes += eventSize;
     this.enforceMax();
     return eventId;
+  }
+
+  private estimateSize(message: JSONRPCMessage): number {
+    try {
+      return JSON.stringify(message).length * 2; // UTF-16 approximation
+    } catch {
+      return 1024; // Fallback estimate for non-serializable messages
+    }
   }
 
   async getStreamIdForEventId(eventId: EventId): Promise<StreamId | undefined> {
@@ -97,6 +111,7 @@ export class InMemoryEventStore implements EventStore {
   clear(): void {
     this.events.clear();
     this.order = [];
+    this.currentBytes = 0;
   }
 
   private prune(): void {
@@ -109,22 +124,46 @@ export class InMemoryEventStore implements EventStore {
     }
     if (expired.length > 0) {
       for (const eventId of expired) {
+        const event = this.events.get(eventId);
+        if (event) {
+          this.currentBytes -= this.estimateSize(event.message);
+        }
         this.events.delete(eventId);
       }
       this.order = this.order.filter((eventId) => this.events.has(eventId));
+      if (this.currentBytes < 0) this.currentBytes = 0;
     }
     this.enforceMax();
   }
 
   private enforceMax(): void {
-    if (this.order.length <= this.maxEvents) {
-      return;
+    // Phase 1: Enforce per-count limit
+    if (this.order.length > this.maxEvents) {
+      const overflow = this.order.length - this.maxEvents;
+      const toDelete = this.order.splice(0, overflow);
+      for (const eventId of toDelete) {
+        const event = this.events.get(eventId);
+        if (event) {
+          this.currentBytes -= this.estimateSize(event.message);
+        }
+        this.events.delete(eventId);
+      }
     }
-    const overflow = this.order.length - this.maxEvents;
-    const toDelete = this.order.splice(0, overflow);
-    for (const eventId of toDelete) {
-      this.events.delete(eventId);
+
+    // Phase 2: Enforce per-bytes limit (M-PR2)
+    while (this.currentBytes > this.maxBytes && this.order.length > 0) {
+      const oldestId = this.order.shift();
+      if (oldestId) {
+        const event = this.events.get(oldestId);
+        if (event) {
+          this.currentBytes -= this.estimateSize(event.message);
+        }
+        this.events.delete(oldestId);
+      }
     }
+
+    // Ensure currentBytes never goes negative from estimation drift
+    if (this.currentBytes < 0) this.currentBytes = 0;
   }
 }
 

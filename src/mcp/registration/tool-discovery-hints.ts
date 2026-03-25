@@ -144,9 +144,9 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
         'Apply a named format preset: "header_row", "alternating_rows", "currency", "percentages", "dates", "totals_row". Combines multiple format operations into 1 call.',
     },
     set_number_format: {
-      required: ['spreadsheetId', 'range', 'pattern'],
+      required: ['spreadsheetId', 'range', 'numberFormat'],
       description:
-        'Set number format using Google Sheets pattern syntax. Common patterns: "$#,##0.00" (currency), "0.00%" (percent), "yyyy-mm-dd" (date), "#,##0" (integer). Check spreadsheet locale for decimal separator.',
+        'Set number format using a numberFormat object with type and optional pattern. Common patterns: "$#,##0.00" (currency), "0.00%" (percent), "yyyy-mm-dd" (date), "#,##0" (integer). Check spreadsheet locale for decimal separator.',
     },
   },
   sheets_connectors: {
@@ -161,6 +161,39 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
     status: {
       description:
         'Use after configure to distinguish not configured vs configured but failing and to get the recommended next query.',
+    },
+    query: {
+      description: 'Query a configured connector. Returns data from the external API.',
+      required: ['connectorId', 'query'],
+      optional: ['parameters', 'outputFormat'],
+    },
+    batch_query: {
+      description: 'Run multiple queries against one or more connectors in parallel.',
+      required: ['queries'],
+      optional: ['maxConcurrency'],
+    },
+    discover: {
+      description: 'Auto-discover available connectors and their capabilities. Start here if unsure which connector to use.',
+      required: [],
+      optional: ['category', 'searchTerm'],
+    },
+    transform: {
+      description: 'Apply filter/sort/limit/aggregate transformations to connector query results.',
+      required: ['connectorId', 'sourceQuery', 'transformSpec'],
+    },
+    subscribe: {
+      description: 'Set up a recurring data refresh from a connector to a spreadsheet range.',
+      required: ['connectorId', 'query', 'spreadsheetId', 'targetRange'],
+      optional: ['refreshSchedule'],
+    },
+    unsubscribe: {
+      description: 'Cancel a connector subscription.',
+      required: ['subscriptionId'],
+    },
+    list_subscriptions: {
+      description: 'List all active connector subscriptions.',
+      required: [],
+      optional: ['connectorId'],
     },
   },
   sheets_webhook: {
@@ -1207,7 +1240,8 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
     list_protected_ranges: {
       required: ['spreadsheetId'],
       optional: ['sheetId', 'cursor', 'pageSize'],
-      description: 'List protected ranges with optional sheet filter.',
+      description:
+        'List protections with optional sheet filter. Results preserve scope as range, sheet, or named_range and may include unprotectedRanges for partially protected sheets.',
     },
     set_metadata: {
       required: ['spreadsheetId', 'metadataKey', 'metadataValue'],
@@ -1648,34 +1682,34 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
   },
   sheets_confirm: {
     request: {
-      required: ['action', 'description'],
-      optional: ['impact', 'spreadsheetId', 'timeoutMs'],
+      required: ['plan'],
+      optional: ['verbosity'],
       description:
-        'Create a confirmation request for a potentially destructive operation. Returns a confirmationToken — pass it to the action that requires confirmation.',
+        'Request confirmation for a multi-step operation plan. plan must include title, description, and steps. Returns a planId plus the user confirmation result.',
     },
     wizard_start: {
-      required: ['wizardType'],
-      optional: ['spreadsheetId', 'context'],
+      required: ['title', 'description', 'steps'],
+      optional: ['wizardId', 'context', 'verbosity'],
       description:
-        'Start a multi-step interactive wizard. wizardType specifies which wizard flow to run (e.g. "chart_creation", "data_import", "format_preset").',
+        'Start a multi-step interactive wizard by providing the full step definitions. Field type "string" is accepted as a compatibility alias for "text".',
     },
     wizard_step: {
-      required: ['wizardId', 'stepResponse'],
-      optional: [],
+      required: ['wizardId', 'stepId', 'values'],
+      optional: ['direction', 'verbosity'],
       description:
-        'Advance a running wizard with the user response to the current step. wizardId comes from wizard_start. stepResponse is the value provided for the current prompt.',
+        'Advance a running wizard with the submitted field values for the current step.',
     },
     wizard_complete: {
       required: ['wizardId'],
-      optional: [],
+      optional: ['executeImmediately', 'verbosity'],
       description:
         'Finalize a completed wizard and execute the configured action. Call after all wizard steps are answered.',
     },
     get_stats: {
       required: [],
-      optional: ['since'],
+      optional: ['verbosity'],
       description:
-        'Get confirmation request statistics (total, approved, rejected, expired). Use since (ISO timestamp) to filter to a time window.',
+        'Get confirmation request statistics (total, approved, declined, cancelled, approval rate, average response time).',
     },
   },
   sheets_quality: {
@@ -1775,50 +1809,45 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
   },
   sheets_agent: {
     plan: {
-      required: ['goal', 'spreadsheetId'],
-      optional: ['maxSteps', 'context', 'constraints'],
+      required: ['description'],
       description:
-        'Compile a natural-language goal into an executable multi-step plan. Returns a planId and the full step list for review before execution. Always pass context (scout output or sheet description) — informed plans cut step count materially versus having the agent rediscover structure. Use maxSteps (default 10, max 50) to limit plan size.',
+        'Compile a natural-language goal into an executable multi-step plan. Canonical input is description; goal and task are accepted as compatibility aliases. Pass spreadsheetId when available and context or scoutResult to avoid rediscovery work on large spreadsheets.',
     },
     execute: {
       required: ['planId'],
-      optional: ['startStep', 'dryRun', 'checkpointAfterEach'],
       description:
-        'Execute a compiled plan autonomously. Each step is validated by AI reflexion before the next step runs. Use observe() to create a rollback checkpoint before executing destructive operations. Use dryRun=true to preview without writing. Returns per-step results and overall status.',
+        'Execute a compiled plan autonomously. Use dryRun=true to preview without writing, or interactiveMode=true to require approval before each step.',
     },
     execute_step: {
-      required: ['planId', 'stepIndex'],
-      optional: ['dryRun'],
+      required: ['planId', 'stepId'],
       description:
-        'Execute a single step of a plan manually. Use for step-by-step control when execute is too autonomous.',
-    },
-    get_plan: {
-      required: ['planId'],
-      optional: [],
-      description:
-        'Get the full plan definition and current execution state (step statuses, outputs).',
+        'Execute a single step of a plan manually. stepId is canonical; numeric step indices are accepted as a compatibility form.',
     },
     list_plans: {
       required: [],
-      optional: ['status', 'spreadsheetId', 'maxResults'],
+      optional: ['limit', 'status'],
       description:
-        'List plans filtered by status (DRAFT, EXECUTING, COMPLETED, PAUSED, FAILED) or spreadsheetId.',
+        'List plans filtered by status with an optional limit.',
     },
-    abort_plan: {
+    observe: {
       required: ['planId'],
-      optional: ['reason'],
+      optional: ['spreadsheetId', 'context'],
       description:
-        'Abort a running or paused plan. Completed steps are not rolled back — use sheets_transaction for atomic execution.',
+        'Capture the current plan state as a checkpoint before or during execution.',
     },
-    get_checkpoint: {
+    rollback: {
       required: ['planId', 'checkpointId'],
-      optional: [],
-      description: 'Get saved state from a plan checkpoint for resumability or debugging.',
+      optional: ['verbosity'],
+      description: 'Roll a plan back to a previously captured checkpoint.',
     },
-    create_checkpoint: {
+    get_status: {
       required: ['planId'],
-      optional: ['label'],
-      description: 'Manually save a checkpoint at the current plan execution state.',
+      description: 'Get the current plan definition and execution status.',
+    },
+    resume: {
+      required: ['planId'],
+      optional: ['fromStepId'],
+      description: 'Resume a paused or interrupted plan, optionally from a specific step.',
     },
   },
 };
@@ -2102,6 +2131,9 @@ function applyActionHintOverrides(
   const merged: Record<string, ActionParamHint> = { ...actionParams };
 
   for (const [action, override] of Object.entries(overrides)) {
+    if (!(action in actionParams)) {
+      continue;
+    }
     const current = merged[action] ?? { required: [] };
     const required = override.required ?? current.required ?? [];
     const requiredOneOf = override.requiredOneOf ?? current.requiredOneOf;
@@ -2384,6 +2416,121 @@ const ACTION_COST_ESTIMATES: Record<string, Record<string, ActionCostEstimate>> 
     run: { apiCalls: 2, latency: 'background' },
     deploy: { apiCalls: 2, latency: 'slow' },
     get_content: { apiCalls: 1, latency: 'medium' },
+  },
+  sheets_advanced: {
+    add_named_range: { apiCalls: 1, latency: 'fast' },
+    delete_named_range: { apiCalls: 1, latency: 'fast' },
+    list_named_ranges: { apiCalls: 1, latency: 'fast' },
+    add_protected_range: { apiCalls: 1, latency: 'fast' },
+    list_protected_ranges: { apiCalls: 1, latency: 'fast' },
+    set_metadata: { apiCalls: 1, latency: 'fast' },
+    get_metadata: { apiCalls: 1, latency: 'fast' },
+    add_banding: { apiCalls: 1, latency: 'fast' },
+    create_table: { apiCalls: 2, latency: 'medium' },
+    create_named_function: { apiCalls: 1, latency: 'fast' },
+  },
+  sheets_agent: {
+    plan: { apiCalls: 1, latency: 'slow' },
+    execute: { apiCalls: 5, latency: 'background' },
+    execute_step: { apiCalls: 2, latency: 'medium' },
+    observe: { apiCalls: 1, latency: 'fast' },
+    rollback: { apiCalls: 2, latency: 'medium' },
+    get_status: { apiCalls: 0, latency: 'instant' },
+    list_plans: { apiCalls: 0, latency: 'instant' },
+  },
+  sheets_auth: {
+    status: { apiCalls: 0, latency: 'instant' },
+    login: { apiCalls: 1, latency: 'medium' },
+    callback: { apiCalls: 1, latency: 'medium' },
+    logout: { apiCalls: 0, latency: 'instant' },
+    setup_feature: { apiCalls: 0, latency: 'fast' },
+  },
+  sheets_collaborate: {
+    share_add: { apiCalls: 1, latency: 'medium' },
+    share_remove: { apiCalls: 1, latency: 'medium' },
+    share_list: { apiCalls: 1, latency: 'fast' },
+    comment_add: { apiCalls: 1, latency: 'fast' },
+    comment_list: { apiCalls: 1, latency: 'fast' },
+    comment_resolve: { apiCalls: 1, latency: 'fast' },
+    versions_list: { apiCalls: 1, latency: 'fast' },
+    watch_changes: { apiCalls: 1, latency: 'medium' },
+  },
+  sheets_confirm: {
+    request: { apiCalls: 0, latency: 'instant' },
+    get_stats: { apiCalls: 0, latency: 'instant' },
+    wizard_start: { apiCalls: 0, latency: 'instant' },
+    wizard_step: { apiCalls: 0, latency: 'instant' },
+    wizard_complete: { apiCalls: 0, latency: 'instant' },
+  },
+  sheets_connectors: {
+    discover: { apiCalls: 1, latency: 'medium' },
+    configure: { apiCalls: 1, latency: 'medium' },
+    query: { apiCalls: 2, latency: 'slow' },
+    batch_query: { apiCalls: 3, latency: 'slow' },
+    subscribe: { apiCalls: 1, latency: 'medium' },
+    unsubscribe: { apiCalls: 1, latency: 'fast' },
+    list_subscriptions: { apiCalls: 0, latency: 'instant' },
+    status: { apiCalls: 1, latency: 'fast' },
+  },
+  sheets_compute: {
+    evaluate: { apiCalls: 1, latency: 'medium' },
+    aggregate: { apiCalls: 1, latency: 'medium' },
+    statistical: { apiCalls: 1, latency: 'medium' },
+    regression: { apiCalls: 1, latency: 'medium' },
+    forecast: { apiCalls: 1, latency: 'slow' },
+    matrix_op: { apiCalls: 1, latency: 'fast' },
+    pivot_compute: { apiCalls: 1, latency: 'medium' },
+    sql_query: { apiCalls: 1, latency: 'slow' },
+    python_eval: { apiCalls: 1, latency: 'slow' },
+  },
+  sheets_dependencies: {
+    build: { apiCalls: 2, latency: 'slow' },
+    analyze_impact: { apiCalls: 2, latency: 'medium' },
+    detect_cycles: { apiCalls: 1, latency: 'medium' },
+    get_dependencies: { apiCalls: 1, latency: 'fast' },
+    get_dependents: { apiCalls: 1, latency: 'fast' },
+    model_scenario: { apiCalls: 2, latency: 'slow' },
+    compare_scenarios: { apiCalls: 4, latency: 'background' },
+  },
+  sheets_federation: {
+    call_remote: { apiCalls: 1, latency: 'slow' },
+    list_servers: { apiCalls: 0, latency: 'instant' },
+    get_server_tools: { apiCalls: 1, latency: 'medium' },
+    validate_connection: { apiCalls: 1, latency: 'medium' },
+  },
+  sheets_quality: {
+    validate: { apiCalls: 1, latency: 'medium' },
+    detect_conflicts: { apiCalls: 1, latency: 'medium' },
+    resolve_conflict: { apiCalls: 2, latency: 'medium' },
+    analyze_impact: { apiCalls: 2, latency: 'slow' },
+  },
+  sheets_session: {
+    set_active: { apiCalls: 0, latency: 'instant' },
+    get_active: { apiCalls: 0, latency: 'instant' },
+    get_context: { apiCalls: 0, latency: 'instant' },
+    record_operation: { apiCalls: 0, latency: 'instant' },
+    get_history: { apiCalls: 0, latency: 'instant' },
+    update_preferences: { apiCalls: 0, latency: 'instant' },
+    save_checkpoint: { apiCalls: 0, latency: 'fast' },
+    execute_pipeline: { apiCalls: 3, latency: 'background' },
+  },
+  sheets_templates: {
+    list: { apiCalls: 1, latency: 'fast' },
+    get: { apiCalls: 1, latency: 'fast' },
+    create: { apiCalls: 2, latency: 'medium' },
+    apply: { apiCalls: 3, latency: 'slow' },
+    update: { apiCalls: 1, latency: 'medium' },
+    delete: { apiCalls: 1, latency: 'fast' },
+    preview: { apiCalls: 1, latency: 'medium' },
+  },
+  sheets_webhook: {
+    register: { apiCalls: 1, latency: 'medium' },
+    unregister: { apiCalls: 1, latency: 'fast' },
+    list: { apiCalls: 0, latency: 'instant' },
+    get: { apiCalls: 0, latency: 'instant' },
+    test: { apiCalls: 1, latency: 'medium' },
+    get_stats: { apiCalls: 0, latency: 'instant' },
+    watch_changes: { apiCalls: 1, latency: 'medium' },
   },
 };
 

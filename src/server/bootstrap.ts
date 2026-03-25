@@ -7,6 +7,7 @@ import {
 import { registerSamplingConsentChecker } from '../mcp/sampling.js';
 import { ConfigError } from '../core/errors.js';
 import { logger as baseLogger } from '../utils/logger.js';
+import { prepareStdioBootstrap } from '../../packages/mcp-stdio/dist/prepare-stdio-bootstrap.js';
 
 export interface ServerBootstrapOptions {
   taskStore?: TaskStoreAdapter;
@@ -118,11 +119,11 @@ async function initializeCacheInfrastructure(): Promise<void> {
 }
 
 export async function prepareServerBootstrap(options: ServerBootstrapOptions): Promise<void> {
-  // Warn when the current installation lacks a usable bundled OAuth client.
-  warnIfDefaultCredentialsInHttpMode();
-  // Enforce OAUTH_REDIRECT_URI is set in production HTTP mode (fails fast, no silent misconfiguration).
-  enforceProductionOAuthConfig();
-  registerSamplingConsentGuard();
-  await ensureTaskStoreConfigured(options);
-  await initializeCacheInfrastructure();
+  await prepareStdioBootstrap(options, {
+    warnIfDefaultCredentialsInHttpMode,
+    enforceProductionOAuthConfig,
+    registerSamplingConsentGuard,
+    ensureTaskStoreConfigured,
+    initializeCacheInfrastructure,
+  });
 }

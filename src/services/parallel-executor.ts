@@ -36,6 +36,8 @@ export interface ParallelExecutorOptions {
   maxRetries?: number;
   /** Initial retry delay in ms (default: 1000) */
   retryDelayMs?: number;
+  /** Per-task timeout in ms (default: 30000). Individual tasks exceeding this are failed without blocking the batch (H-7) */
+  taskTimeoutMs?: number;
 }
 
 export interface ParallelTask<T> {
@@ -86,6 +88,7 @@ export class ParallelExecutor {
   private retryOnError: boolean;
   private maxRetries: number;
   private retryDelayMs: number;
+  private taskTimeoutMs: number;
 
   // Statistics
   private stats = {
@@ -116,6 +119,7 @@ export class ParallelExecutor {
     this.retryOnError = options.retryOnError ?? true;
     this.maxRetries = options.maxRetries ?? 3;
     this.retryDelayMs = options.retryDelayMs ?? 1000;
+    this.taskTimeoutMs = options.taskTimeoutMs ?? 30_000; // 30s default per-task deadline (H-7)
 
     if (this.verboseLogging) {
       logger.info('Parallel executor initialized', {
@@ -175,7 +179,29 @@ export class ParallelExecutor {
       while (retries <= this.maxRetries) {
         try {
           // Phase 1: Acquire global permit before execution
-          const result = await coordinator.execute('ParallelExecutor', () => task.fn());
+          // H-7: Per-task timeout prevents a single slow task from blocking the entire batch
+          const taskPromise = coordinator.execute('ParallelExecutor', () => task.fn());
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            const timer = setTimeout(
+              () =>
+                reject(
+                  new ServiceError(
+                    `Task ${task.id} timed out after ${this.taskTimeoutMs}ms`,
+                    'DEADLINE_EXCEEDED',
+                    'ParallelExecutor'
+                  )
+                ),
+              this.taskTimeoutMs
+            );
+            // Unref so timeout doesn't keep process alive
+            if (typeof timer === 'object' && 'unref' in timer) timer.unref();
+            // Clean up timer when task resolves
+            taskPromise.then(
+              () => clearTimeout(timer),
+              () => clearTimeout(timer)
+            );
+          });
+          const result = await Promise.race([taskPromise, timeoutPromise]);
           const duration = Date.now() - startTime;
 
           results.push({

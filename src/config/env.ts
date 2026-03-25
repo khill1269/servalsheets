@@ -295,6 +295,17 @@ const EnvSchema = z.object({
   MCP_FEDERATION_DNS_STRICT: strictBoolean().default(true),
   // JSON array of server configs: [{"name":"weather-api","url":"http://localhost:3001"}]
   MCP_FEDERATION_SERVERS: z.string().optional(),
+  // Hosted remote MCP executor for hybrid routing of prefer_local tools
+  MCP_REMOTE_EXECUTOR_URL: z
+    .string()
+    .regex(URL_REGEX, 'Invalid URL format')
+    .optional()
+    .catch(undefined),
+  MCP_REMOTE_EXECUTOR_TIMEOUT_MS: z.coerce.number().positive().default(30000),
+  MCP_REMOTE_EXECUTOR_DNS_STRICT: strictBoolean().default(true),
+  MCP_REMOTE_EXECUTOR_AUTH_TYPE: z.enum(['bearer', 'api-key']).optional(),
+  MCP_REMOTE_EXECUTOR_AUTH_TOKEN: z.string().optional(),
+  MCP_REMOTE_EXECUTOR_TOOLS: z.string().default(''),
 
   // Context Optimization
   // Disables 800KB of embedded knowledge resources to reduce context usage
@@ -660,6 +671,11 @@ export function validateEnv(): Env {
       );
     }
     const checkpointDir = env.CHECKPOINT_DIR ?? DEFAULT_CHECKPOINT_DIR;
+    if (!env.ENABLE_CHECKPOINTS) {
+      logger.warn(
+        'Session checkpoints are disabled. Set ENABLE_CHECKPOINTS=true to enable resumable session snapshots.'
+      );
+    }
     if (
       env.NODE_ENV === 'production' &&
       env.ENABLE_CHECKPOINTS &&
@@ -1028,6 +1044,37 @@ export function getFederationConfig(): {
     timeoutMs: current.MCP_FEDERATION_TIMEOUT_MS,
     maxConnections: current.MCP_FEDERATION_MAX_CONNECTIONS,
     serversJson: current.MCP_FEDERATION_SERVERS,
+  };
+}
+
+export function getRemoteMcpExecutorConfig(): {
+  enabled: boolean;
+  url?: string;
+  timeoutMs: number;
+  allowedTools: readonly string[];
+  auth?: {
+    type: 'bearer' | 'api-key';
+    token: string;
+  };
+} {
+  const current = ensureEnv();
+  const allowedTools = current.MCP_REMOTE_EXECUTOR_TOOLS.split(',')
+    .map((toolName) => toolName.trim())
+    .filter((toolName) => toolName.length > 0);
+  const auth =
+    current.MCP_REMOTE_EXECUTOR_AUTH_TYPE && current.MCP_REMOTE_EXECUTOR_AUTH_TOKEN
+      ? {
+          type: current.MCP_REMOTE_EXECUTOR_AUTH_TYPE,
+          token: current.MCP_REMOTE_EXECUTOR_AUTH_TOKEN,
+        }
+      : undefined;
+
+  return {
+    enabled: Boolean(current.MCP_REMOTE_EXECUTOR_URL) && allowedTools.length > 0,
+    url: current.MCP_REMOTE_EXECUTOR_URL,
+    timeoutMs: current.MCP_REMOTE_EXECUTOR_TIMEOUT_MS,
+    allowedTools,
+    auth,
   };
 }
 

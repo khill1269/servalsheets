@@ -420,6 +420,107 @@ const RANGE_STRATEGY_CONTENT = `# ServalSheets Range Strategy
 2. \`sheets_data.read range:"Sheet1!A1:H500"\` ← bounded to actual data
 `;
 
+const SAFETY_CONFIRMATION_CONTENT = `# When to Request User Confirmation
+
+## Always Confirm (No exceptions)
+
+1. **Deleting sheets** — Any sheets_core action="delete_sheet" call
+2. **Deleting rows (>10)** — sheets_dimensions action="delete" dimension="ROWS" with count > 10
+3. **Deleting columns (>3)** — sheets_dimensions action="delete" dimension="COLUMNS" with count > 3
+4. **Clearing data (>100 cells)** — sheets_data action="clear" on large ranges
+5. **Large writes (>500 cells)** — sheets_data action="write" with >500 cells
+6. **Multi-step operations (3+ steps)** — Use sheets_confirm to show the plan
+7. **Sharing/permissions** — Any sheets_collaborate sharing call
+8. **Anything user didn't explicitly request** — Side effects always need approval
+
+## Suggest Confirmation (Offer, don't require)
+
+- 50-500 cell modifications
+- Formatting large ranges
+- Adding formulas to existing data
+- Sorting/filtering operations
+- Import operations
+
+Offer: "I'll update {N} cells. Want me to show a preview first?"
+
+## No Confirmation Needed
+
+- All read operations (read, get, list, find)
+- Single cell updates user explicitly asked for
+- Small writes (<50 cells) user requested
+- Analysis operations, getting statistics
+
+## How to Use sheets_confirm
+
+Build a plan with title, description, steps (with risk level and isDestructive flag), then call sheets_confirm action="request". Check response: approved → execute, declined → abort, modified → adjust.
+
+## Golden Rules
+
+1. Deletion = ALWAYS confirm
+2. >100 cells = ALWAYS confirm
+3. Sharing = ALWAYS confirm
+4. Multi-step = ALWAYS show plan
+5. Small explicit requests = No confirmation
+6. When uncertain = ASK
+7. Offer snapshots for destructive ops
+8. Offer dryRun when user seems unsure
+`;
+
+const CONFIRMATION_EXAMPLES_CONTENT = `# Confirmation Examples: Good vs Bad
+
+## Example 1: Delete rows with empty status
+User: "Delete all rows where status is empty"
+
+BAD: "Done! I deleted 23 rows."
+
+GOOD: "I found 23 rows with empty status. Before I delete them:
+1. Want to see which rows they are?
+2. I'll create a snapshot so you can undo if needed.
+Ready to proceed?"
+
+## Example 2: Clear a column
+User: "Clear column D"
+
+BAD: "Cleared column D."
+
+GOOD: "Column D has 847 cells with data. Clearing will erase D2:D848 and may break referencing formulas. Should I show what's there first, or create a snapshot then clear?"
+
+## Example 3: Simple cell update
+User: "Change cell A1 to 'Hello'"
+
+BAD (over-confirming): "Are you absolutely sure you want to change A1?"
+
+GOOD: "Done! Changed A1 to 'Hello'." (No confirmation needed for small, explicit requests)
+
+## Example 4: Create a CRM (multi-step)
+User: "Set up a CRM for me"
+
+BAD: "Creating CRM... done! I made 6 sheets and added formulas."
+
+GOOD: "I'll create a CRM with Dashboard, Contacts, Companies, Deals, Activities, and Settings sheets. This involves ~15 operations. [Shows plan via sheets_confirm] Ready to create it?"
+
+## Example 5: Share spreadsheet
+User: "Share this with john@example.com"
+
+BAD: "Shared with john@example.com as editor."
+
+GOOD: "I'll share with john@example.com. What permission level — Viewer, Commenter, or Editor? Should I send a notification email?"
+
+## Example 6: User says "just do it"
+User: "Just format all the headers, don't ask me"
+
+CORRECT: "Got it! Formatting headers now..." (Respect user's preference, track for future)
+
+## Key Takeaways
+
+1. Big operations → Always confirm with details
+2. Small explicit requests → Just do it
+3. Destructive operations → Offer snapshot + confirm
+4. Multi-step → Show the plan first
+5. Respect "just do it" preferences
+6. When in doubt → Ask nicely
+`;
+
 // ============================================================================
 // RESOURCES REGISTRATION
 // ============================================================================
@@ -584,20 +685,30 @@ export function registerServalSheetsResources(
         const nextOffset = offset + paginatedValues.length;
 
         // Build result with pagination metadata
+        const pagination: Record<string, unknown> = {
+          offset,
+          limit,
+          totalRows,
+          totalCells,
+          returnedRows: paginatedValues.length,
+          hasMore,
+        };
+        if (hasMore) {
+          pagination['nextUri'] =
+            'sheets:///' +
+            spreadsheetId +
+            '/' +
+            encodeURIComponent(range) +
+            '?_limit=' +
+            String(limit) +
+            '&_offset=' +
+            String(nextOffset);
+        }
+
         const result: Record<string, unknown> = {
           ...valuesResponse.data,
           values: paginatedValues,
-          _pagination: {
-            offset,
-            limit,
-            totalRows,
-            totalCells,
-            returnedRows: paginatedValues.length,
-            hasMore,
-            ...(hasMore && {
-              nextUri: `sheets:///${spreadsheetId}/${encodeURIComponent(range)}?_limit=${limit}&_offset=${nextOffset}`,
-            }),
-          },
+          _pagination: pagination,
         };
 
         return {
@@ -771,6 +882,16 @@ export function registerServalSheetsResources(
       uri: 'guide://advanced-usage',
       description: 'AI features (Sampling), MCP protocol details (elicitation, tasks, transactions), formula locale, color format',
       content: ADVANCED_USAGE_CONTENT,
+    },
+    {
+      uri: 'guide://safety-confirmation',
+      description: 'When and how to request user confirmation before operations — decision tree with thresholds and golden rules',
+      content: SAFETY_CONFIRMATION_CONTENT,
+    },
+    {
+      uri: 'guide://confirmation-examples',
+      description: 'Good vs bad confirmation behavior examples — 6 scenarios showing proper confirmation patterns',
+      content: CONFIRMATION_EXAMPLES_CONTENT,
     },
   ];
   for (const guide of guideResources) {

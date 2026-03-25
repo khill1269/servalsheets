@@ -5,7 +5,7 @@
  * Includes timeout wrapper, consent enforcement, and response extraction helpers.
  */
 
-import { assertSamplingConsent as assertGlobalSamplingConsent } from '../../mcp/sampling.js';
+import { assertSamplingConsent as assertGlobalSamplingConsent } from '../../utils/sampling-consent.js';
 import { createRequestAbortError, getRequestContext } from '../../utils/request-context.js';
 import type { SamplingServer, SamplingMessage, SamplingCreateMessageResult } from './types.js';
 

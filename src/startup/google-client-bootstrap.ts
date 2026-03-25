@@ -1,7 +1,14 @@
-import { createGoogleApiClient, type GoogleApiClient, type GoogleApiClientOptions } from '../services/google-api.js';
+import {
+  createGoogleApiClient,
+  type GoogleApiClient,
+  type GoogleApiClientOptions,
+} from '../services/google-api.js';
 import { isGoogleAuthError } from '../utils/auth-guard.js';
 import { logger } from '../utils/logger.js';
-import { getProcessBreadcrumbs, shouldAllowDegradedStartup } from '../server/runtime-diagnostics.js';
+import {
+  getProcessBreadcrumbs,
+  shouldAllowDegradedStartup,
+} from '../server/runtime-diagnostics.js';
 
 export interface TokenBackedGoogleClientOptions {
   readonly accessToken: string;

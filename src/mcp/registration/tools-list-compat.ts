@@ -80,6 +80,63 @@ const TOOL_TIERS: Record<string, ToolTierMeta> = {
   sheets_connectors:   { tier: 3, group: 'data-io',    primaryVerbs: ['discover', 'connect', 'fetch'] },
 };
 
+/**
+ * Agency hints (SEP-1792 draft) — tells LLM clients which tools benefit
+ * from autonomous agent orchestration vs direct single-call execution.
+ *
+ * - 'autonomous': Tool is designed for multi-step agent loops (plan/execute/observe)
+ * - 'orchestrated': Tool benefits from being sequenced with others in a pipeline
+ * - 'direct': Tool works best as a single direct call
+ *
+ * Exposed via x-servalsheets.agencyHint in tools/list inputSchema.
+ */
+/**
+ * Per-tool scope requirements (SEP-1880 draft readiness).
+ * Derived from OPERATION_SCOPES in src/security/incremental-scope.ts.
+ * Tells LLM clients what OAuth scope category each tool needs,
+ * so they can pre-flight scope checks before invocation.
+ */
+const TOOL_SCOPE_REQUIREMENTS: Record<string, { primary: string; elevated?: string; note?: string }> = {
+  sheets_auth:         { primary: 'none', note: 'No Google API scopes required' },
+  sheets_session:      { primary: 'none', note: 'Local session state only' },
+  sheets_confirm:      { primary: 'none', note: 'MCP elicitation only' },
+  sheets_core:         { primary: 'spreadsheets', elevated: 'drive.file', note: 'create requires drive.file scope' },
+  sheets_data:         { primary: 'spreadsheets' },
+  sheets_format:       { primary: 'spreadsheets' },
+  sheets_dimensions:   { primary: 'spreadsheets' },
+  sheets_visualize:    { primary: 'spreadsheets' },
+  sheets_advanced:     { primary: 'spreadsheets' },
+  sheets_compute:      { primary: 'spreadsheets' },
+  sheets_fix:          { primary: 'spreadsheets' },
+  sheets_quality:      { primary: 'spreadsheets' },
+  sheets_analyze:      { primary: 'spreadsheets.readonly', elevated: 'spreadsheets', note: 'Read-only for analysis; full scope for semantic_search indexing' },
+  sheets_collaborate:  { primary: 'spreadsheets', elevated: 'drive', note: 'Sharing/comments/versions require full drive scope' },
+  sheets_history:      { primary: 'spreadsheets', elevated: 'drive.readonly', note: 'timeline/diff need drive revision access' },
+  sheets_dependencies: { primary: 'spreadsheets' },
+  sheets_composite:    { primary: 'spreadsheets', elevated: 'drive.file', note: 'generate_sheet/import may create new files' },
+  sheets_templates:    { primary: 'drive.appdata', elevated: 'drive.file', note: 'All actions require appdata scope; apply needs drive.file' },
+  sheets_transaction:  { primary: 'spreadsheets' },
+  sheets_bigquery:     { primary: 'spreadsheets', elevated: 'bigquery', note: 'Query/import/export need BigQuery scope' },
+  sheets_appsscript:   { primary: 'spreadsheets', elevated: 'script.projects', note: 'Create/execute/deploy need Apps Script scope' },
+  sheets_webhook:      { primary: 'spreadsheets', elevated: 'drive', note: 'Register/unregister need drive scope' },
+  sheets_federation:   { primary: 'none', note: 'Delegates to remote MCP servers' },
+  sheets_connectors:   { primary: 'none', elevated: 'spreadsheets', note: 'configure needs no scope; query/subscribe need sheets access' },
+  sheets_agent:        { primary: 'spreadsheets', elevated: 'drive', note: 'Agent may invoke any tool — inherits all scope requirements' },
+};
+
+const TOOL_AGENCY_HINTS: Record<string, { level: 'autonomous' | 'orchestrated' | 'direct'; reason: string }> = {
+  sheets_agent:        { level: 'autonomous',   reason: 'Plan/execute/observe loop with rollback — designed for autonomous multi-step workflows' },
+  sheets_composite:    { level: 'orchestrated',  reason: 'Multi-step operations (import, generate, setup) that chain internal tool calls' },
+  sheets_analyze:      { level: 'orchestrated',  reason: 'AI sampling-powered analysis that benefits from iterative scout → comprehensive flow' },
+  sheets_fix:          { level: 'orchestrated',  reason: 'Cleaning pipelines that chain detect → preview → apply with user confirmation' },
+  sheets_transaction:  { level: 'orchestrated',  reason: 'Queue → commit → verify pattern requires multi-step sequencing' },
+  sheets_dependencies: { level: 'orchestrated',  reason: 'Scenario modeling benefits from iterative what-if → compare → materialize flow' },
+  sheets_confirm:      { level: 'direct',        reason: 'Single user interaction — confirmation or wizard step' },
+  sheets_session:      { level: 'direct',        reason: 'Context management — single-call set/get operations' },
+  sheets_auth:         { level: 'direct',        reason: 'Authentication — single-call status/login/callback' },
+  sheets_compute:      { level: 'direct',        reason: 'Stateless computation — same input always produces same output' },
+};
+
 function isZodSchema(schema: unknown): boolean {
   return Boolean(
     schema &&
@@ -228,6 +285,8 @@ function enrichInputSchema(
 
   const tierMeta = TOOL_TIERS[toolName];
   const costEstimates = getActionCostEstimates(toolName);
+  const agencyHint = TOOL_AGENCY_HINTS[toolName];
+  const scopeReqs = TOOL_SCOPE_REQUIREMENTS[toolName];
   const enriched: Record<string, unknown> = {
     ...inputSchema,
     'x-servalsheets': {
@@ -237,6 +296,8 @@ function enrichInputSchema(
         ? { tier: tierMeta.tier, group: tierMeta.group, primaryVerbs: tierMeta.primaryVerbs }
         : {}),
       ...(costEstimates ? { costEstimates } : {}),
+      ...(agencyHint ? { agencyHint } : {}),
+      ...(scopeReqs ? { requiredScopes: scopeReqs } : {}),
       ...(getToolAvailabilityMetadata(toolName)
         ? { availability: getToolAvailabilityMetadata(toolName) }
         : {}),

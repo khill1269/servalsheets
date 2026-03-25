@@ -164,6 +164,8 @@ export async function getTimeline(
   const maxPages = options.maxPages ?? 25; // Reduced from 50 to prevent timeouts
   const DEADLINE_MS = 45_000; // 45-second deadline to stay within MCP timeout
   const startTime = Date.now();
+  const hasTimeFilters = options.since !== undefined || options.until !== undefined;
+  const pageSize = Math.min(Math.max(limit, 50), 200);
 
   const allRevisionItems: drive_v3.Schema$Revision[] = [];
   let pageToken: string | undefined;
@@ -185,7 +187,7 @@ export async function getTimeline(
 
     const response = await driveApi.revisions.list({
       fileId: spreadsheetId,
-      pageSize: 1000, // Drive revisions.list allows up to 1000 items per page.
+      pageSize,
       pageToken,
       fields:
         'nextPageToken,revisions(id,modifiedTime,lastModifyingUser(displayName,emailAddress),size)',
@@ -193,6 +195,10 @@ export async function getTimeline(
     allRevisionItems.push(...(response.data.revisions ?? []));
     pageToken = response.data.nextPageToken ?? undefined;
     pagesRead++;
+    if (!hasTimeFilters && allRevisionItems.length >= limit) {
+      nextPageToken = pageToken;
+      break;
+    }
     if (pagesRead >= maxPages && pageToken) {
       nextPageToken = pageToken;
       logger.warn('revision-timeline: hit pagination cap; history may be truncated', {

@@ -271,6 +271,17 @@ export const DimensionSchema = z
     'Dimension type: ROWS (horizontal bands) or COLUMNS (vertical bands). Case-insensitive.'
   );
 
+/**
+ * Output format per MCP best practices: JSON for programmatic processing,
+ * Markdown for human readability. Handlers that support this should respect
+ * the format preference when building responses.
+ */
+export const OutputFormatSchema = z
+  .enum(['json', 'markdown'])
+  .default('json')
+  .describe('Response format: json for structured data, markdown for human-readable text');
+export type OutputFormat = z.infer<typeof OutputFormatSchema>;
+
 export const HorizontalAlignSchema = z
   .enum(['LEFT', 'CENTER', 'RIGHT'])
   .describe('Horizontal text alignment within cell');

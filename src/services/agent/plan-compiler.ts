@@ -19,6 +19,7 @@ import {
   getModelHint,
 } from './sampling.js';
 import { planStore, MAX_PLANS, evictOldestPlan, persistPlan } from './plan-store.js';
+import { annotateAIGeneratedDraftPlan } from './step-validation.js';
 import { WORKFLOW_TEMPLATES } from './templates.js';
 import type { WorkflowTemplate } from './templates.js';
 
@@ -358,10 +359,12 @@ export async function compilePlanAI(
 
   // Try AI-powered planning first
   let steps: ExecutionStep[] | undefined;
+  let usedAIPlan = false;
   try {
     const aiSteps = await aiParsePlan(description, spreadsheetId, context, maxSteps);
     if (aiSteps && aiSteps.length > 0) {
       steps = aiSteps;
+      usedAIPlan = true;
     }
   } catch (err) {
     logger.debug('AI plan compilation error', {
@@ -393,6 +396,10 @@ export async function compilePlanAI(
     spreadsheetId,
     planningContextSummary: summarizePlanningContext(context),
   });
+
+  if (usedAIPlan) {
+    annotateAIGeneratedDraftPlan(plan);
+  }
 
   evictOldestPlan();
   planStore.set(planId, plan);

@@ -68,6 +68,12 @@ const PlanActionSchema = CommonFieldsSchema.extend({
     .describe(
       'Additional context to help the planner (e.g., "Data is in columns A-D, rows 2-100. Headers in row 1.")'
     ),
+  scoutResult: z
+    .unknown()
+    .optional()
+    .describe(
+      'Optional scout payload from sheets_analyze.scout. When provided, the planner skips its internal workbook scout to avoid large-workbook timeouts.'
+    ),
 }).strict();
 
 const ExecuteActionSchema = CommonFieldsSchema.extend({
@@ -223,6 +229,21 @@ const PlanStepSchema = z.object({
     .array(z.string())
     .optional()
     .describe('Step IDs that must complete before this step (if any)'),
+  validation: z
+    .object({
+      valid: z.boolean(),
+      issues: z
+        .array(
+          z.object({
+            field: z.string(),
+            message: z.string(),
+          })
+        )
+        .optional(),
+      suggestedFix: z.string().optional(),
+    })
+    .optional()
+    .describe('Optional compile-time validation result for AI-generated draft steps'),
 });
 
 const AgentResponseSchema = z.discriminatedUnion('success', [

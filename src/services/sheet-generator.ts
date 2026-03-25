@@ -21,7 +21,7 @@ import type {
   GeneratedColumn,
   GeneratedFormatting,
 } from '../schemas/composite.js';
-import { assertSamplingConsent } from '../mcp/sampling.js';
+import { assertSamplingConsent } from '../utils/sampling-consent.js';
 import { createRequestAbortError, getRequestContext } from '../utils/request-context.js';
 import { logger } from '../utils/logger.js';
 import { ServiceError, ValidationError } from '../core/errors.js';

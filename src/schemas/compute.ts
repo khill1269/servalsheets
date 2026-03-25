@@ -116,6 +116,21 @@ const AggregateActionSchema = CommonFieldsSchema.extend({
 const StatisticalActionSchema = CommonFieldsSchema.extend({
   action: z.literal('statistical').describe('Compute descriptive statistics for a data range'),
   range: RangeInputSchema.describe('Range containing numeric data'),
+  hasHeaders: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe(
+      'Whether the first row of the requested range contains headers. Set false to treat all rows as data and refer to columns by letters.'
+    ),
+  headerRow: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe(
+      'Absolute 1-based sheet row to use as headers when the requested range excludes the header row.'
+    ),
   columns: z
     .array(z.string())
     .optional()
@@ -148,6 +163,21 @@ const StatisticalActionSchema = CommonFieldsSchema.extend({
 const RegressionActionSchema = CommonFieldsSchema.extend({
   action: z.literal('regression').describe('Perform regression analysis on data series'),
   range: RangeInputSchema.describe('Range containing X and Y data'),
+  hasHeaders: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe(
+      'Whether the first row of the requested range contains headers. Set false to treat all rows as data and refer to columns by letters.'
+    ),
+  headerRow: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe(
+      'Absolute 1-based sheet row to use as headers when the requested range excludes the header row.'
+    ),
   xColumn: z.string().describe('Column for independent variable (letter or header name)'),
   yColumn: z.string().describe('Column for dependent variable (letter or header name)'),
   type: z

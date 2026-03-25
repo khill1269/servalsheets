@@ -5,6 +5,7 @@ import type { GoogleApiClient } from '../services/google-api.js';
 import { STAGED_REGISTRATION } from '../config/constants.js';
 import { toolStageManager } from '../mcp/registration/tool-stage-manager.js';
 import { createToolHandlerMap, buildToolResponse } from '../mcp/registration/tool-handlers.js';
+import { executeRoutedToolCall } from '../mcp/routed-tool-execution.js';
 import { startKeepalive } from '../utils/keepalive.js';
 
 type ServerToolHandler = (args: unknown, extra?: unknown) => Promise<unknown>;
@@ -29,8 +30,13 @@ export type DispatchServerToolCallResult =
   | { kind: 'result'; result: unknown; handlerMap: ServerToolHandlerMap }
   | { kind: 'error'; response: CallToolResult; handlerMap: ServerToolHandlerMap | null };
 
+export interface DispatchServerToolCallDependencies {
+  executeRoutedToolCall?: typeof executeRoutedToolCall;
+}
+
 export async function dispatchServerToolCall(
-  params: DispatchServerToolCallParams
+  params: DispatchServerToolCallParams,
+  dependencies: DispatchServerToolCallDependencies = {}
 ): Promise<DispatchServerToolCallResult> {
   const {
     toolName,
@@ -118,9 +124,16 @@ export async function dispatchServerToolCall(
     operationName: toolName,
     debug: process.env['DEBUG_KEEPALIVE'] === 'true',
   });
+  const executeToolCall = dependencies.executeRoutedToolCall ?? executeRoutedToolCall;
 
   try {
-    const result = await handler(args, { ...extra, context: perRequestContext });
+    const result = await executeToolCall({
+      toolName,
+      transport: 'stdio',
+      args,
+      sessionContext: context.sessionContext,
+      localExecute: () => handler(args, { ...extra, context: perRequestContext }),
+    });
     return { kind: 'result', result, handlerMap };
   } finally {
     keepalive.stop();

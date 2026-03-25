@@ -263,75 +263,64 @@ export const DependencyBuildResultSchema = z.object({
  * Dependencies output response
  */
 const DependenciesResponseSchema = z.discriminatedUnion('success', [
-  z
-    .object({
-      success: z.literal(true),
-      data: z.union([
-        DependencyBuildResultSchema,
-        ImpactAnalysisSchema,
-        z.object({ circularDependencies: z.array(CircularDependencySchema) }),
-        z.object({ dependencies: z.array(z.string()) }),
-        z.object({ dependents: z.array(z.string()) }),
-        DependencyStatsSchema,
-        z.object({ dot: z.string() }),
-        // F6: Scenario results
-        z
-          .object({
-            action: z.literal('model_scenario'),
-            inputChanges: z.array(
-              z.object({
-                cell: z.string(),
-                from: z.union([z.string(), z.number(), z.null()]).optional(),
-                to: z.union([z.string(), z.number(), z.boolean(), z.null()]),
-              })
-            ),
-            cascadeEffects: z.array(
-              z.object({
-                cell: z.string(),
-                formula: z.string().optional(),
-                currentValue: z.union([z.string(), z.number(), z.null()]).optional(),
-                affectedBy: z.array(z.string()).optional(),
-              })
-            ),
-            summary: z.object({
-              cellsAffected: z.number().int(),
-              message: z.string(),
-            }),
+  z.object({
+    success: z.literal(true),
+    data: z.union([
+      DependencyBuildResultSchema,
+      ImpactAnalysisSchema,
+      z.object({ circularDependencies: z.array(CircularDependencySchema) }),
+      z.object({ dependencies: z.array(z.string()) }),
+      z.object({ dependents: z.array(z.string()) }),
+      DependencyStatsSchema,
+      z.object({ dot: z.string() }),
+      // F6: Scenario results
+      z.object({
+        action: z.literal('model_scenario'),
+        inputChanges: z.array(
+          z.object({
+            cell: z.string(),
+            from: z.union([z.string(), z.number(), z.null()]).optional(),
+            to: z.union([z.string(), z.number(), z.boolean(), z.null()]),
           })
-          ,
-        // F6: compare_scenarios result
-        z
-          .object({
-            action: z.literal('compare_scenarios'),
-            scenarios: z.array(
-              z
-                .object({
-                  name: z.string(),
-                  cellsAffected: z.number().int(),
-                })
-            ),
-            message: z.string(),
+        ),
+        cascadeEffects: z.array(
+          z.object({
+            cell: z.string(),
+            formula: z.string().optional(),
+            currentValue: z.union([z.string(), z.number(), z.null()]).optional(),
+            affectedBy: z.array(z.string()).optional(),
           })
-          ,
-        // F6: create_scenario_sheet result
-        z
-          .object({
-            action: z.literal('create_scenario_sheet'),
-            newSheetId: z.number().int(),
-            newSheetName: z.string(),
-            cellsModified: z.number().int(),
-            message: z.string(),
+        ),
+        summary: z.object({
+          cellsAffected: z.number().int(),
+          message: z.string(),
+        }),
+      }),
+      // F6: compare_scenarios result
+      z.object({
+        action: z.literal('compare_scenarios'),
+        scenarios: z.array(
+          z.object({
+            name: z.string(),
+            cellsAffected: z.number().int(),
           })
-          ,
-      ]),
-    })
-    ,
-  z
-    .object({
-      success: z.literal(false),
-      error: ErrorDetailSchema,
-    })
-    ,
+        ),
+        message: z.string(),
+      }),
+      // F6: create_scenario_sheet result
+      z.object({
+        action: z.literal('create_scenario_sheet'),
+        newSheetId: z.number().int(),
+        newSheetName: z.string(),
+        cellsModified: z.number().int(),
+        message: z.string(),
+      }),
+    ]),
+  }),
+  z.object({
+    success: z.literal(false),
+    error: ErrorDetailSchema,
+  }),
 ]);
 
 export const SheetsDependenciesOutputSchema = z.object({
@@ -352,6 +341,7 @@ export const SHEETS_DEPENDENCIES_ANNOTATIONS = {
 // Type exports
 export type DependencyActions = z.infer<typeof DependencyActionsSchema>;
 export type SheetsDependenciesInput = z.infer<typeof SheetsDependenciesInputSchema>;
+export type DependenciesRequest = z.infer<typeof DependencyRequestSchema>;
 export type DependencyBuildInput = z.infer<typeof DependencyBuildInputSchema>;
 export type DependencyAnalyzeImpactInput = z.infer<typeof DependencyAnalyzeImpactInputSchema>;
 export type DependencyDetectCyclesInput = z.infer<typeof DependencyDetectCyclesInputSchema>;
@@ -365,6 +355,7 @@ export type ImpactAnalysis = z.infer<typeof ImpactAnalysisSchema>;
 export type DependencyStats = z.infer<typeof DependencyStatsSchema>;
 export type DependencyBuildResult = z.infer<typeof DependencyBuildResultSchema>;
 export type SheetsDependenciesOutput = z.infer<typeof SheetsDependenciesOutputSchema>;
+export type DependenciesResponse = z.infer<typeof DependenciesResponseSchema>;
 export type ModelScenarioInput = z.infer<typeof ModelScenarioInputSchema>;
 export type CompareScenariosInput = z.infer<typeof CompareScenariosInputSchema>;
 export type CreateScenarioSheetInput = z.infer<typeof CreateScenarioSheetInputSchema>;

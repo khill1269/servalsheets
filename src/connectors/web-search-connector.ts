@@ -55,7 +55,9 @@ export class WebSearchConnector implements SpreadsheetConnector {
 
     this.apiKey = credentials.apiKey;
     const engine = credentials.custom['engine'];
-    this.searchEngine = (engine === 'google' || engine === 'serper' ? engine : 'google') as 'google' | 'serper';
+    this.searchEngine = (engine === 'google' || engine === 'serper' ? engine : 'google') as
+      | 'google'
+      | 'serper';
     this.configured = true;
     logger.info(`Web Search connector configured (engine: ${this.searchEngine})`);
   }
@@ -160,11 +162,7 @@ export class WebSearchConnector implements SpreadsheetConnector {
         ],
       };
     }
-    throw new ServiceError(
-      `Unknown endpoint: ${endpoint}`,
-      'INVALID_PARAMS',
-      'WebSearchConnector'
-    );
+    throw new ServiceError(`Unknown endpoint: ${endpoint}`, 'INVALID_PARAMS', 'WebSearchConnector');
   }
 
   async query(endpoint: string, params: QueryParams): Promise<DataResult> {
@@ -177,17 +175,10 @@ export class WebSearchConnector implements SpreadsheetConnector {
       const url = params['url'] as string;
       return this.fetchPage(url);
     }
-    throw new ServiceError(
-      `Unknown endpoint: ${endpoint}`,
-      'INVALID_PARAMS',
-      'WebSearchConnector'
-    );
+    throw new ServiceError(`Unknown endpoint: ${endpoint}`, 'INVALID_PARAMS', 'WebSearchConnector');
   }
 
-  private async search(
-    query: string,
-    options: { maxResults?: number }
-  ): Promise<DataResult> {
+  private async search(_query: string, _options: { maxResults?: number }): Promise<DataResult> {
     // Phase 3 implementation: calls Google Custom Search API or Serper API
     throw new ServiceError(
       'Web search implementation deferred to Phase 3 (Step 062)',
@@ -196,7 +187,7 @@ export class WebSearchConnector implements SpreadsheetConnector {
     );
   }
 
-  private async fetchPage(url: string): Promise<DataResult> {
+  private async fetchPage(_url: string): Promise<DataResult> {
     // Phase 3 implementation: fetches and extracts page content
     throw new ServiceError(
       'Page fetch implementation deferred to Phase 3 (Step 062)',

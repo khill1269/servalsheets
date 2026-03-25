@@ -96,7 +96,8 @@ export class OpenFigiConnector implements SpreadsheetConnector {
       {
         id: 'mapping',
         name: 'Identifier Mapping',
-        description: 'Map securities between different identifier schemes (ticker, ISIN, CUSIP, SEDOL, etc.)',
+        description:
+          'Map securities between different identifier schemes (ticker, ISIN, CUSIP, SEDOL, etc.)',
         category: 'mapping',
         params: [
           {
@@ -171,8 +172,16 @@ export class OpenFigiConnector implements SpreadsheetConnector {
             { name: 'ticker', type: 'string', description: 'Ticker symbol' },
             { name: 'exchCode', type: 'string', description: 'Exchange code' },
             { name: 'name', type: 'string', description: 'Security name' },
-            { name: 'isin', type: 'string', description: 'International Securities Identification Number' },
-            { name: 'cusip', type: 'string', description: 'Committee on Uniform Security Identification Procedures' },
+            {
+              name: 'isin',
+              type: 'string',
+              description: 'International Securities Identification Number',
+            },
+            {
+              name: 'cusip',
+              type: 'string',
+              description: 'Committee on Uniform Security Identification Procedures',
+            },
             { name: 'sedol', type: 'string', description: 'Stock Exchange Daily Official List' },
             { name: 'composite_figi', type: 'string', description: 'Composite FIGI' },
             { name: 'security_type', type: 'string', description: 'Type of security' },
@@ -199,7 +208,11 @@ export class OpenFigiConnector implements SpreadsheetConnector {
             { name: 'name', type: 'string', description: 'Security name' },
             { name: 'ticker', type: 'string', description: 'Ticker symbol' },
             { name: 'exchCode', type: 'string', description: 'Exchange code' },
-            { name: 'assetClass', type: 'string', description: 'Asset class (Equity, Fixed Income, etc.)' },
+            {
+              name: 'assetClass',
+              type: 'string',
+              description: 'Asset class (Equity, Fixed Income, etc.)',
+            },
             { name: 'marketSector', type: 'string', description: 'Market sector' },
             { name: 'countryCode', type: 'string', description: 'Country code' },
             { name: 'securityType', type: 'string', description: 'Security type' },
@@ -242,7 +255,11 @@ export class OpenFigiConnector implements SpreadsheetConnector {
           });
 
           if (!resp.ok) {
-            throw new ServiceError(`OpenFIGI API returned ${resp.status}`, 'CONNECTOR_ERROR', 'openfigi');
+            throw new ServiceError(
+              `OpenFIGI API returned ${resp.status}`,
+              'CONNECTOR_ERROR',
+              'openfigi'
+            );
           }
 
           const data = (await resp.json()) as Array<Record<string, unknown>>;
@@ -263,7 +280,18 @@ export class OpenFigiConnector implements SpreadsheetConnector {
           ]);
 
           return {
-            headers: ['figi', 'ticker', 'exchCode', 'name', 'isin', 'cusip', 'sedol', 'composite_figi', 'security_type', 'market_sector'],
+            headers: [
+              'figi',
+              'ticker',
+              'exchCode',
+              'name',
+              'isin',
+              'cusip',
+              'sedol',
+              'composite_figi',
+              'security_type',
+              'market_sector',
+            ],
             rows,
             metadata: {
               source: 'OpenFIGI',
@@ -278,8 +306,12 @@ export class OpenFigiConnector implements SpreadsheetConnector {
 
         case 'search': {
           const query = params['query'] as string;
-          const assetClass = params['assetClass'] ? `&assetClass=${encodeURIComponent(String(params['assetClass']))}` : '';
-          const sector = params['marketSector'] ? `&marketSector=${encodeURIComponent(String(params['marketSector']))}` : '';
+          const assetClass = params['assetClass']
+            ? `&assetClass=${encodeURIComponent(String(params['assetClass']))}`
+            : '';
+          const sector = params['marketSector']
+            ? `&marketSector=${encodeURIComponent(String(params['marketSector']))}`
+            : '';
 
           const url = `${BASE_URL}/search?query=${encodeURIComponent(query)}${assetClass}${sector}`;
 
@@ -292,19 +324,30 @@ export class OpenFigiConnector implements SpreadsheetConnector {
           const searchData = (await resp.json()) as Record<string, unknown>;
           const results = (searchData['result'] || []) as Array<Record<string, unknown>>;
 
-          const rows = results.slice(0, 100).map((r) => [
-            String(r['figi'] || ''),
-            String(r['name'] || ''),
-            String(r['ticker'] || ''),
-            String(r['exchCode'] || ''),
-            String(r['assetClass'] || ''),
-            String(r['marketSector'] || ''),
-            String((r['country'] || r['countryCode']) || ''),
-            String(r['securityType'] || ''),
-          ]);
+          const rows = results
+            .slice(0, 100)
+            .map((r) => [
+              String(r['figi'] || ''),
+              String(r['name'] || ''),
+              String(r['ticker'] || ''),
+              String(r['exchCode'] || ''),
+              String(r['assetClass'] || ''),
+              String(r['marketSector'] || ''),
+              String(r['country'] || r['countryCode'] || ''),
+              String(r['securityType'] || ''),
+            ]);
 
           return {
-            headers: ['figi', 'name', 'ticker', 'exchCode', 'assetClass', 'marketSector', 'countryCode', 'securityType'],
+            headers: [
+              'figi',
+              'name',
+              'ticker',
+              'exchCode',
+              'assetClass',
+              'marketSector',
+              'countryCode',
+              'securityType',
+            ],
             rows,
             metadata: {
               source: 'OpenFIGI',

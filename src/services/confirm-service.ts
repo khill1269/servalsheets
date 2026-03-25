@@ -455,6 +455,16 @@ class ConfirmationService {
   }
 
   /**
+   * Record a synthetic successful confirmation for flows that complete via
+   * structured wizard interactions instead of a direct elicitation prompt.
+   */
+  recordWizardCompletion(): void {
+    this.stats.totalConfirmations++;
+    this.stats.approved++;
+    this.updateApprovalRate();
+  }
+
+  /**
    * Reset statistics (for testing)
    */
   resetStats(): void {

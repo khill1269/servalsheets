@@ -5,7 +5,11 @@ import { NotFoundError, ServiceError } from '../core/errors.js';
 /**
  * Analysis type enumeration for scheduled intelligence.
  */
-export type AnalysisType = 'quality_check' | 'anomaly_detection' | 'trend_analysis' | 'custom_query';
+export type AnalysisType =
+  | 'quality_check'
+  | 'anomaly_detection'
+  | 'trend_analysis'
+  | 'custom_query';
 
 /**
  * Condition threshold for triggering webhooks.
@@ -58,7 +62,14 @@ export type AnalysisCallback = (
   spreadsheetId: string,
   analysisType: AnalysisType,
   query?: string
-) => Promise<Array<{ type: string; severity: 'low' | 'medium' | 'high'; message: string; data?: Record<string, unknown> }>>;
+) => Promise<
+  Array<{
+    type: string;
+    severity: 'low' | 'medium' | 'high';
+    message: string;
+    data?: Record<string, unknown>;
+  }>
+>;
 
 /**
  * Scheduled Intelligence Manager
@@ -86,9 +97,7 @@ export class ScheduledIntelligenceManager {
   /** Singleton accessor. Lazy-creates with a no-op callback. */
   static getInstance(): ScheduledIntelligenceManager {
     if (!ScheduledIntelligenceManager._instance) {
-      ScheduledIntelligenceManager._instance = new ScheduledIntelligenceManager(
-        async () => []
-      );
+      ScheduledIntelligenceManager._instance = new ScheduledIntelligenceManager(async () => []);
     }
     return ScheduledIntelligenceManager._instance;
   }
@@ -122,7 +131,10 @@ export class ScheduledIntelligenceManager {
 
     this.schedules.set(id, schedule);
     this.persistSchedules();
-    logger.info('[ScheduledIntelligence] Schedule created', { scheduleId: id, spreadsheetId: params.spreadsheetId });
+    logger.info('[ScheduledIntelligence] Schedule created', {
+      scheduleId: id,
+      spreadsheetId: params.spreadsheetId,
+    });
 
     return schedule;
   }
@@ -197,7 +209,11 @@ export class ScheduledIntelligenceManager {
     }
 
     if (!schedule.enabled) {
-      throw new ServiceError(`Schedule is disabled: ${id}`, 'OPERATION_FAILED', 'ScheduledIntelligence');
+      throw new ServiceError(
+        `Schedule is disabled: ${id}`,
+        'OPERATION_FAILED',
+        'ScheduledIntelligence'
+      );
     }
 
     logger.debug('[ScheduledIntelligence] Running schedule', { scheduleId: id });
@@ -206,10 +222,16 @@ export class ScheduledIntelligenceManager {
 
     try {
       // Execute analysis via callback
-      const findings = await this.analysisCallback(schedule.spreadsheetId, schedule.analysisType, schedule.query);
+      const findings = await this.analysisCallback(
+        schedule.spreadsheetId,
+        schedule.analysisType,
+        schedule.query
+      );
 
       // Check if any conditions were met
-      const conditionsMet = schedule.conditions ? this.evaluateConditions(findings, schedule.conditions) : false;
+      const conditionsMet = schedule.conditions
+        ? this.evaluateConditions(findings, schedule.conditions)
+        : false;
 
       // Attempt webhook delivery if conditions met
       let delivered = false;
@@ -262,7 +284,10 @@ export class ScheduledIntelligenceManager {
       return report;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      logger.error('[ScheduledIntelligence] Schedule execution failed', { scheduleId: id, error: errorMsg });
+      logger.error('[ScheduledIntelligence] Schedule execution failed', {
+        scheduleId: id,
+        error: errorMsg,
+      });
 
       // Still update nextRunAt even on failure
       this.updateSchedule(id, {
@@ -339,7 +364,12 @@ export class ScheduledIntelligenceManager {
    * Evaluate threshold conditions against findings.
    */
   private evaluateConditions(
-    findings: Array<{ type: string; severity: string; message: string; data?: Record<string, unknown> }>,
+    findings: Array<{
+      type: string;
+      severity: string;
+      message: string;
+      data?: Record<string, unknown>;
+    }>,
     conditions: ThresholdCondition[]
   ): boolean {
     // Extract metric values from findings
@@ -394,7 +424,10 @@ export class ScheduledIntelligenceManager {
   /**
    * Send webhook notification.
    */
-  private async sendWebhook(webhookUrl: string, payload: Record<string, unknown>): Promise<boolean> {
+  private async sendWebhook(
+    webhookUrl: string,
+    payload: Record<string, unknown>
+  ): Promise<boolean> {
     try {
       const response = await fetch(webhookUrl, {
         method: 'POST',
@@ -422,7 +455,10 @@ export class ScheduledIntelligenceManager {
     const client = this.redisClient as Record<string, unknown> | null | undefined;
     if (client && typeof client === 'object' && 'set' in client) {
       try {
-        await (client['set'] as (key: string, value: string) => Promise<void>)('serval:schedules', JSON.stringify(data));
+        await (client['set'] as (key: string, value: string) => Promise<void>)(
+          'serval:schedules',
+          JSON.stringify(data)
+        );
       } catch (err) {
         logger.warn('[ScheduledIntelligence] Redis persistence failed', {
           error: err instanceof Error ? err.message : String(err),
@@ -452,7 +488,9 @@ export class ScheduledIntelligenceManager {
 
       const client = this.redisClient as Record<string, unknown> | null | undefined;
       if (client && typeof client === 'object' && 'get' in client) {
-        const stored = await (client['get'] as (key: string) => Promise<string | null>)('serval:schedules');
+        const stored = await (client['get'] as (key: string) => Promise<string | null>)(
+          'serval:schedules'
+        );
         if (stored) {
           data = JSON.parse(stored);
         }

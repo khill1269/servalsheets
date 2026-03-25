@@ -218,6 +218,13 @@ export class CompositeOperationsService {
     const existingHeaders: string[] = (headerResponse.data.values?.[0] ?? []).map((h) =>
       String(h ?? '').trim()
     );
+    const existingDataResponse = await executeWithRetry(() =>
+      this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId,
+        range: `'${targetSheet.title}'`,
+      })
+    );
+    const existingRows = existingDataResponse.data.values ?? [];
 
     // BUG-020 FIX: When sheet is empty (no headers), auto-set createMissingColumns=true
     // so that data keys become headers instead of being skipped
@@ -266,7 +273,11 @@ export class CompositeOperationsService {
     }
 
     // Build rows based on column mapping
-    const totalCols = Math.max(existingHeaders.length, ...Array.from(columnMap.values())) + 1;
+    const highestMappedColumn = Math.max(
+      ...Array.from(columnMap.values(), (value) => value + 1),
+      0
+    );
+    const totalCols = Math.max(existingHeaders.length, highestMappedColumn);
     const rows: unknown[][] = [];
 
     for (const record of data) {
@@ -299,14 +310,29 @@ export class CompositeOperationsService {
       };
     }
 
-    // Append data
+    // Compute the append target from actual values instead of Google append heuristics.
+    // This avoids stale-row placement when a sheet was cleared but still has formatting,
+    // banding, or other non-value metadata below the last real row.
+    let lastPopulatedRow = 0;
+    for (let rowIndex = existingRows.length - 1; rowIndex >= 0; rowIndex--) {
+      const row = existingRows[rowIndex] ?? [];
+      if (row.some((value) => String(value ?? '').trim() !== '')) {
+        lastPopulatedRow = rowIndex + 1;
+        break;
+      }
+    }
+    if (columnsCreated.length > 0 && lastPopulatedRow === 0) {
+      lastPopulatedRow = 1;
+    }
+
+    const appendStartRow = lastPopulatedRow + 1;
     const endCol = this.columnIndexToLetter(totalCols - 1);
+    const targetRange = `'${targetSheet.title}'!A${appendStartRow}:${endCol}${appendStartRow + rows.length - 1}`;
     const response = await executeWithRetry(() =>
-      this.sheetsApi.spreadsheets.values.append({
+      this.sheetsApi.spreadsheets.values.update({
         spreadsheetId,
-        range: `'${targetSheet.title}'!A:${endCol}`,
+        range: targetRange,
         valueInputOption: 'RAW',
-        insertDataOption: 'INSERT_ROWS',
         requestBody: { values: rows },
       })
     );
@@ -316,7 +342,7 @@ export class CompositeOperationsService {
       columnsMatched,
       columnsCreated,
       columnsSkipped,
-      range: response.data.updates?.updatedRange ?? '',
+      range: response.data.updatedRange ?? targetRange,
       sheetId: targetSheet.sheetId,
     };
   }

@@ -837,13 +837,11 @@ const GenerateActionsActionSchema = CommonFieldsSchema.extend({
   findings: z
     .union([
       z.array(z.record(z.string(), z.unknown())),
-      z
-        .object({
-          findings: z.array(z.record(z.string(), z.unknown())).optional(),
-          issues: z.array(z.record(z.string(), z.unknown())).optional(),
-          errors: z.array(z.record(z.string(), z.unknown())).optional(),
-        })
-        ,
+      z.object({
+        findings: z.array(z.record(z.string(), z.unknown())).optional(),
+        issues: z.array(z.record(z.string(), z.unknown())).optional(),
+        errors: z.array(z.record(z.string(), z.unknown())).optional(),
+      }),
       z.record(z.string(), z.unknown()),
     ])
     .optional()
@@ -1048,6 +1046,16 @@ const FormulaHealthCheckActionSchema = CommonFieldsSchema.extend({
   range: RangeInputSchema.optional().describe(
     'Range to audit. If omitted, scans all sheets with formulas.'
   ),
+  maxSheets: z
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .optional()
+    .default(10)
+    .describe(
+      'Maximum sheets to scan when range is omitted (default 10). Prevents unbounded grid fetches on large workbooks.'
+    ),
   maxDepthThreshold: z
     .number()
     .int()
@@ -1599,476 +1607,164 @@ const PatternDetectionSchema = z.object({
  * Response schema (consolidated)
  */
 const AnalyzeResponseSchema = z.discriminatedUnion('success', [
-  z
-    .object({
-      success: z.literal(true),
-      action: z.string(),
-      aiInsight: z.string().optional().describe('Optional AI-generated narrative insight'),
+  z.object({
+    success: z.literal(true),
+    action: z.string(),
+    aiInsight: z.string().optional().describe('Optional AI-generated narrative insight'),
 
-      // analyze_data results
-      summary: z.string().optional(),
-      analyses: z.array(AnalysisFindingSchema).optional(),
-      overallQualityScore: z.coerce.number().min(0).max(100).optional(),
-      topInsights: z.array(z.string()).optional(),
-      executionPath: z
-        .enum(['fast', 'ai', 'streaming', 'sample', 'full'])
-        .optional()
-        .describe('Path used for analysis'),
+    // analyze_data results
+    summary: z.string().optional(),
+    analyses: z.array(AnalysisFindingSchema).optional(),
+    overallQualityScore: z.coerce.number().min(0).max(100).optional(),
+    topInsights: z.array(z.string()).optional(),
+    executionPath: z
+      .enum(['fast', 'ai', 'streaming', 'sample', 'full'])
+      .optional()
+      .describe('Path used for analysis'),
 
-      // suggest_visualization results
-      chartRecommendations: z.array(ChartRecommendationSchema).optional(),
-      pivotRecommendations: z.array(PivotRecommendationSchema).optional(),
-      dataAssessment: z
-        .object({
-          dataType: z.string(),
-          rowCount: z.coerce.number(),
-          columnCount: z.coerce.number(),
-          hasHeaders: z.boolean(),
-        })
-        .optional(),
+    // suggest_visualization results
+    chartRecommendations: z.array(ChartRecommendationSchema).optional(),
+    pivotRecommendations: z.array(PivotRecommendationSchema).optional(),
+    dataAssessment: z
+      .object({
+        dataType: z.string(),
+        rowCount: z.coerce.number(),
+        columnCount: z.coerce.number(),
+        hasHeaders: z.boolean(),
+      })
+      .optional(),
 
-      // generate_formula results
-      formula: FormulaSuggestionSchema.optional(),
+    // generate_formula results
+    formula: FormulaSuggestionSchema.optional(),
 
-      // detect_patterns results
-      patterns: PatternDetectionSchema.optional(),
+    // detect_patterns results
+    patterns: PatternDetectionSchema.optional(),
 
-      // analyze_structure results
-      structure: StructureAnalysisSchema.optional(),
+    // analyze_structure results
+    structure: StructureAnalysisSchema.optional(),
 
-      // template detection results (Phase 3)
-      templateDetection: TemplateDetectionSchema.optional(),
+    // template detection results (Phase 3)
+    templateDetection: TemplateDetectionSchema.optional(),
 
-      // analyze_quality results
-      dataQuality: z
-        .object({
-          score: z.coerce.number().min(0).max(100),
-          completeness: z.coerce.number().min(0).max(100),
-          consistency: z.coerce.number().min(0).max(100),
-          accuracy: z.coerce.number().min(0).max(100),
-          issues: z.array(DataQualityIssueSchema),
-          summary: z.string(),
-        })
-        .optional(),
+    // analyze_quality results
+    dataQuality: z
+      .object({
+        score: z.coerce.number().min(0).max(100),
+        completeness: z.coerce.number().min(0).max(100),
+        consistency: z.coerce.number().min(0).max(100),
+        accuracy: z.coerce.number().min(0).max(100),
+        issues: z.array(DataQualityIssueSchema),
+        summary: z.string(),
+      })
+      .optional(),
 
-      // analyze_performance results (and comprehensive)
-      performance: z
-        .object({
-          overallScore: z.coerce.number().min(0).max(100).optional(),
-          score: z.coerce.number().min(0).max(100).optional(), // Comprehensive uses 'score'
-          recommendations: z.array(
-            z
-              .object({
-                type: z
-                  .enum([
-                    'VOLATILE_FORMULAS',
-                    'EXCESSIVE_FORMULAS',
-                    'LARGE_RANGES',
-                    'CIRCULAR_REFERENCES',
-                    'INEFFICIENT_STRUCTURE',
-                    'TOO_MANY_SHEETS',
-                  ])
-                  .optional(),
-                severity: z.enum(['low', 'medium', 'high']).optional(),
-                description: z.string().optional(),
-                estimatedImpact: z.string().optional(),
-                recommendation: z.string().optional(),
-              })
-          ),
-          estimatedImprovementPotential: z.string().optional(),
-        })
-        .optional(),
+    // analyze_performance results (and comprehensive)
+    performance: z
+      .object({
+        overallScore: z.coerce.number().min(0).max(100).optional(),
+        score: z.coerce.number().min(0).max(100).optional(), // Comprehensive uses 'score'
+        recommendations: z.array(
+          z.object({
+            type: z
+              .enum([
+                'VOLATILE_FORMULAS',
+                'EXCESSIVE_FORMULAS',
+                'LARGE_RANGES',
+                'CIRCULAR_REFERENCES',
+                'INEFFICIENT_STRUCTURE',
+                'TOO_MANY_SHEETS',
+              ])
+              .optional(),
+            severity: z.enum(['low', 'medium', 'high']).optional(),
+            description: z.string().optional(),
+            estimatedImpact: z.string().optional(),
+            recommendation: z.string().optional(),
+          })
+        ),
+        estimatedImprovementPotential: z.string().optional(),
+      })
+      .optional(),
 
-      // analyze_formulas results
-      formulaAnalysis: z
-        .object({
-          totalFormulas: z.coerce.number(),
-          // Health metrics (Issue #1 fix - #REF! error detection)
-          healthScore: z.coerce.number().optional(),
-          healthyFormulas: z.coerce.number().optional(),
-          errorCount: z.coerce.number().optional(),
-          errorsByType: z.record(z.string(), z.coerce.number()).optional(),
-          formulaErrors: z
-            .array(
-              z.object({
-                cell: z.string(),
-                formula: z.string(),
-                errorType: z.string(),
-                errorValue: z.string(),
-                severity: z.enum(['low', 'medium', 'high', 'critical']),
-                suggestion: z.string(),
-                possibleCauses: z.array(z.string()),
-              })
-            )
-            .optional(),
-          complexityDistribution: z.record(z.string(), z.coerce.number()),
-          volatileFormulas: z.array(
+    // analyze_formulas results
+    formulaAnalysis: z
+      .object({
+        totalFormulas: z.coerce.number(),
+        // Health metrics (Issue #1 fix - #REF! error detection)
+        healthScore: z.coerce.number().optional(),
+        healthyFormulas: z.coerce.number().optional(),
+        errorCount: z.coerce.number().optional(),
+        errorsByType: z.record(z.string(), z.coerce.number()).optional(),
+        formulaErrors: z
+          .array(
             z.object({
               cell: z.string(),
               formula: z.string(),
-              volatileFunctions: z.array(z.string()),
-              impact: z.enum(['low', 'medium', 'high']),
+              errorType: z.string(),
+              errorValue: z.string(),
+              severity: z.enum(['low', 'medium', 'high', 'critical']),
               suggestion: z.string(),
+              possibleCauses: z.array(z.string()),
             })
-          ),
-          optimizationOpportunities: z.array(
+          )
+          .optional(),
+        complexityDistribution: z.record(z.string(), z.coerce.number()),
+        volatileFormulas: z.array(
+          z.object({
+            cell: z.string(),
+            formula: z.string(),
+            volatileFunctions: z.array(z.string()),
+            impact: z.enum(['low', 'medium', 'high']),
+            suggestion: z.string(),
+          })
+        ),
+        optimizationOpportunities: z.array(
+          z.object({
+            type: z.string(),
+            priority: z.enum(['low', 'medium', 'high']),
+            affectedCells: z.array(z.string()),
+            currentFormula: z.string(),
+            suggestedFormula: z.string(),
+            reasoning: z.string(),
+          })
+        ),
+        upgradeOpportunities: z
+          .array(
             z.object({
-              type: z.string(),
-              priority: z.enum(['low', 'medium', 'high']),
-              affectedCells: z.array(z.string()),
+              cell: z.string(),
+              pattern: z.string(),
               currentFormula: z.string(),
               suggestedFormula: z.string(),
-              reasoning: z.string(),
-            })
-          ),
-          upgradeOpportunities: z
-            .array(
-              z.object({
-                cell: z.string(),
-                pattern: z.string(),
-                currentFormula: z.string(),
-                suggestedFormula: z.string(),
-                reason: z.string(),
-                confidence: z.coerce.number(),
-                executable: z.boolean().optional(),
-              })
-            )
-            .optional(),
-          circularReferences: z
-            .array(
-              z.object({
-                cells: z.array(z.string()),
-                chain: z.string(),
-              })
-            )
-            .optional(),
-        })
-        .optional(),
-
-      // query_natural_language results
-      queryResult: z
-        .object({
-          query: z.string(),
-          answer: z.string(),
-          intent: z.object({
-            type: z.string(),
-            confidence: z.coerce.number(),
-          }),
-          data: z
-            .object({
-              headers: z.array(z.string()),
-              rows: z.array(
-                z.array(
-                  z.union([
-                    z.string(),
-                    z.number(),
-                    z.boolean(),
-                    z.null(),
-                    z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
-                    z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
-                  ])
-                )
-              ),
-            })
-            .optional(),
-          visualizationSuggestion: z
-            .object({
-              chartType: ChartTypeSchema,
-              reasoning: z.string(),
-            })
-            .optional(),
-          followUpQuestions: z.array(z.string()),
-        })
-        .optional(),
-
-      // explain_analysis results
-      explanation: z.string().optional(),
-
-      // comprehensive results
-      spreadsheet: z
-        .object({
-          id: z.string(),
-          title: z.string(),
-          locale: z.string(),
-          timeZone: z.string(),
-          lastModified: z.string().optional(),
-          owner: z.string().optional(),
-          sheetCount: z.coerce.number(),
-          totalRows: z.coerce.number(),
-          totalColumns: z.coerce.number(),
-          totalCells: z.coerce.number(),
-          namedRanges: z.array(z.object({ name: z.string(), range: z.string() })),
-        })
-        .optional(),
-      sheets: z
-        .array(
-          z.object({
-            sheetId: z.coerce.number(),
-            sheetName: z.string(),
-            rowCount: z.coerce.number(),
-            columnCount: z.coerce.number(),
-            dataRowCount: z.coerce.number(),
-            columns: z.array(
-              z
-                .object({
-                  index: z.coerce.number(),
-                  name: z.string(),
-                  type: z.string(),
-                  nonBlankCount: z.coerce.number().optional(),
-                  uniqueCount: z.coerce.number().optional(),
-                })
-            ), // Column stats - detailed type
-            qualityScore: z.coerce.number(),
-            completeness: z.coerce.number(),
-            consistency: z.coerce.number(),
-            issues: z.array(DataQualityIssueSchema), // Quality issues
-            trends: z.array(
-              z.object({
-                column: z.string(),
-                direction: z.enum(['increasing', 'decreasing', 'stable', 'seasonal']),
-                confidence: z.coerce.number(),
-                description: z.string(),
-              })
-            ), // Trend results
-            anomalies: z.array(
-              z.object({
-                location: z.string(),
-                value: z.union([z.string(), z.coerce.number()]),
-                expectedRange: z.string().optional(),
-                severity: z.enum(['low', 'medium', 'high']),
-              })
-            ), // Anomaly results
-            correlations: z.array(
-              z
-                .object({
-                  column1: z.string(),
-                  column2: z.string(),
-                  coefficient: z.coerce.number(),
-                })
-            ), // Correlation results
-            formulas: z
-              .object({
-                total: z.coerce.number(),
-                unique: z.coerce.number(),
-                volatile: z.coerce.number(),
-                complex: z.coerce.number(),
-                issues: z.array(
-                  z
-                    .object({
-                      cell: z.string(),
-                      formula: z.string(),
-                      errorType: z.string(),
-                      severity: z.enum(['low', 'medium', 'high', 'critical']),
-                    })
-                ),
-              })
-              .optional(),
-          })
-        )
-        .optional(),
-      aggregate: z
-        .object({
-          totalDataRows: z.coerce.number(),
-          totalFormulas: z.coerce.number(),
-          overallQualityScore: z.coerce.number(),
-          overallCompleteness: z.coerce.number(),
-          totalIssues: z.coerce.number(),
-          totalAnomalies: z.coerce.number(),
-          totalTrends: z.coerce.number(),
-          totalCorrelations: z.coerce.number(),
-        })
-        .optional(),
-      visualizations: z
-        .array(
-          z.object({
-            chartType: ChartTypeSchema,
-            suitabilityScore: z.coerce.number(),
-            reasoning: z.string(),
-            suggestedConfig: z.record(
-              z.string(),
-              z.union([
-                z.string(),
-                z.number(),
-                z.boolean(),
-                z.null(),
-                z.array(z.union([z.string(), z.number(), z.boolean()])),
-                z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
-              ])
-            ),
-            executionParams: z.record(
-              z.string(),
-              z.union([
-                z.string(),
-                z.number(),
-                z.boolean(),
-                z.null(),
-                z.array(z.union([z.string(), z.number(), z.boolean()])),
-                z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
-              ])
-            ),
-          })
-        )
-        .optional(),
-      apiCalls: z.coerce.number().optional(),
-      dataRetrieved: z
-        .object({
-          tier: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
-          rowsAnalyzed: z.coerce.number(),
-          samplingUsed: z.boolean(),
-        })
-        .optional(),
-
-      // Pagination fields (MCP 2025-11-25 - comprehensive only)
-      nextCursor: z
-        .string()
-        .optional()
-        .describe('Next page cursor for pagination (format: "sheet:N")'),
-      hasMore: z.boolean().optional().describe('True if more sheets available'),
-      totalCount: z.coerce
-        .number()
-        .int()
-        .optional()
-        .describe('Total number of items available (comprehensive)'),
-      resourceUri: z
-        .string()
-        .optional()
-        .describe('Resource URI when response is too large (analyze://results/{id})'),
-
-      // ===== PROGRESSIVE ANALYSIS RESPONSE FIELDS =====
-
-      // scout results
-      scout: z
-        .object({
-          spreadsheet: z.object({
-            id: z.string(),
-            title: z.string(),
-            owner: z.string().optional(),
-            lastModified: z.string().optional(),
-          }),
-          sheets: z.array(
-            z.object({
-              sheetId: z.coerce.number(),
-              title: z.string(),
-              rowCount: z.coerce.number(),
-              columnCount: z.coerce.number(),
-              estimatedCells: z.coerce.number(),
-              columns: z.array(
-                z.object({
-                  index: z.coerce.number(),
-                  name: z.string(),
-                  inferredType: z.enum([
-                    'number',
-                    'text',
-                    'date',
-                    'boolean',
-                    'mixed',
-                    'empty',
-                    'formula',
-                  ]),
-                })
-              ),
-              flags: z.object({
-                hasHeaders: z.boolean(),
-                hasFormulas: z.boolean(),
-                hasCharts: z.boolean(),
-                hasPivots: z.boolean(),
-                hasFilters: z.boolean(),
-                hasProtection: z.boolean(),
-                isEmpty: z.boolean(),
-                isLarge: z.boolean(),
-              }),
-            })
-          ),
-          totals: z.object({
-            sheets: z.coerce.number(),
-            rows: z.coerce.number(),
-            columns: z.coerce.number(),
-            estimatedCells: z.coerce.number(),
-            namedRanges: z.coerce.number(),
-          }),
-          quickIndicators: z.object({
-            emptySheets: z.coerce.number(),
-            largeSheets: z.coerce.number(),
-            potentialIssues: z.array(z.string()),
-          }),
-          suggestedAnalyses: z.array(
-            z.object({
-              type: z.enum([
-                'quality',
-                'formulas',
-                'patterns',
-                'performance',
-                'structure',
-                'visualizations',
-              ]),
-              priority: z.enum(['high', 'medium', 'low']),
               reason: z.string(),
-              estimatedDuration: z.string(),
+              confidence: z.coerce.number(),
+              executable: z.boolean().optional(),
             })
-          ),
-          detectedIntent: z.object({
-            likely: z.enum(['optimize', 'clean', 'visualize', 'understand', 'audit']),
-            confidence: z.coerce.number().min(0).max(100),
-            signals: z.array(z.string()),
-          }),
-        })
-        .optional()
-        .describe('Scout results - quick metadata scan'),
-
-      // plan results
-      plan: z
-        .object({
-          id: z.string(),
-          intent: z.string(),
-          steps: z.array(
+          )
+          .optional(),
+        circularReferences: z
+          .array(
             z.object({
-              order: z.coerce.number(),
-              type: z.enum([
-                'quality',
-                'formulas',
-                'patterns',
-                'performance',
-                'structure',
-                'visualizations',
-              ]),
-              priority: z.enum(['critical', 'high', 'medium', 'low']),
-              target: z
-                .object({
-                  sheets: z.array(z.coerce.number()).optional(),
-                  columns: z.array(z.string()).optional(),
-                  range: z.string().optional(),
-                })
-                .optional(),
-              estimatedDuration: z.string(),
-              reason: z.string(),
-              outputs: z.array(z.string()),
+              cells: z.array(z.string()),
+              chain: z.string(),
             })
-          ),
-          estimatedTotalDuration: z.string(),
-          estimatedApiCalls: z.coerce.number(),
-          confidenceScore: z.coerce.number(),
-          rationale: z.string(),
-          skipped: z.array(
-            z.object({
-              type: z.string(),
-              reason: z.string(),
-            })
-          ),
-        })
-        .optional()
-        .describe('Analysis plan - ordered steps with estimates'),
+          )
+          .optional(),
+      })
+      .optional(),
 
-      // execute_plan results
-      stepResults: z
-        .array(
-          z.object({
-            stepIndex: z.coerce.number(),
-            type: z.string(),
-            status: z.enum(['completed', 'skipped', 'failed']),
-            duration: z.coerce.number(),
-            findings: z
-              .record(
-                z.string(),
+    // query_natural_language results
+    queryResult: z
+      .object({
+        query: z.string(),
+        answer: z.string(),
+        intent: z.object({
+          type: z.string(),
+          confidence: z.coerce.number(),
+        }),
+        data: z
+          .object({
+            headers: z.array(z.string()),
+            rows: z.array(
+              z.array(
                 z.union([
                   z.string(),
                   z.number(),
@@ -2078,20 +1774,302 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
                   z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
                 ])
               )
-              .optional(),
-            issuesFound: z.coerce.number().optional(),
-            error: z.string().optional(),
+            ),
           })
-        )
-        .optional()
-        .describe('Results from execute_plan - per-step results'),
+          .optional(),
+        visualizationSuggestion: z
+          .object({
+            chartType: ChartTypeSchema,
+            reasoning: z.string(),
+          })
+          .optional(),
+        followUpQuestions: z.array(z.string()),
+      })
+      .optional(),
 
-      // drill_down results
-      drillDownResult: z
-        .object({
-          targetType: z.string(),
-          targetId: z.string(),
-          context: z
+    // explain_analysis results
+    explanation: z.string().optional(),
+
+    // comprehensive results
+    spreadsheet: z
+      .object({
+        id: z.string(),
+        title: z.string(),
+        locale: z.string(),
+        timeZone: z.string(),
+        lastModified: z.string().optional(),
+        owner: z.string().optional(),
+        sheetCount: z.coerce.number(),
+        totalRows: z.coerce.number(),
+        totalColumns: z.coerce.number(),
+        totalCells: z.coerce.number(),
+        namedRanges: z.array(z.object({ name: z.string(), range: z.string() })),
+      })
+      .optional(),
+    sheets: z
+      .array(
+        z.object({
+          sheetId: z.coerce.number(),
+          sheetName: z.string(),
+          rowCount: z.coerce.number(),
+          columnCount: z.coerce.number(),
+          dataRowCount: z.coerce.number(),
+          columns: z.array(
+            z.object({
+              index: z.coerce.number(),
+              name: z.string(),
+              type: z.string(),
+              nonBlankCount: z.coerce.number().optional(),
+              uniqueCount: z.coerce.number().optional(),
+            })
+          ), // Column stats - detailed type
+          qualityScore: z.coerce.number(),
+          completeness: z.coerce.number(),
+          consistency: z.coerce.number(),
+          issues: z.array(DataQualityIssueSchema), // Quality issues
+          trends: z.array(
+            z.object({
+              column: z.string(),
+              direction: z.enum(['increasing', 'decreasing', 'stable', 'seasonal']),
+              confidence: z.coerce.number(),
+              description: z.string(),
+            })
+          ), // Trend results
+          anomalies: z.array(
+            z.object({
+              location: z.string(),
+              value: z.union([z.string(), z.coerce.number()]),
+              expectedRange: z.string().optional(),
+              severity: z.enum(['low', 'medium', 'high']),
+            })
+          ), // Anomaly results
+          correlations: z.array(
+            z.object({
+              column1: z.string(),
+              column2: z.string(),
+              coefficient: z.coerce.number(),
+            })
+          ), // Correlation results
+          formulas: z
+            .object({
+              total: z.coerce.number(),
+              unique: z.coerce.number(),
+              volatile: z.coerce.number(),
+              complex: z.coerce.number(),
+              issues: z.array(
+                z.object({
+                  cell: z.string(),
+                  formula: z.string(),
+                  errorType: z.string(),
+                  severity: z.enum(['low', 'medium', 'high', 'critical']),
+                })
+              ),
+            })
+            .optional(),
+        })
+      )
+      .optional(),
+    aggregate: z
+      .object({
+        totalDataRows: z.coerce.number(),
+        totalFormulas: z.coerce.number(),
+        overallQualityScore: z.coerce.number(),
+        overallCompleteness: z.coerce.number(),
+        totalIssues: z.coerce.number(),
+        totalAnomalies: z.coerce.number(),
+        totalTrends: z.coerce.number(),
+        totalCorrelations: z.coerce.number(),
+      })
+      .optional(),
+    visualizations: z
+      .array(
+        z.object({
+          chartType: ChartTypeSchema,
+          suitabilityScore: z.coerce.number(),
+          reasoning: z.string(),
+          suggestedConfig: z.record(
+            z.string(),
+            z.union([
+              z.string(),
+              z.number(),
+              z.boolean(),
+              z.null(),
+              z.array(z.union([z.string(), z.number(), z.boolean()])),
+              z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
+            ])
+          ),
+          executionParams: z.record(
+            z.string(),
+            z.union([
+              z.string(),
+              z.number(),
+              z.boolean(),
+              z.null(),
+              z.array(z.union([z.string(), z.number(), z.boolean()])),
+              z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
+            ])
+          ),
+        })
+      )
+      .optional(),
+    apiCalls: z.coerce.number().optional(),
+    dataRetrieved: z
+      .object({
+        tier: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
+        rowsAnalyzed: z.coerce.number(),
+        samplingUsed: z.boolean(),
+      })
+      .optional(),
+
+    // Pagination fields (MCP 2025-11-25 - comprehensive only)
+    nextCursor: z
+      .string()
+      .optional()
+      .describe('Next page cursor for pagination (format: "sheet:N")'),
+    hasMore: z.boolean().optional().describe('True if more sheets available'),
+    totalCount: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Total number of items available (comprehensive)'),
+    resourceUri: z
+      .string()
+      .optional()
+      .describe('Resource URI when response is too large (analyze://results/{id})'),
+
+    // ===== PROGRESSIVE ANALYSIS RESPONSE FIELDS =====
+
+    // scout results
+    scout: z
+      .object({
+        spreadsheet: z.object({
+          id: z.string(),
+          title: z.string(),
+          owner: z.string().optional(),
+          lastModified: z.string().optional(),
+        }),
+        sheets: z.array(
+          z.object({
+            sheetId: z.coerce.number(),
+            title: z.string(),
+            rowCount: z.coerce.number(),
+            columnCount: z.coerce.number(),
+            estimatedCells: z.coerce.number(),
+            columns: z.array(
+              z.object({
+                index: z.coerce.number(),
+                name: z.string(),
+                inferredType: z.enum([
+                  'number',
+                  'text',
+                  'date',
+                  'boolean',
+                  'mixed',
+                  'empty',
+                  'formula',
+                ]),
+              })
+            ),
+            flags: z.object({
+              hasHeaders: z.boolean(),
+              hasFormulas: z.boolean(),
+              hasCharts: z.boolean(),
+              hasPivots: z.boolean(),
+              hasFilters: z.boolean(),
+              hasProtection: z.boolean(),
+              isEmpty: z.boolean(),
+              isLarge: z.boolean(),
+            }),
+          })
+        ),
+        totals: z.object({
+          sheets: z.coerce.number(),
+          rows: z.coerce.number(),
+          columns: z.coerce.number(),
+          estimatedCells: z.coerce.number(),
+          namedRanges: z.coerce.number(),
+        }),
+        quickIndicators: z.object({
+          emptySheets: z.coerce.number(),
+          largeSheets: z.coerce.number(),
+          potentialIssues: z.array(z.string()),
+        }),
+        suggestedAnalyses: z.array(
+          z.object({
+            type: z.enum([
+              'quality',
+              'formulas',
+              'patterns',
+              'performance',
+              'structure',
+              'visualizations',
+            ]),
+            priority: z.enum(['high', 'medium', 'low']),
+            reason: z.string(),
+            estimatedDuration: z.string(),
+          })
+        ),
+        detectedIntent: z.object({
+          likely: z.enum(['optimize', 'clean', 'visualize', 'understand', 'audit']),
+          confidence: z.coerce.number().min(0).max(100),
+          signals: z.array(z.string()),
+        }),
+      })
+      .optional()
+      .describe('Scout results - quick metadata scan'),
+
+    // plan results
+    plan: z
+      .object({
+        id: z.string(),
+        intent: z.string(),
+        steps: z.array(
+          z.object({
+            order: z.coerce.number(),
+            type: z.enum([
+              'quality',
+              'formulas',
+              'patterns',
+              'performance',
+              'structure',
+              'visualizations',
+            ]),
+            priority: z.enum(['critical', 'high', 'medium', 'low']),
+            target: z
+              .object({
+                sheets: z.array(z.coerce.number()).optional(),
+                columns: z.array(z.string()).optional(),
+                range: z.string().optional(),
+              })
+              .optional(),
+            estimatedDuration: z.string(),
+            reason: z.string(),
+            outputs: z.array(z.string()),
+          })
+        ),
+        estimatedTotalDuration: z.string(),
+        estimatedApiCalls: z.coerce.number(),
+        confidenceScore: z.coerce.number(),
+        rationale: z.string(),
+        skipped: z.array(
+          z.object({
+            type: z.string(),
+            reason: z.string(),
+          })
+        ),
+      })
+      .optional()
+      .describe('Analysis plan - ordered steps with estimates'),
+
+    // execute_plan results
+    stepResults: z
+      .array(
+        z.object({
+          stepIndex: z.coerce.number(),
+          type: z.string(),
+          status: z.enum(['completed', 'skipped', 'failed']),
+          duration: z.coerce.number(),
+          findings: z
             .record(
               z.string(),
               z.union([
@@ -2104,7 +2082,20 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
               ])
             )
             .optional(),
-          details: z.record(
+          issuesFound: z.coerce.number().optional(),
+          error: z.string().optional(),
+        })
+      )
+      .optional()
+      .describe('Results from execute_plan - per-step results'),
+
+    // drill_down results
+    drillDownResult: z
+      .object({
+        targetType: z.string(),
+        targetId: z.string(),
+        context: z
+          .record(
             z.string(),
             z.union([
               z.string(),
@@ -2114,33 +2105,21 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
               z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
               z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
             ])
-          ),
-          relatedItems: z
-            .array(
-              z.record(
-                z.string(),
-                z.union([
-                  z.string(),
-                  z.number(),
-                  z.boolean(),
-                  z.null(),
-                  z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
-                  z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
-                ])
-              )
-            )
-            .optional(),
-          suggestions: z.array(z.string()).optional(),
-        })
-        .optional()
-        .describe('Deep dive results'),
-
-      // generate_actions results
-      actionPlan: z
-        .object({
-          totalActions: z.coerce.number(),
-          estimatedTotalImpact: z.string(),
-          actions: z.array(
+          )
+          .optional(),
+        details: z.record(
+          z.string(),
+          z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+            z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+          ])
+        ),
+        relatedItems: z
+          .array(
             z.record(
               z.string(),
               z.union([
@@ -2152,186 +2131,205 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
                 z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
               ])
             )
-          ), // ExecutableAction objects
-          groupedActions: z
-            .array(
-              z.object({
-                category: z.string(),
-                actions: z.array(
-                  z.record(
+          )
+          .optional(),
+        suggestions: z.array(z.string()).optional(),
+      })
+      .optional()
+      .describe('Deep dive results'),
+
+    // generate_actions results
+    actionPlan: z
+      .object({
+        totalActions: z.coerce.number(),
+        estimatedTotalImpact: z.string(),
+        actions: z.array(
+          z.record(
+            z.string(),
+            z.union([
+              z.string(),
+              z.number(),
+              z.boolean(),
+              z.null(),
+              z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+              z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+            ])
+          )
+        ), // ExecutableAction objects
+        groupedActions: z
+          .array(
+            z.object({
+              category: z.string(),
+              actions: z.array(
+                z.record(
+                  z.string(),
+                  z.union([
                     z.string(),
-                    z.union([
-                      z.string(),
-                      z.number(),
-                      z.boolean(),
-                      z.null(),
-                      z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
-                      z.record(
-                        z.string(),
-                        z.union([z.string(), z.number(), z.boolean(), z.null()])
-                      ),
-                    ])
-                  )
-                ),
-                combinedImpact: z.string(),
-              })
-            )
-            .optional(),
-          preview: z
-            .object({
-              beforeMetrics: z.record(z.string(), z.coerce.number()),
-              afterMetrics: z.record(z.string(), z.coerce.number()),
-              changes: z.array(z.string()),
+                    z.number(),
+                    z.boolean(),
+                    z.null(),
+                    z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+                    z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+                  ])
+                )
+              ),
+              combinedImpact: z.string(),
             })
-            .optional(),
+          )
+          .optional(),
+        preview: z
+          .object({
+            beforeMetrics: z.record(z.string(), z.coerce.number()),
+            afterMetrics: z.record(z.string(), z.coerce.number()),
+            changes: z.array(z.string()),
+          })
+          .optional(),
+      })
+      .optional()
+      .describe('Generated action plan with executable actions'),
+
+    // CRITICAL: Next Actions - LLM guidance
+    analysisSessionInfo: AnalysisSessionSchema.optional().describe(
+      'Session info for multi-step workflows'
+    ),
+    analysisSummary: AnalysisSummarySchema.optional().describe(
+      'Quick summary (<100 tokens) for LLM context efficiency'
+    ),
+    next: NextActionsSchema.optional().describe(
+      'CRITICAL: What should happen next - recommended action, alternatives, drill-down options'
+    ),
+
+    // suggest_next_actions results (F4: Smart Suggestions)
+    suggestions: z
+      .array(
+        z.object({
+          id: z.string(),
+          title: z.string(),
+          description: z.string(),
+          confidence: z.coerce.number().min(0).max(1),
+          category: z.enum([
+            'formulas',
+            'formatting',
+            'structure',
+            'data_quality',
+            'visualization',
+          ]),
+          impact: z.enum(['low_risk', 'medium_risk', 'high_risk']),
+          action: z.object({
+            tool: z.string(),
+            action: z.string(),
+            params: z.record(z.string(), z.unknown()),
+          }),
         })
-        .optional()
-        .describe('Generated action plan with executable actions'),
+      )
+      .optional()
+      .describe('Ranked suggestions with executable action params'),
+    scoutSummary: z
+      .object({
+        title: z.string(),
+        sheetCount: z.coerce.number(),
+        estimatedCells: z.coerce.number(),
+        complexityScore: z.coerce.number(),
+      })
+      .optional()
+      .describe('Quick metadata summary from Scout scan'),
+    totalCandidates: z.coerce.number().optional(),
+    filtered: z.coerce.number().optional(),
 
-      // CRITICAL: Next Actions - LLM guidance
-      analysisSessionInfo: AnalysisSessionSchema.optional().describe(
-        'Session info for multi-step workflows'
-      ),
-      analysisSummary: AnalysisSummarySchema.optional().describe(
-        'Quick summary (<100 tokens) for LLM context efficiency'
-      ),
-      next: NextActionsSchema.optional().describe(
-        'CRITICAL: What should happen next - recommended action, alternatives, drill-down options'
-      ),
-
-      // suggest_next_actions results (F4: Smart Suggestions)
-      suggestions: z
-        .array(
-          z.object({
+    // auto_enhance results (F4: Smart Suggestions)
+    enhancements: z
+      .array(
+        z.object({
+          suggestion: z.object({
             id: z.string(),
             title: z.string(),
             description: z.string(),
-            confidence: z.coerce.number().min(0).max(1),
-            category: z.enum([
-              'formulas',
-              'formatting',
-              'structure',
-              'data_quality',
-              'visualization',
-            ]),
-            impact: z.enum(['low_risk', 'medium_risk', 'high_risk']),
+            confidence: z.coerce.number(),
+            category: z.string(),
+            impact: z.string(),
             action: z.object({
               tool: z.string(),
               action: z.string(),
               params: z.record(z.string(), z.unknown()),
             }),
-          })
-        )
-        .optional()
-        .describe('Ranked suggestions with executable action params'),
-      scoutSummary: z
-        .object({
-          title: z.string(),
-          sheetCount: z.coerce.number(),
-          estimatedCells: z.coerce.number(),
-          complexityScore: z.coerce.number(),
+          }),
+          status: z.enum(['applied', 'skipped', 'failed']),
+          reason: z.string().optional(),
         })
-        .optional()
-        .describe('Quick metadata summary from Scout scan'),
-      totalCandidates: z.coerce.number().optional(),
-      filtered: z.coerce.number().optional(),
+      )
+      .optional()
+      .describe('Enhancement results with status per suggestion'),
+    enhanceSummary: z
+      .object({
+        total: z.coerce.number(),
+        applied: z.coerce.number(),
+        skipped: z.coerce.number(),
+        failed: z.coerce.number(),
+      })
+      .optional()
+      .describe('Enhancement summary counts'),
+    mode: z.enum(['preview', 'apply']).optional().describe('Enhancement mode (preview or apply)'),
 
-      // auto_enhance results (F4: Smart Suggestions)
-      enhancements: z
-        .array(
-          z.object({
-            suggestion: z.object({
-              id: z.string(),
-              title: z.string(),
-              description: z.string(),
-              confidence: z.coerce.number(),
-              category: z.string(),
-              impact: z.string(),
-              action: z.object({
-                tool: z.string(),
-                action: z.string(),
-                params: z.record(z.string(), z.unknown()),
-              }),
-            }),
-            status: z.enum(['applied', 'skipped', 'failed']),
-            reason: z.string().optional(),
-          })
-        )
-        .optional()
-        .describe('Enhancement results with status per suggestion'),
-      enhanceSummary: z
-        .object({
-          total: z.coerce.number(),
-          applied: z.coerce.number(),
-          skipped: z.coerce.number(),
-          failed: z.coerce.number(),
+    // discover_action results (meta-tool for finding actions)
+    query: z.string().optional().describe('Original search query'),
+    category: z.string().optional().describe('Category filter used'),
+    matches: z
+      .array(
+        z.object({
+          tool: z.string().describe('Tool name (e.g., sheets_data)'),
+          action: z.string().describe('Action name (e.g., read)'),
+          confidence: z.number().min(0).max(1).describe('Match confidence score'),
+          description: z.string().describe('What this action does'),
+          whenToUse: z.string().optional().describe('When to use this action'),
+          whenNotToUse: z.string().optional().describe('When to avoid this action'),
+          commonMistake: z.string().optional().describe('Top common mistake to avoid'),
         })
-        .optional()
-        .describe('Enhancement summary counts'),
-      mode: z.enum(['preview', 'apply']).optional().describe('Enhancement mode (preview or apply)'),
+      )
+      .optional()
+      .describe('List of matching actions ranked by relevance'),
+    matchCount: z.number().int().min(0).optional().describe('Total number of matches found'),
+    needsClarification: z
+      .boolean()
+      .optional()
+      .describe('True when the query is ambiguous and should be clarified'),
+    clarificationReason: z
+      .enum(['no_matches', 'underspecified_query', 'low_confidence', 'close_competition'])
+      .optional()
+      .describe('Why clarification is needed'),
+    clarificationQuestion: z
+      .string()
+      .optional()
+      .describe('Question to ask the user to disambiguate intent'),
+    clarificationOptions: z
+      .array(z.string())
+      .optional()
+      .describe('Suggested options for disambiguation'),
 
-      // discover_action results (meta-tool for finding actions)
-      query: z.string().optional().describe('Original search query'),
-      category: z.string().optional().describe('Category filter used'),
-      matches: z
-        .array(
-          z.object({
-            tool: z.string().describe('Tool name (e.g., sheets_data)'),
-            action: z.string().describe('Action name (e.g., read)'),
-            confidence: z.number().min(0).max(1).describe('Match confidence score'),
-            description: z.string().describe('What this action does'),
-            whenToUse: z.string().optional().describe('When to use this action'),
-            whenNotToUse: z.string().optional().describe('When to avoid this action'),
-            commonMistake: z.string().optional().describe('Top common mistake to avoid'),
-          })
-        )
-        .optional()
-        .describe('List of matching actions ranked by relevance'),
-      matchCount: z.number().int().min(0).optional().describe('Total number of matches found'),
-      needsClarification: z
-        .boolean()
-        .optional()
-        .describe('True when the query is ambiguous and should be clarified'),
-      clarificationReason: z
-        .enum(['no_matches', 'underspecified_query', 'low_confidence', 'close_competition'])
-        .optional()
-        .describe('Why clarification is needed'),
-      clarificationQuestion: z
-        .string()
-        .optional()
-        .describe('Question to ask the user to disambiguate intent'),
-      clarificationOptions: z
-        .array(z.string())
-        .optional()
-        .describe('Suggested options for disambiguation'),
+    // quick_insights results (S3-A)
+    stats: z
+      .object({
+        rowCount: z.number().int().describe('Number of data rows (excluding header)'),
+        columnCount: z.number().int().describe('Number of columns'),
+        dataTypes: z.array(z.string()).describe('Detected data type per column'),
+        emptyRate: z.number().describe('Fraction of empty cells (0–1)'),
+      })
+      .optional()
+      .describe('Structural statistics from quick_insights'),
+    insights: z
+      .array(z.string())
+      .optional()
+      .describe('Pattern-based observations (e.g. "Column D has 23% empty cells")'),
 
-      // quick_insights results (S3-A)
-      stats: z
-        .object({
-          rowCount: z.number().int().describe('Number of data rows (excluding header)'),
-          columnCount: z.number().int().describe('Number of columns'),
-          dataTypes: z.array(z.string()).describe('Detected data type per column'),
-          emptyRate: z.number().describe('Fraction of empty cells (0–1)'),
-        })
-        .optional()
-        .describe('Structural statistics from quick_insights'),
-      insights: z
-        .array(z.string())
-        .optional()
-        .describe('Pattern-based observations (e.g. "Column D has 23% empty cells")'),
-
-      // Common
-      duration: z.coerce.number().optional(),
-      message: z.string().optional(),
-      _meta: ResponseMetaSchema.optional(),
-    })
-    ,
-  z
-    .object({
-      success: z.literal(false),
-      error: ErrorDetailSchema,
-    })
-    ,
+    // Common
+    duration: z.coerce.number().optional(),
+    message: z.string().optional(),
+    retryAfterMs: z.number().int().positive().optional(),
+    _meta: ResponseMetaSchema.optional(),
+  }),
+  z.object({
+    success: z.literal(false),
+    error: ErrorDetailSchema,
+  }),
 ]);
 
 export const SheetsAnalyzeOutputSchema = z.object({

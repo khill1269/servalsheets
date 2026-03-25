@@ -155,7 +155,7 @@ export const FillStrategySchema = z.enum([
 export type FillStrategy = z.infer<typeof FillStrategySchema>;
 
 // Anomaly detection method
-export const AnomalyMethodSchema = z.enum(['iqr', 'zscore', 'modified_zscore']);
+export const AnomalyMethodSchema = z.enum(['iqr', 'zscore', 'modified_zscore', 'isolation_forest']);
 
 export type AnomalyMethod = z.infer<typeof AnomalyMethodSchema>;
 
@@ -207,111 +207,104 @@ export type CleaningRecommendation = z.infer<typeof CleaningRecommendationSchema
 
 // Response from sheets_fix (supports both F0 fix and F3 cleaning actions)
 export const SheetsFixResponseSchema = z.discriminatedUnion('success', [
-  z
-    .object({
-      success: z.literal(true),
-      mode: FixModeSchema,
-      operations: z.array(FixOperationSchema).describe('Operations that were/will be executed'),
-      results: z.array(FixResultSchema).optional().describe('Results (only in apply mode)'),
-      snapshotId: z.string().optional().describe('Snapshot ID for rollback'),
-      summary: z.object({
-        total: z.number(),
-        applied: z.number().optional(),
-        failed: z.number().optional(),
-        skipped: z.number().optional(),
-      }),
-      message: z.string(),
-      verificationScore: z
-        .number()
-        .min(0)
-        .max(100)
-        .optional()
-        .describe('Re-analyzed quality score'),
+  z.object({
+    success: z.literal(true),
+    mode: FixModeSchema,
+    operations: z.array(FixOperationSchema).describe('Operations that were/will be executed'),
+    results: z.array(FixResultSchema).optional().describe('Results (only in apply mode)'),
+    snapshotId: z.string().optional().describe('Snapshot ID for rollback'),
+    summary: z.object({
+      total: z.number(),
+      applied: z.number().optional(),
+      failed: z.number().optional(),
+      skipped: z.number().optional(),
+    }),
+    message: z.string(),
+    verificationScore: z.number().min(0).max(100).optional().describe('Re-analyzed quality score'),
 
-      // F3: Cleaning action results
-      action: z.string().optional().describe('Action that was executed'),
+    // F3: Cleaning action results
+    action: z.string().optional().describe('Action that was executed'),
 
-      // clean action results
-      changes: z
-        .array(CleanCellChangeSchema)
-        .optional()
-        .describe('Cell-level changes applied or previewed'),
-      cleaningSummary: z
-        .object({
-          totalCells: z.number(),
-          cellsCleaned: z.number(),
-          rulesApplied: z.array(z.string()),
-          byRule: z.record(z.string(), z.number()).optional(),
-        })
-        .optional()
-        .describe('Cleaning operation summary'),
+    // clean action results
+    changes: z
+      .array(CleanCellChangeSchema)
+      .optional()
+      .describe('Cell-level changes applied or previewed'),
+    cleaningSummary: z
+      .object({
+        totalCells: z.number(),
+        cellsCleaned: z.number(),
+        rulesApplied: z.array(z.string()),
+        byRule: z.record(z.string(), z.number()).optional(),
+      })
+      .optional()
+      .describe('Cleaning operation summary'),
 
-      // standardize_formats results
-      formatChanges: z
-        .array(CleanCellChangeSchema)
-        .optional()
-        .describe('Format normalization changes'),
-      formatSummary: z
-        .object({
-          columnsProcessed: z.number(),
-          cellsChanged: z.number(),
-          byFormat: z.record(z.string(), z.number()).optional(),
-        })
-        .optional()
-        .describe('Format standardization summary'),
+    // standardize_formats results
+    formatChanges: z
+      .array(CleanCellChangeSchema)
+      .optional()
+      .describe('Format normalization changes'),
+    formatSummary: z
+      .object({
+        columnsProcessed: z.number(),
+        cellsChanged: z.number(),
+        byFormat: z.record(z.string(), z.number()).optional(),
+      })
+      .optional()
+      .describe('Format standardization summary'),
 
-      // fill_missing results
-      fillChanges: z.array(CleanCellChangeSchema).optional().describe('Cells that were filled'),
-      fillSummary: z
-        .object({
-          totalEmpty: z.number(),
-          filled: z.number(),
-          strategy: FillStrategySchema.optional(),
-          byColumn: z.record(z.string(), z.number()).optional(),
-        })
-        .optional()
-        .describe('Fill missing summary'),
+    // fill_missing results
+    fillChanges: z.array(CleanCellChangeSchema).optional().describe('Cells that were filled'),
+    fillSummary: z
+      .object({
+        totalEmpty: z.number(),
+        filled: z.number(),
+        strategy: FillStrategySchema.optional(),
+        byColumn: z.record(z.string(), z.number()).optional(),
+      })
+      .optional()
+      .describe('Fill missing summary'),
 
-      // detect_anomalies results
-      anomalies: z.array(AnomalyRecordSchema).optional().describe('Detected anomalies'),
-      anomalySummary: z
-        .object({
-          totalCellsAnalyzed: z.number(),
-          anomaliesFound: z.number(),
-          method: AnomalyMethodSchema.optional(),
-          threshold: z.number().optional(),
-          byColumn: z.record(z.string(), z.number()).optional(),
-        })
-        .optional()
-        .describe('Anomaly detection summary'),
+    // detect_anomalies results
+    anomalies: z.array(AnomalyRecordSchema).optional().describe('Detected anomalies'),
+    anomalySummary: z
+      .object({
+        totalCellsAnalyzed: z.number(),
+        anomaliesFound: z.number(),
+        method: AnomalyMethodSchema.optional(),
+        threshold: z.number().optional(),
+        byColumn: z.record(z.string(), z.number()).optional(),
+      })
+      .optional()
+      .describe('Anomaly detection summary'),
 
-      // suggest_cleaning results
-      recommendations: z
-        .array(CleaningRecommendationSchema)
-        .optional()
-        .describe('AI-powered cleaning recommendations'),
-      dataProfile: z
-        .object({
-          totalRows: z.number(),
-          totalColumns: z.number(),
-          nullRate: z.number().describe('Overall null/empty percentage'),
-          columnProfiles: z
-            .array(
-              z.object({
-                column: z.string(),
-                header: z.string().optional(),
-                type: z.string().describe('Detected dominant type'),
-                nullCount: z.number(),
-                uniqueCount: z.number(),
-                sampleValues: z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
-              })
-            )
-            .optional(),
-        })
-        .optional()
-        .describe('Data profile used for cleaning suggestions'),
-    })
-    ,
+    // suggest_cleaning results
+    recommendations: z
+      .array(CleaningRecommendationSchema)
+      .optional()
+      .describe('AI-powered cleaning recommendations'),
+    dataProfile: z
+      .object({
+        totalRows: z.number(),
+        totalColumns: z.number(),
+        nullRate: z.number().describe('Overall null/empty percentage'),
+        columnProfiles: z
+          .array(
+            z.object({
+              column: z.string(),
+              header: z.string().optional(),
+              type: z.string().describe('Detected dominant type'),
+              nullCount: z.number(),
+              uniqueCount: z.number(),
+              sampleValues: z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+            })
+          )
+          .optional(),
+      })
+      .optional()
+      .describe('Data profile used for cleaning suggestions'),
+  }),
   z.object({
     success: z.literal(false),
     error: z.object({

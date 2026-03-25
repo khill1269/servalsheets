@@ -111,6 +111,7 @@ import { registerToolsListCompatibilityHandler } from './tools-list-compat.js';
 import { wrapToolMapWithIdempotency } from '../../middleware/idempotency-middleware.js';
 import { registerPipelineDispatch } from '../../services/pipeline-registry.js';
 import { buildToolExecutionErrorPayload } from './tool-execution-error.js';
+import { executeRoutedToolCall } from '../routed-tool-execution.js';
 import { isLikelyMutationAction, withWriteLock } from '../../middleware/write-lock-middleware.js';
 import { checkRateLimit } from '../../middleware/rate-limit-middleware.js';
 import { detectMutationSafetyViolation } from '../../middleware/mutation-safety-middleware.js';
@@ -173,6 +174,7 @@ const SheetsConnectorsInputSchemaLegacy = wrapInputSchemaForLegacyRequest(
 );
 
 const SELF_CORRECTION_WINDOW_MS = 5 * 60 * 1000;
+const SELF_CORRECTION_MAX_ENTRIES = 10_000;
 const recentFailuresByPrincipal = new Map<string, { action: string; timestampMs: number }>();
 type RegisteredTaskStore = Parameters<typeof registerServerTaskCancelHandler>[0]['taskStore'];
 const taskAbortControllersByStore = new WeakMap<
@@ -196,9 +198,20 @@ function buildSelfCorrectionKey(toolName: string, principalId: string): string {
 }
 
 function pruneSelfCorrectionFailures(nowMs: number): void {
+  // Phase 1: Remove expired entries (TTL-based)
   for (const [key, value] of recentFailuresByPrincipal.entries()) {
     if (nowMs - value.timestampMs > SELF_CORRECTION_WINDOW_MS) {
       recentFailuresByPrincipal.delete(key);
+    }
+  }
+
+  // Phase 2: Enforce size cap — evict oldest entries if over limit (H-6)
+  if (recentFailuresByPrincipal.size > SELF_CORRECTION_MAX_ENTRIES) {
+    const sortedEntries = Array.from(recentFailuresByPrincipal.entries())
+      .sort((a, b) => a[1].timestampMs - b[1].timestampMs);
+    const toRemove = recentFailuresByPrincipal.size - SELF_CORRECTION_MAX_ENTRIES;
+    for (let i = 0; i < toRemove; i++) {
+      recentFailuresByPrincipal.delete(sortedEntries[i]![0]);
     }
   }
 }
@@ -1197,9 +1210,13 @@ function createToolCallHandler(
                     },
                   };
                 }
-                const handlerResult = await withWriteLock(normalizedArgs, () =>
-                  handler(normalizedArgs, extra)
-                );
+                const handlerResult = await executeRoutedToolCall({
+                  toolName: tool.name,
+                  transport: 'streamable-http',
+                  args: normalizedArgs as Record<string, unknown>,
+                  sessionContext: requestContext.sessionContext,
+                  localExecute: () => withWriteLock(normalizedArgs, () => handler(normalizedArgs, extra)),
+                });
 
                 // ISSUE-107: Inject protocol version (always) + deprecation warning (if legacy)
                 if (

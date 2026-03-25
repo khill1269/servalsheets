@@ -292,7 +292,7 @@ export const TOOL_EXECUTION_CONFIG: Record<string, ToolExecution> = {
   sheets_core: { taskSupport: 'forbidden' },
   sheets_collaborate: { taskSupport: 'optional' },
   sheets_advanced: { taskSupport: 'forbidden' },
-  sheets_transaction: { taskSupport: 'forbidden' },
+  sheets_transaction: { taskSupport: 'optional' },
   sheets_quality: { taskSupport: 'forbidden' },
   sheets_history: { taskSupport: 'optional' },
   sheets_confirm: { taskSupport: 'forbidden' },
@@ -405,18 +405,19 @@ ServalSheets is a Google Sheets MCP server with ${getConfiguredToolCount()} tool
 
 Available tools may vary by deployment settings or staged registration. Treat \`tools/list\` as the source of truth for what is callable right now.
 
-## STEP 1: Authentication (MANDATORY)
+## STARTUP SEQUENCE (MANDATORY — follow in order)
 
-**BEFORE any other tool:** \`sheets_auth action:"status"\`
-If \`authenticated: false\`: \`sheets_auth action:"login"\` → show authUrl → user provides code → \`sheets_auth action:"callback" code:"..."\`
-
-## STEP 2: Set Context (RECOMMENDED)
-
-\`sheets_session action:"set_active" spreadsheetId:"1ABC..."\` — enables omitting spreadsheetId and using column names as ranges.
+1. **Auth check:** \`sheets_auth action:"status"\` — BEFORE any other tool. If \`authenticated: false\`: \`sheets_auth action:"login"\` → show authUrl → user provides code → \`sheets_auth action:"callback" code:"..."\`
+2. **Connector discovery:** \`sheets_session action:"get_context"\` — response includes \`connectorOnboarding\` with structured next-call guidance. ASK the user which connectors they want before configuring. For each chosen connector: \`sheets_connectors action:"configure" connectorId:"..."\` — zero-auth connectors configure instantly; API key and OAuth connectors will prompt the user via secure URL elicitation (localhost page). For multi-connector setup: use \`sheets_confirm action:"wizard_start"\` with steps for each connector.
+3. **Set context:** \`sheets_session action:"set_active" spreadsheetId:"1ABC..."\` — enables omitting spreadsheetId and using column names as ranges.
 
 ## WORKFLOW
 
-**Optimal sequence:** session.set_active → analyze.scout → plan → quality.validate (if >100 cells) → execute (batch/transaction for 3+ ops) → history.undo if needed
+**Optimal sequence:** session.set_active → analyze.scout → plan → quality.validate (if >100 cells) → execute (batch/transaction for 3+ ops) → record_operation → history.undo if needed
+
+**ALWAYS call \`sheets_session action:"record_operation"\` after each significant write, format, or structural change.** This populates session history for undo support and natural-language reference resolution.
+
+**Before writing to formula-containing ranges:** call \`sheets_quality action:"analyze_impact"\` to assess affected formulas and risk level.
 
 ## 5-GROUP MENTAL MODEL (Start Here)
 
@@ -441,19 +442,32 @@ Classify the user's intent into a group, then pick the tool:
 
 ## CRITICAL RULES
 
-1. **scout only when needed** — skip when user provides specific cell/range or structural command
-2. **append is NOT idempotent** — never retry on timeout
-3. **Always include sheet name** in ranges: \`"Sheet1!A1:D10"\` not \`"A1:D10"\`
-4. **Never type emoji sheet names** — copy from \`sheets_core.list_sheets\`
-5. **0-based indices** for insert/delete: row 1 = index 0
-6. **batch_format max 100** operations per call
-7. **verbosity:"minimal"** to save tokens
-8. **Operation batching strategy**: 1-2 ops → direct calls; 3-4 same-type ops → batch_write/batch_format; 5+ mixed ops → sheets_transaction (begin→queue→commit, 80-95% API savings)
-9. **find_replace for patterns, write for known cells** — don't use find_replace for targeted updates
-10. **UNFORMATTED_VALUE for numeric reads** — avoids locale-formatted strings breaking calculations
-11. **USER_ENTERED for formula writes** — RAW writes formula text literally
-12. **batch_write for formula fill** — not sequential writes
-13. **Validate formulas after writes** — Sheets API returns 200 even for #ERROR! cells
+**Data Integrity:**
+- append is NOT idempotent — never retry on timeout
+- find_replace for patterns, write for known cells — don't use find_replace for targeted updates
+- UNFORMATTED_VALUE for numeric reads — avoids locale-formatted strings breaking calculations
+- USER_ENTERED for formula writes — RAW writes formula text literally
+- batch_write for formula fill — not sequential writes
+- Validate formulas after writes — Sheets API returns 200 even for #ERROR! cells
+
+**API Efficiency:**
+- batch_format max 100 operations per call
+- verbosity:"minimal" to save tokens
+- Operation batching strategy: 1-2 ops → direct calls; 3-4 same-type → batch_write/batch_format; 5+ mixed → sheets_transaction (begin→queue→commit, 80-95% API savings)
+
+**Multi-Step Work:**
+- 3+ tool calls → use \`sheets_agent action:"plan"\` + \`sheets_agent action:"execute" interactiveMode:true\` — provides typed steps, rollback, and checkpoint support
+- Do NOT use \`execute_pipeline\` for complex multi-step workflows — it lacks rollback and checkpoint support
+- Transactions support: write, format, dimension operations. Non-batchable ops (add_note, hyperlinks, metadata) must be called directly after commit.
+- \`batch_operations\` supports: sheets_data, sheets_format, sheets_dimensions, sheets_core only. For other tools, call directly.
+
+**Structural:**
+- Always include sheet name in ranges: \`"Sheet1!A1:D10"\` not \`"A1:D10"\`
+- Never type emoji sheet names — copy from \`sheets_core.list_sheets\`
+- 0-based indices for insert/delete: row 1 = index 0
+
+**Analysis:**
+- scout only when needed — skip when user provides specific cell/range or structural command
 
 ## ERROR SELF-CORRECTION (TAER)
 
@@ -479,6 +493,7 @@ Read these via \`resources/read\` only when needed — do NOT pre-load all of th
 - **SHEET_NOT_FOUND, INVALID_RANGE, or any error after 1 failed retry** → read \`guide://error-reference\`
 - **Multi-step workflow or tool chaining** → read \`guide://workflows\`
 - **Large dataset or performance concern** → read \`guide://range-strategy\`
+- **Unsure about confirmations** → read \`guide://safety-confirmation\` and \`guide://confirmation-examples\`
 - **Domain-specific question (formula syntax, API limits)** → search \`knowledge:///search?q={query}\`
 `;
 

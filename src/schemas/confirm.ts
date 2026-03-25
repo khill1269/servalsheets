@@ -29,6 +29,11 @@ const VerbositySchema = z
  */
 const RiskLevelSchema = z.enum(['low', 'medium', 'high', 'critical']);
 
+const WizardFieldTypeSchema = z.preprocess(
+  (val) => (val === 'string' ? 'text' : val),
+  z.enum(['text', 'number', 'boolean', 'select', 'multiselect'])
+);
+
 /**
  * Plan step schema
  */
@@ -138,7 +143,7 @@ const WizardStepDefSchema = z.object({
       z.object({
         name: z.string().describe('Field name'),
         label: z.string().describe('Field label'),
-        type: z.enum(['text', 'number', 'boolean', 'select', 'multiselect']).describe('Field type'),
+        type: WizardFieldTypeSchema.describe('Field type'),
         required: z.boolean().default(true),
         options: z.array(z.string()).optional().describe('Options for select/multiselect'),
         default: z

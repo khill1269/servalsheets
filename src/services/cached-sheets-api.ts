@@ -57,6 +57,7 @@ export class CachedSheetsApi {
   // by catching bad IDs before expensive mutation API calls (Fix 2).
   private knownSpreadsheets = new Map<string, number>();
   private static readonly EXISTENCE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  private static readonly EXISTENCE_CACHE_MAX = 5_000; // Cap to prevent unbounded growth (C-1)
 
   constructor(sheetsApi: sheets_v4.Sheets, requestMerger?: RequestMerger) {
     this.sheetsApi = sheetsApi;
@@ -500,6 +501,14 @@ export class CachedSheetsApi {
       fields: 'spreadsheetId',
     });
 
+    // Enforce max-size cap — evict oldest entry if at capacity (C-1)
+    if (this.knownSpreadsheets.size >= CachedSheetsApi.EXISTENCE_CACHE_MAX) {
+      // Map iteration order is insertion order; first key is oldest
+      const oldestKey = this.knownSpreadsheets.keys().next().value;
+      if (oldestKey !== undefined) {
+        this.knownSpreadsheets.delete(oldestKey);
+      }
+    }
     this.knownSpreadsheets.set(spreadsheetId, Date.now() + CachedSheetsApi.EXISTENCE_TTL_MS);
     logger.debug('Spreadsheet existence confirmed and cached', { spreadsheetId });
   }

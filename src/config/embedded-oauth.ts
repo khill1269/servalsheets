@@ -15,6 +15,8 @@
  * @see https://developers.google.com/identity/protocols/oauth2/native-app#creatingcred
  */
 
+import { ConfigError } from '../core/errors.js';
+
 /**
  * Optional bundle-supplied ServalSheets OAuth credentials.
  *
@@ -62,13 +64,13 @@ export function warnIfDefaultCredentialsInHttpMode(): void {
  */
 export function enforceProductionOAuthConfig(): void {
   if (process.env['NODE_ENV'] !== 'production') return;
-  const isHttpMode =
-    process.env['MCP_HTTP_MODE'] === 'true' || process.env['PORT'] !== undefined;
+  const isHttpMode = process.env['MCP_HTTP_MODE'] === 'true' || process.env['PORT'] !== undefined;
   if (!isHttpMode) return;
   if (!process.env['OAUTH_REDIRECT_URI']) {
-    throw new Error(
+    throw new ConfigError(
       'OAUTH_REDIRECT_URI must be set in production HTTP mode. ' +
-        'The default fallback (http://localhost:3000/callback) is not valid for production servers.'
+        'The default fallback (http://localhost:3000/callback) is not valid for production servers.',
+      'OAUTH_REDIRECT_URI'
     );
   }
 }

@@ -1,17 +1,17 @@
-import {
-  createHandlers,
-  type HandlerContext,
-  type Handlers,
-} from '../handlers/index.js';
+import { createHandlers, type HandlerContext, type Handlers } from '../handlers/index.js';
 import type { GoogleApiClient } from '../services/google-api.js';
 import { createTokenBackedGoogleClient } from '../startup/google-client-bootstrap.js';
 import type { RequestDeduplicator } from '../utils/request-deduplication.js';
 import { initializeGoogleAdvancedFeatures } from './google-feature-bootstrap.js';
 import { createGoogleHandlerContext } from './google-handler-context.js';
 
-export interface CreateInitializedGoogleHandlerContextOptions<TExtraContext extends object = object> {
+export interface CreateInitializedGoogleHandlerContextOptions<
+  TExtraContext extends object = object,
+> {
   readonly googleClient: GoogleApiClient;
-  readonly onProgress?: Parameters<typeof createGoogleHandlerContext<TExtraContext>>[0]['onProgress'];
+  readonly onProgress?: Parameters<
+    typeof createGoogleHandlerContext<TExtraContext>
+  >[0]['onProgress'];
   readonly requestDeduplicator?: RequestDeduplicator;
   readonly extraContext?: TExtraContext;
 }
@@ -21,8 +21,9 @@ export interface GoogleHandlerBundle<TContext extends HandlerContext = HandlerCo
   readonly handlers: Handlers;
 }
 
-export interface CreateTokenBackedGoogleHandlerContextOptions<TExtraContext extends object = object>
-  extends Omit<CreateInitializedGoogleHandlerContextOptions<TExtraContext>, 'googleClient'> {
+export interface CreateTokenBackedGoogleHandlerContextOptions<
+  TExtraContext extends object = object,
+> extends Omit<CreateInitializedGoogleHandlerContextOptions<TExtraContext>, 'googleClient'> {
   readonly accessToken: string;
   readonly refreshToken?: string;
 }
@@ -32,8 +33,9 @@ export interface TokenBackedGoogleHandlerContext<TContext extends HandlerContext
   readonly context: TContext;
 }
 
-export interface TokenBackedGoogleHandlerBundle<TContext extends HandlerContext = HandlerContext>
-  extends TokenBackedGoogleHandlerContext<TContext> {
+export interface TokenBackedGoogleHandlerBundle<
+  TContext extends HandlerContext = HandlerContext,
+> extends TokenBackedGoogleHandlerContext<TContext> {
   readonly handlers: Handlers;
 }
 

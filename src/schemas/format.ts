@@ -183,7 +183,13 @@ const SetFormatActionSchema = CommonFieldsSchema.extend({
 
 const SuggestFormatActionSchema = CommonFieldsSchema.extend({
   action: z.literal('suggest_format').describe('Get AI-powered format suggestions'),
-  range: RangeInputSchema.describe('Range to analyze for format suggestions'),
+  range: RangeInputSchema.optional().describe('Range to analyze for format suggestions'),
+  sheetName: z
+    .string()
+    .optional()
+    .describe(
+      'Optional sheet name shortcut. When provided without range, suggest_format samples the top of that sheet.'
+    ),
   maxSuggestions: z
     .number()
     .int()
@@ -890,6 +896,42 @@ const normalizeFormatRequest = (val: unknown): unknown => {
     }
   }
 
+  if (action === 'suggest_format') {
+    const sheetName = typeof obj['sheetName'] === 'string' ? obj['sheetName'] : undefined;
+    const range = obj['range'];
+    const quoteSheetNameForA1 = (name: string): string =>
+      /^[A-Za-z0-9_]+$/.test(name) ? name : `'${name.replace(/'/g, "''")}'`;
+    const isQualifiedA1 = (a1: string): boolean => a1.includes('!');
+
+    if (sheetName && range === undefined) {
+      return {
+        ...obj,
+        range: { a1: `${quoteSheetNameForA1(sheetName)}!A1:Z50` },
+      };
+    }
+
+    if (sheetName && typeof range === 'string' && !isQualifiedA1(range)) {
+      return {
+        ...obj,
+        range: { a1: `${quoteSheetNameForA1(sheetName)}!${range}` },
+      };
+    }
+
+    if (
+      sheetName &&
+      typeof range === 'object' &&
+      range !== null &&
+      'a1' in (range as Record<string, unknown>) &&
+      typeof (range as { a1?: unknown }).a1 === 'string' &&
+      !isQualifiedA1((range as { a1: string }).a1)
+    ) {
+      return {
+        ...obj,
+        range: { a1: `${quoteSheetNameForA1(sheetName)}!${(range as { a1: string }).a1}` },
+      };
+    }
+  }
+
   // Normalize Google Sheets API-style payload for rule_add_conditional_format
   // LLMs copying from Google API docs may send: { ranges: [...], booleanRule: { condition, format } }
   if (action === 'rule_add_conditional_format') {
@@ -1235,6 +1277,10 @@ const FormatResponseSchema = z.discriminatedUnion('success', [
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
     snapshotId: z.string().optional().describe('Snapshot ID for rollback (if created)'),
+    _idempotent: z
+      .boolean()
+      .optional()
+      .describe('True when the operation first normalized existing state before applying changes'),
     _meta: ResponseMetaSchema.optional(),
   }),
   z.object({

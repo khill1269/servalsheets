@@ -87,6 +87,10 @@ const TemplateDefinitionSchema = z.object({
 const TemplateSummarySchema = z.object({
   id: z.string().describe('Template ID'),
   name: z.string().describe('Template name'),
+  builtinName: z
+    .string()
+    .optional()
+    .describe('Stable builtin template name for import_builtin (present for builtin templates)'),
   description: z.string().optional().describe('Template description'),
   category: z.string().optional().describe('Template category'),
   version: z.string().optional().describe('Template version'),

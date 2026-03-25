@@ -39,7 +39,7 @@ export class WorldBankConnector implements SpreadsheetConnector {
     return this.configured;
   }
 
-  async configure(credentials: ConnectorCredentials): Promise<void> {
+  async configure(_credentials: ConnectorCredentials): Promise<void> {
     // World Bank API requires no authentication
     this.configured = true;
     logger.info('World Bank connector configured');
@@ -219,13 +219,25 @@ export class WorldBankConnector implements SpreadsheetConnector {
 
           const resp = await fetch(url);
           if (!resp.ok) {
-            throw new ServiceError(`World Bank API returned ${resp.status}`, 'UNAVAILABLE', 'world_bank');
+            throw new ServiceError(
+              `World Bank API returned ${resp.status}`,
+              'UNAVAILABLE',
+              'world_bank'
+            );
           }
 
           const data = (await resp.json()) as unknown[];
           if (!Array.isArray(data) || data.length < 2) {
             return {
-              headers: ['country', 'countryCode', 'indicator', 'indicatorName', 'year', 'value', 'unit'],
+              headers: [
+                'country',
+                'countryCode',
+                'indicator',
+                'indicatorName',
+                'year',
+                'value',
+                'unit',
+              ],
               rows: [],
               metadata: {
                 source: 'World Bank Open Data',
@@ -242,7 +254,9 @@ export class WorldBankConnector implements SpreadsheetConnector {
           const rows = records
             .filter((r) => r['value'] !== null)
             .map((r) => [
-              String((r['country'] as Record<string, unknown>)?.['value'] || r['countryiso3code'] || ''),
+              String(
+                (r['country'] as Record<string, unknown>)?.['value'] || r['countryiso3code'] || ''
+              ),
               String(r['countryiso3code'] || ''),
               String((r['indicator'] as Record<string, unknown>)?.['id'] || ''),
               String((r['indicator'] as Record<string, unknown>)?.['value'] || ''),
@@ -252,7 +266,15 @@ export class WorldBankConnector implements SpreadsheetConnector {
             ]);
 
           return {
-            headers: ['country', 'countryCode', 'indicator', 'indicatorName', 'year', 'value', 'unit'],
+            headers: [
+              'country',
+              'countryCode',
+              'indicator',
+              'indicatorName',
+              'year',
+              'value',
+              'unit',
+            ],
             rows,
             metadata: {
               source: 'World Bank Open Data',
@@ -266,7 +288,9 @@ export class WorldBankConnector implements SpreadsheetConnector {
         }
 
         case 'countries': {
-          const region = params['region'] ? `?region=${encodeURIComponent(String(params['region']))}` : '';
+          const region = params['region']
+            ? `?region=${encodeURIComponent(String(params['region']))}`
+            : '';
           const incomeLevel = params['income_level']
             ? `&incomeLevel=${encodeURIComponent(String(params['income_level']))}`
             : '';
@@ -275,13 +299,26 @@ export class WorldBankConnector implements SpreadsheetConnector {
 
           const resp = await fetch(url);
           if (!resp.ok) {
-            throw new ServiceError(`Countries query failed: ${resp.status}`, 'CONNECTOR_ERROR', 'world_bank');
+            throw new ServiceError(
+              `Countries query failed: ${resp.status}`,
+              'CONNECTOR_ERROR',
+              'world_bank'
+            );
           }
 
           const data = (await resp.json()) as unknown[];
           if (!Array.isArray(data) || data.length < 2) {
             return {
-              headers: ['code', 'name', 'region', 'incomeLevel', 'lendingType', 'capitalCity', 'latitude', 'longitude'],
+              headers: [
+                'code',
+                'name',
+                'region',
+                'incomeLevel',
+                'lendingType',
+                'capitalCity',
+                'latitude',
+                'longitude',
+              ],
               rows: [],
               metadata: {
                 source: 'World Bank Open Data',
@@ -307,7 +344,16 @@ export class WorldBankConnector implements SpreadsheetConnector {
           ]);
 
           return {
-            headers: ['code', 'name', 'region', 'incomeLevel', 'lendingType', 'capitalCity', 'latitude', 'longitude'],
+            headers: [
+              'code',
+              'name',
+              'region',
+              'incomeLevel',
+              'lendingType',
+              'capitalCity',
+              'latitude',
+              'longitude',
+            ],
             rows,
             metadata: {
               source: 'World Bank Open Data',
@@ -326,7 +372,11 @@ export class WorldBankConnector implements SpreadsheetConnector {
 
           const resp = await fetch(url);
           if (!resp.ok) {
-            throw new ServiceError(`Topics query failed: ${resp.status}`, 'CONNECTOR_ERROR', 'world_bank');
+            throw new ServiceError(
+              `Topics query failed: ${resp.status}`,
+              'CONNECTOR_ERROR',
+              'world_bank'
+            );
           }
 
           const data = (await resp.json()) as unknown[];
@@ -346,7 +396,11 @@ export class WorldBankConnector implements SpreadsheetConnector {
           }
 
           const topics = data[1] as Array<Record<string, unknown>>;
-          const rows = topics.map((t) => [String(t['id'] || ''), String(t['value'] || ''), String(t['sourceNote'] || '')]);
+          const rows = topics.map((t) => [
+            String(t['id'] || ''),
+            String(t['value'] || ''),
+            String(t['sourceNote'] || ''),
+          ]);
 
           return {
             headers: ['id', 'value', 'sourceNote'],

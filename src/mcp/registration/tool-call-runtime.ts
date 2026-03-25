@@ -11,6 +11,7 @@ import { extractAction } from './extraction-helpers.js';
 import { resolveToolCallPreflight, type ToolCallPreflightResult } from './tool-call-preflight.js';
 import { executeTracedToolCall } from './tool-call-execution.js';
 import { buildToolExecutionErrorPayload } from './tool-execution-error.js';
+import { executeRoutedToolCall } from '../routed-tool-execution.js';
 import {
   recordFailedToolExecution,
   recordSuccessfulToolExecution,
@@ -65,6 +66,7 @@ export interface ToolCallRuntimeDependencies {
     operationId: string;
     requestId?: string;
   }) => Promise<unknown>;
+  executeRoutedToolCall?: typeof executeRoutedToolCall;
   buildErrorPayload?: typeof buildToolExecutionErrorPayload;
   recordSuccessful?: typeof recordSuccessfulToolExecution;
   recordFailed?: typeof recordFailedToolExecution;
@@ -83,6 +85,7 @@ export async function executeToolCallRuntime(
   const resolvePreflight = dependencies.resolvePreflight ?? resolveToolCallPreflight;
   const startKeepaliveFn = dependencies.startKeepalive ?? startKeepalive;
   const executeToolCall = dependencies.executeToolCall ?? executeTracedToolCall;
+  const executeRoutedToolCallFn = dependencies.executeRoutedToolCall ?? executeRoutedToolCall;
   const buildErrorPayload = dependencies.buildErrorPayload ?? buildToolExecutionErrorPayload;
   const recordSuccessful = dependencies.recordSuccessful ?? recordSuccessfulToolExecution;
   const recordFailed = dependencies.recordFailed ?? recordFailedToolExecution;
@@ -127,14 +130,21 @@ export async function executeToolCallRuntime(
     });
 
     try {
-      const result = await executeToolCall({
-        tool: input.tool,
+      const result = await executeRoutedToolCallFn({
+        toolName: input.tool.name,
+        transport: 'streamable-http',
         args: input.args,
-        extra: input.extra,
-        handler: preflight.handler,
-        requestContext: input.requestContext,
-        operationId: input.operationId,
-        requestId: input.requestId,
+        sessionContext: input.requestContext.sessionContext,
+        localExecute: () =>
+          executeToolCall({
+            tool: input.tool,
+            args: input.args,
+            extra: input.extra,
+            handler: preflight.handler,
+            requestContext: input.requestContext,
+            operationId: input.operationId,
+            requestId: input.requestId,
+          }),
       });
 
       const duration = Date.now() - input.startTime;

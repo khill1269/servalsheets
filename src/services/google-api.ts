@@ -271,7 +271,7 @@ export class GoogleApiClient {
   private consecutiveErrors = 0;
   private static readonly CONNECTION_ERROR_THRESHOLD = 5;
   private lastSuccessfulCall = Date.now();
-  private connectionResetInProgress = false;
+  private connectionResetQueue: PQueue = new PQueue({ concurrency: 1 });
   private keepaliveInterval?: NodeJS.Timeout;
 
   // Shared Drive rate limiter
@@ -706,32 +706,31 @@ export class GoogleApiClient {
    * @internal Called automatically when consecutive errors exceed threshold
    */
   private async resetConnectionsAfterErrors(): Promise<void> {
-    if (this.connectionResetInProgress) {
+    if (this.connectionResetQueue.pending > 0) {
       logger.debug('Connection reset already in progress, skipping');
       return;
     }
 
-    this.connectionResetInProgress = true;
-    logger.warn('Resetting HTTP/2 connections due to consecutive errors', {
-      consecutiveErrors: this.consecutiveErrors,
-      lastSuccess: new Date(this.lastSuccessfulCall).toISOString(),
+    await this.connectionResetQueue.add(async () => {
+      logger.warn('Resetting HTTP/2 connections due to consecutive errors', {
+        consecutiveErrors: this.consecutiveErrors,
+        lastSuccess: new Date(this.lastSuccessfulCall).toISOString(),
+      });
+
+      try {
+        // Record metric with different reason than token refresh
+        (await getMetrics())?.recordHttp2ConnectionReset('consecutive_errors');
+
+        // Reuse the existing agent reset logic
+        await this.resetHttpAgents();
+
+        this.consecutiveErrors = 0;
+        this.lastSuccessfulCall = Date.now();
+        logger.info('HTTP/2 connections reset successfully after errors');
+      } catch (error) {
+        logger.error('Failed to reset connections after errors', { error });
+      }
     });
-
-    try {
-      // Record metric with different reason than token refresh
-      (await getMetrics())?.recordHttp2ConnectionReset('consecutive_errors');
-
-      // Reuse the existing agent reset logic
-      await this.resetHttpAgents();
-
-      this.consecutiveErrors = 0;
-      this.lastSuccessfulCall = Date.now();
-      logger.info('HTTP/2 connections reset successfully after errors');
-    } catch (error) {
-      logger.error('Failed to reset connections after errors', { error });
-    } finally {
-      this.connectionResetInProgress = false;
-    }
   }
 
   /**
@@ -739,22 +738,21 @@ export class GoogleApiClient {
    * Called by the retry wrapper before retrying a failed request.
    */
   public async resetOnConnectionError(): Promise<void> {
-    if (this.connectionResetInProgress) {
+    if (this.connectionResetQueue.pending > 0) {
       return; // Already resetting
     }
 
-    this.connectionResetInProgress = true;
-    try {
-      logger.warn('Resetting HTTP/2 connections due to GOAWAY error during retry');
-      (await getMetrics())?.recordHttp2ConnectionReset('goaway_retry');
-      await this.resetHttpAgents();
-      this.consecutiveErrors = 0;
-      logger.info('HTTP/2 connections reset successfully for retry');
-    } catch (error) {
-      logger.error('Failed to reset connections for retry', { error });
-    } finally {
-      this.connectionResetInProgress = false;
-    }
+    await this.connectionResetQueue.add(async () => {
+      try {
+        logger.warn('Resetting HTTP/2 connections due to GOAWAY error during retry');
+        (await getMetrics())?.recordHttp2ConnectionReset('goaway_retry');
+        await this.resetHttpAgents();
+        this.consecutiveErrors = 0;
+        logger.info('HTTP/2 connections reset successfully for retry');
+      } catch (error) {
+        logger.error('Failed to reset connections for retry', { error });
+      }
+    });
   }
 
   /**

@@ -57,9 +57,12 @@ export class SecEdgarConnector implements SpreadsheetConnector {
   async healthCheck(): Promise<HealthStatus> {
     const start = Date.now();
     try {
-      const resp = await fetch(`${BASE_URL}/cgi-bin/browse-edgar?action=getcompany&company=apple&type=10-K&dateb=&owner=exclude&count=1&search_text=&json=1`, {
-        headers: { 'User-Agent': this.userAgent },
-      });
+      const resp = await fetch(
+        `${BASE_URL}/cgi-bin/browse-edgar?action=getcompany&company=apple&type=10-K&dateb=&owner=exclude&count=1&search_text=&json=1`,
+        {
+          headers: { 'User-Agent': this.userAgent },
+        }
+      );
       const latency = Date.now() - start;
       return {
         healthy: resp.ok,
@@ -221,27 +224,37 @@ export class SecEdgarConnector implements SpreadsheetConnector {
     let url = '';
     let headers: Record<string, string> = {
       'User-Agent': this.userAgent,
-      'Accept': 'application/json',
+      Accept: 'application/json',
     };
 
     try {
       switch (endpoint) {
         case 'company_filings': {
           const company = params['company'] as string;
-          const type = params['type'] ? `&type=${encodeURIComponent(params['type'] as string)}` : '';
-          const dateb = params['dateb'] ? `&dateb=${encodeURIComponent(params['dateb'] as string)}` : '';
+          const type = params['type']
+            ? `&type=${encodeURIComponent(params['type'] as string)}`
+            : '';
+          const dateb = params['dateb']
+            ? `&dateb=${encodeURIComponent(params['dateb'] as string)}`
+            : '';
           const count = params['count'] || 40;
 
           url = `${BASE_URL}/cgi-bin/browse-edgar?action=getcompany&company=${encodeURIComponent(company)}&owner=exclude&match=&count=${count}${type}${dateb}&json=1`;
 
           const resp = await fetch(url, { headers });
           if (!resp.ok) {
-            throw new ServiceError(`SEC EDGAR API returned ${resp.status}`, 'UNAVAILABLE', 'sec-edgar');
+            throw new ServiceError(
+              `SEC EDGAR API returned ${resp.status}`,
+              'UNAVAILABLE',
+              'sec-edgar'
+            );
           }
 
           const data = (await resp.json()) as Record<string, unknown>;
           const filingsData = (data['filings'] as Record<string, unknown> | undefined) || {};
-          const filings = ((filingsData as Record<string, unknown>)['files'] || []) as Array<Record<string, unknown>>;
+          const filings = ((filingsData as Record<string, unknown>)['files'] || []) as Array<
+            Record<string, unknown>
+          >;
 
           return {
             headers: ['cik', 'entityName', 'type', 'dateB', 'filename', 'accessionNumber'],
@@ -309,7 +322,10 @@ export class SecEdgarConnector implements SpreadsheetConnector {
               'units' in tagData &&
               typeof (tagData as Record<string, unknown>)['units'] === 'object'
             ) {
-              const units = (tagData as Record<string, unknown>)['units'] as Record<string, unknown>;
+              const units = (tagData as Record<string, unknown>)['units'] as Record<
+                string,
+                unknown
+              >;
               for (const [unit, values] of Object.entries(units)) {
                 if (Array.isArray(values)) {
                   for (const val of values) {
@@ -321,8 +337,16 @@ export class SecEdgarConnector implements SpreadsheetConnector {
                         tag,
                         tag,
                         unit,
-                        typeof valNum === 'string' || typeof valNum === 'number' || typeof valNum === 'boolean' ? valNum : null,
-                        typeof valFiled === 'string' || typeof valFiled === 'number' || typeof valFiled === 'boolean' ? valFiled : null,
+                        typeof valNum === 'string' ||
+                        typeof valNum === 'number' ||
+                        typeof valNum === 'boolean'
+                          ? valNum
+                          : null,
+                        typeof valFiled === 'string' ||
+                        typeof valFiled === 'number' ||
+                        typeof valFiled === 'boolean'
+                          ? valFiled
+                          : null,
                       ]);
                     }
                   }

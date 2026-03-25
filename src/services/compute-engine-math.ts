@@ -76,6 +76,48 @@ export function computeCorrelation(x: number[], y: number[]): number {
   return denominator === 0 ? 0 : numerator / denominator;
 }
 
+/**
+ * Compute ranks for an array of numbers (handles ties using average rank).
+ * Used by Spearman rank correlation.
+ */
+function computeRanks(values: number[]): number[] {
+  const indexed = values.map((v, i) => ({ value: v, index: i }));
+  indexed.sort((a, b) => a.value - b.value);
+
+  const ranks = new Array<number>(values.length);
+  let i = 0;
+  while (i < indexed.length) {
+    // Find tied group
+    let j = i;
+    while (j < indexed.length && indexed[j]!.value === indexed[i]!.value) {
+      j++;
+    }
+    // Average rank for tied group (1-based ranks)
+    const avgRank = (i + 1 + j) / 2;
+    for (let k = i; k < j; k++) {
+      ranks[indexed[k]!.index] = avgRank;
+    }
+    i = j;
+  }
+  return ranks;
+}
+
+/**
+ * Compute Spearman rank correlation coefficient between two numeric arrays.
+ * Unlike Pearson (which measures linear correlation), Spearman measures
+ * monotonic relationships — captures non-linear but consistent trends.
+ * Returns value between -1 and 1. Returns 0 for incompatible arrays.
+ */
+export function computeSpearmanCorrelation(x: number[], y: number[]): number {
+  if (x.length !== y.length || x.length < 3) return 0;
+
+  const rankX = computeRanks(x);
+  const rankY = computeRanks(y);
+
+  // Compute Pearson correlation on the ranks
+  return computeCorrelation(rankX, rankY);
+}
+
 export function linearRegression(x: number[], y: number[]): [number, number] {
   if (x.length !== y.length || x.length === 0) {
     return [0, 0];
@@ -526,3 +568,166 @@ const FUNCTION_DESCRIPTIONS: Record<string, string> = {
   REGEXEXTRACT: 'Extracts text matching a regular expression.',
   REGEXREPLACE: 'Replaces text matching a regular expression.',
 };
+
+// ============================================================================
+// K-Means Clustering
+// ============================================================================
+
+export interface KMeansResult {
+  /** Cluster assignments per data point (0-indexed) */
+  assignments: number[];
+  /** Final centroid positions (one per cluster) */
+  centroids: number[][];
+  /** Number of points per cluster */
+  clusterSizes: number[];
+  /** Within-cluster sum of squares (lower = tighter clusters) */
+  wcss: number;
+  /** Iterations used to converge */
+  iterations: number;
+}
+
+/**
+ * K-Means clustering on multi-dimensional numeric data.
+ * Uses K-Means++ initialization for deterministic, well-spread centroids.
+ *
+ * @param data - Array of data points, each point is an array of numbers
+ * @param k - Number of clusters (2-20)
+ * @param maxIterations - Max convergence iterations (default 100)
+ * @returns Cluster assignments, centroids, sizes, and WCSS
+ */
+export function kMeansClustering(
+  data: number[][],
+  k: number,
+  maxIterations: number = 100
+): KMeansResult {
+  const n = data.length;
+  const dims = data[0]?.length ?? 0;
+
+  if (n < k) {
+    throw new ValidationError(
+      `Cannot create ${k} clusters from ${n} data points`,
+      'k',
+      `a value ≤ ${n}`
+    );
+  }
+  if (k < 2 || k > 20) {
+    throw new ValidationError('k must be between 2 and 20', 'k', '2-20');
+  }
+  if (dims === 0) {
+    throw new ValidationError(
+      'Data points must have at least 1 dimension',
+      'data',
+      'non-empty rows'
+    );
+  }
+
+  // K-Means++ initialization: pick well-spread initial centroids
+  const centroids: number[][] = [];
+  // First centroid: middle data point (deterministic)
+  centroids.push([...data[Math.floor(n / 2)]!]);
+
+  for (let c = 1; c < k; c++) {
+    // Compute distance from each point to nearest existing centroid
+    const distances = data.map((point) => {
+      let minDist = Infinity;
+      for (const centroid of centroids) {
+        let dist = 0;
+        for (let d = 0; d < dims; d++) {
+          dist += ((point[d] ?? 0) - (centroid[d] ?? 0)) ** 2;
+        }
+        minDist = Math.min(minDist, dist);
+      }
+      return minDist;
+    });
+
+    // Pick the point with maximum distance (deterministic K-Means++ variant)
+    let maxDist = -1;
+    let maxIdx = 0;
+    for (let i = 0; i < n; i++) {
+      if (distances[i]! > maxDist) {
+        maxDist = distances[i]!;
+        maxIdx = i;
+      }
+    }
+    centroids.push([...data[maxIdx]!]);
+  }
+
+  // Iterative assignment + update
+  let assignments = new Array<number>(n).fill(0);
+  let iterations = 0;
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    iterations++;
+    let changed = false;
+
+    // Assignment step: assign each point to nearest centroid
+    for (let i = 0; i < n; i++) {
+      let minDist = Infinity;
+      let bestCluster = 0;
+      for (let c = 0; c < k; c++) {
+        let dist = 0;
+        for (let d = 0; d < dims; d++) {
+          dist += ((data[i]![d] ?? 0) - (centroids[c]![d] ?? 0)) ** 2;
+        }
+        if (dist < minDist) {
+          minDist = dist;
+          bestCluster = c;
+        }
+      }
+      if (assignments[i] !== bestCluster) {
+        assignments[i] = bestCluster;
+        changed = true;
+      }
+    }
+
+    if (!changed) break; // Converged
+
+    // Update step: recompute centroids as mean of assigned points
+    for (let c = 0; c < k; c++) {
+      const sums = new Array<number>(dims).fill(0);
+      let count = 0;
+      for (let i = 0; i < n; i++) {
+        if (assignments[i] === c) {
+          for (let d = 0; d < dims; d++) {
+            sums[d]! += data[i]![d] ?? 0;
+          }
+          count++;
+        }
+      }
+      if (count > 0) {
+        for (let d = 0; d < dims; d++) {
+          centroids[c]![d] = sums[d]! / count;
+        }
+      }
+    }
+  }
+
+  // Compute cluster sizes and WCSS
+  const clusterSizes = new Array<number>(k).fill(0);
+  let wcss = 0;
+  for (let i = 0; i < n; i++) {
+    const c = assignments[i]!;
+    clusterSizes[c]!++;
+    for (let d = 0; d < dims; d++) {
+      wcss += ((data[i]![d] ?? 0) - (centroids[c]![d] ?? 0)) ** 2;
+    }
+  }
+
+  return { assignments, centroids, clusterSizes, wcss, iterations };
+}
+
+/**
+ * Elbow method: find optimal k by running K-Means for k=2..maxK
+ * and returning WCSS at each k. The "elbow" is where WCSS improvement flattens.
+ */
+export function findOptimalK(data: number[][], maxK: number = 10): { k: number; wcss: number }[] {
+  const effectiveMax = Math.min(maxK, data.length, 20);
+  const results: { k: number; wcss: number }[] = [];
+
+  for (let k = 2; k <= effectiveMax; k++) {
+    const result = kMeansClustering(data, k);
+    results.push({ k, wcss: Math.round(result.wcss * 100) / 100 });
+  }
+
+  return results;
+}

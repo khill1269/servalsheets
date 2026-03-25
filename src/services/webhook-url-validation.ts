@@ -184,3 +184,12 @@ export async function validateFederationServerUrl(urlString: string): Promise<vo
     component: 'federated-mcp-client',
   });
 }
+
+export async function validateRemoteMcpExecutorUrl(urlString: string): Promise<void> {
+  await validatePublicHttpsUrl(urlString, {
+    dnsStrict: getEnv().MCP_REMOTE_EXECUTOR_DNS_STRICT,
+    resourceLabel: 'Remote MCP executor URL',
+    dnsStrictEnvVar: 'MCP_REMOTE_EXECUTOR_DNS_STRICT',
+    component: 'remote-tool-client',
+  });
+}

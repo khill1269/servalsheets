@@ -21,8 +21,7 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js';
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
-import { createRequestAbortError, getRequestContext } from '../utils/request-context.js';
-import { getEnv } from '../config/env.js';
+import { getRequestContext } from '../utils/request-context.js';
 import { recordSamplingRequest } from '../observability/metrics.js';
 import {
   getSpreadsheetContext,
@@ -70,157 +69,18 @@ export function extractCitationsFromResponse(text: string): CellCitation[] {
 }
 
 // ============================================================================
-// ISSUE-117: GDPR consent gate for Sampling calls
+// ISSUE-117: GDPR consent gate + timeout wrapper
+// Implementations live in src/utils/sampling-consent.ts so service/analysis
+// layers can import them without depending on the MCP application layer.
 // ============================================================================
-
-/**
- * Optional consent checker registered at server startup.
- * Throws if consent is required but not granted.
- * When null (default), all sampling calls are allowed (backwards-compatible).
- */
-let _consentChecker: (() => Promise<void>) | null = null;
-const _consentCache = new Map<string, { expiresAt: number; errorMessage?: string }>();
-
-/**
- * Register a GDPR consent check callback. Called before every createMessage().
- * Throw an Error with message 'GDPR_CONSENT_REQUIRED' to block the sampling call.
- *
- * @example
- * registerSamplingConsentChecker(async () => {
- *   const hasConsent = await profileManager.hasConsent(getCurrentUserId());
- *   if (!hasConsent) throw new Error('GDPR_CONSENT_REQUIRED: ...');
- * });
- */
-export function registerSamplingConsentChecker(checker: () => Promise<void>): void {
-  _consentChecker = checker;
-}
-
-function getConsentCacheKey(): string {
-  const context = getRequestContext();
-  return context?.principalId ?? context?.requestId ?? 'global';
-}
-
-function purgeExpiredConsentEntries(nowMs: number): void {
-  for (const [key, entry] of _consentCache.entries()) {
-    if (entry.expiresAt <= nowMs) {
-      _consentCache.delete(key);
-    }
-  }
-}
-
-export function clearSamplingConsentCache(): void {
-  _consentCache.clear();
-}
-
-export async function assertSamplingConsent(): Promise<void> {
-  if (!_consentChecker) {
-    return;
-  }
-
-  const ttlMs = getEnv().SAMPLING_CONSENT_CACHE_TTL_MS;
-  if (ttlMs <= 0) {
-    await _consentChecker();
-    return;
-  }
-
-  const nowMs = Date.now();
-  purgeExpiredConsentEntries(nowMs);
-
-  const cacheKey = getConsentCacheKey();
-  const cached = _consentCache.get(cacheKey);
-  if (cached && cached.expiresAt > nowMs) {
-    if (cached.errorMessage) {
-      throw new ServiceError(cached.errorMessage, 'INTERNAL_ERROR', 'sampling', false);
-    }
-    return;
-  }
-
-  try {
-    await _consentChecker();
-    _consentCache.set(cacheKey, { expiresAt: nowMs + ttlMs });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    _consentCache.set(cacheKey, { expiresAt: nowMs + ttlMs, errorMessage: message });
-    throw error;
-  }
-}
-
-// ============================================================================
-// Timeout Wrapper (ISSUE-088)
-// ============================================================================
-
-type SamplingOperation<T> = Promise<T> | (() => Promise<T>);
-
-function getEffectiveSamplingTimeout(deadline: number | undefined): number {
-  // Lazy read — avoids module-level getEnv() call that fails in test environments
-  const timeoutMs = getEnv().SAMPLING_TIMEOUT_MS;
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    return 30000;
-  }
-  if (!Number.isFinite(deadline)) {
-    return timeoutMs;
-  }
-  return Math.min(timeoutMs, Math.max(0, (deadline as number) - Date.now()));
-}
-
-/**
- * Wrap a sampling request with a configurable timeout.
- * Respects the current request deadline so sampling never outlasts its parent request.
- * Rejects with a descriptive error if the request exceeds the effective timeout.
- */
-export function withSamplingTimeout<T>(operation: SamplingOperation<T>): Promise<T> {
-  // Use the remaining request deadline if available, capped at SAMPLING_TIMEOUT_MS
-  const ctx = getRequestContext();
-  const abortSignal = ctx?.abortSignal;
-  const effectiveTimeout = getEffectiveSamplingTimeout(ctx?.deadline);
-  const execute = typeof operation === 'function' ? operation : () => operation;
-
-  if (abortSignal?.aborted) {
-    return Promise.reject(
-      createRequestAbortError(abortSignal.reason, 'Sampling request cancelled by client')
-    );
-  }
-
-  return new Promise<T>((resolve, reject) => {
-    let settled = false;
-    let timer: NodeJS.Timeout | undefined;
-    const cleanup = (): void => {
-      if (timer) {
-        clearTimeout(timer);
-      }
-      abortSignal?.removeEventListener('abort', onAbort);
-    };
-    const settle = (callback: () => void): void => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      cleanup();
-      callback();
-    };
-    const onAbort = (): void => {
-      settle(() =>
-        reject(createRequestAbortError(abortSignal?.reason, 'Sampling request cancelled by client'))
-      );
-    };
-
-    abortSignal?.addEventListener('abort', onAbort, { once: true });
-    timer = setTimeout(() => {
-      settle(() => reject(new Error(`Sampling request timed out after ${effectiveTimeout}ms`)));
-    }, effectiveTimeout);
-
-    Promise.resolve()
-      .then(() => execute())
-      .then(
-        (value) => {
-          settle(() => resolve(value));
-        },
-        (error: unknown) => {
-          settle(() => reject(error));
-        }
-      );
-  });
-}
+export {
+  registerSamplingConsentChecker,
+  clearSamplingConsentCache,
+  assertSamplingConsent,
+  withSamplingTimeout,
+} from '../utils/sampling-consent.js';
+export type { SamplingOperation } from '../utils/sampling-consent.js';
+import { assertSamplingConsent, withSamplingTimeout } from '../utils/sampling-consent.js';
 
 // ============================================================================
 // Types
@@ -276,6 +136,8 @@ export interface GenerateFormulaOptions {
   maxTokens?: number;
   /** Preferred formula style */
   style?: 'concise' | 'readable' | 'optimized';
+  /** Optional session context for richer LLM prompts */
+  sessionContext?: SessionContextManager;
 }
 
 /**
@@ -693,6 +555,38 @@ Return a JSON array of plan steps: [{ tool, action, params, description }].`,
 };
 
 // ============================================================================
+// Session Context Helper (shared across all sampling functions)
+// ============================================================================
+
+/**
+ * Build a session context prefix string from the SessionContextManager.
+ * Non-blocking: returns empty string on any error or if no context available.
+ */
+function buildSessionContextPrefix(sessionContext?: SessionContextManager): string {
+  if (!sessionContext) return '';
+  try {
+    const ctx = sessionContext.getSummary?.();
+    if (!ctx) return '';
+    let prefix = '';
+    if (ctx.recentOperations && ctx.recentOperations.length > 0) {
+      prefix += `\nRecent operations (last 5):\n${ctx.recentOperations
+        .slice(-5)
+        .map((op) => `- ${op.tool ?? '?'}.${op.action ?? '?'} on ${op.range ?? 'unknown range'}`)
+        .join('\n')}`;
+    }
+    if (ctx.activeSpreadsheet) {
+      prefix += `\nActive spreadsheet: ${ctx.activeSpreadsheet.title} (sheets: ${
+        ctx.activeSpreadsheet.sheetNames?.join(', ') ?? 'none'
+      })`;
+    }
+    return prefix;
+  } catch {
+    // Non-blocking: session context enrichment must not fail sampling
+    return '';
+  }
+}
+
+// ============================================================================
 // High-Level Sampling Functions
 // ============================================================================
 
@@ -750,25 +644,7 @@ Example finding: "Column B (Revenue) has 3 null values in rows 14, 27, 31 (4.2% 
   }
 
   // Build session context prefix (non-blocking)
-  let sessionPrefix = '';
-  try {
-    const sessionCtx = sessionContext?.getSummary?.();
-    if (sessionCtx) {
-      if (sessionCtx.recentOperations && sessionCtx.recentOperations.length > 0) {
-        sessionPrefix += `\nRecent operations (last 5):\n${sessionCtx.recentOperations
-          .slice(-5)
-          .map((op) => `- ${op.tool ?? '?'}.${op.action ?? '?'} on ${op.range ?? 'unknown range'}`)
-          .join('\n')}`;
-      }
-      if (sessionCtx.activeSpreadsheet) {
-        sessionPrefix += `\nActive spreadsheet: ${sessionCtx.activeSpreadsheet.title} (sheets: ${
-          sessionCtx.activeSpreadsheet.sheetNames?.join(', ') ?? 'none'
-        })`;
-      }
-    }
-  } catch {
-    // Non-blocking: session context enrichment must not fail sampling
-  }
+  const sessionPrefix = buildSessionContextPrefix(sessionContext);
 
   let prompt = `Analyze this spreadsheet data and answer: ${params.question}\n\n`;
   if (sessionPrefix) {
@@ -820,7 +696,12 @@ export async function generateFormula(
 
   const { includeExplanation = false, maxTokens = 300, style = 'readable' } = options;
 
-  let prompt = `Generate a Google Sheets formula for: ${params.description}\n\n`;
+  const sessionPrefix = buildSessionContextPrefix(options.sessionContext);
+  let prompt = sessionPrefix
+    ? sessionPrefix.trimStart() +
+      '\n\n' +
+      `Generate a Google Sheets formula for: ${params.description}\n\n`
+    : `Generate a Google Sheets formula for: ${params.description}\n\n`;
 
   if (params.headers) {
     prompt += `Column headers: ${params.headers.join(', ')}\n`;
@@ -897,6 +778,7 @@ export async function recommendChart(
     data: unknown[][];
     purpose?: string;
     audience?: string;
+    sessionContext?: SessionContextManager;
   }
 ): Promise<{
   chartType: string;
@@ -906,7 +788,10 @@ export async function recommendChart(
   assertSamplingSupport(server.getClientCapabilities());
   await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
-  let prompt = 'Recommend the best chart type for this data.\n\n';
+  const sessionPrefix = buildSessionContextPrefix(params.sessionContext);
+  let prompt = sessionPrefix
+    ? sessionPrefix.trimStart() + '\n\nRecommend the best chart type for this data.\n\n'
+    : 'Recommend the best chart type for this data.\n\n';
   prompt += `Data:\n${formatDataForLLM(params.data, { maxRows: 20 })}\n\n`;
 
   if (params.purpose) {
@@ -974,14 +859,16 @@ Respond in this exact JSON format:
 export async function explainFormula(
   server: SamplingServer,
   formula: string,
-  options: { detailed?: boolean } = {}
+  options: { detailed?: boolean; sessionContext?: SessionContextManager } = {}
 ): Promise<string> {
   assertSamplingSupport(server.getClientCapabilities());
   await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
-  const prompt = options.detailed
+  const sessionPrefix = buildSessionContextPrefix(options.sessionContext);
+  const basePrompt = options.detailed
     ? `Explain this Google Sheets formula in detail, breaking down each part:\n\n${formula}`
     : `Briefly explain what this Google Sheets formula does:\n\n${formula}`;
+  const prompt = sessionPrefix ? sessionPrefix.trimStart() + '\n\n' + basePrompt : basePrompt;
 
   const explainDefaults = DEFAULT_MODEL_HINTS['formulaExplanation']!;
   const result = await withSamplingTimeout(() =>
@@ -1005,6 +892,7 @@ export async function identifyDataIssues(
   params: {
     data: unknown[][];
     columnTypes?: Record<string, string>;
+    sessionContext?: SessionContextManager;
   }
 ): Promise<
   Array<{
@@ -1018,7 +906,10 @@ export async function identifyDataIssues(
   assertSamplingSupport(server.getClientCapabilities());
   await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
-  let prompt = 'Identify data quality issues in this spreadsheet data.\n\n';
+  const sessionPrefix = buildSessionContextPrefix(params.sessionContext);
+  let prompt = sessionPrefix
+    ? sessionPrefix.trimStart() + '\n\nIdentify data quality issues in this spreadsheet data.\n\n'
+    : 'Identify data quality issues in this spreadsheet data.\n\n';
   prompt += `Data:\n${formatDataForLLM(params.data, { maxRows: 50 })}\n\n`;
 
   if (params.columnTypes) {

@@ -253,14 +253,15 @@ export class DriveConnector implements SpreadsheetConnector {
 
   private formatResult(endpoint: string, data: Record<string, unknown>): DataResult {
     if (endpoint === 'files/search' || endpoint === 'folders/list') {
-      const files = (data['files'] as Array<{
-        id: string;
-        name: string;
-        mimeType: string;
-        size?: string;
-        createdTime?: string;
-        modifiedTime?: string;
-      }>) ?? [];
+      const files =
+        (data['files'] as Array<{
+          id: string;
+          name: string;
+          mimeType: string;
+          size?: string;
+          createdTime?: string;
+          modifiedTime?: string;
+        }>) ?? [];
       const rows = files.map((f) => [
         f['id'],
         f['name'],
@@ -284,15 +285,21 @@ export class DriveConnector implements SpreadsheetConnector {
     }
 
     if (endpoint === 'files/metadata') {
-      const rows: (string | number | boolean | null)[][] = [[
-        String(data['id'] ?? ''),
-        String(data['name'] ?? ''),
-        String(data['mimeType'] ?? ''),
-        data['size'] ? Number(data['size']) : 0,
-        String((data['owners'] ? (data['owners'] as { emailAddress?: string }[])[0]?.emailAddress : null) ?? ''),
-        !!(data['shared'] ?? false),
-        String(data['webViewLink'] ?? ''),
-      ]];
+      const rows: (string | number | boolean | null)[][] = [
+        [
+          String(data['id'] ?? ''),
+          String(data['name'] ?? ''),
+          String(data['mimeType'] ?? ''),
+          data['size'] ? Number(data['size']) : 0,
+          String(
+            (data['owners']
+              ? (data['owners'] as { emailAddress?: string }[])[0]?.emailAddress
+              : null) ?? ''
+          ),
+          !!(data['shared'] ?? false),
+          String(data['webViewLink'] ?? ''),
+        ],
+      ];
       return {
         headers: ['id', 'name', 'mimeType', 'size', 'owner', 'shared', 'webViewLink'],
         rows,
