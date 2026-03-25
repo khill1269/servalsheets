@@ -129,6 +129,9 @@ describe('Prompt workflow integration', () => {
   let harness: McpTestHarness;
 
   beforeAll(async () => {
+    // Ensure federation tool is available so cross_spreadsheet_federation prompt succeeds
+    process.env['MCP_FEDERATION_SERVERS'] = '{}';
+
     harness = await createServalSheetsTestHarness({
       serverOptions: {
         name: 'servalsheets-prompt-workflow-test',

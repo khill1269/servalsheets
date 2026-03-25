@@ -46,6 +46,8 @@ describe('tool-mode MCP registration', () => {
   it('registers all tools in stdio server mode (no mode gating)', async () => {
     // Ensure no legacy mode env var is set
     vi.unstubAllEnvs();
+    // Federation requires MCP_FEDERATION_SERVERS to be visible
+    vi.stubEnv('MCP_FEDERATION_SERVERS', 'test-server:http://localhost:9999');
     vi.resetModules();
     register.clear();
 

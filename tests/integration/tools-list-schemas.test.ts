@@ -61,6 +61,8 @@ describe('tools/list Schema Serialization', () => {
   let server: ServalSheetsServer;
 
   beforeAll(async () => {
+    // Federation requires MCP_FEDERATION_SERVERS to be visible in tools/list
+    process.env['MCP_FEDERATION_SERVERS'] = 'test-server:http://localhost:9999';
     // Create server instance (applies SDK patch)
     server = new ServalSheetsServer({
       name: 'ServalSheets Test',

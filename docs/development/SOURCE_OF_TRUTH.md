@@ -212,7 +212,7 @@ Evidence: <file:line> OR <command → output>
 
 ```
 Claim: ServalSheets has 407 actions
-Evidence: src/schemas/action-counts.ts exports ACTION_COUNT = 404
+Evidence: src/schemas/action-counts.ts exports ACTION_COUNT = 407
 Command: grep "export const ACTION_COUNT" src/schemas/action-counts.ts
 Output: export const ACTION_COUNT = Object.values(ACTION_COUNTS).reduce((sum, count) => sum + count, 0);
 ```
@@ -258,7 +258,7 @@ npm run verify
 
 ```
 TOOL_COUNT:         25
-ACTION_COUNT:       404
+ACTION_COUNT:       407
 MCP_PROTOCOL:       2025-11-25
 ZOD_VERSION:        4.3.5
 SDK_VERSION:        ^1.25.2
@@ -308,7 +308,7 @@ Command: grep "export const ACTION_COUNT" src/schemas/action-counts.ts
 Output: export const ACTION_COUNT = Object.values(ACTION_COUNTS).reduce((sum, count) => sum + count, 0);
 
 ServalSheets has 407 actions across 25 tools.
-Evidence: src/schemas/action-counts.ts exports ACTION_COUNT = 404
+Evidence: src/schemas/action-counts.ts exports ACTION_COUNT = 407
 ```
 
 ---
