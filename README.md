@@ -67,6 +67,8 @@ npx servalsheets
 
 On first run, ServalSheets will guide you through Google OAuth authentication.
 
+Claude Desktop connects to the local STDIO process. Hosted HTTP is a separate transport surface for remote deployments and hybrid failover.
+
 ---
 
 ### Previous Releases
@@ -111,11 +113,11 @@ Historical release snapshots are kept here for upgrade context.
 
 ### Core Capabilities
 
-- **25 Tools, 403 Actions**: Comprehensive Google Sheets API v4 coverage
+- **25 Tools, 407 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Support**: Structured outputs, tasks, prompts, resources, logging, elicitation, and sampling
-- **Multiple Transports**: STDIO, SSE, and Streamable HTTP
+- **Multiple Transports**: STDIO, Streamable HTTP, and legacy SSE compatibility surface
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
-- **OAuth 2.1 Support**: For Claude Connectors Directory integration
+- **OAuth 2.1 Support**: For hosted remote connector deployments
 
 ### MCP Protocol Support
 
@@ -141,7 +143,8 @@ MCP 2025-11-25 server support includes:
 #### Transport Support
 
 - ✅ **STDIO** - For Claude Desktop and local CLI usage
-- ✅ **HTTP/SSE** - For web clients and remote access
+- ✅ **Streamable HTTP** - For hosted deployments, resumability, and remote access
+- ✅ **Legacy SSE Compatibility** - Optional compatibility surface for older clients
 - ✅ **OAuth 2.1** - Authentication for hosted deployments
 
 ### Advanced Analytics 🔬
@@ -215,7 +218,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
-### Using as Remote Server (HTTP/SSE)
+### Using as Hosted Server (Streamable HTTP)
 
 ```bash
 # Start HTTP server
@@ -225,16 +228,32 @@ npm run start:http
 PORT=3000 GOOGLE_CLIENT_ID=xxx GOOGLE_CLIENT_SECRET=xxx npm run start:http
 ```
 
+Hosted HTTP is for remote deployments and connector flows. Do not point Claude
+Desktop at a hosted remote server through `claude_desktop_config.json`. Use
+Claude's connector UI for the remote connector flow and keep
+`claude_desktop_config.json` for local stdio servers only.
+
+### Hosted Failover (Optional)
+
+Hosted failover is disabled by default and only turns on when both of these are set:
+
+```bash
+export MCP_REMOTE_EXECUTOR_URL=https://example.com/mcp
+export MCP_REMOTE_EXECUTOR_TOOLS=sheets_compute,sheets_analyze
+```
+
+Only the allowlisted tools in `MCP_REMOTE_EXECUTOR_TOOLS` are eligible for remote fallback.
+
 ### OAuth Scope Modes
 
 ServalSheets uses deployment-aware OAuth scopes to balance functionality and Google verification speed:
 
 | Mode               | Actions Available | Use Case                | Google Verification Time |
 | ------------------ | ----------------- | ----------------------- | ------------------------ |
-| **full** (default) | 403/403           | Self-hosted, enterprise | 4-6 weeks                |
-| **standard**       | ~340/403          | SaaS, marketplace apps  | 3-5 days                 |
-| **minimal**        | ~200/403          | Basic operations only   | 3-5 days                 |
-| **readonly**       | ~130/403          | Analysis/reporting only | 3-5 days                 |
+| **full** (default) | 407/407           | Self-hosted, enterprise | 4-6 weeks                |
+| **standard**       | Reduced subset    | SaaS, marketplace apps  | 3-5 days                 |
+| **minimal**        | Basic subset      | Basic operations only   | 3-5 days                 |
+| **readonly**       | Read-only subset  | Analysis/reporting only | 3-5 days                 |
 
 **Self-Hosted (Default)**
 
@@ -797,7 +816,7 @@ ServalSheets enforces role-based access control (RBAC) **only on HTTP transport*
 | Transport  | RBAC enforced? | Notes                                                           |
 | ---------- | -------------- | --------------------------------------------------------------- |
 | STDIO      | No             | Trusted local process (Claude Desktop model)                    |
-| HTTP / SSE | Yes            | JWT-based RBAC, configurable roles via `SERVAL_RBAC_*` env vars |
+| HTTP / Streamable HTTP | Yes | JWT-based RBAC, configurable roles via `SERVAL_RBAC_*` env vars |
 | Remote MCP | Yes            | Per-user JWT claims validated on each request                   |
 
 If you are running ServalSheets as an HTTP server exposed to multiple users, ensure `JWT_SECRET` and `OAUTH_CLIENT_SECRET` are set and all traffic goes through HTTPS.
@@ -1181,7 +1200,7 @@ src/
 │   └── snapshot.ts        # Backup/restore service
 ├── handlers/          # Tool handlers
 ├── server.ts          # MCP server (STDIO)
-├── http-server.ts     # HTTP/SSE transport
+├── http-server.ts     # Streamable HTTP transport
 ├── oauth-provider.ts  # OAuth 2.1 for Claude Connectors
 ├── cli.ts             # CLI entry point
 └── index.ts           # Main exports
@@ -1258,7 +1277,7 @@ graph TB
 - **MCP Protocol**: 2025-11-25 (discriminated unions, progress notifications)
 - **Google Sheets API**: v4 (full coverage)
 - **OAuth**: 2.1 with PKCE support
-- **Transports**: STDIO, SSE, Streamable HTTP
+- **Transports**: STDIO, Streamable HTTP, legacy SSE compatibility
 - **TypeScript**: Strict mode enabled, 0 errors
 - **SDK Version**: @modelcontextprotocol/sdk@1.27.1
 - **Test Suite**: 8,500+ passing tests across unit, integration, contract, and protocol suites
@@ -1268,7 +1287,7 @@ graph TB
 - ✅ **Type Safety**: Full TypeScript strict mode compliance
 - ✅ **Test Suite**: 8,500+ passing tests with CI coverage reporting
 - ✅ **Protocol Compliance**: MCP 2025-11-25 certified
-- ✅ **Production Ready**: Used in Claude Connectors Directory
+- ✅ **Production Ready**: Hardened for hosted deployments and submission-oriented remote connector flows
 - ✅ **Error Handling**: Comprehensive error codes with retry hints
 
 ## Schema Architecture: Discriminated Unions
@@ -2129,7 +2148,7 @@ ServalSheets implements the MCP 2025-11-25 server features it advertises in disc
 
 #### Tools (25 tools ✅)
 
-All 25 tools are implemented and exercised in the test suite. See the [Tool Summary](#tool-summary-25-tools-402-actions) above for current per-tool action counts.
+All 25 tools are implemented and exercised in the test suite. See the [Tool Summary](#tool-summary-25-tools-407-actions) above for current per-tool action counts.
 
 **Discriminated Union Schema** ✅:
 
@@ -2315,8 +2334,8 @@ curl -X POST http://localhost:9090/logging/setLevel \
 
 ```
 ✅ STDIO - For Claude Desktop, local CLI
-✅ HTTP/SSE - For web clients, remote access
-✅ Streamable HTTP - For large responses, resumability
+✅ Streamable HTTP - For hosted deployments, remote access, resumability
+✅ Legacy SSE compatibility - For older clients that still require it
 ```
 
 **Configuration**:
@@ -2325,7 +2344,7 @@ curl -X POST http://localhost:9090/logging/setLevel \
 # STDIO (default)
 npx servalsheets
 
-# HTTP/SSE
+# Streamable HTTP
 PORT=3000 npm run start:http
 
 # HTTP with OAuth

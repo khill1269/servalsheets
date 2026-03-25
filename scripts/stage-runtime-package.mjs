@@ -62,8 +62,12 @@ copyIntoOutput('openapi.yaml', 'openapi.yaml');
 
 copyIntoOutput('packages/serval-core/package.json', 'packages/serval-core/package.json');
 copyIntoOutput('packages/serval-core/dist', 'packages/serval-core/dist');
+copyIntoOutput('packages/mcp-client/package.json', 'packages/mcp-client/package.json');
+copyIntoOutput('packages/mcp-client/dist', 'packages/mcp-client/dist');
 copyIntoOutput('packages/mcp-http/package.json', 'packages/mcp-http/package.json');
 copyIntoOutput('packages/mcp-http/dist', 'packages/mcp-http/dist');
+copyIntoOutput('packages/mcp-stdio/package.json', 'packages/mcp-stdio/package.json');
+copyIntoOutput('packages/mcp-stdio/dist', 'packages/mcp-stdio/dist');
 copyIntoOutput('packages/mcp-runtime/package.json', 'packages/mcp-runtime/package.json');
 copyIntoOutput('packages/mcp-runtime/dist', 'packages/mcp-runtime/dist');
 

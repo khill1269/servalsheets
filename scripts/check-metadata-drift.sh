@@ -16,8 +16,7 @@ set -e
 echo "🔍 Checking for metadata drift..."
 echo ""
 
-# Cross-platform timeout wrapper: gtimeout (brew coreutils), timeout (Linux), or perl alarm (macOS built-in)
-# perl -e 'alarm N; exec @ARGV' is available on both macOS and Linux and needs no extra installs.
+# Cross-platform timeout wrapper: gtimeout (brew coreutils), timeout (Linux), or Node.js fallback
 _run_with_timeout() {
   local secs="$1"; shift
   if command -v gtimeout >/dev/null 2>&1; then
@@ -25,7 +24,15 @@ _run_with_timeout() {
   elif command -v timeout >/dev/null 2>&1; then
     timeout "$secs" "$@"
   else
-    perl -e "alarm $secs; exec @ARGV or die $!" -- "$@"
+    # Node.js fallback — avoids perl alarm() which can hang on some macOS configs
+    node -e "
+      const { spawn } = require('child_process');
+      const args = process.argv.slice(1);
+      const child = spawn(args[0], args.slice(1), { stdio: 'inherit' });
+      const timer = setTimeout(() => { child.kill('SIGTERM'); process.exit(124); }, ${secs} * 1000);
+      timer.unref();
+      child.on('exit', (code) => process.exit(code ?? 1));
+    " "$@"
   fi
 }
 

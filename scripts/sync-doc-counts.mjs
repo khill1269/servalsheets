@@ -2,7 +2,7 @@
 /**
  * sync-doc-counts.mjs — Sync tool/action counts from action-counts.ts into docs + src/
  *
- * Reads TOOL_COUNT and ACTION_COUNT from src/schemas/action-counts.ts (source of truth),
+ * Reads docs facts from the generated repo metadata source of truth,
  * then reports any docs/*.md or src/**\/*.ts files that still reference outdated counts.
  *
  * Usage:
@@ -19,49 +19,27 @@
 
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
 import { join, relative } from 'path';
+import { loadSourceDocFacts } from './lib/docs-facts.mjs';
 
 const ROOT = decodeURIComponent(new URL('..', import.meta.url).pathname).replace(/\/$/, '');
-const COUNTS_FILE = join(ROOT, 'src/schemas/action-counts.ts');
-
-// --- Parse action-counts.ts ---
-const countsSource = readFileSync(COUNTS_FILE, 'utf8');
-
-const actionCountsBlock = countsSource.match(/export const ACTION_COUNTS[^{]*\{([^}]+)\}/s);
-
-if (!actionCountsBlock) {
-  console.error('ERROR: Could not parse ACTION_COUNTS from', COUNTS_FILE);
-  process.exit(1);
-}
-
-// Count entries in the ACTION_COUNTS object
-const entries = actionCountsBlock[1].match(/\w+:\s*\d+/g);
-const toolCount = entries ? entries.length : 0;
-const actionCount = entries
-  ? entries.reduce((sum, e) => sum + parseInt(e.split(':')[1].trim(), 10), 0)
-  : 0;
-
-// Build per-tool map for table regeneration
-const perToolCounts = {};
-if (entries) {
-  for (const e of entries) {
-    const [tool, count] = e.split(':').map(s => s.trim());
-    perToolCounts[tool] = parseInt(count, 10);
-  }
-}
+const facts = loadSourceDocFacts(ROOT);
+const toolCount = facts.counts.tools;
+const actionCount = facts.counts.actions;
+const perToolCounts = Object.fromEntries(facts.tools.map(tool => [tool.name, tool.actionCount]));
 
 console.log(`Source of truth: ${toolCount} tools, ${actionCount} actions`);
-console.log(`Source: ${relative(ROOT, COUNTS_FILE)}\n`);
+console.log(`Source: ${facts.sources.generatedActionCounts}\n`);
 
 // --- Known stale patterns (all historical counts that should be updated) ---
-const STALE_TOOL_COUNTS = [22, 23, 24]; // versions before 25
+const STALE_TOOL_COUNTS = [20, 21, 22, 23, 24].filter(n => n !== toolCount);
 const STALE_ACTION_COUNTS = [
-  291, 300, 305, 315, 335, 340, 342, 377, // early historical
-  391, 397, 399, 401,                      // recent stale (added 2026-03-15)
+  272, 291, 300, 302, 305, 315, 335, 340, 342, 377, // early historical
+  391, 397, 399, 401, 402, 403, 404, 405, 406, // recent stale
 ].filter(n => n !== actionCount);          // never flag the current count as stale
 
 // --- Scan targets: docs/*.md + src/**/*.ts ---
 const FIX_MODE = process.argv.includes('--fix');
-const SKIP_DIRS = ['releases', 'historical', 'archive']; // historical docs preserved as-is
+const SKIP_DIRS = ['releases', 'historical', 'archive', 'audits', 'review']; // historical docs preserved as-is
 const SKIP_DIRS_SRC = ['node_modules', 'dist', '.git'];
 
 function walkDir(dir, ext) {

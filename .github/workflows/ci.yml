@@ -128,6 +128,9 @@ jobs:
       - name: Check placeholders
         run: npm run check:placeholders
 
+      - name: Check metadata drift
+        run: npm run check:drift
+
       - name: Type check
         run: npm run typecheck
 
@@ -289,11 +292,43 @@ jobs:
           retry_wait_seconds: 15
           command: npm run test:mcp-http-task-contract
 
+  http-transport-failover:
+    name: HTTP Transport Failover
+    runs-on: ubuntu-latest
+    needs: quick-checks
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies with retry
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: npm ci
+
+      - name: Run HTTP transport failover regression
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 2
+          retry_wait_seconds: 15
+          command: npm run test:http-transport-failover
+
   # Build after all tests pass
   build:
     name: Build & Package
     runs-on: ubuntu-latest
-    needs: [test-fast, test-integration, mcp-http-task-contract]
+    needs: [test-fast, test-integration, mcp-http-task-contract, http-transport-failover]
 
     steps:
       - name: Checkout code

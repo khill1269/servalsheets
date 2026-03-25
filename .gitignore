@@ -305,3 +305,11 @@ docs/research/*.html
 src/test_perm_check.ts
 tests/fixtures/watch-test/
 manifest.json
+
+# Audit artifacts (local-only)
+module_inventory.md
+risk_register.md
+.serval/audit/
+.serval/codebase-manifest-report.txt
+.serval/codebase-manifest.json
+scripts/generate-codebase-manifest.mjs
