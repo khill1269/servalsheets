@@ -6,9 +6,13 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files (root + all workspace packages for npm ci)
 COPY package*.json ./
 COPY packages/serval-core/package*.json ./packages/serval-core/
+COPY packages/mcp-client/package*.json ./packages/mcp-client/
+COPY packages/mcp-http/package*.json ./packages/mcp-http/
+COPY packages/mcp-runtime/package*.json ./packages/mcp-runtime/
+COPY packages/mcp-stdio/package*.json ./packages/mcp-stdio/
 
 # Install dependencies (including devDependencies for build)
 RUN npm ci
