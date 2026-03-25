@@ -13,7 +13,7 @@
  * Part of Ultimate Analysis Tool - Natural Language Query capability
  */
 
-import type { SamplingMessage } from '../mcp/sampling.js';
+import type { SamplingMessage } from '@modelcontextprotocol/sdk/types.js';
 import type { ColumnSchema } from './structure-helpers.js';
 
 // ============================================================================
@@ -34,7 +34,12 @@ function sanitizeForPrompt(value: string, maxLength = 500): string {
   // Truncate
   let safe = value.length > maxLength ? value.slice(0, maxLength) + '...' : value;
   // Remove control characters except newlines/tabs
-  safe = safe.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  safe = [...safe]
+    .filter((char) => {
+      const code = char.charCodeAt(0);
+      return char === '\n' || char === '\t' || (code >= 0x20 && code !== 0x7f);
+    })
+    .join('');
   return safe;
 }
 
