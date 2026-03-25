@@ -16,6 +16,7 @@ import {
   type FallbackStrategy,
 } from '@serval/core';
 import { logger } from './logger.js';
+import { recordQuotaGateOpen } from '../observability/metrics.js';
 
 // Re-export types and classes so callers don't need to change imports
 export {
@@ -59,6 +60,7 @@ export interface ICircuitBreaker {
  */
 export class QuotaCircuitBreaker {
   private readonly inner: CircuitBreaker;
+  private readonly name: string;
   private quotaConsecutiveCount = 0;
   private readonly quotaThreshold: number;
   private quotaBlockedUntil = 0;
@@ -69,6 +71,7 @@ export class QuotaCircuitBreaker {
     quotaOptions?: { quotaThreshold?: number; quotaBlockMs?: number }
   ) {
     this.inner = new CircuitBreaker(config);
+    this.name = config.name ?? 'unnamed';
     this.quotaThreshold = quotaOptions?.quotaThreshold ?? Math.ceil(config.failureThreshold / 2);
     this.quotaBlockMs = quotaOptions?.quotaBlockMs ?? config.timeout * 2;
   }
@@ -95,9 +98,15 @@ export class QuotaCircuitBreaker {
           this.quotaBlockedUntil = Date.now() + this.quotaBlockMs;
           this.quotaConsecutiveCount = 0;
           logger.warn('Quota circuit gate opened', {
+            circuit: this.name,
             quotaThreshold: this.quotaThreshold,
             openForMs: this.quotaBlockMs,
           });
+          try {
+            recordQuotaGateOpen(this.name, this.quotaBlockMs);
+          } catch {
+            // Metrics recording is non-critical
+          }
         }
       } else {
         this.quotaConsecutiveCount = 0;

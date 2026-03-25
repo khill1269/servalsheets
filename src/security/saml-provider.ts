@@ -188,6 +188,19 @@ export class SamlProvider {
       ...config,
     };
 
+    // SECURITY: Cap clock skew at 120s to limit replay attack window.
+    // Values > 120s allow replayed SAML assertions to be accepted well beyond
+    // the authentication event, violating NIST SP 800-63B §7.2 guidance.
+    const MAX_CLOCK_SKEW_S = 120;
+    const configuredClockSkew = this.config.clockSkew ?? 60;
+    if (configuredClockSkew > MAX_CLOCK_SKEW_S) {
+      logger.warn(
+        `SECURITY: SSO_ALLOWED_CLOCK_SKEW (${configuredClockSkew}s) exceeds maximum (${MAX_CLOCK_SKEW_S}s). ` +
+          `Capping at ${MAX_CLOCK_SKEW_S}s to limit replay attack window.`
+      );
+      this.config.clockSkew = MAX_CLOCK_SKEW_S;
+    }
+
     if (samlInstance) {
       this.saml = samlInstance;
     } else {
@@ -198,7 +211,7 @@ export class SamlProvider {
         callbackUrl: config.callbackUrl,
         signatureAlgorithm: this.config.signatureAlgorithm,
         wantAssertionsSigned: this.config.wantAssertionsSigned,
-        acceptedClockSkewMs: (this.config.clockSkew ?? 300) * 1000,
+        acceptedClockSkewMs: (this.config.clockSkew ?? 60) * 1000,
         // SP private key — only set if provided (signed AuthnRequests)
         ...(config.privateKey
           ? { privateKey: config.privateKey, decryptionPvk: config.privateKey }
@@ -207,12 +220,18 @@ export class SamlProvider {
       this.saml = new SAML(samlOptions);
     }
 
-    // Security warning: wantAssertionsSigned=false is dangerous in production
+    // Security warning: wantAssertionsSigned=false is dangerous in production.
+    // In non-development environments, escalate to error-level to ensure visibility.
     if (this.config.wantAssertionsSigned === false) {
-      logger.warn(
+      const isProduction = process.env['NODE_ENV'] === 'production';
+      const logFn = isProduction ? logger.error.bind(logger) : logger.warn.bind(logger);
+      logFn(
         'SECURITY WARNING: wantAssertionsSigned is set to false. ' +
           'SAML assertions will NOT be validated for signature. ' +
-          'This is only acceptable for development/testing environments.'
+          'This allows assertion forgery attacks. ' +
+          (isProduction
+            ? 'This MUST be corrected before serving production traffic.'
+            : 'This is only acceptable for development/testing environments.')
       );
     }
 
@@ -394,8 +413,7 @@ export class SamlProvider {
           return;
         }
 
-        const isAppRedirect =
-          redirectBase.startsWith('/') || redirectBase.startsWith('http');
+        const isAppRedirect = redirectBase.startsWith('/') || redirectBase.startsWith('http');
         if (isAppRedirect && redirectBase !== '/') {
           // Set token as httpOnly cookie (secure, SameSite=Lax)
           res.cookie('sso_token', token, {
