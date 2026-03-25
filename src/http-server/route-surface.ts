@@ -1,5 +1,9 @@
 import type { Express } from 'express';
 import type { HealthService } from '../server/health.js';
+import {
+  registerHttpSurfaceRoutes as registerPackagedHttpSurfaceRoutes,
+  type RegisterHttpSurfaceRoutesOptions as PackagedRegisterHttpSurfaceRoutesOptions,
+} from '../../packages/mcp-http/dist/route-surface.js';
 import { registerWellKnownHandlers } from '../server/well-known.js';
 import type { UserRateLimiter } from '../services/user-rate-limiter.js';
 import { logger as defaultLogger } from '../utils/logger.js';
@@ -17,19 +21,20 @@ interface HttpObservabilityOptions {
   };
 }
 
-export interface RegisterHttpSurfaceRoutesOptions {
-  readonly app: Express;
-  readonly corsOrigins: string[];
-  readonly rateLimitMax: number;
-  readonly legacySseEnabled: boolean;
-  readonly authenticationRequired: boolean;
-  readonly healthService: HealthService;
-  readonly observabilityOptions: HttpObservabilityOptions;
-  readonly host: string;
-  readonly port: number;
-  readonly getSessionCount: () => number;
-  readonly getUserRateLimiter: () => UserRateLimiter | null;
-  readonly sessions: Map<string, unknown>;
+export type RegisterHttpSurfaceRoutesOptions = Omit<
+  PackagedRegisterHttpSurfaceRoutesOptions<
+    Express,
+    HealthService,
+    UserRateLimiter,
+    HttpObservabilityOptions
+  >,
+  | 'registerWellKnownHandlers'
+  | 'registerHttpObservabilityRoutes'
+  | 'registerHttpWebhookRoutes'
+  | 'registerApiRoutes'
+  | 'registerHttpErrorHandler'
+  | 'registerHttpGraphQlAndAdmin'
+> & {
   readonly log?: typeof defaultLogger;
   readonly registerWellKnownHandlers?: typeof registerWellKnownHandlers;
   readonly registerHttpObservabilityRoutes?: typeof registerHttpObservabilityRoutes;
@@ -37,59 +42,29 @@ export interface RegisterHttpSurfaceRoutesOptions {
   readonly registerApiRoutes?: typeof registerApiRoutes;
   readonly registerHttpErrorHandler?: typeof registerHttpErrorHandler;
   readonly registerHttpGraphQlAndAdmin?: typeof registerHttpGraphQlAndAdmin;
-}
+};
 
 export function registerHttpSurfaceRoutes(options: RegisterHttpSurfaceRoutesOptions): void {
   const {
-    app,
-    corsOrigins,
-    rateLimitMax,
-    legacySseEnabled,
-    authenticationRequired,
-    healthService,
-    observabilityOptions,
-    host,
-    port,
-    getSessionCount,
-    getUserRateLimiter,
-    sessions,
-    log = defaultLogger,
     registerWellKnownHandlers: registerWellKnownHandlersImpl = registerWellKnownHandlers,
-    registerHttpObservabilityRoutes: registerHttpObservabilityRoutesImpl =
-      registerHttpObservabilityRoutes,
+    registerHttpObservabilityRoutes:
+      registerHttpObservabilityRoutesImpl = registerHttpObservabilityRoutes,
     registerHttpWebhookRoutes: registerHttpWebhookRoutesImpl = registerHttpWebhookRoutes,
     registerApiRoutes: registerApiRoutesImpl = registerApiRoutes,
     registerHttpErrorHandler: registerHttpErrorHandlerImpl = registerHttpErrorHandler,
     registerHttpGraphQlAndAdmin: registerHttpGraphQlAndAdminImpl = registerHttpGraphQlAndAdmin,
+    log = defaultLogger,
+    ...rest
   } = options;
 
-  registerWellKnownHandlersImpl(app, {
-    corsOrigins,
-    rateLimitMax,
-    legacySseEnabled,
-    authenticationRequired,
-  });
-
-  registerHttpObservabilityRoutesImpl({
-    app,
-    healthService,
-    options: observabilityOptions,
-    host,
-    port,
-    legacySseEnabled,
-    getSessionCount,
-    getUserRateLimiter,
-  });
-
-  registerHttpWebhookRoutesImpl(app);
-  registerApiRoutesImpl(app, {
-    samplingServer: null,
-  });
-  log.info('HTTP Server: =SERVAL() API enabled (POST /api/formula-eval)');
-
-  registerHttpErrorHandlerImpl(app, { log });
-  registerHttpGraphQlAndAdminImpl({
-    app,
-    sessions,
+  registerPackagedHttpSurfaceRoutes({
+    ...rest,
+    log,
+    registerWellKnownHandlers: registerWellKnownHandlersImpl,
+    registerHttpObservabilityRoutes: registerHttpObservabilityRoutesImpl,
+    registerHttpWebhookRoutes: registerHttpWebhookRoutesImpl,
+    registerApiRoutes: registerApiRoutesImpl,
+    registerHttpErrorHandler: registerHttpErrorHandlerImpl,
+    registerHttpGraphQlAndAdmin: registerHttpGraphQlAndAdminImpl,
   });
 }

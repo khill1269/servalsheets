@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { getEnv } from '../config/env.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { TaskStoreAdapter } from '../core/index.js';
-import type { HandlerContext, HandlerMcpServer } from '../handlers/index.js';
+import type { HandlerMcpServer } from '../handlers/index.js';
 import { createServerCapabilities, SERVER_INSTRUCTIONS } from '../mcp/features-2025-11-25.js';
 import { registerServalSheetsTools } from '../mcp/registration/tool-handlers.js';
 import { createTaskAwareSamplingServer } from '../mcp/sampling.js';
@@ -23,6 +23,10 @@ import { logger } from '../utils/logger.js';
 import { sendProgress } from '../utils/request-context.js';
 import { requestDeduplicator } from '../utils/request-deduplication.js';
 import { SERVER_INFO, SERVER_ICONS } from '../version.js';
+import {
+  createHttpMcpServerInstance as createPackagedHttpMcpServerInstance,
+  type HttpMcpServerInstance as PackagedHttpMcpServerInstance,
+} from '../../packages/mcp-http/dist/runtime-factory.js';
 import {
   registerHttpLoggingSetLevelHandler,
   type HttpLoggingSubscriber,
@@ -45,96 +49,51 @@ export interface CreateHttpMcpServerInstanceOptions {
 export async function createHttpMcpServerInstance(
   options: CreateHttpMcpServerInstanceOptions
 ): Promise<HttpMcpServerInstance> {
-  const { googleToken, googleRefreshToken, sessionId, subscribers, installLoggingBridge } =
-    options;
-
-  const { envConfig, costTrackingEnabled } = prepareRuntimePreflight({
-    loadEnv: getEnv,
-    validateToolCatalogConfiguration,
-  });
-
-  const { createTaskStore } = await import('../core/task-store-factory.js');
-  const taskStore = await createTaskStore();
-
-  const mcpServer = createBaseMcpServer({
+  return (await createPackagedHttpMcpServerInstance({
+    ...options,
+    prepareRuntimePreflight: () =>
+      prepareRuntimePreflight({
+        loadEnv: getEnv,
+        validateToolCatalogConfiguration,
+      }),
+    createTaskStore: async () => {
+      const { createTaskStore } = await import('../core/task-store-factory.js');
+      return await createTaskStore();
+    },
+    createServerCapabilities,
+    createBaseMcpServer,
     serverInfo: {
       name: SERVER_INFO.name,
       version: SERVER_INFO.version,
       icons: SERVER_ICONS,
     },
-    capabilities: createServerCapabilities(),
     instructions: SERVER_INSTRUCTIONS,
-    taskStore,
-  });
-  installInitializeCancellationGuard(mcpServer, {
-    onIgnoredCancellation: (requestId) => {
-      logger.warn('Ignoring cancellation for initialize request', {
-        requestId,
-        transport: 'http',
-      });
-    },
-  });
-
-  let handlers = null;
-  let googleClient = null;
-  let context: HandlerContext | null = null;
-
-  if (googleToken) {
-    const googleRuntime = await createTokenBackedInitializedGoogleHandlerBundle({
-      accessToken: googleToken,
-      refreshToken: googleRefreshToken,
-      onProgress: (event) => {
-        void sendProgress(event.current, event.total, event.message);
-      },
-      requestDeduplicator,
-      extraContext: {
-        ...(sessionId ? { sessionContext: await getOrCreateSessionContextAsync(sessionId) } : {}),
-        taskStore,
-        ...createHandlerRuntimeBridge({
-          server: mcpServer.server as HandlerMcpServer,
-          createSamplingServer: createTaskAwareSamplingServer,
-          costTrackingEnabled,
-          getCostTracker,
-        }),
-      },
-    });
-    googleClient = googleRuntime.googleClient;
-    context = googleRuntime.context;
-    handlers = googleRuntime.handlers;
-  }
-
-  initializeBillingIntegration(buildBillingBootstrapConfig(envConfig));
-
-  const toolRegistration = await registerServalSheetsTools(mcpServer, handlers, { googleClient });
-  registerServerPrompts(mcpServer);
-  await registerServerResources({
-    server: mcpServer,
-    googleClient,
-    context,
-    options: {
-      deferKnowledgeResources: false,
-      includeTimeTravelResources: false,
-      toolsListSyncReason: 'http transport resources initialized',
-    },
-  });
-
-  const loggingSubscriberId = sessionId ?? `http:${randomUUID()}`;
-  registerHttpLoggingSetLevelHandler({
-    server: mcpServer,
-    subscriberId: loggingSubscriberId,
-    subscribers,
-    installLoggingBridge,
+    getRawServer: (server) => server.server as HandlerMcpServer,
+    installInitializeCancellationGuard,
+    getOrCreateSessionContextAsync,
+    createHandlerRuntimeBridge,
+    createTaskAwareSamplingServer,
+    getCostTracker,
+    createTokenBackedInitializedGoogleHandlerBundle,
+    sendProgress,
+    requestDeduplicator,
+    buildBillingBootstrapConfig,
+    initializeBillingIntegration,
+    registerServalSheetsTools,
+    registerServerPrompts,
+    registerServerResources,
+    createRandomUUID: randomUUID,
+    registerHttpLoggingSetLevelHandler: (params) =>
+      registerHttpLoggingSetLevelHandler({
+        server: params.server,
+        subscriberId: params.subscriberId,
+        subscribers: params.subscribers,
+        installLoggingBridge: params.installLoggingBridge,
+        createRateLimitState: params.createRateLimitState,
+        log: logger,
+      }),
     createRateLimitState: createMcpLogRateLimitState,
+    teardownResourceNotifications,
     log: logger,
-  });
-
-  return {
-    mcpServer,
-    taskStore,
-    disposeRuntime: () => {
-      teardownResourceNotifications(mcpServer);
-      subscribers.delete(loggingSubscriberId);
-      toolRegistration.dispose();
-    },
-  };
+  })) as PackagedHttpMcpServerInstance<McpServer, TaskStoreAdapter>;
 }

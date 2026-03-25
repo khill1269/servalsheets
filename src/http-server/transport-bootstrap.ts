@@ -2,10 +2,11 @@ import type { Express } from 'express';
 import type { OAuthProvider } from '../auth/oauth-provider.js';
 import type { HttpLoggingBridge } from './logging-bridge.js';
 import { createHttpMcpServerInstance } from './runtime-factory.js';
+import { registerHttpTransportRoutes, type HttpTransportSession } from './routes-transport.js';
 import {
-  registerHttpTransportRoutes,
-  type HttpTransportSession,
-} from './routes-transport.js';
+  bootstrapHttpTransportSessions as bootstrapPackagedHttpTransportSessions,
+  type HttpTransportBootstrapResult as PackagedHttpTransportBootstrapResult,
+} from '../../packages/mcp-http/dist/transport-bootstrap.js';
 
 export interface BootstrapHttpTransportSessionsOptions {
   readonly app: Express;
@@ -33,53 +34,14 @@ export function bootstrapHttpTransportSessions(
   options: BootstrapHttpTransportSessionsOptions
 ): HttpTransportBootstrapResult {
   const {
-    app,
-    enableOAuth,
-    oauth,
-    legacySseEnabled,
-    host,
-    port,
-    eventStoreRedisUrl,
-    eventStoreTtlMs,
-    eventStoreMaxEvents,
-    sessionTimeoutMs,
-    loggingBridge,
     createHttpMcpServerInstance: createHttpMcpServerInstanceImpl = createHttpMcpServerInstance,
     registerHttpTransportRoutes: registerHttpTransportRoutesImpl = registerHttpTransportRoutes,
+    ...rest
   } = options;
 
-  const sessions = new Map<string, HttpTransportSession>();
-  const createMcpServerInstance = async (
-    googleToken?: string,
-    googleRefreshToken?: string,
-    sessionId?: string
-  ) =>
-    createHttpMcpServerInstanceImpl({
-      googleToken,
-      googleRefreshToken,
-      sessionId,
-      subscribers: loggingBridge.subscribers,
-      installLoggingBridge: loggingBridge.installLoggingBridge,
-    });
-
-  const { sessionCleanupInterval, cleanupSessions } = registerHttpTransportRoutesImpl({
-    app,
-    enableOAuth,
-    oauth,
-    legacySseEnabled,
-    host,
-    port,
-    eventStoreRedisUrl,
-    eventStoreTtlMs,
-    eventStoreMaxEvents,
-    sessionTimeoutMs,
-    sessions,
-    createMcpServerInstance,
-  });
-
-  return {
-    sessions,
-    sessionCleanupInterval,
-    cleanupSessions,
-  };
+  return bootstrapPackagedHttpTransportSessions({
+    ...rest,
+    createHttpMcpServerInstance: createHttpMcpServerInstanceImpl as never,
+    registerHttpTransportRoutes: registerHttpTransportRoutesImpl as never,
+  }) as PackagedHttpTransportBootstrapResult<HttpTransportSession>;
 }

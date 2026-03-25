@@ -10,12 +10,7 @@ import {
   type SamlProviderLike,
 } from '../../packages/mcp-http/dist/auth-providers.js';
 
-export type {
-  HttpAuthProvidersLogger,
-  HttpOAuthServerConfig,
-  OAuthProviderLike,
-  SamlProviderLike,
-};
+export type { HttpAuthProvidersLogger, HttpOAuthServerConfig, OAuthProviderLike, SamlProviderLike };
 
 interface RegisterHttpAuthProvidersOptionsBase {
   readonly app: Pick<Application, 'use'>;
@@ -37,9 +32,10 @@ export interface RegisterHttpAuthProvidersOptionsWithFactory<
   readonly createOAuthProvider: (config: HttpOAuthServerConfig) => TOAuthProvider;
 }
 
-export function registerHttpAuthProviders(
-  options: RegisterHttpAuthProvidersOptions
-): { oauth: OAuthProvider | null };
+/* eslint-disable no-redeclare */
+export function registerHttpAuthProviders(options: RegisterHttpAuthProvidersOptions): {
+  oauth: OAuthProvider | null;
+};
 export function registerHttpAuthProviders<TOAuthProvider extends OAuthProviderLike>(
   options: RegisterHttpAuthProvidersOptionsWithFactory<TOAuthProvider>
 ): { oauth: TOAuthProvider | null };
@@ -48,12 +44,12 @@ export function registerHttpAuthProviders<TOAuthProvider extends OAuthProviderLi
     | RegisterHttpAuthProvidersOptions
     | RegisterHttpAuthProvidersOptionsWithFactory<TOAuthProvider>
 ): { oauth: OAuthProvider | TOAuthProvider | null } {
+  /* eslint-enable no-redeclare */
   const createOAuthProvider =
     'createOAuthProvider' in options && options.createOAuthProvider
       ? options.createOAuthProvider
-      : ((
-          config: HttpOAuthServerConfig
-        ): OAuthProvider | TOAuthProvider => new OAuthProvider(config));
+      : (config: HttpOAuthServerConfig): OAuthProvider | TOAuthProvider =>
+          new OAuthProvider(config);
 
   return registerHttpAuthProvidersImpl<OAuthProvider | TOAuthProvider>({
     app: options.app,
