@@ -20,8 +20,10 @@ module.exports = {
       from: {
         pathNot: [
           // Known architectural cycles (tracked for future refactoring):
-          // metrics ↔ circuit-breaker: tightly coupled observability pair
-          '^src/services/(metrics|circuit-breaker)\\.ts$',
+          // metrics ↔ circuit-breaker-registry ↔ circuit-breaker: tightly coupled observability triad
+          '^src/observability/metrics\\.ts$',
+          '^src/services/circuit-breaker-registry\\.ts$',
+          '^src/utils/circuit-breaker\\.ts$',
           // compute-actions ↔ compute: submodule delegates back to parent handler
           '^src/handlers/compute(-actions/)?\\.ts$',
           '^src/handlers/compute-actions/',
