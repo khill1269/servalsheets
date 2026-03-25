@@ -27,7 +27,7 @@
       "cache": true
     },
     "test:fast": {
-      "dependsOn": [],
+      "dependsOn": ["build"],
       "outputs": [],
       "inputs": [
         "src/**/*.ts",

@@ -97,4 +97,22 @@ describe('@serval/mcp-runtime dispatch helpers', () => {
 
     expect(result).toBe('ok');
   });
+
+  it('falls back to the remote executor for prefer_local tools after a local failure', async () => {
+    const localExecute = vi.fn(async () => {
+      throw new Error('local failed');
+    });
+    const remoteExecute = vi.fn(async () => 'remote fallback');
+
+    const result = await dispatchToolCall({
+      toolName: 'sheets_compute',
+      transport: 'streamable-http',
+      localExecute,
+      remoteExecute,
+    });
+
+    expect(result).toBe('remote fallback');
+    expect(localExecute).toHaveBeenCalledTimes(1);
+    expect(remoteExecute).toHaveBeenCalledTimes(1);
+  });
 });

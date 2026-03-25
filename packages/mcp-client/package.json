@@ -1,8 +1,8 @@
 {
-  "name": "@serval/mcp-runtime",
+  "name": "@serval/mcp-client",
   "version": "2.0.0",
   "private": true,
-  "description": "Transport-agnostic MCP runtime helpers and routing policy for ServalSheets",
+  "description": "Outbound MCP client helpers for ServalSheets",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

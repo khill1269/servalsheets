@@ -1,8 +1,8 @@
 {
-  "name": "@serval/mcp-runtime",
+  "name": "@serval/mcp-stdio",
   "version": "2.0.0",
   "private": true,
-  "description": "Transport-agnostic MCP runtime helpers and routing policy for ServalSheets",
+  "description": "STDIO transport bootstrap helpers for ServalSheets MCP runtime",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -21,7 +21,8 @@
     "clean": "rm -rf dist .tsbuildinfo"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1"
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "p-queue": "^9.1.0"
   },
   "engines": {
     "node": ">=20.0.0"

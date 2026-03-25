@@ -38,15 +38,24 @@ export async function dispatchToolCall<T>({
   remoteExecute,
   policy,
 }: DispatchToolCallOptions<T>): Promise<T> {
+  const effectivePolicy = policy ?? getToolRoutePolicy(toolName);
   const target = resolveExecutionTarget({
     toolName,
     transport,
     hasRemoteExecutor: typeof remoteExecute === 'function',
-    policy,
+    policy: effectivePolicy,
   });
 
   if (target === 'remote') {
     return await remoteExecute!();
+  }
+
+  if (effectivePolicy.mode === 'prefer_local' && typeof remoteExecute === 'function') {
+    try {
+      return await localExecute();
+    } catch {
+      return await remoteExecute();
+    }
   }
 
   return await localExecute();

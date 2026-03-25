@@ -75,7 +75,8 @@ export function resolveHttpServerRuntimeConfig(
   const legacySseEnabled = envConfig.ENABLE_LEGACY_SSE;
   if (legacySseEnabled) {
     log.warn(
-      'Legacy SSE transport (/sse endpoint) is deprecated per MCP 2025-11-25. ' +
+      'Legacy SSE transport (/sse endpoint) is deprecated per MCP 2025-11-25 and ' +
+        'will be removed in v2.0.0 (target: 2026-Q3). ' +
         'Migrate clients to the Streamable HTTP transport at /mcp. ' +
         'Set ENABLE_LEGACY_SSE=false to suppress this warning.'
     );
