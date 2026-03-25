@@ -181,7 +181,7 @@ export function handleRecordOperation(
     tool: tool!,
     action: toolAction!,
     spreadsheetId: spreadsheetId!,
-    range: extractRangeA1Optional(range as any),
+    range: extractRangeA1Optional(range as Parameters<typeof extractRangeA1Optional>[0]),
     description: description!,
     undoable: undoable!,
     snapshotId,

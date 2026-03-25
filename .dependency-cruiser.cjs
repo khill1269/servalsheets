@@ -17,7 +17,18 @@ module.exports = {
       name: 'no-circular',
       severity: 'error',
       comment: 'Circular dependencies create tight coupling and maintenance issues',
-      from: {},
+      from: {
+        pathNot: [
+          // Known architectural cycles (tracked for future refactoring):
+          // metrics ↔ circuit-breaker: tightly coupled observability pair
+          '^src/services/(metrics|circuit-breaker)\\.ts$',
+          // compute-actions ↔ compute: submodule delegates back to parent handler
+          '^src/handlers/compute(-actions/)?\\.ts$',
+          '^src/handlers/compute-actions/',
+          // comprehensive ↔ phases/*: analysis orchestrator ↔ phase modules
+          '^src/analysis/(comprehensive|phases/)',
+        ],
+      },
       to: {
         circular: true,
       },
@@ -69,6 +80,7 @@ module.exports = {
           '^src/handlers/helpers/',
           '^src/handlers/[a-z-]+-actions/',
           '^src/handlers/dimensions-filter-helpers\\.ts$',
+          '^src/handlers/compute\\.ts$', // compute-actions/batch-custom-explain.ts delegates back to parent compute handler
         ],
       },
     },
@@ -97,6 +109,7 @@ module.exports = {
           '^src/(services|schemas|utils|types|config|observability|errors|constants|core|mcp|security|analysis|resources)',
           '^src/handlers/',
           '^src/connectors/', // handlers/connectors.ts + handlers/auth.ts import connectors layer (type imports + dynamic import)
+          '^src/startup/',    // auth-actions/feature-setup.ts imports startup/webhook-bootstrap for setup orchestration
         ],
       },
     },
@@ -122,14 +135,14 @@ module.exports = {
     {
       name: 'schemas-are-leaf-layer',
       severity: 'error',
-      comment: 'Schemas should be leaf nodes (only import utils, types, config, mcp/completions)',
+      comment: 'Schemas should be leaf nodes (only import utils, types, config, mcp/completions, generated)',
       from: {
         path: '^src/schemas',
       },
       to: {
         path: '^src/',
         pathNot: [
-          '^src/(schemas|utils|types|constants|config)',
+          '^src/(schemas|utils|types|constants|config|generated)',
           '^src/mcp/completions\\.ts$', // Allow importing TOOL_ACTIONS for completions
         ],
       },
