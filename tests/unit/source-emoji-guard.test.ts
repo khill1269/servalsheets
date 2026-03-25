@@ -49,6 +49,7 @@ const EMOJI_ALLOWLIST = new Set([
   'utils/range-helpers.ts',
   'utils/response-diff.ts',
   'utils/schema-compat.ts',
+  'analysis/phases/insights.ts',
 ]);
 
 function walkSource(dir: string): string[] {

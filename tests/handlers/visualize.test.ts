@@ -244,6 +244,29 @@ describe('VisualizeHandler', () => {
     });
 
     it('respects position.sheetId when anchorCell omits the sheet prefix', async () => {
+      mockApi.spreadsheets.get.mockResolvedValue({
+        data: {
+          spreadsheetId: 'test-spreadsheet-id',
+          properties: { title: 'Test Spreadsheet' },
+          sheets: [
+            {
+              properties: {
+                sheetId: 0,
+                title: 'Sheet1',
+                gridProperties: { rowCount: 1000, columnCount: 26 },
+              },
+            },
+            {
+              properties: {
+                sheetId: 88964099,
+                title: 'KPI Dashboard',
+                gridProperties: { rowCount: 1000, columnCount: 26 },
+              },
+            },
+          ],
+        },
+      });
+
       const result = await handler.handle({
         action: 'chart_create',
         spreadsheetId: 'test-spreadsheet-id',
@@ -279,6 +302,33 @@ describe('VisualizeHandler', () => {
           }),
         })
       );
+    });
+
+    it('rejects an out-of-bounds anchorCell before chart creation', async () => {
+      const result = await handler.handle({
+        action: 'chart_create',
+        spreadsheetId: 'test-spreadsheet-id',
+        sheetId: 0,
+        chartType: 'LINE',
+        data: {
+          sourceRange: { a1: 'Sheet1!A1:B10' },
+          categories: 0,
+          series: [{ column: 1 }],
+        },
+        position: { anchorCell: 'AA1' },
+      });
+
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('INVALID_PARAMS');
+        expect(result.response.error.message).toContain('outside the grid bounds');
+        expect(result.response.error.details).toMatchObject({
+          reasonCode: 'ANCHOR_OUT_OF_BOUNDS',
+          anchorCell: 'AA1',
+          suggestedAnchor: 'A1',
+        });
+      }
+      expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
 
     it('should create a COLUMN chart', async () => {

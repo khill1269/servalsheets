@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  SheetsConfirmInputSchema,
   SheetsAppsScriptInputSchema,
   SheetsCoreInputSchema,
   SheetsDataInputSchema,
@@ -168,6 +169,23 @@ describe('Claude-facing request normalization regressions', () => {
     expect(result.error.issues[0]?.message).toContain('ambiguous');
   });
 
+  it('accepts suggest_format sheetName compatibility input and scopes the range', () => {
+    const result = SheetsFormatInputSchema.safeParse({
+      request: {
+        action: 'suggest_format',
+        spreadsheetId: TEST_SPREADSHEET_ID,
+        sheetName: 'Revenue Data',
+      },
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      return;
+    }
+
+    expect(result.data.request.range).toEqual({ a1: "'Revenue Data'!A1:Z50" });
+  });
+
   it('normalizes single-range Google-style conditional format payloads', () => {
     const result = SheetsFormatInputSchema.safeParse({
       request: {
@@ -216,6 +234,37 @@ describe('Claude-facing request normalization regressions', () => {
         values: ['100'],
       },
     });
+  });
+
+  it('accepts wizard_start field type "string" as a compatibility alias for "text"', () => {
+    const result = SheetsConfirmInputSchema.safeParse({
+      request: {
+        action: 'wizard_start',
+        title: 'Import wizard',
+        description: 'Collect import settings',
+        steps: [
+          {
+            stepId: 'step-1',
+            title: 'Sheet',
+            description: 'Choose the destination sheet',
+            fields: [
+              {
+                name: 'sheetName',
+                label: 'Sheet name',
+                type: 'string',
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      return;
+    }
+
+    expect(result.data.request.steps[0]?.fields[0]?.type).toBe('text');
   });
 
   it('rejects multi-range Google-style conditional format payloads with a targeted message', () => {

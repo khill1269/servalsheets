@@ -11,7 +11,7 @@
  * without requiring actual Google API access.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -19,6 +19,58 @@ import {
   CallToolResultSchema,
   CreateMessageRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+
+const httpTransportHybridMocks = vi.hoisted(() => {
+  const remoteToolCall = vi.fn();
+  const getRemoteToolClient = vi.fn(async (toolName?: string) => {
+    const allowlist = (process.env['MCP_REMOTE_EXECUTOR_TOOLS'] ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    if (!process.env['MCP_REMOTE_EXECUTOR_URL'] || !toolName || !allowlist.includes(toolName)) {
+      return null;
+    }
+
+    return {
+      callRemoteTool: remoteToolCall,
+    };
+  });
+
+  return {
+    remoteToolCall,
+    getRemoteToolClient,
+    resetRemoteToolClient: vi.fn(async () => undefined),
+  };
+});
+
+vi.mock('../../src/services/remote-mcp-tool-client.js', () => ({
+  getRemoteToolClient: httpTransportHybridMocks.getRemoteToolClient,
+  resetRemoteToolClient: httpTransportHybridMocks.resetRemoteToolClient,
+}));
+
+vi.mock('../../src/handlers/compute.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/handlers/compute.js')>();
+
+  class MockComputeHandler extends actual.ComputeHandler {
+    override async handle(input: Parameters<actual.ComputeHandler['handle']>[0]) {
+      if (
+        input.request.action === 'evaluate' &&
+        input.request.formula === '=REMOTE_FAILOVER_SENTINEL()'
+      ) {
+        throw new Error('local compute failed');
+      }
+
+      return await super.handle(input);
+    }
+  }
+
+  return {
+    ...actual,
+    ComputeHandler: MockComputeHandler,
+  };
+});
+
 import { VERSION } from '../../src/version.js';
 import { createHttpServer, type HttpServerOptions } from '../../src/http-server.js';
 import { resourceNotifications } from '../../src/resources/notifications.js';
@@ -41,6 +93,15 @@ const canListenLocalhost = await new Promise<boolean>((resolve) => {
 
 const SKIP_HTTP_INTEGRATION =
   process.env['TEST_HTTP_INTEGRATION'] !== 'true' || !canListenLocalhost;
+
+afterEach(async () => {
+  httpTransportHybridMocks.remoteToolCall.mockReset();
+  httpTransportHybridMocks.getRemoteToolClient.mockClear();
+  httpTransportHybridMocks.resetRemoteToolClient.mockClear();
+  delete process.env['MCP_REMOTE_EXECUTOR_URL'];
+  delete process.env['MCP_REMOTE_EXECUTOR_TOOLS'];
+  await httpTransportHybridMocks.resetRemoteToolClient();
+});
 
 describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () => {
   let app: Express;
@@ -847,6 +908,72 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
           definition: expect.objectContaining({
             title: 'Generated Budget Planner',
           }),
+        });
+      } finally {
+        await sdkClient.close();
+      }
+    });
+
+    it('should fail over sheets_compute to the hosted executor over /mcp when the local path throws', async () => {
+      process.env['MCP_REMOTE_EXECUTOR_URL'] = 'https://example.com/mcp';
+      process.env['MCP_REMOTE_EXECUTOR_TOOLS'] = 'sheets_compute';
+      httpTransportHybridMocks.remoteToolCall.mockResolvedValue({
+        structuredContent: {
+          response: {
+            success: true,
+            action: 'evaluate',
+            source: 'remote',
+            value: 42,
+          },
+        },
+      });
+
+      const sdkClient = await createSdkHttpClient({
+        authToken: createJwtLikeBearerToken(getBaseUrl(), {
+          email: 'compute-failover@example.com',
+          sub: 'compute-failover-user',
+          nonce: 'compute-failover-nonce',
+        }),
+      });
+
+      try {
+        const result = await sdkClient.client.callTool({
+          name: 'sheets_compute',
+          arguments: {
+            request: {
+              action: 'evaluate',
+              spreadsheetId: 'spreadsheet-123',
+              formula: '=REMOTE_FAILOVER_SENTINEL()',
+            },
+          },
+        });
+
+        const structured = result.structuredContent as
+          | {
+              response?: {
+                success?: boolean;
+                action?: string;
+                source?: string;
+                value?: number;
+              };
+            }
+          | undefined;
+
+        expect(structured?.response).toMatchObject({
+          success: true,
+          action: 'evaluate',
+          source: 'remote',
+          value: 42,
+        });
+        expect(httpTransportHybridMocks.getRemoteToolClient).toHaveBeenCalledWith(
+          'sheets_compute'
+        );
+        expect(httpTransportHybridMocks.remoteToolCall).toHaveBeenCalledWith('sheets_compute', {
+          request: {
+            action: 'evaluate',
+            spreadsheetId: 'spreadsheet-123',
+            formula: '=REMOTE_FAILOVER_SENTINEL()',
+          },
         });
       } finally {
         await sdkClient.close();

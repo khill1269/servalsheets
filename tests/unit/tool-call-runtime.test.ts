@@ -1,5 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+const { getRemoteToolClient } = vi.hoisted(() => ({
+  getRemoteToolClient: vi.fn(),
+}));
+
+vi.mock('../../src/services/remote-mcp-tool-client.js', () => ({
+  getRemoteToolClient,
+}));
+
 import { createRequestContext } from '../../src/utils/request-context.js';
 import {
   executeToolCallRuntime,
@@ -33,6 +41,10 @@ function createInput(overrides: Partial<ToolCallRuntimeInput> = {}): ToolCallRun
 }
 
 describe('executeToolCallRuntime', () => {
+  beforeEach(() => {
+    getRemoteToolClient.mockReset();
+  });
+
   it('short-circuits when preflight returns a response', async () => {
     const startKeepalive = vi.fn();
     const recordSuccessful = vi.fn();
@@ -99,6 +111,416 @@ describe('executeToolCallRuntime', () => {
     expect(result.structuredContent).toMatchObject({
       response: {
         success: true,
+      },
+    });
+  });
+
+  it('routes runtime execution through the transport-aware router before local execution', async () => {
+    const keepalive = { stop: vi.fn() };
+    const recordSuccessful = vi.fn().mockResolvedValue(undefined);
+    const executeToolCall = vi.fn().mockResolvedValue({
+      response: {
+        success: true,
+        source: 'local',
+      },
+    });
+    const executeRoutedToolCall = vi.fn(async () => ({
+      response: {
+        success: true,
+        source: 'remote',
+      },
+    }));
+
+    const result = await executeToolCallRuntime(
+      createInput({
+        tool: {
+          name: 'sheets_federation',
+          outputSchema: z.object({}),
+        },
+        args: { request: { action: 'list_servers' } },
+      }),
+      {
+        resolvePreflight: vi.fn().mockResolvedValue({
+          kind: 'handler',
+          handler: vi.fn(),
+        }),
+        startKeepalive: vi.fn().mockReturnValue(keepalive),
+        executeToolCall,
+        executeRoutedToolCall,
+        recordSuccessful,
+      }
+    );
+
+    expect(executeRoutedToolCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'sheets_federation',
+        transport: 'streamable-http',
+      })
+    );
+    expect(executeToolCall).not.toHaveBeenCalled();
+    expect(recordSuccessful).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'sheets_federation',
+        action: 'list_servers',
+      })
+    );
+    expect(keepalive.stop).toHaveBeenCalledTimes(1);
+    expect(result.structuredContent).toMatchObject({
+      response: {
+        success: true,
+        source: 'remote',
+      },
+    });
+  });
+
+  it('falls back to the hosted executor for prefer_local tools after local failure', async () => {
+    getRemoteToolClient.mockResolvedValue({
+      callRemoteTool: vi.fn(async () => ({
+        structuredContent: {
+          response: {
+            success: true,
+            source: 'remote',
+          },
+        },
+      })),
+    });
+    const keepalive = { stop: vi.fn() };
+    const recordSuccessful = vi.fn().mockResolvedValue(undefined);
+    const executeToolCall = vi.fn(async () => {
+      throw new Error('local compute failed');
+    });
+
+    const result = await executeToolCallRuntime(
+      createInput({
+        tool: {
+          name: 'sheets_compute',
+          outputSchema: z.object({}),
+        },
+        args: { request: { action: 'evaluate' } },
+      }),
+      {
+        resolvePreflight: vi.fn().mockResolvedValue({
+          kind: 'handler',
+          handler: vi.fn(),
+        }),
+        startKeepalive: vi.fn().mockReturnValue(keepalive),
+        executeToolCall,
+        recordSuccessful,
+      }
+    );
+
+    expect(executeToolCall).toHaveBeenCalledTimes(1);
+    expect(getRemoteToolClient).toHaveBeenCalledWith('sheets_compute');
+    expect(recordSuccessful).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'sheets_compute',
+        action: 'evaluate',
+      })
+    );
+    expect(keepalive.stop).toHaveBeenCalledTimes(1);
+    expect(result.structuredContent).toMatchObject({
+      response: {
+        success: true,
+        source: 'remote',
+      },
+    });
+  });
+
+  it('falls back to the hosted executor for sheets_analyze after local failure', async () => {
+    getRemoteToolClient.mockResolvedValue({
+      callRemoteTool: vi.fn(async () => ({
+        structuredContent: {
+          response: {
+            success: true,
+            action: 'analyze_data',
+            source: 'remote',
+          },
+        },
+      })),
+    });
+    const keepalive = { stop: vi.fn() };
+    const recordSuccessful = vi.fn().mockResolvedValue(undefined);
+    const executeToolCall = vi.fn(async () => {
+      throw new Error('local analyze failed');
+    });
+
+    const result = await executeToolCallRuntime(
+      createInput({
+        tool: {
+          name: 'sheets_analyze',
+          outputSchema: z.object({}),
+        },
+        args: {
+          request: {
+            action: 'analyze_data',
+            spreadsheetId: 'spreadsheet-123',
+            analysisTypes: ['summary'],
+          },
+        },
+      }),
+      {
+        resolvePreflight: vi.fn().mockResolvedValue({
+          kind: 'handler',
+          handler: vi.fn(),
+        }),
+        startKeepalive: vi.fn().mockReturnValue(keepalive),
+        executeToolCall,
+        recordSuccessful,
+      }
+    );
+
+    expect(executeToolCall).toHaveBeenCalledTimes(1);
+    expect(getRemoteToolClient).toHaveBeenCalledWith('sheets_analyze');
+    expect(recordSuccessful).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'sheets_analyze',
+        action: 'analyze_data',
+      })
+    );
+    expect(keepalive.stop).toHaveBeenCalledTimes(1);
+    expect(result.structuredContent).toMatchObject({
+      response: {
+        success: true,
+        action: 'analyze_data',
+        source: 'remote',
+      },
+    });
+  });
+
+  it('falls back to the hosted executor for sheets_connectors after local failure', async () => {
+    getRemoteToolClient.mockResolvedValue({
+      callRemoteTool: vi.fn(async () => ({
+        structuredContent: {
+          response: {
+            success: true,
+            action: 'list_connectors',
+            source: 'remote',
+          },
+        },
+      })),
+    });
+    const keepalive = { stop: vi.fn() };
+    const recordSuccessful = vi.fn().mockResolvedValue(undefined);
+    const executeToolCall = vi.fn(async () => {
+      throw new Error('local connectors failed');
+    });
+
+    const result = await executeToolCallRuntime(
+      createInput({
+        tool: {
+          name: 'sheets_connectors',
+          outputSchema: z.object({}),
+        },
+        args: {
+          request: {
+            action: 'list_connectors',
+          },
+        },
+      }),
+      {
+        resolvePreflight: vi.fn().mockResolvedValue({
+          kind: 'handler',
+          handler: vi.fn(),
+        }),
+        startKeepalive: vi.fn().mockReturnValue(keepalive),
+        executeToolCall,
+        recordSuccessful,
+      }
+    );
+
+    expect(executeToolCall).toHaveBeenCalledTimes(1);
+    expect(getRemoteToolClient).toHaveBeenCalledWith('sheets_connectors');
+    expect(recordSuccessful).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'sheets_connectors',
+        action: 'list_connectors',
+      })
+    );
+    expect(keepalive.stop).toHaveBeenCalledTimes(1);
+    expect(result.structuredContent).toMatchObject({
+      response: {
+        success: true,
+        action: 'list_connectors',
+        source: 'remote',
+      },
+    });
+  });
+
+  it('falls back to the hosted executor for sheets_agent after local failure', async () => {
+    getRemoteToolClient.mockResolvedValue({
+      callRemoteTool: vi.fn(async () => ({
+        structuredContent: {
+          response: {
+            success: true,
+            action: 'list_plans',
+            source: 'remote',
+          },
+        },
+      })),
+    });
+    const keepalive = { stop: vi.fn() };
+    const recordSuccessful = vi.fn().mockResolvedValue(undefined);
+    const executeToolCall = vi.fn(async () => {
+      throw new Error('local agent failed');
+    });
+
+    const result = await executeToolCallRuntime(
+      createInput({
+        tool: {
+          name: 'sheets_agent',
+          outputSchema: z.object({}),
+        },
+        args: {
+          request: {
+            action: 'list_plans',
+          },
+        },
+      }),
+      {
+        resolvePreflight: vi.fn().mockResolvedValue({
+          kind: 'handler',
+          handler: vi.fn(),
+        }),
+        startKeepalive: vi.fn().mockReturnValue(keepalive),
+        executeToolCall,
+        recordSuccessful,
+      }
+    );
+
+    expect(executeToolCall).toHaveBeenCalledTimes(1);
+    expect(getRemoteToolClient).toHaveBeenCalledWith('sheets_agent');
+    expect(recordSuccessful).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'sheets_agent',
+        action: 'list_plans',
+      })
+    );
+    expect(keepalive.stop).toHaveBeenCalledTimes(1);
+    expect(result.structuredContent).toMatchObject({
+      response: {
+        success: true,
+        action: 'list_plans',
+        source: 'remote',
+      },
+    });
+  });
+
+  it('falls back to the hosted executor for sheets_bigquery after local failure', async () => {
+    getRemoteToolClient.mockResolvedValue({
+      callRemoteTool: vi.fn(async () => ({
+        structuredContent: {
+          response: {
+            success: true,
+            action: 'list_connections',
+            source: 'remote',
+          },
+        },
+      })),
+    });
+    const keepalive = { stop: vi.fn() };
+    const recordSuccessful = vi.fn().mockResolvedValue(undefined);
+    const executeToolCall = vi.fn(async () => {
+      throw new Error('local bigquery failed');
+    });
+
+    const result = await executeToolCallRuntime(
+      createInput({
+        tool: {
+          name: 'sheets_bigquery',
+          outputSchema: z.object({}),
+        },
+        args: {
+          request: {
+            action: 'list_connections',
+            spreadsheetId: 'spreadsheet-123',
+          },
+        },
+      }),
+      {
+        resolvePreflight: vi.fn().mockResolvedValue({
+          kind: 'handler',
+          handler: vi.fn(),
+        }),
+        startKeepalive: vi.fn().mockReturnValue(keepalive),
+        executeToolCall,
+        recordSuccessful,
+      }
+    );
+
+    expect(executeToolCall).toHaveBeenCalledTimes(1);
+    expect(getRemoteToolClient).toHaveBeenCalledWith('sheets_bigquery');
+    expect(recordSuccessful).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'sheets_bigquery',
+        action: 'list_connections',
+      })
+    );
+    expect(keepalive.stop).toHaveBeenCalledTimes(1);
+    expect(result.structuredContent).toMatchObject({
+      response: {
+        success: true,
+        action: 'list_connections',
+        source: 'remote',
+      },
+    });
+  });
+
+  it('falls back to the hosted executor for sheets_appsscript after local failure', async () => {
+    getRemoteToolClient.mockResolvedValue({
+      callRemoteTool: vi.fn(async () => ({
+        structuredContent: {
+          response: {
+            success: true,
+            action: 'get',
+            source: 'remote',
+          },
+        },
+      })),
+    });
+    const keepalive = { stop: vi.fn() };
+    const recordSuccessful = vi.fn().mockResolvedValue(undefined);
+    const executeToolCall = vi.fn(async () => {
+      throw new Error('local appsscript failed');
+    });
+
+    const result = await executeToolCallRuntime(
+      createInput({
+        tool: {
+          name: 'sheets_appsscript',
+          outputSchema: z.object({}),
+        },
+        args: {
+          request: {
+            action: 'get',
+            spreadsheetId: 'spreadsheet-123',
+          },
+        },
+      }),
+      {
+        resolvePreflight: vi.fn().mockResolvedValue({
+          kind: 'handler',
+          handler: vi.fn(),
+        }),
+        startKeepalive: vi.fn().mockReturnValue(keepalive),
+        executeToolCall,
+        recordSuccessful,
+      }
+    );
+
+    expect(executeToolCall).toHaveBeenCalledTimes(1);
+    expect(getRemoteToolClient).toHaveBeenCalledWith('sheets_appsscript');
+    expect(recordSuccessful).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'sheets_appsscript',
+        action: 'get',
+      })
+    );
+    expect(keepalive.stop).toHaveBeenCalledTimes(1);
+    expect(result.structuredContent).toMatchObject({
+      response: {
+        success: true,
+        action: 'get',
+        source: 'remote',
       },
     });
   });

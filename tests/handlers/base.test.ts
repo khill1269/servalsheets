@@ -967,5 +967,39 @@ describe('BaseHandler', () => {
       expect(metadataCache.getSheetId).toHaveBeenCalledWith('sheet-cached', 'CachedSheet');
       expect(mockSheetsApi.spreadsheets.get).not.toHaveBeenCalled();
     });
+
+    it('should prefer sheetResolver for sheet name resolution when available', async () => {
+      const resolve = vi.fn().mockResolvedValue({
+        sheet: {
+          sheetId: 789,
+          title: 'Resolved Sheet',
+          index: 0,
+          hidden: false,
+          gridProperties: { rowCount: 1000, columnCount: 26 },
+        },
+        method: 'exact_name',
+        confidence: 1,
+      });
+      context.sheetResolver = { resolve } as any;
+      handler = new TestHandler('test-tool', context);
+
+      const mockSheetsApi = {
+        spreadsheets: {
+          get: vi.fn(),
+        },
+      };
+
+      const sheetId = await handler.testGetSheetId(
+        'sheet-resolver-test',
+        'Resolved Sheet',
+        mockSheetsApi as any
+      );
+
+      expect(sheetId).toBe(789);
+      expect(resolve).toHaveBeenCalledWith('sheet-resolver-test', {
+        sheetName: 'Resolved Sheet',
+      });
+      expect(mockSheetsApi.spreadsheets.get).not.toHaveBeenCalled();
+    });
   });
 });

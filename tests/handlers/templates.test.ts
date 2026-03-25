@@ -197,6 +197,15 @@ describe('SheetsTemplatesHandler', () => {
       expect(result.response.success).toBe(true);
       if (result.response.success && 'builtinCount' in result.response) {
         expect(result.response.builtinCount).toBeGreaterThanOrEqual(0);
+        expect(
+          result.response.templates?.filter((template) => template.id.startsWith('builtin:'))
+        ).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              builtinName: expect.any(String),
+            }),
+          ])
+        );
       }
     });
 

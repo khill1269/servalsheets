@@ -272,10 +272,19 @@ describe('AdvancedHandler', () => {
                 range: { sheetId: 0 },
                 warningOnly: false,
                 requestingUserCanEdit: true,
+                unprotectedRanges: [
+                  {
+                    sheetId: 0,
+                    startRowIndex: 1,
+                    endRowIndex: 2,
+                    startColumnIndex: 0,
+                    endColumnIndex: 1,
+                  },
+                ],
               },
               {
                 protectedRangeId: 2,
-                range: { sheetId: 0 },
+                namedRangeId: 'nr-1',
                 warningOnly: true,
                 requestingUserCanEdit: false,
               },
@@ -295,6 +304,29 @@ describe('AdvancedHandler', () => {
     expect(result.response.success).toBe(true);
     if (result.response.success) {
       expect(result.response.protectedRanges?.length).toBe(2);
+      expect(result.response.protectedRanges?.[0]).toEqual(
+        expect.objectContaining({
+          scope: 'sheet',
+          sheetId: 0,
+          sheetTitle: 'Sheet1',
+          unprotectedRanges: [
+            expect.objectContaining({
+              sheetId: 0,
+              startRowIndex: 1,
+              endRowIndex: 2,
+              startColumnIndex: 0,
+              endColumnIndex: 1,
+            }),
+          ],
+        })
+      );
+      expect(result.response.protectedRanges?.[1]).toEqual(
+        expect.objectContaining({
+          scope: 'named_range',
+          namedRangeId: 'nr-1',
+          range: undefined,
+        })
+      );
     }
   });
 
@@ -588,6 +620,7 @@ describe('AdvancedHandler', () => {
             },
             bandedRanges: [
               {
+                bandedRangeId: 42,
                 range: {
                   sheetId: 0,
                   startRowIndex: 0,
@@ -612,6 +645,10 @@ describe('AdvancedHandler', () => {
     if (!result.response.success) {
       expect(result.response.error.code).toBe('FAILED_PRECONDITION');
       expect(result.response.error.message).toContain('banded range');
+      expect(result.response.error.details).toMatchObject({
+        reasonCode: 'BANDING_CONFLICT',
+        bandedRangeId: 42,
+      });
     }
     expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
   });

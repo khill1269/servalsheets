@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { FixHandler } from '../../src/handlers/fix.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4 } from 'googleapis';
+import { BUILT_IN_RULES } from '../../src/services/cleaning-engine-rules.js';
 import {
   createRequestContext,
   runWithRequestContext,
@@ -299,6 +300,41 @@ describe('FixHandler (F3 Data Cleaning)', () => {
 
       const response = await handler.handle(input);
       expect(response.response.success).toBe(true);
+    });
+
+    it('should not suggest phone or number cleaning for ISO date columns', async () => {
+      (mockSheetsApi.spreadsheets?.values?.get as any).mockResolvedValue({
+        data: {
+          values: [
+            ['Order Date', 'Customer'],
+            ['2024-01-15', 'Alice'],
+            ['2024-02-20', 'Bob'],
+            ['2024-03-11', 'Charlie'],
+          ],
+        },
+      });
+
+      const response = await handler.handle({
+        action: 'suggest_cleaning',
+        spreadsheetId: 'test-spreadsheet-id',
+        range: { a1: 'Sheet1!A1:B4' },
+      });
+
+      expect(response.response.success).toBe(true);
+      if (response.response.success) {
+        const suggestedRules =
+          response.response.recommendations?.map((item) => item.suggestedRule) ?? [];
+        expect(suggestedRules).not.toContain('fix_phones');
+        expect(suggestedRules).not.toContain('fix_numbers');
+      }
+    });
+  });
+
+  describe('fix_names acronym protection', () => {
+    it('should preserve common business acronyms', () => {
+      expect(BUILT_IN_RULES.fix_names.detect('SMB')).toBe(false);
+      expect(BUILT_IN_RULES.fix_names.fix('api integration')).toBe('API Integration');
+      expect(BUILT_IN_RULES.fix_names.fix('CEO dashboard')).toBe('CEO Dashboard');
     });
   });
 

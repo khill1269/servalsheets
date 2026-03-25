@@ -16,6 +16,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { TransactionManager } from '../../src/services/transaction-manager.js';
 import type { TransactionConfig } from '../../src/types/transaction.js';
+import { ApiTimeoutError } from '../../src/core/errors.js';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -194,6 +195,34 @@ describe('TransactionManager', () => {
       expect(transaction.operations[0]!.order).toBe(0);
       expect(transaction.operations[1]!.id).toBe(opId2);
       expect(transaction.operations[1]!.order).toBe(1);
+    });
+
+    it('should prepare supported batch entries at queue time and reuse them during commit', async () => {
+      const txnId = await transactionManager.begin('test-sheet-123');
+      const convertSpy = vi.spyOn(transactionManager as any, 'operationToBatchEntries');
+      const lookupSpy = vi.spyOn(transactionManager as any, 'buildSheetLookupContext');
+
+      await transactionManager.queue(txnId, {
+        type: 'values_write',
+        tool: 'sheets_data',
+        action: 'write',
+        params: { range: 'A1', values: [[1]] },
+      });
+
+      expect(lookupSpy).toHaveBeenCalledWith('test-sheet-123');
+      expect(convertSpy).toHaveBeenCalledTimes(1);
+
+      mockGoogleClient.sheets.spreadsheets.batchUpdate.mockResolvedValue({
+        data: {
+          spreadsheetId: 'test-sheet-123',
+          replies: [{ updateCells: {} }],
+        },
+      });
+
+      const result = await transactionManager.commit(txnId);
+
+      expect(result.success).toBe(true);
+      expect(convertSpy).toHaveBeenCalledTimes(1);
     });
 
     it('should commit transaction successfully', async () => {
@@ -776,6 +805,48 @@ describe('TransactionManager', () => {
       // Verify stats
       const stats = transactionManager.getStats();
       expect(stats.failedTransactions).toBeGreaterThan(0);
+    });
+
+    it('should fail commit with DEADLINE_EXCEEDED when batchUpdate exceeds timeout', async () => {
+      const timeoutManager = new TransactionManager({
+        enabled: true,
+        autoSnapshot: false,
+        autoRollback: false,
+        transactionTimeoutMs: 25,
+        googleClient: mockGoogleClient,
+      });
+      const txnId = await timeoutManager.begin('test-sheet-123');
+
+      await timeoutManager.queue(txnId, {
+        type: 'values_write',
+        tool: 'sheets_data',
+        action: 'write',
+        params: { range: 'A1', values: [[1]] },
+      });
+
+      mockGoogleClient.sheets.spreadsheets.batchUpdate.mockImplementation(
+        ({ signal }: { signal?: AbortSignal }) =>
+          new Promise((_, reject) => {
+            signal?.addEventListener(
+              'abort',
+              () => {
+                const error = new Error('The operation was aborted');
+                error.name = 'AbortError';
+                reject(error);
+              },
+              { once: true }
+            );
+          })
+      );
+
+      const result = await timeoutManager.commit(txnId);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBeInstanceOf(ApiTimeoutError);
+      expect(result.error?.message).toContain('Transaction commit timed out after 25ms');
+
+      const batchCall = mockGoogleClient.sheets.spreadsheets.batchUpdate.mock.calls.at(-1)?.[0];
+      expect(batchCall.signal).toBeDefined();
     });
   });
 

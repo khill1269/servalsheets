@@ -87,7 +87,15 @@ describe('Category 3: Formatting & Visual Presentation', () => {
 
     mockApi.spreadsheets.get.mockResolvedValue({
       data: {
-        sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
+        sheets: [
+          {
+            properties: {
+              sheetId: 0,
+              title: 'Sheet1',
+              gridProperties: { rowCount: 1000, columnCount: 26 },
+            },
+          },
+        ],
       },
     });
   });

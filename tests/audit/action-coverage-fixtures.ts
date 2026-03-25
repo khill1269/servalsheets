@@ -137,7 +137,12 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId'],
     },
     cross_read: {
-      validInput: { sources: [{ spreadsheetId: 'id1', range: 'Sheet1!A1:D10' }, { spreadsheetId: 'id2', range: 'Sheet1!A1:D10' }] },
+      validInput: {
+        sources: [
+          { spreadsheetId: 'id1', range: 'Sheet1!A1:D10' },
+          { spreadsheetId: 'id2', range: 'Sheet1!A1:D10' },
+        ],
+      },
       requiredFields: ['sources'],
     },
     cross_query: {
@@ -145,16 +150,18 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['sources', 'query'],
     },
     cross_write: {
-      validInput: { source: { spreadsheetId: 'id1', range: 'Sheet1!A1:D10' }, destination: { spreadsheetId: 'id2', range: 'Sheet1!A1' } },
+      validInput: {
+        source: { spreadsheetId: 'id1', range: 'Sheet1!A1:D10' },
+        destination: { spreadsheetId: 'id2', range: 'Sheet1!A1' },
+      },
       requiredFields: ['source', 'destination'],
     },
     cross_compare: {
-      validInput: { source1: { spreadsheetId: 'id1', range: 'Sheet1!A1:D10' }, source2: { spreadsheetId: 'id2', range: 'Sheet1!A1:D10' } },
+      validInput: {
+        source1: { spreadsheetId: 'id1', range: 'Sheet1!A1:D10' },
+        source2: { spreadsheetId: 'id2', range: 'Sheet1!A1:D10' },
+      },
       requiredFields: ['source1', 'source2'],
-    },
-    smart_fill: {
-      validInput: { sourceRange: 'Sheet1!A1:A5', fillRange: 'Sheet1!A6:A20' },
-      requiredFields: ['spreadsheetId', 'sourceRange', 'fillRange'],
     },
     auto_fill: {
       validInput: { sourceRange: 'Sheet1!A1:A5', fillRange: 'Sheet1!A6:A20' },
@@ -277,11 +284,27 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId'],
     },
     rule_add_conditional_format: {
-      validInput: { sheetId: 0, range: 'Sheet1!A1:A10', rule: { type: 'boolean', condition: { type: 'CUSTOM_FORMULA', values: ['=TRUE'] }, format: { backgroundColor: { red: 1 } } } },
+      validInput: {
+        sheetId: 0,
+        range: 'Sheet1!A1:A10',
+        rule: {
+          type: 'boolean',
+          condition: { type: 'CUSTOM_FORMULA', values: ['=TRUE'] },
+          format: { backgroundColor: { red: 1 } },
+        },
+      },
       requiredFields: ['spreadsheetId', 'sheetId', 'range', 'rule'],
     },
     rule_update_conditional_format: {
-      validInput: { sheetId: 0, ruleIndex: 0, rule: { type: 'boolean', condition: { type: 'CUSTOM_FORMULA', values: ['=TRUE'] }, format: { backgroundColor: { red: 1 } } } },
+      validInput: {
+        sheetId: 0,
+        ruleIndex: 0,
+        rule: {
+          type: 'boolean',
+          condition: { type: 'CUSTOM_FORMULA', values: ['=TRUE'] },
+          format: { backgroundColor: { red: 1 } },
+        },
+      },
       requiredFields: ['spreadsheetId', 'sheetId', 'ruleIndex', 'rule'],
     },
     rule_delete_conditional_format: {
@@ -293,7 +316,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'sheetId'],
     },
     set_data_validation: {
-      validInput: { range: 'Sheet1!A1:A10', condition: { type: 'ONE_OF_LIST', values: ['A', 'B'] } },
+      validInput: {
+        range: 'Sheet1!A1:A10',
+        condition: { type: 'ONE_OF_LIST', values: ['A', 'B'] },
+      },
       requiredFields: ['spreadsheetId', 'range', 'condition'],
     },
     clear_data_validation: {
@@ -309,7 +335,9 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'sheetId', 'range', 'rulePreset'],
     },
     batch_format: {
-      validInput: { operations: [{ type: 'text_format', range: 'A1:B2', textFormat: { bold: true } }] },
+      validInput: {
+        operations: [{ type: 'text_format', range: 'A1:B2', textFormat: { bold: true } }],
+      },
       requiredFields: ['spreadsheetId', 'operations'],
     },
     set_rich_text: {
@@ -321,7 +349,11 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'sheetId', 'range', 'description'],
     },
     build_dependent_dropdown: {
-      validInput: { parentRange: 'Sheet1!A2:A100', dependentRange: 'Sheet1!B2:B100', lookupSheet: 'Lookup' },
+      validInput: {
+        parentRange: 'Sheet1!A2:A100',
+        dependentRange: 'Sheet1!B2:B100',
+        lookupSheet: 'Lookup',
+      },
       requiredFields: ['spreadsheetId', 'parentRange', 'dependentRange', 'lookupSheet'],
     },
   },
@@ -336,12 +368,32 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'sheetId', 'dimension', 'startIndex', 'endIndex'],
     },
     move: {
-      validInput: { sheetId: 0, dimension: 'ROWS', startIndex: 0, endIndex: 5, destinationIndex: 10 },
-      requiredFields: ['spreadsheetId', 'sheetId', 'dimension', 'startIndex', 'endIndex', 'destinationIndex'],
+      validInput: {
+        sheetId: 0,
+        dimension: 'ROWS',
+        startIndex: 0,
+        endIndex: 5,
+        destinationIndex: 10,
+      },
+      requiredFields: [
+        'spreadsheetId',
+        'sheetId',
+        'dimension',
+        'startIndex',
+        'endIndex',
+        'destinationIndex',
+      ],
     },
     resize: {
       validInput: { sheetId: 0, dimension: 'COLUMNS', startIndex: 0, endIndex: 1, pixelSize: 120 },
-      requiredFields: ['spreadsheetId', 'sheetId', 'dimension', 'startIndex', 'endIndex', 'pixelSize'],
+      requiredFields: [
+        'spreadsheetId',
+        'sheetId',
+        'dimension',
+        'startIndex',
+        'endIndex',
+        'pixelSize',
+      ],
     },
     auto_resize: {
       validInput: { sheetId: 0, dimension: 'COLUMNS' },
@@ -431,7 +483,12 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'filterViewId'],
     },
     create_slicer: {
-      validInput: { sheetId: 0, dataRange: 'Sheet1!A1:D10', filterColumn: 0, position: { anchorCell: 'P1', width: 200, height: 150 } },
+      validInput: {
+        sheetId: 0,
+        dataRange: 'Sheet1!A1:D10',
+        filterColumn: 0,
+        position: { anchorCell: 'P1', width: 200, height: 150 },
+      },
       requiredFields: ['spreadsheetId', 'sheetId', 'dataRange', 'filterColumn', 'position'],
     },
     update_slicer: {
@@ -445,15 +502,16 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     list_slicers: {
       requiredFields: ['spreadsheetId'],
     },
-    delete_duplicates: {
-      validInput: { range: 'Sheet1!A1:D100' },
-      requiredFields: ['spreadsheetId', 'range'],
-    },
   },
 
   sheets_visualize: {
     chart_create: {
-      validInput: { sheetId: 0, chartType: 'BAR', data: { sourceRange: 'Sheet1!A1:D10' }, position: { overlayPosition: { anchorCell: { sheetId: 0, rowIndex: 0, columnIndex: 4 } } } },
+      validInput: {
+        sheetId: 0,
+        chartType: 'BAR',
+        data: { sourceRange: 'Sheet1!A1:D10' },
+        position: { overlayPosition: { anchorCell: { sheetId: 0, rowIndex: 0, columnIndex: 4 } } },
+      },
       requiredFields: ['spreadsheetId', 'sheetId', 'chartType', 'data', 'position'],
     },
     suggest_chart: {
@@ -474,7 +532,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'chartId'],
     },
     chart_move: {
-      validInput: { chartId: 1, position: { overlayPosition: { anchorCell: { sheetId: 0, rowIndex: 0, columnIndex: 4 } } } },
+      validInput: {
+        chartId: 1,
+        position: { overlayPosition: { anchorCell: { sheetId: 0, rowIndex: 0, columnIndex: 4 } } },
+      },
       requiredFields: ['spreadsheetId', 'chartId', 'position'],
     },
     chart_resize: {
@@ -494,7 +555,11 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'chartId'],
     },
     pivot_create: {
-      validInput: { sourceRange: 'Sheet1!A1:D10', rows: [{ sourceColumnOffset: 0 }], values: [{ sourceColumnOffset: 1, summarizeFunction: 'SUM' }] },
+      validInput: {
+        sourceRange: 'Sheet1!A1:D10',
+        rows: [{ sourceColumnOffset: 0 }],
+        values: [{ sourceColumnOffset: 1, summarizeFunction: 'SUM' }],
+      },
       requiredFields: ['spreadsheetId', 'sourceRange', 'values'],
     },
     suggest_pivot: {
@@ -796,7 +861,14 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     get_active: { requiredFields: [] },
     get_context: { requiredFields: [] },
     record_operation: {
-      validInput: { tool: 'sheets_data', toolAction: 'read', spreadsheetId: 'test-id', description: 'test op', undoable: true, cellsAffected: 5 },
+      validInput: {
+        tool: 'sheets_data',
+        toolAction: 'read',
+        spreadsheetId: 'test-id',
+        description: 'test op',
+        undoable: true,
+        cellsAffected: 5,
+      },
       requiredFields: ['tool', 'toolAction', 'spreadsheetId', 'description', 'undoable'],
     },
     get_last_operation: { requiredFields: [] },
@@ -852,7 +924,16 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     },
     get_top_formulas: { requiredFields: [] },
     execute_pipeline: {
-      validInput: { steps: [{ id: 'step1', tool: 'sheets_data', action: 'read', params: { spreadsheetId: 'test-id', range: 'A1:B10' } }] },
+      validInput: {
+        steps: [
+          {
+            id: 'step1',
+            tool: 'sheets_data',
+            action: 'read',
+            params: { spreadsheetId: 'test-id', range: 'A1:B10' },
+          },
+        ],
+      },
       requiredFields: ['steps'],
     },
     schedule_create: {
@@ -889,7 +970,14 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId'],
     },
     queue: {
-      validInput: { transactionId: 'tx1', operation: { tool: 'sheets_data', action: 'write', params: { range: 'A1:B2', values: [['a', 'b']] } } },
+      validInput: {
+        transactionId: 'tx1',
+        operation: {
+          tool: 'sheets_data',
+          action: 'write',
+          params: { range: 'A1:B2', values: [['a', 'b']] },
+        },
+      },
       requiredFields: ['transactionId', 'operation'],
     },
     commit: {
@@ -961,12 +1049,23 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
 
   sheets_confirm: {
     request: {
-      validInput: { plan: { title: 'Op', description: 'Op plan', steps: [{ stepNumber: 1, description: 'Step 1', tool: 'sheets_data', action: 'write' }] }, undoable: true },
+      validInput: {
+        plan: {
+          title: 'Op',
+          description: 'Op plan',
+          steps: [{ stepNumber: 1, description: 'Step 1', tool: 'sheets_data', action: 'write' }],
+        },
+        undoable: true,
+      },
       requiredFields: ['plan', 'undoable'],
     },
     get_stats: { requiredFields: [] },
     wizard_start: {
-      validInput: { title: 'Setup Wizard', description: 'Complete wizard setup', steps: [{ stepId: 's1', title: 'Step 1', description: 'First step', fields: [] }] },
+      validInput: {
+        title: 'Setup Wizard',
+        description: 'Complete wizard setup',
+        steps: [{ stepId: 's1', title: 'Step 1', description: 'First step', fields: [] }],
+      },
       requiredFields: ['title', 'description', 'steps'],
     },
     wizard_step: {
@@ -989,7 +1088,11 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'range'],
     },
     standardize_formats: {
-      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D100', columns: [{ column: 'A', targetFormat: 'iso_date' }] },
+      validInput: {
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:D100',
+        columns: [{ column: 'A', targetFormat: 'iso_date' }],
+      },
       requiredFields: ['spreadsheetId', 'range', 'columns'],
     },
     fill_missing: {
@@ -1060,7 +1163,21 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId'],
     },
     execute_plan: {
-      validInput: { spreadsheetId: 'test-id', plan: { steps: [{ order: 1, type: 'quality', priority: 'high', reason: 'test', outputs: ['output'], estimatedDuration: '5m' }] } },
+      validInput: {
+        spreadsheetId: 'test-id',
+        plan: {
+          steps: [
+            {
+              order: 1,
+              type: 'quality',
+              priority: 'high',
+              reason: 'test',
+              outputs: ['output'],
+              estimatedDuration: '5m',
+            },
+          ],
+        },
+      },
       requiredFields: ['spreadsheetId', 'plan'],
     },
     drill_down: {
@@ -1121,7 +1238,12 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'sheet', 'data'],
     },
     bulk_update: {
-      validInput: { spreadsheetId: 'test-id', sheet: 'Sheet1', keyColumn: 'id', updates: [{ id: '1', name: 'test' }] },
+      validInput: {
+        spreadsheetId: 'test-id',
+        sheet: 'Sheet1',
+        keyColumn: 'id',
+        updates: [{ id: '1', name: 'test' }],
+      },
       requiredFields: ['spreadsheetId', 'sheet', 'keyColumn', 'updates'],
     },
     deduplicate: {
@@ -1175,7 +1297,11 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId'],
     },
     data_pipeline: {
-      validInput: { spreadsheetId: 'test-id', sourceRange: 'Sheet1!A1:D100', steps: [{ type: 'filter', config: { column: 'A', operator: 'equals', value: 'x' } }] },
+      validInput: {
+        spreadsheetId: 'test-id',
+        sourceRange: 'Sheet1!A1:D100',
+        steps: [{ type: 'filter', config: { column: 'A', operator: 'equals', value: 'x' } }],
+      },
       requiredFields: ['spreadsheetId', 'sourceRange', 'steps'],
     },
     instantiate_template: {
@@ -1183,11 +1309,26 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['templateId', 'variables'],
     },
     migrate_spreadsheet: {
-      validInput: { sourceSpreadsheetId: 'src-id', sourceRange: 'Sheet1!A1:D100', destinationSpreadsheetId: 'dest-id', destinationRange: 'Sheet1!A1', columnMapping: [{ sourceColumn: 'Name', destinationColumn: 'Name' }] },
-      requiredFields: ['sourceSpreadsheetId', 'sourceRange', 'destinationSpreadsheetId', 'destinationRange', 'columnMapping'],
+      validInput: {
+        sourceSpreadsheetId: 'src-id',
+        sourceRange: 'Sheet1!A1:D100',
+        destinationSpreadsheetId: 'dest-id',
+        destinationRange: 'Sheet1!A1',
+        columnMapping: [{ sourceColumn: 'Name', destinationColumn: 'Name' }],
+      },
+      requiredFields: [
+        'sourceSpreadsheetId',
+        'sourceRange',
+        'destinationSpreadsheetId',
+        'destinationRange',
+        'columnMapping',
+      ],
     },
     batch_operations: {
-      validInput: { spreadsheetId: 'test-id', operations: [{ tool: 'sheets_data', action: 'read', params: { range: 'Sheet1!A1:B2' } }] },
+      validInput: {
+        spreadsheetId: 'test-id',
+        operations: [{ tool: 'sheets_data', action: 'read', params: { range: 'Sheet1!A1:B2' } }],
+      },
       requiredFields: ['spreadsheetId', 'operations'],
     },
     build_dashboard: {
@@ -1230,11 +1371,17 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
 
   sheets_bigquery: {
     connect: {
-      validInput: { spreadsheetId: 'test-id', spec: { projectId: 'proj1', datasetId: 'ds1', tableId: 'tbl1' } },
+      validInput: {
+        spreadsheetId: 'test-id',
+        spec: { projectId: 'proj1', datasetId: 'ds1', tableId: 'tbl1' },
+      },
       requiredFields: ['spreadsheetId', 'spec'],
     },
     connect_looker: {
-      validInput: { spreadsheetId: 'test-id', spec: { instanceUri: 'https://company.looker.com', model: 'm1', explore: 'e1' } },
+      validInput: {
+        spreadsheetId: 'test-id',
+        spec: { instanceUri: 'https://company.looker.com', model: 'm1', explore: 'e1' },
+      },
       requiredFields: ['spreadsheetId', 'spec'],
     },
     disconnect: {
@@ -1278,7 +1425,11 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['projectId', 'datasetId', 'tableId'],
     },
     export_to_bigquery: {
-      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D10', destination: { projectId: 'proj1', datasetId: 'ds1', tableId: 'tbl1' } },
+      validInput: {
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:D10',
+        destination: { projectId: 'proj1', datasetId: 'ds1', tableId: 'tbl1' },
+      },
       requiredFields: ['spreadsheetId', 'range', 'destination'],
     },
     import_from_bigquery: {
@@ -1286,7 +1437,12 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'projectId', 'query'],
     },
     create_scheduled_query: {
-      validInput: { projectId: 'proj1', query: 'SELECT 1', displayName: 'test', schedule: 'every 24 hours' },
+      validInput: {
+        projectId: 'proj1',
+        query: 'SELECT 1',
+        displayName: 'test',
+        schedule: 'every 24 hours',
+      },
       requiredFields: ['projectId', 'query', 'displayName', 'schedule'],
     },
     list_scheduled_queries: {
@@ -1313,7 +1469,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['scriptId'],
     },
     update_content: {
-      validInput: { scriptId: 'script1', files: [{ name: 'Code', type: 'SERVER_JS', source: 'function test() {}' }] },
+      validInput: {
+        scriptId: 'script1',
+        files: [{ name: 'Code', type: 'SERVER_JS', source: 'function test() {}' }],
+      },
       requiredFields: ['scriptId', 'files'],
     },
     create_version: {
@@ -1376,7 +1535,11 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
 
   sheets_webhook: {
     register: {
-      validInput: { spreadsheetId: 'test-id', webhookUrl: 'https://example.com/hook', eventTypes: ['sheet.update'] },
+      validInput: {
+        spreadsheetId: 'test-id',
+        webhookUrl: 'https://example.com/hook',
+        eventTypes: ['sheet.update'],
+      },
       requiredFields: ['spreadsheetId', 'webhookUrl', 'eventTypes'],
     },
     unregister: {
@@ -1444,11 +1607,20 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'changes'],
     },
     compare_scenarios: {
-      validInput: { spreadsheetId: 'test-id', scenarios: [{ name: 'Base', changes: [{ cell: 'B2', newValue: 100000 }] }, { name: 'Optimistic', changes: [{ cell: 'B2', newValue: 120000 }] }] },
+      validInput: {
+        spreadsheetId: 'test-id',
+        scenarios: [
+          { name: 'Base', changes: [{ cell: 'B2', newValue: 100000 }] },
+          { name: 'Optimistic', changes: [{ cell: 'B2', newValue: 120000 }] },
+        ],
+      },
       requiredFields: ['spreadsheetId', 'scenarios'],
     },
     create_scenario_sheet: {
-      validInput: { spreadsheetId: 'test-id', scenario: { name: 'Optimistic', changes: [{ cell: 'B2', newValue: 120000 }] } },
+      validInput: {
+        spreadsheetId: 'test-id',
+        scenario: { name: 'Optimistic', changes: [{ cell: 'B2', newValue: 120000 }] },
+      },
       requiredFields: ['spreadsheetId', 'scenario'],
     },
   },
@@ -1509,7 +1681,11 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'formula'],
     },
     aggregate: {
-      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:A100', functions: ['sum', 'average'] },
+      validInput: {
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:A100',
+        functions: ['sum', 'average'],
+      },
       requiredFields: ['spreadsheetId', 'range', 'functions'],
     },
     statistical: {
@@ -1521,7 +1697,13 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'range', 'xColumn', 'yColumn'],
     },
     forecast: {
-      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:B24', dateColumn: 'A', valueColumn: 'B', periods: 6 },
+      validInput: {
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:B24',
+        dateColumn: 'A',
+        valueColumn: 'B',
+        periods: 6,
+      },
       requiredFields: ['spreadsheetId', 'range', 'dateColumn', 'valueColumn', 'periods'],
     },
     matrix_op: {
@@ -1529,15 +1711,29 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'range', 'operation'],
     },
     pivot_compute: {
-      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D100', rows: ['Category'], values: [{ column: 'Revenue', function: 'sum' }] },
+      validInput: {
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:D100',
+        rows: ['Category'],
+        values: [{ column: 'Revenue', function: 'sum' }],
+      },
       requiredFields: ['spreadsheetId', 'range', 'rows', 'values'],
     },
     custom_function: {
-      validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:C100', expression: 'ROUND($Revenue * $TaxRate, 2)' },
+      validInput: {
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:C100',
+        expression: 'ROUND($Revenue * $TaxRate, 2)',
+      },
       requiredFields: ['spreadsheetId', 'range', 'expression'],
     },
     batch_compute: {
-      validInput: { spreadsheetId: 'test-id', computations: [{ id: 'c1', type: 'aggregate', params: { range: 'Sheet1!A1:A10', functions: ['sum'] } }] },
+      validInput: {
+        spreadsheetId: 'test-id',
+        computations: [
+          { id: 'c1', type: 'aggregate', params: { range: 'Sheet1!A1:A10', functions: ['sum'] } },
+        ],
+      },
       requiredFields: ['spreadsheetId', 'computations'],
     },
     explain_formula: {
@@ -1612,7 +1808,12 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['queries'],
     },
     subscribe: {
-      validInput: { connectorId: 'finnhub', endpoint: 'stock/quote', schedule: { interval: 'hourly' }, destination: { spreadsheetId: 'test-id', range: 'Sheet1!A1' } },
+      validInput: {
+        connectorId: 'finnhub',
+        endpoint: 'stock/quote',
+        schedule: { interval: 'hourly' },
+        destination: { spreadsheetId: 'test-id', range: 'Sheet1!A1' },
+      },
       requiredFields: ['connectorId', 'endpoint', 'schedule', 'destination'],
     },
     unsubscribe: {

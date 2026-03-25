@@ -380,6 +380,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
         'sheets_dimensions',
         'sheets_visualize',
         'sheets_composite',
+        'sheets_transaction',
         'sheets_appsscript',
         'sheets_bigquery',
         'sheets_templates',
@@ -398,7 +399,6 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
         'sheets_core',
         // sheets_collaborate removed: taskSupport is 'optional' (sharing ops can be long-running)
         'sheets_advanced',
-        'sheets_transaction',
         'sheets_quality',
         // sheets_history removed: P13-M1 added task support (timeline is a long-running op)
         'sheets_confirm',

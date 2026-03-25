@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { FormatHandler } from '../../src/handlers/format.js';
 import { SheetsFormatOutputSchema } from '../../src/schemas/format.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
+import { parseNLConditionalFormat } from '../../src/handlers/format-actions/helpers.js';
 
 // Mock Google Sheets API
 const createMockSheetsApi = () => ({
@@ -404,6 +405,55 @@ describe('FormatHandler', () => {
       expect(call.requestBody.requests[0]).toHaveProperty('addBanding');
     });
 
+    it('should remove overlapping banding before applying alternating_rows', async () => {
+      mockApi.spreadsheets.get
+        .mockResolvedValueOnce({
+          data: {
+            sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                properties: { sheetId: 0, title: 'Sheet1' },
+                bandedRanges: [
+                  {
+                    bandedRangeId: 42,
+                    range: {
+                      sheetId: 0,
+                      startRowIndex: 0,
+                      endRowIndex: 2,
+                      startColumnIndex: 0,
+                      endColumnIndex: 2,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: {} });
+
+      const result = await handler.handle({
+        action: 'apply_preset',
+        spreadsheetId: 'test-id',
+        range: { a1: 'Sheet1!A2:Z100' },
+        preset: 'alternating_rows',
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response._idempotent).toBe(true);
+      }
+
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      expect(call.requestBody.requests[0]).toEqual({
+        deleteBanding: { bandedRangeId: 42 },
+      });
+      expect(call.requestBody.requests[1]).toHaveProperty('addBanding');
+    });
+
     it('should apply currency preset', async () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: {} });
 
@@ -644,6 +694,84 @@ describe('FormatHandler', () => {
 
       const parseResult = SheetsFormatOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
+    });
+
+    it('should accept sheetName without an explicit range for suggest_format', async () => {
+      mockApi.spreadsheets.get
+        .mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Revenue Data',
+                  gridProperties: { rowCount: 120, columnCount: 4 },
+                },
+              },
+            ],
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                properties: { sheetId: 0, title: 'Revenue Data' },
+                data: [
+                  {
+                    rowData: [
+                      {
+                        values: [
+                          { formattedValue: 'Month' },
+                          { formattedValue: 'Revenue' },
+                          { formattedValue: 'Cost' },
+                          { formattedValue: 'Profit' },
+                        ],
+                      },
+                      {
+                        values: [
+                          { formattedValue: 'Jan' },
+                          { effectiveValue: { numberValue: 1000 } },
+                          { effectiveValue: { numberValue: 600 } },
+                          { effectiveValue: { numberValue: 400 } },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        });
+
+      const result = await handler.handle({
+        action: 'suggest_format',
+        spreadsheetId: 'test-id',
+        sheetName: 'Revenue Data',
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      expect(mockApi.spreadsheets.get).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          spreadsheetId: 'test-id',
+          ranges: ["'Revenue Data'!A1:D50"],
+        })
+      );
+    });
+  });
+
+  describe('generate_conditional_format parsing', () => {
+    it('should generate a custom formula for cross-column comparisons', () => {
+      const parsed = parseNLConditionalFormat('highlight rows where column D less than column E');
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.rule).toMatchObject({
+        type: 'boolean',
+        condition: {
+          type: 'CUSTOM_FORMULA',
+          values: [{ userEnteredValue: '=$D2<$E2' }],
+        },
+      });
     });
   });
 

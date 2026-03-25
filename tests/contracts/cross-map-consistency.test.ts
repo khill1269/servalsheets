@@ -70,6 +70,12 @@ describe('Cross-Map Consistency', () => {
       expect([...defTools].sort()).toEqual([...annTools].sort());
       expect([...defTools].sort()).toEqual([...metadataTools].sort());
     });
+
+    it('TOOL_DEFINITIONS annotations exactly match TOOL_ANNOTATIONS', () => {
+      for (const toolDef of TOOL_DEFINITIONS) {
+        expect(toolDef.annotations).toEqual(TOOL_ANNOTATIONS[toolDef.name]);
+      }
+    });
   });
 
   // =========================================================================

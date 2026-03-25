@@ -395,6 +395,48 @@ describe('CollaborateHandler', () => {
 
       expect(result.response.success).toBe(true);
     });
+
+    it('stops scanning once afterRevisionId pagination has enough results', async () => {
+      mockDriveApi.revisions.list
+        .mockResolvedValueOnce({
+          data: {
+            revisions: [
+              { id: 'rev-5', modifiedTime: '2026-01-19T10:00:00Z' },
+              { id: 'rev-4', modifiedTime: '2026-01-18T10:00:00Z' },
+            ],
+            nextPageToken: 'page-2',
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            revisions: [
+              { id: 'rev-3', modifiedTime: '2026-01-17T10:00:00Z' },
+              { id: 'rev-2', modifiedTime: '2026-01-16T10:00:00Z' },
+            ],
+            nextPageToken: 'page-3',
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            revisions: [{ id: 'rev-1', modifiedTime: '2026-01-15T10:00:00Z' }],
+          },
+        });
+
+      const result = await handler.handle({
+        action: 'version_list_revisions',
+        spreadsheetId: 'test-spreadsheet-id',
+        afterRevisionId: 'rev-4',
+        pageSize: 1,
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.revisions).toHaveLength(1);
+        expect(result.response.revisions?.[0]?.id).toBe('rev-3');
+        expect((result.response as { nextRevisionId?: string }).nextRevisionId).toBe('rev-3');
+      }
+      expect(mockDriveApi.revisions.list).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('version_get_revision', () => {

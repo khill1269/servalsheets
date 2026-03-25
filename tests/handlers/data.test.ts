@@ -812,6 +812,117 @@ describe('SheetsDataHandler', () => {
         expect(result.response.success).toBe(true);
         // Only exact case matches should be found
       });
+
+      it('should default find-only searches to the current active sheet when range is omitted', async () => {
+        mockContext.sessionContext = {
+          getActiveSpreadsheet: vi.fn().mockReturnValue({
+            spreadsheetId: 'test-id',
+            title: 'Test Spreadsheet',
+            activatedAt: Date.now(),
+            sheetNames: ['Sales Raw Data', 'Sheet1'],
+            lastRange: "'Sales Raw Data'!D1:D20",
+          }),
+        } as any;
+        handler = new SheetsDataHandler(mockContext, mockApi as any as sheets_v4.Sheets);
+
+        mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+          data: {
+            range: "'Sales Raw Data'!A1:ZZ10000",
+            values: [['Item'], ['Widget A']],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'find_replace',
+          spreadsheetId: 'test-id',
+          find: 'Widget A',
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.values.get).toHaveBeenCalledWith(
+          expect.objectContaining({
+            range: "'Sales Raw Data'!A1:ZZ10000",
+          })
+        );
+        expect((result.response as any).matches).toEqual([
+          expect.objectContaining({
+            cell: 'A2',
+            row: 2,
+            column: 1,
+            value: 'Widget A',
+          }),
+        ]);
+      });
+
+      it('should search across all sheets in find-only mode when allSheets=true', async () => {
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'test-id',
+            sheets: [
+              { properties: { sheetId: 10, title: 'Sales Raw Data', index: 0 } },
+              { properties: { sheetId: 11, title: 'Archive', index: 1 } },
+            ],
+          },
+        });
+        mockApi.spreadsheets.values.batchGet.mockResolvedValueOnce({
+          data: {
+            valueRanges: [
+              {
+                range: "'Sales Raw Data'!A1:ZZ10000",
+                values: [['Item'], ['Widget A']],
+              },
+              {
+                range: "'Archive'!A1:ZZ10000",
+                values: [['Item'], ['Widget A']],
+              },
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'find_replace',
+          spreadsheetId: 'test-id',
+          find: 'Widget A',
+          allSheets: true,
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.values.batchGet).toHaveBeenCalledWith(
+          expect.objectContaining({
+            ranges: ["'Sales Raw Data'!A1:ZZ10000", "'Archive'!A1:ZZ10000"],
+          })
+        );
+        expect((result.response as any).matches).toEqual([
+          expect.objectContaining({ cell: "'Sales Raw Data'!A2", value: 'Widget A' }),
+          expect.objectContaining({ cell: "'Archive'!A2", value: 'Widget A' }),
+        ]);
+      });
+
+      it('should report absolute cell coordinates for offset search ranges', async () => {
+        mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+          data: {
+            range: 'Sheet1!C5:C6',
+            values: [['Header'], ['Alice']],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'find_replace',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!C5:C6',
+          find: 'Alice',
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect((result.response as any).matches).toEqual([
+          expect.objectContaining({
+            cell: 'C6',
+            row: 6,
+            column: 3,
+            value: 'Alice',
+          }),
+        ]);
+      });
     });
 
     describe('replace action', () => {
@@ -845,6 +956,34 @@ describe('SheetsDataHandler', () => {
 
         expect(result.response.success).toBe(true);
         expect((result.response as any).replacementsCount).toBeGreaterThanOrEqual(0);
+      });
+
+      it('should default replace mode to the current sheet instead of all sheets when range is omitted', async () => {
+        mockContext.sessionContext = {
+          getActiveSpreadsheet: vi.fn().mockReturnValue({
+            spreadsheetId: 'test-id',
+            title: 'Test Spreadsheet',
+            activatedAt: Date.now(),
+            sheetNames: ['Sheet1'],
+            lastRange: 'Sheet1!B2:B10',
+          }),
+        } as any;
+        handler = new SheetsDataHandler(mockContext, mockApi as any as sheets_v4.Sheets);
+
+        const result = await handler.handle({
+          action: 'find_replace',
+          spreadsheetId: 'test-id',
+          find: 'pending',
+          replacement: 'completed',
+        });
+
+        expect(result.response.success).toBe(true);
+        const findReplaceRequest = (mockApi.spreadsheets.batchUpdate as any).mock.calls[0][0]
+          .requestBody.requests[0].findReplace;
+        expect(findReplaceRequest.allSheets).toBeUndefined();
+        expect(findReplaceRequest.range).toMatchObject({
+          sheetId: 0,
+        });
       });
     });
   });

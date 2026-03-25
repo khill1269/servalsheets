@@ -49,6 +49,11 @@ function makeStep(overrides?: Partial<{
   action: string;
   params: Record<string, unknown>;
   description: string;
+  validation: {
+    valid: boolean;
+    issues?: Array<{ field: string; message: string }>;
+    suggestedFix?: string;
+  };
 }>) {
   return {
     stepId: STEP_ID,
@@ -157,6 +162,34 @@ describe('AgentHandler', () => {
       expect(compilePlanAI).toHaveBeenCalledWith('Do something complex', 5, undefined, undefined);
     });
 
+    it('surfaces invalid generated steps in the plan summary', async () => {
+      compilePlanAI.mockResolvedValue({
+        planId: PLAN_ID,
+        steps: [
+          makeStep({
+            validation: {
+              valid: false,
+              issues: [{ field: 'range', message: 'Required' }],
+              suggestedFix: 'Correct the step parameters so they match the tool input schema.',
+            },
+          }),
+        ],
+      });
+
+      const result = await handler.handle({
+        request: {
+          action: 'plan',
+          description: 'Write summary table',
+          spreadsheetId: 'ss-001',
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.summary).toContain('1 need parameter fixes');
+      }
+    });
+
     it('injects live spreadsheet scout context before planning when handlers are available', async () => {
       compilePlanAI.mockResolvedValue({ planId: PLAN_ID, steps: [makeStep()] });
 
@@ -229,6 +262,58 @@ describe('AgentHandler', () => {
       expect(compilePlanAI.mock.calls[0]?.[3]).toContain('sheet="Revenue Data"');
       expect(compilePlanAI.mock.calls[0]?.[3]).toContain('headers=["Month","Revenue","Cost","Profit"]');
       expect(compilePlanAI.mock.calls[0]?.[3]).toContain('sample=["Jan",100,40,60]');
+    });
+
+    it('uses provided scoutResult instead of running a live scout', async () => {
+      compilePlanAI.mockResolvedValue({ planId: PLAN_ID, steps: [makeStep()] });
+
+      const analyzeHandler = {
+        handle: vi.fn(),
+      };
+      const dataHandler = {
+        handle: vi.fn(),
+      };
+
+      handler = new AgentHandler({
+        analyze: analyzeHandler,
+        data: dataHandler,
+      });
+
+      await handler.handle({
+        request: {
+          action: 'plan',
+          description: 'Summarize profit trends',
+          spreadsheetId: 'ss-live-001',
+          scoutResult: {
+            response: {
+              success: true,
+              action: 'scout',
+              scout: {
+                sheets: [
+                  {
+                    sheetId: 1,
+                    title: 'Revenue Data',
+                    rowCount: 42,
+                    columnCount: 4,
+                    flags: { isEmpty: false },
+                  },
+                ],
+              },
+            },
+          },
+        } as any,
+      });
+
+      expect(analyzeHandler.handle).not.toHaveBeenCalled();
+      expect(dataHandler.handle).not.toHaveBeenCalled();
+      expect(compilePlanAI).toHaveBeenCalledWith(
+        'Summarize profit trends',
+        10,
+        'ss-live-001',
+        expect.stringContaining('Spreadsheet scout (provided):')
+      );
+      expect(compilePlanAI.mock.calls[0]?.[3]).toContain('sheet="Revenue Data"');
+      expect(compilePlanAI.mock.calls[0]?.[3]).not.toContain('headers=');
     });
 
     it('should return error when compilePlanAI throws', async () => {

@@ -271,6 +271,59 @@ describe('ComputeHandler', () => {
       }
     });
 
+    it('uses an explicit headerRow when the requested range excludes headers', async () => {
+      fetchRangeData
+        .mockResolvedValueOnce([
+          [100, 60],
+          [200, 120],
+        ])
+        .mockResolvedValueOnce([['Revenue', 'Cost']]);
+      computeStatistics.mockReturnValue({
+        statistics: {
+          Revenue: {
+            count: 2,
+            mean: 150,
+            median: 150,
+            stddev: 50,
+            min: 100,
+            max: 200,
+            variance: 2500,
+            range: 100,
+            nullCount: 0,
+          },
+        },
+      });
+
+      const handler = makeHandler();
+      const result = await handler.handle({
+        request: {
+          action: 'statistical',
+          spreadsheetId: SPREADSHEET_ID,
+          range: { a1: 'Sheet1!B2:C3' },
+          headerRow: 1,
+          columns: ['Revenue'],
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(computeStatistics).toHaveBeenCalledWith(
+        [
+          ['Revenue', 'Cost'],
+          [100, 60],
+          [200, 120],
+        ],
+        expect.objectContaining({
+          columns: ['Revenue'],
+        })
+      );
+      expect(fetchRangeData).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        SPREADSHEET_ID,
+        'Sheet1!B1:C1'
+      );
+    });
+
     it('should return error when statistical throws', async () => {
       computeStatistics.mockImplementation(() => {
         throw new Error('No numeric columns found');
@@ -337,6 +390,46 @@ describe('ComputeHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
+    });
+
+    it('supports headerless ranges by synthesizing column letters', async () => {
+      fetchRangeData.mockResolvedValueOnce([
+        [1, 10],
+        [2, 20],
+        [3, 30],
+      ]);
+      computeRegression.mockReturnValue({
+        coefficients: [10, 0],
+        rSquared: 1,
+        equation: 'y = 10x + 0',
+        residuals: { mean: 0, stddev: 0, max: 0 },
+      });
+
+      const handler = makeHandler();
+      const result = await handler.handle({
+        request: {
+          action: 'regression',
+          spreadsheetId: SPREADSHEET_ID,
+          range: { a1: 'Sheet1!A2:B4' },
+          hasHeaders: false,
+          xColumn: 'A',
+          yColumn: 'B',
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(computeRegression).toHaveBeenCalledWith(
+        [
+          ['A', 'B'],
+          [1, 10],
+          [2, 20],
+          [3, 30],
+        ],
+        expect.objectContaining({
+          xColumn: 'A',
+          yColumn: 'B',
+        })
+      );
     });
   });
 
@@ -682,6 +775,33 @@ describe('ComputeHandler', () => {
         const results = result.response.results ?? [];
         expect(results.length).toBeGreaterThan(0);
         expect(results[0]?.success).toBe(false);
+      }
+    });
+
+    it('should normalize nested string ranges before dispatching', async () => {
+      aggregate.mockReturnValue({ aggregations: { sum: 300 }, rowCount: 2 });
+
+      const handler = makeHandler();
+      const result = await handler.handle({
+        request: {
+          action: 'batch_compute',
+          spreadsheetId: SPREADSHEET_ID,
+          computations: [
+            {
+              id: 'comp-string-range',
+              type: 'aggregate',
+              params: { range: 'Sheet1!B1:B3', functions: ['sum'] },
+            },
+          ],
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.results?.[0]).toMatchObject({
+          id: 'comp-string-range',
+          success: true,
+        });
       }
     });
   });

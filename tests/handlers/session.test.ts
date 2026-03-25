@@ -225,6 +225,10 @@ describe('SessionHandler', () => {
       });
 
       expect(updateResult.response.success).toBe(true);
+      if (updateResult.response.success) {
+        expect(updateResult.response.scope).toBe('session');
+        expect(updateResult.response.message).toContain('this session');
+      }
 
       const getResult = await handler.handle({
         action: 'get_preferences',

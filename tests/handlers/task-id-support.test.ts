@@ -240,6 +240,13 @@ describe('handler task ID cleanup', () => {
     };
     const handler = new CompositeHandler(
       {
+        auth: {
+          scopes: [
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/spreadsheets.readonly',
+            'https://www.googleapis.com/auth/drive.file',
+          ],
+        },
         googleClient: {} as HandlerContext['googleClient'],
         taskStore: taskStore as unknown as HandlerContext['taskStore'],
       } as HandlerContext,

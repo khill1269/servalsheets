@@ -126,7 +126,15 @@ const createMockSheetsApi = (): sheets_v4.Sheets =>
       get: vi.fn().mockResolvedValue({
         data: {
           spreadsheetId: 'test-spreadsheet-id',
-          sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
+          sheets: [
+            {
+              properties: {
+                sheetId: 0,
+                title: 'Sheet1',
+                gridProperties: { rowCount: 1000, columnCount: 26 },
+              },
+            },
+          ],
         },
       }),
       create: vi.fn().mockResolvedValue({
@@ -175,7 +183,17 @@ const createMockContext = (elicitationServer?: any): HandlerContext =>
       resolve: vi.fn().mockResolvedValue({ a1Notation: 'Sheet1!A1:B5' }),
     } as any,
     sheetResolver: {
-      resolveSheetId: vi.fn().mockResolvedValue(0),
+      resolve: vi.fn().mockResolvedValue({
+        sheet: {
+          sheetId: 0,
+          title: 'Sheet1',
+          index: 0,
+          hidden: false,
+          gridProperties: { rowCount: 1000, columnCount: 26 },
+        },
+        method: 'exact_name',
+        confidence: 1,
+      }),
       invalidate: vi.fn(),
     } as any,
     metadataCache: undefined,

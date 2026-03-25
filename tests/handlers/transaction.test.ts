@@ -13,6 +13,7 @@ import { TransactionHandler } from '../../src/handlers/transaction.js';
 import { SheetsTransactionOutputSchema } from '../../src/schemas/transaction.js';
 import type { TransactionManager } from '../../src/services/transaction-manager.js';
 import type { Transaction, CommitResult } from '../../src/types/transaction.js';
+import { ApiTimeoutError } from '../../src/core/errors.js';
 
 // Mock getTransactionManager
 vi.mock('../../src/services/transaction-manager.js', () => ({
@@ -358,6 +359,38 @@ describe('TransactionHandler', () => {
       if (!result.response.success) {
         expect(result.response.error.message).toBe('Operation validation failed');
         expect(result.response.error.details).toBeUndefined();
+      }
+    });
+
+    it('should surface DEADLINE_EXCEEDED when commit times out', async () => {
+      const mockTxId = 'txn-commit-timeout';
+      const mockCommitResult: CommitResult = {
+        transactionId: mockTxId,
+        success: false,
+        operationResults: [],
+        duration: 25,
+        apiCallsMade: 0,
+        apiCallsSaved: 0,
+        error: new ApiTimeoutError(
+          'Transaction commit timed out after 25ms',
+          25,
+          'sheets_transaction.commit.batchUpdate'
+        ),
+        rolledBack: false,
+      };
+
+      mockTransactionManager.commit = vi.fn().mockResolvedValue(mockCommitResult);
+
+      const result = await handler.handle({
+        action: 'commit',
+        transactionId: mockTxId,
+      });
+
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('DEADLINE_EXCEEDED');
+        expect(result.response.error.message).toContain('timed out after 25ms');
+        expect(result.response.error.retryable).toBe(true);
       }
     });
   });

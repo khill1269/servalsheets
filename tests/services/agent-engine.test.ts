@@ -403,6 +403,16 @@ describe('executeStep', () => {
     expect(result.completedAt).toBeDefined();
   });
 
+  it('accepts a zero-based numeric step index fallback', async () => {
+    const plan = makePlan();
+    const step = plan.steps[0]!;
+
+    const result = await executeStep(plan.planId, '0', makeHandler({ value: 7 }));
+
+    expect(result.success).toBe(true);
+    expect(result.stepId).toBe(step.stepId);
+  });
+
   it('throws NotFoundError for unknown planId', async () => {
     await expect(executeStep('bad-plan', 'bad-step', makeHandler())).rejects.toThrow();
   });
