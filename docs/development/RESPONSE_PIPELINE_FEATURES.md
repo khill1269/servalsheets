@@ -2,7 +2,7 @@
 title: Response Pipeline Features (Phase 1B)
 category: development
 last_updated: 2026-03-10
-description: > Self-healing error responses and intelligent action recommendations
+description: "Self-healing error responses and intelligent action recommendations"
 version: 2.0.0
 ---
 
