@@ -25,9 +25,7 @@ import { assertNever } from '../utils/type-utils.js';
 import type { sheets_v4, drive_v3 } from 'googleapis';
 import { BaseHandler, type HandlerContext, type HandlerError, unwrapRequest } from './base.js';
 import { getRequestAbortSignal } from '../utils/request-context.js';
-import {
-  CompositeOperationsService,
-} from '../services/composite-operations.js';
+import { CompositeOperationsService } from '../services/composite-operations.js';
 import { SheetResolver, initializeSheetResolver } from '../services/sheet-resolver.js';
 import type {
   CompositeInput,
@@ -58,6 +56,7 @@ import type { Intent } from '../core/intent.js';
 import { getRequestLogger } from '../utils/request-context.js';
 import { ScopeValidator, IncrementalScopeRequiredError } from '../security/incremental-scope.js';
 import type { CompositeHandlerAccess } from './composite-actions/internal.js';
+import type { ResponseMeta } from '../schemas/shared.js';
 
 // Submodule imports
 import {
@@ -166,12 +165,13 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       driveApi: this.driveApi,
       compositeService: this.compositeService,
       sheetResolver: this.sheetResolver,
-      success: (action, data, mutation) => this.success(action, data, mutation),
-      error: (error) => this.error(error),
+      success: (action, data, mutation) =>
+        this.success(action, data, mutation) as CompositeOutput['response'],
+      error: (error) => this.error(error) as CompositeOutput['response'],
       mapError: (e) => this.mapError(e),
       sendProgress: (current, total, message) => this.sendProgress(current, total, message),
       generateMeta: (action, input, output, options) =>
-        this.generateMeta(action, input, output, options),
+        this.generateMeta(action, input, output, options) as ResponseMeta,
     };
   }
 

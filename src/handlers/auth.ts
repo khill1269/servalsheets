@@ -5,6 +5,7 @@
  * Action implementations are in src/handlers/auth-actions/
  */
 
+import type { OAuth2Client } from 'google-auth-library';
 import type { GoogleApiClient } from '../services/google-api.js';
 import { getDefaultTokenStorePath, sanitizeTokenStorePath } from '../utils/auth-paths.js';
 import { getOAuthEnvConfig } from '../utils/oauth-config.js';
@@ -72,7 +73,7 @@ export class AuthHandler {
   }
 
   /** Start a TokenManager for the given OAuth2 client (used by tests and auth-flow). */
-  startTokenManager(oauthClient: { refreshAccessToken: () => Promise<unknown>; setCredentials: (c: unknown) => void; generateAuthUrl?: (opts: unknown) => string }): void {
+  startTokenManager(oauthClient: OAuth2Client): void {
     if (this.tokenManager) {
       this.tokenManager.stop();
     }
@@ -80,7 +81,7 @@ export class AuthHandler {
     let consecutiveRefreshFailures = 0;
 
     this.tokenManager = new TokenManager({
-      oauthClient: oauthClient as any,
+      oauthClient,
       refreshThreshold: 0.8,
       checkIntervalMs: 300000,
       onTokenRefreshed: async (tokens) => {
@@ -109,10 +110,7 @@ export class AuthHandler {
 
         // Update Google client credentials
         if (this.googleClient && tokens.access_token) {
-          this.googleClient.setCredentials(
-            tokens.access_token,
-            tokens.refresh_token ?? undefined
-          );
+          this.googleClient.setCredentials(tokens.access_token, tokens.refresh_token ?? undefined);
         }
       },
       onRefreshError: async (error: Error) => {
@@ -125,7 +123,7 @@ export class AuthHandler {
 
         if (consecutiveRefreshFailures >= 3) {
           this.pendingReauthState = {
-            authUrl: createFreshAuthUrl(oauthClient as any, this.googleClient?.scopes),
+            authUrl: createFreshAuthUrl(oauthClient, this.googleClient?.scopes),
             failureCount: consecutiveRefreshFailures,
             lastError: error.message,
           };
@@ -152,11 +150,10 @@ export class AuthHandler {
 
       switch (req.action) {
         case 'status':
-          response = await handleStatus(
-            this.googleClient,
-            this.pendingReauthState,
-            { oauthClientId: this.oauthClientId, oauthClientSecret: this.oauthClientSecret }
-          );
+          response = await handleStatus(this.googleClient, this.pendingReauthState, {
+            oauthClientId: this.oauthClientId,
+            oauthClientSecret: this.oauthClientSecret,
+          });
           markOnboardingComplete();
           break;
         case 'login': {

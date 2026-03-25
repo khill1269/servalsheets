@@ -10,6 +10,7 @@ import { generateAIInsight } from '../../mcp/sampling.js';
 import { fetchRangeData, computeRegression, computeForecast } from '../../services/compute-engine.js';
 import type { SheetsComputeInput, SheetsComputeOutput } from '../../schemas/compute.js';
 import type { ComputeHandlerAccess } from './internal.js';
+import { resolveComputeInputData } from './header-resolution.js';
 
 // ============================================================================
 // Forecast Helper Functions
@@ -222,7 +223,19 @@ export async function handleRegression(
   req: SheetsComputeInput['request'] & { action: 'regression' }
 ): Promise<SheetsComputeOutput> {
   const startMs = Date.now();
-  const data = await fetchRangeData(access.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
+  const resolvedData = await resolveComputeInputData(access.sheetsApi, req.spreadsheetId, req.range, {
+    hasHeaders: req.hasHeaders,
+    headerRow: req.headerRow,
+  });
+  if (!resolvedData.ok) {
+    return {
+      response: {
+        success: false,
+        error: resolvedData.error,
+      },
+    };
+  }
+  const data = resolvedData.data;
 
   const result = computeRegression(data, {
     xColumn: req.xColumn,

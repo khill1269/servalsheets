@@ -144,6 +144,40 @@ export function parseNLConditionalFormat(description: string): {
   hint?: string;
 } {
   const d = description.toLowerCase().trim();
+  const color = parseNLColor(d);
+
+  const crossColumnMatch =
+    d.match(/\b([a-z]{1,3})\s*(<=|>=|!=|=|<|>)\s*([a-z]{1,3})\b/) ??
+    d.match(
+      /\bcolumn\s+([a-z]{1,3})\s+(less than|greater than|equal to|equals|not equal to)\s+column\s+([a-z]{1,3})\b/
+    );
+  if (crossColumnMatch) {
+    const left = crossColumnMatch[1]!.toUpperCase();
+    const operatorToken = crossColumnMatch[2]!.toLowerCase();
+    const right = crossColumnMatch[3]!.toUpperCase();
+    const operator =
+      operatorToken === 'less than'
+        ? '<'
+        : operatorToken === 'greater than'
+          ? '>'
+          : operatorToken === 'equal to' || operatorToken === 'equals'
+            ? '='
+            : operatorToken === 'not equal to'
+              ? '<>'
+              : operatorToken;
+
+    return {
+      success: true,
+      rule: {
+        type: 'boolean',
+        condition: {
+          type: 'CUSTOM_FORMULA',
+          values: [{ userEnteredValue: `=$${left}2${operator}$${right}2` }],
+        },
+        format: { backgroundColor: color ?? { red: 0.9, green: 0.2, blue: 0.2 } },
+      },
+    };
+  }
 
   // === Preset patterns (delegate to add_conditional_format_rule) ===
   if (/\bblank|empty cell/.test(d)) return { success: true, rulePreset: 'highlight_blanks' };
@@ -162,8 +196,6 @@ export function parseNLConditionalFormat(description: string): {
   }
 
   // === Comparison rules (build full rule object) ===
-  const color = parseNLColor(d);
-
   // Number comparisons
   const numMatch = d.match(
     /(?:greater\s+than|more\s+than|above|>)\s*([\d.,]+)|(?:less\s+than|below|<)\s*([\d.,]+)|(?:equal(?:s)?\s+to|=)\s*([\d.,]+)|(?:not\s+equal|!=)\s*([\d.,]+)/

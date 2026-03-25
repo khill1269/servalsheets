@@ -106,6 +106,7 @@ export interface Handlers {
  */
 export function createHandlers(options: HandlerFactoryOptions): Handlers {
   const cache = {} as Partial<Handlers>;
+  const loadingPromises = {} as Partial<Record<keyof Handlers, Promise<unknown>>>;
   let handlersRef: Handlers | undefined;
 
   const loaders = {
@@ -270,9 +271,22 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
         {
           get(_, methodProp: string) {
             return async (...args: unknown[]) => {
-              // Lazy load and cache the handler
+              // Lazy load and cache the handler (with Promise dedup for concurrent access)
               if (!cache[prop as keyof Handlers]) {
-                (cache as Record<string, unknown>)[prop as string] = await loader();
+                const key = prop as keyof Handlers;
+                if (!loadingPromises[key]) {
+                  loadingPromises[key] = loader()
+                    .then((result) => {
+                      (cache as Record<string, unknown>)[prop as string] = result;
+                      delete loadingPromises[key];
+                      return result;
+                    })
+                    .catch((err) => {
+                      delete loadingPromises[key];
+                      throw err;
+                    });
+                }
+                await loadingPromises[key];
               }
               const handler = cache[prop as keyof Handlers]!;
               const method = (handler as unknown as Record<string, unknown>)[methodProp];

@@ -239,7 +239,9 @@ export function createActionDispatcher<
   return async (input: TInput): Promise<TResult> => {
     const handler = handlers[input.action];
     if (!handler) {
-      throw new HandlerLoadError(`Unknown action: ${input.action}`, 'optimization', { action: input.action });
+      throw new HandlerLoadError(`Unknown action: ${input.action}`, 'optimization', {
+        action: input.action,
+      });
     }
     return handler(input);
   };

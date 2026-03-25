@@ -11,13 +11,14 @@ import type { sheets_v4 } from 'googleapis';
 import type { SheetsDependenciesOutput, ModelScenarioInput, CompareScenariosInput, CreateScenarioSheetInput } from '../../schemas/index.js';
 import { ErrorCodes } from '../error-codes.js';
 import { ImpactAnalyzer } from '../../analysis/impact-analyzer.js';
-import { withSamplingTimeout, assertSamplingConsent, generateAIInsight } from '../../mcp/sampling.js';
+import { assertSamplingConsent, generateAIInsight, withSamplingTimeout } from '../../mcp/sampling.js';
 import { logger } from '../../utils/logger.js';
 import { executeWithRetry } from '../../utils/retry.js';
 import { mapStandaloneError } from '../helpers/error-mapping.js';
 import { formulaEvaluator, type SheetData } from '../../services/formula-evaluator.js';
 import { recordScenarioModel } from '../../observability/metrics.js';
-import type { DependenciesHandlerAccess, AnalyzerCacheEntry } from './internal.js';
+import type { DependenciesHandlerAccess } from './internal.js';
+import type { AnalyzerLRUCache } from './analysis.js';
 
 /**
  * Load spreadsheet data into HyperFormula evaluator so model_scenario and
@@ -123,7 +124,7 @@ function isLikelyPseudoFormulaText(value: unknown): value is string {
  */
 export async function handleModelScenario(
   access: DependenciesHandlerAccess,
-  cache: any, // AnalyzerLRUCache
+  cache: AnalyzerLRUCache,
   req: ModelScenarioInput
 ): Promise<SheetsDependenciesOutput['response']> {
   try {
@@ -380,7 +381,7 @@ export async function handleModelScenario(
         );
         const text = Array.isArray(narrativeResult.content)
           ? ((
-              narrativeResult.content.find((c) => c.type === 'text') as { text: string } | undefined
+              narrativeResult.content.find((c: { type: string }) => c.type === 'text') as { text: string } | undefined
             )?.text ?? '')
           : ((narrativeResult.content as { text?: string }).text ?? '');
         aiNarrative = text.trim();
@@ -400,6 +401,7 @@ export async function handleModelScenario(
     recordScenarioModel('model_scenario', 'success');
 
     return access.success('model_scenario', {
+      action: 'model_scenario',
       inputChanges,
       cascadeEffects,
       summary: {
@@ -426,7 +428,7 @@ export async function handleModelScenario(
  */
 export async function handleCompareScenarios(
   access: DependenciesHandlerAccess,
-  cache: any, // AnalyzerLRUCache
+  cache: AnalyzerLRUCache,
   req: CompareScenariosInput
 ): Promise<SheetsDependenciesOutput['response']> {
   try {
@@ -613,6 +615,7 @@ export async function handleCompareScenarios(
     recordScenarioModel('compare_scenarios', 'success');
 
     return access.success('compare_scenarios', {
+      action: 'compare_scenarios',
       scenarios: scenarioResults,
       message:
         `Compared ${req.scenarios.length} scenarios. ` +
@@ -721,6 +724,7 @@ export async function handleCreateScenarioSheet(
     recordScenarioModel('create_scenario_sheet', 'success');
 
     return access.success('create_scenario_sheet', {
+      action: 'create_scenario_sheet',
       newSheetId,
       newSheetName: sheetName,
       cellsModified: req.scenario.changes.length,

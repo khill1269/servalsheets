@@ -10,6 +10,7 @@ import type { HandlerContext } from '../base.js';
 import type { CompositeOutput } from '../../schemas/composite.js';
 import type { CompositeOperationsService } from '../../services/composite-operations.js';
 import type { SheetResolver } from '../../services/sheet-resolver.js';
+import type { ErrorDetail, MutationSummary, ResponseMeta } from '../../schemas/shared.js';
 
 export type CompositeHandlerAccess = {
   context: HandlerContext;
@@ -20,9 +21,9 @@ export type CompositeHandlerAccess = {
   success: (
     action: string,
     data: Record<string, unknown>,
-    mutation?: { cellsAffected: number; reversible: boolean }
+    mutation?: MutationSummary
   ) => CompositeOutput['response'];
-  error: (error: { code: string; message: string; category?: string; details?: unknown }) => CompositeOutput['response'];
+  error: (error: ErrorDetail) => CompositeOutput['response'];
   mapError: (e: unknown) => CompositeOutput['response'];
   sendProgress: (current: number, total: number, message?: string) => void;
   generateMeta: (
@@ -30,5 +31,5 @@ export type CompositeHandlerAccess = {
     input: Record<string, unknown>,
     output: Record<string, unknown>,
     options?: Record<string, unknown>
-  ) => unknown;
+  ) => ResponseMeta;
 };

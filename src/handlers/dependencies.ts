@@ -52,6 +52,21 @@ import type { DependenciesHandlerAccess } from './dependencies-actions/internal.
 
 export interface DependenciesHandlerOptions {
   samplingServer?: SamplingServer;
+  sessionContext?: unknown;
+}
+
+type DependenciesSuccessData = Extract<DependenciesResponse, { success: true }>['data'];
+type ScenarioDependenciesAction =
+  | Extract<DependenciesRequest, { action: 'model_scenario' }>['action']
+  | Extract<DependenciesRequest, { action: 'compare_scenarios' }>['action']
+  | Extract<DependenciesRequest, { action: 'create_scenario_sheet' }>['action'];
+
+function isScenarioDependenciesAction(action: string): action is ScenarioDependenciesAction {
+  return (
+    action === 'model_scenario' ||
+    action === 'compare_scenarios' ||
+    action === 'create_scenario_sheet'
+  );
 }
 
 /**
@@ -73,21 +88,16 @@ export class DependenciesHandler {
    */
   private buildAccess(): DependenciesHandlerAccess {
     return {
-      success: (action: string, data: Record<string, unknown>): DependenciesResponse => ({
-        response: {
-          success: true,
-          action,
-          data: {
-            action,
-            ...data,
-          },
-        },
+      success: (action: string, data: DependenciesSuccessData): DependenciesResponse => ({
+        success: true,
+        data:
+          isScenarioDependenciesAction(action) && !('action' in data)
+            ? ({ action, ...data } as DependenciesSuccessData)
+            : data,
       }),
       error: (e): DependenciesResponse => ({
-        response: {
-          success: false,
-          error: e,
-        },
+        success: false,
+        error: e,
       }),
       sheetsApi: this.sheetsApi,
       samplingServer: this.samplingServer,
@@ -105,62 +115,86 @@ export class DependenciesHandler {
     try {
       switch (req.action) {
         case 'build':
-          return await handleBuild(
-            access,
-            this.cache,
-            req as Extract<DependenciesRequest, { action: 'build' }>
-          );
+          return {
+            response: await handleBuild(
+              access,
+              this.cache,
+              req as Extract<DependenciesRequest, { action: 'build' }>
+            ),
+          };
 
         case 'analyze_impact':
-          return await handleAnalyzeImpact(
-            access,
-            this.cache,
-            req as Extract<DependenciesRequest, { action: 'analyze_impact' }>
-          );
+          return {
+            response: await handleAnalyzeImpact(
+              access,
+              this.cache,
+              req as Extract<DependenciesRequest, { action: 'analyze_impact' }>
+            ),
+          };
 
         case 'detect_cycles':
-          return await handleDetectCycles(
-            access,
-            this.cache,
-            req as Extract<DependenciesRequest, { action: 'detect_cycles' }>
-          );
+          return {
+            response: await handleDetectCycles(
+              access,
+              this.cache,
+              req as Extract<DependenciesRequest, { action: 'detect_cycles' }>
+            ),
+          };
 
         case 'get_dependencies':
-          return await handleGetDependencies(
-            access,
-            this.cache,
-            req as Extract<DependenciesRequest, { action: 'get_dependencies' }>
-          );
+          return {
+            response: await handleGetDependencies(
+              access,
+              this.cache,
+              req as Extract<DependenciesRequest, { action: 'get_dependencies' }>
+            ),
+          };
 
         case 'get_dependents':
-          return await handleGetDependents(
-            access,
-            this.cache,
-            req as Extract<DependenciesRequest, { action: 'get_dependents' }>
-          );
+          return {
+            response: await handleGetDependents(
+              access,
+              this.cache,
+              req as Extract<DependenciesRequest, { action: 'get_dependents' }>
+            ),
+          };
 
         case 'get_stats':
-          return await handleGetStats(
-            access,
-            this.cache,
-            req as Extract<DependenciesRequest, { action: 'get_stats' }>
-          );
+          return {
+            response: await handleGetStats(
+              access,
+              this.cache,
+              req as Extract<DependenciesRequest, { action: 'get_stats' }>
+            ),
+          };
 
         case 'export_dot':
-          return await handleExportDot(
-            access,
-            this.cache,
-            req as Extract<DependenciesRequest, { action: 'export_dot' }>
-          );
+          return {
+            response: await handleExportDot(
+              access,
+              this.cache,
+              req as Extract<DependenciesRequest, { action: 'export_dot' }>
+            ),
+          };
 
         case 'model_scenario':
-          return await handleModelScenario(access, this.cache, req as ModelScenarioInput);
+          return {
+            response: await handleModelScenario(access, this.cache, req as ModelScenarioInput),
+          };
 
         case 'compare_scenarios':
-          return await handleCompareScenarios(access, this.cache, req as CompareScenariosInput);
+          return {
+            response: await handleCompareScenarios(
+              access,
+              this.cache,
+              req as CompareScenariosInput
+            ),
+          };
 
         case 'create_scenario_sheet':
-          return await handleCreateScenarioSheet(access, req as CreateScenarioSheetInput);
+          return {
+            response: await handleCreateScenarioSheet(access, req as CreateScenarioSheetInput),
+          };
 
         default: {
           const _exhaustiveCheck: never = req;
@@ -197,8 +231,11 @@ export class DependenciesHandler {
 /**
  * Create dependencies handler
  */
-export function createDependenciesHandler(sheetsApi: sheets_v4.Sheets): DependenciesHandler {
-  return new DependenciesHandler(sheetsApi);
+export function createDependenciesHandler(
+  sheetsApi: sheets_v4.Sheets,
+  options?: DependenciesHandlerOptions
+): DependenciesHandler {
+  return new DependenciesHandler(sheetsApi, options);
 }
 
 /**

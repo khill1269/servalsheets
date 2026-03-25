@@ -101,6 +101,7 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
     this.setVerbosity(verbosity);
 
     try {
+      this.checkOperationScopes(`${this.toolName}.${inferredReq.action}`);
       const response = await this.executeAction(inferredReq);
 
       if (response.success) {

@@ -304,6 +304,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
     const verbosity = req.verbosity ?? 'standard';
 
     try {
+      this.checkOperationScopes(`${this.toolName}.${req.action}`);
       let response: AnalyzeResponse;
 
       switch (req.action) {
@@ -669,6 +670,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             req as typeof req & {
               spreadsheetId: string;
               range?: unknown;
+              maxSheets?: number;
               maxDepthThreshold?: number;
               checkVolatile?: boolean;
               checkConsistency?: boolean;
@@ -724,13 +726,16 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             webhookUrl?: string;
             range?: string;
           };
-          const { ScheduledIntelligenceManager } = await import(
-            '../services/scheduled-intelligence.js'
-          );
+          const { ScheduledIntelligenceManager } =
+            await import('../services/scheduled-intelligence.js');
           const manager = ScheduledIntelligenceManager.getInstance();
           const schedule = manager.createSchedule({
             spreadsheetId: siInput.spreadsheetId,
-            analysisType: siInput.analysisType as 'quality_check' | 'anomaly_detection' | 'trend_analysis' | 'custom_query',
+            analysisType: siInput.analysisType as
+              | 'quality_check'
+              | 'anomaly_detection'
+              | 'trend_analysis'
+              | 'custom_query',
             query: siInput.query,
             intervalMs: (siInput.intervalMinutes ?? 60) * 60_000,
             conditions: siInput.conditions?.map((c) => ({
@@ -748,7 +753,9 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
               analysisType: schedule.analysisType,
               intervalMinutes: schedule.intervalMs / 60_000,
               enabled: schedule.enabled,
-              nextRunAt: schedule.nextRunAt ? new Date(schedule.nextRunAt).toISOString() : undefined,
+              nextRunAt: schedule.nextRunAt
+                ? new Date(schedule.nextRunAt).toISOString()
+                : undefined,
             },
             message: `Intelligence schedule created (${schedule.analysisType}, every ${schedule.intervalMs / 60_000}min)`,
           } as unknown as AnalyzeResponse;
@@ -757,9 +764,8 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
 
         case 'get_intelligence_report': {
           const grInput = req as typeof req & { scheduleId: string };
-          const { ScheduledIntelligenceManager } = await import(
-            '../services/scheduled-intelligence.js'
-          );
+          const { ScheduledIntelligenceManager } =
+            await import('../services/scheduled-intelligence.js');
           const grManager = ScheduledIntelligenceManager.getInstance();
           const report = grManager.getReport(grInput.scheduleId);
           if (!report) {
@@ -784,9 +790,8 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
 
         case 'cancel_intelligence': {
           const ciInput = req as typeof req & { scheduleId: string };
-          const { ScheduledIntelligenceManager } = await import(
-            '../services/scheduled-intelligence.js'
-          );
+          const { ScheduledIntelligenceManager } =
+            await import('../services/scheduled-intelligence.js');
           const ciManager = ScheduledIntelligenceManager.getInstance();
           const deleted = ciManager.deleteSchedule(ciInput.scheduleId);
           response = {
@@ -795,7 +800,15 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
             message: deleted
               ? `Schedule ${ciInput.scheduleId} cancelled`
               : `Schedule ${ciInput.scheduleId} not found`,
-            ...(deleted ? {} : { error: { code: ErrorCodes.NOT_FOUND, message: 'Schedule not found', retryable: false } }),
+            ...(deleted
+              ? {}
+              : {
+                  error: {
+                    code: ErrorCodes.NOT_FOUND,
+                    message: 'Schedule not found',
+                    retryable: false,
+                  },
+                }),
           } as unknown as AnalyzeResponse;
           break;
         }
@@ -951,6 +964,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
   private async handleFormulaHealthCheck(req: {
     spreadsheetId: string;
     range?: unknown;
+    maxSheets?: number;
     maxDepthThreshold?: number;
     checkVolatile?: boolean;
     checkConsistency?: boolean;
@@ -959,6 +973,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
     const {
       spreadsheetId,
       range,
+      maxSheets = 10,
       maxDepthThreshold = 5,
       checkVolatile = true,
       checkConsistency = true,
@@ -966,7 +981,24 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
     } = req;
 
     const rangeStr = typeof range === 'string' ? range : undefined;
-    const ranges = rangeStr ? [rangeStr] : undefined;
+    let ranges = rangeStr ? [rangeStr] : undefined;
+    let sheetCountTotal: number | undefined;
+    let sheetCountAudited: number | undefined;
+
+    if (!ranges) {
+      const metadataResponse = await this.sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets(properties(title))',
+      });
+      const sheetTitles = (metadataResponse.data.sheets ?? [])
+        .map((sheet) => sheet.properties?.title)
+        .filter((title): title is string => typeof title === 'string' && title.length > 0);
+
+      sheetCountTotal = sheetTitles.length;
+      const boundedTitles = sheetTitles.slice(0, maxSheets);
+      sheetCountAudited = boundedTitles.length;
+      ranges = boundedTitles.map((title) => `'${title.replace(/'/g, "''")}'`);
+    }
 
     const ssResponse = await this.sheetsApi.spreadsheets.get({
       spreadsheetId,
@@ -1105,6 +1137,17 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
     const errorCount = issues.filter((i) => i.severity === 'error').length;
     const warningCount = issues.filter((i) => i.severity === 'warning').length;
     const score = formulaCount === 0 ? 100 : Math.max(0, 100 - errorCount * 20 - warningCount * 5);
+    const truncated =
+      !rangeStr && sheetCountTotal !== undefined && sheetCountAudited !== undefined
+        ? sheetCountAudited < sheetCountTotal
+        : false;
+    const auditedSheetMessage =
+      sheetCountAudited !== undefined && sheetCountTotal !== undefined
+        ? ` Audited ${sheetCountAudited} of ${sheetCountTotal} sheet(s).`
+        : '';
+    const truncationMessage = truncated
+      ? ' Results truncated by maxSheets; rerun with a higher maxSheets value or a specific range for complete coverage.'
+      : '';
 
     return {
       success: true,
@@ -1114,7 +1157,9 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
       healthScore: score,
       issueCount: issues.length,
       issues: issues.slice(0, 50),
-      message: `Audited ${formulaCount} formula(s). Health score: ${score}/100. ${warningCount} warning(s), ${errorCount} error(s).`,
+      ...(sheetCountAudited !== undefined ? { sheetCountAudited } : {}),
+      ...(sheetCountTotal !== undefined ? { sheetCountTotal } : {}),
+      message: `Audited ${formulaCount} formula(s). Health score: ${score}/100. ${warningCount} warning(s), ${errorCount} error(s).${auditedSheetMessage}${truncationMessage}`,
     };
   }
 

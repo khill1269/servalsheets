@@ -16,6 +16,7 @@ import type {
 } from '../../schemas/visualize.js';
 import type { ErrorDetail, MutationSummary, RangeInput } from '../../schemas/shared.js';
 import {
+  indexToColumnLetter,
   parseCellReference,
   toGridRange as toApiGridRange,
   type GridRangeInput,
@@ -91,6 +92,19 @@ interface ChartsDeps {
   error: (error: ErrorDetail) => VisualizeResponse;
   notFoundError: (resourceType: string, resourceId: string | number) => VisualizeResponse;
 }
+
+interface OverlayPositionInput {
+  sheetId?: number;
+  offsetX?: number;
+  offsetY?: number;
+  width?: number;
+  height?: number;
+}
+
+type ResolvedOverlayAnchor = {
+  parsed: ReturnType<typeof parseCellReference>;
+  sheetId: number;
+};
 
 function buildSingleColumnChartData(
   dataRange: GridRangeInput,
@@ -290,10 +304,17 @@ export async function handleChartCreateAction(
     resolvedInput.spreadsheetId,
     resolvedInput.data.sourceRange
   );
-  const position = await toOverlayPosition(
+  const resolvedAnchor = await resolveOverlayAnchor(
     deps,
     resolvedInput.spreadsheetId,
     resolvedInput.position.anchorCell,
+    resolvedInput.position
+  );
+  if ('code' in resolvedAnchor) {
+    return deps.error(resolvedAnchor);
+  }
+  const position = await toOverlayPosition(
+    resolvedAnchor,
     resolvedInput.position
   );
 
@@ -409,10 +430,17 @@ export async function handleChartUpdateAction(
   }
 
   if (input.position) {
-    const position = await toOverlayPosition(
+    const resolvedAnchor = await resolveOverlayAnchor(
       deps,
       input.spreadsheetId,
       input.position.anchorCell,
+      input.position
+    );
+    if ('code' in resolvedAnchor) {
+      return deps.error(resolvedAnchor);
+    }
+    const position = await toOverlayPosition(
+      resolvedAnchor,
       input.position
     );
     requests.push({
@@ -604,10 +632,17 @@ export async function handleChartMoveAction(
   input: ChartMoveInput,
   deps: ChartsDeps
 ): Promise<VisualizeResponse> {
-  const position = await toOverlayPosition(
+  const resolvedAnchor = await resolveOverlayAnchor(
     deps,
     input.spreadsheetId,
     input.position.anchorCell,
+    input.position
+  );
+  if ('code' in resolvedAnchor) {
+    return deps.error(resolvedAnchor);
+  }
+  const position = await toOverlayPosition(
+    resolvedAnchor,
     input.position
   );
 
@@ -1324,23 +1359,63 @@ function buildChartSpec(
   }
 }
 
-async function toOverlayPosition(
+async function resolveOverlayAnchor(
   deps: ChartsDeps,
   spreadsheetId: string,
   anchorCell: string,
-  position: {
-    sheetId?: number;
-    offsetX?: number;
-    offsetY?: number;
-    width?: number;
-    height?: number;
-  }
-): Promise<sheets_v4.Schema$EmbeddedObjectPosition> {
+  position: OverlayPositionInput
+): Promise<ResolvedOverlayAnchor | ErrorDetail> {
   const parsed = parseCellReference(anchorCell);
-  // P2-3 fix: Honor explicit sheetId from position object when anchor cell
-  // doesn't include a sheet prefix (e.g. "A1" vs "KPI Dashboard!A1").
-  // Without this, charts always land on sheetId 0 when anchorCell has no prefix.
   const sheetId = position.sheetId ?? (await deps.resolveSheetId(spreadsheetId, parsed.sheetName));
+  const response = await deps.sheetsApi.spreadsheets.get({
+    spreadsheetId,
+    fields:
+      'sheets.properties.sheetId,sheets.properties.title,sheets.properties.gridProperties.rowCount,sheets.properties.gridProperties.columnCount',
+  });
+  const sheet = response.data.sheets?.find((entry) => entry.properties?.sheetId === sheetId);
+
+  if (!sheet?.properties) {
+    return {
+      code: ErrorCodes.NOT_FOUND,
+      message: `Sheet ${parsed.sheetName ?? sheetId} not found`,
+      retryable: false,
+      suggestedFix: 'Use an existing sheet name or an explicit position.sheetId for the chart anchor.',
+    };
+  }
+
+  const rowCount = sheet.properties.gridProperties?.rowCount ?? 0;
+  const columnCount = sheet.properties.gridProperties?.columnCount ?? 0;
+  if (parsed.row >= rowCount || parsed.col >= columnCount) {
+    const suggestedAnchor = 'A1';
+    return {
+      code: ErrorCodes.INVALID_PARAMS,
+      message: `anchorCell ${anchorCell} is outside the grid bounds for sheet "${sheet.properties.title ?? 'unknown'}"`,
+      category: 'client',
+      severity: 'medium',
+      retryable: false,
+      suggestedFix: `Choose an anchorCell within rows 1-${rowCount} and columns A-${indexToColumnLetter(Math.max(columnCount - 1, 0))}. Suggested anchor: ${suggestedAnchor}.`,
+      details: {
+        reasonCode: 'ANCHOR_OUT_OF_BOUNDS',
+        anchorCell,
+        requestedRow: parsed.row + 1,
+        requestedColumn: indexToColumnLetter(parsed.col),
+        sheetId,
+        sheetTitle: sheet.properties.title ?? 'unknown',
+        sheetRowCount: rowCount,
+        sheetColumnCount: columnCount,
+        suggestedAnchor,
+      },
+    };
+  }
+
+  return { parsed, sheetId };
+}
+
+async function toOverlayPosition(
+  resolvedAnchor: ResolvedOverlayAnchor,
+  position: OverlayPositionInput
+): Promise<sheets_v4.Schema$EmbeddedObjectPosition> {
+  const { parsed, sheetId } = resolvedAnchor;
 
   return {
     overlayPosition: {

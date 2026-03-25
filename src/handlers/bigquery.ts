@@ -60,7 +60,11 @@ import type {
   MutationSummary,
 } from '../schemas/index.js';
 import { logger } from '../utils/logger.js';
-import type { BigQueryHandlerAccess, QueryJobParams, QueryJobResult } from './bigquery-actions/internal.js';
+import type {
+  BigQueryHandlerAccess,
+  QueryJobParams,
+  QueryJobResult,
+} from './bigquery-actions/internal.js';
 
 // Submodule imports
 import {
@@ -156,6 +160,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
 
       // 5. Dispatch to action handler
       const req = rawReq as BigQueryRequest;
+      this.checkOperationScopes(`${this.toolName}.${req.action}`);
       let response: BigQueryResponse;
 
       switch (req.action) {

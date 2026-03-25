@@ -13,8 +13,7 @@
 
 import { ImpactAnalyzer } from '../../analysis/impact-analyzer.js';
 import type { SheetsDependenciesOutput } from '../../schemas/index.js';
-import { withSamplingTimeout, assertSamplingConsent, generateAIInsight } from '../../mcp/sampling.js';
-import { logger } from '../../utils/logger.js';
+import { generateAIInsight } from '../../mcp/sampling.js';
 import { mapStandaloneError } from '../helpers/error-mapping.js';
 import type { DependenciesHandlerAccess, AnalyzerCacheEntry } from './internal.js';
 

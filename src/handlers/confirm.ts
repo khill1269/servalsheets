@@ -119,6 +119,19 @@ export class ConfirmHandler {
     this.context = options.context;
   }
 
+  private normalizeWizardSteps(steps: WizardStepDef[]): WizardStepDef[] {
+    return steps.map((step) => ({
+      ...step,
+      fields: step.fields.map((field) => {
+        const rawField = field as { type?: unknown };
+        return {
+          ...field,
+          type: (rawField.type === 'string' ? 'text' : field.type) as typeof field.type,
+        };
+      }),
+    }));
+  }
+
   /**
    * Convert schema plan step to service plan step
    */
@@ -259,6 +272,7 @@ export class ConfirmHandler {
         case 'wizard_start': {
           const wizardInput = req as ConfirmWizardStartInput;
           const wizardId = wizardInput.wizardId || `wiz_${randomUUID()}`;
+          const normalizedSteps = this.normalizeWizardSteps(wizardInput.steps);
 
           // DoS protection: evict oldest session if at capacity
           if (wizardSessions.size >= MAX_WIZARD_SESSIONS) {
@@ -282,7 +296,7 @@ export class ConfirmHandler {
             wizardId,
             title: wizardInput.title,
             description: wizardInput.description,
-            steps: wizardInput.steps,
+            steps: normalizedSteps,
             currentStepIndex: 0,
             completedSteps: [],
             collectedValues: {},
@@ -426,6 +440,8 @@ export class ConfirmHandler {
             >,
             isComplete: true,
           };
+
+          getConfirmationService().recordWizardCompletion();
 
           // Clean up session
           wizardSessions.delete(completeInput.wizardId);

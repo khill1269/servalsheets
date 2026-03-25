@@ -12,7 +12,8 @@ import { sendProgress } from '../../utils/request-context.js';
 import { confirmDestructiveAction } from '../../mcp/elicitation.js';
 import { withSamplingTimeout, assertSamplingConsent } from '../../mcp/sampling.js';
 import { validateSamplingOutput } from '../../services/sampling-validator.js';
-import { toGridRange } from '../../utils/google-sheets-helpers.js';
+import { parseA1Notation, toGridRange } from '../../utils/google-sheets-helpers.js';
+import { extractSheetName } from '../../utils/range-helpers.js';
 import type { DataHandlerAccess, ResponseFormat, MAX_BATCH_RANGES as _MAX } from './internal.js';
 import { MAX_BATCH_RANGES } from './internal.js';
 import {
@@ -28,6 +29,77 @@ import {
 } from './helpers.js';
 
 type DataRequest = SheetsDataInput['request'];
+const DEFAULT_FIND_REPLACE_SCAN_RANGE = 'A1:ZZ10000';
+
+function quoteSheetNameForA1(sheetName: string): string {
+  return `'${sheetName.replace(/'/g, "''")}'`;
+}
+
+function buildWholeSheetFindReplaceRange(sheetName: string): string {
+  return `${quoteSheetNameForA1(sheetName)}!${DEFAULT_FIND_REPLACE_SCAN_RANGE}`;
+}
+
+async function listSpreadsheetSheetTitles(
+  ha: DataHandlerAccess,
+  spreadsheetId: string
+): Promise<string[]> {
+  const metadata = await ha.deduplicatedApiCall(
+    `spreadsheets:get:find_replace_sheet_titles:${spreadsheetId}`,
+    () =>
+      ha.api.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets.properties(title,index)',
+      })
+  );
+
+  return (metadata.data.sheets ?? [])
+    .slice()
+    .sort((left, right) => (left.properties?.index ?? 0) - (right.properties?.index ?? 0))
+    .map((sheet) => sheet.properties?.title)
+    .filter((title): title is string => typeof title === 'string' && title.length > 0);
+}
+
+async function resolveDefaultFindReplaceRange(
+  ha: DataHandlerAccess,
+  spreadsheetId: string
+): Promise<string> {
+  const activeSpreadsheet = ha.context.sessionContext?.getActiveSpreadsheet();
+  if (activeSpreadsheet?.spreadsheetId === spreadsheetId) {
+    const sessionSheetName =
+      (activeSpreadsheet.lastRange ? extractSheetName(activeSpreadsheet.lastRange) : undefined) ??
+      activeSpreadsheet.sheetNames[0];
+    if (sessionSheetName) {
+      return buildWholeSheetFindReplaceRange(sessionSheetName);
+    }
+  }
+
+  const sheetTitles = await listSpreadsheetSheetTitles(ha, spreadsheetId);
+  if (sheetTitles.length > 0) {
+    return buildWholeSheetFindReplaceRange(sheetTitles[0]!);
+  }
+
+  return DEFAULT_FIND_REPLACE_SCAN_RANGE;
+}
+
+async function resolveFindReplaceSearchRanges(
+  ha: DataHandlerAccess,
+  spreadsheetId: string,
+  resolvedRange: string | undefined,
+  allSheets: boolean | undefined
+): Promise<string[]> {
+  if (resolvedRange) {
+    return [resolvedRange];
+  }
+
+  if (allSheets) {
+    const sheetTitles = await listSpreadsheetSheetTitles(ha, spreadsheetId);
+    if (sheetTitles.length > 0) {
+      return sheetTitles.map((sheetTitle) => buildWholeSheetFindReplaceRange(sheetTitle));
+    }
+  }
+
+  return [await resolveDefaultFindReplaceRange(ha, spreadsheetId)];
+}
 
 // ─── handleBatchRead ──────────────────────────────────────────────────────────
 
@@ -213,11 +285,16 @@ export async function handleBatchRead(
       chunkCount: chunks.length,
     });
 
-    const allValueRanges: Array<{ range: string; values: ValuesArray }> = [];
+    // Process chunks concurrently (up to 3 at a time) instead of sequentially.
+    // This improves throughput by ~2-3× for large range sets while staying within
+    // Google's per-project read quota (300 req/min).
+    const CHUNK_CONCURRENCY = 3;
 
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i]!;
-      logger?.info(`Processing chunk ${i + 1}/${chunks.length}`, {
+    const fetchChunk = async (
+      chunk: string[],
+      chunkIndex: number
+    ): Promise<Array<{ range: string; values: ValuesArray }>> => {
+      logger?.info(`Processing chunk ${chunkIndex + 1}/${chunks.length}`, {
         chunkSize: chunk.length,
       });
 
@@ -232,14 +309,24 @@ export async function handleBatchRead(
         fields: 'valueRanges(range,values)',
       });
 
-      const chunkValueRanges = (response.data.valueRanges ?? []).map(
+      return (response.data.valueRanges ?? []).map(
         (vr: sheets_v4.Schema$ValueRange) => ({
           range: vr.range ?? '',
           values: (vr.values ?? []) as ValuesArray,
         })
       );
+    };
 
-      allValueRanges.push(...chunkValueRanges);
+    // Run chunks in batches of CHUNK_CONCURRENCY
+    const allValueRanges: Array<{ range: string; values: ValuesArray }> = [];
+    for (let i = 0; i < chunks.length; i += CHUNK_CONCURRENCY) {
+      const batch = chunks.slice(i, i + CHUNK_CONCURRENCY);
+      const results = await Promise.all(
+        batch.map((chunk, j) => fetchChunk(chunk, i + j))
+      );
+      for (const result of results) {
+        allValueRanges.push(...result);
+      }
     }
 
     logger?.info(`Batch chunking complete`, {
@@ -893,19 +980,46 @@ export async function handleFindReplace(
     : undefined;
 
   if (resolvedInput.replacement === undefined || resolvedInput.replacement === null) {
-    const searchRange = resolvedRange ?? 'A1:ZZ10000';
-    const renderOption = input.includeFormulas ? 'FORMULA' : 'FORMATTED_VALUE';
-    const dedupKey = `values:get:${input.spreadsheetId}:${searchRange}:${renderOption}:ROWS`;
-    const response = await ha.deduplicatedApiCall(dedupKey, () =>
-      ha.api.spreadsheets.values.get({
-        spreadsheetId: input.spreadsheetId,
-        range: searchRange,
-        valueRenderOption: renderOption,
-        fields: 'range,values',
-      })
+    const searchRanges = await resolveFindReplaceSearchRanges(
+      ha,
+      resolvedInput.spreadsheetId,
+      resolvedRange,
+      resolvedInput.allSheets
     );
+    const renderOption = input.includeFormulas ? 'FORMULA' : 'FORMATTED_VALUE';
+    const includeSheetInCellRef = searchRanges.length > 1;
+    let valueRanges: Array<{ range?: string | null; values?: unknown[][] | null }>;
+    if (searchRanges.length === 1) {
+      const response = await ha.deduplicatedApiCall(
+        `values:get:${input.spreadsheetId}:${searchRanges[0]}:${renderOption}:ROWS`,
+        () =>
+          ha.api.spreadsheets.values.get({
+            spreadsheetId: input.spreadsheetId,
+            range: searchRanges[0],
+            valueRenderOption: renderOption,
+            fields: 'range,values',
+          })
+      );
+      valueRanges = [
+        {
+          range: response.data.range ?? searchRanges[0],
+          values: response.data.values ?? [],
+        },
+      ];
+    } else {
+      const response = await ha.deduplicatedApiCall(
+        `values:batchGet:${input.spreadsheetId}:${searchRanges.join('|')}:${renderOption}:ROWS`,
+        () =>
+          ha.api.spreadsheets.values.batchGet({
+            spreadsheetId: input.spreadsheetId,
+            ranges: searchRanges,
+            valueRenderOption: renderOption,
+            fields: 'valueRanges(range,values)',
+          })
+      );
+      valueRanges = response.data.valueRanges ?? [];
+    }
 
-    const values = response.data.values ?? [];
     const matches: Array<{
       cell: string;
       value: string;
@@ -915,25 +1029,45 @@ export async function handleFindReplace(
     const query = resolvedInput.matchCase ? resolvedInput.find : resolvedInput.find.toLowerCase();
     const limit = input.limit ?? 100;
 
-    for (let row = 0; row < values.length && matches.length < limit; row++) {
-      const rowData = values[row];
-      if (!rowData) continue;
+    for (let rangeIndex = 0; rangeIndex < valueRanges.length && matches.length < limit; rangeIndex++) {
+      const valueRange = valueRanges[rangeIndex];
+      if (!valueRange) continue;
 
-      for (let col = 0; col < rowData.length && matches.length < limit; col++) {
-        const cellValue = String(rowData[col] ?? '');
-        const compareValue = resolvedInput.matchCase ? cellValue : cellValue.toLowerCase();
+      const sourceRange = valueRange.range ?? searchRanges[rangeIndex] ?? DEFAULT_FIND_REPLACE_SCAN_RANGE;
+      const parsedRange = parseA1Notation(sourceRange);
+      const rowOffset = parsedRange.startRow;
+      const columnOffset = parsedRange.startCol;
+      const sourceSheetName =
+        parsedRange.sheetName ??
+        (sourceRange.includes('!') ? extractSheetName(sourceRange) : undefined);
+      const values = valueRange.values ?? [];
 
-        const isMatch = resolvedInput.matchEntireCell
-          ? compareValue === query
-          : compareValue.includes(query);
+      for (let row = 0; row < values.length && matches.length < limit; row++) {
+        const rowData = values[row];
+        if (!rowData) continue;
 
-        if (isMatch) {
-          matches.push({
-            cell: `${ha.columnToLetter(col)}${row + 1}`,
-            value: cellValue,
-            row: row + 1,
-            column: col + 1,
-          });
+        for (let col = 0; col < rowData.length && matches.length < limit; col++) {
+          const cellValue = String(rowData[col] ?? '');
+          const compareValue = resolvedInput.matchCase ? cellValue : cellValue.toLowerCase();
+
+          const isMatch = resolvedInput.matchEntireCell
+            ? compareValue === query
+            : compareValue.includes(query);
+
+          if (isMatch) {
+            const absoluteRow = rowOffset + row + 1;
+            const absoluteColumn = columnOffset + col + 1;
+            const baseCellRef = `${ha.columnToLetter(columnOffset + col)}${absoluteRow}`;
+            matches.push({
+              cell:
+                includeSheetInCellRef && sourceSheetName
+                  ? `${quoteSheetNameForA1(sourceSheetName)}!${baseCellRef}`
+                  : baseCellRef,
+              value: cellValue,
+              row: absoluteRow,
+              column: absoluteColumn,
+            });
+          }
         }
       }
     }
@@ -1024,7 +1158,12 @@ export async function handleFindReplace(
   const frConfirmation = await requestDestructiveConfirmation(
     ha,
     'find_replace',
-    `Replace "${resolvedInput.find}" with "${resolvedInput.replacement}" across ${resolvedRange ?? 'all sheets'}`,
+    `Replace "${resolvedInput.find}" with "${resolvedInput.replacement}" across ${
+      resolvedRange ??
+      (resolvedInput.allSheets
+        ? 'all sheets'
+        : await resolveDefaultFindReplaceRange(ha, resolvedInput.spreadsheetId))
+    }`,
     1000, // find_replace can affect many cells
     100
   );
@@ -1047,8 +1186,12 @@ export async function handleFindReplace(
   if (resolvedRange) {
     const gridRange = await a1ToGridRange(ha, resolvedInput.spreadsheetId, resolvedRange);
     findReplaceRequest.range = toGridRange(gridRange);
-  } else {
+  } else if (resolvedInput.allSheets) {
     findReplaceRequest.allSheets = true;
+  } else {
+    const defaultScopeRange = await resolveDefaultFindReplaceRange(ha, resolvedInput.spreadsheetId);
+    const gridRange = await a1ToGridRange(ha, resolvedInput.spreadsheetId, defaultScopeRange);
+    findReplaceRequest.range = toGridRange(gridRange);
   }
 
   let aiImpactPrediction: string | undefined;

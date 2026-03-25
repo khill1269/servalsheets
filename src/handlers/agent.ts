@@ -72,52 +72,68 @@ export class AgentHandler {
     return /^[A-Za-z0-9_]+$/.test(sheetName) ? sheetName : `'${sheetName.replace(/'/g, "''")}'`;
   }
 
-  private async gatherLivePlanningContext(spreadsheetId?: string): Promise<string | undefined> {
-    if (!spreadsheetId || !this.handlers) {
+  private extractScoutPayload(scoutResult: unknown): Record<string, unknown> | undefined {
+    const payload = this.getResponsePayload(scoutResult);
+    if (!payload) {
       return undefined;
     }
 
-    try {
-      const scoutResult = await this.executeHandler('sheets_analyze', 'scout', {
-        spreadsheetId,
-        verbosity: 'minimal',
-      });
-      const scoutPayload = this.getResponsePayload(scoutResult);
-      const scout = scoutPayload?.['scout'];
-      if (typeof scout !== 'object' || scout === null) {
-        return undefined;
+    const nestedScout = payload['scout'];
+    if (typeof nestedScout === 'object' && nestedScout !== null) {
+      return nestedScout as Record<string, unknown>;
+    }
+
+    return payload;
+  }
+
+  private extractScoutSheets(
+    scoutPayload: Record<string, unknown>
+  ): Array<Record<string, unknown>> {
+    return Array.isArray(scoutPayload['sheets'])
+      ? (scoutPayload['sheets'] as Array<Record<string, unknown>>).filter(
+          (sheet) => typeof sheet === 'object' && sheet !== null
+        )
+      : [];
+  }
+
+  private async summarizeScoutSheets(args: {
+    spreadsheetId?: string;
+    scoutSheets: Array<Record<string, unknown>>;
+    label: 'live' | 'provided';
+    includeSamples: boolean;
+  }): Promise<string | undefined> {
+    const { spreadsheetId, scoutSheets, label, includeSamples } = args;
+    if (scoutSheets.length === 0) {
+      return undefined;
+    }
+
+    const rankedSheets = scoutSheets
+      .sort((left, right) => {
+        const leftEmpty =
+          (left['flags'] as Record<string, unknown> | undefined)?.['isEmpty'] === true;
+        const rightEmpty =
+          (right['flags'] as Record<string, unknown> | undefined)?.['isEmpty'] === true;
+        if (leftEmpty === rightEmpty) {
+          return Number(right['rowCount'] ?? 0) - Number(left['rowCount'] ?? 0);
+        }
+        return leftEmpty ? 1 : -1;
+      })
+      .slice(0, 3);
+
+    const parts: string[] = [];
+    for (const sheet of rankedSheets) {
+      const title = typeof sheet['title'] === 'string' ? sheet['title'] : undefined;
+      if (!title) {
+        continue;
       }
 
-      const scoutSheets = Array.isArray((scout as Record<string, unknown>)['sheets'])
-        ? ((scout as Record<string, unknown>)['sheets'] as Array<Record<string, unknown>>)
-        : [];
-      const rankedSheets = scoutSheets
-        .filter((sheet) => typeof sheet === 'object' && sheet !== null)
-        .sort((left, right) => {
-          const leftEmpty =
-            (left['flags'] as Record<string, unknown> | undefined)?.['isEmpty'] === true;
-          const rightEmpty =
-            (right['flags'] as Record<string, unknown> | undefined)?.['isEmpty'] === true;
-          if (leftEmpty === rightEmpty) {
-            return Number(right['rowCount'] ?? 0) - Number(left['rowCount'] ?? 0);
-          }
-          return leftEmpty ? 1 : -1;
-        })
-        .slice(0, 3);
+      const summaryParts = [
+        `sheet="${title}"`,
+        `rows=${Number(sheet['rowCount'] ?? 0)}`,
+        `cols=${Number(sheet['columnCount'] ?? 0)}`,
+      ];
 
-      const parts: string[] = [];
-      for (const sheet of rankedSheets) {
-        const title = typeof sheet['title'] === 'string' ? sheet['title'] : undefined;
-        if (!title) {
-          continue;
-        }
-
-        const summaryParts = [
-          `sheet="${title}"`,
-          `rows=${Number(sheet['rowCount'] ?? 0)}`,
-          `cols=${Number(sheet['columnCount'] ?? 0)}`,
-        ];
-
+      if (includeSamples && spreadsheetId && this.handlers) {
         try {
           const readResult = await this.executeHandler('sheets_data', 'read', {
             spreadsheetId,
@@ -140,15 +156,52 @@ export class AgentHandler {
         } catch {
           // Best-effort live context only.
         }
-
-        parts.push(summaryParts.join(', '));
       }
 
-      if (parts.length === 0) {
-        return undefined; // OK: Explicit empty — no scout data to inject
+      parts.push(summaryParts.join(', '));
+    }
+
+    if (parts.length === 0) {
+      return undefined;
+    }
+
+    return `\nSpreadsheet scout (${label}): ${parts.join(' | ')}`;
+  }
+
+  private async gatherLivePlanningContext(
+    spreadsheetId?: string,
+    suppliedScoutResult?: unknown
+  ): Promise<string | undefined> {
+    const suppliedScoutPayload = this.extractScoutPayload(suppliedScoutResult);
+    if (suppliedScoutPayload) {
+      return this.summarizeScoutSheets({
+        spreadsheetId,
+        scoutSheets: this.extractScoutSheets(suppliedScoutPayload),
+        label: 'provided',
+        includeSamples: false,
+      });
+    }
+
+    if (!spreadsheetId || !this.handlers) {
+      return undefined;
+    }
+
+    try {
+      const scoutResult = await this.executeHandler('sheets_analyze', 'scout', {
+        spreadsheetId,
+        verbosity: 'minimal',
+      });
+      const scoutPayload = this.extractScoutPayload(scoutResult);
+      if (!scoutPayload) {
+        return undefined;
       }
 
-      return `\nSpreadsheet scout (live): ${parts.join(' | ')}`;
+      return this.summarizeScoutSheets({
+        spreadsheetId,
+        scoutSheets: this.extractScoutSheets(scoutPayload),
+        label: 'live',
+        includeSamples: true,
+      });
     } catch {
       return undefined; // OK: Explicit empty — scout is best-effort, never blocks plan
     }
@@ -190,7 +243,10 @@ export class AgentHandler {
               // Non-blocking: metadata enrichment is best-effort
             }
           }
-          const livePlanningContext = await this.gatherLivePlanningContext(req.spreadsheetId);
+          const livePlanningContext = await this.gatherLivePlanningContext(
+            req.spreadsheetId,
+            req.scoutResult
+          );
           if (livePlanningContext) {
             enrichedContext = enrichedContext
               ? enrichedContext + livePlanningContext
@@ -202,13 +258,17 @@ export class AgentHandler {
             req.spreadsheetId,
             enrichedContext || undefined
           );
+          const invalidSteps = plan.steps.filter((step) => step.validation?.valid === false).length;
           return {
             response: {
               success: true,
               action: 'plan',
               planId: plan.planId,
               steps: plan.steps,
-              summary: `Plan created with ${plan.steps.length} steps`,
+              summary:
+                invalidSteps > 0
+                  ? `Plan created with ${plan.steps.length} steps; ${invalidSteps} need parameter fixes before execution`
+                  : `Plan created with ${plan.steps.length} steps`,
               executionTimeMs: Date.now() - startTime,
             },
           };

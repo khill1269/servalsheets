@@ -67,8 +67,9 @@ async function buildComprehensiveScoutFallback(
           'Comprehensive analysis was degraded because the server is under memory pressure, ' +
           'but the scout fallback also failed. Retry after current operations finish.',
         retryable: true,
+        retryAfterMs: 30_000,
         suggestedFix:
-          'Wait for other analysis operations to complete, then retry comprehensive or use scout directly.',
+          'Wait 30 seconds for other analysis operations to complete, then retry comprehensive or use scout directly.',
       },
     };
   }
@@ -84,9 +85,10 @@ async function buildComprehensiveScoutFallback(
     summary:
       'Comprehensive analysis was automatically degraded to a scout scan because the server is under memory pressure.',
     topInsights: scoutInsights,
+    retryAfterMs: 30_000,
     message:
       `Comprehensive analysis degraded to scout: ${reason}. ` +
-      'Use scout now, then retry comprehensive after memory pressure subsides.',
+      'Use scout results now, then retry comprehensive after ~30 seconds when memory pressure subsides.',
   };
 }
 

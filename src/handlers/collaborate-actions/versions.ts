@@ -232,12 +232,16 @@ export async function handleVersionListRevisionsAction(
   // cursor, then return the next page of results.
   if (input.afterRevisionId !== undefined) {
     const pageSize = input.pageSize ?? 100;
-    const allRevisions: drive_v3.Schema$Revision[] = [];
+    const collectedPage: drive_v3.Schema$Revision[] = [];
+    const scannedPrefix: drive_v3.Schema$Revision[] = [];
     let pageToken: string | undefined;
     let pageCount = 0;
+    let cursorFound = false;
+    let hasMore = false;
     const PAGE_CAP = 20; // Reduced from 100 to prevent timeouts on large revision histories
     const DEADLINE_MS = 45_000; // 45-second deadline to stay within MCP timeout
     const startTime = Date.now();
+    const fetchPageSize = Math.min(Math.max(pageSize, 50), 200);
 
     // Fetch revisions across Drive pages to find the cursor position.
     // Uses a deadline check to prevent unbounded fetching.
@@ -246,26 +250,55 @@ export async function handleVersionListRevisionsAction(
       // Deadline check: bail out before timeout
       if (Date.now() - startTime > DEADLINE_MS) {
         logger.warn(
-          `version_list_revisions: deadline exceeded (${DEADLINE_MS}ms) after ${pageCount} pages, ${allRevisions.length} revisions for spreadsheet ${input.spreadsheetId}`
+          `version_list_revisions: deadline exceeded (${DEADLINE_MS}ms) after ${pageCount} pages for spreadsheet ${input.spreadsheetId}`
         );
         break;
       }
 
       const resp = await deps.driveApi.revisions.list({
         fileId: input.spreadsheetId!,
-        pageSize: 200,
+        pageSize: fetchPageSize,
         fields:
           'revisions(id,modifiedTime,lastModifyingUser/displayName,lastModifyingUser/emailAddress,size,keepForever),nextPageToken',
         ...(pageToken ? { pageToken } : {}),
       });
-      allRevisions.push(...(resp.data.revisions ?? []));
+      const revisions = resp.data.revisions ?? [];
       pageToken = resp.data.nextPageToken ?? undefined;
       pageCount++;
+      if (!cursorFound) {
+        scannedPrefix.push(...revisions);
+      }
+      if (cursorFound) {
+        const remaining = pageSize - collectedPage.length;
+        if (remaining > 0) {
+          collectedPage.push(...revisions.slice(0, remaining));
+        }
+        if (collectedPage.length >= pageSize) {
+          hasMore = revisions.length > remaining || pageToken !== undefined;
+          break;
+        }
+      } else {
+        const cursorIndex = revisions.findIndex((r) => r.id === input.afterRevisionId);
+        if (cursorIndex !== -1) {
+          cursorFound = true;
+          const availableAfterCursor = revisions.slice(cursorIndex + 1);
+          const remaining = pageSize - collectedPage.length;
+          if (remaining > 0) {
+            collectedPage.push(...availableAfterCursor.slice(0, remaining));
+          }
+          if (collectedPage.length >= pageSize) {
+            hasMore = availableAfterCursor.length > remaining || pageToken !== undefined;
+            break;
+          }
+        }
+      }
       if (pageCount % 5 === 0 || !pageToken) {
         await sendProgress(
           pageCount,
           PAGE_CAP,
-          `Scanning revision history... (${allRevisions.length} revisions loaded)`
+          cursorFound
+            ? `Loading revision page... (${collectedPage.length}/${pageSize} collected)`
+            : `Scanning revision history... (${scannedPrefix.length} revisions loaded)`
         );
       }
       if (pageCount >= PAGE_CAP) {
@@ -276,12 +309,10 @@ export async function handleVersionListRevisionsAction(
       }
     } while (pageToken);
 
-    // Find the index of the cursor revision and slice the next page after it.
-    const cursorIndex = allRevisions.findIndex((r) => r.id === input.afterRevisionId);
-    const startIndex = cursorIndex === -1 ? 0 : cursorIndex + 1;
-    const page = allRevisions.slice(startIndex, startIndex + pageSize);
+    // If the cursor was not found within the bounded scan, preserve legacy behavior by
+    // falling back to the first page of the scanned prefix rather than timing out.
+    const page = cursorFound ? collectedPage : scannedPrefix.slice(0, pageSize);
     const revisions = page.map((revision) => mapRevision(revision));
-    const hasMore = startIndex + pageSize < allRevisions.length;
     const nextRevisionId =
       hasMore && page.length > 0 ? (page[page.length - 1]!.id ?? undefined) : undefined;
 

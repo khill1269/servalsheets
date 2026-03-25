@@ -1451,6 +1451,11 @@ export abstract class BaseHandler<TInput, TOutput> {
     sheetName?: string,
     sheetsApi?: import('googleapis').sheets_v4.Sheets
   ): Promise<number> {
+    if (sheetName && this.context.sheetResolver) {
+      const resolved = await this.context.sheetResolver.resolve(spreadsheetId, { sheetName });
+      return resolved.sheet.sheetId;
+    }
+
     const metadataCache = this.context.metadataCache ?? getRequestContext()?.metadataCache;
 
     // OPTIMIZATION: Use session-level metadata cache if available (N+1 elimination)

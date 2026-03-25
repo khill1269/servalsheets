@@ -9,6 +9,53 @@ import { isLLMFallbackAvailable } from '../../services/llm-fallback.js';
 import { ErrorCodes } from '../error-codes.js';
 import { checkElicitationSupport } from '../../mcp/elicitation.js';
 
+type ReadinessSummary = {
+  googleAuth: {
+    configured: boolean;
+    authenticated: boolean;
+    authType?: string;
+    tokenValid?: boolean;
+  };
+  elicitation: ReturnType<typeof checkElicitationSupport>;
+  sampling: {
+    configured: boolean;
+    available: boolean;
+    mode: 'llm_fallback' | 'unavailable';
+  };
+  connectors: {
+    available: number;
+    configured: number;
+    healthy: number;
+  };
+  webhooks: {
+    configured: boolean;
+    active: boolean;
+  };
+  missingConfig?: string[];
+};
+
+type StatusGuidance = {
+  message: string;
+  blockingIssues: Array<{ code: string; message: string; resolution?: string }>;
+  recommendedNextAction: string;
+  recommendedPrompt: string;
+  nextSteps: string[];
+};
+
+type StatusMeta = {
+  journeyStage:
+    | 'onboarding'
+    | 'readiness'
+    | 'authentication'
+    | 'connector_setup'
+    | 'first_success'
+    | 'recovery';
+  nextBestAction: string;
+  verificationSummary: string;
+  nextSteps?: string[];
+  warnings?: string[];
+};
+
 function getReadiness(
   googleClient: GoogleApiClient | null | undefined,
   auth: {
@@ -17,7 +64,7 @@ function getReadiness(
     authType?: string;
     tokenValid?: boolean;
   }
-) {
+): ReadinessSummary {
   const connectors = connectorManager.listConnectors().connectors;
   const healthyConnectors = connectors.filter((connector) => connector.healthy).length;
   const configuredConnectors = connectors.filter((connector) => connector.configured).length;
@@ -63,7 +110,7 @@ function getReadiness(
   } as const;
 }
 
-function getStatusGuidance(readiness: ReturnType<typeof getReadiness>) {
+function getStatusGuidance(readiness: ReadinessSummary): StatusGuidance {
   if (!readiness.googleAuth.configured) {
     return {
       message:
@@ -136,7 +183,7 @@ function createMeta(options: {
   verificationSummary: string;
   nextSteps?: string[];
   warnings?: string[];
-}) {
+}): StatusMeta {
   return {
     journeyStage: options.journeyStage,
     nextBestAction: options.nextBestAction,

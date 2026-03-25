@@ -18,11 +18,105 @@ import type {
   DimensionsAutoFillInput,
   DimensionsResponse,
 } from '../../schemas/index.js';
+import type { RangeInput } from '../../schemas/shared.js';
 import { confirmDestructiveAction } from '../../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
 import { mapDimensionsCriteria } from '../dimensions-filter-helpers.js';
 import type { DimensionsHandlerAccess } from './internal.js';
+import { createMetadataCache } from '../../services/metadata-cache.js';
+
+const quoteSheetNameForA1 = (sheetName: string): string => `'${sheetName.replace(/'/g, "''")}'`;
+
+async function resolveSheetTitleForSortRange(
+  ha: DimensionsHandlerAccess,
+  input: DimensionsSortRangeInput
+): Promise<string | undefined> {
+  if (input.sheetName) {
+    return input.sheetName;
+  }
+
+  if (input.sheetId === undefined) {
+    return undefined;
+  }
+
+  if (ha.context.sheetResolver) {
+    try {
+      const resolved = await ha.context.sheetResolver.resolve(input.spreadsheetId, {
+        sheetId: input.sheetId,
+      });
+      return resolved.sheet.title;
+    } catch {
+      // Fall through to metadata cache / API fallback.
+    }
+  }
+
+  const metadataCache = ha.context.metadataCache ?? createMetadataCache(ha.sheetsApi);
+  return metadataCache.getSheetName(input.spreadsheetId, input.sheetId);
+}
+
+async function normalizeSortRangeInput(
+  ha: DimensionsHandlerAccess,
+  input: DimensionsSortRangeInput
+): Promise<DimensionsSortRangeInput> {
+  const range = input.range as RangeInput | string;
+
+  if (typeof range === 'string') {
+    if (range.includes('!')) {
+      return input;
+    }
+
+    const sheetTitle = await resolveSheetTitleForSortRange(ha, input);
+    if (!sheetTitle) {
+      return input;
+    }
+
+    return {
+      ...input,
+      range: { a1: `${quoteSheetNameForA1(sheetTitle)}!${range}` },
+    };
+  }
+
+  if (typeof range === 'object' && range !== null && 'a1' in range && typeof range.a1 === 'string' && !range.a1.includes('!')) {
+    const sheetTitle = await resolveSheetTitleForSortRange(ha, input);
+    if (!sheetTitle) {
+      return input;
+    }
+
+    return {
+      ...input,
+      range: {
+        ...range,
+        a1: `${quoteSheetNameForA1(sheetTitle)}!${range.a1}`,
+      } satisfies RangeInput,
+    };
+  }
+
+  if (typeof range === 'object' && range !== null && 'grid' in range && range.grid && range.grid.sheetId === undefined) {
+    const resolvedSheetId =
+      input.sheetId ??
+      (input.sheetName
+        ? await ha.getSheetId(input.spreadsheetId, input.sheetName, ha.sheetsApi)
+        : undefined);
+
+    if (resolvedSheetId === undefined) {
+      return input;
+    }
+
+    return {
+      ...input,
+      range: {
+        ...range,
+        grid: {
+          ...range.grid,
+          sheetId: resolvedSheetId,
+        },
+      } satisfies RangeInput,
+    };
+  }
+
+  return input;
+}
 
 // ─── handleSetBasicFilter ─────────────────────────────────────────────────────
 
@@ -252,7 +346,7 @@ export async function handleSortRange(
     });
   }
 
-  let resolvedInput = input;
+  let resolvedInput = await normalizeSortRangeInput(ha, input);
 
   // Wizard: If range is provided but sortSpecs is missing, elicit sort direction
   if (resolvedInput.range && (!resolvedInput.sortSpecs || resolvedInput.sortSpecs.length === 0)) {

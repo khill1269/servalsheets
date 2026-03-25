@@ -14,7 +14,11 @@ import type {
 } from '../../schemas/index.js';
 import { confirmDestructiveAction } from '../../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
-import { parseCellReference, toGridRange } from '../../utils/google-sheets-helpers.js';
+import {
+  indexToColumnLetter,
+  parseCellReference,
+  toGridRange,
+} from '../../utils/google-sheets-helpers.js';
 import { toApiSlicerFilterCriteria } from '../dimensions-filter-helpers.js';
 import type { DimensionsHandlerAccess } from './internal.js';
 
@@ -31,6 +35,42 @@ export async function handleCreateSlicer(
   // Google API expects: overlayPosition.anchorCell: {sheetId, rowIndex, columnIndex} (object)
   // This conversion allows simpler AI instruction format while maintaining API compatibility
   const anchor = parseCellReference(input.position.anchorCell);
+  const sheetMetadata = await ha.sheetsApi.spreadsheets.get({
+    spreadsheetId: input.spreadsheetId,
+    fields:
+      'sheets.properties.sheetId,sheets.properties.title,sheets.properties.gridProperties.rowCount,sheets.properties.gridProperties.columnCount',
+  });
+
+  const anchorSheet = sheetMetadata.data.sheets?.find((sheet) =>
+    anchor.sheetName
+      ? sheet.properties?.title === anchor.sheetName
+      : sheet.properties?.sheetId === dataRange.sheetId
+  );
+
+  if (anchorSheet?.properties?.sheetId === undefined) {
+    return ha.error({
+      code: ErrorCodes.NOT_FOUND,
+      message: `Sheet ${anchor.sheetName ?? dataRange.sheetId ?? 'unknown'} not found`,
+      category: 'client',
+      severity: 'medium',
+      retryable: false,
+      suggestedFix: 'Use an existing sheet name or a dataRange that resolves to a valid sheet.',
+    });
+  }
+
+  const rowCount = anchorSheet.properties.gridProperties?.rowCount ?? 0;
+  const columnCount = anchorSheet.properties.gridProperties?.columnCount ?? 0;
+
+  if (anchor.row >= rowCount || anchor.col >= columnCount) {
+    return ha.error({
+      code: ErrorCodes.INVALID_PARAMS,
+      message: `anchorCell ${input.position.anchorCell} is outside the grid bounds for sheet "${anchorSheet.properties.title ?? 'unknown'}"`,
+      category: 'client',
+      severity: 'medium',
+      retryable: false,
+      suggestedFix: `Choose an anchorCell within rows 1-${rowCount} and columns A-${indexToColumnLetter(Math.max(columnCount - 1, 0))}.`,
+    });
+  }
 
   const batchResponse = await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
@@ -50,7 +90,7 @@ export async function handleCreateSlicer(
               position: {
                 overlayPosition: {
                   anchorCell: {
-                    sheetId: dataRange.sheetId,
+                    sheetId: anchorSheet.properties.sheetId,
                     rowIndex: anchor.row,
                     columnIndex: anchor.col,
                   },

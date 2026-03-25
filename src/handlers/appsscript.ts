@@ -212,6 +212,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     try {
       // 3. Dispatch to action handler
       const req = rawReq as AppsScriptRequest;
+      this.checkOperationScopes(`${this.toolName}.${req.action}`);
       let response: AppsScriptResponse;
 
       switch (req.action) {
@@ -234,10 +235,16 @@ export class SheetsAppsScriptHandler extends BaseHandler<
           break;
         }
         case 'create_version':
-          response = await handleCreateVersion(this.handlerAccess, req as AppsScriptCreateVersionInput);
+          response = await handleCreateVersion(
+            this.handlerAccess,
+            req as AppsScriptCreateVersionInput
+          );
           break;
         case 'list_versions':
-          response = await handleListVersions(this.handlerAccess, req as AppsScriptListVersionsInput);
+          response = await handleListVersions(
+            this.handlerAccess,
+            req as AppsScriptListVersionsInput
+          );
           break;
         case 'get_version':
           response = await handleGetVersion(this.handlerAccess, req as AppsScriptGetVersionInput);
@@ -252,7 +259,10 @@ export class SheetsAppsScriptHandler extends BaseHandler<
           );
           break;
         case 'get_deployment':
-          response = await handleGetDeployment(this.handlerAccess, req as AppsScriptGetDeploymentInput);
+          response = await handleGetDeployment(
+            this.handlerAccess,
+            req as AppsScriptGetDeploymentInput
+          );
           break;
         case 'undeploy':
           response = await handleUndeploy(this.handlerAccess, req as AppsScriptUndeployInput);
@@ -675,5 +685,4 @@ export class SheetsAppsScriptHandler extends BaseHandler<
 
     return JSON.parse(text) as T;
   }
-
 }

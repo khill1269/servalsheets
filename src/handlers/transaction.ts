@@ -4,7 +4,6 @@
  * Handles multi-operation transactions with atomicity and auto-rollback.
  */
 
-import { ErrorCodes } from './error-codes.js';
 import { assertNever } from '../utils/type-utils.js';
 import { getTransactionManager } from '../services/transaction-manager.js';
 import type {
@@ -18,6 +17,7 @@ import { mapStandaloneError } from './helpers/error-mapping.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { resourceNotifications } from '../resources/notifications.js';
 import { sendProgress } from '../utils/request-context.js';
+import { withKeepalive } from '../utils/keepalive.js';
 import { logger } from '../utils/logger.js';
 import { getEnv } from '../config/env.js';
 
@@ -180,10 +180,12 @@ export class TransactionHandler {
             transactionManager,
             req.transactionId
           );
-          const result = await transactionManager.commit(req.transactionId);
-          await sendProgress(100, 100, 'Transaction committed');
+          const result = await withKeepalive(() => transactionManager.commit(req.transactionId!), {
+            operationName: 'sheets_transaction.commit',
+          });
 
           if (result.success) {
+            await sendProgress(100, 100, 'Transaction committed');
             response = {
               success: true,
               action: 'commit',
@@ -200,15 +202,19 @@ export class TransactionHandler {
               spreadsheetId
             );
           } else {
+            const mappedError = mapStandaloneError(
+              result.error ?? new Error('Transaction commit failed')
+            );
             response = {
               success: false,
               error: {
-                code: ErrorCodes.INTERNAL_ERROR,
-                message: result.error?.message || 'Transaction commit failed',
-                retryable: false,
+                ...mappedError,
                 details: result.rolledBack
-                  ? { rollback: 'Transaction was automatically rolled back' }
-                  : undefined,
+                  ? {
+                      ...(mappedError.details ?? {}),
+                      rollback: 'Transaction was automatically rolled back',
+                    }
+                  : mappedError.details,
               },
             };
             resourceNotifications.notifyTransactionStateChanged(

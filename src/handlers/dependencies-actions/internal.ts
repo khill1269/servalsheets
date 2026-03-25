@@ -7,11 +7,14 @@
 
 import type { sheets_v4 } from 'googleapis';
 import type { SamplingServer } from '../../mcp/sampling.js';
-import type { SheetsDependenciesOutput } from '../../schemas/index.js';
+import type { DependenciesResponse, SheetsDependenciesOutput } from '../../schemas/index.js';
 import type { ErrorDetail } from '../../schemas/shared.js';
+import type { ImpactAnalyzer } from '../../analysis/impact-analyzer.js';
+
+type DependenciesSuccessData = Extract<DependenciesResponse, { success: true }>['data'];
 
 export type DependenciesHandlerAccess = {
-  success: (action: string, data: Record<string, unknown>) => SheetsDependenciesOutput['response'];
+  success: (action: string, data: DependenciesSuccessData) => SheetsDependenciesOutput['response'];
   error: (e: ErrorDetail) => SheetsDependenciesOutput['response'];
   sheetsApi: sheets_v4.Sheets;
   samplingServer?: SamplingServer;
@@ -23,6 +26,6 @@ export const ANALYZER_CACHE_MAX = 25;
 export const ANALYZER_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 export type AnalyzerCacheEntry = {
-  analyzer: any; // ImpactAnalyzer — avoid circular import
+  analyzer: ImpactAnalyzer;
   lastUsed: number;
 };

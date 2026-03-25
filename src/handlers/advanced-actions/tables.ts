@@ -97,7 +97,7 @@ async function validateCreateTablePreconditions(
   const metadata = await deps.sheetsApi.spreadsheets.get({
     spreadsheetId,
     fields:
-      'sheets(properties(sheetId,title),basicFilter.range,bandedRanges.range,tables(tableId,range))',
+      'sheets(properties(sheetId,title),basicFilter.range,bandedRanges(bandedRangeId,range),tables(tableId,range))',
   });
 
   const targetSheet = (metadata.data.sheets ?? []).find(
@@ -138,9 +138,11 @@ async function validateCreateTablePreconditions(
       resolution:
         'Remove overlapping alternating colors before creating a table, or choose a different range.',
       details: {
+        reasonCode: 'BANDING_CONFLICT',
         conflictType: 'banding',
         sheetId: targetRange.sheetId ?? 0,
         range: requestedRangeA1,
+        bandedRangeId: overlappingBanding.bandedRangeId ?? null,
         conflictingRange: formatGridRange(overlappingBanding.range, targetSheetName),
       },
     });

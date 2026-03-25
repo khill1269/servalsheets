@@ -95,6 +95,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     }
 
     try {
+      this.checkOperationScopes(`${this.toolName}.${inferredRequest.action}`);
       const response = await this.executeAction(inferredRequest);
 
       if (response.success && 'spreadsheetId' in inferredRequest) {

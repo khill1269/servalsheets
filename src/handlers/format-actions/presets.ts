@@ -13,6 +13,78 @@ import type { FormatHandlerAccess } from './internal.js';
 import { PRESET_COLORS, type ConditionType } from './internal.js';
 import { rgbToHex } from './helpers.js';
 
+function rangesOverlap(
+  left: sheets_v4.Schema$GridRange | undefined,
+  right: sheets_v4.Schema$GridRange | undefined
+): boolean {
+  if (!left || !right) {
+    return false;
+  }
+
+  if (left.sheetId !== right.sheetId) {
+    return false;
+  }
+
+  const leftStartRow = left.startRowIndex ?? 0;
+  const leftEndRow = left.endRowIndex ?? Number.MAX_SAFE_INTEGER;
+  const rightStartRow = right.startRowIndex ?? 0;
+  const rightEndRow = right.endRowIndex ?? Number.MAX_SAFE_INTEGER;
+
+  const leftStartCol = left.startColumnIndex ?? 0;
+  const leftEndCol = left.endColumnIndex ?? Number.MAX_SAFE_INTEGER;
+  const rightStartCol = right.startColumnIndex ?? 0;
+  const rightEndCol = right.endColumnIndex ?? Number.MAX_SAFE_INTEGER;
+
+  return (
+    leftStartRow < rightEndRow &&
+    rightStartRow < leftEndRow &&
+    leftStartCol < rightEndCol &&
+    rightStartCol < leftEndCol
+  );
+}
+
+async function buildAlternatingRowsRequests(
+  ha: FormatHandlerAccess,
+  spreadsheetId: string,
+  range: sheets_v4.Schema$GridRange
+): Promise<{ requests: sheets_v4.Schema$Request[]; idempotent: boolean }> {
+  const metadata = await ha.api.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets(properties(sheetId),bandedRanges(bandedRangeId,range))',
+  });
+
+  const targetSheet = (metadata.data.sheets ?? []).find(
+    (sheet) => sheet.properties?.sheetId === range.sheetId
+  );
+  const overlappingBandings = (targetSheet?.bandedRanges ?? []).filter((bandedRange) =>
+    rangesOverlap(range, bandedRange.range)
+  );
+
+  const requests: sheets_v4.Schema$Request[] = overlappingBandings
+    .map((bandedRange) => bandedRange.bandedRangeId)
+    .filter((bandedRangeId): bandedRangeId is number => typeof bandedRangeId === 'number')
+    .map((bandedRangeId) => ({
+      deleteBanding: { bandedRangeId },
+    }));
+
+  requests.push({
+    addBanding: {
+      bandedRange: {
+        range,
+        rowProperties: {
+          firstBandColor: PRESET_COLORS.altRowFirst,
+          secondBandColor: PRESET_COLORS.altRowSecond,
+        },
+      },
+    },
+  });
+
+  return {
+    requests,
+    idempotent: overlappingBandings.length > 0,
+  };
+}
+
 // ─── handleApplyPreset ────────────────────────────────────────────────────────
 
 export async function handleApplyPreset(
@@ -22,7 +94,8 @@ export async function handleApplyPreset(
   const rangeA1 = await ha.resolveRange(input.spreadsheetId, input.range!);
   const gridRange = await ha.a1ToGridRange(input.spreadsheetId, rangeA1);
   const googleRange = toGridRange(gridRange);
-  const requests: sheets_v4.Schema$Request[] = [];
+  let requests: sheets_v4.Schema$Request[] = [];
+  let idempotent = false;
 
   switch (input.preset!) {
     case 'header_row':
@@ -45,17 +118,10 @@ export async function handleApplyPreset(
       break;
 
     case 'alternating_rows':
-      requests.push({
-        addBanding: {
-          bandedRange: {
-            range: googleRange,
-            rowProperties: {
-              firstBandColor: PRESET_COLORS.altRowFirst,
-              secondBandColor: PRESET_COLORS.altRowSecond,
-            },
-          },
-        },
-      });
+      ({
+        requests,
+        idempotent,
+      } = await buildAlternatingRowsRequests(ha, input.spreadsheetId, googleRange));
       break;
 
     case 'total_row':
@@ -186,6 +252,7 @@ export async function handleApplyPreset(
 
   return ha.makeSuccess('apply_preset', {
     cellsFormatted: ha.exactCellCount(googleRange),
+    ...(idempotent ? { _idempotent: true } : {}),
   });
 }
 

@@ -193,6 +193,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     const req = this.inferRequestParameters(rawReq) as DimensionsRequest;
 
     try {
+      this.checkOperationScopes(`${this.toolName}.${req.action}`);
       const sheetResolutionError = await this.resolveSheetIdIfNeeded(req);
       if (sheetResolutionError) {
         return { response: sheetResolutionError };

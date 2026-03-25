@@ -7,7 +7,11 @@
 import { extractRangeA1 } from '../../utils/range-helpers.js';
 import { generateAIInsight } from '../../mcp/sampling.js';
 import { fetchRangeData, explainFormula } from '../../services/compute-engine.js';
-import type { SheetsComputeInput, SheetsComputeOutput } from '../../schemas/compute.js';
+import {
+  SheetsComputeInputSchema,
+  type SheetsComputeInput,
+  type SheetsComputeOutput,
+} from '../../schemas/compute.js';
 import type { ComputeHandlerAccess } from './internal.js';
 import { evaluateExpression } from './statistics.js';
 
@@ -100,14 +104,26 @@ export async function handleBatchCompute(
 
   for (const computation of req.computations) {
     try {
-      const subInput: SheetsComputeInput = {
+      const parsedSubInput = SheetsComputeInputSchema.safeParse({
         request: {
           ...computation.params,
           action: computation.type,
           spreadsheetId: req.spreadsheetId,
           verbosity: req.verbosity,
-        } as SheetsComputeInput['request'],
-      };
+        },
+      });
+
+      if (!parsedSubInput.success) {
+        results.push({
+          id: computation.id,
+          success: false,
+          error: parsedSubInput.error.issues[0]?.message ?? 'Invalid computation parameters',
+        });
+        if (req.stopOnError) break;
+        continue;
+      }
+
+      const subInput: SheetsComputeInput = parsedSubInput.data;
       // Recursively call the appropriate handler based on action type
       const handler = await import('../compute.js').then((m) => m.ComputeHandler);
       const computeHandler = new handler(access.sheetsApi, {

@@ -47,13 +47,41 @@ interface ProtectedRangesDeps {
   error: (error: ErrorDetail) => AdvancedResponse;
 }
 
+function inferProtectedRangeScope(
+  pr: sheets_v4.Schema$ProtectedRange
+): 'range' | 'sheet' | 'named_range' {
+  if (pr.namedRangeId) {
+    return 'named_range';
+  }
+
+  const range = pr.range;
+  if (
+    range &&
+    range.startRowIndex === undefined &&
+    range.endRowIndex === undefined &&
+    range.startColumnIndex === undefined &&
+    range.endColumnIndex === undefined
+  ) {
+    return 'sheet';
+  }
+
+  return 'range';
+}
+
 function mapProtectedRange(
   pr: sheets_v4.Schema$ProtectedRange,
-  deps: ProtectedRangesDeps
+  deps: ProtectedRangesDeps,
+  sheetProperties?: sheets_v4.Schema$SheetProperties
 ): NonNullable<AdvancedSuccess['protectedRange']> {
+  const scope = inferProtectedRangeScope(pr);
   return {
     protectedRangeId: pr.protectedRangeId ?? 0,
-    range: deps.gridRangeToOutput(pr.range ?? { sheetId: 0 }),
+    scope,
+    sheetId: pr.range?.sheetId ?? sheetProperties?.sheetId ?? undefined,
+    sheetTitle: sheetProperties?.title ?? undefined,
+    range: pr.range ? deps.gridRangeToOutput(pr.range) : undefined,
+    namedRangeId: pr.namedRangeId ?? undefined,
+    unprotectedRanges: pr.unprotectedRanges?.map((range) => deps.gridRangeToOutput(range)) ?? undefined,
     description: pr.description ?? undefined,
     warningOnly: pr.warningOnly ?? false,
     requestingUserCanEdit: pr.requestingUserCanEdit ?? false,
@@ -271,14 +299,15 @@ export async function handleListProtectedRangesAction(
 ): Promise<AdvancedResponse> {
   const response = await deps.sheetsApi.spreadsheets.get({
     spreadsheetId: req.spreadsheetId!,
-    fields: 'sheets.protectedRanges,sheets.properties(sheetId,title)',
+    fields:
+      'sheets(properties(sheetId,title),protectedRanges(protectedRangeId,range,namedRangeId,description,warningOnly,requestingUserCanEdit,editors,unprotectedRanges))',
   });
 
   const allItems: NonNullable<AdvancedSuccess['protectedRanges']> = [];
   for (const sheet of response.data.sheets ?? []) {
     if (req.sheetId !== undefined && sheet.properties?.sheetId !== req.sheetId) continue;
     for (const pr of sheet.protectedRanges ?? []) {
-      allItems.push(mapProtectedRange(pr, deps));
+      allItems.push(mapProtectedRange(pr, deps, sheet.properties));
     }
   }
 

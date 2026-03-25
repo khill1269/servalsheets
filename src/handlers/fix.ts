@@ -25,7 +25,10 @@ import {
   handleStandardizeFormatsAction,
   handleFillMissingAction,
 } from './fix-actions/cleaning-operations.js';
-import { handleDetectAnomaliesAction, handleSuggestCleaningAction } from './fix-actions/analysis.js';
+import {
+  handleDetectAnomaliesAction,
+  handleSuggestCleaningAction,
+} from './fix-actions/analysis.js';
 import type { FixHandlerAccess } from './fix-actions/internal.js';
 
 export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
@@ -44,6 +47,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
         verbosity?: 'minimal' | 'standard' | 'detailed';
       };
 
+      this.checkOperationScopes(`${this.toolName}.${req.action}`);
       const verbosity = req.verbosity ?? 'standard';
 
       // Build handler access for submodules
@@ -58,7 +62,11 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
           return handleCleanAction(handlerAccess, req as CleanInput, verbosity);
 
         case 'standardize_formats':
-          return handleStandardizeFormatsAction(handlerAccess, req as StandardizeFormatsInput, verbosity);
+          return handleStandardizeFormatsAction(
+            handlerAccess,
+            req as StandardizeFormatsInput,
+            verbosity
+          );
 
         case 'fill_missing':
           return handleFillMissingAction(handlerAccess, req as FillMissingInput, verbosity);
@@ -222,5 +230,4 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       return undefined;
     }
   }
-
 }

@@ -127,11 +127,7 @@ export class CollaborateHandler extends BaseHandler<
   private driveApi: drive_v3.Drive | undefined;
   private sheetsApi: sheets_v4.Sheets | undefined;
 
-  constructor(
-    context: HandlerContext,
-    driveApi?: drive_v3.Drive,
-    sheetsApi?: sheets_v4.Sheets
-  ) {
+  constructor(context: HandlerContext, driveApi?: drive_v3.Drive, sheetsApi?: sheets_v4.Sheets) {
     super('sheets_collaborate', context);
     this.driveApi = driveApi;
     this.sheetsApi = sheetsApi;
@@ -579,7 +575,7 @@ export class CollaborateHandler extends BaseHandler<
         case 'approval_create':
           response = await handleApprovalCreateAction(req as CollaborateApprovalCreateInput, {
             driveApi: ha.driveApi,
-            sheetsApi: ha.sheetsApi,
+            sheetsApi: ha.sheetsApi!,
             context: ha.context,
             mapError: ha.mapError,
             error: ha.error,
@@ -588,7 +584,7 @@ export class CollaborateHandler extends BaseHandler<
         case 'approval_approve':
           response = await handleApprovalApproveAction(req as CollaborateApprovalApproveInput, {
             driveApi: ha.driveApi,
-            sheetsApi: ha.sheetsApi,
+            sheetsApi: ha.sheetsApi!,
             context: ha.context,
             mapError: ha.mapError,
             error: ha.error,
@@ -597,7 +593,7 @@ export class CollaborateHandler extends BaseHandler<
         case 'approval_reject':
           response = await handleApprovalRejectAction(req as CollaborateApprovalRejectInput, {
             driveApi: ha.driveApi,
-            sheetsApi: ha.sheetsApi,
+            sheetsApi: ha.sheetsApi!,
             context: ha.context,
             mapError: ha.mapError,
             error: ha.error,
@@ -606,7 +602,7 @@ export class CollaborateHandler extends BaseHandler<
         case 'approval_get_status':
           response = await handleApprovalGetStatusAction(req as CollaborateApprovalGetStatusInput, {
             driveApi: ha.driveApi,
-            sheetsApi: ha.sheetsApi,
+            sheetsApi: ha.sheetsApi!,
             context: ha.context,
             mapError: ha.mapError,
             error: ha.error,
@@ -617,7 +613,7 @@ export class CollaborateHandler extends BaseHandler<
             req as CollaborateApprovalListPendingInput,
             {
               driveApi: ha.driveApi,
-              sheetsApi: ha.sheetsApi,
+              sheetsApi: ha.sheetsApi!,
               context: ha.context,
               mapError: ha.mapError,
               error: ha.error,
@@ -627,7 +623,7 @@ export class CollaborateHandler extends BaseHandler<
         case 'approval_delegate':
           response = await handleApprovalDelegateAction(req as CollaborateApprovalDelegateInput, {
             driveApi: ha.driveApi,
-            sheetsApi: ha.sheetsApi,
+            sheetsApi: ha.sheetsApi!,
             context: ha.context,
             mapError: ha.mapError,
             error: ha.error,
@@ -636,7 +632,7 @@ export class CollaborateHandler extends BaseHandler<
         case 'approval_cancel':
           response = await handleApprovalCancelAction(req as CollaborateApprovalCancelInput, {
             driveApi: ha.driveApi,
-            sheetsApi: ha.sheetsApi,
+            sheetsApi: ha.sheetsApi!,
             context: ha.context,
             mapError: ha.mapError,
             error: ha.error,
