@@ -13,11 +13,14 @@
  * 6. Port availability (HTTP mode only)
  */
 
-import { existsSync, accessSync, constants as fsConstants } from 'fs';
+import { existsSync, accessSync, constants as fsConstants, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { get as httpsGet } from 'https';
 import { logger } from '../utils/logger.js';
 import { createServer } from 'net';
+import { TOOL_DEFINITIONS, ACTIVE_TOOL_DEFINITIONS } from '../mcp/registration/tool-definitions.js';
+import { getServerInstructions } from '../mcp/features-2025-11-25.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -89,27 +92,43 @@ async function checkBuildArtifacts(): Promise<PreflightResult> {
 
 /**
  * Check 2: Node.js Version
- * Verifies Node.js version meets minimum requirement (18.0.0)
+ * Verifies Node.js version meets the package.json engine requirement
  */
+function getRequiredNodeVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf-8')) as {
+      engines?: { node?: string };
+    };
+    if (pkg.engines?.node) {
+      return pkg.engines.node;
+    }
+  } catch {
+    // Fall back to the published engine floor if package metadata is unavailable.
+  }
+
+  return '>=20.0.0';
+}
+
 async function checkNodeVersion(): Promise<PreflightResult> {
   const current = process.version; // e.g., "v20.11.0"
   const versionParts = current.slice(1).split('.');
   const currentMajor = parseInt(versionParts[0] || '0', 10);
-  const requiredMajor = 18;
+  const required = getRequiredNodeVersion();
+  const requiredMajor = parseInt(required.match(/>=\s*(\d+)/)?.[1] || '20', 10);
 
   if (currentMajor < requiredMajor) {
     return {
       passed: false,
-      message: `Node.js ${current} is too old (requires >= ${requiredMajor}.0.0)`,
+      message: `Node.js ${current} is too old (requires ${required})`,
       fix: `Upgrade Node.js to version ${requiredMajor} or higher`,
-      details: { current, required: `${requiredMajor}.0.0` },
+      details: { current, required },
     };
   }
 
   return {
     passed: true,
     message: `Node.js ${current} meets requirements`,
-    details: { current, required: `>= ${requiredMajor}.0.0` },
+    details: { current, required },
   };
 }
 
@@ -123,6 +142,8 @@ async function checkModuleResolution(): Promise<PreflightResult> {
     'google-auth-library',
     'googleapis',
     'zod',
+    // node-saml is unconditionally imported in http-server.ts; catch missing installs early
+    '@node-saml/node-saml',
   ];
 
   const missingModules: string[] = [];
@@ -166,6 +187,8 @@ async function checkConfiguration(): Promise<PreflightResult> {
       issues.push(
         `ENCRYPTION_KEY must be 64 hex characters (32 bytes), got ${encryptionKey.length}`
       );
+    } else if (!/^[0-9a-f]{64}$/i.test(encryptionKey)) {
+      issues.push('ENCRYPTION_KEY must contain only hex characters (0-9, a-f)');
     }
   }
 
@@ -251,7 +274,17 @@ async function checkFileSystemPermissions(): Promise<PreflightResult> {
   // Check if directory exists and is writable
   try {
     if (!existsSync(servalSheetsDir)) {
-      // Directory doesn't exist - that's fine, we'll create it
+      // Directory doesn't exist — verify parent is writable so creation will succeed
+      try {
+        accessSync(homeDir, fsConstants.W_OK);
+      } catch {
+        return {
+          passed: false,
+          message: `Cannot create ${servalSheetsDir} — parent directory ${homeDir} is not writable`,
+          fix: `Ensure ${homeDir} is writable or set HOME to a writable directory`,
+          details: { servalSheetsDir, homeDir, status: 'parent-not-writable' },
+        };
+      }
       return {
         passed: true,
         message: 'File system permissions OK (directory will be created)',
@@ -331,6 +364,120 @@ async function checkPortAvailability(): Promise<PreflightResult> {
 }
 
 /**
+ * AQUI-VR G18 (H-2): Verify ACTIVE_TOOL_DEFINITIONS matches TOOL_DEFINITIONS when
+ * staged registration is disabled. Catches cases where a tool is accidentally excluded.
+ */
+async function checkToolRegistrationParity(): Promise<PreflightResult> {
+  const lazy = process.env['LAZY_LOAD_ENTERPRISE'] === 'true' || !!process.env['LAZY_LOAD_TOOLS'];
+  if (lazy) {
+    return {
+      passed: true,
+      message: `Staged registration active — ${ACTIVE_TOOL_DEFINITIONS.length}/${TOOL_DEFINITIONS.length} tools active`,
+      details: { active: ACTIVE_TOOL_DEFINITIONS.length, total: TOOL_DEFINITIONS.length },
+    };
+  }
+  if (ACTIVE_TOOL_DEFINITIONS.length !== TOOL_DEFINITIONS.length) {
+    const activeNames = new Set(ACTIVE_TOOL_DEFINITIONS.map((t) => t.name));
+    const missing = TOOL_DEFINITIONS.filter((t) => !activeNames.has(t.name)).map((t) => t.name);
+    return {
+      passed: false,
+      message: `ACTIVE_TOOL_DEFINITIONS (${ACTIVE_TOOL_DEFINITIONS.length}) !== TOOL_DEFINITIONS (${TOOL_DEFINITIONS.length})`,
+      fix: `Tools missing from ACTIVE set: ${missing.join(', ')}. Check LAZY_LOAD_TOOLS env var.`,
+      details: { active: ACTIVE_TOOL_DEFINITIONS.length, total: TOOL_DEFINITIONS.length, missing },
+    };
+  }
+  return {
+    passed: true,
+    message: `All ${TOOL_DEFINITIONS.length} tools active`,
+    details: { active: ACTIVE_TOOL_DEFINITIONS.length, total: TOOL_DEFINITIONS.length },
+  };
+}
+
+/**
+ * AQUI-VR G23 (M-3): Warn if SERVER_INSTRUCTIONS exceeds the growth threshold.
+ * The routing matrix has been extracted to guide://routing-matrix (Session 99).
+ * Threshold is set to 50,000 chars — well above the current ~39K — to catch
+ * unintentional growth while allowing the intentionally large instruction set.
+ * Note: some MCP clients may truncate; critical routing info lives in the
+ * guide://routing-matrix resource rather than inline in instructions.
+ */
+async function checkServerInstructionsLength(): Promise<PreflightResult> {
+  const instructions = getServerInstructions();
+  const len = instructions.length;
+  const WARN_THRESHOLD = 50000;
+  if (len > WARN_THRESHOLD) {
+    return {
+      passed: false,
+      message: `SERVER_INSTRUCTIONS is ${len} chars — exceeded growth threshold of ${WARN_THRESHOLD}`,
+      fix: 'Extract large static sections (decision tables, examples) to guide:// resources to keep instructions concise.',
+      details: { length: len, threshold: WARN_THRESHOLD },
+    };
+  }
+  return {
+    passed: true,
+    message: `SERVER_INSTRUCTIONS length ${len} chars (within ${WARN_THRESHOLD} limit)`,
+    details: { length: len, threshold: WARN_THRESHOLD },
+  };
+}
+
+/**
+ * Check 9 (non-critical): Google API reachability
+ *
+ * Sends a lightweight HEAD-equivalent request to sheets.googleapis.com.
+ * Accepts any HTTP response (including 401/403/404) as proof that the API
+ * endpoint is reachable — only a network/DNS failure counts as a warning.
+ * Skipped when no credentials are configured.
+ */
+async function checkGoogleApiReachability(): Promise<PreflightResult> {
+  const credentialsPath = process.env['GOOGLE_TOKEN_STORE_PATH'] ?? process.env['CREDENTIALS_PATH'];
+
+  // Skip the check when credentials are not configured — there's nothing to connect to.
+  if (!credentialsPath || !existsSync(credentialsPath)) {
+    return {
+      passed: true,
+      message: 'Google API reachability skipped — no credentials configured',
+      details: { skipped: true },
+    };
+  }
+
+  return new Promise((resolve) => {
+    const timeoutMs = 5000;
+    const req = httpsGet(
+      'https://sheets.googleapis.com/v4/spreadsheets/probe_connectivity_check',
+      { timeout: timeoutMs },
+      (res) => {
+        // Any HTTP response means the endpoint is reachable (401/403/404 are all fine)
+        resolve({
+          passed: true,
+          message: `Google Sheets API reachable (HTTP ${res.statusCode})`,
+          details: { statusCode: res.statusCode },
+        });
+        res.resume(); // Drain response body
+      }
+    );
+
+    req.on('timeout', () => {
+      req.destroy();
+      resolve({
+        passed: false,
+        message: `Google Sheets API unreachable — connection timed out after ${timeoutMs}ms`,
+        fix: 'Check network connectivity, firewall rules, or proxy settings.',
+        details: { timeoutMs },
+      });
+    });
+
+    req.on('error', (err) => {
+      resolve({
+        passed: false,
+        message: `Google Sheets API unreachable — ${err.message}`,
+        fix: 'Check network connectivity. If behind a proxy, set HTTPS_PROXY environment variable.',
+        details: { error: err.message, code: (err as NodeJS.ErrnoException).code },
+      });
+    });
+  });
+}
+
+/**
  * Run all pre-flight checks
  */
 export async function runPreflightChecks(): Promise<PreflightResults> {
@@ -353,6 +500,12 @@ export async function runPreflightChecks(): Promise<PreflightResults> {
     { name: 'Configuration Validation', critical: true, check: checkConfiguration },
     { name: 'File System Permissions', critical: false, check: checkFileSystemPermissions },
     { name: 'Port Availability', critical: false, check: checkPortAvailability },
+    // AQUI-VR G18: ACTIVE_TOOL_DEFINITIONS parity (H-2)
+    { name: 'Tool Registration Parity', critical: false, check: checkToolRegistrationParity },
+    // AQUI-VR G23: SERVER_INSTRUCTIONS length (M-3)
+    { name: 'Server Instructions Length', critical: false, check: checkServerInstructionsLength },
+    // Connectivity: Google Sheets API reachable (skipped when no credentials)
+    { name: 'Google API Reachability', critical: false, check: checkGoogleApiReachability },
   ];
 
   const startTime = Date.now();

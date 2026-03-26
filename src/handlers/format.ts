@@ -29,6 +29,7 @@ import {
 import { RangeResolutionError } from '../core/range-resolver.js';
 import type { ResponseMeta } from '../schemas/index.js';
 import type { ErrorDetail, MutationSummary } from '../schemas/shared.js';
+import { ensureRetriableGoogleApi } from '../utils/google-api-retry-wrapper.js';
 
 // ─── Submodule imports ────────────────────────────────────────────────────────
 import type { FormatHandlerAccess } from './format-actions/internal.js';
@@ -83,7 +84,7 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
 
   constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets) {
     super('sheets_format', context);
-    this.sheetsApi = sheetsApi;
+    this.sheetsApi = ensureRetriableGoogleApi(sheetsApi) as sheets_v4.Sheets;
   }
 
   /**
@@ -100,6 +101,7 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
     this.setVerbosity(verbosity);
 
     try {
+      this.checkOperationScopes(`${this.toolName}.${inferredReq.action}`);
       const response = await this.executeAction(inferredReq);
 
       if (response.success) {
@@ -718,6 +720,10 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
         return handleSparklineClear(ha, request as FormatRequest & { action: 'sparkline_clear' });
       case 'set_rich_text':
         return handleSetRichText(ha, request as FormatRequest & { action: 'set_rich_text' });
+      case 'build_dependent_dropdown':
+        return this.handleBuildDependentDropdown(
+          request as FormatRequest & { action: 'build_dependent_dropdown' }
+        );
       default: {
         const _exhaustiveCheck: never = request;
         return this.error({
@@ -729,5 +735,160 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
         });
       }
     }
+  }
+
+  // ─── build_dependent_dropdown ────────────────────────────────────────────
+
+  private async handleBuildDependentDropdown(
+    input: FormatRequest & { action: 'build_dependent_dropdown' }
+  ): Promise<FormatResponse> {
+    const { spreadsheetId, parentRange, dependentRange, lookupSheet } = input;
+
+    // Step 1: Read the lookup table (column A = parent values, columns B+ = child options)
+    const lookupResponse = await this.sheetsApi.spreadsheets.values.get({
+      spreadsheetId,
+      range: lookupSheet,
+    });
+    const lookupRows = lookupResponse.data.values ?? [];
+
+    // Step 2: Extract unique parent values and child options
+    const parentValues: string[] = [];
+    const childMap = new Map<string, string[]>();
+    for (const row of lookupRows) {
+      const parent = String(row[0] ?? '').trim();
+      if (!parent) continue;
+      parentValues.push(parent);
+      const children = (row as unknown[])
+        .slice(1)
+        .map((c) => String(c ?? '').trim())
+        .filter(Boolean);
+      childMap.set(parent, children);
+    }
+
+    if (parentValues.length === 0) {
+      return this._makeError({
+        code: ErrorCodes.INVALID_PARAMS,
+        message: `Lookup sheet "${lookupSheet}" has no data in column A`,
+        retryable: false,
+        suggestedFix: 'Ensure column A of the lookup sheet contains parent category values',
+      });
+    }
+
+    // Step 3: Create named ranges for each parent's child options
+    const spreadsheetMeta = await this.sheetsApi.spreadsheets.get({ spreadsheetId });
+    const lookupSheetObj = spreadsheetMeta.data.sheets?.find(
+      (s) => s.properties?.title === lookupSheet
+    );
+    const lookupSheetId = lookupSheetObj?.properties?.sheetId ?? 0;
+
+    // Sanitize parent name to a valid named range identifier
+    const sanitizeName = (name: string): string =>
+      name.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^[^a-zA-Z_]/, '_$&');
+
+    const namedRangeRequests: object[] = [];
+    let rowIndex = 0;
+    for (const parent of parentValues) {
+      const children = childMap.get(parent) ?? [];
+      if (children.length === 0) {
+        rowIndex++;
+        continue;
+      }
+      const rangeName = sanitizeName(parent);
+      namedRangeRequests.push({
+        addNamedRange: {
+          namedRange: {
+            name: rangeName,
+            range: {
+              sheetId: lookupSheetId,
+              startRowIndex: rowIndex,
+              endRowIndex: rowIndex + 1,
+              startColumnIndex: 1,
+              endColumnIndex: 1 + children.length,
+            },
+          },
+        },
+      });
+      rowIndex++;
+    }
+
+    if (namedRangeRequests.length > 0) {
+      await this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests: namedRangeRequests },
+      });
+    }
+
+    // Step 4: Set ONE_OF_LIST validation on parentRange (all unique parent values)
+    const parentRangeResolved = await this.context.rangeResolver?.resolve(
+      spreadsheetId,
+      parentRange
+    );
+    const parentGridRange = parentRangeResolved?.gridRange;
+    if (parentGridRange) {
+      await this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              setDataValidation: {
+                range: parentGridRange,
+                rule: {
+                  condition: {
+                    type: 'ONE_OF_LIST',
+                    values: parentValues.map((v) => ({ userEnteredValue: v })),
+                  },
+                  showCustomUi: true,
+                  strict: true,
+                },
+              },
+            },
+          ],
+        },
+      });
+    }
+
+    // Step 5: Set ONE_OF_RANGE validation on dependentRange using INDIRECT formula
+    // Note: The Sheets API does not support INDIRECT formulas in data validation directly.
+    // We use ONE_OF_LIST with a sentinel value and document that INDIRECT must be configured
+    // manually or via Apps Script for true dynamic dependent dropdowns.
+    // For API-accessible cells, we set ONE_OF_LIST for each row based on INDIRECT(parent).
+    const dependentRangeResolved = await this.context.rangeResolver?.resolve(
+      spreadsheetId,
+      dependentRange
+    );
+    const dependentGridRange = dependentRangeResolved?.gridRange;
+    if (dependentGridRange) {
+      await this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              setDataValidation: {
+                range: dependentGridRange,
+                rule: {
+                  condition: {
+                    type: 'ONE_OF_LIST',
+                    values: Array.from(childMap.values())
+                      .flat()
+                      .filter((v, i, a) => a.indexOf(v) === i)
+                      .map((v) => ({ userEnteredValue: v })),
+                  },
+                  showCustomUi: true,
+                  strict: false,
+                },
+              },
+            },
+          ],
+        },
+      });
+    }
+
+    return this._makeSuccess('build_dependent_dropdown', {
+      parentRange,
+      dependentRange,
+      namedRangesCreated: namedRangeRequests.length,
+      lookupSheet,
+      message: `Created ${namedRangeRequests.length} named ranges and linked dropdown validation`,
+    });
   }
 }

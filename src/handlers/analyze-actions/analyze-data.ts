@@ -207,11 +207,13 @@ export async function handleAnalyzeDataAction(
         analysisService.recordSuccess(types, duration);
       }
 
+      const analyses = parsed.result.analyses ?? [];
+      const topInsights = parsed.result.topInsights ?? [];
       return {
         success: true,
         action: 'analyze_data',
         summary: parsed.result.summary,
-        analyses: parsed.result.analyses.map((a) => ({
+        analyses: analyses.map((a) => ({
           type: a.type as AnalysisType,
           confidence: a.confidence as 'high' | 'medium' | 'low',
           findings: a.findings,
@@ -220,9 +222,9 @@ export async function handleAnalyzeDataAction(
           recommendations: a.recommendations,
         })),
         overallQualityScore: parsed.result.overallQualityScore,
-        topInsights: parsed.result.topInsights,
+        topInsights,
         duration,
-        message: `AI path analysis complete (tier ${useFullData ? '4' : '3'}): ${parsed.result.analyses.length} finding(s) with ${parsed.result.topInsights.length} key insight(s)`,
+        message: `AI path analysis complete (tier ${useFullData ? '4' : '3'}): ${analyses.length} finding(s) with ${topInsights.length} key insight(s)`,
       };
     }
 

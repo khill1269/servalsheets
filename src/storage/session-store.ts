@@ -7,6 +7,7 @@
 
 import type { RedisClientType } from 'redis';
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
 import { LRUCache } from 'lru-cache';
 
 /**
@@ -110,14 +111,14 @@ export class InMemorySessionStore implements SessionStore {
 
     if (!entry) {
       // OK: Explicit empty - typed as optional, cache miss
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     // Check if expired
     if (Date.now() > entry.expires) {
       this.store.delete(key);
       // OK: Explicit empty - typed as optional, expired entry
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     return entry.value;
@@ -237,10 +238,13 @@ export class RedisSessionStore implements SessionStore {
       console.error('[RedisSessionStore] Connected to Redis');
       return this.client;
     } catch (error) {
-      throw new Error(
+      throw new ServiceError(
         `Failed to connect to Redis at ${this.redisUrl}. ` +
           `Make sure Redis is installed (npm install redis) and running. ` +
-          `Error: ${error instanceof Error ? error.message : String(error)}`
+          `Error: ${error instanceof Error ? error.message : String(error)}`,
+        'INTERNAL_ERROR',
+        'session-store',
+        false
       );
     }
   }
@@ -269,7 +273,7 @@ export class RedisSessionStore implements SessionStore {
 
     if (!data) {
       // OK: Explicit empty - typed as optional, cache miss (Redis)
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     try {
@@ -396,14 +400,14 @@ export class MemorySessionStore implements SessionStore {
 
     if (!entry) {
       // OK: Explicit empty - typed as optional, cache miss
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     // Check if expired
     if (Date.now() > entry.expires) {
       this.store.delete(key);
       // OK: Explicit empty - typed as optional, expired entry
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     return entry.value;

@@ -15,9 +15,16 @@ import {
 } from '../../src/utils/request-context.js';
 
 const mockDispatchCompositeOperation = vi.hoisted(() => vi.fn());
+const mockGenerateDefinition = vi.hoisted(() => vi.fn());
+const mockExecuteDefinition = vi.hoisted(() => vi.fn());
 
 vi.mock('../../src/resources/composite-operation-dispatcher.js', () => ({
   dispatchCompositeOperation: mockDispatchCompositeOperation,
+}));
+
+vi.mock('../../src/services/sheet-generator.js', () => ({
+  generateDefinition: mockGenerateDefinition,
+  executeDefinition: mockExecuteDefinition,
 }));
 
 describe('Composite Handler', () => {
@@ -30,7 +37,7 @@ describe('Composite Handler', () => {
   beforeEach(() => {
     mockContext = {
       requestId: 'test-request-id',
-      timestamp: new Date(),
+      timestamp: new Date('2024-01-15T00:00:00Z'),
       capabilities: {
         supports: vi.fn(() => true),
         requireCapability: vi.fn(),
@@ -1382,6 +1389,133 @@ describe('Composite Handler', () => {
   });
 
   // ============================================================================
+  // WORKFLOW ACTIONS Progress Tests (P18-X13)
+  // ============================================================================
+
+  describe('audit_sheet progress notifications (P18-X13)', () => {
+    it('should emit progress notifications while auditing multiple sheets', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'composite-audit-progress',
+        progressToken: 'composite-audit-progress',
+        sendNotification: notification,
+      });
+
+      (mockSheetsApi.spreadsheets.get as any).mockResolvedValue({
+        data: {
+          spreadsheetId: 'test123',
+          sheets: [
+            { properties: { sheetId: 0, title: 'Sheet1' } },
+            { properties: { sheetId: 1, title: 'Sheet2' } },
+          ],
+        },
+      });
+      (mockSheetsApi.spreadsheets.values.get as any)
+        .mockResolvedValueOnce({ data: { values: [['A', 'B'], [1, 2], [3, 4]] } })
+        .mockResolvedValueOnce({ data: { values: [['C', 'D'], [5, 6]] } });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'audit_sheet',
+          spreadsheetId: 'test123',
+        } as any)
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({ progress: 0 }),
+      });
+    });
+  });
+
+  describe('data_pipeline progress notifications (P18-X13)', () => {
+    it('should emit progress notifications while running a pipeline', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'composite-pipeline-progress',
+        progressToken: 'composite-pipeline-progress',
+        sendNotification: notification,
+      });
+
+      (mockSheetsApi.spreadsheets.values.get as any).mockResolvedValue({
+        data: {
+          values: [
+            ['Name', 'Score'],
+            ['Alice', 100],
+            ['Bob', 200],
+            ['Alice', 150],
+          ],
+        },
+      });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'data_pipeline',
+          spreadsheetId: 'test123',
+          sourceRange: 'Sheet1!A1:B4',
+          steps: [
+            { type: 'filter', config: { column: 'Name', value: 'Alice' } },
+            { type: 'sort', config: { column: 'Score', order: 'asc' } },
+          ],
+          dryRun: true,
+        } as any)
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({ progress: 0 }),
+      });
+    });
+  });
+
+  describe('migrate_spreadsheet progress notifications (P18-X13)', () => {
+    it('should emit progress notifications while migrating', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'composite-migrate-progress',
+        progressToken: 'composite-migrate-progress',
+        sendNotification: notification,
+      });
+
+      (mockSheetsApi.spreadsheets.values.get as any).mockResolvedValue({
+        data: {
+          values: [
+            ['OldName', 'OldValue'],
+            ['Alice', 100],
+            ['Bob', 200],
+          ],
+        },
+      });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'migrate_spreadsheet',
+          sourceSpreadsheetId: 'source123',
+          destinationSpreadsheetId: 'dest123',
+          sourceRange: 'Sheet1!A1:B3',
+          destinationRange: 'Sheet1!A1',
+          columnMapping: [
+            { sourceColumn: 'OldName', destinationColumn: 'Name' },
+            { sourceColumn: 'OldValue', destinationColumn: 'Value' },
+          ],
+          dryRun: true,
+        } as any)
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({ progress: 0 }),
+      });
+    });
+  });
+
+  // ============================================================================
   // Error Handling and Edge Cases
   // ============================================================================
 
@@ -1601,6 +1735,59 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
       expect(result).toHaveProperty('response');
+    });
+  });
+
+  // ============================================================================
+  // generate_sheet Progress Notifications (Tranche E)
+  // ============================================================================
+
+  describe('generate_sheet progress notifications', () => {
+    it('should emit progress notifications during sheet generation', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'composite-generate-progress',
+        progressToken: 'composite-generate-progress',
+        sendNotification: notification,
+      });
+
+      const mockDefinition = {
+        title: 'Test Sheet',
+        sheets: [
+          {
+            name: 'Sheet1',
+            columns: [{ header: 'Name', type: 'text' }],
+            rows: [],
+          },
+        ],
+      };
+      mockGenerateDefinition.mockResolvedValue(mockDefinition);
+      mockExecuteDefinition.mockResolvedValue({
+        spreadsheetId: 'new-sheet-id',
+        spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/new-sheet-id',
+        title: 'Test Sheet',
+        sheetsCreated: 1,
+        columnsCreated: 1,
+        rowsCreated: 0,
+        formulasApplied: 0,
+        formattingApplied: false,
+      });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'generate_sheet',
+          description: 'A simple budget tracker',
+        } as any)
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({
+          progress: 0,
+        }),
+      });
     });
   });
 });

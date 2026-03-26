@@ -7,6 +7,7 @@ import type { GridRangeInput } from '../../utils/google-sheets-helpers.js';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
 import { confirmDestructiveAction } from '../../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import { recordProtectedRangeId } from '../../mcp/completions.js';
 
 type AdvancedSuccess = Extract<AdvancedResponse, { success: true }>;
 
@@ -46,13 +47,41 @@ interface ProtectedRangesDeps {
   error: (error: ErrorDetail) => AdvancedResponse;
 }
 
+function inferProtectedRangeScope(
+  pr: sheets_v4.Schema$ProtectedRange
+): 'range' | 'sheet' | 'named_range' {
+  if (pr.namedRangeId) {
+    return 'named_range';
+  }
+
+  const range = pr.range;
+  if (
+    range &&
+    range.startRowIndex === undefined &&
+    range.endRowIndex === undefined &&
+    range.startColumnIndex === undefined &&
+    range.endColumnIndex === undefined
+  ) {
+    return 'sheet';
+  }
+
+  return 'range';
+}
+
 function mapProtectedRange(
   pr: sheets_v4.Schema$ProtectedRange,
-  deps: ProtectedRangesDeps
+  deps: ProtectedRangesDeps,
+  sheetProperties?: sheets_v4.Schema$SheetProperties
 ): NonNullable<AdvancedSuccess['protectedRange']> {
+  const scope = inferProtectedRangeScope(pr);
   return {
     protectedRangeId: pr.protectedRangeId ?? 0,
-    range: deps.gridRangeToOutput(pr.range ?? { sheetId: 0 }),
+    scope,
+    sheetId: pr.range?.sheetId ?? sheetProperties?.sheetId ?? undefined,
+    sheetTitle: sheetProperties?.title ?? undefined,
+    range: pr.range ? deps.gridRangeToOutput(pr.range) : undefined,
+    namedRangeId: pr.namedRangeId ?? undefined,
+    unprotectedRanges: pr.unprotectedRanges?.map((range) => deps.gridRangeToOutput(range)) ?? undefined,
     description: pr.description ?? undefined,
     warningOnly: pr.warningOnly ?? false,
     requestingUserCanEdit: pr.requestingUserCanEdit ?? false,
@@ -113,8 +142,40 @@ export async function handleAddProtectedRangeAction(
   }
 
   const gridRange = await deps.rangeToGridRange(req.spreadsheetId!, req.range!);
+  const targetGrid = toGridRange(gridRange);
+
+  // Idempotency guard: check if a protected range already exists on the same range
+  try {
+    const existing = await deps.sheetsApi.spreadsheets.get({
+      spreadsheetId: req.spreadsheetId!,
+      fields: 'sheets.protectedRanges,sheets.properties.sheetId',
+    });
+    for (const sheet of existing.data.sheets ?? []) {
+      for (const pr of sheet.protectedRanges ?? []) {
+        const r = pr.range;
+        if (
+          r &&
+          r.sheetId === targetGrid.sheetId &&
+          r.startRowIndex === targetGrid.startRowIndex &&
+          r.endRowIndex === targetGrid.endRowIndex &&
+          r.startColumnIndex === targetGrid.startColumnIndex &&
+          r.endColumnIndex === targetGrid.endColumnIndex
+        ) {
+          return deps.success('add_protected_range', {
+            protectedRange: mapProtectedRange(pr, deps),
+            snapshotId: snapshot?.snapshotId,
+            _idempotent: true,
+            _hint: `Protected range already exists on this range. Returning existing protection instead of creating a duplicate.`,
+          });
+        }
+      }
+    }
+  } catch {
+    // Non-blocking: proceed with creation if lookup fails
+  }
+
   const request: sheets_v4.Schema$ProtectedRange = {
-    range: toGridRange(gridRange),
+    range: targetGrid,
     description: req.description,
     warningOnly: req.warningOnly ?? false,
     editors: req.editors,
@@ -238,14 +299,15 @@ export async function handleListProtectedRangesAction(
 ): Promise<AdvancedResponse> {
   const response = await deps.sheetsApi.spreadsheets.get({
     spreadsheetId: req.spreadsheetId!,
-    fields: 'sheets.protectedRanges,sheets.properties(sheetId,title)',
+    fields:
+      'sheets(properties(sheetId,title),protectedRanges(protectedRangeId,range,namedRangeId,description,warningOnly,requestingUserCanEdit,editors,unprotectedRanges))',
   });
 
   const allItems: NonNullable<AdvancedSuccess['protectedRanges']> = [];
   for (const sheet of response.data.sheets ?? []) {
     if (req.sheetId !== undefined && sheet.properties?.sheetId !== req.sheetId) continue;
     for (const pr of sheet.protectedRanges ?? []) {
-      allItems.push(mapProtectedRange(pr, deps));
+      allItems.push(mapProtectedRange(pr, deps, sheet.properties));
     }
   }
 
@@ -254,6 +316,10 @@ export async function handleListProtectedRangesAction(
     req.cursor,
     req.pageSize ?? 100
   );
+  for (const pr of page) {
+    recordProtectedRangeId(pr.protectedRangeId);
+  }
+
   return deps.success('list_protected_ranges', {
     protectedRanges: page,
     nextCursor,

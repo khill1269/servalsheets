@@ -6,14 +6,16 @@
  * Phase 3: Drive Activity API for WHO/WHEN attribution.
  */
 
-import type { drive_v3, sheets_v4 } from 'googleapis';
+import type { drive_v3, driveactivity_v2, sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
 import type { GoogleApiClient } from './google-api.js';
+import { NotFoundError } from '../core/errors.js';
 
 export interface TimelineEntry {
   revisionId: string;
   timestamp: string;
   user?: string;
+  activityActorRef?: string;
   displayName?: string;
   sizeBytes?: number;
   activityType?: string;
@@ -57,6 +59,39 @@ export interface RestoreResult {
   restoredValue?: string | number | null;
 }
 
+async function getCurrentUserEmail(googleClient: GoogleApiClient): Promise<string | undefined> {
+  try {
+    const response = await googleClient.drive.about.get({
+      fields: 'user(emailAddress)',
+    });
+    return response.data.user?.emailAddress ?? undefined;
+  } catch {
+    return undefined; // OK: user email unavailable
+  }
+}
+
+function resolveActivityActor(
+  actor: driveactivity_v2.Schema$Actor | undefined,
+  currentUserEmail?: string
+): { user?: string; actorRef?: string } {
+  const knownUser = actor?.user?.knownUser;
+  const impersonatedKnownUser = actor?.impersonation?.impersonatedUser?.knownUser;
+
+  if (knownUser?.isCurrentUser || impersonatedKnownUser?.isCurrentUser) {
+    return { user: currentUserEmail ?? 'current_user' };
+  }
+  if (knownUser?.personName) {
+    return { actorRef: knownUser.personName };
+  }
+  if (actor?.user?.deletedUser) {
+    return { actorRef: 'deleted_user' };
+  }
+  if (actor?.user?.unknownUser) {
+    return { actorRef: 'unknown_user' };
+  }
+  return { actorRef: 'unknown' };
+}
+
 /**
  * Get Drive Activity events for WHO/WHEN attribution.
  */
@@ -65,7 +100,7 @@ export async function getActivityEvents(
   fileId: string,
   startTime?: string,
   endTime?: string
-): Promise<Array<{ timestamp: string; actor: string; actionType: string }>> {
+): Promise<Array<{ timestamp: string; user?: string; actorRef?: string; actionType: string }>> {
   try {
     const driveActivityApi = googleClient.driveActivity;
     if (!driveActivityApi) return [];
@@ -83,15 +118,27 @@ export async function getActivityEvents(
     });
 
     const activities = response.data.activities ?? [];
+    const currentUserEmail = activities.some((activity) => {
+      const actor = activity.actors?.[0];
+      return (
+        actor?.user?.knownUser?.isCurrentUser === true ||
+        actor?.impersonation?.impersonatedUser?.knownUser?.isCurrentUser === true
+      );
+    })
+      ? await getCurrentUserEmail(googleClient)
+      : undefined;
+
     return activities.map((activity) => {
       const actor = activity.actors?.[0];
-      const actorEmail =
-        actor?.user?.knownUser?.personName ??
-        actor?.impersonation?.impersonatedUser?.knownUser?.personName ??
-        'unknown';
       const timestamp = activity.timestamp ?? activity.timeRange?.startTime ?? '';
       const actionType = Object.keys(activity.primaryActionDetail ?? {})[0] ?? 'edit';
-      return { timestamp, actor: actorEmail, actionType };
+      const resolvedActor = resolveActivityActor(actor, currentUserEmail);
+      return {
+        timestamp,
+        user: resolvedActor.user,
+        actorRef: resolvedActor.actorRef,
+        actionType,
+      };
     });
   } catch {
     // Drive Activity API may not be authorized — graceful degradation
@@ -114,7 +161,11 @@ export async function getTimeline(
   } = {}
 ): Promise<TimelineResult> {
   const limit = options.limit ?? 50;
-  const maxPages = options.maxPages ?? 50;
+  const maxPages = options.maxPages ?? 25; // Reduced from 50 to prevent timeouts
+  const DEADLINE_MS = 45_000; // 45-second deadline to stay within MCP timeout
+  const startTime = Date.now();
+  const hasTimeFilters = options.since !== undefined || options.until !== undefined;
+  const pageSize = Math.min(Math.max(limit, 50), 200);
 
   const allRevisionItems: drive_v3.Schema$Revision[] = [];
   let pageToken: string | undefined;
@@ -122,9 +173,21 @@ export async function getTimeline(
   let pagesRead = 0;
 
   do {
+    // Deadline check: bail out before MCP timeout
+    if (Date.now() - startTime > DEADLINE_MS) {
+      nextPageToken = pageToken;
+      logger.warn('revision-timeline: deadline exceeded; returning partial results', {
+        spreadsheetId,
+        pagesRead,
+        elapsedMs: Date.now() - startTime,
+        revisionsLoaded: allRevisionItems.length,
+      });
+      break;
+    }
+
     const response = await driveApi.revisions.list({
       fileId: spreadsheetId,
-      pageSize: 200, // Drive revisions.list max is 200; values above are silently clamped
+      pageSize,
       pageToken,
       fields:
         'nextPageToken,revisions(id,modifiedTime,lastModifyingUser(displayName,emailAddress),size)',
@@ -132,6 +195,10 @@ export async function getTimeline(
     allRevisionItems.push(...(response.data.revisions ?? []));
     pageToken = response.data.nextPageToken ?? undefined;
     pagesRead++;
+    if (!hasTimeFilters && allRevisionItems.length >= limit) {
+      nextPageToken = pageToken;
+      break;
+    }
     if (pagesRead >= maxPages && pageToken) {
       nextPageToken = pageToken;
       logger.warn('revision-timeline: hit pagination cap; history may be truncated', {
@@ -143,10 +210,11 @@ export async function getTimeline(
     }
   } while (pageToken);
 
-  let revisions = allRevisionItems.map((r) => ({
+  let revisions: TimelineEntry[] = allRevisionItems.map((r) => ({
     revisionId: r.id!,
     timestamp: r.modifiedTime ?? '',
     user: r.lastModifyingUser?.emailAddress ?? undefined,
+    activityActorRef: undefined,
     displayName: r.lastModifyingUser?.displayName ?? undefined,
     sizeBytes: r.size ? Number(r.size) : undefined,
     activityType: undefined as string | undefined,
@@ -184,7 +252,8 @@ export async function getTimeline(
             return Math.abs(aTime - entryTime) < 60_000;
           });
           if (match) {
-            if (!entry.user) entry.user = match.actor;
+            if (!entry.user && match.user) entry.user = match.user;
+            if (match.actorRef) entry.activityActorRef = match.actorRef;
             entry.activityType = match.actionType;
           }
         }
@@ -284,11 +353,9 @@ export async function restoreCells(
 ): Promise<RestoreResult[]> {
   const { data: csv } = await exportRevisionAsCsv(driveApi, spreadsheetId, revisionId);
   if (!csv) {
-    throw new Error(
-      `Cannot export revision ${revisionId} as CSV. ` +
-        'This may happen if the revision is too old or the file format is unsupported. ' +
-        'Use sheets_collaborate version_list_revisions to find available revisions.'
-    );
+    throw new NotFoundError('revision', revisionId, {
+      hint: 'This may happen if the revision is too old or the file format is unsupported. Use sheets_collaborate version_list_revisions to find available revisions.',
+    });
   }
 
   const grid = parseCsv(csv);

@@ -19,6 +19,7 @@ describe('AirtableBackend', () => {
   let backend: AirtableBackend;
 
   beforeEach(() => {
+    process.env['ENABLE_EXPERIMENTAL_BACKENDS'] = 'true';
     client = createMockClient();
     backend = new AirtableBackend({ client } satisfies AirtableBackendConfig);
   });

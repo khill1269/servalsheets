@@ -41,7 +41,11 @@ function getStateFile(): string {
     return join(process.env['DATA_DIR'], 'restart-state.json');
   }
 
-  const homeDir = process.env['HOME'] || process.env['USERPROFILE'] || '/tmp';
+  const homeDir =
+    process.env['HOME'] ||
+    process.env['USERPROFILE'] ||
+    process.env['XDG_DATA_HOME'] ||
+    '/var/lib/servalsheets';
   return join(homeDir, '.servalsheets', 'restart-state.json');
 }
 

@@ -10,10 +10,11 @@ const scriptPath = resolve(projectRoot, 'scripts/check-source-dist-consistency.t
 
 describe('check-source-dist-consistency.ts', () => {
   it('supports dev mode when dist artifacts are missing', () => {
+    const env = { ...process.env, NODE_ENV: 'test' };
     const result = spawnSync('node', ['--import', 'tsx', scriptPath, '--allow-missing-dist'], {
       cwd: projectRoot,
       encoding: 'utf8',
-      env: process.env,
+      env,
     });
 
     const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`.trim();
@@ -26,10 +27,11 @@ describe('check-source-dist-consistency.ts', () => {
       existsSync(resolve(projectRoot, 'dist/schemas/action-counts.js')) &&
       existsSync(resolve(projectRoot, 'dist/mcp/completions.js'));
 
+    const env = { ...process.env, NODE_ENV: 'test' };
     const result = spawnSync('node', ['--import', 'tsx', scriptPath], {
       cwd: projectRoot,
       encoding: 'utf8',
-      env: process.env,
+      env,
     });
 
     const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`.trim();

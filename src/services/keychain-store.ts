@@ -23,6 +23,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import type { TokenStore, StoredTokens } from './token-store.js';
 import { createChildLogger } from '../utils/logger.js';
+import { ValidationError, ServiceError, ConfigError } from '../core/errors.js';
 
 const execFileAsync = promisify(execFile);
 const log = createChildLogger({ service: 'keychain-store' });
@@ -39,8 +40,9 @@ const SAFE_KEYCHAIN_NAME = /^[a-zA-Z0-9\-_.]+$/;
 
 function validateKeychainName(name: string, field: string): void {
   if (!SAFE_KEYCHAIN_NAME.test(name)) {
-    throw new Error(
-      `Invalid ${field}: must contain only alphanumeric characters, hyphens, underscores, and dots`
+    throw new ValidationError(
+      `Invalid ${field}: must contain only alphanumeric characters, hyphens, underscores, and dots`,
+      field
     );
   }
 }
@@ -211,7 +213,11 @@ export class KeychainTokenStore implements TokenStore {
         await this.keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, data);
         log.info('Tokens saved to system credential store');
       } else {
-        throw new Error('Keychain storage not available on this platform');
+        throw new ServiceError(
+          'Keychain storage not available on this platform',
+          'SERVICE_NOT_INITIALIZED',
+          'KeychainTokenStore'
+        );
       }
     } catch (error) {
       log.error('Failed to save tokens to keychain', { error });
@@ -271,8 +277,9 @@ export class HybridTokenStore implements TokenStore {
     }
 
     if (!keychainStore && !fileStore) {
-      throw new Error(
-        'No token storage available. Either enable keychain or provide ENCRYPTION_KEY.'
+      throw new ConfigError(
+        'No token storage available. Either enable keychain or provide ENCRYPTION_KEY.',
+        'ENCRYPTION_KEY'
       );
     }
 
@@ -325,7 +332,11 @@ export class HybridTokenStore implements TokenStore {
       return;
     }
 
-    throw new Error('No token storage available');
+    throw new ServiceError(
+      'No token storage available',
+      'SERVICE_NOT_INITIALIZED',
+      'HybridTokenStore'
+    );
   }
 
   async clear(): Promise<void> {

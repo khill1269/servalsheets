@@ -31,7 +31,10 @@ const LEGACY_TO_CANONICAL_ERROR_CODE: Partial<Record<KnownErrorCode, KnownErrorC
   VALIDATION_ERROR: 'INVALID_REQUEST',
   AUTH_ERROR: 'AUTHENTICATION_REQUIRED',
   UNAUTHENTICATED: 'AUTHENTICATION_REQUIRED',
+  NOT_AUTHENTICATED: 'AUTHENTICATION_REQUIRED',
+  TOKEN_EXPIRED: 'AUTHENTICATION_REQUIRED',
   INVALID_CREDENTIALS: 'AUTHENTICATION_REQUIRED',
+  NOT_CONFIGURED: 'CONFIG_ERROR',
   INSUFFICIENT_PERMISSIONS: 'PERMISSION_DENIED',
   FORBIDDEN: 'PERMISSION_DENIED',
   QUOTA_EXCEEDED: 'RESOURCE_EXHAUSTED',
@@ -58,7 +61,7 @@ export function isKnownErrorCode(code: unknown): code is KnownErrorCode {
 
 export function getCanonicalErrorCode(code: unknown): KnownErrorCode | undefined {
   if (!isKnownErrorCode(code)) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   return LEGACY_TO_CANONICAL_ERROR_CODE[code] ?? code;
@@ -84,9 +87,15 @@ export function getErrorCodeFamily(code: KnownErrorCode): ErrorCodeFamily {
     case 'AUTHENTICATION_REQUIRED':
     case 'AUTH_ERROR':
     case 'UNAUTHENTICATED':
+    case 'NOT_AUTHENTICATED':
+    case 'TOKEN_EXPIRED':
     case 'INVALID_CREDENTIALS':
     case 'INCREMENTAL_SCOPE_REQUIRED':
       return 'authentication';
+
+    case 'CONFIG_ERROR':
+    case 'NOT_CONFIGURED':
+      return 'service';
 
     case 'PERMISSION_DENIED':
     case 'INSUFFICIENT_PERMISSIONS':
@@ -154,7 +163,7 @@ export function getErrorCodeFamily(code: KnownErrorCode): ErrorCodeFamily {
 
 export function getErrorCodeCompatibility(code: unknown): ErrorCodeCompatibility | undefined {
   if (typeof code !== 'string' || code.length === 0) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   const canonicalCode = getCanonicalErrorCode(code) ?? 'UNKNOWN_ERROR';

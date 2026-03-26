@@ -27,7 +27,13 @@ describe('CompositeHandler - Streaming Export', () => {
 
     // Mock context
     mockContext = {
-      auth: { scopes: ['https://www.googleapis.com/auth/spreadsheets'] },
+      auth: {
+        scopes: [
+          'https://www.googleapis.com/auth/spreadsheets',
+          'https://www.googleapis.com/auth/spreadsheets.readonly',
+          'https://www.googleapis.com/auth/drive.file',
+        ],
+      },
       googleClient: {
         sheets: mockSheetsApi,
       },

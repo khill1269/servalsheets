@@ -21,6 +21,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
 import { getTracer } from '../utils/tracing.js';
 import { getConcurrencyCoordinator } from './concurrency-coordinator.js';
 
@@ -35,6 +36,8 @@ export interface ParallelExecutorOptions {
   maxRetries?: number;
   /** Initial retry delay in ms (default: 1000) */
   retryDelayMs?: number;
+  /** Per-task timeout in ms (default: 30000). Individual tasks exceeding this are failed without blocking the batch (H-7) */
+  taskTimeoutMs?: number;
 }
 
 export interface ParallelTask<T> {
@@ -85,6 +88,7 @@ export class ParallelExecutor {
   private retryOnError: boolean;
   private maxRetries: number;
   private retryDelayMs: number;
+  private taskTimeoutMs: number;
 
   // Statistics
   private stats = {
@@ -115,6 +119,7 @@ export class ParallelExecutor {
     this.retryOnError = options.retryOnError ?? true;
     this.maxRetries = options.maxRetries ?? 3;
     this.retryDelayMs = options.retryDelayMs ?? 1000;
+    this.taskTimeoutMs = options.taskTimeoutMs ?? 30_000; // 30s default per-task deadline (H-7)
 
     if (this.verboseLogging) {
       logger.info('Parallel executor initialized', {
@@ -174,7 +179,29 @@ export class ParallelExecutor {
       while (retries <= this.maxRetries) {
         try {
           // Phase 1: Acquire global permit before execution
-          const result = await coordinator.execute('ParallelExecutor', () => task.fn());
+          // H-7: Per-task timeout prevents a single slow task from blocking the entire batch
+          const taskPromise = coordinator.execute('ParallelExecutor', () => task.fn());
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            const timer = setTimeout(
+              () =>
+                reject(
+                  new ServiceError(
+                    `Task ${task.id} timed out after ${this.taskTimeoutMs}ms`,
+                    'DEADLINE_EXCEEDED',
+                    'ParallelExecutor'
+                  )
+                ),
+              this.taskTimeoutMs
+            );
+            // Unref so timeout doesn't keep process alive
+            if (typeof timer === 'object' && 'unref' in timer) timer.unref();
+            // Clean up timer when task resolves
+            taskPromise.then(
+              () => clearTimeout(timer),
+              () => clearTimeout(timer)
+            );
+          });
+          const result = await Promise.race([taskPromise, timeoutPromise]);
           const duration = Date.now() - startTime;
 
           results.push({
@@ -189,9 +216,11 @@ export class ParallelExecutor {
           this.stats.totalSucceeded++;
           this.stats.totalDuration += duration;
           this.stats.totalRetries += retries;
-          this.stats.durations.push(duration);
-          if (this.stats.durations.length > 10500) {
-            this.stats.durations = this.stats.durations.slice(-10000);
+          // Ring buffer: overwrite oldest entry instead of slice() copy (avoids GC spike)
+          if (this.stats.durations.length < 10000) {
+            this.stats.durations.push(duration);
+          } else {
+            this.stats.durations[this.stats.totalExecuted % 10000] = duration;
           }
           completed++;
 
@@ -312,7 +341,11 @@ export class ParallelExecutor {
     const failures = results.filter((r) => !r.success);
     if (failures.length > 0) {
       const errorMessages = failures.map((f) => `${f.id}: ${f.error?.message}`).join('; ');
-      throw new Error(`${failures.length} task(s) failed: ${errorMessages}`);
+      throw new ServiceError(
+        `${failures.length} task(s) failed: ${errorMessages}`,
+        'INTERNAL_ERROR',
+        'ParallelExecutor'
+      );
     }
 
     return results.map((r) => r.result!);
@@ -402,7 +435,11 @@ export function setParallelExecutor(executor: ParallelExecutor): void {
  */
 export function resetParallelExecutor(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetParallelExecutor() can only be called in test environment');
+    throw new ServiceError(
+      'resetParallelExecutor() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'ParallelExecutor'
+    );
   }
   parallelExecutor = null;
 }

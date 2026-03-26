@@ -234,23 +234,3 @@ export const FIELD_MASKS = {
 export function buildFieldMask(fields: string[]): string {
   return fields.join(',');
 }
-
-/**
- * Combine multiple field masks
- *
- * @example
- * ```typescript
- * const combined = combineFieldMasks(
- *   FIELD_MASKS.SPREADSHEET_BASIC,
- *   FIELD_MASKS.NAMED_RANGES
- * );
- * ```
- */
-export function combineFieldMasks(...masks: string[]): string {
-  // Split, dedupe, and rejoin
-  const fields = new Set<string>();
-  for (const mask of masks) {
-    mask.split(',').forEach((f) => fields.add(f.trim()));
-  }
-  return Array.from(fields).join(',');
-}

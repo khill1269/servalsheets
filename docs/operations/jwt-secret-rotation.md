@@ -3,7 +3,7 @@ title: JWT Secret Rotation
 category: runbook
 last_updated: 2026-01-31
 description: ServalSheets supports JWT secret rotation for zero-downtime secret updates. This allows you to rotate JWT signing secrets without invalidating existing sessions.
-version: 1.6.0
+version: 2.0.0
 tags: [docker, kubernetes]
 estimated_time: 15-30 minutes
 ---

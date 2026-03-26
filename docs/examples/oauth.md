@@ -3,7 +3,7 @@ title: OAuth Authentication Flow
 category: example
 last_updated: 2026-01-31
 description: Complete guide to setting up and using OAuth authentication with ServalSheets.
-version: 1.6.0
+version: 2.0.0
 tags: [oauth, authentication, sheets, docker]
 ---
 
@@ -26,7 +26,7 @@ This guide covers:
 
 - Google Cloud Platform account
 - Project with Sheets API enabled
-- ServalSheets v1.6.0 or later
+- Current ServalSheets release (2.x)
 - Basic understanding of OAuth 2.0
 
 ## OAuth Fundamentals
@@ -69,16 +69,21 @@ OAuth 2.0 is an authorization framework that enables applications to obtain limi
 ```
 1. Go to APIs & Services > Credentials
 2. Click "Create Credentials" > "OAuth Client ID"
-3. Application type: "Desktop app" or "Web application"
+3. Application type: "Desktop app" for local stdio usage, or "Web application" for hosted deployments
 4. Name: "ServalSheets Client"
 5. Add authorized redirect URI:
-   - Desktop: http://localhost:3000/oauth/callback
-   - Web: https://your-domain.com/oauth/callback
+   - Local stdio / CLI OAuth helper: http://localhost:3000/oauth/callback
+   - Hosted deployment: https://your-domain.com/callback
 6. Click Create
 7. Download credentials JSON file
 ```
 
 ### Step 4: Configure ServalSheets
+
+For local stdio and CLI OAuth against Google Sheets, use the `GOOGLE_*` variables below.
+For hosted remote connector authentication, use the hosted server guide in
+[`../guides/OAUTH_USER_SETUP.md`](../guides/OAUTH_USER_SETUP.md), which documents
+the separate `OAUTH_*` and `ALLOWED_REDIRECT_URIS` settings.
 
 **Option 1: Environment Variables**
 
@@ -86,6 +91,8 @@ OAuth 2.0 is an authorization framework that enables applications to obtain limi
 export GOOGLE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
 export GOOGLE_CLIENT_SECRET="your-client-secret"
 export GOOGLE_REDIRECT_URI="http://localhost:3000/oauth/callback"
+export GOOGLE_TOKEN_STORE_PATH="$HOME/.config/servalsheets/tokens.encrypted"
+export ENCRYPTION_KEY="$(openssl rand -hex 32)"
 ```
 
 **Option 2: Configuration File**
@@ -96,6 +103,8 @@ Create `.env` file:
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-client-secret
 GOOGLE_REDIRECT_URI=http://localhost:3000/oauth/callback
+GOOGLE_TOKEN_STORE_PATH=~/.config/servalsheets/tokens.encrypted
+ENCRYPTION_KEY=replace-with-64-hex-characters
 ```
 
 **Option 3: Credentials File**
@@ -152,7 +161,7 @@ Exchange code for tokens
 
 **Storage locations**:
 
-- Desktop: `~/.config/servalsheets/tokens.json`
+- Desktop: `~/.config/servalsheets/tokens.encrypted`
 - Docker: `/app/config/tokens.json`
 - Custom: Set via `TOKEN_STORAGE_PATH`
 

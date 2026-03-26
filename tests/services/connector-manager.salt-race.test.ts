@@ -20,7 +20,7 @@ class StubConnector {
       healthy: true,
       latencyMs: 1,
       message: 'ok',
-      lastChecked: new Date().toISOString(),
+      lastChecked: new Date('2024-01-15T00:00:00Z').toISOString(),
     };
   }
   async dispose(): Promise<void> {}
@@ -37,7 +37,7 @@ class StubConnector {
       metadata: {
         source: 'stub',
         endpoint: 'stub',
-        fetchedAt: new Date().toISOString(),
+        fetchedAt: new Date('2024-01-15T00:00:00Z').toISOString(),
         rowCount: 0,
         cached: false,
         quotaUsed: 0,
@@ -48,7 +48,7 @@ class StubConnector {
     return {
       used: 0,
       limit: 1,
-      resetAt: new Date().toISOString(),
+      resetAt: new Date('2024-01-15T00:00:00Z').toISOString(),
       unit: 'requests',
     };
   }

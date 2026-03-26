@@ -13,6 +13,78 @@ import type { FormatHandlerAccess } from './internal.js';
 import { PRESET_COLORS, type ConditionType } from './internal.js';
 import { rgbToHex } from './helpers.js';
 
+function rangesOverlap(
+  left: sheets_v4.Schema$GridRange | undefined,
+  right: sheets_v4.Schema$GridRange | undefined
+): boolean {
+  if (!left || !right) {
+    return false;
+  }
+
+  if (left.sheetId !== right.sheetId) {
+    return false;
+  }
+
+  const leftStartRow = left.startRowIndex ?? 0;
+  const leftEndRow = left.endRowIndex ?? Number.MAX_SAFE_INTEGER;
+  const rightStartRow = right.startRowIndex ?? 0;
+  const rightEndRow = right.endRowIndex ?? Number.MAX_SAFE_INTEGER;
+
+  const leftStartCol = left.startColumnIndex ?? 0;
+  const leftEndCol = left.endColumnIndex ?? Number.MAX_SAFE_INTEGER;
+  const rightStartCol = right.startColumnIndex ?? 0;
+  const rightEndCol = right.endColumnIndex ?? Number.MAX_SAFE_INTEGER;
+
+  return (
+    leftStartRow < rightEndRow &&
+    rightStartRow < leftEndRow &&
+    leftStartCol < rightEndCol &&
+    rightStartCol < leftEndCol
+  );
+}
+
+async function buildAlternatingRowsRequests(
+  ha: FormatHandlerAccess,
+  spreadsheetId: string,
+  range: sheets_v4.Schema$GridRange
+): Promise<{ requests: sheets_v4.Schema$Request[]; idempotent: boolean }> {
+  const metadata = await ha.api.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets(properties(sheetId),bandedRanges(bandedRangeId,range))',
+  });
+
+  const targetSheet = (metadata.data.sheets ?? []).find(
+    (sheet) => sheet.properties?.sheetId === range.sheetId
+  );
+  const overlappingBandings = (targetSheet?.bandedRanges ?? []).filter((bandedRange) =>
+    rangesOverlap(range, bandedRange.range)
+  );
+
+  const requests: sheets_v4.Schema$Request[] = overlappingBandings
+    .map((bandedRange) => bandedRange.bandedRangeId)
+    .filter((bandedRangeId): bandedRangeId is number => typeof bandedRangeId === 'number')
+    .map((bandedRangeId) => ({
+      deleteBanding: { bandedRangeId },
+    }));
+
+  requests.push({
+    addBanding: {
+      bandedRange: {
+        range,
+        rowProperties: {
+          firstBandColor: PRESET_COLORS.altRowFirst,
+          secondBandColor: PRESET_COLORS.altRowSecond,
+        },
+      },
+    },
+  });
+
+  return {
+    requests,
+    idempotent: overlappingBandings.length > 0,
+  };
+}
+
 // ─── handleApplyPreset ────────────────────────────────────────────────────────
 
 export async function handleApplyPreset(
@@ -22,7 +94,8 @@ export async function handleApplyPreset(
   const rangeA1 = await ha.resolveRange(input.spreadsheetId, input.range!);
   const gridRange = await ha.a1ToGridRange(input.spreadsheetId, rangeA1);
   const googleRange = toGridRange(gridRange);
-  const requests: sheets_v4.Schema$Request[] = [];
+  let requests: sheets_v4.Schema$Request[] = [];
+  let idempotent = false;
 
   switch (input.preset!) {
     case 'header_row':
@@ -45,17 +118,10 @@ export async function handleApplyPreset(
       break;
 
     case 'alternating_rows':
-      requests.push({
-        addBanding: {
-          bandedRange: {
-            range: googleRange,
-            rowProperties: {
-              firstBandColor: PRESET_COLORS.altRowFirst,
-              secondBandColor: PRESET_COLORS.altRowSecond,
-            },
-          },
-        },
-      });
+      ({
+        requests,
+        idempotent,
+      } = await buildAlternatingRowsRequests(ha, input.spreadsheetId, googleRange));
       break;
 
     case 'total_row':
@@ -186,6 +252,7 @@ export async function handleApplyPreset(
 
   return ha.makeSuccess('apply_preset', {
     cellsFormatted: ha.exactCellCount(googleRange),
+    ...(idempotent ? { _idempotent: true } : {}),
   });
 }
 
@@ -661,6 +728,22 @@ export async function handleBatchFormat(
   });
 }
 
+// ─── Sparkline color helper ───────────────────────────────────────────────────
+
+/**
+ * Unwrap SparklineColorInputSchema (ColorStyle | ColorSchema) to a flat RGB object.
+ * Theme colors have no hex equivalent and are skipped (returns undefined).
+ */
+function toFlatRgb(
+  color: Record<string, unknown>
+): { red?: number; green?: number; blue?: number } | undefined {
+  if ('themeColor' in color) return undefined; // OK: Explicit empty
+  if ('rgbColor' in color && color['rgbColor'] && typeof color['rgbColor'] === 'object') {
+    return color['rgbColor'] as { red?: number; green?: number; blue?: number };
+  }
+  return color as { red?: number; green?: number; blue?: number };
+}
+
 // ─── handleSparklineAdd ───────────────────────────────────────────────────────
 
 export async function handleSparklineAdd(
@@ -676,16 +759,33 @@ export async function handleSparklineAdd(
     options.push(`"charttype", "${config.type.toLowerCase()}"`);
   }
 
-  if (config?.color) options.push(`"color", "${rgbToHex(config.color)}"`);
-  if (config?.negativeColor) options.push(`"negcolor", "${rgbToHex(config.negativeColor)}"`);
-  if (config?.firstColor) options.push(`"firstcolor", "${rgbToHex(config.firstColor)}"`);
-  if (config?.lastColor) options.push(`"lastcolor", "${rgbToHex(config.lastColor)}"`);
-  if (config?.highColor) options.push(`"highcolor", "${rgbToHex(config.highColor)}"`);
-  if (config?.lowColor) options.push(`"lowcolor", "${rgbToHex(config.lowColor)}"`);
+  const flatColor = config?.color ? toFlatRgb(config.color as Record<string, unknown>) : undefined;
+  if (flatColor) options.push(`"color", "${rgbToHex(flatColor)}"`);
+  const flatNeg = config?.negativeColor
+    ? toFlatRgb(config.negativeColor as Record<string, unknown>)
+    : undefined;
+  if (flatNeg) options.push(`"negcolor", "${rgbToHex(flatNeg)}"`);
+  const flatFirst = config?.firstColor
+    ? toFlatRgb(config.firstColor as Record<string, unknown>)
+    : undefined;
+  if (flatFirst) options.push(`"firstcolor", "${rgbToHex(flatFirst)}"`);
+  const flatLast = config?.lastColor
+    ? toFlatRgb(config.lastColor as Record<string, unknown>)
+    : undefined;
+  if (flatLast) options.push(`"lastcolor", "${rgbToHex(flatLast)}"`);
+  const flatHigh = config?.highColor
+    ? toFlatRgb(config.highColor as Record<string, unknown>)
+    : undefined;
+  if (flatHigh) options.push(`"highcolor", "${rgbToHex(flatHigh)}"`);
+  const flatLow = config?.lowColor
+    ? toFlatRgb(config.lowColor as Record<string, unknown>)
+    : undefined;
+  if (flatLow) options.push(`"lowcolor", "${rgbToHex(flatLow)}"`);
 
   if (config?.showAxis && config.axisColor) {
     options.push(`"axis", true`);
-    options.push(`"axiscolor", "${rgbToHex(config.axisColor)}"`);
+    const flatAxis = toFlatRgb(config.axisColor as Record<string, unknown>);
+    if (flatAxis) options.push(`"axiscolor", "${rgbToHex(flatAxis)}"`);
   } else if (config?.showAxis) {
     options.push(`"axis", true`);
   }
@@ -750,9 +850,20 @@ export async function handleSparklineClear(
     return ha.makeSuccess('sparkline_clear', { cell: input.cell }, undefined, true);
   }
 
-  await ha.api.spreadsheets.values.clear({
+  const gridRange = await ha.a1ToGridRange(input.spreadsheetId, input.cell);
+
+  await ha.api.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
-    range: input.cell,
+    requestBody: {
+      requests: [
+        {
+          updateCells: {
+            range: toGridRange(gridRange),
+            fields: 'userEnteredValue',
+          },
+        },
+      ],
+    },
   });
 
   return ha.makeSuccess('sparkline_clear', { cell: input.cell });

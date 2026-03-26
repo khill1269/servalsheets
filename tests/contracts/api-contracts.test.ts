@@ -498,9 +498,8 @@ describe('API Contracts - Response Structure Stability', () => {
   });
 });
 
-describe('API Contracts - Backward Compatibility', () => {
-  it('accepts legacy envelope format for backward compatibility', () => {
-    // Some consumers may still wrap in { request: {...} }
+describe('API Contracts - Request Shape Compatibility', () => {
+  it('accepts the canonical request envelope format', () => {
     const result = SheetsDataInputSchema.safeParse({
       request: {
         action: 'read',

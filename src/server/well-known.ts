@@ -3,6 +3,7 @@
  *
  * Implements RFC 8615 well-known URIs for server discovery:
  * - /.well-known/mcp.json: MCP Server Card (SEP-1649) - primary discovery
+ * - /.well-known/mcp/tool-hashes: Tool description integrity manifest
  * - /.well-known/mcp-configuration: MCP server capabilities (legacy)
  * - /.well-known/oauth-authorization-server: OAuth 2.0 metadata (RFC 8414)
  * - /.well-known/oauth-protected-resource: Resource server metadata (RFC 9728)
@@ -24,6 +25,8 @@ import { TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
 import { DEFAULT_SCOPES, ELEVATED_SCOPES, READONLY_SCOPES } from '../services/google-api.js';
 import { getEnv } from '../config/env.js';
 import { getPromptsCatalogCount } from '../resources/prompts-catalog.js';
+import { getToolHashManifest } from '../security/tool-hash-registry.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Compute ETag for JSON content
@@ -632,11 +635,41 @@ export function oauthProtectedResourceHandler(req: Request, res: Response): void
 }
 
 /**
+ * Express handler for /.well-known/mcp/tool-hashes
+ *
+ * Exposes the committed tool-description hash manifest used for rug-pull detection.
+ */
+export async function toolHashManifestHandler(req: Request, res: Response): Promise<void> {
+  try {
+    const manifest = await getToolHashManifest();
+    const etag = computeETag(manifest);
+
+    if (req.headers['if-none-match'] === etag) {
+      res.status(304).end();
+      return;
+    }
+
+    res.set('Content-Type', 'application/json');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.set('ETag', etag);
+    res.set('Vary', 'Accept-Encoding');
+    res.set('Access-Control-Allow-Origin', '*');
+    res.json(manifest);
+  } catch (error) {
+    logger.error('Failed to build tool hash manifest', { error });
+    res.status(500).json({
+      error: 'tool_hash_manifest_unavailable',
+      message: 'Failed to load tool hash manifest',
+    });
+  }
+}
+
+/**
  * Register all well-known handlers with an Express app
  */
 export function registerWellKnownHandlers(
   app: {
-    get: (path: string, handler: (req: Request, res: Response) => void) => void;
+    get: (path: string, handler: (req: Request, res: Response) => void | Promise<void>) => void;
   },
   runtimeConfig?: WellKnownRuntimeConfig
 ): void {
@@ -646,6 +679,9 @@ export function registerWellKnownHandlers(
 
   // SEP-1649: MCP Server Card - primary discovery endpoint
   app.get('/.well-known/mcp.json', cardHandler);
+  app.get('/.well-known/mcp/server-card.json', cardHandler);
+  // Tool integrity manifest
+  app.get('/.well-known/mcp/tool-hashes', toolHashManifestHandler);
   // Legacy MCP configuration endpoint
   app.get('/.well-known/mcp-configuration', mcpConfigurationHandler);
   // OAuth endpoints (RFC 8414, RFC 9728)
@@ -674,6 +710,9 @@ export const handleOAuthProtectedResource = oauthProtectedResourceHandler;
 
 /** @deprecated Use mcpServerCardHandler instead */
 export const handleMcpServerCard = mcpServerCardHandler;
+
+/** @deprecated Use toolHashManifestHandler instead */
+export const handleToolHashManifest = toolHashManifestHandler;
 
 /** Alias for getMcpServerCard */
 export const buildMcpServerCard = getMcpServerCard;

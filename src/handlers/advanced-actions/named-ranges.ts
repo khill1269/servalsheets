@@ -61,6 +61,26 @@ export async function handleAddNamedRangeAction(
   req: AddNamedRangeRequest,
   deps: NamedRangesDeps
 ): Promise<AdvancedResponse> {
+  // Idempotency guard: check if a named range with the same name already exists
+  try {
+    const existing = await deps.sheetsApi.spreadsheets.get({
+      spreadsheetId: req.spreadsheetId!,
+      fields: 'namedRanges',
+    });
+    const duplicate = (existing.data.namedRanges ?? []).find(
+      (n) => n.name === req.name
+    );
+    if (duplicate) {
+      return deps.success('add_named_range', {
+        namedRange: mapNamedRange(duplicate, deps),
+        _idempotent: true,
+        _hint: `Named range "${req.name}" already exists. Returning existing range instead of creating a duplicate.`,
+      });
+    }
+  } catch {
+    // Non-blocking: proceed with creation if lookup fails
+  }
+
   const gridRange = await deps.rangeToGridRange(req.spreadsheetId!, req.range!);
 
   const response = await deps.sheetsApi.spreadsheets.batchUpdate({

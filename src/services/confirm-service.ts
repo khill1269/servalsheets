@@ -15,6 +15,7 @@
  * if (approved) executeOperation();
  */
 import { getActionAnnotation } from '../schemas/annotations.js';
+import { ServiceError } from '../core/errors.js';
 
 /**
  * Risk level for operations
@@ -454,6 +455,16 @@ class ConfirmationService {
   }
 
   /**
+   * Record a synthetic successful confirmation for flows that complete via
+   * structured wizard interactions instead of a direct elicitation prompt.
+   */
+  recordWizardCompletion(): void {
+    this.stats.totalConfirmations++;
+    this.stats.approved++;
+    this.updateApprovalRate();
+  }
+
+  /**
    * Reset statistics (for testing)
    */
   resetStats(): void {
@@ -488,7 +499,11 @@ export function getConfirmationService(): ConfirmationService {
  */
 export function resetConfirmationService(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetConfirmationService() can only be called in test environment');
+    throw new ServiceError(
+      'resetConfirmationService() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'ConfirmationService'
+    );
   }
   confirmationService = null;
 }

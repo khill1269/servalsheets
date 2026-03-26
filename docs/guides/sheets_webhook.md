@@ -3,7 +3,7 @@ title: Webhook Integration Guide
 category: guide
 last_updated: 2026-01-31
 description: 'Tool: sheetswebhook'
-version: 1.6.0
+version: 2.0.0
 tags: [sheets]
 audience: user
 difficulty: intermediate
@@ -13,7 +13,7 @@ difficulty: intermediate
 
 **Tool**: `sheets_webhook`
 **Purpose**: Receive real-time notifications when spreadsheets change
-**Version**: 1.6.0
+**Version**: 2.0.0
 **Last Updated**: 2026-01-30
 
 ---

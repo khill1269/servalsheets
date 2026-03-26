@@ -50,6 +50,7 @@ echo ""
 CRITICAL_DOCS=(
   "README.md"
   "CLAUDE.md"
+  "add-on/README.md"
   "docs/guides/SKILL.md"
   "docs/development/PROJECT_STATUS.md"
   "docs/development/SOURCE_OF_TRUTH.md"

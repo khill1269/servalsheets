@@ -16,12 +16,16 @@
  * await txManager.commit(tx.id); // Both ops in single API call
  */
 
-import { promises as fsPromises, existsSync, mkdirSync } from 'fs';
-import { dirname, join } from 'path';
+import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger.js';
 import type { sheets_v4 } from 'googleapis';
-import { buildGridRangeInput, toGridRange } from '../utils/google-sheets-helpers.js';
+import {
+  buildA1Notation,
+  buildGridRangeInput,
+  parseA1Notation,
+  toGridRange,
+} from '../utils/google-sheets-helpers.js';
 import {
   Transaction,
   TransactionStatus as _TransactionStatus,
@@ -41,28 +45,22 @@ import {
 } from '../types/transaction.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
 import { getEnv } from '../config/env.js';
+import { ApiTimeoutError, ServiceError, ValidationError, NotFoundError } from '../core/errors.js';
+import { WalManager } from './transaction-wal.js';
+import type { WalRecoveryReport } from './transaction-wal.js';
+export type { WalRecoveryReport } from './transaction-wal.js';
 
-interface WalEntry {
-  seq?: number;
-  txId: string;
-  type: TransactionEvent['type'];
-  ts: number;
-  data?: unknown;
+interface SheetLookupContext {
+  nameToId: Map<string, number>;
+  idToName: Map<number, string>;
+  defaultSheetId?: number;
+  pendingSheetNames: Set<string>;
+  nextSyntheticSheetId: number;
 }
 
-interface WalRecoveryTransaction {
-  transactionId: string;
-  spreadsheetId?: string;
-  snapshotId?: string;
-  queuedOperations: number;
-  lastEventType: TransactionEvent['type'];
-  lastEventTimestamp: number;
-}
-
-export interface WalRecoveryReport {
-  enabled: boolean;
-  walPath?: string;
-  orphanedTransactions: WalRecoveryTransaction[];
+interface PreparedBatchRequest {
+  batchRequest: BatchRequest;
+  requestCounts: number[];
 }
 
 /**
@@ -76,15 +74,12 @@ export class TransactionManager {
   private snapshots: Map<string, TransactionSnapshot>;
   private listeners: TransactionListener[];
   private operationIdCounter: number;
+  private preparedOperationEntries: Map<string, Map<string, BatchRequestEntry[]>>;
+  private transactionSheetLookups: Map<string, SheetLookupContext>;
   // Phase 1: Timer cleanup
   private snapshotCleanupInterval?: NodeJS.Timeout;
-  // DR-01: Write-ahead log
-  private walEnabled: boolean;
-  private walPath: string;
-  private walSeq = 0;
-  private walReady: Promise<void>;
-  private walWriteChain: Promise<void>;
-  private walOrphanedTransactions: WalRecoveryTransaction[];
+  // DR-01: Write-ahead log (null when WAL is disabled)
+  private wal: WalManager | null;
 
   constructor(config: TransactionConfig = {}) {
     this.googleClient = config.googleClient;
@@ -118,17 +113,15 @@ export class TransactionManager {
     this.snapshots = new Map();
     this.listeners = [];
     this.operationIdCounter = 0;
+    this.preparedOperationEntries = new Map();
+    this.transactionSheetLookups = new Map();
 
     // Start background cleanup
     this.startSnapshotCleanup();
 
     // DR-01: Initialize write-ahead log (enabled when TRANSACTION_WAL_DIR is set)
     const walDir = config.walDir ?? process.env['TRANSACTION_WAL_DIR'];
-    this.walEnabled = !!walDir;
-    this.walPath = walDir ? join(walDir, 'transactions.wal.jsonl') : '';
-    this.walWriteChain = Promise.resolve();
-    this.walOrphanedTransactions = [];
-    this.walReady = this.walEnabled ? this.initWal() : Promise.resolve();
+    this.wal = walDir ? new WalManager(join(walDir, 'transactions.wal.jsonl')) : null;
   }
 
   /**
@@ -145,11 +138,16 @@ export class TransactionManager {
     } = {}
   ): Promise<string> {
     if (!this.config.enabled) {
-      throw new Error('Transactions are disabled');
+      throw new ServiceError('Transactions are disabled', 'CONFIG_ERROR', 'TransactionManager');
     }
 
     if (this.activeTransactions.size >= this.config.maxConcurrentTransactions) {
-      throw new Error('Maximum concurrent transactions reached');
+      throw new ServiceError(
+        'Maximum concurrent transactions reached',
+        'QUOTA_EXCEEDED',
+        'TransactionManager',
+        true
+      );
     }
 
     const transactionId = uuidv4();
@@ -210,13 +208,20 @@ export class TransactionManager {
     // FIX: Allow both 'pending' and 'queued' states (Issue #4)
     // After first queue(), status changes to 'queued', so we need to accept both
     if (transaction.status !== 'pending' && transaction.status !== 'queued') {
-      throw new Error(
-        `Transaction ${transactionId} is not in pending/queued state (current: ${transaction.status})`
+      throw new ValidationError(
+        `Transaction ${transactionId} is not in pending/queued state (current: ${transaction.status})`,
+        'transactionId',
+        'transaction in pending or queued state'
       );
     }
 
     if (transaction.operations.length >= this.config.maxOperationsPerTransaction) {
-      throw new Error('Maximum operations per transaction reached');
+      throw new ServiceError(
+        'Maximum operations per transaction reached',
+        'QUOTA_EXCEEDED',
+        'TransactionManager',
+        false
+      );
     }
 
     const operationId = `op_${this.operationIdCounter++}`;
@@ -237,6 +242,8 @@ export class TransactionManager {
 
     transaction.operations.push(queuedOp);
     transaction.status = 'queued';
+
+    await this.prepareQueuedOperation(transaction, queuedOp);
 
     await this.emitEvent({
       type: 'queue',
@@ -268,27 +275,49 @@ export class TransactionManager {
       // Validate all operations
       this.validateOperations(transaction);
 
-      // Resolve sheet names to IDs for range-based operations
-      const sheetNameMap = await this.buildSheetNameMap(transaction.spreadsheetId);
+      // Resolve sheet names to IDs for range-based operations and reserve
+      // deterministic IDs for sheets created inside the same transaction.
+      const sheetLookup = await this.getOrCreateSheetLookupContext(
+        transaction.id,
+        transaction.spreadsheetId
+      );
+      this.reservePendingSheetIds(transaction.operations, sheetLookup);
 
       // Merge operations into batch request
-      const batchRequest = this.mergeToBatchRequest(transaction.operations, sheetNameMap);
+      const preparedBatch = await this.mergeToBatchRequest(
+        transaction.operations,
+        transaction.spreadsheetId,
+        sheetLookup,
+        this.preparedOperationEntries.get(transaction.id)
+      );
 
       // Capture pre-commit cell values for rollback (write operations only)
       if (transaction.snapshot) {
-        await this.capturePreCommitValues(transaction, transaction.snapshot);
+        await this.capturePreCommitValues(transaction, transaction.snapshot, sheetLookup);
       }
 
       // Execute batch request via Google Sheets API
-      const batchResponse = await this.executeBatchRequest(transaction.spreadsheetId, batchRequest);
+      const batchResponse = await this.executeBatchRequest(
+        transaction.spreadsheetId,
+        preparedBatch.batchRequest
+      );
 
       // Process results
-      const operationResults = this.processOperationResults(transaction.operations, batchResponse);
+      const operationResults = this.processOperationResults(
+        transaction.operations,
+        preparedBatch.requestCounts,
+        batchResponse
+      );
 
       // Check for failures
       const failedOps = operationResults.filter((r) => !r.success);
       if (failedOps.length > 0 && transaction.autoRollback) {
-        throw new Error(`${failedOps.length} operation(s) failed: ${failedOps[0]!.error?.message}`);
+        throw new ServiceError(
+          `${failedOps.length} operation(s) failed: ${failedOps[0]!.error?.message}`,
+          'TRANSACTION_CONFLICT',
+          'TransactionManager',
+          true
+        );
       }
 
       transaction.status = 'committed';
@@ -321,13 +350,14 @@ export class TransactionManager {
       });
 
       // DR-01: Compact WAL — remove completed transaction's entries
-      if (this.walEnabled) {
-        await this.compactWal(transactionId);
+      if (this.wal) {
+        await this.wal.compact(transactionId);
       }
 
       // Cleanup
       this.activeTransactions.delete(transactionId);
       this.stats.activeTransactions--;
+      this.clearPreparedTransactionState(transactionId);
 
       return result;
     } catch (error) {
@@ -362,13 +392,14 @@ export class TransactionManager {
       });
 
       // DR-01: Compact WAL for terminal failed transactions.
-      if (this.walEnabled) {
-        await this.compactWal(transactionId);
+      if (this.wal) {
+        await this.wal.compact(transactionId);
       }
 
       // Cleanup
       this.activeTransactions.delete(transactionId);
       this.stats.activeTransactions--;
+      this.clearPreparedTransactionState(transactionId);
 
       const result: CommitResult = {
         transactionId,
@@ -420,8 +451,8 @@ export class TransactionManager {
       });
 
       // DR-01: Compact WAL — remove rolled-back transaction's entries
-      if (this.walEnabled) {
-        await this.compactWal(transactionId);
+      if (this.wal) {
+        await this.wal.compact(transactionId);
       }
 
       return {
@@ -449,7 +480,7 @@ export class TransactionManager {
   getTransaction(transactionId: string): Transaction {
     const transaction = this.activeTransactions.get(transactionId);
     if (!transaction) {
-      throw new Error(`Transaction ${transactionId} not found`);
+      throw new NotFoundError('transaction', transactionId);
     }
     return transaction;
   }
@@ -463,9 +494,10 @@ export class TransactionManager {
     this.log(`Creating snapshot for spreadsheet: ${spreadsheetId}`);
 
     if (!this.googleClient) {
-      throw new Error(
-        'Transaction manager requires Google API client for snapshots. ' +
-          'Simulated snapshots have been removed for production safety.'
+      throw new ServiceError(
+        'Transaction manager requires Google API client for snapshots. Simulated snapshots have been removed for production safety.',
+        'SERVICE_NOT_INITIALIZED',
+        'TransactionManager'
       );
     }
 
@@ -491,10 +523,10 @@ export class TransactionManager {
           serializationError instanceof RangeError &&
           String(serializationError.message).includes('string longer than')
         ) {
-          throw new Error(
-            'Snapshot too large to serialize (exceeds 512MB JavaScript limit). ' +
-              'This spreadsheet is too large for transactional snapshots. ' +
-              'Options: (1) Disable autoSnapshot, (2) Use sheets_history for undo, (3) Reduce spreadsheet size.'
+          throw new ServiceError(
+            'Snapshot too large to serialize (exceeds 512MB JavaScript limit). This spreadsheet is too large for transactional snapshots. Options: (1) Disable autoSnapshot, (2) Use sheets_history for undo, (3) Reduce spreadsheet size.',
+            'PAYLOAD_TOO_LARGE',
+            'TransactionManager'
           );
         }
         throw serializationError;
@@ -503,10 +535,10 @@ export class TransactionManager {
       // Enforce snapshot size limit (prevent memory exhaustion)
       const MAX_SNAPSHOT_SIZE = 50 * 1024 * 1024; // 50MB limit
       if (size > MAX_SNAPSHOT_SIZE) {
-        throw new Error(
-          `Snapshot too large: ${Math.round(size / 1024 / 1024)}MB exceeds ${MAX_SNAPSHOT_SIZE / 1024 / 1024}MB limit. ` +
-            `This spreadsheet has too much metadata for transactional snapshots. ` +
-            `Options: (1) Begin transaction with autoSnapshot: false, (2) Use sheets_history instead, (3) Reduce number of sheets.`
+        throw new ServiceError(
+          `Snapshot too large: ${Math.round(size / 1024 / 1024)}MB exceeds ${MAX_SNAPSHOT_SIZE / 1024 / 1024}MB limit. This spreadsheet has too much metadata for transactional snapshots. Options: (1) Begin transaction with autoSnapshot: false, (2) Use sheets_history instead, (3) Reduce number of sheets.`,
+          'PAYLOAD_TOO_LARGE',
+          'TransactionManager'
         );
       }
 
@@ -542,22 +574,15 @@ export class TransactionManager {
    */
   private async capturePreCommitValues(
     transaction: Transaction,
-    snapshot: TransactionSnapshot
+    snapshot: TransactionSnapshot,
+    sheetLookup: SheetLookupContext
   ): Promise<void> {
     if (!this.googleClient) return;
 
-    const WRITE_TOOL_ACTIONS = new Set([
-      'sheets_data:write',
-      'sheets_data:batch_write',
-      'sheets_data:clear',
-      'sheets_data:batch_clear',
-    ]);
-
     const ranges: string[] = [];
     for (const op of transaction.operations) {
-      const toolAction = `${op.tool}:${op.action}`;
-      if (WRITE_TOOL_ACTIONS.has(toolAction) && typeof op.params['range'] === 'string') {
-        ranges.push(op.params['range'] as string);
+      for (const range of this.collectPreCommitRanges(op, sheetLookup)) {
+        ranges.push(range);
       }
     }
 
@@ -584,6 +609,139 @@ export class TransactionManager {
         `WARNING: Could not capture pre-commit cell data: ${error instanceof Error ? error.message : String(error)}. ` +
           'Rollback will not restore cell values for this transaction.'
       );
+    }
+  }
+
+  private collectPreCommitRanges(op: QueuedOperation, sheetLookup: SheetLookupContext): string[] {
+    const toolAction = `${op.tool}:${op.action}`;
+    switch (toolAction) {
+      case 'sheets_data:write':
+      case 'sheets_data:clear': {
+        const range = this.normalizeRangeToA1(
+          op.params['range'],
+          op.params['sheetId'],
+          sheetLookup
+        );
+        return range ? [range] : [];
+      }
+
+      case 'sheets_data:batch_write': {
+        const data = Array.isArray(op.params['data']) ? op.params['data'] : [];
+        return data
+          .flatMap((entry) => {
+            if (typeof entry !== 'object' || entry === null) {
+              return [];
+            }
+            const range = this.normalizeRangeToA1(
+              (entry as Record<string, unknown>)['range'],
+              op.params['sheetId'],
+              sheetLookup
+            );
+            return range ? [range] : [];
+          })
+          .filter(Boolean);
+      }
+
+      case 'sheets_data:batch_clear': {
+        const ranges = Array.isArray(op.params['ranges']) ? op.params['ranges'] : [];
+        return ranges
+          .flatMap((rangeInput) => {
+            const range = this.normalizeRangeToA1(rangeInput, op.params['sheetId'], sheetLookup);
+            return range ? [range] : [];
+          })
+          .filter(Boolean);
+      }
+
+      default:
+        return [];
+    }
+  }
+
+  private normalizeRangeToA1(
+    rangeInput: unknown,
+    explicitSheetId: unknown,
+    sheetLookup: SheetLookupContext
+  ): string | undefined {
+    if (rangeInput === undefined || rangeInput === null) {
+      return undefined; // OK: Explicit empty
+    }
+
+    if (typeof rangeInput === 'string') {
+      return this.isPendingSheetRange(rangeInput, sheetLookup)
+        ? undefined
+        : this.qualifyA1Range(rangeInput, explicitSheetId, sheetLookup);
+    }
+
+    if (typeof rangeInput !== 'object') {
+      return undefined; // OK: Explicit empty — non-object range cannot be normalized
+    }
+
+    const rangeRecord = rangeInput as Record<string, unknown>;
+    if (typeof rangeRecord['a1'] === 'string') {
+      return this.normalizeRangeToA1(rangeRecord['a1'], explicitSheetId, sheetLookup);
+    }
+
+    const gridRange = this.extractGridRange(rangeRecord);
+    if (!gridRange) {
+      return undefined; // OK: Explicit empty — range object has no extractable grid coords
+    }
+
+    const sheetId = this.resolveSheetId(
+      undefined,
+      gridRange.sheetId ?? (typeof explicitSheetId === 'number' ? explicitSheetId : undefined),
+      sheetLookup,
+      'range'
+    );
+    const sheetName = sheetLookup.idToName.get(sheetId);
+    if (!sheetName || sheetLookup.pendingSheetNames.has(sheetName)) {
+      return undefined; // OK: Explicit empty — sheetId not yet known to lookup table
+    }
+
+    return buildA1Notation(
+      sheetName,
+      gridRange.startColumnIndex ?? 0,
+      gridRange.startRowIndex ?? 0,
+      gridRange.endColumnIndex ?? 1,
+      gridRange.endRowIndex ?? 1
+    );
+  }
+
+  private qualifyA1Range(
+    range: string,
+    explicitSheetId: unknown,
+    sheetLookup: SheetLookupContext
+  ): string {
+    const parsed = parseA1Notation(range);
+    if (parsed.sheetName) {
+      return range;
+    }
+
+    const sheetId = this.resolveSheetId(
+      undefined,
+      typeof explicitSheetId === 'number' ? explicitSheetId : undefined,
+      sheetLookup,
+      'range'
+    );
+    const sheetName = sheetLookup.idToName.get(sheetId);
+    if (!sheetName) {
+      return range;
+    }
+
+    return buildA1Notation(
+      sheetName,
+      parsed.startCol,
+      parsed.startRow,
+      parsed.endCol,
+      parsed.endRow
+    );
+  }
+
+  private isPendingSheetRange(range: string, sheetLookup: SheetLookupContext): boolean {
+    try {
+      const parsed = parseA1Notation(range);
+      return parsed.sheetName ? sheetLookup.pendingSheetNames.has(parsed.sheetName) : false;
+    } catch {
+      return false;
     }
   }
 
@@ -644,7 +802,11 @@ export class TransactionManager {
    */
   private validateOperations(transaction: Transaction): void {
     if (transaction.operations.length === 0) {
-      throw new Error('No operations to commit');
+      throw new ValidationError(
+        'No operations to commit',
+        'operations',
+        'non-empty operations list'
+      );
     }
 
     // Check for circular dependencies
@@ -671,7 +833,11 @@ export class TransactionManager {
 
     for (const op of transaction.operations) {
       if (hasCycle(op.id)) {
-        throw new Error('Circular dependency detected in operations');
+        throw new ValidationError(
+          'Circular dependency detected in operations',
+          'operations',
+          'acyclic dependency graph'
+        );
       }
     }
   }
@@ -679,99 +845,110 @@ export class TransactionManager {
   /**
    * Merge operations into single batch request
    */
-  private mergeToBatchRequest(
+  private async mergeToBatchRequest(
     operations: QueuedOperation[],
-    sheetNameMap?: Map<string, number>
-  ): BatchRequest {
+    spreadsheetId: string,
+    sheetLookup?: SheetLookupContext,
+    preparedEntriesByOperationId?: Map<string, BatchRequestEntry[]>
+  ): Promise<PreparedBatchRequest> {
     this.log(`Merging ${operations.length} operations into batch request`);
 
     const requests: BatchRequestEntry[] = [];
+    const requestCounts: number[] = [];
     const unconvertedOps: string[] = [];
 
     for (const op of operations) {
-      // Convert operation to batch request entry
-      const entry = this.operationToBatchEntry(op, sheetNameMap);
-      if (entry) {
-        requests.push(entry);
+      const entries =
+        preparedEntriesByOperationId?.get(op.id) ??
+        (await this.operationToBatchEntries(op, spreadsheetId, sheetLookup));
+      if (entries && entries.length > 0) {
+        requests.push(...entries);
+        requestCounts.push(entries.length);
       } else {
-        // Track operations that couldn't be converted
+        requestCounts.push(0);
         unconvertedOps.push(`${op.tool}:${op.action} (id: ${op.id})`);
       }
     }
 
-    // Warn if some operations couldn't be converted
     if (unconvertedOps.length > 0) {
       this.log(
         `WARNING: ${unconvertedOps.length} operation(s) could not be converted to batch requests: ${unconvertedOps.join(', ')}. ` +
-          `These operations will be skipped. Supported operations: sheets_data (write, clear, merge/unmerge), ` +
+          `These operations will be skipped. ` +
+          `BATCHABLE operations: sheets_data (write, append, clear, merge/unmerge), ` +
+          `sheets_composite (smart_append with transaction-resolvable headers), ` +
           `sheets_format (set_format, set_background, etc.), sheets_core (add/delete/update_sheet), ` +
-          `sheets_dimensions (insert/delete rows/columns, freeze), sheets_advanced (named/protected ranges).`
+          `sheets_dimensions (insert/delete rows/columns, freeze), sheets_advanced (named/protected ranges). ` +
+          `NON-BATCHABLE operations (call directly after commit): add_note, add_hyperlink, set_metadata, ` +
+          `comment_add, share_add, chart_create. Use batch_operations for mixed tool calls.`
       );
     }
 
-    // Throw if no operations could be converted
     if (requests.length === 0 && operations.length > 0) {
-      throw new Error(
+      throw new ValidationError(
         `None of the ${operations.length} queued operation(s) could be converted to batch requests. ` +
-          `Unconverted operations: ${unconvertedOps.join(', ')}. ` +
-          `Please use supported operations or execute them individually outside of transactions.`
+          `Unconverted: ${unconvertedOps.join(', ')}. ` +
+          `FIX: Only queue batchable ops in transactions (write, format, dimension, structure). ` +
+          `Non-batchable ops (add_note, add_hyperlink, comment_add, chart_create, share_add) ` +
+          `must be called directly via batch_operations or individual tool calls after the transaction commits.`,
+        'operations',
+        'operations convertible to batch requests'
       );
     }
 
     return {
-      requests,
-      includeSpreadsheetInResponse: false,
-      responseIncludeGridData: false,
+      batchRequest: {
+        requests,
+        includeSpreadsheetInResponse: false,
+        responseIncludeGridData: false,
+      },
+      requestCounts,
     };
   }
 
   /**
-   * Convert operation to batch request entry
+   * Convert operation to batch request entries.
    *
    * Converts queued operations into Google Sheets API batchUpdate request entries.
    * Supports: values_write, format_apply, sheet_create, sheet_delete, and 'custom' operations.
    * Custom operations are mapped based on their tool/action parameters.
    */
-  private operationToBatchEntry(
+  private async operationToBatchEntries(
     op: QueuedOperation,
-    sheetNameMap?: Map<string, number>
-  ): BatchRequestEntry | null {
+    spreadsheetId: string,
+    sheetLookup?: SheetLookupContext
+  ): Promise<BatchRequestEntry[] | null> {
     switch (op.type) {
       case 'values_write':
-        return {
-          updateCells: {
-            range: op.params['range'],
-            fields: 'userEnteredValue',
-          },
-        };
+        return [this.buildValueUpdateRequest(op.params, sheetLookup)];
 
       case 'format_apply':
-        return {
-          updateCells: {
-            range: op.params['range'],
-            fields: 'userEnteredFormat',
-          },
-        };
+        return [
+          this.buildLegacyUpdateCellsRequest(op.params, 'userEnteredFormat', false, sheetLookup),
+        ];
 
       case 'sheet_create':
-        return {
-          addSheet: {
-            properties: {
-              title: op.params['title'],
+        return [
+          {
+            addSheet: {
+              properties: {
+                title: op.params['title'],
+                sheetId: op.params['sheetId'],
+              },
             },
           },
-        };
+        ];
 
       case 'sheet_delete':
-        return {
-          deleteSheet: {
-            sheetId: op.params['sheetId'],
+        return [
+          {
+            deleteSheet: {
+              sheetId: op.params['sheetId'],
+            },
           },
-        };
+        ];
 
       case 'custom':
-        // Convert custom operations based on tool/action
-        return this.convertCustomOperation(op, sheetNameMap);
+        return this.convertCustomOperation(op, spreadsheetId, sheetLookup);
 
       default:
         this.log(`Unknown operation type: ${op.type}, skipping`);
@@ -785,10 +962,11 @@ export class TransactionManager {
    * Maps ServalSheets tool actions to Google Sheets API batchUpdate requests.
    * This enables transaction batching for operations queued via the generic queue() method.
    */
-  private convertCustomOperation(
+  private async convertCustomOperation(
     op: QueuedOperation,
-    sheetNameMap?: Map<string, number>
-  ): BatchRequestEntry | null {
+    spreadsheetId: string,
+    sheetLookup?: SheetLookupContext
+  ): Promise<BatchRequestEntry[] | null> {
     const { tool, action, params } = op;
     const toolAction = `${tool}:${action}`;
 
@@ -797,35 +975,49 @@ export class TransactionManager {
     switch (toolAction) {
       // sheets_data operations
       case 'sheets_data:write':
+        return [this.buildValueUpdateRequest(params, sheetLookup)];
+
       case 'sheets_data:batch_write':
-        return this.buildUpdateCellsRequest(params, 'userEnteredValue', false, sheetNameMap);
+        return this.buildBatchWriteRequests(params, sheetLookup);
 
       case 'sheets_data:clear':
+        return [this.buildClearCellsRequest(params, sheetLookup)];
+
       case 'sheets_data:batch_clear':
-        return this.buildUpdateCellsRequest(params, 'userEnteredValue', true, sheetNameMap);
+        return this.buildBatchClearRequests(params, sheetLookup);
+
+      case 'sheets_data:append':
+        return [this.buildAppendCellsRequest(params, sheetLookup)];
+
+      case 'sheets_composite:smart_append':
+        return this.buildSmartAppendRequests(params, spreadsheetId, sheetLookup);
 
       case 'sheets_data:merge_cells':
-        return {
-          mergeCells: {
-            range: this.parseRangeToGridRange(
-              params['range'] as string,
-              params['sheetId'] as number,
-              sheetNameMap
-            ),
-            mergeType: (params['mergeType'] as string) || 'MERGE_ALL',
+        return [
+          {
+            mergeCells: {
+              range: this.resolveRangeToGridRange(
+                params['range'],
+                params['sheetId'] as number | undefined,
+                sheetLookup
+              ),
+              mergeType: (params['mergeType'] as string) || 'MERGE_ALL',
+            },
           },
-        };
+        ];
 
       case 'sheets_data:unmerge_cells':
-        return {
-          unmergeCells: {
-            range: this.parseRangeToGridRange(
-              params['range'] as string,
-              params['sheetId'] as number,
-              sheetNameMap
-            ),
+        return [
+          {
+            unmergeCells: {
+              range: this.resolveRangeToGridRange(
+                params['range'],
+                params['sheetId'] as number | undefined,
+                sheetLookup
+              ),
+            },
           },
-        };
+        ];
 
       // sheets_format operations
       case 'sheets_format:set_format':
@@ -834,189 +1026,216 @@ export class TransactionManager {
       case 'sheets_format:set_number_format':
       case 'sheets_format:set_alignment':
       case 'sheets_format:set_borders':
-        return this.buildUpdateCellsRequest(params, 'userEnteredFormat', false, sheetNameMap);
+        return [
+          this.buildLegacyUpdateCellsRequest(params, 'userEnteredFormat', false, sheetLookup),
+        ];
 
       case 'sheets_format:clear_format':
-        return this.buildUpdateCellsRequest(params, 'userEnteredFormat', true, sheetNameMap);
+        return [this.buildLegacyUpdateCellsRequest(params, 'userEnteredFormat', true, sheetLookup)];
 
       // sheets_core operations
       case 'sheets_core:add_sheet':
-        return {
-          addSheet: {
-            properties: {
-              title: params['title'] as string,
-              index: params['index'] as number | undefined,
-              sheetId: params['sheetId'] as number | undefined,
-              gridProperties: params['gridProperties'] as Record<string, unknown> | undefined,
+        return [
+          {
+            addSheet: {
+              properties: {
+                title: params['title'] as string,
+                index: params['index'] as number | undefined,
+                sheetId: params['sheetId'] as number | undefined,
+                gridProperties: params['gridProperties'] as Record<string, unknown> | undefined,
+              },
             },
           },
-        };
+        ];
 
       case 'sheets_core:delete_sheet':
-        return {
-          deleteSheet: {
-            sheetId: params['sheetId'] as number,
+        return [
+          {
+            deleteSheet: {
+              sheetId: params['sheetId'] as number,
+            },
           },
-        };
+        ];
 
       case 'sheets_core:update_sheet':
-        return {
-          updateSheetProperties: {
-            properties: {
-              sheetId: params['sheetId'] as number,
-              title: params['title'] as string | undefined,
-              index: params['index'] as number | undefined,
-              hidden: params['hidden'] as boolean | undefined,
-              gridProperties: params['gridProperties'] as Record<string, unknown> | undefined,
+        return [
+          {
+            updateSheetProperties: {
+              properties: {
+                sheetId: params['sheetId'] as number,
+                title: params['title'] as string | undefined,
+                index: params['index'] as number | undefined,
+                hidden: params['hidden'] as boolean | undefined,
+                gridProperties: params['gridProperties'] as Record<string, unknown> | undefined,
+              },
+              fields: this.buildFieldMask(params),
             },
-            fields: this.buildFieldMask(params),
           },
-        };
+        ];
 
       // sheets_dimensions operations
       case 'sheets_dimensions:insert_rows':
-        return {
-          insertRange: {
-            range: toGridRange(
-              buildGridRangeInput(
-                params['sheetId'] as number,
-                params['startIndex'] as number,
-                (params['startIndex'] as number) + ((params['count'] as number) || 1)
-              )
-            ),
-            shiftDimension: 'ROWS',
+        return [
+          {
+            insertRange: {
+              range: toGridRange(
+                buildGridRangeInput(
+                  params['sheetId'] as number,
+                  params['startIndex'] as number,
+                  (params['startIndex'] as number) + ((params['count'] as number) || 1)
+                )
+              ),
+              shiftDimension: 'ROWS',
+            },
           },
-        };
+        ];
 
       case 'sheets_dimensions:insert_columns':
-        return {
-          insertRange: {
-            range: toGridRange(
-              buildGridRangeInput(
-                params['sheetId'] as number,
-                undefined,
-                undefined,
-                params['startIndex'] as number,
-                (params['startIndex'] as number) + ((params['count'] as number) || 1)
-              )
-            ),
-            shiftDimension: 'COLUMNS',
+        return [
+          {
+            insertRange: {
+              range: toGridRange(
+                buildGridRangeInput(
+                  params['sheetId'] as number,
+                  undefined,
+                  undefined,
+                  params['startIndex'] as number,
+                  (params['startIndex'] as number) + ((params['count'] as number) || 1)
+                )
+              ),
+              shiftDimension: 'COLUMNS',
+            },
           },
-        };
+        ];
 
       case 'sheets_dimensions:delete_rows':
-        return {
-          deleteRange: {
-            range: toGridRange(
-              buildGridRangeInput(
-                params['sheetId'] as number,
-                params['startIndex'] as number,
-                params['endIndex'] as number
-              )
-            ),
-            shiftDimension: 'ROWS',
+        return [
+          {
+            deleteRange: {
+              range: toGridRange(
+                buildGridRangeInput(
+                  params['sheetId'] as number,
+                  params['startIndex'] as number,
+                  params['endIndex'] as number
+                )
+              ),
+              shiftDimension: 'ROWS',
+            },
           },
-        };
+        ];
 
       case 'sheets_dimensions:delete_columns':
-        return {
-          deleteRange: {
-            range: toGridRange(
-              buildGridRangeInput(
-                params['sheetId'] as number,
-                undefined,
-                undefined,
-                params['startIndex'] as number,
-                params['endIndex'] as number
-              )
-            ),
-            shiftDimension: 'COLUMNS',
+        return [
+          {
+            deleteRange: {
+              range: toGridRange(
+                buildGridRangeInput(
+                  params['sheetId'] as number,
+                  undefined,
+                  undefined,
+                  params['startIndex'] as number,
+                  params['endIndex'] as number
+                )
+              ),
+              shiftDimension: 'COLUMNS',
+            },
           },
-        };
+        ];
 
       case 'sheets_dimensions:freeze_rows':
       case 'sheets_dimensions:freeze_columns':
-        return {
-          updateSheetProperties: {
-            properties: {
-              sheetId: params['sheetId'] as number,
-              gridProperties: {
-                frozenRowCount: params['frozenRowCount'] as number | undefined,
-                frozenColumnCount: params['frozenColumnCount'] as number | undefined,
+        return [
+          {
+            updateSheetProperties: {
+              properties: {
+                sheetId: params['sheetId'] as number,
+                gridProperties: {
+                  frozenRowCount: params['frozenRowCount'] as number | undefined,
+                  frozenColumnCount: params['frozenColumnCount'] as number | undefined,
+                },
               },
+              fields:
+                action === 'freeze_rows'
+                  ? 'gridProperties.frozenRowCount'
+                  : 'gridProperties.frozenColumnCount',
             },
-            fields:
-              action === 'freeze_rows'
-                ? 'gridProperties.frozenRowCount'
-                : 'gridProperties.frozenColumnCount',
           },
-        };
+        ];
 
       // Generic freeze action (used by LLMs via sheets_dimensions tool)
       case 'sheets_dimensions:freeze': {
         const dimension = params['dimension'] as string | undefined;
         const count = params['count'] as number | undefined;
         const isRows = !dimension || dimension.toUpperCase() === 'ROWS';
-        return {
-          updateSheetProperties: {
-            properties: {
-              sheetId: params['sheetId'] as number,
-              gridProperties: isRows
-                ? { frozenRowCount: count ?? 0 }
-                : { frozenColumnCount: count ?? 0 },
+        return [
+          {
+            updateSheetProperties: {
+              properties: {
+                sheetId: params['sheetId'] as number,
+                gridProperties: isRows
+                  ? { frozenRowCount: count ?? 0 }
+                  : { frozenColumnCount: count ?? 0 },
+              },
+              fields: isRows ? 'gridProperties.frozenRowCount' : 'gridProperties.frozenColumnCount',
             },
-            fields: isRows ? 'gridProperties.frozenRowCount' : 'gridProperties.frozenColumnCount',
           },
-        };
+        ];
       }
 
       // sheets_advanced operations
       case 'sheets_advanced:add_named_range':
-        return {
-          addNamedRange: {
-            namedRange: {
-              name: params['name'] as string,
-              range: this.parseRangeToGridRange(
-                params['range'] as string,
-                params['sheetId'] as number,
-                sheetNameMap
-              ),
+        return [
+          {
+            addNamedRange: {
+              namedRange: {
+                name: params['name'] as string,
+                range: this.resolveRangeToGridRange(
+                  params['range'],
+                  params['sheetId'] as number | undefined,
+                  sheetLookup
+                ),
+              },
             },
           },
-        };
+        ];
 
       case 'sheets_advanced:delete_named_range':
-        return {
-          deleteNamedRange: {
-            namedRangeId: params['namedRangeId'] as string,
-          },
-        };
-
-      case 'sheets_advanced:add_protected_range':
-        return {
-          addProtectedRange: {
-            protectedRange: {
-              range: this.parseRangeToGridRange(
-                params['range'] as string,
-                params['sheetId'] as number,
-                sheetNameMap
-              ),
-              description: params['description'] as string | undefined,
-              warningOnly: params['warningOnly'] as boolean | undefined,
-              editors: params['editors'] as Record<string, unknown> | undefined,
+        return [
+          {
+            deleteNamedRange: {
+              namedRangeId: params['namedRangeId'] as string,
             },
           },
-        };
+        ];
+
+      case 'sheets_advanced:add_protected_range':
+        return [
+          {
+            addProtectedRange: {
+              protectedRange: {
+                range: this.resolveRangeToGridRange(
+                  params['range'],
+                  params['sheetId'] as number | undefined,
+                  sheetLookup
+                ),
+                description: params['description'] as string | undefined,
+                warningOnly: params['warningOnly'] as boolean | undefined,
+                editors: params['editors'] as Record<string, unknown> | undefined,
+              },
+            },
+          },
+        ];
 
       case 'sheets_advanced:delete_protected_range':
-        return {
-          deleteProtectedRange: {
-            protectedRangeId: params['protectedRangeId'] as number,
+        return [
+          {
+            deleteProtectedRange: {
+              protectedRangeId: params['protectedRangeId'] as number,
+            },
           },
-        };
+        ];
 
       default:
-        // Operation not supported for batching - log warning
         this.log(
           `Custom operation ${toolAction} cannot be batched. Consider using direct API call.`
         );
@@ -1024,92 +1243,509 @@ export class TransactionManager {
     }
   }
 
-  /**
-   * Build updateCells request for data/format operations
-   */
-  private buildUpdateCellsRequest(
+  private buildValueUpdateRequest(
     params: Record<string, unknown>,
-    fields: string,
-    clear: boolean = false,
-    sheetNameMap?: Map<string, number>
+    sheetLookup?: SheetLookupContext
   ): BatchRequestEntry {
-    const range = params['range'] as string;
-    const sheetId = params['sheetId'] as number | undefined;
-
+    const values = this.requireValuesMatrix(params['values'], 'values');
     return {
       updateCells: {
-        range: this.parseRangeToGridRange(range, sheetId, sheetNameMap),
+        range: this.resolveRangeToGridRange(
+          params['range'],
+          params['sheetId'] as number | undefined,
+          sheetLookup
+        ),
+        rows: this.buildRowData(values, (params['valueInputOption'] as string) ?? 'USER_ENTERED'),
+        fields: 'userEnteredValue',
+      },
+    };
+  }
+
+  private buildBatchWriteRequests(
+    params: Record<string, unknown>,
+    sheetLookup?: SheetLookupContext
+  ): BatchRequestEntry[] {
+    const data = this.requireObjectArray(params['data'], 'data');
+    const valueInputOption = (params['valueInputOption'] as string) ?? 'USER_ENTERED';
+
+    return data.map((entry, index) => {
+      if (entry['dataFilter'] !== undefined) {
+        throw new ValidationError(
+          'Transactions do not support dataFilter-based batch_write entries. Use explicit ranges instead.',
+          `data[${index}].dataFilter`,
+          'data[].range'
+        );
+      }
+
+      return this.buildValueUpdateRequest(
+        {
+          range: entry['range'],
+          values: entry['values'],
+          valueInputOption,
+        },
+        sheetLookup
+      );
+    });
+  }
+
+  private buildClearCellsRequest(
+    params: Record<string, unknown>,
+    sheetLookup?: SheetLookupContext
+  ): BatchRequestEntry {
+    return {
+      updateCells: {
+        range: this.resolveRangeToGridRange(
+          params['range'],
+          params['sheetId'] as number | undefined,
+          sheetLookup
+        ),
+        fields: 'userEnteredValue',
+      },
+    };
+  }
+
+  private buildBatchClearRequests(
+    params: Record<string, unknown>,
+    sheetLookup?: SheetLookupContext
+  ): BatchRequestEntry[] {
+    const ranges = this.requireArray(params['ranges'], 'ranges');
+    return ranges.map((range) =>
+      this.buildClearCellsRequest(
+        {
+          range,
+          sheetId: params['sheetId'],
+        },
+        sheetLookup
+      )
+    );
+  }
+
+  private buildAppendCellsRequest(
+    params: Record<string, unknown>,
+    sheetLookup?: SheetLookupContext
+  ): BatchRequestEntry {
+    const values = this.requireValuesMatrix(params['values'], 'values');
+    const valueInputOption = (params['valueInputOption'] as string) ?? 'USER_ENTERED';
+    const tableId = params['tableId'];
+
+    if (typeof tableId === 'number') {
+      return {
+        appendCells: {
+          tableId,
+          rows: this.buildRowData(values, valueInputOption),
+          fields: 'userEnteredValue',
+        },
+      };
+    }
+
+    const target = this.resolveAppendTarget(
+      params['range'],
+      params['sheetId'] as number | undefined,
+      sheetLookup
+    );
+
+    return {
+      appendCells: {
+        sheetId: target.sheetId,
+        rows: this.buildRowData(
+          this.prependBlankColumns(values, target.startColumnIndex),
+          valueInputOption
+        ),
+        fields: 'userEnteredValue',
+      },
+    };
+  }
+
+  private async buildSmartAppendRequests(
+    params: Record<string, unknown>,
+    spreadsheetId: string,
+    sheetLookup?: SheetLookupContext
+  ): Promise<BatchRequestEntry[]> {
+    const data = this.requireObjectArray(params['data'], 'data');
+    const sheetRef = params['sheet'];
+    const skipEmptyRows = params['skipEmptyRows'] !== false;
+    const requestedCreateMissingColumns = params['createMissingColumns'] === true;
+
+    const sheetId =
+      typeof sheetRef === 'number'
+        ? sheetRef
+        : this.resolveSheetId(sheetRef as string | undefined, undefined, sheetLookup, 'sheet');
+    const sheetName =
+      typeof sheetRef === 'string' ? sheetRef : sheetLookup?.idToName.get(sheetId as number);
+
+    if (!sheetName) {
+      throw new ValidationError(
+        'Transaction smart_append requires a resolvable sheet name or sheetId.',
+        'sheet',
+        'sheet title or numeric sheetId'
+      );
+    }
+
+    let existingHeaders: string[] = [];
+    if (!sheetLookup?.pendingSheetNames.has(sheetName)) {
+      if (!this.googleClient) {
+        throw new ServiceError(
+          'Transaction manager requires Google API client for smart_append header resolution.',
+          'SERVICE_NOT_INITIALIZED',
+          'TransactionManager'
+        );
+      }
+
+      const headerResponse = await this.googleClient.sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `'${sheetName}'!1:1`,
+      });
+
+      existingHeaders = (headerResponse.data.values?.[0] ?? []).map((value) =>
+        String(value ?? '').trim()
+      );
+    }
+
+    const createMissingColumns =
+      existingHeaders.length === 0 ? true : requestedCreateMissingColumns;
+    const dataKeys = new Set<string>();
+    for (const row of data) {
+      Object.keys(row).forEach((key) => dataKeys.add(key));
+    }
+
+    const columnMap = new Map<string, number>();
+    const columnsCreated: string[] = [];
+
+    for (const key of dataKeys) {
+      const headerIndex = existingHeaders.findIndex(
+        (header) => header.toLowerCase() === key.toLowerCase()
+      );
+      if (headerIndex >= 0) {
+        columnMap.set(key, headerIndex);
+        continue;
+      }
+
+      if (!createMissingColumns) {
+        continue;
+      }
+
+      const newIndex = existingHeaders.length + columnsCreated.length;
+      columnMap.set(key, newIndex);
+      columnsCreated.push(key);
+    }
+
+    const requests: BatchRequestEntry[] = [];
+    if (columnsCreated.length > 0) {
+      requests.push({
+        updateCells: {
+          range: toGridRange(
+            buildGridRangeInput(
+              sheetId,
+              0,
+              1,
+              existingHeaders.length,
+              existingHeaders.length + columnsCreated.length
+            )
+          ),
+          rows: this.buildRowData([columnsCreated], 'RAW'),
+          fields: 'userEnteredValue',
+        },
+      });
+    }
+
+    const totalCols = Math.max(
+      existingHeaders.length,
+      ...Array.from(columnMap.values(), (v) => v + 1),
+      0
+    );
+    const rows: unknown[][] = [];
+
+    for (const record of data) {
+      const row = new Array(totalCols).fill('');
+      let hasValue = false;
+
+      for (const [key, value] of Object.entries(record)) {
+        const colIndex = columnMap.get(key);
+        if (colIndex === undefined) {
+          continue;
+        }
+
+        row[colIndex] = value ?? '';
+        if (value !== null && value !== undefined && value !== '') {
+          hasValue = true;
+        }
+      }
+
+      if (!skipEmptyRows || hasValue) {
+        rows.push(row);
+      }
+    }
+
+    if (rows.length > 0) {
+      requests.push({
+        appendCells: {
+          sheetId,
+          rows: this.buildRowData(rows, 'RAW'),
+          fields: 'userEnteredValue',
+        },
+      });
+    }
+
+    if (requests.length === 0) {
+      throw new ValidationError(
+        'smart_append produced no batchable work. Ensure at least one row contains values that match existing or creatable headers.',
+        'data',
+        'non-empty records with matching headers'
+      );
+    }
+
+    return requests;
+  }
+
+  private buildLegacyUpdateCellsRequest(
+    params: Record<string, unknown>,
+    fields: string,
+    clear: boolean,
+    sheetLookup?: SheetLookupContext
+  ): BatchRequestEntry {
+    return {
+      updateCells: {
+        range: this.resolveRangeToGridRange(
+          params['range'],
+          params['sheetId'] as number | undefined,
+          sheetLookup
+        ),
         rows: clear ? [] : undefined,
         fields,
       },
     };
   }
 
-  /**
-   * Parse A1 notation range to GridRange object
-   */
-  private parseRangeToGridRange(
-    range: string | undefined,
-    defaultSheetId: number = 0,
-    sheetNameMap?: Map<string, number>
+  private requireValuesMatrix(value: unknown, field: string): unknown[][] {
+    if (!Array.isArray(value) || value.some((row) => !Array.isArray(row))) {
+      throw new ValidationError(
+        `Expected ${field} to be a 2D array of cell values.`,
+        field,
+        '[[1, 2], [3, 4]]'
+      );
+    }
+    return value as unknown[][];
+  }
+
+  private requireArray(value: unknown, field: string): unknown[] {
+    if (!Array.isArray(value)) {
+      throw new ValidationError(`Expected ${field} to be an array.`, field, '[]');
+    }
+    return value;
+  }
+
+  private requireObjectArray(value: unknown, field: string): Record<string, unknown>[] {
+    const items = this.requireArray(value, field);
+    if (items.some((item) => typeof item !== 'object' || item === null)) {
+      throw new ValidationError(`Expected ${field} to be an array of objects.`, field, '[{}]');
+    }
+    return items as Record<string, unknown>[];
+  }
+
+  private buildRowData(values: unknown[][], valueInputOption: string): sheets_v4.Schema$RowData[] {
+    return values.map((rowValues) => ({
+      values: rowValues.map((cellValue) => {
+        const isFormula = typeof cellValue === 'string' && cellValue.startsWith('=');
+
+        if (valueInputOption === 'USER_ENTERED' || valueInputOption === 'RAW') {
+          if (isFormula) {
+            return { userEnteredValue: { formulaValue: cellValue } };
+          }
+          if (typeof cellValue === 'number') {
+            return { userEnteredValue: { numberValue: cellValue } };
+          }
+          if (typeof cellValue === 'boolean') {
+            return { userEnteredValue: { boolValue: cellValue } };
+          }
+          return { userEnteredValue: { stringValue: String(cellValue ?? '') } };
+        }
+
+        return { userEnteredValue: { stringValue: String(cellValue ?? '') } };
+      }),
+    }));
+  }
+
+  private prependBlankColumns(values: unknown[][], count: number): unknown[][] {
+    if (count <= 0) {
+      return values;
+    }
+
+    return values.map((row) => [...new Array(count).fill(''), ...row]);
+  }
+
+  private resolveAppendTarget(
+    rangeInput: unknown,
+    explicitSheetId: number | undefined,
+    sheetLookup?: SheetLookupContext
+  ): { sheetId: number; startColumnIndex: number } {
+    if (rangeInput === undefined || rangeInput === null) {
+      return {
+        sheetId: this.resolveSheetId(undefined, explicitSheetId, sheetLookup, 'range'),
+        startColumnIndex: 0,
+      };
+    }
+
+    if (typeof rangeInput === 'string') {
+      const parsed = parseA1Notation(rangeInput);
+      return {
+        sheetId: parsed.sheetName
+          ? this.resolveSheetId(parsed.sheetName, undefined, sheetLookup, 'range')
+          : this.resolveSheetId(undefined, explicitSheetId, sheetLookup, 'range'),
+        startColumnIndex: parsed.startCol,
+      };
+    }
+
+    if (typeof rangeInput !== 'object') {
+      throw new ValidationError('Unsupported append range format.', 'range', 'Sheet1!A:D');
+    }
+
+    const rangeRecord = rangeInput as Record<string, unknown>;
+    if (typeof rangeRecord['a1'] === 'string') {
+      return this.resolveAppendTarget(rangeRecord['a1'], explicitSheetId, sheetLookup);
+    }
+
+    const gridRange = this.extractGridRange(rangeRecord);
+    if (gridRange) {
+      return {
+        sheetId: this.resolveSheetId(
+          undefined,
+          gridRange.sheetId ?? explicitSheetId,
+          sheetLookup,
+          'range'
+        ),
+        startColumnIndex: gridRange.startColumnIndex ?? 0,
+      };
+    }
+
+    throw new ValidationError(
+      'Transactions support append ranges as A1 strings, {a1}, or {grid}. Named and semantic ranges are not supported inside transactions.',
+      'range',
+      'Sheet1!A:D'
+    );
+  }
+
+  private resolveRangeToGridRange(
+    rangeInput: unknown,
+    explicitSheetId: number | undefined,
+    sheetLookup?: SheetLookupContext
   ): sheets_v4.Schema$GridRange {
-    if (!range) {
-      return toGridRange(buildGridRangeInput(defaultSheetId));
+    if (rangeInput === undefined || rangeInput === null) {
+      const sheetId = this.resolveSheetId(undefined, explicitSheetId, sheetLookup, 'range');
+      return toGridRange(buildGridRangeInput(sheetId));
     }
 
-    // Simple parser for A1 notation (e.g., "Sheet1!A1:B10" or "A1:B10")
-    const sheetMatch = range.match(/^(?:'([^']+)'!|([^!]+)!)/);
-    const sheetName = sheetMatch?.[1] || sheetMatch?.[2];
-    const rangeOnly = sheetName ? range.split('!')[1] : range;
+    if (typeof rangeInput === 'string') {
+      return this.parseA1RangeToGridRange(rangeInput, explicitSheetId, sheetLookup);
+    }
 
-    // Resolve sheet ID: use explicit sheetId if provided, else resolve name from map
-    let resolvedSheetId = defaultSheetId;
-    if (sheetName && sheetNameMap) {
-      const mappedId = sheetNameMap.get(sheetName);
-      if (mappedId !== undefined) {
-        resolvedSheetId = mappedId;
-      } else {
-        this.log(
-          `WARNING: Sheet name '${sheetName}' not found in sheet map, using default sheetId=${defaultSheetId}`
-        );
+    if (typeof rangeInput !== 'object') {
+      throw new ValidationError('Unsupported range format.', 'range', 'Sheet1!A1:B10');
+    }
+
+    const rangeRecord = rangeInput as Record<string, unknown>;
+    if (typeof rangeRecord['a1'] === 'string') {
+      return this.parseA1RangeToGridRange(rangeRecord['a1'], explicitSheetId, sheetLookup);
+    }
+
+    const gridRange = this.extractGridRange(rangeRecord);
+    if (gridRange) {
+      return {
+        ...gridRange,
+        sheetId: this.resolveSheetId(
+          undefined,
+          gridRange.sheetId ?? explicitSheetId,
+          sheetLookup,
+          'range'
+        ),
+      };
+    }
+
+    throw new ValidationError(
+      'Transactions support explicit A1 or grid ranges only. Named and semantic ranges are not supported inside transactions.',
+      'range',
+      'Sheet1!A1:B10'
+    );
+  }
+
+  private parseA1RangeToGridRange(
+    a1Range: string,
+    explicitSheetId: number | undefined,
+    sheetLookup?: SheetLookupContext
+  ): sheets_v4.Schema$GridRange {
+    const parsed = parseA1Notation(a1Range);
+    const sheetId = parsed.sheetName
+      ? this.resolveSheetId(parsed.sheetName, undefined, sheetLookup, 'range')
+      : this.resolveSheetId(undefined, explicitSheetId, sheetLookup, 'range');
+
+    return toGridRange(
+      buildGridRangeInput(sheetId, parsed.startRow, parsed.endRow, parsed.startCol, parsed.endCol)
+    );
+  }
+
+  private extractGridRange(
+    rangeRecord: Record<string, unknown>
+  ): sheets_v4.Schema$GridRange | undefined {
+    if (typeof rangeRecord['sheetId'] === 'number') {
+      return rangeRecord as unknown as sheets_v4.Schema$GridRange;
+    }
+
+    const nestedGrid = rangeRecord['grid'];
+    if (typeof nestedGrid === 'object' && nestedGrid !== null) {
+      return nestedGrid as sheets_v4.Schema$GridRange;
+    }
+
+    return undefined; // OK: Explicit empty
+  }
+
+  private resolveSheetId(
+    sheetName: string | undefined,
+    explicitSheetId: number | undefined,
+    sheetLookup: SheetLookupContext | undefined,
+    field: string
+  ): number {
+    if (typeof explicitSheetId === 'number') {
+      return explicitSheetId;
+    }
+
+    if (sheetName) {
+      const resolved = sheetLookup?.nameToId.get(sheetName);
+      if (resolved !== undefined) {
+        return resolved;
       }
+
+      throw new ValidationError(
+        `Sheet '${sheetName}' could not be resolved in transaction commit.`,
+        field,
+        'existing sheet title or sheetId'
+      );
     }
 
-    // Parse cell range (e.g., "A1:B10" or "A1")
-    const rangeMatch = rangeOnly?.match(/^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/);
-    if (!rangeMatch) {
-      return toGridRange(buildGridRangeInput(resolvedSheetId));
+    if (sheetLookup?.defaultSheetId !== undefined) {
+      return sheetLookup.defaultSheetId;
     }
 
-    const startCol = this.columnToIndex(rangeMatch[1]!);
-    const startRow = parseInt(rangeMatch[2]!, 10) - 1;
-    const endCol = rangeMatch[3] ? this.columnToIndex(rangeMatch[3]) + 1 : startCol + 1;
-    const endRow = rangeMatch[4] ? parseInt(rangeMatch[4], 10) : startRow + 1;
-
-    return toGridRange(buildGridRangeInput(resolvedSheetId, startRow, endRow, startCol, endCol));
+    throw new ValidationError(
+      'Transaction range resolution requires a sheet name or sheetId.',
+      field,
+      'Sheet1!A1:B10'
+    );
   }
 
-  /**
-   * Convert column letter to 0-based index (A=0, B=1, ..., Z=25, AA=26, etc.)
-   */
-  private columnToIndex(col: string): number {
-    let index = 0;
-    for (let i = 0; i < col.length; i++) {
-      index = index * 26 + (col.charCodeAt(i) - 'A'.charCodeAt(0) + 1);
-    }
-    return index - 1;
-  }
-
-  /**
-   * Fetch spreadsheet metadata and build a sheet name → sheetId map.
-   * Used at commit time to resolve sheet names in A1 notation ranges.
-   */
-  private async buildSheetNameMap(spreadsheetId: string): Promise<Map<string, number>> {
-    const nameMap = new Map<string, number>();
+  private async buildSheetLookupContext(spreadsheetId: string): Promise<SheetLookupContext> {
+    const nameToId = new Map<string, number>();
+    const idToName = new Map<number, string>();
+    let defaultSheetId: number | undefined;
+    let nextSyntheticSheetId = 1;
 
     if (!this.googleClient) {
       this.log('No Google API client available, cannot resolve sheet names');
-      return nameMap;
+      return {
+        nameToId,
+        idToName,
+        defaultSheetId,
+        pendingSheetNames: new Set<string>(),
+        nextSyntheticSheetId,
+      };
     }
 
     try {
@@ -1119,20 +1755,81 @@ export class TransactionManager {
       });
 
       const sheets = response.data.sheets || [];
-      for (const sheet of sheets) {
+      for (const [index, sheet] of sheets.entries()) {
         const title = sheet.properties?.title;
         const sheetId = sheet.properties?.sheetId;
-        if (title != null && sheetId != null) {
-          nameMap.set(title, sheetId);
+        if (title == null || sheetId == null) {
+          continue;
         }
+
+        if (index === 0) {
+          defaultSheetId = sheetId;
+        }
+
+        nextSyntheticSheetId = Math.max(nextSyntheticSheetId, sheetId + 1);
+        nameToId.set(title, sheetId);
+        idToName.set(sheetId, title);
       }
 
-      this.log(`Built sheet name map with ${nameMap.size} entries`);
+      this.log(`Built sheet lookup with ${nameToId.size} entries`);
     } catch (error) {
       this.log(`WARNING: Failed to fetch sheet metadata for name resolution: ${error}`);
     }
 
-    return nameMap;
+    return {
+      nameToId,
+      idToName,
+      defaultSheetId,
+      pendingSheetNames: new Set<string>(),
+      nextSyntheticSheetId,
+    };
+  }
+
+  private reservePendingSheetIds(
+    operations: QueuedOperation[],
+    sheetLookup: SheetLookupContext
+  ): void {
+    const usedSheetIds = new Set<number>(sheetLookup.idToName.keys());
+    let nextSheetId = sheetLookup.nextSyntheticSheetId;
+
+    const allocateSheetId = (): number => {
+      while (usedSheetIds.has(nextSheetId) || nextSheetId <= 0) {
+        nextSheetId++;
+      }
+
+      const allocated = nextSheetId;
+      usedSheetIds.add(allocated);
+      nextSheetId++;
+      return allocated;
+    };
+
+    for (const op of operations) {
+      const isAddSheet =
+        op.type === 'sheet_create' || (op.tool === 'sheets_core' && op.action === 'add_sheet');
+      if (!isAddSheet) {
+        continue;
+      }
+
+      const title = typeof op.params['title'] === 'string' ? op.params['title'].trim() : '';
+      if (!title) {
+        continue;
+      }
+
+      let sheetId =
+        typeof op.params['sheetId'] === 'number' ? (op.params['sheetId'] as number) : undefined;
+      if (sheetId === undefined) {
+        sheetId = allocateSheetId();
+        op.params['sheetId'] = sheetId;
+      } else {
+        usedSheetIds.add(sheetId);
+      }
+
+      sheetLookup.nameToId.set(title, sheetId);
+      sheetLookup.idToName.set(sheetId, title);
+      sheetLookup.pendingSheetNames.add(title);
+    }
+
+    sheetLookup.nextSyntheticSheetId = nextSheetId;
   }
 
   /**
@@ -1145,6 +1842,34 @@ export class TransactionManager {
     if (params['hidden'] !== undefined) fields.push('hidden');
     if (params['gridProperties'] !== undefined) fields.push('gridProperties');
     return fields.join(',') || 'title';
+  }
+
+  private createTimeoutSignal(timeoutMs: number): AbortSignal | undefined {
+    if (
+      typeof AbortSignal === 'undefined' ||
+      typeof AbortSignal.timeout !== 'function' ||
+      !Number.isFinite(timeoutMs) ||
+      timeoutMs <= 0
+    ) {
+      return undefined; // OK: Explicit empty
+    }
+
+    return AbortSignal.timeout(timeoutMs);
+  }
+
+  private isTimeoutLikeError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    const message = error.message.toLowerCase();
+    return (
+      error.name === 'AbortError' ||
+      error.name === 'TimeoutError' ||
+      message.includes('timed out') ||
+      message.includes('deadline exceeded') ||
+      message.includes('aborted')
+    );
   }
 
   /**
@@ -1161,21 +1886,38 @@ export class TransactionManager {
     );
 
     if (!this.googleClient) {
-      throw new Error(
-        'Transaction manager requires Google API client for execution. ' +
-          'Simulated execution has been removed for production safety.'
+      throw new ServiceError(
+        'Transaction manager requires Google API client for execution. Simulated execution has been removed for production safety.',
+        'SERVICE_NOT_INITIALIZED',
+        'TransactionManager'
       );
     }
 
     try {
+      const signal = this.createTimeoutSignal(this.config.transactionTimeoutMs);
       const response = await this.googleClient.sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: batchRequest as sheets_v4.Schema$BatchUpdateSpreadsheetRequest,
+        ...(signal ? { signal } : {}),
       });
 
       this.log(`Batch request succeeded with ${response.data.replies?.length ?? 0} replies`);
       return response.data;
     } catch (error) {
+      if (this.isTimeoutLikeError(error)) {
+        const timeoutError = new ApiTimeoutError(
+          `Transaction commit timed out after ${this.config.transactionTimeoutMs}ms`,
+          this.config.transactionTimeoutMs,
+          'sheets_transaction.commit.batchUpdate',
+          {
+            spreadsheetId,
+            requestCount: batchRequest.requests.length,
+          }
+        );
+        this.log(`Batch request timed out: ${timeoutError.message}`);
+        throw timeoutError;
+      }
+
       this.log(`Batch request failed: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
@@ -1188,24 +1930,32 @@ export class TransactionManager {
    */
   private processOperationResults(
     operations: QueuedOperation[],
+    requestCounts: number[],
     batchResponse: sheets_v4.Schema$BatchUpdateSpreadsheetResponse
   ): OperationResult[] {
     const results: OperationResult[] = [];
     const replies = batchResponse.replies || [];
+    let replyIndex = 0;
 
     for (let i = 0; i < operations.length; i++) {
       const op = operations[i]!;
-      const reply = replies[i];
-
-      // Check if reply indicates success (presence of reply without error)
-      const success = reply !== undefined && reply !== null;
+      const requestCount = requestCounts[i] ?? 0;
+      const opReplies = replies.slice(replyIndex, replyIndex + requestCount);
+      replyIndex += requestCount;
+      const success = requestCount > 0 && opReplies.length === requestCount;
 
       results.push({
         operationId: op.id,
         success,
-        data: reply || {},
+        data: requestCount <= 1 ? opReplies[0] || {} : opReplies,
         duration: op.estimatedDuration ?? 100,
-        error: success ? undefined : new Error('No reply received from batch request'),
+        error: success
+          ? undefined
+          : new Error(
+              requestCount === 0
+                ? 'Operation could not be converted to a batch request'
+                : 'Batch request did not return enough replies for operation'
+            ),
       });
     }
 
@@ -1278,188 +2028,13 @@ export class TransactionManager {
     }
   }
 
-  // ==========================================================================
-  // DR-01: Write-Ahead Log (WAL)
-  // ==========================================================================
-
-  /**
-   * Ensure WAL directory exists and replay any orphaned transactions from a previous crash.
-   */
-  private async initWal(): Promise<void> {
-    try {
-      const walDir = dirname(this.walPath);
-      if (!existsSync(walDir)) {
-        mkdirSync(walDir, { recursive: true, mode: 0o750 });
-      }
-      await this.replayWal();
-    } catch (error) {
-      logger.error('WAL initialization failed', {
-        error: error instanceof Error ? error.message : String(error),
-        walPath: this.walPath,
-      });
-    }
-  }
-
-  /**
-   * Append a transaction event to the WAL.
-   * Format: one JSON object per line — { seq, txId, type, ts, data }
-   */
-  private async appendWalEntry(event: TransactionEvent): Promise<void> {
-    await this.walReady;
-    await this.runWalOperation('append', async () => {
-      const entry =
-        JSON.stringify({
-          seq: ++this.walSeq,
-          txId: event.transactionId,
-          type: event.type,
-          ts: event.timestamp,
-          data: event.data ?? {},
-        }) + '\n';
-      await fsPromises.appendFile(this.walPath, entry, { flag: 'a', mode: 0o640 });
-    });
-  }
-
-  /**
-   * On startup, scan the WAL for transactions that started but never committed or rolled back.
-   * These represent in-flight transactions from a previous crash.
-   */
-  private async replayWal(): Promise<void> {
-    if (!existsSync(this.walPath)) return;
-    try {
-      const content = await fsPromises.readFile(this.walPath, 'utf8');
-      const lines = content.split('\n').filter(Boolean);
-      const txEvents = new Map<
-        string,
-        {
-          hasBegin: boolean;
-          completed: boolean;
-          queuedOperations: number;
-          spreadsheetId?: string;
-          snapshotId?: string;
-          lastEventType: TransactionEvent['type'];
-          lastEventTimestamp: number;
-        }
-      >();
-      for (const line of lines) {
-        try {
-          const entry = JSON.parse(line) as WalEntry;
-          this.walSeq = Math.max(this.walSeq, entry.seq ?? 0);
-
-          const state = txEvents.get(entry.txId) ?? {
-            hasBegin: false,
-            completed: false,
-            queuedOperations: 0,
-            lastEventType: entry.type,
-            lastEventTimestamp: entry.ts,
-          };
-
-          state.lastEventType = entry.type;
-          state.lastEventTimestamp = entry.ts;
-
-          if (entry.type === 'begin') {
-            state.hasBegin = true;
-            const beginData =
-              entry.data && typeof entry.data === 'object'
-                ? (entry.data as Record<string, unknown>)
-                : undefined;
-            const spreadsheetId = beginData?.['spreadsheetId'];
-            const snapshotId = beginData?.['snapshot'];
-            if (typeof spreadsheetId === 'string') {
-              state.spreadsheetId = spreadsheetId;
-            }
-            if (typeof snapshotId === 'string') {
-              state.snapshotId = snapshotId;
-            }
-          }
-
-          if (entry.type === 'queue') {
-            state.queuedOperations += 1;
-          }
-
-          if (entry.type === 'commit' || entry.type === 'rollback' || entry.type === 'fail') {
-            state.completed = true;
-          }
-
-          txEvents.set(entry.txId, state);
-        } catch {
-          // Ignore malformed WAL lines
-        }
-      }
-      const orphaned: WalRecoveryTransaction[] = [];
-      for (const [txId, state] of txEvents) {
-        if (state.hasBegin && !state.completed) {
-          orphaned.push({
-            transactionId: txId,
-            spreadsheetId: state.spreadsheetId,
-            snapshotId: state.snapshotId,
-            queuedOperations: state.queuedOperations,
-            lastEventType: state.lastEventType,
-            lastEventTimestamp: state.lastEventTimestamp,
-          });
-        }
-      }
-      this.walOrphanedTransactions = orphaned;
-
-      if (this.walOrphanedTransactions.length > 0) {
-        logger.warn('WAL replay: orphaned transactions detected from previous crash', {
-          count: this.walOrphanedTransactions.length,
-          transactions: this.walOrphanedTransactions.map((tx) => ({
-            transactionId: tx.transactionId,
-            spreadsheetId: tx.spreadsheetId,
-            snapshotId: tx.snapshotId,
-            queuedOperations: tx.queuedOperations,
-          })),
-        });
-      } else {
-        logger.info('WAL replay: no orphaned transactions', { walPath: this.walPath });
-      }
-    } catch (error) {
-      logger.warn('WAL replay failed', {
-        error: error instanceof Error ? error.message : String(error),
-        walPath: this.walPath,
-      });
-    }
-  }
-
-  /**
-   * Rewrite the WAL removing all entries for a completed transaction.
-   * Uses an atomic temp-file rename to prevent partial writes.
-   */
-  private async compactWal(completedTxId: string): Promise<void> {
-    await this.walReady;
-    await this.runWalOperation('compact', async () => {
-      if (!existsSync(this.walPath)) return;
-
-      const content = await fsPromises.readFile(this.walPath, 'utf8');
-      const remaining = content
-        .split('\n')
-        .filter((line) => {
-          if (!line) return false;
-          try {
-            const entry = JSON.parse(line) as { txId: string };
-            return entry.txId !== completedTxId;
-          } catch {
-            return true; // Keep malformed lines (don't lose data)
-          }
-        })
-        .join('\n');
-      const tmpPath = this.walPath + '.tmp';
-      await fsPromises.writeFile(tmpPath, remaining ? remaining + '\n' : '', { mode: 0o640 });
-      await fsPromises.rename(tmpPath, this.walPath);
-
-      this.walOrphanedTransactions = this.walOrphanedTransactions.filter(
-        (tx) => tx.transactionId !== completedTxId
-      );
-    });
-  }
-
   /**
    * Emit event to listeners
    */
   private async emitEvent(event: TransactionEvent): Promise<void> {
     // DR-01: Append to WAL before notifying listeners.
-    if (this.walEnabled) {
-      await this.appendWalEntry(event);
+    if (this.wal) {
+      await this.wal.append(event);
     }
     for (const listener of [...this.listeners]) {
       try {
@@ -1473,13 +2048,6 @@ export class TransactionManager {
         });
       }
     }
-  }
-
-  /**
-   * Delay helper
-   */
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -1502,19 +2070,13 @@ export class TransactionManager {
    * Return WAL recovery status captured at startup replay.
    */
   async getWalRecoveryReport(): Promise<WalRecoveryReport> {
-    await this.walReady;
-    if (!this.walEnabled) {
+    if (!this.wal) {
       return {
         enabled: false,
         orphanedTransactions: [],
       };
     }
-
-    return {
-      enabled: true,
-      walPath: this.walPath,
-      orphanedTransactions: [...this.walOrphanedTransactions],
-    };
+    return this.wal.getRecoveryReport();
   }
 
   /**
@@ -1522,18 +2084,12 @@ export class TransactionManager {
    * Removes the transaction from the orphan list and compacts the WAL.
    */
   async discardOrphanedTransaction(transactionId: string): Promise<void> {
-    const exists = this.walOrphanedTransactions.some((tx) => tx.transactionId === transactionId);
-    if (!exists) {
-      throw new Error(`No orphaned transaction found: ${transactionId}`);
-    }
-    if (this.walEnabled) {
-      await this.compactWal(transactionId);
+    if (this.wal) {
+      await this.wal.discardOrphaned(transactionId);
     } else {
-      this.walOrphanedTransactions = this.walOrphanedTransactions.filter(
-        (tx) => tx.transactionId !== transactionId
-      );
+      // WAL disabled — error as NotFoundError (orphaned list is empty without WAL)
+      throw new NotFoundError('orphaned transaction', transactionId);
     }
-    logger.info('Discarded orphaned WAL transaction', { transactionId });
   }
 
   /**
@@ -1577,28 +2133,69 @@ export class TransactionManager {
         timestamp: Date.now(),
         data: { error: 'Transaction cancelled without snapshot rollback', cancelled: true },
       });
-      if (this.walEnabled) {
-        await this.compactWal(transactionId);
+      if (this.wal) {
+        await this.wal.compact(transactionId);
       }
     }
 
     this.activeTransactions.delete(transactionId);
     this.stats.activeTransactions--;
+    this.clearPreparedTransactionState(transactionId);
   }
 
-  private runWalOperation(operationName: string, operation: () => Promise<void>): Promise<void> {
-    this.walWriteChain = this.walWriteChain.then(async () => {
-      try {
-        await operation();
-      } catch (error) {
-        logger.warn('WAL operation failed', {
-          operation: operationName,
-          error: error instanceof Error ? error.message : String(error),
-          walPath: this.walPath,
-        });
+  private async prepareQueuedOperation(
+    transaction: Transaction,
+    operation: QueuedOperation
+  ): Promise<void> {
+    try {
+      const sheetLookup = await this.getOrCreateSheetLookupContext(
+        transaction.id,
+        transaction.spreadsheetId
+      );
+      this.reservePendingSheetIds(transaction.operations, sheetLookup);
+
+      const entries = await this.operationToBatchEntries(
+        operation,
+        transaction.spreadsheetId,
+        sheetLookup
+      );
+
+      if (entries && entries.length > 0) {
+        this.getPreparedEntriesMap(transaction.id).set(operation.id, entries);
       }
-    });
-    return this.walWriteChain;
+    } catch (error) {
+      this.log(
+        `Deferred queue-time batch preparation for ${operation.id}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  private getPreparedEntriesMap(transactionId: string): Map<string, BatchRequestEntry[]> {
+    let prepared = this.preparedOperationEntries.get(transactionId);
+    if (!prepared) {
+      prepared = new Map<string, BatchRequestEntry[]>();
+      this.preparedOperationEntries.set(transactionId, prepared);
+    }
+    return prepared;
+  }
+
+  private async getOrCreateSheetLookupContext(
+    transactionId: string,
+    spreadsheetId: string
+  ): Promise<SheetLookupContext> {
+    const existing = this.transactionSheetLookups.get(transactionId);
+    if (existing) {
+      return existing;
+    }
+
+    const created = await this.buildSheetLookupContext(spreadsheetId);
+    this.transactionSheetLookups.set(transactionId, created);
+    return created;
+  }
+
+  private clearPreparedTransactionState(transactionId: string): void {
+    this.preparedOperationEntries.delete(transactionId);
+    this.transactionSheetLookups.delete(transactionId);
   }
 }
 
@@ -1615,8 +2212,8 @@ export function initTransactionManager(
     const env = getEnv();
     transactionManagerInstance = new TransactionManager({
       enabled: env.TRANSACTIONS_ENABLED,
-      autoSnapshot: process.env['TRANSACTIONS_AUTO_SNAPSHOT'] !== 'false',
-      autoRollback: process.env['TRANSACTIONS_AUTO_ROLLBACK'] !== 'false',
+      autoSnapshot: env.TRANSACTIONS_AUTO_SNAPSHOT,
+      autoRollback: env.TRANSACTIONS_AUTO_ROLLBACK,
       maxOperationsPerTransaction: parseInt(process.env['TRANSACTIONS_MAX_OPERATIONS'] || '100'),
       transactionTimeoutMs: parseInt(process.env['TRANSACTIONS_TIMEOUT_MS'] || '300000'),
       snapshotRetentionMs: parseInt(process.env['TRANSACTIONS_SNAPSHOT_RETENTION_MS'] || '3600000'),
@@ -1639,7 +2236,11 @@ export function initTransactionManager(
  */
 export function getTransactionManager(): TransactionManager {
   if (!transactionManagerInstance) {
-    throw new Error('Transaction manager not initialized. Call initTransactionManager() first.');
+    throw new ServiceError(
+      'Transaction manager not initialized. Call initTransactionManager() first.',
+      'SERVICE_NOT_INITIALIZED',
+      'TransactionManager'
+    );
   }
   return transactionManagerInstance;
 }
@@ -1650,7 +2251,11 @@ export function getTransactionManager(): TransactionManager {
  */
 export function resetTransactionManager(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetTransactionManager() can only be called in test environment');
+    throw new ServiceError(
+      'resetTransactionManager() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'TransactionManager'
+    );
   }
   transactionManagerInstance = null;
 }

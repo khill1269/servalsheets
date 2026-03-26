@@ -18,25 +18,25 @@ import { logger } from '../utils/logger.js';
 /**
  * Extract action from handler arguments
  *
- * Handles legacy envelope format: { request: { action, ...params } }
- * and direct format: { action, ...params }
+ * Handles the canonical request envelope: { request: { action, ...params } }
+ * and legacy flat inputs: { action, ...params }
  *
  * @param args - Handler arguments
  * @returns Action string or undefined
  */
 function extractAction(args: unknown): string | undefined {
   if (!args || typeof args !== 'object') {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   const record = args as Record<string, unknown>;
 
-  // Direct format
+  // Legacy flat format
   if (typeof record['action'] === 'string') {
     return record['action'];
   }
 
-  // Legacy envelope format
+  // Canonical request envelope
   const request = record['request'];
   if (request && typeof request === 'object') {
     const requestRecord = request as Record<string, unknown>;
@@ -45,7 +45,7 @@ function extractAction(args: unknown): string | undefined {
     }
   }
 
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 /**

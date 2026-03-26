@@ -1,3 +1,12 @@
+---
+title: ServalSheets Multi-Tenancy Guide
+category: general
+last_updated: 2026-03-10
+description: 'Status: Production Ready'
+version: 2.0.0
+tags: [security, sheets, prometheus, grafana, kubernetes]
+---
+
 # ServalSheets Multi-Tenancy Guide
 
 **Status:** Production Ready

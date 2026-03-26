@@ -3,7 +3,7 @@ title: 'Quick Start: Get Google Credentials'
 category: guide
 last_updated: 2026-01-31
 description: 'You need Google credentials to test ServalSheets. Here are two options:'
-version: 1.6.0
+version: 2.0.0
 tags: [sheets]
 audience: user
 difficulty: intermediate
@@ -37,14 +37,14 @@ You need Google credentials to test ServalSheets. Here are two options:
    - Click **"Exchange authorization code for tokens"**
    - Copy the **"Access token"** (starts with `ya29.`)
 
-6. Use this token in Claude Desktop config:
+6. Use this token in your **local stdio** Claude Desktop config:
 
    ```json
    {
      "mcpServers": {
        "servalsheets": {
          "command": "node",
-         "args": ["/Users/thomascahill/Documents/mcp-servers/servalsheets/dist/cli.js"],
+         "args": ["/path/to/servalsheets/dist/cli.js"],
          "env": {
            "GOOGLE_ACCESS_TOKEN": "ya29.PASTE_TOKEN_HERE"
          }
@@ -120,16 +120,16 @@ Should output something like:
 
 **Save this email!** You'll need to share your Google Sheets with it.
 
-### Step 7: Use in Claude Desktop
+### Step 7: Use in Claude Desktop (Local STDIO)
 
 ```json
 {
   "mcpServers": {
     "servalsheets": {
       "command": "node",
-      "args": ["/Users/thomascahill/Documents/mcp-servers/servalsheets/dist/cli.js"],
+      "args": ["/path/to/servalsheets/dist/cli.js"],
       "env": {
-        "GOOGLE_APPLICATION_CREDENTIALS": "/Users/thomascahill/.config/google/servalsheets-sa.json"
+        "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/your/service-account.json"
       }
     }
   }
@@ -151,14 +151,14 @@ Should output something like:
 **If you just want to test RIGHT NOW:**
 
 1. Get OAuth token (2 minutes) - Option 1 above
-2. Update Claude Desktop config with token
+2. Update local Claude Desktop stdio config with token
 3. Restart Claude Desktop
 4. Test with your own spreadsheets (no sharing needed!)
 
 **For production:**
 
 1. Create service account (10 minutes) - Option 2 above
-2. Update Claude Desktop config with credentials path
+2. Update local Claude Desktop stdio config with credentials path
 3. Share spreadsheets with service account email
 4. Restart Claude Desktop
 
@@ -166,10 +166,11 @@ Should output something like:
 
 After getting credentials:
 
-1. Update `~/Library/Application Support/Claude/claude_desktop_config.json`
-2. Restart Claude Desktop (⌘+Q then reopen)
-3. Look for 🔨 icon in bottom-right (custom ServalSheets icon may not appear yet)
-4. Test: "List sheets in this spreadsheet: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+1. If using local Claude Desktop stdio, update `~/Library/Application Support/Claude/claude_desktop_config.json`
+2. If using a hosted remote connector, use [`OAUTH_USER_SETUP.md`](./OAUTH_USER_SETUP.md) instead of local config editing
+3. Restart Claude Desktop (⌘+Q then reopen)
+4. Look for 🔨 icon in bottom-right (custom ServalSheets icon may not appear yet)
+5. Test: "List sheets in this spreadsheet: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
 
 ## Troubleshooting
 

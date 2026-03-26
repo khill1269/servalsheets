@@ -139,6 +139,7 @@ import { join } from 'path';
 import { createHmac, createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto';
 import { logger } from '../utils/logger.js';
 import { getEnv } from '../config/env.js';
+import { ConfigError, ServiceError } from '../core/errors.js';
 import type {
   AuditEvent,
   AuthenticationEvent,
@@ -394,7 +395,10 @@ export class AuditLogger {
     const trimmed = line.trimEnd();
     if (!trimmed.startsWith('ENC:')) return trimmed;
     if (!this.encryptionKey) {
-      throw new Error('AUDIT_LOG_ENCRYPTION_KEY is required to decrypt audit logs');
+      throw new ConfigError(
+        'AUDIT_LOG_ENCRYPTION_KEY is required to decrypt audit logs',
+        'AUDIT_LOG_ENCRYPTION_KEY'
+      );
     }
     const payload = Buffer.from(trimmed.slice(4), 'base64');
     const iv = payload.subarray(0, 12);
@@ -500,7 +504,11 @@ export class AuditLogger {
     });
 
     if (!response.ok) {
-      throw new Error(`Splunk HEC error: ${response.statusText}`);
+      throw new ServiceError(
+        `Splunk HEC error: ${response.statusText}`,
+        'INTERNAL_ERROR',
+        'AuditLogger'
+      );
     }
   }
 
@@ -529,7 +537,11 @@ export class AuditLogger {
     });
 
     if (!response.ok) {
-      throw new Error(`Datadog Logs API error: ${response.statusText}`);
+      throw new ServiceError(
+        `Datadog Logs API error: ${response.statusText}`,
+        'INTERNAL_ERROR',
+        'AuditLogger'
+      );
     }
   }
 

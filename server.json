@@ -1,35 +1,28 @@
 {
   "$schema": "https://cdn.jsdelivr.net/npm/@anthropic-ai/mcp-registry@latest/dist/registry-schema.json",
   "name": "io.github.khill1269/servalsheets",
-  "version": "1.7.0",
-  "description": "Production-grade Google Sheets MCP server with 25 tools and 397 actions",
+  "version": "2.0.0",
+  "description": "Production-grade Google Sheets MCP server with 25 tools and 407 actions",
   "icons": [
     {
-      "src": "https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/serval-icon.png",
-      "mimeType": "image/png",
+      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJTZXJ2YWxTaGVldHMiPjxyZWN0IHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiByeD0iMzIiIGZpbGw9IiMwZjE3MmEiLz48cmVjdCB4PSI0MCIgeT0iNDAiIHdpZHRoPSIxNzYiIGhlaWdodD0iMTc2IiByeD0iMTYiIGZpbGw9IiNmOGZhZmMiLz48cmVjdCB4PSI0MCIgeT0iNDAiIHdpZHRoPSIxNzYiIGhlaWdodD0iMzIiIHJ4PSIxNiIgZmlsbD0iIzIyYzU1ZSIvPjxsaW5lIHgxPSI4NCIgeTE9Ijg0IiB4Mj0iODQiIHkyPSIyMDAiIHN0cm9rZT0iI2NiZDVmNSIgc3Ryb2tlLXdpZHRoPSIyIi8+PGxpbmUgeDE9IjEyOCIgeTE9Ijg0IiB4Mj0iMTI4IiB5Mj0iMjAwIiBzdHJva2U9IiNjYmQ1ZjUiIHN0cm9rZS13aWR0aD0iMiIvPjxsaW5lIHgxPSIxNzIiIHkxPSI4NCIgeDI9IjE3MiIgeTI9IjIwMCIgc3Ryb2tlPSIjY2JkNWY1IiBzdHJva2Utd2lkdGg9IjIiLz48bGluZSB4MT0iNTIiIHkxPSIxMTIiIHgyPSIyMDQiIHkyPSIxMTIiIHN0cm9rZT0iI2NiZDVmNSIgc3Ryb2tlLXdpZHRoPSIyIi8+PGxpbmUgeDE9IjUyIiB5MT0iMTQwIiB4Mj0iMjA0IiB5Mj0iMTQwIiBzdHJva2U9IiNjYmQ1ZjUiIHN0cm9rZS13aWR0aD0iMiIvPjxsaW5lIHgxPSI1MiIgeTE9IjE2OCIgeDI9IjIwNCIgeTI9IjE2OCIgc3Ryb2tlPSIjY2JkNWY1IiBzdHJva2Utd2lkdGg9IjIiLz48L3N2Zz4=",
+      "mimeType": "image/svg+xml",
       "sizes": [
-        "1536x1024"
-      ]
-    },
-    {
-      "src": "https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/icon-512.png",
-      "mimeType": "image/png",
-      "sizes": [
-        "512x512"
+        "24x24"
       ]
     }
   ],
   "mcpProtocol": "2025-11-25",
-  "instructions": "⚠️ CRITICAL PARAMETER FORMAT (read this first) ⚠️\n\nNEVER wrap arguments in {\"request\":{...}} object.\n\n✅ CORRECT format for ALL tools:\n{\"action\":\"...\", \"spreadsheetId\":\"...\", \"range\":\"...\"}\n\n❌ LEGACY format (normalized at runtime, avoid in new integrations):\n{\"request\": {\"action\":\"...\", \"spreadsheetId\":\"...\"}}\n\nUse flat format for all new tool calls. No exceptions.\n\n---\n\nServalSheets provides 25 tools for Google Sheets operations. Start with sheets_auth action \"status\". If the user request is explicit, route directly to the matching tool. Use sheets_analyze action \"scout\" for quick exploration and \"comprehensive\" only for full audits. For token efficiency, read schema://tools/{toolName} before calling tools with complex parameters.",
+  "instructions": "ServalSheets uses an envelope parameter format:\n{\"request\":{\"action\":\"...\", \"spreadsheetId\":\"...\", \"range\":\"...\"}}\n\nLEGACY compatibility format (also accepted, normalized at runtime):\n{\"action\":\"...\", \"spreadsheetId\":\"...\", \"range\":\"...\"}\n\n---\n\nServalSheets provides 25 tools for Google Sheets operations. Start with sheets_auth action \"status\". If the user request is explicit, route directly to the matching tool. Use sheets_analyze action \"scout\" for quick exploration and \"comprehensive\" only for full audits. For token efficiency, read schema://tools/{toolName} before calling tools with complex parameters.",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "servalsheets",
-      "version": "1.7.0",
+      "version": "2.0.0",
       "transport": {
         "type": "stdio"
       },
-      "description": "Production-grade Google Sheets MCP server - 25 tools, 397 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
+      "description": "Production-grade Google Sheets MCP server - 25 tools, 407 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
     }
   ],
   "tools": [
@@ -86,7 +79,7 @@
     },
     {
       "name": "sheets_analyze",
-      "description": "analyze operations (21 actions)",
+      "description": "analyze operations (26 actions)",
       "actions": [
         "comprehensive",
         "analyze_data",
@@ -108,7 +101,12 @@
         "auto_enhance",
         "discover_action",
         "diagnose_errors",
-        "formula_health_check"
+        "formula_health_check",
+        "quick_insights",
+        "semantic_search",
+        "schedule_intelligence",
+        "get_intelligence_report",
+        "cancel_intelligence"
       ]
     },
     {
@@ -138,12 +136,13 @@
     },
     {
       "name": "sheets_auth",
-      "description": "auth operations (4 actions)",
+      "description": "auth operations (5 actions)",
       "actions": [
         "status",
         "login",
         "callback",
-        "logout"
+        "logout",
+        "setup_feature"
       ]
     },
     {
@@ -171,7 +170,7 @@
     },
     {
       "name": "sheets_collaborate",
-      "description": "collaborate operations (40 actions)",
+      "description": "collaborate operations (41 actions)",
       "actions": [
         "share_add",
         "share_update",
@@ -196,6 +195,7 @@
         "version_restore_revision",
         "version_keep_revision",
         "version_create_snapshot",
+        "version_snapshot_status",
         "version_list_snapshots",
         "version_restore_snapshot",
         "version_delete_snapshot",
@@ -217,7 +217,7 @@
     },
     {
       "name": "sheets_composite",
-      "description": "composite operations (20 actions)",
+      "description": "composite operations (21 actions)",
       "actions": [
         "import_csv",
         "smart_append",
@@ -238,7 +238,8 @@
         "generate_sheet",
         "generate_template",
         "preview_generation",
-        "batch_operations"
+        "batch_operations",
+        "build_dashboard"
       ]
     },
     {
@@ -319,7 +320,7 @@
     },
     {
       "name": "sheets_data",
-      "description": "data operations (24 actions)",
+      "description": "data operations (25 actions)",
       "actions": [
         "read",
         "write",
@@ -341,6 +342,7 @@
         "copy_paste",
         "detect_spill_ranges",
         "smart_fill",
+        "auto_fill",
         "cross_read",
         "cross_query",
         "cross_write",
@@ -423,7 +425,7 @@
     },
     {
       "name": "sheets_format",
-      "description": "format operations (24 actions)",
+      "description": "format operations (25 actions)",
       "actions": [
         "set_format",
         "suggest_format",
@@ -448,7 +450,8 @@
         "add_conditional_format_rule",
         "batch_format",
         "set_rich_text",
-        "generate_conditional_format"
+        "generate_conditional_format",
+        "build_dependent_dropdown"
       ]
     },
     {
@@ -591,7 +594,7 @@
   ],
   "metadata": {
     "toolCount": 25,
-    "actionCount": 397,
+    "actionCount": 407,
     "categories": [
       "Core Operations (5 tools): auth, core, data, format, dimensions",
       "Visual Analytics (1 tool): visualize",
@@ -613,13 +616,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/khill1269/servalsheets",
+    "url": "https://github.com/khill1269/servalsheets.git",
     "source": "https://github.com/khill1269/servalsheets"
   },
-  "homepage": "https://github.com/khill1269/servalsheets#readme",
+  "homepage": "https://servalsheets.dev",
   "privacy_policies": [
     {
-      "url": "https://github.com/khill1269/servalsheets/blob/main/PRIVACY.md",
+      "url": "https://servalsheets.dev/privacy",
       "description": "ServalSheets Privacy Policy"
     }
   ]

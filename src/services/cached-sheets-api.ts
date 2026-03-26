@@ -23,6 +23,8 @@ import { logger } from '../utils/logger.js';
 import { cacheHitsTotal, cacheMissesTotal } from '../observability/metrics.js';
 import { getTracer } from '../utils/tracing.js';
 import { getAccessPatternTracker } from './access-pattern-tracker.js';
+import { getEnv } from '../config/env.js';
+import { FIELD_MASKS } from '../constants/field-masks.js';
 
 /**
  * Statistics for cached API operations
@@ -50,6 +52,13 @@ export class CachedSheetsApi {
     cacheMisses: 0,
   };
 
+  // Lightweight existence cache: spreadsheetId → expiry timestamp.
+  // Populated by ensureSpreadsheetExists(). Prevents wasted quota on 404s
+  // by catching bad IDs before expensive mutation API calls (Fix 2).
+  private knownSpreadsheets = new Map<string, number>();
+  private static readonly EXISTENCE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  private static readonly EXISTENCE_CACHE_MAX = 5_000; // Cap to prevent unbounded growth (C-1)
+
   constructor(sheetsApi: sheets_v4.Sheets, requestMerger?: RequestMerger) {
     this.sheetsApi = sheetsApi;
     this.requestMerger = requestMerger;
@@ -70,6 +79,11 @@ export class CachedSheetsApi {
       fields?: string;
     } = {}
   ): Promise<sheets_v4.Schema$Spreadsheet> {
+    // Apply default field mask when caller does not specify one.
+    // Without this, Google returns the full spreadsheet payload (5-50MB).
+    // Explicit callers keep their masks unchanged.
+    const resolvedFields = options.fields ?? FIELD_MASKS.SPREADSHEET_WITH_SHEETS;
+
     const span = getTracer().startSpan('cached-sheets-api.getSpreadsheet', {
       kind: 'internal',
       attributes: { 'spreadsheet.id': spreadsheetId },
@@ -83,7 +97,7 @@ export class CachedSheetsApi {
     };
 
     // Check if conditional requests are enabled (Priority 9)
-    const conditionalRequestsEnabled = process.env['ENABLE_CONDITIONAL_REQUESTS'] !== 'false';
+    const conditionalRequestsEnabled = getEnv().ENABLE_CONDITIONAL_REQUESTS;
 
     if (conditionalRequestsEnabled) {
       // Try conditional request with If-None-Match header
@@ -97,7 +111,7 @@ export class CachedSheetsApi {
               spreadsheetId,
               includeGridData: options.includeGridData,
               ranges: options.ranges,
-              fields: options.fields,
+              fields: resolvedFields,
             },
             { headers: { 'If-None-Match': cachedETag } }
           );
@@ -164,7 +178,7 @@ export class CachedSheetsApi {
       spreadsheetId,
       includeGridData: options.includeGridData,
       ranges: options.ranges,
-      fields: options.fields,
+      fields: resolvedFields,
     });
 
     // Cache with real ETag if available, otherwise use timestamp
@@ -208,7 +222,7 @@ export class CachedSheetsApi {
     };
 
     // Check if conditional requests are enabled (Priority 9)
-    const conditionalRequestsEnabled = process.env['ENABLE_CONDITIONAL_REQUESTS'] !== 'false';
+    const conditionalRequestsEnabled = getEnv().ENABLE_CONDITIONAL_REQUESTS;
 
     if (conditionalRequestsEnabled) {
       // Try conditional request with If-None-Match header
@@ -467,6 +481,39 @@ export class CachedSheetsApi {
   }
 
   /**
+   * Assert that a spreadsheet exists before performing a mutation.
+   *
+   * Performs a minimal metadata GET (`fields: 'spreadsheetId'`) on first access
+   * and caches the positive result for 5 minutes. Subsequent calls within the TTL
+   * return immediately (cache hit). On 404, throws immediately without consuming
+   * quota on the mutation call itself (Fix 2).
+   *
+   * Call this at the start of any write operation that targets a user-provided
+   * spreadsheetId to convert silent 404 quota-waste into a fast local throw.
+   */
+  async ensureSpreadsheetExists(spreadsheetId: string): Promise<void> {
+    const expiry = this.knownSpreadsheets.get(spreadsheetId);
+    if (expiry !== undefined && Date.now() < expiry) return; // cache hit
+
+    // Minimal-field GET — cheapest possible existence probe
+    await this.sheetsApi.spreadsheets.get({
+      spreadsheetId,
+      fields: 'spreadsheetId',
+    });
+
+    // Enforce max-size cap — evict oldest entry if at capacity (C-1)
+    if (this.knownSpreadsheets.size >= CachedSheetsApi.EXISTENCE_CACHE_MAX) {
+      // Map iteration order is insertion order; first key is oldest
+      const oldestKey = this.knownSpreadsheets.keys().next().value;
+      if (oldestKey !== undefined) {
+        this.knownSpreadsheets.delete(oldestKey);
+      }
+    }
+    this.knownSpreadsheets.set(spreadsheetId, Date.now() + CachedSheetsApi.EXISTENCE_TTL_MS);
+    logger.debug('Spreadsheet existence confirmed and cached', { spreadsheetId });
+  }
+
+  /**
    * Invalidate cache after write operations
    *
    * Call this after any mutation (write, update, delete) to ensure
@@ -474,6 +521,7 @@ export class CachedSheetsApi {
    */
   async invalidateSpreadsheet(spreadsheetId: string): Promise<void> {
     await this.cache.invalidateSpreadsheet(spreadsheetId);
+    this.knownSpreadsheets.delete(spreadsheetId); // also clear existence cache
     logger.debug('Cache invalidated after mutation', { spreadsheetId });
   }
 

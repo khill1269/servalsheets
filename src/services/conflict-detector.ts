@@ -30,7 +30,6 @@ import {
   CellChange as _CellChange,
   VersionCacheEntry,
   OptimisticLock,
-  EditSession,
   ConcurrentEditWarning as _ConcurrentEditWarning,
   ConflictDetectorConfig,
   ConflictDetectorStats,
@@ -38,6 +37,7 @@ import {
 } from '../types/conflict.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
 import { BoundedCache } from '../utils/bounded-cache.js';
+import { ServiceError } from '../core/errors.js';
 import {
   createInitialConflictDetectorStats,
   getConflictDetectorEnvConfig,
@@ -54,7 +54,6 @@ export class ConflictDetector {
   // Phase 1.4: Bounded caches (prevent unbounded memory growth)
   private versionCache: BoundedCache<string, VersionCacheEntry>;
   private locks: BoundedCache<string, OptimisticLock>;
-  private editSessions: BoundedCache<string, EditSession>;
   private activeConflicts: BoundedCache<string, Conflict>;
   // Phase 1.2: Timer cleanup
   private cacheCleanupInterval?: NodeJS.Timeout;
@@ -86,18 +85,6 @@ export class ConflictDetector {
         logger.debug('Lock expired', {
           lockId: lock?.id,
           range: key,
-        });
-      },
-    });
-
-    this.editSessions = new BoundedCache<string, EditSession>({
-      maxSize: 10000, // Support up to 10K active edit sessions
-      ttl: 60 * 60 * 1000, // 1 hour session TTL
-      onEviction: (sessionId, value) => {
-        const session = value as EditSession | undefined;
-        logger.debug('Edit session expired', {
-          sessionId,
-          user: session?.user,
         });
       },
     });
@@ -573,9 +560,11 @@ export class ConflictDetector {
     }
 
     if (!this.googleClient) {
-      throw new Error(
+      throw new ServiceError(
         'Conflict detector requires Google API client for version checking. ' +
-          'Simulated version checking has been removed for production safety.'
+          'Simulated version checking has been removed for production safety.',
+        'SERVICE_NOT_INITIALIZED',
+        'ConflictDetector'
       );
     }
 
@@ -717,13 +706,6 @@ export class ConflictDetector {
   }
 
   /**
-   * Delay helper
-   */
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  /**
    * Log message
    */
   private log(message: string): void {
@@ -783,7 +765,11 @@ export function initConflictDetector(
  */
 export function getConflictDetector(): ConflictDetector {
   if (!conflictDetectorInstance) {
-    throw new Error('Conflict detector not initialized. Call initConflictDetector() first.');
+    throw new ServiceError(
+      'Conflict detector not initialized. Call initConflictDetector() first.',
+      'SERVICE_NOT_INITIALIZED',
+      'ConflictDetector'
+    );
   }
   return conflictDetectorInstance;
 }
@@ -794,7 +780,11 @@ export function getConflictDetector(): ConflictDetector {
  */
 export function resetConflictDetector(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetConflictDetector() can only be called in test environment');
+    throw new ServiceError(
+      'resetConflictDetector() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'ConflictDetector'
+    );
   }
   conflictDetectorInstance = null;
 }

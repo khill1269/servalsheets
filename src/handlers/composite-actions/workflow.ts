@@ -12,11 +12,13 @@ import type {
 } from '../../schemas/composite.js';
 import type { SamplingServer } from '../../mcp/sampling.js';
 import { generateAIInsight } from '../../mcp/sampling.js';
-import { getRequestLogger } from '../../utils/request-context.js';
+import { getRequestLogger, sendProgress } from '../../utils/request-context.js';
 import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
 import type { SnapshotService } from '../../services/snapshot.js';
 import type { SessionContextManager } from '../../services/session-context.js';
 import type { ResponseMeta } from '../../schemas/shared.js';
+import { recordCompositeWorkflow } from '../../observability/metrics.js';
+import { extractRangeA1 } from '../../utils/range-helpers.js';
 
 type GenerateMetaFn = (
   action: string,
@@ -44,6 +46,8 @@ export async function handleAuditSheetAction(
 ): Promise<CompositeOutput['response']> {
   const logger = getRequestLogger();
   logger.info('Starting sheet audit', { spreadsheetId: input.spreadsheetId });
+
+  await sendProgress(0, 3, 'Loading spreadsheet structure...');
 
   const spreadsheetInfo = await deps.sheetsApi.spreadsheets.get({
     spreadsheetId: input.spreadsheetId,
@@ -114,6 +118,8 @@ export async function handleAuditSheetAction(
       valueRanges = await loadIndividually();
     }
   }
+
+  await sendProgress(1, 3, `Auditing ${sheetsToAudit.length} sheet(s)...`);
 
   for (let sheetIndex = 0; sheetIndex < sheetsToAudit.length; sheetIndex++) {
     const sheet = sheetsToAudit[sheetIndex];
@@ -205,6 +211,13 @@ export async function handleAuditSheetAction(
     );
   }
 
+  await sendProgress(
+    3,
+    3,
+    `Audit complete: ${totalCells} cells checked, ${issues.length} issue(s) found`
+  );
+
+  recordCompositeWorkflow('audit_sheet', 'success');
   return {
     success: true as const,
     action: 'audit_sheet' as const,
@@ -362,6 +375,7 @@ export async function handlePublishReportAction(
   const buffer = Buffer.from(exportResponse.data as ArrayBuffer);
   const base64Content = buffer.toString('base64');
 
+  recordCompositeWorkflow('publish_report', 'success');
   return {
     success: true as const,
     action: 'publish_report' as const,
@@ -395,6 +409,8 @@ export async function handleDataPipelineAction(
     steps: input.steps.length,
   });
 
+  await sendProgress(0, 3, `Loading source data for pipeline (${input.steps.length} step(s))...`);
+
   const valuesResponse = await deps.sheetsApi.spreadsheets.values.get({
     spreadsheetId: input.spreadsheetId,
     range: input.sourceRange,
@@ -416,6 +432,12 @@ export async function handleDataPipelineAction(
   );
   const rowsIn = dataRows.length;
 
+  await sendProgress(
+    1,
+    3,
+    `Executing ${input.steps.length} pipeline step(s) on ${rowsIn} row(s)...`
+  );
+
   let stepsExecuted = 0;
   for (const step of input.steps) {
     dataRows = applyPipelineStep(dataRows, headers, step);
@@ -432,9 +454,11 @@ export async function handleDataPipelineAction(
       undefined
     );
 
+    const outputRangeA1 = extractRangeA1(input.outputRange, 'outputRange');
+
     await deps.sheetsApi.spreadsheets.values.update({
       spreadsheetId: input.spreadsheetId,
-      range: input.outputRange,
+      range: outputRangeA1,
       valueInputOption: 'RAW',
       requestBody: { values: outputRows as unknown[][] },
     });
@@ -464,6 +488,13 @@ export async function handleDataPipelineAction(
     );
   }
 
+  await sendProgress(
+    3,
+    3,
+    `Pipeline complete: ${stepsExecuted} step(s), ${rowsIn} → ${dataRows.length} row(s)`
+  );
+
+  recordCompositeWorkflow('data_pipeline', 'success');
   return {
     success: true as const,
     action: 'data_pipeline' as const,
@@ -566,6 +597,7 @@ export async function handleInstantiateTemplateAction(
     snapshotId: snapshot?.snapshotId,
   });
 
+  recordCompositeWorkflow('instantiate_template', 'success');
   return {
     success: true as const,
     action: 'instantiate_template' as const,
@@ -598,6 +630,8 @@ export async function handleMigrateSpreadsheetAction(
     destination: input.destinationSpreadsheetId,
   });
 
+  await sendProgress(0, 3, `Loading source data from spreadsheet ${input.sourceSpreadsheetId}...`);
+
   const valuesResponse = await deps.sheetsApi.spreadsheets.values.get({
     spreadsheetId: input.sourceSpreadsheetId,
     range: input.sourceRange,
@@ -627,6 +661,12 @@ export async function handleMigrateSpreadsheetAction(
     const byIndex = parseInt(colName, 10);
     return isNaN(byIndex) ? -1 : byIndex;
   };
+
+  await sendProgress(
+    1,
+    3,
+    `Mapping ${input.columnMapping.length} column(s) for ${sourceDataRows.length} row(s)...`
+  );
 
   const destHeaders = input.columnMapping.map((m) => m.destinationColumn);
   const migratedRows = sourceDataRows.map((row) =>
@@ -678,6 +718,13 @@ export async function handleMigrateSpreadsheetAction(
     });
   }
 
+  await sendProgress(
+    3,
+    3,
+    `Migration complete: ${migratedRows.length} row(s), ${input.columnMapping.length} column(s) mapped`
+  );
+
+  recordCompositeWorkflow('migrate_spreadsheet', 'success');
   return {
     success: true as const,
     action: 'migrate_spreadsheet' as const,

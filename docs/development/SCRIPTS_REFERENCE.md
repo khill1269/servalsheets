@@ -1,9 +1,9 @@
 ---
 title: ServalSheets - Scripts Reference
 category: development
-last_updated: 2026-02-17
+last_updated: 2026-03-24
 description: 'Comprehensive documentation of all scripts and npm commands'
-version: 1.6.0
+version: 2.0.0
 tags: [scripts, validation, gates, development]
 ---
 
@@ -31,13 +31,15 @@ tags: [scripts, validation, gates, development]
 | Script                                 | Purpose                     | Usage                                    | Part of Verify    |
 | -------------------------------------- | --------------------------- | ---------------------------------------- | ----------------- |
 | `generate-metadata.ts`                 | Generate tool/action counts | `npm run gen:metadata`                   | Via `check:drift` |
+| `gen-doc-facts.mjs`                    | Generate docs facts file    | `node scripts/gen-doc-facts.mjs`         | Via `gen:docs`    |
 | `check-metadata-drift.sh`              | Verify metadata sync        | `npm run check:drift`                    | ✅ Yes            |
 | `no-placeholders.sh`                   | Check for TODO/FIXME        | `npm run check:placeholders`             | ✅ Yes            |
 | `check-silent-fallbacks.sh`            | Find silent returns         | `npm run check:silent-fallbacks`         | ❌ No (optional)  |
 | `check-debug-prints.sh`                | Find console.log            | `npm run check:debug-prints`             | ❌ No (optional)  |
 | `validate-action-counts.ts`            | ESM-based action validation | `npm run validate:actions`               | ✅ Yes            |
 | `validate-schema-handler-alignment.ts` | Schema/handler sync         | `npm run validate:alignment`             | ✅ Yes            |
-| `check-hardcoded-counts.sh`            | Scan docs for count drift   | `bash scripts/check-hardcoded-counts.sh` | Via gates:g1      |
+| `check-doc-action-counts.mjs`          | Validate active doc counts  | `npm run check:doc-action-counts`        | ✅ Yes            |
+| `check-hardcoded-counts.sh`            | Legacy broad count scan     | `bash scripts/check-hardcoded-counts.sh` | Via gates:g1      |
 
 ### Diagnostic Scripts
 
@@ -116,7 +118,7 @@ npm run gates:g2
 
 **What it checks:**
 
-- All 22 handlers work correctly
+- All 25 tools work correctly
 - Integration between layers
 - MCP protocol compliance
 
@@ -226,7 +228,7 @@ Cmd+G Cmd+A  → All gates (G0-G4)
 
 **Output (Generated - DO NOT edit manually):**
 
-- `package.json` - Updates description with `"25 tools, 391 actions"`
+- `package.json` - Updates description with `"25 tools, 407 actions"`
 - `src/schemas/index.ts` - Updates `TOOL_COUNT` and `ACTION_COUNT` constants
 - `src/schemas/annotations.ts` - Updates `ACTION_COUNTS` object
 - `src/mcp/completions.ts` - Updates `TOOL_ACTIONS` object
@@ -248,7 +250,7 @@ npm run gen:metadata
 # 📊 Analyzing 16 schema files...
 #   📝 advanced.ts → 19 actions [add_named_range, update_named_range, ...]
 #   ...
-# ✅ Total: 25 tools, 391 actions
+# ✅ Total: 25 tools, 407 actions
 # ✅ Updated src/schemas/index.ts constants
 # ✅ Updated src/schemas/annotations.ts ACTION_COUNTS
 # ✅ Updated src/mcp/completions.ts TOOL_ACTIONS
@@ -339,9 +341,9 @@ const mismatches = compareActions(actions, handlerActions, deviations);
 ```bash
 # Matches:
 "25 tools"           # Hardcoded count
-"391 actions"        # Hardcoded count
+"407 actions"        # Hardcoded count
 "Currently 25 tools" # Potentially stale
-"All 22 handlers"    # Hardcoded count
+"All 25 tools"       # Hardcoded count
 
 # Ignores:
 "See src/schemas/index.ts:63" # Reference to source
@@ -362,11 +364,11 @@ bash scripts/check-hardcoded-counts.sh
 # ❌ Found hardcoded counts in 3 files:
 #
 # README.md:42
-#   "ServalSheets provides 25 tools with 391 actions"
+#   "ServalSheets provides 25 tools with 407 actions"
 #   → Should reference: src/schemas/index.ts:63
 #
 # docs/guides/QUICKSTART.md:18
-#   "All 22 handlers implement BaseHandler"
+#   "All 25 tools registered in server"
 #   → Should reference: src/handlers/index.ts
 #
 # Fix: Replace hardcoded numbers with source references
@@ -497,7 +499,7 @@ npm run check:drift
 
 # Failure output:
 # ❌ Metadata drift detected in 2 files:
-#   - package.json (expected 391 actions, found 53)
+#   - package.json (expected 407 actions, found 53)
 #   - src/schemas/index.ts (expected ACTION_COUNT = 207, found 53)
 # Run 'npm run gen:metadata' to fix
 ```
@@ -1016,13 +1018,16 @@ npm run docs:site:preview      # Preview built site
 
 ### `setup-oauth.sh`
 
-**Purpose:** Run OAuth auth flow and generate Claude Desktop config for local testing
+**Purpose:** Run the local stdio OAuth helper flow and generate Claude Desktop config for local testing
 
 **What it does:**
 
 1. Runs `dist/cli/auth-setup.js` (browser OAuth)
-2. Writes `claude_desktop_config.json` pointing to `dist/cli.js`
+2. Writes local `claude_desktop_config.json` pointing to `dist/cli.js`
 3. Verifies tokens and config files
+
+This script is for the local Claude Desktop stdio flow only. It is not the
+hosted remote connector setup path.
 
 **Usage:**
 

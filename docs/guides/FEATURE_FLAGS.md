@@ -1,8 +1,19 @@
+---
+title: Feature Flags & Environment Variables Reference
+category: guide
+last_updated: 2026-03-24
+description: Comprehensive reference for all environment variables and feature flags that control ServalSheets behavior. All variables are defined in src/config/en
+version: 2.0.0
+tags: [sheets, prometheus, docker]
+audience: user
+difficulty: intermediate
+---
+
 # Feature Flags & Environment Variables Reference
 
 Comprehensive reference for all environment variables and feature flags that control ServalSheets behavior. All variables are defined in `src/config/env.ts` and validated using Zod schema on startup.
 
-**Last Updated:** February 2025
+**Last Updated:** March 2026
 **Configuration File:** `src/config/env.ts`
 
 ---
@@ -12,7 +23,7 @@ Comprehensive reference for all environment variables and feature flags that con
 | Flag        | Type   | Default       | Description                                                                                                                                                    |
 | ----------- | ------ | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `NODE_ENV`  | enum   | `development` | Runtime environment mode: `development`, `production`, or `test`. Must be set to `production` in production deployments.                                       |
-| `PORT`      | number | `3000`        | Server port for HTTP/SSE server. Valid range: 1-65535.                                                                                                         |
+| `PORT`      | number | `3000`        | Server port for the hosted HTTP server. Valid range: 1-65535.                                                                                                  |
 | `HTTP_PORT` | number | `3000`        | Alternative HTTP port configuration used by lifecycle.ts.                                                                                                      |
 | `HOST`      | string | `127.0.0.1`   | Server host binding. Use `127.0.0.1` for localhost only (secure, recommended for development) or `0.0.0.0` for all interfaces (production with firewall only). |
 | `LOG_LEVEL` | enum   | `info`        | Logging verbosity: `error`, `warn`, `info`, or `debug`.                                                                                                        |
@@ -42,9 +53,11 @@ Comprehensive reference for all environment variables and feature flags that con
 | ---------------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GOOGLE_CLIENT_ID`     | string | optional | Google OAuth Client ID for Sheets access. Get from https://console.cloud.google.com. Format: `[project-id].apps.googleusercontent.com`.                                |
 | `GOOGLE_CLIENT_SECRET` | string | optional | Google OAuth Client Secret. Keep this secret!                                                                                                                          |
-| `GOOGLE_REDIRECT_URI`  | string | optional | Google OAuth redirect URI. Must match configured URI in Google Cloud Console.                                                                                          |
+| `GOOGLE_REDIRECT_URI`  | string | optional | Google OAuth redirect URI used by the local CLI/stdio Sheets auth flow. Must match the Google OAuth client configuration. Hosted remote connector auth uses `ALLOWED_REDIRECT_URIS` instead. |
 | `CREDENTIALS_PATH`     | string | optional | Path to stored OAuth credentials/tokens. Used for CLI token storage.                                                                                                   |
 | `ENCRYPTION_KEY`       | string | required | Encryption key for token storage. Must be 64 hex characters (32 bytes). Generate with: `openssl rand -hex 32`. **REQUIRED in production for encrypted token storage.** |
+| `MCP_REMOTE_EXECUTOR_URL` | string | optional | Optional hosted MCP endpoint for hybrid failover of allowlisted tools. Does nothing unless `MCP_REMOTE_EXECUTOR_TOOLS` is also set. |
+| `MCP_REMOTE_EXECUTOR_TOOLS` | string | `''` | Comma-separated allowlist of tools that may use the hosted remote executor path. |
 
 ---
 
@@ -87,8 +100,8 @@ Comprehensive reference for all environment variables and feature flags that con
 | `CACHE_REDIS_TTL_SECONDS`     | number  | `600`    | Redis cache TTL in seconds. Default: 10 minutes. Independent from local cache TTL.                                                                        |
 | `DEDUP_ENABLED`               | boolean | `true`   | Enable request deduplication. Prevents duplicate identical requests within the timeout window.                                                            |
 | `DEDUP_WINDOW_MS`             | number  | `5000`   | Deduplication timeout in milliseconds. Default: 5 seconds. How long to wait before considering a request timed out.                                       |
-| `ENABLE_REQUEST_MERGING`      | boolean | `false`  | Enable RequestMerger optimization. Merges overlapping range reads within 50ms window. Provides 20-40% API savings. Experimental.                          |
-| `ENABLE_PARALLEL_EXECUTOR`    | boolean | `false`  | Enable ParallelExecutor for large batch operations. Executes operations in parallel for 40% speed improvement. Experimental.                              |
+| `ENABLE_REQUEST_MERGING`      | boolean | `true`   | Enable RequestMerger optimization. Merges overlapping range reads within 50ms window. Production-ready default.                                            |
+| `ENABLE_PARALLEL_EXECUTOR`    | boolean | `true`   | Enable ParallelExecutor for large batch operations. Executes operations in parallel for large batches when thresholds are met.                             |
 | `PARALLEL_EXECUTOR_THRESHOLD` | number  | `100`    | Minimum number of operations to trigger parallel execution. Default: 100. Smaller batches execute sequentially.                                           |
 
 ---
@@ -102,7 +115,7 @@ Comprehensive reference for all environment variables and feature flags that con
 | `ENABLE_PAYLOAD_VALIDATION`     | boolean | `true`  | Enable payload size validation and warnings. Recommended for production. Helps identify oversized requests.                                                                                                                                |
 | `ENABLE_AGGRESSIVE_FIELD_MASKS` | boolean | `true`  | Enable aggressive field masking for Google API calls (Priority 8). Provides 40-60% payload reduction for spreadsheet metadata. Handlers use `getFieldMask()` helper to apply optimized masks.                                              |
 | `ENABLE_CONDITIONAL_REQUESTS`   | boolean | `true`  | Enable ETag-based conditional requests (Priority 9). Uses If-None-Match headers to get 304 Not Modified responses when data hasn't changed. Provides 10-20% quota savings. Google API ETags are cached and reused for subsequent requests. |
-| `ENABLE_LEGACY_SSE`             | boolean | `true`  | Enable legacy SSE endpoints (`/sse`, `/sse/message`) for backward compatibility. Keep enabled unless migrating away from legacy endpoints.                                                                                                 |
+| `ENABLE_LEGACY_SSE`             | boolean | `false` | Enable legacy SSE endpoints (`/sse`, `/sse/message`) for backward compatibility. Keep disabled unless you explicitly need legacy clients.                                                                                                    |
 
 ---
 

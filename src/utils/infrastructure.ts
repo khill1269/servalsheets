@@ -354,12 +354,12 @@ export class PrefetchPredictor {
   getPrefetch(key: string): unknown | undefined {
     const entry = this.prefetchCache.get(key);
     // OK: Explicit empty - typed as optional, prefetch cache miss
-    if (!entry) return undefined;
+    if (!entry) return undefined; // OK: Explicit empty
 
     if (Date.now() - entry.timestamp > this.prefetchTtl) {
       this.prefetchCache.delete(key);
       // OK: Explicit empty - typed as optional, prefetch cache expired
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     return entry.data;

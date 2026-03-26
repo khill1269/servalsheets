@@ -90,7 +90,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
     it('should create a task with default TTL', async () => {
       const task = await store.createTask();
 
-      expect(task.taskId).toMatch(/^task_\d+_[a-z0-9]+$/);
+      expect(task.taskId).toMatch(/^task_[0-9a-f-]+$/);
       expect(task.status).toBe('working');
       expect(task.ttl).toBe(3600000); // 1 hour
       expect(task.pollInterval).toBe(5000);
@@ -177,7 +177,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
 
     it('should throw for non-existent task', async () => {
       await expect(store.updateTaskStatus('task_nonexistent', 'completed')).rejects.toThrow(
-        'Task not found'
+        'task not found'
       );
     });
 
@@ -253,7 +253,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
     it('should throw for non-existent task when storing result', async () => {
       await expect(
         store.storeTaskResult('task_nonexistent', 'completed', { content: [], isError: false })
-      ).rejects.toThrow('Task not found');
+      ).rejects.toThrow('task not found');
     });
 
     it('should persist result across store instances', async () => {

@@ -1,3 +1,12 @@
+---
+title: ServalSheets Architecture Reference
+category: development
+last_updated: 2026-03-24
+description: 'Detailed architecture documentation moved from CLAUDE.md.'
+version: 2.0.0
+tags: [sheets, prometheus]
+---
+
 # ServalSheets Architecture Reference
 
 > Detailed architecture documentation moved from CLAUDE.md.
@@ -8,9 +17,16 @@
 
 | File                           | Lines | Transport           | Usage                         |
 | ------------------------------ | ----- | ------------------- | ----------------------------- |
-| `src/cli.ts` → `src/server.ts` | 1400  | STDIO               | Claude Desktop, CLI (default) |
-| `src/http-server.ts`           | 2809  | HTTP/SSE/Streamable | Cloud deployment, connectors  |
+| `src/cli.ts` → `src/server.ts` | 560   | STDIO               | Claude Desktop, CLI (default) |
+| `src/http-server.ts`           | 154   | Streamable HTTP     | Cloud deployment, connectors  |
 | `src/remote-server.ts`         | 11    | HTTP + OAuth 2.1    | Multi-tenant remote access    |
+
+The heavy transport logic now lives behind package boundaries:
+
+- `packages/mcp-stdio/`
+- `packages/mcp-http/`
+- `packages/mcp-runtime/`
+- `packages/mcp-client/`
 
 ## Request Flow Checkpoints (Execution Tracing)
 
@@ -42,7 +58,7 @@ src/handlers/{tool-name}.ts:executeAction()
    { response: { success: true, data: {...} } }
 ```
 
-All 22 handlers follow this exact structure.
+All 25 tools follow this exact structure.
 
 ### Layer 3: Response Building
 
@@ -125,7 +141,7 @@ src/
 ├── handlers/                 # Business logic (1 per tool)
 │   ├── base.ts               # BaseHandler (circuit breaker, instrumented API)
 │   ├── helpers/              # Shared helpers
-│   ├── auth.ts ... deps.ts   # 22 handler files
+│   ├── auth.ts ... deps.ts   # 25 handler files
 │   └── index.ts              # Handler factory + registry
 ├── mcp/                      # MCP protocol layer
 │   ├── registration/         # Tool definitions, handlers, schema helpers
@@ -230,7 +246,7 @@ return { response: this.mapError(error) };
 | Request deduplication                | `src/utils/request-deduplication.ts`                       | ON                  |
 | Read merging (overlapping ranges)    | `src/services/request-merger.ts`                           | ON                  |
 | Output schema validation             | `src/mcp/registration/tool-handlers.ts`                    | ON (advisory)       |
-| Response redaction (tokens/keys)     | `src/middleware/redaction.ts`                               | ON in production    |
+| Response redaction (tokens/keys)     | `src/middleware/redaction.ts`                              | ON in production    |
 | Per-user rate limiting               | `src/http-server.ts` + `src/services/user-rate-limiter.ts` | ON (requires Redis) |
 | HTTP/2 connection pooling            | `src/services/google-api.ts`                               | ON                  |
 | Proactive token refresh              | `src/services/token-manager.ts`                            | ON                  |
@@ -262,13 +278,17 @@ npm run check:drift      # Verify no drift
 npm run schema:commit    # All-in-one: regenerate + verify + test + stage
 ```
 
-## Server Consolidation (2026-01-14)
+## Transport Consolidation
 
-The HTTP and OAuth servers were consolidated into a single implementation:
+The root entrypoints are now thin wrappers over the package split:
 
 - `src/server.ts` — STDIO transport
-- `src/http-server.ts` — HTTP/SSE with optional OAuth support
+- `src/http-server.ts` — Streamable HTTP with optional OAuth support
 - `src/remote-server.ts` — Thin wrapper (calls http-server with OAuth enabled)
+- `packages/mcp-stdio/` — stdio lifecycle and tool-call routing
+- `packages/mcp-http/` — hosted HTTP/runtime/route surface
+- `packages/mcp-runtime/` — shared route manifest and runtime helpers
+- `packages/mcp-client/` — hosted remote executor clients
 
 ```typescript
 createHttpServer({ port: 3000 });                          // Standard HTTP
@@ -290,11 +310,11 @@ git restore --source=<commit-hash> -- <file>          # From specific commit
 
 ## Deleted Files (Do Not Reference)
 
-| File                                | Deleted    | Reason                     |
-| ----------------------------------- | ---------- | -------------------------- |
+| File                               | Deleted    | Reason                     |
+| ---------------------------------- | ---------- | -------------------------- |
 | `src/mcp/sdk-compat.ts`            | 2026-01-11 | Schema flattening complete |
 | `src/server-v2.ts`                 | 2026-01-14 | V2 architecture abandoned  |
 | `src/server-compat.ts`             | 2026-01-14 | V2 architecture abandoned  |
 | `src/migration-v1-to-v2.ts`        | 2026-01-14 | V2 architecture abandoned  |
 | `src/schemas-v2/`, `handlers-v2/`  | 2026-01-14 | V2 architecture abandoned  |
-| `src/services/snapshot-service.ts`  | 2026-01-14 | Unused V2 service          |
+| `src/services/snapshot-service.ts` | 2026-01-14 | Unused V2 service          |

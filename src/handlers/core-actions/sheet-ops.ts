@@ -44,6 +44,83 @@ interface SheetOpsDeps {
   error: (error: ErrorDetail) => CoreResponse;
 }
 
+function toRgbTabColor(
+  tabColor?: SheetInfo['tabColor'],
+  tabColorStyle?: sheets_v4.Schema$ColorStyle | null
+): sheets_v4.Schema$Color | undefined {
+  if (tabColorStyle?.rgbColor) {
+    return tabColorStyle.rgbColor;
+  }
+
+  if (tabColor) {
+    return {
+      red: tabColor.red,
+      green: tabColor.green,
+      blue: tabColor.blue,
+      alpha: tabColor.alpha,
+    };
+  }
+
+  return tabColorStyle?.rgbColor ?? undefined;
+}
+
+function toTabColorStyle(
+  tabColor?: SheetInfo['tabColor'],
+  tabColorStyle?: sheets_v4.Schema$ColorStyle | null
+): sheets_v4.Schema$ColorStyle | undefined {
+  if (tabColorStyle) {
+    return tabColorStyle;
+  }
+
+  const rgbColor = toRgbTabColor(tabColor);
+  return rgbColor ? { rgbColor } : undefined;
+}
+
+function toSchemaTabColorStyle(
+  tabColor?: sheets_v4.Schema$Color | null,
+  tabColorStyle?: sheets_v4.Schema$ColorStyle | null
+): SheetInfo['tabColorStyle'] {
+  if (tabColorStyle?.themeColor) {
+    return {
+      themeColor: tabColorStyle.themeColor as NonNullable<SheetInfo['tabColorStyle']> extends {
+        themeColor: infer T;
+      }
+        ? T
+        : never,
+    };
+  }
+
+  const rgbColor = tabColorStyle?.rgbColor ?? tabColor;
+  if (!rgbColor) {
+    return undefined; // OK: no tab color
+  }
+
+  return {
+    rgbColor: {
+      red: rgbColor.red ?? 0,
+      green: rgbColor.green ?? 0,
+      blue: rgbColor.blue ?? 0,
+      alpha: rgbColor.alpha ?? 1,
+    },
+  };
+}
+
+function toSheetInfo(
+  properties: sheets_v4.Schema$SheetProperties | undefined,
+  deps: SheetOpsDeps
+): SheetInfo {
+  return {
+    sheetId: properties?.sheetId ?? 0,
+    title: properties?.title ?? '',
+    index: properties?.index ?? 0,
+    rowCount: properties?.gridProperties?.rowCount ?? 0,
+    columnCount: properties?.gridProperties?.columnCount ?? 0,
+    hidden: properties?.hidden ?? false,
+    tabColor: deps.convertTabColor(properties?.tabColor, properties?.tabColorStyle),
+    tabColorStyle: toSchemaTabColorStyle(properties?.tabColor, properties?.tabColorStyle),
+  };
+}
+
 async function sheetExists(
   deps: SheetOpsDeps,
   spreadsheetId: string,
@@ -73,6 +150,26 @@ export async function handleAddSheetAction(
   input: CoreAddSheetInput,
   deps: SheetOpsDeps
 ): Promise<CoreResponse> {
+  // Idempotency guard: check if a sheet with the same title already exists
+  try {
+    const existing = await deps.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      fields: 'sheets.properties',
+    });
+    const duplicate = (existing.data.sheets ?? []).find(
+      (s) => s.properties?.title === input.title
+    );
+    if (duplicate && duplicate.properties) {
+      return deps.success('add_sheet', {
+        sheet: toSheetInfo(duplicate.properties, deps),
+        _idempotent: true,
+        _hint: `Sheet "${input.title}" already exists. Returning existing sheet instead of creating a duplicate.`,
+      });
+    }
+  } catch {
+    // Non-blocking: proceed with creation if lookup fails
+  }
+
   const sheetProperties: sheets_v4.Schema$SheetProperties = {
     title: input.title,
     hidden: input.hidden ?? false,
@@ -85,15 +182,13 @@ export async function handleAddSheetAction(
   if (input.index !== undefined) {
     sheetProperties.index = input.index;
   }
-  if (input.tabColor) {
-    const colorValue = {
-      red: input.tabColor.red,
-      green: input.tabColor.green,
-      blue: input.tabColor.blue,
-      alpha: input.tabColor.alpha,
-    };
-    sheetProperties.tabColor = colorValue;
-    sheetProperties.tabColorStyle = { rgbColor: colorValue };
+  const tabColor = toRgbTabColor(input.tabColor, input.tabColorStyle);
+  const tabColorStyle = toTabColorStyle(input.tabColor, input.tabColorStyle);
+  if (tabColor) {
+    sheetProperties.tabColor = tabColor;
+  }
+  if (tabColorStyle) {
+    sheetProperties.tabColorStyle = tabColorStyle;
   }
 
   const response = await deps.sheetsApi.spreadsheets.batchUpdate({
@@ -109,13 +204,10 @@ export async function handleAddSheetAction(
 
   const newSheet = response.data?.replies?.[0]?.addSheet?.properties;
   const sheet: SheetInfo = {
-    sheetId: newSheet?.sheetId ?? 0,
+    ...toSheetInfo(newSheet, deps),
     title: newSheet?.title ?? input.title,
-    index: newSheet?.index ?? 0,
     rowCount: newSheet?.gridProperties?.rowCount ?? input.rowCount ?? 1000,
     columnCount: newSheet?.gridProperties?.columnCount ?? input.columnCount ?? 26,
-    hidden: newSheet?.hidden ?? false,
-    tabColor: deps.convertTabColor(newSheet?.tabColor, newSheet?.tabColorStyle),
   };
 
   deps.context.sheetResolver?.invalidate(input.spreadsheetId);
@@ -240,14 +332,7 @@ export async function handleDuplicateSheetAction(
   });
 
   const newSheet = response.data?.replies?.[0]?.duplicateSheet?.properties;
-  const sheet: SheetInfo = {
-    sheetId: newSheet?.sheetId ?? 0,
-    title: newSheet?.title ?? '',
-    index: newSheet?.index ?? 0,
-    rowCount: newSheet?.gridProperties?.rowCount ?? 0,
-    columnCount: newSheet?.gridProperties?.columnCount ?? 0,
-    hidden: newSheet?.hidden ?? false,
-  };
+  const sheet: SheetInfo = toSheetInfo(newSheet, deps);
 
   deps.context.sheetResolver?.invalidate(input.spreadsheetId);
 
@@ -287,6 +372,9 @@ export async function handleUpdateSheetAction(
   const index = input.index ?? (nestedProps?.['index'] as number | undefined);
   const hidden = input.hidden ?? (nestedProps?.['hidden'] as boolean | undefined);
   const tabColor = input.tabColor ?? (nestedProps?.['tabColor'] as typeof input.tabColor);
+  const tabColorStyle =
+    input.tabColorStyle ??
+    (nestedProps?.['tabColorStyle'] as sheets_v4.Schema$ColorStyle | undefined);
   const rightToLeft = input.rightToLeft ?? (nestedProps?.['rightToLeft'] as boolean | undefined);
 
   let resolvedSheetId = input.sheetId;
@@ -343,15 +431,13 @@ export async function handleUpdateSheetAction(
     properties.hidden = hidden;
     fields.push('hidden');
   }
-  if (tabColor !== undefined) {
-    const colorValue = {
-      red: tabColor.red,
-      green: tabColor.green,
-      blue: tabColor.blue,
-      alpha: tabColor.alpha,
-    };
-    properties.tabColor = colorValue;
-    properties.tabColorStyle = { rgbColor: colorValue };
+  const nextTabColor = toRgbTabColor(tabColor, tabColorStyle);
+  const nextTabColorStyle = toTabColorStyle(tabColor, tabColorStyle);
+  if (nextTabColor) {
+    properties.tabColor = nextTabColor;
+  }
+  if (nextTabColorStyle) {
+    properties.tabColorStyle = nextTabColorStyle;
     fields.push('tabColorStyle');
   }
   if (rightToLeft !== undefined) {
@@ -363,7 +449,7 @@ export async function handleUpdateSheetAction(
     return deps.error({
       code: ErrorCodes.INVALID_PARAMS,
       message:
-        'No properties to update. Provide at least one of: title, index, hidden, tabColor, rightToLeft',
+        'No properties to update. Provide at least one of: title, index, hidden, tabColor, tabColorStyle, rightToLeft',
       details: {
         receivedParams: Object.keys(inputAny).filter(
           (k) => k !== 'action' && k !== 'spreadsheetId'
@@ -405,18 +491,7 @@ export async function handleUpdateSheetAction(
     );
   }
 
-  const sheet: SheetInfo = {
-    sheetId: sheetData.properties.sheetId ?? 0,
-    title: sheetData.properties.title ?? '',
-    index: sheetData.properties.index ?? 0,
-    rowCount: sheetData.properties.gridProperties?.rowCount ?? 0,
-    columnCount: sheetData.properties.gridProperties?.columnCount ?? 0,
-    hidden: sheetData.properties.hidden ?? false,
-    tabColor: deps.convertTabColor(
-      sheetData.properties.tabColor,
-      sheetData.properties.tabColorStyle
-    ),
-  };
+  const sheet: SheetInfo = toSheetInfo(sheetData.properties, deps);
 
   deps.context.sheetResolver?.invalidate(input.spreadsheetId);
 
@@ -455,9 +530,8 @@ export async function handleCopySheetToAction(
   });
 
   const sheet: SheetInfo = {
-    sheetId: response.data.sheetId ?? 0,
+    ...toSheetInfo(response.data as sheets_v4.Schema$SheetProperties, deps),
     title: response.data.title ?? '',
-    index: response.data.index ?? 0,
     rowCount: response.data.gridProperties?.rowCount ?? 0,
     columnCount: response.data.gridProperties?.columnCount ?? 0,
     hidden: response.data.hidden ?? false,
@@ -504,15 +578,9 @@ export async function handleListSheetsAction(
     })
   );
 
-  const sheets: SheetInfo[] = (response.data.sheets ?? []).map((s) => ({
-    sheetId: s.properties?.sheetId ?? 0,
-    title: s.properties?.title ?? '',
-    index: s.properties?.index ?? 0,
-    rowCount: s.properties?.gridProperties?.rowCount ?? 0,
-    columnCount: s.properties?.gridProperties?.columnCount ?? 0,
-    hidden: s.properties?.hidden ?? false,
-    tabColor: deps.convertTabColor(s.properties?.tabColor, s.properties?.tabColorStyle),
-  }));
+  const sheets: SheetInfo[] = (response.data.sheets ?? []).map((s) =>
+    toSheetInfo(s.properties, deps)
+  );
 
   for (const sheet of sheets) {
     if (sheet.title) recordSheetName(sheet.title);
@@ -570,18 +638,7 @@ export async function handleGetSheetAction(
     );
   }
 
-  const sheet: SheetInfo = {
-    sheetId: sheetData.properties.sheetId ?? 0,
-    title: sheetData.properties.title ?? '',
-    index: sheetData.properties.index ?? 0,
-    rowCount: sheetData.properties.gridProperties?.rowCount ?? 0,
-    columnCount: sheetData.properties.gridProperties?.columnCount ?? 0,
-    hidden: sheetData.properties.hidden ?? false,
-    tabColor: deps.convertTabColor(
-      sheetData.properties.tabColor,
-      sheetData.properties.tabColorStyle
-    ),
-  };
+  const sheet: SheetInfo = toSheetInfo(sheetData.properties, deps);
 
   return deps.success('get_sheet', { sheet });
 }

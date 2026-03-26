@@ -1,15 +1,17 @@
 ---
 title: Deployment Overview
 category: general
-last_updated: 2026-01-31
+last_updated: 2026-03-24
 description: ServalSheets supports multiple deployment options from development to enterprise production.
-version: 1.6.0
+version: 2.0.0
 tags: [deployment, sheets, prometheus, docker, kubernetes]
 ---
 
 # Deployment Overview
 
 ServalSheets supports multiple deployment options from development to enterprise production.
+
+Claude Desktop uses the local STDIO transport. The deployment options below are for hosted HTTP deployments and hybrid remote-executor scenarios.
 
 ## Deployment Options
 
@@ -52,6 +54,10 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
+This local config is only for stdio servers running on your machine. Hosted
+ServalSheets remote connectors should be added through Claude's connector UI,
+not through `claude_desktop_config.json`.
+
 ## Architecture
 
 ```
@@ -91,12 +97,14 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | `OAUTH_SCOPE_MODE`               |          | Explicit scope override: `full`, `standard`, `minimal`, `readonly` |
 | `LOG_LEVEL`                      |          | `debug`, `info`, `warn`, `error`                                   |
 | `REDIS_URL`                      |          | Redis URL for HA sessions + Streamable HTTP resumability           |
+| `MCP_REMOTE_EXECUTOR_URL`        |          | Optional hosted failover target for allowlisted tools              |
+| `MCP_REMOTE_EXECUTOR_TOOLS`      |          | Comma-separated allowlist for hosted failover                      |
 
 ### OAuth Scope Modes
 
 ServalSheets uses deployment-aware OAuth scopes:
 
-**Self-Hosted (Default)** - All 391 actions work:
+**Self-Hosted (Default)** - Full scope mode exposes all 407 actions:
 
 ```bash
 # No configuration needed - defaults to full scopes
@@ -106,7 +114,7 @@ docker run -d -p 3000:3000 servalsheets:latest
 **SaaS/Marketplace** - Fast Google verification (3-5 days vs 4-6 weeks):
 
 ```bash
-# Standard scopes: 260/391 actions, faster verification
+# Standard scopes: reduced action surface, faster verification
 docker run -d \
   -p 3000:3000 \
   -e DEPLOYMENT_MODE=saas \
@@ -120,13 +128,25 @@ docker run -d \
 - Apps Script automation (sheets_appsscript)
 - Webhook notifications (sheets_webhook)
 
+### Optional Hosted Failover
+
+Hosted failover stays off unless both of these are set:
+
+```bash
+export MCP_REMOTE_EXECUTOR_URL=https://example.com/mcp
+export MCP_REMOTE_EXECUTOR_TOOLS=sheets_compute,sheets_analyze
+```
+
+Setting only the URL does not enable the remote executor path.
+
 ## Health Checks
 
-| Endpoint       | Purpose    | Expected        |
-| -------------- | ---------- | --------------- |
-| `GET /health`  | Liveness   | `200 OK`        |
-| `GET /ready`   | Readiness  | `200 OK`        |
-| `GET /metrics` | Prometheus | Metrics payload |
+| Endpoint            | Purpose             | Expected        |
+| ------------------- | ------------------- | --------------- |
+| `GET /health/live`  | Liveness probe      | `200 OK`        |
+| `GET /health/ready` | Readiness probe     | `200 OK`        |
+| `GET /health`       | Compatibility alias | `200 OK`        |
+| `GET /metrics`      | Prometheus          | Metrics payload |
 
 ## Security Checklist
 

@@ -1,223 +1,123 @@
 ---
-title: ServalSheets Test Account Setup Guide
+title: Test Account Setup Guide
 category: guide
-last_updated: 2026-01-31
-description: This guide explains how to prepare a test account for Anthropic Directory submission verification.
-version: 1.6.0
-tags: [testing, setup, configuration, sheets]
-audience: user
+last_updated: 2026-03-24
+description: Prepare a reviewer-safe Google Sheets test account for Anthropic remote MCP submission.
+version: 2.0.0
+tags: [testing, setup, oauth, submission]
+audience: developer
 difficulty: intermediate
+doc_class: active
 ---
 
-# ServalSheets Test Account Setup Guide
+# Test Account Setup Guide
 
-This guide explains how to prepare a test account for Anthropic Directory submission verification.
+This guide prepares a reviewer-safe account and dataset for Anthropic remote MCP
+submission.
 
-## Prerequisites
+The goal is not just "a login that works." The goal is a stable reviewer
+environment that remains available during and after review.
 
-- Google Cloud Console access
-- Google account for testing
-- Basic familiarity with Google Sheets API
+## Requirements
 
-## Step 1: Create a Test Google Cloud Project
+- separate test Google Cloud project
+- separate reviewer Google account or reviewer-ready shared account
+- representative sample spreadsheets
+- written instructions for at least 3 successful example workflows
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create a new project named `servalsheets-test`
-3. Enable the following APIs:
-   - Google Sheets API
-   - Google Drive API
+## 1. Create A Dedicated Test Project
 
-## Step 2: Configure OAuth Consent Screen
+1. Create a separate Google Cloud project for reviewer access.
+2. Enable the Google Sheets API and Google Drive API.
+3. Keep this project isolated from production credentials and production data.
 
-1. Navigate to **APIs & Services > OAuth consent screen**
-2. Select **External** user type
-3. Fill in required fields:
-   - App name: `ServalSheets Test`
-   - User support email: Your email
-   - Developer contact: Your email
-4. Add scopes:
-   - `https://www.googleapis.com/auth/spreadsheets`
-   - `https://www.googleapis.com/auth/drive.file`
-5. Add test users (your Google account email)
+## 2. Configure OAuth Consent And Credentials
 
-## Step 3: Create OAuth Credentials
+1. Configure the OAuth consent screen for the reviewer flow.
+2. Use only the scopes the submitted server actually needs.
+3. Add the current Claude callback URLs and any localhost testing callbacks you support.
+4. Record the reviewer-safe client ID, secret, and redirect URIs in your secure submission notes.
 
-1. Navigate to **APIs & Services > Credentials**
-2. Click **Create Credentials > OAuth client ID**
-3. Select **Web application**
-4. Configure authorized redirect URIs:
+Do not document obsolete Claude Desktop config hacks here. Reviewer setup should
+match the current remote connector flow documented in
+[`OAUTH_USER_SETUP.md`](./OAUTH_USER_SETUP.md).
 
-   ```
-   http://localhost:3000/callback
-   http://localhost:6274/oauth/callback
-   http://localhost:6274/oauth/callback/debug
-   ```
+## 3. Create Representative Sample Data
 
-5. Download the JSON credentials file
+Create a small, realistic dataset that exercises the submitted feature surface.
 
-## Step 4: Create Test Spreadsheets
+Recommended sheets:
 
-Create the following test spreadsheets in Google Sheets:
+- `ServalSheets-Test-Basic`
+  Purpose: read, write, filter, sort, formatting
+- `ServalSheets-Test-Financial`
+  Purpose: formulas, summaries, charts, analysis
+- `ServalSheets-Test-MultiSheet`
+  Purpose: cross-sheet references and structured workflows
+- `ServalSheets-Test-Approval`
+  Purpose: collaboration, comments, approvals, reviewer-safe mutation testing
 
-### 1. Basic Test Data (`ServalSheets-Test-Basic`)
+Keep the content synthetic and safe to share. Do not use production or customer
+data.
 
-| Name  | Age | City        | Score |
-| ----- | --- | ----------- | ----- |
-| Alice | 30  | New York    | 85    |
-| Bob   | 25  | Los Angeles | 92    |
-| Carol | 35  | Chicago     | 78    |
-| David | 28  | Houston     | 88    |
-| Eve   | 32  | Phoenix     | 95    |
+## 4. Record Stable Test IDs
 
-### 2. Financial Data (`ServalSheets-Test-Financial`)
+Record spreadsheet IDs in a secure internal note or environment file used only
+for testing and reviewer support.
 
-| Date       | Category | Amount | Description   |
-| ---------- | -------- | ------ | ------------- |
-| 2026-01-01 | Revenue  | 10000  | Product Sales |
-| 2026-01-02 | Expense  | -2500  | Marketing     |
-| 2026-01-03 | Revenue  | 15000  | Service Fees  |
-| 2026-01-04 | Expense  | -1000  | Utilities     |
-| 2026-01-05 | Revenue  | 8000   | Consulting    |
-
-### 3. Formula Test (`ServalSheets-Test-Formulas`)
-
-| A   | B   | C (Formula) |
-| --- | --- | ----------- |
-| 10  | 20  | =A1+B1      |
-| 30  | 40  | =A2\*B2     |
-| 50  | 60  | =SUM(A1:A3) |
-
-### 4. Multi-Sheet Test (`ServalSheets-Test-MultiSheet`)
-
-**Sheet1: Sales**
-
-| Product  | Q1  | Q2  | Q3  | Q4  |
-| -------- | --- | --- | --- | --- |
-| Widget A | 100 | 120 | 150 | 180 |
-| Widget B | 80  | 90  | 110 | 130 |
-
-**Sheet2: Summary**
-
-| Metric   | Value             |
-| -------- | ----------------- |
-| Total Q1 | =SUM(Sales!B2:B3) |
-| Total Q2 | =SUM(Sales!C2:C3) |
-
-## Step 5: Record Spreadsheet IDs
-
-After creating the spreadsheets, record their IDs for testing:
+Example:
 
 ```bash
-# Example spreadsheet IDs (replace with actual IDs)
 export TEST_SPREADSHEET_BASIC="1ABC...xyz"
 export TEST_SPREADSHEET_FINANCIAL="1DEF...xyz"
-export TEST_SPREADSHEET_FORMULAS="1GHI...xyz"
-export TEST_SPREADSHEET_MULTISHEET="1JKL...xyz"
+export TEST_SPREADSHEET_MULTISHEET="1GHI...xyz"
+export TEST_SPREADSHEET_APPROVAL="1JKL...xyz"
 ```
 
-## Step 6: Test All Tool Categories
+## 5. Verify The Submitted Workflows
 
-Use the test spreadsheets to verify each tool category:
+Before submission, make sure the reviewer account can successfully complete at
+least 3 documented examples.
 
-### Authentication (`sheets_auth`)
+Recommended coverage:
 
-```json
-{"action": "status"}
-{"action": "login"}
-{"action": "logout"}
-```
+1. Authentication and readiness
+2. Safe read workflow
+3. One representative mutation workflow
+4. One analysis workflow
+5. One collaboration or approval workflow if that surface is submitted
 
-### Core Operations (`sheets_core`)
+## 6. Sharing Access For Review
 
-```json
-{"action": "get", "spreadsheetId": "1ABC..."}
-{"action": "list_sheets", "spreadsheetId": "1ABC..."}
-{"action": "create", "title": "Test Created Sheet"}
-```
+Preferred reviewer model:
 
-### Data Operations (`sheets_data`)
+- provide a dedicated reviewer account or shared OAuth-ready reviewer path
+- provide clear login instructions
+- provide sample spreadsheet access ahead of time
+- keep the account active after initial review
 
-```json
-{"action": "read", "spreadsheetId": "1ABC...", "range": "Sheet1!A1:D5"}
-{"action": "write", "spreadsheetId": "1ABC...", "range": "Sheet1!E1", "values": [["New Column"]]}
-{"action": "append", "spreadsheetId": "1ABC...", "range": "Sheet1", "values": [["New", "Row", "Data"]]}
-```
+Avoid making "send a raw service-account JSON key" the default guidance. If you
+use a service account for a special review path, document why, scope it tightly,
+and treat it as an exception rather than the standard reviewer experience.
 
-### Formatting (`sheets_format`)
+## 7. Security Rules
 
-```json
-{"action": "set_background", "spreadsheetId": "1ABC...", "range": "A1:A5", "color": "#FF0000"}
-{"action": "set_format", "spreadsheetId": "1ABC...", "range": "B1:B5", "format": {"bold": true}}
-```
+- never commit reviewer credentials to the repo
+- never reuse production credentials
+- keep reviewer access scoped to synthetic test data
+- rotate or revoke access only after the review window is clearly closed
+- expect periodic re-review after admission and keep a support path available
 
-### Analysis (`sheets_analyze`)
+## 8. Reviewer Hand-Off Checklist
 
-```json
-{"action": "comprehensive", "spreadsheetId": "1ABC..."}
-{"action": "analyze_data", "spreadsheetId": "1ABC...", "range": "Sheet1!A1:D10"}
-```
+- [ ] reviewer login path documented
+- [ ] test spreadsheets shared
+- [ ] at least 3 example prompts documented
+- [ ] expected successful results described
+- [ ] support contact listed
+- [ ] account can remain active during and after review
 
-### Visualization (`sheets_visualize`)
+## 9. Related Docs
 
-```json
-{"action": "suggest_chart", "spreadsheetId": "1ABC...", "range": "Sheet1!A1:D5"}
-{"action": "chart_create", "spreadsheetId": "1ABC...", "range": "Sheet1!A1:D5", "chartType": "BAR"}
-```
-
-## Step 7: Document Test Results
-
-Create a test results document with:
-
-1. **Authentication Flow**
-   - [ ] OAuth login successful
-   - [ ] Token refresh works
-   - [ ] Logout clears tokens
-
-2. **Read Operations**
-   - [ ] Single cell read
-   - [ ] Range read
-   - [ ] Batch read multiple ranges
-   - [ ] Cross-sheet read
-
-3. **Write Operations**
-   - [ ] Single cell write
-   - [ ] Range write
-   - [ ] Append rows
-   - [ ] Batch write
-
-4. **Formatting**
-   - [ ] Background colors
-   - [ ] Font formatting
-   - [ ] Borders
-   - [ ] Number formats
-
-5. **Advanced Features**
-   - [ ] Chart creation
-   - [ ] Pivot tables
-   - [ ] Data validation
-   - [ ] Conditional formatting
-
-## Sharing Test Access with Anthropic
-
-When submitting to the Anthropic Directory:
-
-1. **Option A: Service Account** (Recommended)
-   - Create a service account in Google Cloud
-   - Share test spreadsheets with the service account email
-   - Provide the service account JSON key file securely
-
-2. **Option B: OAuth Credentials**
-   - Provide OAuth client ID and secret
-   - Add Anthropic test email to OAuth consent screen test users
-   - Document the authentication flow
-
-## Security Notes
-
-- Never commit credentials to version control
-- Use separate test project from production
-- Revoke test credentials after verification is complete
-- Delete test spreadsheets when no longer needed
-
----
-
-_This guide ensures comprehensive testing coverage for Anthropic Directory submission._
+- [`SUBMISSION_CHECKLIST.md`](./SUBMISSION_CHECKLIST.md)
+- [`OAUTH_USER_SETUP.md`](./OAUTH_USER_SETUP.md)

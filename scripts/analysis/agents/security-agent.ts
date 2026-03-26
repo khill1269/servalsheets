@@ -33,7 +33,7 @@ export class SecurityAgent extends AnalysisAgent {
   async analyze(
     filePath: string,
     sourceFile: ts.SourceFile,
-    context: AnalysisContext
+    _context: AnalysisContext
   ): Promise<DimensionReport[]> {
     const reports: DimensionReport[] = [];
 
@@ -85,7 +85,10 @@ export class SecurityAgent extends AnalysisAgent {
       }
 
       if (ts.isIdentifier(node)) {
-        return ['req', 'request', 'input'].includes(node.text) || requestDerivedIdentifiers.has(node.text);
+        return (
+          ['req', 'request', 'input'].includes(node.text) ||
+          requestDerivedIdentifiers.has(node.text)
+        );
       }
 
       if (ts.isPropertyAccessExpression(node)) {
@@ -154,7 +157,11 @@ export class SecurityAgent extends AnalysisAgent {
     };
 
     const visit = (node: ts.Node) => {
-      if (ts.isImportDeclaration(node) && node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)) {
+      if (
+        ts.isImportDeclaration(node) &&
+        node.importClause?.namedBindings &&
+        ts.isNamedImports(node.importClause.namedBindings)
+      ) {
         for (const element of node.importClause.namedBindings.elements) {
           if (element.name.text === 'BaseHandler') {
             usesBaseHandler = true;
@@ -172,7 +179,10 @@ export class SecurityAgent extends AnalysisAgent {
           hasZodValidation = true;
         }
 
-        if (/^validate[A-Z_]/.test(methodName) && node.arguments.some((arg) => expressionAccessesRequest(arg))) {
+        if (
+          /^validate[A-Z_]/.test(methodName) &&
+          node.arguments.some((arg) => expressionAccessesRequest(arg))
+        ) {
           hasManualValidation = true;
         }
       }
@@ -192,13 +202,19 @@ export class SecurityAgent extends AnalysisAgent {
         }
       }
 
-      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && expressionAccessesRequest(node.initializer)) {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        expressionAccessesRequest(node.initializer)
+      ) {
         requestDerivedIdentifiers.add(node.name.text);
         accessesRequestInput = true;
       }
 
       if (
-        (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node) || ts.isCallExpression(node)) &&
+        (ts.isPropertyAccessExpression(node) ||
+          ts.isElementAccessExpression(node) ||
+          ts.isCallExpression(node)) &&
         expressionAccessesRequest(node)
       ) {
         accessesRequestInput = true;
@@ -206,7 +222,11 @@ export class SecurityAgent extends AnalysisAgent {
 
       if (ts.isIfStatement(node)) {
         const guardedIdentifier = findGuardedIdentifier(node.expression);
-        if (guardedIdentifier && requestDerivedIdentifiers.has(guardedIdentifier) && branchRejectsInvalidInput(node.thenStatement)) {
+        if (
+          guardedIdentifier &&
+          requestDerivedIdentifiers.has(guardedIdentifier) &&
+          branchRejectsInvalidInput(node.thenStatement)
+        ) {
           hasManualValidation = true;
         }
       }
@@ -284,14 +304,21 @@ export class SecurityAgent extends AnalysisAgent {
     };
 
     const visit = (node: ts.Node) => {
-      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && isDynamicSqlExpression(node.initializer)) {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        isDynamicSqlExpression(node.initializer)
+      ) {
         dynamicSqlVariables.add(node.name.text);
       }
 
       if (ts.isCallExpression(node)) {
         const expression = node.expression;
-        const methodName =
-          ts.isPropertyAccessExpression(expression) ? expression.name.text : ts.isIdentifier(expression) ? expression.text : undefined;
+        const methodName = ts.isPropertyAccessExpression(expression)
+          ? expression.name.text
+          : ts.isIdentifier(expression)
+            ? expression.text
+            : undefined;
 
         if (methodName && executionMethods.has(methodName)) {
           const firstArg = node.arguments[0];

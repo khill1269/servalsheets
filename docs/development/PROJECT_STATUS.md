@@ -1,15 +1,15 @@
 ---
 title: Project Status
 category: development
-last_updated: 2026-02-21
+last_updated: 2026-03-17
 description: Current build status and verification results
-version: 1.7.0
+version: 2.0.0
 tags: [development, status]
 ---
 
 # ServalSheets - Project Status
 
-**Last Updated:** 2026-02-21
+**Last Updated:** 2026-03-17
 
 ## Build Status: ✅ PASSING
 
@@ -23,6 +23,7 @@ All verification checks are currently passing.
 | Linting          | ✅ Pass         | `npm run lint`                   |
 | Tests            | ✅ Pass         | `npm run test`                   |
 | Metadata Drift   | ✅ Pass         | `npm run check:drift`            |
+| Release Audit    | ✅ Pass         | `npm run release:audit`          |
 | Silent Fallbacks | ✅ Pass (13 FP) | `npm run check:silent-fallbacks` |
 | Placeholders     | ✅ None         | `npm run check:placeholders`     |
 
@@ -30,9 +31,9 @@ All verification checks are currently passing.
 
 | Metric   | Value          | Source                         |
 | -------- | -------------- | ------------------------------ |
-| Tools    | 25             | `src/schemas/action-counts.ts` |
-| Actions  | 397            | `src/schemas/action-counts.ts` |
-| Version  | 1.7.0          | `package.json`                 |
+| Tools    | 25             | `docs/generated/facts.json`    |
+| Actions  | 407            | `docs/generated/facts.json`    |
+| Version  | 2.0.0          | `package.json`                 |
 | Protocol | MCP 2025-11-25 | `src/version.ts`               |
 
 ### Audit Infrastructure
@@ -60,6 +61,7 @@ npm run typecheck           # TypeScript strict mode
 npm run lint                # ESLint
 npm run test                # All tests
 npm run check:drift         # Metadata sync
+npm run release:audit       # Release readiness validation
 npm run check:placeholders  # No TODO/FIXME in src/
 npm run check:silent-fallbacks  # No silent {} returns
 ```
@@ -67,7 +69,7 @@ npm run check:silent-fallbacks  # No silent {} returns
 ### Audit Commands
 
 ```bash
-npm run audit:coverage      # 340-action coverage test
+npm run audit:coverage      # 407-action coverage test
 npm run audit:perf          # Performance benchmarks
 npm run audit:memory        # Memory leak detection
 npm run audit:gate          # CI gate (7 checks)

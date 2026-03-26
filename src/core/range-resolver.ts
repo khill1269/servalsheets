@@ -540,22 +540,33 @@ export class RangeResolver {
    * Convert grid range to A1 notation with escaped sheet name
    */
   private gridRangeToA1(sheetName: string, range: GridRange): string {
+    // BUG-2/6/14 fix: Ensure output is always valid A1 notation (col+row pairs).
+    // When only rows or only columns are specified, default the missing dimension
+    // to prevent row-only notation like "'Sheet'!1:3" which fails downstream parsing.
+    const hasRows = range.startRowIndex !== undefined || range.endRowIndex !== undefined;
+    const hasCols = range.startColumnIndex !== undefined || range.endColumnIndex !== undefined;
+
+    const startCol = range.startColumnIndex ?? (hasRows && !hasCols ? 0 : undefined);
+    const endCol = range.endColumnIndex ?? (hasRows && !hasCols ? 27 : undefined); // A through AA
+    const startRow = range.startRowIndex ?? (hasCols && !hasRows ? 0 : undefined);
+    const endRow = range.endRowIndex ?? (hasCols && !hasRows ? 1000 : undefined);
+
     const parts: string[] = [];
 
-    if (range.startColumnIndex !== undefined) {
-      parts.push(this.columnIndexToLetter(range.startColumnIndex));
+    if (startCol !== undefined) {
+      parts.push(this.columnIndexToLetter(startCol));
     }
-    if (range.startRowIndex !== undefined) {
-      parts.push(String(range.startRowIndex + 1));
+    if (startRow !== undefined) {
+      parts.push(String(startRow + 1));
     }
 
-    if (range.endColumnIndex !== undefined || range.endRowIndex !== undefined) {
+    if (endCol !== undefined || endRow !== undefined) {
       parts.push(':');
-      if (range.endColumnIndex !== undefined) {
-        parts.push(this.columnIndexToLetter(range.endColumnIndex - 1));
+      if (endCol !== undefined) {
+        parts.push(this.columnIndexToLetter(endCol - 1));
       }
-      if (range.endRowIndex !== undefined) {
-        parts.push(String(range.endRowIndex));
+      if (endRow !== undefined) {
+        parts.push(String(endRow));
       }
     }
 

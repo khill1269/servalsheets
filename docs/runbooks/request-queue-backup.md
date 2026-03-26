@@ -3,7 +3,7 @@ title: 'Runbook: Request Queue Backup'
 category: general
 last_updated: 2026-02-24
 description: 'Alert Name: RequestQueueBackup'
-version: 1.7.0
+version: 2.0.0
 tags: [performance, queue, backpressure]
 ---
 

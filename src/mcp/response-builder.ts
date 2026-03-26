@@ -496,7 +496,7 @@ export function fastSerialize(data: unknown, indent: boolean = true): string {
       // Skip null and undefined values
       if (value === null || value === undefined) {
         // OK: Explicit empty - JSON.stringify replacer pattern, returns undefined to skip property
-        return undefined;
+        return undefined; // OK: Explicit empty
       }
       return value;
     },

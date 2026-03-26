@@ -83,6 +83,7 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
     const req = this.inferRequestParameters(rawReq) as VisualizeRequest;
 
     try {
+      this.checkOperationScopes(`${this.toolName}.${req.action}`);
       const chartDeps = {
         sheetsApi: this.sheetsApi,
         context: this.context,

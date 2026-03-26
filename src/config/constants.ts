@@ -4,6 +4,8 @@
  * Centralized configuration values and magic numbers
  */
 
+import path from 'path';
+
 // ============================================================================
 // Cache TTLs (in milliseconds)
 // ============================================================================
@@ -80,9 +82,6 @@ export const GOOGLE_API_RATE_LIMIT = 60;
 
 /** Maximum concurrent requests */
 export const MAX_CONCURRENT_REQUESTS = parseInt(process.env['MAX_CONCURRENT_REQUESTS'] ?? '10', 10);
-
-/** Request timeout in milliseconds (configurable via REQUEST_TIMEOUT_MS env var, default: 30s) */
-export const REQUEST_TIMEOUT = parseInt(process.env['REQUEST_TIMEOUT_MS'] ?? '30000', 10);
 
 /** Graceful shutdown timeout (10 seconds, in milliseconds) */
 export const SHUTDOWN_TIMEOUT = 10000;
@@ -204,52 +203,6 @@ export const DEFAULT_PAGE_SIZE = 5;
  */
 export const MAX_PAGE_SIZE = 50;
 
-// ============================================================================
-// Tool Mode Configuration
-// ============================================================================
-
-/**
- * Tool registration mode
- *
- * Controls which tools are registered to manage schema payload size.
- * Large schema payloads (500KB+) can overwhelm some MCP clients.
- *
- * Modes:
- * - 'full': All 22 tools (default, ~527KB schema payload)
- * - 'standard': 12 tools - removes MCP-native + Tier 7 (~444KB)
- * - 'lite': 8 essential tools (~199KB, recommended for Claude Desktop)
- *
- * Set via SERVAL_TOOL_MODE environment variable.
- *
- * For full mode without size issues, also set SERVAL_SCHEMA_REFS=true
- * to enable $ref optimization (reduces to ~209KB). Note: some clients
- * may not handle $refs correctly - test thoroughly.
- *
- * Configuration examples for Claude Desktop:
- *
- * Option 1 - Lite mode (safest, 199KB):
- *   "SERVAL_TOOL_MODE": "lite"
- *
- * Option 2 - Full mode with $ref optimization (209KB):
- *   "SERVAL_TOOL_MODE": "full",
- *   "SERVAL_SCHEMA_REFS": "true"
- *
- * Option 3 - Standard mode (444KB, may still cause issues):
- *   "SERVAL_TOOL_MODE": "standard"
- */
-export type ToolMode = 'full' | 'standard' | 'lite';
-
-export const TOOL_MODE: ToolMode = (() => {
-  const mode = process.env['SERVAL_TOOL_MODE']?.toLowerCase();
-  if (mode === 'lite' || mode === 'standard' || mode === 'full') {
-    return mode;
-  }
-  // Default to 'full' for all transports — all 22 tools available
-  // Previously defaulted to 'standard' (12 tools) for STDIO, but this caused
-  // 9 tools to be silently unavailable in Claude Desktop / Cowork
-  return 'full';
-})();
-
 /**
  * Deferred schema loading mode
  *
@@ -259,7 +212,7 @@ export const TOOL_MODE: ToolMode = (() => {
  *
  * Benefits:
  * - Reduces initial tools/list payload from ~231KB to ~5KB
- * - All 22 tools available immediately
+ * - All 25 tools available immediately
  * - Claude fetches full schema only when needed via resources
  * - Optimal for Claude Desktop and other token-conscious clients
  *
@@ -269,16 +222,22 @@ export const TOOL_MODE: ToolMode = (() => {
  *
  * Auto-detection:
  * - STDIO transport (default): auto-enabled (Claude Desktop optimization)
- * - HTTP transport (--http flag): disabled by default
+ * - HTTP transport (--http flag OR http-server.ts entry point): disabled by default
  * - Override: SERVAL_DEFER_SCHEMAS=true|false always takes precedence
+ *
+ * NOTE: The --http argv check alone is insufficient when http-server.ts is the
+ * entry point (e.g., `node dist/http-server.js`) because cli.ts never propagates
+ * the --http flag to process.argv. We also check process.argv[1] for 'http-server'.
  */
 function resolveDeferSchemas(): boolean {
   const envVal = process.env['SERVAL_DEFER_SCHEMAS'];
   // Explicit env var takes precedence
   if (envVal === 'true') return true;
   if (envVal === 'false') return false;
-  // Auto-detect: enable for STDIO (default), disable for HTTP
-  const isHttp = process.argv.includes('--http');
+  // Auto-detect: --http flag OR http-server.ts entry point
+  const entry = path.basename(process.argv[1] ?? '');
+  const isHttp =
+    process.argv.includes('--http') || entry === 'http-server.js' || entry === 'http-server.ts';
   return !isHttp;
 }
 export const DEFER_SCHEMAS = resolveDeferSchemas();
@@ -294,7 +253,7 @@ export const DEFER_SCHEMAS = resolveDeferSchemas();
  * Benefits:
  * - Reduces tool description payload from ~31KB to ~3KB (~90% reduction)
  * - ~7,700 tokens saved per conversation
- * - All 22 tools available with essential routing info
+ * - All 25 tools available with essential routing info
  * - Full docs available on-demand via resources
  *
  * Trade-offs:
@@ -407,33 +366,6 @@ export function getToolStage(toolName: string): ToolStage {
   if ((STAGE_2_TOOLS as readonly string[]).includes(toolName)) return 2;
   return 3;
 }
-
-/**
- * Essential tools (lite mode) - core spreadsheet operations
- * Reduces schema payload by 62% (527KB → 199KB)
- */
-export const ESSENTIAL_TOOLS = [
-  'sheets_auth',
-  'sheets_core',
-  'sheets_data',
-  'sheets_format',
-  'sheets_history',
-  'sheets_transaction',
-  'sheets_quality',
-  'sheets_session',
-] as const;
-
-/**
- * Standard tools - adds visualization, collaboration, dimensions, advanced
- * Removes MCP-native tools (confirm, analyze, fix) and Tier 7 enterprise tools
- */
-export const STANDARD_TOOLS = [
-  ...ESSENTIAL_TOOLS,
-  'sheets_dimensions',
-  'sheets_visualize',
-  'sheets_collaborate',
-  'sheets_advanced',
-] as const;
 
 // ============================================================================
 // Utility Functions

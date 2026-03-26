@@ -10,6 +10,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { FixHandler } from '../../src/handlers/fix.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4 } from 'googleapis';
+import { BUILT_IN_RULES } from '../../src/services/cleaning-engine-rules.js';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 // ---------------------------------------------------------------------------
 // Mock factories (no vi.mock calls - created per test)
@@ -96,7 +101,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'clean' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!A1:E6',
+        range: { a1: 'Sheet1!A1:E6' },
         mode: 'preview' as const,
       };
 
@@ -116,7 +121,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'clean' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!A2:A6',
+        range: { a1: 'Sheet1!A2:A6' },
         mode: 'apply' as const,
       };
 
@@ -132,7 +137,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'clean' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!E2:E6',
+        range: { a1: 'Sheet1!E2:E6' },
         mode: 'preview' as const,
       };
 
@@ -154,7 +159,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'standardize_formats' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!C2:C6',
+        range: { a1: 'Sheet1!C2:C6' },
         columns: [{ column: 'C', targetFormat: 'YYYY-MM-DD' }],
       };
 
@@ -171,7 +176,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'standardize_formats' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!D2:D6',
+        range: { a1: 'Sheet1!D2:D6' },
         columns: [{ column: 'D', targetFormat: 'email' }],
       };
 
@@ -193,7 +198,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'fill_missing' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!A2:B6',
+        range: { a1: 'Sheet1!A2:B6' },
         strategy: 'forward' as const,
       };
 
@@ -213,7 +218,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'fill_missing' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!B2:B6',
+        range: { a1: 'Sheet1!B2:B6' },
         strategy: 'constant' as const,
         constantValue: 0,
       };
@@ -238,7 +243,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'detect_anomalies' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!B2:C6',
+        range: { a1: 'Sheet1!B2:C6' },
         method: 'iqr' as const,
       };
 
@@ -251,7 +256,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'detect_anomalies' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!B2:C6',
+        range: { a1: 'Sheet1!B2:C6' },
         method: 'zscore' as const,
         threshold: 2,
       };
@@ -274,7 +279,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'suggest_cleaning' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!A1:E6',
+        range: { a1: 'Sheet1!A1:E6' },
       };
 
       const response = await handler.handle(input);
@@ -290,11 +295,46 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'suggest_cleaning' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!A1:E6',
+        range: { a1: 'Sheet1!A1:E6' },
       };
 
       const response = await handler.handle(input);
       expect(response.response.success).toBe(true);
+    });
+
+    it('should not suggest phone or number cleaning for ISO date columns', async () => {
+      (mockSheetsApi.spreadsheets?.values?.get as any).mockResolvedValue({
+        data: {
+          values: [
+            ['Order Date', 'Customer'],
+            ['2024-01-15', 'Alice'],
+            ['2024-02-20', 'Bob'],
+            ['2024-03-11', 'Charlie'],
+          ],
+        },
+      });
+
+      const response = await handler.handle({
+        action: 'suggest_cleaning',
+        spreadsheetId: 'test-spreadsheet-id',
+        range: { a1: 'Sheet1!A1:B4' },
+      });
+
+      expect(response.response.success).toBe(true);
+      if (response.response.success) {
+        const suggestedRules =
+          response.response.recommendations?.map((item) => item.suggestedRule) ?? [];
+        expect(suggestedRules).not.toContain('fix_phones');
+        expect(suggestedRules).not.toContain('fix_numbers');
+      }
+    });
+  });
+
+  describe('fix_names acronym protection', () => {
+    it('should preserve common business acronyms', () => {
+      expect(BUILT_IN_RULES.fix_names.detect('SMB')).toBe(false);
+      expect(BUILT_IN_RULES.fix_names.fix('api integration')).toBe('API Integration');
+      expect(BUILT_IN_RULES.fix_names.fix('CEO dashboard')).toBe('CEO Dashboard');
     });
   });
 
@@ -311,7 +351,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'clean' as const,
         spreadsheetId: 'invalid-id',
-        range: 'Sheet1!A1:E6',
+        range: { a1: 'Sheet1!A1:E6' },
         mode: 'preview' as const,
       };
 
@@ -333,7 +373,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'clean' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'InvalidRange',
+        range: { a1: 'InvalidRange' },
         mode: 'preview' as const,
       };
 
@@ -357,7 +397,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const detectInput = {
         action: 'detect_anomalies' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!A1:E6',
+        range: { a1: 'Sheet1!A1:E6' },
         method: 'iqr' as const,
       };
 
@@ -368,7 +408,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const suggestInput = {
         action: 'suggest_cleaning' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!A1:E6',
+        range: { a1: 'Sheet1!A1:E6' },
       };
 
       const suggestResponse = await handler.handle(suggestInput);
@@ -390,12 +430,114 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       const input = {
         action: 'clean' as const,
         spreadsheetId: 'test-spreadsheet-id',
-        range: 'Sheet1!A1:C1001',
+        range: { a1: 'Sheet1!A1:C1001' },
         mode: 'preview' as const,
       };
 
       const response = await handler.handle(input);
       expect(response.response.success).toBe(true);
+    });
+  });
+
+  // =========================================================================
+  // Progress notification tests (P18-X13)
+  // =========================================================================
+
+  describe('progress notifications (P18-X13)', () => {
+    it('clean should emit progress notifications', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'fix-clean-progress',
+        progressToken: 'fix-clean-progress',
+        sendNotification: notification,
+      });
+
+      (mockSheetsApi.spreadsheets?.values?.get as any).mockResolvedValue({
+        data: { values: SAMPLE_DATA },
+      });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'clean',
+          spreadsheetId: 'test-spreadsheet-id',
+          range: { a1: 'Sheet1!A1:E6' },
+          mode: 'preview' as const,
+        } as any)
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({ progress: 0 }),
+      });
+    });
+
+    it('standardize_formats should emit progress notifications', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'fix-standardize-progress',
+        progressToken: 'fix-standardize-progress',
+        sendNotification: notification,
+      });
+
+      (mockSheetsApi.spreadsheets?.values?.get as any).mockResolvedValue({
+        data: { values: SAMPLE_DATA },
+      });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'standardize_formats',
+          spreadsheetId: 'test-spreadsheet-id',
+          range: { a1: 'Sheet1!A1:E6' },
+          mode: 'preview' as const,
+          columns: [{ column: 'C', targetFormat: 'date' }],
+        } as any)
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({ progress: 0 }),
+      });
+    });
+
+    it('fill_missing should emit progress notifications', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'fix-fill-progress',
+        progressToken: 'fix-fill-progress',
+        sendNotification: notification,
+      });
+
+      (mockSheetsApi.spreadsheets?.values?.get as any).mockResolvedValue({
+        data: {
+          values: [
+            ['Name', 'Value'],
+            ['A', 10],
+            ['B', null],
+            ['C', 30],
+          ],
+        },
+      });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'fill_missing',
+          spreadsheetId: 'test-spreadsheet-id',
+          range: { a1: 'Sheet1!A1:B4' },
+          strategy: 'mean' as const,
+          mode: 'preview' as const,
+        } as any)
+      );
+
+      expect(result.response.success).toBe(true);
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({ progress: 0 }),
+      });
     });
   });
 });

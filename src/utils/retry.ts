@@ -14,7 +14,7 @@ import {
   DEFAULT_RETRY_CONFIG,
 } from '@serval/core';
 import { getRequestContext, getRequestLogger } from './request-context.js';
-import { recordHttp2Error } from '../observability/metrics.js';
+import { recordHttp2Error, googleApiRetryAfterWaitMs } from '../observability/metrics.js';
 
 // Re-export types so callers don't need to change imports
 export type { RetryOptions, RetryConfig };
@@ -71,11 +71,26 @@ export async function executeWithRetry<T>(
       // Enhanced HTTP/2 error tracking via message patterns
       trackHttp2ErrorByMessage(error);
 
-      // Deadline check: skip retry if we'd exceed the request deadline
+      // Deadline check: skip retry if we'd exceed the request deadline.
+      // Use Retry-After header value when present so the deadline check matches
+      // the actual wait time that serval-core will enforce (Fix 1).
       if (requestContext?.deadline) {
         const baseDelayMs = options.baseDelayMs ?? GOOGLE_SHEETS_RETRY_CONFIG.baseDelayMs;
         const maxDelayMs = options.maxDelayMs ?? GOOGLE_SHEETS_RETRY_CONFIG.maxDelayMs;
-        const backoff = Math.min(baseDelayMs * Math.pow(2, attempt), maxDelayMs);
+        const retryAfterMs = extractRetryAfterMs(error);
+        const backoff = retryAfterMs ?? Math.min(baseDelayMs * Math.pow(2, attempt), maxDelayMs);
+
+        // Record metric and log when Retry-After is respected (Fix 5)
+        if (retryAfterMs !== undefined) {
+          const cap = parseInt(
+            process.env['RETRY_AFTER_MAX_WAIT_MS'] ?? String(GOOGLE_SHEETS_RETRY_CONFIG.maxDelayMs),
+            10
+          );
+          const bounded = Math.min(retryAfterMs, cap);
+          googleApiRetryAfterWaitMs.observe(bounded);
+          logger.warn('Retry-After header respected', { attempt, retryAfterMs, cappedMs: bounded });
+        }
+
         if (Date.now() + backoff > requestContext.deadline) {
           logger.warn('Retry skipped due to request deadline', {
             attempt,
@@ -167,6 +182,29 @@ export function isRetryableError(error: unknown): boolean {
 
   // Delegate everything else to serval-core's base detection
   return coreIsRetryableError(error, GOOGLE_SHEETS_RETRY_CONFIG);
+}
+
+/**
+ * Extract Retry-After wait duration from a 429 error response header.
+ * Mirrors serval-core's internal parseRetryAfter so the deadline check
+ * in onRetry uses the same value that core will actually wait.
+ */
+function extractRetryAfterMs(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object') return undefined; // OK: Explicit empty
+  const headers = (
+    error as { response?: { status?: number; headers?: Record<string, string | string[]> } }
+  ).response?.headers;
+  if (!headers) return undefined; // OK: Explicit empty
+
+  const raw = headers['retry-after'] ?? headers['Retry-After'];
+  if (!raw) return undefined; // OK: Explicit empty
+
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const seconds = Number(value);
+  if (!isNaN(seconds)) return seconds * 1000;
+  const date = Date.parse(String(value));
+  if (!isNaN(date)) return Math.max(0, date - Date.now());
+  return undefined; // OK: Explicit empty
 }
 
 /**

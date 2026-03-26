@@ -21,6 +21,41 @@ export interface RetryOptions {
   timeoutMs?: number;
   /** Called before each retry attempt */
   onRetry?: (error: unknown, attempt: number) => void | Promise<void>;
+  /** Skip global retry budget check (for internal/system retries) */
+  skipBudget?: boolean;
+}
+
+/**
+ * Global retry budget — prevents retry storms across all concurrent operations.
+ * When budget is exhausted, retries are skipped (fail fast) until permits are released.
+ */
+const GLOBAL_RETRY_BUDGET = {
+  maxConcurrentRetries: 50,
+  activeRetries: 0,
+
+  acquire(): boolean {
+    if (this.activeRetries >= this.maxConcurrentRetries) {
+      return false;
+    }
+    this.activeRetries++;
+    return true;
+  },
+
+  release(): void {
+    if (this.activeRetries > 0) {
+      this.activeRetries--;
+    }
+  },
+
+  /** Current active retry count (for observability) */
+  get active(): number {
+    return this.activeRetries;
+  },
+};
+
+/** Expose for testing and monitoring */
+export function getRetryBudgetStats(): { active: number; max: number } {
+  return { active: GLOBAL_RETRY_BUDGET.active, max: GLOBAL_RETRY_BUDGET.maxConcurrentRetries };
 }
 
 export interface RetryConfig {
@@ -101,11 +136,24 @@ export async function executeWithRetry<T>(
         throw error;
       }
 
+      // Global retry budget: fail fast if too many concurrent retries system-wide
+      if (!options.skipBudget && !GLOBAL_RETRY_BUDGET.acquire()) {
+        logger.warn('Global retry budget exhausted, failing fast', {
+          activeRetries: GLOBAL_RETRY_BUDGET.active,
+          maxConcurrentRetries: GLOBAL_RETRY_BUDGET.maxConcurrentRetries,
+          apiName: config.apiName,
+          attempt,
+        });
+        throw error;
+      }
+      const budgetAcquired = !options.skipBudget;
+
       const status = getErrorStatus(error);
       const isRateLimited = status === 429;
       const retryAfterMs = parseRetryAfter(error);
       const backoff = Math.min(baseDelayMs * Math.pow(2, attempt), maxDelayMs);
-      const jitter = backoff * jitterRatio * (Math.random() * 2 - 1);
+      // Google API spec: additive jitter (0 to min(1000ms, backoff*ratio)), always positive
+      const jitter = Math.floor(Math.random() * Math.min(1000, backoff * jitterRatio * 2));
       const delay = Math.max(0, retryAfterMs ?? backoff + jitter);
 
       if (isRateLimited) {
@@ -127,6 +175,11 @@ export async function executeWithRetry<T>(
       }
 
       await sleep(delay);
+
+      // Release retry budget permit after delay (retry is about to fire)
+      if (budgetAcquired) {
+        GLOBAL_RETRY_BUDGET.release();
+      }
     }
   }
 

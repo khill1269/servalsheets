@@ -201,7 +201,7 @@ describe('ETagCache', () => {
 
       const cached = {
         etag: 'etag-redis',
-        cachedAt: Date.now(),
+        cachedAt: 1704067200000,
         cachedData: data,
       };
 
@@ -225,7 +225,7 @@ describe('ETagCache', () => {
 
       const cached = {
         etag: 'etag-redis',
-        cachedAt: Date.now(),
+        cachedAt: 1704067200000,
         cachedData: data,
       };
 

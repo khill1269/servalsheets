@@ -323,6 +323,8 @@ function buildCollaborateFields(action: string, mode: BuildMode): Record<string,
     case 'version_compare':
     case 'version_export':
       return base;
+    case 'version_snapshot_status':
+      return { ...base, taskId: asString('snapshot_task_1') };
     case 'share_transfer_ownership':
       return { ...base, newOwnerEmail: SAMPLE_EMAIL };
     case 'share_set_link':
@@ -395,6 +397,32 @@ function applyActionOverrides(
     return {
       ...request,
       question: SAMPLE_QUERY,
+    };
+  }
+
+  if (toolName === 'sheets_appsscript') {
+    // All appsscript actions use superRefine requiring scriptId OR spreadsheetId
+    return {
+      ...request,
+      spreadsheetId: SAMPLE_SPREADSHEET_ID,
+      ...(action === 'run' ? { devMode: true } : {}),
+    };
+  }
+
+  if (toolName === 'sheets_analyze' && (action === 'get_intelligence_report' || action === 'cancel_intelligence')) {
+    // These actions require a valid UUID for scheduleId
+    return {
+      ...request,
+      scheduleId: '550e8400-e29b-41d4-a716-446655440000',
+    };
+  }
+
+  if (toolName === 'sheets_session' && action === 'schedule_create') {
+    // schedule_create requires either flat tool/actionName or nested operation/target
+    return {
+      ...request,
+      tool: 'sheets_data',
+      actionName: 'read',
     };
   }
 

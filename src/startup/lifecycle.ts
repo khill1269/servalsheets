@@ -11,6 +11,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ConfigError } from '../core/errors.js';
 import { randomBytes } from 'crypto';
 import { validateEnv } from '../config/env.js';
 import { initTracer, shutdownTracer, getTracer, type TracerOptions } from '../utils/tracing.js';
@@ -47,9 +48,10 @@ export function requireEncryptionKeyInProduction(): void {
   const hasEncryptionKey = Boolean(process.env['ENCRYPTION_KEY']);
 
   if (isProduction && !hasEncryptionKey) {
-    throw new Error(
+    throw new ConfigError(
       'ENCRYPTION_KEY environment variable is required in production. ' +
-        'Generate with: openssl rand -hex 32'
+        'Generate with: openssl rand -hex 32',
+      'ENCRYPTION_KEY'
     );
   }
 
@@ -61,9 +63,10 @@ export function requireEncryptionKeyInProduction(): void {
   } else {
     const keyLength = process.env['ENCRYPTION_KEY']?.length || 0;
     if (keyLength !== 64) {
-      throw new Error(
+      throw new ConfigError(
         `ENCRYPTION_KEY must be 64 hex characters (32 bytes), got ${keyLength}. ` +
-          'Generate with: openssl rand -hex 32'
+          'Generate with: openssl rand -hex 32',
+        'ENCRYPTION_KEY'
       );
     }
     logger.debug('Encryption key validated (64 hex chars / 32 bytes)');
@@ -82,11 +85,12 @@ export function requireSessionStoreInProduction(): void {
   const allowMemorySessions = process.env['ALLOW_MEMORY_SESSIONS'] === 'true';
 
   if (isProduction && storeType === 'memory' && !allowMemorySessions) {
-    throw new Error(
+    throw new ConfigError(
       'Production mode requires persistent session store. ' +
         'In-memory session store loses all OAuth sessions on restart. ' +
         'Set SESSION_STORE_TYPE=redis and REDIS_URL=redis://your-redis-host:6379, ' +
-        'or set ALLOW_MEMORY_SESSIONS=true for local testing.'
+        'or set ALLOW_MEMORY_SESSIONS=true for local testing.',
+      'SESSION_STORE_TYPE'
     );
   }
 
@@ -98,9 +102,10 @@ export function requireSessionStoreInProduction(): void {
   }
 
   if (storeType === 'redis' && !process.env['REDIS_URL']) {
-    throw new Error(
+    throw new ConfigError(
       'REDIS_URL is required when SESSION_STORE_TYPE=redis. ' +
-        'Provide a Redis connection URL (e.g., redis://localhost:6379)'
+        'Provide a Redis connection URL (e.g., redis://localhost:6379)',
+      'REDIS_URL'
     );
   }
 
@@ -136,8 +141,9 @@ export function validateAuthExemptList(): void {
 
     // In production, fail hard if any non-standard tools exist
     if (process.env['NODE_ENV'] === 'production') {
-      throw new Error(
-        `AUTH_EXEMPT_TOOLS contains unverified tools in production: ${warnings.join(', ')}`
+      throw new ConfigError(
+        `AUTH_EXEMPT_TOOLS contains unverified tools in production: ${warnings.join(', ')}`,
+        'AUTH_EXEMPT_TOOLS'
       );
     }
   }
@@ -179,7 +185,7 @@ export function ensureEncryptionKey(): string {
 
   if (!encryptionKey) {
     if (process.env['NODE_ENV'] === 'production') {
-      throw new Error('ENCRYPTION_KEY required in production');
+      throw new ConfigError('ENCRYPTION_KEY required in production', 'ENCRYPTION_KEY');
     }
 
     // Generate a random key for development

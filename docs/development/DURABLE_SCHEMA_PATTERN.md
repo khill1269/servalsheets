@@ -3,7 +3,7 @@ title: Durable MCP Schema Pattern
 category: development
 last_updated: 2026-01-31
 description: 'Root Cause: MCP SDK''s normalizeObjectSchema() expects top-level z.object() schemas. Root-level discriminated unions cause empty schemas {"type":"object"}'
-version: 1.6.0
+version: 2.0.0
 ---
 
 # Durable MCP Schema Pattern

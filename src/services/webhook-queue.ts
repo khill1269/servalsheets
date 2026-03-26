@@ -19,6 +19,7 @@
 
 import { randomUUID } from 'crypto';
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
 import type { WebhookEventType } from '../schemas/webhook.js';
 import { updateWebhookQueueDepth } from '../observability/metrics.js';
 
@@ -99,7 +100,11 @@ export class WebhookQueue {
     job: Omit<WebhookDeliveryJob, 'deliveryId' | 'attemptCount' | 'createdAt'>
   ): Promise<string> {
     if (!this.redis) {
-      throw new Error('Redis required for webhook queue');
+      throw new ServiceError(
+        'Redis required for webhook queue',
+        'SERVICE_NOT_INITIALIZED',
+        'WebhookQueue'
+      );
     }
 
     const deliveryId = `delivery_${randomUUID()}`;
@@ -413,7 +418,11 @@ export function initWebhookQueue(
  */
 export function getWebhookQueue(): WebhookQueue {
   if (!webhookQueue) {
-    throw new Error('Webhook queue not initialized');
+    throw new ServiceError(
+      'Webhook queue not initialized',
+      'SERVICE_NOT_INITIALIZED',
+      'WebhookQueue'
+    );
   }
   return webhookQueue;
 }

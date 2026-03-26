@@ -10,6 +10,7 @@
 import type { GoogleApiClient } from '../services/google-api.js';
 import { cacheManager } from '../utils/cache-manager.js';
 import { requestDeduplicator } from '../utils/request-deduplication.js';
+import { getWriteLockStats } from '../middleware/write-lock-middleware.js';
 
 export interface HealthCheck {
   name: string;
@@ -115,6 +116,11 @@ export class HealthService {
     const dedupCheck = this.checkRequestDeduplication();
     checks.push(dedupCheck);
     // Deduplication issues are not critical, don't change overall status
+
+    // Check 5: Write lock contention
+    const writeLockCheck = this.checkWriteLocks();
+    checks.push(writeLockCheck);
+    // Write lock stats are informational
 
     return {
       status: overallStatus,
@@ -278,6 +284,37 @@ export class HealthService {
         status: 'degraded', // Dedup failures are non-critical
         message: error instanceof Error ? error.message : String(error),
         latency: Date.now() - start,
+      };
+    }
+  }
+
+  /**
+   * Check write lock contention (informational)
+   */
+  private checkWriteLocks(): HealthCheck {
+    try {
+      const stats = getWriteLockStats();
+      const totalPending = stats.locks.reduce((sum, l) => sum + l.pending, 0);
+      const contested = stats.locks.filter((l) => l.pending > 0).length;
+      const status = contested > 5 ? 'degraded' : 'ok';
+      return {
+        name: 'write_locks',
+        status,
+        message:
+          stats.activeSpreadsheets === 0
+            ? 'No active write locks'
+            : `${stats.activeSpreadsheets} spreadsheet(s) with active locks, ${totalPending} pending`,
+        metadata: {
+          activeSpreadsheets: stats.activeSpreadsheets,
+          contested,
+          totalPending,
+        },
+      };
+    } catch (error) {
+      return {
+        name: 'write_locks',
+        status: 'ok', // Write lock stats failure is non-critical
+        message: error instanceof Error ? error.message : String(error),
       };
     }
   }

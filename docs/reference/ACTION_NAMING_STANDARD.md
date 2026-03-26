@@ -3,20 +3,20 @@ title: Action Naming Standard
 category: general
 last_updated: 2026-01-31
 description: Standardized action naming conventions for all ServalSheets tools
-version: 1.6.0
+version: 2.0.0
 tags: [development, standards]
 ---
 
 # Action Naming Standard
 
 **Status**: Defined (Phase 4 - Infrastructure Complete)
-**Compliance**: 100% (207/391 actions)
+**Compliance**: 100% (207/407 actions)
 **Version**: 1.0
 **Date**: 2026-01-15
 
 ## Overview
 
-ServalSheets uses a standardized action naming convention across all 391 actions in 25 tools. This document defines the standard and documents the naming rules used across the current tool set.
+ServalSheets uses a standardized action naming convention across all 407 actions in 25 tools. This document defines the standard and documents the naming rules used across the current tool set.
 
 ## Naming Rules
 
@@ -106,7 +106,7 @@ Use consistent verbs for different analysis types:
 
 All actions in the current 16-tool/207-action set adhere to the naming rules below.
 
-**Overall**: 207/391 actions (100%)
+**Overall**: 207/407 actions (100%)
 
 **Rationale**: Other actions follow `chart_create`, `chart_update` pattern. Consistency requires `chart_suggest`.
 

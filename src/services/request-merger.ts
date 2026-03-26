@@ -24,6 +24,7 @@
 
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
+import { ValidationError } from '../core/errors.js';
 import { getTracer } from '../utils/tracing.js';
 import { columnLetterToIndex, indexToColumnLetter } from '../utils/google-sheets-helpers.js';
 
@@ -670,7 +671,7 @@ export function rangesOverlapOrAdjacent(range1: RangeInfo, range2: RangeInfo): b
  */
 export function mergeRanges(ranges: RangeInfo[]): RangeInfo {
   if (ranges.length === 0) {
-    throw new Error('Cannot merge empty range list');
+    throw new ValidationError('Cannot merge empty range list', 'ranges');
   }
 
   if (ranges.length === 1) {
@@ -680,7 +681,7 @@ export function mergeRanges(ranges: RangeInfo[]): RangeInfo {
   // All ranges must be on same sheet
   const sheetName = ranges[0]!.sheetName;
   if (!ranges.every((r) => r.sheetName === sheetName)) {
-    throw new Error('Cannot merge ranges from different sheets');
+    throw new ValidationError('Cannot merge ranges from different sheets', 'ranges');
   }
 
   // Calculate bounding box

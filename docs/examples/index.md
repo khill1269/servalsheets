@@ -3,7 +3,7 @@ title: Examples
 category: example
 last_updated: 2026-01-31
 description: Comprehensive examples demonstrating ServalSheets capabilities across different use cases.
-version: 1.6.0
+version: 2.0.0
 tags: [sheets]
 ---
 

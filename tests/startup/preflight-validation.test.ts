@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { existsSync, accessSync, constants as fsConstants } from 'fs';
+import { existsSync, accessSync, constants as fsConstants, readFileSync } from 'fs';
 import { runPreflightChecks } from '../../src/startup/preflight-validation.js';
 
 // Store original env
@@ -15,6 +15,7 @@ const originalEnv = { ...process.env };
 vi.mock('fs', () => ({
   existsSync: vi.fn(),
   accessSync: vi.fn(),
+  readFileSync: vi.fn(),
   constants: { W_OK: 2 },
 }));
 
@@ -45,6 +46,7 @@ describe('Pre-Flight Validation', () => {
     vi.clearAllMocks();
     process.env = { ...originalEnv };
     delete process.env['SKIP_PREFLIGHT'];
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ engines: { node: '>=20.0.0' } }));
   });
 
   afterEach(() => {
@@ -140,13 +142,19 @@ describe('Pre-Flight Validation', () => {
       expect(nodeCheck).toBeDefined();
       expect(nodeCheck?.result.passed).toBe(true);
       expect(nodeCheck?.critical).toBe(true);
+      expect(nodeCheck?.result.details?.required).toBe('>=20.0.0');
     });
 
-    it('should pass with Node.js v18.x', async () => {
-      // Current Node version is tested directly (can't mock process.version easily)
-      // This test verifies the logic would accept v18
-      const currentMajor = parseInt(process.version.slice(1).split('.')[0] || '0', 10);
-      expect(currentMajor).toBeGreaterThanOrEqual(18);
+    it('should fail when package.json requires a newer Node major', async () => {
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(accessSync).mockImplementation(() => {});
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ engines: { node: '>=999.0.0' } }));
+
+      const result = await runPreflightChecks();
+
+      const nodeCheck = result.checks.find((c) => c.name === 'Node.js Version');
+      expect(nodeCheck?.result.passed).toBe(false);
+      expect(nodeCheck?.result.message).toContain('requires >=999.0.0');
     });
   });
 
@@ -417,13 +425,13 @@ describe('Pre-Flight Validation', () => {
   });
 
   describe('Integration', () => {
-    it('should run all 6 checks', async () => {
+    it('should run all 9 checks', async () => {
       vi.mocked(existsSync).mockReturnValue(true);
       vi.mocked(accessSync).mockImplementation(() => {});
 
       const result = await runPreflightChecks();
 
-      expect(result.checks).toHaveLength(6);
+      expect(result.checks).toHaveLength(9);
 
       const checkNames = result.checks.map((c) => c.name);
       expect(checkNames).toContain('Build Artifacts');
@@ -432,6 +440,8 @@ describe('Pre-Flight Validation', () => {
       expect(checkNames).toContain('Configuration Validation');
       expect(checkNames).toContain('File System Permissions');
       expect(checkNames).toContain('Port Availability');
+      expect(checkNames).toContain('Tool Registration Parity');
+      expect(checkNames).toContain('Server Instructions Length');
     });
 
     it('should mark critical checks correctly', async () => {
@@ -444,7 +454,7 @@ describe('Pre-Flight Validation', () => {
       const nonCriticalChecks = result.checks.filter((c) => !c.critical);
 
       expect(criticalChecks.length).toBe(4); // Build, Node, Modules, Config
-      expect(nonCriticalChecks.length).toBe(2); // File System, Port
+      expect(nonCriticalChecks.length).toBe(5); // File System, Port, Tool Registration Parity, Server Instructions Length, + 1 new
     });
   });
 });

@@ -17,6 +17,8 @@
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
 import type { SheetResolver, ResolvedSheet } from './sheet-resolver.js';
+import { ValidationError, ServiceError } from '../core/errors.js';
+import { executeWithRetry } from '../utils/retry.js';
 import type {
   BulkUpdateOptions,
   BulkUpdateResult,
@@ -92,9 +94,24 @@ export class CompositeOperationsService {
 
     // Resolve or create target sheet
     if (mode === 'new_sheet' || !options.sheet) {
-      const sheetName = options.newSheetName ?? `Import_${new Date().toISOString().slice(0, 10)}`;
-      const result = await this.createSheet(spreadsheetId, sheetName);
-      targetSheet = result;
+      const baseName = options.newSheetName ?? `Import_${new Date().toISOString().slice(0, 10)}`;
+      let sheetName = baseName;
+
+      // Avoid collision with existing sheets by appending a suffix
+      try {
+        const result = await this.createSheet(spreadsheetId, sheetName);
+        targetSheet = result;
+      } catch (createErr: unknown) {
+        const errMsg = createErr instanceof Error ? createErr.message : String(createErr);
+        if (errMsg.includes('already exists') || errMsg.includes('400')) {
+          // Sheet name collision — append a unique suffix
+          sheetName = `${baseName}_${Date.now().toString(36)}`;
+          const result = await this.createSheet(spreadsheetId, sheetName);
+          targetSheet = result;
+        } else {
+          throw createErr;
+        }
+      }
       newSheetCreated = true;
     } else {
       const resolved = await this.sheetResolver.resolve(spreadsheetId, {
@@ -112,30 +129,36 @@ export class CompositeOperationsService {
 
     // Clear existing data if mode is 'replace'
     if (mode === 'replace') {
-      await this.sheetsApi.spreadsheets.values.clear({
-        spreadsheetId,
-        range: `'${targetSheet.title}'`,
-      });
+      await executeWithRetry(() =>
+        this.sheetsApi.spreadsheets.values.clear({
+          spreadsheetId,
+          range: `'${targetSheet.title}'`,
+        })
+      );
     }
 
     // Write data
     const writeRange = mode === 'append' ? `'${targetSheet.title}'!A:${endCol}` : range;
 
     if (mode === 'append') {
-      await this.sheetsApi.spreadsheets.values.append({
-        spreadsheetId,
-        range: writeRange,
-        valueInputOption: 'RAW', // CSV data is never formulas — RAW prevents formula injection
-        insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: rows },
-      });
+      await executeWithRetry(() =>
+        this.sheetsApi.spreadsheets.values.append({
+          spreadsheetId,
+          range: writeRange,
+          valueInputOption: 'RAW', // CSV data is never formulas — RAW prevents formula injection
+          insertDataOption: 'INSERT_ROWS',
+          requestBody: { values: rows },
+        })
+      );
     } else {
-      await this.sheetsApi.spreadsheets.values.update({
-        spreadsheetId,
-        range,
-        valueInputOption: 'RAW', // CSV data is never formulas — RAW prevents formula injection
-        requestBody: { values: rows },
-      });
+      await executeWithRetry(() =>
+        this.sheetsApi.spreadsheets.values.update({
+          spreadsheetId,
+          range,
+          valueInputOption: 'RAW', // CSV data is never formulas — RAW prevents formula injection
+          requestBody: { values: rows },
+        })
+      );
     }
 
     // Count skipped rows (difference between CSV lines and imported rows)
@@ -185,14 +208,23 @@ export class CompositeOperationsService {
     const targetSheet = resolved.sheet;
 
     // Get existing headers
-    const headerResponse = await this.sheetsApi.spreadsheets.values.get({
-      spreadsheetId,
-      range: `'${targetSheet.title}'!1:1`,
-    });
+    const headerResponse = await executeWithRetry(() =>
+      this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId,
+        range: `'${targetSheet.title}'!1:1`,
+      })
+    );
 
     const existingHeaders: string[] = (headerResponse.data.values?.[0] ?? []).map((h) =>
       String(h ?? '').trim()
     );
+    const existingDataResponse = await executeWithRetry(() =>
+      this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId,
+        range: `'${targetSheet.title}'`,
+      })
+    );
+    const existingRows = existingDataResponse.data.values ?? [];
 
     // BUG-020 FIX: When sheet is empty (no headers), auto-set createMissingColumns=true
     // so that data keys become headers instead of being skipped
@@ -230,16 +262,22 @@ export class CompositeOperationsService {
       const newHeaderEnd = this.columnIndexToLetter(
         existingHeaders.length + columnsCreated.length - 1
       );
-      await this.sheetsApi.spreadsheets.values.update({
-        spreadsheetId,
-        range: `'${targetSheet.title}'!${newHeaderStart}1:${newHeaderEnd}1`,
-        valueInputOption: 'RAW',
-        requestBody: { values: [columnsCreated] },
-      });
+      await executeWithRetry(() =>
+        this.sheetsApi.spreadsheets.values.update({
+          spreadsheetId,
+          range: `'${targetSheet.title}'!${newHeaderStart}1:${newHeaderEnd}1`,
+          valueInputOption: 'RAW',
+          requestBody: { values: [columnsCreated] },
+        })
+      );
     }
 
     // Build rows based on column mapping
-    const totalCols = Math.max(existingHeaders.length, ...Array.from(columnMap.values())) + 1;
+    const highestMappedColumn = Math.max(
+      ...Array.from(columnMap.values(), (value) => value + 1),
+      0
+    );
+    const totalCols = Math.max(existingHeaders.length, highestMappedColumn);
     const rows: unknown[][] = [];
 
     for (const record of data) {
@@ -272,22 +310,39 @@ export class CompositeOperationsService {
       };
     }
 
-    // Append data
+    // Compute the append target from actual values instead of Google append heuristics.
+    // This avoids stale-row placement when a sheet was cleared but still has formatting,
+    // banding, or other non-value metadata below the last real row.
+    let lastPopulatedRow = 0;
+    for (let rowIndex = existingRows.length - 1; rowIndex >= 0; rowIndex--) {
+      const row = existingRows[rowIndex] ?? [];
+      if (row.some((value) => String(value ?? '').trim() !== '')) {
+        lastPopulatedRow = rowIndex + 1;
+        break;
+      }
+    }
+    if (columnsCreated.length > 0 && lastPopulatedRow === 0) {
+      lastPopulatedRow = 1;
+    }
+
+    const appendStartRow = lastPopulatedRow + 1;
     const endCol = this.columnIndexToLetter(totalCols - 1);
-    const response = await this.sheetsApi.spreadsheets.values.append({
-      spreadsheetId,
-      range: `'${targetSheet.title}'!A:${endCol}`,
-      valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: rows },
-    });
+    const targetRange = `'${targetSheet.title}'!A${appendStartRow}:${endCol}${appendStartRow + rows.length - 1}`;
+    const response = await executeWithRetry(() =>
+      this.sheetsApi.spreadsheets.values.update({
+        spreadsheetId,
+        range: targetRange,
+        valueInputOption: 'RAW',
+        requestBody: { values: rows },
+      })
+    );
 
     return {
       rowsAppended: rows.length,
       columnsMatched,
       columnsCreated,
       columnsSkipped,
-      range: response.data.updates?.updatedRange ?? '',
+      range: response.data.updatedRange ?? targetRange,
       sheetId: targetSheet.sheetId,
     };
   }
@@ -315,10 +370,12 @@ export class CompositeOperationsService {
     const targetSheet = resolved.sheet;
 
     // Get all data including headers
-    const dataResponse = await this.sheetsApi.spreadsheets.values.get({
-      spreadsheetId,
-      range: `'${targetSheet.title}'`,
-    });
+    const dataResponse = await executeWithRetry(() =>
+      this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId,
+        range: `'${targetSheet.title}'`,
+      })
+    );
 
     const allRows = dataResponse.data.values ?? [];
     if (allRows.length === 0) {
@@ -336,7 +393,12 @@ export class CompositeOperationsService {
     );
 
     if (keyColIndex < 0) {
-      throw new Error(`Key column "${keyColumn}" not found in sheet`);
+      throw new ValidationError(
+        `Key column "${keyColumn}" not found in sheet`,
+        'keyColumn',
+        undefined,
+        { keyColumn }
+      );
     }
 
     // Build column index map
@@ -407,25 +469,29 @@ export class CompositeOperationsService {
 
     // Execute batch update
     if (batchData.length > 0) {
-      await this.sheetsApi.spreadsheets.values.batchUpdate({
-        spreadsheetId,
-        requestBody: {
-          valueInputOption: 'RAW',
-          data: batchData,
-        },
-      });
+      await executeWithRetry(() =>
+        this.sheetsApi.spreadsheets.values.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            valueInputOption: 'RAW',
+            data: batchData,
+          },
+        })
+      );
     }
 
     // Append new rows
     if (rowsToCreate.length > 0) {
       const endCol = this.columnIndexToLetter(headers.length - 1);
-      await this.sheetsApi.spreadsheets.values.append({
-        spreadsheetId,
-        range: `'${targetSheet.title}'!A:${endCol}`,
-        valueInputOption: 'RAW',
-        insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: rowsToCreate },
-      });
+      await executeWithRetry(() =>
+        this.sheetsApi.spreadsheets.values.append({
+          spreadsheetId,
+          range: `'${targetSheet.title}'!A:${endCol}`,
+          valueInputOption: 'RAW',
+          insertDataOption: 'INSERT_ROWS',
+          requestBody: { values: rowsToCreate },
+        })
+      );
       cellsModified += rowsToCreate.length * headers.length;
     }
 
@@ -518,7 +584,9 @@ export class CompositeOperationsService {
         (h: unknown) => String(h ?? '').toLowerCase() === col.toLowerCase()
       );
       if (idx < 0) {
-        throw new Error(`Key column "${col}" not found`);
+        throw new ValidationError(`Key column "${col}" not found`, 'keyColumns', undefined, {
+          column: col,
+        });
       }
       return idx;
     });
@@ -542,8 +610,6 @@ export class CompositeOperationsService {
       const existingRow = seen.get(keyValue);
       if (existingRow !== undefined) {
         const deleteRow = keep === 'first' ? i : existingRow;
-        // keepRow is the row we're keeping (opposite of deleteRow)
-        const _keepRow = keep === 'first' ? existingRow : i;
 
         if (keep === 'last') {
           duplicateRowSet.add(existingRow);
@@ -785,7 +851,11 @@ export function initializeCompositeOperations(
  */
 export function resetCompositeOperations(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetCompositeOperations() can only be called in test environment');
+    throw new ServiceError(
+      'resetCompositeOperations() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'CompositeOperations'
+    );
   }
   compositeOpsInstance = null;
 }

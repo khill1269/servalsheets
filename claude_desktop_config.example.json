@@ -2,10 +2,15 @@
   "mcpServers": {
     "servalsheets": {
       "command": "node",
-      "args": ["/Users/thomascahill/Documents/mcp-servers/servalsheets/dist/cli.js"],
+      "args": ["/absolute/path/to/servalsheets/dist/cli.js"],
       "env": {
-        "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/your/service-account.json",
-        "LOG_LEVEL": "info"
+        "NODE_ENV": "production",
+        "LOG_LEVEL": "info",
+        "OAUTH_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
+        "OAUTH_CLIENT_SECRET": "your-client-secret",
+        "OAUTH_REDIRECT_URI": "http://localhost:3000/callback",
+        "GOOGLE_TOKEN_STORE_PATH": "/Users/your-user/.config/servalsheets/tokens.enc",
+        "ENCRYPTION_KEY": "<64-char-hex-key>"
       }
     }
   }

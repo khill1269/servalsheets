@@ -18,6 +18,10 @@ const createMockServer = (): McpServer =>
   ({
     sendResourceListChanged: vi.fn(),
     sendToolListChanged: vi.fn(),
+    server: {
+      sendResourceUpdated: vi.fn().mockResolvedValue(undefined),
+      setRequestHandler: vi.fn(),
+    },
     // Add other required McpServer methods as stubs
     setLoggingLevel: vi.fn(),
     request: vi.fn(),
@@ -26,16 +30,35 @@ const createMockServer = (): McpServer =>
     close: vi.fn(),
   }) as unknown as McpServer;
 
+function getSubscriptionHandlers(server: McpServer): {
+  subscribe: (request: { params: { uri: string } }) => Promise<Record<string, never>>;
+  unsubscribe: (request: { params: { uri: string } }) => Promise<Record<string, never>>;
+} {
+  const calls = (
+    (server as unknown as { server: { setRequestHandler: ReturnType<typeof vi.fn> } }).server
+      .setRequestHandler as ReturnType<typeof vi.fn>
+  ).mock.calls;
+  return {
+    subscribe: calls[0][1] as (request: {
+      params: { uri: string };
+    }) => Promise<Record<string, never>>,
+    unsubscribe: calls[1][1] as (request: {
+      params: { uri: string };
+    }) => Promise<Record<string, never>>,
+  };
+}
+
 describe('Feature 1: Real-Time Notifications', () => {
   let mockServer: McpServer;
 
   beforeEach(() => {
     mockServer = createMockServer();
-    resourceNotifications.setServer(mockServer);
     vi.clearAllMocks();
+    resourceNotifications.setServer(mockServer);
   });
 
   afterEach(() => {
+    resourceNotifications.unregisterServer(mockServer);
     vi.restoreAllMocks();
   });
 
@@ -71,27 +94,54 @@ describe('Feature 1: Real-Time Notifications', () => {
     });
 
     it('should notify when cache is invalidated', async () => {
+      const { subscribe } = getSubscriptionHandlers(mockServer);
+      await subscribe({ params: { uri: 'cache://stats' } });
+
       resourceNotifications.notifyCacheInvalidated();
 
       await waitFor(100);
 
-      expect(mockServer.sendResourceListChanged).toHaveBeenCalledOnce();
+      expect(
+        (
+          mockServer as unknown as {
+            server: { sendResourceUpdated: ReturnType<typeof vi.fn> };
+          }
+        ).server.sendResourceUpdated
+      ).toHaveBeenCalledWith({ uri: 'cache://stats' });
     });
 
     it('should notify when transaction state changes', async () => {
+      const { subscribe } = getSubscriptionHandlers(mockServer);
+      await subscribe({ params: { uri: 'transaction://stats' } });
+
       resourceNotifications.notifyTransactionStateChanged('txn-456', 'committed');
 
       await waitFor(100);
 
-      expect(mockServer.sendResourceListChanged).toHaveBeenCalledOnce();
+      expect(
+        (
+          mockServer as unknown as {
+            server: { sendResourceUpdated: ReturnType<typeof vi.fn> };
+          }
+        ).server.sendResourceUpdated
+      ).toHaveBeenCalledWith({ uri: 'transaction://stats' });
     });
 
     it('should notify when operation history is updated', async () => {
+      const { subscribe } = getSubscriptionHandlers(mockServer);
+      await subscribe({ params: { uri: 'history://operations' } });
+
       resourceNotifications.notifyHistoryUpdated(5);
 
       await waitFor(100);
 
-      expect(mockServer.sendResourceListChanged).toHaveBeenCalledOnce();
+      expect(
+        (
+          mockServer as unknown as {
+            server: { sendResourceUpdated: ReturnType<typeof vi.fn> };
+          }
+        ).server.sendResourceUpdated
+      ).toHaveBeenCalledWith({ uri: 'history://operations' });
     });
 
     it('should not throw if server is not initialized', () => {
@@ -107,10 +157,142 @@ describe('Feature 1: Real-Time Notifications', () => {
       expect(resourceNotifications.isInitialized()).toBe(true);
     });
 
+    it('should register resources/subscribe and resources/unsubscribe handlers', () => {
+      const handlers = getSubscriptionHandlers(mockServer);
+      expect(handlers.subscribe).toEqual(expect.any(Function));
+      expect(handlers.unsubscribe).toEqual(expect.any(Function));
+    });
+
+    it('should emit resources/updated for subscribed exact URIs', async () => {
+      const notifications = new (resourceNotifications.constructor as {
+        new (): {
+          setServer: (server: McpServer) => void;
+          unregisterServer: (server: McpServer) => void;
+          notifyResourceUpdated: (uri: string, reason?: string) => void;
+        };
+      })();
+      const exactServer = createMockServer();
+      notifications.setServer(exactServer);
+
+      const { subscribe } = getSubscriptionHandlers(exactServer);
+      await subscribe({ params: { uri: 'cache://stats' } });
+
+      notifications.notifyResourceUpdated('cache://stats', 'cache update');
+      await waitFor(100);
+
+      expect(
+        (
+          exactServer as unknown as {
+            server: { sendResourceUpdated: ReturnType<typeof vi.fn> };
+          }
+        ).server.sendResourceUpdated
+      ).toHaveBeenCalledWith({ uri: 'cache://stats' });
+
+      notifications.unregisterServer(exactServer);
+    });
+
+    it('should emit resources/updated for subscribed spreadsheet subtree URIs', async () => {
+      const notifications = new (resourceNotifications.constructor as {
+        new (): {
+          setServer: (server: McpServer) => void;
+          unregisterServer: (server: McpServer) => void;
+          notifySpreadsheetMutation: (spreadsheetId: string, reason?: string) => void;
+        };
+      })();
+      const spreadsheetServer = createMockServer();
+      notifications.setServer(spreadsheetServer);
+
+      const { subscribe } = getSubscriptionHandlers(spreadsheetServer);
+      await subscribe({ params: { uri: 'sheets:///sheet-123/Sheet1!A1:B2' } });
+
+      notifications.notifySpreadsheetMutation('sheet-123', 'write');
+      await waitFor(100);
+
+      expect(
+        (
+          spreadsheetServer as unknown as {
+            server: { sendResourceUpdated: ReturnType<typeof vi.fn> };
+          }
+        ).server.sendResourceUpdated
+      ).toHaveBeenCalledWith({ uri: 'sheets:///sheet-123/Sheet1!A1:B2' });
+
+      notifications.unregisterServer(spreadsheetServer);
+    });
+
+    it('should stop emitting resources/updated after unsubscribe', async () => {
+      const notifications = new (resourceNotifications.constructor as {
+        new (): {
+          setServer: (server: McpServer) => void;
+          unregisterServer: (server: McpServer) => void;
+          notifyResourceUpdated: (uri: string, reason?: string) => void;
+        };
+      })();
+      const unsubscribedServer = createMockServer();
+      notifications.setServer(unsubscribedServer);
+
+      const { subscribe, unsubscribe } = getSubscriptionHandlers(unsubscribedServer);
+      await subscribe({ params: { uri: 'cache://stats' } });
+      await unsubscribe({ params: { uri: 'cache://stats' } });
+
+      notifications.notifyResourceUpdated('cache://stats', 'cache update');
+      await waitFor(100);
+
+      expect(
+        (
+          unsubscribedServer as unknown as {
+            server: { sendResourceUpdated: ReturnType<typeof vi.fn> };
+          }
+        ).server.sendResourceUpdated
+      ).not.toHaveBeenCalled();
+
+      notifications.unregisterServer(unsubscribedServer);
+    });
+
+    it('should keep resource subscriptions scoped to each server', async () => {
+      const notifications = new (resourceNotifications.constructor as {
+        new (): {
+          setServer: (server: McpServer) => void;
+          unregisterServer: (server: McpServer) => void;
+          notifyResourceUpdated: (uri: string, reason?: string) => void;
+        };
+      })();
+      const cacheServer = createMockServer();
+      const historyServer = createMockServer();
+      notifications.setServer(cacheServer);
+      notifications.setServer(historyServer);
+
+      const cacheHandlers = getSubscriptionHandlers(cacheServer);
+      const historyHandlers = getSubscriptionHandlers(historyServer);
+      await cacheHandlers.subscribe({ params: { uri: 'cache://stats' } });
+      await historyHandlers.subscribe({ params: { uri: 'history://stats' } });
+
+      notifications.notifyResourceUpdated('cache://stats', 'cache update');
+      await waitFor(100);
+
+      expect(
+        (
+          cacheServer as unknown as {
+            server: { sendResourceUpdated: ReturnType<typeof vi.fn> };
+          }
+        ).server.sendResourceUpdated
+      ).toHaveBeenCalledWith({ uri: 'cache://stats' });
+      expect(
+        (
+          historyServer as unknown as {
+            server: { sendResourceUpdated: ReturnType<typeof vi.fn> };
+          }
+        ).server.sendResourceUpdated
+      ).not.toHaveBeenCalled();
+
+      notifications.unregisterServer(cacheServer);
+      notifications.unregisterServer(historyServer);
+    });
+
     it('should emit tools/list_changed only when tool set changes', async () => {
       const notifications = new (resourceNotifications.constructor as {
         new (): {
           setServer: (server: McpServer) => void;
+          unregisterServer: (server: McpServer) => void;
           syncToolList: (
             toolNames: readonly string[],
             options?: { reason?: string; emitOnFirstSet?: boolean }
@@ -132,6 +314,8 @@ describe('Feature 1: Real-Time Notifications', () => {
       notifications.syncToolList(['sheets_auth', 'sheets_data', 'sheets_session']);
       await waitFor(100);
       expect((mockServer as any).sendToolListChanged).toHaveBeenCalledTimes(1);
+
+      notifications.unregisterServer(mockServer);
     });
   });
 
@@ -187,6 +371,7 @@ describe('Feature 1: Real-Time Notifications', () => {
       }).not.toThrow();
 
       await waitFor(100);
+      resourceNotifications.unregisterServer(errorServer);
     });
   });
 

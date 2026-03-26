@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { WebhookHandler, createWebhookHandler } from '../../src/handlers/webhooks.js';
 import type { WebhookEventType } from '../../src/schemas/webhook.js';
+import { isWebhookRedisConfigured } from '../../src/services/webhook-manager.js';
 
 // Mock webhook manager
 const mockWebhookManager = {
@@ -17,6 +18,7 @@ const mockWebhookManager = {
   get: vi.fn(),
   recordDelivery: vi.fn(),
   getEventStats: vi.fn(),
+  storeWatchChannel: vi.fn(),
 };
 
 // Mock webhook queue
@@ -28,6 +30,7 @@ const mockWebhookQueue = {
 // Mock getWebhookManager and getWebhookQueue
 vi.mock('../../src/services/webhook-manager.js', () => ({
   getWebhookManager: vi.fn(() => mockWebhookManager),
+  isWebhookRedisConfigured: vi.fn(() => true),
   initWebhookManager: vi.fn(),
   resetWebhookManager: vi.fn(),
   validateWebhookUrl: vi.fn().mockResolvedValue(undefined),
@@ -42,9 +45,11 @@ vi.mock('../../src/services/webhook-queue.js', () => ({
 
 describe('WebhookHandler', () => {
   let handler: WebhookHandler;
+  const mockedIsWebhookRedisConfigured = vi.mocked(isWebhookRedisConfigured);
 
   beforeEach(() => {
     handler = createWebhookHandler();
+    mockedIsWebhookRedisConfigured.mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -59,7 +64,7 @@ describe('WebhookHandler', () => {
         eventTypes: ['spreadsheet.updated' as WebhookEventType],
         active: true,
         secret: 'test-secret',
-        createdAt: new Date().toISOString(),
+        createdAt: new Date('2024-01-15T00:00:00Z').toISOString(),
       };
 
       mockWebhookManager.register.mockResolvedValue(mockWebhook);
@@ -93,7 +98,7 @@ describe('WebhookHandler', () => {
         eventTypes: ['all' as WebhookEventType],
         active: true,
         secret: 'custom-secret',
-        createdAt: new Date().toISOString(),
+        createdAt: new Date('2024-01-15T00:00:00Z').toISOString(),
       };
 
       mockWebhookManager.register.mockResolvedValue(mockWebhook);
@@ -144,6 +149,84 @@ describe('WebhookHandler', () => {
 
       expect(result.response.success).toBe(false);
       expect(result.response.error?.message).toContain('not initialized');
+    });
+
+    it('returns CONFIG_ERROR before register when Redis-backed webhook storage is unavailable', async () => {
+      mockedIsWebhookRedisConfigured.mockReturnValue(false);
+
+      const result = await handler.handle({
+        request: {
+          action: 'register',
+          webhookUrl: 'https://example.com/webhook',
+          eventTypes: ['all'],
+          spreadsheetId: 'sheet-123',
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error?.code).toBe('CONFIG_ERROR');
+      expect(result.response.error?.message).toContain('Redis required');
+      expect(mockWebhookManager.list).not.toHaveBeenCalled();
+      expect(mockWebhookManager.register).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('watch_changes action', () => {
+    it('creates a Drive watch channel with echoed token and persists it', async () => {
+      const mockDriveApi = {
+        files: {
+          watch: vi.fn().mockResolvedValue({
+            data: {
+              resourceId: 'resource_123',
+            },
+          }),
+        },
+      };
+      handler = createWebhookHandler({ driveApi: mockDriveApi as never });
+
+      const result = await handler.handle({
+        request: {
+          action: 'watch_changes',
+          spreadsheetId: 'sheet-123',
+          webhookUrl: 'https://example.com/watch',
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+
+      const watchCall = mockDriveApi.files.watch.mock.calls[0]?.[0];
+      expect(watchCall.fileId).toBe('sheet-123');
+      expect(watchCall.requestBody).toEqual(
+        expect.objectContaining({
+          type: 'web_hook',
+          address: 'https://example.com/watch',
+          expiration: expect.any(String),
+          id: expect.any(String),
+          token: expect.any(String),
+        })
+      );
+      expect(watchCall.requestBody.token).toBe(watchCall.requestBody.id);
+
+      expect(mockWebhookManager.storeWatchChannel).toHaveBeenCalledWith(
+        watchCall.requestBody.id,
+        'resource_123',
+        'sheet-123',
+        'https://example.com/watch',
+        expect.any(Number)
+      );
+    });
+
+    it('returns config error when Drive API is unavailable', async () => {
+      const result = await handler.handle({
+        request: {
+          action: 'watch_changes',
+          spreadsheetId: 'sheet-123',
+          webhookUrl: 'https://example.com/watch',
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error?.code).toBe('CONFIG_ERROR');
     });
   });
 
@@ -311,8 +394,8 @@ describe('WebhookHandler', () => {
         spreadsheetId: 'sheet-123',
         deliveryCount: 15,
         failureCount: 2,
-        lastDelivery: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
+        lastDelivery: new Date('2024-01-15T00:00:00Z').toISOString(),
+        createdAt: new Date('2024-01-15T00:00:00Z').toISOString(),
       };
 
       mockWebhookManager.get.mockResolvedValue(mockWebhook);

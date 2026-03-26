@@ -28,8 +28,15 @@ import {
 
 const CommonFieldsSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
-  sheetId: SheetIdSchema.optional().describe('Numeric sheet ID (use this OR sheetName)'),
-  sheetName: z.string().optional().describe('Sheet name/title (use this OR sheetId)'),
+  sheetId: SheetIdSchema.optional().describe(
+    'Numeric sheet ID (provide sheetId OR sheetName, not both). Found in the gid= URL parameter.'
+  ),
+  sheetName: z
+    .string()
+    .optional()
+    .describe(
+      'Sheet tab name (provide sheetName OR sheetId, not both). The visible tab label at the bottom of the spreadsheet.'
+    ),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])
     .optional()
@@ -179,7 +186,11 @@ const ShowDimensionActionSchema = CommonFieldsSchema.extend({
 });
 
 const FreezeDimensionActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('freeze').describe('Freeze rows from top or columns from left'),
+  action: z
+    .literal('freeze')
+    .describe(
+      'Freeze rows or columns. Examples: freeze header row → {dimension:"ROWS",count:1}; freeze first column → {dimension:"COLUMNS",count:1}; unfreeze → {dimension:"ROWS",count:0}. To freeze both rows and columns, make two calls. Do NOT use {rows:N,columns:N} — use separate dimension+count params.'
+    ),
   dimension: DimensionSchema.describe('ROWS or COLUMNS'),
   count: z.number().int().min(0).describe('Number to freeze (0 = unfreeze all)'),
   position: z
@@ -262,6 +273,10 @@ const SortRangeActionSchema = z.object({
     ),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.optional().describe('Optional sheet ID for context'),
+  sheetName: z
+    .string()
+    .optional()
+    .describe('Optional sheet name for context when range is not sheet-qualified'),
   range: RangeInputSchema.describe('Range to sort (e.g., "Sheet1!A1:D100" or "A1:D100")'),
   sortSpecs: z
     .array(SortSpecSchema)

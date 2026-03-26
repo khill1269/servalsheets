@@ -1,3 +1,11 @@
+---
+title: Response Pipeline Features (Phase 1B)
+category: development
+last_updated: 2026-03-10
+description: "Self-healing error responses and intelligent action recommendations"
+version: 2.0.0
+---
+
 # Response Pipeline Features (Phase 1B)
 
 > Self-healing error responses and intelligent action recommendations
@@ -28,10 +36,10 @@ Provides intelligent error recovery suggestions based on error codes and context
 
 ```typescript
 export interface SuggestedFix {
-  tool: string;           // Tool that should be called to fix the issue
-  action: string;         // Action to call
-  params: Record<string, unknown>;  // Suggested parameters
-  explanation: string;    // Human-readable explanation of the fix
+  tool: string; // Tool that should be called to fix the issue
+  action: string; // Action to call
+  params: Record<string, unknown>; // Suggested parameters
+  explanation: string; // Human-readable explanation of the fix
 }
 
 export function suggestFix(
@@ -40,7 +48,7 @@ export function suggestFix(
   toolName?: string,
   action?: string,
   params?: Record<string, unknown>
-): SuggestedFix | null
+): SuggestedFix | null;
 ```
 
 **Supported Error Patterns (10):**
@@ -69,31 +77,28 @@ Provides intelligent next-action recommendations based on what just completed.
 
 ```typescript
 export interface SuggestedAction {
-  tool: string;      // Recommended tool to call next
-  action: string;    // Recommended action
-  reason: string;    // Why this action is recommended
+  tool: string; // Recommended tool to call next
+  action: string; // Recommended action
+  reason: string; // Why this action is recommended
 }
 
-export function getRecommendedActions(
-  toolName: string,
-  action: string
-): SuggestedAction[]
+export function getRecommendedActions(toolName: string, action: string): SuggestedAction[];
 ```
 
 **Pattern Database (15+ patterns):**
 
-| After Action | Recommended Next Actions | Reason |
-|---|---|---|
-| `sheets_data.read` | `sheets_analyze.detect_patterns`, `sheets_visualize.suggest_chart`, `sheets_dimensions.auto_resize` | Analyze, visualize, or format the data |
-| `sheets_data.write` | `sheets_format.set_format`, `sheets_dimensions.freeze`, `sheets_dimensions.auto_resize` | Format and organize written data |
-| `sheets_data.append` | `sheets_format.set_format`, `sheets_quality.validate` | Format and validate appended rows |
-| `sheets_composite.import_csv` | `sheets_fix.clean`, `sheets_fix.detect_anomalies`, `sheets_format.apply_preset` | Clean and format imported data |
-| `sheets_visualize.chart_create` | `sheets_visualize.chart_update`, `sheets_format.set_format`, `sheets_composite.export_xlsx` | Refine chart, format data, export |
-| `sheets_composite.generate_sheet` | `sheets_format.batch_format`, `sheets_format.add_conditional_format_rule`, `sheets_collaborate.share_add` | Polish and share generated sheet |
-| `sheets_fix.clean` | `sheets_fix.suggest_cleaning`, `sheets_fix.detect_anomalies`, `sheets_format.set_number_format` | Further improve data quality |
-| `sheets_collaborate.share_add` | `sheets_collaborate.comment_add`, `sheets_collaborate.share_set_link` | Document and configure sharing |
-| `sheets_analyze.scout` | `sheets_analyze.suggest_next_actions`, `sheets_analyze.comprehensive`, `sheets_analyze.detect_patterns` | Get deeper insights |
-| `sheets_core.create` | `sheets_core.add_sheet`, `sheets_data.write`, `sheets_session.set_active` | Set up new spreadsheet |
+| After Action                      | Recommended Next Actions                                                                                  | Reason                                 |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `sheets_data.read`                | `sheets_analyze.detect_patterns`, `sheets_visualize.suggest_chart`, `sheets_dimensions.auto_resize`       | Analyze, visualize, or format the data |
+| `sheets_data.write`               | `sheets_format.set_format`, `sheets_dimensions.freeze`, `sheets_dimensions.auto_resize`                   | Format and organize written data       |
+| `sheets_data.append`              | `sheets_format.set_format`, `sheets_quality.validate`                                                     | Format and validate appended rows      |
+| `sheets_composite.import_csv`     | `sheets_fix.clean`, `sheets_fix.detect_anomalies`, `sheets_format.apply_preset`                           | Clean and format imported data         |
+| `sheets_visualize.chart_create`   | `sheets_visualize.chart_update`, `sheets_format.set_format`, `sheets_composite.export_xlsx`               | Refine chart, format data, export      |
+| `sheets_composite.generate_sheet` | `sheets_format.batch_format`, `sheets_format.add_conditional_format_rule`, `sheets_collaborate.share_add` | Polish and share generated sheet       |
+| `sheets_fix.clean`                | `sheets_fix.suggest_cleaning`, `sheets_fix.detect_anomalies`, `sheets_format.set_number_format`           | Further improve data quality           |
+| `sheets_collaborate.share_add`    | `sheets_collaborate.comment_add`, `sheets_collaborate.share_set_link`                                     | Document and configure sharing         |
+| `sheets_analyze.scout`            | `sheets_analyze.suggest_next_actions`, `sheets_analyze.comprehensive`, `sheets_analyze.detect_patterns`   | Get deeper insights                    |
+| `sheets_core.create`              | `sheets_core.add_sheet`, `sheets_data.write`, `sheets_session.set_active`                                 | Set up new spreadsheet                 |
 
 **Design Notes:**
 
@@ -130,7 +135,13 @@ export function getRecommendedActions(
 2. **Phase 1B.2 (line ~1010):** Immediately after Phase 1B.1
 
    ```typescript
-   if (!hasFailure && 'response' in structuredContent && response && typeof response === 'object' && toolName) {
+   if (
+     !hasFailure &&
+     'response' in structuredContent &&
+     response &&
+     typeof response === 'object' &&
+     toolName
+   ) {
      try {
        const actionName = response.action;
        if (actionName) {
@@ -312,7 +323,7 @@ Example test:
 ```typescript
 it('should suggest fixing unbounded range', () => {
   const fix = suggestFix('INVALID_RANGE', 'Range is unbounded', 'sheets_data', 'read', {
-    range: 'Sheet1!A:Z'
+    range: 'Sheet1!A:Z',
   });
   expect(fix?.params.range).toBe('Sheet1!A1:Z1000');
 });
@@ -350,12 +361,12 @@ Use Sampling to generate context-specific suggestions:
 
 ## Impact Summary
 
-| Feature | Benefit | Implementation |
-|---|---|---|
-| **Self-Healing Errors** | Claude can automatically fix 10 common error patterns without asking for help | 100 lines, 10 patterns |
-| **Smart Recommendations** | Claude discovers powerful action chains and operates more independently | 150 lines, 15+ patterns |
-| **Zero Overhead** | No API calls, in-memory patterns, <2ms per suggestion | Pattern-based, non-blocking |
-| **Discoverable** | Users learn about features through recommendations | Exposure of underused actions |
+| Feature                   | Benefit                                                                       | Implementation                |
+| ------------------------- | ----------------------------------------------------------------------------- | ----------------------------- |
+| **Self-Healing Errors**   | Claude can automatically fix 10 common error patterns without asking for help | 100 lines, 10 patterns        |
+| **Smart Recommendations** | Claude discovers powerful action chains and operates more independently       | 150 lines, 15+ patterns       |
+| **Zero Overhead**         | No API calls, in-memory patterns, <2ms per suggestion                         | Pattern-based, non-blocking   |
+| **Discoverable**          | Users learn about features through recommendations                            | Exposure of underused actions |
 
 **Expected Outcome:**
 

@@ -10,6 +10,10 @@ import { CollaborateHandler } from '../../src/handlers/collaborate.js';
 import { SheetsCollaborateOutputSchema } from '../../src/schemas/collaborate.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4, drive_v3 } from 'googleapis';
+import {
+  createRequestContext,
+  runWithRequestContext,
+} from '../../src/utils/request-context.js';
 
 // Mock Google Sheets API
 const createMockSheetsApi = () => ({
@@ -233,6 +237,63 @@ describe('CollaborateHandler', () => {
 
       expect(result.response.success).toBe(true);
     });
+
+    it('should fail fast when type is missing', async () => {
+      const result = await handler.handle({
+        action: 'share_add',
+        spreadsheetId: 'test-spreadsheet-id',
+        role: 'reader',
+        emailAddress: 'user@example.com',
+      } as Parameters<typeof handler.handle>[0]);
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as { error?: { message?: string } }).error?.message).toContain(
+        'type is required'
+      );
+    });
+
+    it('should fail fast when type=user and emailAddress is missing', async () => {
+      const result = await handler.handle({
+        action: 'share_add',
+        spreadsheetId: 'test-spreadsheet-id',
+        type: 'user',
+        role: 'reader',
+      });
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as { error?: { message?: string } }).error?.message).toContain(
+        'emailAddress is required'
+      );
+    });
+
+    it('should fail fast when type=domain and domain is missing', async () => {
+      const result = await handler.handle({
+        action: 'share_add',
+        spreadsheetId: 'test-spreadsheet-id',
+        type: 'domain',
+        role: 'reader',
+      });
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as { error?: { message?: string } }).error?.message).toContain(
+        'domain is required'
+      );
+    });
+
+    it('should fail fast when domain format is invalid', async () => {
+      const result = await handler.handle({
+        action: 'share_add',
+        spreadsheetId: 'test-spreadsheet-id',
+        type: 'domain',
+        role: 'reader',
+        domain: 'https://example.com',
+      });
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as { error?: { message?: string } }).error?.message).toContain(
+        'Invalid domain format'
+      );
+    });
   });
 
   describe('share_update', () => {
@@ -334,6 +395,48 @@ describe('CollaborateHandler', () => {
 
       expect(result.response.success).toBe(true);
     });
+
+    it('stops scanning once afterRevisionId pagination has enough results', async () => {
+      mockDriveApi.revisions.list
+        .mockResolvedValueOnce({
+          data: {
+            revisions: [
+              { id: 'rev-5', modifiedTime: '2026-01-19T10:00:00Z' },
+              { id: 'rev-4', modifiedTime: '2026-01-18T10:00:00Z' },
+            ],
+            nextPageToken: 'page-2',
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            revisions: [
+              { id: 'rev-3', modifiedTime: '2026-01-17T10:00:00Z' },
+              { id: 'rev-2', modifiedTime: '2026-01-16T10:00:00Z' },
+            ],
+            nextPageToken: 'page-3',
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            revisions: [{ id: 'rev-1', modifiedTime: '2026-01-15T10:00:00Z' }],
+          },
+        });
+
+      const result = await handler.handle({
+        action: 'version_list_revisions',
+        spreadsheetId: 'test-spreadsheet-id',
+        afterRevisionId: 'rev-4',
+        pageSize: 1,
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.revisions).toHaveLength(1);
+        expect(result.response.revisions?.[0]?.id).toBe('rev-3');
+        expect((result.response as { nextRevisionId?: string }).nextRevisionId).toBe('rev-3');
+      }
+      expect(mockDriveApi.revisions.list).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('version_get_revision', () => {
@@ -349,7 +452,7 @@ describe('CollaborateHandler', () => {
   });
 
   describe('version_create_snapshot', () => {
-    it('should create a snapshot', async () => {
+    it('should start an async snapshot task', async () => {
       const result = await handler.handle({
         action: 'version_create_snapshot',
         spreadsheetId: 'test-spreadsheet-id',
@@ -358,6 +461,38 @@ describe('CollaborateHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.taskId).toMatch(/^snapshot_/);
+        expect(result.response.taskStatus).toBe('working');
+      }
+    });
+
+    it('should report snapshot task completion via version_snapshot_status', async () => {
+      const started = await handler.handle({
+        action: 'version_create_snapshot',
+        spreadsheetId: 'test-spreadsheet-id',
+        name: 'Before major changes',
+      });
+
+      expect(started.response.success).toBe(true);
+      if (!started.response.success) {
+        return;
+      }
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      const result = await handler.handle({
+        action: 'version_snapshot_status',
+        spreadsheetId: 'test-spreadsheet-id',
+        taskId: started.response.taskId!,
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.taskStatus).toBe('completed');
+        expect(result.response.snapshot?.id).toBe('snapshot-id');
+      }
     });
   });
 
@@ -371,6 +506,87 @@ describe('CollaborateHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
+    });
+  });
+
+  describe('progress notifications (tranche E)', () => {
+    it('should emit progress notifications for version_list_revisions with afterRevisionId cursor', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'version-list-progress',
+        progressToken: 'version-list-progress',
+        sendNotification: notification,
+      });
+
+      mockDriveApi.revisions.list.mockResolvedValue({
+        data: {
+          revisions: [
+            { id: 'rev-1', modifiedTime: '2026-01-15T10:00:00Z' },
+            { id: 'rev-2', modifiedTime: '2026-01-16T10:00:00Z' },
+            { id: 'rev-3', modifiedTime: '2026-01-17T10:00:00Z' },
+          ],
+          // No nextPageToken → single page
+        },
+      });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'version_list_revisions',
+          spreadsheetId: 'test-spreadsheet-id',
+          afterRevisionId: 'rev-1',
+        })
+      );
+
+      expect(result.response.success).toBe(true);
+      // Should have emitted at least the initial progress notification
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({ progress: 0 }),
+      });
+    });
+
+    it('should emit progress notifications for version_compare when resolving head references', async () => {
+      const notification = vi.fn().mockResolvedValue(undefined);
+      const requestContext = createRequestContext({
+        requestId: 'version-compare-progress',
+        progressToken: 'version-compare-progress',
+        sendNotification: notification,
+      });
+
+      mockDriveApi.revisions.list.mockResolvedValue({
+        data: {
+          revisions: [
+            { id: 'rev-1' },
+            { id: 'rev-2' },
+            { id: 'rev-3' },
+          ],
+        },
+      });
+      mockDriveApi.revisions.get
+        .mockResolvedValueOnce({
+          data: { id: 'rev-3', modifiedTime: '2026-01-17T10:00:00Z', size: '1024' },
+        })
+        .mockResolvedValueOnce({
+          data: { id: 'rev-2', modifiedTime: '2026-01-16T10:00:00Z', size: '900' },
+        });
+
+      const result = await runWithRequestContext(requestContext, () =>
+        handler.handle({
+          action: 'version_compare',
+          spreadsheetId: 'test-spreadsheet-id',
+          revisionId1: 'head~1',
+          revisionId2: 'head',
+        })
+      );
+
+      expect(result.response.success).toBe(true);
+      // Should have emitted progress during revision resolution
+      expect(notification).toHaveBeenCalled();
+      expect(notification.mock.calls[0]?.[0]).toMatchObject({
+        method: 'notifications/progress',
+        params: expect.objectContaining({ progress: 0 }),
+      });
     });
   });
 });

@@ -1,4 +1,5 @@
 import { ErrorCodes } from '../error-codes.js';
+import { randomUUID } from 'crypto';
 import type { drive_v3 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type {
@@ -13,12 +14,15 @@ import type {
   CollaborateVersionListSnapshotsInput,
   CollaborateVersionRestoreRevisionInput,
   CollaborateVersionRestoreSnapshotInput,
+  CollaborateVersionSnapshotStatusInput,
 } from '../../schemas/index.js';
 import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
 import { confirmDestructiveAction } from '../../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
 import { createNotFoundError } from '../../utils/error-factory.js';
 import { logger } from '../../utils/logger.js';
+import { registerCleanup } from '../../utils/resource-cleanup.js';
+import { sendProgress } from '../../utils/request-context.js';
 
 const DRIVE_MIME_TYPES = {
   XLSX: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -28,6 +32,53 @@ const DRIVE_MIME_TYPES = {
 } as const;
 
 type CollaborateSuccess = Extract<CollaborateResponse, { success: true }>;
+type SnapshotTaskStatus = 'working' | 'completed' | 'failed';
+
+interface SnapshotTaskRecord {
+  taskId: string;
+  spreadsheetId: string;
+  status: SnapshotTaskStatus;
+  statusMessage: string;
+  createdAt: string;
+  updatedAt: string;
+  pollAfterMs: number;
+  snapshot?: NonNullable<CollaborateSuccess['snapshot']>;
+  error?: ErrorDetail;
+}
+
+const SNAPSHOT_TASK_TTL_MS = 30 * 60 * 1000;
+const SNAPSHOT_TASK_POLL_MS = 1500;
+const snapshotTasks = new Map<string, SnapshotTaskRecord>();
+let snapshotTaskCleanupInterval: NodeJS.Timeout | null = null;
+
+function cleanExpiredSnapshotTasks(): void {
+  const now = Date.now();
+  for (const [taskId, task] of snapshotTasks.entries()) {
+    if (now - new Date(task.updatedAt).getTime() >= SNAPSHOT_TASK_TTL_MS) {
+      snapshotTasks.delete(taskId);
+    }
+  }
+}
+
+function ensureSnapshotTaskCleanup(): void {
+  if (snapshotTaskCleanupInterval !== null) {
+    return;
+  }
+
+  snapshotTaskCleanupInterval = setInterval(cleanExpiredSnapshotTasks, 60 * 1000);
+  registerCleanup(
+    'version-snapshot-tasks',
+    () => {
+      if (snapshotTaskCleanupInterval !== null) {
+        clearInterval(snapshotTaskCleanupInterval);
+        snapshotTaskCleanupInterval = null;
+      }
+    },
+    'snapshot-task-cleanup'
+  );
+}
+
+ensureSnapshotTaskCleanup();
 
 interface VersionsDeps {
   driveApi: drive_v3.Drive;
@@ -60,6 +111,97 @@ function mapRevision(
   };
 }
 
+function mapSnapshot(
+  spreadsheetId: string,
+  fallbackName: string,
+  file: drive_v3.Schema$File | undefined
+): NonNullable<CollaborateSuccess['snapshot']> {
+  return {
+    id: file?.id ?? '',
+    name: file?.name ?? fallbackName,
+    createdAt: file?.createdTime ?? new Date().toISOString(),
+    spreadsheetId,
+    copyId: file?.id ?? '',
+    size: file?.size ? Number(file.size) : undefined,
+  };
+}
+
+function updateSnapshotTask(
+  taskId: string,
+  updates: Partial<Omit<SnapshotTaskRecord, 'taskId' | 'spreadsheetId' | 'createdAt'>>
+): SnapshotTaskRecord | null {
+  const existing = snapshotTasks.get(taskId);
+  if (!existing) {
+    return null;
+  }
+
+  const updated: SnapshotTaskRecord = {
+    ...existing,
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
+  snapshotTasks.set(taskId, updated);
+  return updated;
+}
+
+function extractErrorDetail(response: CollaborateResponse): ErrorDetail {
+  if (!response.success) {
+    return response.error;
+  }
+
+  return {
+    code: ErrorCodes.INTERNAL_ERROR,
+    message: 'Snapshot task failed',
+    retryable: false,
+  };
+}
+
+function startSnapshotCopyTask(
+  taskId: string,
+  input: CollaborateVersionCreateSnapshotInput,
+  deps: VersionsDeps,
+  name: string
+): void {
+  void (async () => {
+    try {
+      updateSnapshotTask(taskId, {
+        status: 'working',
+        statusMessage: 'Copying spreadsheet into a Drive snapshot...',
+      });
+
+      const response = await deps.driveApi.files.copy({
+        fileId: input.spreadsheetId!,
+        requestBody: {
+          name,
+          parents: input.destinationFolderId ? [input.destinationFolderId] : undefined,
+          description: input.description,
+          appProperties: { sourceSpreadsheetId: input.spreadsheetId! },
+        },
+        fields: 'id,name,createdTime,size',
+        supportsAllDrives: true,
+      });
+
+      updateSnapshotTask(taskId, {
+        status: 'completed',
+        statusMessage: 'Snapshot copy completed',
+        snapshot: mapSnapshot(input.spreadsheetId!, name, response.data),
+      });
+    } catch (error) {
+      const mapped = extractErrorDetail(deps.mapError(error));
+      updateSnapshotTask(taskId, {
+        status: 'failed',
+        statusMessage: mapped.message,
+        error: mapped,
+      });
+      logger.error('version_create_snapshot task failed', {
+        spreadsheetId: input.spreadsheetId,
+        taskId,
+        error: mapped.message,
+      });
+    }
+  })();
+}
+
 function featureUnavailable(
   action: 'version_restore_revision',
   deps: VersionsDeps
@@ -90,23 +232,75 @@ export async function handleVersionListRevisionsAction(
   // cursor, then return the next page of results.
   if (input.afterRevisionId !== undefined) {
     const pageSize = input.pageSize ?? 100;
-    const allRevisions: drive_v3.Schema$Revision[] = [];
+    const collectedPage: drive_v3.Schema$Revision[] = [];
+    const scannedPrefix: drive_v3.Schema$Revision[] = [];
     let pageToken: string | undefined;
     let pageCount = 0;
-    const PAGE_CAP = 100;
+    let cursorFound = false;
+    let hasMore = false;
+    const PAGE_CAP = 20; // Reduced from 100 to prevent timeouts on large revision histories
+    const DEADLINE_MS = 45_000; // 45-second deadline to stay within MCP timeout
+    const startTime = Date.now();
+    const fetchPageSize = Math.min(Math.max(pageSize, 50), 200);
 
-    // Fetch all revisions across Drive pages to find the cursor position.
+    // Fetch revisions across Drive pages to find the cursor position.
+    // Uses a deadline check to prevent unbounded fetching.
+    await sendProgress(0, PAGE_CAP, 'Scanning revision history...');
     do {
+      // Deadline check: bail out before timeout
+      if (Date.now() - startTime > DEADLINE_MS) {
+        logger.warn(
+          `version_list_revisions: deadline exceeded (${DEADLINE_MS}ms) after ${pageCount} pages for spreadsheet ${input.spreadsheetId}`
+        );
+        break;
+      }
+
       const resp = await deps.driveApi.revisions.list({
         fileId: input.spreadsheetId!,
-        pageSize: 200,
+        pageSize: fetchPageSize,
         fields:
           'revisions(id,modifiedTime,lastModifyingUser/displayName,lastModifyingUser/emailAddress,size,keepForever),nextPageToken',
         ...(pageToken ? { pageToken } : {}),
       });
-      allRevisions.push(...(resp.data.revisions ?? []));
+      const revisions = resp.data.revisions ?? [];
       pageToken = resp.data.nextPageToken ?? undefined;
       pageCount++;
+      if (!cursorFound) {
+        scannedPrefix.push(...revisions);
+      }
+      if (cursorFound) {
+        const remaining = pageSize - collectedPage.length;
+        if (remaining > 0) {
+          collectedPage.push(...revisions.slice(0, remaining));
+        }
+        if (collectedPage.length >= pageSize) {
+          hasMore = revisions.length > remaining || pageToken !== undefined;
+          break;
+        }
+      } else {
+        const cursorIndex = revisions.findIndex((r) => r.id === input.afterRevisionId);
+        if (cursorIndex !== -1) {
+          cursorFound = true;
+          const availableAfterCursor = revisions.slice(cursorIndex + 1);
+          const remaining = pageSize - collectedPage.length;
+          if (remaining > 0) {
+            collectedPage.push(...availableAfterCursor.slice(0, remaining));
+          }
+          if (collectedPage.length >= pageSize) {
+            hasMore = availableAfterCursor.length > remaining || pageToken !== undefined;
+            break;
+          }
+        }
+      }
+      if (pageCount % 5 === 0 || !pageToken) {
+        await sendProgress(
+          pageCount,
+          PAGE_CAP,
+          cursorFound
+            ? `Loading revision page... (${collectedPage.length}/${pageSize} collected)`
+            : `Scanning revision history... (${scannedPrefix.length} revisions loaded)`
+        );
+      }
       if (pageCount >= PAGE_CAP) {
         logger.warn(
           `version_list_revisions: revision list capped at ${PAGE_CAP} pages for afterRevisionId cursor for spreadsheet ${input.spreadsheetId}`
@@ -115,12 +309,10 @@ export async function handleVersionListRevisionsAction(
       }
     } while (pageToken);
 
-    // Find the index of the cursor revision and slice the next page after it.
-    const cursorIndex = allRevisions.findIndex((r) => r.id === input.afterRevisionId);
-    const startIndex = cursorIndex === -1 ? 0 : cursorIndex + 1;
-    const page = allRevisions.slice(startIndex, startIndex + pageSize);
+    // If the cursor was not found within the bounded scan, preserve legacy behavior by
+    // falling back to the first page of the scanned prefix rather than timing out.
+    const page = cursorFound ? collectedPage : scannedPrefix.slice(0, pageSize);
     const revisions = page.map((revision) => mapRevision(revision));
-    const hasMore = startIndex + pageSize < allRevisions.length;
     const nextRevisionId =
       hasMore && page.length > 0 ? (page[page.length - 1]!.id ?? undefined) : undefined;
 
@@ -210,28 +402,60 @@ export async function handleVersionCreateSnapshotAction(
   input: CollaborateVersionCreateSnapshotInput,
   deps: VersionsDeps
 ): Promise<CollaborateResponse> {
+  if (input.safety?.dryRun) {
+    return deps.success('version_create_snapshot', {}, undefined, true);
+  }
+
   const name = input.name ?? `Snapshot - ${new Date().toISOString()}`;
-  const response = await deps.driveApi.files.copy({
-    fileId: input.spreadsheetId!,
-    requestBody: {
-      name,
-      parents: input.destinationFolderId ? [input.destinationFolderId] : undefined,
-      description: input.description,
-      appProperties: { sourceSpreadsheetId: input.spreadsheetId! },
-    },
-    fields: 'id,name,createdTime,size',
-    supportsAllDrives: true,
+  const taskId = `snapshot_${randomUUID()}`;
+  const now = new Date().toISOString();
+
+  snapshotTasks.set(taskId, {
+    taskId,
+    spreadsheetId: input.spreadsheetId!,
+    status: 'working',
+    statusMessage: 'Snapshot copy queued',
+    createdAt: now,
+    updatedAt: now,
+    pollAfterMs: SNAPSHOT_TASK_POLL_MS,
   });
+  startSnapshotCopyTask(taskId, input, deps, name);
 
   return deps.success('version_create_snapshot', {
-    snapshot: {
-      id: response.data.id ?? '',
-      name: response.data.name ?? name,
-      createdAt: response.data.createdTime ?? new Date().toISOString(),
-      spreadsheetId: input.spreadsheetId!,
-      copyId: response.data.id ?? '',
-      size: response.data.size ? Number(response.data.size) : undefined,
-    },
+    taskId,
+    taskStatus: 'working',
+    taskStatusMessage:
+      'Snapshot copy started. Poll version_snapshot_status with this taskId until it completes.',
+    taskCreatedAt: now,
+    taskUpdatedAt: now,
+    pollAfterMs: SNAPSHOT_TASK_POLL_MS,
+  });
+}
+
+export async function handleVersionSnapshotStatusAction(
+  input: CollaborateVersionSnapshotStatusInput,
+  deps: VersionsDeps
+): Promise<CollaborateResponse> {
+  const task = snapshotTasks.get(input.taskId!);
+  if (!task || task.spreadsheetId !== input.spreadsheetId) {
+    return deps.error({
+      code: ErrorCodes.NOT_FOUND,
+      message: `Snapshot task not found: ${input.taskId}`,
+      retryable: false,
+      suggestedFix:
+        'Start a new version_create_snapshot call or verify that the taskId belongs to this spreadsheet.',
+    });
+  }
+
+  return deps.success('version_snapshot_status', {
+    taskId: task.taskId,
+    taskStatus: task.status,
+    taskStatusMessage: task.statusMessage,
+    taskCreatedAt: task.createdAt,
+    taskUpdatedAt: task.updatedAt,
+    ...(task.status === 'working' ? { pollAfterMs: task.pollAfterMs } : {}),
+    ...(task.snapshot ? { snapshot: task.snapshot } : {}),
+    ...(task.error ? { taskError: task.error } : {}),
   });
 }
 
@@ -390,6 +614,7 @@ export async function handleVersionCompareAction(
       let pageToken: string | undefined;
       let pageCount = 0;
       const PAGE_CAP = 100;
+      await sendProgress(0, PAGE_CAP, 'Resolving revision references...');
       do {
         const revisionsResponse = await deps.driveApi.revisions.list({
           fileId: input.spreadsheetId!,
@@ -401,6 +626,13 @@ export async function handleVersionCompareAction(
         revisionIds.push(...ids);
         pageToken = revisionsResponse.data.nextPageToken ?? undefined;
         pageCount++;
+        if (pageCount % 10 === 0 || !pageToken) {
+          await sendProgress(
+            pageCount,
+            PAGE_CAP,
+            `Resolving revision references... (${revisionIds.length} revisions scanned)`
+          );
+        }
         if (pageCount >= PAGE_CAP) {
           logger.warn(
             `version_compare: revision list capped at ${PAGE_CAP} pages (${revisionIds.length} revisions) for spreadsheet ${input.spreadsheetId}`

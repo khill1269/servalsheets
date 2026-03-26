@@ -22,6 +22,7 @@ import type { sheets_v4 } from 'googleapis';
 import { getAccessPatternTracker, type PredictedAccess } from './access-pattern-tracker.js';
 import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
 import PQueue from 'p-queue';
 import { getConcurrencyCoordinator } from './concurrency-coordinator.js';
 import { FIELD_MASKS } from '../constants/field-masks.js';
@@ -710,7 +711,11 @@ export function getPrefetchingSystem(): PrefetchingSystem | null {
  */
 export function resetPrefetchingSystem(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetPrefetchingSystem() can only be called in test environment');
+    throw new ServiceError(
+      'resetPrefetchingSystem() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'PrefetchingSystem'
+    );
   }
   if (prefetchingSystem) {
     prefetchingSystem.destroy();

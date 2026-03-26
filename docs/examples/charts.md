@@ -3,7 +3,7 @@ title: Charts & Visualizations
 category: example
 last_updated: 2026-01-31
 description: Create professional charts and visualizations in Google Sheets using ServalSheets.
-version: 1.6.0
+version: 2.0.0
 tags: [sheets]
 ---
 
@@ -23,7 +23,7 @@ This guide covers:
 
 ## Prerequisites
 
-- ServalSheets v1.6.0 or later
+- ServalSheets 2.x or later
 - Spreadsheet with data to visualize
 - Understanding of [basic operations](./basic.md)
 

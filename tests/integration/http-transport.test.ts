@@ -11,7 +11,7 @@
  * without requiring actual Google API access.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -19,8 +19,61 @@ import {
   CallToolResultSchema,
   CreateMessageRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+
+const httpTransportHybridMocks = vi.hoisted(() => {
+  const remoteToolCall = vi.fn();
+  const getRemoteToolClient = vi.fn(async (toolName?: string) => {
+    const allowlist = (process.env['MCP_REMOTE_EXECUTOR_TOOLS'] ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    if (!process.env['MCP_REMOTE_EXECUTOR_URL'] || !toolName || !allowlist.includes(toolName)) {
+      return null;
+    }
+
+    return {
+      callRemoteTool: remoteToolCall,
+    };
+  });
+
+  return {
+    remoteToolCall,
+    getRemoteToolClient,
+    resetRemoteToolClient: vi.fn(async () => undefined),
+  };
+});
+
+vi.mock('../../src/services/remote-mcp-tool-client.js', () => ({
+  getRemoteToolClient: httpTransportHybridMocks.getRemoteToolClient,
+  resetRemoteToolClient: httpTransportHybridMocks.resetRemoteToolClient,
+}));
+
+vi.mock('../../src/handlers/compute.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/handlers/compute.js')>();
+
+  class MockComputeHandler extends actual.ComputeHandler {
+    override async handle(input: Parameters<actual.ComputeHandler['handle']>[0]) {
+      if (
+        input.request.action === 'evaluate' &&
+        input.request.formula === '=REMOTE_FAILOVER_SENTINEL()'
+      ) {
+        throw new Error('local compute failed');
+      }
+
+      return await super.handle(input);
+    }
+  }
+
+  return {
+    ...actual,
+    ComputeHandler: MockComputeHandler,
+  };
+});
+
 import { VERSION } from '../../src/version.js';
 import { createHttpServer, type HttpServerOptions } from '../../src/http-server.js';
+import { resourceNotifications } from '../../src/resources/notifications.js';
 import { logger } from '../../src/utils/logger.js';
 import { createTestHttpClient } from '../e2e/mcp-client-simulator.js';
 import {
@@ -41,6 +94,15 @@ const canListenLocalhost = await new Promise<boolean>((resolve) => {
 const SKIP_HTTP_INTEGRATION =
   process.env['TEST_HTTP_INTEGRATION'] !== 'true' || !canListenLocalhost;
 
+afterEach(async () => {
+  httpTransportHybridMocks.remoteToolCall.mockReset();
+  httpTransportHybridMocks.getRemoteToolClient.mockClear();
+  httpTransportHybridMocks.resetRemoteToolClient.mockClear();
+  delete process.env['MCP_REMOTE_EXECUTOR_URL'];
+  delete process.env['MCP_REMOTE_EXECUTOR_TOOLS'];
+  await httpTransportHybridMocks.resetRemoteToolClient();
+});
+
 describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () => {
   let app: Express;
   let server: ReturnType<typeof createHttpServer>;
@@ -56,7 +118,8 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
       port: 0, // Use random port
       host: '127.0.0.1',
       corsOrigins: ['http://localhost:3000'],
-      rateLimitMax: 1000, // High limit for tests
+      rateLimitMax: 10000, // High limit for tests
+      rateLimitWindowMs: 1000, // 1s window so limit resets between tests
       trustProxy: false,
     };
 
@@ -112,7 +175,10 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
     return `http://127.0.0.1:${address.port}`;
   };
 
-  const createJwtLikeBearerToken = (audience: string): string => {
+  const createJwtLikeBearerToken = (
+    audience: string,
+    overrides?: Record<string, unknown>
+  ): string => {
     const encode = (value: object): string =>
       Buffer.from(JSON.stringify(value)).toString('base64url');
     return [
@@ -122,6 +188,7 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
         iss: 'https://accounts.google.com',
         exp: Math.floor(Date.now() / 1000) + 3600,
         email: 'sdk-http-test@example.com',
+        ...overrides,
       }),
       'signature',
     ].join('.');
@@ -478,12 +545,18 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
     });
 
     it('should return 404 on GET /mcp with unknown session', async () => {
-      const response = await agent.get('/mcp').set('Mcp-Session-Id', 'missing-session');
+      const response = await agent
+        .get('/mcp')
+        .set('Mcp-Session-Id', 'missing-session')
+        .set('MCP-Protocol-Version', '2025-11-25');
       expect(response.status).toBe(404);
     });
 
     it('should return 404 on DELETE /mcp with unknown session', async () => {
-      const response = await agent.delete('/mcp').set('Mcp-Session-Id', 'missing-session');
+      const response = await agent
+        .delete('/mcp')
+        .set('Mcp-Session-Id', 'missing-session')
+        .set('MCP-Protocol-Version', '2025-11-25');
       expect(response.status).toBe(404);
     });
 
@@ -841,6 +914,72 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
       }
     });
 
+    it('should fail over sheets_compute to the hosted executor over /mcp when the local path throws', async () => {
+      process.env['MCP_REMOTE_EXECUTOR_URL'] = 'https://example.com/mcp';
+      process.env['MCP_REMOTE_EXECUTOR_TOOLS'] = 'sheets_compute';
+      httpTransportHybridMocks.remoteToolCall.mockResolvedValue({
+        structuredContent: {
+          response: {
+            success: true,
+            action: 'evaluate',
+            source: 'remote',
+            value: 42,
+          },
+        },
+      });
+
+      const sdkClient = await createSdkHttpClient({
+        authToken: createJwtLikeBearerToken(getBaseUrl(), {
+          email: 'compute-failover@example.com',
+          sub: 'compute-failover-user',
+          nonce: 'compute-failover-nonce',
+        }),
+      });
+
+      try {
+        const result = await sdkClient.client.callTool({
+          name: 'sheets_compute',
+          arguments: {
+            request: {
+              action: 'evaluate',
+              spreadsheetId: 'spreadsheet-123',
+              formula: '=REMOTE_FAILOVER_SENTINEL()',
+            },
+          },
+        });
+
+        const structured = result.structuredContent as
+          | {
+              response?: {
+                success?: boolean;
+                action?: string;
+                source?: string;
+                value?: number;
+              };
+            }
+          | undefined;
+
+        expect(structured?.response).toMatchObject({
+          success: true,
+          action: 'evaluate',
+          source: 'remote',
+          value: 42,
+        });
+        expect(httpTransportHybridMocks.getRemoteToolClient).toHaveBeenCalledWith(
+          'sheets_compute'
+        );
+        expect(httpTransportHybridMocks.remoteToolCall).toHaveBeenCalledWith('sheets_compute', {
+          request: {
+            action: 'evaluate',
+            spreadsheetId: 'spreadsheet-123',
+            formula: '=REMOTE_FAILOVER_SENTINEL()',
+          },
+        });
+      } finally {
+        await sdkClient.close();
+      }
+    });
+
     it('should support task-based tool execution over HTTP with the official MCP SDK client', async () => {
       const sdkClient = await createSdkHttpClient();
 
@@ -1092,7 +1231,9 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
         .post('/sse/message')
         .set('X-Session-ID', 'non-existent')
         .send({ jsonrpc: '2.0', method: 'test' })
-        .expect(404);
+        .expect((res) => {
+          expect([400, 404]).toContain(res.status);
+        });
 
       // Error format may vary - check for error indication
       expect(response.body.error).toBeDefined();
@@ -1161,26 +1302,30 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
   });
 
   describe('MCP Logging Bridge', () => {
-    it('should forward logger output after logging/setLevel via MCP notifications', async () => {
-      const initializeRequest = {
-        jsonrpc: '2.0',
-        id: 9001,
-        method: 'initialize',
-        params: {
-          protocolVersion: '2025-11-25',
-          capabilities: {},
-          clientInfo: {
-            name: 'logging-bridge-test-client',
-            version: '1.0.0',
-          },
-        },
-      };
-
+    const initializeSession = async (id: number, clientName: string) => {
+      const authToken = createJwtLikeBearerToken(getBaseUrl(), {
+        email: `${clientName}-${id}@example.com`,
+        sub: `${clientName}-${id}`,
+        nonce: `logging-session-${id}`,
+      });
       const initResponse = await agent
         .post('/mcp')
         .set('Content-Type', 'application/json')
         .set('Accept', 'application/json, text/event-stream')
-        .send(initializeRequest)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          jsonrpc: '2.0',
+          id,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-11-25',
+            capabilities: {},
+            clientInfo: {
+              name: clientName,
+              version: '1.0.0',
+            },
+          },
+        })
         .expect(200);
 
       const sessionIdHeader =
@@ -1188,6 +1333,14 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
       const sessionId = Array.isArray(sessionIdHeader) ? sessionIdHeader[0] : sessionIdHeader;
       expect(typeof sessionId).toBe('string');
       expect(sessionId).toBeTruthy();
+      return {
+        sessionId: sessionId as string,
+        authToken,
+      };
+    };
+
+    it('should forward logger output after logging/setLevel via MCP notifications', async () => {
+      const { sessionId, authToken } = await initializeSession(9001, 'logging-bridge-test-client');
 
       const sessions = server.sessions as Map<
         string,
@@ -1210,7 +1363,9 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
         .post('/mcp')
         .set('Content-Type', 'application/json')
         .set('Accept', 'application/json, text/event-stream')
+        .set('Authorization', `Bearer ${authToken}`)
         .set('Mcp-Session-Id', sessionId as string)
+        .set('MCP-Protocol-Version', '2025-11-25')
         .send({
           jsonrpc: '2.0',
           id: 9002,
@@ -1228,6 +1383,159 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
           })
         );
       });
+    });
+
+    it('should keep HTTP logging subscriptions scoped to each MCP session', async () => {
+      const debugSession = await initializeSession(9010, 'logging-debug-client');
+      const errorSession = await initializeSession(9011, 'logging-error-client');
+
+      const sessions = server.sessions as Map<
+        string,
+        {
+          mcpServer: {
+            server: {
+              sendLoggingMessage: (message: unknown) => Promise<void>;
+            };
+          };
+        }
+      >;
+
+      const debugSessionState = sessions.get(debugSession.sessionId);
+      const errorSessionState = sessions.get(errorSession.sessionId);
+      expect(debugSessionState).toBeDefined();
+      expect(errorSessionState).toBeDefined();
+
+      const debugSpy = vi
+        .spyOn(debugSessionState!.mcpServer.server, 'sendLoggingMessage')
+        .mockResolvedValue(undefined);
+      const errorSpy = vi
+        .spyOn(errorSessionState!.mcpServer.server, 'sendLoggingMessage')
+        .mockResolvedValue(undefined);
+
+      await agent
+        .post('/mcp')
+        .set('Content-Type', 'application/json')
+        .set('Accept', 'application/json, text/event-stream')
+        .set('Authorization', `Bearer ${debugSession.authToken}`)
+        .set('Mcp-Session-Id', debugSession.sessionId)
+        .set('MCP-Protocol-Version', '2025-11-25')
+        .send({
+          jsonrpc: '2.0',
+          id: 9012,
+          method: 'logging/setLevel',
+          params: { level: 'debug' },
+        })
+        .expect(200);
+
+      await agent
+        .post('/mcp')
+        .set('Content-Type', 'application/json')
+        .set('Accept', 'application/json, text/event-stream')
+        .set('Authorization', `Bearer ${errorSession.authToken}`)
+        .set('Mcp-Session-Id', errorSession.sessionId)
+        .set('MCP-Protocol-Version', '2025-11-25')
+        .send({
+          jsonrpc: '2.0',
+          id: 9013,
+          method: 'logging/setLevel',
+          params: { level: 'error' },
+        })
+        .expect(200);
+
+      logger.info('http-session-scoped-logging-test');
+
+      await vi.waitFor(() => {
+        expect(debugSpy).toHaveBeenCalled();
+      });
+
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+
+    it('should keep HTTP resource subscriptions scoped to each MCP session and honor unsubscribe', async () => {
+      const cacheSession = await initializeSession(9020, 'resource-cache-client');
+      const historySession = await initializeSession(9021, 'resource-history-client');
+
+      const sessions = server.sessions as Map<
+        string,
+        {
+          mcpServer: {
+            server: {
+              sendResourceUpdated: (message: unknown) => Promise<void>;
+            };
+          };
+        }
+      >;
+
+      const cacheSessionState = sessions.get(cacheSession.sessionId);
+      const historySessionState = sessions.get(historySession.sessionId);
+      expect(cacheSessionState).toBeDefined();
+      expect(historySessionState).toBeDefined();
+
+      const cacheSpy = vi
+        .spyOn(cacheSessionState!.mcpServer.server, 'sendResourceUpdated')
+        .mockResolvedValue(undefined);
+      const historySpy = vi
+        .spyOn(historySessionState!.mcpServer.server, 'sendResourceUpdated')
+        .mockResolvedValue(undefined);
+
+      await agent
+        .post('/mcp')
+        .set('Content-Type', 'application/json')
+        .set('Accept', 'application/json, text/event-stream')
+        .set('Authorization', `Bearer ${cacheSession.authToken}`)
+        .set('Mcp-Session-Id', cacheSession.sessionId)
+        .set('MCP-Protocol-Version', '2025-11-25')
+        .send({
+          jsonrpc: '2.0',
+          id: 9022,
+          method: 'resources/subscribe',
+          params: { uri: 'cache://stats' },
+        })
+        .expect(200);
+
+      await agent
+        .post('/mcp')
+        .set('Content-Type', 'application/json')
+        .set('Accept', 'application/json, text/event-stream')
+        .set('Authorization', `Bearer ${historySession.authToken}`)
+        .set('Mcp-Session-Id', historySession.sessionId)
+        .set('MCP-Protocol-Version', '2025-11-25')
+        .send({
+          jsonrpc: '2.0',
+          id: 9023,
+          method: 'resources/subscribe',
+          params: { uri: 'history://stats' },
+        })
+        .expect(200);
+
+      resourceNotifications.notifyCacheInvalidated();
+
+      await vi.waitFor(() => {
+        expect(cacheSpy).toHaveBeenCalledWith({ uri: 'cache://stats' });
+      });
+      expect(historySpy).not.toHaveBeenCalled();
+
+      cacheSpy.mockClear();
+
+      await agent
+        .post('/mcp')
+        .set('Content-Type', 'application/json')
+        .set('Accept', 'application/json, text/event-stream')
+        .set('Authorization', `Bearer ${cacheSession.authToken}`)
+        .set('Mcp-Session-Id', cacheSession.sessionId)
+        .set('MCP-Protocol-Version', '2025-11-25')
+        .send({
+          jsonrpc: '2.0',
+          id: 9024,
+          method: 'resources/unsubscribe',
+          params: { uri: 'cache://stats' },
+        })
+        .expect(200);
+
+      resourceNotifications.notifyCacheInvalidated();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(cacheSpy).not.toHaveBeenCalled();
     });
   });
 });

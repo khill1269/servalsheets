@@ -25,13 +25,37 @@ const packageFiles = [
   'tools/gcloud-console-server/package.json',
 ];
 
+// Packages that are workspace-local, scaffold-only, or use non-standard registries.
+// These are intentionally excluded from npm version validation.
+const SKIP_PACKAGES = new Set([
+  // Workspace packages (resolved via npm workspaces, not published to npm)
+  '@serval/core',
+  '@serval/mcp-client',
+  '@serval/mcp-http',
+  '@serval/mcp-runtime',
+  '@serval/mcp-stdio',
+  // Scaffold backend dependencies (not yet wired — adapter layer placeholders)
+  '@duckdb/duckdb-wasm',
+  'duckdb-wasm',
+  'node-sqlite',
+  'notionhq-client',  // correct: @notionhq/client (scaffold)
+  'spearman',          // Spearman correlation implemented inline
+  'voyage-ai',         // correct: voyageai (scaffold for semantic search)
+  'posthog',           // correct: posthog-node (scaffold for analytics)
+  'api-gateway',       // internal routing abstraction (scaffold)
+  // Packages with non-standard versioning or unpublished ranges
+  'diff-match-patch',  // uses date-based versioning (20240101.0.0)
+  '@apple/passwordless-auth', // optional, not on public npm
+]);
+
 async function validateVersion(pkg: string, version: string): Promise<ValidationResult> {
   if (
     version.startsWith('workspace:') ||
     version.startsWith('file:') ||
     version.startsWith('link:') ||
     version.startsWith('git+') ||
-    version.startsWith('http:')
+    version.startsWith('http:') ||
+    SKIP_PACKAGES.has(pkg)
   ) {
     return {
       package: pkg,

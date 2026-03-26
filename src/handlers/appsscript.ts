@@ -1,7 +1,7 @@
 /**
  * ServalSheets - Apps Script Handler
  *
- * Handles sheets_appsscript tool (18 actions):
+ * Handles sheets_appsscript tool (19 actions):
  * - create: Create new Apps Script project
  * - get: Get project metadata
  * - get_content: Get script files and code
@@ -16,10 +16,11 @@
  * - run: Execute script function
  * - list_processes: Get execution logs
  * - get_metrics: Get usage metrics
- * - create_trigger: Create time/event trigger
- * - list_triggers: List all triggers
- * - delete_trigger: Delete a trigger
- * - update_trigger: Update trigger settings
+ * - create_trigger: Create time/event trigger (NOT_IMPLEMENTED)
+ * - list_triggers: List all triggers (NOT_IMPLEMENTED)
+ * - delete_trigger: Delete a trigger (NOT_IMPLEMENTED)
+ * - update_trigger: Update trigger settings (NOT_IMPLEMENTED)
+ * - install_serval_function: Install SERVAL() formula
  *
  * APIs Used:
  * - Google Apps Script API (script.googleapis.com)
@@ -27,6 +28,8 @@
  * IMPORTANT: Does NOT work with service accounts - requires OAuth user auth
  *
  * MCP Protocol: 2025-11-25
+ *
+ * Action implementations decomposed into appsscript-actions/ submodules.
  */
 
 import { ErrorCodes } from './error-codes.js';
@@ -35,10 +38,9 @@ import { AuthenticationError, ServiceError } from '../core/errors.js';
 import type { Intent } from '../core/intent.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { executeWithRetry } from '../utils/retry.js';
-import { getRequestAbortSignal } from '../utils/request-context.js';
-import { getCircuitBreakerConfig } from '../config/env.js';
+import { getRequestAbortSignal, sendProgress } from '../utils/request-context.js';
+import { getApiSpecificCircuitBreakerConfig, getEnv } from '../config/env.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
-import { randomBytes } from 'crypto';
 import type {
   SheetsAppsScriptInput,
   SheetsAppsScriptOutput,
@@ -65,7 +67,37 @@ import type {
   AppsScriptInstallServalFunctionInput,
 } from '../schemas/index.js';
 import { logger } from '../utils/logger.js';
-import { sendProgress } from '../utils/request-context.js';
+
+// Submodule imports
+import {
+  handleCreate,
+  handleGet,
+  handleGetContent,
+  handleUpdateContent,
+} from './appsscript-actions/project-operations.js';
+import {
+  handleCreateVersion,
+  handleListVersions,
+  handleGetVersion,
+  handleDeploy,
+  handleListDeployments,
+  handleGetDeployment,
+  handleUndeploy,
+} from './appsscript-actions/version-deploy-operations.js';
+import {
+  handleRun,
+  handleListProcesses,
+  handleGetMetrics,
+  setMaxConcurrentRuns,
+} from './appsscript-actions/execution-operations.js';
+import {
+  handleCreateTrigger,
+  handleListTriggers,
+  handleDeleteTrigger,
+  handleUpdateTrigger,
+} from './appsscript-actions/trigger-operations.js';
+import { handleInstallServalFunction } from './appsscript-actions/serval-installer.js';
+import type { AppsScriptHandlerAccess } from './appsscript-actions/internal.js';
 
 // Apps Script API base URL
 const APPS_SCRIPT_API_BASE = 'https://script.googleapis.com/v1';
@@ -74,94 +106,55 @@ const APPS_SCRIPT_API_BASE = 'https://script.googleapis.com/v1';
  * Timeout constants per Google Apps Script API documentation
  * @see https://developers.google.com/apps-script/api/how-tos/execute
  *
- * Execution limits (Google docs):
- *   - Consumer accounts:  6 minutes  (360 seconds)
- *   - Workspace accounts: 30 minutes (1800 seconds)
- *
- * SCRIPT_RUN_TIMEOUT is the HTTP request timeout — must be >= script execution limit.
- * Using the Workspace limit (30 min + 60 s buffer) so long-running Workspace scripts
- * are not cut off prematurely. Consumer scripts complete well within this window.
+ * Apps Script executions are limited to 6 minutes per run.
+ * Keep the client timeout slightly above that documented limit so run() calls
+ * are not cut off before Apps Script itself aborts the execution.
  */
-const SCRIPT_RUN_TIMEOUT_MS = 1_860_000; // 31 minutes (30 min Workspace limit + 60 s buffer)
 const SCRIPT_ADMIN_TIMEOUT_MS = 30_000; // 30 seconds (metadata operations)
 
 export class SheetsAppsScriptHandler extends BaseHandler<
   SheetsAppsScriptInput,
   SheetsAppsScriptOutput
 > {
-  // ISSUE-203: Track concurrent run() executions (Google Apps Script limit: 20/user)
-  // Static so the limit applies across all handler instances (one per MCP request)
-  private static activeRunExecutions = 0;
-  private static readonly MAX_CONCURRENT_RUNS = 15; // 15/20 — buffer below Google's limit
+  private static readonly BOUND_SCRIPT_CACHE_TTL_MS = 5 * 60 * 1000;
+  private static readonly boundScriptCache = new Map<
+    string,
+    { scriptId: string; cachedAt: number }
+  >();
 
-  // ============================================================================
-  // Shared API response interfaces (class-level to avoid inline duplication)
-  // ============================================================================
+  private static rememberBoundScript(spreadsheetId: string, scriptId: string): void {
+    SheetsAppsScriptHandler.boundScriptCache.set(spreadsheetId, {
+      scriptId,
+      cachedAt: Date.now(),
+    });
+  }
 
-  declare private _interfaces: {
-    ProjectResponse: {
-      scriptId: string;
-      title: string;
-      parentId?: string;
-      createTime?: string;
-      updateTime?: string;
-      creator?: { email?: string; name?: string };
-    };
-    ContentResponse: {
-      scriptId: string;
-      files: Array<{
-        name: string;
-        type: 'SERVER_JS' | 'HTML' | 'JSON';
-        source: string;
-        lastModifyUser?: { email?: string; name?: string };
-        createTime?: string;
-        updateTime?: string;
-      }>;
-    };
-    VersionResponse: {
-      versionNumber: number;
-      description?: string;
-      createTime?: string;
-    };
-    DeploymentResponse: {
-      deploymentId: string;
-      deploymentConfig?: {
-        description?: string;
-        manifestFileName?: string;
-        versionNumber?: number;
-        scriptId?: string;
-      };
-      entryPoints?: Array<{
-        entryPointType?: 'EXECUTION_API' | 'WEB_APP' | 'ADD_ON';
-        webApp?: {
-          url?: string;
-          entryPointConfig?: {
-            access?: 'MYSELF' | 'DOMAIN' | 'ANYONE' | 'ANYONE_ANONYMOUS';
-            executeAs?: 'USER_ACCESSING' | 'USER_DEPLOYING';
-          };
-        };
-        executionApi?: {
-          entryPointConfig?: {
-            access?: 'MYSELF' | 'DOMAIN' | 'ANYONE' | 'ANYONE_ANONYMOUS';
-          };
-        };
-      }>;
-      updateTime?: string;
-    };
-  };
+  private static getRememberedBoundScript(spreadsheetId: string): string | undefined {
+    const cached = SheetsAppsScriptHandler.boundScriptCache.get(spreadsheetId);
+    if (!cached) {
+      return undefined; // OK: Explicit empty
+    }
+
+    if (Date.now() - cached.cachedAt > SheetsAppsScriptHandler.BOUND_SCRIPT_CACHE_TTL_MS) {
+      SheetsAppsScriptHandler.boundScriptCache.delete(spreadsheetId);
+      return undefined; // OK: Explicit empty
+    }
+
+    return cached.scriptId;
+  }
 
   private circuitBreaker: CircuitBreaker;
+  private handlerAccess: AppsScriptHandlerAccess;
 
   constructor(context: HandlerContext) {
     super('sheets_appsscript', context);
 
     // Initialize circuit breaker for Apps Script API
-    // Lower failure threshold (3 vs 5) due to lower quotas
-    const circuitConfig = getCircuitBreakerConfig();
+    const appsscriptConfig = getApiSpecificCircuitBreakerConfig('appsscript');
     this.circuitBreaker = new CircuitBreaker({
-      failureThreshold: 3,
-      successThreshold: circuitConfig.successThreshold,
-      timeout: 60000, // 60 seconds (longer due to script execution time)
+      failureThreshold: appsscriptConfig.failureThreshold,
+      successThreshold: appsscriptConfig.successThreshold,
+      timeout: appsscriptConfig.timeout,
       name: 'appsscript-api',
     });
 
@@ -187,6 +180,26 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       this.circuitBreaker,
       'Apps Script API circuit breaker'
     );
+
+    // Initialize max concurrent runs for execution operations
+    setMaxConcurrentRuns(getEnv().APPSSCRIPT_MAX_CONCURRENT_RUNS);
+
+    // Build handler access object for submodules
+    this.handlerAccess = {
+      success: (action, data) => this.success(action, data),
+      error: (e) => this.error(e),
+      context,
+      apiRequest: <T>(
+        method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+        path: string,
+        body?: unknown,
+        timeoutMs?: number
+      ) => this.apiRequest<T>(method, path, body, timeoutMs),
+      resolveScriptIdFromSpreadsheet: (spreadsheetId) =>
+        this.resolveScriptIdFromSpreadsheet(spreadsheetId),
+      rememberBoundScript: (spreadsheetId, scriptId) =>
+        SheetsAppsScriptHandler.rememberBoundScript(spreadsheetId, scriptId),
+    };
   }
 
   async handle(input: SheetsAppsScriptInput): Promise<SheetsAppsScriptOutput> {
@@ -199,65 +212,96 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     try {
       // 3. Dispatch to action handler
       const req = rawReq as AppsScriptRequest;
+      this.checkOperationScopes(`${this.toolName}.${req.action}`);
       let response: AppsScriptResponse;
 
       switch (req.action) {
         case 'create':
-          response = await this.handleCreate(req as AppsScriptCreateInput);
+          response = await handleCreate(this.handlerAccess, req as AppsScriptCreateInput);
           break;
-        case 'get':
-          response = await this.handleGet(req as AppsScriptGetInput);
+        case 'get': {
+          const getReq = await this.ensureScriptId(req as AppsScriptGetInput);
+          response = await handleGet(this.handlerAccess, getReq);
           break;
-        case 'get_content':
-          response = await this.handleGetContent(req as AppsScriptGetContentInput);
+        }
+        case 'get_content': {
+          const getContentReq = await this.ensureScriptId(req as AppsScriptGetContentInput);
+          response = await handleGetContent(this.handlerAccess, getContentReq);
           break;
-        case 'update_content':
-          response = await this.handleUpdateContent(req as AppsScriptUpdateContentInput);
+        }
+        case 'update_content': {
+          const updateContentReq = await this.ensureScriptId(req as AppsScriptUpdateContentInput);
+          response = await handleUpdateContent(this.handlerAccess, updateContentReq);
           break;
+        }
         case 'create_version':
-          response = await this.handleCreateVersion(req as AppsScriptCreateVersionInput);
+          response = await handleCreateVersion(
+            this.handlerAccess,
+            req as AppsScriptCreateVersionInput
+          );
           break;
         case 'list_versions':
-          response = await this.handleListVersions(req as AppsScriptListVersionsInput);
+          response = await handleListVersions(
+            this.handlerAccess,
+            req as AppsScriptListVersionsInput
+          );
           break;
         case 'get_version':
-          response = await this.handleGetVersion(req as AppsScriptGetVersionInput);
+          response = await handleGetVersion(this.handlerAccess, req as AppsScriptGetVersionInput);
           break;
         case 'deploy':
-          response = await this.handleDeploy(req as AppsScriptDeployInput);
+          response = await handleDeploy(this.handlerAccess, req as AppsScriptDeployInput);
           break;
         case 'list_deployments':
-          response = await this.handleListDeployments(req as AppsScriptListDeploymentsInput);
+          response = await handleListDeployments(
+            this.handlerAccess,
+            req as AppsScriptListDeploymentsInput
+          );
           break;
         case 'get_deployment':
-          response = await this.handleGetDeployment(req as AppsScriptGetDeploymentInput);
+          response = await handleGetDeployment(
+            this.handlerAccess,
+            req as AppsScriptGetDeploymentInput
+          );
           break;
         case 'undeploy':
-          response = await this.handleUndeploy(req as AppsScriptUndeployInput);
+          response = await handleUndeploy(this.handlerAccess, req as AppsScriptUndeployInput);
           break;
         case 'run':
-          response = await this.handleRun(req as AppsScriptRunInput);
+          response = await handleRun(this.handlerAccess, req as AppsScriptRunInput);
           break;
         case 'list_processes':
-          response = await this.handleListProcesses(req as AppsScriptListProcessesInput);
+          response = await handleListProcesses(
+            this.handlerAccess,
+            req as AppsScriptListProcessesInput
+          );
           break;
         case 'get_metrics':
-          response = await this.handleGetMetrics(req as AppsScriptGetMetricsInput);
+          response = await handleGetMetrics(this.handlerAccess, req as AppsScriptGetMetricsInput);
           break;
-        case 'create_trigger':
-          response = await this.handleCreateTrigger(req as AppsScriptCreateTriggerInput);
+        case 'create_trigger': {
+          const createTriggerReq = await this.ensureScriptId(req as AppsScriptCreateTriggerInput);
+          response = handleCreateTrigger(this.handlerAccess, createTriggerReq);
           break;
-        case 'list_triggers':
-          response = await this.handleListTriggers(req as AppsScriptListTriggersInput);
+        }
+        case 'list_triggers': {
+          const listTriggersReq = await this.ensureScriptId(req as AppsScriptListTriggersInput);
+          response = handleListTriggers(this.handlerAccess, listTriggersReq);
           break;
-        case 'delete_trigger':
-          response = await this.handleDeleteTrigger(req as AppsScriptDeleteTriggerInput);
+        }
+        case 'delete_trigger': {
+          const deleteTriggerReq = await this.ensureScriptId(req as AppsScriptDeleteTriggerInput);
+          response = handleDeleteTrigger(this.handlerAccess, deleteTriggerReq);
           break;
-        case 'update_trigger':
-          response = await this.handleUpdateTrigger(req as AppsScriptUpdateTriggerInput);
+        }
+        case 'update_trigger': {
+          const updateTriggerReq = await this.ensureScriptId(req as AppsScriptUpdateTriggerInput);
+          response = handleUpdateTrigger(this.handlerAccess, updateTriggerReq);
           break;
+        }
         case 'install_serval_function':
-          response = await this.handleInstallServalFunction(
+          response = await handleInstallServalFunction(
+            this.handlerAccess,
             req as AppsScriptInstallServalFunctionInput
           );
           break;
@@ -291,6 +335,124 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   // ============================================================================
   // Helper Methods
   // ============================================================================
+
+  /**
+   * Resolve scriptId from spreadsheetId via Drive API.
+   * Looks for bound Apps Script projects (mimeType: application/vnd.google-apps.script)
+   * that are children of the given spreadsheet.
+   *
+   * FIX P1-1: LLMs often only have the spreadsheetId, not the scriptId.
+   * This method bridges the gap by querying the Drive API.
+   */
+  private async resolveScriptIdFromSpreadsheet(spreadsheetId: string): Promise<string> {
+    const googleClient = this.context.googleClient;
+    if (!googleClient) {
+      throw new AuthenticationError(
+        'No Google client available - authentication required',
+        'AUTH_ERROR',
+        false,
+        { service: 'AppsScript' }
+      );
+    }
+
+    logger.debug(`Resolving scriptId from spreadsheetId: ${spreadsheetId}`);
+    await sendProgress(0, 1, `Resolving Apps Script project for spreadsheet ${spreadsheetId}...`);
+
+    const cachedScriptId = SheetsAppsScriptHandler.getRememberedBoundScript(spreadsheetId);
+    if (cachedScriptId) {
+      logger.debug(`Resolved scriptId from in-memory cache: ${cachedScriptId}`);
+      return cachedScriptId;
+    }
+
+    try {
+      const drive = googleClient.drive;
+      // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+      const listBoundScripts = async () =>
+        await drive.files.list({
+          q: `'${spreadsheetId}' in parents and mimeType = 'application/vnd.google-apps.script' and trashed = false`,
+          fields: 'files(id, name)',
+          pageSize: 5,
+        });
+
+      let files = (await listBoundScripts()).data.files;
+      if (!files || files.length === 0) {
+        const retryDelaysMs = [300, 700];
+        for (const delayMs of retryDelaysMs) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          files = (await listBoundScripts()).data.files;
+          if (files && files.length > 0) {
+            break;
+          }
+        }
+      }
+
+      if (!files || files.length === 0) {
+        throw new ServiceError(
+          `No bound Apps Script project found for spreadsheet ${spreadsheetId}. ` +
+            `The spreadsheet may not have a bound script. Use action "create" with parentId to create one.`,
+          ErrorCodes.NOT_FOUND,
+          'drive-api',
+          false,
+          {
+            spreadsheetId,
+            hint: 'Use sheets_appsscript action "create" with parentId set to the spreadsheetId',
+          }
+        );
+      }
+
+      const firstFile = files[0];
+      const scriptId = firstFile?.id;
+      if (!scriptId) {
+        throw new ServiceError(
+          `Drive API returned a file without an ID for spreadsheet ${spreadsheetId}`,
+          ErrorCodes.INTERNAL_ERROR,
+          'drive-api',
+          true,
+          { spreadsheetId }
+        );
+      }
+      logger.info(
+        `Resolved scriptId: ${scriptId} (from spreadsheet: ${spreadsheetId}, script name: ${firstFile?.name ?? 'unknown'})`
+      );
+      SheetsAppsScriptHandler.rememberBoundScript(spreadsheetId, scriptId);
+      return scriptId;
+    } catch (err) {
+      if (err instanceof ServiceError) throw err;
+      throw new ServiceError(
+        `Failed to resolve Apps Script project from spreadsheet: ${(err as Error).message}`,
+        ErrorCodes.INTERNAL_ERROR,
+        'drive-api',
+        true,
+        { spreadsheetId }
+      );
+    }
+  }
+
+  /**
+   * Ensure scriptId is present on the request. If only spreadsheetId is provided,
+   * auto-resolve scriptId via Drive API lookup.
+   *
+   * FIX P1-1: Allows callers to pass spreadsheetId instead of scriptId for
+   * metadata, content, and trigger-management actions.
+   */
+  private async ensureScriptId<T extends { scriptId?: string; spreadsheetId?: string }>(
+    req: T
+  ): Promise<T & { scriptId: string }> {
+    if (req.scriptId) {
+      return req as T & { scriptId: string };
+    }
+    if (req.spreadsheetId) {
+      const scriptId = await this.resolveScriptIdFromSpreadsheet(req.spreadsheetId);
+      return { ...req, scriptId };
+    }
+    throw new ServiceError(
+      'Either scriptId or spreadsheetId must be provided',
+      ErrorCodes.INVALID_PARAMS,
+      'appsscript',
+      false,
+      { hint: 'Provide scriptId (from script URL) or spreadsheetId (to auto-resolve bound script)' }
+    );
+  }
 
   /**
    * Make authenticated request to Apps Script API
@@ -330,25 +492,11 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       'Content-Type': 'application/json',
     };
 
-    // Set up abort controller for timeout
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
-
-    const options: RequestInit = {
-      method,
-      headers,
-      signal: abortController.signal,
-    };
-
-    if (body && (method === 'POST' || method === 'PUT')) {
-      options.body = JSON.stringify(body);
-    }
+    const requestBody =
+      body && (method === 'POST' || method === 'PUT') ? JSON.stringify(body) : undefined;
 
     logger.debug(`Apps Script API ${method} ${path} (timeout: ${timeoutMs}ms)`);
 
-    // Wrap API call with retry + circuit breaker
-    // Only retry network-level transport errors (not API-level ServiceErrors like 429/403
-    // which are surfaced to the client with their original error codes)
     const RETRYABLE_NETWORK_CODES = new Set([
       'ETIMEDOUT',
       'ECONNRESET',
@@ -362,28 +510,49 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       'ERR_HTTP2_STREAM_CANCEL',
     ]);
 
-    return await executeWithRetry(
-      async (signal) => {
-        return await this.circuitBreaker.execute(async () => {
+    // Run retries inside the circuit breaker operation so transient 429/5xx retries
+    // do not each count as separate breaker failures.
+    return await this.circuitBreaker.execute(async () =>
+      executeWithRetry(
+        async (signal) => {
           // Merge retry signal + manual timeout signal + MCP cancellation signal (ISSUE-119)
           const fetchController = new AbortController();
           const requestAbortSignal = getRequestAbortSignal() ?? this.context.abortSignal;
-          signal.addEventListener('abort', () => fetchController.abort(signal.reason));
+          const timeoutId = setTimeout(() => fetchController.abort('request timeout'), timeoutMs);
+          const cleanupFns: Array<() => void> = [];
+
+          const forwardAbort = (source: AbortSignal | undefined, fallbackReason: string): void => {
+            if (!source) {
+              return;
+            }
+
+            const onAbort = (): void => {
+              fetchController.abort(source.reason ?? fallbackReason);
+            };
+            if (source.aborted) {
+              onAbort();
+              return;
+            }
+
+            source.addEventListener('abort', onAbort, { once: true });
+            cleanupFns.push(() => source.removeEventListener('abort', onAbort));
+          };
+
+          forwardAbort(signal, 'retry timeout');
           // ISSUE-119: Wire context abortSignal so client cancellation (notifications/cancelled)
           // terminates the long-running Apps Script HTTP request immediately.
-          requestAbortSignal?.addEventListener('abort', () =>
-            fetchController.abort('MCP request cancelled by client')
-          );
+          forwardAbort(requestAbortSignal, 'MCP request cancelled by client');
 
           try {
-            const fetchOptions: RequestInit = { ...options, signal: fetchController.signal };
+            const fetchOptions: RequestInit = {
+              method,
+              headers,
+              body: requestBody,
+              signal: fetchController.signal,
+            };
             const response = await fetch(url, fetchOptions);
-            clearTimeout(timeoutId);
-
             return await this.handleApiResponse<T>(response, path);
           } catch (error) {
-            clearTimeout(timeoutId);
-
             // Handle timeout/abort
             if (error instanceof Error && error.name === 'AbortError') {
               throw new ServiceError(
@@ -396,25 +565,25 @@ export class SheetsAppsScriptHandler extends BaseHandler<
             }
 
             throw error;
+          } finally {
+            clearTimeout(timeoutId);
+            cleanupFns.forEach((cleanup) => cleanup());
           }
-        });
-      },
-      {
-        timeoutMs,
-        retryable: (error) => {
-          // Don't retry API-level ServiceErrors — circuit breaker handles those.
-          // NOTE: 429 rate limits from Apps Script are ServiceError(UNAVAILABLE, RATE_LIMITED)
-          // and are not retried here because retrying would trip the circuit breaker (threshold=3)
-          // before backoff completes, producing a plain Error instead of the typed ServiceError.
-          // The correct fix requires the circuit breaker to not count 429s as failures — deferred.
-          if (error instanceof ServiceError) return false;
-          const code =
-            typeof (error as { code?: unknown }).code === 'string'
-              ? (error as { code: string }).code
-              : '';
-          return RETRYABLE_NETWORK_CODES.has(code);
         },
-      }
+        {
+          timeoutMs,
+          retryable: (error) => {
+            if (error instanceof ServiceError) {
+              return error.retryable;
+            }
+            const code =
+              typeof (error as { code?: unknown }).code === 'string'
+                ? (error as { code: string }).code
+                : '';
+            return RETRYABLE_NETWORK_CODES.has(code);
+          },
+        }
+      )
     );
   }
 
@@ -515,935 +684,5 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     }
 
     return JSON.parse(text) as T;
-  }
-
-  // ============================================================================
-  // Project Management Actions
-  // ============================================================================
-
-  private async handleCreate(req: AppsScriptCreateInput): Promise<AppsScriptResponse> {
-    logger.info(`Creating Apps Script project: ${req.title}`);
-
-    interface CreateProjectRequest {
-      title: string;
-      parentId?: string;
-    }
-
-    type ProjectResponse = (typeof this._interfaces)['ProjectResponse'];
-
-    const body: CreateProjectRequest = {
-      title: req.title,
-    };
-
-    if (req.parentId) {
-      body.parentId = req.parentId;
-    }
-
-    const result = await this.apiRequest<ProjectResponse>('POST', '/projects', body);
-
-    return this.success('create', {
-      project: {
-        scriptId: result.scriptId,
-        title: result.title,
-        parentId: result.parentId ?? undefined,
-        createTime: result.createTime ?? undefined,
-        updateTime: result.updateTime ?? undefined,
-        creator: result.creator ?? undefined,
-      },
-    });
-  }
-
-  private async handleGet(req: AppsScriptGetInput): Promise<AppsScriptResponse> {
-    logger.info(`Getting Apps Script project: ${req.scriptId}`);
-
-    type ProjectResponse = (typeof this._interfaces)['ProjectResponse'];
-
-    const result = await this.apiRequest<ProjectResponse>('GET', `/projects/${req.scriptId}`);
-
-    return this.success('get', {
-      project: {
-        scriptId: result.scriptId,
-        title: result.title,
-        parentId: result.parentId ?? undefined,
-        createTime: result.createTime ?? undefined,
-        updateTime: result.updateTime ?? undefined,
-        creator: result.creator ?? undefined,
-      },
-    });
-  }
-
-  private async handleGetContent(req: AppsScriptGetContentInput): Promise<AppsScriptResponse> {
-    logger.info(`Getting Apps Script content: ${req.scriptId}`);
-
-    type ContentResponse = (typeof this._interfaces)['ContentResponse'];
-
-    let path = `/projects/${req.scriptId}/content`;
-    if (req.versionNumber) {
-      path += `?versionNumber=${req.versionNumber}`;
-    }
-
-    const result = await this.apiRequest<ContentResponse>('GET', path);
-
-    return this.success('get_content', {
-      files: result.files.map((f) => ({
-        name: f.name,
-        type: f.type,
-        source: f.source,
-        lastModifyUser: f.lastModifyUser ?? undefined,
-        createTime: f.createTime ?? undefined,
-        updateTime: f.updateTime ?? undefined,
-      })),
-    });
-  }
-
-  private async handleUpdateContent(
-    req: AppsScriptUpdateContentInput
-  ): Promise<AppsScriptResponse> {
-    logger.info(`Updating Apps Script content: ${req.scriptId}`);
-
-    type ContentResponse = (typeof this._interfaces)['ContentResponse'];
-
-    const body = {
-      files: req.files.map((f) => ({
-        name: f.name,
-        type: f.type,
-        source: f.source,
-      })),
-    };
-
-    const result = await this.apiRequest<ContentResponse>(
-      'PUT',
-      `/projects/${req.scriptId}/content`,
-      body
-    );
-
-    return this.success('update_content', {
-      files: result.files.map((f) => ({
-        name: f.name,
-        type: f.type,
-        source: f.source,
-        lastModifyUser: f.lastModifyUser ?? undefined,
-        createTime: f.createTime ?? undefined,
-        updateTime: f.updateTime ?? undefined,
-      })),
-    });
-  }
-
-  // ============================================================================
-  // Version Management Actions
-  // ============================================================================
-
-  private async handleCreateVersion(
-    req: AppsScriptCreateVersionInput
-  ): Promise<AppsScriptResponse> {
-    logger.info(`Creating version for: ${req.scriptId}`);
-
-    type VersionResponse = (typeof this._interfaces)['VersionResponse'];
-
-    const body: { description?: string } = {};
-    if (req.description) {
-      body.description = req.description;
-    }
-
-    const result = await this.apiRequest<VersionResponse>(
-      'POST',
-      `/projects/${req.scriptId}/versions`,
-      body
-    );
-
-    return this.success('create_version', {
-      version: {
-        versionNumber: result.versionNumber,
-        description: result.description ?? undefined,
-        createTime: result.createTime ?? undefined,
-      },
-    });
-  }
-
-  private async handleListVersions(req: AppsScriptListVersionsInput): Promise<AppsScriptResponse> {
-    logger.info(`Listing versions for: ${req.scriptId}`);
-
-    interface ListVersionsResponse {
-      versions?: Array<{
-        versionNumber: number;
-        description?: string;
-        createTime?: string;
-      }>;
-      nextPageToken?: string;
-    }
-
-    let path = `/projects/${req.scriptId}/versions`;
-    const params: string[] = [];
-    if (req.pageSize) params.push(`pageSize=${req.pageSize}`);
-    if (req.pageToken) params.push(`pageToken=${encodeURIComponent(req.pageToken)}`);
-    if (params.length > 0) path += `?${params.join('&')}`;
-
-    const result = await this.apiRequest<ListVersionsResponse>('GET', path);
-
-    return this.success('list_versions', {
-      versions: (result.versions ?? []).map((v) => ({
-        versionNumber: v.versionNumber,
-        description: v.description ?? undefined,
-        createTime: v.createTime ?? undefined,
-      })),
-      nextPageToken: result.nextPageToken ?? undefined,
-    });
-  }
-
-  private async handleGetVersion(req: AppsScriptGetVersionInput): Promise<AppsScriptResponse> {
-    logger.info(`Getting version ${req.versionNumber} for: ${req.scriptId}`);
-
-    type VersionResponse = (typeof this._interfaces)['VersionResponse'];
-
-    const result = await this.apiRequest<VersionResponse>(
-      'GET',
-      `/projects/${req.scriptId}/versions/${req.versionNumber}`
-    );
-
-    return this.success('get_version', {
-      version: {
-        versionNumber: result.versionNumber,
-        description: result.description ?? undefined,
-        createTime: result.createTime ?? undefined,
-      },
-    });
-  }
-
-  // ============================================================================
-  // Deployment Management Actions
-  // ============================================================================
-
-  private async handleDeploy(req: AppsScriptDeployInput): Promise<AppsScriptResponse> {
-    logger.info(`Creating deployment for: ${req.scriptId}`);
-
-    type DeploymentResponse = (typeof this._interfaces)['DeploymentResponse'];
-
-    interface DeploymentConfig {
-      scriptId: string;
-      description?: string;
-      versionNumber?: number;
-    }
-
-    const deploymentConfig: DeploymentConfig = {
-      scriptId: req.scriptId,
-    };
-
-    if (req.description) {
-      deploymentConfig.description = req.description;
-    }
-
-    if (req.versionNumber) {
-      deploymentConfig.versionNumber = req.versionNumber;
-    }
-
-    if (!deploymentConfig.versionNumber) {
-      logger.warn(
-        'Deploying Apps Script to HEAD version (volatile). Specify versionNumber for a stable, pinned deployment.',
-        { scriptId: req.scriptId }
-      );
-    }
-
-    // Per Apps Script API: request body is a Deployment resource with deploymentConfig nested
-    // https://developers.google.com/apps-script/api/reference/rest/v1/projects.deployments/create
-    const result = await this.apiRequest<DeploymentResponse>(
-      'POST',
-      `/projects/${req.scriptId}/deployments`,
-      { deploymentConfig }
-    );
-
-    // Extract web app URL if available
-    const webAppEntry = result.entryPoints?.find((e) => e.entryPointType === 'WEB_APP');
-    const webAppUrl = webAppEntry?.webApp?.url;
-
-    // Warn if ignored params were provided
-    const ignoredParams: string[] = [];
-    if ((req as { deploymentType?: string }).deploymentType) ignoredParams.push('deploymentType');
-    if ((req as { access?: string }).access) ignoredParams.push('access');
-    if ((req as { executeAs?: string }).executeAs) ignoredParams.push('executeAs');
-
-    return this.success('deploy', {
-      deployment: {
-        deploymentId: result.deploymentId,
-        versionNumber: result.deploymentConfig?.versionNumber ?? undefined,
-        deploymentConfig: result.deploymentConfig ?? undefined,
-        entryPoints: result.entryPoints ?? undefined,
-        updateTime: result.updateTime ?? undefined,
-      },
-      webAppUrl: webAppUrl ?? undefined,
-      ...(ignoredParams.length > 0 && {
-        warning: `The following parameters are not supported by the Deployments API and were ignored: ${ignoredParams.join(', ')}. To configure these settings, update appsscript.json via the update_content action before deploying.`,
-      }),
-    });
-  }
-
-  private async handleListDeployments(
-    req: AppsScriptListDeploymentsInput
-  ): Promise<AppsScriptResponse> {
-    logger.info(`Listing deployments for: ${req.scriptId}`);
-
-    interface ListDeploymentsResponse {
-      deployments?: Array<{
-        deploymentId: string;
-        deploymentConfig?: {
-          description?: string;
-          manifestFileName?: string;
-          versionNumber?: number;
-          scriptId?: string;
-        };
-        entryPoints?: Array<{
-          entryPointType?: 'EXECUTION_API' | 'WEB_APP' | 'ADD_ON';
-          webApp?: {
-            url?: string;
-            entryPointConfig?: {
-              access?: 'MYSELF' | 'DOMAIN' | 'ANYONE' | 'ANYONE_ANONYMOUS';
-              executeAs?: 'USER_ACCESSING' | 'USER_DEPLOYING';
-            };
-          };
-          executionApi?: {
-            entryPointConfig?: {
-              access?: 'MYSELF' | 'DOMAIN' | 'ANYONE' | 'ANYONE_ANONYMOUS';
-            };
-          };
-        }>;
-        updateTime?: string;
-      }>;
-      nextPageToken?: string;
-    }
-
-    let path = `/projects/${req.scriptId}/deployments`;
-    const params: string[] = [];
-    if (req.pageSize) params.push(`pageSize=${req.pageSize}`);
-    if (req.pageToken) params.push(`pageToken=${encodeURIComponent(req.pageToken)}`);
-    if (params.length > 0) path += `?${params.join('&')}`;
-
-    const result = await this.apiRequest<ListDeploymentsResponse>('GET', path);
-
-    return this.success('list_deployments', {
-      deployments: (result.deployments ?? []).map((d) => ({
-        deploymentId: d.deploymentId,
-        versionNumber: d.deploymentConfig?.versionNumber ?? undefined,
-        deploymentConfig: d.deploymentConfig ?? undefined,
-        entryPoints: d.entryPoints ?? undefined,
-        updateTime: d.updateTime ?? undefined,
-      })),
-      nextPageToken: result.nextPageToken ?? undefined,
-    });
-  }
-
-  private async handleGetDeployment(
-    req: AppsScriptGetDeploymentInput
-  ): Promise<AppsScriptResponse> {
-    logger.info(`Getting deployment ${req.deploymentId} for: ${req.scriptId}`);
-
-    type DeploymentResponse = (typeof this._interfaces)['DeploymentResponse'];
-
-    const result = await this.apiRequest<DeploymentResponse>(
-      'GET',
-      `/projects/${req.scriptId}/deployments/${req.deploymentId}`
-    );
-
-    return this.success('get_deployment', {
-      deployment: {
-        deploymentId: result.deploymentId,
-        versionNumber: result.deploymentConfig?.versionNumber ?? undefined,
-        deploymentConfig: result.deploymentConfig ?? undefined,
-        entryPoints: result.entryPoints ?? undefined,
-        updateTime: result.updateTime ?? undefined,
-      },
-    });
-  }
-
-  private async handleUndeploy(req: AppsScriptUndeployInput): Promise<AppsScriptResponse> {
-    logger.info(`Deleting deployment ${req.deploymentId} for: ${req.scriptId}`);
-
-    await this.apiRequest<Record<string, never>>(
-      'DELETE',
-      `/projects/${req.scriptId}/deployments/${req.deploymentId}`
-    );
-
-    return this.success('undeploy', {});
-  }
-
-  // ============================================================================
-  // Execution Actions
-  // ============================================================================
-
-  private async handleRun(req: AppsScriptRunInput): Promise<AppsScriptResponse> {
-    const requestAbortSignal = getRequestAbortSignal() ?? this.context.abortSignal;
-    // ISSUE-119: Check for pre-flight cancellation (client may have cancelled before we started)
-    if (requestAbortSignal?.aborted) {
-      return this.error({
-        code: ErrorCodes.CANCELLED,
-        message: 'Request cancelled by client.',
-        retryable: false,
-      });
-    }
-
-    // ISSUE-203: Enforce Apps Script concurrent execution limit (Google limit: 20/user)
-    if (
-      SheetsAppsScriptHandler.activeRunExecutions >= SheetsAppsScriptHandler.MAX_CONCURRENT_RUNS
-    ) {
-      return this.error({
-        code: ErrorCodes.QUOTA_EXCEEDED,
-        message:
-          `Apps Script concurrent execution limit reached ` +
-          `(${SheetsAppsScriptHandler.activeRunExecutions}/${SheetsAppsScriptHandler.MAX_CONCURRENT_RUNS} slots in use). ` +
-          `Wait for current executions to complete before retrying.`,
-        retryable: true,
-        retryAfterMs: 30000,
-      });
-    }
-
-    logger.info(`Running function ${req.functionName} in: ${req.scriptId}`);
-
-    // Safety gate: dryRun returns early without executing
-    const safety = (
-      req as typeof req & { safety?: { dryRun?: boolean; requireConfirmation?: boolean } }
-    ).safety;
-    if (safety?.dryRun) {
-      return this.success('run', {
-        dryRun: true,
-        message: `[DRY RUN] Would execute function '${req.functionName}' in script ${req.scriptId}. No changes made.`,
-      });
-    }
-
-    // Safety gate: confirm by default before executing (script runs can have side effects)
-    const confirmed = await this.confirmOperation(
-      `Execute Apps Script function '${req.functionName}'`,
-      `Script ID: ${req.scriptId}. This will run code with side effects.`,
-      { isDestructive: true, operationType: 'apps_script_run' },
-      { skipIfElicitationUnavailable: true }
-    );
-    if (!confirmed) {
-      return this.error({
-        code: ErrorCodes.OPERATION_CANCELLED,
-        message: 'Execution cancelled by user.',
-        retryable: false,
-      });
-    }
-
-    await sendProgress(0, 2, `Executing Apps Script function '${req.functionName}'...`);
-
-    // Pre-flight token check: Refresh if expiring within 360 seconds (6 minutes)
-    // This prevents mid-execution auth failures for long-running scripts
-    const googleClient = this.context.googleClient;
-    if (googleClient) {
-      const tokenStatus = googleClient.getTokenStatus();
-      if (tokenStatus.expiryDate) {
-        const now = Date.now();
-        const secondsRemaining = Math.floor((tokenStatus.expiryDate - now) / 1000);
-
-        if (secondsRemaining < 360) {
-          logger.info('Pre-refreshing token before long-running script', {
-            secondsRemaining,
-            scriptId: req.scriptId,
-            functionName: req.functionName,
-          });
-
-          // Force token refresh by calling getAccessToken()
-          try {
-            await googleClient.oauth2.getAccessToken();
-            logger.info('Token pre-refresh successful', { scriptId: req.scriptId });
-          } catch (error) {
-            logger.warn('Token pre-refresh failed', { error, scriptId: req.scriptId });
-            // Continue anyway - the refresh might happen during the request
-          }
-        }
-      }
-    }
-
-    interface RunRequest {
-      function: string;
-      parameters?: unknown[];
-      devMode?: boolean;
-    }
-
-    interface RunResponse {
-      done?: boolean;
-      response?: {
-        '@type'?: string;
-        result?: unknown;
-      };
-      error?: {
-        message?: string;
-        code?: number;
-        details?: Array<{
-          '@type'?: string;
-          errorMessage?: string;
-          errorType?: string;
-          scriptStackTraceElements?: Array<{
-            function?: string;
-            lineNumber?: number;
-          }>;
-        }>;
-      };
-    }
-
-    // ISSUE-203: Claim a concurrency slot — released in finally block
-    SheetsAppsScriptHandler.activeRunExecutions++;
-
-    const body: RunRequest = {
-      function: req.functionName,
-    };
-
-    if (req.parameters) {
-      body.parameters = req.parameters;
-    }
-
-    if (req.devMode) {
-      body.devMode = req.devMode;
-    }
-
-    // Use 380s timeout for script execution (6 min max + overhead)
-    let result: RunResponse;
-    try {
-      result = await this.apiRequest<RunResponse>(
-        'POST',
-        `/scripts/${req.scriptId}:run`,
-        body,
-        SCRIPT_RUN_TIMEOUT_MS
-      );
-    } catch (error) {
-      // Retry once on 401 auth error (token may have expired during execution)
-      if (
-        error instanceof ServiceError &&
-        error.code === 'AUTH_ERROR' &&
-        error.message.includes('Authentication')
-      ) {
-        logger.warn('Auth error during script execution, refreshing token and retrying', {
-          scriptId: req.scriptId,
-          functionName: req.functionName,
-        });
-
-        // Force token refresh
-        if (googleClient) {
-          try {
-            await googleClient.oauth2.getAccessToken();
-            logger.info('Mid-execution token refresh successful, retrying script', {
-              scriptId: req.scriptId,
-            });
-
-            // Retry the request with fresh token
-            result = await this.apiRequest<RunResponse>(
-              'POST',
-              `/scripts/${req.scriptId}:run`,
-              body,
-              SCRIPT_RUN_TIMEOUT_MS
-            );
-          } catch (retryError) {
-            logger.error('Retry after token refresh failed', {
-              retryError,
-              scriptId: req.scriptId,
-            });
-            throw error; // Throw original error
-          }
-        } else {
-          throw error;
-        }
-      } else {
-        throw error;
-      }
-    }
-
-    // Check for execution error — decrement slot before returning (ISSUE-203)
-    if (result.error) {
-      const scriptError = result.error.details?.find((d) => d['@type']?.includes('ScriptError'));
-      SheetsAppsScriptHandler.activeRunExecutions--;
-
-      const rawMessage = scriptError?.errorMessage ?? result.error.message ?? 'Unknown error';
-
-      // ISSUE-205: Detect BigQuery Advanced Service not enabled and return actionable error.
-      // Apps Script throws "BigQuery is not defined" (ReferenceError) when the BigQuery
-      // Advanced Service is not enabled in the Apps Script project settings.
-      const isBigQueryServiceMissing =
-        /BigQuery\s+is\s+not\s+defined/i.test(rawMessage) ||
-        (/BigQuery/i.test(rawMessage) && /not defined|undefined|ReferenceError/i.test(rawMessage));
-
-      const errorMessage = isBigQueryServiceMissing
-        ? `${rawMessage}\n\nThe BigQuery Advanced Service is not enabled for this script. ` +
-          `To fix: open the script in Apps Script Editor → Services (+) → Add "BigQuery API". ` +
-          `Then retry your function call.`
-        : rawMessage;
-
-      return this.success('run', {
-        executionError: {
-          errorMessage,
-          errorType: scriptError?.errorType ?? undefined,
-          scriptStackTraceElements: scriptError?.scriptStackTraceElements ?? undefined,
-        },
-      });
-    }
-
-    await sendProgress(2, 2, `Function '${req.functionName}' completed`);
-
-    // ISSUE-203: Always release the concurrency slot when execution completes
-    SheetsAppsScriptHandler.activeRunExecutions--;
-
-    // result.response?.result is typed as `unknown` from the RunResponse interface.
-    // The schema accepts string | number | boolean | null | array | object.
-    // The Apps Script API always returns one of these types at runtime.
-    return this.success('run', {
-      result: result.response?.result as
-        | string
-        | number
-        | boolean
-        | null
-        | unknown[]
-        | Record<string, unknown>
-        | undefined,
-    });
-  }
-
-  private async handleListProcesses(
-    req: AppsScriptListProcessesInput
-  ): Promise<AppsScriptResponse> {
-    logger.info(`Listing processes${req.scriptId ? ` for: ${req.scriptId}` : ''}`);
-
-    interface ListProcessesResponse {
-      processes?: Array<{
-        processId?: string;
-        projectName?: string;
-        functionName?: string;
-        processType?: string;
-        processStatus?: string;
-        startTime?: string;
-        duration?: string;
-        userAccessLevel?: string;
-      }>;
-      nextPageToken?: string;
-    }
-
-    // Build query parameters for GET request (per Google Apps Script API spec)
-    const params: string[] = [];
-    if (req.scriptId) {
-      params.push(`scriptProcessFilter.scriptId=${encodeURIComponent(req.scriptId)}`);
-    }
-    if (req.functionName) {
-      params.push(`scriptProcessFilter.functionName=${encodeURIComponent(req.functionName)}`);
-    }
-    if (req.processType) {
-      params.push(`scriptProcessFilter.types=${encodeURIComponent(req.processType)}`);
-    }
-    if (req.processStatus) {
-      params.push(`scriptProcessFilter.statuses=${encodeURIComponent(req.processStatus)}`);
-    }
-    if (req.pageSize) {
-      params.push(`pageSize=${req.pageSize}`);
-    }
-    if (req.pageToken) {
-      params.push(`pageToken=${encodeURIComponent(req.pageToken)}`);
-    }
-
-    let path = '/processes:listScriptProcesses';
-    if (params.length > 0) path += `?${params.join('&')}`;
-
-    const result = await this.apiRequest<ListProcessesResponse>('GET', path);
-
-    return this.success('list_processes', {
-      processes: (result.processes ?? []).map((p) => ({
-        processId: p.processId ?? undefined,
-        projectName: p.projectName ?? undefined,
-        functionName: p.functionName ?? undefined,
-        processType: (p.processType ?? undefined) as
-          | 'EDITOR'
-          | 'SIMPLE_TRIGGER'
-          | 'TRIGGER'
-          | 'WEBAPP'
-          | 'EXECUTION_API'
-          | 'ADD_ON'
-          | 'TIME_DRIVEN'
-          | 'MENU'
-          | 'BATCH_TASK'
-          | undefined,
-        processStatus: (p.processStatus ?? undefined) as
-          | 'COMPLETED'
-          | 'FAILED'
-          | 'RUNNING'
-          | 'CANCELED'
-          | 'TIMED_OUT'
-          | 'UNKNOWN'
-          | 'DELAYED'
-          | 'PAUSED'
-          | undefined,
-        startTime: p.startTime ?? undefined,
-        duration: p.duration ?? undefined,
-        userAccessLevel: (p.userAccessLevel ?? undefined) as
-          | 'OWNER'
-          | 'READ'
-          | 'WRITE'
-          | 'NONE'
-          | undefined,
-      })),
-      nextPageToken: result.nextPageToken ?? undefined,
-    });
-  }
-
-  private async handleGetMetrics(req: AppsScriptGetMetricsInput): Promise<AppsScriptResponse> {
-    logger.info(`Getting metrics for: ${req.scriptId}`);
-
-    interface MetricsResponse {
-      activeUsers?: Array<{ value?: string }>;
-      totalExecutions?: Array<{ value?: string }>;
-      failedExecutions?: Array<{ value?: string }>;
-    }
-
-    let path = `/projects/${req.scriptId}/metrics`;
-    const params: string[] = [];
-    if (req.granularity) {
-      params.push(`metricsGranularity=${req.granularity}`);
-    }
-    if (req.deploymentId) {
-      params.push(`metricsFilter.deploymentId=${encodeURIComponent(req.deploymentId)}`);
-    }
-    if (params.length > 0) path += `?${params.join('&')}`;
-
-    const result = await this.apiRequest<MetricsResponse>('GET', path);
-
-    return this.success('get_metrics', {
-      metrics: {
-        activeUsers: result.activeUsers ?? undefined,
-        totalExecutions: result.totalExecutions ?? undefined,
-        failedExecutions: result.failedExecutions ?? undefined,
-      },
-    });
-  }
-
-  // ============================================================================
-  // Trigger Management (4 actions)
-  // ============================================================================
-
-  /**
-   * Create a time-driven or event-driven trigger.
-   * Uses the Apps Script API triggers endpoint.
-   */
-  private async handleCreateTrigger(
-    _req: AppsScriptCreateTriggerInput
-  ): Promise<AppsScriptResponse> {
-    return this.error({
-      code: ErrorCodes.NOT_IMPLEMENTED,
-      message:
-        'Trigger management requires in-script ScriptApp.newTrigger(). ' +
-        'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
-        'Use update_content to add trigger code to your script, then deploy it.',
-      retryable: false,
-    });
-  }
-
-  /**
-   * List all triggers for a script project.
-   */
-  private async handleListTriggers(_req: AppsScriptListTriggersInput): Promise<AppsScriptResponse> {
-    return this.error({
-      code: ErrorCodes.NOT_IMPLEMENTED,
-      message:
-        'Trigger management requires in-script ScriptApp APIs. ' +
-        'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
-        'Use get_content to inspect trigger setup code in the script project.',
-      retryable: false,
-    });
-  }
-
-  /**
-   * Delete a specific trigger by ID.
-   */
-  private async handleDeleteTrigger(
-    _req: AppsScriptDeleteTriggerInput
-  ): Promise<AppsScriptResponse> {
-    return this.error({
-      code: ErrorCodes.NOT_IMPLEMENTED,
-      message:
-        'Trigger management requires in-script ScriptApp APIs. ' +
-        'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
-        'Use update_content to modify trigger code in the script project.',
-      retryable: false,
-    });
-  }
-
-  /**
-   * Update a trigger by deleting and recreating it.
-   * Apps Script API doesn't support PATCH on triggers, so we delete + create.
-   */
-  private async handleUpdateTrigger(
-    _req: AppsScriptUpdateTriggerInput
-  ): Promise<AppsScriptResponse> {
-    return this.error({
-      code: ErrorCodes.NOT_IMPLEMENTED,
-      message:
-        'Trigger management requires in-script ScriptApp APIs. ' +
-        'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
-        'Use update_content to modify trigger code in the script project.',
-      retryable: false,
-    });
-  }
-
-  // ============================================================================
-  // SERVAL() Formula Installer (Phase 5)
-  // ============================================================================
-
-  /**
-   * Install the SERVAL() formula function into a spreadsheet via a bound Apps Script project.
-   * Generates an HMAC secret, builds the Apps Script source, creates a bound project,
-   * and pushes the function code.
-   */
-  private async handleInstallServalFunction(
-    req: AppsScriptInstallServalFunctionInput
-  ): Promise<AppsScriptResponse> {
-    logger.info('Installing SERVAL() function', { spreadsheetId: req.spreadsheetId });
-
-    const hmacSecret = randomBytes(32).toString('hex');
-    const defaultModel = req.defaultModel ?? 'claude-sonnet-4-6';
-    const callbackBaseUrlRaw =
-      req.callbackUrl ?? process.env['SERVAL_CALLBACK_URL'] ?? process.env['SERVALSHEETS_BASE_URL'];
-    if (!callbackBaseUrlRaw) {
-      return this.error({
-        code: ErrorCodes.CONFIG_ERROR,
-        message:
-          'SERVAL callback URL is required. Provide request.callbackUrl or set SERVAL_CALLBACK_URL.',
-        retryable: false,
-      });
-    }
-    const callbackUrl = callbackBaseUrlRaw.replace(/\/+$/, '');
-
-    // SECURITY: Validate callbackUrl is a legitimate HTTPS URL before embedding in Apps Script source.
-    // A malicious URL containing single-quotes could inject arbitrary JavaScript into the script.
-    try {
-      const parsedUrl = new URL(callbackUrl);
-      if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
-        return this.error({
-          code: ErrorCodes.VALIDATION_ERROR,
-          message: 'callbackUrl must use https:// or http:// protocol',
-          retryable: false,
-        });
-      }
-      // Prevent quote injection: URL must not contain single quotes or backticks
-      if (callbackUrl.includes("'") || callbackUrl.includes('`') || callbackUrl.includes('\\')) {
-        return this.error({
-          code: ErrorCodes.VALIDATION_ERROR,
-          message: 'callbackUrl contains invalid characters',
-          retryable: false,
-        });
-      }
-    } catch {
-      return this.error({
-        code: ErrorCodes.VALIDATION_ERROR,
-        message: 'callbackUrl is not a valid URL',
-        retryable: false,
-      });
-    }
-
-    // Build the Apps Script source.
-    // SECURITY: The HMAC secret is NEVER embedded in the script source — it is registered
-    // server-side only (via registerSpreadsheetSecret below). The script reads the secret
-    // exclusively from ScriptProperties, which must be set via the Apps Script IDE or the
-    // serval_setup() helper function pushed alongside this script.
-    const scriptSource = `
-function SERVAL(prompt, range, model) {
-  var CALLBACK_URL = '${callbackUrl}/api/serval-formula';
-  var HMAC_SECRET = PropertiesService.getScriptProperties().getProperty('SERVAL_HMAC_SECRET');
-  if (!HMAC_SECRET) {
-    return '#NOT_INITIALIZED: Run serval_setup() in the Apps Script IDE to complete installation.';
-  }
-  var spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
-  var rangeValues = range ? (Array.isArray(range) ? range : [[range]]) : null;
-  var body = JSON.stringify({
-    requests: [{ prompt: String(prompt), range_values: rangeValues, model: model || '${defaultModel}' }],
-    spreadsheetId: spreadsheetId,
-    timestamp: Date.now()
-  });
-  var sig = Utilities.computeHmacSha256Signature(body, HMAC_SECRET);
-  var sigHex = sig.map(function(b) { return ('0' + (b & 0xff).toString(16)).slice(-2); }).join('');
-  var response = UrlFetchApp.fetch(CALLBACK_URL, {
-    method: 'post',
-    contentType: 'application/json',
-    headers: { 'X-Serval-Signature': sigHex, 'X-Serval-SpreadsheetId': spreadsheetId },
-    payload: body,
-    muteHttpExceptions: true
-  });
-  if (response.getResponseCode() !== 200) return '#ERROR!';
-  var result = JSON.parse(response.getContentText());
-  return result.results && result.results[0] ? (result.results[0].text || result.results[0].values || '#NODATA') : '#NODATA';
-}
-
-/**
- * Run this function once from the Apps Script IDE to complete installation.
- * Paste the hmacSecret value from the install_serval_function response when prompted.
- */
-function serval_setup() {
-  var secret = Browser.inputBox('SERVAL Setup', 'Paste the SERVAL HMAC secret from the installation response:', Browser.Buttons.OK_CANCEL);
-  if (secret && secret !== 'cancel') {
-    PropertiesService.getScriptProperties().setProperty('SERVAL_HMAC_SECRET', secret);
-    Browser.msgBox('SERVAL setup complete. The SERVAL() formula is ready to use.');
-  }
-}
-`.trim();
-
-    // Create bound Apps Script project
-    interface CreateProjectResponse {
-      scriptId: string;
-      title: string;
-      parentId?: string;
-      createTime?: string;
-      updateTime?: string;
-    }
-
-    const project = await this.apiRequest<CreateProjectResponse>('POST', '/projects', {
-      title: 'SERVAL Formula Functions',
-      parentId: req.spreadsheetId,
-    });
-
-    const scriptId = project.scriptId;
-
-    // Push the SERVAL function source
-    interface UpdateContentResponse {
-      files: Array<{ name: string; type: string; source: string }>;
-    }
-
-    await this.apiRequest<UpdateContentResponse>('PUT', `/projects/${scriptId}/content`, {
-      files: [
-        {
-          name: 'SERVAL',
-          type: 'SERVER_JS',
-          source: scriptSource,
-        },
-      ],
-    });
-
-    // Register the HMAC secret server-side only — never embedded in script source
-    try {
-      const { registerSpreadsheetSecret } = await import('../services/formula-callback.js');
-      registerSpreadsheetSecret(
-        req.spreadsheetId,
-        hmacSecret,
-        req.rateLimit ?? { requestsPerMinute: 100 },
-        req.cacheTtlSeconds ?? 300
-      );
-    } catch {
-      // Non-blocking — secret registration is best-effort at install time
-      logger.warn('Could not register SERVAL HMAC secret in formula-callback service', {
-        spreadsheetId: req.spreadsheetId,
-      });
-    }
-
-    const installedAt = new Date().toISOString();
-    logger.info('SERVAL() function installed', { scriptId, spreadsheetId: req.spreadsheetId });
-
-    return this.success('install_serval_function', {
-      scriptId,
-      functionName: 'SERVAL',
-      callbackUrl: `${callbackUrl}/api/serval-formula`,
-      // hmacSecret returned to caller so they can complete setup via serval_setup() in IDE
-      // SECURITY: this value is shown once — store it securely
-      hmacSecret,
-      setupInstructions:
-        'Open the Apps Script IDE for this spreadsheet, run serval_setup(), and paste this hmacSecret when prompted.',
-      installedAt,
-      project: {
-        scriptId,
-        title: 'SERVAL Formula Functions',
-        parentId: req.spreadsheetId,
-        createTime: project.createTime ?? installedAt,
-        updateTime: project.updateTime ?? installedAt,
-      },
-    });
   }
 }

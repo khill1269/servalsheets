@@ -14,16 +14,22 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SessionHandler } from '../../src/handlers/session.js';
 import { SheetsSessionOutputSchema } from '../../src/schemas/session.js';
-import { getSessionContext } from '../../src/services/session-context.js';
+import {
+  getSessionContext,
+  resetSessionContext,
+  SessionContextManager,
+} from '../../src/services/session-context.js';
 
 describe('SessionHandler', () => {
   let handler: SessionHandler;
 
   beforeEach(() => {
+    resetSessionContext();
     handler = new SessionHandler();
   });
 
   afterEach(() => {
+    resetSessionContext();
     vi.clearAllMocks();
     vi.restoreAllMocks();
   });
@@ -40,6 +46,41 @@ describe('SessionHandler', () => {
       expect(result.response.success).toBe(true);
       const parseResult = SheetsSessionOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
+    });
+
+    it('uses an injected session context instead of the global singleton', async () => {
+      getSessionContext().setActiveSpreadsheet({
+        spreadsheetId: 'global-sheet',
+        title: 'Global Sheet',
+        sheetNames: ['Global'],
+        activatedAt: Date.now(),
+      });
+
+      const scopedContext = new SessionContextManager();
+      const scopedHandler = new SessionHandler(scopedContext);
+
+      await scopedHandler.handle({
+        action: 'set_active',
+        spreadsheetId: 'scoped-sheet',
+        title: 'Scoped Sheet',
+        sheetNames: ['Scoped'],
+      });
+
+      const scopedResult = await scopedHandler.handle({
+        action: 'get_active',
+      });
+      const globalResult = await handler.handle({
+        action: 'get_active',
+      });
+
+      expect(scopedResult.response.success).toBe(true);
+      expect(globalResult.response.success).toBe(true);
+      if (scopedResult.response.success && scopedResult.response.data) {
+        expect(scopedResult.response.data.spreadsheetId).toBe('scoped-sheet');
+      }
+      if (globalResult.response.success && globalResult.response.data) {
+        expect(globalResult.response.data.spreadsheetId).toBe('global-sheet');
+      }
     });
   });
 
@@ -184,6 +225,10 @@ describe('SessionHandler', () => {
       });
 
       expect(updateResult.response.success).toBe(true);
+      if (updateResult.response.success) {
+        expect(updateResult.response.scope).toBe('session');
+        expect(updateResult.response.message).toContain('this session');
+      }
 
       const getResult = await handler.handle({
         action: 'get_preferences',
@@ -216,6 +261,40 @@ describe('SessionHandler', () => {
       });
 
       expect(clearResult.response.success).toBe(true);
+    });
+  });
+
+  describe('schedule_create', () => {
+    it('normalizes nested operation payloads into scheduler actions', async () => {
+      const scheduler = {
+        create: vi.fn().mockResolvedValue({ id: 'job-123' }),
+      };
+      handler.setScheduler(scheduler as any);
+
+      const result = await handler.handle({
+        action: 'schedule_create',
+        spreadsheetId: 'sheet-123',
+        cronExpression: '0 9 * * 1-5',
+        description: 'Weekday refresh',
+        operation: {
+          tool: 'sheets_data',
+          action: 'read',
+          params: { range: 'Summary!A1:B3' },
+        },
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      expect(scheduler.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          spreadsheetId: 'sheet-123',
+          cronExpression: '0 9 * * 1-5',
+          action: {
+            tool: 'sheets_data',
+            actionName: 'read',
+            params: { range: 'Summary!A1:B3' },
+          },
+        })
+      );
     });
   });
 

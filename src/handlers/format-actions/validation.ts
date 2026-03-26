@@ -246,16 +246,10 @@ export async function handleListDataValidations(
 
 export async function handleSuggestFormat(
   ha: FormatHandlerAccess,
-  input: FormatRequest & { action: 'suggest_format' }
+  input: FormatRequest & { action: 'suggest_format'; sheetName?: string }
 ): Promise<FormatResponse> {
   const startTime = Date.now();
-
-  const rangeStr =
-    typeof input.range === 'string'
-      ? input.range
-      : input.range && 'a1' in input.range
-        ? input.range.a1
-        : 'A1';
+  const rangeStr = await resolveSuggestFormatRange(ha, input);
 
   let gridData: sheets_v4.Schema$GridData | undefined;
   try {
@@ -494,7 +488,7 @@ Always return valid JSON in the exact format requested.`;
 
 async function handleSuggestFormatRuleBased(
   ha: FormatHandlerAccess,
-  input: FormatRequest & { action: 'suggest_format' },
+  input: FormatRequest & { action: 'suggest_format'; sheetName?: string },
   prefetchedRows?: sheets_v4.Schema$RowData[]
 ): Promise<FormatResponse> {
   let rows: sheets_v4.Schema$RowData[];
@@ -502,27 +496,7 @@ async function handleSuggestFormatRuleBased(
   if (prefetchedRows) {
     rows = prefetchedRows;
   } else {
-    let rangeStr: string;
-    if (typeof input.range === 'string') {
-      rangeStr = input.range;
-    } else if (input.range && 'a1' in input.range) {
-      rangeStr = input.range.a1 ?? 'A1:Z10';
-    } else {
-      try {
-        const metaResp = await ha.api.spreadsheets.get({
-          spreadsheetId: input.spreadsheetId,
-          fields: 'sheets(properties(title,gridProperties(columnCount)))',
-        });
-        const firstSheet = metaResp.data.sheets?.[0];
-        const colCount = Math.min(firstSheet?.properties?.gridProperties?.columnCount ?? 26, 100);
-        const colLetter = String.fromCharCode(64 + Math.min(colCount, 26));
-        const title = firstSheet?.properties?.title ?? 'Sheet1';
-        const escaped = title.replace(/'/g, "''");
-        rangeStr = `'${escaped}'!A1:${colLetter}10`;
-      } catch {
-        rangeStr = 'A1:Z10';
-      }
-    }
+    const rangeStr = await resolveSuggestFormatRange(ha, input);
 
     const response = await ha.api.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
@@ -603,4 +577,51 @@ async function handleSuggestFormatRuleBased(
       source: 'rule-based-fallback',
     },
   });
+}
+
+async function resolveSuggestFormatRange(
+  ha: FormatHandlerAccess,
+  input: FormatRequest & { action: 'suggest_format'; sheetName?: string }
+): Promise<string> {
+  if (input.range) {
+    try {
+      return await ha.resolveRange(input.spreadsheetId, input.range);
+    } catch {
+      if (typeof input.range === 'string') {
+        return input.range;
+      }
+      if (typeof input.range === 'object' && input.range !== null && 'a1' in input.range) {
+        return (input.range as { a1?: string }).a1 ?? 'A1:Z50';
+      }
+    }
+  }
+
+  try {
+    const metaResp = await ha.api.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      fields: 'sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)))',
+    });
+    const sheets = metaResp.data.sheets ?? [];
+    const targetSheet =
+      sheets.find((sheet) => sheet.properties?.title === input.sheetName) ?? sheets[0];
+    const title = targetSheet?.properties?.title ?? input.sheetName ?? 'Sheet1';
+    const rowCount = Math.max(1, Math.min(targetSheet?.properties?.gridProperties?.rowCount ?? 50, 50));
+    const columnCount = Math.max(
+      1,
+      Math.min(targetSheet?.properties?.gridProperties?.columnCount ?? 26, 26)
+    );
+    const endColumn = ha.columnToLetter(columnCount - 1);
+    const escapedTitle = /^[A-Za-z0-9_]+$/.test(title)
+      ? title
+      : `'${title.replace(/'/g, "''")}'`;
+    return `${escapedTitle}!A1:${endColumn}${rowCount}`;
+  } catch {
+    if (input.sheetName) {
+      const escapedTitle = /^[A-Za-z0-9_]+$/.test(input.sheetName)
+        ? input.sheetName
+        : `'${input.sheetName.replace(/'/g, "''")}'`;
+      return `${escapedTitle}!A1:Z50`;
+    }
+    return 'A1:Z50';
+  }
 }

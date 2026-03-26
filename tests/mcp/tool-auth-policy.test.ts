@@ -15,6 +15,9 @@ describe('tool auth policy metadata', () => {
     expect(isToolCallAuthExempt('sheets_history', 'list')).toBe(true);
     expect(isToolCallAuthExempt('sheets_history', 'stats')).toBe(true);
     expect(isToolCallAuthExempt('sheets_history', 'undo')).toBe(false);
+    expect(isToolCallAuthExempt('sheets_composite', 'preview_generation')).toBe(true);
+    expect(isToolCallAuthExempt('sheets_composite', 'generate_template')).toBe(true);
+    expect(isToolCallAuthExempt('sheets_composite', 'generate_sheet')).toBe(false);
   });
 
   it('defaults to requiring auth for tools without explicit policy', () => {

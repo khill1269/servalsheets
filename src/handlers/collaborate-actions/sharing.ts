@@ -16,6 +16,7 @@ import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
 import { elicitSharingSettings, confirmDestructiveAction } from '../../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
 import { driveRateLimiter } from '../../utils/drive-rate-limiter.js';
+import { TimeoutError, withTimeout } from '../../utils/timeout.js';
 
 type CollaborateSuccess = Extract<CollaborateResponse, { success: true }>;
 
@@ -32,6 +33,221 @@ interface SharingDeps {
     dryRun?: boolean
   ) => CollaborateResponse;
   error: (error: ErrorDetail) => CollaborateResponse;
+}
+
+const MAX_PERMISSION_EXPIRATION_MS = 365 * 24 * 60 * 60 * 1000;
+const SHARE_PERMISSION_TIMEOUT_MS = 15_000;
+
+function extractDriveErrorCode(error: unknown): number | string | undefined {
+  if (typeof error !== 'object' || error === null) {
+    return undefined; // OK: Explicit empty — non-object has no error code
+  }
+
+  const candidate = error as {
+    code?: number | string;
+    status?: number | string;
+    response?: { status?: number | string };
+    errors?: Array<{ reason?: string }>;
+  };
+
+  return (
+    candidate.code ??
+    candidate.status ??
+    candidate.response?.status ??
+    candidate.errors?.[0]?.reason
+  );
+}
+
+function extractDriveErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (typeof error === 'object' && error !== null) {
+    const candidate = error as {
+      message?: string;
+      response?: { data?: { error?: { message?: string } } };
+      errors?: Array<{ message?: string }>;
+    };
+
+    return (
+      candidate.message ??
+      candidate.response?.data?.error?.message ??
+      candidate.errors?.[0]?.message ??
+      String(error)
+    );
+  }
+
+  return String(error);
+}
+
+function describeShareTarget(input: CollaborateShareAddInput): string {
+  if (input.emailAddress) {
+    return input.emailAddress;
+  }
+  if (input.domain) {
+    return input.domain;
+  }
+  return input.type ?? 'recipient';
+}
+
+function classifyShareAddFailure(
+  error: unknown,
+  input: CollaborateShareAddInput
+): ErrorDetail | undefined {
+  const target = describeShareTarget(input);
+
+  if (error instanceof TimeoutError) {
+    return {
+      code: ErrorCodes.DEADLINE_EXCEEDED,
+      message:
+        `Drive permission creation for "${target}" timed out after ${error.timeoutMs}ms. ` +
+        'This often happens when Google is slow to validate the recipient account or group.',
+      retryable: true,
+      suggestedFix:
+        'Verify the recipient is a real Google account or Google Group, then retry. If the target is valid, retry later.',
+      details: {
+        target,
+        timeoutMs: error.timeoutMs,
+      },
+    };
+  }
+
+  const errorCode = extractDriveErrorCode(error);
+  const message = extractDriveErrorMessage(error);
+  const normalized = message.toLowerCase();
+
+  if (
+    (errorCode === 400 || errorCode === '400') &&
+    (normalized.includes('invalid sharing request') ||
+      normalized.includes('email address') ||
+      normalized.includes('invalid email') ||
+      normalized.includes('not a valid') ||
+      normalized.includes('not found') ||
+      normalized.includes('cannot share'))
+  ) {
+    return {
+      code: ErrorCodes.VALIDATION_ERROR,
+      message:
+        `Google Drive rejected the share target "${target}". ` +
+        'Verify it is a valid Google account, Google Group, or allowed domain before retrying.',
+      retryable: false,
+      suggestedFix:
+        'Use a valid Google account or Google Group email address, or switch the share type to a valid domain/anyone mode.',
+      details: {
+        target,
+        originalMessage: message,
+        errorCode,
+      },
+    };
+  }
+
+  return undefined; // OK: Explicit empty — unrecognized Drive error shape
+}
+
+function validatePermissionExpiration(
+  expirationTime: string,
+  permissionType: string | undefined
+): ErrorDetail | undefined {
+  if (permissionType !== 'user' && permissionType !== 'group') {
+    return {
+      code: ErrorCodes.VALIDATION_ERROR,
+      message: 'expirationTime is only supported for user and group permissions.',
+      retryable: false,
+    };
+  }
+
+  const expirationMs = Date.parse(expirationTime);
+  if (Number.isNaN(expirationMs)) {
+    return {
+      code: ErrorCodes.VALIDATION_ERROR,
+      message: 'expirationTime must be a valid RFC 3339 timestamp.',
+      retryable: false,
+    };
+  }
+
+  const now = Date.now();
+  if (expirationMs <= now) {
+    return {
+      code: ErrorCodes.VALIDATION_ERROR,
+      message: 'expirationTime must be in the future.',
+      retryable: false,
+    };
+  }
+
+  if (expirationMs - now > MAX_PERMISSION_EXPIRATION_MS) {
+    return {
+      code: ErrorCodes.VALIDATION_ERROR,
+      message: 'expirationTime cannot be more than one year in the future.',
+      retryable: false,
+    };
+  }
+
+  return undefined; // OK: no expiry validation needed
+}
+
+/** Basic domain format check: e.g. "example.com" or "sub.domain.co.uk" */
+function isValidDomain(value: string): boolean {
+  return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i.test(value);
+}
+
+/**
+ * Pre-flight validation for share_add to fail fast before API call.
+ * Prevents unnecessary Drive API requests (and the associated 15s timeout)
+ * when required fields are missing or obviously malformed.
+ */
+function validateShareAddInput(input: CollaborateShareAddInput): ErrorDetail | undefined {
+  if (!input.type) {
+    return {
+      code: ErrorCodes.VALIDATION_ERROR,
+      message:
+        'type is required for share_add (valid values: user, group, domain, anyone). ' +
+        'Use "user" to share with a specific email, "domain" to share with a whole domain, or "anyone" for public access.',
+      retryable: false,
+      suggestedFix: 'Add type to the request, e.g. "type": "user".',
+    };
+  }
+  const permType = input.type;
+
+  if (permType === 'user' || permType === 'group') {
+    if (!input.emailAddress) {
+      return {
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: `emailAddress is required when type="${permType}". Provide a valid Google account or Google Group email.`,
+        retryable: false,
+        suggestedFix: 'Add emailAddress to the request, e.g. "emailAddress": "user@example.com".',
+      };
+    }
+    // Zod has already validated format via .email(), but if somehow it bypassed:
+    if (!input.emailAddress.includes('@')) {
+      return {
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: `Invalid email address format: "${input.emailAddress}". Must be a valid email.`,
+        retryable: false,
+      };
+    }
+  }
+
+  if (permType === 'domain') {
+    if (!input.domain) {
+      return {
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: 'domain is required when type="domain". Provide a domain like "example.com".',
+        retryable: false,
+        suggestedFix: 'Add domain to the request, e.g. "domain": "example.com".',
+      };
+    }
+    if (!isValidDomain(input.domain)) {
+      return {
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: `Invalid domain format: "${input.domain}". Provide a domain like "example.com" (not a URL or email).`,
+        retryable: false,
+        suggestedFix: 'Use just the domain name, e.g. "example.com", not "https://example.com".',
+      };
+    }
+  }
+
+  return undefined; // OK: no validation error — input is acceptable
 }
 
 /**
@@ -62,6 +278,100 @@ export async function handleShareAddAction(
     }
   }
 
+  // Pre-flight validation: fail fast before any API call
+  const preflightError = validateShareAddInput(resolvedInput);
+  if (preflightError) {
+    return deps.error(preflightError);
+  }
+
+  // Idempotency guard: check if permission already exists
+  try {
+    const existingPermissions = await deps.driveApi.permissions.list({
+      fileId: resolvedInput.spreadsheetId!,
+      fields: 'permissions(id,type,role,emailAddress,domain)',
+      supportsAllDrives: true,
+    });
+
+    const permissions = existingPermissions.data.permissions ?? [];
+    let matchingPermission: drive_v3.Schema$Permission | undefined;
+
+    if (resolvedInput.type === 'user' || resolvedInput.type === 'group') {
+      matchingPermission = permissions.find(
+        (p) =>
+          p.type === resolvedInput.type &&
+          p.emailAddress?.toLowerCase() === resolvedInput.emailAddress?.toLowerCase()
+      );
+      if (matchingPermission) {
+        // Check if existing role is same or higher
+        const roleHierarchy: Record<string, number> = {
+          owner: 3,
+          organizer: 2,
+          fileOrganizer: 2,
+          writer: 1,
+          commenter: 1,
+          reader: 0,
+        };
+        const existingRoleLevel = roleHierarchy[matchingPermission.role ?? 'reader'] ?? 0;
+        const requestedRoleLevel = roleHierarchy[resolvedInput.role ?? 'reader'] ?? 0;
+        if (existingRoleLevel >= requestedRoleLevel) {
+          return deps.success('share_add', {
+            permission: deps.mapPermission(matchingPermission),
+            _idempotent: true,
+            _hint: `Permission already exists for ${resolvedInput.emailAddress} with role "${matchingPermission.role}". Returning existing permission.`,
+          });
+        }
+      }
+    } else if (resolvedInput.type === 'domain') {
+      matchingPermission = permissions.find(
+        (p) =>
+          p.type === 'domain' &&
+          p.domain?.toLowerCase() === resolvedInput.domain?.toLowerCase()
+      );
+      if (matchingPermission) {
+        const roleHierarchy: Record<string, number> = {
+          owner: 3,
+          organizer: 2,
+          fileOrganizer: 2,
+          writer: 1,
+          commenter: 1,
+          reader: 0,
+        };
+        const existingRoleLevel = roleHierarchy[matchingPermission.role ?? 'reader'] ?? 0;
+        const requestedRoleLevel = roleHierarchy[resolvedInput.role ?? 'reader'] ?? 0;
+        if (existingRoleLevel >= requestedRoleLevel) {
+          return deps.success('share_add', {
+            permission: deps.mapPermission(matchingPermission),
+            _idempotent: true,
+            _hint: `Permission already exists for domain "${resolvedInput.domain}" with role "${matchingPermission.role}". Returning existing permission.`,
+          });
+        }
+      }
+    } else if (resolvedInput.type === 'anyone') {
+      matchingPermission = permissions.find((p) => p.type === 'anyone');
+      if (matchingPermission) {
+        const roleHierarchy: Record<string, number> = {
+          owner: 3,
+          organizer: 2,
+          fileOrganizer: 2,
+          writer: 1,
+          commenter: 1,
+          reader: 0,
+        };
+        const existingRoleLevel = roleHierarchy[matchingPermission.role ?? 'reader'] ?? 0;
+        const requestedRoleLevel = roleHierarchy[resolvedInput.role ?? 'reader'] ?? 0;
+        if (existingRoleLevel >= requestedRoleLevel) {
+          return deps.success('share_add', {
+            permission: deps.mapPermission(matchingPermission),
+            _idempotent: true,
+            _hint: `Permission already exists for "anyone" with role "${matchingPermission.role}". Returning existing permission.`,
+          });
+        }
+      }
+    }
+  } catch {
+    // Non-blocking: proceed with creation if permission check fails
+  }
+
   await driveRateLimiter.acquire();
   const requestBody: drive_v3.Schema$Permission = {
     type: resolvedInput.type,
@@ -69,16 +379,39 @@ export async function handleShareAddAction(
   };
   if (resolvedInput.emailAddress) requestBody.emailAddress = resolvedInput.emailAddress;
   if (resolvedInput.domain) requestBody.domain = resolvedInput.domain;
-  if (resolvedInput.expirationTime) requestBody.expirationTime = resolvedInput.expirationTime;
+  if (resolvedInput.expirationTime) {
+    const validationError = validatePermissionExpiration(
+      resolvedInput.expirationTime,
+      resolvedInput.type
+    );
+    if (validationError) {
+      return deps.error(validationError);
+    }
+    requestBody.expirationTime = resolvedInput.expirationTime;
+  }
 
-  const response = await deps.driveApi.permissions.create({
-    fileId: resolvedInput.spreadsheetId!,
-    sendNotificationEmail: resolvedInput.sendNotification ?? true,
-    emailMessage: resolvedInput.emailMessage,
-    requestBody,
-    fields: 'id,type,role,emailAddress,displayName',
-    supportsAllDrives: true,
-  });
+  let response;
+  try {
+    response = await withTimeout(
+      () =>
+        deps.driveApi.permissions.create({
+          fileId: resolvedInput.spreadsheetId!,
+          sendNotificationEmail: resolvedInput.sendNotification ?? true,
+          emailMessage: resolvedInput.emailMessage,
+          requestBody,
+          fields: 'id,type,role,emailAddress,domain,displayName,expirationTime',
+          supportsAllDrives: true,
+        }),
+      SHARE_PERMISSION_TIMEOUT_MS,
+      'sheets_collaborate.share_add'
+    );
+  } catch (error) {
+    const classified = classifyShareAddFailure(error, resolvedInput);
+    if (classified) {
+      return deps.error(classified);
+    }
+    throw error;
+  }
 
   return deps.success('share_add', {
     permission: deps.mapPermission(response.data),
@@ -108,6 +441,23 @@ export async function handleShareUpdateAction(
     return deps.success('share_update', {}, undefined, true);
   }
 
+  if (input.expirationTime) {
+    const permissionResponse = await deps.driveApi.permissions.get({
+      fileId: input.spreadsheetId!,
+      permissionId: input.permissionId!,
+      supportsAllDrives: true,
+      fields: 'type',
+    });
+
+    const validationError = validatePermissionExpiration(
+      input.expirationTime,
+      permissionResponse.data.type ?? undefined
+    );
+    if (validationError) {
+      return deps.error(validationError);
+    }
+  }
+
   const response = await deps.driveApi.permissions.update({
     fileId: input.spreadsheetId!,
     permissionId: input.permissionId!,
@@ -116,7 +466,7 @@ export async function handleShareUpdateAction(
       role: input.role,
       expirationTime: input.expirationTime,
     },
-    fields: 'id,type,role,emailAddress,displayName',
+    fields: 'id,type,role,emailAddress,domain,displayName,expirationTime',
     supportsAllDrives: true,
   });
 

@@ -7,7 +7,9 @@ tests/
 # Configuration files
 tsconfig.json
 tsconfig.*.json
+tsconfig.build.json
 vitest.config.ts
+eslint.config.js
 .eslintrc.*
 .prettierrc.*
 
@@ -21,6 +23,8 @@ coverage/
 .vscode/
 .devcontainer/
 .husky/
+.serval/
+.dependency-cruiser*
 
 # Git files
 .git/
@@ -58,3 +62,5 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+*.bak
+*.bak*

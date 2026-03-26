@@ -1,15 +1,15 @@
 ---
 title: ServalSheets Documentation Index
 category: development
-last_updated: 2026-02-03
-description: Complete documentation for ServalSheets v1.6.0
-version: 1.6.0
+last_updated: 2026-03-24
+description: Complete documentation index for the current ServalSheets docs set
+version: 2.0.0
 tags: [prometheus, grafana, docker, kubernetes]
 ---
 
 # ServalSheets Documentation Index
 
-**Complete documentation for ServalSheets v1.6.0**
+**Complete documentation for current ServalSheets releases**
 
 Welcome to the ServalSheets documentation! This index helps you find the right guide for your needs.
 
@@ -51,7 +51,7 @@ Documentation for AI assistants like Claude:
 | ---------------------------------- | ----------------------------------------- | --------------------------------- |
 | **[SKILL.md](../guides/SKILL.md)** | How to use ServalSheets tools effectively | AI assistants (Claude, GPT, etc.) |
 
-**Note**: SKILL.md is specifically written for AI assistants to understand how to use the 25 tools and 391 actions. It includes best practices, safety guidelines, and common patterns.
+**Note**: SKILL.md is specifically written for AI assistants to understand how to use the 25 tools and 407 actions. It includes best practices, safety guidelines, and common patterns.
 
 ---
 
@@ -306,7 +306,7 @@ A: See [TROUBLESHOOTING.md#rate-limiting-and-quotas](./TROUBLESHOOTING.md#rate-l
 
 ## 🔄 Documentation Version
 
-**Version**: 1.6.0
+**Version**: 2.0.0
 **Protocol**: MCP 2025-11-25
 **Last Updated**: 2026-01-30
 **Status**: Production-ready
@@ -328,4 +328,4 @@ Found an error or want to improve documentation?
 
 All documentation is licensed under MIT, same as ServalSheets.
 
-**ServalSheets v1.6.0** | **Production-Ready** | **MCP 2025-11-25**
+**ServalSheets 2.0.0+** | **Production-Ready** | **MCP 2025-11-25**

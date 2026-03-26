@@ -94,13 +94,6 @@ const MONTH_NAMES =
 const QUARTER_NAMES = /\b(q[1-4]|quarter\s*[1-4])\b/i;
 const WEEK_NAMES = /\b(week\s*\d+|wk\s*\d+|w\d+)\b/i;
 
-// Entity detection patterns for column values (prefixed for future use)
-const _CURRENCY_PATTERN = /^\s*[$€£¥₹]?\s*-?\d[\d,]*\.?\d*\s*$/;
-const _EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const _PHONE_PATTERN = /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]{6,}$/;
-const _URL_PATTERN = /^https?:\/\//i;
-const _PERCENTAGE_PATTERN = /^\s*-?\d+\.?\d*\s*%\s*$/;
-
 // ────────────────────────────────────────────
 // Main Analysis Function
 // ────────────────────────────────────────────
@@ -685,7 +678,7 @@ function generateSuggestions(
     case 'database':
       suggestions.push('Use sheets_data.find_replace for bulk data updates');
       suggestions.push('Use sheets_fix.detect_anomalies to find outlier records');
-      suggestions.push('Use sheets_advanced.set_data_validation for data integrity');
+      suggestions.push('Use sheets_format.set_data_validation for data integrity');
       break;
     case 'dashboard':
       suggestions.push('Use sheets_visualize.chart_update to refresh dashboard charts');

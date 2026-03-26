@@ -1,9 +1,9 @@
 ---
 title: Claude Desktop Setup Guide
 category: guide
-last_updated: 2026-01-31
-description: This guide helps you configure ServalSheets v1.6.0 to work with Claude Desktop.
-version: 1.6.0
+last_updated: 2026-03-24
+description: This guide helps you configure ServalSheets to work with Claude Desktop over local STDIO.
+version: 2.0.0
 tags: [setup, configuration, sheets]
 audience: user
 difficulty: intermediate
@@ -11,11 +11,13 @@ difficulty: intermediate
 
 # Claude Desktop Setup Guide
 
-This guide helps you configure ServalSheets v1.6.0 to work with Claude Desktop.
+This guide helps you configure ServalSheets to work with Claude Desktop.
 
-## 🆕 What's New in v1.6.0
+Claude Desktop connects to ServalSheets over a local STDIO process. Hosted HTTP settings are only needed for remote deployments, not for the normal Claude Desktop setup shown here.
 
-ServalSheets v1.6.0 includes production-ready performance and observability features:
+## 🆕 Current Highlights
+
+Current releases include:
 
 - ✅ **HTTP Compression**: 60-80% bandwidth reduction
 - ✅ **Payload Monitoring**: Automatic size tracking (2MB warnings, 10MB limits)
@@ -26,7 +28,7 @@ ServalSheets v1.6.0 includes production-ready performance and observability feat
 ## ✅ Prerequisites
 
 - [ ] Claude Desktop installed
-- [ ] Node.js 22+ installed (v22 LTS required)
+- [ ] Node.js 20+ installed
 - [ ] Google Cloud project with Sheets API enabled
 - [ ] Service account JSON key OR OAuth tokens
 
@@ -46,6 +48,9 @@ The script will:
 1. Run OAuth authentication in your browser
 2. Create `claude_desktop_config.json` pointing at `dist/cli.js`
 3. Verify tokens and config files
+
+If you need a hosted remote connector instead of a local stdio process, use
+[`OAUTH_USER_SETUP.md`](./OAUTH_USER_SETUP.md) rather than this guide.
 
 **Skip to [Step 4: Test](#step-4-test-the-setup)** if you used the script.
 
@@ -96,7 +101,7 @@ The script will:
 }
 ```
 
-**With all v1.6.0 features enabled (development)**:
+**With advanced local features enabled (development)**:
 
 ```json
 {
@@ -161,7 +166,7 @@ The script will:
   "mcpServers": {
     "servalsheets": {
       "command": "node",
-      "args": ["/Users/thomascahill/Documents/mcp-servers/servalsheets/dist/cli.js"],
+      "args": ["/path/to/servalsheets/dist/cli.js"],
       "env": {
         "GOOGLE_ACCESS_TOKEN": "ya29.a0AfB_..."
       }
@@ -198,9 +203,9 @@ List all sheets in this spreadsheet: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upm
 
 Expected: Claude should use the `sheets_core` tool and return sheet names.
 
-## ⚙️ Environment Variables (v1.6.0)
+## ⚙️ Environment Variables
 
-ServalSheets v1.6.0 supports the following configuration via environment variables:
+ServalSheets supports the following configuration via environment variables:
 
 ### Core Configuration
 
@@ -272,7 +277,7 @@ ENABLE_PAYLOAD_VALIDATION=true
 
 ### Automatic Features (No Configuration)
 
-The following features are **always active** in v1.6.0:
+The following features are active in current releases:
 
 - ✅ HTTP compression (60-80% bandwidth reduction)
 - ✅ Payload monitoring (2MB warnings, 10MB limits)
@@ -374,7 +379,7 @@ The following features are **always active** in v1.6.0:
 
 **Symptoms**: Operations fail with size limit errors
 
-**Fixes** (v1.6.0 monitoring):
+**Fixes**:
 
 1. Check logs for payload size warnings (>2MB)
 2. Reduce batch sizes or range selections
@@ -389,7 +394,7 @@ The following features are **always active** in v1.6.0:
 
 **Symptoms**: Slow responses, high latency
 
-**Fixes** (v1.6.0 features):
+**Fixes**:
 
 1. Enable tracing to identify bottlenecks:
 
@@ -474,13 +479,13 @@ You should see **25 tools** available:
 18. `sheets_bigquery` - BigQuery Connected Sheets (Tier 7)
 19. `sheets_appsscript` - Apps Script automation (Tier 7)
 
-**Total**: 25 tools, 391 actions
+**Total**: 25 tools, 407 actions
 
 To see the current action breakdown, run:
 
 ```bash
 npm run check:drift | grep "Total:"
-# Output: ✅ Total: 25 tools, 391 actions
+# Output: ✅ Total: 25 tools, 407 actions
 ```
 
 ## 🎯 Example Tasks
@@ -624,7 +629,7 @@ Spreadsheet: <your-spreadsheet-id>
       "command": "npx",
       "args": ["servalsheets"],
       "env": {
-        "GOOGLE_APPLICATION_CREDENTIALS": "/Users/you/.config/google/servalsheets-prod.json"
+        "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/your/credentials.json"
       }
     }
   }

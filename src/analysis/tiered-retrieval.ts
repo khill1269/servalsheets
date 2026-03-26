@@ -18,6 +18,7 @@
 import type { sheets_v4 } from 'googleapis';
 import type { ICache } from '../utils/cache-adapter.js';
 import { logger } from '../utils/logger.js';
+import { NotFoundError } from '../core/errors.js';
 
 /**
  * Level 1: Metadata
@@ -223,7 +224,7 @@ export class TieredRetrieval {
     });
 
     if (!response.data.sheets) {
-      throw new Error('No sheets found in spreadsheet');
+      throw new NotFoundError('sheet', spreadsheetId);
     }
 
     const metadata: SheetMetadata = {
@@ -292,7 +293,7 @@ export class TieredRetrieval {
     });
 
     if (!response.data.sheets) {
-      throw new Error('No sheets found in spreadsheet');
+      throw new NotFoundError('sheet', spreadsheetId);
     }
 
     // Count structural elements
@@ -438,7 +439,7 @@ export class TieredRetrieval {
       : structure.sheets[0];
 
     if (!targetSheet) {
-      throw new Error(`Sheet not found: ${sheetId}`);
+      throw new NotFoundError('sheet', String(sheetId ?? 'unknown'));
     }
 
     // Calculate sample size
@@ -509,7 +510,7 @@ export class TieredRetrieval {
       : sample.sheets[0];
 
     if (!targetSheet) {
-      throw new Error(`Sheet not found: ${sheetId}`);
+      throw new NotFoundError('sheet', String(sheetId ?? 'unknown'));
     }
 
     // Fetch full data
@@ -593,7 +594,7 @@ export class TieredRetrieval {
       : fullData.sheets[0];
 
     if (!targetSheet) {
-      throw new Error(`Sheet not found: ${sheetId}`);
+      throw new NotFoundError('sheet', String(sheetId ?? 'unknown'));
     }
 
     // Build ranges parameter to limit data to manageable size

@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import { logger } from '../utils/logger.js';
+import { NotFoundError } from '../core/errors.js';
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
@@ -95,7 +96,7 @@ class InMemoryTenantStorage implements TenantStorage {
   async update(tenantId: string, updates: Partial<TenantMetadata>): Promise<TenantMetadata> {
     const existing = this.tenants.get(tenantId);
     if (!existing) {
-      throw new Error(`Tenant not found: ${tenantId}`);
+      throw new NotFoundError('tenant', tenantId);
     }
     const updated: TenantMetadata = {
       ...existing,
@@ -109,7 +110,7 @@ class InMemoryTenantStorage implements TenantStorage {
   async delete(tenantId: string): Promise<void> {
     const tenant = this.tenants.get(tenantId);
     if (!tenant) {
-      throw new Error(`Tenant not found: ${tenantId}`);
+      throw new NotFoundError('tenant', tenantId);
     }
     // Soft delete - mark as deleted
     await this.update(tenantId, { status: 'deleted' });
@@ -133,9 +134,72 @@ export class TenantContextService {
   private apiKeyMap: Map<string, string> = new Map(); // apiKey -> tenantId
   private hourlyUsage: Map<string, { windowStartMs: number; count: number }> = new Map();
   private spreadsheetAccessMap: Map<string, Set<string>> = new Map(); // tenantId -> spreadsheetIds
+  private static readonly HOURLY_RETENTION_MS = 2 * ONE_HOUR_MS; // Keep 2 hours of usage windows
+  private static readonly MAX_SPREADSHEETS_PER_TENANT = 50_000;
+  private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor(storage?: TenantStorage) {
     this.storage = storage || new InMemoryTenantStorage();
+  }
+
+  /**
+   * Start periodic cleanup of stale usage windows and oversized access maps.
+   * Called once after instance creation; safe to call multiple times.
+   */
+  startPeriodicCleanup(): void {
+    if (this.cleanupInterval) return;
+    this.cleanupInterval = setInterval(() => this.cleanup(), ONE_HOUR_MS);
+    this.cleanupInterval.unref(); // Don't prevent process exit
+  }
+
+  /**
+   * Stop periodic cleanup (for testing or shutdown).
+   */
+  stopPeriodicCleanup(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+
+  /**
+   * Prune stale hourly usage windows and cap spreadsheet access maps.
+   */
+  cleanup(): void {
+    const now = Date.now();
+    let hourlyEvicted = 0;
+
+    // Prune stale hourly usage windows
+    for (const [key, entry] of this.hourlyUsage.entries()) {
+      if (now - entry.windowStartMs > TenantContextService.HOURLY_RETENTION_MS) {
+        this.hourlyUsage.delete(key);
+        hourlyEvicted++;
+      }
+    }
+
+    // Cap spreadsheet access maps per tenant
+    for (const [tenantId, spreadsheets] of this.spreadsheetAccessMap.entries()) {
+      if (spreadsheets.size > TenantContextService.MAX_SPREADSHEETS_PER_TENANT) {
+        const arr = [...spreadsheets];
+        const trimmed = new Set(arr.slice(-TenantContextService.MAX_SPREADSHEETS_PER_TENANT));
+        this.spreadsheetAccessMap.set(tenantId, trimmed);
+        logger.info('Trimmed spreadsheet access map for tenant', {
+          component: 'tenant-context',
+          tenantId,
+          before: arr.length,
+          after: trimmed.size,
+        });
+      }
+    }
+
+    if (hourlyEvicted > 0) {
+      logger.info('TenantContext cleanup completed', {
+        component: 'tenant-context',
+        hourlyEvicted,
+        remainingHourly: this.hourlyUsage.size,
+        tenants: this.apiKeyMap.size,
+      });
+    }
   }
 
   /**
@@ -430,3 +494,4 @@ export class TenantContextService {
  * Global tenant context service instance
  */
 export const tenantContextService = new TenantContextService();
+tenantContextService.startPeriodicCleanup();

@@ -4,7 +4,7 @@
  * Handles multi-operation transactions with atomicity and auto-rollback.
  */
 
-import { ErrorCodes } from './error-codes.js';
+import { assertNever } from '../utils/type-utils.js';
 import { getTransactionManager } from '../services/transaction-manager.js';
 import type {
   SheetsTransactionInput,
@@ -15,12 +15,25 @@ import { unwrapRequest, type HandlerContext } from './base.js';
 import { ValidationError, ServiceError } from '../core/errors.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
+import { resourceNotifications } from '../resources/notifications.js';
 import { sendProgress } from '../utils/request-context.js';
+import { withKeepalive } from '../utils/keepalive.js';
 import { logger } from '../utils/logger.js';
 import { getEnv } from '../config/env.js';
 
 export interface TransactionHandlerOptions {
   context?: HandlerContext;
+}
+
+function tryGetTransactionSpreadsheetId(
+  transactionManager: Pick<ReturnType<typeof getTransactionManager>, 'getTransaction'>,
+  transactionId: string
+): string | undefined {
+  try {
+    return transactionManager.getTransaction(transactionId)?.spreadsheetId;
+  } catch {
+    return undefined; // OK: Explicit empty
+  }
 }
 
 export class TransactionHandler {
@@ -97,6 +110,7 @@ export class TransactionHandler {
             operationsQueued: 0,
             message: `Transaction ${txId} started for spreadsheet ${req.spreadsheetId}.${snapshotWarning}${descriptionNote}`,
           };
+          resourceNotifications.notifyTransactionStateChanged(txId, 'pending', req.spreadsheetId);
           break;
         }
 
@@ -162,10 +176,16 @@ export class TransactionHandler {
           }
 
           await sendProgress(0, 100, 'Committing transaction...');
-          const result = await transactionManager.commit(req.transactionId);
-          await sendProgress(100, 100, 'Transaction committed');
+          const spreadsheetId = tryGetTransactionSpreadsheetId(
+            transactionManager,
+            req.transactionId
+          );
+          const result = await withKeepalive(() => transactionManager.commit(req.transactionId!), {
+            operationName: 'sheets_transaction.commit',
+          });
 
           if (result.success) {
+            await sendProgress(100, 100, 'Transaction committed');
             response = {
               success: true,
               action: 'commit',
@@ -176,18 +196,32 @@ export class TransactionHandler {
               duration: result.duration,
               message: `Transaction committed successfully. ${result.operationResults.length} operation(s) executed, ${result.apiCallsSaved} API call(s) saved.`,
             };
+            resourceNotifications.notifyTransactionStateChanged(
+              req.transactionId,
+              'committed',
+              spreadsheetId
+            );
           } else {
+            const mappedError = mapStandaloneError(
+              result.error ?? new Error('Transaction commit failed')
+            );
             response = {
               success: false,
               error: {
-                code: ErrorCodes.INTERNAL_ERROR,
-                message: result.error?.message || 'Transaction commit failed',
-                retryable: false,
+                ...mappedError,
                 details: result.rolledBack
-                  ? { rollback: 'Transaction was automatically rolled back' }
-                  : undefined,
+                  ? {
+                      ...(mappedError.details ?? {}),
+                      rollback: 'Transaction was automatically rolled back',
+                    }
+                  : mappedError.details,
               },
             };
+            resourceNotifications.notifyTransactionStateChanged(
+              req.transactionId,
+              'failed',
+              spreadsheetId
+            );
           }
           break;
         }
@@ -201,6 +235,10 @@ export class TransactionHandler {
             );
           }
 
+          const spreadsheetId = tryGetTransactionSpreadsheetId(
+            transactionManager,
+            req.transactionId
+          );
           const rollbackResult = await transactionManager.rollback(req.transactionId);
 
           const recoveryHint = rollbackResult.snapshotId
@@ -216,6 +254,11 @@ export class TransactionHandler {
             operationsExecuted: rollbackResult.operationsReverted,
             message: `Transaction ${req.transactionId} rolled back successfully (${rollbackResult.operationsReverted ?? 0} operation(s) reverted).${recoveryHint}`,
           };
+          resourceNotifications.notifyTransactionStateChanged(
+            req.transactionId,
+            'rolled_back',
+            spreadsheetId
+          );
           break;
         }
 
@@ -337,19 +380,8 @@ export class TransactionHandler {
           break;
         }
 
-        default: {
-          // Exhaustive check - TypeScript ensures this is unreachable
-          const _exhaustiveCheck: never = req;
-          response = {
-            success: false,
-            error: {
-              code: ErrorCodes.INVALID_PARAMS,
-              message: `Unsupported action: ${(req as { action: string }).action}`,
-              retryable: false,
-              suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
-            },
-          };
-        }
+        default:
+          assertNever(req);
       }
 
       // Apply verbosity filtering (LLM optimization)

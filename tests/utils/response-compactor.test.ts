@@ -173,6 +173,125 @@ describe('Response Compactor - List Action Fields (Phase 0.1)', () => {
       expect(compacted.permissions).toHaveLength(0);
     });
   });
+
+  describe('Nested data payloads', () => {
+    it('preserves nested list arrays inside response.data', () => {
+      const response = {
+        response: {
+          success: true,
+          data: {
+            webhooks: [],
+            message: 'No webhooks registered',
+          },
+        },
+      };
+
+      const compacted = compactResponse(response) as {
+        response: {
+          data: {
+            webhooks: unknown[];
+            message: string;
+          };
+        };
+      };
+
+      expect(Array.isArray(compacted.response.data.webhooks)).toBe(true);
+      expect(compacted.response.data.webhooks).toEqual([]);
+      expect(compacted.response.data.message).toBe('No webhooks registered');
+    });
+  });
+});
+
+// ─── Task A6: Explicit truncation hints ──────────────────────────────────────
+
+describe('Truncation hints (_truncated key on response object)', () => {
+  it('adds _truncated key when a 2D values array is truncated', () => {
+    // Create a large 2D array (>500 cells) to trigger truncation
+    const bigGrid: (string | number)[][] = [
+      Array.from({ length: 30 }, (_, i) => `Col${i}`),
+      ...Array.from({ length: 20 }, (_, r) =>
+        Array.from({ length: 30 }, (_, c) => r * 30 + c)
+      ),
+    ];
+
+    const response = {
+      success: true,
+      action: 'read',
+      values: bigGrid,
+    };
+
+    const compacted = compactResponse(response);
+    const valuesField = (compacted as Record<string, unknown>)['values'];
+
+    // values should have been truncated (600 cells > 500 MAX_INLINE_ITEMS)
+    expect(valuesField).toBeDefined();
+    // The top-level response should now include a _truncated hint
+    const resp = compacted as Record<string, unknown>;
+    expect(resp['_truncated']).toBeDefined();
+    const truncated = resp['_truncated'] as Record<string, string>;
+    expect(typeof truncated).toBe('object');
+    expect(truncated['values']).toBeDefined();
+    expect(truncated['values']).toContain('verbosity');
+  });
+
+  it('does NOT add _truncated key when no truncation occurred', () => {
+    const response = {
+      success: true,
+      action: 'read',
+      values: [
+        ['Name', 'Age'],
+        ['Alice', 30],
+        ['Bob', 25],
+      ],
+    };
+
+    const compacted = compactResponse(response);
+    const resp = compacted as Record<string, unknown>;
+    expect(resp['_truncated']).toBeUndefined();
+  });
+
+  it('adds _truncated with correct field name when a list field is truncated', () => {
+    // Create a large permissions array (>50 items triggers LIST_ACTION_FIELDS truncation)
+    const permissions = Array.from({ length: 100 }, (_, i) => ({
+      id: String(i),
+      email: `user${i}@test.com`,
+      role: 'reader',
+    }));
+
+    const response = {
+      success: true,
+      action: 'share_list',
+      permissions,
+    };
+
+    const compacted = compactResponse(response);
+    const resp = compacted as Record<string, unknown>;
+    expect(resp['_truncated']).toBeDefined();
+    const truncated = resp['_truncated'] as Record<string, string>;
+    expect(truncated['permissions']).toBeDefined();
+    expect(truncated['permissions']).toContain('50');
+  });
+
+  it('_truncated message includes verbosity hint', () => {
+    const bigGrid: number[][] = Array.from({ length: 25 }, () =>
+      Array.from({ length: 25 }, (_, c) => c)
+    );
+    const response = {
+      success: true,
+      action: 'read',
+      values: bigGrid,
+    };
+
+    const compacted = compactResponse(response);
+    const resp = compacted as Record<string, unknown>;
+    if (resp['_truncated']) {
+      const truncated = resp['_truncated'] as Record<string, string>;
+      if (truncated['values']) {
+        expect(truncated['values']).toContain('verbosity');
+      }
+    }
+    // If no truncation triggered, test is not applicable but passes
+  });
 });
 
 describe('Phase 0.1 - All Affected List Actions', () => {

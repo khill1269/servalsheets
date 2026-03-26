@@ -203,3 +203,54 @@ describe('validateDuckDbSql', () => {
     expect(() => validateDuckDbSql("SELECT 1; INSTALL httpfs")).toThrow(/DDL\/DML statements/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// DuckDB engine error classification (QUERY_REJECTED)
+// Verify that safety-rejection messages are mapped to QUERY_REJECTED and
+// other errors remain generic. This tests the classification logic embedded
+// in duckdb-engine.ts without spawning a live Worker.
+// ---------------------------------------------------------------------------
+
+describe('DuckDB engine safety-rejection classification', () => {
+  // Mirror the classification logic from DuckDBEngine.query()
+  function classifyDuckDbError(errorMsg: string): 'QUERY_REJECTED' | 'INTERNAL_ERROR' {
+    const isSafetyRejection =
+      errorMsg.startsWith('Only SELECT statements are allowed') ||
+      errorMsg.startsWith('DDL/DML statements are not allowed') ||
+      errorMsg.startsWith('File system access functions are not allowed') ||
+      errorMsg.startsWith('Invalid table name');
+    return isSafetyRejection ? 'QUERY_REJECTED' : 'INTERNAL_ERROR';
+  }
+
+  it('classifies non-SELECT rejection as QUERY_REJECTED', () => {
+    expect(classifyDuckDbError('Only SELECT statements are allowed in DuckDB queries')).toBe(
+      'QUERY_REJECTED'
+    );
+  });
+
+  it('classifies DDL/DML rejection as QUERY_REJECTED', () => {
+    expect(classifyDuckDbError('DDL/DML statements are not allowed in DuckDB queries')).toBe(
+      'QUERY_REJECTED'
+    );
+  });
+
+  it('classifies file system access rejection as QUERY_REJECTED', () => {
+    expect(
+      classifyDuckDbError('File system access functions are not allowed in DuckDB queries')
+    ).toBe('QUERY_REJECTED');
+  });
+
+  it('classifies invalid table name as QUERY_REJECTED', () => {
+    expect(
+      classifyDuckDbError(
+        'Invalid table name "bad-name!": must start with a letter or underscore'
+      )
+    ).toBe('QUERY_REJECTED');
+  });
+
+  it('classifies generic DuckDB errors as INTERNAL_ERROR', () => {
+    expect(classifyDuckDbError('DuckDB query failed')).toBe('INTERNAL_ERROR');
+    expect(classifyDuckDbError('Out of memory')).toBe('INTERNAL_ERROR');
+    expect(classifyDuckDbError('Syntax error near token')).toBe('INTERNAL_ERROR');
+  });
+});

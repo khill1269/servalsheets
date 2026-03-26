@@ -20,6 +20,7 @@
 
 import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import { logger } from '../utils/logger.js';
+import { ConfigError, ValidationError } from '../core/errors.js';
 
 /**
  * Webhook signature configuration
@@ -62,10 +63,10 @@ export class WebhookSignatureManager {
 
     // Validate configuration
     if (this.config.minSecretLength < 16) {
-      throw new Error('minSecretLength must be at least 16 bytes');
+      throw new ConfigError('minSecretLength must be at least 16 bytes', 'minSecretLength');
     }
     if (this.config.maxSecretLength < this.config.minSecretLength) {
-      throw new Error('maxSecretLength must be >= minSecretLength');
+      throw new ConfigError('maxSecretLength must be >= minSecretLength', 'maxSecretLength');
     }
   }
 
@@ -86,8 +87,10 @@ export class WebhookSignatureManager {
    */
   generateSecret(lengthBytes: number = 32): string {
     if (lengthBytes < this.config.minSecretLength || lengthBytes > this.config.maxSecretLength) {
-      throw new Error(
-        `Secret length must be between ${this.config.minSecretLength} and ${this.config.maxSecretLength} bytes`
+      throw new ValidationError(
+        `Secret length must be between ${this.config.minSecretLength} and ${this.config.maxSecretLength} bytes`,
+        'lengthBytes',
+        `${this.config.minSecretLength}-${this.config.maxSecretLength}`
       );
     }
 
@@ -109,7 +112,11 @@ export class WebhookSignatureManager {
       case 'base64url':
         return bytes.toString('base64url');
       default:
-        throw new Error(`Unsupported encoding: ${this.config.encoding}`);
+        throw new ValidationError(
+          `Unsupported encoding: ${this.config.encoding}`,
+          'encoding',
+          'hex | base64 | base64url'
+        );
     }
   }
 
@@ -128,11 +135,17 @@ export class WebhookSignatureManager {
         case 'base64url':
           return Buffer.from(secret, 'base64url');
         default:
-          throw new Error(`Unsupported encoding: ${this.config.encoding}`);
+          throw new ValidationError(
+            `Unsupported encoding: ${this.config.encoding}`,
+            'encoding',
+            'hex | base64 | base64url'
+          );
       }
     } catch (error) {
-      throw new Error(
-        `Failed to decode secret: ${error instanceof Error ? error.message : 'Unknown error'}`
+      throw new ValidationError(
+        `Failed to decode secret: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'secret',
+        'base64url-encoded string'
       );
     }
   }

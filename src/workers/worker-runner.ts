@@ -9,6 +9,7 @@
 
 import { parentPort, workerData } from 'worker_threads';
 import { pathToFileURL } from 'url';
+import { ConfigError, ValidationError } from '../core/errors.js';
 import { assertAllowedWorkerScriptPath } from './allowed-worker-scripts.js';
 
 interface WorkerMessage {
@@ -19,7 +20,7 @@ interface WorkerMessage {
 }
 
 if (!parentPort) {
-  throw new Error('This script must be run as a worker thread');
+  throw new ConfigError('Must run as worker thread', 'WORKER_MODE');
 }
 
 const workerId = workerData?.workerId ?? 'unknown';
@@ -37,7 +38,12 @@ parentPort.on('message', async (message: WorkerMessage) => {
     const workerModule = await import(scriptUrl);
 
     if (typeof workerModule.execute !== 'function') {
-      throw new Error(`Worker script must export 'execute' function: ${scriptPath}`);
+      throw new ValidationError(
+        'Worker script must export execute function',
+        'scriptPath',
+        undefined,
+        { value: scriptPath }
+      );
     }
 
     // Execute task

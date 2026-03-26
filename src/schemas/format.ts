@@ -11,6 +11,7 @@ import {
   RangeInputSchema,
   CellFormatSchema,
   ColorSchema,
+  ColorStyleSchema,
   TextFormatSchema,
   NumberFormatSchema,
   BorderSchema,
@@ -24,44 +25,90 @@ import {
   SafetyOptionsSchema,
   MutationSummarySchema,
   ResponseMetaSchema,
+  A1NotationSchema,
   type ToolAnnotations,
 } from './shared.js';
 
 // Rules-related schema definitions
+const InterpolationPointTypeSchema = z.preprocess(
+  (val) => {
+    if (typeof val !== 'string') return val;
+    const normalized = val.toUpperCase();
+    if (normalized === 'MIN_VALUE') return 'MIN';
+    if (normalized === 'MAX_VALUE') return 'MAX';
+    return normalized;
+  },
+  z.enum(['MIN', 'MAX', 'NUMBER', 'PERCENT', 'PERCENTILE'])
+);
+
 const BooleanRuleSchema = z.object({
   type: z.literal('boolean'),
   condition: ConditionSchema,
-  format: z.object({
-    backgroundColor: ColorSchema.optional(),
-    textFormat: TextFormatSchema.optional(),
-  }),
+  format: CellFormatSchema,
 });
+
+const GradientColorPointBaseSchema = z.object({
+  color: ColorSchema.optional(),
+  colorStyle: ColorStyleSchema.optional(),
+});
+
+const GradientColorPointSchema = GradientColorPointBaseSchema.superRefine((value, ctx) => {
+  if (!value.color && !value.colorStyle) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Either color or colorStyle is required',
+      path: ['colorStyle'],
+    });
+  }
+});
+
+const requireGradientColorPoint = (
+  value: z.infer<typeof GradientColorPointBaseSchema>,
+  ctx: z.RefinementCtx
+): void => {
+  if (!GradientColorPointSchema.safeParse(value).success) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Either color or colorStyle is required',
+      path: ['colorStyle'],
+    });
+  }
+};
+
+const GradientEndpointSchema = z
+  .object({
+    type: InterpolationPointTypeSchema,
+    value: z.string().optional(),
+  })
+  .merge(GradientColorPointBaseSchema)
+  .superRefine(requireGradientColorPoint);
+
+const GradientMidpointSchema = z
+  .object({
+    type: z.preprocess(
+      (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+      z.enum(['NUMBER', 'PERCENT', 'PERCENTILE'])
+    ),
+    value: z.string(),
+  })
+  .merge(GradientColorPointBaseSchema)
+  .superRefine(requireGradientColorPoint);
 
 const GradientRuleSchema = z.object({
   type: z.literal('gradient'),
-  minpoint: z.object({
-    type: z.enum(['MIN', 'MAX', 'NUMBER', 'PERCENT', 'PERCENTILE']),
-    value: z.string().optional(),
-    color: ColorSchema,
-  }),
-  midpoint: z
-    .object({
-      type: z.enum(['NUMBER', 'PERCENT', 'PERCENTILE']),
-      value: z.string(),
-      color: ColorSchema,
-    })
-    .optional(),
-  maxpoint: z.object({
-    type: z.enum(['MIN', 'MAX', 'NUMBER', 'PERCENT', 'PERCENTILE']),
-    value: z.string().optional(),
-    color: ColorSchema,
-  }),
+  minpoint: GradientEndpointSchema,
+  midpoint: GradientMidpointSchema.optional(),
+  maxpoint: GradientEndpointSchema,
 });
 
 const ConditionalFormatRuleSchema = z.discriminatedUnion('type', [
   BooleanRuleSchema,
   GradientRuleSchema,
 ]);
+
+const SparklineColorInputSchema = z
+  .union([ColorStyleSchema, ColorSchema])
+  .describe('Sparkline color as RGB/hex/named color, or ColorStyle with rgbColor/themeColor');
 
 // ============================================================================
 // SPARKLINE SCHEMAS (3 new actions)
@@ -71,21 +118,25 @@ const ConditionalFormatRuleSchema = z.discriminatedUnion('type', [
 const SparklineTypeSchema = z
   .preprocess(
     (val) => (typeof val === 'string' ? val.toUpperCase() : val),
-    z.enum(['LINE', 'BAR', 'COLUMN'])
+    z.enum(['LINE', 'BAR', 'COLUMN', 'WINLOSS'])
   )
-  .describe('Sparkline chart type (case-insensitive)');
+  .describe(
+    'Sparkline chart type (case-insensitive). LINE: continuous line chart (default). BAR: horizontal bars. COLUMN: vertical bars. WINLOSS: binary up/down for win/loss tracking.'
+  );
 
 // Sparkline configuration options
 const SparklineConfigSchema = z
   .object({
-    type: SparklineTypeSchema.default('LINE').describe('Sparkline chart type (LINE, BAR, COLUMN)'),
-    color: ColorSchema.optional().describe('Line/bar color'),
-    negativeColor: ColorSchema.optional().describe('Color for negative values'),
-    axisColor: ColorSchema.optional().describe('Horizontal axis line color'),
-    firstColor: ColorSchema.optional().describe('First data point highlight color'),
-    lastColor: ColorSchema.optional().describe('Last data point highlight color'),
-    highColor: ColorSchema.optional().describe('Highest value highlight color'),
-    lowColor: ColorSchema.optional().describe('Lowest value highlight color'),
+    type: SparklineTypeSchema.default('LINE').describe(
+      'Sparkline chart type. LINE (default): continuous line chart. BAR: horizontal bars. COLUMN: vertical bars. WINLOSS: binary up/down visualization.'
+    ),
+    color: SparklineColorInputSchema.optional().describe('Line/bar color'),
+    negativeColor: SparklineColorInputSchema.optional().describe('Color for negative values'),
+    axisColor: SparklineColorInputSchema.optional().describe('Horizontal axis line color'),
+    firstColor: SparklineColorInputSchema.optional().describe('First data point highlight color'),
+    lastColor: SparklineColorInputSchema.optional().describe('Last data point highlight color'),
+    highColor: SparklineColorInputSchema.optional().describe('Highest value highlight color'),
+    lowColor: SparklineColorInputSchema.optional().describe('Lowest value highlight color'),
     lineWidth: z.coerce
       .number()
       .min(0.5)
@@ -119,7 +170,11 @@ const CommonFieldsSchema = z.object({
 // ===== FORMAT ACTION SCHEMAS (10 actions) =====
 
 const SetFormatActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('set_format').describe('Apply complete cell format'),
+  action: z
+    .literal('set_format')
+    .describe(
+      'Apply complete cell format. For a single cell or range. Use batch_format for 3+ different format changes (significantly faster).'
+    ),
   range: RangeInputSchema.describe('Range to format (A1 notation or semantic)'),
   format: CellFormatSchema.describe(
     'Complete cell format specification (background, text, borders, etc.)'
@@ -128,7 +183,13 @@ const SetFormatActionSchema = CommonFieldsSchema.extend({
 
 const SuggestFormatActionSchema = CommonFieldsSchema.extend({
   action: z.literal('suggest_format').describe('Get AI-powered format suggestions'),
-  range: RangeInputSchema.describe('Range to analyze for format suggestions'),
+  range: RangeInputSchema.optional().describe('Range to analyze for format suggestions'),
+  sheetName: z
+    .string()
+    .optional()
+    .describe(
+      'Optional sheet name shortcut. When provided without range, suggest_format samples the top of that sheet.'
+    ),
   maxSuggestions: z
     .number()
     .int()
@@ -177,7 +238,7 @@ const SetAlignmentActionSchema = CommonFieldsSchema.extend({
 const LLMBorderSchema = z.preprocess((val) => {
   // Convert true to { style: "SOLID" } and false to undefined
   if (val === true) return { style: 'SOLID' };
-  if (val === false || val === null) return undefined;
+  if (val === false || val === null) return undefined; // OK: Explicit empty
   // Also handle string style directly: "SOLID" -> { style: "SOLID" }
   if (typeof val === 'string') return { style: val };
   return val;
@@ -279,15 +340,9 @@ const SparklineAddActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('sparkline_add')
     .describe('Add a sparkline visualization to a cell using the SPARKLINE formula'),
-  targetCell: z
-    .string()
-    .regex(
-      /^(?:(?:'[^']+'|[A-Za-z0-9_ ]+)!)?[A-Z]{1,3}\d+$/,
-      'Invalid cell reference (expected A1 format, optionally with sheet like Sheet1!A1)'
-    )
-    .describe(
-      'Target cell for sparkline (A1 notation or sheet-qualified like Sheet1!A1, single cell only)'
-    ),
+  targetCell: A1NotationSchema.describe(
+    "Target cell for sparkline (A1 notation or sheet-qualified like Sheet1!A1 or '📊 Dashboard'!G10, single cell only)"
+  ),
   dataRange: RangeInputSchema.describe(
     'Data range for sparkline (should be 1D - single row or column)'
   ),
@@ -298,24 +353,16 @@ const SparklineGetActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('sparkline_get')
     .describe('Get sparkline formula and configuration from a cell'),
-  cell: z
-    .string()
-    .regex(
-      /^(?:(?:'[^']+'|[A-Za-z0-9_ ]+)!)?[A-Z]{1,3}\d+$/,
-      'Invalid cell reference (expected A1 format, optionally with sheet like Sheet1!A1)'
-    )
-    .describe('Cell to get sparkline from (A1 notation or sheet-qualified like Sheet1!A1)'),
+  cell: A1NotationSchema.describe(
+    "Cell to get sparkline from (A1 notation or sheet-qualified like Sheet1!A1 or '📊 Dashboard'!G10)"
+  ),
 });
 
 const SparklineClearActionSchema = CommonFieldsSchema.extend({
   action: z.literal('sparkline_clear').describe('Remove sparkline from a cell'),
-  cell: z
-    .string()
-    .regex(
-      /^(?:(?:'[^']+'|[A-Za-z0-9_ ]+)!)?[A-Z]{1,3}\d+$/,
-      'Invalid cell reference (expected A1 format, optionally with sheet like Sheet1!A1)'
-    )
-    .describe('Cell to clear sparkline from (A1 notation or sheet-qualified like Sheet1!A1)'),
+  cell: A1NotationSchema.describe(
+    "Cell to clear sparkline from (A1 notation or sheet-qualified like Sheet1!A1 or '📊 Dashboard'!G10)"
+  ),
 });
 
 // ===== RULES ACTION SCHEMAS (8 actions) =====
@@ -367,7 +414,20 @@ Minpoint/maxpoint types: MIN, MAX, NUMBER, PERCENT, PERCENTILE
     .min(0)
     .optional()
     .describe('Position to insert rule (0 = first, omit = append to end)'),
-});
+  // Internal sentinel set by normalizeFormatRequest when multiple ranges are provided
+  _multiRange: z.boolean().optional(),
+})
+  .superRefine((input, ctx) => {
+    if (input._multiRange === true) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'exactly one target range is required. Split into multiple rule_add_conditional_format calls for multiple ranges.',
+        path: ['ranges'],
+      });
+    }
+  })
+  .transform(({ _multiRange: _, ...rest }) => rest);
 
 const RuleUpdateConditionalFormatActionSchema = CommonFieldsSchema.extend({
   action: z
@@ -462,7 +522,9 @@ Common presets: highlight_duplicates, highlight_blanks, highlight_errors, color_
 
 Use this UNLESS you need highly custom rules (then use rule_add_conditional_format).`
   ),
-  sheetId: SheetIdSchema.describe('Numeric sheet ID where rule will be applied'),
+  sheetId: SheetIdSchema.optional().describe(
+    'Numeric sheet ID where rule will be applied. Optional — auto-derived from the range sheet name when omitted.'
+  ),
   range: RangeInputSchema.describe('Range for the preset rule'),
   rulePreset: z
     .preprocess(
@@ -592,63 +654,140 @@ Use this UNLESS you need highly custom rules (then use rule_add_conditional_form
  * Each operation specifies a type, range, and type-specific parameters.
  * All operations are combined into a single Google Sheets batchUpdate API call.
  */
-const BatchFormatOperationSchema = z
-  .object({
-    type: z
-      .enum([
-        'background',
-        'text_format',
-        'number_format',
-        'alignment',
-        'borders',
-        'format',
-        'preset',
-      ])
-      .describe(
-        'Operation type: background (set color), text_format (bold/italic/font), number_format (currency/percentage), alignment (left/center/right), borders (cell borders), format (full CellFormat), preset (header_row/alternating_rows/etc.)'
+const BatchFormatOperationSchema = z.preprocess(
+  (val) => {
+    if (typeof val !== 'object' || val === null) return val;
+    const op = { ...(val as Record<string, unknown>) };
+
+    // Normalize set_* aliases → batch_format operation types.
+    // Individual format actions use set_background, set_text_format, etc. but
+    // batch_format operations use shorter names (background, text_format, etc.).
+    // Accept both conventions to prevent first-try failures.
+    const typeAliases: Record<string, string> = {
+      set_background: 'background',
+      set_text_format: 'text_format',
+      set_number_format: 'number_format',
+      set_alignment: 'alignment',
+      set_borders: 'borders',
+      set_format: 'format',
+      apply_preset: 'preset',
+    };
+    const aliased = typeof op['type'] === 'string' ? typeAliases[op['type']] : undefined;
+    if (aliased) {
+      op['type'] = aliased;
+    }
+
+    // Infer type from fields when absent
+    if (op['type'] === undefined) {
+      const hasColor = op['color'] !== undefined;
+      const hasTextFormat = op['textFormat'] !== undefined;
+      const hasFormatTextFormat =
+        op['format'] !== undefined &&
+        typeof op['format'] === 'object' &&
+        op['format'] !== null &&
+        'textFormat' in (op['format'] as object);
+
+      if (hasColor && hasFormatTextFormat) {
+        // Mark as ambiguous so superRefine can produce a targeted error
+        op['_ambiguous'] = true;
+      } else if (hasTextFormat) {
+        op['type'] = 'text_format';
+      } else if (hasColor) {
+        op['type'] = 'background';
+      }
+    }
+
+    return op;
+  },
+  z
+    .object({
+      type: z
+        .enum([
+          'background',
+          'text_format',
+          'number_format',
+          'alignment',
+          'borders',
+          'format',
+          'preset',
+        ])
+        .optional()
+        .describe(
+          'Operation type: background (set color), text_format (bold/italic/font), number_format (currency/percentage), alignment (left/center/right), borders (cell borders), format (full CellFormat), preset (header_row/alternating_rows/etc.)'
+        ),
+      range: RangeInputSchema.describe('Range to apply this format operation to (A1 notation)'),
+      // Type-specific fields (all optional, validated by handler based on type)
+      color: ColorSchema.optional().describe('Background color (for type: "background")'),
+      textFormat: TextFormatSchema.optional().describe(
+        'Text format spec (for type: "text_format")'
       ),
-    range: RangeInputSchema.describe('Range to apply this format operation to (A1 notation)'),
-    // Type-specific fields (all optional, validated by handler based on type)
-    color: ColorSchema.optional().describe('Background color (for type: "background")'),
-    textFormat: TextFormatSchema.optional().describe('Text format spec (for type: "text_format")'),
-    numberFormat: NumberFormatSchema.optional().describe(
-      'Number format spec (for type: "number_format")'
-    ),
-    horizontal: HorizontalAlignSchema.optional().describe(
-      'Horizontal alignment (for type: "alignment")'
-    ),
-    vertical: VerticalAlignSchema.optional().describe('Vertical alignment (for type: "alignment")'),
-    wrapStrategy: WrapStrategySchema.optional().describe('Wrap strategy (for type: "alignment")'),
-    top: LLMBorderSchema.describe('Top border (for type: "borders")'),
-    bottom: LLMBorderSchema.describe('Bottom border (for type: "borders")'),
-    left: LLMBorderSchema.describe('Left border (for type: "borders")'),
-    right: LLMBorderSchema.describe('Right border (for type: "borders")'),
-    innerHorizontal: LLMBorderSchema.describe('Inner horizontal borders (for type: "borders")'),
-    innerVertical: LLMBorderSchema.describe('Inner vertical borders (for type: "borders")'),
-    format: CellFormatSchema.optional().describe(
-      'Full cell format specification (for type: "format")'
-    ),
-    preset: z
-      .enum([
-        'header_row',
-        'alternating_rows',
-        'total_row',
-        'currency',
-        'percentage',
-        'date',
-        'highlight_positive',
-        'highlight_negative',
-      ])
-      .optional()
-      .describe('Preset name (for type: "preset")'),
-  })
-  .describe('Single format operation within a batch');
+      numberFormat: NumberFormatSchema.optional().describe(
+        'Number format spec (for type: "number_format")'
+      ),
+      horizontal: HorizontalAlignSchema.optional().describe(
+        'Horizontal alignment (for type: "alignment")'
+      ),
+      vertical: VerticalAlignSchema.optional().describe(
+        'Vertical alignment (for type: "alignment")'
+      ),
+      wrapStrategy: WrapStrategySchema.optional().describe('Wrap strategy (for type: "alignment")'),
+      top: LLMBorderSchema.describe('Top border (for type: "borders")'),
+      bottom: LLMBorderSchema.describe('Bottom border (for type: "borders")'),
+      left: LLMBorderSchema.describe('Left border (for type: "borders")'),
+      right: LLMBorderSchema.describe('Right border (for type: "borders")'),
+      innerHorizontal: LLMBorderSchema.describe('Inner horizontal borders (for type: "borders")'),
+      innerVertical: LLMBorderSchema.describe('Inner vertical borders (for type: "borders")'),
+      format: CellFormatSchema.optional().describe(
+        'Full cell format specification (for type: "format")'
+      ),
+      preset: z
+        .enum([
+          'header_row',
+          'alternating_rows',
+          'total_row',
+          'currency',
+          'percentage',
+          'date',
+          'highlight_positive',
+          'highlight_negative',
+        ])
+        .optional()
+        .describe('Preset name (for type: "preset")'),
+    })
+    .superRefine((op, ctx) => {
+      if (op.type === undefined) {
+        // Check for ambiguous case: both color and format.textFormat are present
+        const hasColor = op.color !== undefined;
+        const hasFormatTextFormat =
+          op.format !== undefined &&
+          typeof op.format === 'object' &&
+          op.format !== null &&
+          'textFormat' in op.format;
+
+        if (hasColor && hasFormatTextFormat) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              'ambiguous operation: both color and format.textFormat are present. Specify an explicit type field.',
+            path: ['type'],
+          });
+        } else {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'type is required',
+            path: ['type'],
+          });
+        }
+      }
+    })
+    .describe('Single format operation within a batch')
+);
 
 const BatchFormatActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('batch_format')
     .describe(
-      'Apply multiple format operations in a single API call. 80-95% faster than individual calls. Use this when applying 2+ format changes.'
+      'Combine multiple format operations into one API call. 80-95% faster than calling set_format repeatedly. More efficient than set_format for 3+ different format changes.'
     ),
   operations: z
     .array(BatchFormatOperationSchema)
@@ -731,6 +870,17 @@ const normalizeFormatRequest = (val: unknown): unknown => {
       return { ...rest, condition };
     }
 
+    // FIX P1-3: Handle dropdownValues shortcut
+    // LLMs often send: { dropdownValues: ["A", "B", "C"] } instead of condition object
+    const dropdownValues = obj['dropdownValues'] as unknown[] | undefined;
+    if (dropdownValues && Array.isArray(dropdownValues) && !obj['condition']) {
+      const { dropdownValues: _dv, ...rest } = obj;
+      return {
+        ...rest,
+        condition: { type: 'ONE_OF_LIST', values: dropdownValues },
+      };
+    }
+
     // Also handle flattened format: { validationType: "ONE_OF_LIST", values: [...] }
     const validationType = obj['validationType'] as string | undefined;
     const values = obj['values'] as unknown[] | undefined;
@@ -746,22 +896,97 @@ const normalizeFormatRequest = (val: unknown): unknown => {
     }
   }
 
-  // Fix QA-2.4: Auto-infer rule.type for rule_add_conditional_format when missing
-  // LLMs often send rule without discriminator 'type' field, causing "No matching discriminator" error
-  if (action === 'rule_add_conditional_format' && obj['rule'] && typeof obj['rule'] === 'object') {
-    const rule = obj['rule'] as Record<string, unknown>;
-    if (!rule['type']) {
-      // Infer type from shape: if it has condition+format, it's boolean; if it has minpoint/maxpoint, it's gradient
-      if (rule['minpoint'] || rule['maxpoint'] || rule['gradientRule']) {
-        rule['type'] = 'gradient';
-      } else if (rule['condition'] || rule['format'] || rule['booleanRule']) {
-        rule['type'] = 'boolean';
-      }
-      // If we still can't infer, default to boolean (most common)
-      if (!rule['type']) {
-        rule['type'] = 'boolean';
+  if (action === 'suggest_format') {
+    const sheetName = typeof obj['sheetName'] === 'string' ? obj['sheetName'] : undefined;
+    const range = obj['range'];
+    const quoteSheetNameForA1 = (name: string): string =>
+      /^[A-Za-z0-9_]+$/.test(name) ? name : `'${name.replace(/'/g, "''")}'`;
+    const isQualifiedA1 = (a1: string): boolean => a1.includes('!');
+
+    if (sheetName && range === undefined) {
+      return {
+        ...obj,
+        range: { a1: `${quoteSheetNameForA1(sheetName)}!A1:Z50` },
+      };
+    }
+
+    if (sheetName && typeof range === 'string' && !isQualifiedA1(range)) {
+      return {
+        ...obj,
+        range: { a1: `${quoteSheetNameForA1(sheetName)}!${range}` },
+      };
+    }
+
+    if (
+      sheetName &&
+      typeof range === 'object' &&
+      range !== null &&
+      'a1' in (range as Record<string, unknown>) &&
+      typeof (range as { a1?: unknown }).a1 === 'string' &&
+      !isQualifiedA1((range as { a1: string }).a1)
+    ) {
+      return {
+        ...obj,
+        range: { a1: `${quoteSheetNameForA1(sheetName)}!${(range as { a1: string }).a1}` },
+      };
+    }
+  }
+
+  // Normalize Google Sheets API-style payload for rule_add_conditional_format
+  // LLMs copying from Google API docs may send: { ranges: [...], booleanRule: { condition, format } }
+  if (action === 'rule_add_conditional_format') {
+    let normalized = { ...obj };
+
+    if (Array.isArray(normalized['ranges']) && normalized['range'] === undefined) {
+      const ranges = normalized['ranges'] as Record<string, unknown>[];
+      if (ranges.length > 1) {
+        // Multi-range: mark for rejection via superRefine in schema
+        normalized['_multiRange'] = true;
+        // Still need to provide required fields so schema validation reaches superRefine
+        // Set sheetId from the first range, provide required fields so superRefine is reached
+        const firstRange = ranges[0]!;
+        if (normalized['sheetId'] === undefined && firstRange['sheetId'] !== undefined) {
+          normalized['sheetId'] = firstRange['sheetId'];
+        }
+        // Provide a valid range so schema doesn't fail before superRefine
+        normalized['range'] = { grid: firstRange };
+      } else if (ranges.length === 1) {
+        const gridRange = ranges[0]!;
+        // Extract sheetId from the first range
+        if (normalized['sheetId'] === undefined && gridRange['sheetId'] !== undefined) {
+          normalized['sheetId'] = gridRange['sheetId'];
+        }
+        normalized['range'] = { grid: gridRange };
+        delete normalized['ranges'];
       }
     }
+
+    // Normalize booleanRule → rule (Google Sheets API format)
+    if (normalized['booleanRule'] !== undefined && normalized['rule'] === undefined) {
+      const booleanRule = normalized['booleanRule'] as Record<string, unknown>;
+      normalized['rule'] = {
+        type: 'boolean',
+        condition: booleanRule['condition'],
+        format: booleanRule['format'],
+      };
+      delete normalized['booleanRule'];
+    }
+
+    // QA-2.4: Auto-infer rule.type when missing
+    if (normalized['rule'] && typeof normalized['rule'] === 'object') {
+      const rule = normalized['rule'] as Record<string, unknown>;
+      if (!rule['type']) {
+        if (rule['minpoint'] || rule['maxpoint'] || rule['gradientRule']) {
+          rule['type'] = 'gradient';
+        } else if (rule['condition'] || rule['format']) {
+          rule['type'] = 'boolean';
+        } else {
+          rule['type'] = 'boolean';
+        }
+      }
+    }
+
+    return normalized;
   }
 
   // Handle rulePreset: "custom" - convert to rule_add_conditional_format with proper rule structure
@@ -860,6 +1085,48 @@ Parses the description into the correct rule type and applies it to the range.`
     ),
 });
 
+const BuildDependentDropdownActionSchema = z
+  .object({
+    action: z.literal('build_dependent_dropdown'),
+    spreadsheetId: SpreadsheetIdSchema.describe(
+      'ID of the spreadsheet. Example: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"'
+    ),
+    parentRange: z
+      .string()
+      .describe(
+        'A1 notation range of the parent (level-1) dropdown cells. ' +
+          'These cells will get a simple dropdown of unique values from the lookup table. ' +
+          'Example: "Sheet1!A2:A100"'
+      ),
+    dependentRange: z
+      .string()
+      .describe(
+        'A1 notation range of the dependent (level-2) dropdown cells. ' +
+          'Each cell in this range will show options based on the corresponding parent cell. ' +
+          'Must be same number of rows as parentRange. Example: "Sheet1!B2:B100"'
+      ),
+    lookupSheet: z
+      .string()
+      .describe(
+        'Name of the lookup table sheet. ' +
+          'Column A must contain parent values. Subsequent columns contain child options for each parent. ' +
+          'Example: A1=USA, B1=California, C1=Texas / A2=Canada, B2=Ontario, C2=Quebec. ' +
+          'Sheet name: "Lookup"'
+      ),
+    verbosity: z
+      .enum(['minimal', 'standard', 'detailed'])
+      .optional()
+      .default('standard')
+      .describe('Response detail level'),
+  })
+  .describe(
+    'Create dependent dropdown validation where the options in column B depend on the selection in column A. ' +
+      'Handles the full workflow: reads unique parent values from lookup table, creates named ranges ' +
+      'for each parent group, sets INDIRECT formula-based validation on the dependent column. ' +
+      'Requires a lookup table sheet where column A = parent values and columns B+ = child options per parent. ' +
+      'Example: parentRange:"Sheet1!A2:A100" dependentRange:"Sheet1!B2:B100" lookupSheet:"Lookup"'
+  );
+
 /**
  * All format operation inputs (cell formatting and rules)
  *
@@ -902,6 +1169,7 @@ export const SheetsFormatInputSchema = z.object({
       ListDataValidationsActionSchema,
       AddConditionalFormatRuleActionSchema,
       GenerateConditionalFormatActionSchema,
+      BuildDependentDropdownActionSchema,
     ])
   ),
 });
@@ -1009,6 +1277,10 @@ const FormatResponseSchema = z.discriminatedUnion('success', [
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
     snapshotId: z.string().optional().describe('Snapshot ID for rollback (if created)'),
+    _idempotent: z
+      .boolean()
+      .optional()
+      .describe('True when the operation first normalized existing state before applying changes'),
     _meta: ResponseMetaSchema.optional(),
   }),
   z.object({

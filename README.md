@@ -1,8 +1,6 @@
 # ServalSheets
 
-![Audit Score](https://img.shields.io/badge/audit-130.83%25-brightgreen)
-
-Production-grade Google Sheets MCP Server with 25 tools, 397 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 25 tools, 407 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
@@ -14,17 +12,36 @@ Production-grade Google Sheets MCP Server with 25 tools, 397 actions, safety rai
   <img src="docs/public/demos/hero-optimized.gif" alt="ServalSheets Demo" width="600">
 </p>
 
-## What's New in v1.7.0 (2026-02-17)
+## What's New (Post-v1.7.0, 2026-02-17 → Present)
+
+🧠 **LLM Intelligence Sprint, Advanced Compute & Production Hardening**
+
+- ✅ **Chain-of-Thought Hints**: `_hints` layer on every `sheets_data.read` response — data shape, PK detection, formula opportunities, risk level, next-phase routing
+- ✅ **Response Intelligence**: Quality scanner, action recommender, batching hints, and `_meta.apiCallsMade` / `_meta.executionTimeMs` / `_meta.quotaImpact` on every response
+- ✅ **Advanced Compute**: DuckDB SQL engine (`sql_query`, `sql_join`), Pyodide Python runtime (`python_eval`, `pandas_profile`, `sklearn_model`), formula evaluator (HyperFormula v3.2.0)
+- ✅ **Quick Insights + Auto-Fill**: `sheets_analyze.quick_insights` (fast AI-free structural snapshot), `sheets_data.auto_fill` (pattern-based fill: linear, date, repeat)
+- ✅ **O(1) Cache Size Tracking**: `CacheManager._totalSizeBytes` running counter — `getStats()` / `getTotalSize()` no longer O(N)
+- ✅ **Per-Spreadsheet Throttle**: Token-bucket rate limiter per spreadsheetId (configurable via `PER_SPREADSHEET_RPS`, default 3 RPS)
+- ✅ **Plan Encryption**: AES-256-GCM agent plan persistence (opt-in via `PLAN_ENCRYPTION_KEY`)
+- ✅ **Webhook DNS Hardening**: DNS fail-closed by default (`WEBHOOK_DNS_STRICT=true`); opt-out for flaky environments
+- ✅ **Workspace Events**: Google Workspace event subscriptions with 7-day auto-renewal
+- ✅ **Scheduler**: `schedule_create/list/cancel/run_now` with node-cron + JSON persistence
+- ✅ **Typed Error Classes**: All `src/handlers/`, `src/connectors/`, `src/services/`, `src/utils/` use typed error classes (ValidationError, ServiceError, ConfigError, NotFoundError, AuthenticationError)
+- ✅ **Progress Notifications**: 25+ handler actions emit MCP progress notifications for long-running operations
+
+See [CHANGELOG.md](./CHANGELOG.md) for complete details.
+
+---
+
+### v1.7.0 (2026-02-17)
 
 🚀 **Modern Formula Intelligence & Marketplace Release**
 
-- ✅ **Named Functions**: LAMBDA-based custom functions via `sheets_advanced` (+5 actions)
+- ✅ **Advanced Compatibility Surface**: named-function actions remain exposed for compatibility and now return clear `FEATURE_UNAVAILABLE` guidance when the live Sheets API cannot support them
 - ✅ **Spill Range Detection**: Find dynamic array formulas via `sheets_data.detect_spill_ranges`
 - ✅ **Formula Presets**: XLOOKUP, XMATCH, FILTER, BYROW/BYCOL via `sheets_analyze.generate_formula`
 - ✅ **Marketplace Ready**: `privacy_policies` array in server.json (MCP registry v0.3+)
 - ✅ **Knowledge Base**: Modern arrays & spill range patterns (`src/knowledge/formulas/modern-arrays.md`)
-
-See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
 ---
 
@@ -50,9 +67,13 @@ npx servalsheets
 
 On first run, ServalSheets will guide you through Google OAuth authentication.
 
+Claude Desktop connects to the local STDIO process. Hosted HTTP is a separate transport surface for remote deployments and hybrid failover.
+
 ---
 
 ### Previous Releases
+
+Historical release snapshots are kept here for upgrade context.
 
 <details>
 <summary>v1.6.0 - Enterprise Deployment & Infrastructure (2026-01-26)</summary>
@@ -92,18 +113,18 @@ On first run, ServalSheets will guide you through Google OAuth authentication.
 
 ### Core Capabilities
 
-- **25 Tools, 377 Actions**: Comprehensive Google Sheets API v4 coverage
-- **MCP 2025-11-25 Compliant**: Full protocol compliance with structured outputs
-- **Multiple Transports**: STDIO, SSE, and Streamable HTTP
+- **25 Tools, 407 Actions**: Comprehensive Google Sheets API v4 coverage
+- **MCP 2025-11-25 Support**: Structured outputs, tasks, prompts, resources, logging, elicitation, and sampling
+- **Multiple Transports**: STDIO, Streamable HTTP, and legacy SSE compatibility surface
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
-- **OAuth 2.1 Support**: For Claude Connectors Directory integration
+- **OAuth 2.1 Support**: For hosted remote connector deployments
 
 ### MCP Protocol Support
 
-Full compliance with Model Context Protocol 2025-11-25:
+MCP 2025-11-25 server support includes:
 
-- ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.26.0
-- ✅ **Tools**: 25 tools with 397 actions using discriminated unions
+- ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.27.1
+- ✅ **Tools**: 25 tools with 407 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -112,7 +133,7 @@ Full compliance with Model Context Protocol 2025-11-25:
   - `sheets:///{spreadsheetId}/pivots` - Pivot table configurations
   - `sheets:///{spreadsheetId}/quality` - Data quality analysis
   - Knowledge resources for formulas, colors, formats
-- ✅ **Prompts**: 6 guided workflows for common operations
+- ✅ **Prompts**: 48 guided workflows for common operations
 - ✅ **Completions**: Argument autocompletion for prompts/resources
 - ✅ **Tasks**: Background execution with full cancellation support (SEP-1686)
 - ✅ **Elicitation**: Plan confirmation via sheets_confirm (SEP-1036)
@@ -122,7 +143,8 @@ Full compliance with Model Context Protocol 2025-11-25:
 #### Transport Support
 
 - ✅ **STDIO** - For Claude Desktop and local CLI usage
-- ✅ **HTTP/SSE** - For web clients and remote access
+- ✅ **Streamable HTTP** - For hosted deployments, resumability, and remote access
+- ✅ **Legacy SSE Compatibility** - Optional compatibility surface for older clients
 - ✅ **OAuth 2.1** - Authentication for hosted deployments
 
 ### Advanced Analytics 🔬
@@ -196,7 +218,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
-### Using as Remote Server (HTTP/SSE)
+### Using as Hosted Server (Streamable HTTP)
 
 ```bash
 # Start HTTP server
@@ -206,16 +228,32 @@ npm run start:http
 PORT=3000 GOOGLE_CLIENT_ID=xxx GOOGLE_CLIENT_SECRET=xxx npm run start:http
 ```
 
+Hosted HTTP is for remote deployments and connector flows. Do not point Claude
+Desktop at a hosted remote server through `claude_desktop_config.json`. Use
+Claude's connector UI for the remote connector flow and keep
+`claude_desktop_config.json` for local stdio servers only.
+
+### Hosted Failover (Optional)
+
+Hosted failover is disabled by default and only turns on when both of these are set:
+
+```bash
+export MCP_REMOTE_EXECUTOR_URL=https://example.com/mcp
+export MCP_REMOTE_EXECUTOR_TOOLS=sheets_compute,sheets_analyze
+```
+
+Only the allowlisted tools in `MCP_REMOTE_EXECUTOR_TOOLS` are eligible for remote fallback.
+
 ### OAuth Scope Modes
 
 ServalSheets uses deployment-aware OAuth scopes to balance functionality and Google verification speed:
 
 | Mode               | Actions Available | Use Case                | Google Verification Time |
 | ------------------ | ----------------- | ----------------------- | ------------------------ |
-| **full** (default) | 298/298           | Self-hosted, enterprise | 4-6 weeks                |
-| **standard**       | 260/298           | SaaS, marketplace apps  | 3-5 days                 |
-| **minimal**        | ~180/298          | Basic operations only   | 3-5 days                 |
-| **readonly**       | ~120/298          | Analysis/reporting only | 3-5 days                 |
+| **full** (default) | 407/407           | Self-hosted, enterprise | 4-6 weeks                |
+| **standard**       | Reduced subset    | SaaS, marketplace apps  | 3-5 days                 |
+| **minimal**        | Basic subset      | Basic operations only   | 3-5 days                 |
+| **readonly**       | Read-only subset  | Analysis/reporting only | 3-5 days                 |
 
 **Self-Hosted (Default)**
 
@@ -354,15 +392,15 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ## Tools Reference
 
-### Tool Summary (25 tools, 397 actions)
+### Tool Summary (25 tools, 407 actions)
 
 | Tool                  | Actions | Description                                                        |
 | --------------------- | ------- | ------------------------------------------------------------------ |
-| `sheets_auth`         | 4       | Authentication & OAuth 2.1                                         |
-| `sheets_core`         | 19      | Spreadsheet and sheet metadata/management                          |
-| `sheets_data`         | 23      | Read/write values, notes, hyperlinks, clipboard, cross-spreadsheet |
-| `sheets_format`       | 24      | Cell formatting, conditional formats, data validation, sparklines  |
-| `sheets_dimensions`   | 29      | Rows/columns, filters, sorts, groups, freezes, views, slicers      |
+| `sheets_auth`         | 5       | Authentication & OAuth 2.1                                         |
+| `sheets_core`         | 21      | Spreadsheet and sheet metadata/management                          |
+| `sheets_data`         | 25      | Read/write values, notes, hyperlinks, clipboard, cross-spreadsheet |
+| `sheets_format`       | 25      | Cell formatting, conditional formats, data validation, sparklines  |
+| `sheets_dimensions`   | 30      | Rows/columns, filters, sorts, groups, freezes, views, slicers      |
 | `sheets_visualize`    | 18      | Charts and pivot tables                                            |
 | `sheets_collaborate`  | 40      | Sharing, comments, versions/snapshots, approvals, labels           |
 | `sheets_advanced`     | 31      | Named ranges, protected ranges, metadata, banding, tables, chips   |
@@ -370,18 +408,18 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 | `sheets_quality`      | 4       | Validation, conflicts, impact analysis                             |
 | `sheets_history`      | 10      | Undo/redo, history, revert, time-travel debugger                   |
 | `sheets_confirm`      | 5       | Elicitation confirmations & wizards                                |
-| `sheets_analyze`      | 19      | AI-assisted analysis, suggestions & recommendations                |
+| `sheets_analyze`      | 22      | AI-assisted analysis, suggestions & recommendations                |
 | `sheets_fix`          | 6       | Automated fixes & data cleaning pipeline                           |
-| `sheets_composite`    | 20      | High-level bulk operations, NL sheet generation & ETL pipelines    |
-| `sheets_session`      | 27      | Session context, preferences, checkpoints                          |
-| `sheets_appsscript`   | 18      | Apps Script automation                                             |
+| `sheets_composite`    | 21      | High-level bulk operations, NL sheet generation & ETL pipelines    |
+| `sheets_session`      | 31      | Session context, preferences, checkpoints                          |
+| `sheets_appsscript`   | 19      | Apps Script automation                                             |
 | `sheets_bigquery`     | 17      | BigQuery Connected Sheets                                          |
 | `sheets_templates`    | 8       | Enterprise templates                                               |
-| `sheets_webhook`      | 7       | Webhook registration & delivery                                    |
+| `sheets_webhook`      | 10      | Webhook registration & delivery                                    |
 | `sheets_federation`   | 4       | Remote MCP server federation & cross-server calls                  |
 | `sheets_dependencies` | 10      | Formula dependency analysis & scenario modeling                    |
 | `sheets_agent`        | 8       | Autonomous multi-step execution with plan/execute/rollback         |
-| `sheets_compute`      | 10      | Server-side computation (stats, regression, forecast, matrix ops)  |
+| `sheets_compute`      | 16      | Server-side computation (stats, regression, forecast, matrix ops)  |
 | `sheets_connectors`   | 10      | External data connectors (Finnhub, FRED, REST APIs)                |
 
 ## Examples
@@ -570,42 +608,43 @@ Complete, copy-pasteable prompts for Claude Desktop or any MCP client.
 { "action": "version_create_snapshot", "spreadsheetId": "1BxiMVs0...",
   "name": "Pre-Q4-Budget-Edit", "description": "Snapshot before Q4 budget update" }
 
-// Step 2: Share with the team
+// Step 2: Poll until the snapshot task completes
+{ "action": "version_snapshot_status", "spreadsheetId": "1BxiMVs0...",
+  "taskId": "task_123" }
+
+// Step 3: Share with the team
 { "action": "share_add", "spreadsheetId": "1BxiMVs0...",
   "emailAddress": "finance-team@company.com", "role": "writer",
   "sendNotification": true, "emailMessage": "Q4 budget ready for review" }
 
-// Step 3: Make changes, then create another snapshot
+// Step 4: Make changes, then create another snapshot
 { "action": "version_create_snapshot", "spreadsheetId": "1BxiMVs0...",
   "name": "Post-Q4-Budget-Edit" }
 ```
 
 ---
 
-### Example 5: Build a Named Function Library for Reuse
+### Example 5: Create Reusable Named Ranges And Protections
 
-> "Create reusable named functions for profit margin and CAGR calculations, then apply them to my financial model."
+> "Name my key financial ranges and protect the assumptions section before I share this model."
 
 ```json
-// Step 1: Create a profit margin named function
-{ "action": "create_named_function", "spreadsheetId": "1BxiMVs0...",
-  "functionName": "PROFIT_MARGIN",
-  "functionBody": "LAMBDA(revenue, cost, (revenue-cost)/revenue)",
-  "description": "Calculate profit margin as a decimal",
-  "parameterDefinitions": [
-    { "name": "revenue", "description": "Total revenue" },
-    { "name": "cost", "description": "Total cost" }
-  ] }
+// Step 1: Name a key assumptions range
+{ "action": "add_named_range", "spreadsheetId": "1BxiMVs0...",
+  "name": "ASSUMPTIONS",
+  "range": "Model!B2:D10" }
 
-// Step 2: Create a CAGR function
-{ "action": "create_named_function", "spreadsheetId": "1BxiMVs0...",
-  "functionName": "CAGR",
-  "functionBody": "LAMBDA(start_val, end_val, periods, (end_val/start_val)^(1/periods)-1)",
-  "description": "Compound Annual Growth Rate" }
+// Step 2: Protect it before collaboration
+{ "action": "add_protected_range", "spreadsheetId": "1BxiMVs0...",
+  "range": "Model!B2:D10",
+  "description": "Locked financial assumptions",
+  "warningOnly": false }
 
-// Step 3: Use in your sheet
-{ "action": "write", "spreadsheetId": "1BxiMVs0...", "range": "Model!D2",
-  "values": [["=PROFIT_MARGIN(B2,C2)"]] }
+// Step 3: Add metadata for downstream automation
+{ "action": "add_developer_metadata", "spreadsheetId": "1BxiMVs0...",
+  "metadataKey": "section",
+  "metadataValue": "financial_assumptions",
+  "visibility": "DOCUMENT" }
 ```
 
 ---
@@ -740,6 +779,48 @@ The key must be a 64-character hex string (32 bytes). Example:
 openssl rand -hex 32
 ```
 
+### Enterprise SSO (SAML 2.0)
+
+For organizations using an identity provider (Okta, Azure AD, Google Workspace SAML, etc.), ServalSheets ships a built-in SAML 2.0 Service Provider. When configured, users authenticate via your IdP and receive a short-lived JWT for subsequent API requests.
+
+```bash
+# Required
+SAML_ENTRY_POINT=https://your-idp.example.com/sso/saml
+SAML_ISSUER=https://your-servalsheets.example.com
+SAML_CERT=-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----
+SAML_CALLBACK_URL=https://your-servalsheets.example.com/sso/callback
+
+# Optional
+SAML_PRIVATE_KEY=<your-pem-private-key>              # for signed requests
+SAML_WANT_ASSERTIONS_SIGNED=true                    # default: true
+SAML_SIGNATURE_ALGORITHM=sha256                     # default: sha256
+SSO_JWT_TTL=3600                                    # token TTL in seconds (default: 1h)
+SSO_ALLOWED_CLOCK_SKEW=300                          # clock skew tolerance in seconds
+```
+
+SSO routes registered automatically when `SAML_ENTRY_POINT` is set:
+
+| Route                | Description                                 |
+| -------------------- | ------------------------------------------- |
+| `GET /sso/login`     | Redirects to IdP login page                 |
+| `POST /sso/callback` | Receives SAML assertion, issues JWT         |
+| `GET /sso/metadata`  | Serves SP metadata XML for IdP registration |
+| `GET /sso/logout`    | Initiates SLO (Single Log-Out)              |
+
+The issued JWT carries `scope='sso'` and is accepted by the same Bearer-token middleware as OAuth tokens. No client changes required — just swap the token.
+
+### Transport Security Model (RBAC)
+
+ServalSheets enforces role-based access control (RBAC) **only on HTTP transport**. STDIO transport (used by Claude Desktop and local CLI) trusts the local process by design — it runs under the user's account with their OS-level permissions, so an additional RBAC layer would be redundant.
+
+| Transport  | RBAC enforced? | Notes                                                           |
+| ---------- | -------------- | --------------------------------------------------------------- |
+| STDIO      | No             | Trusted local process (Claude Desktop model)                    |
+| HTTP / Streamable HTTP | Yes | JWT-based RBAC, configurable roles via `SERVAL_RBAC_*` env vars |
+| Remote MCP | Yes            | Per-user JWT claims validated on each request                   |
+
+If you are running ServalSheets as an HTTP server exposed to multiple users, ensure `JWT_SECRET` and `OAUTH_CLIENT_SECRET` are set and all traffic goes through HTTPS.
+
 ## Configuration
 
 ServalSheets supports extensive configuration via environment variables for production deployments.
@@ -868,12 +949,13 @@ Statistics available via lifecycle methods:
 
 Prevent accidental large-scale operations:
 
-Resource limits are currently configured with hard-coded defaults:
+Effect-scope safety rails use built-in defaults in the current server:
 
-- Maximum cells per operation: 10,000
-- Maximum sheets per operation: 10
+- Estimated cells per operation default limit: 50,000
+- Destructive row deletes default limit: 10,000
+- Destructive column deletes default limit: 100
 
-_(Note: Environment variable configuration coming in future release)_
+You can tighten limits per request with `effectScope`, especially `maxCellsAffected` and `requireExplicitRange`.
 
 These limits act as safety rails. Operations exceeding limits will fail with `EFFECT_SCOPE_EXCEEDED` error.
 
@@ -1031,7 +1113,7 @@ export HEAP_SNAPSHOT_PATH=./heap-snapshots
 When enabled, heap snapshots are captured at critical threshold for post-mortem analysis:
 
 - **Chrome DevTools:** Open snapshot in Memory Profiler
-- **clinic.js:** `npm install -g clinic` then `clinic heapprofiler`
+- **clinic.js:** `npm run profile:memory` uses `npm exec` to fetch Clinic.js on demand
 
 **Recommendations by utilization:**
 
@@ -1118,7 +1200,7 @@ src/
 │   └── snapshot.ts        # Backup/restore service
 ├── handlers/          # Tool handlers
 ├── server.ts          # MCP server (STDIO)
-├── http-server.ts     # HTTP/SSE transport
+├── http-server.ts     # Streamable HTTP transport
 ├── oauth-provider.ts  # OAuth 2.1 for Claude Connectors
 ├── cli.ts             # CLI entry point
 └── index.ts           # Main exports
@@ -1149,11 +1231,11 @@ graph TB
         CLI[CLI Entry Point]
         MCP[MCP Server]
 
-        subgraph "Handlers (15 Tools)"
+        subgraph "Handlers (25 Tools)"
             H1[sheets_core]
             H2[sheets_data]
             H3[sheets_format]
-            H4[... 12 more]
+            H4[... 22 more]
         end
 
         subgraph "Core Infrastructure"
@@ -1195,9 +1277,9 @@ graph TB
 - **MCP Protocol**: 2025-11-25 (discriminated unions, progress notifications)
 - **Google Sheets API**: v4 (full coverage)
 - **OAuth**: 2.1 with PKCE support
-- **Transports**: STDIO, SSE, Streamable HTTP
+- **Transports**: STDIO, Streamable HTTP, legacy SSE compatibility
 - **TypeScript**: Strict mode enabled, 0 errors
-- **SDK Version**: @modelcontextprotocol/sdk@1.26.0
+- **SDK Version**: @modelcontextprotocol/sdk@1.27.1
 - **Test Suite**: 8,500+ passing tests across unit, integration, contract, and protocol suites
 
 ## Quality Metrics
@@ -1205,12 +1287,12 @@ graph TB
 - ✅ **Type Safety**: Full TypeScript strict mode compliance
 - ✅ **Test Suite**: 8,500+ passing tests with CI coverage reporting
 - ✅ **Protocol Compliance**: MCP 2025-11-25 certified
-- ✅ **Production Ready**: Used in Claude Connectors Directory
+- ✅ **Production Ready**: Hardened for hosted deployments and submission-oriented remote connector flows
 - ✅ **Error Handling**: Comprehensive error codes with retry hints
 
 ## Schema Architecture: Discriminated Unions
 
-ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 25 tools and 397 actions. This architecture provides:
+ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 25 tools and 407 actions. This architecture provides:
 
 ### Pattern Overview
 
@@ -2044,16 +2126,16 @@ export REQUEST_TIMEOUT_MS=120000
 
 ## MCP Compliance Matrix
 
-ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specification 2025-11-25 and implements all required and optional features.
+ServalSheets implements the MCP 2025-11-25 server features it advertises in discovery metadata. The matrix below summarizes the current MCP surface.
 
 ### Protocol Coverage
 
 | Feature          | Status  | Version    | Implementation                              |
 | ---------------- | ------- | ---------- | ------------------------------------------- |
-| **JSON-RPC 2.0** | ✅ Full | 2.0        | @modelcontextprotocol/sdk v1.26.0           |
-| **Tools**        | ✅ Full | 2025-11-25 | 25 tools, 397 actions, discriminated unions |
+| **JSON-RPC 2.0** | ✅ Full | 2.0        | @modelcontextprotocol/sdk v1.27.1           |
+| **Tools**        | ✅ Full | 2025-11-25 | 25 tools, 407 actions, discriminated unions |
 | **Resources**    | ✅ Full | 2025-11-25 | 6 URI templates + 7 knowledge resources     |
-| **Prompts**      | ✅ Full | 2025-11-25 | 6 guided workflows with arguments           |
+| **Prompts**      | ✅ Full | 2025-11-25 | 48 guided workflows with arguments          |
 | **Completions**  | ✅ Full | 2025-11-25 | Argument autocompletion                     |
 | **Tasks**        | ✅ Full | SEP-1686   | Background execution, cancellation          |
 | **Elicitation**  | ✅ Full | SEP-1036   | User confirmations for destructive ops      |
@@ -2066,31 +2148,7 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 
 #### Tools (25 tools ✅)
 
-**Implemented & Tested** (all 25 tools):
-
-```
-✅ sheets_auth (4 actions) - OAuth, login, logout, status
-✅ sheets_core (19 actions) - Spreadsheet CRUD, metadata
-✅ sheets_data (19 actions) - Read, write, batch ops, notes, hyperlinks
-✅ sheets_format (23 actions) - Colors, borders, conditionals, validation
-✅ sheets_dimensions (28 actions) - Rows, columns, filters, sorts, freezes
-✅ sheets_visualize (18 actions) - Charts, pivot tables
-✅ sheets_collaborate (35 actions) - Sharing, comments, versions
-✅ sheets_advanced (31 actions) - Named ranges, protected ranges, banding
-✅ sheets_transaction (6 actions) - Atomic operations, rollback
-✅ sheets_quality (4 actions) - Validation, conflict detection
-✅ sheets_history (7 actions) - Undo, redo, revert
-✅ sheets_confirm (5 actions) - User confirmations, wizards
-✅ sheets_analyze (18 actions) - AI analysis, suggestions, recommendations
-✅ sheets_fix (6 actions) - Automated fixes & data cleaning pipeline
-✅ sheets_composite (14 actions) - Bulk ops, import, deduplicate, NL sheet generation
-✅ sheets_session (26 actions) - Session context
-✅ sheets_appsscript (18 actions) - Apps Script automation
-✅ sheets_bigquery (17 actions) - BigQuery integration
-✅ sheets_templates (8 actions) - Template management
-✅ sheets_webhook (7 actions) - Change notifications
-✅ sheets_dependencies (7 actions) - Formula analysis
-```
+All 25 tools are implemented and exercised in the test suite. See the [Tool Summary](#tool-summary-25-tools-407-actions) above for current per-tool action counts.
 
 **Discriminated Union Schema** ✅:
 
@@ -2276,8 +2334,8 @@ curl -X POST http://localhost:9090/logging/setLevel \
 
 ```
 ✅ STDIO - For Claude Desktop, local CLI
-✅ HTTP/SSE - For web clients, remote access
-✅ Streamable HTTP - For large responses, resumability
+✅ Streamable HTTP - For hosted deployments, remote access, resumability
+✅ Legacy SSE compatibility - For older clients that still require it
 ```
 
 **Configuration**:
@@ -2286,7 +2344,7 @@ curl -X POST http://localhost:9090/logging/setLevel \
 # STDIO (default)
 npx servalsheets
 
-# HTTP/SSE
+# Streamable HTTP
 PORT=3000 npm run start:http
 
 # HTTP with OAuth
@@ -2295,25 +2353,19 @@ PORT=3000 npm run start:remote
 
 ### Compliance Test Results
 
-```
-Total Tests: 1761 ✅
-Test Suites: 78 ✅
-Coverage: 92% ✅
+As of March 11, 2026, `npm run test:all` completed successfully with:
 
-By Component:
-├─ Tools: 1200 tests (25 tools × ~55 tests each)
-├─ Schemas: 340 tests (validation, discriminated unions)
-├─ Error Handling: 150 tests (all error types)
-├─ Performance: 71 tests (batching, caching, rate limits)
-└─ Integration: 50 tests (real Google API)
-```
+- `315` passed test files
+- `53` skipped test files
+- `8,613` passed tests
+- `671` skipped tests
 
 ### Protocol Compatibility
 
-**SDK Version**: @modelcontextprotocol/sdk v1.26.0+
+**SDK Version**: @modelcontextprotocol/sdk v1.27.1
 **MCP Version**: 2025-11-25
 **TypeScript**: Strict mode, 0 errors
-**Node.js**: 18+ required
+**Node.js**: 20+ required
 
 ### Security Compliance
 

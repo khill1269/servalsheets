@@ -43,6 +43,11 @@ type ServerJsonMetadata = {
 };
 
 type ServerJson = {
+  icons?: Array<{
+    src?: string;
+    mimeType?: string;
+    sizes?: string[];
+  }>;
   metadata?: ServerJsonMetadata;
   tools?: ServerJsonTool[];
   packages?: ServerJsonPackage[];
@@ -68,6 +73,14 @@ try {
 
 const errors: string[] = [];
 const warnings: string[] = [];
+
+function normalizeSvg(svg: string): string {
+  return svg.replace(/>\s+</g, '><').trim();
+}
+
+const expectedServerIconDataUri = `data:image/svg+xml;base64,${Buffer.from(
+  normalizeSvg(readFileSync('./assets/icon.svg', 'utf-8'))
+).toString('base64')}`;
 
 // ============================================================================
 // VALIDATION 1: Metadata Section
@@ -255,6 +268,35 @@ if (!serverJson.capabilities || !Array.isArray(serverJson.capabilities)) {
     errors.push(`Missing required capabilities: ${missingCapabilities.join(', ')}`);
   } else {
     console.log(`  ✅ all required capabilities present (${requiredCapabilities.length})`);
+  }
+}
+
+// ============================================================================
+// VALIDATION 4B: Inline Server Icon
+// ============================================================================
+
+console.log('\nValidating inline server icon...');
+
+if (!serverJson.icons || !Array.isArray(serverJson.icons) || serverJson.icons.length === 0) {
+  errors.push('Missing top-level server icons array');
+} else {
+  const [icon] = serverJson.icons;
+  if (!icon?.src?.startsWith('data:image/svg+xml;base64,')) {
+    errors.push('server.json icon must be an inline SVG data URI');
+  } else if (icon.src !== expectedServerIconDataUri) {
+    errors.push('server.json icon does not match assets/icon.svg');
+  }
+
+  if (icon?.mimeType !== 'image/svg+xml') {
+    errors.push(`server.json icon mimeType must be "image/svg+xml" (got "${icon?.mimeType}")`);
+  }
+
+  if (!icon?.sizes?.includes('24x24')) {
+    errors.push('server.json icon sizes must include 24x24');
+  }
+
+  if (icon?.src === expectedServerIconDataUri && icon?.mimeType === 'image/svg+xml') {
+    console.log('  ✅ inline icon matches assets/icon.svg');
   }
 }
 

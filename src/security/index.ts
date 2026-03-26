@@ -36,3 +36,9 @@ export {
   verifyWebhookSignature,
   type WebhookSignatureConfig,
 } from './webhook-signature.js';
+
+export {
+  SamlProvider,
+  createSamlProviderFromEnv,
+  type SamlProviderConfig,
+} from './saml-provider.js';

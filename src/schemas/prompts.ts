@@ -11,7 +11,10 @@
 
 import { z } from 'zod';
 import { completable } from '@modelcontextprotocol/sdk/server/completable.js';
-import { completeRange, completeSpreadsheetId } from '../mcp/completions.js';
+import { completeRangeContextAware, completeSpreadsheetId } from '../mcp/completions.js';
+
+// Use context-aware range completions (recently-used ranges + sheet-name patterns)
+const completeRange = completeRangeContextAware;
 
 // Helper type to constrain inference and prevent excessive depth
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -33,10 +36,6 @@ export const FirstOperationPromptArgsSchema: PromptArgsShape = {
 };
 
 // Analysis prompts
-export const AnalyzeSpreadsheetPromptArgsSchema: PromptArgsShape = {
-  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
-};
-
 export const TransformDataPromptArgsSchema: PromptArgsShape = {
   spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
   range: c(z.string().min(1), completeRange),
@@ -55,13 +54,6 @@ export const CleanDataPromptArgsSchema: PromptArgsShape = {
 };
 
 // New workflow prompts
-export const MigrateDataPromptArgsSchema: PromptArgsShape = {
-  sourceSpreadsheetId: c(z.string().min(1), completeSpreadsheetId),
-  targetSpreadsheetId: c(z.string().min(1), completeSpreadsheetId),
-  sourceRange: c(z.string().min(1), completeRange),
-  targetRange: c(z.string().optional(), completeRange),
-};
-
 export const SetupBudgetPromptArgsSchema: PromptArgsShape = {
   spreadsheetId: c(z.string().optional(), completeSpreadsheetId),
   budgetType: z.enum(['personal', 'business', 'project']).optional(),
@@ -89,13 +81,6 @@ export const SafeOperationPromptArgsSchema: PromptArgsShape = {
   spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
   operationType: z.enum(['delete', 'bulk_update', 'format', 'formula']),
   affectedRange: c(z.string().optional(), completeRange),
-};
-
-export const BulkImportPromptArgsSchema: PromptArgsShape = {
-  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
-  dataDescription: z.string().min(1), // Description of data to import
-  targetSheet: z.string().optional(),
-  rowCount: z.number().min(1).optional(), // Approximate number of rows
 };
 
 export const UndoChangesPromptArgsSchema: PromptArgsShape = {
@@ -127,10 +112,6 @@ export const MasterClassPerformancePromptArgsSchema: PromptArgsShape = {
 };
 
 export const ChallengeQualityDetectivePromptArgsSchema: PromptArgsShape = {
-  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
-};
-
-export const ChallengePerformanceProfilerPromptArgsSchema: PromptArgsShape = {
   spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
 };
 
@@ -167,23 +148,6 @@ export const RecoverFromErrorPromptArgsSchema: PromptArgsShape = {
   context: z.string().optional().describe('What you were trying to do'),
 };
 
-export const TroubleshootPerformancePromptArgsSchema: PromptArgsShape = {
-  spreadsheetId: c(z.string(), completeSpreadsheetId),
-  operation: z.string().optional().describe('What operation was slow'),
-  responseTime: z.number().optional().describe('How long it took (ms)'),
-};
-
-export const FixDataQualityPromptArgsSchema: PromptArgsShape = {
-  spreadsheetId: c(z.string(), completeSpreadsheetId),
-  range: c(z.string(), completeRange),
-  issues: z.string().optional().describe('Known issues'),
-};
-
-export const OptimizeFormulasPromptArgsSchema: PromptArgsShape = {
-  spreadsheetId: c(z.string(), completeSpreadsheetId),
-  range: c(z.string().optional(), completeRange),
-};
-
 export const BulkImportDataPromptArgsSchema: PromptArgsShape = {
   spreadsheetId: c(z.string(), completeSpreadsheetId),
   dataSize: z.number().optional().describe('Approximate row count'),
@@ -213,10 +177,6 @@ export const BatchOptimizerPromptArgsSchema: PromptArgsShape = {
     .enum(['read', 'write', 'update', 'format', 'mixed'])
     .describe('Type of operations to optimize'),
   operationCount: z.number().optional().describe('Number of individual operations'),
-  spreadsheetId: c(z.string(), completeSpreadsheetId),
-};
-
-export const UltimateAnalysisPromptArgsSchema: PromptArgsShape = {
   spreadsheetId: c(z.string(), completeSpreadsheetId),
 };
 
@@ -259,9 +219,9 @@ export const CrossSheetFederationPromptArgsSchema: PromptArgsShape = {
 export const AuditSheetPromptArgsSchema: PromptArgsShape = {
   spreadsheetId: c(z.string(), completeSpreadsheetId),
   focusAreas: z
-    .string()
+    .enum(['quality', 'formulas', 'structure', 'performance', 'all'])
     .optional()
-    .describe('Focus areas to audit: quality, formulas, structure, performance (comma-separated)'),
+    .describe('Area to focus the audit on'),
 };
 
 export const PublishReportPromptArgsSchema: PromptArgsShape = {
@@ -325,4 +285,16 @@ export const ScenarioWhatIfPromptArgsSchema: PromptArgsShape = {
     .enum(['side_by_side', 'delta_only', 'full_cascade'])
     .optional()
     .describe('How to display results'),
+};
+
+// Connector workflow prompts
+export const ConnectorSetupPromptArgsSchema: PromptArgsShape = {
+  connectorId: z.string().optional().describe('Connector ID to configure, or omit to discover'),
+  useCase: z.string().optional().describe('What you want to use the connector for'),
+};
+
+export const ConnectorDataPipelinePromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
+  connectorId: z.string().min(1).describe('Configured connector ID'),
+  query: z.string().optional().describe('Initial query to run against the connector'),
 };

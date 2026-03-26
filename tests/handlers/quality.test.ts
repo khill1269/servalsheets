@@ -9,19 +9,27 @@ import { QualityHandler } from '../../src/handlers/quality.js';
 import { SheetsQualityOutputSchema } from '../../src/schemas/quality.js';
 
 // Mock the service getters
-vi.mock('../../src/services/validation-engine.js', () => ({
-  getValidationEngine: vi.fn(() => ({
-    validate: vi.fn().mockResolvedValue({
-      valid: true,
-      errors: [],
-      warnings: [],
-      infoMessages: [],
-      totalChecks: 5,
-      passedChecks: 5,
-      duration: 10,
-    }),
-  })),
-}));
+vi.mock('../../src/services/validation-engine.js', async () => {
+  const actual =
+    await vi.importActual<typeof import('../../src/services/validation-engine.js')>(
+      '../../src/services/validation-engine.js'
+    );
+
+  return {
+    ...actual,
+    getValidationEngine: vi.fn(() => ({
+      validate: vi.fn().mockResolvedValue({
+        valid: true,
+        errors: [],
+        warnings: [],
+        infoMessages: [],
+        totalChecks: 5,
+        passedChecks: 5,
+        duration: 10,
+      }),
+    })),
+  };
+});
 
 vi.mock('../../src/services/conflict-detector.js', () => ({
   getConflictDetector: vi.fn(() => ({
@@ -34,7 +42,7 @@ vi.mock('../../src/services/conflict-detector.js', () => ({
     resolveConflict: vi.fn().mockResolvedValue({
       success: true,
       changesApplied: true,
-      finalVersion: { version: 1, timestamp: new Date().toISOString() },
+      finalVersion: { version: 1, timestamp: new Date('2024-01-15T00:00:00Z').toISOString() },
     }),
   })),
 }));
@@ -168,6 +176,54 @@ describe('QualityHandler', () => {
       expect(result.response.success).toBe(true);
       expect(result.response).not.toHaveProperty('_meta');
     });
+
+    it('should support custom comparison rules against context values', async () => {
+      const result = await handler.handle({
+        action: 'validate',
+        value: 120,
+        context: {
+          spreadsheetId: 'test123',
+          cogs: 95,
+        },
+        rules: [
+          {
+            type: 'comparison',
+            operator: 'gt',
+            compareTo: { contextKey: 'cogs' },
+            message: 'Unit Price must exceed COGS',
+          },
+        ],
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(result.response).toHaveProperty('valid', true);
+      expect(result.response).toHaveProperty('passedChecks', 1);
+    });
+
+    it('should fail custom comparison rules when the business rule is violated', async () => {
+      const result = await handler.handle({
+        action: 'validate',
+        value: 80,
+        context: {
+          spreadsheetId: 'test123',
+          cogs: 95,
+        },
+        rules: [
+          {
+            type: 'comparison',
+            operator: 'gt',
+            compareTo: { contextKey: 'cogs' },
+            message: 'Unit Price must exceed COGS',
+          },
+        ],
+      });
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as any).error.code).toBe('VALIDATION_ERROR');
+      expect((result.response as any).error.details.errors[0].message).toBe(
+        'Unit Price must exceed COGS'
+      );
+    });
   });
 
   describe('detect_conflicts action', () => {
@@ -179,7 +235,7 @@ describe('QualityHandler', () => {
           {
             type: 'update',
             range: 'Sheet1!A1:B2',
-            timestamp: new Date().toISOString(),
+            timestamp: new Date('2024-01-15T00:00:00Z').toISOString(),
             userId: 'user1',
           },
         ],

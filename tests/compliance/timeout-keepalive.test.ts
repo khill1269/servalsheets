@@ -165,6 +165,33 @@ describe('Keepalive Mechanism', () => {
     handle.stop();
     delete process.env['PROGRESS_NOTIFICATION_INTERVAL_MS'];
   });
+
+  it('should fire at exactly the configured interval (L-9 keepalive interval contract)', async () => {
+    // Verifies that the keepalive fires at the interval set via env var.
+    // Default interval is 15000ms; here we override to 500ms for a fast assertion.
+    process.env['PROGRESS_NOTIFICATION_INTERVAL_MS'] = '500';
+
+    const sendNotification = vi.fn().mockResolvedValue(undefined);
+    setMockRequestContext({
+      sendNotification,
+      progressToken: 'token_interval_contract',
+      logger: { debug: vi.fn(), warn: vi.fn() },
+    });
+
+    const handle = startKeepalive({ operationName: 'interval-contract-test' });
+
+    // Immediate send
+    await vi.advanceTimersByTimeAsync(10);
+    const callsAfterImmediate = sendNotification.mock.calls.length;
+    expect(callsAfterImmediate).toBeGreaterThanOrEqual(1);
+
+    // After exactly one interval, one more call expected
+    await vi.advanceTimersByTimeAsync(500);
+    expect(sendNotification.mock.calls.length).toBeGreaterThanOrEqual(callsAfterImmediate + 1);
+
+    handle.stop();
+    delete process.env['PROGRESS_NOTIFICATION_INTERVAL_MS'];
+  });
 });
 
 describe('withKeepalive Wrapper', () => {

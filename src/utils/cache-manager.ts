@@ -21,11 +21,21 @@
  */
 
 import { logger } from './logger.js';
-import type { RequestMerger } from '../services/request-merger.js';
+import { ValidationError } from '../core/errors.js';
+
+// Minimal structural interface — avoids importing from services/ which creates
+// a circular dependency chain through the observability layer (G3 fix).
+interface RequestMerger {
+  readonly enabled: boolean;
+}
 
 export interface CacheEntry<T = unknown> {
   value: T;
   expires: number;
+  /** Time the entry was computed/stored (for XFetch probabilistic expiration) */
+  storedAt: number;
+  /** Last access time (for LRU eviction — hot items survive eviction) */
+  lastAccess: number;
   size: number;
   namespace?: string;
 }
@@ -76,6 +86,7 @@ export class CacheManager {
   // Statistics
   private hits = 0;
   private misses = 0;
+  private _totalSizeBytes = 0; // Running counter — avoids O(N) full-scan on every set()
 
   constructor(
     options: {
@@ -150,7 +161,7 @@ export class CacheManager {
     if (!this.enabled) {
       this.misses++;
       // OK: Explicit empty - typed as optional, cache disabled
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     const cacheKey = this.buildKey(key, namespace);
@@ -159,17 +170,46 @@ export class CacheManager {
     if (!entry) {
       this.misses++;
       // OK: Explicit empty - typed as optional, cache miss
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
+    const now = Date.now();
+
     // Check if expired
-    if (Date.now() > entry.expires) {
+    if (now > entry.expires) {
+      this._totalSizeBytes -= entry.size;
       this.cache.delete(cacheKey);
       this.misses++;
       logger.debug('Cache entry expired', { key, namespace });
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
+    // Probabilistic early expiration (XFetch algorithm)
+    // Prevents thundering herd by having some requests see a "miss" before TTL,
+    // triggering a background recompute while others still get cached value.
+    // Formula: now - (delta * beta * ln(random)) > expires
+    // where delta = compute time estimate, beta = scaling factor (default 1.0)
+    // Simplified: use remaining TTL ratio — probability increases as expiry nears
+    const ttlTotal = entry.expires - entry.storedAt;
+    const remaining = entry.expires - now;
+    const MIN_TTL_FOR_EARLY_EXPIRY = 2000; // Skip early-expiry if TTL < 2s
+    if (ttlTotal > 0 && remaining < ttlTotal * 0.15 && remaining > MIN_TTL_FOR_EARLY_EXPIRY) {
+      // In the last 15% of TTL, probabilistically expire
+      // Probability scales from 0% at 15% remaining to ~63% at 0% remaining
+      const ratio = remaining / (ttlTotal * 0.15);
+      if (Math.random() > ratio) {
+        this.misses++;
+        logger.debug('Cache probabilistic early expiration triggered', {
+          key,
+          namespace,
+          remainingMs: remaining,
+          ttlMs: ttlTotal,
+        });
+        return undefined; // OK: Explicit empty — SWR probabilistic early expiration (logged above)
+      }
+    }
+
+    entry.lastAccess = now;
     this.hits++;
     logger.debug('Cache hit', { key, namespace });
     return entry.value;
@@ -197,14 +237,24 @@ export class CacheManager {
       this.evictOldest();
     }
 
+    // Subtract existing entry size if overwriting
+    const existing = this.cache.get(cacheKey);
+    if (existing) {
+      this._totalSizeBytes -= existing.size;
+    }
+
+    const now = Date.now();
     const entry: CacheEntry<T> = {
       value,
-      expires: Date.now() + ttl,
+      expires: now + ttl,
+      storedAt: now,
+      lastAccess: now,
       size,
       namespace: options.namespace,
     };
 
     this.cache.set(cacheKey, entry);
+    this._totalSizeBytes += size;
     logger.debug('Cache entry set', {
       key,
       namespace: options.namespace,
@@ -218,9 +268,11 @@ export class CacheManager {
    */
   delete(key: string, namespace?: string): boolean {
     const cacheKey = this.buildKey(key, namespace);
+    const entry = this.cache.get(cacheKey);
     const deleted = this.cache.delete(cacheKey);
 
-    if (deleted) {
+    if (deleted && entry) {
+      this._totalSizeBytes -= entry.size;
       logger.debug('Cache entry deleted', { key, namespace });
     }
 
@@ -268,17 +320,76 @@ export class CacheManager {
   }
 
   /**
+   * Stale-while-revalidate (SWR) cache pattern (RFC 5861).
+   *
+   * Returns cached value immediately (even if expired within grace window),
+   * and triggers background revalidation. Callers always get a fast response;
+   * the cache refreshes itself asynchronously.
+   *
+   * @param key - Cache key
+   * @param factory - Async function to compute fresh value
+   * @param options - Standard cache options
+   * @param graceMs - Grace period beyond TTL where stale data is still served (default: TTL * 0.5)
+   */
+  async getOrSetSWR<T>(
+    key: string,
+    factory: () => Promise<T>,
+    options: CacheOptions = {},
+    graceMs?: number
+  ): Promise<T> {
+    // Check for fresh cache hit first (fast path)
+    const fresh = this.get<T>(key, options.namespace);
+    if (fresh !== undefined) {
+      return fresh;
+    }
+
+    // Check for stale-but-within-grace entry
+    const cacheKey = this.buildKey(key, options.namespace);
+    const entry = this.cache.get(cacheKey) as CacheEntry<T> | undefined;
+    const now = Date.now();
+    const ttl = options.ttl ?? this.defaultTTL;
+    const effectiveGrace = graceMs ?? Math.floor(ttl * 0.5);
+
+    if (entry && now <= entry.expires + effectiveGrace) {
+      // Serve stale data immediately, revalidate in background
+      entry.lastAccess = now;
+      this.hits++;
+
+      // Background revalidation (fire-and-forget)
+      factory()
+        .then((value) => this.set(key, value, options))
+        .catch(() => {
+          /* Stale value remains — revalidation failure is non-fatal */
+        });
+
+      logger.debug('Cache SWR: serving stale, revalidating in background', {
+        key,
+        namespace: options.namespace,
+        staleByMs: now - entry.expires,
+      });
+
+      return entry.value;
+    }
+
+    // Fully expired beyond grace — synchronous fetch
+    const value = await factory();
+    this.set(key, value, options);
+    return value;
+  }
+
+  /**
    * Invalidate all entries matching a pattern
    */
   invalidatePattern(pattern: RegExp | string, namespace?: string): number {
     const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
     let count = 0;
 
-    for (const [key] of this.cache) {
+    for (const [key, entry] of this.cache) {
       const matches = regex.test(key);
       const inNamespace = !namespace || key.startsWith(`${namespace}:`);
 
       if (matches && inNamespace) {
+        this._totalSizeBytes -= entry.size;
         this.cache.delete(key);
         count++;
       }
@@ -302,8 +413,9 @@ export class CacheManager {
     let count = 0;
     const prefix = `${namespace}:`;
 
-    for (const [key] of this.cache) {
+    for (const [key, entry] of this.cache) {
       if (key.startsWith(prefix)) {
+        this._totalSizeBytes -= entry.size;
         this.cache.delete(key);
         count++;
       }
@@ -322,6 +434,7 @@ export class CacheManager {
   clear(): void {
     const count = this.cache.size;
     this.cache.clear();
+    this._totalSizeBytes = 0;
     logger.debug('Cache cleared', { entriesCleared: count });
   }
 
@@ -334,6 +447,7 @@ export class CacheManager {
 
     for (const [key, entry] of this.cache) {
       if (now > entry.expires) {
+        this._totalSizeBytes -= entry.size;
         this.cache.delete(key);
         expired++;
       }
@@ -380,22 +494,51 @@ export class CacheManager {
   }
 
   /**
-   * Evict oldest entries to free up space
+   * Evict entries using LRU+TTL hybrid strategy.
+   *
+   * Priority: expired entries first (free wins), then least-recently-used.
+   * This prevents hot items with short TTLs from being evicted before
+   * cold items with longer TTLs — the original audit finding (H-8).
    */
   private evictOldest(): void {
-    // Remove oldest 10% of entries
     const countToRemove = Math.max(1, Math.ceil(this.cache.size * 0.1));
+    const now = Date.now();
 
-    const sortedByExpiry = Array.from(this.cache.entries())
-      .sort((a, b) => a[1].expires - b[1].expires)
-      .slice(0, countToRemove);
+    // Phase 1: Remove already-expired entries (free wins)
+    const expired: string[] = [];
+    for (const [key, entry] of this.cache) {
+      if (now > entry.expires) {
+        expired.push(key);
+      }
+    }
+    for (const key of expired) {
+      const entry = this.cache.get(key);
+      if (entry) this._totalSizeBytes -= entry.size;
+      this.cache.delete(key);
+    }
 
-    sortedByExpiry.forEach(([key]) => {
+    if (expired.length >= countToRemove) {
+      logger.debug('Evicted expired cache entries', {
+        removed: expired.length,
+        remaining: this.cache.size,
+      });
+      return;
+    }
+
+    // Phase 2: LRU eviction — sort by lastAccess (least-recently-used first)
+    const remaining = countToRemove - expired.length;
+    const sortedByAccess = Array.from(this.cache.entries())
+      .sort((a, b) => a[1].lastAccess - b[1].lastAccess)
+      .slice(0, remaining);
+
+    sortedByAccess.forEach(([key, entry]) => {
+      this._totalSizeBytes -= entry.size;
       this.cache.delete(key);
     });
 
-    logger.debug('Evicted oldest cache entries', {
-      removed: countToRemove,
+    logger.debug('Evicted cache entries (LRU+TTL hybrid)', {
+      expired: expired.length,
+      lru: sortedByAccess.length,
       remaining: this.cache.size,
     });
   }
@@ -404,14 +547,12 @@ export class CacheManager {
    * Get cache statistics
    */
   getStats(): CacheStats {
-    let totalSize = 0;
+    const totalSize = this._totalSizeBytes;
     let oldestExpiry: number | null = null;
     let newestExpiry: number | null = null;
     const byNamespace: Record<string, number> = {};
 
     for (const [, entry] of this.cache) {
-      totalSize += entry.size;
-
       if (oldestExpiry === null || entry.expires < oldestExpiry) {
         oldestExpiry = entry.expires;
       }
@@ -486,14 +627,10 @@ export class CacheManager {
   }
 
   /**
-   * Get total cache size in bytes
+   * Get total cache size in bytes (O(1) via running counter)
    */
   private getTotalSize(): number {
-    let total = 0;
-    for (const [, entry] of this.cache) {
-      total += entry.size;
-    }
-    return total;
+    return this._totalSizeBytes;
   }
 
   /**
@@ -536,7 +673,9 @@ export class CacheManager {
       if (deps) {
         const keysInvalidated = deps.size;
         for (const cacheKey of deps) {
+          const cacheEntry = this.cache.get(cacheKey);
           if (this.cache.delete(cacheKey)) {
+            if (cacheEntry) this._totalSizeBytes -= cacheEntry.size;
             count++;
           }
         }
@@ -709,7 +848,7 @@ export class CacheManager {
       };
     }
 
-    throw new Error(`Invalid A1 notation: ${range}`);
+    throw new ValidationError(`Invalid A1 notation: ${range}`, 'range', 'Sheet1!A1:B10');
   }
 
   /**
@@ -718,7 +857,7 @@ export class CacheManager {
   private parseCell(cell: string): { row: number; col: number } {
     const match = cell.match(/^([A-Z]+)(\d+)$/);
     if (!match) {
-      throw new Error(`Invalid cell reference: ${cell}`);
+      throw new ValidationError(`Invalid cell reference: ${cell}`, 'cell', 'A1');
     }
 
     const col = this.columnToNumber(match[1]!);

@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { DimensionsHandler } from '../../src/handlers/dimensions.js';
 import { SheetsDimensionsOutputSchema } from '../../src/schemas/dimensions.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
+import { getContextManager } from '../../src/services/context-manager.js';
 
 // Mock Google Sheets API
 const createMockSheetsApi = () => ({
@@ -42,6 +43,7 @@ describe('DimensionsHandler', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    getContextManager().reset();
     mockApi = createMockSheetsApi();
     mockContext = createMockContext();
     handler = new DimensionsHandler(mockContext, mockApi as any);
@@ -55,6 +57,7 @@ describe('DimensionsHandler', () => {
   });
 
   afterEach(() => {
+    getContextManager().reset();
     vi.clearAllMocks();
     vi.restoreAllMocks();
   });
@@ -1297,6 +1300,59 @@ describe('DimensionsHandler', () => {
         );
       });
 
+      it('should ignore stale inferred ranges when an explicit sheetId is provided', async () => {
+        getContextManager().updateContext({
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 99,
+          range: 'StaleSheet!A1:Z100',
+        });
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'set_basic_filter',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            requestBody: expect.objectContaining({
+              requests: [
+                {
+                  setBasicFilter: {
+                    filter: {
+                      range: expect.objectContaining({ sheetId: 0 }),
+                      criteria: undefined,
+                    },
+                  },
+                },
+              ],
+            }),
+          })
+        );
+      });
+
+      it('should return a structured error instead of using stale inferred targets', async () => {
+        getContextManager().updateContext({
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 99,
+          range: 'StaleSheet!A1:Z100',
+        });
+
+        const result = await handler.handle({
+          action: 'set_basic_filter',
+          spreadsheetId: 'test-sheet-id',
+        } as any);
+
+        expect(result.response.success).toBe(false);
+        if (!result.response.success) {
+          expect(result.response.error.code).toBe('INVALID_PARAMS');
+          expect(result.response.error.message).toContain('explicit range or sheetId');
+        }
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+
       it('should return error when incremental update has no existing filter', async () => {
         // get_basic_filter returns no filter (default mock has no basicFilter)
         const result = await handler.handle({
@@ -1501,6 +1557,65 @@ describe('DimensionsHandler', () => {
         const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
         expect(call.requestBody.requests[0].sortRange.sortSpecs).toHaveLength(2);
         expect(call.requestBody.requests[0].sortRange.sortSpecs[1].sortOrder).toBe('DESCENDING');
+      });
+
+      it('should require an explicit range instead of borrowing stale context for sort_range', async () => {
+        getContextManager().updateContext({
+          spreadsheetId: 'test-sheet-id',
+          range: 'StaleSheet!A1:D20',
+        });
+
+        const result = await handler.handle({
+          action: 'sort_range',
+          spreadsheetId: 'test-sheet-id',
+          sortSpecs: [{ columnIndex: 0, sortOrder: 'ASCENDING' }],
+        } as any);
+
+        expect(result.response.success).toBe(false);
+        if (!result.response.success) {
+          expect(result.response.error.code).toBe('INVALID_PARAMS');
+          expect(result.response.error.message).toContain('explicit range');
+        }
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+
+      it('should qualify a bare sort range with sheetName context', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'sort_range',
+          spreadsheetId: 'test-sheet-id',
+          sheetName: 'Sales Raw Data',
+          range: 'A1:D10',
+          sortSpecs: [{ columnIndex: 0, sortOrder: 'ASCENDING' }],
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect(mockContext.rangeResolver.resolve).toHaveBeenCalledWith('test-sheet-id', {
+          a1: "'Sales Raw Data'!A1:D10",
+        });
+      });
+
+      it('should use metadataCache to resolve sheet title from sheetId for bare sort ranges', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+        mockContext.metadataCache = {
+          getSheetName: vi.fn().mockResolvedValue('Revenue Data'),
+          getSheetId: vi.fn().mockResolvedValue(7),
+        } as any;
+
+        const result = await handler.handle({
+          action: 'sort_range',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 7,
+          range: 'A1:D10',
+          sortSpecs: [{ columnIndex: 0, sortOrder: 'ASCENDING' }],
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect(mockContext.metadataCache.getSheetName).toHaveBeenCalledWith('test-sheet-id', 7);
+        expect(mockContext.rangeResolver.resolve).toHaveBeenCalledWith('test-sheet-id', {
+          a1: "'Revenue Data'!A1:D10",
+        });
       });
     });
   });
@@ -1836,6 +1951,19 @@ describe('DimensionsHandler', () => {
   describe('Slicer Operations', () => {
     describe('create_slicer', () => {
       it('should create a slicer with anchor position', async () => {
+        mockApi.spreadsheets.get.mockResolvedValue({
+          data: {
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  gridProperties: { rowCount: 1000, columnCount: 26 },
+                },
+              },
+            ],
+          },
+        });
         mockApi.spreadsheets.batchUpdate.mockResolvedValue({
           data: {
             replies: [{ addSlicer: { slicer: { slicerId: 5 } } }],
@@ -1881,6 +2009,42 @@ describe('DimensionsHandler', () => {
 
         const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
         expect(parseResult.success).toBe(true);
+      });
+
+      it('should reject an out-of-bounds slicer anchor cell before batchUpdate', async () => {
+        mockApi.spreadsheets.get.mockResolvedValue({
+          data: {
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  gridProperties: { rowCount: 100, columnCount: 5 },
+                },
+              },
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'create_slicer',
+          spreadsheetId: 'test-sheet-id',
+          title: 'Product Filter',
+          dataRange: 'Sheet1!A1:D100',
+          filterColumn: 0,
+          position: {
+            anchorCell: 'K1',
+            width: 200,
+            height: 150,
+          },
+        });
+
+        expect(result.response.success).toBe(false);
+        if (!result.response.success) {
+          expect(result.response.error.code).toBe('INVALID_PARAMS');
+          expect(result.response.error.message).toContain('outside the grid bounds');
+        }
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
       });
     });
 

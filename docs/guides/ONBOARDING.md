@@ -1,6 +1,6 @@
 ---
 title: ServalSheets Developer Onboarding Guide
-category: guides
+category: guide
 last_updated: 2026-02-17
 description: 'Complete onboarding guide for new ServalSheets contributors'
 version: 1.0
@@ -40,7 +40,7 @@ ServalSheets is a **production-grade MCP (Model Context Protocol) server** that 
 
 **Key Stats:**
 
-- 25 tools with 391 actions
+- 25 tools with 407 actions
 - 8,500+ tests with CI coverage reporting
 - TypeScript strict mode
 - MCP 2025-11-25 protocol compliant

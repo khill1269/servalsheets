@@ -12,7 +12,7 @@ Feature roadmap (P4 differentiators): @docs/development/FEATURE_PLAN.md
 
 ## Project Overview
 
-ServalSheets is a production-grade MCP server for Google Sheets with 25 tools and 397 actions.
+ServalSheets is a production-grade MCP server for Google Sheets with 25 tools and 407 actions.
 Runtime: Node.js + TypeScript (strict). See `src/schemas/index.ts` for authoritative counts.
 
 ### Core Pipeline
@@ -89,7 +89,7 @@ return buildToolResponse({ response: { success: true, data } });
 
 ### 3. Hardcoded Counts
 
-Always reference `src/schemas/index.ts:63` for TOOL_COUNT/ACTION_COUNT. Never hardcode.
+Always reference `src/schemas/action-counts.ts:41,46` for TOOL_COUNT/ACTION_COUNT (re-exported via `src/schemas/index.ts:16`). Never hardcode.
 
 ### 4. Line Count Claims
 
@@ -132,11 +132,35 @@ When renaming an action (e.g. `write_range` → `write`), also update:
 
 Run `npm run check:integration-wiring` after any action rename to catch mismatches.
 
+### 9. MCP Client Behavior (Session 107)
+
+LLM clients using ServalSheets MUST follow these patterns:
+
+- **Startup:** `sheets_auth.status` → `sheets_session.get_context` (shows connectors) → `sheets_session.set_active`
+- **After each mutation:** call `sheets_session.record_operation` (or enable `autoRecord` via `update_preferences`)
+- **Before writing to formula ranges:** call `sheets_quality.analyze_impact` to assess risk
+- **3+ step work:** use `sheets_agent.plan + execute(interactiveMode: true)` — NOT `execute_pipeline`
+- **Transactions:** only queue batchable ops (write, format, dimension). `add_note`/`comment_add`/`chart_create` go directly after commit
+- **Connectors:** `get_context` response includes `connectors.zeroAuth` (auto-configure) and `connectors.oauthReady`
+
+### 10. Adapter Pattern: packages/mcp-http vs src/http-server
+
+**NOT duplication.** Two different concerns:
+- `packages/mcp-http/`: Generic HTTP transport library (publishable as `@serval/mcp-http`)
+  - Zero ServalSheets-specific imports — only DI-injected interfaces
+  - Implements transport mechanics: SSE, streamable HTTP, rate limiting, CORS, helmet
+- `src/http-server/`: ServalSheets-specific wiring layer
+  - Imports from `../../packages/mcp-http/dist/` and injects product services
+  - OAuth, session context, metrics, RBAC, Google handler bundle — all wired here
+
+**Rule:** Never move code from `src/http-server/` into `packages/mcp-http/` unless it has zero
+ServalSheets-specific imports. The package layer must remain product-agnostic.
+
 ## Key Files
 
 - `src/server.ts` — MCP server entrypoint
 - `src/mcp/registration/*` — Tool + schema registration
-- `src/handlers/*` — 22 tool handlers (13 extend BaseHandler, 9 standalone)
+- `src/handlers/*` — 25 tool handlers (13 extend BaseHandler, 12 standalone)
 - `src/schemas/*` — Zod schemas (validation source of truth)
 - `tests/contracts/*` — Contract tests (schema guarantees)
 
@@ -161,7 +185,7 @@ if (!result.response) throw new ResponseValidationError(); // Shape check
 
 ```typescript
 // BaseHandler (13 handlers): return this.success('action', data, mutation);
-// Standalone (9 handlers):   return { response: { success: true, action, ...data } };
+// Standalone (12 handlers):  return { response: { success: true, action, ...data } };
 // Error (both):              return { response: this.mapError(error) };
 ```
 
@@ -191,17 +215,20 @@ if (!result.response) throw new ResponseValidationError(); // Shape check
 **Step 3:** Test in `tests/handlers/{tool}.test.ts` — success + error paths (no `Math.random()`, no tautological assertions)
 **Step 4:** `npm run schema:commit`
 **Step 5 (if mutating):** Add action name to `MUTATION_ACTIONS` in `src/middleware/audit-middleware.ts`
+**Step 5b (if mutating):** Add action name to write-lock set in `src/middleware/mutation-safety-middleware.ts` — must match audit-middleware set or `npm run check:mutation-actions` fails
 **Step 6 (always):** Add cache invalidation rule in `src/services/cache-invalidation-graph.ts` (use `invalidates: []` for read-only)
 **Step 7 (if session-context wired):** Write back with `sessionContext.recordOperation()` — not just read/filter
 **Step 8 (if new error code):** Add code to `ErrorCodeSchema` in `src/schemas/shared.ts` before using it in handlers
 
 ## Source of Truth
 
-| Metric           | Source File            |
-| ---------------- | ---------------------- |
-| ACTION_COUNT     | `src/schemas/index.ts` |
-| TOOL_COUNT       | `src/schemas/index.ts` |
-| Protocol Version | `src/version.ts:14`    |
+| Metric           | Source File                                                                                    |
+| ---------------- | ---------------------------------------------------------------------------------------------- |
+| ACTION_COUNT     | `src/schemas/index.ts`                                                                         |
+| TOOL_COUNT       | `src/schemas/index.ts`                                                                         |
+| Protocol Version | `src/constants/protocol.ts` (re-exported via `src/version.ts:14`)                              |
+| TOOL_ACTIONS map | `src/mcp/completions.ts` — verified by `tests/contracts/completions-cross-map.test.ts`         |
+| MUTATION_ACTIONS | `src/middleware/audit-middleware.ts` (write-lock parity: `scripts/check-mutation-actions.mjs`) |
 
 Never hardcode these values — always reference the source file with `file:line`.
 

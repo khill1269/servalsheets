@@ -12,8 +12,10 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
 import { TOOL_ACTIONS } from '../mcp/completions.js';
+import { filterAvailableActions } from '../mcp/tool-availability.js';
 import { VERSION } from '../version.js';
-import { getPromptsCatalogCount } from './prompts-catalog.js';
+import { getFlowCatalogCount, listFlowCatalogEntries } from './flows.js';
+import { getPromptsCatalogCount, listPromptCatalogBuckets } from './prompts-catalog.js';
 
 /**
  * Resource category definition
@@ -217,7 +219,7 @@ function getToolSummary(): Array<{ name: string; actions: number; description: s
   return Object.entries(TOOL_ACTIONS)
     .map(([name, actions]) => ({
       name,
-      actions: actions.length,
+      actions: filterAvailableActions(name, actions).length,
       description: toolDescriptions[name] || name,
     }))
     .sort((a, b) => b.actions - a.actions);
@@ -239,6 +241,9 @@ export function registerMasterIndexResource(server: McpServer): void {
       const categories = getResourceCategories();
       const quickStart = getQuickStartResources();
       const tools = getToolSummary();
+      const availableActionCount = tools.reduce((sum, tool) => sum + tool.actions, 0);
+      const promptBuckets = listPromptCatalogBuckets();
+      const flowCatalog = listFlowCatalogEntries();
 
       const totalResources = Object.values(categories).reduce((sum, cat) => sum + cat.count, 0);
 
@@ -251,9 +256,12 @@ export function registerMasterIndexResource(server: McpServer): void {
         // Summary statistics
         stats: {
           tools: TOOL_COUNT,
-          actions: ACTION_COUNT,
+          actions: availableActionCount,
+          catalogActions: ACTION_COUNT,
           resources: totalResources,
           prompts: getPromptsCatalogCount(),
+          promptBuckets: promptBuckets.length,
+          workflowFlows: getFlowCatalogCount(),
           knowledgeFiles: 38,
         },
 
@@ -263,8 +271,26 @@ export function registerMasterIndexResource(server: McpServer): void {
         // Tools overview
         tools: {
           total: TOOL_COUNT,
-          totalActions: ACTION_COUNT,
+          totalActions: availableActionCount,
+          catalogTotalActions: ACTION_COUNT,
           byActionCount: tools,
+        },
+
+        // Scenario-oriented discovery for the prompt surface
+        promptCatalog: {
+          total: getPromptsCatalogCount(),
+          bucketCount: promptBuckets.length,
+          usage:
+            'Use prompts/list or prompts/get for execution. Use these buckets to find the right prompt family by scenario.',
+          buckets: promptBuckets,
+        },
+
+        // Canonical flow discovery for sheets_analyze plan/execute_plan
+        workflowCatalog: {
+          total: flowCatalog.length,
+          usage:
+            'Use sheets_analyze action:"plan" to build an analysis plan, then action:"execute_plan" to execute or inspect the resulting steps.',
+          flows: flowCatalog,
         },
 
         // Quick start guides
@@ -309,6 +335,10 @@ export function registerMasterIndexResource(server: McpServer): void {
             "Browse 'categories' to find resources by type. Use 'whenToUse' to decide which category fits your need.",
           toolSelection:
             "Check 'tools.byActionCount' for available tools, route directly when intent is explicit, and read schema://tools/{toolName} for details before complex calls.",
+          promptSelection:
+            "Use 'promptCatalog.buckets' to browse prompts by scenario, then call prompts/get with the selected prompt name and arguments.",
+          workflowPlanning:
+            'Use \'workflowCatalog.flows\' to choose a built-in analysis workflow, then call sheets_analyze action:"plan" or action:"execute_plan".',
           gettingStarted:
             "Follow 'quickStart.firstTimeUser' resources in order for a guided introduction.",
           optimization:

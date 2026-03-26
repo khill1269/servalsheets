@@ -3,7 +3,7 @@ title: Claude Sheet Analysis Workflow Guide
 category: guide
 last_updated: 2026-01-31
 description: '> Purpose: This guide shows how Claude should analyze Google Sheets before taking actions, ensuring safe operations and optimal tool usage patterns.'
-version: 1.6.0
+version: 2.0.0
 tags: [sheets]
 audience: user
 difficulty: intermediate

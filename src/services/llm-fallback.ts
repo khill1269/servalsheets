@@ -19,7 +19,9 @@
  */
 
 import { logger } from '../utils/logger.js';
-import { assertSamplingConsent, withSamplingTimeout } from '../mcp/sampling.js';
+import { assertSamplingConsent, withSamplingTimeout } from '../utils/sampling-consent.js';
+import { ServiceError, ConfigError } from '../core/errors.js';
+import { recordRequestLlmProvenance } from '../utils/request-context.js';
 
 // ============================================================================
 // Types
@@ -42,6 +44,8 @@ export interface LLMRequestOptions {
 export interface LLMResponse {
   content: string;
   model: string;
+  mode: 'sampling' | 'fallback';
+  provider: LLMProvider | 'mcp';
   usage?: {
     inputTokens: number;
     outputTokens: number;
@@ -143,8 +147,11 @@ async function callAnthropic(
   if (!response.ok) {
     const errorBody = await response.text();
     logger.error('Anthropic API request failed', { status: response.status, error: errorBody });
-    throw new Error(
-      `AI analysis service temporarily unavailable (status ${response.status}). Please try again.`
+    throw new ServiceError(
+      `AI analysis service temporarily unavailable (status ${response.status}). Please try again.`,
+      'UNAVAILABLE',
+      'Anthropic',
+      true
     );
   }
 
@@ -160,6 +167,8 @@ async function callAnthropic(
       .map((c) => c.text)
       .join('\n'),
     model: data.model,
+    mode: 'fallback',
+    provider: config.provider,
     usage: {
       inputTokens: data.usage.input_tokens,
       outputTokens: data.usage.output_tokens,
@@ -204,8 +213,11 @@ async function callOpenAI(
   if (!response.ok) {
     const errorBody = await response.text();
     logger.error('OpenAI API request failed', { status: response.status, error: errorBody });
-    throw new Error(
-      `AI analysis service temporarily unavailable (status ${response.status}). Please try again.`
+    throw new ServiceError(
+      `AI analysis service temporarily unavailable (status ${response.status}). Please try again.`,
+      'UNAVAILABLE',
+      'OpenAI',
+      true
     );
   }
 
@@ -218,6 +230,8 @@ async function callOpenAI(
   return {
     content: data.choices[0]?.message?.content || '',
     model: data.model,
+    mode: 'fallback',
+    provider: config.provider,
     usage: {
       inputTokens: data.usage.prompt_tokens,
       outputTokens: data.usage.completion_tokens,
@@ -260,8 +274,11 @@ async function callGoogle(
   if (!response.ok) {
     const errorBody = await response.text();
     logger.error('Google Gemini API request failed', { status: response.status, error: errorBody });
-    throw new Error(
-      `AI analysis service temporarily unavailable (status ${response.status}). Please try again.`
+    throw new ServiceError(
+      `AI analysis service temporarily unavailable (status ${response.status}). Please try again.`,
+      'UNAVAILABLE',
+      'GoogleGemini',
+      true
     );
   }
 
@@ -273,6 +290,8 @@ async function callGoogle(
   return {
     content: data.candidates[0]?.content?.parts?.map((p) => p.text).join('\n') || '',
     model: config.model,
+    mode: 'fallback',
+    provider: config.provider,
     usage: data.usageMetadata
       ? {
           inputTokens: data.usageMetadata.promptTokenCount,
@@ -300,8 +319,9 @@ export async function createLLMMessage(options: LLMRequestOptions): Promise<LLMR
   const config = getLLMFallbackConfig();
 
   if (!config) {
-    throw new Error(
-      'LLM fallback not configured. Set LLM_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.'
+    throw new ConfigError(
+      'LLM fallback not configured. Set LLM_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.',
+      'LLM_API_KEY'
     );
   }
 
@@ -311,16 +331,31 @@ export async function createLLMMessage(options: LLMRequestOptions): Promise<LLMR
     model: config.model,
   });
 
+  let response: LLMResponse;
   switch (config.provider) {
     case 'anthropic':
-      return callAnthropic(config, options);
+      response = await callAnthropic(config, options);
+      break;
     case 'openai':
-      return callOpenAI(config, options);
+      response = await callOpenAI(config, options);
+      break;
     case 'google':
-      return callGoogle(config, options);
+      response = await callGoogle(config, options);
+      break;
     default:
-      throw new Error(`Unsupported LLM provider: ${config.provider}`);
+      throw new ConfigError(
+        `Unsupported LLM provider: ${(config as { provider: string }).provider}`,
+        'LLM_PROVIDER'
+      );
   }
+
+  recordRequestLlmProvenance({
+    aiMode: response.mode,
+    aiProvider: response.provider,
+    aiModelUsed: response.model,
+  });
+
+  return response;
 }
 
 /**
@@ -371,10 +406,18 @@ export async function createMessageWithFallback(
         ? result.content.text
         : '';
 
-    return {
+    const response: LLMResponse = {
       content,
       model: result.model || 'mcp-sampling',
+      mode: 'sampling',
+      provider: 'mcp',
     };
+    recordRequestLlmProvenance({
+      aiMode: response.mode,
+      aiProvider: response.provider,
+      aiModelUsed: response.model,
+    });
+    return response;
   }
 
   // Fall back to direct LLM API

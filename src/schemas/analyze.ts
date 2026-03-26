@@ -652,12 +652,21 @@ const PlanActionSchema = CommonFieldsSchema.extend({
  * Analysis Plan Step - Individual step in a plan
  */
 const AnalysisPlanStepSchema = z.object({
-  order: z.number().int().min(1).describe('Execution order (1 = first)'),
+  // BUG-16 fix: Only `type` is truly required. LLMs often omit metadata fields
+  // like order, priority, estimatedDuration, reason, outputs when calling execute_plan.
+  order: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('Execution order (1 = first, auto-assigned if omitted)'),
   type: z
     .enum(['quality', 'formulas', 'patterns', 'performance', 'structure', 'visualizations'])
     .describe('Analysis type'),
   priority: z
     .enum(['critical', 'high', 'medium', 'low'])
+    .optional()
+    .default('medium')
     .describe('Priority based on detected issues'),
   target: z
     .object({
@@ -667,9 +676,13 @@ const AnalysisPlanStepSchema = z.object({
     })
     .optional()
     .describe('Target scope for this step'),
-  estimatedDuration: z.string().describe('Estimated time (e.g., "~2s", "~500ms")'),
-  reason: z.string().describe('Why this step is recommended'),
-  outputs: z.array(z.string()).describe('What this step will produce'),
+  estimatedDuration: z
+    .string()
+    .optional()
+    .default('~2s')
+    .describe('Estimated time (e.g., "~2s", "~500ms")'),
+  reason: z.string().optional().describe('Why this step is recommended'),
+  outputs: z.array(z.string()).optional().describe('What this step will produce'),
 });
 
 /**
@@ -797,7 +810,7 @@ const DrillDownActionSchema = CommonFieldsSchema.extend({
       }),
     ])
     .describe(
-      'Target to drill into. Valid types: issue, sheet, column, formula, pattern, anomaly, correlation. Each type has its own required fields.'
+      'Target to drill into. Valid types: issue, sheet, column, formula, anomaly, pattern, correlation. Each type has its own required fields. Example: { "type": "sheet", "sheetIndex": 0 }'
     ),
   limit: z
     .number()
@@ -822,20 +835,18 @@ const GenerateActionsActionSchema = CommonFieldsSchema.extend({
       'Generate executable action plan from analysis findings. Returns prioritized actions with complete params.'
     ),
   findings: z
-    .record(
-      z.string(),
-      z.union([
-        z.string(),
-        z.number(),
-        z.boolean(),
-        z.null(),
-        z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
-        z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
-      ])
-    )
+    .union([
+      z.array(z.record(z.string(), z.unknown())),
+      z.object({
+        findings: z.array(z.record(z.string(), z.unknown())).optional(),
+        issues: z.array(z.record(z.string(), z.unknown())).optional(),
+        errors: z.array(z.record(z.string(), z.unknown())).optional(),
+      }),
+      z.record(z.string(), z.unknown()),
+    ])
     .optional()
     .describe(
-      'Previous analysis findings as a record object (key-value pairs). Each key represents a finding category with its corresponding value. Will run analyze if not provided.'
+      'Previous analysis findings. Accepts a canonical findings[] array, or an object containing findings[], issues[], or errors[] from prior analyze actions.'
     ),
   intent: z
     .enum([
@@ -1035,6 +1046,16 @@ const FormulaHealthCheckActionSchema = CommonFieldsSchema.extend({
   range: RangeInputSchema.optional().describe(
     'Range to audit. If omitted, scans all sheets with formulas.'
   ),
+  maxSheets: z
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .optional()
+    .default(10)
+    .describe(
+      'Maximum sheets to scan when range is omitted (default 10). Prevents unbounded grid fetches on large workbooks.'
+    ),
   maxDepthThreshold: z
     .number()
     .int()
@@ -1054,6 +1075,35 @@ const FormulaHealthCheckActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(true)
     .describe('Flag lookup formulas missing IFERROR/IFNA protection'),
+});
+
+/**
+ * Quick Insights — fast, no-AI structural snapshot of a spreadsheet.
+ *
+ * Returns row/column counts, detected column data-types, empty-cell rate,
+ * pattern-based observations, and actionable suggestions. No Sampling call
+ * is made, so this completes in milliseconds even for large sheets.
+ */
+const QuickInsightsActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('quick_insights')
+    .describe(
+      'Fast, AI-free structural analysis. Returns stats (row count, column count, data types, ' +
+        'empty rate), pattern-based insights, actionable suggestions, and data-quality warnings ' +
+        'in under 500 ms. Use this for a quick overview before running deeper analysis.'
+    ),
+  range: z
+    .string()
+    .optional()
+    .describe('Optional A1 notation range to scope analysis (e.g. Sheet1!A1:D100)'),
+  maxInsights: z
+    .number()
+    .int()
+    .positive()
+    .max(20)
+    .optional()
+    .default(5)
+    .describe('Maximum number of insights to return (default: 5)'),
 });
 
 /**
@@ -1077,6 +1127,105 @@ const DiagnoseErrorsActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(true)
     .describe('Include formula text in error diagnosis for context'),
+});
+
+/**
+ * Semantic search across spreadsheet contents using natural language.
+ * Indexes cell ranges as embeddings and retrieves the most relevant sections
+ * for a given query. Requires VOYAGE_API_KEY environment variable.
+ */
+const SemanticSearchActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('semantic_search')
+    .describe(
+      'Search spreadsheet content by meaning, not exact text. ' +
+        'Indexes cell ranges as embeddings and returns the most relevant sections for a natural language query. ' +
+        'Example: "find all rows about Q4 revenue projections". ' +
+        'Requires VOYAGE_API_KEY. First call on a spreadsheet triggers indexing (~2-5s). ' +
+        'Subsequent queries on the same spreadsheet are fast (<500ms).'
+    ),
+  query: z
+    .string()
+    .min(3)
+    .max(500)
+    .describe('Natural language search query, e.g. "quarterly revenue targets by region"'),
+  topK: z
+    .number()
+    .int()
+    .min(1)
+    .max(20)
+    .optional()
+    .default(5)
+    .describe('Number of results to return (default: 5, max: 20)'),
+  forceReindex: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'Force re-indexing even if a recent index exists. Use after significant spreadsheet edits.'
+    ),
+});
+
+// Scheduled Intelligence actions (3) — Steps 066-068
+const ScheduleIntelligenceActionSchema = z.object({
+  spreadsheetId: SpreadsheetIdSchema,
+  action: z
+    .literal('schedule_intelligence')
+    .describe(
+      'Create a recurring intelligence schedule that periodically analyzes a spreadsheet ' +
+        'and optionally fires a webhook when conditions are met. ' +
+        'Example: Monitor for anomalies in revenue data every hour.'
+    ),
+  analysisType: z
+    .enum(['quality_check', 'anomaly_detection', 'trend_analysis', 'custom_query'])
+    .describe('Type of analysis to perform on each run'),
+  query: z
+    .string()
+    .max(500)
+    .optional()
+    .describe('Natural language query for custom_query analysis type'),
+  intervalMinutes: z
+    .number()
+    .int()
+    .min(1)
+    .max(10080)
+    .default(60)
+    .describe('How often to run analysis (minutes). Default: 60 (hourly). Max: 10080 (weekly).'),
+  conditions: z
+    .array(
+      z.object({
+        metric: z.string().describe('Metric to evaluate (e.g., "anomaly_count", "quality_score")'),
+        operator: z.enum(['gt', 'gte', 'lt', 'lte', 'eq', 'ne']),
+        threshold: z.number(),
+      })
+    )
+    .optional()
+    .describe('Conditions that must be met to trigger webhook delivery'),
+  webhookUrl: z
+    .string()
+    .url()
+    .optional()
+    .describe('Webhook URL to POST results when conditions are met'),
+  range: z.string().optional().describe('Specific range to analyze (default: entire spreadsheet)'),
+});
+
+const GetIntelligenceReportActionSchema = z.object({
+  spreadsheetId: SpreadsheetIdSchema,
+  action: z
+    .literal('get_intelligence_report')
+    .describe(
+      'Retrieve the latest intelligence report for a schedule. ' +
+        'Returns findings, condition evaluation results, and delivery status.'
+    ),
+  scheduleId: z.string().uuid().describe('ID of the schedule to get the report for'),
+});
+
+const CancelIntelligenceActionSchema = z.object({
+  spreadsheetId: SpreadsheetIdSchema,
+  action: z
+    .literal('cancel_intelligence')
+    .describe('Cancel and delete a recurring intelligence schedule.'),
+  scheduleId: z.string().uuid().describe('ID of the schedule to cancel'),
 });
 
 /**
@@ -1118,6 +1267,14 @@ export const SheetsAnalyzeInputSchema = z.object({
     // Diagnostic actions (2) - competitive parity with Claude in Excel
     DiagnoseErrorsActionSchema,
     FormulaHealthCheckActionSchema,
+    // Fast insights (1) - no AI, instant structural snapshot
+    QuickInsightsActionSchema,
+    // Semantic search (1) - ISSUE-174/175
+    SemanticSearchActionSchema,
+    // Scheduled intelligence (3) - Steps 066-068
+    ScheduleIntelligenceActionSchema,
+    GetIntelligenceReportActionSchema,
+    CancelIntelligenceActionSchema,
   ]),
 });
 
@@ -1507,24 +1664,22 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
         overallScore: z.coerce.number().min(0).max(100).optional(),
         score: z.coerce.number().min(0).max(100).optional(), // Comprehensive uses 'score'
         recommendations: z.array(
-          z
-            .object({
-              type: z
-                .enum([
-                  'VOLATILE_FORMULAS',
-                  'EXCESSIVE_FORMULAS',
-                  'LARGE_RANGES',
-                  'CIRCULAR_REFERENCES',
-                  'INEFFICIENT_STRUCTURE',
-                  'TOO_MANY_SHEETS',
-                ])
-                .optional(),
-              severity: z.enum(['low', 'medium', 'high']).optional(),
-              description: z.string().optional(),
-              estimatedImpact: z.string().optional(),
-              recommendation: z.string().optional(),
-            })
-            .passthrough()
+          z.object({
+            type: z
+              .enum([
+                'VOLATILE_FORMULAS',
+                'EXCESSIVE_FORMULAS',
+                'LARGE_RANGES',
+                'CIRCULAR_REFERENCES',
+                'INEFFICIENT_STRUCTURE',
+                'TOO_MANY_SHEETS',
+              ])
+              .optional(),
+            severity: z.enum(['low', 'medium', 'high']).optional(),
+            description: z.string().optional(),
+            estimatedImpact: z.string().optional(),
+            recommendation: z.string().optional(),
+          })
         ),
         estimatedImprovementPotential: z.string().optional(),
       })
@@ -1660,15 +1815,13 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
           columnCount: z.coerce.number(),
           dataRowCount: z.coerce.number(),
           columns: z.array(
-            z
-              .object({
-                index: z.coerce.number(),
-                name: z.string(),
-                type: z.string(),
-                nonBlankCount: z.coerce.number().optional(),
-                uniqueCount: z.coerce.number().optional(),
-              })
-              .passthrough()
+            z.object({
+              index: z.coerce.number(),
+              name: z.string(),
+              type: z.string(),
+              nonBlankCount: z.coerce.number().optional(),
+              uniqueCount: z.coerce.number().optional(),
+            })
           ), // Column stats - detailed type
           qualityScore: z.coerce.number(),
           completeness: z.coerce.number(),
@@ -1691,13 +1844,11 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
             })
           ), // Anomaly results
           correlations: z.array(
-            z
-              .object({
-                column1: z.string(),
-                column2: z.string(),
-                coefficient: z.coerce.number(),
-              })
-              .passthrough()
+            z.object({
+              column1: z.string(),
+              column2: z.string(),
+              coefficient: z.coerce.number(),
+            })
           ), // Correlation results
           formulas: z
             .object({
@@ -1706,14 +1857,12 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
               volatile: z.coerce.number(),
               complex: z.coerce.number(),
               issues: z.array(
-                z
-                  .object({
-                    cell: z.string(),
-                    formula: z.string(),
-                    errorType: z.string(),
-                    severity: z.enum(['low', 'medium', 'high', 'critical']),
-                  })
-                  .passthrough()
+                z.object({
+                  cell: z.string(),
+                  formula: z.string(),
+                  errorType: z.string(),
+                  severity: z.enum(['low', 'medium', 'high', 'critical']),
+                })
               ),
             })
             .optional(),
@@ -2156,9 +2305,25 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
       .optional()
       .describe('Suggested options for disambiguation'),
 
+    // quick_insights results (S3-A)
+    stats: z
+      .object({
+        rowCount: z.number().int().describe('Number of data rows (excluding header)'),
+        columnCount: z.number().int().describe('Number of columns'),
+        dataTypes: z.array(z.string()).describe('Detected data type per column'),
+        emptyRate: z.number().describe('Fraction of empty cells (0–1)'),
+      })
+      .optional()
+      .describe('Structural statistics from quick_insights'),
+    insights: z
+      .array(z.string())
+      .optional()
+      .describe('Pattern-based observations (e.g. "Column D has 23% empty cells")'),
+
     // Common
     duration: z.coerce.number().optional(),
     message: z.string().optional(),
+    retryAfterMs: z.number().int().positive().optional(),
     _meta: ResponseMetaSchema.optional(),
   }),
   z.object({

@@ -21,6 +21,7 @@ import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import { cpus } from 'os';
 import { logger } from '../utils/logger.js';
+import { ServiceError, ValidationError } from '../core/errors.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -136,12 +137,12 @@ export class WorkerPool extends EventEmitter {
    */
   async execute<T, R>(taskType: string, data: T): Promise<R> {
     if (this.shutdownPromise) {
-      throw new Error('Worker pool is shutting down');
+      throw new ServiceError('Worker pool is shutting down', 'INTERNAL_ERROR', 'WorkerPool');
     }
 
     const scriptPath = this.workerScripts.get(taskType);
     if (!scriptPath) {
-      throw new Error(`No worker registered for task type: ${taskType}`);
+      throw new ValidationError(`No worker registered for task type: ${taskType}`, 'taskType');
     }
 
     return new Promise<R>((resolve, reject) => {

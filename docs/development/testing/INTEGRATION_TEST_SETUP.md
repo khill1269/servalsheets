@@ -3,7 +3,7 @@ title: Integration Test Setup Guide
 category: development
 last_updated: 2026-01-31
 description: This guide explains how to set up and run integration tests for ServalSheets that connect to the real Google Sheets API.
-version: 1.6.0
+version: 2.0.0
 tags: [testing, setup, configuration, sheets]
 ---
 

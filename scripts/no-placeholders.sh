@@ -107,6 +107,12 @@ for pattern in "${PATTERNS[@]}"; do
       --glob '!src/handlers/composite.ts' \
       --glob '!src/schemas/dependencies.ts' \
       --glob '!src/mcp/registration/prompt-registration.ts' \
+      --glob '!src/utils/api-key-server.ts' \
+      --glob '!src/generated/**' \
+      --glob '!src/ARCHITECTURE_MAP.ts' \
+      --glob '!src/TOOL_MANIFEST.ts' \
+      --glob '!src/config/secrets.ts' \
+      --glob '!src/connectors/sec-edgar-connector.ts' \
       '$pattern' ${SEARCH_DIRS[*]} 2>/dev/null" || true)
   else
     # Fallback to grep
@@ -130,7 +136,13 @@ for pattern in "${PATTERNS[@]}"; do
       --exclude="excel-online-backend.ts" \
       --exclude="airtable-backend.ts" \
       --exclude="prompt-registration.ts" \
+      --exclude="api-key-server.ts" \
       --exclude="no-placeholders.sh" \
+      --exclude-dir="generated" \
+      --exclude="ARCHITECTURE_MAP.ts" \
+      --exclude="TOOL_MANIFEST.ts" \
+      --exclude="secrets.ts" \
+      --exclude="sec-edgar-connector.ts" \
       "$pattern" "${SEARCH_DIRS[@]}" 2>/dev/null || true)
   fi
 

@@ -67,6 +67,12 @@ if (!fs.existsSync(schemaPath)) {
   }
 }
 
+// The upstream registry schema caps icon URIs at 255 characters, which rejects
+// inline SVG data URIs even though this repo intentionally embeds them.
+if (serverSchema?.definitions?.Icon?.properties?.src?.maxLength === 255) {
+  serverSchema.definitions.Icon.properties.src.maxLength = 8192;
+}
+
 assert(isNonEmptyString(serverJson.name), 'server.json: "name" must be a non-empty string');
 assert(isNonEmptyString(serverJson.version), 'server.json: "version" must be a non-empty string');
 assert(Array.isArray(serverJson.packages), 'server.json: "packages" must be an array');

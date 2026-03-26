@@ -926,5 +926,36 @@ describe('DependenciesHandler', () => {
       expect(result.success).toBe(false);
       expect(result.error?.message).toContain('Quota exceeded');
     });
+
+    it('writes descriptive pseudo-formulas as RAW values instead of USER_ENTERED formulas', async () => {
+      const result = unwrapResponse(
+        await handler.handle({
+          request: {
+            action: 'create_scenario_sheet',
+            spreadsheetId: '1ABC',
+            scenario: {
+              name: 'Pseudo Formula Guard',
+              changes: [{ cell: 'Sheet1!C3', newValue: '=Units x Current Price/Unit' }],
+            },
+          },
+        })
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockSheetsApi.spreadsheets.values.batchUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          spreadsheetId: '1ABC',
+          requestBody: expect.objectContaining({
+            valueInputOption: 'RAW',
+            data: [
+              expect.objectContaining({
+                range: "'Scenario - Pseudo Formula Guard'!C3",
+                values: [['=Units x Current Price/Unit']],
+              }),
+            ],
+          }),
+        })
+      );
+    });
   });
 });

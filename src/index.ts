@@ -25,7 +25,7 @@ export {
 } from './http-server.js';
 
 // OAuth Provider
-export { OAuthProvider, type OAuthConfig } from './oauth-provider.js';
+export { OAuthProvider, type OAuthConfig } from './auth/oauth-provider.js';
 
 // Schemas
 export * from './schemas/index.js';

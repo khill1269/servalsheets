@@ -3,7 +3,7 @@ title: ServalSheets - Confirmation & Elicitation Guide
 category: guide
 last_updated: 2026-01-31
 description: 'ServalSheets provides multiple layers of guidance for Claude to know when and how to confirm:'
-version: 1.6.0
+version: 2.0.0
 audience: user
 difficulty: intermediate
 ---

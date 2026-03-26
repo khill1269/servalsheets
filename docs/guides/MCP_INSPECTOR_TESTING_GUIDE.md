@@ -3,7 +3,7 @@ title: MCP Inspector Testing Guide - ServalSheets
 category: guide
 last_updated: 2026-01-31
 description: 'Complete guide to manual and automated testing using MCP Inspector. Covers interactive web UI testing, automated test scripts, and comprehensive validation workflows for ServalSheets MCP server.'
-version: 1.6.0
+version: 2.0.0
 tags: [testing, mcp, sheets, inspector, validation]
 audience: user
 difficulty: intermediate
@@ -425,7 +425,7 @@ For full testing with Google Sheets access:
 2. Configure STDIO transport with:
    - Command: `node`
    - Args: `dist/cli.js --stdio`
-   - Working Directory: `/Users/thomascahill/Documents/mcp-servers/servalsheets`
+   - Working Directory: `/path/to/servalsheets`
 
 **Or restart with automatic connection**:
 

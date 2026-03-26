@@ -47,6 +47,7 @@ export type DataHandlerAccess = {
     sheetName?: string,
     api?: sheets_v4.Sheets
   ) => Promise<number>;
+  resolveRange: (spreadsheetId: string, range: unknown) => Promise<string>;
   deduplicatedApiCall: <T>(key: string, call: () => Promise<T>) => Promise<T>;
   recordAccessAndPrefetch: (params: {
     spreadsheetId: string;

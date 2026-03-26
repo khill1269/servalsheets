@@ -88,6 +88,42 @@ describe('getTimeline', () => {
     expect(result.totalFetched).toBe(3);
   });
 
+  it('stops paging early when unfiltered limit is satisfied', async () => {
+    const list = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: {
+          revisions: [
+            makeDriveRevision('rev-1', '2026-01-03T00:00:00Z'),
+            makeDriveRevision('rev-2', '2026-01-02T00:00:00Z'),
+          ],
+          nextPageToken: 'page-2',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          revisions: [makeDriveRevision('rev-3', '2026-01-01T00:00:00Z')],
+        },
+      });
+    const driveApi = {
+      revisions: { list },
+    } as unknown as drive_v3.Drive;
+
+    const result = await getTimeline(driveApi, 'spreadsheet-id', { limit: 2 });
+
+    expect(result.items).toHaveLength(2);
+    expect(result.totalFetched).toBe(2);
+    expect(result.truncated).toBe(true);
+    expect(result.nextPageToken).toBe('page-2');
+    expect(list).toHaveBeenCalledTimes(1);
+    expect(list).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileId: 'spreadsheet-id',
+        pageSize: 50,
+      })
+    );
+  });
+
   it('returns empty items when no revisions exist', async () => {
     const driveApi = makeMockDriveApi([]);
 

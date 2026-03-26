@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 import { mapStandaloneError } from '../../src/handlers/helpers/error-mapping.js';
 import { ErrorCodeSchema } from '../../src/schemas/shared.js';
 import {
@@ -13,6 +14,7 @@ import {
   NotFoundError,
   AuthenticationError,
   ServiceError,
+  ConfigError,
 } from '../../src/core/errors.js';
 
 // Helper: asserts code is a valid ErrorCode enum member
@@ -39,6 +41,21 @@ describe('mapStandaloneError()', () => {
     it('marks generic errors as not retryable (unknown if safe to retry)', () => {
       const mapped = mapStandaloneError(new Error('oops'));
       expect(mapped.retryable).toBe(false);
+    });
+
+    it('preserves explicit known error codes on generic Error instances', () => {
+      const err = Object.assign(new Error('bad request'), { code: 'INVALID_PARAMS' });
+      const mapped = mapStandaloneError(err);
+      expect(mapped.code).toBe('INVALID_PARAMS');
+      assertValidCode(mapped.code);
+    });
+
+    it('maps config-like generic errors to CONFIG_ERROR', () => {
+      const mapped = mapStandaloneError(
+        new Error('OPENAI_API_KEY environment variable is missing for AI suggestions')
+      );
+      expect(mapped.code).toBe('CONFIG_ERROR');
+      assertValidCode(mapped.code);
     });
   });
 
@@ -80,6 +97,22 @@ describe('mapStandaloneError()', () => {
       const err = new ValidationError('bad format', 'action');
       const mapped = mapStandaloneError(err);
       expect(mapped.retryable).toBe(false);
+    });
+  });
+
+  describe('ZodError', () => {
+    it('maps request validation failures to INVALID_PARAMS', () => {
+      const schema = z.object({
+        action: z.enum(['read', 'write']),
+      });
+
+      const parsed = schema.safeParse({ action: 'append' });
+      expect(parsed.success).toBe(false);
+
+      const mapped = mapStandaloneError(parsed.error);
+      expect(mapped.code).toBe('INVALID_PARAMS');
+      expect(mapped.retryable).toBe(false);
+      assertValidCode(mapped.code);
     });
   });
 
@@ -129,11 +162,34 @@ describe('mapStandaloneError()', () => {
     });
   });
 
+  describe('Google API shaped errors', () => {
+    it('maps nested Google API invalid range failures to INVALID_RANGE', () => {
+      const err = Object.assign(new Error('Unable to parse range: Sheet1!A:B'), {
+        response: {
+          status: 400,
+          data: {
+            error: {
+              code: 400,
+              message: 'Unable to parse range: Sheet1!A:B',
+              errors: [{ reason: 'invalidRange', message: 'Bad range' }],
+            },
+          },
+        },
+      });
+
+      const mapped = mapStandaloneError(err);
+      expect(mapped.code).toBe('INVALID_RANGE');
+      expect(mapped.retryable).toBe(false);
+      assertValidCode(mapped.code);
+    });
+  });
+
   describe('all returned codes are valid ErrorCode enum values', () => {
     it('every error type produces a valid code', () => {
       const inputs: unknown[] = [
         new Error('generic'),
         new ValidationError('bad', 'field'),
+        new ConfigError('missing key', 'OPENAI_API_KEY'),
         new NotFoundError('resource', 'id'),
         new AuthenticationError('auth fail'),
         new ServiceError('svc fail', 'SERVICE_NOT_INITIALIZED', 'test', false),

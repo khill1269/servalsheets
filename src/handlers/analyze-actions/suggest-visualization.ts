@@ -92,7 +92,7 @@ type SamplingRequest = {
 
 function parseChartType(value: unknown): SuggestedChartType | undefined {
   if (typeof value !== 'string') {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
   const normalized = value.toUpperCase();
   return (SUGGEST_VISUALIZATION_CHART_TYPES as readonly string[]).includes(normalized)
@@ -108,7 +108,7 @@ function parseNumber(value: unknown): number | undefined {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : undefined;
   }
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 export interface SuggestVisualizationDeps {
@@ -185,7 +185,7 @@ export async function handleSuggestVisualizationAction(
     const chartRecommendations: ChartRecommendation[] = rawRecommendations
       .map((item): ChartRecommendation | undefined => {
         if (typeof item !== 'object' || item === null) {
-          return undefined;
+          return undefined; // OK: Explicit empty
         }
 
         const recommendation = item as Record<string, unknown>;
@@ -269,7 +269,7 @@ export async function handleSuggestVisualizationAction(
     const dataAssessment: DataAssessment | undefined = (() => {
       const candidate = parsed['dataAssessment'];
       if (typeof candidate !== 'object' || candidate === null) {
-        return undefined;
+        return undefined; // OK: Explicit empty
       }
       const record = candidate as Record<string, unknown>;
       const rowCount = parseNumber(record['rowCount']);
@@ -280,7 +280,7 @@ export async function handleSuggestVisualizationAction(
         columnCount === undefined ||
         typeof record['hasHeaders'] !== 'boolean'
       ) {
-        return undefined;
+        return undefined; // OK: Explicit empty
       }
       return {
         dataType: record['dataType'],

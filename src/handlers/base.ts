@@ -26,6 +26,7 @@ import {
   createPermissionError,
   createRateLimitError,
   createNotFoundError,
+  createAuthenticationError,
   createValidationError,
   createZodValidationError,
   parseGoogleApiError,
@@ -35,8 +36,11 @@ import {
   estimateCost,
   type EnhancementContext,
 } from '../utils/response-enhancer.js';
+import { getErrorPatternLearner } from '../services/error-pattern-learner.js';
+import { suggestFix } from '../services/error-fix-suggester.js';
 import { compactResponse } from '../utils/response-compactor.js';
 import type { SamplingServer } from '../mcp/sampling.js';
+import type { ElicitationServer } from '../mcp/elicitation.js';
 import type { RequestDeduplicator } from '../utils/request-deduplication.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
@@ -78,6 +82,8 @@ import {
 } from './helpers/column-helpers.js';
 import type { SpreadsheetBackend } from '@serval/core';
 
+export type HandlerMcpServer = SamplingServer & ElicitationServer;
+
 export interface HandlerContext {
   /** Platform-agnostic backend (optional — enables multi-backend support) */
   backend?: SpreadsheetBackend;
@@ -101,8 +107,8 @@ export interface HandlerContext {
   samplingServer?: SamplingServer;
   requestDeduplicator?: RequestDeduplicator;
   circuitBreaker?: CircuitBreaker;
-  elicitationServer?: import('../mcp/elicitation.js').ElicitationServer;
-  server?: import('@modelcontextprotocol/sdk/server/index.js').Server; // MCP Server instance for elicitation/sampling
+  elicitationServer?: ElicitationServer;
+  server?: HandlerMcpServer; // Narrow MCP bridge for elicitation + sampling only
   taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter; // For task-based execution (SEP-1686)
   metrics?: import('../services/metrics.js').MetricsService; // For tracking confirmation skips and performance
   metadataCache?: import('../services/metadata-cache.js').MetadataCache; // Session-level metadata cache (N+1 elimination)
@@ -258,7 +264,7 @@ export abstract class BaseHandler<TInput, TOutput> {
   protected requireAuth(): void {
     if (!this.context.googleClient) {
       const error = createEnhancedError(
-        'AUTH_REQUIRED',
+        'AUTHENTICATION_REQUIRED',
         `Authentication required for ${this.toolName}. Call sheets_auth with action "status" to check authentication, or action "login" to authenticate.`,
         {
           tool: this.toolName,
@@ -463,7 +469,7 @@ export abstract class BaseHandler<TInput, TOutput> {
     }
 
     // OK: Explicit empty - typed as optional, cells count cannot be inferred
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   /**
@@ -567,18 +573,61 @@ export abstract class BaseHandler<TInput, TOutput> {
     if (err instanceof Error) {
       const errAny = err as unknown as Record<string, unknown>;
 
-      const enrichDetail = (detail: ErrorDetail): ErrorDetail => {
+      const enrichDetail = (detail: ErrorDetail, action?: string): ErrorDetail => {
         if (detail.resolution || detail.resolutionSteps) {
           return detail;
         }
 
         const enhanced = enhanceError(detail.code, detail.message, detail.details);
-        return {
+        let enriched: ErrorDetail = {
           ...detail,
           resolution: detail.resolution ?? enhanced.resolution,
           resolutionSteps: detail.resolutionSteps ?? enhanced.resolutionSteps,
           retryable: detail.retryable ?? enhanced.retryable,
         };
+
+        // Inject learned fix from error pattern learner (non-blocking)
+        try {
+          const patternLearner = getErrorPatternLearner();
+          const patterns = patternLearner.getPatterns(detail.code, {
+            tool: this.toolName,
+            action,
+          });
+          if (patterns?.topResolution && patterns.topResolution.occurrenceCount >= 3) {
+            enriched = {
+              ...enriched,
+              suggestedFix:
+                enriched.suggestedFix ??
+                `Learned fix (${Math.round(patterns.topResolution.successRate * 100)}% success): ${patterns.topResolution.fix}`,
+            };
+          }
+        } catch {
+          // Non-blocking: pattern learner failure must not affect error reporting
+        }
+
+        // Inject fixableVia from error-fix-suggester (non-blocking)
+        try {
+          if (!enriched.fixableVia) {
+            const fix = suggestFix(detail.code, detail.message, this.toolName, action);
+            if (fix) {
+              enriched = {
+                ...enriched,
+                fixableVia: {
+                  tool: fix.tool,
+                  action: fix.action,
+                  params: fix.params as Record<
+                    string,
+                    string | number | boolean | unknown[] | Record<string, unknown> | null
+                  >,
+                },
+              };
+            }
+          }
+        } catch {
+          // Non-blocking: suggester failure must not affect error reporting
+        }
+
+        return enriched;
       };
 
       if (typeof errAny['toErrorDetail'] === 'function') {
@@ -726,6 +775,17 @@ export abstract class BaseHandler<TInput, TOutput> {
         circuitBreakerState,
       });
     }
+    if (httpStatus === 401) {
+      const authMessage = error.message.toLowerCase();
+      const reason =
+        authMessage.includes('expired') ||
+        authMessage.includes('revoked') ||
+        authMessage.includes('invalid_grant')
+          ? 'expired_token'
+          : 'invalid_token';
+
+      return createAuthenticationError({ reason });
+    }
     if (httpStatus === 403) {
       return createPermissionError({
         operation: 'perform this operation',
@@ -770,6 +830,22 @@ export abstract class BaseHandler<TInput, TOutput> {
         retryAfterMs: 3600000,
         circuitBreakerState,
       });
+    }
+
+    // Permission denied (403)
+    if (
+      message.includes('401') ||
+      message.includes('invalid credentials') ||
+      message.includes('autherror') ||
+      message.includes('unauthenticated')
+    ) {
+      const reason =
+        message.includes('expired') ||
+        message.includes('revoked') ||
+        message.includes('invalid_grant')
+          ? 'expired_token'
+          : 'invalid_token';
+      return createAuthenticationError({ reason });
     }
 
     // Permission denied (403)
@@ -916,11 +992,11 @@ export abstract class BaseHandler<TInput, TOutput> {
    */
   protected createMutationSummary(results: ExecutionResult[]): MutationSummary | undefined {
     // OK: Explicit empty - typed as optional, no results to summarize
-    if (results.length === 0) return undefined;
+    if (results.length === 0) return undefined; // OK: Explicit empty
 
     const firstResult = results[0];
     // OK: Explicit empty - typed as optional, invalid result
-    if (!firstResult) return undefined;
+    if (!firstResult) return undefined; // OK: Explicit empty
 
     return {
       cellsAffected:
@@ -1375,6 +1451,11 @@ export abstract class BaseHandler<TInput, TOutput> {
     sheetName?: string,
     sheetsApi?: import('googleapis').sheets_v4.Sheets
   ): Promise<number> {
+    if (sheetName && this.context.sheetResolver) {
+      const resolved = await this.context.sheetResolver.resolve(spreadsheetId, { sheetName });
+      return resolved.sheet.sheetId;
+    }
+
     const metadataCache = this.context.metadataCache ?? getRequestContext()?.metadataCache;
 
     // OPTIMIZATION: Use session-level metadata cache if available (N+1 elimination)

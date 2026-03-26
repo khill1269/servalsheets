@@ -159,7 +159,7 @@ export class OperationMetricsService {
    */
   getOperationMetrics(name: string): OperationMetrics | undefined {
     const op = this.operations.get(name);
-    if (!op) return undefined;
+    if (!op) return undefined; // OK: Explicit empty
 
     return this.calculateOperationMetrics(name, op);
   }

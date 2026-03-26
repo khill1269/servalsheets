@@ -1,6 +1,5 @@
 #!/bin/bash
 # Build ServalSheets .mcpb bundle for Claude Desktop
-# Creates a distributable bundle with all dependencies
 
 set -e
 
@@ -22,43 +21,13 @@ echo "Step 2/5: Preparing bundle directory..."
 rm -rf "$SERVER_DIR"
 mkdir -p "$SERVER_DIR"
 
-# Step 3: Copy dist files to bundle/server
-echo "Step 3/5: Copying dist files..."
-cp -r "$PROJECT_ROOT/dist/"* "$SERVER_DIR/"
-
-# Step 4: Copy production dependencies
-echo "Step 4/5: Installing production dependencies..."
-cp "$PROJECT_ROOT/package.json" "$SERVER_DIR/package.json"
-
-# Create a minimal package.json for the bundle
-cat > "$SERVER_DIR/package.json" << 'EOF'
-{
-  "name": "servalsheets-bundle",
-  "version": "1.4.0",
-  "type": "module",
-  "main": "index.js",
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.2",
-    "compression": "^1.8.1",
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
-    "express": "^5.2.1",
-    "express-rate-limit": "^8.2.1",
-    "googleapis": "^170.0.0",
-    "helmet": "^8.0.0",
-    "jsonwebtoken": "^9.0.2",
-    "lru-cache": "^11.0.0",
-    "open": "^11.0.0",
-    "p-queue": "^9.0.1",
-    "prom-client": "^15.1.3",
-    "uuid": "^13.0.0",
-    "winston": "^3.17.0",
-    "zod": "4.3.5"
-  }
-}
-EOF
+# Step 3: Stage runtime package from current repo artifacts
+echo "Step 3/5: Staging runtime package..."
+node "$PROJECT_ROOT/scripts/stage-runtime-package.mjs" "bundle/server" --bundle-root "bundle"
 
 # Install production dependencies in the server directory
+# Step 4: Install production dependencies
+echo "Step 4/5: Installing production dependencies..."
 cd "$SERVER_DIR"
 npm install --omit=dev --ignore-scripts --no-audit --no-fund 2>/dev/null
 

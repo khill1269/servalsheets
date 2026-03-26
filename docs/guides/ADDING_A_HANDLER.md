@@ -1,6 +1,6 @@
 ---
 title: Adding a Handler to ServalSheets
-category: guides
+category: guide
 last_updated: 2026-02-17
 description: 'Step-by-step tutorial for adding a new MCP tool handler'
 version: 1.0
@@ -447,7 +447,7 @@ This automatically:
 📊 Analyzing 23 schema files...
   📝 export.ts → 3 actions [export_as_csv, export_as_pdf, export_as_xlsx]
   ...
-✅ Total: 25 tools, 302 actions
+✅ Total: 25 tools, 407 actions
 ✅ Updated src/schemas/index.ts constants
 ✅ Updated src/schemas/annotations.ts ACTION_COUNTS
 ✅ Updated src/mcp/completions.ts TOOL_ACTIONS

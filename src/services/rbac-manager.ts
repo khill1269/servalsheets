@@ -18,6 +18,7 @@
 
 import { createHash } from 'crypto';
 import { logger } from '../utils/logger.js';
+import { NotFoundError, ValidationError } from '../core/errors.js';
 import {
   type RoleDefinition,
   type UserRoleAssignment,
@@ -237,12 +238,14 @@ export class RbacManager {
     // Validate role doesn't already exist
     const existing = await this.storage.getRoleDefinition(role.roleId);
     if (existing) {
-      throw new Error(`Role ${role.roleId} already exists`);
+      throw new ValidationError(`Role ${role.roleId} already exists`, 'roleId', undefined, {
+        roleId: role.roleId,
+      });
     }
 
     // Cannot create built-in roles
     if (role.builtIn) {
-      throw new Error('Cannot create built-in roles');
+      throw new ValidationError('Cannot create built-in roles', 'builtIn');
     }
 
     const now = new Date().toISOString();
@@ -270,12 +273,14 @@ export class RbacManager {
   ): Promise<RoleDefinition> {
     const existing = await this.storage.getRoleDefinition(roleId);
     if (!existing) {
-      throw new Error(`Role ${roleId} not found`);
+      throw new NotFoundError('role', roleId);
     }
 
     // Cannot update built-in roles
     if (existing.builtIn) {
-      throw new Error(`Cannot update built-in role: ${roleId}`);
+      throw new ValidationError(`Cannot update built-in role: ${roleId}`, 'roleId', undefined, {
+        roleId,
+      });
     }
 
     const updated: RoleDefinition = {
@@ -299,12 +304,14 @@ export class RbacManager {
   async deleteRole(roleId: string): Promise<void> {
     const existing = await this.storage.getRoleDefinition(roleId);
     if (!existing) {
-      throw new Error(`Role ${roleId} not found`);
+      throw new NotFoundError('role', roleId);
     }
 
     // Cannot delete built-in roles
     if (existing.builtIn) {
-      throw new Error(`Cannot delete built-in role: ${roleId}`);
+      throw new ValidationError(`Cannot delete built-in role: ${roleId}`, 'roleId', undefined, {
+        roleId,
+      });
     }
 
     await this.storage.deleteRoleDefinition(roleId);
@@ -342,7 +349,7 @@ export class RbacManager {
     for (const roleId of roles) {
       const role = await this.storage.getRoleDefinition(roleId);
       if (!role) {
-        throw new Error(`Role ${roleId} not found`);
+        throw new NotFoundError('role', roleId);
       }
     }
 

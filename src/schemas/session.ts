@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod';
+import { RangeInputSchema } from './shared.js';
 import type { ToolAnnotations } from './shared.js';
 
 // ============================================================================
@@ -30,18 +31,30 @@ const CommonFieldsSchema = z.object({
 
 const SetActiveActionSchema = CommonFieldsSchema.extend({
   action: z.literal('set_active').describe('Set the active spreadsheet for natural references'),
-  spreadsheetId: z.string().describe('Spreadsheet ID from URL'),
+  spreadsheetId: z
+    .string()
+    .describe(
+      'Spreadsheet ID from the Google Sheets URL (the long alphanumeric string between /d/ and /edit). ' +
+        'Setting this enables natural references like "the spreadsheet" or "this sheet" in subsequent calls. ' +
+        'Example: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"'
+    ),
   title: z
     .string()
     .optional()
     .describe(
-      'Spreadsheet title for natural reference (optional - will be fetched from API if not provided)'
+      'Human-readable title for natural language references like "my budget" or "Q1 report". ' +
+        'Optional — fetched from the API if not provided. ' +
+        'Example: "Q1 2026 Sales Report"'
     ),
   sheetNames: z
     .array(z.string())
     .optional()
     .default([])
-    .describe('List of sheet names in the spreadsheet (optional, will be fetched if not provided)'),
+    .describe(
+      'Names of the sheets (tabs) in this spreadsheet. Used to resolve references like "the Revenue sheet". ' +
+        'Optional — fetched from the API if not provided. ' +
+        'Example: ["Sheet1", "Revenue", "Costs", "Summary"]'
+    ),
 });
 
 const GetActiveActionSchema = CommonFieldsSchema.extend({
@@ -62,8 +75,11 @@ const RecordOperationActionSchema = CommonFieldsSchema.extend({
     .min(1, 'Description cannot be empty')
     .max(1000, 'Description exceeds 1000 character limit')
     .describe('Human-readable description (max 1000 chars)'),
-  undoable: z.boolean().describe('Whether this operation can be undone'),
-  range: z.string().optional().describe('Range affected (A1 notation)'),
+  undoable: z
+    .boolean()
+    .default(true)
+    .describe('Whether this operation can be undone (default: true)'),
+  range: RangeInputSchema.optional().describe('Range affected'),
   snapshotId: z.string().optional().describe('Snapshot ID if created for rollback'),
   cellsAffected: z.coerce.number().optional().describe('Number of cells affected'),
 });
@@ -96,7 +112,8 @@ const FindByReferenceActionSchema = CommonFieldsSchema.extend({
     ),
   referenceType: z
     .enum(['spreadsheet', 'operation'])
-    .describe('What to find: spreadsheet or operation'),
+    .default('spreadsheet')
+    .describe('What to find: spreadsheet or operation (default: spreadsheet)'),
 });
 
 const UpdatePreferencesActionSchema = CommonFieldsSchema.extend({
@@ -107,6 +124,12 @@ const UpdatePreferencesActionSchema = CommonFieldsSchema.extend({
     .describe('When to ask for confirmation (always, destructive, or never)'),
   dryRunDefault: z.boolean().optional().describe('Default dry run setting'),
   snapshotDefault: z.boolean().optional().describe('Default snapshot setting'),
+  autoRecord: z
+    .boolean()
+    .optional()
+    .describe(
+      'When true, automatically record operations after successful mutation tool calls. Eliminates need for explicit record_operation calls.'
+    ),
 });
 
 const GetPreferencesActionSchema = CommonFieldsSchema.extend({
@@ -155,31 +178,68 @@ const SaveCheckpointActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('save_checkpoint')
     .describe('Save session state for resuming after context reset'),
-  sessionId: z.string().describe('Unique session identifier (e.g., "test-run-1")'),
-  description: z.string().optional().describe('Optional description of checkpoint'),
+  sessionId: z
+    .string()
+    .describe(
+      'Unique identifier for this session checkpoint. Choose a descriptive name so you can resume it later. ' +
+        'Must be consistent across save and load calls. ' +
+        'Example: "quarterly-review-2026-03" or "budget-update-session"'
+    ),
+  description: z
+    .string()
+    .optional()
+    .describe(
+      'Human-readable description of what work this checkpoint captures. ' +
+        'Helps identify the right checkpoint when listing them. ' +
+        'Example: "After updating Q1 revenue formulas, before formatting pass"'
+    ),
 });
 
 const LoadCheckpointActionSchema = CommonFieldsSchema.extend({
   action: z.literal('load_checkpoint').describe('Load and resume from a saved checkpoint'),
-  sessionId: z.string().describe('Session ID to resume'),
+  sessionId: z
+    .string()
+    .describe(
+      'Session identifier to resume — must match the sessionId used in save_checkpoint. ' +
+        'Use list_checkpoints to see available sessions. ' +
+        'Example: "quarterly-review-2026-03"'
+    ),
   timestamp: z.coerce
     .number()
     .optional()
-    .describe('Specific checkpoint timestamp (latest if omitted)'),
+    .describe(
+      'Unix timestamp (ms) of the specific checkpoint to restore. ' +
+        'Omit to load the most recent checkpoint for this sessionId. ' +
+        'Use list_checkpoints to see available timestamps.'
+    ),
 });
 
 const ListCheckpointsActionSchema = CommonFieldsSchema.extend({
   action: z.literal('list_checkpoints').describe('List available checkpoints'),
-  sessionId: z.string().optional().describe('Filter by session ID (all if omitted)'),
+  sessionId: z
+    .string()
+    .optional()
+    .describe(
+      'Filter checkpoints by session ID. Omit to list checkpoints for all sessions. ' +
+        'Example: "quarterly-review-2026-03"'
+    ),
 });
 
 const DeleteCheckpointActionSchema = CommonFieldsSchema.extend({
   action: z.literal('delete_checkpoint').describe('Delete checkpoint(s)'),
-  sessionId: z.string().describe('Session ID to delete checkpoints for'),
+  sessionId: z
+    .string()
+    .describe(
+      'Session ID whose checkpoints to delete. All checkpoints for this session are deleted unless timestamp is specified. ' +
+        'Example: "quarterly-review-2026-03"'
+    ),
   timestamp: z.coerce
     .number()
     .optional()
-    .describe('Specific checkpoint (all for session if omitted)'),
+    .describe(
+      'Unix timestamp (ms) of the specific checkpoint to delete. ' +
+        'Omit to delete all checkpoints for the given sessionId.'
+    ),
 });
 
 const ResetActionSchema = CommonFieldsSchema.extend({
@@ -254,6 +314,31 @@ const GetTopFormulasActionSchema = CommonFieldsSchema.extend({
 });
 
 // Schedule actions (Phase 6: Scheduled Workflows)
+const ScheduledOperationSchema = z
+  .object({
+    tool: z.string().min(1).describe('MCP tool name to invoke (e.g., "sheets_data")'),
+    action: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Compatibility alias for actionName in nested schedule requests'),
+    actionName: z.string().min(1).optional().describe('Action within the tool (e.g., "read")'),
+    params: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe('Parameters to pass to the action'),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    if (!data.action && !data.actionName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Nested schedule operation requires action or actionName',
+        path: ['actionName'],
+      });
+    }
+  });
+
 const ScheduleCreateActionSchema = CommonFieldsSchema.extend({
   action: z.literal('schedule_create'),
   spreadsheetId: z.string().min(1),
@@ -262,10 +347,31 @@ const ScheduleCreateActionSchema = CommonFieldsSchema.extend({
     .min(1)
     .describe('Cron expression (e.g., "0 9 * * 1-5" for weekdays at 9 AM)'),
   description: z.string().min(1).describe('Human-readable description of the scheduled task'),
-  tool: z.string().min(1).describe('MCP tool name to invoke (e.g., "sheets_data")'),
-  actionName: z.string().min(1).describe('Action within the tool (e.g., "read")'),
-  params: z.record(z.string(), z.unknown()).describe('Parameters to pass to the action'),
-}).strict();
+  tool: z.string().min(1).optional().describe('MCP tool name to invoke (e.g., "sheets_data")'),
+  actionName: z.string().min(1).optional().describe('Action within the tool (e.g., "read")'),
+  params: z.record(z.string(), z.unknown()).optional().describe('Parameters to pass to the action'),
+  operation: ScheduledOperationSchema.optional().describe(
+    'Compatibility nested schedule shape: { tool, action or actionName, params }'
+  ),
+  target: ScheduledOperationSchema.optional().describe(
+    'Alternative nested schedule shape for LLM compatibility: { tool, action or actionName, params }'
+  ),
+})
+  .strict()
+  .superRefine((data, ctx) => {
+    const nested = data.operation ?? data.target;
+    const hasFlat = Boolean(data.tool && data.actionName);
+    const hasNested = Boolean(nested?.tool && (nested.actionName ?? nested.action));
+
+    if (!hasFlat && !hasNested) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'schedule_create requires either flat tool/actionName fields or a nested operation',
+        path: ['actionName'],
+      });
+    }
+  });
 
 const ScheduleListActionSchema = CommonFieldsSchema.extend({
   action: z.literal('schedule_list'),
@@ -487,6 +593,7 @@ const SessionSuccessSchema = z.object({
   operations: z.array(OperationRecordSchema).optional(),
   found: z.boolean().optional(),
   preferences: PreferencesSchema.optional(),
+  scope: z.enum(['session', 'profile']).optional(),
   pending: PendingOperationSchema.optional(),
   message: z.string().optional(),
   // Checkpoint fields
@@ -679,7 +786,7 @@ This tool tracks what we're working with so Claude can understand natural refere
 • Set active: {"action":"set_active","spreadsheetId":"1ABC...","title":"Q4 Budget"} (sheetNames optional)
 • Get context: {"action":"get_context"} → Returns summary + suggestions
 • Find reference: {"action":"find_by_reference","reference":"that","type":"operation"} → Finds last operation
-• Record op: {"action":"record_operation","tool":"sheets_data","toolAction":"write",...}
+• Record op manually: {"action":"record_operation","tool":"external","toolAction":"sync",...} (optional for work done outside normal tool calls)
 
 **Natural Language Support:**
 • "the spreadsheet" → get_active returns current spreadsheet
@@ -690,13 +797,13 @@ This tool tracks what we're working with so Claude can understand natural refere
 **When to Use:**
 1. ALWAYS call get_context at conversation start
 2. Call set_active after opening/creating a spreadsheet
-3. Call record_operation after any write operation
+3. Use record_operation only for manual/external work that is not already captured by a normal tool call
 4. Call find_by_reference when user uses natural references
 
 **Common Workflows:**
 1. Start: get_context → Understand current state
 2. After open: set_active → Remember which spreadsheet
-3. After write: record_operation → Enable undo
+3. After write: get_context/history → inspect the auto-tracked operation
 4. User says "undo": find_by_reference → Find operation to undo
 
 **Best Practice:**
@@ -714,8 +821,8 @@ Use the collaborative workflow pattern for natural language requests:
 3. **Plan ready**: Switch to \`type:"awaiting_approval"\` when you have enough context
    Example: \`{"action":"set_pending","type":"awaiting_approval","context":{"plan":{"steps":[...]}}}\`
 
-4. **Execute**: After approval, perform operations and use \`record_operation\` for each step
-   Example: \`{"action":"record_operation","tool":"sheets_data","toolAction":"write","description":"Wrote report data",...}\`
+4. **Execute**: After approval, perform operations. Successful tool calls are auto-recorded; use \`record_operation\` only for manual or external steps.
+   Example: \`{"action":"record_operation","tool":"external","toolAction":"sync","description":"Ran external backfill",...}\`
 
 5. **Complete**: Clear the pending state when done
    Example: \`{"action":"clear_pending"}\`
@@ -753,6 +860,6 @@ User: "Use spreadsheet 1ABC, Q1 2024"
 User: "Total revenue by region"
 → set_pending (type: awaiting_approval, include plan)
 User: "Go ahead"
-→ Execute operations with record_operation for each step
+→ Execute operations (auto-recorded) and optionally record external/manual steps
 → clear_pending when complete
 \`\`\``;

@@ -59,6 +59,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
 
 export interface InferenceContext {
   /** Last used spreadsheet ID */
@@ -297,7 +298,7 @@ export class ContextManager {
   getInferredValue(paramName: 'spreadsheetId' | 'sheetId' | 'range'): string | number | undefined {
     if (this.isContextStale()) {
       // OK: Explicit empty - typed as optional, stale context returns undefined
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     return this.context[paramName];
@@ -330,7 +331,11 @@ export function setContextManager(manager: ContextManager): void {
  */
 export function resetContextManager(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetContextManager() can only be called in test environment');
+    throw new ServiceError(
+      'resetContextManager() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'ContextManager'
+    );
   }
   contextManager = null;
 }

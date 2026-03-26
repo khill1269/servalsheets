@@ -5,10 +5,13 @@
  * Supports: working → input_required → completed/failed/cancelled
  */
 
+import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { randomUUID } from 'crypto';
 import type { RedisClientType } from 'redis';
 import { logger } from '../utils/logger.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
+import { NotFoundError, ServiceError } from './errors.js';
 
 export type TaskStatus = 'working' | 'input_required' | 'completed' | 'failed' | 'cancelled';
 
@@ -145,7 +148,7 @@ export class InMemoryTaskStore implements TaskStore {
    * @returns Task with unique ID and working status
    */
   async createTask(options: { ttl?: number } = {}): Promise<Task> {
-    const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    const taskId = `task_${randomUUID()}`;
     const now = new Date().toISOString();
     const ttl = options.ttl ?? 3600000; // Default 1 hour
 
@@ -192,7 +195,7 @@ export class InMemoryTaskStore implements TaskStore {
   async updateTaskStatus(taskId: string, status: TaskStatus, message?: string): Promise<void> {
     const task = this.tasks.get(taskId);
     if (!task) {
-      throw new Error(`Task not found: ${taskId}`);
+      throw new NotFoundError('task', taskId);
     }
 
     if (status === 'cancelled') {
@@ -368,12 +371,14 @@ export class InMemoryTaskStore implements TaskStore {
   async cancelTask(taskId: string, reason?: string): Promise<void> {
     const task = this.tasks.get(taskId);
     if (!task) {
-      throw new Error(`Task ${taskId} not found`);
+      throw new NotFoundError('task', taskId);
     }
 
-    if (task.status === 'completed' || task.status === 'failed') {
-      // Already finished, can't cancel
-      return;
+    if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Cannot cancel task: already in terminal status '${task.status}'`
+      );
     }
 
     // Mark as cancelled
@@ -470,10 +475,13 @@ export class RedisTaskStore implements TaskStore {
       logger.info('Redis task store connected');
       return this.client;
     } catch (error) {
-      throw new Error(
+      throw new ServiceError(
         `Failed to connect to Redis at ${this.redisUrl}. ` +
           `Make sure Redis is installed (npm install redis) and running. ` +
-          `Error: ${error instanceof Error ? error.message : String(error)}`
+          `Error: ${error instanceof Error ? error.message : String(error)}`,
+        'INTERNAL_ERROR',
+        'redis',
+        true
       );
     }
   }
@@ -492,7 +500,7 @@ export class RedisTaskStore implements TaskStore {
   async createTask(options: { ttl?: number } = {}): Promise<Task> {
     const client = await this.ensureConnected();
 
-    const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    const taskId = `task_${randomUUID()}`;
     const now = new Date().toISOString();
     const ttl = options.ttl ?? 3600000; // Default 1 hour
 
@@ -578,7 +586,7 @@ export class RedisTaskStore implements TaskStore {
     // Check if task exists
     const exists = await client.exists(taskKey);
     if (!exists) {
-      throw new Error(`Task not found: ${taskId}`);
+      throw new NotFoundError('task', taskId);
     }
 
     const cancelKey = `${this.keyPrefix}cancelled:${taskId}`;
@@ -842,12 +850,15 @@ export class RedisTaskStore implements TaskStore {
     const task = await client.hGetAll(taskKey);
 
     if (!task || Object.keys(task).length === 0) {
-      throw new Error(`Task ${taskId} not found`);
+      throw new NotFoundError('task', taskId);
     }
 
     const status = task['status'];
-    if (status === 'completed' || status === 'failed') {
-      return;
+    if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Cannot cancel task: already in terminal status '${status}'`
+      );
     }
 
     // Store cancellation reason

@@ -24,10 +24,8 @@ export interface MigrationWarning {
 export type MigrationStrategy = 'strict' | 'lenient' | 'auto';
 
 export class SchemaMigrator {
-  private strategy: MigrationStrategy;
-
-  constructor(strategy: MigrationStrategy = 'auto') {
-    this.strategy = strategy;
+  constructor(_strategy: MigrationStrategy = 'auto') {
+    // _strategy reserved for future strict/lenient migration mode enforcement
   }
 
   migrateRequestV1ToV2(request: Record<string, unknown>): MigrationResult {

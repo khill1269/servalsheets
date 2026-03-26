@@ -17,6 +17,7 @@
  */
 
 import { logger as baseLogger } from '../utils/logger.js';
+import { NotFoundError, ServiceError } from '../core/errors.js';
 
 /**
  * Task status states
@@ -154,9 +155,12 @@ export class TaskManager {
     );
 
     if (activeTasks.length >= this.options.maxTasks) {
-      throw new Error(
-        `Maximum concurrent tasks reached (${this.options.maxTasks}). ` +
-          `Please wait for existing tasks to complete or increase the limit.`
+      throw new ServiceError(
+        `Maximum concurrent tasks reached (${this.options.maxTasks}). Please wait for existing tasks to complete or increase the limit.`,
+        'QUOTA_EXCEEDED',
+        'TaskManager',
+        true,
+        { maxTasks: this.options.maxTasks, activeTasks: activeTasks.length }
       );
     }
 
@@ -191,7 +195,7 @@ export class TaskManager {
   updateTaskProgress(taskId: string, progress: number, progressMessage?: string): void {
     const task = this.tasks.get(taskId);
     if (!task) {
-      throw new Error(`Task not found: ${taskId}`);
+      throw new NotFoundError('task', taskId);
     }
 
     // Validate progress range
@@ -228,7 +232,7 @@ export class TaskManager {
   completeTask(taskId: string, result?: unknown): void {
     const task = this.tasks.get(taskId);
     if (!task) {
-      throw new Error(`Task not found: ${taskId}`);
+      throw new NotFoundError('task', taskId);
     }
 
     const now = Date.now();
@@ -258,7 +262,7 @@ export class TaskManager {
   failTask(taskId: string, error: Error | string): void {
     const task = this.tasks.get(taskId);
     if (!task) {
-      throw new Error(`Task not found: ${taskId}`);
+      throw new NotFoundError('task', taskId);
     }
 
     const now = Date.now();
@@ -293,7 +297,7 @@ export class TaskManager {
   cancelTask(taskId: string): boolean {
     const task = this.tasks.get(taskId);
     if (!task) {
-      throw new Error(`Task not found: ${taskId}`);
+      throw new NotFoundError('task', taskId);
     }
 
     // Cannot cancel already finished tasks
@@ -332,7 +336,7 @@ export class TaskManager {
     const task = this.tasks.get(taskId);
     if (!task) {
       // OK: Explicit empty - typed as optional, task not found
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     // Return a copy to prevent external mutations

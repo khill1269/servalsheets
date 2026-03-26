@@ -10,6 +10,7 @@
 import { TaskStoreAdapter } from './task-store-adapter.js';
 import { InMemoryTaskStore, RedisTaskStore } from './task-store.js';
 import { logger as baseLogger } from '../utils/logger.js';
+import { ConfigError } from './errors.js';
 
 export interface TaskStoreConfig {
   /**
@@ -64,9 +65,10 @@ export async function createTaskStore(config: TaskStoreConfig = {}): Promise<Tas
     const redisUrl = config.redisUrl ?? process.env['REDIS_URL'];
 
     if (!redisUrl) {
-      throw new Error(
+      throw new ConfigError(
         'Redis task store requested but REDIS_URL not configured. ' +
-          'Set REDIS_URL environment variable or use in-memory store for development.'
+          'Set REDIS_URL environment variable or use in-memory store for development.',
+        'REDIS_URL'
       );
     }
 

@@ -1,27 +1,27 @@
 ---
 title: ServalSheets - Complete Codebase Context
 category: development
-last_updated: 2026-03-09
+last_updated: 2026-03-22
 description: Persistent reference for coding sessions across tools, MCP compliance, API patterns, and architecture decisions.
-version: 1.7.0
+version: 2.0.0
 tags: [sheets, architecture, mcp]
 ---
 
 # ServalSheets — Complete Codebase Context
 
-> Persistent reference for coding sessions. Covers all 25 tools (397 actions), MCP compliance,
+> Persistent reference for coding sessions. Covers all 25 tools (407 actions), MCP compliance,
 > Google API patterns, anti-patterns, and architecture decisions.
-> Updated: 2026-03-09.
+> Updated: 2026-03-22.
 
 ## Quick Reference
 
 | Metric               | Value                          | Source                       |
 | -------------------- | ------------------------------ | ---------------------------- |
 | Tools                | 25                             | src/schemas/action-counts.ts |
-| Actions              | 397                            | src/schemas/action-counts.ts |
-| Version              | 1.7.0                          | package.json                 |
+| Actions              | 407                            | src/generated/action-counts.ts |
+| Version              | 2.0.0                          | package.json                 |
 | MCP Protocol         | 2025-11-25                     | src/version.ts:14            |
-| Contract Tests       | 2376/2376 pass                 | npm run test:fast            |
+| Contract Tests       | 2742/2742 pass                 | npm run test:fast            |
 | Handler Architecture | 13 BaseHandler + 12 Standalone | src/handlers/                |
 
 ---
@@ -33,48 +33,52 @@ tags: [sheets, architecture, mcp]
 These extend `BaseHandler<Input, Output>` and get: intent batching, snapshot support,
 verbosity filtering, scope validation, progress reporting, error mapping.
 
+<!-- BEGIN_GENERATED:handler-table-base -->
 | Tool               | Handler Class           | File                                 | Actions | Key Service                        |
 | ------------------ | ----------------------- | ------------------------------------ | ------- | ---------------------------------- |
-| sheets_core        | SheetsCoreHandler       | handlers/core.ts (2013 lines)        | 19      | Google Sheets + Drive API          |
-| sheets_data        | SheetsDataHandler       | handlers/data.ts (2979 lines)        | 23      | CachedSheetsApi, ParallelExecutor  |
-| sheets_format      | SheetsFormatHandler     | handlers/format.ts (3128 lines)      | 24      | BatchCompiler (intent system)      |
-| sheets_dimensions  | SheetsDimensionsHandler | handlers/dimensions.ts (1439 lines)  | 29      | BatchCompiler                      |
-| sheets_advanced    | AdvancedHandler         | handlers/advanced.ts (1766 lines)    | 31      | BatchCompiler                      |
-| sheets_visualize   | VisualizeHandler        | handlers/visualize.ts (1865 lines)   | 18      | Sampling (chart suggestions)       |
-| sheets_collaborate | CollaborateHandler      | handlers/collaborate.ts (1943 lines) | 40      | Drive API (sharing)                |
-| sheets_composite   | CompositeHandler        | handlers/composite.ts (1242 lines)   | 20      | CompositeOperationsService         |
-| sheets_analyze     | AnalyzeHandler          | handlers/analyze.ts (2625 lines)     | 19      | Sampling, BackgroundAnalyzer       |
-| sheets_fix         | FixHandler              | handlers/fix.ts (557 lines)          | 6       | CleaningEngine, quality validators |
-| sheets_templates   | SheetsTemplatesHandler  | handlers/templates.ts                | 8       | Drive appDataFolder                |
-| sheets_bigquery    | SheetsBigQueryHandler   | handlers/bigquery.ts                 | 17      | BigQuery API, circuit breaker      |
-| sheets_appsscript  | SheetsAppsScriptHandler | handlers/appsscript.ts               | 18      | Apps Script API, circuit breaker   |
+| sheets_core        | SheetsCoreHandler       | handlers/core.ts (775 lines)         | 21      | Google Sheets + Drive API          |
+| sheets_data        | SheetsDataHandler       | handlers/data.ts (367 lines)         | 25      | CachedSheetsApi, ParallelExecutor  |
+| sheets_format      | SheetsFormatHandler     | handlers/format.ts (895 lines)       | 25      | BatchCompiler (intent system)      |
+| sheets_dimensions  | SheetsDimensionsHandler | handlers/dimensions.ts (432 lines)   | 30      | BatchCompiler                      |
+| sheets_advanced    | AdvancedHandler         | handlers/advanced.ts (394 lines)     | 31      | BatchCompiler                      |
+| sheets_visualize   | VisualizeHandler        | handlers/visualize.ts (336 lines)    | 18      | Sampling (chart suggestions)       |
+| sheets_collaborate | CollaborateHandler      | handlers/collaborate.ts (783 lines)  | 41      | Drive API (sharing)                |
+| sheets_composite   | CompositeHandler        | handlers/composite.ts (408 lines)    | 21      | CompositeOperationsService         |
+| sheets_analyze     | AnalyzeHandler          | handlers/analyze.ts (1328 lines)     | 26      | Sampling, BackgroundAnalyzer       |
+| sheets_fix         | FixHandler              | handlers/fix.ts (234 lines)          | 6       | CleaningEngine, quality validators |
+| sheets_templates   | SheetsTemplatesHandler  | handlers/templates.ts (804 lines)    | 8       | Drive appDataFolder                |
+| sheets_bigquery    | SheetsBigQueryHandler   | handlers/bigquery.ts (550 lines)     | 17      | BigQuery API, circuit breaker      |
+| sheets_appsscript  | SheetsAppsScriptHandler | handlers/appsscript.ts (689 lines)   | 19      | Apps Script API, circuit breaker   |
+<!-- END_GENERATED:handler-table-base -->
 
 ### Standalone Handlers (12 tools)
 
 These implement `handle()` directly without BaseHandler. They manage their own error
 handling, verbosity filtering, and service access.
 
+<!-- BEGIN_GENERATED:handler-table-standalone -->
 | Tool                | Handler Class/Function                 | File                                 | Actions | Key Service                                        |
 | ------------------- | -------------------------------------- | ------------------------------------ | ------- | -------------------------------------------------- |
-| sheets_auth         | AuthHandler                            | handlers/auth.ts (577 lines)         | 4       | EncryptedFileTokenStore                            |
-| sheets_confirm      | ConfirmHandler                         | handlers/confirm.ts (425 lines)      | 5       | ElicitationServer, WizardSessions                  |
-| sheets_dependencies | DependenciesHandler                    | handlers/dependencies.ts (377 lines) | 10      | ImpactAnalyzer (cached), ScenarioEngine            |
-| sheets_quality      | QualityHandler                         | handlers/quality.ts (309 lines)      | 4       | ValidationEngine, ConflictDetector                 |
-| sheets_history      | HistoryHandler                         | handlers/history.ts                  | 10      | HistoryService, SnapshotService, TimeTravelService |
-| sheets_session      | SessionHandler + handleSheetsSession() | handlers/session.ts (646 lines)      | 27      | SessionContextManager                              |
-| sheets_transaction  | TransactionHandler                     | handlers/transaction.ts              | 6       | TransactionManager                                 |
-| sheets_federation   | FederationHandler                      | handlers/federation.ts (272 lines)   | 4       | FederatedMcpClient                                 |
-| sheets_webhook      | WebhookHandler                         | handlers/webhooks.ts                 | 7       | WebhookManager, Redis                              |
-| sheets_agent        | AgentHandler                           | handlers/agent.ts                    | 8       | AgentEngine (plan/execute/rollback)                |
-| sheets_compute      | ComputeHandler                         | handlers/compute.ts                  | 10      | ComputeEngine (stats, regression, forecast)        |
-| sheets_connectors   | ConnectorsHandler                      | handlers/connectors.ts               | 10      | ConnectorManager (external API connector registry) |
+| sheets_auth         | AuthHandler                            | handlers/auth.ts (233 lines)         | 5       | EncryptedFileTokenStore                          |
+| sheets_confirm      | ConfirmHandler                         | handlers/confirm.ts (491 lines)      | 5       | ElicitationServer, WizardSessions                |
+| sheets_dependencies | DependenciesHandler                    | handlers/dependencies.ts (248 lines) | 10      | ImpactAnalyzer (cached), ScenarioEngine          |
+| sheets_quality      | QualityHandler                         | handlers/quality.ts (666 lines)      | 4       | ValidationEngine, ConflictDetector               |
+| sheets_history      | HistoryHandler                         | handlers/history.ts (796 lines)      | 10      | HistoryService, SnapshotService, TimeTravelService |
+| sheets_session      | SessionHandler + handleSheetsSession() | handlers/session.ts (327 lines)      | 31      | SessionContextManager                            |
+| sheets_transaction  | TransactionHandler                     | handlers/transaction.ts (407 lines)  | 6       | TransactionManager                               |
+| sheets_federation   | FederationHandler                      | handlers/federation.ts (409 lines)   | 4       | FederatedMcpClient                               |
+| sheets_webhook      | WebhookHandler                         | handlers/webhooks.ts (670 lines)     | 10      | WebhookManager, Redis                            |
+| sheets_agent        | AgentHandler                           | handlers/agent.ts (440 lines)        | 8       | AgentEngine (plan/execute/rollback)              |
+| sheets_compute      | ComputeHandler                         | handlers/compute.ts (128 lines)      | 16      | ComputeEngine (stats, regression, forecast)      |
+| sheets_connectors   | ConnectorsHandler                      | handlers/connectors.ts (884 lines)   | 10      | ConnectorManager (external API connector registry) |
+<!-- END_GENERATED:handler-table-standalone -->
 
 ---
 
 ## Request Pipeline (every tool call)
 
 ```
-Client → MCP Request (STDIO/HTTP/Streamable HTTP)
+Client → MCP Request (STDIO / Streamable HTTP / legacy SSE compatibility)
   → src/server.ts:handleToolCall()
     → src/mcp/registration/tool-handlers.ts:createToolCallHandler()
       → normalizeToolArgs() [envelope wrapping: { request: { action, ... } }]
@@ -98,7 +102,7 @@ Client → MCP Request (STDIO/HTTP/Streamable HTTP)
 
 ---
 
-## All 397 Actions by Tool
+## All 407 Actions by Tool
 
 > Full action-by-action list moved to `docs/development/ACTION_REGISTRY.md` to reduce session context load.
 > Load that file when verifying action names or adding new actions.
@@ -110,9 +114,9 @@ Client → MCP Request (STDIO/HTTP/Streamable HTTP)
 | Feature                | Status | Key File                                  | Notes                                    |
 | ---------------------- | ------ | ----------------------------------------- | ---------------------------------------- |
 | STDIO Transport        | ✅     | server.ts                                 | McpServer + StdioServerTransport         |
-| HTTP/SSE Transport     | ✅     | http-server.ts                            | Express + SSEServerTransport             |
-| Streamable HTTP        | ✅     | mcp/event-store.ts                        | InMemoryEventStore, cursor-based replay  |
-| Tool Registration      | ✅     | server.ts:400-456                         | 25 tools, discriminated union schemas    |
+| Legacy SSE Compatibility | ✅   | http-server.ts                            | Optional compatibility endpoints         |
+| Streamable HTTP        | ✅     | http-server.ts, mcp/event-store.ts        | Primary hosted transport + resumability  |
+| Tool Registration      | ✅     | mcp/registration/tool-handlers.ts         | 25 tools, discriminated union schemas    |
 | Resources              | ✅     | mcp/registration/resource-registration.ts | 2 URI templates + knowledge resources    |
 | Prompts                | ✅     | mcp/registration/prompt-registration.ts   | 38 guided workflows                      |
 | Sampling (SEP-1577)    | ✅     | mcp/sampling.ts (960 lines)               | AI analysis, formula gen, chart suggest  |
@@ -383,8 +387,24 @@ Interface validated across 4 platform types with zero modifications needed.
 | src/handlers/optimization.ts    | Possible unused utilities    | Verify usage or remove          |
 | Scaffold backends (3)           | Intentional P3 scaffolds     | Keep                            |
 | 0 TODOs/FIXMEs in src/          | Clean                        | —                               |
-| All 22 handlers registered      | Verified                     | —                               |
+| All 25 tools registered         | Verified                     | —                               |
 | All middleware properly guarded | Verified                     | —                               |
+
+### Intentional Generic Throws (Not Bugs)
+
+These `throw new Error()` calls are intentional — they exist at isolation boundaries where
+typed errors cannot cross (worker thread serialization, scaffold backends):
+
+| File                                                   | Count | Reason                                                        |
+| ------------------------------------------------------ | ----- | ------------------------------------------------------------- |
+| `src/workers/duckdb-worker.ts`                         | 3     | Worker thread boundary — errors serialize to string via postMessage |
+| `src/workers/python-worker.ts`                         | 2     | Worker thread boundary — same serialization constraint        |
+| `packages/serval-core/src/adapters/airtable-backend.ts`| 1     | Scaffold — will be replaced when backend is implemented       |
+| `packages/serval-core/src/adapters/notion-backend.ts`  | 1     | Scaffold — will be replaced when backend is implemented       |
+| `packages/serval-core/src/adapters/excel-online-backend.ts` | 1 | Scaffold — will be replaced when backend is implemented       |
+
+**Total**: 8 intentional generic throws remaining (down from 100+ at Session 79).
+All handler/service/config throws now use typed errors (`ConfigError`, `ServiceError`, `NotFoundError`, etc.).
 
 ---
 

@@ -7,6 +7,7 @@
  */
 
 import { Command } from 'commander';
+import { ConfigError, NotFoundError } from '../core/errors.js';
 import chalk from 'chalk';
 import Table from 'cli-table3';
 import { getRequestRecorder, type RecordFilter } from '../services/request-recorder.js';
@@ -17,7 +18,8 @@ import {
 } from '../services/replay-engine.js';
 import { formatDiffReport } from '../utils/response-diff.js';
 import { createHandlers, type HandlerContext } from '../handlers/index.js';
-import { createGoogleApiClient } from '../services/google-api.js';
+import { createHandlerAuthContext } from '../server/handler-auth-context.js';
+import { createTokenBackedGoogleClient } from '../startup/google-client-bootstrap.js';
 
 const program = new Command();
 
@@ -291,10 +293,13 @@ async function createToolExecutorFromEnv(): Promise<ToolExecutor> {
   const refreshToken = process.env['GOOGLE_REFRESH_TOKEN'];
 
   if (!accessToken) {
-    throw new Error('GOOGLE_ACCESS_TOKEN environment variable is required for replay');
+    throw new ConfigError(
+      'GOOGLE_ACCESS_TOKEN environment variable is required for replay',
+      'GOOGLE_ACCESS_TOKEN'
+    );
   }
 
-  const googleClient = await createGoogleApiClient({
+  const googleClient = await createTokenBackedGoogleClient({
     accessToken,
     refreshToken,
   });
@@ -302,10 +307,7 @@ async function createToolExecutorFromEnv(): Promise<ToolExecutor> {
   // Replay tool doesn't use the batch/caching/merging infrastructure — cast is intentional
   const context = {
     googleClient,
-    auth: {
-      hasElevatedAccess: googleClient.hasElevatedAccess,
-      scopes: googleClient.scopes,
-    },
+    auth: createHandlerAuthContext(() => googleClient),
   } as unknown as HandlerContext;
 
   const handlers = createHandlers({
@@ -323,7 +325,7 @@ async function createToolExecutorFromEnv(): Promise<ToolExecutor> {
         >
       )[toolName.replace('sheets_', '')];
       if (!handler) {
-        throw new Error(`Handler for tool ${toolName} not found`);
+        throw new NotFoundError('tool_handler', toolName);
       }
 
       return handler.executeAction(request);

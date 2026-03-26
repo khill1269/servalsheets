@@ -1,6 +1,6 @@
 ---
 title: Request Tracing Dashboard
-category: operations
+category: runbook
 last_updated: 2026-02-17
 description: Interactive UI for visualizing request traces with flame graphs
 version: 1.0.0
@@ -18,11 +18,10 @@ Interactive web UI for visualizing ServalSheets request traces with flame graphs
 export TRACE_AGGREGATION_ENABLED=true
 
 # 2. Build dashboard
-cd src/ui/tracing-dashboard
-npm install && npm run build
+npm run build:ui
 
 # 3. Start server
-npm run http-server
+npm run start:http
 
 # 4. Access dashboard
 open http://localhost:3000/ui/tracing
@@ -61,7 +60,7 @@ TRACE_AGGREGATION_TTL=300000        # 5 min TTL
 
 **Dashboard not loading:**
 
-- Run `npm run build` in `src/ui/tracing-dashboard`
+- Run `npm run build:ui`
 - Check backend is running on port 3000
 
 **No traces visible:**

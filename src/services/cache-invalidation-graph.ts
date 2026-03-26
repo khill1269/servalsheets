@@ -22,6 +22,7 @@
 
 import { logger } from '../utils/logger.js';
 import { TOOL_ACTIONS } from '../schemas/index.js';
+import type { ActionKey } from '../schemas/descriptions.js';
 
 /**
  * Cache invalidation rule
@@ -40,9 +41,13 @@ export interface InvalidationRule {
 }
 
 /**
- * Cache invalidation rules by tool.action
+ * Cache invalidation rules by tool.action.
+ * Partial because not every possible ActionKey is required to have a rule —
+ * the auto-generation loop fills in missing entries at runtime.
+ * Using ActionKey (instead of string) enforces valid tool name prefixes on
+ * every manually-written rule assignment, catching typos at compile time.
  */
-export type InvalidationRules = Record<string, InvalidationRule>;
+export type InvalidationRules = Partial<Record<ActionKey, InvalidationRule>>;
 
 /**
  * Cache Invalidation Graph
@@ -169,6 +174,7 @@ export class CacheInvalidationGraph {
     rules['sheets_format.set_validation'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.clear_validation'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.get_validation'] = { invalidates: [] }; // Read-only
+    rules['sheets_format.build_dependent_dropdown'] = { invalidates: ['metadata:*'] };
 
     // ========================================================================
     // sheets_dimensions (28 actions)
@@ -371,6 +377,9 @@ export class CacheInvalidationGraph {
     // New dynamic array action added to sheets_data (sheets_data: 18→19)
     rules['sheets_data.detect_spill_ranges'] = { invalidates: [] }; // Read-only
 
+    // Auto fill (S3-B) — writes values to fillRange
+    rules['sheets_data.auto_fill'] = { invalidates: ['values:*'] };
+
     // ========================================================================
     // sheets_transaction (6 actions)
     // ========================================================================
@@ -439,6 +448,10 @@ export class CacheInvalidationGraph {
     // P4: Smart Suggestions / Copilot (F4)
     rules['sheets_analyze.suggest_next_actions'] = { invalidates: [] }; // Read-only recommendations
     rules['sheets_analyze.auto_enhance'] = { invalidates: ['metadata:*'] }; // Applies non-destructive enhancements
+
+    // S3-A: Quick Insights — read-only structural snapshot
+    rules['sheets_analyze.quick_insights'] = { invalidates: [] };
+    rules['sheets_analyze.semantic_search'] = { invalidates: [] }; // Read-only; vector index managed separately
 
     // ========================================================================
     // sheets_fix (6 actions — 1 original + 5 P4 F3 Data Cleaning)
@@ -648,7 +661,8 @@ export class CacheInvalidationGraph {
 
     for (const [tool, actions] of Object.entries(TOOL_ACTIONS)) {
       for (const action of actions) {
-        const key = `${tool}.${action}`;
+        // Safe cast: tool comes from TOOL_ACTIONS keys which are all valid ToolNames.
+        const key = `${tool}.${action}` as ActionKey;
         if (!rules[key]) {
           // Determine if this is a read or write operation based on action name prefix
           const isRead = READ_PREFIXES.some(
@@ -670,7 +684,7 @@ export class CacheInvalidationGraph {
    * @returns Array of cache key patterns to invalidate
    */
   getInvalidationKeys(tool: string, action: string): string[] {
-    const key = `${tool}.${action}`;
+    const key = `${tool}.${action}` as ActionKey;
     const rule = this.rules[key];
 
     if (!rule) {
@@ -690,7 +704,7 @@ export class CacheInvalidationGraph {
    * @returns True if cascade is enabled
    */
   shouldCascade(tool: string, action: string): boolean {
-    const key = `${tool}.${action}`;
+    const key = `${tool}.${action}` as ActionKey;
     const rule = this.rules[key];
     return rule?.cascade ?? false;
   }

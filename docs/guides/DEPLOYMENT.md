@@ -3,7 +3,7 @@ title: Deployment Guide
 category: guide
 last_updated: 2026-01-31
 description: This guide covers deploying ServalSheets in production environments.
-version: 1.6.0
+version: 2.0.0
 tags: [deployment, prometheus, docker, kubernetes]
 audience: user
 difficulty: intermediate

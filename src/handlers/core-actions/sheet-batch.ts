@@ -12,12 +12,41 @@ import type { ErrorDetail } from '../../schemas/shared.js';
 import { confirmDestructiveAction } from '../../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
 import { createNotFoundError, createValidationError } from '../../utils/error-factory.js';
+import { createMetadataCache } from '../../services/metadata-cache.js';
+import type { SheetResolutionResult } from '../../services/sheet-resolver.js';
 
 interface SheetBatchDeps {
   sheetsApi: sheets_v4.Sheets;
   context: HandlerContext;
   success: (action: string, data: Record<string, unknown>) => CoreResponse;
   error: (error: ErrorDetail) => CoreResponse;
+}
+
+async function resolveSheetFromContext(
+  deps: SheetBatchDeps,
+  input: { spreadsheetId: string; sheetId?: number; sheetName?: string }
+): Promise<SheetResolutionResult | undefined> {
+  if (!deps.context.sheetResolver || (input.sheetId === undefined && !input.sheetName)) {
+    return undefined; // OK: Explicit empty
+  }
+
+  try {
+    return await deps.context.sheetResolver.resolve(input.spreadsheetId, {
+      sheetId: input.sheetId,
+      sheetName: input.sheetName,
+    });
+  } catch {
+    return undefined; // OK: Explicit empty
+  }
+}
+
+async function resolveSheetIdFromMetadataCache(
+  deps: SheetBatchDeps,
+  spreadsheetId: string,
+  sheetName: string
+): Promise<number | undefined> {
+  const metadataCache = deps.context.metadataCache ?? createMetadataCache(deps.sheetsApi);
+  return metadataCache.getSheetId(spreadsheetId, sheetName);
 }
 
 /**
@@ -226,23 +255,38 @@ export async function handleClearSheetAction(
 ): Promise<CoreResponse> {
   let resolvedSheetId = input.sheetId;
 
-  if (resolvedSheetId === undefined && input.sheetName) {
-    const lookupResponse = await deps.sheetsApi.spreadsheets.get({
-      spreadsheetId: input.spreadsheetId,
-      fields: 'sheets.properties(sheetId,title)',
-    });
+  const resolvedSheet = await resolveSheetFromContext(deps, {
+    spreadsheetId: input.spreadsheetId,
+    sheetId: input.sheetId,
+    sheetName: input.sheetName,
+  });
+  if (resolvedSheet) {
+    resolvedSheetId = resolvedSheet.sheet.sheetId;
+  }
 
-    const matchingSheet = lookupResponse.data.sheets?.find(
-      (s) => s.properties?.title?.toLowerCase() === input.sheetName!.toLowerCase()
+  if (resolvedSheetId === undefined && input.sheetName) {
+    resolvedSheetId = await resolveSheetIdFromMetadataCache(
+      deps,
+      input.spreadsheetId,
+      input.sheetName
+    );
+  }
+
+  if (resolvedSheetId === undefined && input.sheetName) {
+    const metadataCache = deps.context.metadataCache ?? createMetadataCache(deps.sheetsApi);
+    const metadata = await metadataCache.getOrFetch(input.spreadsheetId);
+
+    const matchingSheet = metadata.sheets.find(
+      (sheet) => sheet.title.toLowerCase() === input.sheetName!.toLowerCase()
     );
 
-    const matchingSheetId = matchingSheet?.properties?.sheetId;
+    const matchingSheetId = matchingSheet?.sheetId;
     if (matchingSheetId === undefined || matchingSheetId === null) {
       return deps.error(
         createNotFoundError({
           resourceType: 'sheet',
           resourceId: `sheetName: "${input.sheetName}"`,
-          searchSuggestion: `Available sheets: ${lookupResponse.data.sheets?.map((s) => s.properties?.title).join(', ')}`,
+          searchSuggestion: `Available sheets: ${metadata.sheets.map((sheet) => sheet.title).join(', ')}`,
           parentResourceId: input.spreadsheetId,
         })
       );
@@ -260,9 +304,12 @@ export async function handleClearSheetAction(
     });
   }
 
+  const resetSheet = input.resetSheet === true;
   const sheetInfo = await deps.sheetsApi.spreadsheets.get({
     spreadsheetId: input.spreadsheetId,
-    fields: 'sheets.properties(sheetId,title,gridProperties)',
+    fields: resetSheet
+      ? 'sheets(properties(sheetId,title,gridProperties),bandedRanges.bandedRangeId,basicFilter,filterViews.filterViewId,tables.tableId)'
+      : 'sheets.properties(sheetId,title,gridProperties)',
   });
 
   const targetSheet = sheetInfo.data.sheets?.find((s) => s.properties?.sheetId === resolvedSheetId);
@@ -283,7 +330,11 @@ export async function handleClearSheetAction(
     const confirmation = await confirmDestructiveAction(
       deps.context.elicitationServer,
       'clear_sheet',
-      `Clear all data from sheet "${sheetTitle}" in spreadsheet ${input.spreadsheetId}. This will remove all cell values${input.clearFormats ? ', formatting' : ''}${input.clearNotes ? ', and notes' : ''}. This action cannot be undone without a snapshot.`
+      `Clear all data from sheet "${sheetTitle}" in spreadsheet ${input.spreadsheetId}. This will remove all cell values${
+        resetSheet
+          ? ', formatting, notes, banding, basic filters, filter views, and tables'
+          : `${input.clearFormats ? ', formatting' : ''}${input.clearNotes ? ', and notes' : ''}`
+      }. This action cannot be undone without a snapshot.`
     );
 
     if (!confirmation.confirmed) {
@@ -296,11 +347,61 @@ export async function handleClearSheetAction(
     }
   }
 
-  const clearValues = input.clearValues !== false;
-  const clearFormats = input.clearFormats === true;
-  const clearNotes = input.clearNotes === true;
+  const clearValues = resetSheet ? true : input.clearValues !== false;
+  const clearFormats = resetSheet ? true : input.clearFormats === true;
+  const clearNotes = resetSheet ? true : input.clearNotes === true;
 
   const requests: sheets_v4.Schema$Request[] = [];
+  const clearedArtifacts = {
+    resetSheet,
+    banding: 0,
+    filterViews: 0,
+    tables: 0,
+    basicFilter: false,
+  };
+
+  if (resetSheet) {
+    const targetTables = targetSheet.tables ?? [];
+    for (const table of targetTables) {
+      if (table.tableId) {
+        requests.push({
+          deleteTable: {
+            tableId: table.tableId,
+          },
+        });
+        clearedArtifacts.tables++;
+      }
+    }
+
+    const targetFilterViews = targetSheet.filterViews ?? [];
+    for (const filterView of targetFilterViews) {
+      if (filterView.filterViewId !== undefined && filterView.filterViewId !== null) {
+        requests.push({
+          deleteFilterView: {
+            filterId: filterView.filterViewId,
+          },
+        });
+        clearedArtifacts.filterViews++;
+      }
+    }
+
+    if (targetSheet.basicFilter) {
+      requests.push({
+        clearBasicFilter: { sheetId: resolvedSheetId },
+      });
+      clearedArtifacts.basicFilter = true;
+    }
+
+    const targetBanding = targetSheet.bandedRanges ?? [];
+    for (const bandedRange of targetBanding) {
+      if (bandedRange.bandedRangeId !== undefined && bandedRange.bandedRangeId !== null) {
+        requests.push({
+          deleteBanding: { bandedRangeId: bandedRange.bandedRangeId },
+        });
+        clearedArtifacts.banding++;
+      }
+    }
+  }
 
   if (clearValues) {
     requests.push({
@@ -356,7 +457,7 @@ export async function handleClearSheetAction(
         tool: 'sheets_core',
         action: 'clear_sheet',
         spreadsheetId: input.spreadsheetId,
-        description: `Cleared sheet "${sheetTitle}" (values: ${clearValues}, formats: ${clearFormats}, notes: ${clearNotes})`,
+        description: `Cleared sheet "${sheetTitle}" (values: ${clearValues}, formats: ${clearFormats}, notes: ${clearNotes}, reset: ${resetSheet})`,
         undoable: false,
       });
     }
@@ -371,6 +472,7 @@ export async function handleClearSheetAction(
       values: clearValues,
       formats: clearFormats,
       notes: clearNotes,
+      ...clearedArtifacts,
     },
   });
 }
@@ -385,7 +487,17 @@ export async function handleMoveSheetAction(
 ): Promise<CoreResponse> {
   let resolvedSheetId = input.sheetId;
 
-  let sheetHidden = false;
+  const resolvedSheet = await resolveSheetFromContext(deps, {
+    spreadsheetId: input.spreadsheetId,
+    sheetId: input.sheetId,
+    sheetName: input.sheetName,
+  });
+  let sheetHidden = resolvedSheet?.sheet.hidden === true;
+
+  if (resolvedSheet) {
+    resolvedSheetId = resolvedSheet.sheet.sheetId;
+  }
+
   if (resolvedSheetId === undefined && input.sheetName) {
     const lookupResponse = await deps.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
@@ -410,7 +522,7 @@ export async function handleMoveSheetAction(
 
     resolvedSheetId = matchingSheetId;
     sheetHidden = matchingSheet?.properties?.hidden === true;
-  } else if (resolvedSheetId !== undefined) {
+  } else if (resolvedSheetId !== undefined && !resolvedSheet) {
     try {
       const lookupResponse = await deps.sheetsApi.spreadsheets.get({
         spreadsheetId: input.spreadsheetId,

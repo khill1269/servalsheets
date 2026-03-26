@@ -2,19 +2,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FederatedMcpClient } from '../../src/services/federated-mcp-client.js';
 
 const {
-  validateWebhookUrl,
+  validateFederationServerUrl,
   connectMock,
   callToolMock,
   transportCtor,
 } = vi.hoisted(() => ({
-  validateWebhookUrl: vi.fn(),
+  validateFederationServerUrl: vi.fn(),
   connectMock: vi.fn(),
   callToolMock: vi.fn(),
   transportCtor: vi.fn(),
 }));
 
 vi.mock('../../src/services/webhook-url-validation.js', () => ({
-  validateWebhookUrl,
+  validateFederationServerUrl,
 }));
 
 vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
@@ -37,7 +37,7 @@ vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
 describe('FederatedMcpClient', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    validateWebhookUrl.mockResolvedValue(undefined);
+    validateFederationServerUrl.mockResolvedValue(undefined);
     connectMock.mockResolvedValue(undefined);
     callToolMock.mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] });
   });
@@ -53,14 +53,14 @@ describe('FederatedMcpClient', () => {
 
     const result = await client.callRemoteTool('remote', 'tool_name', { value: 1 });
 
-    expect(validateWebhookUrl).toHaveBeenCalledWith('https://example.com/mcp');
+    expect(validateFederationServerUrl).toHaveBeenCalledWith('https://example.com/mcp');
     expect(connectMock).toHaveBeenCalledTimes(1);
     expect(transportCtor).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ content: [{ type: 'text', text: 'ok' }] });
   });
 
   it('fails closed when URL validation rejects', async () => {
-    validateWebhookUrl.mockRejectedValue(new Error('private network URL blocked'));
+    validateFederationServerUrl.mockRejectedValue(new Error('private network URL blocked'));
     const client = new FederatedMcpClient([
       {
         name: 'remote',

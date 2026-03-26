@@ -20,7 +20,9 @@
  */
 
 import { logger } from '../utils/logger.js';
+import type { SemanticIndex } from '../analysis/workbook-semantics.js';
 import { BoundedCache } from '../utils/bounded-cache.js';
+import { NotFoundError } from '../core/errors.js';
 
 /**
  * Local confidence interfaces used by the store.
@@ -173,6 +175,9 @@ export interface SpreadsheetUnderstanding {
 
   /** Interaction count */
   interactionCount: number;
+
+  /** Semantic classification of the workbook (type, key entities, relationships) */
+  semanticIndex?: SemanticIndex;
 }
 
 // ============================================================================
@@ -334,7 +339,7 @@ export class UnderstandingStore {
   ): SpreadsheetUnderstanding {
     const understanding = this.store.get(spreadsheetId);
     if (!understanding) {
-      throw new Error(`No understanding found for ${spreadsheetId}`);
+      throw new NotFoundError('understanding', spreadsheetId);
     }
 
     const prevConfidence = understanding.latestConfidence?.overallScore ?? 0;
@@ -409,7 +414,7 @@ export class UnderstandingStore {
    */
   getSummary(spreadsheetId: string): UnderstandingSummary | undefined {
     const understanding = this.store.get(spreadsheetId);
-    if (!understanding) return undefined;
+    if (!understanding) return undefined; // OK: Explicit empty
 
     return {
       spreadsheetId,
@@ -429,11 +434,28 @@ export class UnderstandingStore {
   }
 
   /**
+   * Update the semantic index built from comprehensive analysis
+   */
+  updateSemanticIndex(spreadsheetId: string, index: SemanticIndex): void {
+    const understanding = this.store.get(spreadsheetId);
+    if (!understanding) return;
+    understanding.semanticIndex = index;
+    understanding.inferredPurpose = understanding.inferredPurpose ?? index.workbookType;
+    understanding.lastUpdatedAt = Date.now();
+    this.store.set(spreadsheetId, understanding);
+    logger.info('UnderstandingStore: Semantic index updated', {
+      spreadsheetId,
+      workbookType: index.workbookType,
+      confidence: index.workbookTypeConfidence,
+    });
+  }
+
+  /**
    * Serialize understanding for session persistence
    */
   serialize(spreadsheetId: string): string | undefined {
     const understanding = this.store.get(spreadsheetId);
-    if (!understanding) return undefined;
+    if (!understanding) return undefined; // OK: Explicit empty
     return JSON.stringify(understanding);
   }
 

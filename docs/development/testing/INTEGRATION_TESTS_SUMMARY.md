@@ -3,7 +3,7 @@ title: Integration Test Infrastructure - Setup Summary
 category: development
 last_updated: 2026-01-31
 description: This document summarizes the integration test infrastructure that has been set up for ServalSheets.
-version: 1.6.0
+version: 2.0.0
 tags: [testing, sheets]
 ---
 

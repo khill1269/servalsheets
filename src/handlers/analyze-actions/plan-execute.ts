@@ -10,7 +10,7 @@ import { Planner, type AnalysisPlan } from '../../analysis/planner.js';
 import { Scout, type ScoutResult } from '../../analysis/scout.js';
 import { generateAIInsight, type SamplingServer } from '../../mcp/sampling.js';
 import type { AnalyzeResponse } from '../../schemas/analyze.js';
-import { getSessionContext } from '../../services/session-context.js';
+import { getSessionContext, type SessionContextManager } from '../../services/session-context.js';
 import { getCacheAdapter } from '../../utils/cache-adapter.js';
 import { logger } from '../../utils/logger.js';
 
@@ -48,6 +48,176 @@ type GenerateActionsRequest = {
   findings?: unknown;
   maxActions?: number;
 };
+
+interface GenerateActionsDeps {
+  sessionContext?: Pick<SessionContextManager, 'understandingStore'>;
+}
+
+type FindingSource = 'findings' | 'issues' | 'errors';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeSeverity(
+  value: unknown,
+  fallback: AnalysisFinding['severity']
+): AnalysisFinding['severity'] {
+  return value === 'info' || value === 'warning' || value === 'error' || value === 'critical'
+    ? value
+    : fallback;
+}
+
+function severityFromErrorType(errorType: unknown): AnalysisFinding['severity'] | undefined {
+  switch (errorType) {
+    case '#REF!':
+      return 'critical';
+    case '#DIV/0!':
+    case '#NULL!':
+    case '#N/A':
+      return 'warning';
+    case '#VALUE!':
+    case '#NAME?':
+    case '#ERROR!':
+      return 'error';
+    default:
+      return undefined; // OK: Explicit empty
+  }
+}
+
+function extractSheetNameFromCell(cell: string | undefined): string | undefined {
+  if (!cell) {
+    return undefined; // OK: Explicit empty
+  }
+
+  const match = cell.match(/^(?:'([^']+)'!|([^!]+)!)/);
+  return match?.[1] ?? match?.[2];
+}
+
+function normalizeLocation(
+  location: unknown,
+  fallbackRange?: string
+): AnalysisFinding['location'] | undefined {
+  const normalized: NonNullable<AnalysisFinding['location']> = {};
+  const locationRecord = isRecord(location) ? location : undefined;
+
+  if (locationRecord && typeof locationRecord['sheetId'] === 'number') {
+    normalized.sheetId = locationRecord['sheetId'];
+  }
+  if (locationRecord && typeof locationRecord['sheetName'] === 'string') {
+    normalized.sheetName = locationRecord['sheetName'];
+  }
+  if (locationRecord && typeof locationRecord['range'] === 'string') {
+    normalized.range = locationRecord['range'];
+  } else if (fallbackRange) {
+    normalized.range = fallbackRange;
+  }
+
+  if (locationRecord && Array.isArray(locationRecord['cells'])) {
+    const cells = locationRecord['cells']
+      .map((cell) => {
+        if (!isRecord(cell)) {
+          return null;
+        }
+        const row = cell['row'];
+        const col = cell['col'];
+        if (typeof row !== 'number' || typeof col !== 'number') {
+          return null;
+        }
+        return { row, col };
+      })
+      .filter((cell): cell is { row: number; col: number } => cell !== null);
+
+    if (cells.length > 0) {
+      normalized.cells = cells;
+    }
+  }
+
+  if (!normalized.sheetName && normalized.range) {
+    normalized.sheetName = extractSheetNameFromCell(normalized.range);
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function toAnalysisFinding(
+  candidate: unknown,
+  index: number,
+  source: FindingSource
+): AnalysisFinding | null {
+  if (!isRecord(candidate)) {
+    return null;
+  }
+
+  const cell = typeof candidate['cell'] === 'string' ? candidate['cell'] : undefined;
+  const title =
+    typeof candidate['title'] === 'string'
+      ? candidate['title']
+      : typeof candidate['errorType'] === 'string'
+        ? `${candidate['errorType']} at ${cell ?? `item ${index + 1}`}`
+        : typeof candidate['issue'] === 'string'
+          ? candidate['issue']
+          : `Issue ${index + 1}`;
+  const description =
+    typeof candidate['description'] === 'string'
+      ? candidate['description']
+      : typeof candidate['rootCause'] === 'string'
+        ? candidate['rootCause']
+        : typeof candidate['issue'] === 'string'
+          ? candidate['issue']
+          : '';
+
+  const fallbackSeverity =
+    severityFromErrorType(candidate['errorType']) ??
+    (source === 'errors' ? 'error' : source === 'issues' ? 'warning' : 'warning');
+
+  const data = isRecord(candidate['data']) ? { ...candidate['data'] } : {};
+  if (typeof candidate['errorType'] === 'string') {
+    data['errorType'] = candidate['errorType'];
+    data['findingType'] = data['findingType'] ?? 'formula_error';
+  }
+  if (typeof candidate['formula'] === 'string') {
+    data['formula'] = candidate['formula'];
+  }
+  if (typeof candidate['suggestedFix'] === 'string') {
+    data['suggestedFix'] = candidate['suggestedFix'];
+  }
+  if (Array.isArray(candidate['dependencyChain'])) {
+    data['dependencyChain'] = candidate['dependencyChain'];
+  }
+  if (typeof candidate['issue'] === 'string' && data['findingType'] === undefined) {
+    data['findingType'] = 'issue';
+  }
+
+  return {
+    id: typeof candidate['id'] === 'string' ? candidate['id'] : `${source}_${index}`,
+    type:
+      candidate['type'] === 'issue' ||
+      candidate['type'] === 'opportunity' ||
+      candidate['type'] === 'insight'
+        ? candidate['type']
+        : 'issue',
+    severity: normalizeSeverity(candidate['severity'], fallbackSeverity),
+    title,
+    description,
+    location: normalizeLocation(candidate['location'], cell),
+    data: Object.keys(data).length > 0 ? data : undefined,
+  };
+}
+
+function pushNormalizedFindings(
+  output: AnalysisFinding[],
+  candidates: unknown[],
+  source: FindingSource
+): void {
+  const startIndex = output.length;
+  candidates.forEach((candidate, index) => {
+    const normalized = toAnalysisFinding(candidate, startIndex + index, source);
+    if (normalized) {
+      output.push(normalized);
+    }
+  });
+}
 
 function mapActionToStepType(
   action: string
@@ -281,7 +451,8 @@ export async function handleDrillDownAction(
  * Preserves original behavior while moving logic out of the main AnalyzeHandler class.
  */
 export async function handleGenerateActionsAction(
-  input: GenerateActionsRequest
+  input: GenerateActionsRequest,
+  deps?: GenerateActionsDeps
 ): Promise<AnalyzeResponse> {
   logger.info('Generate actions', { spreadsheetId: input.spreadsheetId, intent: input.intent });
 
@@ -289,20 +460,22 @@ export async function handleGenerateActionsAction(
     const analysisFindings: AnalysisFinding[] = [];
 
     if (input.findings) {
-      const findingsData = input.findings as Record<string, unknown>;
-      if (findingsData['issues'] && Array.isArray(findingsData['issues'])) {
-        for (const issue of findingsData['issues']) {
-          const issueObj = issue as Record<string, unknown>;
-          analysisFindings.push({
-            id: `issue_${analysisFindings.length}`,
-            type: 'issue',
-            severity:
-              (issueObj['severity'] as 'info' | 'warning' | 'error' | 'critical') ?? 'warning',
-            title: (issueObj['title'] as string) ?? 'Issue',
-            description: (issueObj['description'] as string) ?? '',
-            location: issueObj['location'] as AnalysisFinding['location'],
-            data: issueObj['data'] as Record<string, unknown>,
-          });
+      if (Array.isArray(input.findings)) {
+        pushNormalizedFindings(analysisFindings, input.findings, 'findings');
+      } else if (isRecord(input.findings)) {
+        const findingsData = input.findings;
+        const canonicalFindings = Array.isArray(findingsData['findings'])
+          ? findingsData['findings']
+          : [];
+        const issueFindings = Array.isArray(findingsData['issues']) ? findingsData['issues'] : [];
+        const errorFindings = Array.isArray(findingsData['errors']) ? findingsData['errors'] : [];
+
+        if (canonicalFindings.length > 0) {
+          pushNormalizedFindings(analysisFindings, canonicalFindings, 'findings');
+        } else if (issueFindings.length > 0) {
+          pushNormalizedFindings(analysisFindings, issueFindings, 'issues');
+        } else if (errorFindings.length > 0) {
+          pushNormalizedFindings(analysisFindings, errorFindings, 'errors');
         }
       }
     }
@@ -341,7 +514,8 @@ export async function handleGenerateActionsAction(
 
     try {
       const orchestrator = new FlowOrchestrator();
-      const store = getSessionContext().understandingStore;
+      const store =
+        deps?.sessionContext?.understandingStore ?? getSessionContext().understandingStore;
       const summary = store.getSummary(input.spreadsheetId);
       const suggestions = orchestrator.suggestMultiToolChains(summary, {
         tool: 'sheets_analyze',

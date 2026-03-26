@@ -3,7 +3,7 @@ title: Monitoring and Observability Guide
 category: guide
 last_updated: 2026-02-03
 description: This guide covers monitoring, logging, and observability strategies for ServalSheets in production, including automatic background quality analysis.
-version: 1.6.0
+version: 2.0.0
 tags: [monitoring, observability, sheets, prometheus, grafana, docker, kubernetes, quality-analysis]
 audience: user
 difficulty: intermediate

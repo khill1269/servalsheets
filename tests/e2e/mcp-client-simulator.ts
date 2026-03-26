@@ -320,6 +320,28 @@ export class MCPClientSimulator extends EventEmitter {
   }
 
   /**
+   * Unsubscribe from resource updates
+   *
+   * Calls resources/unsubscribe.
+   */
+  async unsubscribeFromResource(uri: string): Promise<void> {
+    this.assertInitialized();
+
+    const request: JSONRPCRequest = {
+      jsonrpc: '2.0',
+      id: this.requestId++,
+      method: 'resources/unsubscribe',
+      params: { uri },
+    };
+
+    const response = await this.sendRequest(request);
+
+    if (response.error) {
+      throw new Error(`Unsubscribe failed: ${response.error.message}`);
+    }
+  }
+
+  /**
    * List available prompts
    *
    * Calls prompts/list and caches results.

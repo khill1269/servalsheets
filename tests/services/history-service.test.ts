@@ -23,12 +23,13 @@ vi.mock('../../src/utils/logger.js', () => ({
   },
 }));
 
+let _mockOpCounter = 0;
 function createMockOperation(overrides: Partial<OperationHistory> = {}): OperationHistory {
   return {
-    id: `op-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    id: `op-1704067200000-${String(++_mockOpCounter).padStart(6, '0')}`,
     tool: 'sheets_data',
     action: 'read',
-    timestamp: new Date().toISOString(),
+    timestamp: new Date('2024-01-15T00:00:00Z').toISOString(),
     duration: 100,
     result: 'success',
     ...overrides,
@@ -187,7 +188,7 @@ describe('HistoryService', () => {
     });
 
     it('should filter by time range', () => {
-      const now = new Date();
+      const now = new Date('2024-01-15T00:00:00Z');
       const filtered = service.getAll({
         startTime: new Date(now.getTime() - 60000).toISOString(),
         endTime: new Date(now.getTime() + 60000).toISOString(),

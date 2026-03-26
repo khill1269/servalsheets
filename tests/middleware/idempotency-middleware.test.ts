@@ -115,7 +115,7 @@ describe('withIdempotency', () => {
     expect(idempotencyManager.isIdempotent).not.toHaveBeenCalled();
   });
 
-  it('should extract action from legacy envelope format', async () => {
+  it('should extract action from the canonical request envelope', async () => {
     vi.mocked(idempotencyManager.isIdempotent).mockReturnValue(true);
     const handler = vi.fn().mockResolvedValue({ ok: true });
 

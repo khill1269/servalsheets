@@ -29,7 +29,7 @@ const oauthClientMocks = vi.hoisted(() => ({
     tokens: {
       access_token: 'mock-access-token',
       refresh_token: 'mock-refresh-token',
-      expiry_date: Date.now() + 3600000,
+      expiry_date: 1704067200000 + 3600000,
     },
   }),
   setCredentials: vi.fn(),
@@ -40,7 +40,7 @@ const oauthClientMocks = vi.hoisted(() => ({
   refreshAccessToken: vi.fn().mockResolvedValue({
     credentials: {
       access_token: 'mock-refreshed-token',
-      expiry_date: Date.now() + 3600000,
+      expiry_date: 1704067200000 + 3600000,
     },
   }),
 }));
@@ -179,6 +179,8 @@ describe('AuthHandler', () => {
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authenticated', true);
       expect(result.response).toHaveProperty('authType', 'service_account');
+      expect(result.response).toHaveProperty('readiness.googleAuth.authenticated', true);
+      expect(result.response).toHaveProperty('recommendedNextAction');
 
       const parseResult = SheetsAuthOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
@@ -205,6 +207,8 @@ describe('AuthHandler', () => {
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authenticated', false);
       expect(result.response.message).toContain('Not authenticated');
+      expect(result.response).toHaveProperty('blockingIssues.0.code', 'AUTHENTICATION_REQUIRED');
+      expect(result.response).toHaveProperty('readiness.googleAuth.configured', true);
     });
 
     it('should return unconfigured when no OAuth credentials', async () => {
@@ -268,7 +272,7 @@ describe('AuthHandler', () => {
         credentials: {
           access_token: 'new-access-token',
           refresh_token: 'mock-refresh-token',
-          expiry_date: Date.now() + 3600000,
+          expiry_date: 1704067200000 + 3600000,
         },
       });
 
@@ -565,6 +569,83 @@ describe('AuthHandler', () => {
 
       const parseResult = SheetsAuthOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
+    });
+  });
+
+  describe('setup_feature webhooks', () => {
+    beforeEach(() => {
+      delete process.env['REDIS_URL'];
+      vi.resetModules();
+    });
+
+    afterEach(() => {
+      delete process.env['REDIS_URL'];
+    });
+
+    it('returns instructions when no redisUrl provided', async () => {
+      const handler = new AuthHandler({});
+      const result = await handler.handle({
+        action: 'setup_feature',
+        feature: 'webhooks',
+      });
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.message).toMatch(/Provide a Redis URL/i);
+        expect(result.response.instructions).toEqual(
+          expect.arrayContaining([expect.stringMatching(/upstash|redis\.com/i)])
+        );
+      }
+    });
+
+    it('saves REDIS_URL from redisUrl field and reports hot-wire outcome', async () => {
+      // Mock redis createClient to fail — confirms graceful fallback to restart-required
+      vi.doMock('redis', () => ({
+        createClient: () => ({
+          connect: vi.fn().mockRejectedValue(new Error('connection refused')),
+        }),
+      }));
+
+      const handler = new AuthHandler({});
+      const result = await handler.handle({
+        action: 'setup_feature',
+        feature: 'webhooks',
+        redisUrl: 'redis://localhost:6379',
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        // URL was persisted even if hot-wire failed
+        expect(process.env['REDIS_URL']).toBe('redis://localhost:6379');
+        // Message indicates restart path
+        expect(result.response.message).toMatch(/saved|restart/i);
+      }
+    });
+
+    it('accepts legacy apiKey field as redis URL for backward compat', async () => {
+      vi.doMock('redis', () => ({
+        createClient: () => ({
+          connect: vi.fn().mockRejectedValue(new Error('connection refused')),
+        }),
+      }));
+
+      const handler = new AuthHandler({});
+      const result = await handler.handle({
+        action: 'setup_feature',
+        feature: 'webhooks',
+        apiKey: 'redis://legacy:6379',
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(process.env['REDIS_URL']).toBe('redis://legacy:6379');
+    });
+
+    it('response validates against output schema', async () => {
+      const handler = new AuthHandler({});
+      const result = await handler.handle({
+        action: 'setup_feature',
+        feature: 'webhooks',
+      });
+      expect(SheetsAuthOutputSchema.safeParse(result).success).toBe(true);
     });
   });
 

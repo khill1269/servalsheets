@@ -46,7 +46,7 @@ describe('HistoryService', () => {
         action: 'write',
         params: { range: 'A1:B2' },
         result: { success: true },
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       });
 
       expect(operationId).toBeDefined();
@@ -60,7 +60,7 @@ describe('HistoryService', () => {
         action: 'write',
         params: { range: 'A1:B2' },
         error: new Error('Write failed'),
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       });
 
       expect(operationId).toBeDefined();
@@ -74,7 +74,7 @@ describe('HistoryService', () => {
         params: { startIndex: 5, count: 10 },
         result: { success: true },
         snapshotId: 'snapshot-123',
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       });
 
       const history = service.getHistory('test-spreadsheet');
@@ -90,7 +90,7 @@ describe('HistoryService', () => {
     });
 
     it('should return operations in reverse chronological order', () => {
-      const now = new Date();
+      const now = new Date('2024-01-15T00:00:00Z');
 
       service.recordOperation({
         spreadsheetId: 'test-spreadsheet',
@@ -134,7 +134,7 @@ describe('HistoryService', () => {
           action: 'write',
           params: { index: i },
           result: { success: true },
-          timestamp: new Date(),
+          timestamp: new Date('2024-01-15T00:00:00Z'),
         });
       }
 
@@ -151,7 +151,7 @@ describe('HistoryService', () => {
         action: 'write',
         params: { range: 'A1' },
         result: { success: true },
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       });
 
       const operation = service.getOperation('test-spreadsheet', operationId);
@@ -175,7 +175,7 @@ describe('HistoryService', () => {
         action: 'write',
         params: {},
         result: { success: true },
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       });
 
       service.recordOperation({
@@ -184,7 +184,7 @@ describe('HistoryService', () => {
         action: 'set_background',
         params: {},
         result: { success: true },
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       });
 
       service.recordOperation({
@@ -193,7 +193,7 @@ describe('HistoryService', () => {
         action: 'read',
         params: {},
         result: { success: true },
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       });
     });
 
@@ -218,7 +218,7 @@ describe('HistoryService', () => {
     });
 
     it('should search by time range', () => {
-      const now = new Date();
+      const now = new Date('2024-01-15T00:00:00Z');
       const hourAgo = new Date(now.getTime() - 3600000);
 
       const results = service.searchHistory('test-spreadsheet', {
@@ -239,7 +239,7 @@ describe('HistoryService', () => {
           action: 'write',
           params: {},
           result: { success: true },
-          timestamp: new Date(),
+          timestamp: new Date('2024-01-15T00:00:00Z'),
         });
       }
 
@@ -249,7 +249,7 @@ describe('HistoryService', () => {
         action: 'read',
         params: {},
         error: new Error('Failed'),
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       });
 
       const stats = service.getStats('test-spreadsheet');
@@ -268,7 +268,7 @@ describe('HistoryService', () => {
         action: 'write',
         params: {},
         result: { success: true },
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       });
 
       service.clearHistory('test-spreadsheet');
@@ -284,7 +284,7 @@ describe('HistoryService', () => {
         action: 'write',
         params: {},
         result: { success: true },
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       });
 
       service.recordOperation({
@@ -293,7 +293,7 @@ describe('HistoryService', () => {
         action: 'write',
         params: {},
         result: { success: true },
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       });
 
       service.clearHistory('spreadsheet-1');
@@ -318,7 +318,7 @@ describe('HistoryService', () => {
         action: 'test',
         params: {},
         result: {},
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       });
 
       resetHistoryService();

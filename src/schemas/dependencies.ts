@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { ErrorDetailSchema } from './shared.js';
+import { ErrorDetailSchema, RangeInputSchema } from './shared.js';
 
 /**
  * Dependency actions
@@ -111,7 +111,7 @@ const ModelScenarioInputSchema = z.object({
     .min(1)
     .max(50)
     .describe('Input changes to simulate'),
-  outputRange: z.string().optional().describe('Focus impact report on this range'),
+  outputRange: RangeInputSchema.optional().describe('Focus impact report on this range'),
 });
 
 const CompareScenariosInputSchema = z.object({
@@ -275,7 +275,7 @@ const DependenciesResponseSchema = z.discriminatedUnion('success', [
       z.object({ dot: z.string() }),
       // F6: Scenario results
       z.object({
-        action: z.string(),
+        action: z.literal('model_scenario'),
         inputChanges: z.array(
           z.object({
             cell: z.string(),
@@ -298,7 +298,7 @@ const DependenciesResponseSchema = z.discriminatedUnion('success', [
       }),
       // F6: compare_scenarios result
       z.object({
-        action: z.string(),
+        action: z.literal('compare_scenarios'),
         scenarios: z.array(
           z.object({
             name: z.string(),
@@ -309,7 +309,7 @@ const DependenciesResponseSchema = z.discriminatedUnion('success', [
       }),
       // F6: create_scenario_sheet result
       z.object({
-        action: z.string(),
+        action: z.literal('create_scenario_sheet'),
         newSheetId: z.number().int(),
         newSheetName: z.string(),
         cellsModified: z.number().int(),
@@ -341,6 +341,7 @@ export const SHEETS_DEPENDENCIES_ANNOTATIONS = {
 // Type exports
 export type DependencyActions = z.infer<typeof DependencyActionsSchema>;
 export type SheetsDependenciesInput = z.infer<typeof SheetsDependenciesInputSchema>;
+export type DependenciesRequest = z.infer<typeof DependencyRequestSchema>;
 export type DependencyBuildInput = z.infer<typeof DependencyBuildInputSchema>;
 export type DependencyAnalyzeImpactInput = z.infer<typeof DependencyAnalyzeImpactInputSchema>;
 export type DependencyDetectCyclesInput = z.infer<typeof DependencyDetectCyclesInputSchema>;
@@ -354,6 +355,7 @@ export type ImpactAnalysis = z.infer<typeof ImpactAnalysisSchema>;
 export type DependencyStats = z.infer<typeof DependencyStatsSchema>;
 export type DependencyBuildResult = z.infer<typeof DependencyBuildResultSchema>;
 export type SheetsDependenciesOutput = z.infer<typeof SheetsDependenciesOutputSchema>;
+export type DependenciesResponse = z.infer<typeof DependenciesResponseSchema>;
 export type ModelScenarioInput = z.infer<typeof ModelScenarioInputSchema>;
 export type CompareScenariosInput = z.infer<typeof CompareScenariosInputSchema>;
 export type CreateScenarioSheetInput = z.infer<typeof CreateScenarioSheetInputSchema>;

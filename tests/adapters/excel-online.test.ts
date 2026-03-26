@@ -26,6 +26,14 @@ function createMockGraphClient(): GraphClient {
 }
 
 describe('ExcelOnlineBackend', () => {
+  beforeEach(() => {
+    process.env['ENABLE_EXPERIMENTAL_BACKENDS'] = 'true';
+  });
+
+  afterEach(() => {
+    delete process.env['ENABLE_EXPERIMENTAL_BACKENDS'];
+  });
+
   it('should initialize without errors', async () => {
     const backend = new ExcelOnlineBackend({ client: createMockGraphClient() });
     await expect(backend.initialize()).resolves.toBeUndefined();

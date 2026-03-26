@@ -1,3 +1,12 @@
+---
+title: Compliance-Grade Audit Logging
+category: general
+last_updated: 2026-03-10
+description: ServalSheets implements enterprise-grade audit logging for SOC 2, HIPAA, and GDPR compliance.
+version: 2.0.0
+tags: [prometheus]
+---
+
 # Compliance-Grade Audit Logging
 
 ServalSheets implements enterprise-grade audit logging for SOC 2, HIPAA, and GDPR compliance.

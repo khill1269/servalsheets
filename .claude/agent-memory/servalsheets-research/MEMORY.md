@@ -1,7 +1,25 @@
 # servalsheets-research Agent Memory
 
-**Last Updated:** 2026-02-25 (Updated after Remediation Phase 2 comprehensive audit)
+**Last Updated:** 2026-03-22 (Schema-handler alignment audit completed)
 **Memory Scope:** project (shared with team)
+
+---
+
+## NEW: Schema-Handler Alignment Audit (2026-03-22) ✅
+
+**Full audit documented in:** `audit_2026-03-22_alignment.md`
+
+**Key Findings:**
+- ✅ All 407 actions have corresponding handler cases
+- ✅ All 407 actions have cache invalidation rules
+- ✅ semantic_search (Session 95) properly wired everywhere
+- ✅ MUTATION_ACTIONS parity verified (audit-middleware == write-lock-middleware)
+- ✅ Handler deviations properly documented (sheets_core aliases only)
+- ✅ Annotations complete for all tools
+- ✅ Session context wiring verified for 15+ actions
+
+**Audit Scope:** 25 tools, 407 actions, 53%+ systematic sampling + pattern verification
+**Status:** PASS (Zero blocking issues)
 
 ---
 

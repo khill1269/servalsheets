@@ -16,6 +16,7 @@ import {
   SafetyOptionsSchema,
   MutationSummarySchema,
   ColorSchema,
+  ColorStyleSchema,
   ResponseMetaSchema,
   GridRangeSchema,
   type ToolAnnotations,
@@ -57,7 +58,12 @@ const SheetSpecSchema = z.object({
     .optional()
     .default(26)
     .describe('Initial column count (default: 26)'),
-  tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
+  tabColor: ColorSchema.optional().describe(
+    'DEPRECATED — prefer tabColorStyle for theme color support. Plain RGB shorthand, ignored if tabColorStyle is set.'
+  ),
+  tabColorStyle: ColorStyleSchema.optional().describe(
+    'Tab color as RGB or theme color (Google Sheets API v4 ColorStyle)'
+  ),
 });
 
 // ============================================================================
@@ -115,6 +121,7 @@ const CopyActionSchema = CommonFieldsSchema.extend({
   action: z.literal('copy').describe('Copy an entire spreadsheet'),
   spreadsheetId: SpreadsheetIdSchema.describe('Source spreadsheet ID'),
   newTitle: z.string().optional().describe('Title for the copied spreadsheet'),
+  title: z.string().optional().describe('Alias for newTitle — title for the copied spreadsheet'),
   destinationFolderId: z.string().optional().describe('Google Drive folder ID to copy into'),
 }).strict();
 
@@ -230,6 +237,16 @@ const DescribeWorkbookActionSchema = CommonFieldsSchema.extend({
       'Return a structured metadata summary of a workbook: title, sheet dimensions, formula counts, last modified'
     ),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  maxSheets: z
+    .number()
+    .int()
+    .positive()
+    .max(100)
+    .optional()
+    .default(10)
+    .describe(
+      'Max sheets to scan for formula/non-empty-cell counts (default: 10). Sheet metadata still includes the full workbook.'
+    ),
 });
 
 const WorkbookFingerprintActionSchema = CommonFieldsSchema.extend({
@@ -239,6 +256,16 @@ const WorkbookFingerprintActionSchema = CommonFieldsSchema.extend({
       'Return a stable SHA-256 fingerprint of a workbook structure (sheet names, dimensions, formula counts). Use to detect structural changes without reading cell data.'
     ),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  maxSheets: z
+    .number()
+    .int()
+    .positive()
+    .max(100)
+    .optional()
+    .default(10)
+    .describe(
+      'Reserved for compatibility. Workbook fingerprint is metadata-only and does not scan cell values.'
+    ),
 });
 
 const ListActionSchema = CommonFieldsSchema.extend({
@@ -297,7 +324,12 @@ const AddSheetActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(26)
     .describe('Initial column count (default: 26)'),
-  tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
+  tabColor: ColorSchema.optional().describe(
+    'DEPRECATED — prefer tabColorStyle for theme color support. Plain RGB shorthand, ignored if tabColorStyle is set.'
+  ),
+  tabColorStyle: ColorStyleSchema.optional().describe(
+    'Tab color as RGB or theme color (Google Sheets API v4 ColorStyle)'
+  ),
   hidden: z.boolean().optional().default(false).describe('Hide the sheet (default: false)'),
 });
 
@@ -330,21 +362,33 @@ const UpdateSheetActionSchema = CommonFieldsSchema.extend({
   action: z.literal('update_sheet').describe('Update sheet/tab properties'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.describe('Numeric sheet ID to update'),
-  title: z
+  title: z.string().min(1).max(255).optional().describe('New sheet title'),
+  newTitle: z
     .string()
     .min(1)
     .max(255)
     .optional()
-    .describe('New sheet title (also accepts newTitle as alias)'),
-  newTitle: z.string().min(1).max(255).optional().describe('Alias for title — new sheet title'),
+    .describe('Alias for title (deprecated — use title instead)'),
   index: z.coerce.number().int().min(0).optional().describe('New position (0 = first)'),
-  tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
+  tabColor: ColorSchema.optional().describe(
+    'DEPRECATED — prefer tabColorStyle for theme color support. Plain RGB shorthand, ignored if tabColorStyle is set.'
+  ),
+  tabColorStyle: ColorStyleSchema.optional().describe(
+    'Tab color as RGB or theme color (Google Sheets API v4 ColorStyle)'
+  ),
   hidden: z.boolean().optional().describe('Hide/show the sheet'),
-  rightToLeft: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe('Right-to-left text direction (default: false)'),
+  rightToLeft: z.boolean().optional().describe('Right-to-left text direction'),
+  frozenRowCount: z.number().optional(),
+  frozenColumnCount: z.number().optional(),
+}).superRefine((input, ctx) => {
+  if (input.frozenRowCount !== undefined || input.frozenColumnCount !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        'Use sheets_dimensions action:"freeze" to update frozen rows/columns. The update_sheet action does not support frozenRowCount or frozenColumnCount.',
+      path: ['frozenRowCount'],
+    });
+  }
 });
 
 const CopySheetToActionSchema = CommonFieldsSchema.extend({
@@ -399,21 +443,27 @@ const BatchDeleteSheetsActionSchema = CommonFieldsSchema.extend({
 const BatchUpdateSheetsActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('batch_update_sheets')
-    .describe('Update multiple sheet properties in one API call'),
+    .describe(
+      'Update existing sheet properties (title, color, visibility, position) in one API call. Each item MUST have a sheetId. To add new sheets use add_sheet; to delete use delete_sheet.'
+    ),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   updates: z
     .array(
-      z.object({
-        sheetId: SheetIdSchema.describe('Numeric sheet ID to update'),
-        title: z.string().min(1).max(255).optional().describe('New sheet title'),
-        index: z.coerce.number().int().min(0).optional().describe('New position (0 = first)'),
-        tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
-        hidden: z.boolean().optional().describe('Hide/show the sheet'),
-      })
+      z
+        .object({
+          sheetId: SheetIdSchema.describe('Numeric sheet ID to update (required)'),
+          title: z.string().min(1).max(255).optional().describe('New sheet title'),
+          index: z.coerce.number().int().min(0).optional().describe('New position (0 = first)'),
+          tabColor: ColorSchema.optional().describe(
+            'DEPRECATED — prefer tabColorStyle for theme color support. Plain RGB shorthand, ignored if tabColorStyle is set.'
+          ),
+          hidden: z.boolean().optional().describe('Hide/show the sheet'),
+        })
+        .strict()
     )
     .min(1)
     .max(100)
-    .describe('Array of sheet updates (1-100)'),
+    .describe('Array of sheet property updates (1-100). Each item needs sheetId.'),
 });
 
 // ============================================================================
@@ -427,6 +477,13 @@ const ClearSheetActionSchema = CommonFieldsSchema.extend({
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.optional().describe('Numeric sheet ID to clear (use this OR sheetName)'),
   sheetName: z.string().optional().describe('Sheet name/title to clear (use this OR sheetId)'),
+  resetSheet: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'True sheet reset: clears values, formats, notes, banding, filters, filter views, and tables while preserving the sheet tab'
+    ),
   clearValues: z.boolean().optional().default(true).describe('Clear cell values (default: true)'),
   clearFormats: z
     .boolean()
@@ -541,6 +598,23 @@ const CoreResponseSchema = z.discriminatedUnion('success', [
     skippedSheetIds: z.array(z.coerce.number().int()).optional(),
     /** Number of sheets updated in batch operation */
     updatedCount: z.coerce.number().int().optional(),
+    /** Sheet ID returned by sheet-level actions such as clear_sheet and move_sheet */
+    sheetId: z.coerce.number().int().optional(),
+    /** Sheet title returned by sheet-level actions such as clear_sheet and move_sheet */
+    sheetTitle: z.string().optional(),
+    /** Summary of what clear_sheet removed */
+    cleared: z
+      .object({
+        values: z.boolean().optional(),
+        formats: z.boolean().optional(),
+        notes: z.boolean().optional(),
+        resetSheet: z.boolean().optional(),
+        banding: z.coerce.number().int().optional(),
+        filterViews: z.coerce.number().int().optional(),
+        tables: z.coerce.number().int().optional(),
+        basicFilter: z.boolean().optional(),
+      })
+      .optional(),
     // Common fields
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
@@ -860,8 +934,10 @@ export type CoreMoveSheetInput = SheetsCoreInput['request'] & {
 export type CoreDescribeWorkbookInput = SheetsCoreInput['request'] & {
   action: 'describe_workbook';
   spreadsheetId: string;
+  maxSheets?: number;
 };
 export type CoreWorkbookFingerprintInput = SheetsCoreInput['request'] & {
   action: 'workbook_fingerprint';
   spreadsheetId: string;
+  maxSheets?: number;
 };

@@ -27,7 +27,7 @@ type ZodSchema = z.ZodType;
  * Module-level cache for prepared schemas.
  *
  * Schema transformations via zodSchemaToJsonSchema() are CPU-intensive (~1-2ms each).
- * With 22 tools × 2 schemas = 42 transformations at startup, caching saves 8-40ms.
+ * With 25 tools × 2 schemas = 42 transformations at startup, caching saves 8-40ms.
  *
  * Cache is keyed by: toolName + schemaType (input/output)
  * Cache is populated on first access and never invalidated (schemas are immutable).
@@ -96,9 +96,9 @@ function stripSchemaDescriptions(schema: unknown): unknown {
 /**
  * Minimal passthrough schema for deferred loading mode
  *
- * This schema accepts any object input. When DEFER_SCHEMAS is enabled,
- * tools are registered with this minimal schema instead of full schemas.
- * Claude reads full schemas from schema://tools/{toolName} resources.
+ * This schema exposes a flattened, typed JSON Schema view when DEFER_SCHEMAS is
+ * enabled. It keeps payload size low while still surfacing primitive types,
+ * enums, arrays, objects, and simple unions directly in tools/list.
  *
  * The actual validation happens in handlers using the original Zod schemas.
  *
@@ -106,27 +106,251 @@ function stripSchemaDescriptions(schema: unknown): unknown {
  * All tool schemas use this wrapper pattern for the discriminated union.
  */
 /**
- * Extracts all property names from a JSON Schema, recursing into oneOf/anyOf/allOf.
- * Used to build flat deferred schemas that list all possible properties.
+ * Compact JSON Schema helpers for deferred input schemas.
  */
-function extractPropertyNames(jsonSchema: unknown): Set<string> {
-  const props = new Set<string>();
-  if (!jsonSchema || typeof jsonSchema !== 'object') return props;
-  const schema = jsonSchema as Record<string, unknown>;
+type JsonSchemaRecord = Record<string, unknown>;
+type JsonLiteral = string | number | boolean | null;
 
-  if (schema['properties'] && typeof schema['properties'] === 'object') {
-    for (const key of Object.keys(schema['properties'] as object)) {
-      props.add(key);
+const DEFERRED_SCHEMA_MAX_DEPTH = 1;
+const DEFERRED_SCHEMA_MAX_ENUM_VALUES = 24;
+const DEFERRED_SCHEMA_MAX_UNION_VARIANTS = 3;
+
+function asRecord(value: unknown): JsonSchemaRecord | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as JsonSchemaRecord)
+    : null;
+}
+
+function isJsonLiteral(value: unknown): value is JsonLiteral {
+  return (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  );
+}
+
+function inferTypeFromEnum(values: JsonLiteral[]): string | undefined {
+  if (values.length === 0) {
+    return undefined; // OK: Explicit empty — empty enum array
+  }
+
+  const distinctTypes = new Set(values.map((value) => (value === null ? 'null' : typeof value)));
+  if (distinctTypes.size !== 1) {
+    return undefined; // OK: Explicit empty — mixed types, cannot infer
+  }
+
+  return [...distinctTypes][0];
+}
+
+function readSchemaType(schema: JsonSchemaRecord): string | string[] | undefined {
+  const typeValue = schema['type'];
+  if (typeof typeValue === 'string') {
+    return typeValue;
+  }
+
+  if (Array.isArray(typeValue)) {
+    const types = typeValue.filter((entry): entry is string => typeof entry === 'string');
+    if (types.length > 0) {
+      return [...new Set(types)];
     }
   }
-  for (const key of ['oneOf', 'anyOf', 'allOf']) {
-    if (Array.isArray(schema[key])) {
-      for (const sub of schema[key] as unknown[]) {
-        for (const p of extractPropertyNames(sub)) props.add(p);
+
+  if (asRecord(schema['properties']) || schema['additionalProperties'] !== undefined) {
+    return 'object';
+  }
+
+  if (schema['items'] !== undefined) {
+    return 'array';
+  }
+
+  return undefined; // OK: Explicit empty — unrecognized JSON Schema type node
+}
+
+function dedupeSchemaVariants(variants: JsonSchemaRecord[]): JsonSchemaRecord[] {
+  const seen = new Set<string>();
+  const deduped: JsonSchemaRecord[] = [];
+
+  for (const variant of variants) {
+    const key = JSON.stringify(variant);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(variant);
+  }
+
+  return deduped;
+}
+
+function collapseSimpleUnionVariants(variants: JsonSchemaRecord[]): string | string[] | undefined {
+  const types: string[] = [];
+
+  for (const variant of variants) {
+    const keys = Object.keys(variant);
+    if (keys.length !== 1 || keys[0] !== 'type') {
+      return undefined; // OK: Explicit empty — variant has non-type keys, skip deduplication
+    }
+
+    const typeValue = variant['type'];
+    if (typeof typeValue === 'string') {
+      types.push(typeValue);
+      continue;
+    }
+
+    if (Array.isArray(typeValue)) {
+      const nestedTypes = typeValue.filter((entry): entry is string => typeof entry === 'string');
+      if (nestedTypes.length === 0) {
+        return undefined; // OK: Explicit empty — array type had no string entries
+      }
+      types.push(...nestedTypes);
+      continue;
+    }
+
+    return undefined; // OK: Explicit empty — unrecognized typeValue kind
+  }
+
+  const uniqueTypes = [...new Set(types)];
+  if (uniqueTypes.length === 0) {
+    return undefined; // OK: Explicit empty — no valid types collected
+  }
+
+  return uniqueTypes.length === 1 ? uniqueTypes[0]! : uniqueTypes;
+}
+
+function simplifyJsonSchemaNode(schemaNode: unknown, depth = 0): JsonSchemaRecord | null {
+  const schema = asRecord(schemaNode);
+  if (!schema) {
+    return null;
+  }
+
+  const simplified: JsonSchemaRecord = {};
+  const enumValues = Array.isArray(schema['enum'])
+    ? schema['enum'].filter(isJsonLiteral).slice(0, DEFERRED_SCHEMA_MAX_ENUM_VALUES)
+    : [];
+
+  if (enumValues.length > 0) {
+    simplified['enum'] = enumValues;
+  }
+
+  if (isJsonLiteral(schema['const'])) {
+    simplified['const'] = schema['const'];
+  }
+
+  const inferredType =
+    readSchemaType(schema) ??
+    inferTypeFromEnum(enumValues) ??
+    (isJsonLiteral(schema['const'])
+      ? inferTypeFromEnum([schema['const'] as JsonLiteral])
+      : undefined);
+  if (inferredType !== undefined) {
+    simplified['type'] = inferredType;
+  }
+
+  if (depth < DEFERRED_SCHEMA_MAX_DEPTH) {
+    for (const unionKey of ['oneOf', 'anyOf', 'allOf'] as const) {
+      const unionEntries = schema[unionKey];
+      if (!Array.isArray(unionEntries)) {
+        continue;
+      }
+
+      const variants = dedupeSchemaVariants(
+        unionEntries
+          .slice(0, DEFERRED_SCHEMA_MAX_UNION_VARIANTS)
+          .map((entry) => simplifyJsonSchemaNode(entry, depth + 1))
+          .filter((entry): entry is JsonSchemaRecord => entry !== null)
+      );
+
+      if (variants.length > 0) {
+        const collapsedUnionType = collapseSimpleUnionVariants(variants);
+        if (collapsedUnionType !== undefined) {
+          simplified['type'] = collapsedUnionType;
+        } else {
+          simplified[unionKey] = variants;
+        }
+      }
+    }
+
+    if (schema['items'] !== undefined) {
+      const simplifiedItems = simplifyJsonSchemaNode(schema['items'], depth + 1);
+      if (simplifiedItems) {
+        simplified['items'] = simplifiedItems;
+      }
+    }
+
+    const additionalProperties = schema['additionalProperties'];
+    if (typeof additionalProperties === 'boolean') {
+      simplified['additionalProperties'] = additionalProperties;
+    } else {
+      const simplifiedAdditional = simplifyJsonSchemaNode(additionalProperties, depth + 1);
+      if (simplifiedAdditional) {
+        simplified['additionalProperties'] = simplifiedAdditional;
       }
     }
   }
-  return props;
+
+  return Object.keys(simplified).length > 0 ? simplified : null;
+}
+
+function collectPropertySchemas(
+  schemaNode: unknown,
+  propertySchemas: Map<string, unknown[]>
+): void {
+  const schema = asRecord(schemaNode);
+  if (!schema) {
+    return;
+  }
+
+  const properties = asRecord(schema['properties']);
+  if (properties) {
+    for (const [key, value] of Object.entries(properties)) {
+      const existing = propertySchemas.get(key) ?? [];
+      existing.push(value);
+      propertySchemas.set(key, existing);
+    }
+  }
+
+  for (const unionKey of ['oneOf', 'anyOf', 'allOf'] as const) {
+    const unionEntries = schema[unionKey];
+    if (!Array.isArray(unionEntries)) {
+      continue;
+    }
+
+    for (const entry of unionEntries) {
+      collectPropertySchemas(entry, propertySchemas);
+    }
+  }
+}
+
+function buildDeferredPropertySchemas(innerSchema: JsonSchemaRecord): JsonSchemaRecord {
+  const propertySchemas = new Map<string, unknown[]>();
+  collectPropertySchemas(innerSchema, propertySchemas);
+
+  const deferredProperties: JsonSchemaRecord = {};
+  for (const [propertyName, schemas] of propertySchemas.entries()) {
+    if (propertyName === 'action') {
+      continue;
+    }
+
+    const variants = dedupeSchemaVariants(
+      schemas
+        .map((schema) => simplifyJsonSchemaNode(schema))
+        .filter((schema): schema is JsonSchemaRecord => schema !== null)
+    );
+
+    const collapsedVariantType = collapseSimpleUnionVariants(variants);
+    const propertySchema =
+      variants.length === 0
+        ? {}
+        : variants.length === 1
+          ? variants[0]!
+          : collapsedVariantType !== undefined
+            ? { type: collapsedVariantType }
+            : { anyOf: variants };
+    deferredProperties[propertyName] = propertySchema;
+  }
+
+  return deferredProperties;
 }
 
 /**
@@ -167,23 +391,6 @@ function extractActionEnum(innerSchema: Record<string, unknown>): string[] {
 }
 
 /**
- * Brief descriptions for commonly-used properties across tools.
- * These help the MCP client/LLM understand what each parameter does
- * without needing the full schema.
- */
-const COMMON_PROPERTY_DESCRIPTIONS: Record<string, string> = {
-  spreadsheetId: 'Google Sheets spreadsheet ID',
-  sheetId: 'Numeric sheet/tab ID within the spreadsheet',
-  sheetName: 'Sheet/tab name within the spreadsheet',
-  range: 'A1 notation range (e.g. "Sheet1!A1:D10")',
-  ranges: 'Array of A1 notation ranges',
-  values: 'Array of row arrays to write',
-  verbosity: 'Response detail: minimal, standard, or detailed',
-  safety: 'Safety options for destructive operations',
-  cursor: 'Pagination cursor from previous response',
-};
-
-/**
  * Builds a flat deferred schema for a tool from its full schema.
  *
  * Instead of using z.looseObject() (which the MCP client ignores for property discovery),
@@ -193,9 +400,12 @@ const COMMON_PROPERTY_DESCRIPTIONS: Record<string, string> = {
  * Result: ~300-800 bytes per tool (vs 2-90KB for full schemas) while still
  * listing every possible parameter so the MCP client sends them correctly.
  *
- * Total across 22 tools: ~12KB / ~3K tokens (vs 385KB / ~99K tokens for full).
+ * Total across 25 tools: ~12KB / ~3K tokens (vs 385KB / ~99K tokens for full).
  */
-function buildFlatDeferredSchema(fullSchema: ZodSchema, schemaType: SchemaType): ZodSchema {
+function buildFlatDeferredSchema(
+  fullSchema: ZodSchema,
+  schemaType: SchemaType
+): Record<string, unknown> {
   try {
     const jsonSchema = z.toJSONSchema(fullSchema, { io: 'input' }) as Record<string, unknown>;
     const wrapperKey = schemaType === 'output' ? 'response' : 'request';
@@ -207,52 +417,86 @@ function buildFlatDeferredSchema(fullSchema: ZodSchema, schemaType: SchemaType):
     if (!innerSchema) {
       // Fallback to generic passthrough
       return schemaType === 'output'
-        ? z.object({ response: z.looseObject({ success: z.boolean() }) })
-        : z.object({ request: z.looseObject({ action: z.string() }) });
+        ? {
+            type: 'object',
+            properties: {
+              response: { type: 'object', properties: { success: { type: 'boolean' } } },
+            },
+          }
+        : {
+            type: 'object',
+            properties: {
+              request: {
+                type: 'object',
+                properties: { action: { type: 'string' } },
+                additionalProperties: true,
+              },
+            },
+          };
     }
 
-    // Extract all property names from all action variants
-    const allProps = extractPropertyNames(innerSchema);
-    const requiredKey = schemaType === 'output' ? 'success' : 'action';
-    allProps.delete(requiredKey);
-
-    // Build flat shape: required key + all other props as z.any().optional()
-    const shape: Record<string, z.ZodType> = {};
     if (schemaType === 'output') {
-      shape['success'] = z.boolean();
-    } else {
-      // Extract action enum for this tool's valid actions
-      const actionValues = extractActionEnum(innerSchema);
-      if (actionValues.length > 0) {
-        // Use z.enum so the client knows valid action values
-        // Include the valid actions directly in the description since many MCP clients
-        // cannot resolve schema:// URIs. The enum constraint provides validation.
-        shape['action'] = z
-          .enum(actionValues as [string, ...string[]])
-          .describe(
-            `The action to perform. Valid actions: ${actionValues.join(', ')}. For full parameter details, read schema://tools/{toolName} resource if your client supports MCP resources.`
-          );
-      } else {
-        shape['action'] = z
-          .string()
-          .describe(
-            `The action to perform. For full parameter details, read schema://tools/{toolName} resource if your client supports MCP resources.`
-          );
-      }
-    }
-    for (const prop of allProps) {
-      // Add descriptions for common properties to aid the LLM
-      const desc = COMMON_PROPERTY_DESCRIPTIONS[prop];
-      shape[prop] = desc ? z.any().optional().describe(desc) : z.any().optional();
+      return {
+        type: 'object',
+        properties: {
+          response: {
+            type: 'object',
+            properties: {
+              success: {
+                type: 'boolean',
+              },
+            },
+            required: ['success'],
+            additionalProperties: true,
+          },
+        },
+      };
     }
 
-    const innerObj = z.object(shape).catchall(z.any());
-    return z.object({ [wrapperKey]: innerObj });
+    const actionValues = extractActionEnum(innerSchema);
+    const requestProperties: JsonSchemaRecord = {
+      action:
+        actionValues.length > 0
+          ? {
+              type: 'string',
+              enum: actionValues,
+            }
+          : {
+              type: 'string',
+            },
+      ...buildDeferredPropertySchemas(innerSchema),
+    };
+
+    return {
+      type: 'object',
+      properties: {
+        request: {
+          type: 'object',
+          properties: requestProperties,
+          required: ['action'],
+          additionalProperties: true,
+        },
+      },
+    };
   } catch {
     // Fallback to generic passthrough on any error
     return schemaType === 'output'
-      ? z.object({ response: z.looseObject({ success: z.boolean() }) })
-      : z.object({ request: z.looseObject({ action: z.string() }) });
+      ? {
+          type: 'object',
+          properties: {
+            response: { type: 'object', properties: { success: { type: 'boolean' } } },
+          },
+        }
+      : {
+          type: 'object',
+          properties: {
+            request: {
+              type: 'object',
+              properties: { action: { type: 'string' } },
+              additionalProperties: true,
+            },
+          },
+        };
   }
 }
 
@@ -266,10 +510,12 @@ const MinimalOutputPassthroughSchema = z
       .looseObject({
         success: z.boolean().describe('Whether the operation succeeded'),
       })
-      .describe('Response object - see schema://tools/{toolName} for full response structure'),
+      .describe(
+        'Response object. Action-specific success and error fields are returned at runtime even when output schemas are deferred.'
+      ),
   })
   .describe(
-    'Schema deferred for token efficiency. Read schema://tools/{toolName} resource for full schema.'
+    'Schema deferred for token efficiency. Use the tool description and inline action parameter hints for the canonical request shape.'
   );
 
 /**
@@ -284,7 +530,7 @@ export type SchemaType = 'input' | 'output';
  * - Returns a minimal passthrough schema (~200 bytes per tool)
  * - Full schemas available via schema://tools/{toolName} resources
  * - Reduces initial payload from ~231KB to ~5KB
- * - All 22 tools available with dynamic schema loading
+ * - All 25 tools available with dynamic schema loading
  *
  * When SERVAL_SCHEMA_REFS=true:
  * - Pre-converts Zod schemas to JSON Schema with `reused: 'ref'` option
@@ -371,11 +617,11 @@ export function prepareSchemaForRegistrationCached(
 }
 
 /**
- * Wrap input schema to accept legacy request envelopes.
+ * Wrap input schema to accept older compatibility envelopes.
  *
  * Supports:
- * - direct inputs (current format)
- * - { request: <input> } (legacy wrapper)
+ * - the canonical schema shape
+ * - { request: <canonical-schema> } (double-wrapped legacy envelope)
  * - { request: { action, params } } (legacy params wrapper)
  */
 export function wrapInputSchemaForLegacyRequest(schema: ZodSchema): ZodSchema {
@@ -407,4 +653,23 @@ export function verifySchemaIfNeeded(schema: unknown): void {
       verifyJsonSchema(schema);
     }
   }
+}
+
+/**
+ * Public wrapper for buildFlatDeferredSchema.
+ *
+ * Used by tools-list-compat.ts as a fallback when full JSON Schema conversion
+ * fails. Instead of returning empty `{ type: 'object', properties: {} }`,
+ * this extracts action enum values and common property names from the Zod
+ * schema to produce a useful ~300-800 byte schema.
+ *
+ * @param schema - Zod schema to build deferred schema from
+ * @param schemaType - 'input' or 'output'
+ * @returns Flat JSON Schema with action enum + property names
+ */
+export function buildDeferredFallbackSchema(
+  schema: ZodSchema,
+  schemaType: SchemaType
+): Record<string, unknown> {
+  return buildFlatDeferredSchema(schema, schemaType);
 }

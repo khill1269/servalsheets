@@ -8,6 +8,7 @@
 import { getRequestRecorder, type RecordedRequest } from './request-recorder.js';
 import { logger } from '../utils/logger.js';
 import type { ResponseDiff } from '../utils/response-diff.js';
+import { NotFoundError } from '../core/errors.js';
 import { diffResponses } from '../utils/response-diff.js';
 
 /**
@@ -75,7 +76,7 @@ export class ReplayEngine {
   async replaySingle(requestId: number, mode: ReplayMode = 'realtime'): Promise<ReplayResult> {
     const originalRequest = this.recorder.getById(requestId);
     if (!originalRequest) {
-      throw new Error(`Request ${requestId} not found`);
+      throw new NotFoundError('request', String(requestId));
     }
 
     return this.replayRequest(originalRequest, mode);

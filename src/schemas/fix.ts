@@ -7,6 +7,7 @@
  */
 
 import { z } from 'zod';
+import { RangeInputSchema } from './shared.js';
 
 // Issue types that can be auto-fixed
 export const FixableIssueTypeSchema = z.enum([
@@ -154,7 +155,7 @@ export const FillStrategySchema = z.enum([
 export type FillStrategy = z.infer<typeof FillStrategySchema>;
 
 // Anomaly detection method
-export const AnomalyMethodSchema = z.enum(['iqr', 'zscore', 'modified_zscore']);
+export const AnomalyMethodSchema = z.enum(['iqr', 'zscore', 'modified_zscore', 'isolation_forest']);
 
 export type AnomalyMethod = z.infer<typeof AnomalyMethodSchema>;
 
@@ -360,7 +361,7 @@ const FixActionSchema = z.object({
 const CleanActionSchema = z.object({
   action: z.literal('clean').describe('Auto-detect and fix common data quality issues'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().min(1).describe('A1 range to clean (e.g., "Sheet1!A1:Z100")'),
+  range: RangeInputSchema.describe('Range to clean (e.g., "Sheet1!A1:Z100" or named range)'),
   rules: z
     .array(CleanRuleSchema)
     .optional()
@@ -379,9 +380,61 @@ const StandardizeFormatsActionSchema = z.object({
     .literal('standardize_formats')
     .describe('Normalize date, currency, phone, and text formats in specified columns'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().min(1).describe('A1 range to standardize (e.g., "Sheet1!A1:Z100")'),
+  range: RangeInputSchema.describe('Range to standardize (e.g., "Sheet1!A1:Z100" or named range)'),
   columns: z
-    .array(FormatSpecSchema)
+    .array(
+      z.object({
+        column: z.string().describe('Column letter (A, B, ...) or header name'),
+        targetFormat: z
+          .preprocess((val) => {
+            if (typeof val !== 'string') return val;
+            // FIX P1-2: Normalize common LLM naming patterns for targetFormat
+            const normalized = val.toLowerCase().replace(/[\s-]/g, '_');
+            const aliases: Record<string, string> = {
+              // Date aliases
+              date: 'iso_date',
+              iso: 'iso_date',
+              date_iso: 'iso_date',
+              us: 'us_date',
+              date_us: 'us_date',
+              mm_dd_yyyy: 'us_date',
+              eu: 'eu_date',
+              date_eu: 'eu_date',
+              dd_mm_yyyy: 'eu_date',
+              // Currency aliases
+              usd: 'currency_usd',
+              dollar: 'currency_usd',
+              dollars: 'currency_usd',
+              currency: 'currency_usd',
+              eur: 'currency_eur',
+              euro: 'currency_eur',
+              gbp: 'currency_gbp',
+              pound: 'currency_gbp',
+              // Number/text aliases
+              number: 'number_plain',
+              numeric: 'number_plain',
+              integer: 'number_plain',
+              pct: 'percentage',
+              percent: 'percentage',
+              phone: 'phone_e164',
+              email: 'email_lowercase',
+              url: 'url_https',
+              https: 'url_https',
+              title: 'title_case',
+              upper: 'upper_case',
+              uppercase: 'upper_case',
+              lower: 'lower_case',
+              lowercase: 'lower_case',
+              bool: 'boolean',
+              true_false: 'boolean',
+            };
+            return aliases[normalized] ?? normalized;
+          }, FormatSpecSchema.shape.targetFormat)
+          .describe(
+            'Target format to normalize values to. Accepts aliases: date/iso, us/mm_dd_yyyy, eu/dd_mm_yyyy, usd/dollar/currency, eur/euro, gbp/pound, number/numeric, pct/percent, phone, email, url, title, upper, lower, bool'
+          ),
+      })
+    )
     .describe(
       'Columns and their target formats. Example: [{ column: "A", targetFormat: "iso_date" }, { column: "C", targetFormat: "currency_usd" }]'
     ),
@@ -397,10 +450,35 @@ const FillMissingActionSchema = z.object({
     .literal('fill_missing')
     .describe('Fill empty cells using a statistical or fixed strategy'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().min(1).describe('A1 range to fill (e.g., "Sheet1!A1:Z100")'),
-  strategy: FillStrategySchema.describe(
-    'Fill strategy: forward (last known value), backward (next known value), mean, median, mode (column statistics), constant (user-provided value)'
-  ),
+  range: RangeInputSchema.describe('Range to fill (e.g., "Sheet1!A1:Z100" or named range)'),
+  strategy: z
+    .preprocess((val) => {
+      if (typeof val !== 'string') return val;
+      // FIX P1-2: Normalize common LLM naming patterns for fill strategy
+      const normalized = val.toLowerCase().replace(/[\s-]/g, '_');
+      const aliases: Record<string, string> = {
+        ffill: 'forward',
+        forward_fill: 'forward',
+        last_value: 'forward',
+        pad: 'forward',
+        bfill: 'backward',
+        backward_fill: 'backward',
+        back_fill: 'backward',
+        next_value: 'backward',
+        average: 'mean',
+        avg: 'mean',
+        mid: 'median',
+        most_common: 'mode',
+        frequent: 'mode',
+        fixed: 'constant',
+        value: 'constant',
+        static: 'constant',
+      };
+      return aliases[normalized] ?? normalized;
+    }, FillStrategySchema)
+    .describe(
+      'Fill strategy: forward/ffill (last known value), backward/bfill (next known value), mean/average, median, mode/most_common, constant/fixed (user-provided value)'
+    ),
   constantValue: z
     .union([z.string(), z.number(), z.boolean()])
     .optional()
@@ -419,7 +497,7 @@ const FillMissingActionSchema = z.object({
 const DetectAnomaliesActionSchema = z.object({
   action: z.literal('detect_anomalies').describe('Flag statistical outliers in numeric columns'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().min(1).describe('A1 range to analyze (e.g., "Sheet1!A1:Z100")'),
+  range: RangeInputSchema.describe('Range to analyze (e.g., "Sheet1!A1:Z100" or named range)'),
   method: AnomalyMethodSchema.optional()
     .default('iqr')
     .describe(
@@ -441,7 +519,7 @@ const SuggestCleaningActionSchema = z.object({
     .literal('suggest_cleaning')
     .describe('Profile data and provide AI-powered cleaning recommendations (read-only)'),
   spreadsheetId: z.string().describe('Spreadsheet ID'),
-  range: z.string().min(1).describe('A1 range to profile (e.g., "Sheet1!A1:Z100")'),
+  range: RangeInputSchema.describe('Range to profile (e.g., "Sheet1!A1:Z100" or named range)'),
   maxRecommendations: z
     .number()
     .min(1)

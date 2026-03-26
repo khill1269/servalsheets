@@ -207,8 +207,31 @@ export async function handleSetNumberFormat(
     },
   });
 
+  // For date/time formats, surface the spreadsheet locale and timezone so
+  // callers can verify their format pattern matches the spreadsheet's locale.
+  const isDateType = ['DATE', 'TIME', 'DATE_TIME'].includes(input.numberFormat?.type ?? '');
+  let localeInfo: Record<string, string> | undefined;
+  if (isDateType) {
+    try {
+      const meta = await ha.api.spreadsheets.get({
+        spreadsheetId: input.spreadsheetId,
+        fields: 'properties(locale,timeZone)',
+        includeGridData: false,
+      });
+      const props = meta.data.properties;
+      if (props?.locale || props?.timeZone) {
+        localeInfo = {};
+        if (props.locale) localeInfo['locale'] = props.locale;
+        if (props.timeZone) localeInfo['timeZone'] = props.timeZone;
+      }
+    } catch {
+      // Non-blocking: locale info is informational only
+    }
+  }
+
   return ha.makeSuccess('set_number_format', {
     cellsFormatted: ha.exactCellCount(googleRange),
+    ...(localeInfo ? { spreadsheetLocale: localeInfo } : {}),
   });
 }
 

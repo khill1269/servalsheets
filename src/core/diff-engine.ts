@@ -143,7 +143,7 @@ export class DiffEngine {
             (async (): Promise<CellValue[][] | undefined> => {
               if (!shouldCaptureFull) {
                 // OK: Explicit empty - typed as optional, full diff not requested
-                return undefined;
+                return undefined; // OK: Explicit empty
               }
 
               const maxRows = Math.min(

@@ -16,6 +16,7 @@ import { tmpdir } from 'os';
 import { resolve, sep } from 'path';
 import { logger } from '../utils/logger.js';
 import { URL_REGEX } from './google-limits.js';
+import { ConfigError } from '../core/errors.js';
 
 /**
  * Strict boolean parser for environment variables.
@@ -109,6 +110,7 @@ const EnvSchema = z.object({
   // Feature flags (staged rollout)
   ENABLE_DATAFILTER_BATCH: strictBoolean().default(true),
   ENABLE_TABLE_APPENDS: strictBoolean().default(true),
+  ENABLE_APPSSCRIPT_TRIGGER_COMPAT: strictBoolean().default(false),
   ENABLE_PAYLOAD_VALIDATION: strictBoolean().default(true),
   ENABLE_LEGACY_SSE: strictBoolean().default(false),
   ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS: strictBoolean().default(true),
@@ -130,12 +132,16 @@ const EnvSchema = z.object({
   // RequestMerger: Merges overlapping range reads within 50ms window (20-40% API savings)
   // Enabled by default — production-ready with safe 50ms window and metrics tracking
   ENABLE_REQUEST_MERGING: strictBoolean().default(true),
+  // Collection window for merging overlapping range reads (milliseconds)
+  REQUEST_MERGER_WINDOW_MS: z.coerce.number().int().positive().default(50),
   // ParallelExecutor: Parallel execution for large batch operations (40% faster)
   // Enabled by default — 19 unit/integration tests pass, guarded by threshold (100+ ranges)
   ENABLE_PARALLEL_EXECUTOR: strictBoolean().default(true),
   PARALLEL_EXECUTOR_THRESHOLD: z.coerce.number().int().positive().default(100),
   // Number of concurrent requests in parallel executor (quota-safe default: 5)
   PARALLEL_CONCURRENCY: z.coerce.number().int().min(1).max(100).default(5),
+  // Max retries per task in parallel executor
+  PARALLEL_MAX_RETRIES: z.coerce.number().int().min(0).max(10).default(3),
   // Granular progress notifications for long-running operations
   // Enabled by default — non-breaking MCP-compliant progress updates for CSV import, dedup, batch ops
   ENABLE_GRANULAR_PROGRESS: strictBoolean().default(true),
@@ -149,6 +155,7 @@ const EnvSchema = z.object({
   TRACING_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
   OTEL_ENABLED: strictBoolean().default(true), // Internal tracing infrastructure
   OTEL_LOG_SPANS: strictBoolean().default(false), // Debug logging of spans
+  ENABLE_OTEL: strictBoolean().default(false), // Enable OpenTelemetry SDK initialization
 
   // OTLP Export Configuration (production observability)
   OTEL_EXPORT_ENABLED: strictBoolean().default(false), // Opt-in OTLP export
@@ -158,6 +165,8 @@ const EnvSchema = z.object({
   OTEL_EXPORT_BATCH_SIZE: z.coerce.number().int().positive().default(100),
   OTEL_EXPORT_INTERVAL_MS: z.coerce.number().int().positive().default(5000), // 5 seconds
   OTEL_EXPORT_MAX_QUEUE_SIZE: z.coerce.number().int().positive().default(1000),
+  OTEL_METRICS_PORT: z.coerce.number().int().positive().default(9464), // Prometheus metrics port
+  OTEL_TRACES_EXPORTER: z.string().default('none').describe('Traces exporter: none, console, otlp'),
 
   // Dedicated Prometheus metrics server (optional)
   // When enabled, serves metrics on a separate port via src/server/metrics-server.ts
@@ -165,23 +174,40 @@ const EnvSchema = z.object({
   METRICS_PORT: z.coerce.number().int().positive().max(65535).default(9090),
   METRICS_HOST: z.string().default('127.0.0.1'),
 
-  // Circuit Breaker
+  // Circuit Breaker (Google Sheets API defaults)
   CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().default(5),
   CIRCUIT_BREAKER_SUCCESS_THRESHOLD: z.coerce.number().int().positive().default(2),
   CIRCUIT_BREAKER_TIMEOUT_MS: z.coerce.number().positive().default(30000), // 30 seconds
 
+  // Circuit Breaker overrides for specific APIs (optional - defaults match base config above)
+  OAUTH_CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().optional(),
+  OAUTH_CIRCUIT_BREAKER_SUCCESS_THRESHOLD: z.coerce.number().int().positive().optional(),
+  OAUTH_CIRCUIT_BREAKER_TIMEOUT_MS: z.coerce.number().positive().optional(),
+  APPSSCRIPT_CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().optional(),
+  SNAPSHOT_CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().optional(),
+  WEBHOOK_DELIVERY_CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().optional(),
+  WEBHOOK_WORKER_CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().optional(),
+  FEDERATION_CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().optional(),
+
+  // Apps Script concurrency
+  APPSSCRIPT_MAX_CONCURRENT_RUNS: z.coerce.number().int().positive().default(15),
+
   // Safety limits
   MAX_CONCURRENT_REQUESTS: z.coerce.number().int().positive().default(10),
-  REQUEST_TIMEOUT_MS: z.coerce.number().positive().default(30000), // 30 seconds
+  REQUEST_TIMEOUT_MS: z.coerce.number().positive().default(60000), // 60 seconds
 
   // Per-action timeout overrides for operations that need longer than MCP 30s default
   // Use these to configure timeouts for specific actions that naturally take longer
-  COMPOSITE_TIMEOUT_MS: z.coerce.number().positive().default(120000), // 2 minutes for CSV/XLSX imports
+  COMPOSITE_TIMEOUT_MS: z.coerce.number().positive().default(55000), // 55s — must stay under MCP 60s transport limit
   LARGE_PAYLOAD_TIMEOUT_MS: z.coerce.number().positive().default(60000), // 1 minute for large data operations
   TASK_WATCHDOG_MS: z.coerce.number().int().positive().default(600000), // 10 minutes
 
   // Graceful shutdown
   GRACEFUL_SHUTDOWN_TIMEOUT_MS: z.coerce.number().positive().default(10000), // 10 seconds
+
+  // Stateless mode (Kubernetes readiness)
+  // When true, services prefer Redis over in-memory stores for horizontal scaling
+  STATELESS_MODE: strictBoolean().default(false),
 
   // Session Store Configuration (for OAuth)
   SESSION_STORE_TYPE: z.enum(['memory', 'redis']).default('memory'),
@@ -208,6 +234,12 @@ const EnvSchema = z.object({
   OAUTH_CLIENT_SECRET: z.string().min(16, 'OAUTH_CLIENT_SECRET must be ≥16 chars').optional(),
   OAUTH_ISSUER: z.string().default('https://servalsheets.example.com'),
   OAUTH_CLIENT_ID: z.string().default('servalsheets'),
+  OAUTH_RESOURCE_INDICATOR: z
+    .string()
+    .optional()
+    .describe(
+      'RFC 8707 resource indicator (aud claim). If set, JWT tokens will use this as the audience instead of client_id. Typically the server base URL or API resource identifier.'
+    ),
   // Claude/Anthropic Directory required callback URLs + localhost for development
   ALLOWED_REDIRECT_URIS: z
     .string()
@@ -233,6 +265,7 @@ const EnvSchema = z.object({
     ),
   ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(3600), // 1 hour
   REFRESH_TOKEN_TTL: z.coerce.number().int().positive().default(2592000), // 30 days
+  OAUTH_MAX_TOKEN_TTL: z.coerce.number().int().positive().default(1800), // 30 minutes (security boundary)
 
   // Google Cloud Managed Auth Mode
   // When true: Uses Application Default Credentials, disables sheets_auth tool
@@ -249,6 +282,9 @@ const EnvSchema = z.object({
     .optional(),
   WEBHOOK_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(2),
   WEBHOOK_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
+  // When true, DNS resolution failures block webhook registration (fail-closed security).
+  // Set to false in environments with unreliable DNS to allow registration despite DNS errors.
+  WEBHOOK_DNS_STRICT: strictBoolean().default(true),
 
   // MCP Federation Configuration (Feature 3: Server Federation)
   // Enables calling external MCP servers for composite workflows
@@ -256,8 +292,20 @@ const EnvSchema = z.object({
   MCP_FEDERATION_ENABLED: strictBoolean().default(false),
   MCP_FEDERATION_TIMEOUT_MS: z.coerce.number().positive().default(30000), // 30 seconds
   MCP_FEDERATION_MAX_CONNECTIONS: z.coerce.number().int().positive().default(10),
+  MCP_FEDERATION_DNS_STRICT: strictBoolean().default(true),
   // JSON array of server configs: [{"name":"weather-api","url":"http://localhost:3001"}]
   MCP_FEDERATION_SERVERS: z.string().optional(),
+  // Hosted remote MCP executor for hybrid routing of prefer_local tools
+  MCP_REMOTE_EXECUTOR_URL: z
+    .string()
+    .regex(URL_REGEX, 'Invalid URL format')
+    .optional()
+    .catch(undefined),
+  MCP_REMOTE_EXECUTOR_TIMEOUT_MS: z.coerce.number().positive().default(30000),
+  MCP_REMOTE_EXECUTOR_DNS_STRICT: strictBoolean().default(true),
+  MCP_REMOTE_EXECUTOR_AUTH_TYPE: z.enum(['bearer', 'api-key']).optional(),
+  MCP_REMOTE_EXECUTOR_AUTH_TOKEN: z.string().optional(),
+  MCP_REMOTE_EXECUTOR_TOOLS: z.string().default(''),
 
   // Context Optimization
   // Disables 800KB of embedded knowledge resources to reduce context usage
@@ -312,9 +360,6 @@ const EnvSchema = z.object({
   BILLING_CYCLE: z.enum(['monthly', 'annual']).default('monthly'),
   BILLING_AUTO_INVOICING: strictBoolean().default(true),
 
-  // Post-mutation verification: read back affected ranges to verify writes succeeded
-  ENABLE_MUTATION_VERIFICATION: strictBoolean().default(false),
-
   // Strict output schema validation: reject responses failing schema validation (opt-in for CI/test)
   STRICT_OUTPUT_VALIDATION: strictBoolean().default(true), // MCP-01: declared outputSchema MUST conform per spec
 
@@ -322,9 +367,13 @@ const EnvSchema = z.object({
   // Intelligently prefetches data based on access patterns (adjacent ranges, predicted next access)
   // Enabled by default - production-ready with circuit breaker and background refresh
   ENABLE_PREFETCH: strictBoolean().default(true),
-  PREFETCH_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.5),
+  PREFETCH_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.6),
+  PREFETCH_MAX_PREDICTIONS: z.coerce.number().int().positive().default(5),
   PREFETCH_CONCURRENCY: z.coerce.number().int().positive().default(2),
   PREFETCH_BACKGROUND_REFRESH: strictBoolean().default(true),
+  // Access pattern tracker — learning window for predictive prefetching
+  ACCESS_PATTERN_MAX_HISTORY: z.coerce.number().int().positive().default(1000),
+  ACCESS_PATTERN_WINDOW_MS: z.coerce.number().int().positive().default(300000),
 
   // Python Compute (Pyodide WASM — Phase 2)
   // Disabled by default: first load is ~10-20 seconds (WASM download + package install).
@@ -359,9 +408,23 @@ const EnvSchema = z.object({
   // When true, mutation-safety-middleware skips formula injection scanning (non-production only)
   SERVAL_ALLOW_FORMULA_PASSTHROUGH: strictBoolean().default(false),
 
+  // Post-write verification strict mode
+  // When true, mutation verification divergence throws instead of logging a warning.
+  MUTATION_VERIFY_STRICT: strictBoolean().default(false),
+
   // Connector credential encryption key (AES-256-GCM)
   // Must be set to enable encrypted credential storage for data connectors
   CONNECTOR_ENCRYPTION_KEY: z.string().min(32).optional(),
+
+  // Agent plan file encryption key (AES-256-GCM)
+  // Must be 64 hex chars (32 bytes). If unset, plans are stored as plaintext.
+  PLAN_ENCRYPTION_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/)
+    .optional()
+    .describe(
+      'AES-256-GCM key for encrypting agent plan files (64 hex chars = 32 bytes). If unset, plans are stored as plaintext.'
+    ),
 
   // MCP non-fatal tool errors: when 'true', tool errors are returned as content not protocol errors
   MCP_NON_FATAL_TOOL_ERRORS: z.string().optional().default('true'),
@@ -435,8 +498,55 @@ const EnvSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   GOOGLE_API_KEY: z.string().optional(),
+  VOYAGE_API_KEY: z
+    .string()
+    .optional()
+    .describe('Voyage AI API key for semantic search embeddings (sheets_analyze.semantic_search)'),
   LLM_MODEL: z.string().optional(),
   LLM_BASE_URL: z.string().optional(),
+
+  // SAML SSO configuration (ISSUE-173)
+  SAML_ENTRY_POINT: z.string().optional().describe('IdP SSO endpoint URL (from IdP metadata)'),
+  SAML_ISSUER: z.string().optional().describe('SP Entity ID, typically your server base URL'),
+  SAML_CERT: z
+    .string()
+    .optional()
+    .describe('IdP x509 signing certificate (PEM body without headers)'),
+  SAML_CALLBACK_URL: z.string().optional().describe('ACS URL — must match IdP registration'),
+  SAML_PRIVATE_KEY: z
+    .string()
+    .optional()
+    .describe('SP private key PEM for signed AuthnRequests (optional)'),
+  SAML_WANT_ASSERTIONS_SIGNED: z
+    .string()
+    .optional()
+    .describe('Require signed assertions (default: true)'),
+  SAML_SIGNATURE_ALGORITHM: z
+    .enum(['sha256', 'sha512'])
+    .optional()
+    .default('sha256')
+    .describe('SAML signature algorithm (sha1 removed — broken since SHATTERED 2017)'),
+  SSO_JWT_SECRET: z
+    .string()
+    .min(32, 'SSO_JWT_SECRET must be ≥32 chars')
+    .optional()
+    .describe(
+      'Dedicated JWT secret for SSO tokens (must differ from JWT_SECRET to prevent token forgery)'
+    ),
+  SSO_JWT_TTL: z.coerce
+    .number()
+    .positive()
+    .optional()
+    .default(3600)
+    .describe('SSO JWT TTL in seconds'),
+  SSO_ALLOWED_CLOCK_SKEW: z.coerce
+    .number()
+    .nonnegative()
+    .optional()
+    .default(60)
+    .describe(
+      'Allowed clock skew for SAML assertions in seconds (default 60; increase only if IdP clock sync issues occur)'
+    ),
 
   // MCP response size limits
   MCP_MAX_RESPONSE_BYTES: z.coerce.number().int().positive().default(100000),
@@ -447,6 +557,9 @@ const EnvSchema = z.object({
   // Rate limiting (Google Sheets API quota)
   RATE_LIMIT_READS_PER_MINUTE: z.coerce.number().positive().default(300),
   RATE_LIMIT_WRITES_PER_MINUTE: z.coerce.number().positive().default(60),
+  // Per-spreadsheet request throttle (req/sec). Follows Google guidance to
+  // limit concurrent requests per spreadsheet to avoid 503s (quota exceeded).
+  PER_SPREADSHEET_RPS: z.coerce.number().positive().default(3),
 
   // Diff engine concurrency (parallel sheet fetches)
   DIFF_ENGINE_CONCURRENCY: z.coerce.number().positive().default(10),
@@ -512,7 +625,10 @@ export function validateEnv(): Env {
       );
     }
     if (env.NODE_ENV === 'production' && env.ENABLE_TENANT_ISOLATION && !env.ENABLE_RBAC) {
-      throw new Error('ENABLE_TENANT_ISOLATION requires ENABLE_RBAC=true in production');
+      throw new ConfigError(
+        'ENABLE_TENANT_ISOLATION requires ENABLE_RBAC=true in production',
+        'ENABLE_RBAC'
+      );
     }
 
     if (env.ENABLE_BILLING_INTEGRATION && !env.STRIPE_SECRET_KEY) {
@@ -539,28 +655,36 @@ export function validateEnv(): Env {
       );
     }
     if (env.NODE_ENV === 'production' && isTemporaryDataDir(env.DATA_DIR)) {
-      throw new Error(
+      throw new ConfigError(
         `DATA_DIR must point to persistent storage in production. ` +
           `Current value "${env.DATA_DIR}" resolves to a temporary directory. ` +
-          'Set DATA_DIR to a durable path such as /var/lib/servalsheets or a mounted volume.'
+          'Set DATA_DIR to a durable path such as /var/lib/servalsheets or a mounted volume.',
+        'DATA_DIR'
       );
     }
     const profileStorageDir = env.PROFILE_STORAGE_DIR ?? DEFAULT_PROFILE_STORAGE_DIR;
     if (env.NODE_ENV === 'production' && isTemporaryDataDir(profileStorageDir)) {
-      throw new Error(
+      throw new ConfigError(
         `PROFILE_STORAGE_DIR must point to persistent storage in production. ` +
-          `Current value "${profileStorageDir}" resolves to a temporary directory.`
+          `Current value "${profileStorageDir}" resolves to a temporary directory.`,
+        'PROFILE_STORAGE_DIR'
       );
     }
     const checkpointDir = env.CHECKPOINT_DIR ?? DEFAULT_CHECKPOINT_DIR;
+    if (!env.ENABLE_CHECKPOINTS) {
+      logger.warn(
+        'Session checkpoints are disabled. Set ENABLE_CHECKPOINTS=true to enable resumable session snapshots.'
+      );
+    }
     if (
       env.NODE_ENV === 'production' &&
       env.ENABLE_CHECKPOINTS &&
       isTemporaryDataDir(checkpointDir)
     ) {
-      throw new Error(
+      throw new ConfigError(
         `CHECKPOINT_DIR must point to persistent storage when checkpoints are enabled in production. ` +
-          `Current value "${checkpointDir}" resolves to a temporary directory.`
+          `Current value "${checkpointDir}" resolves to a temporary directory.`,
+        'CHECKPOINT_DIR'
       );
     }
     return env;
@@ -740,9 +864,10 @@ export function getSessionStoreConfig(): {
   const redisUrl = current.REDIS_URL;
 
   if (type === 'redis' && !redisUrl) {
-    throw new Error(
+    throw new ConfigError(
       'REDIS_URL is required when SESSION_STORE_TYPE=redis. ' +
-        'Please provide a Redis connection URL (e.g., redis://localhost:6379)'
+        'Please provide a Redis connection URL (e.g., redis://localhost:6379)',
+      'REDIS_URL'
     );
   }
 
@@ -762,6 +887,74 @@ export function getCircuitBreakerConfig(): {
     failureThreshold: current.CIRCUIT_BREAKER_FAILURE_THRESHOLD,
     successThreshold: current.CIRCUIT_BREAKER_SUCCESS_THRESHOLD,
     timeout: current.CIRCUIT_BREAKER_TIMEOUT_MS,
+  };
+}
+
+/**
+ * Get API-specific circuit breaker configuration
+ * Falls back to base config values if specific overrides are not set.
+ *
+ * @param apiName API identifier: 'oauth', 'appsscript', 'snapshot', 'webhook_delivery', 'webhook_worker', 'federation'
+ * @returns Circuit breaker config with environment-based or default values
+ */
+export function getApiSpecificCircuitBreakerConfig(
+  apiName:
+    | 'oauth'
+    | 'appsscript'
+    | 'snapshot'
+    | 'webhook_delivery'
+    | 'webhook_worker'
+    | 'federation'
+): {
+  failureThreshold: number;
+  successThreshold: number;
+  timeout: number;
+} {
+  const current = ensureEnv();
+  const baseConfig = getCircuitBreakerConfig();
+
+  // Type-safe mapping of API names to env vars
+  let failureThreshold: number | undefined;
+  let successThreshold: number | undefined;
+  let timeout: number | undefined;
+
+  switch (apiName) {
+    case 'oauth':
+      failureThreshold = current.OAUTH_CIRCUIT_BREAKER_FAILURE_THRESHOLD;
+      successThreshold = current.OAUTH_CIRCUIT_BREAKER_SUCCESS_THRESHOLD;
+      timeout = current.OAUTH_CIRCUIT_BREAKER_TIMEOUT_MS;
+      break;
+    case 'appsscript':
+      failureThreshold = current.APPSSCRIPT_CIRCUIT_BREAKER_FAILURE_THRESHOLD;
+      successThreshold = undefined; // use default
+      timeout = undefined; // use default
+      break;
+    case 'snapshot':
+      failureThreshold = current.SNAPSHOT_CIRCUIT_BREAKER_FAILURE_THRESHOLD;
+      successThreshold = undefined;
+      timeout = undefined;
+      break;
+    case 'webhook_delivery':
+      failureThreshold = current.WEBHOOK_DELIVERY_CIRCUIT_BREAKER_FAILURE_THRESHOLD;
+      successThreshold = undefined;
+      timeout = undefined;
+      break;
+    case 'webhook_worker':
+      failureThreshold = current.WEBHOOK_WORKER_CIRCUIT_BREAKER_FAILURE_THRESHOLD;
+      successThreshold = undefined;
+      timeout = undefined;
+      break;
+    case 'federation':
+      failureThreshold = current.FEDERATION_CIRCUIT_BREAKER_FAILURE_THRESHOLD;
+      successThreshold = undefined;
+      timeout = undefined;
+      break;
+  }
+
+  return {
+    failureThreshold: failureThreshold ?? baseConfig.failureThreshold,
+    successThreshold: successThreshold ?? baseConfig.successThreshold,
+    timeout: timeout ?? baseConfig.timeout,
   };
 }
 
@@ -851,6 +1044,37 @@ export function getFederationConfig(): {
     timeoutMs: current.MCP_FEDERATION_TIMEOUT_MS,
     maxConnections: current.MCP_FEDERATION_MAX_CONNECTIONS,
     serversJson: current.MCP_FEDERATION_SERVERS,
+  };
+}
+
+export function getRemoteMcpExecutorConfig(): {
+  enabled: boolean;
+  url?: string;
+  timeoutMs: number;
+  allowedTools: readonly string[];
+  auth?: {
+    type: 'bearer' | 'api-key';
+    token: string;
+  };
+} {
+  const current = ensureEnv();
+  const allowedTools = current.MCP_REMOTE_EXECUTOR_TOOLS.split(',')
+    .map((toolName) => toolName.trim())
+    .filter((toolName) => toolName.length > 0);
+  const auth =
+    current.MCP_REMOTE_EXECUTOR_AUTH_TYPE && current.MCP_REMOTE_EXECUTOR_AUTH_TOKEN
+      ? {
+          type: current.MCP_REMOTE_EXECUTOR_AUTH_TYPE,
+          token: current.MCP_REMOTE_EXECUTOR_AUTH_TOKEN,
+        }
+      : undefined;
+
+  return {
+    enabled: Boolean(current.MCP_REMOTE_EXECUTOR_URL) && allowedTools.length > 0,
+    url: current.MCP_REMOTE_EXECUTOR_URL,
+    timeoutMs: current.MCP_REMOTE_EXECUTOR_TIMEOUT_MS,
+    allowedTools,
+    auth,
   };
 }
 

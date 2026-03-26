@@ -3,7 +3,7 @@ title: MCP Resources
 category: reference
 last_updated: 2026-01-31
 description: ServalSheets exposes resources through the Model Context Protocol (MCP) for LLM context enrichment.
-version: 1.6.0
+version: 2.0.0
 tags: [sheets]
 stability: stable
 ---

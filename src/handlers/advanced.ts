@@ -94,6 +94,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
     const req = this.inferRequestParameters(unwrapRequest<SheetsAdvancedInput['request']>(input));
 
     try {
+      this.checkOperationScopes(`${this.toolName}.${req.action}`);
       const namedRangesDeps = {
         sheetsApi: this.sheetsApi,
         context: this.context,

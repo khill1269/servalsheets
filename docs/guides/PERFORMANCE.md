@@ -3,7 +3,7 @@ title: Performance Tuning Guide
 category: guide
 last_updated: 2026-02-03
 description: This guide covers performance optimization strategies for ServalSheets in production environments, including distributed caching with Redis.
-version: 1.6.0
+version: 2.0.0
 tags: [performance, optimization, sheets, caching, redis, distributed-caching]
 audience: user
 difficulty: intermediate

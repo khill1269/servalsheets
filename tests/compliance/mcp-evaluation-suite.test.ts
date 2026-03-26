@@ -1,7 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createServalSheetsTestHarness, type McpTestHarness } from '../helpers/mcp-test-harness.js';
 
-function parseResponse(result: { content: unknown }): Record<string, unknown> {
+function parseResponse(result: { content: unknown; structuredContent?: unknown }): Record<string, unknown> {
+  if (
+    result.structuredContent &&
+    typeof result.structuredContent === 'object' &&
+    !Array.isArray(result.structuredContent)
+  ) {
+    return result.structuredContent as Record<string, unknown>;
+  }
+
   const content = result.content as Array<{ type: string; text?: string }>;
   const textBlock = content.find((block) => block.type === 'text');
   if (!textBlock?.text) {
@@ -74,8 +82,9 @@ describe('MCP Evaluation Suite', () => {
           request: {
             action: 'import_csv',
             spreadsheetId: 'test-sheet-1',
-            csvContent: 'name,age\nAlice,30\nBob,25',
-            sheetName: 'Imported',
+            csvData: 'name,age\nAlice,30\nBob,25',
+            mode: 'new_sheet',
+            newSheetName: 'Imported',
           },
         },
       });
@@ -112,7 +121,7 @@ describe('MCP Evaluation Suite', () => {
             sheetId: 0,
             dimension: 'ROWS',
             startIndex: 4,
-            endIndex: 7,
+            count: 3,
           },
         },
       });
@@ -129,7 +138,13 @@ describe('MCP Evaluation Suite', () => {
           request: {
             action: 'batch_format',
             spreadsheetId: 'test-sheet-1',
-            requests: [{ range: 'Sheet1!1:1', format: { textFormat: { bold: true } } }],
+            operations: [
+              {
+                type: 'text_format',
+                range: 'Sheet1!1:1',
+                textFormat: { bold: true },
+              },
+            ],
           },
         },
       });
@@ -146,7 +161,8 @@ describe('MCP Evaluation Suite', () => {
           request: {
             action: 'share_add',
             spreadsheetId: 'test-sheet-1',
-            email: 'alice@example.com',
+            type: 'user',
+            emailAddress: 'alice@example.com',
             role: 'writer',
           },
         },

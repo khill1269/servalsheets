@@ -232,7 +232,12 @@ describe('CompositeOperationsService', () => {
       expect(result.columnsMatched).toContain('email');
       expect(result.columnsMatched).toContain('age');
       expect(result.columnsCreated).toEqual([]);
-      expect(mockSheetsApi.spreadsheets.values.append).toHaveBeenCalled();
+      expect(mockSheetsApi.spreadsheets.values.append).not.toHaveBeenCalled();
+      expect(mockSheetsApi.spreadsheets.values.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          range: "'Sheet1'!A2:C3",
+        })
+      );
     });
 
     it('should create missing columns when requested', async () => {
@@ -332,6 +337,34 @@ describe('CompositeOperationsService', () => {
       });
 
       expect(result.rowsAppended).toBe(2);
+    });
+
+    it('should compute append row from actual values rather than stale append heuristics', async () => {
+      mockSheetsApi.spreadsheets.values.get
+        .mockResolvedValueOnce({
+          data: {
+            values: [['Name', 'Email', 'Age']],
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            values: [['Name', 'Email', 'Age']],
+          },
+        });
+
+      const result = await service.smartAppend({
+        spreadsheetId: 'test-id',
+        sheet: 'Sheet1',
+        data: [{ name: 'Charlie', email: 'charlie@example.com', age: 28 }],
+      });
+
+      expect(result.rowsAppended).toBe(1);
+      expect(mockSheetsApi.spreadsheets.values.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          range: "'Sheet1'!A2:C2",
+        })
+      );
+      expect(mockSheetsApi.spreadsheets.values.append).not.toHaveBeenCalled();
     });
   });
 

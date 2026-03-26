@@ -10,13 +10,24 @@
  * These tests verify security controls are properly enforced.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import express, { type Express } from 'express';
 import jwt from 'jsonwebtoken';
-import { OAuthProvider } from '../../src/oauth-provider.js';
+import { OAuthProvider } from '../../src/auth/oauth-provider.js';
 import { VERSION } from '../../src/version.js';
 import { randomBytes, createHash } from 'crypto';
 import { requestApp, type AppResponse } from '../helpers/request-app.js';
+
+vi.mock('../../src/config/env.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/config/env.js')>();
+  return {
+    ...actual,
+    env: {
+      OAUTH_MAX_TOKEN_TTL: 86400,
+      LOG_LEVEL: 'error',
+    },
+  };
+});
 
 describe('OAuth Flow Integration Tests', () => {
   let app: Express;

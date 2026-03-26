@@ -13,6 +13,10 @@ process.env['COMPACT_RESPONSES'] = 'false';
 
 // Reset all singletons before each test
 beforeEach(() => {
+  if (process.env['TEST_SKIP_SINGLETON_RESET'] === 'true') {
+    return;
+  }
+
   resetAllSingletons();
 });
 

@@ -9,6 +9,7 @@ import type { HistoryService } from './history-service.js';
 import { getHistoryService } from './history-service.js';
 import type { SnapshotService } from './snapshot.js';
 import type { OperationHistory } from '../types/history.js';
+import { NotFoundError, ValidationError } from '../core/errors.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -247,7 +248,7 @@ export class TimeTravelDebugger {
   inspectState(checkpointId: string): CheckpointState {
     const checkpoint = this.checkpoints.get(checkpointId);
     if (!checkpoint) {
-      throw new Error(`Checkpoint ${checkpointId} not found`);
+      throw new NotFoundError('checkpoint', checkpointId);
     }
 
     return {
@@ -261,7 +262,7 @@ export class TimeTravelDebugger {
   async deleteCheckpoint(checkpointId: string): Promise<void> {
     const checkpoint = this.checkpoints.get(checkpointId);
     if (!checkpoint) {
-      throw new Error(`Checkpoint ${checkpointId} not found`);
+      throw new NotFoundError('checkpoint', checkpointId);
     }
 
     // Delete snapshot
@@ -295,7 +296,7 @@ export class TimeTravelDebugger {
   blameOperation(spreadsheetId: string, operationId: string): BlameOperationResult {
     const operation = this.historyService.getById(operationId);
     if (!operation) {
-      throw new Error(`Operation ${operationId} not found`);
+      throw new NotFoundError('operation', operationId);
     }
 
     const range = operation.params['range'] as string | undefined;
@@ -328,7 +329,11 @@ export class TimeTravelDebugger {
     const key = `${spreadsheetId}:${name}`;
 
     if (this.branches.has(key)) {
-      throw new Error(`Branch ${name} already exists for spreadsheet ${spreadsheetId}`);
+      throw new ValidationError(
+        `Branch ${name} already exists for spreadsheet ${spreadsheetId}`,
+        'name',
+        'unique branch name'
+      );
     }
 
     let operations: OperationHistory[];
@@ -336,7 +341,7 @@ export class TimeTravelDebugger {
     if (fromCheckpoint) {
       const checkpoint = this.checkpoints.get(fromCheckpoint);
       if (!checkpoint) {
-        throw new Error(`Checkpoint ${fromCheckpoint} not found`);
+        throw new NotFoundError('checkpoint', fromCheckpoint);
       }
       operations = [...checkpoint.operations];
     } else {
@@ -367,7 +372,7 @@ export class TimeTravelDebugger {
     const key = `${spreadsheetId}:${name}`;
 
     if (!this.branches.has(key)) {
-      throw new Error(`Branch ${name} not found for spreadsheet ${spreadsheetId}`);
+      throw new NotFoundError('branch', `${name} for spreadsheet ${spreadsheetId}`);
     }
 
     this.activeBranches.set(spreadsheetId, name);
@@ -381,10 +386,10 @@ export class TimeTravelDebugger {
     const targetBranch = this.branches.get(targetKey);
 
     if (!sourceBranch) {
-      throw new Error(`Source branch ${sourceName} not found`);
+      throw new NotFoundError('branch', sourceName);
     }
     if (!targetBranch) {
-      throw new Error(`Target branch ${targetName} not found`);
+      throw new NotFoundError('branch', targetName);
     }
 
     // Find operations in source that aren't in target
@@ -428,10 +433,10 @@ export class TimeTravelDebugger {
     const cp2 = this.checkpoints.get(checkpointId2);
 
     if (!cp1) {
-      throw new Error(`Checkpoint ${checkpointId1} not found`);
+      throw new NotFoundError('checkpoint', checkpointId1);
     }
     if (!cp2) {
-      throw new Error(`Checkpoint ${checkpointId2} not found`);
+      throw new NotFoundError('checkpoint', checkpointId2);
     }
 
     const ops1Ids = new Set(cp1.operations.map((op) => op.id));

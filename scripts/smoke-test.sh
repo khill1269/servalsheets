@@ -10,6 +10,7 @@ echo ""
 # Track test results
 TESTS_PASSED=0
 TESTS_FAILED=0
+SMOKE_HTTP_PORT=3099
 
 # Run a command with a timeout (portable across macOS/Linux)
 run_with_timeout() {
@@ -74,11 +75,21 @@ fi
 echo "→ Testing: HTTP server health endpoint"
 # Smoke only needs the main HTTP listener; disable the dedicated metrics bind so
 # an occupied default metrics port does not cause a false-negative startup failure.
-ENABLE_METRICS_SERVER=false node "$(pwd)/dist/http-server.js" &
+NODE_ENV=development SKIP_PREFLIGHT=true ENABLE_METRICS_SERVER=false CACHE_REDIS_ENABLED=false \
+SESSION_STORE_TYPE=memory ALLOW_MEMORY_SESSIONS=true REDIS_URL= HOST=127.0.0.1 PORT="$SMOKE_HTTP_PORT" \
+  node "$(pwd)/dist/cli.js" --http --port "$SMOKE_HTTP_PORT" &
 SERVER_PID=$!
-sleep 3
+SERVER_READY=0
 
-if curl -f -s http://localhost:3000/health > /dev/null 2>&1; then
+for _ in 1 2 3 4 5 6 7 8; do
+  if curl -f -s "http://127.0.0.1:${SMOKE_HTTP_PORT}/health" > /dev/null 2>&1; then
+    SERVER_READY=1
+    break
+  fi
+  sleep 1
+done
+
+if [ "$SERVER_READY" -eq 1 ]; then
   echo "  ✅ PASS"
   TESTS_PASSED=$((TESTS_PASSED + 1))
 else
@@ -112,6 +123,15 @@ run_test "Debug utilities exist" "test -f dist/utils/http2-detector.js && test -
 
 # Test 12: CLI auth setup exists
 run_test "CLI auth setup" "test -f dist/cli/auth-setup.js"
+
+# Test 13: Runtime HTML assets exist
+run_test "CLI HTML assets exist" "test -f dist/cli/auth-error.html && test -f dist/cli/auth-success.html"
+
+# Test 14: Admin dashboard assets exist
+run_test "Admin dashboard assets exist" "test -f dist/admin/dashboard.html && test -f dist/admin/dashboard.js && test -f dist/admin/styles.css"
+
+# Test 15: Tool hash baseline exists
+run_test "Tool hash baseline exists" "test -f dist/security/tool-hashes.baseline.json"
 
 echo ""
 echo "════════════════════════════════════════"

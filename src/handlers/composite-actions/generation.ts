@@ -9,9 +9,10 @@ import type {
   CompositeOutput,
 } from '../../schemas/composite.js';
 import type { SamplingServer } from '../../mcp/sampling.js';
+import { recordGenerationRequest } from '../../observability/metrics.js';
 
 export interface GenerationDeps {
-  sheetsApi: sheets_v4.Sheets;
+  sheetsApi?: sheets_v4.Sheets;
   samplingServer?: SamplingServer;
   abortSignal?: AbortSignal;
 }
@@ -51,6 +52,7 @@ export async function handleGenerateSheetAction(
   );
 
   if (input.safety?.dryRun) {
+    recordGenerationRequest('generate_sheet', 'success');
     return {
       success: true,
       action: 'generate_sheet',
@@ -76,10 +78,20 @@ export async function handleGenerateSheetAction(
     );
   }
 
+  if (!deps.sheetsApi) {
+    throw new ServiceError(
+      'Google Sheets API client is required to create spreadsheets',
+      'AUTHENTICATION_REQUIRED',
+      'composite',
+      false
+    );
+  }
+
   const result = await executeDefinition(deps.sheetsApi, definition, input.spreadsheetId);
 
   await sendProgress(3, 3, 'Complete');
 
+  recordGenerationRequest('generate_sheet', 'success');
   return {
     success: true,
     action: 'generate_sheet',
@@ -125,6 +137,7 @@ export async function handleGenerateTemplateAction(
       )
     : undefined;
 
+  recordGenerationRequest('generate_template', 'success');
   return {
     success: true,
     action: 'generate_template',
@@ -189,6 +202,7 @@ export async function handlePreviewGenerationAction(
     }
   }
 
+  recordGenerationRequest('preview_generation', 'success');
   return {
     success: true,
     action: 'preview_generation',
