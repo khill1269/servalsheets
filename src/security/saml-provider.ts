@@ -28,7 +28,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { SAML, type SamlConfig } from 'node-saml';
+import { SAML, type SamlConfig } from '@node-saml/node-saml';
 import jwt from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
 import { logger } from '../utils/logger.js';

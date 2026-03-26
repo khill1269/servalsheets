@@ -143,7 +143,7 @@ async function checkModuleResolution(): Promise<PreflightResult> {
     'googleapis',
     'zod',
     // node-saml is unconditionally imported in http-server.ts; catch missing installs early
-    'node-saml',
+    '@node-saml/node-saml',
   ];
 
   const missingModules: string[] = [];

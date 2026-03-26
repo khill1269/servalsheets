@@ -3,7 +3,7 @@
  * Covers only the surface used by src/security/saml-provider.ts
  */
 
-declare module 'node-saml' {
+declare module '@node-saml/node-saml' {
   export interface SamlConfig {
     entryPoint?: string;
     issuer?: string;
