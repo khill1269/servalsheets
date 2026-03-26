@@ -1,0 +1,387 @@
+name: Performance
+
+# Consolidated from: benchmark.yml + performance-tracking.yml
+# Handles: benchmarks, performance regression detection, baseline tracking, PR comments
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      benchmark_type:
+        description: 'Benchmark type to run'
+        required: true
+        default: 'tool-level'
+        type: choice
+        options:
+          - tool-level
+          - action-level
+          - optimizations
+          - full
+      include_live_tests:
+        description: 'Include live API tests'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # Performance regression tests (runs on all triggers)
+  regression-tests:
+    name: Performance Regression Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Restore performance baseline
+        id: cache-baseline
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .performance-history/
+          key: performance-baseline-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            performance-baseline-${{ github.ref_name }}-
+            performance-baseline-main-
+
+      - name: Run performance regression tests
+        run: npm run perf:compare
+        env:
+          NODE_OPTIONS: '--expose-gc'
+
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: performance-results
+          path: .performance-history/
+          retention-days: 90
+
+      - name: Comment on PR with performance results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const historyDir = '.performance-history/history';
+            if (!fs.existsSync(historyDir)) return;
+            const files = fs.readdirSync(historyDir)
+              .filter(f => f.startsWith('baseline-') && f.endsWith('.json'))
+              .sort().reverse();
+            if (files.length === 0) return;
+            const latest = JSON.parse(fs.readFileSync(path.join(historyDir, files[0]), 'utf-8'));
+            let comment = '## Performance Impact\n\n';
+            comment += `**Commit:** ${latest.gitCommit}\n`;
+            comment += `**Tests Run:** ${latest.metrics.length}\n\n`;
+            if (files.length >= 2) {
+              const previous = JSON.parse(fs.readFileSync(path.join(historyDir, files[1]), 'utf-8'));
+              const regressions = [], improvements = [];
+              for (const metric of latest.metrics) {
+                const prevMetric = previous.metrics.find(m => m.name === metric.name);
+                if (!prevMetric) continue;
+                const p95Change = ((metric.latency.p95 - prevMetric.latency.p95) / prevMetric.latency.p95) * 100;
+                if (p95Change > 15) regressions.push({ name: metric.name, change: p95Change });
+                else if (p95Change < -10) improvements.push({ name: metric.name, change: p95Change });
+              }
+              if (regressions.length > 0) {
+                comment += '### ⚠️ Performance Regressions\n\n';
+                for (const r of regressions) comment += `- \`${r.name}\`: +${r.change.toFixed(1)}% slower\n`;
+                comment += '\n';
+              }
+              if (improvements.length > 0) {
+                comment += '### ✨ Performance Improvements\n\n';
+                for (const i of improvements) comment += `- \`${i.name}\`: ${Math.abs(i.change).toFixed(1)}% faster\n`;
+                comment += '\n';
+              }
+              if (regressions.length === 0 && improvements.length === 0)
+                comment += '### ✅ No significant performance changes\n\n';
+            } else {
+              comment += '### ℹ️ No baseline for comparison (first run)\n\n';
+            }
+            comment += '---\n*View detailed dashboard in artifacts*\n';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Fail on critical regressions
+        if: always()
+        run: |
+          if [ -f .performance-history/regression-detected ]; then
+            echo "Critical performance regressions detected!"
+            exit 1
+          fi
+
+  # MCP compliance tests (no live API needed)
+  compliance-tests:
+    name: MCP Compliance Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Run compliance tests
+        run: npm run test:compliance
+
+  # Tool-level benchmarks (requires live API credentials, main/manual only)
+  tool-benchmarks:
+    name: Tool-Level Benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: compliance-tests
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Setup test credentials
+        env:
+          GOOGLE_TEST_CREDENTIALS: ${{ secrets.GOOGLE_TEST_CREDENTIALS }}
+        run: |
+          mkdir -p tests/config
+          echo "$GOOGLE_TEST_CREDENTIALS" > tests/config/test-credentials.json
+
+      - name: Download baseline benchmarks
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: benchmarks/baseline.json
+          key: benchmark-baseline-${{ github.base_ref || github.ref_name }}
+          restore-keys: |
+            benchmark-baseline-main
+            benchmark-baseline-
+
+      - name: Run tool-level benchmarks
+        if: |
+          github.event.inputs.benchmark_type == 'tool-level' ||
+          github.event.inputs.benchmark_type == 'full' ||
+          github.event_name == 'push'
+        env:
+          TEST_REAL_API: 'true'
+          RUN_BENCHMARKS: 'true'
+        run: npm run bench:tool-level
+
+      - name: Track benchmark results & detect regressions
+        run: npm run benchmarks:track
+        continue-on-error: true
+        id: benchmark-tracking
+        env:
+          BENCHMARK_THRESHOLD: '10'
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: benchmark-results-tool-level
+          path: |
+            benchmark-results/
+            benchmarks/latest.json
+            benchmarks/history/
+            benchmark-report.json
+            benchmark-report.md
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Update baseline (on main branch)
+        if: github.ref == 'refs/heads/main' && steps.benchmark-tracking.outcome == 'success'
+        run: |
+          mkdir -p benchmarks
+          cp benchmarks/latest.json benchmarks/baseline.json
+          echo "✅ Baseline updated for main branch"
+
+  # Action-level benchmarks (manual trigger only - expensive)
+  action-benchmarks:
+    name: Action-Level Benchmarks
+    runs-on: ubuntu-latest
+    needs: tool-benchmarks
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      (github.event.inputs.benchmark_type == 'action-level' ||
+       github.event.inputs.benchmark_type == 'full')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Setup test credentials
+        env:
+          GOOGLE_TEST_CREDENTIALS: ${{ secrets.GOOGLE_TEST_CREDENTIALS }}
+        run: |
+          mkdir -p tests/config
+          echo "$GOOGLE_TEST_CREDENTIALS" > tests/config/test-credentials.json
+
+      - name: Run action-level benchmarks
+        env:
+          TEST_REAL_API: 'true'
+          RUN_BENCHMARKS: 'true'
+        run: npm run bench:action-level
+        timeout-minutes: 30
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: benchmark-results-action-level
+          path: |
+            benchmark-results/
+            benchmark-report.json
+            benchmark-report.md
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # Live API tests (main/manual only)
+  live-api-tests:
+    name: Live API Tests
+    runs-on: ubuntu-latest
+    needs: compliance-tests
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.include_live_tests) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Setup test credentials
+        env:
+          GOOGLE_TEST_CREDENTIALS: ${{ secrets.GOOGLE_TEST_CREDENTIALS }}
+        run: |
+          mkdir -p tests/config
+          echo "$GOOGLE_TEST_CREDENTIALS" > tests/config/test-credentials.json
+
+      - name: Run live API tests (fast subset)
+        env:
+          TEST_REAL_API: 'true'
+        run: npm run test:live:fast
+
+  # Update baseline on main
+  update-baseline:
+    name: Update Baseline (main)
+    runs-on: ubuntu-latest
+    needs: [regression-tests, tool-benchmarks]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Download performance results
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: performance-results
+          path: .performance-history/
+
+      - name: Update baseline cache
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .performance-history/
+          key: performance-baseline-main-${{ github.sha }}
+
+      - name: Store new perf baseline
+        if: always()
+        run: |
+          PERF_BASELINE=true npm run perf:baseline 2>/dev/null || true
+        continue-on-error: true
+
+  # Summary
+  summary:
+    name: Performance Summary
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [regression-tests, compliance-tests, tool-benchmarks, action-benchmarks, live-api-tests]
+    if: always()
+
+    steps:
+      - name: Summarize results
+        run: |
+          echo "## 🏎️ Performance Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          for job in regression-tests compliance-tests tool-benchmarks action-benchmarks live-api-tests; do
+            result="${{ needs[job].result || 'unknown' }}"
+            case "$result" in
+              success) echo "- ✅ $job: Passed" >> $GITHUB_STEP_SUMMARY ;;
+              skipped) echo "- ⏭️ $job: Skipped" >> $GITHUB_STEP_SUMMARY ;;
+              *) echo "- ❌ $job: $result" >> $GITHUB_STEP_SUMMARY ;;
+            esac
+          done
