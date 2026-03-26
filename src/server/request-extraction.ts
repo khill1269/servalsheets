@@ -1,33 +1,39 @@
 /**
- * Helper functions for extracting action and principal information from requests
+ * Request Extraction Utilities
+ *
+ * Helper functions for extracting action and principal from HTTP requests.
  */
 
-/**
- * Extract action from nested request arguments
- * Checks up to 3 levels deep for nested request objects
- */
+function getSingleHeaderValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
+  const value = headers[name];
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
 export function extractActionFromArgs(args: unknown): string | undefined {
   if (!args || typeof args !== 'object') return undefined;
 
-  const obj = args as Record<string, unknown>;
+  const argsObj = args as Record<string, unknown>;
 
-  // Level 1: Direct action property
-  if (typeof obj.action === 'string') {
-    return obj.action;
+  // Level 1: Direct action
+  if (typeof argsObj['action'] === 'string') {
+    return argsObj['action'];
   }
 
   // Level 2: Nested in request object
-  if (obj.request && typeof obj.request === 'object') {
-    const req = obj.request as Record<string, unknown>;
-    if (typeof req.action === 'string') {
-      return req.action;
+  const request = argsObj['request'];
+  if (request && typeof request === 'object') {
+    const reqObj = request as Record<string, unknown>;
+    if (typeof reqObj['action'] === 'string') {
+      return reqObj['action'];
     }
 
-    // Level 3: Nested deeper
-    if (req.request && typeof req.request === 'object') {
-      const deepReq = req.request as Record<string, unknown>;
-      if (typeof deepReq.action === 'string') {
-        return deepReq.action;
+    // Level 3: Nested in request.request
+    const innerRequest = reqObj['request'];
+    if (innerRequest && typeof innerRequest === 'object') {
+      const innerObj = innerRequest as Record<string, unknown>;
+      if (typeof innerObj['action'] === 'string') {
+        return innerObj['action'];
       }
     }
   }
@@ -35,25 +41,12 @@ export function extractActionFromArgs(args: unknown): string | undefined {
   return undefined;
 }
 
-/**
- * Extract principal ID from request headers
- * Checks multiple header names for user/session/client identification
- */
-export function extractPrincipalIdFromHeaders(
-  headers: Record<string, string | string[] | undefined>
-): string | undefined {
-  const headerNames = ['x-user-id', 'x-session-id', 'x-client-id', 'x-principal-id'];
+export function extractPrincipalIdFromHeaders(headers: Record<string, string | string[] | undefined>): string | undefined {
+  const headerNames = ['x-user-id', 'x-session-id', 'x-client-id'];
 
   for (const name of headerNames) {
-    const value = headers[name] || headers[name.toLowerCase()];
-
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      if (trimmed) return trimmed;
-    } else if (Array.isArray(value) && value.length > 0) {
-      const trimmed = value[0].trim();
-      if (trimmed) return trimmed;
-    }
+    const value = getSingleHeaderValue(headers, name);
+    if (value) return value;
   }
 
   return undefined;

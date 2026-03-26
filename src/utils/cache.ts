@@ -1,82 +1,87 @@
 /**
- * Unified LRU cache implementation using npm lru-cache
- * Provides typed cache with TTL support and statistics
+ * Unified LRU Cache Implementation
+ *
+ * Consolidated cache abstraction that wraps the lru-cache npm package.
+ * Provides a consistent interface across the codebase.
  */
 
-import LRU from 'lru-cache';
+import LRUCache from 'lru-cache';
 
-export interface CacheOptions<K, V> {
-  max?: number; // max number of items
-  ttl?: number; // milliseconds
-  updateAgeOnGet?: boolean;
-  allowStale?: boolean;
+export interface CacheEntry<T = unknown> {
+  value: T;
+  createdAt: number;
+  lastAccessedAt: number;
+  accessCount: number;
 }
 
-export class LRUCache<K, V> {
-  private lru: LRU<K, V>;
+export interface CacheConfig {
+  maxSize?: number; // Max items
+  maxBytes?: number; // Max memory bytes
+  ttlMs?: number; // Time-to-live in milliseconds
+  updateAgeOnGet?: boolean;
+}
 
-  constructor(options: CacheOptions<K, V> = {}) {
-    this.lru = new LRU<K, V>({
-      max: options.max || 100,
-      ttl: options.ttl || 5 * 60 * 1000,
-      updateAgeOnGet: options.updateAgeOnGet !== false,
-      allowStale: options.allowStale || false,
+export class Cache<K, V> {
+  private cache: LRUCache<K, V>;
+  private stats = { hits: 0, misses: 0, sets: 0, deletes: 0, evictions: 0 };
+
+  constructor(config: CacheConfig = {}) {
+    this.cache = new LRUCache<K, V>({
+      max: config.maxSize ?? 1000,
+      maxSize: config.maxBytes ?? 10 * 1024 * 1024, // 10MB default
+      ttl: config.ttlMs ?? 5 * 60 * 1000, // 5 minutes default
+      updateAgeOnGet: config.updateAgeOnGet ?? true,
+      sizeCalculation: () => 1, // 1 item per entry for now
+      dispose: () => this.stats.evictions++,
     });
   }
 
-  /**
-   * Get value from cache
-   */
   get(key: K): V | undefined {
-    return this.lru.get(key);
+    const value = this.cache.get(key);
+    if (value !== undefined) {
+      this.stats.hits++;
+    } else {
+      this.stats.misses++;
+    }
+    return value;
   }
 
-  /**
-   * Set value in cache
-   */
-  set(key: K, value: V): void {
-    this.lru.set(key, value);
-  }
-
-  /**
-   * Delete entry from cache
-   */
-  delete(key: K): boolean {
-    return this.lru.delete(key);
-  }
-
-  /**
-   * Check if key exists in cache
-   */
   has(key: K): boolean {
-    return this.lru.has(key);
+    return this.cache.has(key);
   }
 
-  /**
-   * Clear all entries
-   */
+  set(key: K, value: V): void {
+    this.cache.set(key, value);
+    this.stats.sets++;
+  }
+
+  delete(key: K): boolean {
+    const deleted = this.cache.delete(key);
+    if (deleted) this.stats.deletes++;
+    return deleted;
+  }
+
   clear(): void {
-    this.lru.clear();
+    this.cache.clear();
   }
 
-  /**
-   * Get all keys
-   */
-  keys(): K[] {
-    return this.lru.keys();
+  size(): number {
+    return this.cache.size;
   }
 
-  /**
-   * Get cache size
-   */
-  get size(): number {
-    return this.lru.size;
+  keys(): IterableIterator<K> {
+    return this.cache.keys();
   }
 
-  /**
-   * Get cache statistics
-   */
+  values(): IterableIterator<V> {
+    return this.cache.values();
+  }
+
+  entries(): IterableIterator<[K, V]> {
+    return this.cache.entries();
+  }
+
   getStats() {
-    return this.lru.getRemovedCount();
+    return { ...this.stats };
   }
 }

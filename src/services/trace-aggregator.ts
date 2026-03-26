@@ -1,440 +1,220 @@
 /**
- * ServalSheets - Trace Aggregator Service
+ * Trace Aggregator Service
  *
- * Collects and aggregates request traces for debugging and performance analysis.
- * Builds on top of the existing OpenTelemetry-compatible tracing infrastructure.
- *
- * Features:
- * - Request-level trace aggregation (groups spans by request)
- * - Search and filtering by tool, action, error, duration
- * - LRU cache with TTL (5 minutes, max 1000 traces)
- * - Performance metrics and statistics
- *
- * Usage:
- * ```typescript
- * const aggregator = getTraceAggregator();
- *
- * // Record trace after request completes
- * aggregator.recordTrace({
- *   requestId: 'req_abc123',
- *   traceId: 'trace_xyz789',
- *   timestamp: Date.now(),
- *   duration: 250,
- *   tool: 'sheets_data',
- *   action: 'read',
- *   success: true,
- *   spans: [...],
- * });
- *
- * // Search traces
- * const slowTraces = aggregator.searchTraces({ minDuration: 1000 });
- * const errorTraces = aggregator.searchTraces({ errorCode: 'INVALID_RANGE' });
- *
- * // Get specific trace
- * const trace = aggregator.getTrace('req_abc123');
- * ```
- *
- * @category Services
+ * Collects and searches request execution traces for debugging and monitoring.
+ * Stores traces in an LRU cache with 5-minute TTL.
  */
 
-import { LRUCache } from 'lru-cache';
-import { logger } from '../utils/logger.js';
-import type { Span } from '../utils/tracing.js';
-
-// ==================== Types ====================
+import { Span } from '@opentelemetry/api';
+import Cache from 'lru-cache';
 
 export interface TraceSpan {
   spanId: string;
-  parentSpanId?: string;
-  name: string;
-  kind: 'server' | 'client' | 'internal' | 'producer' | 'consumer';
-  startTime: number;
-  endTime: number;
-  duration: number;
-  attributes: Record<string, string | number | boolean | undefined>;
-  status: 'ok' | 'error' | 'unset';
-  statusMessage?: string;
-  events?: Array<{
-    name: string;
-    timestamp: number;
-    attributes?: Record<string, string | number | boolean | undefined>;
-  }>;
-}
-
-export interface RequestTrace {
-  requestId: string;
   traceId: string;
-  timestamp: number;
-  duration: number;
-  tool: string;
-  action: string;
-  success: boolean;
-  errorCode?: string;
+  parentSpanId?: string;
+  operationName: string;
+  startTimeMs: number;
+  endTimeMs: number;
+  durationMs: number;
+  status: 'ok' | 'error';
   errorMessage?: string;
-  spans: TraceSpan[];
-  metadata?: Record<string, unknown>;
+  attributes: Record<string, unknown>;
 }
 
-export interface TraceSearchFilters {
+export interface TraceSearchOptions {
   tool?: string;
   action?: string;
   errorCode?: string;
-  minDuration?: number;
-  maxDuration?: number;
-  success?: boolean;
-  startTime?: number;
-  endTime?: number;
+  minDurationMs?: number;
+  maxDurationMs?: number;
+  since?: number; // timestamp
+  until?: number; // timestamp
+  limit?: number;
 }
 
-export interface TraceStats {
-  totalTraces: number;
-  successCount: number;
-  errorCount: number;
-  averageDuration: number;
-  p50Duration: number;
-  p95Duration: number;
-  p99Duration: number;
-  byTool: Record<
-    string,
-    {
-      count: number;
-      averageDuration: number;
-      errorRate: number;
-    }
-  >;
-  byError: Record<string, number>;
+export interface TraceSearchResult {
+  traces: TraceSpan[];
+  totalCount: number;
+  hasMore: boolean;
 }
 
-// ==================== Trace Aggregator Implementation ====================
+export class TraceAggregator {
+  private cache: Cache<string, TraceSpan>;
+  private traceIndex: Map<string, Set<string>> = new Map(); // traceId -> spanIds
+  private operationIndex: Map<string, Set<string>> = new Map(); // operationName -> spanIds
+  private errorIndex: Map<string, Set<string>> = new Map(); // errorCode -> spanIds
 
-class TraceAggregatorImpl {
-  private traces: LRUCache<string, RequestTrace>;
-  private enabled: boolean;
-
-  constructor(
-    options: {
-      maxSize?: number;
-      ttl?: number;
-      enabled?: boolean;
-    } = {}
-  ) {
-    this.enabled = options.enabled ?? process.env['TRACE_AGGREGATION_ENABLED'] === 'true';
-
-    this.traces = new LRUCache<string, RequestTrace>({
-      max: options.maxSize ?? 1000,
-      ttl: options.ttl ?? 5 * 60 * 1000, // 5 minutes
-      updateAgeOnGet: true,
+  constructor() {
+    this.cache = new Cache<string, TraceSpan>({
+      max: 1000,
+      ttl: 5 * 60 * 1000, // 5 minutes
+      dispose: (span) => {
+        // Clean up indices on eviction
+        this.traceIndex.get(span.traceId)?.delete(span.spanId);
+        this.operationIndex.get(span.operationName)?.delete(span.spanId);
+        if (span.errorMessage) {
+          this.errorIndex.get(span.errorMessage)?.delete(span.spanId);
+        }
+      },
     });
+  }
 
-    if (this.enabled) {
-      logger.info('Trace aggregation enabled', {
-        maxSize: options.maxSize ?? 1000,
-        ttl: `${(options.ttl ?? 5 * 60 * 1000) / 1000}s`,
-      });
+  /**
+   * Record a span
+   */
+  recordSpan(span: TraceSpan): void {
+    const key = `${span.traceId}-${span.spanId}`;
+    this.cache.set(key, span);
+
+    // Update indices
+    if (!this.traceIndex.has(span.traceId)) {
+      this.traceIndex.set(span.traceId, new Set());
+    }
+    this.traceIndex.get(span.traceId)!.add(span.spanId);
+
+    if (!this.operationIndex.has(span.operationName)) {
+      this.operationIndex.set(span.operationName, new Set());
+    }
+    this.operationIndex.get(span.operationName)!.add(span.spanId);
+
+    if (span.errorMessage) {
+      if (!this.errorIndex.has(span.errorMessage)) {
+        this.errorIndex.set(span.errorMessage, new Set());
+      }
+      this.errorIndex.get(span.errorMessage)!.add(span.spanId);
     }
   }
 
   /**
-   * Check if trace aggregation is enabled
+   * Convert OpenTelemetry Span to TraceSpan
    */
-  isEnabled(): boolean {
-    return this.enabled;
+  spanToTraceSpan(otelSpan: Span, attributes: Record<string, unknown> = {}): TraceSpan {
+    const spanContext = (otelSpan as unknown as { _spanContext?: unknown })._spanContext as unknown as {
+      traceId?: string;
+      spanId?: string;
+    } | undefined;
+
+    return {
+      spanId: spanContext?.spanId ?? 'unknown',
+      traceId: spanContext?.traceId ?? 'unknown',
+      operationName: otelSpan.name,
+      startTimeMs: Date.now(),
+      endTimeMs: Date.now(),
+      durationMs: 0,
+      status: 'ok',
+      attributes,
+    };
   }
 
   /**
-   * Record a completed request trace
+   * Search traces by various criteria
    */
-  recordTrace(trace: RequestTrace): void {
-    if (!this.enabled) return;
+  search(options: TraceSearchOptions): TraceSearchResult {
+    let spanIds = new Set<string>();
 
-    this.traces.set(trace.requestId, trace);
-
-    logger.debug('Trace recorded', {
-      requestId: trace.requestId,
-      traceId: trace.traceId,
-      tool: trace.tool,
-      action: trace.action,
-      duration: `${trace.duration}ms`,
-      success: trace.success,
-      spanCount: trace.spans.length,
-    });
-  }
-
-  /**
-   * Get a specific trace by request ID
-   */
-  getTrace(requestId: string): RequestTrace | undefined {
-    return this.traces.get(requestId);
-  }
-
-  /**
-   * Get a trace by trace ID (searches all traces)
-   */
-  getTraceByTraceId(traceId: string): RequestTrace | undefined {
-    for (const trace of this.traces.values()) {
-      if (trace.traceId === traceId) {
-        return trace;
+    // Start with spans matching the operation filter
+    if (options.operation) {
+      spanIds = new Set(this.operationIndex.get(options.operation) ?? []);
+    } else if (options.tool) {
+      // Search for spans with tool attribute
+      for (const span of this.cache.values()) {
+        if (span.attributes['tool'] === options.tool) {
+          spanIds.add(span.spanId);
+        }
+      }
+    } else {
+      // No filter, search all
+      for (const span of this.cache.values()) {
+        spanIds.add(span.spanId);
       }
     }
-    return undefined;
-  }
 
-  /**
-   * Search traces with filters
-   */
-  searchTraces(filters: TraceSearchFilters = {}): RequestTrace[] {
-    const traces = Array.from(this.traces.values());
+    // Apply additional filters
+    const filtered = Array.from(spanIds)
+      .map((id) => {
+        const key = Array.from(this.cache.keys()).find((k) => k.endsWith(id));
+        return key ? this.cache.get(key) : undefined;
+      })
+      .filter(
+        (span): span is TraceSpan =>
+          span !== undefined &&
+          (!options.errorCode || span.attributes['errorCode'] === options.errorCode) &&
+          (!options.minDurationMs || span.durationMs >= options.minDurationMs) &&
+          (!options.maxDurationMs || span.durationMs <= options.maxDurationMs) &&
+          (!options.since || span.startTimeMs >= options.since) &&
+          (!options.until || span.endTimeMs <= options.until)
+      );
 
-    return traces.filter((trace) => {
-      // Tool filter
-      if (filters.tool && trace.tool !== filters.tool) {
-        return false;
-      }
+    // Sort by start time descending
+    filtered.sort((a, b) => b.startTimeMs - a.startTimeMs);
 
-      // Action filter
-      if (filters.action && trace.action !== filters.action) {
-        return false;
-      }
+    const limit = options.limit ?? 100;
+    const traces = filtered.slice(0, limit);
 
-      // Error code filter
-      if (filters.errorCode && trace.errorCode !== filters.errorCode) {
-        return false;
-      }
-
-      // Success filter
-      if (filters.success !== undefined && trace.success !== filters.success) {
-        return false;
-      }
-
-      // Duration filters
-      if (filters.minDuration !== undefined && trace.duration < filters.minDuration) {
-        return false;
-      }
-      if (filters.maxDuration !== undefined && trace.duration > filters.maxDuration) {
-        return false;
-      }
-
-      // Time range filters
-      if (filters.startTime !== undefined && trace.timestamp < filters.startTime) {
-        return false;
-      }
-      if (filters.endTime !== undefined && trace.timestamp > filters.endTime) {
-        return false;
-      }
-
-      return true;
-    });
-  }
-
-  /**
-   * Get recent traces (last N traces)
-   */
-  getRecentTraces(limit: number = 100): RequestTrace[] {
-    const traces = Array.from(this.traces.values());
-    return traces.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
+    return {
+      traces,
+      totalCount: filtered.length,
+      hasMore: filtered.length > limit,
+    };
   }
 
   /**
    * Get slowest traces
    */
-  getSlowestTraces(limit: number = 10): RequestTrace[] {
-    const traces = Array.from(this.traces.values());
-    return traces.sort((a, b) => b.duration - a.duration).slice(0, limit);
+  getSlowestTraces(limit: number = 10): TraceSpan[] {
+    const spans = Array.from(this.cache.values());
+    return spans.sort((a, b) => b.durationMs - a.durationMs).slice(0, limit);
   }
 
   /**
    * Get error traces
    */
-  getErrorTraces(limit?: number): RequestTrace[] {
-    const traces = Array.from(this.traces.values());
-    const errorTraces = traces
-      .filter((trace) => !trace.success)
-      .sort((a, b) => b.timestamp - a.timestamp);
-
-    return limit ? errorTraces.slice(0, limit) : errorTraces;
+  getErrorTraces(limit: number = 10): TraceSpan[] {
+    const spans = Array.from(this.cache.values()).filter((s) => s.status === 'error');
+    return spans.slice(0, limit);
   }
 
   /**
-   * Get trace statistics
+   * Get statistics by tool
    */
-  getStats(): TraceStats {
-    const traces = Array.from(this.traces.values());
+  getStatsByTool(): Record<string, { count: number; avgDurationMs: number; errorCount: number }> {
+    const stats: Record<string, { count: number; avgDurationMs: number; errorCount: number }> = {};
 
-    if (traces.length === 0) {
-      return {
-        totalTraces: 0,
-        successCount: 0,
-        errorCount: 0,
-        averageDuration: 0,
-        p50Duration: 0,
-        p95Duration: 0,
-        p99Duration: 0,
-        byTool: {},
-        byError: {},
-      };
-    }
-
-    // Calculate success/error counts
-    const successCount = traces.filter((t) => t.success).length;
-    const errorCount = traces.length - successCount;
-
-    // Calculate duration statistics
-    const durations = traces.map((t) => t.duration).sort((a, b) => a - b);
-    const averageDuration = durations.reduce((sum, d) => sum + d, 0) / durations.length;
-    const p50Duration = durations[Math.floor(durations.length * 0.5)] ?? 0;
-    const p95Duration = durations[Math.floor(durations.length * 0.95)] ?? 0;
-    const p99Duration = durations[Math.floor(durations.length * 0.99)] ?? 0;
-
-    // Group by tool
-    const byTool: Record<string, { count: number; totalDuration: number; errorCount: number }> = {};
-    for (const trace of traces) {
-      if (!byTool[trace.tool]) {
-        byTool[trace.tool] = { count: 0, totalDuration: 0, errorCount: 0 };
+    for (const span of this.cache.values()) {
+      const tool = (span.attributes['tool'] as string) || 'unknown';
+      if (!stats[tool]) {
+        stats[tool] = { count: 0, avgDurationMs: 0, errorCount: 0 };
       }
-      const toolData = byTool[trace.tool];
-      if (toolData) {
-        toolData.count++;
-        toolData.totalDuration += trace.duration;
-        if (!trace.success) {
-          toolData.errorCount++;
-        }
+      stats[tool].count++;
+      stats[tool].avgDurationMs =
+        (stats[tool].avgDurationMs * (stats[tool].count - 1) + span.durationMs) / stats[tool].count;
+      if (span.status === 'error') {
+        stats[tool].errorCount++;
       }
     }
 
-    const toolStats: Record<string, { count: number; averageDuration: number; errorRate: number }> =
-      {};
-    for (const [tool, stats] of Object.entries(byTool)) {
-      toolStats[tool] = {
-        count: stats.count,
-        averageDuration: stats.totalDuration / stats.count,
-        errorRate: stats.errorCount / stats.count,
-      };
-    }
-
-    // Group errors by code
-    const byError: Record<string, number> = {};
-    for (const trace of traces) {
-      if (trace.errorCode) {
-        byError[trace.errorCode] = (byError[trace.errorCode] || 0) + 1;
-      }
-    }
-
-    return {
-      totalTraces: traces.length,
-      successCount,
-      errorCount,
-      averageDuration,
-      p50Duration,
-      p95Duration,
-      p99Duration,
-      byTool: toolStats,
-      byError,
-    };
+    return stats;
   }
 
   /**
-   * Get cache size and statistics
-   */
-  getCacheStats(): {
-    size: number;
-    maxSize: number;
-    ttl: number;
-  } {
-    return {
-      size: this.traces.size,
-      maxSize: this.traces.max,
-      ttl: this.traces.ttl ?? 0,
-    };
-  }
-
-  /**
-   * Clear all traces (for testing)
+   * Clear all traces
    */
   clear(): void {
-    this.traces.clear();
-  }
-
-  /**
-   * Convert OpenTelemetry Span to TraceSpan format
-   */
-  static spanToTraceSpan(span: Span): TraceSpan {
-    const duration = span.endTime ? (span.endTime - span.startTime) / 1000 : 0;
-
-    return {
-      spanId: span.context.spanId,
-      parentSpanId: span.parentSpanId,
-      name: span.name,
-      kind: span.kind,
-      startTime: span.startTime,
-      endTime: span.endTime ?? span.startTime,
-      duration,
-      attributes: span.attributes,
-      status: span.status,
-      statusMessage: span.statusMessage,
-      events: span.events?.map((e) => ({
-        name: e.name,
-        timestamp: e.timestamp,
-        attributes: e.attributes,
-      })),
-    };
-  }
-
-  /**
-   * Build a RequestTrace from tool execution data
-   */
-  static buildRequestTrace(
-    requestId: string,
-    traceId: string,
-    tool: string,
-    action: string,
-    success: boolean,
-    duration: number,
-    spans: Span[],
-    errorCode?: string,
-    errorMessage?: string,
-    metadata?: Record<string, unknown>
-  ): RequestTrace {
-    return {
-      requestId,
-      traceId,
-      timestamp: Date.now(),
-      duration,
-      tool,
-      action,
-      success,
-      errorCode,
-      errorMessage,
-      spans: spans.map((s) => TraceAggregatorImpl.spanToTraceSpan(s)),
-      metadata,
-    };
+    this.cache.clear();
+    this.traceIndex.clear();
+    this.operationIndex.clear();
+    this.errorIndex.clear();
   }
 }
 
-// ==================== Global Instance ====================
-
-let globalAggregator: TraceAggregatorImpl | undefined;
-
 /**
- * Get the global trace aggregator instance
+ * Singleton instance
  */
-export function getTraceAggregator(): TraceAggregatorImpl {
+let globalAggregator: TraceAggregator | null = null;
+
+export function getTraceAggregator(): TraceAggregator {
   if (!globalAggregator) {
-    globalAggregator = new TraceAggregatorImpl();
+    globalAggregator = new TraceAggregator();
   }
   return globalAggregator;
 }
-
-/**
- * Initialize the trace aggregator with options
- */
-export function initTraceAggregator(options?: {
-  maxSize?: number;
-  ttl?: number;
-  enabled?: boolean;
-}): TraceAggregatorImpl {
-  globalAggregator = new TraceAggregatorImpl(options);
-  return globalAggregator;
-}
-
-// Export implementation for testing
-export { TraceAggregatorImpl };

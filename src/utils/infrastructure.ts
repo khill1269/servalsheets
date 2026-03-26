@@ -1,187 +1,275 @@
 /**
- * Infrastructure optimization utilities for request management
- * Includes request coalescing, prefetch prediction, batch scheduling, and connection pooling
+ * Infrastructure Utilities
+ *
+ * High-level infrastructure services:
+ * - RequestCoalescer: Batch multiple requests to same spreadsheet
+ * - PrefetchPredictor: Predict and prefetch data based on patterns
+ * - BatchRequestScheduler: Schedule and batch Google Sheets API requests
+ * - ConnectionPool: Manage concurrent request limiting
  */
 
-import PQueue from 'p-queue';
-import { logger } from './logger.js';
+import { getRequestLogger } from './request-context.js';
 
-/**
- * Request coalescer: combines multiple identical requests into one
- * Reduces redundant API calls within a time window
- */
-export class RequestCoalescer<T, R> {
-  private pending: Map<string, Promise<R>> = new Map();
-  private windowMs: number;
+interface CoalescedRequest<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (error: Error) => void;
+  addedAt: number;
+}
 
-  constructor(windowMs: number = 50) {
-    this.windowMs = windowMs;
-  }
+export class RequestCoalescer {
+  private pending: Map<string, CoalescedRequest<unknown>> = new Map();
+  private logger = getRequestLogger();
+  private coalesceWindowMs: number = 50; // Batch window: 50ms
 
-  async execute(key: string, operation: () => Promise<R>): Promise<R> {
-    if (this.pending.has(key)) {
-      return this.pending.get(key)!;
+  /**
+   * Coalesce multiple requests to the same key
+   * If a request for this key is in-flight, return the same promise
+   */
+  async coalesce<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const existing = this.pending.get(key);
+    if (existing) {
+      this.logger.debug('Request coalesced', { key });
+      return existing.promise as Promise<T>;
     }
 
-    const promise = operation();
-    this.pending.set(key, promise);
+    let resolve!: (value: T) => void;
+    let reject!: (error: Error) => void;
 
-    promise.finally(() => {
-      setTimeout(() => {
-        this.pending.delete(key);
-      }, this.windowMs);
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
     });
+
+    this.pending.set(key, { promise, resolve: resolve as (v: unknown) => void, reject, addedAt: Date.now() });
+
+    try {
+      const result = await fn();
+      resolve(result);
+    } catch (error) {
+      reject(error instanceof Error ? error : new Error(String(error)));
+    } finally {
+      this.pending.delete(key);
+    }
 
     return promise;
   }
+
+  getPendingCount(): number {
+    return this.pending.size;
+  }
 }
 
-/**
- * Prefetch predictor: predicts likely next requests and prefetches proactively
- */
-export class PrefetchPredictor<T> {
-  private history: T[] = [];
-  private maxHistory: number;
-  private predictions: Map<string, T> = new Map();
+interface PrefetchCandidate {
+  range: string;
+  likelihood: number; // 0-1
+  lastAccessed: number;
+}
 
-  constructor(maxHistory: number = 10) {
-    this.maxHistory = maxHistory;
+export class PrefetchPredictor {
+  private accessPatterns: Map<string, number[]> = new Map(); // range -> timestamps
+  private predictions: Map<string, PrefetchCandidate> = new Map();
+  private logger = getRequestLogger();
+  private maxPatterns = 1000;
+
+  /**
+   * Record an access pattern
+   */
+  recordAccess(range: string): void {
+    const timestamps = this.accessPatterns.get(range) ?? [];
+    timestamps.push(Date.now());
+    // Keep only last 20 accesses per range
+    if (timestamps.length > 20) timestamps.shift();
+    this.accessPatterns.set(range, timestamps);
   }
 
-  record(item: T): void {
-    this.history.push(item);
-    if (this.history.length > this.maxHistory) {
-      this.history.shift();
+  /**
+   * Predict next likely accesses based on patterns
+   * Returns ranges that should be prefetched
+   */
+  predictNext(recentRange: string, topN: number = 3): string[] {
+    const candidates: PrefetchCandidate[] = [];
+
+    for (const [range, timestamps] of this.accessPatterns.entries()) {
+      if (range === recentRange) continue;
+
+      // Calculate likelihood based on frequency and recency
+      const frequency = timestamps.length;
+      const recency = Date.now() - (timestamps[timestamps.length - 1] ?? 0);
+      const likelihood = Math.max(0, 1 - recency / (24 * 60 * 60 * 1000)) * (frequency / 20); // 0-1
+
+      if (likelihood > 0.1) {
+        candidates.push({ range, likelihood, lastAccessed: recency });
+      }
     }
-  }
 
-  predictNext(): T | undefined {
-    // Simple heuristic: return most recent item
-    // In production: use ML models or pattern matching
-    return this.history.length > 0 ? this.history[this.history.length - 1] : undefined;
+    candidates.sort((a, b) => b.likelihood - a.likelihood);
+    return candidates.slice(0, topN).map((c) => c.range);
   }
 
   clear(): void {
-    this.history = [];
+    this.accessPatterns.clear();
     this.predictions.clear();
   }
 }
 
-/**
- * Batch request scheduler: groups requests for batch processing
- */
-export class BatchRequestScheduler<T, R> {
-  private queue: T[] = [];
-  private timer: NodeJS.Timeout | null = null;
-  private windowMs: number;
-  private maxBatchSize: number;
-  private processor: (batch: T[]) => Promise<R[]>;
-  private callbacks: Array<(result: R) => void> = [];
+interface BatchedOperation {
+  fn: () => Promise<unknown>;
+  resolve: (value: unknown) => void;
+  reject: (error: Error) => void;
+  addedAt: number;
+}
 
-  constructor(
-    windowMs: number = 50,
-    maxBatchSize: number = 100,
-    processor: (batch: T[]) => Promise<R[]> = async (batch) => batch as unknown as R[]
-  ) {
-    this.windowMs = windowMs;
-    this.maxBatchSize = maxBatchSize;
-    this.processor = processor;
+export class BatchRequestScheduler {
+  private queue: BatchedOperation[] = [];
+  private batchSize: number = 20;
+  private batchWindowMs: number = 100;
+  private logger = getRequestLogger();
+  private timerId: NodeJS.Timeout | null = null;
+  private processing = false;
+
+  /**
+   * Schedule an operation for batching
+   */
+  async schedule<T>(fn: () => Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      this.queue.push({ fn, resolve: resolve as (v: unknown) => void, reject, addedAt: Date.now() });
+      this.scheduleFlush();
+    });
   }
 
-  add(item: T): Promise<R> {
-    return new Promise((resolve) => {
-      this.queue.push(item);
-      this.callbacks.push(resolve);
+  private scheduleFlush(): void {
+    if (this.timerId || this.processing) return;
 
-      if (this.queue.length >= this.maxBatchSize) {
-        this.flush();
-      } else if (!this.timer) {
-        this.timer = setTimeout(() => this.flush(), this.windowMs);
-      }
-    });
+    if (this.queue.length >= this.batchSize) {
+      this.flush();
+    } else {
+      this.timerId = setTimeout(() => this.flush(), this.batchWindowMs);
+    }
   }
 
   private async flush(): Promise<void> {
-    if (this.timer) {
-      clearTimeout(this.timer);
-      this.timer = null;
-    }
+    if (this.processing || this.queue.length === 0) return;
 
-    if (this.queue.length === 0) {
-      return;
-    }
+    this.processing = true;
+    if (this.timerId) clearTimeout(this.timerId);
+    this.timerId = null;
 
-    const batch = this.queue.splice(0, this.queue.length);
-    const callbacks = this.callbacks.splice(0, batch.length);
+    const batch = this.queue.splice(0, this.batchSize);
+    this.logger.debug('Flushing batch', { size: batch.length });
 
-    try {
-      const results = await this.processor(batch);
-      callbacks.forEach((cb, i) => cb(results[i]));
-    } catch (error) {
-      logger.error('Batch processing failed', { error });
-      callbacks.forEach((cb) => cb(undefined as unknown as R));
+    const results = await Promise.allSettled(batch.map((op) => op.fn()));
+
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        batch[index]!.resolve(result.value);
+      } else {
+        batch[index]!.reject(result.reason);
+      }
+    });
+
+    this.processing = false;
+
+    if (this.queue.length > 0) {
+      this.scheduleFlush();
     }
+  }
+
+  getQueueSize(): number {
+    return this.queue.length;
   }
 }
 
-/**
- * Connection pool: manages reusable connections
- */
-export class ConnectionPool<T> {
-  private pool: T[] = [];
-  private activeConnections: Set<T> = new Set();
-  private maxSize: number;
-  private factory: () => Promise<T>;
-  private destroyer?: (conn: T) => Promise<void>;
-  private pQueue: PQueue;
+export class ConnectionPool {
+  private activeConnections: number = 0;
+  private waitingRequests: Array<() => void> = [];
+  private maxConcurrent: number;
+  private logger = getRequestLogger();
 
-  constructor(
-    maxSize: number,
-    factory: () => Promise<T>,
-    destroyer?: (conn: T) => Promise<void>
-  ) {
-    this.maxSize = maxSize;
-    this.factory = factory;
-    this.destroyer = destroyer;
-    this.pQueue = new PQueue({ concurrency: maxSize });
+  constructor(maxConcurrent: number = 20) {
+    this.maxConcurrent = maxConcurrent;
   }
 
-  async acquire(): Promise<T> {
-    if (this.pool.length > 0) {
-      const conn = this.pool.pop()!;
-      this.activeConnections.add(conn);
-      return conn;
+  /**
+   * Acquire a connection slot
+   * Waits if max concurrent connections reached
+   */
+  async acquire(): Promise<void> {
+    if (this.activeConnections < this.maxConcurrent) {
+      this.activeConnections++;
+      return;
     }
 
-    if (this.activeConnections.size < this.maxSize) {
-      const conn = await this.factory();
-      this.activeConnections.add(conn);
-      return conn;
-    }
-
-    // Wait for a connection to be released
-    return new Promise((resolve) => {
-      const checkAvailable = setInterval(() => {
-        if (this.pool.length > 0) {
-          clearInterval(checkAvailable);
-          this.acquire().then(resolve);
-        }
-      }, 10);
+    // Wait for a slot to free up
+    await new Promise<void>((resolve) => {
+      this.waitingRequests.push(resolve);
     });
   }
 
-  release(conn: T): void {
-    this.activeConnections.delete(conn);
-    this.pool.push(conn);
+  /**
+   * Release a connection slot
+   */
+  release(): void {
+    const waiting = this.waitingRequests.shift();
+    if (waiting) {
+      waiting();
+      this.activeConnections++;
+    } else {
+      this.activeConnections--;
+    }
   }
 
-  async drain(): Promise<void> {
-    for (const conn of this.activeConnections) {
-      if (this.destroyer) {
-        await this.destroyer(conn);
-      }
+  /**
+   * Execute function with connection slot
+   */
+  async execute<T>(fn: () => Promise<T>): Promise<T> {
+    await this.acquire();
+    try {
+      return await fn();
+    } finally {
+      this.release();
     }
-    this.activeConnections.clear();
-    this.pool = [];
   }
+
+  getStats() {
+    return {
+      activeConnections: this.activeConnections,
+      maxConcurrent: this.maxConcurrent,
+      waitingRequests: this.waitingRequests.length,
+    };
+  }
+}
+
+// Singleton factories
+
+let globalCoalescer: RequestCoalescer | null = null;
+export function getRequestCoalescer(): RequestCoalescer {
+  if (!globalCoalescer) {
+    globalCoalescer = new RequestCoalescer();
+  }
+  return globalCoalescer;
+}
+
+let globalPredictor: PrefetchPredictor | null = null;
+export function getPrefetchPredictor(): PrefetchPredictor {
+  if (!globalPredictor) {
+    globalPredictor = new PrefetchPredictor();
+  }
+  return globalPredictor;
+}
+
+let globalScheduler: BatchRequestScheduler | null = null;
+export function getBatchRequestScheduler(): BatchRequestScheduler {
+  if (!globalScheduler) {
+    globalScheduler = new BatchRequestScheduler();
+  }
+  return globalScheduler;
+}
+
+let globalPool: ConnectionPool | null = null;
+export function getConnectionPool(maxConcurrent?: number): ConnectionPool {
+  if (!globalPool) {
+    globalPool = new ConnectionPool(maxConcurrent);
+  }
+  return globalPool;
 }
