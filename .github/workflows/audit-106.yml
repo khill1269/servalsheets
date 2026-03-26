@@ -74,7 +74,7 @@ jobs:
               FAILED=$((FAILED + 1))
               ISSUES=$(echo "$ISSUES" | node -e "
                 const j=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-                j.push({category:'$name',priority:FAILED>2?'P0':'P1',message:'$name failed'});
+                j.push({category:'$name',priority:${FAILED}>2?'P0':'P1',message:'$name failed'});
                 console.log(JSON.stringify(j));
               ")
               echo "❌ $name failed"
