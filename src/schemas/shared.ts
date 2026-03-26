@@ -15,10 +15,6 @@ import {
   URL_REGEX,
 } from '../config/google-limits.js';
 
-// ============================================================================
-// PROTOCOL CONSTANTS
-// ============================================================================
-
 export { MCP_PROTOCOL_VERSION } from '../config/protocol.js';
 export const SHEETS_API_VERSION = 'v4';
 export const DRIVE_API_VERSION = 'v3';
