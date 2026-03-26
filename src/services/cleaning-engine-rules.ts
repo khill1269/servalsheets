@@ -728,8 +728,8 @@ function toTitleCase(str: string): string {
 
 function isAmbiguousDate(str: string): boolean {
   return (
-    /^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$/.test(str.trim()) ||
-    /^\d{4}[/.-]\d{1,2}[/.-]\d{1,2}$/.test(str.trim()) ||
+    /^\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}$/.test(str.trim()) ||
+    /^\d{4}[\/.-]\d{1,2}[\/.-]\d{1,2}$/.test(str.trim()) ||
     /^[A-Za-z]+ \d{1,2},? \d{4}$/.test(str.trim())
   );
 }
@@ -743,10 +743,10 @@ interface ParsedDate {
 function parseAnyDate(str: string): ParsedDate | null {
   const trimmed = str.trim();
 
-  let m = trimmed.match(/^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/);
+  let m = trimmed.match(/^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})$/);
   if (m) return { year: parseInt(m[1]!, 10), month: parseInt(m[2]!, 10), day: parseInt(m[3]!, 10) };
 
-  m = trimmed.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+  m = trimmed.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
   if (m) {
     const a = parseInt(m[1]!, 10);
     const b = parseInt(m[2]!, 10);
@@ -755,7 +755,7 @@ function parseAnyDate(str: string): ParsedDate | null {
     return { year, month: b, day: a };
   }
 
-  m = trimmed.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2})$/);
+  m = trimmed.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2})$/);
   if (m) {
     const yy = parseInt(m[3]!, 10);
     const year = yy < 50 ? 2000 + yy : 1900 + yy;
@@ -765,29 +765,10 @@ function parseAnyDate(str: string): ParsedDate | null {
   m = trimmed.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
   if (m) {
     const monthNames: Record<string, number> = {
-      jan: 1,
-      january: 1,
-      feb: 2,
-      february: 2,
-      mar: 3,
-      march: 3,
-      apr: 4,
-      april: 4,
-      may: 5,
-      jun: 6,
-      june: 6,
-      jul: 7,
-      july: 7,
-      aug: 8,
-      august: 8,
-      sep: 9,
-      september: 9,
-      oct: 10,
-      october: 10,
-      nov: 11,
-      november: 11,
-      dec: 12,
-      december: 12,
+      jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
+      apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7,
+      aug: 8, august: 8, sep: 9, september: 9, oct: 10, october: 10,
+      nov: 11, november: 11, dec: 12, december: 12,
     };
     const month = monthNames[m[1]!.toLowerCase()];
     if (month) return { year: parseInt(m[3]!, 10), month, day: parseInt(m[2]!, 10) };
@@ -798,6 +779,5 @@ function parseAnyDate(str: string): ParsedDate | null {
 
 function normalizeDate(str: string): string {
   const d = parseAnyDate(str);
-  if (!d) return str;
-  return `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`;
+  return d ? `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}` : str;
 }
