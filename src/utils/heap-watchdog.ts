@@ -10,6 +10,7 @@
  *   critical — heap > 90%: new analysis requests rejected with RESOURCE_EXHAUSTED
  */
 
+import v8 from 'v8';
 import { logger } from './logger.js';
 
 export type HeapPressureLevel = 'normal' | 'elevated' | 'critical';
@@ -20,7 +21,8 @@ let _watchdogTimer: NodeJS.Timeout | null = null;
 /** Thresholds configurable via env vars */
 const ELEVATED_THRESHOLD = parseFloat(process.env['HEAP_ELEVATED_THRESHOLD'] ?? '0.80');
 const CRITICAL_THRESHOLD = parseFloat(process.env['HEAP_CRITICAL_THRESHOLD'] ?? '0.90');
-const WATCHDOG_INTERVAL_MS = parseInt(process.env['HEAP_WATCHDOG_INTERVAL_MS'] ?? '5000', 10);
+// Session 110 fix: NaN-safe parseInt with fallback
+const WATCHDOG_INTERVAL_MS = parseInt(process.env['HEAP_WATCHDOG_INTERVAL_MS'] ?? '5000', 10) || 5000;
 
 /**
  * Get the current heap pressure level.
@@ -52,9 +54,12 @@ export function startHeapWatchdog(): void {
   if (_watchdogTimer) return; // Already running
 
   _watchdogTimer = setInterval(() => {
-    const { heapUsed, heapTotal } = process.memoryUsage();
-    // Use heapTotal as denominator (reflects actual allocated heap, not V8 heap limit)
-    const utilization = heapUsed / heapTotal;
+    const { heapUsed } = process.memoryUsage();
+    // Use heap_size_limit (~4.5GB) as denominator, NOT heapTotal (~5MB on cold start).
+    // heapTotal is V8's committed heap segment, which is tiny on startup and causes
+    // false 70%+ pressure readings. heap_size_limit is the actual V8 heap ceiling.
+    const heapLimit = v8.getHeapStatistics().heap_size_limit;
+    const utilization = heapUsed / heapLimit;
 
     const previousLevel = _pressureLevel;
 
@@ -68,13 +73,13 @@ export function startHeapWatchdog(): void {
 
     if (_pressureLevel !== previousLevel) {
       const heapUsedMB = (heapUsed / 1024 / 1024).toFixed(1);
-      const heapTotalMB = (heapTotal / 1024 / 1024).toFixed(1);
+      const heapLimitMB = (heapLimit / 1024 / 1024).toFixed(1);
 
       if (_pressureLevel === 'critical') {
         logger.error('Heap pressure CRITICAL — rejecting new analysis requests', {
           component: 'heap-watchdog',
           heapUsedMB,
-          heapTotalMB,
+          heapLimitMB,
           utilizationPct: (utilization * 100).toFixed(1),
           threshold: CRITICAL_THRESHOLD,
         });
@@ -82,7 +87,7 @@ export function startHeapWatchdog(): void {
         logger.warn('Heap pressure ELEVATED — disabling background analysis', {
           component: 'heap-watchdog',
           heapUsedMB,
-          heapTotalMB,
+          heapLimitMB,
           utilizationPct: (utilization * 100).toFixed(1),
           threshold: ELEVATED_THRESHOLD,
         });
@@ -90,7 +95,7 @@ export function startHeapWatchdog(): void {
         logger.info('Heap pressure returned to normal', {
           component: 'heap-watchdog',
           heapUsedMB,
-          heapTotalMB,
+          heapLimitMB,
           utilizationPct: (utilization * 100).toFixed(1),
           previousLevel,
         });

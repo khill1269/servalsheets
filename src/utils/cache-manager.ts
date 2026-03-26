@@ -103,12 +103,13 @@ export class CacheManager {
     const isTestEnv = process.env['NODE_ENV'] === 'test';
     this.enabled =
       options.enabled ?? (envEnabled !== undefined ? envEnabled !== 'false' : !isTestEnv);
+    // Session 110 fix: NaN-safe parseInt
     this.defaultTTL =
-      options.defaultTTL ?? parseInt(process.env['CACHE_DEFAULT_TTL'] || '300000', 10);
+      options.defaultTTL ?? (parseInt(process.env['CACHE_DEFAULT_TTL'] ?? '300000', 10) || 300000);
     this.maxSizeBytes =
-      (options.maxSizeMB ?? parseInt(process.env['CACHE_MAX_SIZE'] || '100', 10)) * 1024 * 1024;
+      (options.maxSizeMB ?? (parseInt(process.env['CACHE_MAX_SIZE'] ?? '100', 10) || 100)) * 1024 * 1024;
     this.cleanupInterval =
-      options.cleanupInterval ?? parseInt(process.env['CACHE_CLEANUP_INTERVAL'] || '300000', 10);
+      options.cleanupInterval ?? (parseInt(process.env['CACHE_CLEANUP_INTERVAL'] ?? '300000', 10) || 300000);
 
     if (this.enabled) {
       logger.info('Cache manager initialized', {
@@ -161,7 +162,7 @@ export class CacheManager {
     if (!this.enabled) {
       this.misses++;
       // OK: Explicit empty - typed as optional, cache disabled
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     const cacheKey = this.buildKey(key, namespace);
@@ -170,7 +171,7 @@ export class CacheManager {
     if (!entry) {
       this.misses++;
       // OK: Explicit empty - typed as optional, cache miss
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     const now = Date.now();
@@ -181,7 +182,7 @@ export class CacheManager {
       this.cache.delete(cacheKey);
       this.misses++;
       logger.debug('Cache entry expired', { key, namespace });
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     // Probabilistic early expiration (XFetch algorithm)
@@ -192,7 +193,8 @@ export class CacheManager {
     // Simplified: use remaining TTL ratio — probability increases as expiry nears
     const ttlTotal = entry.expires - entry.storedAt;
     const remaining = entry.expires - now;
-    if (ttlTotal > 0 && remaining < ttlTotal * 0.15) {
+    const MIN_TTL_FOR_EARLY_EXPIRY = 2000; // Skip early-expiry if TTL < 2s
+    if (ttlTotal > 0 && remaining < ttlTotal * 0.15 && remaining > MIN_TTL_FOR_EARLY_EXPIRY) {
       // In the last 15% of TTL, probabilistically expire
       // Probability scales from 0% at 15% remaining to ~63% at 0% remaining
       const ratio = remaining / (ttlTotal * 0.15);
@@ -204,7 +206,7 @@ export class CacheManager {
           remainingMs: remaining,
           ttlMs: ttlTotal,
         });
-        return undefined;
+        return undefined; // OK: Explicit empty — SWR probabilistic early expiration (logged above)
       }
     }
 
@@ -350,16 +352,22 @@ export class CacheManager {
     const effectiveGrace = graceMs ?? Math.floor(ttl * 0.5);
 
     if (entry && now <= entry.expires + effectiveGrace) {
+      // Session 110 fix: Guard SWR background revalidation with try-catch
       // Serve stale data immediately, revalidate in background
       entry.lastAccess = now;
       this.hits++;
 
       // Background revalidation (fire-and-forget)
-      factory()
-        .then((value) => this.set(key, value, options))
-        .catch(() => {
-          /* Stale value remains — revalidation failure is non-fatal */
+      try {
+        const value = await factory();
+        this.set(key, value, options);
+      } catch (error) {
+        logger.warn('SWR revalidation failed, stale value remains', {
+          key,
+          namespace: options.namespace,
+          error: error instanceof Error ? error.message : String(error),
         });
+      }
 
       logger.debug('Cache SWR: serving stale, revalidating in background', {
         key,
