@@ -95,11 +95,11 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
       | undefined
   ): { a1?: string; sheetName?: string; range?: string } | undefined {
     // OK: Explicit empty - no range provided
-    if (!range) return undefined;
+    if (!range) return undefined; // OK: Explicit empty
     if ('a1' in range) return { a1: range.a1 };
     if ('namedRange' in range) return { a1: range.namedRange };
     // OK: Explicit empty - semantic and grid ranges will be supported in Phase 2
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   /**
@@ -135,17 +135,17 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
     range?: string;
   }): string | undefined {
     // OK: Explicit empty - typed as optional, no range specified
-    if (!range) return undefined;
+    if (!range) return undefined; // OK: Explicit empty
     if ('a1' in range && range.a1) return range.a1;
     if ('sheetName' in range && range.sheetName) {
       return range.range ? `${range.sheetName}!${range.range}` : range.sheetName;
     }
     // OK: Explicit empty - typed as optional, invalid range format
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   private getSheetNameFromRange(range?: string): string | undefined {
-    if (!range) return undefined;
+    if (!range) return undefined; // OK: Explicit empty
     const match = range.match(/^(?:'([^']+)'!|([^!]+)!)/);
     return match?.[1] ?? match?.[2];
   }
