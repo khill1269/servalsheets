@@ -167,6 +167,7 @@ export class WorkspaceEventsService {
     const msUntilRenewal = new Date(sub.expireTime).getTime() - Date.now() - 12 * 3600 * 1000;
     if (msUntilRenewal > 0) {
       sub.renewalTimer = setTimeout(() => this.renewSubscription(sub.id), msUntilRenewal);
+      // Unref so timer doesn't keep process alive
       if (typeof sub.renewalTimer === 'object' && 'unref' in sub.renewalTimer) {
         sub.renewalTimer.unref();
       }
