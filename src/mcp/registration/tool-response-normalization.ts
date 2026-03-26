@@ -1,111 +1,296 @@
-/**
- * Tool Response Normalization
- *
- * Standardizes MCP tool response structure with metadata injection,
- * pagination hints, and collection metadata.
- */
+export type PlainRecord = Record<string, unknown>;
 
-import type { ToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { logger } from '../../utils/logger.js';
-
-export interface StructuredContent {
-  type: 'text' | 'image' | 'resource';
-  text?: string;
-  data?: unknown;
-  mimeType?: string;
-}
-
-export interface PaginationMeta {
-  cursor?: string;
+type StandardPaginationMeta = {
   hasMore: boolean;
-  limit?: number;
+  nextCursor?: string;
+  totalCount?: number;
+  count?: number;
   offset?: number;
-}
+  limit?: number;
+};
 
-export interface CollectionMeta {
+type StandardCollectionMeta = {
+  itemsField: string;
   count: number;
-  total?: number;
-  filtered?: boolean;
+  totalCount?: number;
+  hasMore?: boolean;
+  nextCursor?: string;
+  offset?: number;
+  limit?: number;
+};
+
+const KNOWN_COLLECTION_FIELDS: string[] = [
+  'items',
+  'permissions',
+  'comments',
+  'replies',
+  'revisions',
+  'operations',
+  'sheets',
+  'templates',
+  'charts',
+  'valueRanges',
+  'results',
+  'tools',
+  'servers',
+];
+
+export function isPlainRecord(value: unknown): value is PlainRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function normalizeStructuredContent(
-  response: unknown
-): StructuredContent | StructuredContent[] | null {
+function getOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+}
+
+function getOptionalBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+function getOptionalNonNegativeInt(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return undefined; // OK: Explicit empty
+  }
+
+  const normalized = Math.trunc(value);
+  return normalized >= 0 ? normalized : undefined;
+}
+
+export function getMetaRecord(container: PlainRecord): PlainRecord {
+  const meta = container['_meta'];
+  return isPlainRecord(meta) ? meta : {};
+}
+
+export function getResponseRecord(container: PlainRecord): PlainRecord | null {
+  const response = container['response'];
+  return isPlainRecord(response) ? response : null;
+}
+
+export function getErrorRecord(response: PlainRecord | null): PlainRecord | null {
   if (!response) {
     return null;
   }
 
-  if (Array.isArray(response)) {
-    return response.map((item) => normalizeStructuredContent(item) as StructuredContent).filter(Boolean);
-  }
-
-  if (typeof response === 'string') {
-    return { type: 'text', text: response };
-  }
-
-  if (typeof response === 'object' && 'type' in response) {
-    return response as StructuredContent;
-  }
-
-  return { type: 'text', text: JSON.stringify(response) };
+  const error = response['error'];
+  return isPlainRecord(error) ? error : null;
 }
 
-export function sanitizeErrorPayload(error: unknown): Record<string, unknown> {
-  if (!error || typeof error !== 'object') {
-    return { code: 'INTERNAL_ERROR', message: String(error) };
+export function normalizeStructuredContent(result: unknown): PlainRecord {
+  if (!isPlainRecord(result)) {
+    return {
+      response: {
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Tool handler returned non-object result',
+          retryable: false,
+        },
+      },
+    };
   }
 
-  const errorObj = error as Record<string, unknown>;
-  const sanitized: Record<string, unknown> = {};
+  if ('response' in result) {
+    return result;
+  }
 
-  const allowedKeys = ['code', 'message', 'retryable', 'retryAfterMs', 'details', 'suggestedFix'];
-  for (const key of allowedKeys) {
-    if (key in errorObj) {
-      sanitized[key] = errorObj[key];
+  if ('success' in result) {
+    return { response: result };
+  }
+
+  return {
+    response: {
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Tool handler returned invalid response shape',
+        retryable: false,
+      },
+    },
+  };
+}
+
+export function sanitizeErrorPayload(structuredContent: PlainRecord): void {
+  const response = getResponseRecord(structuredContent);
+  const error = getErrorRecord(response);
+  if (!error) {
+    return;
+  }
+
+  const details = error['details'];
+  if (isPlainRecord(details)) {
+    delete details['stack'];
+    const pathPattern = /\/home\/|\/Users\/|node_modules\//;
+    for (const key of Object.keys(details)) {
+      const value = details[key];
+      if (typeof value === 'string' && pathPattern.test(value)) {
+        details[key] = '[REDACTED_PATH]';
+      }
     }
   }
 
-  if (!sanitized.code) {
-    sanitized.code = 'INTERNAL_ERROR';
-  }
-  if (!sanitized.message) {
-    sanitized.message = 'An error occurred';
-  }
-
-  return sanitized;
+  delete error['stackTrace'];
 }
 
-export function injectStandardPaginationMeta(
-  response: Record<string, unknown>,
-  pagination?: PaginationMeta
-): void {
+function deriveStandardPaginationMeta(response: PlainRecord): StandardPaginationMeta | null {
+  const responsePagination = isPlainRecord(response['pagination']) ? response['pagination'] : null;
+  const source = responsePagination ?? response;
+
+  const nextCursor =
+    getOptionalString(source['nextCursor']) ??
+    getOptionalString(source['next_cursor']) ??
+    getOptionalString(source['nextPageToken']) ??
+    getOptionalString(source['next_page_token']);
+
+  const hasMore =
+    getOptionalBoolean(source['hasMore']) ??
+    getOptionalBoolean(source['has_more']) ??
+    (nextCursor !== undefined ? true : undefined);
+
+  if (hasMore === undefined) {
+    return null;
+  }
+
+  const totalCount =
+    getOptionalNonNegativeInt(source['totalCount']) ??
+    getOptionalNonNegativeInt(source['total_count']) ??
+    getOptionalNonNegativeInt(source['totalRows']) ??
+    getOptionalNonNegativeInt(source['totalRanges']) ??
+    getOptionalNonNegativeInt(source['totalSheets']) ??
+    getOptionalNonNegativeInt(source['totalTemplates']) ??
+    getOptionalNonNegativeInt(response['totalCount']) ??
+    getOptionalNonNegativeInt(response['total_count']) ??
+    getOptionalNonNegativeInt(response['totalRows']) ??
+    getOptionalNonNegativeInt(response['totalRanges']) ??
+    getOptionalNonNegativeInt(response['totalSheets']) ??
+    getOptionalNonNegativeInt(response['totalTemplates']);
+
+  const count =
+    getOptionalNonNegativeInt(source['count']) ??
+    getOptionalNonNegativeInt(response['count']) ??
+    (Array.isArray(response['items']) ? response['items'].length : undefined) ??
+    (Array.isArray(response['valueRanges']) ? response['valueRanges'].length : undefined);
+
+  const offset =
+    getOptionalNonNegativeInt(source['offset']) ?? getOptionalNonNegativeInt(response['offset']);
+  const limit =
+    getOptionalNonNegativeInt(source['limit']) ??
+    getOptionalNonNegativeInt(source['pageSize']) ??
+    getOptionalNonNegativeInt(source['maxResults']) ??
+    getOptionalNonNegativeInt(response['limit']) ??
+    getOptionalNonNegativeInt(response['pageSize']) ??
+    getOptionalNonNegativeInt(response['maxResults']);
+
+  return {
+    hasMore,
+    ...(nextCursor ? { nextCursor } : {}),
+    ...(totalCount !== undefined ? { totalCount } : {}),
+    ...(count !== undefined ? { count } : {}),
+    ...(offset !== undefined ? { offset } : {}),
+    ...(limit !== undefined ? { limit } : {}),
+  };
+}
+
+export function injectStandardPaginationMeta(response: PlainRecord): void {
+  const pagination = deriveStandardPaginationMeta(response);
   if (!pagination) {
     return;
   }
 
-  const meta = (response._meta as Record<string, unknown>) || {};
-  meta.pagination = {
-    hasMore: pagination.hasMore,
-    ...(pagination.cursor && { cursor: pagination.cursor }),
-    ...(pagination.limit && { limit: pagination.limit }),
-    ...(pagination.offset !== undefined && { offset: pagination.offset }),
+  const existingMeta = getMetaRecord(response);
+  const existingPagination = isPlainRecord(existingMeta['pagination'])
+    ? existingMeta['pagination']
+    : {};
+
+  response['_meta'] = {
+    ...existingMeta,
+    pagination: {
+      ...pagination,
+      ...existingPagination,
+    },
   };
-  response._meta = meta;
+
+  const existingTopLevelPagination = isPlainRecord(response['pagination'])
+    ? response['pagination']
+    : {};
+  response['pagination'] = {
+    ...pagination,
+    ...existingTopLevelPagination,
+  };
 }
 
-export function injectStandardCollectionMeta(
-  response: Record<string, unknown>,
-  collection?: CollectionMeta
-): void {
+function deriveStandardCollectionMeta(response: PlainRecord): StandardCollectionMeta | null {
+  let itemsField: string | undefined;
+  let count: number | undefined;
+
+  for (const field of KNOWN_COLLECTION_FIELDS) {
+    const value = response[field];
+    if (Array.isArray(value)) {
+      itemsField = field;
+      count = value.length;
+      break;
+    }
+  }
+
+  if (!itemsField) {
+    for (const [key, value] of Object.entries(response)) {
+      if (key === 'pagination' || key === '_meta' || key.startsWith('_')) {
+        continue;
+      }
+      if (Array.isArray(value)) {
+        itemsField = key;
+        count = value.length;
+        break;
+      }
+    }
+  }
+
+  if (!itemsField || count === undefined) {
+    return null;
+  }
+
+  const meta = getMetaRecord(response);
+  const pagination = isPlainRecord(meta['pagination']) ? meta['pagination'] : null;
+
+  const totalCount =
+    (pagination ? getOptionalNonNegativeInt(pagination['totalCount']) : undefined) ??
+    getOptionalNonNegativeInt(response['totalCount']) ??
+    getOptionalNonNegativeInt(response['total_count']) ??
+    getOptionalNonNegativeInt(response['totalRows']) ??
+    getOptionalNonNegativeInt(response['totalRanges']) ??
+    getOptionalNonNegativeInt(response['totalSheets']);
+
+  const hasMore = pagination ? getOptionalBoolean(pagination['hasMore']) : undefined;
+  const nextCursor = pagination ? getOptionalString(pagination['nextCursor']) : undefined;
+  const offset = pagination ? getOptionalNonNegativeInt(pagination['offset']) : undefined;
+  const limit = pagination ? getOptionalNonNegativeInt(pagination['limit']) : undefined;
+
+  return {
+    itemsField,
+    count,
+    ...(totalCount !== undefined ? { totalCount } : {}),
+    ...(hasMore !== undefined ? { hasMore } : {}),
+    ...(nextCursor ? { nextCursor } : {}),
+    ...(offset !== undefined ? { offset } : {}),
+    ...(limit !== undefined ? { limit } : {}),
+  };
+}
+
+export function injectStandardCollectionMeta(response: PlainRecord): void {
+  const collection = deriveStandardCollectionMeta(response);
   if (!collection) {
     return;
   }
 
-  const meta = (response._meta as Record<string, unknown>) || {};
-  meta.collection = {
-    count: collection.count,
-    ...(collection.total !== undefined && { total: collection.total }),
-    ...(collection.filtered && { filtered: true }),
+  const existingMeta = getMetaRecord(response);
+  const existingCollection = isPlainRecord(existingMeta['collection'])
+    ? existingMeta['collection']
+    : {};
+
+  response['_meta'] = {
+    ...existingMeta,
+    collection: {
+      ...collection,
+      ...existingCollection,
+    },
   };
-  response._meta = meta;
 }
