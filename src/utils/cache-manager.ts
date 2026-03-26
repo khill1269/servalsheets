@@ -1,305 +1,913 @@
 /**
- * Cache Manager
+ * Cache Manager Service
  *
- * Intelligent caching layer with TTL, LRU eviction, range dependency tracking,
- * and stale-while-revalidate (SWR) pattern support.
+ * Provides intelligent caching for frequently accessed data
+ * to reduce API calls and improve response times.
+ *
+ * Features:
+ * - TTL-based expiration (configurable per entry)
+ * - Automatic cache invalidation
+ * - Memory-efficient storage with size limits
+ * - Namespace support for organization
+ * - Cache statistics and monitoring
+ *
+ * Environment Variables:
+ * - CACHE_ENABLED: 'true' to enable caching (default: true)
+ * - CACHE_DEFAULT_TTL: Default TTL in ms (default: 300000 = 5min)
+ * - CACHE_MAX_SIZE: Max cache size in MB (default: 100)
+ * - CACHE_CLEANUP_INTERVAL: Cleanup interval in ms (default: 300000 = 5min)
+ *
+ * Note: For multi-instance Redis caching, use cache-store.ts and cache-factory.ts
  */
 
-import Cache from 'lru-cache';
-import { getRequestLogger } from './request-context.js';
+import { logger } from './logger.js';
+import { ValidationError } from '../core/errors.js';
 
-export interface CacheEntry<T> {
+// Minimal structural interface — avoids importing from services/ which creates
+// a circular dependency chain through the observability layer (G3 fix).
+interface RequestMerger {
+  readonly enabled: boolean;
+}
+
+export interface CacheEntry<T = unknown> {
   value: T;
-  expiresAt: number;
-  hits: number;
-  lastAccessed: number;
-  byteSize: number;
+  expires: number;
+  /** Time the entry was computed/stored (for XFetch probabilistic expiration) */
+  storedAt: number;
+  /** Last access time (for LRU eviction — hot items survive eviction) */
+  lastAccess: number;
+  size: number;
+  namespace?: string;
+}
+
+export interface ParsedRange {
+  sheetName: string | null;
+  startRow: number;
+  startCol: number;
+  endRow: number;
+  endCol: number;
 }
 
 export interface CacheOptions {
-  maxSize?: number; // bytes (default: 50MB)
-  maxItems?: number; // default: 10,000
-  ttlMs?: number; // default: 5min
-  enableSWR?: boolean; // stale-while-revalidate
+  /** TTL in milliseconds (default: 5 minutes) */
+  ttl?: number;
+
+  /** Namespace for organizing cache entries */
+  namespace?: string;
 }
 
 export interface CacheStats {
+  totalEntries: number;
+  totalSize: number;
   hits: number;
   misses: number;
-  evictions: number;
-  currentSize: number;
-  itemCount: number;
   hitRate: number;
+  oldestEntry: number | null;
+  newestEntry: number | null;
+  byNamespace: Record<string, number>;
 }
 
 /**
- * Range-based cache dependency tracking
- * Allows invalidation of overlapping ranges efficiently
+ * Cache Manager
+ * Manages cache with TTL, size limits, and multi-instance support
  */
-interface RangeDependency {
-  range: string; // "Sheet1!A1:D10"
-  keys: Set<string>; // Cache keys that depend on this range
-}
+export class CacheManager {
+  private cache: Map<string, CacheEntry>;
+  private cleanupTimer?: NodeJS.Timeout;
+  private rangeDependencies: Map<string, Set<string>>; // spreadsheetId:range -> cache keys
+  private requestMerger?: RequestMerger;
 
-export class CacheManager<T> {
-  private cache: Cache<string, CacheEntry<T>>;
-  private rangeDependencies: Map<string, RangeDependency> = new Map();
-  private stats: CacheStats = { hits: 0, misses: 0, evictions: 0, currentSize: 0, itemCount: 0, hitRate: 0 };
-  private runningByteSize: number = 0; // O(1) tracking instead of iterating all keys
-  private maxSize: number;
-  private options: CacheOptions;
-  private logger = getRequestLogger();
+  // Configuration
+  private readonly enabled: boolean;
+  private readonly defaultTTL: number;
+  private readonly maxSizeBytes: number;
+  private readonly cleanupInterval: number;
 
-  constructor(options: CacheOptions = {}) {
-    this.options = options;
-    this.maxSize = options.maxSize ?? 50 * 1024 * 1024; // 50MB default
+  // Statistics
+  private hits = 0;
+  private misses = 0;
+  private _totalSizeBytes = 0; // Running counter — avoids O(N) full-scan on every set()
 
-    this.cache = new Cache<string, CacheEntry<T>>({
-      max: options.maxItems ?? 10000,
-      maxSize: this.maxSize,
-      sizeCalculation: (entry) => entry.byteSize,
-      ttl: options.ttlMs ?? 5 * 60 * 1000, // 5min default
-      allowStale: options.enableSWR ?? false,
-      updateAgeOnGet: true,
-      updateAgeOnHas: false,
-      dispose: (value, key) => {
-        this.runningByteSize -= value.byteSize;
-        this.stats.evictions++;
-        this.logger.debug('Cache eviction', { key, size: value.byteSize });
-      },
+  constructor(
+    options: {
+      enabled?: boolean;
+      defaultTTL?: number;
+      maxSizeMB?: number;
+      cleanupInterval?: number;
+    } = {}
+  ) {
+    this.cache = new Map();
+    this.rangeDependencies = new Map();
+
+    const envEnabled = process.env['CACHE_ENABLED'];
+    const isTestEnv = process.env['NODE_ENV'] === 'test';
+    this.enabled =
+      options.enabled ?? (envEnabled !== undefined ? envEnabled !== 'false' : !isTestEnv);
+    this.defaultTTL =
+      options.defaultTTL ?? parseInt(process.env['CACHE_DEFAULT_TTL'] || '300000', 10);
+    this.maxSizeBytes =
+      (options.maxSizeMB ?? parseInt(process.env['CACHE_MAX_SIZE'] || '100', 10)) * 1024 * 1024;
+    this.cleanupInterval =
+      options.cleanupInterval ?? parseInt(process.env['CACHE_CLEANUP_INTERVAL'] || '300000', 10);
+
+    if (this.enabled) {
+      logger.info('Cache manager initialized', {
+        defaultTTL: `${this.defaultTTL}ms`,
+        maxSize: `${(this.maxSizeBytes / 1024 / 1024).toFixed(0)}MB`,
+        cleanupInterval: `${this.cleanupInterval}ms`,
+      });
+    } else {
+      logger.info('Cache manager disabled');
+    }
+  }
+
+  /**
+   * Start periodic cleanup task
+   */
+  startCleanupTask(): void {
+    if (this.cleanupTimer || !this.enabled) {
+      return;
+    }
+
+    this.cleanupTimer = setInterval(() => {
+      this.cleanup();
+    }, this.cleanupInterval);
+
+    // Don't keep process alive just for cleanup
+    if (this.cleanupTimer.unref) {
+      this.cleanupTimer.unref();
+    }
+
+    logger.debug('Cache cleanup task started', {
+      intervalMs: this.cleanupInterval,
     });
   }
 
   /**
-   * Get from cache, return undefined if miss or expired (unless SWR enabled)
+   * Stop periodic cleanup task
    */
-  get(key: string): T | undefined {
-    const entry = this.cache.get(key);
-    if (entry) {
-      entry.hits++;
-      entry.lastAccessed = Date.now();
-      this.stats.hits++;
-      return entry.value;
+  stopCleanupTask(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = undefined;
+      logger.debug('Cache cleanup task stopped');
     }
-    this.stats.misses++;
-    this.updateHitRate();
-    return undefined;
   }
 
   /**
-   * Set value in cache with optional range dependency
+   * Get a value from cache
    */
-  set(key: string, value: T, options?: { ttlMs?: number; rangeKey?: string; byteSize?: number }): void {
-    const byteSize = options?.byteSize ?? this.estimateSize(value);
-    const expiresAt = Date.now() + (options?.ttlMs ?? this.options.ttlMs ?? 5 * 60 * 1000);
+  get<T>(key: string, namespace?: string): T | undefined {
+    if (!this.enabled) {
+      this.misses++;
+      // OK: Explicit empty - typed as optional, cache disabled
+      return undefined; // OK: Explicit empty
+    }
 
+    const cacheKey = this.buildKey(key, namespace);
+    const entry = this.cache.get(cacheKey) as CacheEntry<T> | undefined;
+
+    if (!entry) {
+      this.misses++;
+      // OK: Explicit empty - typed as optional, cache miss
+      return undefined; // OK: Explicit empty
+    }
+
+    const now = Date.now();
+
+    // Check if expired
+    if (now > entry.expires) {
+      this._totalSizeBytes -= entry.size;
+      this.cache.delete(cacheKey);
+      this.misses++;
+      logger.debug('Cache entry expired', { key, namespace });
+      return undefined; // OK: Explicit empty
+    }
+
+    // Probabilistic early expiration (XFetch algorithm)
+    // Prevents thundering herd by having some requests see a "miss" before TTL,
+    // triggering a background recompute while others still get cached value.
+    // Formula: now - (delta * beta * ln(random)) > expires
+    // where delta = compute time estimate, beta = scaling factor (default 1.0)
+    // Simplified: use remaining TTL ratio — probability increases as expiry nears
+    const ttlTotal = entry.expires - entry.storedAt;
+    const remaining = entry.expires - now;
+    const MIN_TTL_FOR_EARLY_EXPIRY = 2000; // Skip early-expiry if TTL < 2s
+    if (ttlTotal > 0 && remaining < ttlTotal * 0.15 && remaining > MIN_TTL_FOR_EARLY_EXPIRY) {
+      // In the last 15% of TTL, probabilistically expire
+      // Probability scales from 0% at 15% remaining to ~63% at 0% remaining
+      const ratio = remaining / (ttlTotal * 0.15);
+      if (Math.random() > ratio) {
+        this.misses++;
+        logger.debug('Cache probabilistic early expiration triggered', {
+          key,
+          namespace,
+          remainingMs: remaining,
+          ttlMs: ttlTotal,
+        });
+        return undefined; // OK: Explicit empty — SWR probabilistic early expiration (logged above)
+      }
+    }
+
+    entry.lastAccess = now;
+    this.hits++;
+    logger.debug('Cache hit', { key, namespace });
+    return entry.value;
+  }
+
+  /**
+   * Set a value in cache
+   */
+  set<T>(key: string, value: T, options: CacheOptions = {}): void {
+    if (!this.enabled) {
+      return;
+    }
+
+    const cacheKey = this.buildKey(key, options.namespace);
+    const ttl = options.ttl ?? this.defaultTTL;
+    const size = this.estimateSize(value);
+
+    // Check if adding this entry would exceed max size
+    const currentSize = this.getTotalSize();
+    if (currentSize + size > this.maxSizeBytes) {
+      logger.warn('Cache size limit approaching, cleaning up', {
+        currentSize: `${(currentSize / 1024 / 1024).toFixed(2)}MB`,
+        maxSize: `${(this.maxSizeBytes / 1024 / 1024).toFixed(0)}MB`,
+      });
+      this.evictOldest();
+    }
+
+    // Subtract existing entry size if overwriting
+    const existing = this.cache.get(cacheKey);
+    if (existing) {
+      this._totalSizeBytes -= existing.size;
+    }
+
+    const now = Date.now();
     const entry: CacheEntry<T> = {
       value,
-      expiresAt,
-      hits: 0,
-      lastAccessed: Date.now(),
-      byteSize,
+      expires: now + ttl,
+      storedAt: now,
+      lastAccess: now,
+      size,
+      namespace: options.namespace,
     };
 
-    this.cache.set(key, entry);
-    this.runningByteSize += byteSize;
-    this.stats.currentSize = this.runningByteSize;
-    this.stats.itemCount = this.cache.size;
-
-    if (options?.rangeKey) {
-      this.trackRangeDependency(options.rangeKey, key);
-    }
+    this.cache.set(cacheKey, entry);
+    this._totalSizeBytes += size;
+    logger.debug('Cache entry set', {
+      key,
+      namespace: options.namespace,
+      ttl,
+      size: `${(size / 1024).toFixed(2)}KB`,
+    });
   }
 
   /**
-   * Get or compute: if cache miss, call fn and cache result
+   * Delete a value from cache
    */
-  async getOrSet(key: string, fn: () => Promise<T>, options?: { ttlMs?: number; rangeKey?: string }): Promise<T> {
-    const cached = this.get(key);
-    if (cached !== undefined) return cached;
+  delete(key: string, namespace?: string): boolean {
+    const cacheKey = this.buildKey(key, namespace);
+    const entry = this.cache.get(cacheKey);
+    const deleted = this.cache.delete(cacheKey);
 
-    const value = await fn();
+    if (deleted && entry) {
+      this._totalSizeBytes -= entry.size;
+      logger.debug('Cache entry deleted', { key, namespace });
+    }
+
+    return deleted;
+  }
+
+  /**
+   * Check if a key exists in cache
+   */
+  has(key: string, namespace?: string): boolean {
+    const cacheKey = this.buildKey(key, namespace);
+    const entry = this.cache.get(cacheKey);
+
+    if (!entry) {
+      return false;
+    }
+
+    // Check if expired
+    if (Date.now() > entry.expires) {
+      this.cache.delete(cacheKey);
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Get or set a value in cache
+   * If the key exists and is not expired, returns the cached value
+   * Otherwise, calls the factory function and caches the result
+   */
+  async getOrSet<T>(
+    key: string,
+    factory: () => Promise<T>,
+    options: CacheOptions = {}
+  ): Promise<T> {
+    const cached = this.get<T>(key, options.namespace);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const value = await factory();
     this.set(key, value, options);
     return value;
   }
 
   /**
-   * Stale-while-revalidate: return stale value immediately, revalidate in background
+   * Stale-while-revalidate (SWR) cache pattern (RFC 5861).
+   *
+   * Returns cached value immediately (even if expired within grace window),
+   * and triggers background revalidation. Callers always get a fast response;
+   * the cache refreshes itself asynchronously.
+   *
+   * @param key - Cache key
+   * @param factory - Async function to compute fresh value
+   * @param options - Standard cache options
+   * @param graceMs - Grace period beyond TTL where stale data is still served (default: TTL * 0.5)
    */
-  async getOrSetSWR(
+  async getOrSetSWR<T>(
     key: string,
-    fn: () => Promise<T>,
-    options?: { ttlMs?: number; staleTtlMs?: number; rangeKey?: string }
+    factory: () => Promise<T>,
+    options: CacheOptions = {},
+    graceMs?: number
   ): Promise<T> {
-    const entry = this.cache.get(key, { allowStale: true });
-    if (entry) {
-      if (entry.expiresAt > Date.now()) {
-        // Fresh
-        entry.hits++;
-        this.stats.hits++;
-        return entry.value;
-      }
-      // Stale: return immediately, revalidate in background
-      setImmediate(() => {
-        fn().then((fresh) => this.set(key, fresh, options)).catch((err) => {
-          this.logger.warn('SWR revalidation failed', { key, error: err instanceof Error ? err.message : String(err) });
+    // Check for fresh cache hit first (fast path)
+    const fresh = this.get<T>(key, options.namespace);
+    if (fresh !== undefined) {
+      return fresh;
+    }
+
+    // Check for stale-but-within-grace entry
+    const cacheKey = this.buildKey(key, options.namespace);
+    const entry = this.cache.get(cacheKey) as CacheEntry<T> | undefined;
+    const now = Date.now();
+    const ttl = options.ttl ?? this.defaultTTL;
+    const effectiveGrace = graceMs ?? Math.floor(ttl * 0.5);
+
+    if (entry && now <= entry.expires + effectiveGrace) {
+      // Serve stale data immediately, revalidate in background
+      entry.lastAccess = now;
+      this.hits++;
+
+      // Background revalidation (fire-and-forget)
+      factory()
+        .then((value) => this.set(key, value, options))
+        .catch(() => {
+          /* Stale value remains — revalidation failure is non-fatal */
         });
+
+      logger.debug('Cache SWR: serving stale, revalidating in background', {
+        key,
+        namespace: options.namespace,
+        staleByMs: now - entry.expires,
       });
+
       return entry.value;
     }
 
-    // Cache miss
-    const value = await fn();
+    // Fully expired beyond grace — synchronous fetch
+    const value = await factory();
     this.set(key, value, options);
     return value;
   }
 
   /**
-   * Invalidate a range and all dependent keys
-   * Example: invalidateRange("Sheet1!A1:D10") clears all keys that depend on that range
+   * Invalidate all entries matching a pattern
    */
-  invalidateRange(range: string): void {
-    const normalized = this.normalizeRange(range);
-    const dep = this.rangeDependencies.get(normalized);
-    if (!dep) return;
+  invalidatePattern(pattern: RegExp | string, namespace?: string): number {
+    const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
+    let count = 0;
 
-    dep.keys.forEach((key) => {
-      const entry = this.cache.get(key);
-      if (entry) {
-        this.runningByteSize -= entry.byteSize;
-      }
-      this.cache.delete(key);
-    });
-    this.rangeDependencies.delete(normalized);
-    this.stats.currentSize = this.runningByteSize;
-    this.stats.itemCount = this.cache.size;
-    this.logger.debug('Range invalidation', { range: normalized, keysCleared: dep.keys.size });
-  }
+    for (const [key, entry] of this.cache) {
+      const matches = regex.test(key);
+      const inNamespace = !namespace || key.startsWith(`${namespace}:`);
 
-  /**
-   * Invalidate overlapping ranges
-   * Example: invalidateOverlapping("Sheet1!A1:E15") clears ranges that overlap with A1:E15
-   */
-  invalidateOverlapping(range: string): void {
-    const target = this.normalizeRange(range);
-    const [targetSheet, targetA1, targetB1] = this.parseRange(target);
-
-    const keysToDelete: string[] = [];
-
-    for (const [depRange, dep] of this.rangeDependencies.entries()) {
-      const [depSheet, depA1, depB1] = this.parseRange(depRange);
-      if (depSheet !== targetSheet) continue; // Different sheet
-
-      if (this.rangesOverlap(targetA1, targetB1, depA1, depB1)) {
-        keysToDelete.push(...Array.from(dep.keys));
+      if (matches && inNamespace) {
+        this._totalSizeBytes -= entry.size;
+        this.cache.delete(key);
+        count++;
       }
     }
 
-    keysToDelete.forEach((key) => {
-      const entry = this.cache.get(key);
-      if (entry) {
-        this.runningByteSize -= entry.byteSize;
-      }
-      this.cache.delete(key);
-    });
+    if (count > 0) {
+      logger.debug('Cache pattern invalidated', {
+        pattern: pattern.toString(),
+        namespace,
+        count,
+      });
+    }
 
-    this.stats.currentSize = this.runningByteSize;
-    this.stats.itemCount = this.cache.size;
+    return count;
   }
 
   /**
-   * Clear entire cache
+   * Clear all cache entries in a namespace
+   */
+  clearNamespace(namespace: string): number {
+    let count = 0;
+    const prefix = `${namespace}:`;
+
+    for (const [key, entry] of this.cache) {
+      if (key.startsWith(prefix)) {
+        this._totalSizeBytes -= entry.size;
+        this.cache.delete(key);
+        count++;
+      }
+    }
+
+    if (count > 0) {
+      logger.debug('Cache namespace cleared', { namespace, count });
+    }
+
+    return count;
+  }
+
+  /**
+   * Clear all cache entries
    */
   clear(): void {
+    const count = this.cache.size;
     this.cache.clear();
-    this.rangeDependencies.clear();
-    this.runningByteSize = 0;
-    this.stats.itemCount = 0;
-    this.stats.currentSize = 0;
+    this._totalSizeBytes = 0;
+    logger.debug('Cache cleared', { entriesCleared: count });
+  }
+
+  /**
+   * Clean up expired entries
+   */
+  cleanup(): void {
+    const now = Date.now();
+    let expired = 0;
+
+    for (const [key, entry] of this.cache) {
+      if (now > entry.expires) {
+        this._totalSizeBytes -= entry.size;
+        this.cache.delete(key);
+        expired++;
+      }
+    }
+
+    if (expired > 0) {
+      logger.debug('Cache cleanup completed', {
+        expired,
+        remaining: this.cache.size,
+      });
+    }
+  }
+
+  /**
+   * Get cache entries that are expiring soon
+   * @param thresholdMs Time threshold in milliseconds (entries expiring within this time)
+   * @param namespace Optional namespace filter
+   * @returns Array of cache keys that are expiring soon
+   */
+  getExpiringEntries(
+    thresholdMs: number,
+    namespace?: string
+  ): Array<{ key: string; expiresIn: number }> {
+    const now = Date.now();
+    const expiringThreshold = now + thresholdMs;
+    const expiring: Array<{ key: string; expiresIn: number }> = [];
+
+    for (const [key, entry] of this.cache) {
+      // Skip if namespace filter provided and doesn't match
+      if (namespace && entry.namespace !== namespace) {
+        continue;
+      }
+
+      // Check if entry is expiring soon (but not already expired)
+      if (entry.expires > now && entry.expires <= expiringThreshold) {
+        expiring.push({
+          key,
+          expiresIn: entry.expires - now,
+        });
+      }
+    }
+
+    return expiring;
+  }
+
+  /**
+   * Evict entries using LRU+TTL hybrid strategy.
+   *
+   * Priority: expired entries first (free wins), then least-recently-used.
+   * This prevents hot items with short TTLs from being evicted before
+   * cold items with longer TTLs — the original audit finding (H-8).
+   */
+  private evictOldest(): void {
+    const countToRemove = Math.max(1, Math.ceil(this.cache.size * 0.1));
+    const now = Date.now();
+
+    // Phase 1: Remove already-expired entries (free wins)
+    const expired: string[] = [];
+    for (const [key, entry] of this.cache) {
+      if (now > entry.expires) {
+        expired.push(key);
+      }
+    }
+    for (const key of expired) {
+      const entry = this.cache.get(key);
+      if (entry) this._totalSizeBytes -= entry.size;
+      this.cache.delete(key);
+    }
+
+    if (expired.length >= countToRemove) {
+      logger.debug('Evicted expired cache entries', {
+        removed: expired.length,
+        remaining: this.cache.size,
+      });
+      return;
+    }
+
+    // Phase 2: LRU eviction — sort by lastAccess (least-recently-used first)
+    const remaining = countToRemove - expired.length;
+    const sortedByAccess = Array.from(this.cache.entries())
+      .sort((a, b) => a[1].lastAccess - b[1].lastAccess)
+      .slice(0, remaining);
+
+    sortedByAccess.forEach(([key, entry]) => {
+      this._totalSizeBytes -= entry.size;
+      this.cache.delete(key);
+    });
+
+    logger.debug('Evicted cache entries (LRU+TTL hybrid)', {
+      expired: expired.length,
+      lru: sortedByAccess.length,
+      remaining: this.cache.size,
+    });
   }
 
   /**
    * Get cache statistics
    */
   getStats(): CacheStats {
-    this.updateHitRate();
-    return { ...this.stats };
-  }
+    const totalSize = this._totalSizeBytes;
+    let oldestExpiry: number | null = null;
+    let newestExpiry: number | null = null;
+    const byNamespace: Record<string, number> = {};
 
-  // Private helpers
+    for (const [, entry] of this.cache) {
+      if (oldestExpiry === null || entry.expires < oldestExpiry) {
+        oldestExpiry = entry.expires;
+      }
+      if (newestExpiry === null || entry.expires > newestExpiry) {
+        newestExpiry = entry.expires;
+      }
 
-  private trackRangeDependency(rangeKey: string, cacheKey: string): void {
-    const normalized = this.normalizeRange(rangeKey);
-    if (!this.rangeDependencies.has(normalized)) {
-      this.rangeDependencies.set(normalized, { range: normalized, keys: new Set() });
+      const ns = entry.namespace || 'default';
+      byNamespace[ns] = (byNamespace[ns] || 0) + 1;
     }
-    this.rangeDependencies.get(normalized)!.keys.add(cacheKey);
+
+    const totalRequests = this.hits + this.misses;
+    const hitRate = totalRequests > 0 ? (this.hits / totalRequests) * 100 : 0;
+
+    return {
+      totalEntries: this.cache.size,
+      totalSize,
+      hits: this.hits,
+      misses: this.misses,
+      hitRate,
+      oldestEntry: oldestExpiry,
+      newestEntry: newestExpiry,
+      byNamespace,
+    };
   }
 
-  private normalizeRange(range: string): string {
-    // "Sheet1!A1:D10" or "A1:D10"
-    return range.toUpperCase().trim();
+  /**
+   * Reset statistics
+   */
+  resetStats(): void {
+    this.hits = 0;
+    this.misses = 0;
   }
 
-  private parseRange(range: string): [sheet: string, a1: string, b1: string] {
-    const parts = range.split('!');
-    if (parts.length === 2) {
-      const [a1, b1] = parts[1]!.split(':');
-      return [parts[0]!, a1!, b1!];
+  /**
+   * Set request merger for read optimization
+   * @param merger RequestMerger instance
+   */
+  setRequestMerger(merger: RequestMerger): void {
+    this.requestMerger = merger;
+    logger.info('RequestMerger attached to CacheManager');
+  }
+
+  /**
+   * Get request merger if configured
+   */
+  getRequestMerger(): RequestMerger | undefined {
+    return this.requestMerger;
+  }
+
+  /**
+   * Build a cache key with optional namespace
+   */
+  private buildKey(key: string, namespace?: string): string {
+    return namespace ? `${namespace}:${key}` : key;
+  }
+
+  /**
+   * Estimate the size of a value in bytes
+   */
+  private estimateSize(value: unknown): number {
+    try {
+      // Accurate UTF-8 byte length calculation
+      return Buffer.byteLength(JSON.stringify(value), 'utf8');
+    } catch (error) {
+      logger.warn('Failed to estimate cache entry size, using default', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Fallback to a conservative estimate
+      return 1024; // 1KB default
     }
-    const [a1, b1] = parts[0]!.split(':');
-    return ['', a1!, b1!];
   }
 
-  private rangesOverlap(
-    a1: string,
-    a2: string,
-    b1: string,
-    b2: string
-  ): boolean {
-    const { row: aRow1, col: aCol1 } = this.parseA1(a1);
-    const { row: aRow2, col: aCol2 } = this.parseA1(a2);
-    const { row: bRow1, col: bCol1 } = this.parseA1(b1);
-    const { row: bRow2, col: bCol2 } = this.parseA1(b2);
-
-    return aRow1 <= bRow2 && aRow2 >= bRow1 && aCol1 <= bCol2 && aCol2 >= bCol1;
+  /**
+   * Get total cache size in bytes (O(1) via running counter)
+   */
+  private getTotalSize(): number {
+    return this._totalSizeBytes;
   }
 
-  private parseA1(a1: string): { row: number; col: number } {
-    const match = a1.match(/^\$?([A-Z]+)\$?(\d+)$/);
-    if (!match) return { row: 0, col: 0 };
+  /**
+   * Track range dependency for cache invalidation
+   * Associates a cache key with a spreadsheet range
+   */
+  trackRangeDependency(spreadsheetId: string, range: string, cacheKey: string): void {
+    // Cap total tracked range dependencies to prevent unbounded memory growth
+    const MAX_RANGE_DEPENDENCIES = 10_000;
+    if (this.rangeDependencies.size >= MAX_RANGE_DEPENDENCIES) {
+      // Evict oldest entries (Maps iterate in insertion order)
+      const toEvict = Math.floor(MAX_RANGE_DEPENDENCIES * 0.1); // evict 10%
+      let evicted = 0;
+      for (const key of this.rangeDependencies.keys()) {
+        if (evicted >= toEvict) break;
+        this.rangeDependencies.delete(key);
+        evicted++;
+      }
+    }
+    const depKey = `${spreadsheetId}:${range}`;
+    if (!this.rangeDependencies.has(depKey)) {
+      this.rangeDependencies.set(depKey, new Set());
+    }
+    this.rangeDependencies.get(depKey)!.add(cacheKey);
+  }
 
-    const col = match[1]!.split('').reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0);
+  /**
+   * Invalidate cache entries for a specific range
+   * Only invalidates overlapping ranges, not the entire spreadsheet
+   */
+  invalidateRange(spreadsheetId: string, range: string): number {
+    const affected = this.findOverlappingRanges(spreadsheetId, range);
+    let count = 0;
+
+    const invalidatedRanges: string[] = [];
+
+    for (const affectedRange of affected) {
+      const depKey = `${spreadsheetId}:${affectedRange}`;
+      const deps = this.rangeDependencies.get(depKey);
+      if (deps) {
+        const keysInvalidated = deps.size;
+        for (const cacheKey of deps) {
+          const cacheEntry = this.cache.get(cacheKey);
+          if (this.cache.delete(cacheKey)) {
+            if (cacheEntry) this._totalSizeBytes -= cacheEntry.size;
+            count++;
+          }
+        }
+        this.rangeDependencies.delete(depKey);
+        if (keysInvalidated > 0) {
+          invalidatedRanges.push(`${affectedRange} (${keysInvalidated} keys)`);
+        }
+      }
+    }
+
+    if (count > 0) {
+      logger.debug('Range-specific cache invalidation', {
+        spreadsheetId,
+        writeRange: range,
+        keysInvalidated: count,
+        rangesAffected: affected.length,
+        invalidatedRanges,
+      });
+    } else {
+      logger.debug('No cache entries to invalidate', {
+        spreadsheetId,
+        writeRange: range,
+        checkedRanges: affected.length,
+      });
+    }
+
+    return count;
+  }
+
+  /**
+   * Find ranges that overlap with the given range
+   * Uses precise intersection algorithm to minimize false positives
+   */
+  private findOverlappingRanges(spreadsheetId: string, range: string): string[] {
+    const overlapping: string[] = [];
+
+    // Check all tracked ranges for overlaps
+    for (const depKey of this.rangeDependencies.keys()) {
+      // Parse depKey format: "spreadsheetId:range"
+      const parts = depKey.split(':');
+      if (parts.length < 2) continue;
+
+      const depSpreadsheetId = parts[0];
+      if (depSpreadsheetId !== spreadsheetId) continue;
+
+      // Reconstruct the range (handle cases where range contains ":")
+      const existingRange = parts.slice(1).join(':');
+
+      // Check if ranges overlap using precise intersection
+      if (this.rangesOverlap(range, existingRange)) {
+        overlapping.push(existingRange);
+      }
+    }
+
+    // If no specific overlaps found but range has exact match, include it
+    if (overlapping.length === 0) {
+      const exactMatchKey = `${spreadsheetId}:${range}`;
+      if (this.rangeDependencies.has(exactMatchKey)) {
+        overlapping.push(range);
+      }
+    }
+
+    return overlapping;
+  }
+
+  /**
+   * Check if two A1 ranges overlap
+   * Uses precise range intersection algorithm
+   */
+  private rangesOverlap(range1: string, range2: string): boolean {
+    if (range1 === range2) return true;
+
+    try {
+      const parsed1 = this.parseA1Notation(range1);
+      const parsed2 = this.parseA1Notation(range2);
+
+      return this.rangesIntersect(parsed1, parsed2);
+    } catch (error) {
+      // Fallback to conservative behavior if parsing fails
+      logger.warn('Failed to parse A1 notation for overlap check', {
+        range1,
+        range2,
+        error,
+      });
+      return true; // Conservative: assume overlap if can't parse
+    }
+  }
+
+  /**
+   * Parse A1 notation into structured range
+   * Handles: A1, A:A, 1:1, A1:B10, Sheet!A1:B10, 'Sheet Name'!A1:B10
+   */
+  private parseA1Notation(range: string): ParsedRange {
+    let sheetName: string | null = null;
+    let cellRange = range;
+
+    // Extract sheet name if present
+    if (range.includes('!')) {
+      const parts = range.split('!');
+      if (parts.length === 2 && parts[0] && parts[1]) {
+        sheetName = parts[0];
+        cellRange = parts[1];
+        // Remove quotes from sheet name if present
+        if (sheetName.startsWith("'") && sheetName.endsWith("'")) {
+          sheetName = sheetName.slice(1, -1);
+        }
+      }
+    }
+
+    // Handle special cases
+    if (!cellRange || cellRange.trim() === '') {
+      // Just sheet name - entire sheet
+      return {
+        sheetName,
+        startRow: 1,
+        startCol: 1,
+        endRow: Infinity,
+        endCol: Infinity,
+      };
+    }
+
+    // Check for column range (A:A or A:Z)
+    const colRangeMatch = cellRange.match(/^([A-Z]+):([A-Z]+)$/);
+    if (colRangeMatch) {
+      const startCol = this.columnToNumber(colRangeMatch[1]!);
+      const endCol = this.columnToNumber(colRangeMatch[2]!);
+      return {
+        sheetName,
+        startRow: 1,
+        startCol,
+        endRow: Infinity,
+        endCol,
+      };
+    }
+
+    // Check for row range (1:1 or 1:100)
+    const rowRangeMatch = cellRange.match(/^(\d+):(\d+)$/);
+    if (rowRangeMatch) {
+      return {
+        sheetName,
+        startRow: parseInt(rowRangeMatch[1]!, 10),
+        startCol: 1,
+        endRow: parseInt(rowRangeMatch[2]!, 10),
+        endCol: Infinity,
+      };
+    }
+
+    // Parse cell range (A1 or A1:B10)
+    const rangeParts = cellRange.split(':');
+    if (rangeParts.length === 1) {
+      // Single cell
+      const cell = this.parseCell(rangeParts[0]!);
+      return {
+        sheetName,
+        startRow: cell.row,
+        startCol: cell.col,
+        endRow: cell.row,
+        endCol: cell.col,
+      };
+    } else if (rangeParts.length === 2) {
+      // Range
+      const start = this.parseCell(rangeParts[0]!);
+      const end = this.parseCell(rangeParts[1]!);
+      return {
+        sheetName,
+        startRow: Math.min(start.row, end.row),
+        startCol: Math.min(start.col, end.col),
+        endRow: Math.max(start.row, end.row),
+        endCol: Math.max(start.col, end.col),
+      };
+    }
+
+    throw new ValidationError(`Invalid A1 notation: ${range}`, 'range', 'Sheet1!A1:B10');
+  }
+
+  /**
+   * Parse a single cell reference like "A1" into row and column numbers
+   */
+  private parseCell(cell: string): { row: number; col: number } {
+    const match = cell.match(/^([A-Z]+)(\d+)$/);
+    if (!match) {
+      throw new ValidationError(`Invalid cell reference: ${cell}`, 'cell', 'A1');
+    }
+
+    const col = this.columnToNumber(match[1]!);
     const row = parseInt(match[2]!, 10);
+
     return { row, col };
   }
 
-  private estimateSize(value: T): number {
-    // Rough estimate: JSON.stringify length
-    if (typeof value === 'string') return value.length * 2;
-    if (typeof value === 'number') return 8;
-    if (typeof value === 'boolean') return 4;
-    if (Array.isArray(value)) return value.reduce((sum, v) => sum + this.estimateSize(v), 0);
-    if (typeof value === 'object' && value !== null) {
-      return JSON.stringify(value).length * 2;
+  /**
+   * Convert column letter(s) to number (A=1, B=2, ..., Z=26, AA=27, etc.)
+   */
+  private columnToNumber(col: string): number {
+    let result = 0;
+    for (let i = 0; i < col.length; i++) {
+      result = result * 26 + (col.charCodeAt(i) - 64);
     }
-    return 0;
+    return result;
   }
 
-  private updateHitRate(): void {
-    const total = this.stats.hits + this.stats.misses;
-    this.stats.hitRate = total > 0 ? this.stats.hits / total : 0;
+  /**
+   * Check if two parsed ranges intersect
+   */
+  private rangesIntersect(range1: ParsedRange, range2: ParsedRange): boolean {
+    // Different sheets never intersect
+    if (range1.sheetName !== range2.sheetName) {
+      return false;
+    }
+
+    // Check row intersection
+    const rowsIntersect = range1.startRow <= range2.endRow && range1.endRow >= range2.startRow;
+
+    // Check column intersection
+    const colsIntersect = range1.startCol <= range2.endCol && range1.endCol >= range2.startCol;
+
+    return rowsIntersect && colsIntersect;
   }
 }
 
 /**
- * Singleton cache manager instance
+ * Global cache manager instance
  */
-let globalCache: CacheManager<unknown> | null = null;
+export const cacheManager = new CacheManager();
 
-export function getGlobalCache(): CacheManager<unknown> {
-  if (!globalCache) {
-    globalCache = new CacheManager();
-  }
-  return globalCache;
+/**
+ * Helper: Create a cache key for API operations
+ */
+export function createCacheKey(operation: string, params: Record<string, unknown>): string {
+  // Sort keys for consistent hashing
+  const sortedKeys = Object.keys(params).sort();
+  const serialized = sortedKeys.map((key) => `${key}=${JSON.stringify(params[key])}`).join('&');
+
+  return `${operation}:${serialized}`;
 }
