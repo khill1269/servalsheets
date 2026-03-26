@@ -589,6 +589,7 @@ export interface KMeansResult {
 /**
  * K-Means clustering on multi-dimensional numeric data.
  * Uses K-Means++ initialization for deterministic, well-spread centroids.
+ * CRITICAL FIX: Early exit when all data points are identical (no variance = clustering meaningless).
  *
  * @param data - Array of data points, each point is an array of numbers
  * @param k - Number of clusters (2-20)
@@ -619,6 +620,22 @@ export function kMeansClustering(
       'data',
       'non-empty rows'
     );
+  }
+
+  // Early exit: if all data points are identical, K-Means is meaningless
+  const firstPoint = data[0]!;
+  const allIdentical = data.every((point) =>
+    point.every((val, d) => val === firstPoint[d])
+  );
+  if (allIdentical) {
+    // All points are the same — return single cluster with all indices
+    return {
+      centroids: [firstPoint],
+      assignments: new Array(n).fill(0),
+      clusterSizes: [n],
+      wcss: 0,
+      iterations: 0,
+    };
   }
 
   // K-Means++ initialization: pick well-spread initial centroids

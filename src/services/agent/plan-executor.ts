@@ -42,7 +42,7 @@ export function isPlainRecord(value: unknown): value is Record<string, unknown> 
 }
 
 export function quoteSheetName(sheetName: string): string {
-  return /^[A-Za-z0-9_]+$/.test(sheetName) ? sheetName : `'${sheetName.replace(/'/g, "''")}'`;
+  return /^[A-Za-z0-9_]+$/.test(sheetName) ? sheetName : `'${sheetName.replace(/'/g, "''')}'`;
 }
 
 function getResponsePayload(result: unknown): ParsedHandlerResponse | null {
@@ -60,7 +60,7 @@ function getResponsePayload(result: unknown): ParsedHandlerResponse | null {
 function extractValuesFromResult(result: unknown): unknown[][] | undefined {
   const payload = getResponsePayload(result);
   if (!payload || !Array.isArray(payload.values)) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
   return payload.values as unknown[][];
 }
@@ -318,6 +318,278 @@ function validateStepResult(result: unknown, step: ExecutionStep): string | null
 }
 
 // ============================================================================
+// AI reflexion validation (IMP-03)
+// ============================================================================
+
+/**
+ * AI reflexion validation for step results.
+ * Uses MCP Sampling to check whether a step result looks correct.
+ * CRITICAL: When AI validation fails, PAUSE execution immediately (don't silently continue).
+ * This prevents cascading failures from undetected errors.
+ */
+export async function aiValidateStepResult(
+  step: ExecutionStep,
+  result: unknown
+): Promise<{ valid: boolean; issue?: string; suggestedFix?: string }> {
+  const samplingServer = getSamplingServer();
+  if (!samplingServer) return { valid: true };
+
+  try {
+    await assertSamplingConsent();
+    const resultStr = JSON.stringify(result, null, 2).slice(0, 500);
+    const prompt = `Step "${step.description}" (${step.tool}.${step.action}) returned:
+${resultStr}
+
+Did this step succeed as expected? If the response shows success:false or an unexpected error, report it.
+Reply with ONLY JSON (no markdown): { "valid": boolean, "issue"?: string, "suggestedFix"?: string }`;
+
+    const response = await withSamplingTimeout(() =>
+      samplingServer.createMessage({
+        messages: [createUserMessage(prompt)],
+        systemPrompt:
+          'You are validating spreadsheet operation results. Reply with only valid JSON.',
+        maxTokens: 200,
+      })
+    );
+
+    const text = extractTextFromResult(response);
+    if (!text) return { valid: true }; // OK: Empty sampling response — fail open
+    const cleaned = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    const parsed = JSON.parse(cleaned) as { valid: boolean; issue?: string; suggestedFix?: string };
+    return { valid: parsed.valid ?? true, issue: parsed.issue, suggestedFix: parsed.suggestedFix };
+  } catch {
+    return { valid: true }; // OK: Fail open — don't block execution on validation errors
+  }
+}
+
+// ============================================================================
+// Step result accumulation
+// ============================================================================
+
+export function upsertStepResult(plan: PlanState, stepResult: StepResult): void {
+  const existingIndex = plan.results.findIndex((result) => result.stepId === stepResult.stepId);
+  if (existingIndex >= 0) {
+    plan.results[existingIndex] = stepResult;
+    return;
+  }
+  plan.results.push(stepResult);
+}
+
+// ============================================================================
+// Core step runner
+// ============================================================================
+
+async function runStepWithGuards(
+  plan: PlanState,
+  step: ExecutionStep,
+  executeHandler: ExecuteHandlerFn,
+  checkpointContext: string,
+  _interactiveMode: boolean = false
+): Promise<StepRunOutcome> {
+  const startedAt = new Date().toISOString();
+  createCheckpoint(plan.planId, checkpointContext);
+
+  const validation = validateStepParamsAgainstSchema(step, plan);
+  step.params = validation.params;
+
+  if (validation.errorDetail) {
+    return {
+      status: 'pause',
+      errorDetail: validation.errorDetail,
+      stepResult: {
+        stepId: step.stepId,
+        success: false,
+        error: validation.errorDetail.message,
+        startedAt,
+        completedAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  try {
+    const result =
+      step.type === 'inject_cross_sheet_lookup' || step.action === 'inject_cross_sheet_lookup'
+        ? await executeInjectCrossSheetLookup(step, plan, executeHandler)
+        : await executeHandler(step.tool, step.action, validation.params);
+
+    const validationIssue = validateStepResult(result, step);
+    if (validationIssue) {
+      logger.warn('Step result validation failed', {
+        planId: plan.planId,
+        stepId: step.stepId,
+        issue: validationIssue,
+      });
+      return {
+        status: 'pause',
+        errorDetail: buildHiddenFailureError(step, validationIssue),
+        stepResult: {
+          stepId: step.stepId,
+          success: false,
+          result,
+          error: validationIssue,
+          startedAt,
+          completedAt: new Date().toISOString(),
+        },
+      };
+    }
+
+    const samplingServer = getSamplingServer();
+    if (samplingServer) {
+      const aiValidation = await aiValidateStepResult(step, result);
+      if (!aiValidation.valid && aiValidation.issue) {
+        logger.warn('AI step validation detected issue — pausing execution', {
+          planId: plan.planId,
+          stepId: step.stepId,
+          issue: aiValidation.issue,
+          suggestedFix: aiValidation.suggestedFix,
+        });
+        // PAUSE execution when AI validation fails
+        return {
+          status: 'pause',
+          errorDetail: {
+            code: 'FAILED_PRECONDITION',
+            message: `AI validation failed on step ${step.stepId}: ${aiValidation.issue}`,
+            suggestedFix: aiValidation.suggestedFix,
+          },
+          stepResult: {
+            stepId: step.stepId,
+            success: false,
+            error: `AI validation failed: ${aiValidation.issue}`,
+            startedAt,
+            completedAt: new Date().toISOString(),
+          },
+        };
+      }
+    }
+
+    const verificationIssue = await verifyStepExecution(step, validation.params, executeHandler);
+    if (verificationIssue) {
+      const errorDetail = buildStepVerificationError(step, verificationIssue);
+      return {
+        status: 'pause',
+        errorDetail,
+        stepResult: {
+          stepId: step.stepId,
+          success: false,
+          result,
+          error: errorDetail.message,
+          startedAt,
+          completedAt: new Date().toISOString(),
+        },
+      };
+    }
+
+    return {
+      status: 'success',
+      stepResult: {
+        stepId: step.stepId,
+        success: true,
+        result,
+        startedAt,
+        completedAt: new Date().toISOString(),
+      },
+    };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    const errorDetail = extractErrorDetail(err);
+    const errAsObj = err as Record<string, unknown>;
+    const isRetryable =
+      errorDetail?.retryable === true || (err instanceof Error && errAsObj['isRetryable'] === true);
+    const retryAfterMs =
+      errorDetail?.retryAfterMs ??
+      (typeof errAsObj['retryAfterMs'] === 'number'
+        ? (errAsObj['retryAfterMs'] as number)
+        : undefined);
+
+    if (isRetryable && retryAfterMs !== undefined && step.retryCount === undefined) {
+      step.retryCount = 1;
+      logger.debug('Auto-retrying retryable step error', {
+        planId: plan.planId,
+        stepId: step.stepId,
+        retryAfterMs,
+        errorCode: errorDetail?.code,
+      });
+      await new Promise<void>((resolve) => setTimeout(resolve, Math.min(retryAfterMs, 30000)));
+      return {
+        status: 'retry',
+        retryAfterMs,
+      };
+    }
+
+    return {
+      status: 'pause',
+      errorDetail: errorDetail ?? undefined,
+      recoveryStep: errorDetail ? buildRecoveryStep(errorDetail) : null,
+      stepResult: {
+        stepId: step.stepId,
+        success: false,
+        error,
+        startedAt,
+        completedAt: new Date().toISOString(),
+      },
+    };
+  }
+}
+
+// ============================================================================
+// Custom step executors
+// ============================================================================
+
+/**
+ * Execute an inject_cross_sheet_lookup step.
+ *
+ * 1. Scouts the target sheet to discover the last occupied row.
+ * 2. Builds XLOOKUP formula strings for each data row.
+ * 3. Writes all formulas to the target column in a single write call.
+ */
+async function executeInjectCrossSheetLookup(
+  step: ExecutionStep,
+  plan: PlanState,
+  executeHandler: ExecuteHandlerFn
+): Promise<{ success: true; formulasWritten: number }> {
+  const cfg = step.config as {
+    sourceSheet: string;
+    lookupCol: string;
+    returnCol: string;
+    targetSheet: string;
+    targetCol: string;
+    targetKeyCol: string;
+    startRow: number;
+  };
+  const spreadsheetId =
+    (step.params['spreadsheetId'] as string | undefined) ?? plan.spreadsheetId ?? plan.description;
+
+  // Scout to discover the last occupied row in the target sheet
+  const metaResult = await executeHandler('sheets_analyze', 'scout', {
+    spreadsheetId,
+    verbosity: 'minimal',
+  });
+  const sheetInfo = extractScoutSheets(metaResult).find(
+    (sheet) => sheet['title'] === cfg.targetSheet || sheet['name'] === cfg.targetSheet
+  );
+  const lastRow = sheetInfo
+    ? cfg.startRow + Math.max(0, Number(sheetInfo['rowCount'] ?? 0) - cfg.startRow)
+    : cfg.startRow + 99;
+
+  // Build XLOOKUP formula for each row in [startRow, lastRow]
+  const formulas: string[][] = [];
+  for (let row = cfg.startRow; row <= lastRow; row++) {
+    formulas.push([
+      `=IFERROR(XLOOKUP(${cfg.targetKeyCol}${row},'${cfg.sourceSheet}'!${cfg.lookupCol}:${cfg.lookupCol},'${cfg.sourceSheet}'!${cfg.returnCol}:${cfg.returnCol},""),"")`,
+    ]);
+  }
+
+  await executeHandler('sheets_data', 'write', {
+    spreadsheetId,
+    range: `${quoteSheetName(cfg.targetSheet)}!${cfg.targetCol}${cfg.startRow}:${cfg.targetCol}${lastRow}`,
+    values: formulas,
+    valueInputOption: 'USER_ENTERED',
+  });
+
+  return { success: true, formulasWritten: formulas.length };
+}
+
+// ============================================================================
 // Post-step verification
 // ============================================================================
 
@@ -368,7 +640,7 @@ function getA1Range(range: unknown): string | undefined {
   }
 
   if (!isPlainRecord(range)) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   if (typeof range['a1'] === 'string') {
@@ -381,7 +653,7 @@ function getA1Range(range: unknown): string | undefined {
     return innerRange ? `${sheetName}!${innerRange}` : sheetName;
   }
 
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 function buildVerificationTarget(
@@ -541,261 +813,6 @@ async function verifyStepExecution(
       details: {
         verificationTarget: target,
         error: error instanceof Error ? error.message : String(error),
-      },
-    };
-  }
-}
-
-// ============================================================================
-// Custom step executors
-// ============================================================================
-
-/**
- * Execute an inject_cross_sheet_lookup step.
- *
- * 1. Scouts the target sheet to discover the last occupied row.
- * 2. Builds XLOOKUP formula strings for each data row.
- * 3. Writes all formulas to the target column in a single write call.
- */
-async function executeInjectCrossSheetLookup(
-  step: ExecutionStep,
-  plan: PlanState,
-  executeHandler: ExecuteHandlerFn
-): Promise<{ success: true; formulasWritten: number }> {
-  const cfg = step.config as {
-    sourceSheet: string;
-    lookupCol: string;
-    returnCol: string;
-    targetSheet: string;
-    targetCol: string;
-    targetKeyCol: string;
-    startRow: number;
-  };
-  const spreadsheetId =
-    (step.params['spreadsheetId'] as string | undefined) ?? plan.spreadsheetId ?? plan.description;
-
-  // Scout to discover the last occupied row in the target sheet
-  const metaResult = await executeHandler('sheets_analyze', 'scout', {
-    spreadsheetId,
-    verbosity: 'minimal',
-  });
-  const sheetInfo = extractScoutSheets(metaResult).find(
-    (sheet) => sheet['title'] === cfg.targetSheet || sheet['name'] === cfg.targetSheet
-  );
-  const lastRow = sheetInfo
-    ? cfg.startRow + Math.max(0, Number(sheetInfo['rowCount'] ?? 0) - cfg.startRow)
-    : cfg.startRow + 99;
-
-  // Build XLOOKUP formula for each row in [startRow, lastRow]
-  const formulas: string[][] = [];
-  for (let row = cfg.startRow; row <= lastRow; row++) {
-    formulas.push([
-      `=IFERROR(XLOOKUP(${cfg.targetKeyCol}${row},'${cfg.sourceSheet}'!${cfg.lookupCol}:${cfg.lookupCol},'${cfg.sourceSheet}'!${cfg.returnCol}:${cfg.returnCol},""),"")`,
-    ]);
-  }
-
-  await executeHandler('sheets_data', 'write', {
-    spreadsheetId,
-    range: `${quoteSheetName(cfg.targetSheet)}!${cfg.targetCol}${cfg.startRow}:${cfg.targetCol}${lastRow}`,
-    values: formulas,
-    valueInputOption: 'USER_ENTERED',
-  });
-
-  return { success: true, formulasWritten: formulas.length };
-}
-
-// ============================================================================
-// AI reflexion validation
-// ============================================================================
-
-/**
- * AI reflexion validation for step results (IMP-03).
- * Uses MCP Sampling to check whether a step result looks correct.
- * Fails open — returns valid:true on any error to avoid blocking execution.
- */
-export async function aiValidateStepResult(
-  step: ExecutionStep,
-  result: unknown
-): Promise<{ valid: boolean; issue?: string; suggestedFix?: string }> {
-  const samplingServer = getSamplingServer();
-  if (!samplingServer) return { valid: true };
-
-  try {
-    await assertSamplingConsent();
-    const resultStr = JSON.stringify(result, null, 2).slice(0, 500);
-    const prompt = `Step "${step.description}" (${step.tool}.${step.action}) returned:
-${resultStr}
-
-Did this step succeed as expected? If the response shows success:false or an unexpected error, report it.
-Reply with ONLY JSON (no markdown): { "valid": boolean, "issue"?: string, "suggestedFix"?: string }`;
-
-    const response = await withSamplingTimeout(() =>
-      samplingServer.createMessage({
-        messages: [createUserMessage(prompt)],
-        systemPrompt:
-          'You are validating spreadsheet operation results. Reply with only valid JSON.',
-        maxTokens: 200,
-      })
-    );
-
-    const text = extractTextFromResult(response);
-    if (!text) return { valid: true }; // OK: Empty sampling response — fail open
-    const cleaned = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-    const parsed = JSON.parse(cleaned) as { valid: boolean; issue?: string; suggestedFix?: string };
-    return { valid: parsed.valid ?? true, issue: parsed.issue, suggestedFix: parsed.suggestedFix };
-  } catch {
-    return { valid: true }; // OK: Fail open — don't block execution on validation errors
-  }
-}
-
-// ============================================================================
-// Step result accumulation
-// ============================================================================
-
-export function upsertStepResult(plan: PlanState, stepResult: StepResult): void {
-  const existingIndex = plan.results.findIndex((result) => result.stepId === stepResult.stepId);
-  if (existingIndex >= 0) {
-    plan.results[existingIndex] = stepResult;
-    return;
-  }
-  plan.results.push(stepResult);
-}
-
-// ============================================================================
-// Core step runner
-// ============================================================================
-
-async function runStepWithGuards(
-  plan: PlanState,
-  step: ExecutionStep,
-  executeHandler: ExecuteHandlerFn,
-  checkpointContext: string,
-  _interactiveMode: boolean = false
-): Promise<StepRunOutcome> {
-  const startedAt = new Date().toISOString();
-  createCheckpoint(plan.planId, checkpointContext);
-
-  const validation = validateStepParamsAgainstSchema(step, plan);
-  step.params = validation.params;
-
-  if (validation.errorDetail) {
-    return {
-      status: 'pause',
-      errorDetail: validation.errorDetail,
-      stepResult: {
-        stepId: step.stepId,
-        success: false,
-        error: validation.errorDetail.message,
-        startedAt,
-        completedAt: new Date().toISOString(),
-      },
-    };
-  }
-
-  try {
-    const result =
-      step.type === 'inject_cross_sheet_lookup' || step.action === 'inject_cross_sheet_lookup'
-        ? await executeInjectCrossSheetLookup(step, plan, executeHandler)
-        : await executeHandler(step.tool, step.action, validation.params);
-
-    const validationIssue = validateStepResult(result, step);
-    if (validationIssue) {
-      logger.warn('Step result validation failed', {
-        planId: plan.planId,
-        stepId: step.stepId,
-        issue: validationIssue,
-      });
-      return {
-        status: 'pause',
-        errorDetail: buildHiddenFailureError(step, validationIssue),
-        stepResult: {
-          stepId: step.stepId,
-          success: false,
-          result,
-          error: validationIssue,
-          startedAt,
-          completedAt: new Date().toISOString(),
-        },
-      };
-    }
-
-    const samplingServer = getSamplingServer();
-    if (samplingServer) {
-      const aiValidation = await aiValidateStepResult(step, result);
-      if (!aiValidation.valid && aiValidation.issue) {
-        logger.warn('AI step validation detected issue', {
-          planId: plan.planId,
-          stepId: step.stepId,
-          issue: aiValidation.issue,
-          suggestedFix: aiValidation.suggestedFix,
-        });
-      }
-    }
-
-    const verificationIssue = await verifyStepExecution(step, validation.params, executeHandler);
-    if (verificationIssue) {
-      const errorDetail = buildStepVerificationError(step, verificationIssue);
-      return {
-        status: 'pause',
-        errorDetail,
-        stepResult: {
-          stepId: step.stepId,
-          success: false,
-          result,
-          error: errorDetail.message,
-          startedAt,
-          completedAt: new Date().toISOString(),
-        },
-      };
-    }
-
-    return {
-      status: 'success',
-      stepResult: {
-        stepId: step.stepId,
-        success: true,
-        result,
-        startedAt,
-        completedAt: new Date().toISOString(),
-      },
-    };
-  } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
-    const errorDetail = extractErrorDetail(err);
-    const errAsObj = err as Record<string, unknown>;
-    const isRetryable =
-      errorDetail?.retryable === true || (err instanceof Error && errAsObj['isRetryable'] === true);
-    const retryAfterMs =
-      errorDetail?.retryAfterMs ??
-      (typeof errAsObj['retryAfterMs'] === 'number'
-        ? (errAsObj['retryAfterMs'] as number)
-        : undefined);
-
-    if (isRetryable && retryAfterMs !== undefined && step.retryCount === undefined) {
-      step.retryCount = 1;
-      logger.debug('Auto-retrying retryable step error', {
-        planId: plan.planId,
-        stepId: step.stepId,
-        retryAfterMs,
-        errorCode: errorDetail?.code,
-      });
-      await new Promise<void>((resolve) => setTimeout(resolve, Math.min(retryAfterMs, 30000)));
-      return {
-        status: 'retry',
-        retryAfterMs,
-      };
-    }
-
-    return {
-      status: 'pause',
-      errorDetail: errorDetail ?? undefined,
-      recoveryStep: errorDetail ? buildRecoveryStep(errorDetail) : null,
-      stepResult: {
-        stepId: step.stepId,
-        success: false,
-        error,
-        startedAt,
-        completedAt: new Date().toISOString(),
       },
     };
   }
