@@ -1763,12 +1763,6 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
       description:
         'Discard all queued operations and close the transaction without writing any changes.',
     },
-    abort: {
-      required: ['transactionId'],
-      optional: ['reason'],
-      description:
-        'Abort a transaction with an optional reason. Equivalent to rollback but records the abort reason in the audit trail.',
-    },
     status: {
       required: ['transactionId'],
       optional: [],

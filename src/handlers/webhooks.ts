@@ -18,7 +18,12 @@ import { ServiceError } from '../core/errors.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { getApiSpecificCircuitBreakerConfig } from '../config/env.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
-import { handleRegister, handleUnregister, handleList, handleGet } from './webhook-actions/management.js';
+import {
+  handleRegister,
+  handleUnregister,
+  handleList,
+  handleGet,
+} from './webhook-actions/management.js';
 import { handleTest, handleGetStats } from './webhook-actions/delivery.js';
 import {
   handleWatchChanges,

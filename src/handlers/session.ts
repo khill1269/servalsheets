@@ -11,10 +11,7 @@ import type { SheetsSessionInput, SheetsSessionOutput } from '../schemas/session
 import { PipelineExecutor, type PipelineStep } from '../services/pipeline-executor.js';
 import { getPipelineDispatch } from '../services/pipeline-registry.js';
 import type { SchedulerService } from '../services/scheduler.js';
-import {
-  getSessionContext,
-  SessionContextManager,
-} from '../services/session-context.js';
+import { getSessionContext, SessionContextManager } from '../services/session-context.js';
 import { unwrapRequest } from './base.js';
 import { ValidationError } from '../core/errors.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
@@ -221,13 +218,19 @@ export async function handleSheetsSession(
         return handleFindByReference(session, req as Parameters<typeof handleFindByReference>[1]);
 
       case 'update_preferences':
-        return handleUpdatePreferences(session, req as Parameters<typeof handleUpdatePreferences>[1]);
+        return handleUpdatePreferences(
+          session,
+          req as Parameters<typeof handleUpdatePreferences>[1]
+        );
 
       case 'get_preferences':
         return handleGetPreferences(session);
 
       case 'update_profile_preferences':
-        return await handleUpdateProfilePreferences(session, req as Parameters<typeof handleUpdateProfilePreferences>[1]);
+        return await handleUpdateProfilePreferences(
+          session,
+          req as Parameters<typeof handleUpdateProfilePreferences>[1]
+        );
 
       case 'set_pending':
         return handleSetPending(session, req as Parameters<typeof handleSetPending>[1]);
@@ -239,10 +242,16 @@ export async function handleSheetsSession(
         return handleClearPending(session);
 
       case 'save_checkpoint':
-        return await handleSaveCheckpoint(session, req as Parameters<typeof handleSaveCheckpoint>[1]);
+        return await handleSaveCheckpoint(
+          session,
+          req as Parameters<typeof handleSaveCheckpoint>[1]
+        );
 
       case 'load_checkpoint':
-        return await handleLoadCheckpoint(session, req as Parameters<typeof handleLoadCheckpoint>[1]);
+        return await handleLoadCheckpoint(
+          session,
+          req as Parameters<typeof handleLoadCheckpoint>[1]
+        );
 
       case 'list_checkpoints':
         return await handleListCheckpoints(req as Parameters<typeof handleListCheckpoints>[0]);
@@ -277,25 +286,43 @@ export async function handleSheetsSession(
         return await handleGetProfile(session);
 
       case 'record_successful_formula':
-        return await handleRecordSuccessfulFormula(session, req as Parameters<typeof handleRecordSuccessfulFormula>[1]);
+        return await handleRecordSuccessfulFormula(
+          session,
+          req as Parameters<typeof handleRecordSuccessfulFormula>[1]
+        );
 
       case 'reject_suggestion':
-        return await handleRejectSuggestion(session, req as Parameters<typeof handleRejectSuggestion>[1]);
+        return await handleRejectSuggestion(
+          session,
+          req as Parameters<typeof handleRejectSuggestion>[1]
+        );
 
       case 'get_top_formulas':
-        return await handleGetTopFormulas(session, req as Parameters<typeof handleGetTopFormulas>[1]);
+        return await handleGetTopFormulas(
+          session,
+          req as Parameters<typeof handleGetTopFormulas>[1]
+        );
 
       case 'schedule_create':
-        return await handleScheduleCreate(getScheduler, req as Parameters<typeof handleScheduleCreate>[1]);
+        return await handleScheduleCreate(
+          getScheduler,
+          req as Parameters<typeof handleScheduleCreate>[1]
+        );
 
       case 'schedule_list':
         return handleScheduleList(getScheduler, req as Parameters<typeof handleScheduleList>[1]);
 
       case 'schedule_cancel':
-        return await handleScheduleCancel(getScheduler, req as Parameters<typeof handleScheduleCancel>[1]);
+        return await handleScheduleCancel(
+          getScheduler,
+          req as Parameters<typeof handleScheduleCancel>[1]
+        );
 
       case 'schedule_run_now':
-        return await handleScheduleRunNow(getScheduler, req as Parameters<typeof handleScheduleRunNow>[1]);
+        return await handleScheduleRunNow(
+          getScheduler,
+          req as Parameters<typeof handleScheduleRunNow>[1]
+        );
 
       case 'execute_pipeline': {
         // Intercepted by SessionHandler.handle() before this function is called.

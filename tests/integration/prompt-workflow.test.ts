@@ -171,7 +171,6 @@ describe('Prompt workflow integration', () => {
     'welcome',
     'test_connection',
     'first_operation',
-    'analyze_spreadsheet',
     'create_report',
     'diagnose_errors',
   ];
@@ -213,10 +212,10 @@ describe('Prompt workflow integration', () => {
     expect(allText).toContain(TEST_SPREADSHEET_ID);
   });
 
-  it('analyze_spreadsheet prompt injects spreadsheetId into message text', async () => {
+  it('create_report prompt injects spreadsheetId into message text', async () => {
     const customId = 'custom-spreadsheet-id-12345';
     const result = await harness.client.getPrompt({
-      name: 'analyze_spreadsheet',
+      name: 'create_report',
       arguments: { spreadsheetId: customId },
     });
 

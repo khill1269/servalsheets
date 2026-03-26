@@ -804,22 +804,34 @@ export const OPERATION_SCOPES: Record<
     description: 'Auto-fill cells',
   },
   'sheets_data.cross_read': {
-    required: ['https://www.googleapis.com/auth/spreadsheets.readonly', 'https://www.googleapis.com/auth/drive.readonly'],
+    required: [
+      'https://www.googleapis.com/auth/spreadsheets.readonly',
+      'https://www.googleapis.com/auth/drive.readonly',
+    ],
     category: ScopeCategory.DRIVE_FULL,
     description: 'Cross-spreadsheet read',
   },
   'sheets_data.cross_query': {
-    required: ['https://www.googleapis.com/auth/spreadsheets.readonly', 'https://www.googleapis.com/auth/drive.readonly'],
+    required: [
+      'https://www.googleapis.com/auth/spreadsheets.readonly',
+      'https://www.googleapis.com/auth/drive.readonly',
+    ],
     category: ScopeCategory.DRIVE_FULL,
     description: 'Cross-spreadsheet query',
   },
   'sheets_data.cross_write': {
-    required: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.readonly'],
+    required: [
+      'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/drive.readonly',
+    ],
     category: ScopeCategory.DRIVE_FULL,
     description: 'Cross-spreadsheet write',
   },
   'sheets_data.cross_compare': {
-    required: ['https://www.googleapis.com/auth/spreadsheets.readonly', 'https://www.googleapis.com/auth/drive.readonly'],
+    required: [
+      'https://www.googleapis.com/auth/spreadsheets.readonly',
+      'https://www.googleapis.com/auth/drive.readonly',
+    ],
     category: ScopeCategory.DRIVE_FULL,
     description: 'Cross-spreadsheet compare',
   },
@@ -1389,17 +1401,26 @@ export const OPERATION_SCOPES: Record<
     description: 'Get operation details',
   },
   'sheets_history.timeline': {
-    required: ['https://www.googleapis.com/auth/spreadsheets.readonly', 'https://www.googleapis.com/auth/drive.readonly'],
+    required: [
+      'https://www.googleapis.com/auth/spreadsheets.readonly',
+      'https://www.googleapis.com/auth/drive.readonly',
+    ],
     category: ScopeCategory.DRIVE_FULL,
     description: 'Get timeline of changes',
   },
   'sheets_history.diff_revisions': {
-    required: ['https://www.googleapis.com/auth/spreadsheets.readonly', 'https://www.googleapis.com/auth/drive.readonly'],
+    required: [
+      'https://www.googleapis.com/auth/spreadsheets.readonly',
+      'https://www.googleapis.com/auth/drive.readonly',
+    ],
     category: ScopeCategory.DRIVE_FULL,
     description: 'Diff between revisions',
   },
   'sheets_history.restore_cells': {
-    required: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.readonly'],
+    required: [
+      'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/drive.readonly',
+    ],
     category: ScopeCategory.DRIVE_FULL,
     description: 'Restore cells from revision',
   },
