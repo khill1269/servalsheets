@@ -426,8 +426,8 @@ function syncToolDescription(
   actionCount: number
 ): string {
   if (typeof existingDescription === 'string' && existingDescription.trim().length > 0) {
-    if (/\(\d+\s+actions\)/i.test(existingDescription)) {
-      return existingDescription.replace(/\(\d+\s+actions\)/i, `(${actionCount} actions)`);
+    if (/(\d+\s+actions)/i.test(existingDescription)) {
+      return existingDescription.replace(/(\d+\s+actions)/i, `${actionCount} actions`);
     }
     if (/\d+\s+actions/i.test(existingDescription)) {
       return existingDescription.replace(/\d+\s+actions/i, `${actionCount} actions`);
