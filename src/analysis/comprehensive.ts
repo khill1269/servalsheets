@@ -905,7 +905,7 @@ export class ComprehensiveAnalyzer {
         // Scope includeGridData to only the sheets being analyzed to avoid fetching the
         // entire workbook. Using sheet names as ranges (e.g. "'Sheet1'") tells the API to
         // include grid data only for those sheets; the field mask further limits to formulas.
-        const sheetRanges = sheetAnalyses.map((a) => `'${a.sheetName.replace(/'/g, "''`)}'`);
+        const sheetRanges = sheetAnalyses.map((a) => `'${a.sheetName.replace(/'/g, "''")}'`);
         const apiResponse = await this.sheetsApi.spreadsheets.get({
           spreadsheetId,
           ranges: sheetRanges.length > 0 ? sheetRanges : undefined,
