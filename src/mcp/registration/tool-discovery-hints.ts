@@ -1788,12 +1788,6 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
       description:
         'Save the current spreadsheet as a reusable template. Specify variables for token substitution (e.g. {{COMPANY_NAME}}).',
     },
-    instantiate: {
-      required: ['templateId'],
-      optional: ['variables', 'targetSpreadsheetId', 'title'],
-      description:
-        'Create a new spreadsheet from a template. Pass variables as key-value pairs for token substitution. Omit targetSpreadsheetId to create a new spreadsheet.',
-    },
     apply: {
       required: ['templateId', 'spreadsheetId'],
       optional: ['variables', 'sheetName', 'overwrite'],
