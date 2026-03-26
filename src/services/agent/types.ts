@@ -130,6 +130,12 @@ export type StepRunOutcome = {
   errorDetail?: ErrorDetail;
   recoveryStep?: ExecutionStep | null;
   retryAfterMs?: number;
+  /** Number of steps completed before pause/error */
+  completedSteps?: number;
+  /** Reason execution was paused (e.g. AI validation failure) */
+  pauseReason?: string;
+  /** Suggested fix when paused due to validation failure */
+  suggestedFix?: string;
 };
 
 export type ParsedHandlerResponse = {

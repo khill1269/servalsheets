@@ -1,750 +1,165 @@
 /**
- * Shared math and formula helper functions for compute engine operations.
+ * ServalSheets — Compute Engine Math Helpers
+ *
+ * Statistical and machine learning operations: K-Means, regression, forecasting.
  */
-import { ValidationError } from '../core/errors.js';
 
-export function computeMedian(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  if (sorted.length % 2 === 1) return sorted[mid] ?? null;
-  return ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
+export interface KMeansResult {
+  clusters: Array<{ centroid: number[]; members: number[] }>;
+  converged: boolean;
+  iterations: number;
+  error?: string;
+  wcss?: number; // Within-cluster sum of squares
 }
 
-export function computeMode(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const counts = new Map<number, number>();
-  let bestValue: number | null = null;
-  let bestCount = 0;
-  for (const value of values) {
-    const count = (counts.get(value) ?? 0) + 1;
-    counts.set(value, count);
-    if (count > bestCount) {
-      bestCount = count;
-      bestValue = value;
+export class ComputeEngineMath {
+  static kMeans(data: number[][], k: number, maxIterations: number = 100): KMeansResult {
+    if (data.length === 0 || k <= 0 || k > data.length) {
+      return {
+        clusters: [],
+        converged: false,
+        iterations: 0,
+        error: 'Invalid input: empty data or invalid k',
+      };
     }
-  }
-  return bestValue;
-}
 
-export function computeVariance(values: number[], population: boolean): number | null {
-  if (values.length === 0) return null;
-  if (!population && values.length < 2) return 0;
-  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
-  const squaredDiffs = values.map((value) => (value - mean) ** 2);
-  const divisor = population ? values.length : values.length - 1;
-  return squaredDiffs.reduce((sum, value) => sum + value, 0) / (divisor || 1);
-}
+    // Initialize centroids randomly
+    const centroids = this.initializeCentroids(data, k);
+    let assignments: number[] = new Array(data.length).fill(0);
+    let converged = false;
+    let iteration = 0;
+    let wcss = 0;
 
-export function computeStddev(values: number[], population: boolean): number | null {
-  const variance = computeVariance(values, population);
-  return variance === null ? null : Math.sqrt(Math.max(variance, 0));
-}
-
-export function computePercentile(sorted: number[], p: number): number {
-  if (sorted.length === 0) return 0;
-  const clamped = Math.max(0, Math.min(100, p));
-  const idx = (clamped / 100) * (sorted.length - 1);
-  const lower = Math.floor(idx);
-  const upper = Math.ceil(idx);
-  if (lower === upper) return sorted[lower] ?? 0;
-  const weight = idx - lower;
-  const lowerVal = sorted[lower] ?? 0;
-  const upperVal = sorted[upper] ?? lowerVal;
-  return lowerVal * (1 - weight) + upperVal * weight;
-}
-
-export function computeCorrelation(x: number[], y: number[]): number {
-  if (x.length !== y.length || x.length === 0) return 0;
-  const n = x.length;
-  const meanX = x.reduce((sum, value) => sum + value, 0) / n;
-  const meanY = y.reduce((sum, value) => sum + value, 0) / n;
-
-  let numerator = 0;
-  let denominatorX = 0;
-  let denominatorY = 0;
-
-  for (let i = 0; i < n; i++) {
-    const dx = (x[i] ?? 0) - meanX;
-    const dy = (y[i] ?? 0) - meanY;
-    numerator += dx * dy;
-    denominatorX += dx * dx;
-    denominatorY += dy * dy;
-  }
-
-  const denominator = Math.sqrt(denominatorX * denominatorY);
-  return denominator === 0 ? 0 : numerator / denominator;
-}
-
-/**
- * Compute ranks for an array of numbers (handles ties using average rank).
- * Used by Spearman rank correlation.
- */
-function computeRanks(values: number[]): number[] {
-  const indexed = values.map((v, i) => ({ value: v, index: i }));
-  indexed.sort((a, b) => a.value - b.value);
-
-  const ranks = new Array<number>(values.length);
-  let i = 0;
-  while (i < indexed.length) {
-    // Find tied group
-    let j = i;
-    while (j < indexed.length && indexed[j]!.value === indexed[i]!.value) {
-      j++;
-    }
-    // Average rank for tied group (1-based ranks)
-    const avgRank = (i + 1 + j) / 2;
-    for (let k = i; k < j; k++) {
-      ranks[indexed[k]!.index] = avgRank;
-    }
-    i = j;
-  }
-  return ranks;
-}
-
-/**
- * Compute Spearman rank correlation coefficient between two numeric arrays.
- * Unlike Pearson (which measures linear correlation), Spearman measures
- * monotonic relationships — captures non-linear but consistent trends.
- * Returns value between -1 and 1. Returns 0 for incompatible arrays.
- */
-export function computeSpearmanCorrelation(x: number[], y: number[]): number {
-  if (x.length !== y.length || x.length < 3) return 0;
-
-  const rankX = computeRanks(x);
-  const rankY = computeRanks(y);
-
-  // Compute Pearson correlation on the ranks
-  return computeCorrelation(rankX, rankY);
-}
-
-export function linearRegression(x: number[], y: number[]): [number, number] {
-  if (x.length !== y.length || x.length === 0) {
-    return [0, 0];
-  }
-
-  const n = x.length;
-  const meanX = x.reduce((sum, value) => sum + value, 0) / n;
-  const meanY = y.reduce((sum, value) => sum + value, 0) / n;
-
-  let numerator = 0;
-  let denominator = 0;
-  for (let i = 0; i < n; i++) {
-    const dx = (x[i] ?? 0) - meanX;
-    const dy = (y[i] ?? 0) - meanY;
-    numerator += dx * dy;
-    denominator += dx * dx;
-  }
-
-  const slope = denominator === 0 ? 0 : numerator / denominator;
-  const intercept = meanY - slope * meanX;
-  return [slope, intercept];
-}
-
-export function polynomialRegression(x: number[], y: number[], degree: number): number[] {
-  if (x.length !== y.length || x.length === 0) return [0, 0];
-
-  const safeDegree = Math.max(1, Math.min(degree, 6));
-  const X: number[][] = x.map((value) => {
-    const row: number[] = [];
-    for (let power = 0; power <= safeDegree; power++) {
-      row.push(Math.pow(value, power));
-    }
-    return row;
-  });
-
-  const XT = transpose(X);
-  const XTX = matrixMultiply(XT, X);
-  const XTy = matrixMultiply(
-    XT,
-    y.map((value) => [value])
-  );
-
-  try {
-    const inverse = invertMatrix(XTX);
-    const coeffs = matrixMultiply(inverse, XTy);
-    return coeffs.map((row) => row[0] ?? 0);
-  } catch {
-    const [slope, intercept] = linearRegression(x, y);
-    return [intercept, slope];
-  }
-}
-
-export function predictValue(
-  x: number,
-  coefficients: number[],
-  type: string,
-  _degree: number
-): number {
-  switch (type) {
-    case 'linear':
-      return (coefficients[0] ?? 0) + (coefficients[1] ?? 0) * x;
-    case 'polynomial':
-      return coefficients.reduce(
-        (sum, coefficient, power) => sum + coefficient * Math.pow(x, power),
-        0
+    for (iteration = 0; iteration < maxIterations && !converged; iteration++) {
+      // Assign points to nearest centroid
+      const newAssignments = data.map((point) =>
+        this.nearestCentroid(point, centroids)
       );
-    case 'exponential':
-      return (coefficients[0] ?? 0) * Math.exp((coefficients[1] ?? 0) * x);
-    case 'logarithmic':
-      return (coefficients[0] ?? 0) + (coefficients[1] ?? 0) * Math.log(Math.max(x, 1e-12));
-    case 'power':
-      return (coefficients[0] ?? 0) * Math.pow(Math.max(x, 1e-12), coefficients[1] ?? 0);
-    default:
-      return x;
-  }
-}
 
-export function transpose(m: number[][]): number[][] {
-  const rows = m.length;
-  const cols = m[0]?.length ?? 0;
-  return Array.from({ length: cols }, (_, i) =>
-    Array.from({ length: rows }, (_, j) => m[j]?.[i] ?? 0)
-  );
-}
+      // Check convergence
+      converged = this.arraysEqual(assignments, newAssignments);
+      assignments = newAssignments;
 
-export function matrixMultiply(a: number[][], b: number[][]): number[][] {
-  const rows = a.length;
-  const cols = b[0]?.length ?? 0;
-  const shared = b.length;
-  const result: number[][] = Array.from({ length: rows }, () => Array(cols).fill(0));
-
-  for (let i = 0; i < rows; i++) {
-    for (let j = 0; j < cols; j++) {
-      let sum = 0;
-      for (let k = 0; k < shared; k++) {
-        sum += (a[i]?.[k] ?? 0) * (b[k]?.[j] ?? 0);
-      }
-      result[i]![j] = sum;
-    }
-  }
-
-  return result;
-}
-
-export function determinant(m: number[][]): number {
-  const n = m.length;
-  if (n === 0) return 0;
-  if (n === 1) return m[0]?.[0] ?? 0;
-  if (n === 2) {
-    return (m[0]?.[0] ?? 0) * (m[1]?.[1] ?? 0) - (m[0]?.[1] ?? 0) * (m[1]?.[0] ?? 0);
-  }
-
-  let det = 0;
-  for (let j = 0; j < n; j++) {
-    const sub = m.slice(1).map((row) => row.filter((_, idx) => idx !== j));
-    det += Math.pow(-1, j) * (m[0]?.[j] ?? 0) * determinant(sub);
-  }
-  return det;
-}
-
-export function invertMatrix(m: number[][]): number[][] {
-  const n = m.length;
-  if (n === 0 || n !== (m[0]?.length ?? 0)) {
-    throw new ValidationError('Matrix must be square', 'matrix');
-  }
-
-  const augmented = m.map((row, i) => {
-    const identity = Array.from({ length: n }, (_, j) => (i === j ? 1 : 0));
-    return [...row, ...identity];
-  });
-
-  for (let i = 0; i < n; i++) {
-    let pivot = augmented[i]?.[i] ?? 0;
-
-    if (Math.abs(pivot) < 1e-12) {
-      const swapIndex = augmented.findIndex((row, idx) => idx > i && Math.abs(row[i] ?? 0) > 1e-12);
-      if (swapIndex === -1) throw new ValidationError('Matrix is singular', 'matrix');
-      const temp = augmented[i];
-      augmented[i] = augmented[swapIndex]!;
-      augmented[swapIndex] = temp!;
-      pivot = augmented[i]?.[i] ?? 0;
-    }
-
-    for (let j = 0; j < 2 * n; j++) {
-      augmented[i]![j] = (augmented[i]?.[j] ?? 0) / pivot;
-    }
-
-    for (let k = 0; k < n; k++) {
-      if (k === i) continue;
-      const factor = augmented[k]?.[i] ?? 0;
-      for (let j = 0; j < 2 * n; j++) {
-        augmented[k]![j] = (augmented[k]?.[j] ?? 0) - factor * (augmented[i]?.[j] ?? 0);
-      }
-    }
-  }
-
-  return augmented.map((row) => row.slice(n));
-}
-
-export function computeRank(m: number[][]): number {
-  const rows = m.length;
-  const cols = m[0]?.length ?? 0;
-  const matrix = m.map((row) => [...row]);
-
-  let rank = 0;
-  let row = 0;
-  for (let col = 0; col < cols && row < rows; col++) {
-    let pivotRow = row;
-    for (let i = row + 1; i < rows; i++) {
-      if (Math.abs(matrix[i]?.[col] ?? 0) > Math.abs(matrix[pivotRow]?.[col] ?? 0)) {
-        pivotRow = i;
-      }
-    }
-
-    if (Math.abs(matrix[pivotRow]?.[col] ?? 0) < 1e-12) continue;
-
-    const temp = matrix[row];
-    matrix[row] = matrix[pivotRow]!;
-    matrix[pivotRow] = temp!;
-
-    const pivot = matrix[row]?.[col] ?? 1;
-    for (let j = col; j < cols; j++) {
-      matrix[row]![j] = (matrix[row]?.[j] ?? 0) / pivot;
-    }
-
-    for (let i = 0; i < rows; i++) {
-      if (i === row) continue;
-      const factor = matrix[i]?.[col] ?? 0;
-      for (let j = col; j < cols; j++) {
-        matrix[i]![j] = (matrix[i]?.[j] ?? 0) - factor * (matrix[row]?.[j] ?? 0);
-      }
-    }
-
-    row++;
-    rank++;
-  }
-
-  return rank;
-}
-
-export function computeEigenvaluesQR(A: number[][]): number[] {
-  const n = A.length;
-
-  if (n === 0) return [];
-  if (n === 1) return [A[0]?.[0] ?? 0];
-
-  if (n === 2) {
-    const a = A[0]?.[0] ?? 0;
-    const b = A[0]?.[1] ?? 0;
-    const c = A[1]?.[0] ?? 0;
-    const d = A[1]?.[1] ?? 0;
-    const trace = a + d;
-    const det = a * d - b * c;
-    const disc = Math.sqrt(Math.max(trace * trace - 4 * det, 0));
-    return [(trace + disc) / 2, (trace - disc) / 2];
-  }
-
-  let isDiagonal = true;
-  for (let i = 0; i < n && isDiagonal; i++) {
-    for (let j = 0; j < n && isDiagonal; j++) {
-      if (i !== j && Math.abs(A[i]?.[j] ?? 0) > 1e-10) {
-        isDiagonal = false;
-      }
-    }
-  }
-  if (isDiagonal) return A.map((row, i) => row[i] ?? 0);
-
-  let current = A.map((row) => [...row]);
-  const maxIter = 100;
-  const threshold = 1e-10;
-
-  for (let iter = 0; iter < maxIter; iter++) {
-    const { Q, R } = householderQR(current);
-    current = matrixMultiply(R, Q);
-
-    let converged = true;
-    for (let i = 0; i < n && converged; i++) {
-      for (let j = i + 1; j < n; j++) {
-        if (
-          Math.abs(current[i]?.[j] ?? 0) > threshold ||
-          Math.abs(current[j]?.[i] ?? 0) > threshold
-        ) {
-          converged = false;
-          break;
+      // Update centroids
+      for (let i = 0; i < k; i++) {
+        const members = data.filter((_, idx) => assignments[idx] === i);
+        if (members.length > 0) {
+          centroids[i] = this.computeMean(members);
         }
       }
     }
 
-    if (converged) break;
-  }
-
-  return current.map((row, i) => row[i] ?? 0).sort((a, b) => b - a);
-}
-
-function householderQR(A: number[][]): { Q: number[][]; R: number[][] } {
-  const m = A.length;
-  const n = A[0]?.length ?? 0;
-  const R = A.map((row) => [...row]);
-  const Q = Array.from({ length: m }, (_, i) => {
-    const row = Array(m).fill(0) as number[];
-    row[i] = 1;
-    return row;
-  });
-
-  for (let k = 0; k < Math.min(m - 1, n); k++) {
-    const x = R.slice(k).map((row) => row[k] ?? 0);
-
-    const sigma =
-      Math.sign(x[0] ?? 0) * Math.sqrt(x.reduce((sum, value) => sum + value * value, 0));
-    if (Math.abs(sigma) < 1e-10) continue;
-
-    const u = [...x];
-    const first = u[0];
-    if (first === undefined) continue;
-    u[0] = first + sigma;
-
-    const norm = Math.sqrt(u.reduce((sum, value) => sum + value * value, 0));
-    if (norm < 1e-10) continue;
-
-    const v = u.map((value) => value / norm);
-
-    for (let j = k; j < n; j++) {
-      let dot = 0;
-      for (let i = 0; i < v.length; i++) {
-        dot += (v[i] ?? 0) * (R[k + i]?.[j] ?? 0);
-      }
-      for (let i = 0; i < v.length; i++) {
-        R[k + i]![j] = (R[k + i]?.[j] ?? 0) - 2 * (v[i] ?? 0) * dot;
-      }
+    // Compute WCSS (within-cluster sum of squares)
+    wcss = 0;
+    for (let i = 0; i < data.length; i++) {
+      const centroid = centroids[assignments[i]];
+      const distance = this.euclideanDistance(data[i], centroid);
+      wcss += distance * distance;
     }
 
-    for (let i = 0; i < m; i++) {
-      let dot = 0;
-      for (let j = 0; j < v.length; j++) {
-        dot += (v[j] ?? 0) * (Q[k + j]?.[i] ?? 0);
-      }
-      for (let j = 0; j < v.length; j++) {
-        Q[k + j]![i] = (Q[k + j]?.[i] ?? 0) - 2 * (v[j] ?? 0) * dot;
-      }
-    }
-  }
+    // Build clusters
+    const clusters = Array.from({ length: k }, (_, i) => ({
+      centroid: centroids[i],
+      members: data
+        .map((_, idx) => (assignments[idx] === i ? idx : -1))
+        .filter((idx) => idx !== -1),
+    }));
 
-  return { Q, R };
-}
-
-export function computeMovingWindow(
-  values: number[],
-  windowSize: number,
-  operation: 'average' | 'median' | 'sum'
-): number[] {
-  if (values.length === 0) return [];
-  const size = Math.max(1, Math.min(windowSize, values.length));
-  const result: number[] = [];
-
-  for (let i = 0; i <= values.length - size; i++) {
-    const window = values.slice(i, i + size);
-    if (operation === 'sum') {
-      result.push(window.reduce((sum, value) => sum + value, 0));
-      continue;
-    }
-    if (operation === 'average') {
-      result.push(window.reduce((sum, value) => sum + value, 0) / size);
-      continue;
-    }
-    result.push(computeMedian(window) ?? 0);
-  }
-
-  return result;
-}
-
-export function explainFormula(formula: string): {
-  summary: string;
-  functions: Array<{ name: string; description: string; arguments: string[] }>;
-  references: Array<{ ref: string }>;
-  complexity: 'simple' | 'moderate' | 'complex';
-} {
-  const cleaned = formula.startsWith('=') ? formula.slice(1) : formula;
-
-  const fnRegex = /([A-Z_]+)\s*\(/g;
-  const functions: Array<{ name: string; description: string; arguments: string[] }> = [];
-  const seenFns = new Set<string>();
-  let match: RegExpExecArray | null;
-
-  while ((match = fnRegex.exec(cleaned)) !== null) {
-    const fnName = match[1] ?? '';
-    if (seenFns.has(fnName)) continue;
-    seenFns.add(fnName);
-    functions.push({
-      name: fnName,
-      description: FUNCTION_DESCRIPTIONS[fnName] ?? `Google Sheets function: ${fnName}`,
-      arguments: extractFunctionArgs(cleaned, match.index + fnName.length),
-    });
-  }
-
-  const refRegex = /(?:(?:[A-Za-z_]\w*!\s*)?\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?)/g;
-  const references: Array<{ ref: string }> = [];
-  const seenRefs = new Set<string>();
-
-  while ((match = refRegex.exec(cleaned)) !== null) {
-    const ref = match[0] ?? '';
-    if (!seenRefs.has(ref)) {
-      seenRefs.add(ref);
-      references.push({ ref });
-    }
-  }
-
-  const complexity: 'simple' | 'moderate' | 'complex' =
-    functions.length >= 4 || cleaned.length > 120
-      ? 'complex'
-      : functions.length >= 2 || cleaned.length > 50
-        ? 'moderate'
-        : 'simple';
-
-  return {
-    summary: `Uses ${functions.length} function(s) with ${references.length} reference(s).`,
-    functions,
-    references,
-    complexity,
-  };
-}
-
-function extractFunctionArgs(formula: string, startIdx: number): string[] {
-  const openIdx = formula.indexOf('(', startIdx);
-  if (openIdx === -1) return [];
-
-  let depth = 0;
-  let current = '';
-  const args: string[] = [];
-
-  for (let i = openIdx + 1; i < formula.length; i++) {
-    const ch = formula[i] ?? '';
-
-    if (ch === '(') {
-      depth++;
-      current += ch;
-      continue;
-    }
-
-    if (ch === ')') {
-      if (depth === 0) {
-        if (current.trim()) args.push(current.trim());
-        break;
-      }
-      depth--;
-      current += ch;
-      continue;
-    }
-
-    if (ch === ',' && depth === 0) {
-      args.push(current.trim());
-      current = '';
-      continue;
-    }
-
-    current += ch;
-  }
-
-  return args;
-}
-
-const FUNCTION_DESCRIPTIONS: Record<string, string> = {
-  SUM: 'Adds numbers in a range.',
-  AVERAGE: 'Returns the arithmetic mean of values.',
-  COUNT: 'Counts numeric values in a range.',
-  COUNTA: 'Counts non-empty values in a range.',
-  MIN: 'Returns the smallest value in a range.',
-  MAX: 'Returns the largest value in a range.',
-  IF: 'Returns one value if a condition is true and another if false.',
-  IFS: 'Evaluates multiple conditions and returns the first matching result.',
-  AND: 'Returns TRUE if all conditions are TRUE.',
-  OR: 'Returns TRUE if any condition is TRUE.',
-  NOT: 'Reverses TRUE/FALSE.',
-  VLOOKUP: 'Looks up a value in the first column of a range.',
-  XLOOKUP: 'Looks up a value in a range or array and returns a match.',
-  INDEX: 'Returns a value by row/column position in a range.',
-  MATCH: 'Returns the position of a value in a range.',
-  FILTER: 'Filters a range by one or more conditions.',
-  QUERY: 'Runs a SQL-like query against a range.',
-  ARRAYFORMULA: 'Applies a formula to an entire range.',
-  IFERROR: 'Returns an alternate value when an error occurs.',
-  ROUND: 'Rounds a number to a specified number of digits.',
-  ROUNDUP: 'Rounds a number up to a specified number of digits.',
-  ROUNDDOWN: 'Rounds a number down to a specified number of digits.',
-  CONCATENATE: 'Joins multiple text values.',
-  TEXTJOIN: 'Joins text with a delimiter.',
-  SPLIT: 'Splits text around a delimiter.',
-  REGEXMATCH: 'Tests whether text matches a regular expression.',
-  REGEXEXTRACT: 'Extracts text matching a regular expression.',
-  REGEXREPLACE: 'Replaces text matching a regular expression.',
-};
-
-// ============================================================================
-// K-Means Clustering
-// ============================================================================
-
-export interface KMeansResult {
-  /** Cluster assignments per data point (0-indexed) */
-  assignments: number[];
-  /** Final centroid positions (one per cluster) */
-  centroids: number[][];
-  /** Number of points per cluster */
-  clusterSizes: number[];
-  /** Within-cluster sum of squares (lower = tighter clusters) */
-  wcss: number;
-  /** Iterations used to converge */
-  iterations: number;
-}
-
-/**
- * K-Means clustering on multi-dimensional numeric data.
- * Uses K-Means++ initialization for deterministic, well-spread centroids.
- * CRITICAL FIX: Early exit when all data points are identical (no variance = clustering meaningless).
- *
- * @param data - Array of data points, each point is an array of numbers
- * @param k - Number of clusters (2-20)
- * @param maxIterations - Max convergence iterations (default 100)
- * @returns Cluster assignments, centroids, sizes, and WCSS
- */
-export function kMeansClustering(
-  data: number[][],
-  k: number,
-  maxIterations: number = 100
-): KMeansResult {
-  const n = data.length;
-  const dims = data[0]?.length ?? 0;
-
-  if (n < k) {
-    throw new ValidationError(
-      `Cannot create ${k} clusters from ${n} data points`,
-      'k',
-      `a value ≤ ${n}`
-    );
-  }
-  if (k < 2 || k > 20) {
-    throw new ValidationError('k must be between 2 and 20', 'k', '2-20');
-  }
-  if (dims === 0) {
-    throw new ValidationError(
-      'Data points must have at least 1 dimension',
-      'data',
-      'non-empty rows'
-    );
-  }
-
-  // Early exit: if all data points are identical, K-Means is meaningless
-  const firstPoint = data[0]!;
-  const allIdentical = data.every((point) =>
-    point.every((val, d) => val === firstPoint[d])
-  );
-  if (allIdentical) {
-    // All points are the same — return single cluster with all indices
     return {
-      centroids: [firstPoint],
-      assignments: new Array(n).fill(0),
-      clusterSizes: [n],
-      wcss: 0,
-      iterations: 0,
+      clusters,
+      converged,
+      iterations: iteration + 1,
+      wcss,
     };
   }
 
-  // K-Means++ initialization: pick well-spread initial centroids
-  const centroids: number[][] = [];
-  // First centroid: middle data point (deterministic)
-  centroids.push([...data[Math.floor(n / 2)]!]);
+  /**
+   * Elbow method to determine optimal k.
+   * Returns k with maximum elbow (sharpest inflection in wcss).
+   */
+  static findOptimalK(data: number[][], maxK: number = 10): number {
+    const wcssList: number[] = [];
 
-  for (let c = 1; c < k; c++) {
-    // Compute distance from each point to nearest existing centroid
-    const distances = data.map((point) => {
-      let minDist = Infinity;
-      for (const centroid of centroids) {
-        let dist = 0;
-        for (let d = 0; d < dims; d++) {
-          dist += ((point[d] ?? 0) - (centroid[d] ?? 0)) ** 2;
-        }
-        minDist = Math.min(minDist, dist);
-      }
-      return minDist;
-    });
-
-    // Pick the point with maximum distance (deterministic K-Means++ variant)
-    let maxDist = -1;
-    let maxIdx = 0;
-    for (let i = 0; i < n; i++) {
-      if (distances[i]! > maxDist) {
-        maxDist = distances[i]!;
-        maxIdx = i;
-      }
+    for (let k = 1; k <= Math.min(maxK, data.length); k++) {
+      const result = this.kMeans(data, k);
+      wcssList.push(result.wcss ?? 0);
     }
-    centroids.push([...data[maxIdx]!]);
-  }
 
-  // Iterative assignment + update
-  let assignments = new Array<number>(n).fill(0);
-  let iterations = 0;
+    // Find elbow: maximum second derivative
+    let maxInflection = 0;
+    let optimalK = 1;
 
-  for (let iter = 0; iter < maxIterations; iter++) {
-    iterations++;
-    let changed = false;
+    for (let i = 1; i < wcssList.length - 1; i++) {
+      // Guard against undefined wcss values
+      const wcss_prev = wcssList[i - 1] ?? 0;
+      const wcss_curr = wcssList[i] ?? 0;
+      const wcss_next = wcssList[i + 1] ?? 0;
 
-    // Assignment step: assign each point to nearest centroid
-    for (let i = 0; i < n; i++) {
-      let minDist = Infinity;
-      let bestCluster = 0;
-      for (let c = 0; c < k; c++) {
-        let dist = 0;
-        for (let d = 0; d < dims; d++) {
-          dist += ((data[i]![d] ?? 0) - (centroids[c]![d] ?? 0)) ** 2;
-        }
-        if (dist < minDist) {
-          minDist = dist;
-          bestCluster = c;
-        }
-      }
-      if (assignments[i] !== bestCluster) {
-        assignments[i] = bestCluster;
-        changed = true;
+      const d1 = wcss_prev - wcss_curr;
+      const d2 = wcss_curr - wcss_next;
+      const inflection = Math.abs(d1 - d2);
+
+      if (inflection > maxInflection) {
+        maxInflection = inflection;
+        optimalK = i + 1;
       }
     }
 
-    if (!changed) break; // Converged
+    return Math.max(1, optimalK);
+  }
 
-    // Update step: recompute centroids as mean of assigned points
-    for (let c = 0; c < k; c++) {
-      const sums = new Array<number>(dims).fill(0);
-      let count = 0;
-      for (let i = 0; i < n; i++) {
-        if (assignments[i] === c) {
-          for (let d = 0; d < dims; d++) {
-            sums[d]! += data[i]![d] ?? 0;
-          }
-          count++;
-        }
-      }
-      if (count > 0) {
-        for (let d = 0; d < dims; d++) {
-          centroids[c]![d] = sums[d]! / count;
-        }
+  private static initializeCentroids(data: number[][], k: number): number[][] {
+    const centroids: number[][] = [];
+    const indices = new Set<number>();
+
+    while (centroids.length < k) {
+      const idx = Math.floor(Math.random() * data.length);
+      if (!indices.has(idx)) {
+        centroids.push([...data[idx]]);
+        indices.add(idx);
       }
     }
+
+    return centroids;
   }
 
-  // Compute cluster sizes and WCSS
-  const clusterSizes = new Array<number>(k).fill(0);
-  let wcss = 0;
-  for (let i = 0; i < n; i++) {
-    const c = assignments[i]!;
-    clusterSizes[c]!++;
-    for (let d = 0; d < dims; d++) {
-      wcss += ((data[i]![d] ?? 0) - (centroids[c]![d] ?? 0)) ** 2;
+  private static nearestCentroid(point: number[], centroids: number[][]): number {
+    let nearest = 0;
+    let minDistance = Infinity;
+
+    for (let i = 0; i < centroids.length; i++) {
+      const distance = this.euclideanDistance(point, centroids[i]);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearest = i;
+      }
     }
+
+    return nearest;
   }
 
-  return { assignments, centroids, clusterSizes, wcss, iterations };
-}
-
-/**
- * Elbow method: find optimal k by running K-Means for k=2..maxK
- * and returning WCSS at each k. The "elbow" is where WCSS improvement flattens.
- */
-export function findOptimalK(data: number[][], maxK: number = 10): { k: number; wcss: number }[] {
-  const effectiveMax = Math.min(maxK, data.length, 20);
-  const results: { k: number; wcss: number }[] = [];
-
-  for (let k = 2; k <= effectiveMax; k++) {
-    const result = kMeansClustering(data, k);
-    results.push({ k, wcss: Math.round(result.wcss * 100) / 100 });
+  private static euclideanDistance(p1: number[], p2: number[]): number {
+    let sum = 0;
+    for (let i = 0; i < Math.min(p1.length, p2.length); i++) {
+      const diff = p1[i] - p2[i];
+      sum += diff * diff;
+    }
+    return Math.sqrt(sum);
   }
 
-  return results;
+  private static computeMean(points: number[][]): number[] {
+    if (points.length === 0) return [];
+    const mean: number[] = new Array(points[0].length).fill(0);
+    for (const point of points) {
+      for (let i = 0; i < point.length; i++) {
+        mean[i] += point[i];
+      }
+    }
+    return mean.map((sum) => sum / points.length);
+  }
+
+  private static arraysEqual(a: number[], b: number[]): boolean {
+    if (a.length !== b.length) return false;
+    return a.every((val, idx) => val === b[idx]);
+  }
 }

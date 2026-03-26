@@ -1,7 +1,7 @@
 /**
  * ServalSheets - Data Handler (Thin Dispatch)
  *
- * Handles the sheets_data tool (23 actions).
+ * Handles the sheets_data tool (25 actions).
  *
  * Architecture: Thin dispatch class. Action implementations live in
  * src/handlers/data-actions/ submodules and receive a DataHandlerAccess
@@ -330,38 +330,13 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         );
 
       default: {
-        // Legacy alias path — handle old action names for backwards compat
-        const action = (request as { action: string }).action;
-        if (action === 'set_note' || action === 'notes') {
-          return handleAddNote(ha, request as unknown as DataRequest & { action: 'add_note' });
-        }
-        if (action === 'add_hyperlink' || action === 'hyperlink' || action === 'hyperlinks') {
-          return handleSetHyperlink(
-            ha,
-            request as unknown as DataRequest & { action: 'set_hyperlink' }
-          );
-        }
-        if (action === 'merge') {
-          return handleMergeCells(
-            ha,
-            request as unknown as DataRequest & { action: 'merge_cells' }
-          );
-        }
-        if (action === 'unmerge') {
-          return handleUnmergeCells(
-            ha,
-            request as unknown as DataRequest & { action: 'unmerge_cells' }
-          );
-        }
-
         // Exhaustive check: all branches above handle their action, if we reach here it's unknown
-        const exhaustiveCheck: never = action;
+        const exhaustiveCheck: never = request as never;
+        const action = (request as { action: string }).action;
         return this.error({
           code: ErrorCodes.INVALID_PARAMS,
-          message: `Unknown action: ${exhaustiveCheck}. Available actions: read, write, append, clear, batch_read, batch_write, batch_clear, find_replace, add_note, get_note, clear_note, set_hyperlink, clear_hyperlink, merge_cells, unmerge_cells, get_merges, cut_paste, copy_paste, cross_read, cross_query, cross_write, cross_compare`,
+          message: `Unknown action: ${action}`,
           retryable: false,
-          suggestedFix:
-            'Check the parameter format and ensure all required parameters are provided',
         });
       }
     }
