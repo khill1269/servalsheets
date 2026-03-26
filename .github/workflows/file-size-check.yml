@@ -6,9 +6,7 @@ on:
       - 'src/**/*.ts'
       - 'scripts/check-file-sizes.sh'
   push:
-    branches:
-      - main
-      - feat/**
+    branches: [main]
     paths:
       - 'src/**/*.ts'
       - 'scripts/check-file-sizes.sh'

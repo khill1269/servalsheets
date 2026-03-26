@@ -2,9 +2,9 @@ name: Multi-Agent Analysis
 
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
-    branches: [main, feat/*, phase-*]
+    branches: [main]
 
 jobs:
   analyze:
