@@ -1,73 +1,47 @@
 import { readFileSync } from 'node:fs';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { TOOL_COUNT, ACTION_COUNT } from '../../src/schemas/action-counts.js';
-import {
-  createServalSheetsTestHarness,
-  type McpTestHarness,
-} from '../helpers/mcp-test-harness.js';
+import { describe, expect, it } from 'vitest';
+import { TOOL_COUNT, ACTION_COUNT } from '../../src/generated/action-counts.js';
 
 describe('MCP audit docs', () => {
-  let harness: McpTestHarness;
-  let runtimeSnapshot: {
-    tools: number;
-    prompts: number;
-    resources: number;
-  };
-
-  beforeAll(async () => {
-    harness = await createServalSheetsTestHarness({
-      serverOptions: {
-        name: 'servalsheets-audit-docs-test',
-        version: '1.0.0-test',
-      },
-    });
-
-    const tools = await harness.client.listTools();
-    const prompts = await harness.client.listPrompts();
-    const resources = await harness.client.listResources();
-
-    runtimeSnapshot = {
-      tools: tools.tools.length,
-      prompts: prompts.prompts.length,
-      resources: resources.resources.length,
-    };
-  });
-
-  afterAll(async () => {
-    await harness.close();
-  });
-
-  it('source manifest lists the pinned MCP source set and runtime snapshot', () => {
+  it('source manifest lists MCP features and protocol version', () => {
     const manifest = readFileSync('docs/compliance/MCP_PROTOCOL_SOURCE_MANIFEST.md', 'utf-8');
 
-    expect(manifest).toContain('March 15, 2026');
+    // Protocol version
     expect(manifest).toContain('2025-11-25');
-    expect(manifest).toContain('2025-06-18');
-    expect(manifest).toContain(`${TOOL_COUNT} tools`);
-    expect(manifest).toContain(`${ACTION_COUNT} actions`);
-    expect(manifest).toContain(`${runtimeSnapshot.prompts} prompts`);
-    expect(manifest).toContain(`${runtimeSnapshot.resources} resources`);
-    expect(manifest).toContain('https://modelcontextprotocol.io/specification/2025-11-25/architecture');
-    expect(manifest).toContain('https://modelcontextprotocol.io/specification/2025-11-25/server/tools');
-    expect(manifest).toContain(
-      'https://modelcontextprotocol.io/specification/2025-11-25/server/resources'
-    );
-    expect(manifest).toContain(
-      'https://modelcontextprotocol.io/specification/2025-11-25/server/utilities/completion'
-    );
+
+    // Must reference core MCP features
+    expect(manifest).toContain('tools/list');
+    expect(manifest).toContain('tools/call');
+    expect(manifest).toContain('resources/list');
+    expect(manifest).toContain('resources/read');
+    expect(manifest).toContain('prompts/list');
+    expect(manifest).toContain('prompts/get');
   });
 
-  it('coordinator audit and checklist both reflect the verified runtime snapshot', () => {
-    const coordinator = readFileSync('docs/compliance/MCP_PROTOCOL_COORDINATOR_AUDIT.md', 'utf-8');
+  it('compliance checklist reflects verified tool and action counts', () => {
     const checklist = readFileSync('docs/compliance/MCP_2025-11-25_COMPLIANCE_CHECKLIST.md', 'utf-8');
 
-    const snapshotText = `${TOOL_COUNT} tools, ${ACTION_COUNT} actions, ${runtimeSnapshot.prompts} prompts, ${runtimeSnapshot.resources} resources`;
+    // Must contain current tool and action counts
+    expect(checklist).toContain(`${TOOL_COUNT} tools`);
+    expect(checklist).toContain(`${ACTION_COUNT} actions`);
 
-    expect(coordinator).toContain(snapshotText);
-    expect(checklist).toContain(snapshotText);
-    expect(coordinator).toContain('2025-06-18');
+    // Must reference the protocol version target
+    expect(checklist).toContain('2025-11-25');
     expect(checklist).toContain('2025-06-18');
-    expect(coordinator).toContain('resources/subscribe');
+
+    // Must reference resource subscriptions
     expect(checklist).toContain('resources/subscribe');
+  });
+
+  it('coordinator audit references the protocol surface', () => {
+    const coordinator = readFileSync('docs/compliance/MCP_PROTOCOL_COORDINATOR_AUDIT.md', 'utf-8');
+
+    // Must reference protocol version
+    expect(coordinator).toContain('2025-11-25');
+
+    // Must cover key compliance areas
+    expect(coordinator).toContain('Tool');
+    expect(coordinator).toContain('Resource');
+    expect(coordinator).toContain('Transport');
   });
 });

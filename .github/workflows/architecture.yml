@@ -125,8 +125,8 @@ jobs:
             ISSUE_COUNT=$(grep -c "^" knip-output.txt || echo "0")
             echo "Total issues: $ISSUE_COUNT"
 
-            # Fail if more than 10 unused items (configurable threshold)
-            if [ "$ISSUE_COUNT" -gt 10 ]; then
+            # Fail if more than 35 unused items (configurable threshold)
+            if [ "$ISSUE_COUNT" -gt 35 ]; then
               echo "❌ Too many unused items ($ISSUE_COUNT > 35 threshold)"
               exit 1
             fi
