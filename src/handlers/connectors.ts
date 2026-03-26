@@ -261,8 +261,7 @@ export class ConnectorsHandler {
         }
 
         if (this.elicitationServer.createElicitationCompletionNotifier) {
-          const notify =
-            this.elicitationServer.createElicitationCompletionNotifier(elicitationId);
+          const notify = this.elicitationServer.createElicitationCompletionNotifier(elicitationId);
           try {
             await notify();
           } catch (notifyErr) {
@@ -323,8 +322,7 @@ export class ConnectorsHandler {
       }
 
       if (this.elicitationServer.createElicitationCompletionNotifier) {
-        const notify =
-          this.elicitationServer.createElicitationCompletionNotifier(elicitationId);
+        const notify = this.elicitationServer.createElicitationCompletionNotifier(elicitationId);
         try {
           await notify();
         } catch (notifyErr) {

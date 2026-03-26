@@ -38,7 +38,7 @@ describe('MCP audit docs', () => {
   });
 
   it('source manifest lists the pinned MCP source set and runtime snapshot', () => {
-    const manifest = readFileSync('docs/review/MCP_PROTOCOL_SOURCE_MANIFEST.md', 'utf-8');
+    const manifest = readFileSync('docs/compliance/MCP_PROTOCOL_SOURCE_MANIFEST.md', 'utf-8');
 
     expect(manifest).toContain('March 15, 2026');
     expect(manifest).toContain('2025-11-25');
@@ -58,7 +58,7 @@ describe('MCP audit docs', () => {
   });
 
   it('coordinator audit and checklist both reflect the verified runtime snapshot', () => {
-    const coordinator = readFileSync('docs/review/MCP_PROTOCOL_COORDINATOR_AUDIT.md', 'utf-8');
+    const coordinator = readFileSync('docs/compliance/MCP_PROTOCOL_COORDINATOR_AUDIT.md', 'utf-8');
     const checklist = readFileSync('docs/compliance/MCP_2025-11-25_COMPLIANCE_CHECKLIST.md', 'utf-8');
 
     const snapshotText = `${TOOL_COUNT} tools, ${ACTION_COUNT} actions, ${runtimeSnapshot.prompts} prompts, ${runtimeSnapshot.resources} resources`;
