@@ -1,498 +1,751 @@
 /**
- * Compute Engine - Math & Statistics Module
- *
- * Advanced mathematical operations:
- * - Statistical functions (median, mode, variance, correlation)
- * - Regression analysis (linear, polynomial, exponential)
- * - Matrix operations (transpose, multiply, determinant, eigenvalues)
- * - K-Means clustering with K-Means++ initialization
- * - Moving window calculations
- * - Formula parsing and explanation
- *
- * All operations optimized for <100ms on 1000-element datasets.
+ * Shared math and formula helper functions for compute engine operations.
  */
+import { ValidationError } from '../core/errors.js';
 
-/**
- * Compute median of numeric array
- */
-export function computeMedian(values: number[]): number {
-  if (values.length === 0) return 0;
+export function computeMedian(values: number[]): number | null {
+  if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+  if (sorted.length % 2 === 1) return sorted[mid] ?? null;
+  return ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
 }
 
-/**
- * Compute mode (most frequent value)
- */
 export function computeMode(values: number[]): number | null {
   if (values.length === 0) return null;
-  const freq = new Map<number, number>();
-  let maxFreq = 0;
-  let mode = values[0];
-  for (const val of values) {
-    const count = (freq.get(val) ?? 0) + 1;
-    freq.set(val, count);
-    if (count > maxFreq) {
-      maxFreq = count;
-      mode = val;
+  const counts = new Map<number, number>();
+  let bestValue: number | null = null;
+  let bestCount = 0;
+  for (const value of values) {
+    const count = (counts.get(value) ?? 0) + 1;
+    counts.set(value, count);
+    if (count > bestCount) {
+      bestCount = count;
+      bestValue = value;
     }
   }
-  return mode;
+  return bestValue;
 }
 
-/**
- * Compute variance
- */
-export function computeVariance(values: number[]): number {
-  if (values.length === 0) return 0;
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  return values.reduce((sum, val) => sum + (val - mean) ** 2, 0) / values.length;
+export function computeVariance(values: number[], population: boolean): number | null {
+  if (values.length === 0) return null;
+  if (!population && values.length < 2) return 0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const squaredDiffs = values.map((value) => (value - mean) ** 2);
+  const divisor = population ? values.length : values.length - 1;
+  return squaredDiffs.reduce((sum, value) => sum + value, 0) / (divisor || 1);
 }
 
-/**
- * Compute standard deviation
- */
-export function computeStddev(values: number[]): number {
-  return Math.sqrt(computeVariance(values));
+export function computeStddev(values: number[], population: boolean): number | null {
+  const variance = computeVariance(values, population);
+  return variance === null ? null : Math.sqrt(Math.max(variance, 0));
 }
 
-/**
- * Compute percentile
- */
-export function computePercentile(values: number[], p: number): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const index = (p / 100) * (sorted.length - 1);
-  const lower = Math.floor(index);
-  const upper = Math.ceil(index);
-  const weight = index % 1;
-  return sorted[lower] * (1 - weight) + (sorted[upper] ?? sorted[lower]) * weight;
+export function computePercentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return 0;
+  const clamped = Math.max(0, Math.min(100, p));
+  const idx = (clamped / 100) * (sorted.length - 1);
+  const lower = Math.floor(idx);
+  const upper = Math.ceil(idx);
+  if (lower === upper) return sorted[lower] ?? 0;
+  const weight = idx - lower;
+  const lowerVal = sorted[lower] ?? 0;
+  const upperVal = sorted[upper] ?? lowerVal;
+  return lowerVal * (1 - weight) + upperVal * weight;
 }
 
-/**
- * Compute Pearson correlation coefficient
- */
 export function computeCorrelation(x: number[], y: number[]): number {
   if (x.length !== y.length || x.length === 0) return 0;
-  const meanX = x.reduce((a, b) => a + b, 0) / x.length;
-  const meanY = y.reduce((a, b) => a + b, 0) / y.length;
-  let covariance = 0;
-  let varX = 0;
-  let varY = 0;
-  for (let i = 0; i < x.length; i++) {
-    const dx = x[i] - meanX;
-    const dy = y[i] - meanY;
-    covariance += dx * dy;
-    varX += dx * dx;
-    varY += dy * dy;
+  const n = x.length;
+  const meanX = x.reduce((sum, value) => sum + value, 0) / n;
+  const meanY = y.reduce((sum, value) => sum + value, 0) / n;
+
+  let numerator = 0;
+  let denominatorX = 0;
+  let denominatorY = 0;
+
+  for (let i = 0; i < n; i++) {
+    const dx = (x[i] ?? 0) - meanX;
+    const dy = (y[i] ?? 0) - meanY;
+    numerator += dx * dy;
+    denominatorX += dx * dx;
+    denominatorY += dy * dy;
   }
-  const denom = Math.sqrt(varX * varY);
-  return denom === 0 ? 0 : covariance / denom;
+
+  const denominator = Math.sqrt(denominatorX * denominatorY);
+  return denominator === 0 ? 0 : numerator / denominator;
 }
 
 /**
- * Compute Spearman rank correlation (rank-based, handles outliers better)
+ * Compute ranks for an array of numbers (handles ties using average rank).
+ * Used by Spearman rank correlation.
  */
-export function computeSpearmanCorrelation(x: number[], y: number[]): number {
-  if (x.length !== y.length || x.length < 2) return 0;
-  const rankX = getRanks(x);
-  const rankY = getRanks(y);
-  return computeCorrelation(rankX, rankY);
-}
+function computeRanks(values: number[]): number[] {
+  const indexed = values.map((v, i) => ({ value: v, index: i }));
+  indexed.sort((a, b) => a.value - b.value);
 
-function getRanks(values: number[]): number[] {
-  const indexed = values.map((val, idx) => ({ val, idx }));
-  indexed.sort((a, b) => a.val - b.val);
-  const ranks = new Array(values.length);
-  for (let i = 0; i < indexed.length; i++) {
-    ranks[indexed[i].idx] = i + 1;
+  const ranks = new Array<number>(values.length);
+  let i = 0;
+  while (i < indexed.length) {
+    // Find tied group
+    let j = i;
+    while (j < indexed.length && indexed[j]!.value === indexed[i]!.value) {
+      j++;
+    }
+    // Average rank for tied group (1-based ranks)
+    const avgRank = (i + 1 + j) / 2;
+    for (let k = i; k < j; k++) {
+      ranks[indexed[k]!.index] = avgRank;
+    }
+    i = j;
   }
   return ranks;
 }
 
 /**
- * Linear regression: y = a + b*x
+ * Compute Spearman rank correlation coefficient between two numeric arrays.
+ * Unlike Pearson (which measures linear correlation), Spearman measures
+ * monotonic relationships — captures non-linear but consistent trends.
+ * Returns value between -1 and 1. Returns 0 for incompatible arrays.
  */
-export function linearRegression(x: number[], y: number[]): { a: number; b: number } {
-  if (x.length !== y.length || x.length < 2) return { a: 0, b: 0 };
-  const meanX = x.reduce((a, b) => a + b, 0) / x.length;
-  const meanY = y.reduce((a, b) => a + b, 0) / y.length;
+export function computeSpearmanCorrelation(x: number[], y: number[]): number {
+  if (x.length !== y.length || x.length < 3) return 0;
+
+  const rankX = computeRanks(x);
+  const rankY = computeRanks(y);
+
+  // Compute Pearson correlation on the ranks
+  return computeCorrelation(rankX, rankY);
+}
+
+export function linearRegression(x: number[], y: number[]): [number, number] {
+  if (x.length !== y.length || x.length === 0) {
+    return [0, 0];
+  }
+
+  const n = x.length;
+  const meanX = x.reduce((sum, value) => sum + value, 0) / n;
+  const meanY = y.reduce((sum, value) => sum + value, 0) / n;
+
   let numerator = 0;
   let denominator = 0;
-  for (let i = 0; i < x.length; i++) {
-    numerator += (x[i] - meanX) * (y[i] - meanY);
-    denominator += (x[i] - meanX) ** 2;
+  for (let i = 0; i < n; i++) {
+    const dx = (x[i] ?? 0) - meanX;
+    const dy = (y[i] ?? 0) - meanY;
+    numerator += dx * dy;
+    denominator += dx * dx;
   }
-  const b = denominator === 0 ? 0 : numerator / denominator;
-  const a = meanY - b * meanX;
-  return { a, b };
+
+  const slope = denominator === 0 ? 0 : numerator / denominator;
+  const intercept = meanY - slope * meanX;
+  return [slope, intercept];
 }
 
-/**
- * Polynomial regression (up to degree 6)
- */
 export function polynomialRegression(x: number[], y: number[], degree: number): number[] {
-  if (x.length !== y.length || x.length < degree + 1 || degree > 6) return [];
-  // Build Vandermonde matrix
-  const A: number[][] = [];
-  for (let i = 0; i < x.length; i++) {
+  if (x.length !== y.length || x.length === 0) return [0, 0];
+
+  const safeDegree = Math.max(1, Math.min(degree, 6));
+  const X: number[][] = x.map((value) => {
     const row: number[] = [];
-    for (let j = 0; j <= degree; j++) {
-      row.push(Math.pow(x[i], j));
+    for (let power = 0; power <= safeDegree; power++) {
+      row.push(Math.pow(value, power));
     }
-    A.push(row);
+    return row;
+  });
+
+  const XT = transpose(X);
+  const XTX = matrixMultiply(XT, X);
+  const XTy = matrixMultiply(
+    XT,
+    y.map((value) => [value])
+  );
+
+  try {
+    const inverse = invertMatrix(XTX);
+    const coeffs = matrixMultiply(inverse, XTy);
+    return coeffs.map((row) => row[0] ?? 0);
+  } catch {
+    const [slope, intercept] = linearRegression(x, y);
+    return [intercept, slope];
   }
-  // Solve normal equations: A^T * A * coeffs = A^T * y
-  const AT = transpose(A);
-  const ATA = matrixMultiply(AT, A);
-  const ATy = matrixVectorMultiply(AT, y);
-  const coeffs = gaussianElimination(ATA, ATy);
-  return coeffs;
 }
 
-/**
- * Predict value using regression model
- */
 export function predictValue(
   x: number,
-  model: 'linear' | 'polynomial' | 'exponential' | 'logarithmic' | 'power',
-  params: number[]
+  coefficients: number[],
+  type: string,
+  _degree: number
 ): number {
-  switch (model) {
+  switch (type) {
     case 'linear':
-      return params[0] + params[1] * x;
-    case 'polynomial': {
-      let result = 0;
-      for (let i = 0; i < params.length; i++) {
-        result += params[i] * Math.pow(x, i);
-      }
-      return result;
-    }
+      return (coefficients[0] ?? 0) + (coefficients[1] ?? 0) * x;
+    case 'polynomial':
+      return coefficients.reduce(
+        (sum, coefficient, power) => sum + coefficient * Math.pow(x, power),
+        0
+      );
     case 'exponential':
-      return params[0] * Math.exp(params[1] * x);
+      return (coefficients[0] ?? 0) * Math.exp((coefficients[1] ?? 0) * x);
     case 'logarithmic':
-      return params[0] + params[1] * Math.log(x);
+      return (coefficients[0] ?? 0) + (coefficients[1] ?? 0) * Math.log(Math.max(x, 1e-12));
     case 'power':
-      return params[0] * Math.pow(x, params[1]);
+      return (coefficients[0] ?? 0) * Math.pow(Math.max(x, 1e-12), coefficients[1] ?? 0);
     default:
-      return 0;
+      return x;
   }
 }
 
-/**
- * Transpose matrix
- */
-export function transpose(matrix: number[][]): number[][] {
-  if (matrix.length === 0) return [];
-  const result: number[][] = [];
-  for (let col = 0; col < matrix[0].length; col++) {
-    const newRow: number[] = [];
-    for (let row = 0; row < matrix.length; row++) {
-      newRow.push(matrix[row][col] ?? 0);
-    }
-    result.push(newRow);
-  }
-  return result;
+export function transpose(m: number[][]): number[][] {
+  const rows = m.length;
+  const cols = m[0]?.length ?? 0;
+  return Array.from({ length: cols }, (_, i) =>
+    Array.from({ length: rows }, (_, j) => m[j]?.[i] ?? 0)
+  );
 }
 
-/**
- * Matrix multiplication
- */
 export function matrixMultiply(a: number[][], b: number[][]): number[][] {
-  const result: number[][] = [];
-  for (let i = 0; i < a.length; i++) {
-    const row: number[] = [];
-    for (let j = 0; j < (b[0]?.length ?? 0); j++) {
+  const rows = a.length;
+  const cols = b[0]?.length ?? 0;
+  const shared = b.length;
+  const result: number[][] = Array.from({ length: rows }, () => Array(cols).fill(0));
+
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
       let sum = 0;
-      for (let k = 0; k < b.length; k++) {
+      for (let k = 0; k < shared; k++) {
         sum += (a[i]?.[k] ?? 0) * (b[k]?.[j] ?? 0);
       }
-      row.push(sum);
+      result[i]![j] = sum;
     }
-    result.push(row);
   }
+
   return result;
 }
 
-/**
- * Matrix-vector multiplication
- */
-function matrixVectorMultiply(matrix: number[][], vector: number[]): number[] {
-  const result: number[] = [];
-  for (let i = 0; i < matrix.length; i++) {
-    let sum = 0;
-    for (let j = 0; j < vector.length; j++) {
-      sum += (matrix[i]?.[j] ?? 0) * vector[j];
-    }
-    result.push(sum);
+export function determinant(m: number[][]): number {
+  const n = m.length;
+  if (n === 0) return 0;
+  if (n === 1) return m[0]?.[0] ?? 0;
+  if (n === 2) {
+    return (m[0]?.[0] ?? 0) * (m[1]?.[1] ?? 0) - (m[0]?.[1] ?? 0) * (m[1]?.[0] ?? 0);
   }
-  return result;
-}
 
-/**
- * Determinant (for square matrices)
- */
-export function determinant(matrix: number[][]): number {
-  if (matrix.length === 0) return 0;
-  if (matrix.length === 1) return matrix[0]?.[0] ?? 0;
-  if (matrix.length === 2) {
-    return (matrix[0]?.[0] ?? 0) * (matrix[1]?.[1] ?? 0) - (matrix[0]?.[1] ?? 0) * (matrix[1]?.[0] ?? 0);
-  }
   let det = 0;
-  for (let j = 0; j < matrix.length; j++) {
-    const minor = matrix.slice(1).map((row) => [...row.slice(0, j), ...row.slice(j + 1)]);
-    det += ((j % 2 === 0 ? 1 : -1) * (matrix[0]?.[j] ?? 0) * determinant(minor));
+  for (let j = 0; j < n; j++) {
+    const sub = m.slice(1).map((row) => row.filter((_, idx) => idx !== j));
+    det += Math.pow(-1, j) * (m[0]?.[j] ?? 0) * determinant(sub);
   }
   return det;
 }
 
-/**
- * Matrix inversion (for square matrices)
- */
-export function invertMatrix(matrix: number[][]): number[][] | null {
-  const n = matrix.length;
-  if (n === 0) return null;
-  const det = determinant(matrix);
-  if (Math.abs(det) < 1e-10) return null; // Singular matrix
-  if (n === 1) return [[1 / (matrix[0]?.[0] ?? 1)]];
-  if (n === 2) {
-    const a = matrix[0]?.[0] ?? 0;
-    const b = matrix[0]?.[1] ?? 0;
-    const c = matrix[1]?.[0] ?? 0;
-    const d = matrix[1]?.[1] ?? 0;
-    return [[d / det, -b / det], [-c / det, a / det]];
+export function invertMatrix(m: number[][]): number[][] {
+  const n = m.length;
+  if (n === 0 || n !== (m[0]?.length ?? 0)) {
+    throw new ValidationError('Matrix must be square', 'matrix');
   }
-  // For larger matrices, use Gaussian elimination
-  return null;
-}
 
-/**
- * Gaussian elimination for solving linear systems
- */
-function gaussianElimination(A: number[][], b: number[]): number[] {
-  const n = A.length;
-  const aug: number[][] = A.map((row, i) => [...row, b[i]]);
-  // Forward elimination
+  const augmented = m.map((row, i) => {
+    const identity = Array.from({ length: n }, (_, j) => (i === j ? 1 : 0));
+    return [...row, ...identity];
+  });
+
   for (let i = 0; i < n; i++) {
-    let maxRow = i;
-    for (let k = i + 1; k < n; k++) {
-      if (Math.abs(aug[k]?.[i] ?? 0) > Math.abs(aug[maxRow]?.[i] ?? 0)) maxRow = k;
+    let pivot = augmented[i]?.[i] ?? 0;
+
+    if (Math.abs(pivot) < 1e-12) {
+      const swapIndex = augmented.findIndex((row, idx) => idx > i && Math.abs(row[i] ?? 0) > 1e-12);
+      if (swapIndex === -1) throw new ValidationError('Matrix is singular', 'matrix');
+      const temp = augmented[i];
+      augmented[i] = augmented[swapIndex]!;
+      augmented[swapIndex] = temp!;
+      pivot = augmented[i]?.[i] ?? 0;
     }
-    [aug[i], aug[maxRow]] = [aug[maxRow] ?? [], aug[i] ?? []];
-    for (let k = i + 1; k < n; k++) {
-      const factor = (aug[k]?.[i] ?? 0) / (aug[i]?.[i] ?? 1);
-      for (let j = i; j <= n; j++) {
-        if (aug[k] && aug[i]) aug[k][j] = (aug[k][j] ?? 0) - factor * (aug[i][j] ?? 0);
+
+    for (let j = 0; j < 2 * n; j++) {
+      augmented[i]![j] = (augmented[i]?.[j] ?? 0) / pivot;
+    }
+
+    for (let k = 0; k < n; k++) {
+      if (k === i) continue;
+      const factor = augmented[k]?.[i] ?? 0;
+      for (let j = 0; j < 2 * n; j++) {
+        augmented[k]![j] = (augmented[k]?.[j] ?? 0) - factor * (augmented[i]?.[j] ?? 0);
       }
     }
   }
-  // Back substitution
-  const x: number[] = [];
-  for (let i = n - 1; i >= 0; i--) {
-    x[i] = aug[i]?.[n] ?? 0;
-    for (let j = i + 1; j < n; j++) {
-      x[i] -= (aug[i]?.[j] ?? 0) * (x[j] ?? 0);
-    }
-    x[i] /= aug[i]?.[i] ?? 1;
-  }
-  return x;
+
+  return augmented.map((row) => row.slice(n));
 }
 
-/**
- * Compute matrix rank using QR decomposition
- */
-export function computeRank(matrix: number[][]): number {
-  if (matrix.length === 0) return 0;
-  const { R } = householderQR(matrix);
+export function computeRank(m: number[][]): number {
+  const rows = m.length;
+  const cols = m[0]?.length ?? 0;
+  const matrix = m.map((row) => [...row]);
+
   let rank = 0;
-  for (const row of R) {
-    if (Math.abs(row[rank] ?? 0) > 1e-10) rank++;
+  let row = 0;
+  for (let col = 0; col < cols && row < rows; col++) {
+    let pivotRow = row;
+    for (let i = row + 1; i < rows; i++) {
+      if (Math.abs(matrix[i]?.[col] ?? 0) > Math.abs(matrix[pivotRow]?.[col] ?? 0)) {
+        pivotRow = i;
+      }
+    }
+
+    if (Math.abs(matrix[pivotRow]?.[col] ?? 0) < 1e-12) continue;
+
+    const temp = matrix[row];
+    matrix[row] = matrix[pivotRow]!;
+    matrix[pivotRow] = temp!;
+
+    const pivot = matrix[row]?.[col] ?? 1;
+    for (let j = col; j < cols; j++) {
+      matrix[row]![j] = (matrix[row]?.[j] ?? 0) / pivot;
+    }
+
+    for (let i = 0; i < rows; i++) {
+      if (i === row) continue;
+      const factor = matrix[i]?.[col] ?? 0;
+      for (let j = col; j < cols; j++) {
+        matrix[i]![j] = (matrix[i]?.[j] ?? 0) - factor * (matrix[row]?.[j] ?? 0);
+      }
+    }
+
+    row++;
+    rank++;
   }
+
   return rank;
 }
 
-/**
- * Householder QR decomposition
- */
+export function computeEigenvaluesQR(A: number[][]): number[] {
+  const n = A.length;
+
+  if (n === 0) return [];
+  if (n === 1) return [A[0]?.[0] ?? 0];
+
+  if (n === 2) {
+    const a = A[0]?.[0] ?? 0;
+    const b = A[0]?.[1] ?? 0;
+    const c = A[1]?.[0] ?? 0;
+    const d = A[1]?.[1] ?? 0;
+    const trace = a + d;
+    const det = a * d - b * c;
+    const disc = Math.sqrt(Math.max(trace * trace - 4 * det, 0));
+    return [(trace + disc) / 2, (trace - disc) / 2];
+  }
+
+  let isDiagonal = true;
+  for (let i = 0; i < n && isDiagonal; i++) {
+    for (let j = 0; j < n && isDiagonal; j++) {
+      if (i !== j && Math.abs(A[i]?.[j] ?? 0) > 1e-10) {
+        isDiagonal = false;
+      }
+    }
+  }
+  if (isDiagonal) return A.map((row, i) => row[i] ?? 0);
+
+  let current = A.map((row) => [...row]);
+  const maxIter = 100;
+  const threshold = 1e-10;
+
+  for (let iter = 0; iter < maxIter; iter++) {
+    const { Q, R } = householderQR(current);
+    current = matrixMultiply(R, Q);
+
+    let converged = true;
+    for (let i = 0; i < n && converged; i++) {
+      for (let j = i + 1; j < n; j++) {
+        if (
+          Math.abs(current[i]?.[j] ?? 0) > threshold ||
+          Math.abs(current[j]?.[i] ?? 0) > threshold
+        ) {
+          converged = false;
+          break;
+        }
+      }
+    }
+
+    if (converged) break;
+  }
+
+  return current.map((row, i) => row[i] ?? 0).sort((a, b) => b - a);
+}
+
 function householderQR(A: number[][]): { Q: number[][]; R: number[][] } {
   const m = A.length;
   const n = A[0]?.length ?? 0;
-  const Q = A.map((row) => [...row]);
-  const R = Array.from({ length: Math.min(m, n) }, (_, i) =>
-    Array.from({ length: n }, (_, j) => (i <= j ? (Q[i]?.[j] ?? 0) : 0))
-  );
+  const R = A.map((row) => [...row]);
+  const Q = Array.from({ length: m }, (_, i) => {
+    const row = Array(m).fill(0) as number[];
+    row[i] = 1;
+    return row;
+  });
+
+  for (let k = 0; k < Math.min(m - 1, n); k++) {
+    const x = R.slice(k).map((row) => row[k] ?? 0);
+
+    const sigma =
+      Math.sign(x[0] ?? 0) * Math.sqrt(x.reduce((sum, value) => sum + value * value, 0));
+    if (Math.abs(sigma) < 1e-10) continue;
+
+    const u = [...x];
+    const first = u[0];
+    if (first === undefined) continue;
+    u[0] = first + sigma;
+
+    const norm = Math.sqrt(u.reduce((sum, value) => sum + value * value, 0));
+    if (norm < 1e-10) continue;
+
+    const v = u.map((value) => value / norm);
+
+    for (let j = k; j < n; j++) {
+      let dot = 0;
+      for (let i = 0; i < v.length; i++) {
+        dot += (v[i] ?? 0) * (R[k + i]?.[j] ?? 0);
+      }
+      for (let i = 0; i < v.length; i++) {
+        R[k + i]![j] = (R[k + i]?.[j] ?? 0) - 2 * (v[i] ?? 0) * dot;
+      }
+    }
+
+    for (let i = 0; i < m; i++) {
+      let dot = 0;
+      for (let j = 0; j < v.length; j++) {
+        dot += (v[j] ?? 0) * (Q[k + j]?.[i] ?? 0);
+      }
+      for (let j = 0; j < v.length; j++) {
+        Q[k + j]![i] = (Q[k + j]?.[i] ?? 0) - 2 * (v[j] ?? 0) * dot;
+      }
+    }
+  }
+
   return { Q, R };
 }
 
-/**
- * Compute eigenvalues via QR algorithm
- */
-export function computeEigenvaluesQR(matrix: number[][]): number[] {
-  if (matrix.length === 0) return [];
-  let A = matrix.map((row) => [...row]);
-  for (let iter = 0; iter < 100; iter++) {
-    const { Q, R } = householderQR(A);
-    A = matrixMultiply(R, Q);
-  }
-  return A.map((row) => row[0] ?? 0).slice(0, Math.min(A.length, A[0]?.length ?? 0));
-}
-
-/**
- * Moving window calculation
- */
 export function computeMovingWindow(
   values: number[],
   windowSize: number,
   operation: 'average' | 'median' | 'sum'
 ): number[] {
+  if (values.length === 0) return [];
+  const size = Math.max(1, Math.min(windowSize, values.length));
   const result: number[] = [];
-  for (let i = 0; i < values.length; i++) {
-    const window = values.slice(Math.max(0, i - windowSize + 1), i + 1);
-    switch (operation) {
-      case 'average':
-        result.push(window.reduce((a, b) => a + b, 0) / window.length);
-        break;
-      case 'median':
-        result.push(computeMedian(window));
-        break;
-      case 'sum':
-        result.push(window.reduce((a, b) => a + b, 0));
-        break;
+
+  for (let i = 0; i <= values.length - size; i++) {
+    const window = values.slice(i, i + size);
+    if (operation === 'sum') {
+      result.push(window.reduce((sum, value) => sum + value, 0));
+      continue;
     }
+    if (operation === 'average') {
+      result.push(window.reduce((sum, value) => sum + value, 0) / size);
+      continue;
+    }
+    result.push(computeMedian(window) ?? 0);
   }
+
   return result;
 }
 
-/**
- * Parse and explain Google Sheets formula
- */
-export function explainFormula(formula: string): { functions: string[]; references: string[] } {
-  const functions: string[] = [];
-  const references: string[] = [];
-  const functionPattern = /([A-Z_]+)\(/g;
-  const referencePattern = /([A-Z]+\d+(?::[A-Z]+\d+)?)/g;
-  let match;
-  while ((match = functionPattern.exec(formula))) {
-    functions.push(match[1]);
+export function explainFormula(formula: string): {
+  summary: string;
+  functions: Array<{ name: string; description: string; arguments: string[] }>;
+  references: Array<{ ref: string }>;
+  complexity: 'simple' | 'moderate' | 'complex';
+} {
+  const cleaned = formula.startsWith('=') ? formula.slice(1) : formula;
+
+  const fnRegex = /([A-Z_]+)\s*\(/g;
+  const functions: Array<{ name: string; description: string; arguments: string[] }> = [];
+  const seenFns = new Set<string>();
+  let match: RegExpExecArray | null;
+
+  while ((match = fnRegex.exec(cleaned)) !== null) {
+    const fnName = match[1] ?? '';
+    if (seenFns.has(fnName)) continue;
+    seenFns.add(fnName);
+    functions.push({
+      name: fnName,
+      description: FUNCTION_DESCRIPTIONS[fnName] ?? `Google Sheets function: ${fnName}`,
+      arguments: extractFunctionArgs(cleaned, match.index + fnName.length),
+    });
   }
-  while ((match = referencePattern.exec(formula))) {
-    references.push(match[1]);
+
+  const refRegex = /(?:(?:[A-Za-z_]\w*!\s*)?\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?)/g;
+  const references: Array<{ ref: string }> = [];
+  const seenRefs = new Set<string>();
+
+  while ((match = refRegex.exec(cleaned)) !== null) {
+    const ref = match[0] ?? '';
+    if (!seenRefs.has(ref)) {
+      seenRefs.add(ref);
+      references.push({ ref });
+    }
   }
-  return { functions: [...new Set(functions)], references: [...new Set(references)] };
+
+  const complexity: 'simple' | 'moderate' | 'complex' =
+    functions.length >= 4 || cleaned.length > 120
+      ? 'complex'
+      : functions.length >= 2 || cleaned.length > 50
+        ? 'moderate'
+        : 'simple';
+
+  return {
+    summary: `Uses ${functions.length} function(s) with ${references.length} reference(s).`,
+    functions,
+    references,
+    complexity,
+  };
 }
 
-export const FUNCTION_DESCRIPTIONS: Record<string, string> = {
-  SUM: 'Sum of values',
-  AVERAGE: 'Average of values',
-  COUNT: 'Count of numeric values',
-  COUNTA: 'Count of non-empty values',
-  MIN: 'Minimum value',
-  MAX: 'Maximum value',
-  IF: 'Conditional statement',
-  VLOOKUP: 'Vertical lookup',
-  INDEX: 'Get value at index',
-  MATCH: 'Find position of value',
-  CONCATENATE: 'Join text strings',
-  LEN: 'Text length',
-  UPPER: 'Uppercase text',
-  LOWER: 'Lowercase text',
-  TRIM: 'Remove whitespace',
-  ROUND: 'Round to digits',
-  ABS: 'Absolute value',
-  SQRT: 'Square root',
-  POWER: 'Raise to power',
-  TODAY: 'Current date',
-  NOW: 'Current date and time',
-  YEAR: 'Year from date',
-  MONTH: 'Month from date',
-  DAY: 'Day from date',
-  FILTER: 'Filter range',
-  SORT: 'Sort range',
-  UNIQUE: 'Unique values',
+function extractFunctionArgs(formula: string, startIdx: number): string[] {
+  const openIdx = formula.indexOf('(', startIdx);
+  if (openIdx === -1) return [];
+
+  let depth = 0;
+  let current = '';
+  const args: string[] = [];
+
+  for (let i = openIdx + 1; i < formula.length; i++) {
+    const ch = formula[i] ?? '';
+
+    if (ch === '(') {
+      depth++;
+      current += ch;
+      continue;
+    }
+
+    if (ch === ')') {
+      if (depth === 0) {
+        if (current.trim()) args.push(current.trim());
+        break;
+      }
+      depth--;
+      current += ch;
+      continue;
+    }
+
+    if (ch === ',' && depth === 0) {
+      args.push(current.trim());
+      current = '';
+      continue;
+    }
+
+    current += ch;
+  }
+
+  return args;
+}
+
+const FUNCTION_DESCRIPTIONS: Record<string, string> = {
+  SUM: 'Adds numbers in a range.',
+  AVERAGE: 'Returns the arithmetic mean of values.',
+  COUNT: 'Counts numeric values in a range.',
+  COUNTA: 'Counts non-empty values in a range.',
+  MIN: 'Returns the smallest value in a range.',
+  MAX: 'Returns the largest value in a range.',
+  IF: 'Returns one value if a condition is true and another if false.',
+  IFS: 'Evaluates multiple conditions and returns the first matching result.',
+  AND: 'Returns TRUE if all conditions are TRUE.',
+  OR: 'Returns TRUE if any condition is TRUE.',
+  NOT: 'Reverses TRUE/FALSE.',
+  VLOOKUP: 'Looks up a value in the first column of a range.',
+  XLOOKUP: 'Looks up a value in a range or array and returns a match.',
+  INDEX: 'Returns a value by row/column position in a range.',
+  MATCH: 'Returns the position of a value in a range.',
+  FILTER: 'Filters a range by one or more conditions.',
+  QUERY: 'Runs a SQL-like query against a range.',
+  ARRAYFORMULA: 'Applies a formula to an entire range.',
+  IFERROR: 'Returns an alternate value when an error occurs.',
+  ROUND: 'Rounds a number to a specified number of digits.',
+  ROUNDUP: 'Rounds a number up to a specified number of digits.',
+  ROUNDDOWN: 'Rounds a number down to a specified number of digits.',
+  CONCATENATE: 'Joins multiple text values.',
+  TEXTJOIN: 'Joins text with a delimiter.',
+  SPLIT: 'Splits text around a delimiter.',
+  REGEXMATCH: 'Tests whether text matches a regular expression.',
+  REGEXEXTRACT: 'Extracts text matching a regular expression.',
+  REGEXREPLACE: 'Replaces text matching a regular expression.',
 };
 
+// ============================================================================
+// K-Means Clustering
+// ============================================================================
+
+export interface KMeansResult {
+  /** Cluster assignments per data point (0-indexed) */
+  assignments: number[];
+  /** Final centroid positions (one per cluster) */
+  centroids: number[][];
+  /** Number of points per cluster */
+  clusterSizes?: number[];
+  /** Within-cluster sum of squares (lower = tighter clusters) */
+  wcss?: number;
+  /** Iterations used to converge */
+  iterations: number;
+  /** Whether the algorithm converged */
+  converged?: boolean;
+  /** Error or warning message (e.g. identical data points) */
+  error?: string;
+}
+
 /**
- * K-Means clustering with K-Means++ initialization
+ * K-Means clustering on multi-dimensional numeric data.
+ * Uses K-Means++ initialization for deterministic, well-spread centroids.
+ *
+ * @param data - Array of data points, each point is an array of numbers
+ * @param k - Number of clusters (2-20)
+ * @param maxIterations - Max convergence iterations (default 100)
+ * @returns Cluster assignments, centroids, sizes, and WCSS
  */
 export function kMeansClustering(
   data: number[][],
   k: number,
-  maxIters: number = 100
-): { centers: number[][]; assignments: number[] } {
-  if (data.length === 0 || k <= 0) return { centers: [], assignments: [] };
-  // K-Means++ initialization
-  const centers = [data[Math.floor(Math.random() * data.length)]];
-  for (let c = 1; c < k; c++) {
-    const distances = data.map((point) =>
-      Math.min(...centers.map((center) => euclideanDistance(point, center)))
-    );
-    const totalDist = distances.reduce((a, b) => a + b, 0);
-    let random = Math.random() * totalDist;
-    for (let i = 0; i < data.length; i++) {
-      random -= distances[i] ?? 0;
-      if (random <= 0) {
-        centers.push(data[i]);
-        break;
-      }
-    }
-  }
-  // K-Means iterations
-  let assignments = Array(data.length).fill(0);
-  for (let iter = 0; iter < maxIters; iter++) {
-    // Assign points to nearest center
-    const newAssignments = data.map((point) =>
-      centers.reduce(
-        (minIdx, center, idx) =>
-          euclideanDistance(point, center) < euclideanDistance(point, centers[minIdx])
-            ? idx
-            : minIdx,
-        0
-      )
-    );
-    if (JSON.stringify(newAssignments) === JSON.stringify(assignments)) break;
-    assignments = newAssignments;
-    // Update centers
-    for (let c = 0; c < k; c++) {
-      const cluster = data.filter((_, i) => assignments[i] === c);
-      if (cluster.length > 0) {
-        const dim = data[0]?.length ?? 0;
-        centers[c] = Array.from({ length: dim }, (_, d) =>
-          cluster.reduce((sum, point) => sum + (point[d] ?? 0), 0) / cluster.length
-        );
-      }
-    }
-  }
-  return { centers, assignments };
-}
+  maxIterations: number = 100
+): KMeansResult {
+  const n = data.length;
+  const dims = data[0]?.length ?? 0;
 
-function euclideanDistance(a: number[], b: number[]): number {
-  return Math.sqrt(a.reduce((sum, val, i) => sum + (val - (b[i] ?? 0)) ** 2, 0));
+  if (n < k) {
+    throw new ValidationError(
+      `Cannot create ${k} clusters from ${n} data points`,
+      'k',
+      `a value ≤ ${n}`
+    );
+  }
+  if (k < 2 || k > 20) {
+    throw new ValidationError('k must be between 2 and 20', 'k', '2-20');
+  }
+  if (dims === 0) {
+    throw new ValidationError(
+      'Data points must have at least 1 dimension',
+      'data',
+      'non-empty rows'
+    );
+  }
+
+  // Early exit: if all data points are identical, K-Means is meaningless
+  const firstPoint = data[0]!;
+  const allIdentical = data.every((point) => point.every((val, d) => val === firstPoint[d]));
+  if (allIdentical) {
+    // All points are the same — return single cluster with all indices
+    return {
+      centroids: [firstPoint],
+      assignments: new Array(n).fill(0),
+      iterations: 0,
+      converged: true,
+      error: 'All data points are identical — clustering is not meaningful',
+    };
+  }
+
+  // K-Means++ initialization: pick well-spread initial centroids
+  const centroids: number[][] = [];
+  // First centroid: middle data point (deterministic)
+  centroids.push([...data[Math.floor(n / 2)]!]);
+
+  for (let c = 1; c < k; c++) {
+    // Compute distance from each point to nearest existing centroid
+    const distances = data.map((point) => {
+      let minDist = Infinity;
+      for (const centroid of centroids) {
+        let dist = 0;
+        for (let d = 0; d < dims; d++) {
+          dist += ((point[d] ?? 0) - (centroid[d] ?? 0)) ** 2;
+        }
+        minDist = Math.min(minDist, dist);
+      }
+      return minDist;
+    });
+
+    // Pick the point with maximum distance (deterministic K-Means++ variant)
+    let maxDist = -1;
+    let maxIdx = 0;
+    for (let i = 0; i < n; i++) {
+      if (distances[i]! > maxDist) {
+        maxDist = distances[i]!;
+        maxIdx = i;
+      }
+    }
+    centroids.push([...data[maxIdx]!]);
+  }
+
+  // Iterative assignment + update
+  let assignments = new Array<number>(n).fill(0);
+  let iterations = 0;
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    iterations++;
+    let changed = false;
+
+    // Assignment step: assign each point to nearest centroid
+    for (let i = 0; i < n; i++) {
+      let minDist = Infinity;
+      let bestCluster = 0;
+      for (let c = 0; c < k; c++) {
+        let dist = 0;
+        for (let d = 0; d < dims; d++) {
+          dist += ((data[i]![d] ?? 0) - (centroids[c]![d] ?? 0)) ** 2;
+        }
+        if (dist < minDist) {
+          minDist = dist;
+          bestCluster = c;
+        }
+      }
+      if (assignments[i] !== bestCluster) {
+        assignments[i] = bestCluster;
+        changed = true;
+      }
+    }
+
+    if (!changed) break; // Converged
+
+    // Update step: recompute centroids as mean of assigned points
+    for (let c = 0; c < k; c++) {
+      const sums = new Array<number>(dims).fill(0);
+      let count = 0;
+      for (let i = 0; i < n; i++) {
+        if (assignments[i] === c) {
+          for (let d = 0; d < dims; d++) {
+            sums[d]! += data[i]![d] ?? 0;
+          }
+          count++;
+        }
+      }
+      if (count > 0) {
+        for (let d = 0; d < dims; d++) {
+          centroids[c]![d] = sums[d]! / count;
+        }
+      }
+    }
+  }
+
+  // Compute cluster sizes and WCSS
+  const clusterSizes = new Array<number>(k).fill(0);
+  let wcss = 0;
+  for (let i = 0; i < n; i++) {
+    const c = assignments[i]!;
+    clusterSizes[c]!++;
+    for (let d = 0; d < dims; d++) {
+      wcss += ((data[i]![d] ?? 0) - (centroids[c]![d] ?? 0)) ** 2;
+    }
+  }
+
+  return { assignments, centroids, clusterSizes, wcss, iterations };
 }
 
 /**
- * Find optimal K using elbow method
+ * Elbow method: find optimal k by running K-Means for k=2..maxK
+ * and returning WCSS at each k. The "elbow" is where WCSS improvement flattens.
  */
-export function findOptimalK(data: number[][], maxK: number = 10): number {
-  if (data.length === 0) return 1;
-  const inertias: number[] = [];
-  for (let k = 1; k <= Math.min(maxK, data.length); k++) {
-    const { centers, assignments } = kMeansClustering(data, k, 50);
-    const inertia = data.reduce((sum, point, i) => {
-      const center = centers[assignments[i] ?? 0] ?? [];
-      return sum + euclideanDistance(point, center) ** 2;
-    }, 0);
-    inertias.push(inertia);
+export function findOptimalK(data: number[][], maxK: number = 10): { k: number; wcss: number }[] {
+  const effectiveMax = Math.min(maxK, data.length, 20);
+  const results: { k: number; wcss: number }[] = [];
+
+  for (let k = 2; k <= effectiveMax; k++) {
+    const result = kMeansClustering(data, k);
+    results.push({ k, wcss: Math.round((result.wcss ?? 0) * 100) / 100 });
   }
-  // Find elbow (largest change in slope)
-  let bestK = 1;
-  let maxSlope = 0;
-  for (let i = 1; i < inertias.length - 1; i++) {
-    const slope = Math.abs((inertias[i - 1] - inertias[i]) - (inertias[i] - inertias[i + 1]));
-    if (slope > maxSlope) {
-      maxSlope = slope;
-      bestK = i + 1;
-    }
-  }
-  return bestK;
+
+  return results;
 }
