@@ -1,148 +1,369 @@
 /**
- * ServalSheets - Data Handler
+ * ServalSheets - Data Handler (Thin Dispatch)
  *
- * Thin dispatch class for sheets_data tool (25 actions).
- * Delegates to modular action handlers in data-actions/ subdirectory.
+ * Handles the sheets_data tool (23 actions).
+ *
+ * Architecture: Thin dispatch class. Action implementations live in
+ * src/handlers/data-actions/ submodules and receive a DataHandlerAccess
+ * object exposing the protected BaseHandler capabilities they need.
+ *
+ * MCP Protocol: 2025-11-25
  */
 
-import { BaseHandler, unwrapRequest, type HandlerContext } from './base.js';
-import type { SheetsDataInput, SheetsDataOutput } from '../schemas/data.js';
+import { ErrorCodes } from './error-codes.js';
+import type { sheets_v4 } from 'googleapis';
+import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
+import type { SheetsDataInput, SheetsDataOutput, DataResponse } from '../schemas/data.js';
+import { getEnv } from '../config/env.js';
 
-// Import submodule handlers
-import { handleReadAction } from './data-actions/read.js';
-import { handleWriteAction } from './data-actions/write.js';
-import { handleAppendAction } from './data-actions/append.js';
-import { handleClearAction } from './data-actions/clear.js';
-import { handleBatchReadAction } from './data-actions/batch-read.js';
-import { handleBatchWriteAction } from './data-actions/batch-write.js';
-import { handleBatchClearAction } from './data-actions/batch-clear.js';
-import { handleFindReplaceAction } from './data-actions/find-replace.js';
-import { handleCopyPasteAction } from './data-actions/copy-paste.js';
-import { handleCutPasteAction } from './data-actions/cut-paste.js';
-import { handleMergeCellsAction } from './data-actions/merge-cells.js';
-import { handleUnmergeCellsAction } from './data-actions/unmerge-cells.js';
-import { handleGetMergesAction } from './data-actions/get-merges.js';
-import { handleAddNoteAction } from './data-actions/add-note.js';
-import { handleGetNoteAction } from './data-actions/get-note.js';
-import { handleClearNoteAction } from './data-actions/clear-note.js';
-import { handleSetHyperlinkAction } from './data-actions/set-hyperlink.js';
-import { handleClearHyperlinkAction } from './data-actions/clear-hyperlink.js';
-import { handleCrossReadAction } from './data-actions/cross-read.js';
-import { handleCrossQueryAction } from './data-actions/cross-query.js';
-import { handleCrossWriteAction } from './data-actions/cross-write.js';
-import { handleCrossCompareAction } from './data-actions/cross-compare.js';
-import { handleSmartFillAction } from './data-actions/smart-fill.js';
-import { handleAutoFillAction } from './data-actions/auto-fill.js';
-import { handleDetectSpillRangesAction } from './data-actions/detect-spill-ranges.js';
+// Type alias for the request union
+type DataRequest = SheetsDataInput['request'];
+import type { ResponseMeta } from '../schemas/index.js';
+import type { ErrorDetail, MutationSummary } from '../schemas/shared.js';
 
-/**
- * Handler access interface for submodule handlers
- * Exposes protected BaseHandler capabilities
- */
-export interface DataHandlerAccess {
-  readonly toolName: string;
-  readonly context: HandlerContext;
-  sendProgress(current: number, total: number, message?: string): Promise<void>;
-  confirmDestructiveAction(opts: {
-    description: string;
-    impact?: string;
-    impacts?: string[];
-    requiresSnapshot?: boolean;
-  }): Promise<void>;
-  createSnapshotIfNeeded(): Promise<string | undefined>;
-}
+// ─── Submodule imports ────────────────────────────────────────────────────────
+import type { DataHandlerAccess, DataFeatureFlags } from './data-actions/internal.js';
+import { handleRead, handleWrite, handleAppend, handleClear } from './data-actions/read-write.js';
+import {
+  handleBatchRead,
+  handleBatchWrite,
+  handleBatchClear,
+  handleFindReplace,
+} from './data-actions/batch.js';
+import {
+  handleAddNote,
+  handleGetNote,
+  handleClearNote,
+  handleSetHyperlink,
+  handleClearHyperlink,
+} from './data-actions/notes-links.js';
+import {
+  handleMergeCells,
+  handleUnmergeCells,
+  handleGetMerges,
+  handleCutPaste,
+  handleCopyPaste,
+  handleDetectSpillRanges,
+} from './data-actions/merges.js';
+import {
+  handleCrossRead,
+  handleCrossQuery,
+  handleCrossWrite,
+  handleCrossCompare,
+} from './data-actions/cross.js';
+import { handleSmartFill } from './data-actions/smart-fill.js';
+import { handleAutoFill } from './data-actions/auto-fill.js';
 
 /**
- * Utility to create handler access from BaseHandler instance
+ * Main handler for sheets_data tool — thin dispatch only.
  */
-function createHandlerAccess(handler: SheetsDataHandler): DataHandlerAccess {
-  return {
-    toolName: handler.toolName,
-    context: handler.context,
-    sendProgress: (current, total, message) => handler.sendProgress(current, total, message),
-    confirmDestructiveAction: (opts) => handler.confirmDestructiveAction(opts),
-    createSnapshotIfNeeded: () => handler.createSnapshotIfNeeded(),
-  };
-}
-
 export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOutput> {
-  constructor(context: HandlerContext) {
-    super('sheets_data', context);
-  }
+  private sheetsApi: sheets_v4.Sheets;
+  private featureFlags: DataFeatureFlags;
 
-  protected createIntents(_input: SheetsDataInput): Intent[] {
-    // Data handler uses direct API calls, not batch compiler
-    return [];
+  constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets) {
+    super('sheets_data', context);
+    this.sheetsApi = sheetsApi;
+    const env = getEnv();
+    const contextFlags = (context as HandlerContext & { featureFlags?: Record<string, unknown> })
+      .featureFlags;
+    this.featureFlags = {
+      enableDataFilterBatch:
+        (contextFlags?.['enableDataFilterBatch'] as boolean | undefined) ??
+        env.ENABLE_DATAFILTER_BATCH,
+      enableTableAppends:
+        (contextFlags?.['enableTableAppends'] as boolean | undefined) ?? env.ENABLE_TABLE_APPENDS,
+      enablePayloadValidation:
+        (contextFlags?.['enablePayloadValidation'] as boolean | undefined) ??
+        env.ENABLE_PAYLOAD_VALIDATION,
+    };
   }
 
   async handle(input: SheetsDataInput): Promise<SheetsDataOutput> {
-    const req = unwrapRequest<SheetsDataInput['request']>(input) as SheetsDataInput['request'];
+    this.requireAuth();
 
-    const handlerAccess = createHandlerAccess(this);
+    const inferredRequest = this.inferRequestParameters(
+      unwrapRequest<SheetsDataInput['request']>(input)
+    ) as DataRequest;
+
+    const verbosity = inferredRequest.verbosity ?? 'standard';
+    this.setVerbosity(verbosity);
+
+    if ('spreadsheetId' in inferredRequest) {
+      this.trackSpreadsheetId(inferredRequest.spreadsheetId);
+    }
+
+    try {
+      this.checkOperationScopes(`${this.toolName}.${inferredRequest.action}`);
+      const response = await this.executeAction(inferredRequest);
+
+      if (response.success && 'spreadsheetId' in inferredRequest) {
+        this.trackContextFromRequest({
+          spreadsheetId: inferredRequest.spreadsheetId,
+          sheetId:
+            'sheetId' in inferredRequest
+              ? typeof inferredRequest.sheetId === 'number'
+                ? inferredRequest.sheetId
+                : undefined
+              : undefined,
+          range:
+            'range' in inferredRequest
+              ? typeof inferredRequest.range === 'string'
+                ? inferredRequest.range
+                : undefined
+              : undefined,
+        });
+      }
+
+      const filteredResponse = super.applyVerbosityFilter(response, verbosity);
+      return { response: filteredResponse } as SheetsDataOutput;
+    } catch (err) {
+      return { response: this.mapError(err) } as SheetsDataOutput;
+    }
+  }
+
+  protected createIntents(input: SheetsDataInput): Intent[] {
+    const req = unwrapRequest<SheetsDataInput['request']>(input);
+    if (!('spreadsheetId' in req)) {
+      return [];
+    }
+    const baseIntent = {
+      target: {
+        spreadsheetId: req.spreadsheetId,
+      },
+      metadata: {
+        sourceTool: this.toolName,
+        sourceAction: req.action,
+        priority: 1,
+        destructive: false,
+      },
+    };
 
     switch (req.action) {
-      case 'read':
-        return handleReadAction(req as any, handlerAccess);
       case 'write':
-        return handleWriteAction(req as any, handlerAccess);
-      case 'append':
-        return handleAppendAction(req as any, handlerAccess);
-      case 'clear':
-        return handleClearAction(req as any, handlerAccess);
-      case 'batch_read':
-        return handleBatchReadAction(req as any, handlerAccess);
-      case 'batch_write':
-        return handleBatchWriteAction(req as any, handlerAccess);
-      case 'batch_clear':
-        return handleBatchClearAction(req as any, handlerAccess);
-      case 'find_replace':
-        return handleFindReplaceAction(req as any, handlerAccess);
-      case 'copy_paste':
-        return handleCopyPasteAction(req as any, handlerAccess);
-      case 'cut_paste':
-        return handleCutPasteAction(req as any, handlerAccess);
-      case 'merge_cells':
-        return handleMergeCellsAction(req as any, handlerAccess);
-      case 'unmerge_cells':
-        return handleUnmergeCellsAction(req as any, handlerAccess);
-      case 'get_merges':
-        return handleGetMergesAction(req as any, handlerAccess);
-      case 'add_note':
-        return handleAddNoteAction(req as any, handlerAccess);
-      case 'get_note':
-        return handleGetNoteAction(req as any, handlerAccess);
-      case 'clear_note':
-        return handleClearNoteAction(req as any, handlerAccess);
-      case 'set_hyperlink':
-        return handleSetHyperlinkAction(req as any, handlerAccess);
-      case 'clear_hyperlink':
-        return handleClearHyperlinkAction(req as any, handlerAccess);
-      case 'cross_read':
-        return handleCrossReadAction(req as any, handlerAccess);
-      case 'cross_query':
-        return handleCrossQueryAction(req as any, handlerAccess);
-      case 'cross_write':
-        return handleCrossWriteAction(req as any, handlerAccess);
-      case 'cross_compare':
-        return handleCrossCompareAction(req as any, handlerAccess);
-      case 'smart_fill':
-        return handleSmartFillAction(req as any, handlerAccess);
-      case 'auto_fill':
-        return handleAutoFillAction(req as any, handlerAccess);
-      case 'detect_spill_ranges':
-        return handleDetectSpillRangesAction(req as any, handlerAccess);
-      default:
-        return {
-          response: {
-            success: false,
-            error: {
-              code: 'INVALID_ACTION',
-              message: `Unknown action: ${(req as any).action}`,
-              retryable: false,
+        return [
+          {
+            ...baseIntent,
+            type: 'SET_VALUES' as const,
+            payload: { values: req.values },
+            metadata: {
+              ...baseIntent.metadata,
+              estimatedCells: req.values.reduce((sum, row) => sum + row.length, 0),
             },
           },
-        };
+        ];
+      case 'append':
+        return [
+          {
+            ...baseIntent,
+            type: 'APPEND_VALUES' as const,
+            payload: { values: req.values },
+            metadata: {
+              ...baseIntent.metadata,
+              estimatedCells: req.values.reduce((sum, row) => sum + row.length, 0),
+            },
+          },
+        ];
+      case 'clear':
+        return [
+          {
+            ...baseIntent,
+            type: 'CLEAR_VALUES' as const,
+            payload: {},
+            metadata: {
+              ...baseIntent.metadata,
+              destructive: true,
+            },
+          },
+        ];
+      default:
+        return [];
+    }
+  }
+
+  // ─── Public delegates for submodule access ────────────────────────────────
+
+  public _makeError(e: ErrorDetail): DataResponse {
+    return this.error(e);
+  }
+
+  public _makeSuccess(
+    action: string,
+    data: Record<string, unknown>,
+    mutation?: MutationSummary,
+    dryRun?: boolean,
+    meta?: ResponseMeta
+  ): DataResponse {
+    return this.success(action, data, mutation, dryRun, meta);
+  }
+
+  public _generateMeta(
+    action: string,
+    input: Record<string, unknown>,
+    result?: Record<string, unknown>,
+    options?: { cellsAffected?: number; apiCallsMade?: number; duration?: number }
+  ): ResponseMeta {
+    return this.generateMeta(action, input, result, options);
+  }
+
+  public _getSheetId(
+    spreadsheetId: string,
+    sheetName?: string,
+    api?: sheets_v4.Sheets
+  ): Promise<number> {
+    return this.getSheetId(spreadsheetId, sheetName, api);
+  }
+
+  public _deduplicatedApiCall<T>(key: string, call: () => Promise<T>): Promise<T> {
+    return this.deduplicatedApiCall(key, call);
+  }
+
+  public _recordAccessAndPrefetch(params: {
+    spreadsheetId: string;
+    sheetId?: number;
+    range?: string;
+    action?: 'read' | 'write' | 'open';
+  }): void {
+    return this.recordAccessAndPrefetch(params);
+  }
+
+  public _sendProgress(completed: number, total: number, message?: string): Promise<void> {
+    return this.sendProgress(completed, total, message);
+  }
+
+  public _withCircuitBreaker<T>(operation: string, fn: () => Promise<T>): Promise<T> {
+    return this.withCircuitBreaker(operation, fn);
+  }
+
+  public _columnToLetter(index: number): string {
+    return this.columnToLetter(index);
+  }
+
+  // ─── Handler access builder ───────────────────────────────────────────────
+
+  private createHandlerAccess(): DataHandlerAccess {
+    return {
+      makeError: (e) => this._makeError(e),
+      makeSuccess: (action, data, mutation, dryRun, meta) =>
+        this._makeSuccess(action, data, mutation, dryRun, meta),
+      generateMeta: (action, input, result, options) =>
+        this._generateMeta(action, input, result, options),
+      getSheetId: (spreadsheetId, sheetName, api) =>
+        this._getSheetId(spreadsheetId, sheetName, api),
+      resolveRange: (spreadsheetId, range) =>
+        this.resolveRange(spreadsheetId, range as Parameters<typeof this.resolveRange>[1]),
+      deduplicatedApiCall: (key, call) => this._deduplicatedApiCall(key, call),
+      recordAccessAndPrefetch: (params) => this._recordAccessAndPrefetch(params),
+      sendProgress: (completed, total, message) => this._sendProgress(completed, total, message),
+      withCircuitBreaker: (operation, fn) => this._withCircuitBreaker(operation, fn),
+      columnToLetter: (index) => this._columnToLetter(index),
+      context: this.context,
+      api: this.sheetsApi,
+      featureFlags: this.featureFlags,
+      toolName: this.toolName,
+      currentSpreadsheetId: this.currentSpreadsheetId,
+    };
+  }
+
+  // ─── Action dispatch ──────────────────────────────────────────────────────
+
+  private async executeAction(request: DataRequest): Promise<DataResponse> {
+    const ha = this.createHandlerAccess();
+
+    switch (request.action) {
+      case 'read':
+        return handleRead(ha, request);
+      case 'write':
+        return handleWrite(ha, request);
+      case 'append':
+        return handleAppend(ha, request);
+      case 'clear':
+        return handleClear(ha, request);
+      case 'batch_read':
+        return handleBatchRead(ha, request);
+      case 'batch_write':
+        return handleBatchWrite(ha, request);
+      case 'batch_clear':
+        return handleBatchClear(ha, request);
+      case 'find_replace':
+        return handleFindReplace(ha, request);
+      case 'add_note':
+        return handleAddNote(ha, request);
+      case 'get_note':
+        return handleGetNote(ha, request);
+      case 'clear_note':
+        return handleClearNote(ha, request);
+      case 'set_hyperlink':
+        return handleSetHyperlink(ha, request);
+      case 'clear_hyperlink':
+        return handleClearHyperlink(ha, request);
+      case 'merge_cells':
+        return handleMergeCells(ha, request);
+      case 'unmerge_cells':
+        return handleUnmergeCells(ha, request);
+      case 'get_merges':
+        return handleGetMerges(ha, request);
+      case 'cut_paste':
+        return handleCutPaste(ha, request);
+      case 'copy_paste':
+        return handleCopyPaste(ha, request);
+      case 'detect_spill_ranges':
+        return handleDetectSpillRanges(ha, request);
+      case 'cross_read':
+        return handleCrossRead(ha, request as DataRequest & { action: 'cross_read' });
+      case 'cross_query':
+        return handleCrossQuery(ha, request as DataRequest & { action: 'cross_query' });
+      case 'cross_write':
+        return handleCrossWrite(ha, request as DataRequest & { action: 'cross_write' });
+      case 'cross_compare':
+        return handleCrossCompare(ha, request as DataRequest & { action: 'cross_compare' });
+      case 'smart_fill':
+        return handleSmartFill(
+          ha,
+          request as unknown as import('../schemas/data.js').DataSmartFillInput
+        );
+      case 'auto_fill':
+        return handleAutoFill(
+          ha,
+          request as unknown as import('../schemas/data.js').DataAutoFillInput
+        );
+
+      default: {
+        // Legacy alias path — handle old action names for backwards compat
+        const action = (request as { action: string }).action;
+        if (action === 'set_note' || action === 'notes') {
+          return handleAddNote(ha, request as unknown as DataRequest & { action: 'add_note' });
+        }
+        if (action === 'add_hyperlink' || action === 'hyperlink' || action === 'hyperlinks') {
+          return handleSetHyperlink(
+            ha,
+            request as unknown as DataRequest & { action: 'set_hyperlink' }
+          );
+        }
+        if (action === 'merge') {
+          return handleMergeCells(
+            ha,
+            request as unknown as DataRequest & { action: 'merge_cells' }
+          );
+        }
+        if (action === 'unmerge') {
+          return handleUnmergeCells(
+            ha,
+            request as unknown as DataRequest & { action: 'unmerge_cells' }
+          );
+        }
+
+        // Exhaustive check: all branches above handle their action, if we reach here it's unknown
+        const exhaustiveCheck: string = action as string;
+        return this.error({
+          code: ErrorCodes.INVALID_PARAMS,
+          message: `Unknown action: ${exhaustiveCheck}. Available actions: read, write, append, clear, batch_read, batch_write, batch_clear, find_replace, add_note, get_note, clear_note, set_hyperlink, clear_hyperlink, merge_cells, unmerge_cells, get_merges, cut_paste, copy_paste, cross_read, cross_query, cross_write, cross_compare`,
+          retryable: false,
+          suggestedFix:
+            'Check the parameter format and ensure all required parameters are provided',
+        });
+      }
     }
   }
 }
