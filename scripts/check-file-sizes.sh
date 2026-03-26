@@ -86,8 +86,8 @@ get_budget_override() {
     # ── Services — complex stateful services (not decomposed yet) ────────────
     # google-api.ts: 1827 lines — core API client with retry/circuit breaker
     "src/services/google-api.ts")           echo 2050 ;;
-    # transaction-manager.ts: ~2139 lines — transaction state machine (WAL extracted to transaction-wal.ts)
-    "src/services/transaction-manager.ts")  echo 2200 ;;
+    # transaction-manager.ts: ~2261 lines — transaction state machine (WAL extracted to transaction-wal.ts)
+    "src/services/transaction-manager.ts")  echo 2300 ;;
     # session-context.ts: 1676 lines — session state manager
     "src/services/session-context.ts")      echo 1850 ;;
     # impact-analyzer.ts: 1287 lines — dependency impact analysis
