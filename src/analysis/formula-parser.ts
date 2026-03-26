@@ -137,7 +137,7 @@ function parseFormulaInternal(formula: string): ParsedFormula {
           return ref.sheet;
         }
       }
-      return undefined; // cursor not within any sheet ref
+      return undefined; // OK: Explicit empty — cursor not within any sheet ref
     };
 
     // Extract ranges (must be before cells to avoid partial matches)
